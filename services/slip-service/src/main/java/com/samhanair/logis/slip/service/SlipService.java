@@ -26,6 +26,7 @@ import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.service.dispatchgroup.DispatchGroupSlipReferenceGuard;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
@@ -139,6 +140,7 @@ public class SlipService {
     private final OutboundCutoffGuard cutoffGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
+    private final DispatchGroupSlipReferenceGuard dispatchGroupSlipReferenceGuard;
 
     /**
      * 전표 라인 추가 — BUNDLE(세트)면 product-service expand 로 구성품 라인 N개 전개(첫 setHead+parentSetModel),
@@ -605,6 +607,7 @@ public class SlipService {
      */
     public void softDelete(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        dispatchGroupSlipReferenceGuard.assertDeletable(id);
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
         applyMutation(() -> slip.markDeleted(callerId == null ? "system" : callerId));
         consumedApproval.ifPresent(approval ->
