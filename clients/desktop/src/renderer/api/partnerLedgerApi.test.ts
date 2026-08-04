@@ -34,6 +34,25 @@ describe('partner ledger adapter', () => {
     expect(lines.map((line) => line.journalNo)).toEqual(['2026/08/01-1', '2026/08/02-1'])
   })
 
+  it('uses VAT-included sale amount and keeps the 401 journal fixture out of the customer ledger', () => {
+    const lines = buildPartnerLedgerLines([
+      {
+        type: 'SALE', documentNo: '2026/08/01-1', date: '2026-08-01', deliveryAddress: null,
+        amount: '1100', lines: [{ productName: 'VAT 포함', modelName: null, quantity: 1,
+          unitPriceWithVat: '1100', lineAmount: '1100' }],
+      },
+      {
+        type: 'CASH_RECEIPT', documentNo: '2026/08/02-1', date: '2026-08-02', deliveryAddress: null,
+        amount: '400', lines: [],
+      },
+    ])
+
+    expect(lines.map((line) => [line.debit, line.credit, line.balance])).toEqual([
+      ['1100', '0', '1100'],
+      ['0', '400', '700'],
+    ])
+  })
+
   it('orders same-day unpadded document numbers numerically before computing balances', () => {
     const lines = buildPartnerLedgerLines([
       {

@@ -101,6 +101,10 @@ public class TaxInvoiceBatch extends BaseEntity {
     @Column(name = "document_key", length = 100)
     private String documentKey;
 
+    /** 복원본 복사 저장 시 원본 사용자 배치번호. 최초 live 저장은 null. */
+    @Column(name = "source_batch_no", length = 20)
+    private String sourceBatchNo;
+
     /** 작업자 UUID (X-User-Id 헤더). */
     @Column(name = "processed_by")
     private UUID processedBy;
@@ -155,12 +159,22 @@ public class TaxInvoiceBatch extends BaseEntity {
     public static TaxInvoiceBatch createDocumentSnapshot(String documentType, String documentKey,
                                                          String batchNo, LocalDate fromDate,
                                                          LocalDate toDate, UUID processedBy) {
+        return createDocumentSnapshot(documentType, documentKey, batchNo, fromDate, toDate,
+                processedBy, null);
+    }
+
+    /** 원장 복원본을 새 snapshot으로 복사할 때 원본 배치번호를 lineage로 남긴다. */
+    public static TaxInvoiceBatch createDocumentSnapshot(String documentType, String documentKey,
+                                                         String batchNo, LocalDate fromDate,
+                                                         LocalDate toDate, UUID processedBy,
+                                                         String sourceBatchNo) {
         TaxInvoiceBatch batch = create(batchNo, fromDate, toDate, processedBy);
         if (documentType == null || documentType.isBlank()) {
             throw new IllegalArgumentException("documentType 은 필수입니다");
         }
         batch.documentType = documentType;
         batch.documentKey = documentKey;
+        batch.sourceBatchNo = sourceBatchNo;
         return batch;
     }
 

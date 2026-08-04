@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.samhanair.logis.accounting.client.PartnerLedgerSalesClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -10,6 +11,9 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
+import com.samhanair.logis.accounting.domain.Journal;
+import com.samhanair.logis.accounting.domain.JournalLine;
+import com.samhanair.logis.accounting.domain.CashReceipt;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -19,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.jpa.domain.Specification;
 
 /** R18 공통 원장 산출 결과 RED 회귀. */
 @ExtendWith(MockitoExtension.class)
@@ -55,6 +60,38 @@ class PartnerLedgerReadModelServiceTest {
     }
 
     @Test
+    void vatIncludedDocumentAmountWinsWhenLegacyRevenueJournalUsesNetAmount() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = new PartnerSummary(partnerId, "P-VAT-001", "VAT 교차 거래처", "1234567890", "");
+        when(partnerLookupClient.findByPartnerCodeResult("P-VAT-001"))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
+                // 교차 경로 fixture: legacy 401 순액 1,000, 정상 판매전표 VAT 포함 문서금액 1,100.
+                new Total(partnerId, "401", BigDecimal.ZERO, new BigDecimal("1000")),
+                new Total(partnerId, "110", new BigDecimal("1100"), BigDecimal.ZERO)));
+        CashReceipt receipt = CashReceipt.fromMig7Staging(
+                "2026/01/11-1", partnerId, new BigDecimal("400"), FROM,
+                com.samhanair.logis.accounting.domain.CashReceiptKind.DEPOSIT_REPORT,
+                "교차 fixture 수금", "VAT-CROSS-400");
+        when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of(receipt));
+        when(salesClient.find(FROM, TO, "P-VAT-001", partnerId)).thenReturn(List.of(
+                new PartnerLedgerSalesClient.Sale("2026/01/10-1", FROM, "COMPLETED", "P-VAT-001",
+                        partnerId, "VAT 교차 거래처", "", "1234567890", List.of(
+                        new PartnerLedgerSalesClient.Line("VAT 상품", null, 1,
+                                new BigDecimal("1100"), new BigDecimal("1100"))))));
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read("P-VAT-001", FROM, TO);
+
+        assertThat(result.selected().salesTotal()).isEqualByComparingTo("1100");
+        assertThat(result.selected().paymentTotal()).isEqualByComparingTo("400");
+        assertThat(result.selected().documents()).extracting(PartnerLedgerReadModel.Document::amount)
+                .containsExactly(new BigDecimal("1100"), new BigDecimal("400"));
+        assertThat(result.selected().receivableBalance()).isEqualByComparingTo("700");
+    }
+
+    @Test
     void unfilteredSaleOnlyPartnersUseTheSameIdentityAsDirectSearch() {
         UUID partnerId = UUID.randomUUID();
         PartnerSummary partner = new PartnerSummary(partnerId, "P-2026-0031", "대상", "5031710961", "");
@@ -77,25 +114,133 @@ class PartnerLedgerReadModelServiceTest {
     }
 
     @Test
-    void journalOnlySalesBecomePubliclyUsableSummaryDocumentsWithoutUuid() {
+    void journalOnlySalesBecomeJournalBasedDocumentsWithMigrationNotice() {
         UUID partnerId = UUID.randomUUID();
         PartnerSummary partner = new PartnerSummary(partnerId, "P-2026-0005", "대상", "1653510155", "");
         when(partnerLookupClient.findByPartnerCodeResult("P-2026-0005"))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "401", BigDecimal.ZERO, new BigDecimal("26000000"))));
+                new Total(partnerId, "401", BigDecimal.ZERO, new BigDecimal("26000000")),
+                new Total(partnerId, "110", new BigDecimal("28600000"), BigDecimal.ZERO)));
         when(salesClient.find(FROM, TO, "P-2026-0005", partnerId)).thenReturn(List.of());
+        Journal journal = org.mockito.Mockito.mock(Journal.class);
+        when(journal.getJournalNo()).thenReturn("2026/01/01-1");
+        when(journal.getJournalDate()).thenReturn(FROM);
+        JournalLine line = org.mockito.Mockito.mock(JournalLine.class);
+        when(line.getJournal()).thenReturn(journal);
+        when(line.getLineNo()).thenReturn(1);
+        when(line.getAccountCode()).thenReturn("110");
+        when(line.getDebitAmount()).thenReturn(new BigDecimal("28600000"));
+        when(line.getCreditAmount()).thenReturn(BigDecimal.ZERO);
+        when(line.getMemo()).thenReturn("전표 미이관");
+        JournalLine revenueLine = org.mockito.Mockito.mock(JournalLine.class);
+        when(revenueLine.getJournal()).thenReturn(journal);
+        when(revenueLine.getLineNo()).thenReturn(2);
+        when(revenueLine.getAccountCode()).thenReturn("401");
+        when(revenueLine.getDebitAmount()).thenReturn(BigDecimal.ZERO);
+        when(revenueLine.getCreditAmount()).thenReturn(new BigDecimal("26000000"));
+        when(revenueLine.getMemo()).thenReturn("전표 미이관");
+        when(journalLineRepository.findPartnerLinesInRange(partnerId, FROM, TO))
+                .thenReturn(List.of(line, revenueLine));
 
         var result = new PartnerLedgerReadModelService(
                 salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
                 partnerLookupClient).read("P-2026-0005", FROM, TO);
 
         assertThat(result.selected().salesTotal()).isEqualByComparingTo("26000000");
-        assertThat(result.selected().documents()).extracting(PartnerLedgerReadModel.Document::type)
-                .containsExactly(PartnerLedgerReadModel.DocumentType.SALE_SUMMARY);
-        assertThat(result.selected().documents().get(0).documentNo()).doesNotContain(partnerId.toString());
-        assertThat(result.selected().documents().get(0).documentNo()).isEqualTo("P-2026-0005");
+        assertThat(result.selected().documents()).hasSize(2)
+                .extracting(PartnerLedgerReadModel.Document::type)
+                .containsOnly(PartnerLedgerReadModel.DocumentType.JOURNAL_ONLY);
+        assertThat(result.selected().documents())
+                .allSatisfy(document -> assertThat(document.description())
+                        .contains("판매전표 없음 / 전표 미이관"));
         assertThat(result.selected().partnerId()).isNotNull();
+    }
+
+    @Test
+    void journalOnlyReceivableActivityStillHasAVisibleJournalRow() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = new PartnerSummary(partnerId, "P-JOURNAL-110", "분개 전용 거래처", "", "");
+        when(partnerLookupClient.findByPartnerCodeResult("P-JOURNAL-110"))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
+                new Total(partnerId, "110", new BigDecimal("500"), BigDecimal.ZERO)));
+        when(salesClient.find(FROM, TO, "P-JOURNAL-110", partnerId)).thenReturn(List.of());
+        JournalLine line = org.mockito.Mockito.mock(JournalLine.class);
+        when(line.getLineNo()).thenReturn(1);
+        when(line.getAccountCode()).thenReturn("110");
+        when(line.getDebitAmount()).thenReturn(new BigDecimal("500"));
+        when(line.getCreditAmount()).thenReturn(BigDecimal.ZERO);
+        when(line.getMemo()).thenReturn("분개만 존재");
+        when(journalLineRepository.findPartnerLinesInRange(partnerId, FROM, TO)).thenReturn(List.of(line));
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read("P-JOURNAL-110", FROM, TO);
+
+        assertThat(result.selected().documents()).hasSize(1);
+        assertThat(result.selected().documents().get(0).description())
+                .contains("판매전표 없음 / 전표 미이관");
+    }
+
+    @Test
+    void unknownFilterDoesNotFallBackToUnfilteredData() {
+        when(partnerLookupClient.findByPartnerCodeResult("NOSUCH9999"))
+                .thenReturn(PartnerLookupClient.LookupResult.notFound());
+        when(partnerLookupClient.searchDirectoryResult("NOSUCH9999", 10))
+                .thenReturn(PartnerLookupClient.DirectoryLookupResult.notFound());
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read("NOSUCH9999", FROM, TO);
+
+        assertThat(result.partners()).isEmpty();
+        assertThat(result.selected()).isNull();
+        verifyNoInteractions(journalLineRepository, cashReceiptRepository, journalRepository, salesClient);
+    }
+
+    @Test
+    void unfilteredCodeOnlySaleIsIncludedOnlyWhenActivePartnerMasterResolvesIt() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = new PartnerSummary(partnerId, "P-2026-0042", "정상 거래처", "1234567890", "",
+                null, "SUSPENDED");
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of());
+        when(salesClient.find(FROM, TO, null, null)).thenReturn(List.of(
+                new PartnerLedgerSalesClient.Sale("2026/02/01-1", FROM, "COMPLETED", "P-2026-0042",
+                        null, "정상 거래처", "", "1234567890", List.of(
+                        new PartnerLedgerSalesClient.Line("A", null, 1, new BigDecimal("1100"),
+                                new BigDecimal("1100"))))));
+        when(partnerLookupClient.findByPartnerCodeResult("P-2026-0042"))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(partnerLookupClient.findByPartnerIdsBatch(List.of(partnerId)))
+                .thenReturn(Map.of(partnerId, partner));
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read(null, FROM, TO);
+
+        assertThat(result.partners()).extracting(PartnerLedgerReadModel.Partner::partnerCode)
+                .containsExactly("P-2026-0042");
+    }
+
+    @Test
+    void unfilteredCodeOnlySaleWithoutPartnerMasterIsNotExposed() {
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of());
+        when(salesClient.find(FROM, TO, null, null)).thenReturn(List.of(
+                new PartnerLedgerSalesClient.Sale("2026/02/01-unknown", FROM, "COMPLETED", "UNKNOWN-CODE",
+                        null, "미등록", "", null, List.of(
+                        new PartnerLedgerSalesClient.Line("A", null, 1, new BigDecimal("1100"),
+                                new BigDecimal("1100"))))));
+        when(partnerLookupClient.findByPartnerCodeResult("UNKNOWN-CODE"))
+                .thenReturn(PartnerLookupClient.LookupResult.notFound());
+        when(partnerLookupClient.searchDirectoryResult("UNKNOWN-CODE", 10))
+                .thenReturn(PartnerLookupClient.DirectoryLookupResult.notFound());
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read(null, FROM, TO);
+
+        assertThat(result.partners()).isEmpty();
     }
 
     record Total(UUID partnerId, String accountCode, BigDecimal debitTotal, BigDecimal creditTotal)

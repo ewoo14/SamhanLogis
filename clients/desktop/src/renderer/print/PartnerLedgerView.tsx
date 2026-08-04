@@ -38,7 +38,7 @@ import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PrintLayout, krw, krDate } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
-import { getLedgerData, type LedgerData } from '../api/partnerLedgerApi'
+import { getLedgerData, mapLedgerSnapshotResponse, restoreLedger, type LedgerData } from '../api/partnerLedgerApi'
 import styles from './PartnerLedgerView.module.css'
 
 /**
@@ -68,6 +68,7 @@ interface LedgerLine {
   balance: number
   /** 구조화된 배송주소. 적요에서 파싱하지 않는다. */
   deliveryAddress?: string | null
+  documentType?: string
 }
 
 /**
@@ -205,6 +206,7 @@ function formatBalance(n: number): string {
 export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}) {
   const [searchParams] = useSearchParams()
   const partnerCodeParam = partnerCode ?? searchParams.get('partnerCode')
+  const batchNoParam = searchParams.get('batchNo')
   const periodFrom = useMemo(
     () => resolvePeriodDate(searchParams.get('from'), 'from'),
     [searchParams],
@@ -215,8 +217,10 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
   )
 
   const ledgerQuery = useQuery<LedgerData>({
-    queryKey: ['partner-ledger-print', partnerCodeParam, periodFrom, periodTo],
-    queryFn: () => getLedgerData(partnerCodeParam ?? '', periodFrom, periodTo),
+    queryKey: ['partner-ledger-print', partnerCodeParam, periodFrom, periodTo, batchNoParam ?? ''],
+    queryFn: async () => batchNoParam
+      ? mapLedgerSnapshotResponse((await restoreLedger(batchNoParam)).ledger!)
+      : getLedgerData(partnerCodeParam ?? '', periodFrom, periodTo),
     enabled: Boolean(partnerCodeParam),
   })
   const data: PartnerLedgerData | null = useMemo(() => {
@@ -230,6 +234,7 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
       credit: Number(line.credit) || 0,
       balance: Number(line.balance) || 0,
       deliveryAddress: line.deliveryAddress,
+      documentType: line.documentType,
     }))
     return {
       partnerCode: source.partnerCode,
@@ -238,11 +243,11 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
       chatRoomName: source.chatRoomNames.join(' / '),
       periodFrom: source.periodFrom,
       periodTo: source.periodTo,
-      openingBalance: 0,
+      openingBalance: Number(source.openingBalance) || 0,
       lines,
       totalDebit: lines.reduce((sum, line) => sum + line.debit, 0),
       totalCredit: lines.reduce((sum, line) => sum + line.credit, 0),
-      closingBalance: lines.at(-1)?.balance ?? 0,
+      closingBalance: Number(source.closingBalance ?? lines.at(-1)?.balance ?? source.openingBalance) || 0,
     }
   }, [ledgerQuery.data])
 
@@ -319,7 +324,9 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
                   <td className={styles.dateCell}>{line.date}</td>
                   <td className={styles.slipNoCell}>{line.slipNo}</td>
                   <td>{line.deliveryAddress || '—'}</td>
-                  <td className={styles.descCell}>{line.description}</td>
+                  <td className={styles.descCell}>
+                    {line.description}
+                  </td>
                   <td className={`${styles.num} ${styles.debitCell}`} style={{ color: line.debit < 0 ? '#DC2626' : undefined }}>
                     {formatBalance(line.debit)}
                   </td>

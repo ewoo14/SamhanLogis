@@ -162,7 +162,7 @@ public class AccountingReportController {
         return ApiResponse.ok(partnerLedgerReadService.read(partnerCode, from, to));
     }
 
-    /** 거래처별 원장 자동 저장 이력 — 날짜 범위와 거래처 코드로 조회한다. */
+    /** 거래처별 원장 저장 이력 — 날짜 범위와 거래처 코드로 조회한다. */
     @GetMapping("/accounting/journals/ledger-history")
     @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<LedgerHistoryResponse>> ledgerHistory(
@@ -179,6 +179,15 @@ public class AccountingReportController {
     @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<LedgerHistoryResponse> restoreLedger(@PathVariable String batchNo) {
         return ApiResponse.ok(ledgerSnapshotService.restore(batchNo));
+    }
+
+    /** 복원 중인 원장 payload를 현재 원장으로 재조회하지 않고 새 저장 이력으로 복사한다. */
+    @PostMapping("/accounting/journals/ledger-history/{batchNo}/copy")
+    @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    public ApiResponse<LedgerHistoryResponse> copyLedger(
+            @PathVariable String batchNo,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return ApiResponse.ok(ledgerSnapshotService.copy(batchNo, parseUuid(userId)));
     }
 
     /** BE-A10 거래명세서 batch. */

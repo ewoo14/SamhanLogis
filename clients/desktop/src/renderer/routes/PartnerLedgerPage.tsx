@@ -46,6 +46,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Spinner } from '@samhan/design-system'
 import {
   captureLedger,
+  copyLedgerSnapshot,
   getLedgerData,
   getLedgerHistory,
   getSalesAggregate,
@@ -116,7 +117,7 @@ function downloadCsv(filename: string, content: string): void {
 }
 
 /** 집계 + 원장 line CSV 직렬화. */
-function buildCsv(
+export function buildCsv(
   aggregate: SalesAggregateRow[],
   ledger: LedgerData | null,
 ): string {
@@ -138,7 +139,7 @@ function buildCsv(
   for (const row of aggregate) {
     lines.push(
       [
-        row.bizNo,
+        row.partnerCode,
         row.partnerName,
         row.salesTotal,
         row.paymentTotal,
@@ -188,10 +189,15 @@ function buildCsv(
 }
 
 /** 인쇄 라우트 path 생성 — `/print/partner-ledger?partnerCode=&from=&to=`. */
-function buildPrintPath(partnerCode: string, from: string, to: string): string {
+function buildPrintPath(partnerCode: string, from: string, to: string, batchNo?: string): string {
   const qs = new URLSearchParams({ partnerCode, from, to })
+  if (batchNo) qs.set('batchNo', batchNo)
   return `/print/partner-ledger?${qs.toString()}`
 }
+
+type ActiveLedger =
+  | { source: 'LIVE'; data: LedgerData }
+  | { source: 'SNAPSHOT'; batchNo: string; savedAt: string; data: LedgerData }
 
 const inputStyle: CSSProperties = {
   height: 32,
@@ -242,7 +248,8 @@ export function PartnerLedgerPage() {
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null)
   // 일괄 인쇄용 multi-select 거래처 코드 set
   const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set())
-  const [restoredLedger, setRestoredLedger] = useState<LedgerData | null>(null)
+  const [snapshotLedger, setSnapshotLedger] = useState<Extract<ActiveLedger, { source: 'SNAPSHOT' }> | null>(null)
+  const [historyPage, setHistoryPage] = useState(0)
   const [isSavingSnapshot, setIsSavingSnapshot] = useState(false)
 
   const aggregateQuery = useQuery<SalesAggregateRow[]>({
@@ -263,10 +270,13 @@ export function PartnerLedgerPage() {
   })
 
   const historyQuery = useQuery({
-    queryKey: ['partner-ledger-history', selectedPartner, applied.from, applied.to],
-    queryFn: () => getLedgerHistory(selectedPartner ?? '', applied.from, applied.to),
+    queryKey: ['partner-ledger-history', selectedPartner, applied.from, applied.to, historyPage],
+    queryFn: () => getLedgerHistory(selectedPartner ?? '', applied.from, applied.to, historyPage),
     enabled: !!selectedPartner,
   })
+
+  const activeLedger: ActiveLedger | null = snapshotLedger
+    ?? (ledgerQuery.data ? { source: 'LIVE', data: ledgerQuery.data } : null)
 
   const handleSearch = () => {
     if (!from || !to || from > to) return
@@ -276,25 +286,39 @@ export function PartnerLedgerPage() {
       partnerCode: partnerFilter.trim() || undefined,
     })
     setSelectedPartner(null)
-    setRestoredLedger(null)
+    setSnapshotLedger(null)
+    setHistoryPage(0)
     setBatchSelected(new Set())
   }
 
   const handleSelectPartner = (partnerCode: string) => {
     setSelectedPartner(partnerCode)
-    setRestoredLedger(null)
+    setSnapshotLedger(null)
+    setHistoryPage(0)
   }
 
   const handleRestore = async (batchNo: string) => {
     const restored = await restoreLedger(batchNo)
-    setRestoredLedger(restored.ledger ? mapLedgerSnapshotResponse(restored.ledger) : null)
+    if (restored.ledger) {
+      setSnapshotLedger({
+        source: 'SNAPSHOT',
+        batchNo: restored.batchNo,
+        savedAt: restored.savedAt,
+        data: mapLedgerSnapshotResponse(restored.ledger),
+      })
+    }
   }
 
   const handleCaptureSnapshot = async () => {
-    if (!selectedPartner || !ledgerQuery.data || isSavingSnapshot) return
+    if (!selectedPartner || !activeLedger || isSavingSnapshot) return
     setIsSavingSnapshot(true)
     try {
-      await captureLedger(selectedPartner, applied.from, applied.to)
+      if (activeLedger.source === 'SNAPSHOT') {
+        await copyLedgerSnapshot(activeLedger.batchNo)
+      } else {
+        await captureLedger(selectedPartner, applied.from, applied.to)
+      }
+      setHistoryPage(0)
       await historyQuery.refetch()
     } finally {
       setIsSavingSnapshot(false)
@@ -314,7 +338,12 @@ export function PartnerLedgerPage() {
     if (!selectedPartner) return
     // Electron은 보안상 renderer의 내부 window.open을 차단하고 단일 BrowserWindow를 사용한다.
     // 따라서 인쇄 전용 화면은 현재 창의 허용된 HashRouter 라우트로 이동한다.
-    navigate(buildPrintPath(selectedPartner, applied.from, applied.to))
+    navigate(buildPrintPath(
+      selectedPartner,
+      applied.from,
+      applied.to,
+      activeLedger?.source === 'SNAPSHOT' ? activeLedger.batchNo : undefined,
+    ))
   }
 
   const handleBatchPrint = () => {
@@ -329,9 +358,12 @@ export function PartnerLedgerPage() {
   }
 
   const handleCsv = () => {
-    if (!aggregateQuery.data) return
+    if (!aggregateQuery.data || !activeLedger) return
     const filename = `partner-ledger_${applied.from}_${applied.to}.csv`
-    const csv = buildCsv(aggregateQuery.data, ledgerQuery.data ?? null)
+    const aggregate = activeLedger.source === 'SNAPSHOT'
+      ? [snapshotAggregateRow(activeLedger.data)]
+      : aggregateQuery.data
+    const csv = buildCsv(aggregate, activeLedger.data)
     downloadCsv(filename, csv)
   }
 
@@ -413,7 +445,7 @@ export function PartnerLedgerPage() {
             variant="secondary"
             data-testid="partner-ledger-csv-download"
             onClick={handleCsv}
-            disabled={!aggregateQuery.data || aggregateQuery.data.length === 0}
+            disabled={!aggregateQuery.data || aggregateQuery.data.length === 0 || !activeLedger}
           >
             CSV 다운로드
           </Button>
@@ -619,8 +651,24 @@ export function PartnerLedgerPage() {
           <div className="error-banner" role="alert">
             원장 조회 실패: {ledgerError.message}
           </div>
-        ) : restoredLedger || ledgerQuery.data ? (
-          <LedgerDetailTable data={restoredLedger ?? ledgerQuery.data!} />
+        ) : activeLedger ? (
+          <>
+            {activeLedger.source === 'SNAPSHOT' ? (
+              <div role="status" style={{ marginBottom: 8, color: '#92400E', fontSize: 12 }}>
+                복원 원장 {activeLedger.batchNo} · 저장 시각 {activeLedger.savedAt}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="partner-ledger-return-live"
+                  onClick={() => setSnapshotLedger(null)}
+                  style={{ marginLeft: 8 }}
+                >
+                  현재 원장으로 돌아가기
+                </Button>
+              </div>
+            ) : null}
+            <LedgerDetailTable data={activeLedger.data} />
+          </>
         ) : null}
 
         {selectedPartner ? (
@@ -634,13 +682,13 @@ export function PartnerLedgerPage() {
                 marginBottom: 8,
               }}
             >
-              <h4 style={{ margin: 0 }}>자동 저장 이력</h4>
+                <h4 style={{ margin: 0 }}>원장 저장 이력</h4>
               <Button
                 variant="secondary"
                 size="sm"
                 data-testid="partner-ledger-save-snapshot"
                 onClick={() => void handleCaptureSnapshot()}
-                disabled={isSavingSnapshot || !ledgerQuery.data}
+                disabled={isSavingSnapshot || !activeLedger}
               >
                 {isSavingSnapshot ? '저장 중…' : '현재 원장 저장'}
               </Button>
@@ -650,7 +698,8 @@ export function PartnerLedgerPage() {
             ) : historyQuery.error ? (
               <div className="error-banner" role="alert">이력 조회 실패</div>
             ) : historyQuery.data?.content.length ? (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr>
                     <th style={thStyle}>배치번호</th>
@@ -680,7 +729,31 @@ export function PartnerLedgerPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="partner-ledger-history-prev"
+                  disabled={(historyQuery.data?.number ?? historyPage) <= 0}
+                  onClick={() => setHistoryPage((page) => Math.max(0, page - 1))}
+                >
+                  이전
+                </Button>
+                <span style={{ color: '#6B7280', fontSize: 12 }}>
+                  {(historyQuery.data?.number ?? historyPage) + 1} / {historyQuery.data?.totalPages ?? 1}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="partner-ledger-history-next"
+                  disabled={(historyQuery.data?.number ?? historyPage) + 1 >= (historyQuery.data?.totalPages ?? 1)}
+                  onClick={() => setHistoryPage((page) => page + 1)}
+                >
+                  다음
+                </Button>
+                </div>
+              </>
             ) : (
               <div style={{ color: '#6B7280', fontSize: 12 }}>저장된 이력이 없습니다.</div>
             )}
@@ -760,11 +833,25 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
               </tr>
             </thead>
             <tbody>
+              <tr style={{ background: '#FFFBEB' }}>
+                <td colSpan={5} style={{ ...tdStyle, fontWeight: 600 }}>
+                  기초 잔액 ({data.periodFrom} 이전)
+                </td>
+                <td style={tdStyle}>—</td>
+                <td style={tdStyle}>—</td>
+                <td style={{ ...amountStyle(data.openingBalance ?? '0'), fontWeight: 600 }}>
+                  {fmtKrw(data.openingBalance ?? '0')}
+                </td>
+              </tr>
               {(data.lines ?? []).map((ln, idx) => (
                 <tr key={`${ln.date}-${ln.journalNo}-${idx}`}>
                   <td style={tdStyle}>{ln.date}</td>
                   <td style={tdStyle}>{ln.journalNo}</td>
-                  <td style={tdStyle}>{ln.documentType === 'CASH_RECEIPT' ? '수금' : '매출'}</td>
+                  <td style={tdStyle}>
+                    {ln.documentType === 'CASH_RECEIPT'
+                      ? '수금'
+                      : ln.documentType === 'JOURNAL_ONLY' ? '분개' : '매출'}
+                  </td>
                   <td style={tdStyle}>{ln.deliveryAddress || '—'}</td>
                   <td style={tdStyle}>{ln.description || '-'}</td>
                   <td style={amountStyle(ln.debit)}>
@@ -798,12 +885,31 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
                 </td>
                 <td style={tdStyle}>—</td>
               </tr>
+              <tr style={{ background: '#EEF2FF' }}>
+                <td colSpan={7} style={{ ...tdStyle, fontWeight: 600 }}>기말 잔액</td>
+                <td style={{ ...amountStyle(data.closingBalance ?? data.lines.at(-1)?.balance ?? '0'), fontWeight: 700 }}>
+                  {fmtKrw(data.closingBalance ?? data.lines.at(-1)?.balance ?? '0')}
+                </td>
+              </tr>
             </tfoot>
           </table>
         </div>
       )}
     </>
   )
+}
+
+function snapshotAggregateRow(data: LedgerData): SalesAggregateRow {
+  return {
+    partnerCode: data.partnerCode,
+    bizNo: data.partnerBusinessNo,
+    partnerName: data.partnerName,
+    salesTotal: data.salesTotal ?? '0',
+    paymentTotal: data.paymentTotal ?? '0',
+    receivableBalance: data.closingBalance ?? data.lines.at(-1)?.balance ?? data.openingBalance ?? '0',
+    periodFrom: data.periodFrom,
+    periodTo: data.periodTo,
+  }
 }
 
 /** 차변/대변 합계 (string BigDecimal → Number 합산 후 string 반환). */

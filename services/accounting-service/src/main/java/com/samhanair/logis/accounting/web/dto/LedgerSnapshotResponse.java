@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -17,6 +18,10 @@ public record LedgerSnapshotResponse(
         List<String> chatRoomNames,
         LocalDate periodFrom,
         LocalDate periodTo,
+        BigDecimal openingBalance,
+        BigDecimal salesTotal,
+        BigDecimal paymentTotal,
+        BigDecimal closingBalance,
         List<PartnerLedgerResponse.Document> documents,
         List<LedgerImageResponse.LedgerLine> lines) {
 
@@ -24,12 +29,17 @@ public record LedgerSnapshotResponse(
         chatRoomNames = chatRoomNames == null ? List.of() : List.copyOf(chatRoomNames);
         documents = documents == null ? List.of() : List.copyOf(documents);
         lines = lines == null ? List.of() : List.copyOf(lines);
+        openingBalance = openingBalance == null ? BigDecimal.ZERO : openingBalance;
+        salesTotal = salesTotal == null ? BigDecimal.ZERO : salesTotal;
+        paymentTotal = paymentTotal == null ? BigDecimal.ZERO : paymentTotal;
+        closingBalance = closingBalance == null ? BigDecimal.ZERO : closingBalance;
     }
 
     /** 화면 GET과 같은 read model payload를 복원 응답으로 투영한다. */
     public static LedgerSnapshotResponse fromPartnerLedger(PartnerLedgerResponse ledger) {
         return new LedgerSnapshotResponse(ledger.partnerCode(), ledger.partnerName(),
                 ledger.partnerBusinessNo(), List.of(), ledger.periodFrom(), ledger.periodTo(),
+                ledger.openingBalance(), ledger.salesTotal(), ledger.paymentTotal(), ledger.closingBalance(),
                 ledger.documents(), List.of());
     }
 
@@ -37,7 +47,8 @@ public record LedgerSnapshotResponse(
     public static LedgerSnapshotResponse fromLegacy(LedgerImageResponse ledger) {
         return new LedgerSnapshotResponse(ledger.partnerCode(), ledger.partnerName(),
                 ledger.partnerBusinessNo(), ledger.chatRoomNames(), ledger.periodFrom(),
-                ledger.periodTo(), List.of(), ledger.lines());
+                ledger.periodTo(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                List.of(), ledger.lines());
     }
 
     /** 화면이 documents를 line으로 펼칠 때와 같은 이력 행 수를 계산한다. */

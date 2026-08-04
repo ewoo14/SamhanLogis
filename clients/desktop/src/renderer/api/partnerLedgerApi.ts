@@ -57,7 +57,7 @@ export interface SalesAggregateRow {
   salesTotal: string
   /** 기간 수금 합계 (KRW BigDecimal — string). */
   paymentTotal: string
-  /** 기간말 채권 잔액 (KRW BigDecimal — string). */
+  /** 기초잔액 + 기간 매출 - 기간 수금으로 계산한 기말 채권 잔액 (KRW BigDecimal — string). */
   receivableBalance: string
   /** 집계 시작 일자 (YYYY-MM-DD). */
   periodFrom: string
@@ -81,12 +81,12 @@ export interface LedgerLine {
   debit: string
   /** 대변 금액 (KRW BigDecimal — string, "0" 가능). */
   credit: string
-  /** 누적 잔액 (KRW BigDecimal — string, 음수 가능). 라인 적용 후 잔액. */
+  /** 누적 잔액 (KRW BigDecimal — string, 음수 가능). 기초잔액부터 라인 적용 후 잔액. */
   balance: string
   /** 판매전표의 구조화된 배송주소. 적요에서 파싱하지 않는다. */
   deliveryAddress?: string | null
-  /** 원장 문서 종류: SALE 또는 CASH_RECEIPT. */
-  documentType?: 'SALE' | 'SALE_SUMMARY' | 'CASH_RECEIPT'
+  /** 원장 문서 종류. JOURNAL_ONLY는 판매전표 미이관 분개 행이다. */
+  documentType?: 'SALE' | 'SALE_SUMMARY' | 'CASH_RECEIPT' | 'JOURNAL_ONLY'
 }
 
 /**
@@ -107,12 +107,16 @@ export interface LedgerData {
   periodFrom: string
   /** 원장 기간 종료 (YYYY-MM-DD). */
   periodTo: string
+  openingBalance?: string
+  salesTotal?: string
+  paymentTotal?: string
+  closingBalance?: string
   /** 분개 라인 목록 (date 오름차순 → journalNo 오름차순). */
   lines: LedgerLine[]
 }
 
 export interface PartnerLedgerSourceDocument {
-  type: 'SALE' | 'SALE_SUMMARY' | 'CASH_RECEIPT'
+  type: 'SALE' | 'SALE_SUMMARY' | 'CASH_RECEIPT' | 'JOURNAL_ONLY'
   documentNo: string
   date: string
   deliveryAddress: string | null
@@ -124,6 +128,10 @@ export interface PartnerLedgerSourceDocument {
     unitPriceWithVat: string
     lineAmount: string
   }>
+  accountCode?: string | null
+  description?: string | null
+  debit?: string | null
+  credit?: string | null
 }
 
 /** API 문서 순서를 보존하면서 debit-credit 누적잔액을 계산한다. */
@@ -155,33 +163,54 @@ function compareDocuments(
 
 export function buildPartnerLedgerLines(
   documents: PartnerLedgerSourceDocument[],
+  openingBalance = '0',
 ): LedgerLine[] {
-  let balance = 0
+  let balance = Number(openingBalance) || 0
   const orderedDocuments = documents
     .map((document, index) => ({ document, index }))
     .sort(compareDocuments)
 
   return orderedDocuments.flatMap(({ document }) => {
+    const signedDirection = (amount: string): { debit: string; credit: string } => {
+      const value = Number(amount) || 0
+      return value >= 0
+        ? { debit: String(value), credit: '0' }
+        : { debit: '0', credit: String(Math.abs(value)) }
+    }
     const rows = document.type === 'SALE' && document.lines.length > 0
-      ? document.lines.map((line) => ({
+      ? document.lines.map((line) => {
+        const direction = signedDirection(line.lineAmount)
+        return {
           date: document.date,
           journalNo: document.documentNo,
-          accountCode: '',
-          accountName: '',
+          accountCode: document.accountCode ?? '',
           description: `${line.productName}${line.modelName ? ` (${line.modelName})` : ''}`,
-          debit: line.lineAmount,
-          credit: '0',
+          debit: direction.debit,
+          credit: direction.credit,
           deliveryAddress: document.deliveryAddress,
           documentType: document.type,
-        }))
+        }
+      })
       : [{
           date: document.date,
           journalNo: document.documentNo,
-          accountCode: '',
-          accountName: '',
-          description: document.type === 'CASH_RECEIPT' ? '입금보고서' : '',
-          debit: '0',
-          credit: document.amount,
+          accountCode: document.accountCode ?? '',
+          description: document.description
+            ?? (document.type === 'CASH_RECEIPT' ? '입금보고서' : '판매전표 없음 / 전표 미이관'),
+          debit: document.debit && Number(document.debit) !== 0
+            ? document.debit
+            : document.credit && Number(document.credit) !== 0
+              ? '0'
+              : signedDirection(document.type === 'CASH_RECEIPT'
+                ? String(-(Number(document.amount) || 0))
+                : document.amount).debit,
+          credit: document.credit && Number(document.credit) !== 0
+            ? document.credit
+            : document.debit && Number(document.debit) !== 0
+              ? '0'
+              : signedDirection(document.type === 'CASH_RECEIPT'
+                ? String(-(Number(document.amount) || 0))
+                : document.amount).credit,
           deliveryAddress: document.deliveryAddress,
           documentType: document.type,
         }]
@@ -200,6 +229,10 @@ export interface LedgerSnapshotResponse {
   chatRoomNames: string[]
   periodFrom: string
   periodTo: string
+  openingBalance?: string
+  salesTotal?: string
+  paymentTotal?: string
+  closingBalance?: string
   documents: PartnerLedgerSourceDocument[]
   lines: LedgerLine[]
 }
@@ -212,6 +245,7 @@ export interface LedgerHistoryResponse {
   periodTo: string
   lineCount: number
   savedAt: string
+  sourceBatchNo?: string | null
   ledger: LedgerSnapshotResponse | null
 }
 
@@ -294,7 +328,11 @@ export function mapPartnerLedgerResponse(
     chatRoomNames: [],
     periodFrom: source.periodFrom,
     periodTo: source.periodTo,
-    lines: buildPartnerLedgerLines(source.documents ?? []),
+    openingBalance: source.openingBalance ?? '0',
+    salesTotal: source.salesTotal ?? '0',
+    paymentTotal: source.paymentTotal ?? '0',
+    closingBalance: source.closingBalance ?? source.openingBalance ?? '0',
+    lines: buildPartnerLedgerLines(source.documents ?? [], source.openingBalance ?? '0'),
   }
 }
 
@@ -307,8 +345,12 @@ export function mapLedgerSnapshotResponse(source: LedgerSnapshotResponse): Ledge
     chatRoomNames: source.chatRoomNames ?? [],
     periodFrom: source.periodFrom,
     periodTo: source.periodTo,
+    openingBalance: source.openingBalance ?? '0',
+    salesTotal: source.salesTotal ?? '0',
+    paymentTotal: source.paymentTotal ?? '0',
+    closingBalance: source.closingBalance ?? source.openingBalance ?? '0',
     lines: source.documents?.length
-      ? buildPartnerLedgerLines(source.documents)
+      ? buildPartnerLedgerLines(source.documents, source.openingBalance ?? '0')
       : source.lines ?? [],
   }
 }
@@ -319,18 +361,33 @@ export interface PartnerLedgerResponse {
   partnerBusinessNo: string | null
   periodFrom: string
   periodTo: string
+  openingBalance?: string
+  salesTotal?: string
+  paymentTotal?: string
+  closingBalance?: string
   documents: PartnerLedgerSourceDocument[]
 }
 
-/** 거래처별 원장 자동 저장 이력 목록을 조회한다. */
+/** 거래처별 원장 저장 이력 목록을 조회한다. */
 export async function getLedgerHistory(
   partnerCode: string,
   from: string,
   to: string,
+  page = 0,
+  size = 20,
 ): Promise<LedgerHistoryPage> {
   const res = await apiClient.get<ApiEnvelope<LedgerHistoryPage>>(
     '/accounting/journals/ledger-history',
-    { params: { partnerCode, from, to } },
+    { params: { partnerCode, from, to, page: String(page), size: String(size) } },
+  )
+  return res.data.data
+}
+
+/** 복원본을 현재 원장으로 다시 읽지 않고 서버에서 원문 payload 그대로 새 저장한다. */
+export async function copyLedgerSnapshot(batchNo: string): Promise<LedgerHistoryResponse> {
+  const res = await apiClient.post<ApiEnvelope<LedgerHistoryResponse>>(
+    `/accounting/journals/ledger-history/${encodeURIComponent(batchNo)}/copy`,
+    null,
   )
   return res.data.data
 }

@@ -60,4 +60,13 @@ public interface TaxInvoiceBatchRepository extends JpaRepository<TaxInvoiceBatch
               AND substring(batch_no from length(:prefix) + 1) ~ '^[0-9]+$'
             """, nativeQuery = true)
     int findMaxSequenceByBatchNoPrefix(@Param("prefix") String prefix);
+
+    /** 원장 snapshot 채번 — soft-deleted 번호도 다시 쓰지 않는다. */
+    @Query(value = """
+            SELECT COALESCE(MAX(CAST(substring(batch_no from length(:prefix) + 1) AS INTEGER)), 0)
+            FROM tax_invoice_batches
+            WHERE batch_no LIKE (:prefix || '%')
+              AND substring(batch_no from length(:prefix) + 1) ~ '^[0-9]+$'
+            """, nativeQuery = true)
+    int findMaxSequenceByBatchNoPrefixIncludingDeleted(@Param("prefix") String prefix);
 }

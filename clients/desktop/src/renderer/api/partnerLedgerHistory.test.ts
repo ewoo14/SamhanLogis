@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from './client'
-import { captureLedger, getLedgerHistory, restoreLedger } from './partnerLedgerApi'
+import { captureLedger, copyLedgerSnapshot, getLedgerHistory, restoreLedger } from './partnerLedgerApi'
 
 vi.mock('./client', () => ({
   apiClient: { get: vi.fn(), post: vi.fn() },
@@ -16,7 +16,9 @@ describe('거래처 원장 이력 API', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith(
       '/accounting/journals/ledger-history',
-      { params: { partnerCode: 'P-001', from: '2026-08-01', to: '2026-08-31' } },
+      { params: {
+        partnerCode: 'P-001', from: '2026-08-01', to: '2026-08-31', page: '0', size: '20',
+      } },
     )
   })
 
@@ -42,6 +44,17 @@ describe('거래처 원장 이력 API', () => {
       '/accounting/journals/ledger-snapshots',
       null,
       { params: { partnerCode: 'P-001', from: '2026-08-01', to: '2026-08-31' } },
+    )
+  })
+
+  it('복원본 재저장은 원본 배치번호를 path로 전달한다', async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: { batchNo: 'LED-20260804-000022' } } })
+
+    await copyLedgerSnapshot('LED-20260804-000021')
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/accounting/journals/ledger-history/LED-20260804-000021/copy',
+      null,
     )
   })
 })

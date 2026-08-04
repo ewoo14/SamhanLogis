@@ -12,6 +12,7 @@ import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.CashReceiptKind;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
+import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -38,14 +39,22 @@ class PartnerLedgerReadServiceTest {
     @Mock private CashReceiptRepository cashReceiptRepository;
     @Mock private PartnerLookupClient partnerLookupClient;
     @Mock private JournalRepository journalRepository;
+    @Mock private JournalLineRepository journalLineRepository;
 
     @InjectMocks private PartnerLedgerReadService service;
 
     @Test
-    @DisplayName("code-only 기존 판매전표도 거래처 원장 상세를 422 없이 연다")
-    void codeOnlyExistingSaleIsReadableWithoutPartnerMaster() {
+    @DisplayName("미등록 code-only 판매전표는 전체 자료나 빈 원장으로 노출하지 않는다")
+    void codeOnlyExistingSaleWithoutPartnerMasterIsNotReadable() {
         when(partnerLookupClient.findByPartnerCodeResult("QA-GATE-A"))
                 .thenReturn(PartnerLookupClient.LookupResult.notFound());
+        when(partnerLookupClient.searchDirectoryResult("QA-GATE-A", 10))
+                .thenReturn(PartnerLookupClient.DirectoryLookupResult.notFound());
+        PartnerLedgerReadModelService readModel = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient);
+        PartnerLedgerReadService strictService = new PartnerLedgerReadService(
+                salesClient, cashReceiptRepository, journalRepository, partnerLookupClient, readModel);
         lenient().when(salesClient.find(FROM, TO, "QA-GATE-A", null))
                 .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
                         "2026/06/24-901", LocalDate.of(2026, 6, 24), "COMPLETED",
@@ -55,13 +64,9 @@ class PartnerLedgerReadServiceTest {
                                 new BigDecimal("2400000"))))));
         lenient().when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
 
-        var response = service.read("QA-GATE-A", FROM, TO);
+        var response = strictService.read("QA-GATE-A", FROM, TO);
 
-        assertThat(response.partnerCode()).isEqualTo("QA-GATE-A");
-        assertThat(response.partnerName()).isEqualTo("대구공조(검수완료)");
-        assertThat(response.documents()).hasSize(1);
-        assertThat(response.documents().get(0).lines()).hasSize(1);
-        assertThat(response.documents().get(0).amount()).isEqualByComparingTo("2400000");
+        assertThat(response.documents()).isEmpty();
     }
 
     @Test

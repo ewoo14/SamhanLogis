@@ -56,7 +56,8 @@ public class PartnerLedgerReadService {
                 return new PartnerLedgerResponse(partnerCode, null, null, from, to, List.of());
             }
             return new PartnerLedgerResponse(partner.partnerCode(), partner.partnerName(),
-                    partner.businessNumber(), from, to, partner.documents().stream()
+                    partner.businessNumber(), from, to, partner.openingBalance(), partner.salesTotal(),
+                    partner.paymentTotal(), partner.receivableBalance(), partner.documents().stream()
                     .map(this::responseDocument).toList());
         }
         if (from == null || to == null || to.isBefore(from)) {
@@ -172,7 +173,8 @@ public class PartnerLedgerReadService {
         return new Document(document.type().name(), document.documentNo(), document.date(),
                 document.partnerCode(), document.partnerName(), document.deliveryAddress(), document.amount(),
                 document.lines().stream().map(line -> new Line(line.productName(), line.modelName(), line.quantity(),
-                        line.unitPriceWithVat(), line.lineAmount())).toList());
+                        line.unitPriceWithVat(), line.lineAmount())).toList(), document.accountCode(),
+                document.description(), document.debit(), document.credit());
     }
 
     private static boolean saleBelongsToPartner(PartnerLedgerSalesClient.Sale sale, PartnerSummary partner) {
