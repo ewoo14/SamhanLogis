@@ -346,6 +346,31 @@ class ApiGatewayContextLoadIT {
         assertHasJwtAuthenticationFilter(routes, "accounting-tax-invoice-admin-noprefix");
     }
 
+    /** #1039 S8: S1~S4 신규 admin 경로가 동일한 slip-service 보호 라우트에 등록돼야 한다. */
+    @Test
+    @DisplayName("#1039 S8 배차 신규 admin 라우트 — 그룹/운송사/가배차 분류 + JwtAuthentication")
+    void provisionalDispatchAdminRoutes_areAuthenticatedNoStripAndReachable() {
+        List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions()
+                .collectList()
+                .block();
+
+        assertRoutePath(routes, "slip-dispatch-admin-noprefix",
+                "/admin/dispatch-tasks", "/admin/dispatch-tasks/**",
+                "/admin/dispatch-board", "/admin/dispatch-board/**",
+                "/admin/external-carriers", "/admin/external-carriers/**",
+                "/admin/external-dispatches", "/admin/external-dispatches/**",
+                "/admin/slip-cutoffs", "/admin/slip-cutoffs/**",
+                "/admin/dispatch-groups", "/admin/dispatch-groups/**",
+                "/admin/carriers", "/admin/carriers/**",
+                "/admin/dispatches/pre-classify");
+        assertNoStripPrefix(routes, "slip-dispatch-admin-noprefix");
+        assertHasJwtAuthenticationFilter(routes, "slip-dispatch-admin-noprefix");
+
+        // 새 조합은 기존 명시 라우트와 겹치지 않고, 기존 protected admin 라우트의 선행 순서도 유지한다.
+        assertThat(indexOfRoute(routes, "slip-dispatch-admin-noprefix"))
+                .isGreaterThan(indexOfRoute(routes, "slip-service-admin"));
+    }
+
     /** #465: default-filters 에 identity strip 을 추가하지 않았는지 회귀 가드. */
     @Test
     @DisplayName("#465 default-filters 는 identity header strip 미보유")
