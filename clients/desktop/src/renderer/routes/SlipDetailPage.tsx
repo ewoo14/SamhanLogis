@@ -652,15 +652,16 @@ export function coeditHeaderValues(slip: SlipDetail, mode: SlipType): Record<str
   }
 }
 
-function syncSlipCoeditProvider(provider: DocCoeditProvider | null, slip: SlipDetail, mode: SlipType) {
+export function syncSlipCoeditProvider(provider: DocCoeditProvider | null, slip: SlipDetail, mode: SlipType) {
   if (!provider) return
   for (const [fieldName, value] of Object.entries(coeditHeaderValues(slip, mode))) {
     provider.setHeaderValue(fieldName, value)
   }
-  provider.replaceItems(toPurchaseEditLines(slip))
+  // trailing 빈행은 화면 입력 수단일 뿐 협업 문서 라인이 아니다.
+  provider.replaceItems(persistedDetailLines(toPurchaseEditLines(slip)))
 }
 
-function seedSlipCoeditProvider(provider: DocCoeditProvider, slip: SlipDetail, mode: SlipType) {
+export function seedSlipCoeditProvider(provider: DocCoeditProvider, slip: SlipDetail, mode: SlipType) {
   syncSlipCoeditProvider(provider, slip, mode)
 }
 
@@ -1815,10 +1816,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     // 계보/가격기억 귀속의 권위 — 현재 로드된 상세 응답의 라인 id 집합. Y.Doc 직독 lineId 는
     // 이 집합으로 검증해야 클라 랜덤 UUID(구 seed/신규행)가 payload 에 새어 400 이 나지 않는다.
     const knownServerLineIds = toServerLineIdSet(slipData.lines)
-    const previousServerLineIds = toServerLineIdSet(
-      mode === 'OUTBOUND' ? salesEditLines : purchaseEditLines,
-    )
-
     const applyProviderState = (nextProvider: DocCoeditProvider) => {
       if (mode === 'OUTBOUND') {
         // D-R8-7: 상대 피어의 거래처 재선택을 수신 — 이게 없으면 구 partnerId 로 저장한다.
@@ -1887,7 +1884,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         reseedCoeditLineIds(
           nextProvider,
           slipData.lines.map((line) => line.id ?? ''),
-          previousServerLineIds,
         )
       }
       applyProviderState(nextProvider)
@@ -4824,9 +4820,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     updateSalesLine(index, next)
     if (!slipFormCoeditProvider) return
     slipFormCoeditProvider.doc.transact(() => {
+      let targetIndex = index
+      if (line.lineId) {
+        const byId = slipFormCoeditProvider.getItemIndexById(line.lineId)
+        if (byId >= 0) targetIndex = byId
+      } else if (targetIndex >= slipFormCoeditProvider.items.length) {
+        // trailing 빈행은 Y.Doc에 없으므로 품목 확정 순간에만 협업 라인으로 승격한다.
+        slipFormCoeditProvider.addItem()
+      }
       const set = (cell: string, value: string) => {
-        if (line.lineId) slipFormCoeditProvider.setItemValueById(line.lineId, cell, value)
-        else slipFormCoeditProvider.setItemValue(index, cell, value)
+        slipFormCoeditProvider.setItemValue(targetIndex, cell, value)
       }
       set('productId', next.productId ?? '')
       set('productName', next.productName ?? '')

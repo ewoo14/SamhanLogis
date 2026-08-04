@@ -29,6 +29,7 @@ import {
   slipLineAmounts,
   syncDetailAmountToDoc,
   toPurchaseEditLines,
+  seedSlipCoeditProvider,
 } from './SlipDetailPage'
 import {
   coeditLineIdsAreStale,
@@ -36,7 +37,7 @@ import {
   toServerLineIdSet,
 } from '../realtime/coeditLineIds'
 import { editLineVat, editSlipLineAmount, recalculateLineVat } from '../utils/lineVat'
-import { removeLinePreservingMinimum } from '../utils/autoBlankRow'
+import { ensureTrailingBlankRow, removeLinePreservingMinimum } from '../utils/autoBlankRow'
 import type { SlipDetail } from '../api/slip'
 
 /**
@@ -65,6 +66,137 @@ const serverLines = [
 ]
 
 const knownServerLineIds = toServerLineIdSet(serverLines)
+
+describe('SlipDetailPage — R12 빈행 로컬 draft 분리 (RED-first)', () => {
+  it('RED-A1 상대가 수량·메모만 저장해도 내 확정행과 미저장 값이 유지된다', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([
+      { lineId: SERVER_LINE_1, productId: PRODUCT_1, quantity: '7', note: 'B 미저장' },
+      { lineId: SERVER_LINE_2, productId: PRODUCT_2, quantity: '9', note: 'B 미저장 2' },
+      { lineId: '', productId: '' },
+    ])
+
+    // R10 원문: BE 정상 저장으로 서버 ID가 전량 교체된 상태. R12에서는
+    // ID 차집합을 원격 삭제로 추론하지 않고, 확정행과 미저장 값을 보존해야 한다.
+    reseedCoeditLineIds(provider, ['new-1', 'new-2'], new Set([SERVER_LINE_1, SERVER_LINE_2]))
+
+    expect(provider.items.toArray()).toHaveLength(3)
+    expect(provider.getItemValue(0, 'productId')).toBe(PRODUCT_1)
+    expect(provider.getItemValue(0, 'quantity')).toBe('7')
+    expect(provider.getItemValue(0, 'note')).toBe('B 미저장')
+    expect(provider.getItemValue(1, 'productId')).toBe(PRODUCT_2)
+    expect(provider.getItemValue(1, 'quantity')).toBe('9')
+    provider.destroy()
+  })
+
+  it('RED-A2 내 trailing 빈행이 협업 문서와 상대 화면에 나타나지 않는다', async () => {
+    const provider = await makeProvider()
+    seedSlipCoeditProvider(provider, {
+      lines: [{ id: SERVER_LINE_1, productId: PRODUCT_1, productName: '품목1' }],
+    } as never, 'OUTBOUND')
+
+    expect(provider.items.toArray()).toHaveLength(1)
+    expect(provider.getItemValue(0, 'productId')).toBe(PRODUCT_1)
+    provider.destroy()
+  })
+
+  it('RED-A3 빈행에서 품목을 확정하면 그 순간 문서 라인이 되고 저장 대상이 된다', async () => {
+    const provider = await makeProvider()
+    seedSlipCoeditProvider(provider, {
+      lines: [{ id: SERVER_LINE_1, productId: PRODUCT_1, productName: '품목1' }],
+    } as never, 'OUTBOUND')
+
+    // 화면의 로컬 trailing draft가 확정되는 순간에만 Y.Doc 라인으로 승격한다.
+    expect(provider.items.toArray()).toHaveLength(1)
+    const newLineId = provider.addItem({ productId: PRODUCT_2, productName: '품목2' })
+    expect(newLineId).toBeTruthy()
+    expect(provider.items.toArray()).toHaveLength(2)
+    expect(provider.getItemValue(1, 'productId')).toBe(PRODUCT_2)
+    expect(persistedDetailLines(coeditLinesToEditLines(provider, editLinesFrom(serverLines), knownServerLineIds)))
+      .toHaveLength(2)
+    provider.destroy()
+  })
+
+  it('RED-B1 미확정 빈행은 저장 payload에서 제외된다', () => {
+    expect(persistedDetailLines([
+      ...editLinesFrom([serverLines[0]!]),
+      { key: 'draft', lineId: null, productId: '', productName: '', modelName: '', specification: '', quantity: 3, unitPrice: '1000', note: '입력 중' },
+    ] as never)).toHaveLength(1)
+  })
+
+  it('RED-B2 수정 진입에는 trailing 빈행이 있고 확정하면 아래에 새 로컬 빈행이 생긴다', async () => {
+    const provider = await makeProvider()
+    seedSlipCoeditProvider(provider, {
+      lines: [{ id: SERVER_LINE_1, productId: PRODUCT_1, productName: '품목1' }],
+    } as never, 'OUTBOUND')
+    const localBefore = coeditLinesToEditLines(provider, editLinesFrom([serverLines[0]!]), knownServerLineIds)
+    expect(localBefore).toHaveLength(1)
+    expect(provider.items.toArray()).toHaveLength(1)
+
+    provider.addItem({ lineId: 'new-local', productId: PRODUCT_2, productName: '품목2' })
+    const localAfter = coeditLinesToEditLines(provider, [...localBefore, {
+      key: 'draft', lineId: null, productId: '', productName: '', modelName: '', specification: '', quantity: 0, unitPrice: '', note: '',
+    } as never], knownServerLineIds)
+    expect(localAfter).toHaveLength(2)
+    expect(localAfter[1]?.productId).toBe(PRODUCT_2)
+    provider.destroy()
+  })
+
+  it('R12 조합: 빈행에 입력 중 상대가 저장해도 로컬 draft는 협업 라인 수를 바꾸지 않는다', async () => {
+    const provider = await makeProvider()
+    seedSlipCoeditProvider(provider, { lines: [{ id: SERVER_LINE_1, productId: PRODUCT_1 }] } as never, 'OUTBOUND')
+    const local = ensureTrailingBlankRow(
+      coeditLinesToEditLines(provider, editLinesFrom([serverLines[0]!]), knownServerLineIds),
+      () => ({ key: 'draft', lineId: null, productId: '', productName: '', modelName: '', specification: '', quantity: 0, unitPrice: '', note: '' }),
+      (line) => Boolean(line.productId),
+    )
+    expect(local).toHaveLength(2)
+    expect(provider.items.toArray()).toHaveLength(1)
+    provider.setItemValue(0, 'quantity', '4')
+    expect(provider.items.toArray()).toHaveLength(1)
+    expect(local[1]?.productId).toBe('')
+    provider.destroy()
+  })
+
+  it('R12 조합: 빈행 확정 직후 상대가 같은 위치에 라인을 추가해도 각 확정행이 보존된다', async () => {
+    const provider = await makeProvider()
+    seedSlipCoeditProvider(provider, { lines: [{ id: SERVER_LINE_1, productId: PRODUCT_1 }] } as never, 'OUTBOUND')
+    provider.addItem({ productId: PRODUCT_2, productName: '품목2' })
+    provider.addItem({ productId: PRODUCT_3, productName: '품목3' })
+    const next = coeditLinesToEditLines(provider, editLinesFrom([serverLines[0]!]), knownServerLineIds)
+    expect(next.map((line) => line.productId)).toEqual([PRODUCT_1, PRODUCT_2, PRODUCT_3])
+    expect(persistedDetailLines(next)).toHaveLength(3)
+    provider.destroy()
+  })
+
+  it('R12 조합: 두 사용자가 동시에 빈행을 확정해도 두 신규 문서 라인이 저장된다', async () => {
+    const provider = await makeProvider()
+    seedSlipCoeditProvider(provider, { lines: [{ id: SERVER_LINE_1, productId: PRODUCT_1 }] } as never, 'OUTBOUND')
+    const first = provider.addItem({ productId: PRODUCT_2, productName: '사용자 A' })
+    const second = provider.addItem({ productId: PRODUCT_3, productName: '사용자 B' })
+    expect(first).not.toBe(second)
+    const next = coeditLinesToEditLines(provider, editLinesFrom([serverLines[0]!]), knownServerLineIds)
+    expect(next.slice(1).map((line) => line.productId)).toEqual([PRODUCT_2, PRODUCT_3])
+    expect(persistedDetailLines(next)).toHaveLength(3)
+    provider.destroy()
+  })
+
+  it('R12 조합: 확정 후 새로 생긴 빈행은 로컬에만 남고 문서 라인 수는 유지된다', async () => {
+    const provider = await makeProvider()
+    seedSlipCoeditProvider(provider, { lines: [{ id: SERVER_LINE_1, productId: PRODUCT_1 }] } as never, 'OUTBOUND')
+    provider.addItem({ productId: PRODUCT_2, productName: '품목2' })
+    const confirmed = coeditLinesToEditLines(provider, editLinesFrom([serverLines[0]!]), knownServerLineIds)
+    const local = ensureTrailingBlankRow(
+      confirmed,
+      () => ({ key: 'new-draft', lineId: null, productId: '', productName: '', modelName: '', specification: '', quantity: 0, unitPrice: '', note: '' }),
+      (line) => Boolean(line.productId),
+    )
+    expect(local).toHaveLength(3)
+    expect(provider.items.toArray()).toHaveLength(2)
+    expect(local[2]?.productId).toBe('')
+    provider.destroy()
+  })
+})
 
 describe('SlipDetailPage — 수정 화면 단가 라벨 의미 계약 (재수렴 R-1 근본수정 반영)', () => {
   // 🚨 이 describe 는 원래 unitPrice/unitPriceWithVat 비교로 행마다 다른 라벨을 매기는
@@ -628,7 +760,7 @@ describe('R7 수정 화면 확정 가능한 빈행·협업 lineId 계약', () =>
     provider.destroy()
   })
 
-  it('R9 RED-A2: 서버에서 삭제된 확정행을 제거한 뒤 남은 행에 lineId를 중복 부착하지 않는다', async () => {
+  it('R12: 서버 ID가 바뀌어도 확정행을 원격 삭제로 추론하지 않는다', async () => {
     const provider = await makeProvider()
     provider.replaceItems([
       { lineId: SERVER_LINE_1, productId: PRODUCT_1 },
@@ -637,18 +769,16 @@ describe('R7 수정 화면 확정 가능한 빈행·협업 lineId 계약', () =>
     ])
 
     expect(coeditLineIdsAreStale(provider, new Set([SERVER_LINE_2]))).toBe(true)
-    reseedCoeditLineIds(provider, [SERVER_LINE_2], new Set([SERVER_LINE_1, SERVER_LINE_2]))
+    reseedCoeditLineIds(provider, [SERVER_LINE_2])
 
     expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'lineId')))
-      .toHaveLength(2)
+      .toHaveLength(3)
     expect(provider.getItemValue(0, 'lineId')).toBe(SERVER_LINE_2)
-    expect(knownServerLineIds.has(provider.getItemValue(1, 'lineId'))).toBe(false)
-    expect(new Set(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'lineId'))
-      .filter((lineId) => knownServerLineIds.has(lineId))).size)
-      .toBe(1)
+    expect(provider.getItemValue(1, 'productId')).toBe(PRODUCT_2)
+    expect(provider.getItemValue(2, 'productId')).toBe('')
     expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'productId')))
-      .toEqual([PRODUCT_2, ''])
-    expect(coeditLineIdsAreStale(provider, new Set([SERVER_LINE_2]))).toBe(false)
+      .toEqual([PRODUCT_1, PRODUCT_2, ''])
+    expect(coeditLineIdsAreStale(provider, new Set([SERVER_LINE_2]))).toBe(true)
     provider.destroy()
   })
 
@@ -659,11 +789,11 @@ describe('R7 수정 화면 확정 가능한 빈행·협업 lineId 계약', () =>
       { lineId: '', productId: '' },
     ])
 
-    reseedCoeditLineIds(provider, [], new Set([SERVER_LINE_1]))
+    reseedCoeditLineIds(provider, [])
 
     expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'productId')))
-      .toEqual([''])
-    expect(knownServerLineIds.has(provider.getItemValue(0, 'lineId'))).toBe(false)
+      .toEqual([PRODUCT_1, ''])
+    expect(knownServerLineIds.has(provider.getItemValue(0, 'lineId'))).toBe(true)
     provider.destroy()
   })
 
@@ -676,16 +806,16 @@ describe('R7 수정 화면 확정 가능한 빈행·협업 lineId 계약', () =>
       { lineId: '', productId: '' },
     ])
 
-    reseedCoeditLineIds(provider, [SERVER_LINE_1, SERVER_LINE_3], new Set([SERVER_LINE_1, SERVER_LINE_2, SERVER_LINE_3]))
+    reseedCoeditLineIds(provider, [SERVER_LINE_1, SERVER_LINE_3])
 
     expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'lineId')))
-      .toHaveLength(3)
+      .toHaveLength(4)
     expect(provider.getItemValue(0, 'lineId')).toBe(SERVER_LINE_1)
     expect(provider.getItemValue(1, 'lineId')).toBe(SERVER_LINE_3)
-    expect(knownServerLineIds.has(provider.getItemValue(2, 'lineId'))).toBe(false)
+    expect(knownServerLineIds.has(provider.getItemValue(2, 'lineId'))).toBe(true)
     expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'productId')))
-      .toEqual([PRODUCT_1, PRODUCT_3, ''])
-    expect(coeditLineIdsAreStale(provider, new Set([SERVER_LINE_1, SERVER_LINE_3]))).toBe(false)
+      .toEqual([PRODUCT_1, PRODUCT_2, PRODUCT_3, ''])
+    expect(coeditLineIdsAreStale(provider, new Set([SERVER_LINE_1, SERVER_LINE_3]))).toBe(true)
     provider.destroy()
   })
 })
