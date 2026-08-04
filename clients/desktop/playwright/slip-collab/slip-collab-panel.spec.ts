@@ -169,7 +169,7 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(page.getByTestId('presence-indicator')).toHaveAttribute('aria-label', '현재 보고 있음 1명')
   })
 
-  test('S2a direct edit inline form은 헤더·수치 셀만 coedit input으로 렌더하고 확정 품목은 읽기 전용으로 둔다', async ({ page }) => {
+  test('S2a direct edit inline form은 헤더와 품목 셀을 fieldPath 단위 coedit input으로 렌더한다', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(DRAFT_PAGE_URL, { waitUntil: 'domcontentloaded' })
 
@@ -180,10 +180,7 @@ test.describe('§7 입출고전표 협업 패널', () => {
 
     await expect(page.getByTestId('slip-coedit-field-header-partnerName')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-header-memo')).toBeVisible()
-    // R9 계약: productId가 있는 확정행의 품목은 교체할 수 없고, ProductAutocomplete/coedit input을 렌더하지 않는다.
-    const firstLine = inlineForm.locator('tbody tr').first()
-    await expect(firstLine.getByText('시스템에어컨 4Way 4HP', { exact: true })).toBeVisible()
-    await expect(page.getByTestId('slip-coedit-field-items-0-productName')).toHaveCount(0)
+    await expect(page.getByTestId('slip-coedit-field-items-0-productName')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-items-0-quantity')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-items-0-unitPrice')).toBeVisible()
 

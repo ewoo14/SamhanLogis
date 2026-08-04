@@ -22,9 +22,9 @@
  *
  * 본 컴포넌트는 `mode` prop 으로 OUTBOUND / INBOUND 양쪽 화면에서 재사용.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   Button,
   Card,
@@ -68,15 +68,11 @@ import {
 } from '../api/inventory'
 import {
   createSlip,
-  getSlip,
   getPriceMemory,
   lookupPartnerForAutoFill,
   emptyBundleSetOptions,
   toApiBundleSetOptions,
-  updateSalesSlip,
-  type SlipDetail,
   type SlipLineInput,
-  type SlipUpdateRequest,
   type SlipType,
 } from '../api/slip'
 import {
@@ -88,7 +84,6 @@ import { toLocalDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
   appendBlankRowIfLastChanged,
-  ensureTrailingBlankRow,
   removeLinePreservingMinimum,
 } from '../utils/autoBlankRow'
 import {
@@ -155,75 +150,6 @@ const emptyLine = (): LineDraft => ({
   modelCode: null,
   setOptions: emptyBundleSetOptions(),
 })
-
-/** 기존 매출 전표 수정은 BE와 동일하게 DRAFT/SAVED에서만 허용한다. */
-export function isSalesSlipEditable(status: string): boolean {
-  return status === 'DRAFT' || status === 'SAVED'
-}
-
-/** 상세 응답의 확정 라인을 SlipFormPage 상태로 옮기고, 입력용 trailing 빈행을 보장한다. */
-export function hydrateSalesSlipEditLines(lines: SlipDetail['lines']): LineDraft[] {
-  const hydrated = lines.map((line): LineDraft => ({
-    id: line.id,
-    productId: line.productId,
-    modelName: line.modelName ?? '',
-    productName: line.productName ?? '',
-    specification: line.specification ?? '',
-    quantity: String(line.quantity),
-    unitPrice: line.unitPriceWithVat ?? line.unitPrice ?? '0',
-    supplyAmount: line.supplyAmount ?? '0',
-    vatAmount: line.vatAmount ?? '0',
-    lineTotal: line.lineTotal ?? '0',
-    authority: 'PRICE',
-    vatWarning: false,
-    priceSource: null,
-    catalogUnitPrice: null,
-    priceMemoryUpdatedAt: null,
-    lookupError: null,
-    lookupLoading: false,
-    productType: null,
-    modelCode: null,
-  }))
-  return ensureTrailingBlankRow(hydrated, emptyLine, (line) => Boolean(line.productId))
-}
-
-interface SalesSlipEditValues {
-  updatedAt: string
-  partnerId?: string | null
-  partnerName?: string | null
-  memo?: string | null
-  lines: LineDraft[]
-}
-
-/** 확정된 품목만 기존 수정 PUT에 싣는다. 임시 빈행은 화면에만 존재한다. */
-export function buildSalesSlipUpdateRequest(values: SalesSlipEditValues): SlipUpdateRequest {
-  return {
-    updatedAt: values.updatedAt,
-    partnerId: values.partnerId ?? null,
-    partnerName: values.partnerName?.trim() || null,
-    memo: values.memo?.trim() || null,
-    lines: values.lines
-      .filter((line) => willLineBeSaved(line))
-      .map<SlipLineInput>((line) => ({
-        lineId: line.id.startsWith('tmp-') ? null : line.id,
-        productId: line.productId!,
-        productName: line.productName.trim() || undefined,
-        modelName: line.modelName.trim() || undefined,
-        specification: line.specification.trim() || undefined,
-        quantity: Number(line.quantity),
-        unitPrice: line.unitPrice || '0',
-        priceVatInclusive: true,
-        ...(line.authority && line.authority !== 'PRICE'
-          && line.supplyAmount != null && line.vatAmount != null && line.lineTotal != null
-          ? {
-              supplyAmount: line.supplyAmount,
-              vatAmount: line.vatAmount,
-              lineTotalWithVat: line.lineTotal,
-            }
-          : {}),
-      })),
-  }
-}
 
 function asVatLine(line: LineDraft): LineDraft & LineVatLine {
   return {
@@ -643,13 +569,9 @@ function SortableLineRow(props: {
  */
 export function SlipFormPage({ mode }: SlipFormPageProps) {
   const navigate = useNavigate()
-  const { id } = useParams<{ id: string }>()
-  const isEdit = Boolean(id)
   const isOutbound = mode === 'OUTBOUND'
   const listPath = isOutbound ? '/sales' : '/purchases'
-  const titleLabel = isEdit
-    ? (isOutbound ? '판매전표 수정' : '입고전표 수정')
-    : (isOutbound ? '새 판매전표' : '새 입고전표')
+  const titleLabel = isOutbound ? '새 판매전표' : '새 입고전표'
   const isMobile = useIsMobile()
 
   // Slice A: AppHeader 동적 화면명 (Designer wireframes.md § 1.3)
@@ -702,8 +624,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [supervisionAddress, setSupervisionAddress] = useState('')
   const [supervisionSameAsDelivery, setSupervisionSameAsDelivery] = useState(false)
-  const [editUpdatedAt, setEditUpdatedAt] = useState<string | null>(null)
-  const [editStatus, setEditStatus] = useState<string | null>(null)
   // 자동 채움 상태
   const [autoFillError, setAutoFillError] = useState<string | null>(null)
   const [autoFillLoading, setAutoFillLoading] = useState(false)
@@ -723,35 +643,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     queryKey: ['warehouses'],
     queryFn: listWarehouses,
   })
-
-  const editSlipQuery = useQuery({
-    queryKey: ['slip', id, 'sales-edit'],
-    queryFn: () => getSlip(id!),
-    enabled: isEdit && isOutbound,
-    retry: false,
-  })
-
-  useEffect(() => {
-    if (!isEdit || !isOutbound || !editSlipQuery.data) return
-    const slip = editSlipQuery.data
-    setEditUpdatedAt(slip.updatedAt)
-    setEditStatus(slip.status)
-    setSourceWh(slip.sourceWarehouseId)
-    setDestWh(slip.destinationWarehouseId)
-    setPartnerName(slip.partnerName ?? '')
-    setSelectedPartner(slip.partnerId ? {
-      id: slip.partnerId,
-      name: slip.partnerName ?? '',
-      partnerCode: slip.partnerCode ?? '',
-    } : null)
-    setMemo(slip.memo ?? '')
-    setTag(slip.deliveryTag)
-    setDriverName(slip.driverName ?? '')
-    setDriverPhone(slip.driverPhone ?? '')
-    setDeliveryAddress(slip.deliveryAddress ?? '')
-    setSupervisionAddress(slip.supervisionAddress ?? '')
-    setLines(hydrateSalesSlipEditLines(slip.lines))
-  }, [editSlipQuery.data, isEdit, isOutbound])
 
   // KST 로컬 날짜 기준 (UTC 기준 toISOString().slice(0,10) 은 오전 0~8:59 에 하루 전 날짜를 반환함)
   const today = useMemo(() => toLocalDateISO(), [])
@@ -1184,15 +1075,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (isEdit && id) {
-        return updateSalesSlip(id, buildSalesSlipUpdateRequest({
-          updatedAt: editUpdatedAt ?? editSlipQuery.data?.updatedAt ?? '',
-          partnerId: selectedPartner?.id ?? editSlipQuery.data?.partnerId,
-          partnerName,
-          memo,
-          lines,
-        }))
-      }
       const payload: Parameters<typeof createSlip>[0] = {
         slipType: mode,
         slipDate: today,
@@ -1246,7 +1128,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       }
       return createSlip(payload)
     },
-    onSuccess: () => navigate(isEdit && id ? `/sales/${id}` : listPath),
+    onSuccess: () => navigate(listPath),
   })
 
   const errorMessage = (() => {
@@ -1254,7 +1136,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const err = mutation.error
     if (axios.isAxiosError(err)) {
       const data = err.response?.data as { message?: string } | undefined
-      return data?.message ?? (isEdit ? '전표 수정에 실패했습니다.' : '전표 생성에 실패했습니다.')
+      return data?.message ?? '전표 생성에 실패했습니다.'
     }
     return '알 수 없는 오류'
   })()
@@ -1322,32 +1204,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     incompleteLines.length > 0
       ? `입력 중인 행 ${incompleteLines.length}개(${incompleteLines.map((entry) => entry.lineNumber).join(', ')}행)가 저장에서 제외됩니다.`
       : ''
-
-  if (isEdit && editSlipQuery.isLoading) {
-    return <div className="loading-fallback" role="status">기존 전표를 불러오는 중…</div>
-  }
-
-  if (isEdit && editSlipQuery.isError) {
-    return (
-      <div className="sfp-error-banner" role="alert">
-        기존 전표를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
-      </div>
-    )
-  }
-
-  if (isEdit && editStatus && !isSalesSlipEditable(editStatus)) {
-    return (
-      <div className="sfp-page">
-        <div className="sfp-page-header">
-          <h2 className="sfp-page-title">판매전표 수정</h2>
-          <Button variant="ghost" onClick={() => navigate(`/sales/${id}`)}>상세로 돌아가기</Button>
-        </div>
-        <div className="sfp-error-banner" role="alert">
-          현재 상태({editStatus})에서는 전표를 수정할 수 없습니다. 수정은 작성 중(DRAFT) 또는 저장(SAVED) 상태에서만 가능합니다.
-        </div>
-      </div>
-    )
-  }
 
   // ── render ──────────────────────────────────────────────
 

@@ -3856,7 +3856,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             size="sm"
             variant="secondary"
             disabled={!linesEditable}
-            onClick={() => navigate(`/sales/${id}/edit`)}
+            onClick={() => alert('행 추가 — SlipFormPage 에서 편집해주세요 (DRAFT/SAVED 만 BE 허용).')}
             title={linesEditable ? undefined : '작성 중/저장 단계에서만 가능'}
           >
             행 추가

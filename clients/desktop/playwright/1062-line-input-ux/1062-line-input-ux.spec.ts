@@ -61,25 +61,4 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
 
     await page.screenshot({ path: test.info().outputPath('03-edit-filled-next-blank.png'), fullPage: true })
   })
-
-  test('판매전표 수정 빈행은 ProductAutocomplete로 품목을 확정하고 새 trailing 빈행을 만든다', async ({ page }) => {
-    await page.goto('/#/sales/slip-005?mockRole=MASTER', { waitUntil: 'domcontentloaded' })
-    await page.getByTestId('sales-slip-edit-button').click()
-    const editLines = page.getByTestId('sales-slip-edit-lines')
-    await expect(editLines).toBeVisible({ timeout: 15_000 })
-
-    const productInputs = editLines.getByRole('combobox')
-    const initialProductInputCount = await productInputs.count()
-    expect(initialProductInputCount).toBe(1)
-    await expect(editLines.locator('tbody tr').first().getByRole('combobox')).toHaveCount(0)
-    const blankProductInput = productInputs.last()
-    await blankProductInput.fill('AJ040RXH4BC1')
-    await page.waitForTimeout(500)
-    await expect(page.getByRole('listbox', { name: '품목 목록' })).toBeVisible()
-    await page.getByRole('listbox', { name: '품목 목록' }).getByRole('option').first().click()
-
-    await expect(editLines.getByRole('combobox')).toHaveCount(initialProductInputCount)
-    await expect(page.getByRole('dialog', { name: '품목 검색 결과' })).toHaveCount(0)
-    await expect(editLines.getByRole('combobox').last()).toHaveValue('')
-  })
 })
