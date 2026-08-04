@@ -11479,6 +11479,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /arologis/pre-classify — PreClassifyPage (REGION + 광역 prefix 2-탭)
+  if (method === 'GET' && url.includes('/admin/dispatches/pre-classify')) {
+    return envelope({
+      regionGroups: { 서울특별시: [
+        { slipNo: '2026/08/04-1', partnerCode: 'P-001', partnerName: '삼한 거래처', address: '서울 강남구', regionGroup: '서울특별시', dispatchPlanned: false },
+      ] },
+      unclassified: [],
+      unknownWarehouseCount: 0,
+    })
+  }
   if (method === 'GET' && url.includes('/arologis/pre-classify')) {
     return envelope({
       date: '2026-05-10',

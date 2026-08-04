@@ -5,7 +5,7 @@
  * 2-탭 통합 화면. legacy GAS 2번 (REGION) + 15번 (시도) 이식, 가배차 작업 전 사전 분류.
  *
  * <p>BE 출처 (commit e5dc20f):
- * - GET /admin/arologis/dispatches/pre-classify?from&to → PreClassifyResponse (BE-A2)
+ * - GET /admin/dispatches/pre-classify?from&to → PreClassifyResponse (slip-service S2)
  * - GET /admin/arologis/dispatches/regional?date       → RegionalDispatchResponse (BE-A4)
  *
  * <p>구성:
