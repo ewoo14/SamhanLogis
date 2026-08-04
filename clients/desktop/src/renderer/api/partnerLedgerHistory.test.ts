@@ -31,7 +31,10 @@ describe('거래처 원장 이력 API', () => {
   })
 
   it('명시적 저장 조작은 현재 거래처·기간으로 snapshot POST를 호출한다', async () => {
-    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: {} } })
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: {
+      partnerCode: 'P-001', partnerName: '거래처', partnerBusinessNo: '',
+      periodFrom: '2026-08-01', periodTo: '2026-08-31', documents: [],
+    } } })
 
     await captureLedger('P-001', '2026-08-01', '2026-08-31')
 

@@ -143,7 +143,7 @@ public class AccountingReportController {
     /** 사용자가 명시적으로 원장 snapshot 저장을 요청하는 write 계약. */
     @PostMapping("/accounting/journals/ledger-snapshots")
     @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
-    public ApiResponse<LedgerImageResponse> captureLedger(
+    public ApiResponse<PartnerLedgerResponse> captureLedger(
             @RequestParam String partnerCode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,

@@ -49,6 +49,7 @@ import {
   getLedgerData,
   getLedgerHistory,
   getSalesAggregate,
+  mapLedgerSnapshotResponse,
   restoreLedger,
   type LedgerData,
   type LedgerLine,
@@ -286,7 +287,7 @@ export function PartnerLedgerPage() {
 
   const handleRestore = async (batchNo: string) => {
     const restored = await restoreLedger(batchNo)
-    setRestoredLedger(restored.ledger)
+    setRestoredLedger(restored.ledger ? mapLedgerSnapshotResponse(restored.ledger) : null)
   }
 
   const handleCaptureSnapshot = async () => {

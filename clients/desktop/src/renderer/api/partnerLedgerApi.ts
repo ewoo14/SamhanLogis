@@ -7,8 +7,8 @@
  * <ul>
  *   <li>{@code GET /accounting/sales/aggregate?from=&to=&partnerCode=} (BE-A8) —
  *       기간 매출/수금/채권 집계 (한국 일반기업회계기준 401/110 코드 기반)</li>
- *   <li>{@code GET /accounting/journals/ledger-data?partnerCode=&from=&to=} (BE-A9) —
- *       거래처별 원장 데이터 (분개 line 시간순 + 누적 잔액 + 단톡방 매핑)</li>
+ *   <li>{@code GET /accounting/journals/partner-ledger?partnerCode=&from=&to=} —
+ *       거래처별 원장 read model (출고 판매전표 + 확정 입금보고서)</li>
  * </ul>
  *
  * <h2>BE 응답 정렬 / shape 가정</h2>
@@ -66,7 +66,7 @@ export interface SalesAggregateRow {
 }
 
 /**
- * BE {@code LedgerImageResponse.LedgerLine} record 와 1:1 — 분개 라인 1건.
+ * 화면 line 모델 — PartnerLedgerResponse documents를 인쇄 가능한 라인으로 펼친 1건.
  */
 export interface LedgerLine {
   /** 분개 일자 (YYYY-MM-DD). */
@@ -86,11 +86,11 @@ export interface LedgerLine {
   /** 판매전표의 구조화된 배송주소. 적요에서 파싱하지 않는다. */
   deliveryAddress?: string | null
   /** 원장 문서 종류: SALE 또는 CASH_RECEIPT. */
-  documentType?: 'SALE' | 'CASH_RECEIPT'
+  documentType?: 'SALE' | 'SALE_SUMMARY' | 'CASH_RECEIPT'
 }
 
 /**
- * BE {@code LedgerImageResponse} record 와 1:1.
+ * PartnerLedgerResponse read model을 화면에서 사용하는 line 모델로 투영한 결과.
  *
  * <p>거래처별 원장 단건 응답 — partner snapshot + 분개 line + 단톡방.
  */
@@ -112,7 +112,7 @@ export interface LedgerData {
 }
 
 export interface PartnerLedgerSourceDocument {
-  type: 'SALE' | 'CASH_RECEIPT'
+  type: 'SALE' | 'SALE_SUMMARY' | 'CASH_RECEIPT'
   documentNo: string
   date: string
   deliveryAddress: string | null
@@ -192,6 +192,18 @@ export function buildPartnerLedgerLines(
   })
 }
 
+/** 화면 read model로 저장한 신규 snapshot과 legacy line snapshot의 복원 응답. */
+export interface LedgerSnapshotResponse {
+  partnerCode: string
+  partnerName: string
+  partnerBusinessNo: string
+  chatRoomNames: string[]
+  periodFrom: string
+  periodTo: string
+  documents: PartnerLedgerSourceDocument[]
+  lines: LedgerLine[]
+}
+
 /** BE {@code LedgerHistoryResponse} — 목록에서는 ledger가 null이고 복원 시 채워진다. */
 export interface LedgerHistoryResponse {
   batchNo: string
@@ -200,7 +212,7 @@ export interface LedgerHistoryResponse {
   periodTo: string
   lineCount: number
   savedAt: string
-  ledger: LedgerData | null
+  ledger: LedgerSnapshotResponse | null
 }
 
 /** Spring Data Page 응답의 화면 사용 필드. */
@@ -237,12 +249,12 @@ export async function getSalesAggregate(
 }
 
 /**
- * 거래처별 원장 데이터 조회 — {@code GET /accounting/journals/ledger-data}.
+ * 거래처별 원장 데이터 조회 — {@code GET /accounting/journals/partner-ledger}.
  *
  * @param partnerCode 거래처 코드 (필수, 사용자 노출 식별자)
  * @param from 원장 기간 시작 (YYYY-MM-DD, 필수)
  * @param to 원장 기간 종료 (YYYY-MM-DD, 필수)
- * @return 거래처 snapshot + 분개 line + 단톡방 매핑
+ * @return 출고 판매전표·확정 입금보고서 기반 원장 line
  */
 export async function getLedgerData(
   partnerCode: string,
@@ -253,16 +265,7 @@ export async function getLedgerData(
     '/accounting/journals/partner-ledger',
     { params: { partnerCode, from, to } },
   )
-  const source = res.data.data
-  return {
-    partnerCode: source.partnerCode ?? partnerCode,
-    partnerName: source.partnerName ?? '',
-    partnerBusinessNo: source.partnerBusinessNo ?? '',
-    chatRoomNames: [],
-    periodFrom: source.periodFrom,
-    periodTo: source.periodTo,
-    lines: buildPartnerLedgerLines(source.documents),
-  }
+  return mapPartnerLedgerResponse(res.data.data, partnerCode)
 }
 
 /** 사용자가 현재 원장 결과를 명시적으로 snapshot 저장한다. 조회 자체는 저장하지 않는다. */
@@ -271,37 +274,46 @@ export async function captureLedger(
   from: string,
   to: string,
 ): Promise<LedgerData> {
-  const res = await apiClient.post<ApiEnvelope<LedgerImageResponse>>(
+  const res = await apiClient.post<ApiEnvelope<PartnerLedgerResponse>>(
     '/accounting/journals/ledger-snapshots',
     null,
     { params: { partnerCode, from, to } },
   )
-  return mapLedgerImageResponse(res.data.data)
+  return mapPartnerLedgerResponse(res.data.data, partnerCode)
 }
 
-function mapLedgerImageResponse(source: LedgerImageResponse): LedgerData {
+/** GET/POST가 공유하는 PartnerLedgerResponse를 화면 line 모델로 투영한다. */
+export function mapPartnerLedgerResponse(
+  source: PartnerLedgerResponse,
+  fallbackPartnerCode?: string,
+): LedgerData {
+  return {
+    partnerCode: source.partnerCode ?? fallbackPartnerCode ?? '',
+    partnerName: source.partnerName ?? '',
+    partnerBusinessNo: source.partnerBusinessNo ?? '',
+    chatRoomNames: [],
+    periodFrom: source.periodFrom,
+    periodTo: source.periodTo,
+    lines: buildPartnerLedgerLines(source.documents ?? []),
+  }
+}
+
+/** 신규 document snapshot과 기존 line snapshot을 동일 화면 모델로 복원한다. */
+export function mapLedgerSnapshotResponse(source: LedgerSnapshotResponse): LedgerData {
   return {
     partnerCode: source.partnerCode,
     partnerName: source.partnerName,
     partnerBusinessNo: source.partnerBusinessNo,
-    chatRoomNames: source.chatRoomNames,
+    chatRoomNames: source.chatRoomNames ?? [],
     periodFrom: source.periodFrom,
     periodTo: source.periodTo,
-    lines: source.lines,
+    lines: source.documents?.length
+      ? buildPartnerLedgerLines(source.documents)
+      : source.lines ?? [],
   }
 }
 
-interface LedgerImageResponse {
-  partnerCode: string
-  partnerName: string
-  partnerBusinessNo: string
-  chatRoomNames: string[]
-  periodFrom: string
-  periodTo: string
-  lines: LedgerLine[]
-}
-
-interface PartnerLedgerResponse {
+export interface PartnerLedgerResponse {
   partnerCode: string | null
   partnerName: string | null
   partnerBusinessNo: string | null

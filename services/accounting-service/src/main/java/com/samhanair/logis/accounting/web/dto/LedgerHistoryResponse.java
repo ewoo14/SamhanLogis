@@ -11,7 +11,7 @@ public record LedgerHistoryResponse(
         LocalDate periodTo,
         int lineCount,
         LocalDateTime savedAt,
-        LedgerImageResponse ledger) {
+        LedgerSnapshotResponse ledger) {
 
     /** 목록 행 생성 — 내부 UUID와 압축 원문은 노출하지 않는다. */
     public static LedgerHistoryResponse summary(String batchNo, String partnerCode,

@@ -11,7 +11,9 @@ import com.samhanair.logis.accounting.domain.TaxInvoiceBatch;
 import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
 import com.samhanair.logis.accounting.web.dto.LedgerHistoryResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
+import com.samhanair.logis.accounting.web.dto.PartnerLedgerResponse;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +31,7 @@ import org.springframework.data.domain.PageRequest;
 class LedgerSnapshotServiceTest {
 
     @Mock private LedgerImageService ledgerImageService;
+    @Mock private PartnerLedgerReadService partnerLedgerReadService;
     @Mock private TaxInvoiceBatchRepository batchRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -36,7 +39,7 @@ class LedgerSnapshotServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new LedgerSnapshotService(ledgerImageService, batchRepository, objectMapper);
+        service = new LedgerSnapshotService(partnerLedgerReadService, batchRepository, objectMapper);
     }
 
     @Test
@@ -77,16 +80,55 @@ class LedgerSnapshotServiceTest {
     @DisplayName("capture는 원장 조회에 요청 actor를 전달한다")
     void capturePreservesActor() {
         UUID actor = UUID.randomUUID();
-        LedgerImageResponse ledger = new LedgerImageResponse("P-001", "작성자 전달", "",
-                List.of(), LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1), List.of());
-        when(ledgerImageService.getLedger("P-001", LocalDate.of(2026, 8, 1),
-                LocalDate.of(2026, 8, 1), actor)).thenReturn(ledger);
+        PartnerLedgerResponse ledger = displayedLedger();
+        when(partnerLedgerReadService.read("P-001", LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1))).thenReturn(ledger);
 
         assertThat(service.capture("P-001", LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 1), actor)).isSameAs(ledger);
-        verify(ledgerImageService).getLedger("P-001", LocalDate.of(2026, 8, 1),
-                LocalDate.of(2026, 8, 1), actor);
-        verify(batchRepository).save(org.mockito.ArgumentMatchers.any(TaxInvoiceBatch.class));
+        verify(partnerLedgerReadService).read("P-001", LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1));
+        var saved = org.mockito.ArgumentCaptor.forClass(TaxInvoiceBatch.class);
+        verify(batchRepository).save(saved.capture());
+        assertThat(saved.getValue().getProcessedBy()).isEqualTo(actor);
+    }
+
+    @Test
+    @DisplayName("RED-A 현재 화면 read model을 저장하고 복원하면 행 수·금액이 같다")
+    void captureStoresTheDisplayedReadModel() {
+        PartnerLedgerResponse displayed = displayedLedger();
+        when(partnerLedgerReadService.read("P-001", LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1))).thenReturn(displayed);
+
+        service.capture("P-001", LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1), null);
+
+        var saved = org.mockito.ArgumentCaptor.forClass(TaxInvoiceBatch.class);
+        verify(batchRepository).save(saved.capture());
+        assertThat(saved.getValue().getTotalRowCount()).isEqualTo(1);
+        PartnerLedgerResponse restored = SnapshotCompression.decompress(
+                objectMapper, saved.getValue().getDataSnapshotJson(), PartnerLedgerResponse.class);
+
+        assertThat(restored.documents()).hasSize(displayed.documents().size());
+        assertThat(restored.documents().get(0).amount())
+                .isEqualByComparingTo(displayed.documents().get(0).amount());
+        assertThat(restored.documents()).containsExactlyElementsOf(displayed.documents());
+
+        when(batchRepository.findByBatchNoAndDocumentType(saved.getValue().getBatchNo(),
+                LedgerSnapshotService.DOCUMENT_TYPE)).thenReturn(Optional.of(saved.getValue()));
+        LedgerHistoryResponse restoredResponse = service.restore(saved.getValue().getBatchNo());
+        assertThat(restoredResponse.ledger().documents()).containsExactlyElementsOf(displayed.documents());
+        assertThat(restoredResponse.ledger().lines()).isEmpty();
+    }
+
+    private PartnerLedgerResponse displayedLedger() {
+        return new PartnerLedgerResponse("P-001", "화면 거래처", "1234567890",
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1), List.of(
+                        new PartnerLedgerResponse.Document("SALE", "S-001",
+                                LocalDate.of(2026, 8, 1), "P-001", "화면 거래처", "서울",
+                                new BigDecimal("100"), List.of(
+                                        new PartnerLedgerResponse.Line("화면 품목", "M-1", 1,
+                                                new BigDecimal("100"), new BigDecimal("100"))))));
     }
 
     private TaxInvoiceBatch savedBatch() {
