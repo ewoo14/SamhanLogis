@@ -1655,6 +1655,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       label=""
                       ariaLabel={`라인 ${idx + 1} 품목`}
                       placeholder="모델명 또는 품목명"
+                      resultSelectionMode={null}
                       debounceMs={250}
                     />
                   }
@@ -1732,6 +1733,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                           label=""
                           ariaLabel={`라인 ${idx + 1} 품목`}
                           placeholder="모델명 또는 품목명"
+                          resultSelectionMode={null}
                           debounceMs={250}
                         />
                       }

@@ -7,7 +7,10 @@
 import { forwardRef } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
 import { MultiSelectAutocomplete } from '../MultiSelectAutocomplete'
-import type { SearchResultSelectionColumn } from '../SearchResultSelectionModal'
+import type {
+  SearchResultSelectionColumn,
+  SearchResultSelectionMode,
+} from '../SearchResultSelectionModal'
 import { splitHighlightMatches } from '../AsyncAutocomplete/highlight'
 import styles from '../AsyncAutocomplete/AsyncAutocomplete.module.css'
 
@@ -60,6 +63,8 @@ export interface ProductAutocompleteProps {
   minChars?: number
   /** 입력 후 서버 검색까지 debounce 시간 ms (default: 250). */
   debounceMs?: number
+  /** 여러 후보를 별도 선택 모달로 보낼지 여부. null 이면 인라인 listbox 를 유지한다. */
+  resultSelectionMode?: SearchResultSelectionMode | null
 }
 
 export interface ProductMultiSelectAutocompleteProps {
@@ -146,6 +151,7 @@ export const ProductAutocomplete = forwardRef<
     searchProducts,
     label = '품목',
     placeholder = '모델명 또는 품목명 입력…',
+    resultSelectionMode = 'single',
     ...rest
   },
   ref,
@@ -176,7 +182,7 @@ export const ProductAutocomplete = forwardRef<
       )}
       label={label}
       placeholder={placeholder}
-      resultSelectionMode="single"
+      resultSelectionMode={resultSelectionMode ?? undefined}
       resultSelectionTitle="품목 검색 결과"
       resultSelectionColumns={productResultColumns}
       {...rest}

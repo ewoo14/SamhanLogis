@@ -115,12 +115,16 @@
 .option {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   cursor: pointer;
   font-size: var(--font-size-sm);
   color: var(--color-text);
-  white-space: nowrap;
+  white-space: normal;
   transition: background-color var(--duration-fast) ease;
 }
 
@@ -158,7 +162,7 @@
 
 /* 2차 표시 — 코드/이름 등 보조 식별자. */
 .optionSecondary {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
@@ -177,12 +181,15 @@
   display: inline-flex;
   align-items: baseline;
   min-width: 0;
+  max-width: 100%;
 }
 
 .highlightedText {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-width: 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 검색어 매치 강조 — 거래처/품목 자동완성 공유. 원문은 React text node, mark는 시각적 강조만 담당한다. */
