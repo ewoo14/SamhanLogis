@@ -607,8 +607,8 @@ public class SlipService {
      */
     public void softDelete(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
-        dispatchGroupSlipReferenceGuard.assertDeletable(id);
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
+        dispatchGroupSlipReferenceGuard.assertDeletable(id);
         applyMutation(() -> slip.markDeleted(callerId == null ? "system" : callerId));
         consumedApproval.ifPresent(approval ->
                 editRequestService.consumeApproval(approval.getId(), callerId));

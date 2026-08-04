@@ -1313,6 +1313,17 @@ public class Slip extends BaseEntity {
      * @throws BusinessException(SLIP_DELETE_INSPECTION_COMPLETED) DRAFT/SAVED 외 단계일 때
      */
     public void deleteForPurchase(String actorId) {
+        validateDeleteForPurchase();
+        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
+        for (SlipLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted(deleter);
+        }
+        this.lines.clear();
+        this.markDeleted(deleter);
+    }
+
+    /** 삭제 전에 타입·라이프사이클 가드만 평가한다. 상태 변경은 하지 않는다. */
+    public void validateDeleteForPurchase() {
         if (this.slipType != SlipType.INBOUND) {
             throw new BusinessException(ErrorCode.SLIP_DELETE_NON_INBOUND,
                     ErrorCode.SLIP_DELETE_NON_INBOUND.getDefaultMessage());
@@ -1321,12 +1332,6 @@ public class Slip extends BaseEntity {
             throw new BusinessException(ErrorCode.SLIP_DELETE_INSPECTION_COMPLETED,
                     ErrorCode.SLIP_DELETE_INSPECTION_COMPLETED.getDefaultMessage());
         }
-        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
-        for (SlipLine line : new ArrayList<>(this.lines)) {
-            line.markDeleted(deleter);
-        }
-        this.lines.clear();
-        this.markDeleted(deleter);
     }
 
     /**
@@ -1371,6 +1376,19 @@ public class Slip extends BaseEntity {
      * @throws BusinessException(CONFLICT)                  마감 lock 적용 슬립 (lock_flag=true)
      */
     public void deleteForSales(String actorId, String actorName) {
+        validateDeleteForSales();
+        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
+        LocalDateTime now = LocalDateTime.now();
+        for (SlipLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted(deleter, now);
+        }
+        this.lines.clear();
+        this.markDeleted(deleter, now);
+        this.deletedByName = sanitizeDeletedByName(actorName);
+    }
+
+    /** 삭제 전에 타입·라이프사이클·마감 lock 가드만 평가한다. 상태 변경은 하지 않는다. */
+    public void validateDeleteForSales() {
         if (this.slipType != SlipType.OUTBOUND) {
             throw new BusinessException(ErrorCode.SLIP_DELETE_NON_SALES,
                     ErrorCode.SLIP_DELETE_NON_SALES.getDefaultMessage());
@@ -1380,18 +1398,10 @@ public class Slip extends BaseEntity {
                     ErrorCode.SLIP_DELETE_SALES_SHIPPED.getDefaultMessage());
         }
         requireNotLocked();
-        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
         // 단일 시각 각인(#758 머지게이트 감사 HIGH fix) — 헤더/라인이 동일 deletedAt 을 가져야
         // 복원(SlipRestoreService) 이 deletedAt 등호 매칭으로 이 삭제 작업의 라인만 식별한다.
         // removeLine/replaceLines/replaceSalesLines/restoreFromSnapshot 의 markDeleted(deleter)
         // (1-arg, 각자 now()) 는 편집 경로라 복원 대상에서 배제되어야 하므로 그대로 둔다.
-        LocalDateTime now = LocalDateTime.now();
-        for (SlipLine line : new ArrayList<>(this.lines)) {
-            line.markDeleted(deleter, now);
-        }
-        this.lines.clear();
-        this.markDeleted(deleter, now);
-        this.deletedByName = sanitizeDeletedByName(actorName);
     }
 
     /** soft-delete 복원 후 사용자 표시용 삭제자명을 비운다. */

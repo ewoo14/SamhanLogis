@@ -64,8 +64,9 @@ public class SlipDeleteService {
     public void delete(UUID slipId, SlipDeleteRequest request,
                        UUID actorId, String actorName) {
         Slip slip = load(slipId);
-        dispatchGroupSlipReferenceGuard.assertDeletable(slipId);
         verifyVersion(slip, request.updatedAt());
+        slip.validateDeleteForPurchase();
+        dispatchGroupSlipReferenceGuard.assertDeletable(slipId);
 
         String before = summarize(slip);
         try {
