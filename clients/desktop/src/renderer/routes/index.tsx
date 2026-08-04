@@ -130,6 +130,8 @@ import { PasswordResetConfirmPage } from './PasswordResetConfirmPage'
 import { ArologisManualDispatchPage } from './ArologisManualDispatchPage'
 // [Phase 10 PR-E1 FE-2] arologis 가배차 분류 admin UI (REGION 권역 + 시도 광역 2-탭, MASTER/MANAGER/DISPATCH)
 import { ArologisPreClassifyPage } from './ArologisPreClassifyPage'
+import { CarrierListPage } from './CarrierListPage'
+import { DispatchGroupPage } from './DispatchGroupPage'
 // [Phase 10 P2-4 / slice 8] legacy 매출 마감 — 일별/월별 (ACCOUNTANT/MANAGER/MASTER 진입, 역마감은 MASTER 만).
 import { MonthEndClosingPage } from './MonthEndClosingPage'
 // [Phase 10 P0-5 / slice 4] 관리자 통합 admin (MASTER 전용 5 페이지)
@@ -1005,6 +1007,22 @@ const routes = [
         element: (
           <PermissionGuard pageCode="arologis.dispatch.ops" action="view">
             <ArologisPreClassifyPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/admin/carriers',
+        element: (
+          <PermissionGuard pageCode="hr.carriers" action="view">
+            <CarrierListPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/admin/dispatch-groups',
+        element: (
+          <PermissionGuard pageCode="dispatch.board" action="view">
+            <DispatchGroupPage />
           </PermissionGuard>
         ),
       },

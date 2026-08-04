@@ -200,6 +200,9 @@ export function ArologisPreClassifyPage() {
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ───── 탭 헤더 + 실시간 갱신 안내 ───── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <Link to="/admin/dispatch-groups" data-testid="arologis-preclassify-dispatch-groups-link" style={{ marginLeft: 'auto' }}>
+          배차 그룹에 담기
+        </Link>
         <div role="tablist" aria-label="가배차 분류 탭" style={{ display: 'flex', gap: 4 }}>
           <button
             role="tab"

@@ -11488,6 +11488,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       unknownWarehouseCount: 0,
     })
   }
+
   if (method === 'GET' && url.includes('/arologis/pre-classify')) {
     return envelope({
       date: '2026-05-10',
@@ -11504,6 +11505,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         { prefix: '부산', slipCount: 4 },
       ],
     })
+  }
+
+  // S3 운송사 마스터 + 배차 그룹 목록/생성 mock. 전송 mutation은 의도적으로 제공하지 않는다.
+  if (url.match(/\/admin\/carriers(?:\?.*)?$/)) {
+    if (method === 'GET') return envelope([
+      { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true, partnerId: null },
+      { code: 'QUICK-01', name: '한빛퀵', isArologis: false, isActive: true, partnerId: '정산-한빛' },
+    ])
+    if (method === 'POST') return envelope({ code: 'NEW', name: '신규 운송사', isArologis: false, isActive: true, partnerId: null })
+  }
+  if (url.match(/\/admin\/dispatch-groups(?:\?.*)?$/)) {
+    if (method === 'GET') return envelope([
+      { groupNo: 'DG-20260804-01', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'NOT_SENT', slips: [{ slipNo: '2026/08/04-1', inclusionType: 'OUTBOUND', sequence: 1 }] },
+    ])
+    if (method === 'POST') return envelope({ groupNo: 'DG-NEW', dispatchDate: '2026-08-04', vehicleLabel: '신규 차량', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT', slips: [] })
   }
 
   // SP-08-3-4: /admin/notifications/dispatch-sms/history — 배차문자 저장내역 mock.
@@ -18469,6 +18485,7 @@ const SP_D1_PAGES = [
   'sales.slip.list',
   'inbound.inspection',
   'dispatch.board',
+  'hr.carriers',
   'dispatch.external-carriers',
   'admin.permissions',
   'admin.permission-groups',
@@ -18675,7 +18692,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.detail', 'inventory.adjust', 'inventory.transfer',
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
-    'admin.employees', 'admin.app-release',
+    'admin.employees', 'hr.carriers', 'admin.app-release',
     'partners.list', 'partners.detail', 'partners.search', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
@@ -18856,7 +18873,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.adjust', 'inventory.transfer', 'inventory.stock-balance',
     'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
-    'admin.employees', 'admin.app-release',
+    'admin.employees', 'hr.carriers', 'admin.app-release',
     'partners.list', 'partners.detail', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',

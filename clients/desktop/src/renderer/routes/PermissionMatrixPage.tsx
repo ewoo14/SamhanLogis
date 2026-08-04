@@ -323,6 +323,7 @@ export const PAGE_GROUPS: PageGroup[] = [
     label: '직원·계정',
     pages: [
       'admin.employees',
+      'hr.carriers',
       'admin.users',
       'admin.approval-line-config',
       'ecount.mig2.department',
@@ -550,6 +551,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'ecount.mig2.warehouse': 'MIG-2 창고',
   'ecount.mig5.stock-transfer': 'MIG-5 창고이동',
   'admin.employees': '직원 관리',
+  'hr.carriers': '운송사 목록',
   'admin.users': '계정 관리',
   'ecount.mig2.department': '부서 import',
   'ecount.mig6.employee': '사원 import',
