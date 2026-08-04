@@ -68,4 +68,8 @@ public class DispatchGroupAdminController {
     @PutMapping("/{groupNo}/slips/order")
     @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
     public ApiResponse<DispatchGroupResponse> reorder(@PathVariable String groupNo, @Valid @RequestBody DispatchGroupRequests.Reorder request) { return ApiResponse.ok(service.reorder(groupNo, request)); }
+
+    @PostMapping("/{groupNo}/transfer")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
+    public ApiResponse<DispatchGroupResponse> transfer(@PathVariable String groupNo) { return ApiResponse.ok(service.transfer(groupNo)); }
 }

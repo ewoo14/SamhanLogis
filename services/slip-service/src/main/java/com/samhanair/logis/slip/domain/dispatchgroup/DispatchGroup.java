@@ -50,17 +50,34 @@ public class DispatchGroup extends BaseEntity {
     }
 
     public void update(LocalDate dispatchDate, String vehicleLabel) {
+        if (transferStatus == TransferStatus.SENT) throw new IllegalStateException("아로로지스 전송 완료 그룹은 수정할 수 없습니다.");
         if (dispatchDate != null) this.dispatchDate = dispatchDate;
         if (vehicleLabel != null && !vehicleLabel.isBlank()) this.vehicleLabel = vehicleLabel.trim();
     }
 
     public void assignCarrier(Carrier carrier) {
+        if (transferStatus == TransferStatus.SENT) throw new IllegalStateException("아로로지스 전송 완료 그룹은 운송사를 변경할 수 없습니다.");
         if (carrier == null) { this.carrierId = null; return; }
         if (!carrier.isActive()) throw new IllegalStateException("비활성 운송사는 지정할 수 없습니다.");
         this.carrierId = carrier.getId();
     }
 
-    public void clearCarrier() { this.carrierId = null; }
+    public void clearCarrier() {
+        if (transferStatus == TransferStatus.SENT) throw new IllegalStateException("아로로지스 전송 완료 그룹은 운송사를 변경할 수 없습니다.");
+        this.carrierId = null;
+    }
+
+    public boolean canTransferToArologis(boolean carrierActive, boolean carrierArologis, boolean hasActiveSlips) {
+        return transferStatus != TransferStatus.SENT && carrierActive && carrierArologis && hasActiveSlips;
+    }
+
+    public void markTransferSent() {
+        if (transferStatus == TransferStatus.SENT) return;
+        transferStatus = TransferStatus.SENT;
+        transferredAt = LocalDateTime.now();
+    }
+
+    public void markTransferFailed() { transferStatus = TransferStatus.FAILED; }
 
     public void markDeletedWithName(String userId, String actorName) {
         markDeleted(userId); // actorName은 공통 audit의 userId와 별도 표시 필드가 없어 기록 주체로 보존한다.

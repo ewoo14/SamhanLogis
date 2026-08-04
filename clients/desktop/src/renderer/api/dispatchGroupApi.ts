@@ -99,4 +99,8 @@ export const dispatchGroupApi = {
     const response = await apiClient.put<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}/slips/order`, { slipNos })
     return response.data.data
   },
+  async transfer(groupNo: string): Promise<DispatchGroup> {
+    const response = await apiClient.post<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}/transfer`)
+    return response.data.data
+  },
 }

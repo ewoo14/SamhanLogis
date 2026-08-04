@@ -10,11 +10,13 @@ describe('S3 dispatch-group API contract', () => {
     expect(rows[0]).toMatchObject({ code: 'ARO', name: '아로로지스' })
   })
 
-  it('lists groups by dispatch date and does not expose a transfer mutation', async () => {
+  it('lists groups by dispatch date and exposes the group transfer mutation', async () => {
     const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { data: [] } } as never)
     await dispatchGroupApi.list('2026-08-04')
     expect(get).toHaveBeenCalledWith('/admin/dispatch-groups', { params: { dispatchDate: '2026-08-04' } })
-    expect(dispatchGroupApi).not.toHaveProperty('transfer')
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { data: {} } } as never)
+    await dispatchGroupApi.transfer('DG-01')
+    expect(post).toHaveBeenCalledWith('/admin/dispatch-groups/DG-01/transfer')
   })
 
   it('targets groups and carriers only with identifiers returned by responses', async () => {

@@ -6,6 +6,8 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.domain.dispatchgroup.DispatchGroup;
 import com.samhanair.logis.slip.domain.dispatchgroup.DispatchGroupSlip;
+import com.samhanair.logis.slip.client.ArologisDispatchGroupClient;
+import com.samhanair.logis.slip.dto.dispatchgroup.DispatchGroupTransferRequest;
 import com.samhanair.logis.slip.dto.dispatchgroup.DispatchGroupRequests;
 import com.samhanair.logis.slip.dto.dispatchgroup.DispatchGroupResponse;
 import com.samhanair.logis.slip.repository.SlipRepository;
@@ -26,6 +28,7 @@ public class DispatchGroupService {
     private final DispatchGroupSlipRepository groupSlipRepository;
     private final CarrierService carrierService;
     private final SlipRepository slipRepository;
+    private final ArologisDispatchGroupClient arologisClient;
 
     @Transactional(readOnly = true)
     public List<DispatchGroupResponse> list(java.time.LocalDate date) {
@@ -54,6 +57,7 @@ public class DispatchGroupService {
     @Transactional
     public void delete(String groupNo, String actor) {
         DispatchGroup group = load(groupNo);
+        ensureMutable(group, "삭제");
         String who = actor == null ? "system" : actor;
         groupSlipRepository.findAllByGroupIdAndIsDeletedFalseOrderBySequenceAsc(group.getId()).forEach(m -> m.markDeleted(who));
         group.markDeleted(who);
@@ -62,16 +66,18 @@ public class DispatchGroupService {
     @Transactional
     public DispatchGroupResponse assignCarrier(String groupNo, String carrierCode) {
         DispatchGroup group = load(groupNo);
+        ensureMutable(group, "운송사 변경");
         group.assignCarrier(carrierService.load(carrierCode));
         return response(group);
     }
 
     @Transactional
-    public DispatchGroupResponse clearCarrier(String groupNo) { DispatchGroup group = load(groupNo); group.clearCarrier(); return response(group); }
+    public DispatchGroupResponse clearCarrier(String groupNo) { DispatchGroup group = load(groupNo); ensureMutable(group, "운송사 변경"); group.clearCarrier(); return response(group); }
 
     @Transactional
     public DispatchGroupResponse addSlip(String groupNo, DispatchGroupRequests.AddSlip request) {
         DispatchGroup group = load(groupNo);
+        ensureMutable(group, "전표 편입");
         Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(
                 SlipType.valueOf(request.inclusionType().name()), request.slipNo())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "활성 전표를 찾을 수 없습니다."));
@@ -85,6 +91,7 @@ public class DispatchGroupService {
     @Transactional
     public DispatchGroupResponse removeSlip(String groupNo, String slipNo, String actor) {
         DispatchGroup group = load(groupNo);
+        ensureMutable(group, "현장 변경");
         DispatchGroupSlip mapping = findMapping(group.getId(), slipNo);
         mapping.markDeleted(actor == null ? "system" : actor);
         return response(group);
@@ -93,6 +100,7 @@ public class DispatchGroupService {
     @Transactional
     public DispatchGroupResponse reorder(String groupNo, DispatchGroupRequests.Reorder request) {
         DispatchGroup group = load(groupNo);
+        ensureMutable(group, "현장 변경");
         List<DispatchGroupSlip> mappings = groupSlipRepository.findAllByGroupIdAndIsDeletedFalseOrderBySequenceAsc(group.getId());
         Map<String, DispatchGroupSlip> byNo = new HashMap<>();
         for (DispatchGroupSlip mapping : mappings) slipRepository.findById(mapping.getSlipId()).ifPresent(s -> byNo.put(s.getSlipNo(), mapping));
@@ -103,7 +111,37 @@ public class DispatchGroupService {
         return response(group);
     }
 
+    @Transactional
+    public DispatchGroupResponse transfer(String groupNo) {
+        DispatchGroup group = load(groupNo);
+        var carrier = group.getCarrierId() == null ? null : carrierService.loadInternal(group.getCarrierId());
+        var mappings = groupSlipRepository.findAllByGroupIdAndIsDeletedFalseOrderBySequenceAsc(group.getId());
+        if (carrier == null || !carrier.isActive() || !carrier.isArologis() || mappings.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "아로로지스 운송사가 지정된 전표 포함 그룹만 전송할 수 있습니다.");
+        }
+        if (group.getTransferStatus() == com.samhanair.logis.slip.domain.dispatchgroup.TransferStatus.SENT)
+            return response(group);
+        var slips = mappings.stream().map(m -> {
+            Slip s = slipRepository.findById(m.getSlipId()).orElseThrow();
+            return new DispatchGroupTransferRequest.Slip(s.getSlipNo(), m.getInclusionType().name(), m.getSequence(),
+                    s.getPartnerCode(), s.getPartnerName(), s.getDeliveryAddress());
+        }).toList();
+        try {
+            arologisClient.send(new DispatchGroupTransferRequest(group.getGroupNo(), group.getDispatchDate(),
+                    group.getVehicleLabel(), carrier.getCode(), carrier.getName(), slips));
+            group.markTransferSent();
+        } catch (RuntimeException ex) {
+            group.markTransferFailed();
+            throw new BusinessException(ErrorCode.CONFLICT, "아로로지스 전송 실패 — 재시도할 수 있습니다.");
+        }
+        return response(group);
+    }
+
     public boolean hasActiveReference(UUID slipId) { return groupSlipRepository.existsBySlipIdAndIsDeletedFalse(slipId); }
+    private void ensureMutable(DispatchGroup group, String action) {
+        if (group.getTransferStatus() == com.samhanair.logis.slip.domain.dispatchgroup.TransferStatus.SENT)
+            throw new BusinessException(ErrorCode.CONFLICT, "아로로지스 전송 완료 그룹은 " + action + "할 수 없습니다.");
+    }
     public DispatchGroup load(String groupNo) { return groupRepository.findByGroupNoAndIsDeletedFalse(groupNo)
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "배차 그룹을 찾을 수 없습니다.")); }
 

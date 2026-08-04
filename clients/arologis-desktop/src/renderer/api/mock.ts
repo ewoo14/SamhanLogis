@@ -62,6 +62,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const role = useAuthStore.getState().auth?.role ?? ''
     return envelope(clonePermissionMap(permissionFixtures[role] ?? {}))
   }
+  if (method === 'get' && url.startsWith('/admin/arologis/dispatch-groups')) {
+    return envelope([{ groupNo: 'DG-20260804-01', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', slips: '[2026/08/04-1]' }])
+  }
 
   // 배차 상세(GET /admin/arologis/dispatches/{id}) 와 동일한 depth 의 형제 라우트.
   // detailMatch 정규식은 단일 세그먼트만 구분하므로, 아래 예약어는 상세 mock 에서

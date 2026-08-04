@@ -11508,7 +11508,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // S3 운송사 마스터 + 배차 그룹 목록/생성 mock. 전송 mutation은 의도적으로 제공하지 않는다.
+  // S4 운송사 그룹 전송 mock.
   if (url.match(/\/admin\/carriers(?:\?.*)?$/)) {
     if (method === 'GET') return envelope([
       { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true },
@@ -11527,6 +11527,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     ])
     if (method === 'POST') return envelope({ groupNo: 'DG-NEW', dispatchDate: '2026-08-04', vehicleLabel: '신규 차량', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT', slips: [] })
   }
+  const groupTransferMatch = url.match(/\/admin\/dispatch-groups\/([^/?]+)\/transfer$/)
+  if (method === 'POST' && groupTransferMatch) return envelope({ groupNo: decodeURIComponent(groupTransferMatch[1]!), dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'SENT', slips: [{ slipNo: '2026/08/04-1', inclusionType: 'OUTBOUND', sequence: 1 }] })
   const groupMutationMatch = url.match(/\/admin\/dispatch-groups\/([^/?]+)(?:\/([^/?]+)(?:\/([^/?]+))?)?$/)
   if (groupMutationMatch) {
     const groupNo = decodeURIComponent(groupMutationMatch[1]!)
