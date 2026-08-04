@@ -41,7 +41,6 @@ import {
   Modal,
   PartnerAutocomplete,
   PhoneInput,
-  ProductAutocomplete,
   ProgressBar,
   SignatureViewer,
   SlipEditRequestDialog,
@@ -49,7 +48,6 @@ import {
   Spinner,
   type AuditLogEntry,
   type PartnerOption,
-  type ProductOption,
   type SlipEditRequestType as SlipEditRequestUiType,
 } from '@samhan/design-system'
 import axios from 'axios'
@@ -72,11 +70,6 @@ import {
 import { searchPartners } from '../api/sales'
 import { getApiErrorInfo } from '../api/apiError'
 import { type StockBalanceLookupLine } from '../api/inventory'
-import {
-  ensureTrailingBlankRow,
-  filterMeaningfulRows,
-  removeLinePreservingMinimum,
-} from '../utils/autoBlankRow'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { invalidateSignature } from '../api/signature'
 import {
@@ -118,7 +111,7 @@ import {
   type PartnerRepriceCandidate,
   type PartnerRepriceOutcome,
 } from '../utils/usePartnerPriceRefresh'
-import { lookupProducts, searchProducts as searchProductsApi } from '../api/productApi'
+import { lookupProducts } from '../api/productApi'
 import {
   editSlipLineAmount,
   hasVatWarning,
@@ -417,32 +410,6 @@ function detailCoeditFieldPath(index: number, line: Pick<PurchaseEditLine, 'line
   return `items.${line.lineId || index}.${cell}`
 }
 
-/** 품목 확정 시에만 draft를 Y.Doc 라인으로 승격하고, 삭제에 쓸 안정키를 반환한다. */
-export function promoteSelectedProductToCoedit(
-  provider: DocCoeditProvider,
-  index: number,
-  lineId: string | null,
-  selected: { productId: string; productName: string; modelName: string; specification: string },
-): string | null {
-  let targetIndex = index
-  let promotedLineId = lineId
-  if (lineId) {
-    targetIndex = provider.getItemIndexById(lineId)
-    if (targetIndex < 0) return lineId
-  } else {
-    // lineId 없는 행은 trailing draft뿐이다. 그 외 위치는 협업 라인으로 추정하지 않는다.
-    if (targetIndex !== provider.items.length || !selected.productId) return null
-    promotedLineId = provider.addItem()
-  }
-  provider.doc.transact(() => {
-    provider.setItemValue(targetIndex, 'productId', selected.productId)
-    provider.setItemValue(targetIndex, 'productName', selected.productName)
-    provider.setItemValue(targetIndex, 'modelName', selected.modelName)
-    provider.setItemValue(targetIndex, 'specification', selected.specification)
-  })
-  return promotedLineId
-}
-
 /** 상세 표 DOM 식별자 — CRDT 안정키와 분리한 행 위치 기반 testid 경로다. */
 function detailCoeditTestIdPath(index: number, cell: string): string {
   return `items.${index}.${cell}`
@@ -455,22 +422,8 @@ function createEditLineKey() {
   return Math.random().toString(36).slice(2)
 }
 
-function emptyEditLine(): PurchaseEditLine {
-  return {
-    key: createEditLineKey(),
-    lineId: null,
-    productId: '',
-    productName: '',
-    modelName: '',
-    specification: '',
-    quantity: 0,
-    unitPrice: '0',
-    note: '',
-  }
-}
-
 export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
-  const hydratedLines: PurchaseEditLine[] = slip.lines.map((line) => ({
+  return slip.lines.map((line) => ({
     key: createEditLineKey(),
     lineId: line.id,
     productId: line.productId,
@@ -531,25 +484,6 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     isBundleComponent: Boolean((line.parentSetModel ?? '').trim()),
     note: line.note ?? '',
   }))
-  return ensureTrailingBlankRow(hydratedLines, emptyEditLine, (line) => Boolean(line.productId?.trim()))
-}
-
-/** 판매전표 수정 저장에서 품목코드가 확정된 행만 BE payload로 보낸다. */
-export function persistedDetailLines(lines: readonly PurchaseEditLine[]): PurchaseEditLine[] {
-  return filterMeaningfulRows(lines, (line) => Boolean(line.productId?.trim()))
-}
-
-/** 상세 매출 수정 표의 기존 라인/빈행을 ProductAutocomplete controlled 값으로 변환한다. */
-export function detailProductOption(
-  line: Pick<PurchaseEditLine, 'productId' | 'modelName' | 'productName' | 'specification'>,
-): ProductOption | null {
-  if (!line.productId?.trim() || !line.modelName?.trim()) return null
-  return {
-    id: line.productId,
-    modelName: line.modelName,
-    productName: line.productName ?? '',
-    specification: line.specification ?? '',
-  }
 }
 
 /**
@@ -678,16 +612,15 @@ export function coeditHeaderValues(slip: SlipDetail, mode: SlipType): Record<str
   }
 }
 
-export function syncSlipCoeditProvider(provider: DocCoeditProvider | null, slip: SlipDetail, mode: SlipType) {
+function syncSlipCoeditProvider(provider: DocCoeditProvider | null, slip: SlipDetail, mode: SlipType) {
   if (!provider) return
   for (const [fieldName, value] of Object.entries(coeditHeaderValues(slip, mode))) {
     provider.setHeaderValue(fieldName, value)
   }
-  // trailing 빈행은 화면 입력 수단일 뿐 협업 문서 라인이 아니다.
-  provider.replaceItems(persistedDetailLines(toPurchaseEditLines(slip)))
+  provider.replaceItems(toPurchaseEditLines(slip))
 }
 
-export function seedSlipCoeditProvider(provider: DocCoeditProvider, slip: SlipDetail, mode: SlipType) {
+function seedSlipCoeditProvider(provider: DocCoeditProvider, slip: SlipDetail, mode: SlipType) {
   syncSlipCoeditProvider(provider, slip, mode)
 }
 
@@ -1842,6 +1775,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     // 계보/가격기억 귀속의 권위 — 현재 로드된 상세 응답의 라인 id 집합. Y.Doc 직독 lineId 는
     // 이 집합으로 검증해야 클라 랜덤 UUID(구 seed/신규행)가 payload 에 새어 400 이 나지 않는다.
     const knownServerLineIds = toServerLineIdSet(slipData.lines)
+
     const applyProviderState = (nextProvider: DocCoeditProvider) => {
       if (mode === 'OUTBOUND') {
         // D-R8-7: 상대 피어의 거래처 재선택을 수신 — 이게 없으면 구 partnerId 로 저장한다.
@@ -1858,11 +1792,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         setSalesProjectName(nextProvider.getHeaderValue('projectName'))
         setSalesRecipientPhone(nextProvider.getHeaderValue('recipientPhone'))
         setSalesPaymentDueDate(nextProvider.getHeaderValue('paymentDueDate'))
-        setSalesEditLines((prev) => ensureTrailingBlankRow(
-          coeditLinesToEditLines(nextProvider, prev, knownServerLineIds),
-          emptyEditLine,
-          (line) => Boolean(line.productId?.trim()),
-        ))
+        setSalesEditLines((prev) => coeditLinesToEditLines(nextProvider, prev, knownServerLineIds))
         if (partnerChanged && nextPartnerId) {
           // 원격 거래처 변경도 로컬 선택과 동일하게 최신 거래처 단가를 재조회한다.
           void repriceEditLinesForPartner(nextPartnerId, nextProvider)
@@ -1907,10 +1837,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         // lineId seed 이전 구 스냅샷 — 원격 편집(memo/수량 등)은 보존하고 아이템 lineId 만
         // 서버 기준으로 in-place 복구한다(reseedCoeditLineIds). 미복구 시 전 라인이 신규로
         // 강등돼 계보가 소실되거나 계보 보유 문서에서 BE requireLineIdContract 가 400 을 낸다.
-        reseedCoeditLineIds(
-          nextProvider,
-          slipData.lines.map((line) => line.id ?? ''),
-        )
+        reseedCoeditLineIds(nextProvider, slipData.lines.map((line) => line.id ?? ''))
       }
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
@@ -2475,7 +2402,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: salesProjectName.trim() || null,
       recipientPhone: salesRecipientPhone.trim() || null,
       paymentDueDate: salesPaymentDueDate || null,
-      lines: persistedDetailLines(salesEditLines).map(buildDetailLinePayload),
+      lines: salesEditLines.map(buildDetailLinePayload),
     })
   }
 
@@ -2506,7 +2433,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             type="button"
             variant="primary"
             loading={salesUpdateMutation.isPending || modalRepricePending || partnerReprice.isPending}
-            disabled={salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || persistedDetailLines(salesEditLines).length === 0}
+            disabled={salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || salesEditLines.length === 0}
             data-testid="sales-slip-edit-save"
             onClick={handleSalesEditSave}
           >
@@ -2670,39 +2597,19 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               const sourceStatusId = `sales-edit-price-source-${line.key}`
               const changedStatusId = `sales-edit-price-changed-${line.key}`
               const changed = Boolean(line.lineId && repriceChangedLineIds.has(line.lineId))
-              const productValue = detailProductOption(line)
-              const canSelectProduct = !line.productId?.trim()
               return <tr
                 key={line.key}
                 className={changed ? 'price-memory-refreshed-row' : undefined}
               >
                 <td>
-                  {canSelectProduct ? <ProductAutocomplete
-                    value={productValue}
-                    onChange={(product) => applySalesProductSelection(index, line, product)}
-                    onInputCommitChange={(committed) => {
-                      if (committed) return
-                      if (line.productId?.trim()) {
-                        applySalesProductSelection(index, line, null)
-                      } else {
-                        // 미확정 trailing 행은 검색 중 provider echo를 만들지 않는다.
-                        // 빈 Y.Doc 행의 client lineId/key 재생성으로 입력 draft를 언마운트하면
-                        // 사용자가 검색하던 값이 사라진다.
-                        updateSalesLine(index, {
-                          productId: '',
-                          productName: '',
-                          modelName: '',
-                          specification: '',
-                        })
-                      }
-                    }}
-                    searchProducts={(query) => searchProductsApi(query, { usageScope: 'PARTNER_ORDER' })}
-                    label=""
-                    ariaLabel={`라인 ${index + 1} 품목`}
-                    placeholder="모델명 또는 품목명"
-                    resultSelectionMode={null}
-                    debounceMs={250}
-                  /> : <span>{line.productName || '-'}</span>}
+                  <CollaborativeSlipInput
+                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    fieldPath={detailCoeditFieldPath(index, line, 'productName')}
+                    testIdPath={detailCoeditTestIdPath(index, 'productName')}
+                    value={line.productName ?? ''}
+                    onValueChange={(value) => updateSalesLine(index, { productName: value })}
+                    aria-label={`품목 ${index + 1}`}
+                  />
                 </td>
                 <td>
                   <CollaborativeSlipInput
@@ -3949,7 +3856,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             size="sm"
             variant="secondary"
             disabled={!linesEditable}
-            onClick={() => alert('행 추가 — SlipFormPage 에서 편집해주세요 (DRAFT/SAVED 만 BE 허용).')}
+            onClick={() => navigate(`/sales/${id}/edit`)}
             title={linesEditable ? undefined : '작성 중/저장 단계에서만 가능'}
           >
             행 추가
@@ -4815,41 +4722,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     if (typeof patch !== 'function' && patch.unitPrice !== undefined) {
       clearRepriceHighlight(salesEditLinesRef.current[index]?.lineId)
     }
-    setSalesEditLines((prev) => ensureTrailingBlankRow(
-      prev.map((line, i) => (
-        i === index ? { ...line, ...(typeof patch === 'function' ? patch(line) : patch) } : line
-      )),
-      emptyEditLine,
-      (line) => Boolean(line.productId?.trim()),
-    ))
-  }
-
-  /** 품목 확정값은 React state와 coedit Y.Doc에 함께 기록한다. */
-  function applySalesProductSelection(
-    index: number,
-    line: PurchaseEditLine,
-    product: ProductOption | null,
-  ) {
-    const next = product
-      ? {
-          productId: product.id,
-          productName: product.productName,
-          modelName: product.modelName,
-          specification: product.specification ?? line.specification ?? '',
-        }
-      : {
-          productId: '',
-          productName: '',
-          modelName: '',
-          specification: '',
-        }
-    const promotedLineId = slipFormCoeditProvider
-      ? promoteSelectedProductToCoedit(slipFormCoeditProvider, index, line.lineId ?? null, next)
-      : null
-    updateSalesLine(index, {
-      ...next,
-      ...(promotedLineId && !line.lineId ? { lineId: promotedLineId } : {}),
-    })
+    setSalesEditLines((prev) => prev.map((line, i) => (
+      i === index ? { ...line, ...(typeof patch === 'function' ? patch(line) : patch) } : line
+    )))
   }
 
   /** 재조회 강조에서 특정 lineId 를 제거한다(사용자 직접 편집 시). */
@@ -4872,11 +4747,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   function removeSalesLine(index: number) {
     const lineId = salesEditLinesRef.current[index]?.lineId
-    const lineKey = salesEditLinesRef.current[index]?.key
     clearRepriceHighlight(lineId)
-    setSalesEditLines((prev) => lineKey == null
-      ? prev
-      : removeLinePreservingMinimum(prev, lineKey, (line) => line.key, emptyEditLine, 1))
+    // 매입과 동일하게 라인 Map 자체만 삭제한다.
+    setSalesEditLines((prev) => prev.filter((_, i) => i !== index))
     if (lineId) slipFormCoeditProvider?.removeItem(lineId)
   }
 }

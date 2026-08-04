@@ -550,6 +550,16 @@ const routes = [
         ),
       },
 
+      // 기존 판매전표 수정 — 신규 생성 권한이 아닌 기존 수정 권한 축(sales.slip.edit/update).
+      // `/sales/:id`보다 먼저 등록해 edit suffix가 상세 id로 오인되지 않게 한다.
+      {
+        path: '/sales/:id/edit',
+        element: (
+          <PermissionGuard pageCode="sales.slip.edit" action="update">
+            <SlipFormPage mode="OUTBOUND" />
+          </PermissionGuard>
+        ),
+      },
       { path: '/sales/:id', element: <SlipDetailPage mode="OUTBOUND" /> },
       // SP-08-6-4 — 거래명세서 (A4 portrait, legacy GAS 동등). 정적 suffix 먼저 매칭.
       { path: '/sales/:id/print/statement', element: <SalesTransactionStatementPrintPage /> },

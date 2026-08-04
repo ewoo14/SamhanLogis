@@ -4365,6 +4365,29 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )
   }
 
+  // PUT /slips/{id}/sales — 기존 판매전표 편집 mock. BE의 기존 수정 계약을 UI QA에서 재현한다.
+  const salesSlipUpdateMatch = url.match(/\/slips\/([^/?]+)\/sales$/)
+  if (method === 'PUT' && salesSlipUpdateMatch) {
+    const denied = mockRequirePermission('sales.slip.edit', 'update')
+    if (denied) return denied
+    const id = decodeURIComponent(salesSlipUpdateMatch[1]!)
+    const row = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
+    if (!row) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
+    if (row['status'] !== 'DRAFT' && row['status'] !== 'SAVED') {
+      return mockError(409, 'SLIP_NOT_EDITABLE', '작성 중/저장 단계의 전표만 수정할 수 있습니다.')
+    }
+    const body = parseMockBody(config) as { lines?: unknown[]; updatedAt?: string }
+    try {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_LAST_SLIP_UPDATE'] = body
+    } catch {
+      /* noop */
+    }
+    const now = new Date().toISOString()
+    row['updatedAt'] = now
+    row['version'] = Number(row['version'] ?? 0) + 1
+    return envelope({ ...row, lines: body.lines ?? SAMPLE_LINES, updatedAt: now })
+  }
+
   // GET /slips/{id} (단건 상세) — UUID-like 또는 'slip-001' 패턴
   const slipDetailMatch = url.match(/\/slips\/([^/?]+)$/)
   if (method === 'GET' && slipDetailMatch && !url.includes('/slips/query') && !url.includes('lookup-product') && !url.includes('/slips/edit-requests') && !url.match(/\/slips\/cleanup/) && !url.includes('compensation-failures')) {

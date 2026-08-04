@@ -34,13 +34,7 @@ function setProviderValue(provider: DocCoeditProvider, fieldPath: string, value:
   }
   if (scope === 'items') {
     const key = rowKey ?? ''
-    if (/^\d+$/.test(key)) {
-      // trailing draft는 Y.Doc items 밖의 화면 전용 행이다. setItemValue(index)는
-      // ensureItemMap으로 행을 생성하므로, 배열 범위를 벗어난 입력은 완전한 로컬 no-op이다.
-      const index = Number(key)
-      if (index >= provider.items.length) return
-      provider.setItemValue(index, cellName ?? '', value)
-    }
+    if (/^\d+$/.test(key)) provider.setItemValue(Number(key), cellName ?? '', value)
     else provider.setItemValueById(key, cellName ?? '', value)
   }
 }
