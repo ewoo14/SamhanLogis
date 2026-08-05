@@ -39,6 +39,8 @@ export interface DataGridColumn<T> {
   filter?: 'text' | 'select' | false
   /** 셀 값 포맷터. 없으면 String(). */
   format?: (v: unknown) => string
+  /** 복사/내보내기 값. 없으면 기존 format/String() 경로를 유지한다. */
+  copyValue?: (row: T) => string
   /** 커스텀 셀 렌더러 (반환값 ReactNode). 있으면 format 보다 우선. */
   render?: (row: T) => ReactNode
   /** 텍스트 정렬. 기본 'left'. */
@@ -88,6 +90,7 @@ function getCellDisplayValue<T>(
   col: DataGridColumn<T>,
 ): string {
   const v = (row as Record<string, unknown>)[col.key]
+  if (col.copyValue) return col.copyValue(row)
   if (col.format) return col.format(v)
   if (v === null || v === undefined) return ''
   return String(v)
