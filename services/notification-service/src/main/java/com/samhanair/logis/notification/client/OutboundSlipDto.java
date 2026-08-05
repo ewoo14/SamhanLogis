@@ -35,13 +35,25 @@ public record OutboundSlipDto(
         LocalDateTime scheduledAt,
         String deliveryAddress,
         List<OutboundSlipLineDto> lines,
-        String recipientPhone) {
+        String recipientPhone,
+        LocalDate unloadDate,
+        String driverPhone) {
 
     /** 기존 테스트·호출자 호환용 생성자. 수신번호는 미지정한다. */
     public OutboundSlipDto(String slipNo, String partnerCode, String partnerName,
                            LocalDate slipDate, LocalDateTime scheduledAt,
                            String deliveryAddress, List<OutboundSlipLineDto> lines) {
-        this(slipNo, partnerCode, partnerName, slipDate, scheduledAt, deliveryAddress, lines, null);
+        this(slipNo, partnerCode, partnerName, slipDate, scheduledAt, deliveryAddress, lines,
+                null, null, null);
+    }
+
+    /** 기존 호출자 호환용 생성자. 하차일·배송기사 연락처는 미지정한다. */
+    public OutboundSlipDto(String slipNo, String partnerCode, String partnerName,
+                           LocalDate slipDate, LocalDateTime scheduledAt,
+                           String deliveryAddress, List<OutboundSlipLineDto> lines,
+                           String recipientPhone) {
+        this(slipNo, partnerCode, partnerName, slipDate, scheduledAt, deliveryAddress, lines,
+                recipientPhone, null, null);
     }
 
     /**

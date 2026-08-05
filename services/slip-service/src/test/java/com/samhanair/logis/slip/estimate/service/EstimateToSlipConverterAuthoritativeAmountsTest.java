@@ -50,6 +50,7 @@ class EstimateToSlipConverterAuthoritativeAmountsTest {
         assertThat(line.getVatAmount()).isEqualByComparingTo("10001");
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("36668.67");
         assertThat(line.getLineTotal()).isEqualByComparingTo("100005");
+        assertThat(converted.getBusinessNumber()).isEqualTo("123-45-67890");
     }
 
     @Test
@@ -78,6 +79,6 @@ class EstimateToSlipConverterAuthoritativeAmountsTest {
 
     private Estimate estimate() {
         return Estimate.create("Q-20260722-1", LocalDate.of(2026, 7, 22), 1,
-                UUID.randomUUID(), "거래처", null, null, null, null, "test-user");
+                UUID.randomUUID(), "거래처", "123-45-67890", null, null, null, "test-user");
     }
 }

@@ -71,6 +71,7 @@ public class PartnerAuthService {
     private final PartnerAuthJwtProperties jwtProperties;
     private final DcConfigClient dcConfigClient;
     private final SmsClient smsClient;
+    private final PartnerActivityReader partnerActivityReader;
     private final Map<String, RateLimitBucket> passwordResetRateLimits = new ConcurrentHashMap<>();
 
     // ─────────────────────────────────────────────────────────────────────
@@ -106,8 +107,12 @@ public class PartnerAuthService {
                 || auth.getStatus() == PartnerStatus.PENDING || auth.getStatus() == PartnerStatus.NEED_PW_SET) {
             return auth.getStatus();
         }
-        LocalDateTime expiresAt = auth.expirationAt();
-        if (expiresAt != null && expiresAt.isBefore(LocalDateTime.now())) {
+        if (auth.getStatus() == PartnerStatus.LONG_UNUSED) {
+            return PartnerStatus.LONG_UNUSED;
+        }
+        PartnerActivity activity = PartnerAccessPolicy.readSafely(
+                partnerActivityReader, auth.getBizNo(), auth.getPartnerCode());
+        if (PartnerAccessPolicy.isAuthenticationLongUnused(auth, activity, LocalDateTime.now())) {
             return PartnerStatus.LONG_UNUSED;
         }
         return auth.getStatus();
@@ -364,12 +369,14 @@ public class PartnerAuthService {
     public ExpirationResponse getExpiration(String bizNo) {
         PartnerAuth auth = authRepository.findByBizNo(bizNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "거래처를 찾을 수 없습니다"));
-        LocalDateTime expiresAt = auth.expirationAt();
+        PartnerActivity activity = PartnerAccessPolicy.readSafely(
+                partnerActivityReader, auth.getBizNo(), auth.getPartnerCode());
+        LocalDateTime expiresAt = PartnerAccessPolicy.authenticationExpirationAt(auth, activity);
         if (expiresAt == null) {
             return new ExpirationResponse(bizNo, null, false, PartnerAuth.LONG_UNUSED_DAYS);
         }
         LocalDateTime now = LocalDateTime.now();
-        boolean expired = expiresAt.isBefore(now);
+        boolean expired = PartnerAccessPolicy.isAuthenticationLongUnused(auth, activity, now);
         long remaining = expired ? 0 : ChronoUnit.DAYS.between(now, expiresAt);
         return new ExpirationResponse(bizNo, expiresAt, expired, remaining);
     }

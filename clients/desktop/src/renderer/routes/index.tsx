@@ -173,10 +173,8 @@ import { DpsByProductPage } from './warehouse/DpsByProductPage'
 // [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
 import { InOutAnalysisPage } from './warehouse/InOutAnalysisPage'
-// [PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER 가드
+// [PR-E1 FE-6] 배차안내문자 표시·편집·복사 — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
-// [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회 화면 (DISPATCH / MANAGER / MASTER)
-import { DispatchSmsSendAuditPage } from './DispatchSmsSendAuditPage'
 // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — 일자 필터 + 수동 배차로 이동 link (MASTER/MANAGER/DISPATCH)
 import { ArologisUnassignedPage } from './ArologisUnassignedPage'
 // [PR-E1 FE-4] 내일자 전표 이미지 페이지 + Designer NextDaySlipView 통합 print route
@@ -1029,24 +1027,13 @@ const routes = [
         ),
       },
 
-      // [Phase 10 PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER.
-      // 출고전표 자동 조회 + 단톡방 매핑 + blocked 가드 + 안내 SMS 발송.
+      // [Phase 10 PR-E1 FE-6] 배차안내문자 미리보기·편집·복사 — DISPATCH / MANAGER / MASTER.
+      // 출고전표 자동 조회 + 단톡방 매핑 + blocked 가드 + 하차일별 안내 문구.
       {
         path: '/arologis/dispatch-sms',
         element: (
-          <PermissionGuard pageCode="dispatch.batch" action="view">
+          <PermissionGuard pageCode="notification.dispatch-sms.display" action="view">
             <DispatchSmsPage />
-          </PermissionGuard>
-        ),
-      },
-
-      // [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회화면.
-      // BE SEND_AUDIT append-only row 조회 + 수신번호 마스킹 + 상태 Badge + 날짜/결과 필터.
-      {
-        path: '/arologis/dispatch-sms/send-audit',
-        element: (
-          <PermissionGuard pageCode="notification.dispatch-sms.send-audit" action="view">
-            <DispatchSmsSendAuditPage />
           </PermissionGuard>
         ),
       },

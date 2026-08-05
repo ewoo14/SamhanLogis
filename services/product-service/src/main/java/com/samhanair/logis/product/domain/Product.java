@@ -71,6 +71,11 @@ public class Product extends BaseEntity {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    /** 생성 경로. 관리자 편집에서는 변경하지 않으며, ECOUNT 행이 시트 정본으로 채택될 때만 승격한다. */
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @jakarta.persistence.Column(name = "lineage", nullable = false, length = 20)
+    private ProductLineage lineage = ProductLineage.MANUAL;
+
     @Column(name = "selling_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal sellingPrice;
 
@@ -404,6 +409,7 @@ public class Product extends BaseEntity {
         validateNonNegative(deliveryPrice, "납품가");
         Product p = new Product(name, modelCode, category,
                 releasePrice, deliveryPrice, "KRW", null, null);
+        p.lineage = ProductLineage.SHEET;
         p.modelCode = modelCode;
         p.productType = productType == null ? ProductType.SINGLE : productType;
         p.productCategory = productCategory;
@@ -411,6 +417,22 @@ public class Product extends BaseEntity {
         p.releasePrice = releasePrice;
         p.deliveryPrice = deliveryPrice;
         return p;
+    }
+
+    /**
+     * ECOUNT-first 품목이 시트에 등장하면 시트 정본 계보로 승격한다.
+     *
+     * <p>승격 자체만 담당하고 이름·노출 구분·품목 분류는 시트 sync가 같은 행의 정본값으로
+     * 별도 갱신한다. 이미 SHEET 또는 MANUAL 계보인 품목은 변경하지 않는다.
+     *
+     * @return ECOUNT 계보에서 SHEET 계보로 실제 승격했으면 {@code true}
+     */
+    public boolean promoteEcountToSheet() {
+        if (lineage != ProductLineage.ECOUNT) {
+            return false;
+        }
+        lineage = ProductLineage.SHEET;
+        return true;
     }
 
     public void rename(String name) {

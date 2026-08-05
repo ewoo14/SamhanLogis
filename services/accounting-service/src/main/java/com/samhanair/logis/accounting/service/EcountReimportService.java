@@ -173,16 +173,21 @@ public class EcountReimportService {
     }
 
     private void processCommand(CommandTarget target, String userId, Totals totals,
-                                List<EcountReimportResult.SliceResult> details,
-                                List<EcountReimportResult.ErrorSample> errors) {
+                                 List<EcountReimportResult.SliceResult> details,
+                                 List<EcountReimportResult.ErrorSample> errors) {
         try {
             CountSummary summary = target.action.run(userId);
             totals.filesProcessed++;
             totals.totalImported += summary.imported;
             totals.totalRejected += summary.rejected;
+            errors.addAll(summary.errors);
+            String status = summary.rejected > 0 ? "PROCESSED_WITH_REJECTIONS" : "PROCESSED";
+            String message = summary.message != null
+                    ? summary.message
+                    : summary.rejected > 0 ? "거부 " + summary.rejected + "건 — errors 상세를 확인하십시오." : null;
             details.add(new EcountReimportResult.SliceResult(
-                    target.key, null, null, "PROCESSED",
-                    summary.imported, summary.rejected, summary.message));
+                    target.key, null, null, status,
+                    summary.imported, summary.rejected, message));
         } catch (BusinessException ex) {
             totals.totalRejected++;
             errors.add(error(target.key, null, ex.getErrorCode().name(), ex.getMessage()));
@@ -557,7 +562,17 @@ public class EcountReimportService {
     }
 
     private static CountSummary summarize(EcountMig8TransformResult result) {
-        return new CountSummary(result.imported() + result.updated(), result.rejected(), null);
+        List<EcountReimportResult.ErrorSample> errors = result.samples().stream()
+                .filter(sample -> "ERROR".equals(sample.level()))
+                .map(sample -> error("order-transform", null, sample.code(), sampleDetail(sample)))
+                .toList();
+        return new CountSummary(result.imported() + result.updated(), result.rejected(), null, errors);
+    }
+
+    private static String sampleDetail(EcountMig8TransformResult.Sample sample) {
+        return "sourceRowNo=" + sample.rowNumber()
+                + ", businessKey='" + sample.businessKey()
+                + "', rawValue='" + sample.rawValue() + "': " + sample.message();
     }
 
     private static CountSummary summarize(EcountMig9JournalResult result) {
@@ -639,7 +654,11 @@ public class EcountReimportService {
     private record CommandTarget(EcountSlice slice, String key, CommandAction action) {
     }
 
-    private record CountSummary(int imported, int rejected, String message) {
+    private record CountSummary(int imported, int rejected, String message,
+                                List<EcountReimportResult.ErrorSample> errors) {
+        private CountSummary(int imported, int rejected, String message) {
+            this(imported, rejected, message, List.of());
+        }
     }
 
     private static final class Totals {

@@ -103,7 +103,6 @@ export function DispatchSmsHistoryTab({
         >
           <option value="MANUAL_NAMED">명시 저장만</option>
           <option value="AUTO_LATEST">자동 저장만</option>
-          <option value="SEND_AUDIT">발송 감사</option>
           <option value="ALL">전체</option>
         </Select>
         <Button
@@ -178,7 +177,6 @@ function columns(testIdPrefix: string): DataGridColumn<HistoryGridRow>[] {
 
 function modeLabel(mode: DispatchSmsSaveMode): string {
   if (mode === 'AUTO_LATEST') return '자동'
-  if (mode === 'SEND_AUDIT') return '발송 감사'
   return '명시'
 }
 

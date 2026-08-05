@@ -33,7 +33,9 @@ public record OutboundSlipResponse(
         DeliveryTag deliveryTag,
         String deliveryAddress,
         List<Line> lines,
-        String recipientPhone) {
+        String recipientPhone,
+        LocalDate unloadDate,
+        String driverPhone) {
 
     /** 전표 entity를 UUID 없는 배차 응답으로 변환한다. */
     public static OutboundSlipResponse from(Slip slip) {
@@ -46,7 +48,9 @@ public record OutboundSlipResponse(
                 slip.getDeliveryTag(),
                 slip.getDeliveryAddress(),
                 slip.getLines().stream().map(Line::from).toList(),
-                slip.getRecipientPhone());
+                slip.getRecipientPhone(),
+                slip.getUnloadDate(),
+                slip.getDriverPhone());
     }
 
     /** 배차 메시지에 필요한 품목 단위 projection. */

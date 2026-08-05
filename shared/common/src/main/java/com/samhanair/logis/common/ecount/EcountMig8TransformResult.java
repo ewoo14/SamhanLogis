@@ -65,9 +65,10 @@ public record EcountMig8TransformResult(
 
         private void sample(int rowNumber, String level, String code, String message,
                             String businessKey, String rawValue) {
-            if (samples.size() < 20) {
-                samples.add(new Sample(rowNumber, level, code, message, businessKey, rawValue));
-            }
+            // MIG-8 reimport 관리자 응답은 거부 행의 source row/reason을 그대로 전달해야
+            // 하므로 20건 sample cap을 두지 않는다. totalRejected와 details가 어긋나
+            // 나머지 행을 UNSPECIFIED로 집계하는 조용한 누락을 방지한다.
+            samples.add(new Sample(rowNumber, level, code, message, businessKey, rawValue));
         }
     }
 }

@@ -27,12 +27,10 @@ import com.samhanair.logis.notification.domain.RecipientType;
 import com.samhanair.logis.notification.dto.AligoAddressBookSyncResponse;
 import com.samhanair.logis.notification.dto.ChatRoomImportResult;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse;
-import com.samhanair.logis.notification.dto.DispatchBatchSendResponse;
 import com.samhanair.logis.notification.service.AligoAddressBookSyncService;
 import com.samhanair.logis.notification.service.ChatRoomImportService;
 import com.samhanair.logis.notification.service.ChatRoomMappingService;
 import com.samhanair.logis.notification.service.DispatchBatchPreviewService;
-import com.samhanair.logis.notification.service.DispatchBatchSendService;
 import com.samhanair.logis.notification.service.DispatchSmsSaveHistoryService;
 import com.samhanair.logis.notification.service.NotificationCenterService;
 import com.samhanair.logis.notification.service.NotificationService;
@@ -109,7 +107,6 @@ class NotificationPermissionControllerIT {
     @MockBean private ChatRoomMappingService chatRoomMappingService;
     @MockBean private ChatRoomImportService chatRoomImportService;
     @MockBean private DispatchBatchPreviewService dispatchBatchPreviewService;
-    @MockBean private DispatchBatchSendService dispatchBatchSendService;
     @MockBean private DispatchSmsSaveHistoryService dispatchSmsSaveHistoryService;
     @MockBean private NotificationCenterService notificationCenterService;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
@@ -143,8 +140,6 @@ class NotificationPermissionControllerIT {
                 .thenReturn(new ChatRoomImportResult(1, 0, List.of()));
         lenient().when(dispatchBatchPreviewService.preview(any()))
                 .thenReturn(new DispatchBatchPreviewResponse(LocalDate.of(2026, 5, 26), 0, 0, 0, List.of(), List.of()));
-        lenient().when(dispatchBatchSendService.send(any(), any()))
-                .thenReturn(new DispatchBatchSendResponse(LocalDate.of(2026, 5, 26), 1, 0, 0, List.of()));
         lenient().when(dispatchSmsSaveHistoryService.save(any(), anyString()))
                 .thenReturn(new DispatchSmsSaveHistorySaveResponse(ID, LocalDateTime.of(2026, 5, 26, 9, 0)));
         lenient().when(dispatchSmsSaveHistoryService.list(any(), any(), any(), any(), anyString(), any()))
@@ -216,23 +211,19 @@ class NotificationPermissionControllerIT {
                                 .file(new MockMultipartFile("file", "rooms.csv", "text/csv", "x".getBytes()))),
                 new EndpointCase("chat-room delete", "messenger.admin", PermissionAction.DELETE, "MANAGER", 200,
                         () -> delete("/api/v1/notification/admin/chat-rooms/{id}", ID)),
-                new EndpointCase("dispatch batch preview", "dispatch.batch", PermissionAction.CREATE, "DISPATCH", 200,
+                new EndpointCase("dispatch batch preview", "notification.dispatch-sms.display", PermissionAction.CREATE, "DISPATCH", 200,
                         () -> post("/admin/notifications/dispatch-batch/preview")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"date\":\"2026-05-26\"}")),
-                new EndpointCase("dispatch batch send", "dispatch.batch", PermissionAction.CREATE, "DISPATCH", 200,
-                        () -> post("/admin/notifications/dispatch-batch/send")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(dispatchSendBody())),
-                new EndpointCase("sms history save", "dispatch.sms-save-history", PermissionAction.CREATE, "DISPATCH", 200,
+                new EndpointCase("sms history save", "notification.dispatch-sms.display", PermissionAction.CREATE, "DISPATCH", 200,
                         () -> post("/admin/notifications/dispatch-sms/history")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(historyBody())),
-                new EndpointCase("sms history list", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
+                new EndpointCase("sms history list", "notification.dispatch-sms.display", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history")),
-                new EndpointCase("sms history detail", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
+                new EndpointCase("sms history detail", "notification.dispatch-sms.display", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history/{id}", ID)),
-                new EndpointCase("sms history latest", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
+                new EndpointCase("sms history latest", "notification.dispatch-sms.display", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history/latest")
                                 .param("programType", "DISPATCH_SMS")),
                 new EndpointCase("notification center unread", "notifications.center", PermissionAction.VIEW, "STAFF", 200,
@@ -247,12 +238,6 @@ class NotificationPermissionControllerIT {
     private static String notificationBody() {
         return """
                 {"recipientType":"EXTERNAL_PHONE","recipientAddress":"010-1111-2222","channel":"SMS","subject":"제목","body":"본문"}
-                """;
-    }
-
-    private static String dispatchSendBody() {
-        return """
-                {"date":"2026-05-26","entries":[{"partnerCode":"P001","recipientPhone":"010-1111-2222","message":"본문","chatRoomName":"발주방"}]}
                 """;
     }
 
