@@ -11508,7 +11508,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // S4 운송사 그룹 전송 mock.
+  // S10 배차 화면 운송사 조회 mock — dispatch.board VIEW alias.
+  const dispatchCarrierLookupMatch = url.match(/\/admin\/carriers\/dispatch-lookup(?:\/([^/?]+))?$/)
+  if (method === 'GET' && dispatchCarrierLookupMatch) {
+    const carriers = [
+      { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true },
+      { code: 'QUICK-01', name: '한빛퀵', isArologis: false, isActive: true },
+    ]
+    const code = dispatchCarrierLookupMatch[1] ? decodeURIComponent(dispatchCarrierLookupMatch[1]) : null
+    return envelope(code ? carriers.find((carrier) => carrier.code === code) ?? null : carriers)
+  }
+
+  // S4 운송사 그룹 전송 mock — 인사 마스터 CRUD 경로.
   if (url.match(/\/admin\/carriers(?:\?.*)?$/)) {
     if (method === 'GET') return envelope([
       { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true },

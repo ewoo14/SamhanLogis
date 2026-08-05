@@ -63,6 +63,20 @@ export const carrierApi = {
   },
 }
 
+/** 배차 화면 운송사 선택용 조회 API. 인사 마스터 CRUD API와 권한 키를 분리한다. */
+export const dispatchCarrierApi = {
+  async list(): Promise<Carrier[]> {
+    const response = await apiClient.get<ApiEnvelope<Carrier[]>>('/admin/carriers/dispatch-lookup')
+    return response.data.data ?? []
+  },
+  async get(code: string): Promise<Carrier | null> {
+    const response = await apiClient.get<ApiEnvelope<Carrier>>(
+      `/admin/carriers/dispatch-lookup/${encodeURIComponent(code)}`,
+    )
+    return response.data.data ?? null
+  },
+}
+
 export const dispatchGroupApi = {
   async list(dispatchDate: string): Promise<DispatchGroup[]> {
     const response = await apiClient.get<ApiEnvelope<DispatchGroup[]>>('/admin/dispatch-groups', { params: { dispatchDate } })

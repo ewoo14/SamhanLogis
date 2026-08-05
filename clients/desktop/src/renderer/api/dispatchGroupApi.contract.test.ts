@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apiClient } from './client'
-import { carrierApi, dispatchGroupApi } from './dispatchGroupApi'
+import { carrierApi, dispatchCarrierApi, dispatchGroupApi } from './dispatchGroupApi'
 
 describe('S3 dispatch-group API contract', () => {
   it('uses carrier master paths and preserves business identifiers', async () => {
@@ -8,6 +8,10 @@ describe('S3 dispatch-group API contract', () => {
     const rows = await carrierApi.list()
     expect(get).toHaveBeenCalledWith('/admin/carriers')
     expect(rows[0]).toMatchObject({ code: 'ARO', name: '아로로지스' })
+
+    const dispatchRows = await dispatchCarrierApi.list()
+    expect(get).toHaveBeenCalledWith('/admin/carriers/dispatch-lookup')
+    expect(dispatchRows[0]).toMatchObject({ code: 'ARO', name: '아로로지스' })
   })
 
   it('lists groups by dispatch date and exposes the group transfer mutation', async () => {

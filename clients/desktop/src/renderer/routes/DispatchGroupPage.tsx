@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, DataTable, FormField, Input, type DataTableColumn } from '@samhan/design-system'
-import { carrierApi, dispatchGroupApi, type DispatchGroup } from '../api/dispatchGroupApi'
+import { dispatchCarrierApi, dispatchGroupApi, type DispatchGroup } from '../api/dispatchGroupApi'
 import { searchSlips, type SlipSearchResult } from '../api/slipSearch'
 import { usePageTitle } from '../hooks/usePageTitle'
 
@@ -18,7 +18,7 @@ export function DispatchGroupPage() {
   const [purchaseSearched, setPurchaseSearched] = useState(false)
   const [selectedGroupNo, setSelectedGroupNo] = useState('')
   const groups = useQuery({ queryKey: ['dispatch-groups', date], queryFn: () => dispatchGroupApi.list(date) })
-  const carriers = useQuery({ queryKey: ['admin-carriers'], queryFn: carrierApi.list })
+  const carriers = useQuery({ queryKey: ['dispatch-carrier-lookup'], queryFn: dispatchCarrierApi.list })
   const create = useMutation({
     mutationFn: () => dispatchGroupApi.create({ groupNo, dispatchDate: date, vehicleLabel }),
     onSuccess: () => { client.invalidateQueries({ queryKey: ['dispatch-groups', date] }); setGroupNo(''); setVehicleLabel('') },

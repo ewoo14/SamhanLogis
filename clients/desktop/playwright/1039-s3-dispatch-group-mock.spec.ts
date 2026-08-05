@@ -28,6 +28,15 @@ test.describe('S3 운송사·배차 그룹 mock 화면', () => {
     await expect(page.getByRole('button', { name: /아로로지스로 전송/ })).toBeVisible()
   })
 
+  test('dispatch.board VIEW만 있으면 배차 운송사 조회는 열리고 인사 운송사 화면은 닫힌다', async ({ page }) => {
+    await page.goto(withPermission('/admin/dispatch-groups', 'dispatch.board'))
+    await expect(page.getByTestId('dispatch-group-page')).toBeVisible()
+    await expect(page.getByText('활성 운송사 2개')).toBeVisible()
+
+    await page.goto(withPermission('/admin/carriers', 'dispatch.board'))
+    await expect(page.getByTestId('carrier-list-page')).toHaveCount(0)
+  })
+
   test('인사 자식 권한 조합별 헤더 가시성과 운송사 진입을 보장한다', async ({ page }) => {
     const cases = [
       { name: '운송사만', pageCodes: ['hr.carriers'], header: true, carrier: true },

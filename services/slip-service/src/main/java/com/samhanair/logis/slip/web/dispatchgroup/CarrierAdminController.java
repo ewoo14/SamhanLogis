@@ -30,9 +30,28 @@ public class CarrierAdminController {
     @RequirePermission(page = "hr.carriers", action = PermissionAction.VIEW)
     public ApiResponse<List<CarrierResponse>> list() { return ApiResponse.ok(service.list()); }
 
+    /**
+     * 배차 화면의 운송사 선택용 조회 alias.
+     *
+     * <p>인사 마스터 목록({@code /admin/carriers})은 {@code hr.carriers}를 유지하고,
+     * 배차 화면에서만 {@code dispatch.board VIEW}로 같은 읽기 모델에 접근한다.
+     */
+    @GetMapping("/dispatch-lookup")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
+    public ApiResponse<List<CarrierResponse>> dispatchLookupList() {
+        return ApiResponse.ok(service.list());
+    }
+
     @GetMapping("/{code}")
     @RequirePermission(page = "hr.carriers", action = PermissionAction.VIEW)
     public ApiResponse<CarrierResponse> get(@PathVariable String code) { return ApiResponse.ok(service.get(code)); }
+
+    /** 배차 화면 운송사 선택용 단건 조회. UUID가 아닌 운송사 code만 응답 식별자로 사용한다. */
+    @GetMapping("/dispatch-lookup/{code}")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
+    public ApiResponse<CarrierResponse> dispatchLookupGet(@PathVariable String code) {
+        return ApiResponse.ok(service.get(code));
+    }
 
     @PostMapping
     @RequirePermission(page = "hr.carriers", action = PermissionAction.CREATE)
