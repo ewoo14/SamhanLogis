@@ -23,4 +23,18 @@ class ProductSummaryResponseTest {
 
         assertThat(response.specification()).isEqualTo("13평형 / R32 / 인버터");
     }
+
+    @Test
+    void from_derivesHomeMultiCategoryKeyFromPhysicalCategoryWhenProductCategoryIsNull() {
+        Product product = mock(Product.class);
+        Category category = mock(Category.class);
+        when(product.getCategory()).thenReturn(category);
+        when(category.getId()).thenReturn(UUID.randomUUID());
+        when(category.getCode()).thenReturn("INDOOR_WALL");
+        when(product.getProductCategory()).thenReturn(null);
+
+        ProductSummaryResponse response = ProductSummaryResponse.from(product);
+
+        assertThat(response.categoryKey()).isEqualTo("homemulti");
+    }
 }
