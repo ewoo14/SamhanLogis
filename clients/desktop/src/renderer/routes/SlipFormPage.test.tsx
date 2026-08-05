@@ -224,7 +224,7 @@ vi.mock('../api/slip', () => ({
     installationHours: 0,
     commissioningHours: 0,
   }),
-  toApiBundleSetOptions: () => undefined,
+  toApiBundleSetOptions: (_productType: string | null, options: unknown) => options,
 }))
 
 vi.mock('../api/inventory', () => ({
@@ -946,6 +946,90 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     expect(savedLines.every((saved: { productId: string }) => saved.productId !== harness.bundle.id)).toBe(true)
   })
 
+  it('빠른 전개 성공 뒤에도 옵션을 확정하면 최신 옵션 한 벌로 다시 전개한다', async () => {
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        modelCode: harness.productA.modelCode,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockResolvedValueOnce([{
+        productId: harness.productB.id,
+        modelName: harness.productB.modelName,
+        name: harness.productB.productName,
+        modelCode: harness.productB.modelCode,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+
+    expect(screen.getByTestId('bundle-option-change')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    expect(harness.expandBundleLine.mock.calls[1][0]).toEqual(expect.objectContaining({
+      setOptions: expect.objectContaining({ panelOption: 'PANEL-3' }),
+    }))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productB.productName))
+    expect(screen.queryByTestId('bundle-option-change')).toBeNull()
+    expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
+  })
+
+  it('빠른 첫 성공 뒤 옵션 연속 변경은 중간 응답을 버리고 최종 한 벌로 수렴한다', async () => {
+    const second = deferred<any[]>()
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        modelCode: harness.productA.modelCode,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockReturnValueOnce(second.promise)
+      .mockResolvedValueOnce([{
+        productId: harness.productB.id,
+        modelName: harness.productB.modelName,
+        name: harness.productB.productName,
+        modelCode: harness.productB.modelCode,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+
+    await act(async () => {
+      second.resolve([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      await second.promise
+    })
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productB.productName))
+    expect(screen.queryByTestId('bundle-option-change')).toBeNull()
+  })
+
   it('구성품 전개 실패도 세트 라인을 저장하지 않고 사용자에게 오류를 보인다', async () => {
     harness.expandBundleLine.mockRejectedValueOnce(new Error('구성품 조회 실패'))
     renderPage()
@@ -1027,7 +1111,7 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     })
 
     await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
-      setOptions: undefined,
+      setOptions: expect.objectContaining({ panelOption: 'PANEL-3' }),
     })))
     expect(harness.expandBundleLine).toHaveBeenCalledTimes(2)
   })
