@@ -40,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class EstimateRevisionService {
+    private static final String LEGACY_CATALOG_MARKER = "\u2060";
 
     private static final Logger log = LoggerFactory.getLogger(EstimateRevisionService.class);
 
@@ -403,17 +404,46 @@ public class EstimateRevisionService {
         }
         return !Objects.equals(a.productName(), b.productName())
                 || !Objects.equals(a.modelName(), b.modelName())
-                || !Objects.equals(a.specification(), b.specification())
-                || specificationSourceDiffers(a.specificationSource(), b.specificationSource())
+                || specificationDiffers(a, b)
+                || specificationSourceDiffers(a.specification(), a.specificationSource(), b.specificationSource())
                 || !Objects.equals(a.note(), b.note());
     }
 
     /**
      * 구 snapshot의 source 누락과 현재 hydrate 정규화를 실제 source 전환과 구분한다.
-     * 양쪽 모두 source가 있을 때만 provenance 차이를 변경으로 취급한다.
+     * 구 marker는 hydrate 시 제거되므로, 기대 source가 CATALOG인 경우에만 표시값을
+     * canonicalize한다. 그 밖의 source 조합은 실제 provenance 전환으로 취급한다.
      */
-    private boolean specificationSourceDiffers(String previous, String current) {
-        return previous != null && current != null && !Objects.equals(previous, current);
+    private boolean specificationDiffers(EstimateSnapshot.Line previous, EstimateSnapshot.Line current) {
+        if (Objects.equals(previous.specification(), current.specification())) {
+            return false;
+        }
+        if (previous.specificationSource() == null
+                && "CATALOG".equals(current.specificationSource())
+                && previous.specification() != null
+                && previous.specification().startsWith(LEGACY_CATALOG_MARKER)) {
+            return !Objects.equals(previous.specification().substring(LEGACY_CATALOG_MARKER.length()),
+                    current.specification());
+        }
+        return true;
+    }
+
+    private boolean specificationSourceDiffers(String previousSpecification,
+                                               String previousSource,
+                                               String currentSource) {
+        if (Objects.equals(previousSource, currentSource)) {
+            return false;
+        }
+        if (previousSource == null && currentSource != null) {
+            String expectedLegacySource = previousSpecification != null
+                    && previousSpecification.startsWith(LEGACY_CATALOG_MARKER)
+                    ? "CATALOG"
+                    : previousSpecification != null && !previousSpecification.isBlank()
+                    ? "USER"
+                    : null;
+            return !Objects.equals(expectedLegacySource, currentSource);
+        }
+        return true;
     }
 
     /**
