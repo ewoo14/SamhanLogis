@@ -68,6 +68,29 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await page.screenshot({ path: test.info().outputPath('03-new-filled-next-blank.png'), fullPage: true })
   })
 
+  test('견적 편집 provider 실패 폴백은 trailing 빈행 확정 후 다음 빈행을 만든다', async ({ page }) => {
+    const detailResponse = page.waitForResponse((response) =>
+      response.url().includes('/api/v1/slips/estimates/est-001')
+      && !response.url().includes('/collab/'),
+    )
+    await page.goto('/#/sales/estimates/est-001/edit?mockRole=MASTER', {
+      waitUntil: 'domcontentloaded',
+    })
+    await detailResponse
+    await page.context().setOffline(true)
+    await page.waitForTimeout(100)
+    await page.context().setOffline(false)
+
+    await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('estimate-form-line-1')).toBeVisible()
+    await expect(page.getByTestId('estimate-form-line-2')).toBeVisible()
+    await page.getByTestId('estimate-form-line-2-model').fill('AJ040RXH4BC1')
+    await page.getByTestId('estimate-form-line-2-model').blur()
+
+    await expect(page.getByTestId('estimate-form-line-3')).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(4)
+  })
+
   test('견적 편집 coedit은 기존 행만 교체하고 trailing 빈행의 구조 추가를 잠근다', async ({ page }) => {
     await page.goto('/#/sales/estimates/est-001/edit?mockRole=MASTER', {
       waitUntil: 'domcontentloaded',
