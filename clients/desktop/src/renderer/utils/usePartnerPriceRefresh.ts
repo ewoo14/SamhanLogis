@@ -16,6 +16,7 @@
  */
 import { useRef, useState } from 'react'
 import { getPriceMemories as defaultGetPriceMemories, type BulkPriceMemoryLookupResult } from '../api/slip'
+import { calculateSlipDiscount, type SlipDiscountConfig, type SlipDiscountInput } from './slipDiscount'
 
 /** 최근단가 조회가 네트워크에서 영영 끝나 저장을 영구 차단하지 않도록 하는 상한. */
 export const PRICE_LOOKUP_TIMEOUT_MS = 5000
@@ -40,6 +41,8 @@ export interface PartnerRepriceCandidate {
   currentUnitPrice: string
   /** 가격기억 miss/실패 시 fallback 단가. null이면 카탈로그 미확보로 명시 처리한다. */
   catalogFallback: string | null
+  /** 최근단가 miss 때 새 거래처의 고정/전역DC를 재계산할 원 품목 입력. */
+  discountInput?: Omit<SlipDiscountInput, 'listPrice'>
 }
 
 /** 거래처 변경 재조회의 라인별 해석 결과. */
@@ -67,6 +70,8 @@ export interface PartnerRepriceOutcome {
    * 도메인 변환이 필요한 소비자는 변환 후 필드 도메인에서 실변경을 재판정할 것.
    */
   changed: boolean
+  /** miss fallback에 실제 적용된 고정/전역DC 안내. */
+  discountInfo: string | null
 }
 
 export interface PartnerRepriceRun {
@@ -85,7 +90,11 @@ export interface UsePartnerPriceRefreshResult {
    * 거래처 기준으로 후보를 bulk 재조회해 outcome 을 계산한다. 후보 0건이면 빈 outcome.
    * 반환 후 `isCurrent()` 가 false 면 소비자는 적용을 건너뛴다(더 새 거래처 선택으로 대체됨).
    */
-  run: (partnerId: string, candidates: PartnerRepriceCandidate[]) => Promise<PartnerRepriceRun>
+  run: (
+    partnerId: string,
+    candidates: PartnerRepriceCandidate[],
+    discountConfig?: SlipDiscountConfig | null,
+  ) => Promise<PartnerRepriceRun>
   /** in-flight 재조회 무효화(거래처 해제 등) — 이후 도착 결과의 isCurrent 를 false 로 만든다. */
   invalidate: (partnerId?: string | null) => void
   /** 최신 거래처 재조회가 진행 중인지 여부 — 저장/발송 race 차단용. */
@@ -125,6 +134,7 @@ export function usePartnerPriceRefresh(
   const run = async (
     partnerId: string,
     candidates: PartnerRepriceCandidate[],
+    discountConfig?: SlipDiscountConfig | null,
   ): Promise<PartnerRepriceRun> => {
     // 후보가 없어도 activePartner 는 먼저 갱신해 in-flight 이전 거래처 run 을 무효화한다.
     activePartnerRef.current = partnerId
@@ -137,21 +147,31 @@ export function usePartnerPriceRefresh(
       candidate: PartnerRepriceCandidate,
       memory: { unitPrice: number; updatedAt: string | null } | undefined,
     ): PartnerRepriceOutcome => {
+      const discount = candidate.discountInput != null && candidate.catalogFallback != null
+        ? calculateSlipDiscount({
+          ...candidate.discountInput,
+          listPrice: Number(candidate.catalogFallback),
+        }, discountConfig ?? null)
+        : null
       const source: PartnerRepriceOutcome['source'] = memory != null
         ? 'REMEMBERED'
         : candidate.catalogFallback != null
           ? 'CATALOG'
           : 'UNAVAILABLE'
-      const unitPrice = memory != null
-        ? String(memory.unitPrice)
-        : candidate.catalogFallback ?? ''
+      const hasAuthoritativeDiscount = discount != null && discount.source !== 'NONE'
+      const unitPrice = hasAuthoritativeDiscount
+        ? String(discount.unitPrice)
+        : memory != null
+          ? String(memory.unitPrice)
+          : candidate.catalogFallback ?? ''
       return {
         key: candidate.key,
         productId: candidate.productId,
         unitPrice,
-        updatedAt: memory?.updatedAt ?? null,
-        source,
+        updatedAt: hasAuthoritativeDiscount ? null : memory?.updatedAt ?? null,
+        source: hasAuthoritativeDiscount ? 'CATALOG' : source,
         changed: unitPrice !== candidate.currentUnitPrice,
+        discountInfo: discount != null && discount.source !== 'NONE' ? discount.info : null,
       }
     }
 

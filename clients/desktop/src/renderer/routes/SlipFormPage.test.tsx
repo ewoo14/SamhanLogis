@@ -96,6 +96,7 @@ vi.mock('@samhan/design-system', () => ({
         data-testid={`line-${lineNo}`}
         data-product-id={props.line.productId ?? ''}
         data-price-source={props.line.priceSource ?? ''}
+        data-discount-info={props.line.discountInfo ?? ''}
         data-partner-selected={String(props.partnerSelected ?? '')}
         data-excluded-from-save={String(props.excludedFromSave ?? '')}
       >
@@ -619,6 +620,54 @@ describe('SlipFormPage price memory autofill', () => {
     expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({
       discountInfo: '거래처 전역DC 48% 적용',
     }))
+  })
+
+  it('reprices an existing variable-DC line with the new partner global discount after a memory miss', async () => {
+    harness.getPartnerDcConfig.mockImplementation(async (partnerCode: string) => ({
+      partnerCode,
+      companyName: partnerCode === 'P-A' ? 'Partner A' : 'Partner B',
+      homeMultiDc: partnerCode === 'P-A' ? '48%' : '45%',
+      commercialMultiDc: null,
+    }))
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+
+    await selectPartnerB()
+    await waitFor(() => expect(unitPrice().value).toBe('550'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 전역DC 45% 적용')
+  })
+
+  it('announces the resolved global discount rather than the initial catalog fallback', async () => {
+    const pendingDc = deferred<{
+      partnerCode: string
+      companyName: string
+      homeMultiDc: string
+      commercialMultiDc: string
+    }>()
+    harness.getPartnerDcConfig.mockReturnValue(pendingDc.promise)
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    expect(unitPrice().value).toBe('1000')
+    await act(async () => {
+      pendingDc.resolve({
+        partnerCode: 'P-A',
+        companyName: 'Partner A',
+        homeMultiDc: '48%',
+        commercialMultiDc: '49%',
+      })
+      await pendingDc.promise
+    })
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 전역DC 48% 적용')
+    expect(screen.getByTestId('slip-price-refresh-banner').textContent)
+      .toContain('거래처 전역DC 48% 적용')
   })
 
   it('does not apply global DC to a non-variable-discount product with a physical fallback category', async () => {

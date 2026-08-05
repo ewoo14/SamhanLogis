@@ -805,6 +805,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       catalogUnitPrice: product?.sellingPrice != null ? String(product.sellingPrice) : line.catalogUnitPrice ?? null,
       categoryKey: product?.categoryKey ?? null,
       fixedDiscountRate: product?.fixedDiscountRate ?? null,
+      hasVariableDiscount: product?.hasVariableDiscount ?? null,
       discountInfo: dcResult?.info ?? null,
       priceMemoryUpdatedAt: null,
       priceRefreshChanged: false,
@@ -892,13 +893,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             priceSource: usesRememberedPrice ? 'REMEMBERED' : 'CATALOG',
             priceMemoryUpdatedAt: usesRememberedPrice ? memory?.updatedAt ?? null : null,
             priceRefreshChanged: false,
+            discountInfo: hasAuthoritativeDiscount ? resolvedDcResult?.info ?? null : null,
             lookupLoading: false,
           }
         }),
       )
       if (applied) {
         setPriceLookupAnnouncement(
-          `라인 ${lineNumber} ${remembered == null ? (dcResult?.info ?? '판매가 적용') : '거래처 최근단가'} 적용`,
+          `라인 ${lineNumber} ${remembered == null ? (resolvedDcResult?.info ?? '판매가 적용') : '거래처 최근단가'} 적용`,
         )
       }
     } catch {
@@ -921,7 +923,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
    * 거래처 변경 bulk 재조회 — 공용 훅(usePartnerPriceRefresh)이 수명주기·조회·해석을 맡고,
    * 여기서는 LineDraft(priceSource/catalog 규약) 로 후보를 뽑아 로컬 state 에 적용한다(D-R8-10).
    */
-  const refreshAutoPricesForPartner = async (partnerId: string) => {
+  const refreshAutoPricesForPartner = async (
+    partnerId: string,
+    discountConfigPromise: Promise<PartnerDcConfig | null>,
+    requestSeq: number,
+  ) => {
     // R6-M5: 재조회 시작 시 stale 단건 안내를 클리어(미클리어 시 배너 비활성 폴백이 aria-live 거짓 고지).
     setPriceLookupAnnouncement('')
     const candidates: PartnerRepriceCandidate[] = linesRef.current
@@ -932,8 +938,21 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         currentUnitPrice: line.unitPrice,
         // 카탈로그 미확보 시 옛 거래처 단가 fallback 금지 — 공용 훅이 UNAVAILABLE로 비운다.
         catalogFallback: line.catalogUnitPrice ?? null,
+        discountInput: line.catalogUnitPrice == null
+          ? undefined
+          : {
+            fixedDiscountRate: line.fixedDiscountRate,
+            category: line.categoryKey === 'homemulti'
+              ? 'HOMEMULTI'
+              : line.categoryKey === 'commercialMulti'
+                ? 'COMMERCIAL_MULTI'
+                : 'OTHER',
+            hasVariableDiscount: line.hasVariableDiscount,
+          },
       }))
     if (candidates.length === 0) {
+      // 새 거래처에 재조회 대상이 없어도 이전 거래처 bulk 응답은 무효화한다.
+      partnerReprice.invalidate(partnerId)
       // 직전 거래처의 bulk 조회가 남긴 busy 표시는 새 거래처에 후보가 없어도 정리한다.
       setLines((current) => current.map((line) => ({ ...line, lookupLoading: false })))
       return
@@ -946,7 +965,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           : line,
       ),
     )
-    const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates)
+    const discountConfig = await discountConfigPromise
+    // DC 응답을 기다리는 동안 거래처가 다시 바뀌었으면 이 run 자체를 시작하지 않는다.
+    // 같은 거래처가 A→B→A로 재선택된 경우도 이전 요청 세대로부터 격리한다.
+    if (selectedPartnerIdRef.current !== partnerId || dcRequestSeqRef.current !== requestSeq) return
+    const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates, discountConfig)
     if (!isCurrent()) return
     const outcomeById = new Map(outcomes.map((outcome) => [outcome.key, outcome]))
     setLines((current) =>
@@ -964,6 +987,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           priceSource: outcome.source === 'UNAVAILABLE' ? null : outcome.source,
           priceMemoryUpdatedAt: outcome.updatedAt,
           priceRefreshChanged: (outcome.source === 'UNAVAILABLE' ? '' : outcome.unitPrice) !== candidate.unitPrice,
+          discountInfo: outcome.discountInfo,
           lookupError: outcome.source === 'UNAVAILABLE'
             ? '카탈로그 판매가를 확인할 수 없습니다. 단가를 직접 입력해 주세요.'
             : null,
@@ -1062,12 +1086,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return
     }
     if (partner.id) {
-      void refreshAutoPricesForPartner(partner.id)
-      void getPartnerDcConfig(partner.partnerCode).then((config) => {
-        if (dcRequestSeqRef.current === dcRequestSeq && selectedPartnerIdRef.current === partner.id) {
-          setPartnerDcConfig(config)
-        }
-      })
+      const discountConfigPromise = withPriceLookupTimeout(getPartnerDcConfig(partner.partnerCode))
+        .catch(() => null)
+        .then((config) => {
+          if (dcRequestSeqRef.current === dcRequestSeq && selectedPartnerIdRef.current === partner.id) {
+            setPartnerDcConfig(config)
+          }
+          return config
+        })
+      void refreshAutoPricesForPartner(partner.id, discountConfigPromise, dcRequestSeq)
     }
 
     // 1단계: search summary 즉시 fill

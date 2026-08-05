@@ -58,6 +58,27 @@ describe('usePartnerPriceRefresh (D-R8-10 공용 재조회 훅)', () => {
     expect(byKey['l2']).toMatchObject({ unitPrice: '500', source: 'CATALOG', changed: false, updatedAt: null })
   })
 
+  it('최근단가 miss는 유효한 고정/전역DC를 판매가보다 우선해 해석한다', async () => {
+    const fetchMemories = vi.fn().mockResolvedValue({ hits: [], failedProductIds: [] })
+    const { result } = renderHook(() => usePartnerPriceRefresh({ fetchMemories }))
+
+    const run = await result.current.run('partnerX', [candidate({
+      currentUnitPrice: '1355640',
+      catalogFallback: '2607000',
+      discountInput: {
+        fixedDiscountRate: null,
+        category: 'HOMEMULTI',
+        hasVariableDiscount: true,
+      },
+    })], { homeMultiDc: '45%', commercialMultiDc: null })
+
+    expect(run.outcomes[0]).toMatchObject({
+      unitPrice: '1433850',
+      source: 'CATALOG',
+      discountInfo: '거래처 전역DC 45% 적용',
+    })
+  })
+
   it('fetch 자체가 실패하면 전량 CATALOG fallback 으로 수렴한다', async () => {
     const fetchMemories = vi.fn().mockRejectedValue(new Error('forbidden'))
     const { result } = renderHook(() => usePartnerPriceRefresh({ fetchMemories }))
