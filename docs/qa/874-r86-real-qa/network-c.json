@@ -1,0 +1,98 @@
+﻿[
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/notifications/my",
+        "postData":  null
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/api/notifications/my",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"34365f7f-7f38-4e0c-bf23-f0ccf5dd1005\",\"channel\":\"MESSENGER\",\"severity\":\"INFO\",\"title\":\"[전표 수정] 2026/08/05-9\",\"body\":\"[DEV-SEED] 개발마스터 님이 전표 2026/08/05-9 를 수정완료했습니다.\\n변경: memo: R57 live QA 2026-08-05T14:02:23.040Z → R59 LIVE QA COLLAB EDIT 2026-08-05 23:20\",\"deeplink\":null,\"createdAt\":\"2026-08-05T23:27:35.463324\",\"readAt\":null,\"refId\":\"578ea683-c7e6-46b2-80ea-c2701d4354e1\"}],\"timestamp\":\"2026-08-05T19:42:13.284822626Z\"}"
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/v1/partner-dc-configs/4348703365",
+        "postData":  null
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/api/v1/partner-dc-configs/4348703365",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"partnerCode\":\"4348703365\",\"companyName\":\"주식회사 엠엠시스템에어(고영현)\",\"homeMultiDc\":\"48%\",\"commercialMultiDc\":\"49%\",\"flexibleHoseTypeI\":\"Yes\",\"threeSixty\":null,\"fourWay\":null,\"oneWay\":null,\"stand\":null,\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},\"timestamp\":\"2026-08-05T19:42:16.062125103Z\"}"
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/products?q=AJ060MXHNBC1\u0026size=20\u0026usageScope=PARTNER_ORDER",
+        "postData":  null
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/slips/price-memory?partnerId=77d0513c-5d31-441d-81db-e6007691a482\u0026productId=6fd28b44-f8e5-4e9d-96ba-d4b9ce9fac89",
+        "postData":  null
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/api/products?q=AJ060MXHNBC1\u0026size=20\u0026usageScope=PARTNER_ORDER",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"id\":\"6fd28b44-f8e5-4e9d-96ba-d4b9ce9fac89\",\"name\":\"실외기_6HP 단배관\",\"modelName\":\"AJ060MXHNBC1\",\"productCode\":\"AJ060MXHNBC1\",\"categoryId\":\"00000000-0000-0000-0000-000000001004\",\"sellingPrice\":2607000.00,\"status\":\"ACTIVE\",\"serialManaged\":true,\"goods\":true,\"modelCode\":\"AJ060MXHNBC1\",\"productType\":\"SINGLE\",\"usageScope\":\"BOTH\",\"estimateCategory\":null,\"usageScopeManual\":false,\"displayOrder\":null,\"categoryKey\":\"homemulti\",\"fixedDiscountRate\":null,\"discountFlags\":\"000000\",\"releasePrice\":2929300.00,\"deliveryPrice\":1611115.00,\"hasVariableDiscount\":true,\"parentSetModelCode\":null,\"specification\":\"단배관\"}],\"pageable\":{\"pageNumber\":0,\"pageSize\":20,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"offset\":0,\"unpaged\":false,\"paged\":true},\"totalPages\":1,\"totalElements\":1,\"last\":true,\"first\":true,\"numberOfElements\":1,\"size\":20,\"number\":0,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"empty\":false},\"timestamp\":\"2026-08-05T19:42:18.029098314Z\"}"
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/slips/price-memory?partnerId=77d0513c-5d31-441d-81db-e6007691a482\u0026productId=6fd28b44-f8e5-4e9d-96ba-d4b9ce9fac89",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"unitPrice\":1355640.00,\"source\":\"LINE_SAVE\",\"updatedAt\":\"2026-08-06T04:41:48.014035\"},\"timestamp\":\"2026-08-05T19:42:18.040554954Z\"}"
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/v1/partner-dc-configs/1012555999",
+        "postData":  null
+    },
+    {
+        "kind":  "request",
+        "method":  "POST",
+        "url":  "http://localhost:8080/slips/price-memory/bulk",
+        "postData":  "{\"partnerId\":\"0f5f7e16-6787-464d-8968-a0cd423c4be5\",\"productIds\":[\"6fd28b44-f8e5-4e9d-96ba-d4b9ce9fac89\"]}"
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/api/v1/partner-dc-configs/1012555999",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"partnerCode\":\"1012555999\",\"companyName\":\"동영 온라인점-송아름\",\"homeMultiDc\":\"45%\",\"commercialMultiDc\":\"46%\",\"flexibleHoseTypeI\":\"Yes\",\"threeSixty\":null,\"fourWay\":null,\"oneWay\":null,\"stand\":null,\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},\"timestamp\":\"2026-08-05T19:42:21.424964253Z\"}"
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/v1/partner-dc-configs/4348703365",
+        "postData":  null
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/slips/price-memory/bulk",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"productId\":\"6fd28b44-f8e5-4e9d-96ba-d4b9ce9fac89\",\"unitPrice\":1433850.00,\"source\":\"LINE_SAVE\",\"updatedAt\":\"2026-08-06T04:42:07.060045\"}],\"timestamp\":\"2026-08-05T19:42:21.436028044Z\"}"
+    },
+    {
+        "kind":  "request",
+        "method":  "POST",
+        "url":  "http://localhost:8080/slips/price-memory/bulk",
+        "postData":  "{\"partnerId\":\"77d0513c-5d31-441d-81db-e6007691a482\",\"productIds\":[\"6fd28b44-f8e5-4e9d-96ba-d4b9ce9fac89\"]}"
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/api/v1/partner-dc-configs/4348703365",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"partnerCode\":\"4348703365\",\"companyName\":\"주식회사 엠엠시스템에어(고영현)\",\"homeMultiDc\":\"48%\",\"commercialMultiDc\":\"49%\",\"flexibleHoseTypeI\":\"Yes\",\"threeSixty\":null,\"fourWay\":null,\"oneWay\":null,\"stand\":null,\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},\"timestamp\":\"2026-08-05T19:42:23.979629334Z\"}"
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/slips/price-memory/bulk",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"productId\":\"6fd28b44-f8e5-4e9d-96ba-d4b9ce9fac89\",\"unitPrice\":1355640.00,\"source\":\"LINE_SAVE\",\"updatedAt\":\"2026-08-06T04:41:48.014035\"}],\"timestamp\":\"2026-08-05T19:42:24.926147075Z\"}"
+    }
+]
