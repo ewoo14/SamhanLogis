@@ -508,7 +508,7 @@ interface BundleExpansionSnapshot {
 
 const createBundleExpansionSnapshot = (line: LineDraft): BundleExpansionSnapshot => ({
   productId: line.productId,
-  modelCode: line.modelCode,
+  modelCode: line.modelCode ?? null,
   modelName: line.modelName,
   productType: line.productType,
   quantity: line.quantity,
@@ -900,13 +900,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       const next = Object.fromEntries(
         Object.entries(current).filter(([key]) => nextLineIds.has(key)),
       )
+      const firstComponentLine = componentLines[0]
       const shouldRetainOptions = componentLines.length > 0
         && context
-        && (!existingContext || componentLines[0].productId === source.productId)
-      if (shouldRetainOptions) {
+        && firstComponentLine !== undefined
+        && (!existingContext || firstComponentLine.productId === source.productId)
+      if (shouldRetainOptions && firstComponentLine) {
         // 전개 결과의 productId는 행 간에 재사용될 수 있으므로 옵션 컨텍스트의
         // 소유권은 항상 새로 만든 구성품 행 ID로 연결한다.
-        next[componentLines[0].id] = { ...context, expansionPending: false }
+        next[firstComponentLine.id] = { ...context, expansionPending: false }
       }
       return next
     })
@@ -1115,7 +1117,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       const bundleToExpand = latestBundle && latestBundle.priceSource === 'USER'
         ? latestBundle
         : latestBundle && { ...latestBundle, unitPrice: resolvedUnitPrice }
-      const resolvedLines = linesRef.current.map((current) => {
+      const resolvedLines: LineDraft[] = linesRef.current.map((current): LineDraft => {
           if (current.id !== line.id) return current
           if (current.productId !== productId) return current
           if (selectedPartnerIdRef.current !== partnerId) return current
