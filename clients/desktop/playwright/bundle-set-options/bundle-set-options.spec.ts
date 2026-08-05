@@ -61,9 +61,9 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/#/sales/new?mockRole=MANAGER`, {
     waitUntil: 'domcontentloaded',
   })
-  await expect(
-    page.getByRole('button', { name: '+ 라인 추가' }),
-  ).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', {
+    timeout: 15_000,
+  })
 }
 
 /** 라인 N 품목 combobox. */
@@ -71,14 +71,12 @@ function productInput(page: Page, lineNo: number) {
   return page.getByRole('combobox', { name: new RegExp(`라인 ${lineNo} 품목`) })
 }
 
-/** 모델 검색 후 첫 옵션 클릭 선택. */
+/** R29 계약: 후보 1건은 listbox 클릭 없이 즉시 확정된다. */
 async function selectProduct(page: Page, lineNo: number, query: string, optionName: RegExp) {
   const input = productInput(page, lineNo)
   await input.click()
   await input.fill(query)
-  const listbox = page.getByRole('listbox', { name: '품목 목록' })
-  await expect(listbox).toBeVisible({ timeout: 5_000 })
-  await listbox.getByRole('option', { name: optionName }).first().click()
+  await expect(input).toHaveValue(optionName, { timeout: 5_000 })
 }
 
 test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
@@ -189,7 +187,6 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
     await page.getByTestId('bundle-options-0-material-included').check()
 
     // 라인 2: SINGLE 품목
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
     await selectProduct(page, 2, 'AJ040', /AJ040RXH4BC1/)
 
     // 저장
@@ -293,7 +290,6 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
     await expect(productInput(page, 1)).toHaveValue('SET-HM2WAY')
 
     // 라인 2: SINGLE 품목
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
     await selectProduct(page, 2, 'AJ040', /AJ040RXH4BC1/)
     await expect(productInput(page, 2)).toHaveValue('AJ040RXH4BC1')
 

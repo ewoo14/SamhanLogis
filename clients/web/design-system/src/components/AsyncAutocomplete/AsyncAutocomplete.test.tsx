@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { AsyncAutocomplete } from './AsyncAutocomplete'
 
@@ -52,6 +53,53 @@ describe('AsyncAutocomplete', () => {
     fireEvent.focus(input)
 
     expect(input.value).toBe('')
+  })
+
+  it.each([
+    { caseName: '값 없음·콜백 없음', selected: null, withCommitCallback: false },
+    { caseName: '값 없음·콜백 있음', selected: null, withCommitCallback: true },
+    { caseName: '값 있음·콜백 없음', selected: { id: 'selected', label: '확정 품목' }, withCommitCallback: false },
+    { caseName: '값 있음·콜백 있음', selected: { id: 'selected', label: '확정 품목' }, withCommitCallback: true },
+  ])('R27 모달 취소 후 복원은 $caseName 조합에서 검색어를 보존한다', async ({ selected, withCommitCallback }) => {
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
+      { id: 'first', label: 'AJ 첫 품목' },
+      { id: 'second', label: 'AJ 둘째 품목' },
+    ])
+
+    function ControlledAutocomplete() {
+      const [value, setValue] = useState<Option | null>(selected)
+      return (
+        <AsyncAutocomplete<Option>
+          value={value}
+          onChange={setValue}
+          onInputCommitChange={withCommitCallback
+            ? (committed) => {
+              if (!committed) setValue(null)
+            }
+            : undefined}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.label}</span>}
+          listboxLabel="품목 목록"
+          ariaLabel="품목"
+          resultSelectionMode="multiple"
+          resultSelectionTitle="품목 검색 결과"
+          debounceMs={0}
+        />
+      )
+    }
+
+    render(<ControlledAutocomplete />)
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AJ' } })
+    await screen.findByRole('dialog', { name: '품목 검색 결과' })
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.focus(input)
+
+    expect(input.value).toBe('AJ')
   })
 
   it('검색 중 행은 비활성 option으로 노출되어 키보드 선택 대상이 아님을 알린다', async () => {
@@ -535,11 +583,11 @@ describe('AsyncAutocomplete', () => {
 
     const input = screen.getByRole('combobox', { name: '검색' })
     fireEvent.focus(input)
-    expect(onCommitChange).toHaveBeenLastCalledWith(false)
+    expect(onCommitChange).toHaveBeenLastCalledWith(true)
 
     // P1 이름과 같은 문자열이어도 실제 후보 선택이 아니면 미확정이다.
     fireEvent.change(input, { target: { value: first.label } })
-    expect(onCommitChange).toHaveBeenLastCalledWith(false)
+    expect(onCommitChange).toHaveBeenCalledWith(false)
 
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(onCommitChange).toHaveBeenLastCalledWith(true)
@@ -565,6 +613,297 @@ describe('AsyncAutocomplete', () => {
       />,
     )
     expect((input as HTMLInputElement).value).toBe(second.label)
+  })
+
+  it('R23 RED-B1 확정값에 단순 포커스 후 blur해도 committed와 선택을 해제하지 않는다', async () => {
+    const selected: Option = { id: 'selected', label: '확정 품목' }
+    const onChange = vi.fn()
+    const onCommitChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={selected}
+        onChange={onChange}
+        onInputCommitChange={onCommitChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    expect(onCommitChange).toHaveBeenLastCalledWith(true)
+
+    fireEvent.focus(input)
+    fireEvent.blur(input)
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 140))
+    })
+
+    expect(onCommitChange).toHaveBeenLastCalledWith(true)
+    expect(onChange).not.toHaveBeenCalled()
+    expect((input as HTMLInputElement).value).toBe(selected.label)
+  })
+
+  it('R23 RED-A1 입력을 실제로 비우면 확정 해제 콜백을 보내 품목을 지울 수 있다', async () => {
+    const selected: Option = { id: 'selected', label: '확정 품목' }
+    const onChange = vi.fn()
+    const onCommitChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={selected}
+        onChange={onChange}
+        onInputCommitChange={onCommitChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 140))
+    })
+
+    expect(onCommitChange).toHaveBeenCalledWith(false)
+    expect(onChange).toHaveBeenCalledWith(null)
+  })
+
+  it('R27 A1 확정값에 포커스만 했다가 blur해도 선택을 유지한다', async () => {
+    const selected: Option = { id: 'selected', label: '확정 품목' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={selected}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.blur(input)
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 140))
+    })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(input.value).toBe(selected.label)
+  })
+
+  it('R27 A2 확정값을 실제로 지우고 blur하면 선택을 해제한다', async () => {
+    const selected: Option = { id: 'selected', label: '확정 품목' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    function ControlledAutocomplete() {
+      const [value, setValue] = useState<Option | null>(selected)
+      return (
+        <AsyncAutocomplete<Option>
+          value={value}
+          onChange={(next) => {
+            onChange(next)
+            setValue(next)
+          }}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.label}</span>}
+          listboxLabel="품목 목록"
+          ariaLabel="품목"
+        />
+      )
+    }
+
+    render(<ControlledAutocomplete />)
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '지울 검색어' } })
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 140))
+    })
+
+    expect(onChange).toHaveBeenCalledWith(null)
+    expect(input.value).toBe('')
+  })
+
+  it.each(['Backspace', 'Delete'])('R28 B 확정값을 바로 %s로 지우고 blur하면 선택을 해제한다', async (key) => {
+    const selected: Option = { id: 'selected', label: '확정 품목' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    function ControlledAutocomplete() {
+      const [value, setValue] = useState<Option | null>(selected)
+      return (
+        <AsyncAutocomplete<Option>
+          value={value}
+          onChange={(next) => {
+            onChange(next)
+            setValue(next)
+          }}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.label}</span>}
+          listboxLabel="품목 목록"
+          ariaLabel="품목"
+        />
+      )
+    }
+
+    render(<ControlledAutocomplete />)
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    expect(input.value).toBe('')
+    fireEvent.keyDown(input, { key })
+    fireEvent.blur(input)
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 140))
+    })
+
+    expect(onChange).toHaveBeenCalledWith(null)
+    expect(input.value).toBe('')
+  })
+
+  it('R27 A3 확정값 위에 AJ를 입력하면 AJ가 첫 글자부터 유지된다', () => {
+    const selected: Option = { id: 'selected', label: '확정 품목' }
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    function ControlledAutocomplete() {
+      const [value, setValue] = useState<Option | null>(selected)
+      return (
+        <AsyncAutocomplete<Option>
+          value={value}
+          onChange={setValue}
+          onInputCommitChange={(committed) => {
+            if (!committed) setValue(null)
+          }}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.label}</span>}
+          listboxLabel="품목 목록"
+          ariaLabel="품목"
+          debounceMs={0}
+        />
+      )
+    }
+
+    render(<ControlledAutocomplete />)
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AJ' } })
+
+    expect(input.value).toBe('AJ')
+  })
+
+  it('R27 A3 콜백 없이도 확정값 위에 AJ를 입력하면 AJ가 유지된다', () => {
+    const selected: Option = { id: 'selected', label: '확정 품목' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={selected}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AJ' } })
+
+    expect(input.value).toBe('AJ')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('R28 단일 후보 자동확정은 단일 선택에서도 값을 확정한다', async () => {
+    const only: Option = { id: 'only', label: '유일 품목' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([only])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '유일' } })
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(only))
+    expect(input.value).toBe(only.label)
+    expect(screen.queryByRole('option')).toBeNull()
+  })
+
+  it('R23 RED-A2 후보 1건은 단일 선택 모달 없이 종전 listbox 선택을 유지한다', async () => {
+    const only: Option = { id: 'only', label: '유일 품목' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([only])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        resultSelectionMode="single"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '유일' } })
+
+    const option = await screen.findByRole('option', { name: '유일 품목' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.mouseDown(option)
+
+    expect(onChange).toHaveBeenCalledWith(only)
   })
 
   it('외부 controlled value 교체는 편집을 닫고 새 표시값과 committed 상태를 동기화한다', () => {

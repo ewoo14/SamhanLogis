@@ -265,9 +265,9 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
       /const showArologisGroup\s*=\s*showDispatchBoard\s*\|\|\s*showArologis\s*\|\|\s*showRegionMgmt/,
     )
 
-    // (인사) showAdminHrGroup = 직원 || 권한관리 || 권한위임. admin.users 는 제외(빈 헤더 방지, Round B #3).
-    expect(appLayout, '인사 OR 식 = showAdminEmployees || showPermissionAdmin || showPermissionDelegation').toMatch(
-      /const showAdminHrGroup\s*=\s*showAdminEmployees\s*\|\|\s*showPermissionAdmin\s*\|\|\s*showPermissionDelegation/,
+    // (인사) 자식 메뉴 중 하나라도 보일 때만 헤더를 노출한다. admin.users 는 제외(빈 헤더 방지, Round B #3).
+    expect(appLayout, '인사 OR 식 = 직원 || 운송사 || 권한관리 || 권한위임 || 결재라인 || 출고마감').toMatch(
+      /const showAdminHrGroup\s*=\s*showAdminEmployees\s*\|\|\s*showCarrierMaster\s*\|\|\s*showPermissionAdmin\s*\|\|\s*showPermissionDelegation\s*\|\|\s*showApprovalLineConfig\s*\|\|\s*showSlipCutoff/,
     )
   })
 

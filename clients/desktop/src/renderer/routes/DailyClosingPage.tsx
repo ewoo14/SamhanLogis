@@ -528,7 +528,8 @@ export function DailyClosingPage() {
     const typedDraft = (execPartnerInputRef.current?.value ?? '').trim()
     const confirmedLabel = (execPartner?.name ?? '').trim()
     // 이름 문자열은 동명이 가능하므로 업무키를 기준으로 계산된 출력 계약만 신뢰한다.
-    if (!execPartnerCommitted || (execPartner && !execPartner.partnerCode)) {
+    const draftDiffersFromSelection = Boolean(execPartner) && typedDraft !== confirmedLabel
+    if (!execPartnerCommitted || draftDiffersFromSelection || (execPartner && !execPartner.partnerCode)) {
       setExecPartnerDraftError(execPartnerDraftGuardMessage(typedDraft, confirmedLabel))
       return
     }

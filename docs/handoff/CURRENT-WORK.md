@@ -1,4 +1,335 @@
-# 현재 작업 핸드오프 노트
+﻿# 현재 작업 핸드오프 노트
+
+## 2026-08-05 회사PC 세션 마감 — 🚨 **워크플로우 개편** · 5트랙 라운드 54건 · 집PC 인계
+
+> **다음 세션(집PC)은 이 절만 읽으면 된다.**
+
+### 0. 한 줄 결론
+
+머지는 없다. 대신 **검증 사이클 자체를 개편**했고(개발책임자 결정), 5트랙 전부를 그 사이클에 태워 돌렸다.
+
+```text
+#1063  SOL 재검증 결함 0 · 머지 권고 → 라이브QA 1회만 하면 머지     ← 가장 가깝다
+#1057  SOL 이 결함 2건 + fix 지시서를 써 뒀다 → 그대로 LUNA 에 넘기면 된다
+#1045  S16 fix 완료 · CI 49/49 → SOL 재수렴
+#1061  C안 근거를 레거시 원본에서 확보 → R49 fix
+#1066  #1057 머지 대기
+```
+
+🚫 **PM 재검증·머지는 다음 세션으로 넘겼다**(개발책임자 지시 — 세션 정리 우선).
+
+---
+
+## 1. 🚨🚨 집PC 에서 먼저 — **시드 데이터가 다르다**
+
+```powershell
+git pull
+.\scripts\sync-claude-memory.ps1
+```
+
+**이 문서의 모든 수치는 회사PC 실측이다.** 특히 오늘 내린 결정 두 개가 회사PC 데이터 위에 서 있다.
+
+### ⚠️ 집PC 에 없을 수 있는 것
+
+```text
+계정과목 이원화        1089 외상매출금 · 4019 상품매출 · 2519 외상매입금
+                      전부 2026-05-22 dev_master 이관분에서만 나온다
+                      → 집PC accounting_db 에 그 이관분이 없으면 이 계열이 안 보인다
+
+다중 거래처 journal    회사PC 4건 (수금 수수료 정산 · 정당한 업무 문서)
+                      집PC 는 R43 에서 0건으로 측정했었다
+                      → 결정(C안)은 유효하지만 집PC 에선 검증 표본이 없을 수 있다
+```
+
+### ⚠️ 오늘 회사PC DB 가 바뀌었다 (집PC 는 안 바뀜)
+
+```text
+#1045 배포로 적용   slip_db V101~V105 · auth_db V93·V94 · arologis_db V25
+                    → auth_db V94 가 MASTER·MANAGER 에게 hr.carriers 를 준다
+V106·V107 (미배포)  배포 시 dispatch_groups CHECK 확장 + 기존 전표 119행 큐 플래그
+S14 가 만든 전표    2026/08/05-1 (source_warehouse_code='2' · STACK) — 8모드 발화 표본
+```
+
+### 착수 전 반드시 다시 셀 것
+
+```sql
+-- 전표
+SELECT slip_type, status, COUNT(*) FROM slips WHERE is_deleted=false GROUP BY 1,2;
+SELECT slip_type, (source_warehouse_code IS NOT NULL AND source_warehouse_code <> '') AS has_swc, COUNT(*)
+  FROM slips WHERE is_deleted=false GROUP BY 1,2;
+-- 계정과목 이원화 (이 결과가 비면 #1061·#1072 전제가 그 PC 에 없다)
+SELECT jl.account_code, j.created_at::date, j.created_by, j.source_type, COUNT(*)
+  FROM journal_lines jl JOIN journals j ON j.id=jl.journal_id
+ WHERE jl.account_code IN ('110','1089','401','4019') AND j.is_deleted=false GROUP BY 1,2,3,4;
+-- 다중 거래처 journal
+SELECT COUNT(*) FROM (SELECT jl.journal_id FROM journal_lines jl JOIN journals j ON j.id=jl.journal_id
+  WHERE j.status IN ('POSTED','REVERSED') AND j.is_deleted=false AND jl.partner_id IS NOT NULL
+  GROUP BY 1 HAVING COUNT(DISTINCT jl.partner_id)>1) t;
+-- 권한
+SELECT role_code, page_code, can_view, can_edit FROM role_page_permissions
+ WHERE page_code IN ('hr.carriers','dispatch.board') AND is_deleted=false ORDER BY 2,1;
+-- flyway
+SELECT MAX(version::numeric) FROM flyway_schema_history WHERE success;   -- 각 DB
+```
+
+회사PC 값 (대조용):
+```text
+전표     OUTBOUND DRAFT 116 · SENT 4 · CONFIRMED 1 / INBOUND CONFIRMED 1 · INSPECTING 1
+flyway   slip_db 105 · accounting_db 95 · auth_db 94 · arologis_db 25
+         product_db 30 · inventory_db 21 · partner_db 13
+배포본   slip/auth/arologis 2026-08-05T02:50:44Z · api-gateway 02:50:37Z  (전부 #1045 코드)
+계정     dev_manager · dev_master · dev_accountant · dev_dispatch  모두 dev_p05_pass!
+         아로로지스 admin / admin1234 (자체 인증 · API 127.0.0.1:8097)
+```
+
+---
+
+## 2. 🚨🚨 오늘 확정된 워크플로우 개편 (개발책임자)
+
+→ [`feedback_canonical_workflow`](../../.claude/memory/feedback_canonical_workflow.md) 전면 갱신 · `main` `01856e7a1`
+
+### 새 사이클 — 2차 적대검증은 **SOL 자기완결**
+
+```text
+SOL 적대검증
+  ├ 결함 0 ─────────────────────────────────→ PM 보고
+  └ 결함 발견
+      └ SOL 이 fix 지시서를 파일로 작성        ← 지시 주체는 SOL (PM 이 아니다)
+          └ LUNA fix (지시서를 브리핑으로)
+              └ SOL 재검증
+                  ├ 결함 0 ─────────────────→ PM 보고
+                  └ 결함 남음 ───────────────→ 다시 SOL 이 지시서 작성 (루프)
+
+PM 재검증 (직접 대조 · 릴레이 금지)
+  ├ 이상 없음 → 🚨 PM 자율 머지               ← 머지 권한은 PM 위임 (유지)
+  └ 이상 있음 → 다음 라운드로 되돌린다          ← 도장이 아니라 게이트
+```
+
+> 개발책임자 원문
+> *"SOL이 적대검증으로 결함을 찾은 것을 보고만 하지 말고 바로 LUNA로 fix하고 결함 없는 것을 확인한 후에 PM에게 보고."*
+> *"SOL이 발견한 결함이면 LUNA에게 직접 fix를 지시하고 SOL이 재검증하여 결함이 0인 경우 PM에게 보고하라는 거지."*
+> *"PM 재검증 때 이상하면 다시 다음 라운드를 진행하는거지."*
+> *"**머지는 PM에게 권한 위임**"*
+
+### 왜
+
+종전엔 `SOL → PM 검증·커밋·게시·보고 → LUNA → PM … → SOL` 로 **PM 이 매 홉마다 끼어** 라운드 왕복이 배로 늘었다. 병목은 토큰이 아니라 **라운드 개수**다.
+
+### 구현 방법 — codex MCP 는 세션당 모델이 하나다
+
+SOL 이 LUNA 를 직접 spawn 할 수 없으므로 **지시서를 파일로 넘긴다.**
+
+```text
+1  SOL 브리핑에 명시 — "결함을 찾으면 fix 지시서를
+     docs/dev-reports/<날짜>-<슬라이스>-r<N>-fix-directive.md 로 작성하라"
+     형식 5절 = ①좌표(파일:줄) ②불변식(수단 금지) ③양방향 RED(RED-A 에 반대급부 필수)
+                ④범위 밖 ⑤커밋 전 돌릴 명령(좁혀서)
+2  PM 은 그 파일을 **그대로** LUNA 브리핑으로 전달 — 내용을 다시 쓰지 않는다 (전달자)
+     환경·가드레일(재배포 금지·커밋 금지·돌릴 명령)만 덧붙인다
+3  SOL 재검증 브리핑에 "직전 지시서의 각 항목이 실제로 닫혔는지" 를 명시
+```
+
+**오늘 실제로 두 번 돌았다** — `#1057` R39→R40→R41 · `#1063` R28→R29→R30.
+
+### 함께 확정된 것 — PM 은 "무엇"까지만 준다
+
+→ [`feedback_pm_gives_coordinates_not_means`](../../.claude/memory/feedback_pm_gives_coordinates_not_means.md) · `main` `813eb98e2`
+
+> 개발책임자: *"라운드마다 PM이 모두 점검하고 이를 fix 지시안으로 구체화. 구현자에게 모두 떠맡기면 안되고, 최대한 자세하게 지시해줘야해."*
+
+판별문 — **이 문장을 지우면 무엇을 고칠지 모르나(→준다) 어떻게 고칠지 모르나(→안 준다)**
+
+```text
+주는 것    불변식 · 적용 좌표 전수(grep) · 재현 데이터 지목 · RED 문장 · 새 조합 목록
+안 주는 것  구조 · API · 알고리즘 선택 · 어느 줄을 어떻게 바꿀지
+```
+
+⚠️ **역할 분담** — 좌표 제공은 **1차 라운드(OPUS/PM)** 몫이고, 2차 SOL 사이클에서는 **SOL 이** 자기가 찾은 결함의 지시서를 쓴다.
+
+### 🔑 효과가 수치로 나왔다
+
+```text
+R33·R35  "게이트를 돌려라"            → 전체 게이트 15분 타임아웃 → CI red 2회
+R36      "이 파일 이 명령을 돌려라"    → 3 passed · 35 passed → 한 번에 통과
+S14      발화 키를 코드로 특정해 전달   → 8모드 예상과 전부 일치 ·
+                                       두 번 "미발화" 로 넘겼던 조건을 실제로 생성
+```
+
+**"게이트를 돌려라" 와 "이 파일 이 명령을 돌려라" 의 차이가 라운드 하나다.**
+
+
+---
+
+## 3. 트랙별 상태와 **다음 한 수**
+
+| PR | HEAD | ① 도달 결함 | ② CI | ③ 라이브QA | 다음 한 수 |
+|---|---|---|---|---|---|
+| `#1063` 라인UX | `dc20a9b7a` | ✅ **0** (R30) | 49/49 (직전 SHA) | ⚠️ 최종 HEAD 재실시 | **라이브QA 1회 → 머지** ← 가장 가깝다 |
+| `#1057` riUsage | `b3eb68a3e` | 2건 (**지시서 준비됨**) | ✅ 42/42 | R30 미완 | 지시서 → LUNA → SOL |
+| `#1045` 가배차 | `4c5491a16` | 4건 → S16 처리 | ✅ 49/49 | ①7/8·②③④⑤⑥ PASS | **SOL 재수렴** |
+| `#1061` 원장 | `d1aacacd5` | 2건 (표시 축) | ✅ 49/49 | 재실시 필요 | **R49 fix** (C안 근거 확보됨) |
+| `#1066` 검수결재 | `d3e84500b` | 2건 (1건은 `#1057` 대기) | ✅ 42/42 | 미실시 | `#1057` 머지 후 |
+
+### `#1063` — 라이브QA 하나만 남았다
+
+```text
+①  R30 이 결함 0 · 머지 권고. 다섯 동선(A~E) 전부 PASS
+    callback 4개 / non-callback 15개 대조 · estimateRestoreFence 반대급부 확인
+    증거 무결성 — R29 HEAD 재빌드 후 SHA-256 기록 (R28 stale 빌드 전례를 닫음)
+③  R3·R4 는 0347d3fc0 무렵 실시분인데 그 뒤 R21~R29 가 다섯 화면 동선을 바꿨다
+    R30 의 Chromium 검증은 증거가 탄탄하나 보고서에 mock/실 API 여부가 없어 ③ 으로 세지 않았다
+```
+
+**집PC 절차** — 라이브QA 1회(최종 HEAD · mock OFF · 실서버 :8080 · 스크린샷 다수) → PM 재검증 → 자율 머지.
+반드시 밟을 것: 네 화면 trailing 빈행 삭제 후 다음 라인 추가 · 확정 품목 재포커스/지움/교체 · 후보 2건+ 모달 · 견적 버전 복원.
+
+### `#1057` — 지시서가 준비돼 있다
+
+```text
+docs/dev-reports/2026-08-05-874-r41-fix-directive.md   ← 그대로 LUNA 에 넘기면 된다
+```
+
+R41 결함 2건 (둘 다 R40 의 자기 표면):
+```text
+1  정상 종료 시 커밋된 알림이 executor 큐에서 유실 · 제출 거부 fallback 이 응답 정지 재발
+2  모든 QueryTimeoutException 을 잠금 충돌 409 로 처리해 잘못된 안내
+```
+⚠️ **R40·R41 이 연속으로 "fix 가 만든 자기 표면"** 을 냈다. R42 브리핑에 RED-A 반대급부를 유지할 것 — *"큐 유실을 막는 fix 가 응답 정지를 재발시키면 안 된다"* 는 이미 실증됐다.
+
+### `#1061` — C안 근거를 확보했다 (R49 fix 대기)
+
+📌 **개발책임자 결정 C — 계정과목 정본은 이카운트 체계**. 전역 전환은 **이슈 #1072** 로 분리.
+
+R48 레거시 원본 조사 결과:
+```text
+· 이카운트 거래처별 원장은 요약형이 아니라 상세형이다
+  원문 열 = 일자-No. | 적요 | 차변금액 | 대변금액   + 합계 행
+  기초·매출·수금·기말 열이 아예 없다 → 우리 화면의 매출/수금 열은 우리 것이다
+· 임대료는 매출장에 세금계산서 매출로 잡힌다 (매출합계 4,180,000)
+  ⟹ 현행 "매출" 표시가 레거시와 부합한다
+· 잡손실은 매출장에 없고 계정별원장 9549 의 차변에만 있다
+  ⟹ "수금" 이라 부를 근거가 레거시에 없다
+· 잡이익은 매출장에서 찾지 못했다
+```
+**PM 권고** — 임대료는 매출 유지 · 잡손실은 수금에서 제외. 잡이익 67원만 애매하게 남는다.
+
+### `#1045` — SOL 재수렴만 남았다
+
+S16 이 SOL S15 4건을 처리했다. **결함 4 판별이 핵심이었다.**
+```text
+1        서초창고        108   비대상 · 제외가 맞다
+HQ-001   본사창고          7   비대상 · 제외가 맞다
+VH-001   1호차 차량재고     1   비대상 · 제외가 맞다
+(상일·초월)                3   회복 대상
+합계                     119   = 116 제외 + 3 회복
+```
+"119건 전부 회복" 으로 갔으면 틀린 것을 만들었을 것이다. V107 이 상일·초월 3건만 큐에 승계한다.
+
+⚠️ **mode 5(지방) 는 이슈 #1074 로 분리** — 지방 당일 마감 12:00 초과라 오늘 표본을 못 만들었다. **집PC 에서 12:00 이전이면 코드 변경 없이 검증된다.**
+
+---
+
+## 4. ✅ 개발책임자 결정 (2026-08-05) — 전부 반영
+
+| 항목 | 결정 |
+|---|---|
+| **워크플로우** | **2차는 SOL 자기완결 사이클** · PM 재검증은 게이트 · **머지는 PM 자율** (2절) |
+| **fix 지시** | PM 은 **"무엇"까지만** — 좌표·재현 데이터·RED 는 주고 수단은 안 준다 |
+| `#1057` 상한 3 | **B — 4건 전부 이 PR 에서** (A 후속분리·C 전이매핑 분리 버림) |
+| `#1061` 계정과목 | **C — 이카운트 체계(1089·4019·2519) 정본** · 전역 전환은 #1072 |
+
+---
+
+## 5. 🆕 등록한 이슈 4건
+
+```text
+#1071  판매전표 수정 화면 품목 추가 (/sales/:id/edit)        #1063 R20 분리분 · SOL R19 6건이 사양
+#1072  계정과목 정본을 이카운트 체계로 전환                   개발책임자 C안 · 플랫폼 전역
+#1073  시간 의존 테스트가 무관한 브랜치 CI 를 랜덤 차단        CodefImportScopeForm · PartnerAutocomplete.cost(5초)
+#1074  마감 후 409 "익일 출고로 생성하세요" 인데 출고일 읽기전용  네 출고구분 전부 같은 구조
+```
+
+---
+
+## 6. 🔑 오늘의 발견 — 다음 세션이 알아야 할 것
+
+### ① `#1061` 원장이 실 데이터의 98% 를 못 보고 있었다
+
+```text
+표시 기말   -5,994,456,863   ← 303 row 가 음수
+실제 잔액      735,329,017   (110 + 1089)
+차이         6,729,785,880   ← 버려진 1089 순증액과 정확히 일치
+```
+채권 746거래처를 버리고 수금만 남긴 결과였다. **음수 기말이 색상 문제로 보였을 뿐 이것이었다.**
+
+### ② "할 수 없는 것을 하라고 안내" 가 두 트랙에서 나왔다
+
+```text
+#1074       409 "익일 출고로 생성하세요"  →  출고일이 읽기전용
+#1045 S15   "창고 정보를 확인한 뒤 다시 조회"  →  NOT_REQUESTED 119건은 재조회로 회복 안 됨
+```
+**패턴일 수 있다.** 안내 문구를 쓰는 fix 는 *"사용자가 그것을 실제로 할 수 있는가"* 를 함께 물을 것.
+
+### ③ QA PASS·CI green 을 SOL 이 네 번 되돌렸다
+
+```text
+#1063  CI 49/49 · QA R3·R4 PASS  →  SOL 5건
+#1061  CI 49/49 · QA R14 PASS    →  SOL 3계열
+#1057  CI 42/42                  →  SOL 4건
+#1066  CI 42/42                  →  SOL 2건
+```
+
+### ④ 좌표를 주면 라운드가 준다 (수치)
+
+```text
+R33·R35  "게이트를 돌려라"          → 15분 타임아웃 → CI red 2회
+R36      "이 파일 이 명령을 돌려라"  → 3 passed · 35 passed → 한 번에 통과
+S14      발화 키를 코드로 특정       → 8모드 예상과 전부 일치 · 두 번 실패한 조건을 생성 성공
+```
+
+---
+
+## 7. 🚩 PM 이 만든 낭비 — 반복하지 말 것
+
+- **QA 계정을 잘못 지목했다.** `dev_manager` 를 "배차 계정" 으로 줬는데 MANAGER 는 `hr.carriers` 도 보유해 **경계를 구분할 수 없는 계정**이었다. S10 을 증명하는 건 `dev_dispatch`(DISPATCH)다.
+- **아로로지스를 브라우저로 띄우게 했다.** `window.arologisAuth` 는 **preload 가 노출**하므로 Electron 이 아니면 인증이 반드시 실패한다. 두 라운드(S11·S12)를 "제품 결함" 으로 오인했다. 메모리에 이미 *"데스크톱 라이브QA = Electron 실제 기동"* 이 있었다.
+- **R23 검증에서 스펙 9개 변경을 "버튼 참조 제거" 로만 읽었다.** 대체 locator 가 유일한지 안 물어 strict mode 위반이 CI 로 갔다(R24).
+- **컨테이너 시각을 필드명 없이 줬다.** SOL 이 `.State.StartedAt` 을 재어 불일치로 기록했는데 PM 값은 `.Created` 였다. 이후 브리핑부터 `created=`/`started=` 를 함께 준다.
+- **병행 재배포를 브리핑에 안 알렸다.** `#1045` QA 가 스택을 재배포하는 동안 `#1057` SOL 이 *"출처 미상의 컨테이너 교체"* 를 증거 무결성으로 기록했다. 검증자가 자기 증거를 의심하게 된다.
+
+---
+
+## 8. ⚠️ 커밋하면 안 되는 미추적 파일 · 워크트리 상태
+
+```text
+w1061   docs/migration/ecount-data/raw/**  ← PM 이 R48 조사용으로 복사한 gitignore 대상
+        (계정별원장.xlsx · 거래처거래내역조회.xlsx · 회계전표분개 CSV · 매출장 · 현금출납장)
+main    .gradle-user-t1008b/ · docs/dev-reports/2026-08-03-874-live-qa.md
+```
+
+워크트리 (전부 clean · 각 PR HEAD 와 동기):
+```text
+w1062-lineux  fix/1062-line-input-ux            dc20a9b7a
+w1057         feat/874-set-riusage-global-dc    b3eb68a3e
+w1045         feat/1039-provisional-dispatch    4c5491a16
+w1061         feat/1001-ledger-spec-rest        d1aacacd5
+w1065         fix/1065-outbound-inspect-approval-gate  d3e84500b
+```
+
+---
+
+## 9. 오늘 규모
+
+```text
+라운드      54건 (fix 20 · SOL 적대검증 14 · 라이브QA 5 · 조사 2 · 기타)
+커밋        브랜치 54 + main 6
+게시        PR 코멘트 30+ (실행=게시 1:1 유지)
+캡처        130+ 장 (#1045 102 · #1063 9 · 기타)
+이슈        4건 등록 · 메모리 규칙 2건 신설 + 정본 1건 전면 갱신
+머지        0건
+```
+
+---
 
 ## 2026-08-05 집PC 야간 세션 마감 — **머지 1건** · 3트랙 CI green · 회사PC 인계
 
@@ -1271,3 +1602,4 @@ slip 없는 회계분개   30건 · 401 순매출 412,300,000원
 `journals` 에 `POSTED` 인데 대응 slip 이 없다. ① slip 이 나중에 삭제됐고 분개가 남았다 ② 분개가 slip 없이 만들어졌다(수기 등) — 어느 쪽인지 미판정. **회계 원장에 닿는 데이터라 별도 확인이 필요해 보인다.**
 
 ---
+

@@ -48,6 +48,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { buildRiskyPartnerLinesWarning, findRiskyPartnerLines } from './JournalFormPage.model'
 import {
   appendBlankRowIfLastChanged,
+  ensureTrailingBlankRow,
   filterMeaningfulRows,
   removeLinePreservingMinimum,
 } from '../utils/autoBlankRow'
@@ -70,6 +71,16 @@ const emptyLine = (): DraftLine => ({
   partnerName: '',
   note: '',
 })
+
+/** 삭제 후 trailing 입력행을 보장할 때 쓰는 분개 라인 확정 판정. */
+const isJournalLineConfirmed = (line: DraftLine): boolean => Boolean(
+  line.accountCode.trim()
+  || line.debit > 0
+  || line.credit > 0
+  || line.partnerId
+  || line.partnerName.trim()
+  || line.note.trim(),
+)
 
 /** YYYY-MM-DD 오늘 날짜 (한국 시간 기준 클라이언트 local). */
 const today = (): string => {
@@ -279,7 +290,13 @@ export function JournalFormPage() {
       partnerName: l.partnerName ?? '',
       note: l.memo ?? l.note ?? '',
     }))
-    setLines(hydratedLines)
+    const linesWithTrailingBlank = ensureTrailingBlankRow(
+      hydratedLines,
+      emptyLine,
+      (line) => Boolean(line.accountCode.trim()),
+    )
+    while (linesWithTrailingBlank.length < 2) linesWithTrailingBlank.push(emptyLine())
+    setLines(linesWithTrailingBlank)
     setHydratedLineUids(new Set(hydratedLines.map((l) => l.uid)))
   }
 
@@ -376,12 +393,17 @@ export function JournalFormPage() {
     setLines((prev) => {
       const target = prev[index]
       return target
-        ? removeLinePreservingMinimum(prev, target.uid, (line) => line.uid, emptyLine, 2)
+        ? removeLinePreservingMinimum(
+          prev,
+          target.uid,
+          (line) => line.uid,
+          emptyLine,
+          2,
+          isJournalLineConfirmed,
+        )
         : prev
     })
   }
-  const addLine = () => setLines((prev) => [...prev, emptyLine()])
-
   const createMutation = useMutation({
     mutationFn: (body: CreateJournalRequest) => createJournal(body),
     onSuccess: (created) => {
@@ -612,12 +634,6 @@ export function JournalFormPage() {
             </div>
           </>
         )}
-
-        <div style={{ marginTop: 12 }}>
-          <Button variant="ghost" size="sm" onClick={addLine}>
-            + 라인 추가
-          </Button>
-        </div>
 
         {/* 합계 표시 */}
         {isMobile ? (

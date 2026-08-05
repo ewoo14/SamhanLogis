@@ -4,8 +4,8 @@
  * <h2>검증 대상</h2>
  * <ol>
  *   <li>새 출고전표 작성 (`/sales/new`) 진입 — 품목 자동완성 입력 필드 표시</li>
- *   <li>품목 부분 입력("AJ") → mock `GET /api/products?q=AJ` → 후보 listbox 표시</li>
- *   <li>후보 항목 키보드(ArrowDown + Enter) 선택 → modelName 입력란 반영</li>
+ *   <li>품목 부분 입력("AJ") → mock `GET /api/products?q=AJ` → 후보 선택 modal 표시</li>
+ *   <li>후보 선택 modal 확정 → modelName 입력란 반영</li>
  *   <li>후보 항목 클릭 선택 → modelName 입력란 반영</li>
  *   <li>선택 후 단가(unitPrice) 자동 채워짐 확인 (합계 셀 변화)</li>
  *   <li>빈 문자열 검색 시 후보 노출 (전체 목록)</li>
@@ -19,8 +19,7 @@
  *
  * <h2>UUID 비공개 가드 ([[feedback_uuid_no_user_visibility]])</h2>
  * - 화면 텍스트에 UUID(8-4-4-4-12 hex) 패턴 미포함 단언.
- * - DOM 속성 재유출 가드: 후보 option id 는 index 기반 opaque(`${listId}-opt-${idx}`)
- *   형식이어야 하고, id·input aria-activedescendant 에 hex-UUID 접두 미포함 단언.
+ * - 검색 결과 modal의 텍스트·markup·radio aria-label 에 UUID 미포함 단언.
  *
  * <h2>no-fake-data 원칙 ([[feedback_no_fake_data_ever]])</h2>
  * - 본 spec 은 VITE_MOCK_MODE=1 Playwright 컴포넌트 회귀 전용.
@@ -42,13 +41,6 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 /** UUID 정규식 — 화면 노출 가드. */
 const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
-
-/**
- * hex-UUID 접두 정규식 — DOM 속성(id/aria-activedescendant) 재유출 가드.
- * 속성값은 `${listId}-opt-${idx}` 합성이라 full UUID 의 word-boundary 매치가 어긋날 수
- * 있어 접두(8-4-) 패턴으로 잡는다.
- */
-const HEX_UUID_PREFIX = /[0-9a-f]{8}-[0-9a-f]{4}-/i
 
 /**
  * window.samhanAuth stub — AuthGuard 통과 (MANAGER role).
@@ -78,10 +70,10 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/#/sales/new?mockRole=MANAGER`, {
     waitUntil: 'domcontentloaded',
   })
-  // 페이지 로드 완료 확인 — "새 출고전표" 또는 "라인 추가" 버튼 기다림
-  await expect(
-    page.getByRole('button', { name: '+ 라인 추가' }),
-  ).toBeVisible({ timeout: 15_000 })
+  // 페이지 로드 완료 확인 — AppLayout의 고유 페이지 제목 대기
+  await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', {
+    timeout: 15_000,
+  })
 }
 
 /**
@@ -93,6 +85,10 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
  */
 function getProductInput(page: Page) {
   return page.getByRole('combobox', { name: /라인 1 품목/ })
+}
+
+function getProductSelectionDialog(page: Page) {
+  return page.getByRole('dialog', { name: '품목 검색 결과' })
 }
 
 // ============================================================
@@ -115,9 +111,9 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
   })
 
   // ──────────────────────────────────────────────────────────
-  // 시나리오 2: "AJ" 입력 → 후보 listbox 표시
+  // 시나리오 2: "AJ" 입력 → 복수 후보 선택 modal 표시
   // ──────────────────────────────────────────────────────────
-  test('시나리오 2: "AJ" 입력 → 후보 listbox 표시 (mock /api/products?q=AJ)', async ({ page }) => {
+  test('시나리오 2: "AJ" 입력 → 후보 선택 modal 표시 (mock /api/products?q=AJ)', async ({ page }) => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
 
@@ -125,21 +121,21 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ')
 
-    // listbox 결정적 대기 — debounce + 비동기 응답 완료까지 (F-05)
-    const listbox = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    // R23 single selection mode — 2건 이상은 품목 검색 결과 modal 로 전환된다.
+    const dialog = getProductSelectionDialog(page)
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     // 후보 항목 중 AJ040 포함 확인
-    await expect(listbox).toContainText('AJ040RXH4BC1')
+    await expect(dialog).toContainText('AJ040RXH4BC1')
 
-    // combobox expanded
-    await expect(input).toHaveAttribute('aria-expanded', 'true')
+    // modal 전환 시 inline combobox surface 는 닫힌다.
+    await expect(input).toHaveAttribute('aria-expanded', 'false')
   })
 
   // ──────────────────────────────────────────────────────────
-  // 시나리오 3: 후보 클릭 선택 → modelName 입력란 반영
+  // 시나리오 3: 단일 후보 즉시 확정 → modelName 입력란 반영
   // ──────────────────────────────────────────────────────────
-  test('시나리오 3: 후보 클릭 선택 → 입력란에 modelName 표시', async ({ page }) => {
+  test('시나리오 3: 단일 후보 즉시 확정 → 입력란에 modelName 반영', async ({ page }) => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
 
@@ -147,25 +143,15 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ040')
 
-    const listbox = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox).toBeVisible({ timeout: 5_000 })
-
-    // AJ040RXH4BC1 옵션 클릭
-    const option = listbox.getByRole('option', { name: /AJ040RXH4BC1/ })
-    await expect(option).toBeVisible()
-    await option.click()
-
-    // 선택 후 입력란에 modelName 표시
-    await expect(input).toHaveValue('AJ040RXH4BC1')
-
-    // listbox 닫힘
-    await expect(listbox).not.toBeVisible()
+    // 단일 후보는 목록 표시/클릭 없이 즉시 확정된다.
+    await expect(input).toHaveValue('AJ040RXH4BC1', { timeout: 5_000 })
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
   })
 
   // ──────────────────────────────────────────────────────────
-  // 시나리오 4: 키보드 ↓/Enter 선택 → 입력란 반영
+  // 시나리오 4: 복수 후보 modal 선택 → 입력란 반영
   // ──────────────────────────────────────────────────────────
-  test('시나리오 4: 키보드 ArrowDown + Enter 선택 → modelName 반영', async ({ page }) => {
+  test('시나리오 4: 복수 후보 modal 선택 → modelName 반영', async ({ page }) => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
 
@@ -173,20 +159,18 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ')
 
-    const listbox = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    const dialog = getProductSelectionDialog(page)
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
 
-    // ArrowDown → 첫 번째 항목 활성화
-    await input.press('ArrowDown')
-    // Enter → 선택
-    await input.press('Enter')
+    // single selection modal에서 첫 후보를 선택하고 확정한다.
+    await dialog.getByRole('radio').first().check()
+    await dialog.getByRole('button', { name: '선택 확정' }).click()
 
-    // 입력란에 선택된 modelName (첫 번째 AJ 매칭 = AJ036NCH3CH 또는 AJ040RXH4BC1)
-    const finalValue = await input.inputValue()
-    expect(finalValue).toMatch(/^AJ/)
+    // 입력란에 선택된 modelName (첫 번째 AJ 매칭 = AJ040RXH4BC1)
+    await expect(input).toHaveValue(/^AJ/)
 
-    // listbox 닫힘
-    await expect(listbox).not.toBeVisible()
+    // modal 닫힘
+    await expect(dialog).not.toBeVisible()
   })
 
   // ──────────────────────────────────────────────────────────
@@ -200,10 +184,8 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ040')
 
-    const listbox = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox).toBeVisible({ timeout: 5_000 })
-
-    await listbox.getByRole('option', { name: /AJ040RXH4BC1/ }).click()
+    await expect(input).toHaveValue('AJ040RXH4BC1', { timeout: 5_000 })
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
 
     // 단가 input — 라인 1 단가 (aria-label "라인 1 단가")
     const priceInput = page.getByRole('textbox', { name: '라인 1 단가' })
@@ -225,37 +207,27 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ')
 
-    const listbox = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    const dialog = getProductSelectionDialog(page)
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
     // 실 후보 렌더 완료까지 결정적 대기 — "검색 중…" 로딩행도 role=option(id 없음)이라
     // 후보 도착 전에 id 를 수확하면 빈 id 로 false RED 가 난다.
-    await expect(listbox).toContainText('AJ040RXH4BC1')
+    await expect(dialog).toContainText('AJ040RXH4BC1')
 
-    // listbox 텍스트에 UUID 미포함
-    const listboxText = await listbox.textContent()
-    expect(listboxText).not.toMatch(UUID_PATTERN)
+    // modal 텍스트와 markup에 UUID 미포함
+    const dialogText = await dialog.textContent()
+    expect(dialogText).not.toMatch(UUID_PATTERN)
+    const dialogMarkup = await dialog.evaluate((element) => element.outerHTML)
+    expect(dialogMarkup).not.toMatch(UUID_PATTERN)
 
-    // [OPUS 라운드 LOW] 속성 재유출 가드 — textContent 만으론 id/aria-activedescendant
-    // 속성에 실리는 UUID 재유출을 못 잡는다. 후보 DOM id 는 도메인 키와 분리된 index 기반
-    // opaque id(`${listId}-opt-${idx}`)여야 한다.
-    const optionIds = await listbox
-      .getByRole('option')
-      .evaluateAll((els) => els.map((el) => el.id))
-    expect(optionIds.length).toBeGreaterThan(0)
-    for (const id of optionIds) {
-      expect(id).toMatch(/-opt-\d+$/)
-      expect(id).not.toMatch(HEX_UUID_PREFIX)
-    }
-
-    // 활성 후보 지정 시 input 의 aria-activedescendant 도 opaque id 만 담아야 한다.
-    await input.press('ArrowDown')
-    const activeDescendant = await input.getAttribute('aria-activedescendant')
-    expect(activeDescendant, 'ArrowDown 후 aria-activedescendant 미설정').not.toBeNull()
-    expect(activeDescendant).toMatch(/-opt-\d+$/)
-    expect(activeDescendant).not.toMatch(HEX_UUID_PREFIX)
+    // 표의 라디오 접근성 이름에도 UUID가 유출되지 않는다.
+    const radioLabels = await dialog.getByRole('radio').evaluateAll((els) =>
+      els.map((element) => element.getAttribute('aria-label') ?? ''),
+    )
+    for (const label of radioLabels) expect(label).not.toMatch(UUID_PATTERN)
 
     // 선택 후 전체 페이지 텍스트 UUID 미포함
-    await listbox.getByRole('option').first().click()
+    await dialog.getByRole('radio').first().check()
+    await dialog.getByRole('button', { name: '선택 확정' }).click()
     const bodyText = await page.locator('body').textContent()
     expect(bodyText).not.toMatch(UUID_PATTERN)
   })
@@ -267,26 +239,19 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
 
-    // 라인 추가 → 라인 2 생성
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
-
     // 라인 1: AJ040 검색 후 선택
     const input1 = page.getByRole('combobox', { name: /라인 1 품목/ })
     await input1.click()
     await input1.fill('AJ040')
-    const listbox1 = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox1).toBeVisible({ timeout: 5_000 })
-    await listbox1.getByRole('option', { name: /AJ040RXH4BC1/ }).click()
     await expect(input1).toHaveValue('AJ040RXH4BC1')
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
 
     // 라인 2: AJ052 검색 후 선택 (라인1 seq 오염 없이 독립 동작)
     const input2 = page.getByRole('combobox', { name: /라인 2 품목/ })
     await input2.click()
     await input2.fill('AJ052')
-    const listbox2 = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox2).toBeVisible({ timeout: 5_000 })
-    await listbox2.getByRole('option', { name: /AJ052RXH5BC1/ }).click()
     await expect(input2).toHaveValue('AJ052RXH5BC1')
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
 
     // 라인 1 값 유지 확인
     await expect(input1).toHaveValue('AJ040RXH4BC1')

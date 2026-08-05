@@ -28,7 +28,8 @@ interface ProductSummaryResponse {
   name: string
   modelName: string
   productCode: string | null
-  sellingPrice: string | null
+    sellingPrice: string | null
+    specification?: string | null
   /** 품목코드 — BE ProductSummaryResponse 신규 (세트 전개 부모 식별). */
   modelCode?: string | null
   /** 품목 유형 — "SINGLE" | "BUNDLE". BE ProductSummaryResponse 신규. */
@@ -79,7 +80,8 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
         ? Number(p.sellingPrice)
         : undefined,
     modelCode: p.modelCode ?? undefined,
-    productType: p.productType ?? undefined,
+      productType: p.productType ?? undefined,
+      specification: p.specification ?? undefined,
   }
 }
 

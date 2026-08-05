@@ -410,7 +410,8 @@ function AddBlockedPartnerDialog({
     // 계산해 전달한 committed 출력만 사용한다.
     const typedDraft = (partnerInputRef.current?.value ?? '').trim()
     const confirmedLabel = (partner?.name ?? '').trim()
-    if (!partnerCommitted || !partner?.partnerCode) {
+    const draftDiffersFromSelection = Boolean(partner) && typedDraft !== confirmedLabel
+    if (!partnerCommitted || draftDiffersFromSelection || !partner?.partnerCode) {
       setPartnerDraftError(
         typedDraft === ''
           ? `입력을 비워도 선택한 거래처(${confirmedLabel})가 해제되지 않습니다. 차단할 거래처를 목록에서 다시 선택한 뒤 등록하세요.`

@@ -31,6 +31,7 @@ public record SalesAggregateRow(
         String partnerName,
         BigDecimal salesTotal,
         BigDecimal paymentTotal,
+        BigDecimal adjustmentTotal,
         BigDecimal receivableBalance,
         LocalDate periodFrom,
         LocalDate periodTo) {

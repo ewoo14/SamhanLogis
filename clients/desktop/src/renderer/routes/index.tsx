@@ -130,6 +130,8 @@ import { PasswordResetConfirmPage } from './PasswordResetConfirmPage'
 import { ArologisManualDispatchPage } from './ArologisManualDispatchPage'
 // [Phase 10 PR-E1 FE-2] arologis 가배차 분류 admin UI (REGION 권역 + 시도 광역 2-탭, MASTER/MANAGER/DISPATCH)
 import { ArologisPreClassifyPage } from './ArologisPreClassifyPage'
+import { CarrierListPage } from './CarrierListPage'
+import { DispatchGroupPage } from './DispatchGroupPage'
 // [Phase 10 P2-4 / slice 8] legacy 매출 마감 — 일별/월별 (ACCOUNTANT/MANAGER/MASTER 진입, 역마감은 MASTER 만).
 import { MonthEndClosingPage } from './MonthEndClosingPage'
 // [Phase 10 P0-5 / slice 4] 관리자 통합 admin (MASTER 전용 5 페이지)
@@ -192,6 +194,7 @@ import { StatementBatchView } from '../print/StatementBatchView'
 // 인쇄 view 는 Designer commit 69fd8f0 의 PartnerLedgerView 재사용.
 import { PartnerLedgerPage } from './PartnerLedgerPage'
 import { PartnerLedgerView } from '../print/PartnerLedgerView'
+import { PartnerLedgerBatchView } from '../print/PartnerLedgerBatchView'
 // [PR-H3 FE-1] 전표 수정/삭제 요청 처리 대시보드 — WAREHOUSE/MANAGER/MASTER.
 // BE: slip-service `GET/POST /api/v1/slips/edit-requests*` (PR-H3 BE-1 슬라이스).
 import { SlipEditRequestsPage } from './admin/SlipEditRequestsPage'
@@ -1025,6 +1028,14 @@ const routes = [
           </PermissionGuard>
         ),
       },
+      {
+        path: '/print/partner-ledger-batch',
+        element: (
+          <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+            <PartnerLedgerBatchView />
+          </PermissionGuard>
+        ),
+      },
 
       // [Phase 10 P1-5] arologis 수동 배차 admin UI — MASTER / MANAGER (backlog DISPATCH).
       {
@@ -1043,6 +1054,22 @@ const routes = [
         element: (
           <PermissionGuard pageCode="arologis.dispatch.ops" action="view">
             <ArologisPreClassifyPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/admin/carriers',
+        element: (
+          <PermissionGuard pageCode="hr.carriers" action="view">
+            <CarrierListPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/admin/dispatch-groups',
+        element: (
+          <PermissionGuard pageCode="dispatch.board" action="view">
+            <DispatchGroupPage />
           </PermissionGuard>
         ),
       },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   appendBlankRowIfLastChanged,
+  ensureTrailingBlankRow,
   filterMeaningfulRows,
   removeLinePreservingMinimum,
 } from './autoBlankRow'
@@ -8,6 +9,7 @@ import {
 interface TestLine {
   uid: string
   account: string
+  productId?: string | null
   debit: number
   credit: number
 }
@@ -48,8 +50,70 @@ describe('행 자동 빈행 공통 계약', () => {
 
   it('행 삭제는 판매전표처럼 최소 한 빈행을 유지한다', () => {
     const line = { uid: 'only', account: '', debit: 0, credit: 0 }
-    const next = removeLinePreservingMinimum([line], 'only', (item) => item.uid, emptyLine, 1)
+    const next = removeLinePreservingMinimum(
+      [line],
+      'only',
+      (item) => item.uid,
+      emptyLine,
+      1,
+      (item) => Boolean(item.productId),
+    )
     expect(next).toHaveLength(1)
     expect(next[0].account).toBe('')
+  })
+
+  it('마지막 trailing 빈행을 삭제해도 확정행 뒤에 다음 입력행을 복원한다', () => {
+    const confirmed = { uid: 'confirmed', account: '102', productId: 'product-1', debit: 100, credit: 0 }
+    const blank = { uid: 'blank', account: '', debit: 0, credit: 0 }
+    const next = removeLinePreservingMinimum(
+      [confirmed, blank],
+      blank.uid,
+      (item) => item.uid,
+      emptyLine,
+      1,
+      (item) => Boolean(item.productId),
+    )
+
+    expect(next).toHaveLength(2)
+    expect(next[0]).toBe(confirmed)
+    expect(next[1]?.productId).toBeUndefined()
+  })
+
+  it('첫·중간·마지막 삭제 위치 모두 기존 확정행을 건드리지 않는다', () => {
+    const first = { uid: 'first', productId: 'product-1' }
+    const middle = { uid: 'middle', productId: 'product-2' }
+    const blank = { uid: 'blank', productId: '' }
+    const rows = [first, middle, blank]
+    const empty = () => ({ uid: 'generated', productId: '' })
+    const remove = (id: string) => removeLinePreservingMinimum(
+      rows,
+      id,
+      (item) => item.uid,
+      empty,
+      1,
+      (item) => Boolean(item.productId),
+    )
+
+    expect(remove(first.uid)).toEqual([middle, blank])
+    expect(remove(middle.uid)).toEqual([first, blank])
+    expect(remove(blank.uid)).toEqual([first, middle, expect.objectContaining({ productId: '' })])
+    expect(rows).toEqual([first, middle, blank])
+  })
+
+  it('수정 화면은 확정 품목코드 아래에 빈행을 하나 유지한다', () => {
+    const confirmed = { uid: 'line-1', account: '', productId: 'product-1', debit: 0, credit: 0 }
+    const next = ensureTrailingBlankRow([confirmed], emptyLine, (line) => Boolean(line.productId))
+
+    expect(next).toHaveLength(2)
+    expect(next[0]).toBe(confirmed)
+    expect(next[1]?.productId).toBeUndefined()
+  })
+
+  it('품목코드 미확정 행은 모델명·수량을 입력해도 빈행으로 판정한다', () => {
+    const partial = { uid: 'partial', account: 'AP145', productId: null, debit: 0, credit: 0 }
+    const quantityOnly = { uid: 'quantity-only', account: '', productId: null, debit: 10, credit: 0 }
+
+    expect(ensureTrailingBlankRow([partial], emptyLine, (line) => Boolean(line.productId))).toHaveLength(1)
+    expect(ensureTrailingBlankRow([quantityOnly], emptyLine, (line) => Boolean(line.productId))).toHaveLength(1)
   })
 })

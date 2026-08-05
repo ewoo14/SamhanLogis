@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.repository;
 
 import com.samhanair.logis.accounting.domain.JournalLine;
+import com.samhanair.logis.accounting.domain.JournalSourceType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -42,11 +43,14 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
      * 거래처 + 계정코드 별 차/대 합계 — PR-E2 BE-A8 매출/수금/채권 집계용.
      *
      * <p>POSTED+REVERSED(보상쌍 상쇄) 분개 라인을 집계. {@code partnerId} 가 NULL 인 라인은 제외 (집계 대상이 아님).
-     * 응답 row 는 [partnerId, accountCode, debitTotal, creditTotal].
+     * CASH_RECEIPT 원천을 다른 원천과 분리해 반환한다. 원장 화면의 수금 정본은
+     * {@code cash_receipts.amount}이므로 service가 CASH_RECEIPT 분개를 이중 집계하지 않는다.
+     * 응답 row 는 [partnerId, accountCode, sourceType, debitTotal, creditTotal].
      */
     @Query("""
             SELECT l.partnerId AS partnerId,
                    l.accountCode AS accountCode,
+                   l.journal.sourceType AS sourceType,
                    COALESCE(SUM(l.debitAmount), 0) AS debitTotal,
                    COALESCE(SUM(l.creditAmount), 0) AS creditTotal
             FROM JournalLine l
@@ -56,7 +60,7 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
                     com.samhanair.logis.accounting.domain.JournalStatus.POSTED,
                     com.samhanair.logis.accounting.domain.JournalStatus.REVERSED)
               AND l.partnerId IS NOT NULL
-            GROUP BY l.partnerId, l.accountCode
+            GROUP BY l.partnerId, l.accountCode, l.journal.sourceType
             """)
     List<PartnerAccountTotal> aggregatePostedByPartnerAccount(@Param("from") LocalDate from,
                                                               @Param("to") LocalDate to);
@@ -65,6 +69,7 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     interface PartnerAccountTotal {
         UUID getPartnerId();
         String getAccountCode();
+        JournalSourceType getSourceType();
         BigDecimal getDebitTotal();
         BigDecimal getCreditTotal();
     }
@@ -106,6 +111,47 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     List<JournalLine> findPartnerLinesInRange(@Param("partnerId") UUID partnerId,
                                               @Param("from") LocalDate from,
                                               @Param("to") LocalDate to);
+
+    /**
+     * 거래처가 연결된 전표의 전체 라인 — 원장 collection contract 입력용.
+     *
+     * <p>거래처 ID는 채권 라인에만 연결될 수 있으므로, 거래처 라인만 읽으면
+     * 매출 대변과 역분개 차변이 잘려 REVERSED 원분개와 POSTED 역분개의
+     * 상쇄가 불가능해진다. 거래처 라인이 하나라도 있는 전표의 모든 라인을
+     * 읽어야 업무 효과(SALE/PAYMENT/NONE)를 전표 단위로 분류할 수 있다.</p>
+     */
+    @Query("""
+            SELECT l FROM JournalLine l
+            WHERE l.journal.journalDate >= :from
+              AND l.journal.journalDate <= :to
+              AND l.journal.status IN (
+                    com.samhanair.logis.accounting.domain.JournalStatus.POSTED,
+                    com.samhanair.logis.accounting.domain.JournalStatus.REVERSED)
+              AND EXISTS (
+                    SELECT linked.id FROM JournalLine linked
+                    WHERE linked.journal.id = l.journal.id
+                      AND linked.partnerId = :partnerId)
+            ORDER BY l.journal.journalDate ASC, l.journal.journalNo ASC, l.lineNo ASC
+            """)
+    List<JournalLine> findJournalLinesInRangeForPartner(@Param("partnerId") UUID partnerId,
+                                                        @Param("from") LocalDate from,
+                                                        @Param("to") LocalDate to);
+
+    /** 거래처가 연결된 전표의 기준일 포함 전체 라인 — 기간과 동일한 collection contract 입력용. */
+    @Query("""
+            SELECT l FROM JournalLine l
+            WHERE l.journal.journalDate <= :asOf
+              AND l.journal.status IN (
+                    com.samhanair.logis.accounting.domain.JournalStatus.POSTED,
+                    com.samhanair.logis.accounting.domain.JournalStatus.REVERSED)
+              AND EXISTS (
+                    SELECT linked.id FROM JournalLine linked
+                    WHERE linked.journal.id = l.journal.id
+                      AND linked.partnerId = :partnerId)
+            ORDER BY l.journal.journalDate ASC, l.journal.journalNo ASC, l.lineNo ASC
+            """)
+    List<JournalLine> findJournalLinesUpToForPartner(@Param("partnerId") UUID partnerId,
+                                                     @Param("asOf") LocalDate asOf);
 
     /**
      * 재무상태표 집계용 — asOfDate 이전 누적 POSTED+REVERSED(보상쌍 상쇄) 분개 라인의 accountCode 별 차/대 합계.

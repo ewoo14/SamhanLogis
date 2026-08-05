@@ -669,7 +669,7 @@ spring:
         - id: slip-dispatch-admin-noprefix
           uri: lb://slip-service
           predicates:
-            - Path=/admin/dispatch-tasks,/admin/dispatch-tasks/**,/admin/dispatch-board,/admin/dispatch-board/**,/admin/external-carriers,/admin/external-carriers/**,/admin/external-dispatches,/admin/external-dispatches/**,/admin/slip-cutoffs,/admin/slip-cutoffs/**
+            - Path=/admin/dispatch-tasks,/admin/dispatch-tasks/**,/admin/dispatch-board,/admin/dispatch-board/**,/admin/external-carriers,/admin/external-carriers/**,/admin/external-dispatches,/admin/external-dispatches/**,/admin/slip-cutoffs,/admin/slip-cutoffs/**,/admin/dispatch-groups,/admin/dispatch-groups/**,/admin/carriers,/admin/carriers/**,/admin/dispatches/pre-classify
           filters:
             - JwtAuthentication
 

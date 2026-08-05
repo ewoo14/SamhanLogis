@@ -388,6 +388,23 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                 .doesNotContainPattern("\"sourceWarehouseName\":\"" + UUID_PATTERN + "\"");
     }
 
+    @Test
+    void findOutboundForDispatch_includesSourceWarehouseName() throws Exception {
+        String slipId = createInspectingSlip();
+        UUID sourceWarehouseId = slipRepository.findById(UUID.fromString(slipId)).orElseThrow()
+                .getSourceWarehouseId();
+        Mockito.when(warehouseInternalClient.findWarehouseName(sourceWarehouseId))
+                .thenReturn(java.util.Optional.of("상일창고"));
+
+        mockMvc.perform(get("/internal/slips/outbound")
+                        .param("from", LocalDate.now().toString())
+                        .param("to", LocalDate.now().toString())
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].sourceWarehouseName").value("상일창고"));
+    }
+
     // ---------- helpers ----------
 
     private ObjectNode appBody(String source, String driverCode) {

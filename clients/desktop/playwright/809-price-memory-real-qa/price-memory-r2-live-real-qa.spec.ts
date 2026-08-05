@@ -1144,8 +1144,7 @@ test.describe.serial('#809 R4-postfix — R4 적대 fix 후 라이브 재검증'
     await page.waitForTimeout(1200)
     await expectUnitPriceDigits(page, PRICE_P, 1, '거래처A 기억단가')
 
-    // 라인2 = 사용자 직접입력(보존 대상)
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
+    // 라인2 = 마지막 자동 빈행에 입력한 사용자 직접입력(보존 대상)
     await page.waitForTimeout(400)
     await pickAutocomplete(page, '라인 2 품목', '품목 목록', PRODUCT_Y.model)
     await page.waitForTimeout(1000)
@@ -1153,7 +1152,6 @@ test.describe.serial('#809 R4-postfix — R4 적대 fix 후 라이브 재검증'
     await expectUnitPriceDigits(page, PRICE_USER_LINE, 2, '라인2 사용자 입력')
 
     // 라인3 = 자동채움 두 번째 라인(Y, (A,Y) miss → 판매가) — bulk 가 자동 라인 N개를 1요청에 실어야 한다
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
     await page.waitForTimeout(400)
     await pickAutocomplete(page, '라인 3 품목', '품목 목록', PRODUCT_Y.model)
     await page.waitForTimeout(1000)
@@ -1366,16 +1364,12 @@ test.describe.serial('#809 R4-postfix — R4 적대 fix 후 라이브 재검증'
     // 라인1 = X 자동채움(A,X hit)
     await fillEstimateModel(page, 1, PRODUCT_X.model)
     await expectUnitPriceDigits(page, PRICE_P, 1, '견적 라인1 (A,X) 기억단가')
-    // 라인2 = Y 자동채움 후 수동 덮어쓰기(USER 보존 대상)
-    await page.getByTestId('estimate-form-add-line').click()
-    await page.waitForTimeout(400)
+    // 라인2 = 마지막 자동 빈행에 Y 자동채움 후 수동 덮어쓰기(USER 보존 대상)
     await fillEstimateModel(page, 2, PRODUCT_Y.model)
     await expectUnitPriceDigits(page, PRODUCT_Y.sellingPrice, 2, '견적 라인2 (A,Y) miss 판매가')
     await page.getByLabel('라인 2 단가').fill(PRICE_USER_LINE)
     await expectUnitPriceDigits(page, PRICE_USER_LINE, 2, '견적 라인2 사용자 입력')
-    // 라인3 = Y 자동채움 유지((A,Y)/(B,Y) 모두 miss) — bulk 부분 hit 계약의 대조군
-    await page.getByTestId('estimate-form-add-line').click()
-    await page.waitForTimeout(400)
+    // 라인3 = 마지막 자동 빈행에 Y 자동채움 유지((A,Y)/(B,Y) 모두 miss) — bulk 부분 hit 계약의 대조군
     await fillEstimateModel(page, 3, PRODUCT_Y.model)
     await expectUnitPriceDigits(page, PRODUCT_Y.sellingPrice, 3, '견적 라인3 (A,Y) miss 판매가')
     await capture(page, '15-estimate-3lines-A-888000-user-111111-autoY-sellingprice')

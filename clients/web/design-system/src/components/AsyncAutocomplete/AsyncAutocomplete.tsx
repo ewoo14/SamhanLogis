@@ -24,6 +24,7 @@ import styles from './AsyncAutocomplete.module.css'
 import { FormField } from '../FormField/FormField'
 import {
   SearchResultSelectionModal,
+  type SearchResultSelectionColumn,
   type SearchResultSelectionMode,
 } from '../SearchResultSelectionModal'
 
@@ -79,6 +80,8 @@ export interface AsyncAutocompleteProps<T> {
   onResultsConfirmed?: (items: T[]) => void
   /** 결과 선택 모달 제목. */
   resultSelectionTitle?: ReactNode
+  /** 결과 선택 모달에 표시할 표 열. 지정하면 후보 내용을 행 단위로 읽는다. */
+  resultSelectionColumns?: readonly SearchResultSelectionColumn<T>[]
   /** multiple 모달에서 이미 선택한 후보의 opaque key. */
   selectedKeys?: string[]
   /** 기존 wrapper가 1건 후보를 즉시 확정하던 명시적 계약. 기본값 false. */
@@ -118,6 +121,7 @@ function AsyncAutocompleteInner<T>(
     resultSelectionMode,
     onResultsConfirmed,
     resultSelectionTitle = '검색 결과 선택',
+    resultSelectionColumns,
     selectedKeys = [],
     autoSelectSingleResult = false,
   }: AsyncAutocompleteProps<T>,
@@ -160,7 +164,9 @@ function AsyncAutocompleteInner<T>(
   const previousValueKeyRef = useRef<string | null>(value ? getKey(value) : null)
   // 모달 취소 뒤 Modal의 포커스 복원은 새 검색 시작이 아니므로 draft를 유지한다.
   const preserveDraftOnNextFocusRef = useRef(false)
-  const lastTypedDraftRef = useRef('')
+  // 이번 포커스 이후 입력 이벤트가 없으면 null, 사용자가 입력했으면 draft를 보관한다.
+  // 빈 문자열도 실제 지움 이벤트의 결과이므로 포커스-only와 구별해야 한다.
+  const lastTypedDraftRef = useRef<string | null>(null)
 
   const { candidates, resolvedQuery } = searchState
 
@@ -202,11 +208,10 @@ function AsyncAutocompleteInner<T>(
     // 모달 취소 직후 포커스 복원 1회만 검색어를 보존하고, 다음 왕복부터는 정리한다.
     preserveDraftOnNextFocusRef.current = false
     if (!preserveDraft) {
-      lastTypedDraftRef.current = ''
+      lastTypedDraftRef.current = null
       setDraft('')
     }
     setActiveIndex(-1)
-    setCommitted(value === null)
     latestSeq.current = ++instanceSeq.current
     setSearchState({ candidates: [], resolvedQuery: '' })
     setStatus('idle')
@@ -225,6 +230,7 @@ function AsyncAutocompleteInner<T>(
   const pick = useCallback(
     (item: T) => {
       cancelDebouncedSearch()
+      lastTypedDraftRef.current = null
       setCommitted(true)
       onChange(item)
       setDraft(getInputLabel(item))
@@ -260,11 +266,15 @@ function AsyncAutocompleteInner<T>(
       const trimmed = draft.trim()
 
       if (!trimmed) {
-        // 빈 입력 blur — 더미 onChange 금지 (blur 게이트 원칙).
+        // 확정값을 비운 뒤 blur하면 null을 실제 선택 해제로 전달한다.
+        // 값이 이미 null인 입력은 더미 callback을 만들지 않는다.
         setSearchState({ candidates: [], resolvedQuery: '' })
         setStatus('idle')
         setErrorMsg(null)
-        setDraft(selectedLabel)
+        const wasEdited = lastTypedDraftRef.current !== null
+        lastTypedDraftRef.current = null
+        if (value && wasEdited) onChange(null)
+        setDraft('')
         setCommitted(true)
         return
       }
@@ -333,18 +343,19 @@ function AsyncAutocompleteInner<T>(
         // stale 응답 — 더 최신 요청이 발행됐으면 버림
         if (latestSeq.current !== seq) return
         // 후보와 그 후보를 만든 검색어를 원자적으로 갱신한다.
-        // ProductMultiSelectAutocomplete의 기존 단일 후보 즉시 칩 계약은 유지한다.
-        // 그 외에는 정확 입력·키보드 선택·기존 클릭 사용자 흐름을 자동선택으로
-        // 바꾸지 않도록 1건은 dropdown에 남긴다. 모달 계약은 2건 이상일 때만 적용한다.
-        if (
-          autoSelectSingleResult &&
-          resultSelectionMode === 'multiple' &&
-          onResultsConfirmed &&
-          results.length === 1
-        ) {
-          onResultsConfirmed(results)
-          closeSearchSurface({ resetDraft: true })
-          return
+        // autoSelectSingleResult가 켜진 wrapper는 단일 후보를 즉시 확정한다.
+        // 꺼진 일반 AsyncAutocomplete은 정확 입력·키보드 선택·기존 클릭 사용자 흐름을
+        // 유지하며 1건을 dropdown에 남긴다. 모달 계약은 2건 이상일 때만 적용한다.
+        if (autoSelectSingleResult && results.length === 1) {
+          if (resultSelectionMode === 'multiple' && onResultsConfirmed) {
+            onResultsConfirmed(results)
+            closeSearchSurface({ resetDraft: true })
+            return
+          }
+          if (resultSelectionMode !== 'multiple') {
+            pick(results[0]!)
+            return
+          }
         }
         if (resultSelectionMode && results.length > 1) {
           setSelectionCandidates(results)
@@ -426,7 +437,19 @@ function AsyncAutocompleteInner<T>(
   useEffect(() => {
     const nextKey = value ? getKey(value) : null
     if (previousValueKeyRef.current === nextKey) return
+
+    // 사용자가 확정값을 다시 편집하면 소비자는 입력 중인 선택을 저장 대상에서
+    // 먼저 제외하기 위해 controlled value를 null로 바꿀 수 있다. 이 null은 외부
+    // 동기화가 아니라 현재 draft의 결과이므로, surface/draft를 닫거나 덮어쓰면
+    // 첫 글자와 검색어가 사라진다. blur에서 실제 onChange(null)이 오기 전까지
+    // 진행 중 검색을 그대로 보존한다.
+    if (nextKey === null && lastTypedDraftRef.current !== null) {
+      previousValueKeyRef.current = nextKey
+      return
+    }
+
     previousValueKeyRef.current = nextKey
+    lastTypedDraftRef.current = null
     cancelDebouncedSearch()
     if (blurTimer.current !== undefined) {
       window.clearTimeout(blurTimer.current)
@@ -471,6 +494,12 @@ function AsyncAutocompleteInner<T>(
   }, [cancelDebouncedSearch, disabled, selectedLabel, setCommitted])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // 확정값에 focus하면 화면 draft를 비워 둔다. 이 상태에서 Backspace/Delete는
+    // 브라우저가 값 변경 input을 만들지 않으므로, 실제 삭제 의도를 별도로 기록해야
+    // focus-only blur(null sentinel)과 구분할 수 있다(R28 B).
+    if (value && e.currentTarget.value === '' && (e.key === 'Backspace' || e.key === 'Delete')) {
+      lastTypedDraftRef.current = ''
+    }
     if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
     if (!open) return
     const candidatesAreFresh = draft.trim() === resolvedQuery
@@ -518,7 +547,7 @@ function AsyncAutocompleteInner<T>(
 
   const closeSelection = useCallback((preserveDraft: boolean) => {
     preserveDraftOnNextFocusRef.current = preserveDraft
-    if (preserveDraft) setDraft(lastTypedDraftRef.current)
+    if (preserveDraft) setDraft(lastTypedDraftRef.current ?? '')
     setSelectionOpen(false)
     setSelectionCandidates([])
     closeSearchSurface({ resetDraft: !preserveDraft })
@@ -548,12 +577,17 @@ function AsyncAutocompleteInner<T>(
     const wrapper = wrapperRef.current
     if (!wrapper) return
     const rect = wrapper.getBoundingClientRect()
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth
+    const maxWidth = Math.min(640, Math.max(rect.width, viewportWidth - 16))
+    const left = Math.min(rect.left, Math.max(8, viewportWidth - maxWidth - 8))
     setFloatingStyle({
       position: 'fixed',
       top: rect.bottom + 4,
-      left: rect.left,
+      left,
       right: 'auto',
-      width: rect.width,
+      width: 'max-content',
+      minWidth: rect.width,
+      maxWidth,
       zIndex: 1000,
     })
   }, [])
@@ -755,6 +789,7 @@ function AsyncAutocompleteInner<T>(
       getKey={getKey}
       getLabel={getInputLabel}
       renderOption={(item) => renderOption(item, { query: draft.trim() })}
+      columns={resultSelectionColumns}
       initialSelectedKeys={selectedKeys}
       onConfirm={(items) => {
         if (resultSelectionMode === 'multiple') onResultsConfirmed?.(items)

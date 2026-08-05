@@ -41,12 +41,16 @@
  * </ul>
  */
 import { useMemo, useState, type CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Spinner } from '@samhan/design-system'
 import {
+  captureLedger,
+  copyLedgerSnapshot,
   getLedgerData,
   getLedgerHistory,
   getSalesAggregate,
+  mapLedgerSnapshotResponse,
   restoreLedger,
   type LedgerData,
   type LedgerLine,
@@ -71,14 +75,24 @@ function defaultRange(): { from: string; to: string } {
   return { from: toIsoDate(first), to: toIsoDate(last) }
 }
 
-/** KRW BigDecimal string → "1,234,567" (NaN 시 "—", 음수 △ prefix). */
+/** KRW BigDecimal string → "1,234,567" (0='—', 음수는 하이픈 prefix). */
 function fmtKrw(raw: string | null | undefined): string {
   if (raw === null || raw === undefined || raw === '') return '—'
   const n = Number(raw)
   if (!Number.isFinite(n)) return raw
   if (n === 0) return '—'
-  if (n < 0) return `△ ${Math.abs(Math.round(n)).toLocaleString('ko-KR')}`
+  if (n < 0) return `-${Math.abs(Math.round(n)).toLocaleString('ko-KR')}`
   return Math.round(n).toLocaleString('ko-KR')
+}
+
+/** 음수만 빨강으로 표시하고 양수/0은 기본 잉크색을 유지한다. */
+function amountStyle(raw: string | number | null | undefined): CSSProperties {
+  const n = Number(raw)
+  return {
+    ...tdStyle,
+    textAlign: 'right',
+    color: Number.isFinite(n) && n < 0 ? '#DC2626' : tdStyle.color,
+  }
 }
 
 /** CSV 셀 escape — RFC4180. */
@@ -103,7 +117,7 @@ function downloadCsv(filename: string, content: string): void {
 }
 
 /** 집계 + 원장 line CSV 직렬화. */
-function buildCsv(
+export function buildCsv(
   aggregate: SalesAggregateRow[],
   ledger: LedgerData | null,
 ): string {
@@ -115,6 +129,7 @@ function buildCsv(
       '거래처명',
       '매출합계',
       '수금합계',
+      '조정합계',
       '채권잔액',
       '기간시작',
       '기간종료',
@@ -125,10 +140,11 @@ function buildCsv(
   for (const row of aggregate) {
     lines.push(
       [
-        row.bizNo,
+        row.partnerCode,
         row.partnerName,
         row.salesTotal,
         row.paymentTotal,
+        row.adjustmentTotal ?? '0',
         row.receivableBalance,
         row.periodFrom,
         row.periodTo,
@@ -174,11 +190,16 @@ function buildCsv(
   return lines.join('\r\n')
 }
 
-/** 인쇄 라우트 URL 생성 — `/print/partner-ledger?partnerCode=&from=&to=`. */
-function buildPrintUrl(partnerCode: string, from: string, to: string): string {
+/** 인쇄 라우트 path 생성 — `/print/partner-ledger?partnerCode=&from=&to=`. */
+function buildPrintPath(partnerCode: string, from: string, to: string, batchNo?: string): string {
   const qs = new URLSearchParams({ partnerCode, from, to })
-  return `${window.location.origin}/#/print/partner-ledger?${qs.toString()}`
+  if (batchNo) qs.set('batchNo', batchNo)
+  return `/print/partner-ledger?${qs.toString()}`
 }
+
+type ActiveLedger =
+  | { source: 'LIVE'; data: LedgerData }
+  | { source: 'SNAPSHOT'; batchNo: string; savedAt: string; data: LedgerData }
 
 const inputStyle: CSSProperties = {
   height: 32,
@@ -209,6 +230,7 @@ const tdStyle: CSSProperties = {
 
 export function PartnerLedgerPage() {
   usePageTitle('거래처별 원장 생성')
+  const navigate = useNavigate()
 
   const initial = useMemo(() => defaultRange(), [])
   const [from, setFrom] = useState(initial.from)
@@ -228,7 +250,9 @@ export function PartnerLedgerPage() {
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null)
   // 일괄 인쇄용 multi-select 거래처 코드 set
   const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set())
-  const [restoredLedger, setRestoredLedger] = useState<LedgerData | null>(null)
+  const [snapshotLedger, setSnapshotLedger] = useState<Extract<ActiveLedger, { source: 'SNAPSHOT' }> | null>(null)
+  const [historyPage, setHistoryPage] = useState(0)
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false)
 
   const aggregateQuery = useQuery<SalesAggregateRow[]>({
     queryKey: [
@@ -248,10 +272,13 @@ export function PartnerLedgerPage() {
   })
 
   const historyQuery = useQuery({
-    queryKey: ['partner-ledger-history', selectedPartner, applied.from, applied.to],
-    queryFn: () => getLedgerHistory(selectedPartner ?? '', applied.from, applied.to),
+    queryKey: ['partner-ledger-history', selectedPartner, applied.from, applied.to, historyPage],
+    queryFn: () => getLedgerHistory(selectedPartner ?? '', applied.from, applied.to, historyPage),
     enabled: !!selectedPartner,
   })
+
+  const activeLedger: ActiveLedger | null = snapshotLedger
+    ?? (ledgerQuery.data ? { source: 'LIVE', data: ledgerQuery.data } : null)
 
   const handleSearch = () => {
     if (!from || !to || from > to) return
@@ -261,18 +288,43 @@ export function PartnerLedgerPage() {
       partnerCode: partnerFilter.trim() || undefined,
     })
     setSelectedPartner(null)
-    setRestoredLedger(null)
+    setSnapshotLedger(null)
+    setHistoryPage(0)
     setBatchSelected(new Set())
   }
 
   const handleSelectPartner = (partnerCode: string) => {
     setSelectedPartner(partnerCode)
-    setRestoredLedger(null)
+    setSnapshotLedger(null)
+    setHistoryPage(0)
   }
 
   const handleRestore = async (batchNo: string) => {
     const restored = await restoreLedger(batchNo)
-    setRestoredLedger(restored.ledger)
+    if (restored.ledger) {
+      setSnapshotLedger({
+        source: 'SNAPSHOT',
+        batchNo: restored.batchNo,
+        savedAt: restored.savedAt,
+        data: mapLedgerSnapshotResponse(restored.ledger),
+      })
+    }
+  }
+
+  const handleCaptureSnapshot = async () => {
+    if (!selectedPartner || !activeLedger || isSavingSnapshot) return
+    setIsSavingSnapshot(true)
+    try {
+      if (activeLedger.source === 'SNAPSHOT') {
+        await copyLedgerSnapshot(activeLedger.batchNo)
+      } else {
+        await captureLedger(selectedPartner, applied.from, applied.to)
+      }
+      setHistoryPage(0)
+      await historyQuery.refetch()
+    } finally {
+      setIsSavingSnapshot(false)
+    }
   }
 
   const toggleBatch = (partnerCode: string, checked: boolean) => {
@@ -286,28 +338,34 @@ export function PartnerLedgerPage() {
 
   const handlePrint = () => {
     if (!selectedPartner) return
-    const url = buildPrintUrl(selectedPartner, applied.from, applied.to)
-    window.open(url, '_blank', 'width=900,height=1200')
+    // Electron은 보안상 renderer의 내부 window.open을 차단하고 단일 BrowserWindow를 사용한다.
+    // 따라서 인쇄 전용 화면은 현재 창의 허용된 HashRouter 라우트로 이동한다.
+    navigate(buildPrintPath(
+      selectedPartner,
+      applied.from,
+      applied.to,
+      activeLedger?.source === 'SNAPSHOT' ? activeLedger.batchNo : undefined,
+    ))
   }
 
   const handleBatchPrint = () => {
     if (batchSelected.size === 0) return
-    // 한국어 confirm — 다중 창 차단 방지 안내
-    const ok = window.confirm(
-      `${batchSelected.size}건의 거래처 원장을 새 창으로 일괄 출력합니다.\n` +
-        '브라우저 팝업 차단을 해제해야 모든 창이 열립니다. 진행하시겠습니까?',
-    )
+    const ok = window.confirm(`${batchSelected.size}건의 거래처 원장을 일괄 출력하시겠습니까?`)
     if (!ok) return
+    const params = new URLSearchParams({ from: applied.from, to: applied.to })
     for (const code of batchSelected) {
-      const url = buildPrintUrl(code, applied.from, applied.to)
-      window.open(url, '_blank', 'width=900,height=1200')
+      params.append('partnerCodes', code)
     }
+    navigate(`/print/partner-ledger-batch?${params.toString()}`)
   }
 
   const handleCsv = () => {
-    if (!aggregateQuery.data) return
+    if (!aggregateQuery.data || !activeLedger) return
     const filename = `partner-ledger_${applied.from}_${applied.to}.csv`
-    const csv = buildCsv(aggregateQuery.data, ledgerQuery.data ?? null)
+    const aggregate = activeLedger.source === 'SNAPSHOT'
+      ? [snapshotAggregateRow(activeLedger.data)]
+      : aggregateQuery.data
+    const csv = buildCsv(aggregate, activeLedger.data)
     downloadCsv(filename, csv)
   }
 
@@ -389,7 +447,7 @@ export function PartnerLedgerPage() {
             variant="secondary"
             data-testid="partner-ledger-csv-download"
             onClick={handleCsv}
-            disabled={!aggregateQuery.data || aggregateQuery.data.length === 0}
+            disabled={!aggregateQuery.data || aggregateQuery.data.length === 0 || !activeLedger}
           >
             CSV 다운로드
           </Button>
@@ -473,6 +531,7 @@ export function PartnerLedgerPage() {
                   <th style={thStyle}>거래처명</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>매출 합계</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>수금 합계</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>조정 합계</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>채권 잔액</th>
                   <th style={{ ...thStyle, width: 110 }}>원장</th>
                 </tr>
@@ -480,15 +539,18 @@ export function PartnerLedgerPage() {
               <tbody>
                 {aggregateQuery.data.map((row) => {
                   const isSelected = selectedPartner === row.partnerCode
+                  const isIdentifiablePartner = row.partnerCode !== '-'
                   return (
                     <tr
                       key={row.partnerCode}
                       data-testid={`partner-ledger-aggregate-row-${row.partnerCode}`}
                       style={{
                         background: isSelected ? '#EEF2FF' : undefined,
-                        cursor: 'pointer',
+                        cursor: isIdentifiablePartner ? 'pointer' : 'default',
                       }}
-                      onClick={() => handleSelectPartner(row.partnerCode)}
+                      onClick={() => {
+                        if (isIdentifiablePartner) handleSelectPartner(row.partnerCode)
+                      }}
                     >
                       <td
                         style={{ ...tdStyle, textAlign: 'center' }}
@@ -497,6 +559,7 @@ export function PartnerLedgerPage() {
                         <input
                           type="checkbox"
                           checked={batchSelected.has(row.partnerCode)}
+                          disabled={!isIdentifiablePartner}
                           onChange={(e) =>
                             toggleBatch(row.partnerCode, e.target.checked)
                           }
@@ -507,13 +570,16 @@ export function PartnerLedgerPage() {
                         {row.bizNo?.replace(/\D/g, '') || '-'}
                       </td>
                       <td style={tdStyle}>{row.partnerName}</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <td style={amountStyle(row.salesTotal)}>
                         {fmtKrw(row.salesTotal)}
                       </td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <td style={amountStyle(row.paymentTotal)}>
                         {fmtKrw(row.paymentTotal)}
                       </td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <td style={amountStyle(row.adjustmentTotal)}>
+                        {fmtKrw(row.adjustmentTotal)}
+                      </td>
+                      <td style={amountStyle(row.receivableBalance)}>
                         {fmtKrw(row.receivableBalance)}
                       </td>
                       <td style={tdStyle}>
@@ -521,8 +587,9 @@ export function PartnerLedgerPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleSelectPartner(row.partnerCode)
+                            if (isIdentifiablePartner) handleSelectPartner(row.partnerCode)
                           }}
+                          disabled={!isIdentifiablePartner}
                           style={{
                             background: 'transparent',
                             border: '1px solid #D1D5DB',
@@ -590,19 +657,55 @@ export function PartnerLedgerPage() {
           <div className="error-banner" role="alert">
             원장 조회 실패: {ledgerError.message}
           </div>
-        ) : restoredLedger || ledgerQuery.data ? (
-          <LedgerDetailTable data={restoredLedger ?? ledgerQuery.data!} />
+        ) : activeLedger ? (
+          <>
+            {activeLedger.source === 'SNAPSHOT' ? (
+              <div role="status" style={{ marginBottom: 8, color: '#92400E', fontSize: 12 }}>
+                복원 원장 {activeLedger.batchNo} · 저장 시각 {activeLedger.savedAt}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="partner-ledger-return-live"
+                  onClick={() => setSnapshotLedger(null)}
+                  style={{ marginLeft: 8 }}
+                >
+                  현재 원장으로 돌아가기
+                </Button>
+              </div>
+            ) : null}
+            <LedgerDetailTable data={activeLedger.data} />
+          </>
         ) : null}
 
         {selectedPartner ? (
           <div style={{ marginTop: 20 }} data-testid="partner-ledger-history">
-            <h4 style={{ margin: '0 0 8px 0' }}>자동 저장 이력</h4>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8,
+              }}
+            >
+                <h4 style={{ margin: 0 }}>원장 저장 이력</h4>
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="partner-ledger-save-snapshot"
+                onClick={() => void handleCaptureSnapshot()}
+                disabled={isSavingSnapshot || !activeLedger}
+              >
+                {isSavingSnapshot ? '저장 중…' : '현재 원장 저장'}
+              </Button>
+            </div>
             {historyQuery.isLoading ? (
               <Spinner size="sm" label="이력 불러오는 중" />
             ) : historyQuery.error ? (
               <div className="error-banner" role="alert">이력 조회 실패</div>
             ) : historyQuery.data?.content.length ? (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr>
                     <th style={thStyle}>배치번호</th>
@@ -632,7 +735,31 @@ export function PartnerLedgerPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="partner-ledger-history-prev"
+                  disabled={(historyQuery.data?.number ?? historyPage) <= 0}
+                  onClick={() => setHistoryPage((page) => Math.max(0, page - 1))}
+                >
+                  이전
+                </Button>
+                <span style={{ color: '#6B7280', fontSize: 12 }}>
+                  {(historyQuery.data?.number ?? historyPage) + 1} / {historyQuery.data?.totalPages ?? 1}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="partner-ledger-history-next"
+                  disabled={(historyQuery.data?.number ?? historyPage) + 1 >= (historyQuery.data?.totalPages ?? 1)}
+                  onClick={() => setHistoryPage((page) => page + 1)}
+                >
+                  다음
+                </Button>
+                </div>
+              </>
             ) : (
               <div style={{ color: '#6B7280', fontSize: 12 }}>저장된 이력이 없습니다.</div>
             )}
@@ -703,7 +830,8 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
               <tr>
                 <th style={{ ...thStyle, width: 110 }}>일자</th>
                 <th style={{ ...thStyle, width: 160 }}>분개번호</th>
-                <th style={{ ...thStyle, width: 80 }}>계정</th>
+                <th style={{ ...thStyle, width: 90 }}>문서</th>
+                <th style={{ ...thStyle, width: 180 }}>배송주소</th>
                 <th style={thStyle}>적요</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 130 }}>차변</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 130 }}>대변</th>
@@ -711,24 +839,35 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
               </tr>
             </thead>
             <tbody>
+              <tr style={{ background: '#FFFBEB' }}>
+                <td colSpan={5} style={{ ...tdStyle, fontWeight: 600 }}>
+                  기초 잔액 ({data.periodFrom} 이전)
+                </td>
+                <td style={tdStyle}>—</td>
+                <td style={tdStyle}>—</td>
+                <td style={{ ...amountStyle(data.openingBalance ?? '0'), fontWeight: 600 }}>
+                  {fmtKrw(data.openingBalance ?? '0')}
+                </td>
+              </tr>
               {(data.lines ?? []).map((ln, idx) => (
                 <tr key={`${ln.date}-${ln.journalNo}-${idx}`}>
                   <td style={tdStyle}>{ln.date}</td>
                   <td style={tdStyle}>{ln.journalNo}</td>
-                  <td style={tdStyle}>{ln.accountCode}</td>
+                  <td style={tdStyle}>
+                    {ln.effect === 'PAYMENT'
+                      ? '수금'
+                      : ln.effect === 'ADJUSTMENT' ? '조정' : '매출'}
+                  </td>
+                  <td style={tdStyle}>{ln.deliveryAddress || '—'}</td>
                   <td style={tdStyle}>{ln.description || '-'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  <td style={amountStyle(ln.debit)}>
                     {fmtKrw(ln.debit)}
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  <td style={amountStyle(ln.credit)}>
                     {fmtKrw(ln.credit)}
                   </td>
                   <td
-                    style={{
-                      ...tdStyle,
-                      textAlign: 'right',
-                      fontWeight: 600,
-                    }}
+                    style={{ ...amountStyle(ln.balance), fontWeight: 600 }}
                   >
                     {fmtKrw(ln.balance)}
                   </td>
@@ -737,28 +876,26 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
             </tbody>
             <tfoot>
               <tr style={{ background: '#F3F4F6' }}>
-                <td colSpan={4} style={{ ...tdStyle, fontWeight: 600 }}>
+                <td colSpan={5} style={{ ...tdStyle, fontWeight: 600 }}>
                   합계
                 </td>
                 <td
-                  style={{
-                    ...tdStyle,
-                    textAlign: 'right',
-                    fontWeight: 700,
-                  }}
+                  style={{ ...amountStyle(totals.debit), fontWeight: 700 }}
                 >
                   {fmtKrw(totals.debit)}
                 </td>
                 <td
-                  style={{
-                    ...tdStyle,
-                    textAlign: 'right',
-                    fontWeight: 700,
-                  }}
+                  style={{ ...amountStyle(totals.credit), fontWeight: 700 }}
                 >
                   {fmtKrw(totals.credit)}
                 </td>
                 <td style={tdStyle}>—</td>
+              </tr>
+              <tr style={{ background: '#EEF2FF' }}>
+                <td colSpan={7} style={{ ...tdStyle, fontWeight: 600 }}>기말 잔액</td>
+                <td style={{ ...amountStyle(data.closingBalance ?? data.lines.at(-1)?.balance ?? '0'), fontWeight: 700 }}>
+                  {fmtKrw(data.closingBalance ?? data.lines.at(-1)?.balance ?? '0')}
+                </td>
               </tr>
             </tfoot>
           </table>
@@ -766,6 +903,20 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
       )}
     </>
   )
+}
+
+function snapshotAggregateRow(data: LedgerData): SalesAggregateRow {
+  return {
+    partnerCode: data.partnerCode,
+    bizNo: data.partnerBusinessNo,
+    partnerName: data.partnerName,
+    salesTotal: data.salesTotal ?? '0',
+    paymentTotal: data.paymentTotal ?? '0',
+    adjustmentTotal: data.adjustmentTotal ?? '0',
+    receivableBalance: data.closingBalance ?? data.lines.at(-1)?.balance ?? data.openingBalance ?? '0',
+    periodFrom: data.periodFrom,
+    periodTo: data.periodTo,
+  }
 }
 
 /** 차변/대변 합계 (string BigDecimal → Number 합산 후 string 반환). */

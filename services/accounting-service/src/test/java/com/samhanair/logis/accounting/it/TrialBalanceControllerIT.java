@@ -23,6 +23,7 @@ import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.client.PartnerLedgerSalesClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +60,8 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
     /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;
+    /** R41 원장 read model의 slip-service 경계 격리 — 시산표는 이 client를 소비하지 않는다. */
+    @MockBean private PartnerLedgerSalesClient partnerLedgerSalesClient;
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
     @MockBean private ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     /**
@@ -80,6 +83,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                         "리포트역분개상사",
                         "123-45-67890",
                         "서울")));
+        lenient().when(partnerLedgerSalesClient.find(any(), any(), any(), any())).thenReturn(List.of());
         lenient().when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(anyString())).thenReturn(List.of());
     }
 
@@ -310,6 +314,81 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                 .get("data").get("lines");
         assertThat(ledgerLines).hasSize(2);
         assertThat(amount(ledgerLines.get(ledgerLines.size() - 1), "balance")).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("거래처 원장 — 기간 밖 원분개/역분개도 기간 내와 동일한 전체 전표 계약으로 기초 상쇄")
+    void partnerLedgerOpeningUsesFullJournalCollectionContract() throws Exception {
+        UUID partnerId = UUID.fromString("00000000-0000-0000-0000-00000000c711");
+        String partnerCode = "P-TB-BOUNDARY";
+        lenient().when(partnerLookupClient.findByPartnerCode(partnerCode))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        partnerId, partnerCode, "기간경계 거래처", "123-45-67890", "서울")));
+
+        String originalId = createAndPostJournal("2099-04-15", List.of(
+                lineWithPartner("110", "777", "0", partnerId),
+                line("401", "0", "777")
+        ));
+        mockMvc.perform(post("/accounting/journals/" + originalId + "/reverse")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+        createAndPostJournal("2099-05-05", List.of(
+                lineWithPartner("110", "1", "0", partnerId),
+                line("401", "0", "1")
+        ));
+
+        mockMvc.perform(get("/accounting/journals/partner-ledger")
+                        .param("partnerCode", partnerCode)
+                        .param("from", "2099-05-01")
+                        .param("to", "2099-05-31")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.openingBalance").value(0))
+                .andExpect(jsonPath("$.data.salesTotal").value(1))
+                .andExpect(jsonPath("$.data.closingBalance").value(1));
+    }
+
+    @Test
+    @DisplayName("거래처 원장 — 한 전표의 거래처별 110 금액을 각 거래처에만 귀속")
+    void partnerLedgerAttributesMultiPartnerJournalByLinePartner() throws Exception {
+        UUID partnerAId = UUID.fromString("00000000-0000-0000-0000-00000000c712");
+        UUID partnerBId = UUID.fromString("00000000-0000-0000-0000-00000000c713");
+        String partnerACode = "P-TB-MULTI-A";
+        String partnerBCode = "P-TB-MULTI-B";
+        lenient().when(partnerLookupClient.findByPartnerCode(partnerACode))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        partnerAId, partnerACode, "다중 거래처 A", "123-45-67891", "서울")));
+        lenient().when(partnerLookupClient.findByPartnerCode(partnerBCode))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        partnerBId, partnerBCode, "다중 거래처 B", "123-45-67892", "서울")));
+
+        createAndPostJournal("2099-06-10", List.of(
+                lineWithPartner("110", "100", "0", partnerAId),
+                lineWithPartner("110", "200", "0", partnerBId),
+                line("401", "0", "300")
+        ));
+
+        mockMvc.perform(get("/accounting/journals/partner-ledger")
+                        .param("partnerCode", partnerACode)
+                        .param("from", "2099-06-01")
+                        .param("to", "2099-06-30")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.salesTotal").value(100))
+                .andExpect(jsonPath("$.data.closingBalance").value(100));
+
+        mockMvc.perform(get("/accounting/journals/partner-ledger")
+                        .param("partnerCode", partnerBCode)
+                        .param("from", "2099-06-01")
+                        .param("to", "2099-06-30")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.salesTotal").value(200))
+                .andExpect(jsonPath("$.data.closingBalance").value(200));
     }
 
     private Map<String, Object> balancedJournalBody(String amount) {

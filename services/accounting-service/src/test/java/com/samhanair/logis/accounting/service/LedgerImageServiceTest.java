@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
@@ -81,14 +82,14 @@ class LedgerImageServiceTest {
     }
 
     @Test
-    @DisplayName("자동저장 경로는 read-only transaction으로 선언되지 않는다")
-    void autoSavePathIsWritableTransaction() throws NoSuchMethodException {
+    @DisplayName("원장 조회는 read-only transaction으로 선언된다")
+    void readPathIsReadOnlyTransaction() throws NoSuchMethodException {
         Transactional annotation = LedgerImageService.class
                 .getMethod("getLedger", String.class, LocalDate.class, LocalDate.class, UUID.class)
                 .getAnnotation(Transactional.class);
 
         assertThat(annotation).isNotNull();
-        assertThat(annotation.readOnly()).isFalse();
+        assertThat(annotation.readOnly()).isTrue();
     }
 
     private static final LocalDate FROM = LocalDate.of(2026, 5, 1);
@@ -195,8 +196,8 @@ class LedgerImageServiceTest {
     }
 
     @Test
-    @DisplayName("조회 결과는 기존 TaxInvoiceBatch 스냅샷 계약으로 자동 저장된다")
-    void getLedger_autoSavesSnapshotUsingExistingBatchContract() {
+    @DisplayName("원장 조회는 TaxInvoiceBatch 스냅샷을 저장하지 않는다")
+    void getLedger_doesNotSaveSnapshot() {
         UUID partnerId = UUID.randomUUID();
         when(partnerLookupClient.findByPartnerCode("P-AUTO"))
                 .thenReturn(Optional.of(new PartnerSummary(partnerId, "P-AUTO", "자동저장", "", "")));
@@ -207,12 +208,12 @@ class LedgerImageServiceTest {
 
         service.getLedger("P-AUTO", FROM, TO);
 
-        verify(taxInvoiceBatchRepository).save(any(TaxInvoiceBatch.class));
+        verify(taxInvoiceBatchRepository, never()).save(any(TaxInvoiceBatch.class));
     }
 
     @Test
-    @DisplayName("자동저장 snapshot은 요청 actor를 작성자로 보존한다")
-    void getLedger_autoSavesSnapshotWithActor() {
+    @DisplayName("조회는 actor가 있어도 snapshot을 저장하지 않는다")
+    void getLedger_doesNotSaveSnapshotWithActor() {
         UUID partnerId = UUID.randomUUID();
         UUID actor = UUID.randomUUID();
         when(partnerLookupClient.findByPartnerCode("P-ACTOR"))
@@ -224,14 +225,12 @@ class LedgerImageServiceTest {
 
         service.getLedger("P-ACTOR", FROM, TO, actor);
 
-        ArgumentCaptor<TaxInvoiceBatch> captor = ArgumentCaptor.forClass(TaxInvoiceBatch.class);
-        verify(taxInvoiceBatchRepository).save(captor.capture());
-        assertThat(captor.getValue().getProcessedBy()).isEqualTo(actor);
+        verify(taxInvoiceBatchRepository, never()).save(any(TaxInvoiceBatch.class));
     }
 
     @Test
-    @DisplayName("자동저장 배치번호는 tax_invoice_batches 컬럼 폭을 초과하지 않는다")
-    void autoSaveBatchNumberFitsDatabaseColumn() {
+    @DisplayName("조회는 batch 번호를 생성하거나 저장하지 않는다")
+    void getLedger_doesNotCreateBatchNumber() {
         UUID partnerId = UUID.randomUUID();
         when(partnerLookupClient.findByPartnerCode("PARTNER-CODE-001"))
                 .thenReturn(Optional.of(new PartnerSummary(partnerId, "PARTNER-CODE-001", "배치번호 폭", "", "")));
@@ -242,9 +241,7 @@ class LedgerImageServiceTest {
 
         service.getLedger("PARTNER-CODE-001", FROM, TO, UUID.randomUUID());
 
-        ArgumentCaptor<TaxInvoiceBatch> captor = ArgumentCaptor.forClass(TaxInvoiceBatch.class);
-        verify(taxInvoiceBatchRepository).save(captor.capture());
-        assertThat(captor.getValue().getBatchNo()).hasSizeLessThanOrEqualTo(20);
+        verify(taxInvoiceBatchRepository, never()).save(any(TaxInvoiceBatch.class));
     }
 
     @Test

@@ -164,6 +164,44 @@ public class Slip extends BaseEntity {
     @Column(name = "source_warehouse_id")
     private UUID sourceWarehouseId;
 
+    /** 레거시 발행 원천 warehouseCode snapshot. null이면 과거 provenance 미확정(UNKNOWN). */
+    @Column(name = "source_warehouse_code", length = 50)
+    private String sourceWarehouseCode;
+
+    /** 신규 전표의 창고 code 보강 대기 표시. 기존 행은 FALSE로 유지해 backfill하지 않는다. */
+    @Column(name = "source_warehouse_code_pending", nullable = false)
+    private boolean sourceWarehouseCodePending;
+
+    /** 창고 code snapshot의 영속 상태 — pending boolean만으로는 claim/격리를 표현할 수 없다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_warehouse_code_snapshot_status", nullable = false, length = 20)
+    private WarehouseCodeSnapshotStatus sourceWarehouseCodeSnapshotStatus =
+            WarehouseCodeSnapshotStatus.NOT_REQUESTED;
+
+    /** inventory 호출 횟수. claim 성공 시 증가한다. */
+    @Column(name = "source_warehouse_code_attempt_count", nullable = false)
+    private int sourceWarehouseCodeAttemptCount;
+
+    /** 다음 inventory 재시도 시각. PENDING 외 상태에서는 null일 수 있다. */
+    @Column(name = "source_warehouse_code_next_attempt_at")
+    private LocalDateTime sourceWarehouseCodeNextAttemptAt;
+
+    /** PROCESSING claim 획득 시각. lease 회수 기준이다. */
+    @Column(name = "source_warehouse_code_claimed_at")
+    private LocalDateTime sourceWarehouseCodeClaimedAt;
+
+    /** stale worker가 새 claim 결과를 덮어쓰지 못하게 하는 소유권 token. */
+    @Column(name = "source_warehouse_code_claim_token")
+    private UUID sourceWarehouseCodeClaimToken;
+
+    /** 마지막 retry/격리 원인 — 운영 관측용. */
+    @Column(name = "source_warehouse_code_last_error", columnDefinition = "TEXT")
+    private String sourceWarehouseCodeLastError;
+
+    /** 영구 실패 격리 시각. */
+    @Column(name = "source_warehouse_code_abandoned_at")
+    private LocalDateTime sourceWarehouseCodeAbandonedAt;
+
     @Column(name = "destination_warehouse_id")
     private UUID destinationWarehouseId;
 
@@ -967,6 +1005,67 @@ public class Slip extends BaseEntity {
         this.classifiedRegionGroup = classifiedRegionGroup;
     }
 
+    /** 출고 업무 구분의 원천 code를 저장한다. 표시명·UUID로 대체하지 않는다. */
+    public void setSourceWarehouseCode(String sourceWarehouseCode) {
+        this.sourceWarehouseCode = sourceWarehouseCode == null || sourceWarehouseCode.isBlank()
+                ? null : sourceWarehouseCode.trim();
+        if (this.sourceWarehouseCode != null) {
+            this.sourceWarehouseCodePending = false;
+            this.sourceWarehouseCodeSnapshotStatus = WarehouseCodeSnapshotStatus.COMPLETED;
+            clearSourceWarehouseCodeClaim();
+        }
+    }
+
+    /** 신규 출고전표를 inventory code 보강 재시도 대상으로 표시한다. */
+    public void markSourceWarehouseCodePending() {
+        this.sourceWarehouseCodePending = true;
+        this.sourceWarehouseCodeSnapshotStatus = WarehouseCodeSnapshotStatus.PENDING;
+        this.sourceWarehouseCodeAttemptCount = 0;
+        this.sourceWarehouseCodeNextAttemptAt = LocalDateTime.now();
+        this.sourceWarehouseCodeLastError = null;
+        this.sourceWarehouseCodeAbandonedAt = null;
+        clearSourceWarehouseCodeClaim();
+    }
+
+    /** 현재 worker token이 이 전표의 snapshot claim을 소유하는지 확인한다. */
+    public boolean ownsSourceWarehouseCodeClaim(UUID claimToken) {
+        return sourceWarehouseCodeSnapshotStatus == WarehouseCodeSnapshotStatus.PROCESSING
+                && claimToken != null
+                && claimToken.equals(sourceWarehouseCodeClaimToken);
+    }
+
+    /** 일시 장애는 PENDING으로 되돌리고 다음 시각에 재시도한다. */
+    public void retrySourceWarehouseCodeSnapshot(
+            UUID claimToken, LocalDateTime nextAttemptAt, String error) {
+        if (!ownsSourceWarehouseCodeClaim(claimToken)) return;
+        this.sourceWarehouseCodeSnapshotStatus = WarehouseCodeSnapshotStatus.PENDING;
+        this.sourceWarehouseCodePending = true;
+        this.sourceWarehouseCodeNextAttemptAt = nextAttemptAt;
+        this.sourceWarehouseCodeLastError = normalizeSnapshotError(error);
+        clearSourceWarehouseCodeClaim();
+    }
+
+    /** 복구 불가능한 warehouse 응답은 관측 가능한 격리 상태로 종결한다. */
+    public void abandonSourceWarehouseCodeSnapshot(UUID claimToken, String error) {
+        if (!ownsSourceWarehouseCodeClaim(claimToken)) return;
+        this.sourceWarehouseCodeSnapshotStatus = WarehouseCodeSnapshotStatus.ABANDONED;
+        this.sourceWarehouseCodePending = false;
+        this.sourceWarehouseCodeNextAttemptAt = null;
+        this.sourceWarehouseCodeLastError = normalizeSnapshotError(error);
+        this.sourceWarehouseCodeAbandonedAt = LocalDateTime.now();
+        clearSourceWarehouseCodeClaim();
+    }
+
+    private void clearSourceWarehouseCodeClaim() {
+        this.sourceWarehouseCodeClaimedAt = null;
+        this.sourceWarehouseCodeClaimToken = null;
+    }
+
+    private static String normalizeSnapshotError(String error) {
+        if (error == null || error.isBlank()) return "알 수 없는 inventory snapshot 오류";
+        return error.length() <= 2000 ? error : error.substring(0, 2000);
+    }
+
     /**
      * 도착지 창고명 snapshot 갱신 — SP-08-FU2 P2-2 (V26) 신규.
      *
@@ -1214,6 +1313,17 @@ public class Slip extends BaseEntity {
      * @throws BusinessException(SLIP_DELETE_INSPECTION_COMPLETED) DRAFT/SAVED 외 단계일 때
      */
     public void deleteForPurchase(String actorId) {
+        validateDeleteForPurchase();
+        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
+        for (SlipLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted(deleter);
+        }
+        this.lines.clear();
+        this.markDeleted(deleter);
+    }
+
+    /** 삭제 전에 타입·라이프사이클 가드만 평가한다. 상태 변경은 하지 않는다. */
+    public void validateDeleteForPurchase() {
         if (this.slipType != SlipType.INBOUND) {
             throw new BusinessException(ErrorCode.SLIP_DELETE_NON_INBOUND,
                     ErrorCode.SLIP_DELETE_NON_INBOUND.getDefaultMessage());
@@ -1222,12 +1332,6 @@ public class Slip extends BaseEntity {
             throw new BusinessException(ErrorCode.SLIP_DELETE_INSPECTION_COMPLETED,
                     ErrorCode.SLIP_DELETE_INSPECTION_COMPLETED.getDefaultMessage());
         }
-        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
-        for (SlipLine line : new ArrayList<>(this.lines)) {
-            line.markDeleted(deleter);
-        }
-        this.lines.clear();
-        this.markDeleted(deleter);
     }
 
     /**
@@ -1272,6 +1376,19 @@ public class Slip extends BaseEntity {
      * @throws BusinessException(CONFLICT)                  마감 lock 적용 슬립 (lock_flag=true)
      */
     public void deleteForSales(String actorId, String actorName) {
+        validateDeleteForSales();
+        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
+        LocalDateTime now = LocalDateTime.now();
+        for (SlipLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted(deleter, now);
+        }
+        this.lines.clear();
+        this.markDeleted(deleter, now);
+        this.deletedByName = sanitizeDeletedByName(actorName);
+    }
+
+    /** 삭제 전에 타입·라이프사이클·마감 lock 가드만 평가한다. 상태 변경은 하지 않는다. */
+    public void validateDeleteForSales() {
         if (this.slipType != SlipType.OUTBOUND) {
             throw new BusinessException(ErrorCode.SLIP_DELETE_NON_SALES,
                     ErrorCode.SLIP_DELETE_NON_SALES.getDefaultMessage());
@@ -1281,18 +1398,10 @@ public class Slip extends BaseEntity {
                     ErrorCode.SLIP_DELETE_SALES_SHIPPED.getDefaultMessage());
         }
         requireNotLocked();
-        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
         // 단일 시각 각인(#758 머지게이트 감사 HIGH fix) — 헤더/라인이 동일 deletedAt 을 가져야
         // 복원(SlipRestoreService) 이 deletedAt 등호 매칭으로 이 삭제 작업의 라인만 식별한다.
         // removeLine/replaceLines/replaceSalesLines/restoreFromSnapshot 의 markDeleted(deleter)
         // (1-arg, 각자 now()) 는 편집 경로라 복원 대상에서 배제되어야 하므로 그대로 둔다.
-        LocalDateTime now = LocalDateTime.now();
-        for (SlipLine line : new ArrayList<>(this.lines)) {
-            line.markDeleted(deleter, now);
-        }
-        this.lines.clear();
-        this.markDeleted(deleter, now);
-        this.deletedByName = sanitizeDeletedByName(actorName);
     }
 
     /** soft-delete 복원 후 사용자 표시용 삭제자명을 비운다. */

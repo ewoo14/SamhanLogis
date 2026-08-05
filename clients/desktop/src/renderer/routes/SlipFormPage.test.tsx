@@ -67,7 +67,7 @@ const harness = vi.hoisted(() => ({
 vi.mock('@samhan/design-system', () => ({
   Button: ({ children, variant: _variant, size: _size, loading: _loading, ...props }: any) => {
     const text = Array.isArray(children) ? children.join('') : String(children ?? '')
-    const testId = props['data-testid'] ?? (text.includes('+') ? 'add-line-button' : undefined)
+    const testId = props['data-testid']
     return (
       <button {...props} data-testid={testId} type="button">
         {children}
@@ -139,10 +139,13 @@ vi.mock('@samhan/design-system', () => ({
     </div>
   ),
   PhoneInput: ({ helperText: _helperText, ...props }: any) => <input {...props} />,
-  ProductAutocomplete: ({ ariaLabel, onChange }: any) => {
+  ProductAutocomplete: ({ ariaLabel, onChange, onInputCommitChange, resultSelectionMode }: any) => {
     const lineNo = /(\d+)/.exec(String(ariaLabel ?? ''))?.[1] ?? '1'
     return (
-      <div data-testid={`product-autocomplete-${lineNo}`}>
+      <div
+        data-testid={`product-autocomplete-${lineNo}`}
+        data-result-selection-mode={resultSelectionMode ?? ''}
+      >
         <button type="button" data-testid={`select-product-a-${lineNo}`} onClick={() => onChange(harness.productA)}>
           product-a
         </button>
@@ -154,6 +157,9 @@ vi.mock('@samhan/design-system', () => ({
         </button>
         <button type="button" data-testid={`select-product-d-${lineNo}`} onClick={() => onChange(harness.productD)}>
           product-d
+        </button>
+        <button type="button" data-testid={`type-product-${lineNo}`} onClick={() => onInputCommitChange?.(false)}>
+          type-product
         </button>
       </div>
     )
@@ -277,6 +283,27 @@ beforeEach(() => {
 })
 
 describe('SlipFormPage price memory autofill', () => {
+  it('R23 RED-A3 마지막 행을 채우면 수동 버튼 없이 다음 빈행이 계속 생긴다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-5-specification'), {
+      target: { value: '첫 자동행' },
+    })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('line-6-specification'), {
+      target: { value: '둘째 자동행' },
+    })
+    expect(screen.getByTestId('line-7')).toBeTruthy()
+  })
+
+  it('R23 RED-B2 판매·구매 신규 전표의 후보 다건은 단일 선택 모달 계약을 유지한다', () => {
+    renderPage()
+
+    expect(screen.getByTestId('product-autocomplete-1').getAttribute('data-result-selection-mode'))
+      .toBe('single')
+  })
+
   it('uses remembered unit price when price memory exists', async () => {
     harness.getPriceMemory.mockResolvedValueOnce({
       unitPrice: 999000,
@@ -397,20 +424,18 @@ describe('SlipFormPage price memory autofill', () => {
     harness.getPriceMemory.mockReturnValueOnce(pending.promise)
     renderPage()
     await selectPartnerA()
-    fireEvent.click(screen.getByTestId('add-line-button'))
-
     fireEvent.click(screen.getByTestId('select-product-a-2'))
     await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(harness.partnerA.id, harness.productA.id))
     fireEvent.click(screen.getByTestId('delete-line-2'))
-    // 초기 5행 + 수동 1행 상태에서 2번 행을 삭제하면 뒤 행이 번호를 당긴다.
-    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(5)
+    // 초기 자동 빈행 5개에서 2번 행을 삭제하면 뒤 행이 번호를 당긴다.
+    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(4)
 
     await act(async () => {
       pending.resolve({ unitPrice: 999000, source: 'LINE_SAVE', updatedAt: '2026-07-10T09:00:00' })
       await pending.promise
     })
     // 늦은 가격 응답 이후에도 삭제로 줄어든 행 수가 복원되지 않는다.
-    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(5)
+    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(4)
     expect(unitPrice(1).value).toBe('0')
   })
 
@@ -431,7 +456,6 @@ describe('SlipFormPage price memory autofill', () => {
     fireEvent.click(screen.getByTestId('select-product-a-1'))
     await waitFor(() => expect(unitPrice(1).value).toBe('100000'))
 
-    fireEvent.click(screen.getByTestId('add-line-button'))
     fireEvent.change(unitPrice(2), { target: { value: '7777' } })
     fireEvent.click(screen.getByTestId('select-product-b-2'))
     await waitFor(() => expect(screen.getByTestId('product-name-2').textContent).toBe(harness.productB.productName))
@@ -493,7 +517,6 @@ describe('SlipFormPage price memory autofill', () => {
     await selectPartnerA()
     fireEvent.click(screen.getByTestId('select-product-a-1'))
     await waitFor(() => expect(unitPrice(1).value).toBe(harness.productA.sellingPrice))
-    fireEvent.click(screen.getByTestId('add-line-button'))
     fireEvent.click(screen.getByTestId('select-product-b-2'))
     await waitFor(() => expect(unitPrice(2).value).toBe(harness.productB.sellingPrice))
 
@@ -539,7 +562,6 @@ describe('SlipFormPage price memory autofill', () => {
 
     await waitFor(() => expect(screen.getByTestId('line-1').getAttribute('data-price-source')).toBe('REMEMBERED'))
 
-    fireEvent.click(screen.getByTestId('add-line-button'))
     fireEvent.change(unitPrice(2), { target: { value: '7777' } })
     fireEvent.click(screen.getByTestId('select-product-b-2'))
     await waitFor(() => expect(screen.getByTestId('product-name-2').textContent).toBe(harness.productB.productName))
@@ -838,6 +860,17 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
 
     expect(screen.getByTestId('line-1-incomplete-notice').textContent).toContain('저장에서 제외')
+  })
+
+  it('선택된 품목을 다시 타이핑하면 품목코드 확정을 해제한다', async () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('line-1').getAttribute('data-product-id')).toBe(harness.productA.id))
+
+    fireEvent.click(screen.getByTestId('type-product-1'))
+
+    expect(screen.getByTestId('line-1').getAttribute('data-product-id')).toBe('')
+    expect(screen.getByTestId('line-1').getAttribute('data-excluded-from-save')).toBe('true')
   })
 
   it('자동 증식 사실을 낭독하고 현재 입력 포커스를 끊지 않는다', () => {

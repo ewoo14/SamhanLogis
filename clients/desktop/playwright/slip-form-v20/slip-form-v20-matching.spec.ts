@@ -243,9 +243,9 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
       timeout: 20000,
     })
     await expect(
-      page.getByRole('button', { name: '+ 라인 추가' }),
-      '전표 작성 화면 로드 실패 — "+ 라인 추가" 버튼 미표시',
-    ).toBeVisible({ timeout: 15000 })
+      page.getByTestId('header-page-title'),
+      '전표 작성 화면 로드 실패 — 제목 미표시',
+    ).toHaveText('새 판매전표', { timeout: 15000 })
 
     const deliveryField = page.locator(CREATE_FORM_FIELDS.deliveryAddress)
     const supervisionField = page.locator(CREATE_FORM_FIELDS.supervisionAddress)
@@ -357,9 +357,9 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
       timeout: 20000,
     })
     await expect(
-      page.getByRole('button', { name: '+ 라인 추가' }),
+      page.getByTestId('header-page-title'),
       '전표 작성 화면 로드 실패',
-    ).toBeVisible({ timeout: 15000 })
+    ).toHaveText('새 판매전표', { timeout: 15000 })
 
     // 창고 선택(필수 — canSubmit 전제) — mock GET /inventory/warehouses 5건 중 본사창고.
     const warehouseInput = page.getByRole('combobox', { name: /출고 창고/ })
@@ -377,9 +377,8 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
     const productInput = page.getByRole('combobox', { name: /라인 1 품목/ })
     await productInput.click()
     await productInput.fill('AJ040')
-    await expect(page.getByRole('listbox', { name: '품목 목록' }), '품목 후보 목록 미표시').toBeVisible({ timeout: 5000 })
-    await productInput.press('ArrowDown')
-    await productInput.press('Enter')
+    // R29: 단일 후보는 품목 목록 클릭 없이 자동 확정된다.
+    await expect(productInput, '단일 품목 자동 확정 실패').toHaveValue('AJ040RXH4BC1', { timeout: 5000 })
 
     await page.screenshot({
       path: path.join(QA_DIR, 'tc-v3-step1-form-filled.png'),
