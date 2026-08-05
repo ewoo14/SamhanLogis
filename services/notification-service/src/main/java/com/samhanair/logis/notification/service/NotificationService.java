@@ -121,6 +121,12 @@ public class NotificationService {
      */
     @Transactional
     public SendResult sendWithGatewayResult(NotificationSendRequest req) {
+        if (req.idempotencyKey() != null && !req.idempotencyKey().isBlank()) {
+            var existing = requestRepository.findByIdempotencyKey(req.idempotencyKey());
+            if (existing.isPresent()) {
+                return new SendResult(existing.get(), null);
+            }
+        }
         NotificationRequest entity = NotificationRequest.open(
                 req.recipientType(),
                 req.recipientId(),
@@ -129,7 +135,7 @@ public class NotificationService {
                 req.templateCode(),
                 req.subject(),
                 req.body(),
-                req.payload());
+                req.payload(), req.idempotencyKey());
 
         // 수신자 검증 (USER / PARTNER 만)
         if (req.recipientType() == RecipientType.USER && req.recipientId() != null) {

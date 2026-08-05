@@ -13,6 +13,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface NotificationRequestRepository extends JpaRepository<NotificationRequest, UUID> {
 
+    java.util.Optional<NotificationRequest> findByIdempotencyKey(String idempotencyKey);
+
     Page<NotificationRequest> findAllByChannel(NotificationChannel channel, Pageable pageable);
 
     Page<NotificationRequest> findAllByStatus(NotificationStatus status, Pageable pageable);

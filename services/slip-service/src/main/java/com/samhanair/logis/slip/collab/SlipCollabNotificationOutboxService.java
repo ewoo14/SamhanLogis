@@ -28,15 +28,11 @@ public class SlipCollabNotificationOutboxService {
     }
 
     @Transactional
-    public void enqueue(List<String> rawRecipients, UUID slipId, UUID editorId,
+    public void enqueue(UUID eventId, List<String> rawRecipients, UUID slipId, UUID editorId,
                         String subject, String body) {
         rawRecipients.stream().distinct().forEach(rawRecipient -> {
-            String fingerprint = SlipCollabNotificationOutbox.fingerprint(
-                    slipId, editorId, rawRecipient, subject, body);
-            if (repository.findByFingerprint(fingerprint).isEmpty()) {
-                repository.save(SlipCollabNotificationOutbox.create(
-                        slipId, editorId, rawRecipient, subject, body));
-            }
+            repository.save(SlipCollabNotificationOutbox.create(
+                    eventId, slipId, editorId, rawRecipient, subject, body));
         });
     }
 
@@ -57,8 +53,11 @@ public class SlipCollabNotificationOutboxService {
                                 SlipCollabNotificationOutbox.Status.SENDING), LocalDateTime.now());
         if (rows.isEmpty()) return Optional.empty();
         SlipCollabNotificationOutbox row = rows.get(0);
-        row.markSending();
-        return Optional.of(repository.save(row));
+        LocalDateTime now = LocalDateTime.now();
+        if (repository.claim(row.getId(), now, now.plusSeconds(30)) != 1) {
+            return Optional.empty();
+        }
+        return repository.findById(row.getId());
     }
 
     protected void deliver(SlipCollabNotificationOutbox row) {
@@ -67,7 +66,7 @@ public class SlipCollabNotificationOutboxService {
             boolean sent = false;
             if (recipient.isPresent() && !recipient.get().equals(row.getEditorId())) {
                 sent = notificationClient.sendUserPushWithResult(
-                        recipient.get(), row.getSubject(), row.getBody());
+                        recipient.get(), row.getSubject(), row.getBody(), row.getId());
             }
             finish(row.getId(), sent);
         } catch (RuntimeException ex) {

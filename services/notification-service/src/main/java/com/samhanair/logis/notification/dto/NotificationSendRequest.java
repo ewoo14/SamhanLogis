@@ -28,6 +28,7 @@ import java.util.UUID;
  * @param subject 제목 (이메일 / push)
  * @param body 본문
  * @param payload 부가 메타 (JSON 문자열, 선택, max 4000 byte UTF-8)
+ * @param idempotencyKey 동일 발송 사건의 재시도를 dedupe 하는 키 (선택)
  */
 public record NotificationSendRequest(
         @NotNull RecipientType recipientType,
@@ -38,8 +39,15 @@ public record NotificationSendRequest(
         @Size(max = 200) String subject,
         @Size(max = 2000) String body,
         @Size(max = 4000, message = "payload size 는 4000 char 이하만 허용 (Postgres TOAST 임계 회피)")
-        String payload
+        String payload,
+        @Size(max = 100) String idempotencyKey
 ) {
+
+    public NotificationSendRequest(RecipientType recipientType, UUID recipientId, String recipientAddress,
+                                   NotificationChannel channel, String templateCode, String subject,
+                                   String body, String payload) {
+        this(recipientType, recipientId, recipientAddress, channel, templateCode, subject, body, payload, null);
+    }
 
     /**
      * post-W5 종합 fix (BE-1, D-P9-21) — payload 의 UTF-8 byte length 가 4000 byte 이하인지 검증.

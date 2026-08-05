@@ -2,12 +2,20 @@ package com.samhanair.logis.slip.collab;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.collab.CollabRealtimePublisher;
+import com.samhanair.logis.slip.client.NotificationClient;
+import com.samhanair.logis.slip.client.UserIdResolver;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import java.lang.reflect.Method;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
@@ -44,5 +52,65 @@ class SlipCollabNotificationDispatchTest {
                 slipId, editorId, "recipient", "subject", "body"))
                 .isEqualTo(SlipCollabNotificationOutbox.fingerprint(
                         slipId, editorId, "recipient", "subject", "body"));
+    }
+
+    @Test
+    void concurrentDrains_claimTheSameReadyRowOnlyOnce() throws Exception {
+        SlipCollabNotificationOutboxRepository repository = mock(SlipCollabNotificationOutboxRepository.class);
+        UserIdResolver resolver = mock(UserIdResolver.class);
+        NotificationClient client = mock(NotificationClient.class);
+        SlipCollabNotificationOutbox row = SlipCollabNotificationOutbox.create(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "recipient", "subject", "body");
+        CountDownLatch bothReaders = new CountDownLatch(2);
+        AtomicInteger reads = new AtomicInteger();
+        when(repository.findTop100ByStatusInAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any(LocalDateTime.class)))
+                .thenAnswer(invocation -> {
+                    if (reads.incrementAndGet() <= 2) {
+                        bothReaders.countDown();
+                        bothReaders.await();
+                        return List.of(row);
+                    }
+                    return List.of();
+                });
+        when(repository.save(row)).thenReturn(row);
+        when(repository.claim(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(1, 0);
+        when(repository.findById(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(row));
+        when(resolver.resolve("recipient")).thenReturn(Optional.of(UUID.randomUUID()));
+        when(client.sendUserPushWithResult(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
+
+        SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
+                repository, resolver, client);
+        Executor executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        executor.execute(service::drainPending);
+        executor.execute(service::drainPending);
+        ((java.util.concurrent.ExecutorService) executor).shutdown();
+        org.assertj.core.api.Assertions.assertThat(((java.util.concurrent.ExecutorService) executor)
+                .awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.times(1))
+                .sendUserPushWithResult(org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.eq("subject"), org.mockito.ArgumentMatchers.eq("body"),
+                        org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void samePayloadFromDifferentSuccessfulEdits_keepsTwoIndependentOutboxRows() throws Exception {
+        SlipCollabNotificationOutboxRepository repository = mock(SlipCollabNotificationOutboxRepository.class);
+        SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
+                repository,
+                mock(UserIdResolver.class), mock(NotificationClient.class));
+
+        UUID slipId = UUID.randomUUID();
+        UUID editorId = UUID.randomUUID();
+        service.enqueue(UUID.randomUUID(), List.of("recipient"), slipId, editorId, "subject", "body");
+        service.enqueue(UUID.randomUUID(), List.of("recipient"), slipId, editorId, "subject", "body");
+
+        org.mockito.Mockito.verify(repository,
+                org.mockito.Mockito.times(2)).save(org.mockito.ArgumentMatchers.any());
     }
 }

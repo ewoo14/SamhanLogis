@@ -83,6 +83,7 @@ public class SlipCollabEditService {
         String body = limitBody(String.format("%s 님이 전표 %s 를 수정완료했습니다.%n변경: %s",
                 displayActor(editorName), updated.slipNo(), summarizeChangeSet(validatedChangeSet)));
         notificationOutboxService.enqueue(
+                saved.getId(),
                 List.copyOf(port.resolveNotificationRecipients(slipId, editorId)),
                 slipId, editorId, subject, body);
         scheduleNotifications();

@@ -143,12 +143,19 @@ public class NotificationClient {
 
     /** 푸시 전달 성공 여부를 durable outbox가 재시도 판정에 사용한다. */
     public boolean sendUserPushWithResult(UUID recipientUserId, String subject, String body) {
+        return sendUserPushWithResult(recipientUserId, subject, body, null);
+    }
+
+    /** 저장 사건별 멱등 키를 notification-service에 전달한다. */
+    public boolean sendUserPushWithResult(UUID recipientUserId, String subject, String body,
+                                          UUID idempotencyKey) {
         return sendInternalWithResult(Map.of(
                 "recipientType", "USER",
                 "recipientId", recipientUserId.toString(),
                 "channel", "PUSH",
                 "subject", safeTruncate(subject, 200),
-                "body", safeTruncate(body, 2000)));
+                "body", safeTruncate(body, 2000),
+                "idempotencyKey", idempotencyKey == null ? "" : idempotencyKey.toString()));
     }
 
     private void sendInternal(Map<String, Object> requestBody) {
