@@ -147,7 +147,7 @@ public class EstimateService {
                             el.name(), el.modelName(), compSpec, q, compUnit, note)
                     : EstimateLine.create(estimate, lineNo++, el.productId(),
                             el.name(), el.modelName(), compSpec, q, compUnit, note);
-            line.assignBundleComponent(summary.modelCode(), el.setHead());
+            line.assignBundleComponent(summary.modelCode(), el.setHead(), setOptions);
             estimate.addLine(line);
             added++;
         }

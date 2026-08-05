@@ -113,7 +113,8 @@ public class EstimateToSlipConverter {
                             line.getSpecification(), line.getQuantity(), line.getUnitPrice(),
                             line.getNote());
             if (line.getParentSetModel() != null && !line.getParentSetModel().isBlank()) {
-                slipLine.assignBundleComponent(line.getParentSetModel(), line.isSetHead());
+                slipLine.assignBundleComponent(line.getParentSetModel(), line.isSetHead(),
+                        line.getBundleSetOptions());
             }
             slip.addLine(slipLine);
         }

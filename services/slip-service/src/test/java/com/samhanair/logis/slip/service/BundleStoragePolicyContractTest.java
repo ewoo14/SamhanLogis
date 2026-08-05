@@ -13,13 +13,13 @@ import org.junit.jupiter.api.Test;
 class BundleStoragePolicyContractTest {
 
     private static final Pattern LINE_PRODUCTION_CALL = Pattern.compile(
-            "(?:SlipLine\\.create(?:From[A-Za-z]+)?|slip\\.addLine)\\s*\\(");
+            "(?:SlipLine\\s*\\.\\s*(?:create(?:From[A-Za-z]+)?|copyOf)|EstimateLine\\s*\\.\\s*create(?:From[A-Za-z]+)?|slip\\s*\\.\\s*addLine)\\s*\\(");
 
     @Test
     void 매출과_매입_전체수정은_공통정책을_호출한다() throws Exception {
-        assertThat(source("SalesSlipUpdateService.java"))
+        assertThat(code(source("SalesSlipUpdateService.java")))
                 .containsAnyOf("BundleModePolicy.shouldExpand", "BundleModePolicy::shouldExpand");
-        assertThat(source("SlipUpdateService.java"))
+        assertThat(code(source("SlipUpdateService.java")))
                 .containsAnyOf("BundleModePolicy.shouldExpand", "BundleModePolicy::shouldExpand");
     }
 
@@ -31,12 +31,28 @@ class BundleStoragePolicyContractTest {
                 .filter(path -> path.toString().endsWith(".java"))
                 .filter(path -> {
                     try {
-                        String text = Files.readString(path);
-                        return LINE_PRODUCTION_CALL.matcher(text).find()
-                                && !text.contains("BundleModePolicy.shouldExpand")
-                                && !text.contains("BundleModePolicy::shouldExpand")
-                                && !Set.of("BundleModePolicy.java", "SlipLine.java", "Slip.java", "SlipSeeder.java")
-                                        .contains(path.getFileName().toString());
+                        String text = code(Files.readString(path));
+                        if (!LINE_PRODUCTION_CALL.matcher(text).find()) {
+                            return false;
+                        }
+                        String name = path.getFileName().toString();
+                        if (Set.of("BundleModePolicy.java", "SlipSeeder.java", "EstimateSeeder.java",
+                                "SlipDuplicateService.java").contains(name)) {
+                            return false;
+                        }
+                        if (name.equals("SlipLine.java")) {
+                            return !text.contains("bundleSetOptions = source.bundleSetOptions");
+                        }
+                        if (name.equals("Slip.java")) {
+                            return !text.contains("snapLine.bundleSetOptions()")
+                                    || !text.contains("assignBundleComponent");
+                        }
+                        if (text.contains("EstimateLine")) {
+                            return !text.contains("setOptions") && !text.contains("bundleSetOptions")
+                                    && !text.contains("assignBundleComponent");
+                        }
+                        return !text.contains("BundleModePolicy.shouldExpand")
+                                && !text.contains("BundleModePolicy::shouldExpand");
                     } catch (Exception e) {
                         throw new AssertionError("저장 경로 계약 파일을 읽지 못했습니다: " + path, e);
                     }
@@ -48,5 +64,13 @@ class BundleStoragePolicyContractTest {
 
     private static String source(String fileName) throws Exception {
         return Files.readString(Path.of("src/main/java/com/samhanair/logis/slip/service", fileName));
+    }
+
+    /** 주석·문자열은 계약의 증거가 아니다. 실제 Java 코드만 남겨 공격 fixture를 차단한다. */
+    private static String code(String source) {
+        return source
+                .replaceAll("(?s)/\\*.*?\\*/", "")
+                .replaceAll("(?m)//.*$", "")
+                .replaceAll("\\\"(?:\\\\.|[^\\\"\\\\])*\\\"", "\"\"");
     }
 }

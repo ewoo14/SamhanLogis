@@ -281,7 +281,7 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           lookupLoading: false,
           // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음.
           productType: null,
-          setOptions: emptyBundleSetOptions(),
+          setOptions: line.setOptions ?? emptyBundleSetOptions(),
         }
       })
     : [emptyLine()]

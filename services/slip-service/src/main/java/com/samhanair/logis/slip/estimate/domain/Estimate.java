@@ -461,7 +461,8 @@ public class Estimate extends BaseEntity {
                         line.getUnitPriceWithVat(),
                         // R6-H3 — 세트 계보 캡처. head 만 true, 일반 라인은 null 로 생략(NON_NULL).
                         line.isSetHead() ? Boolean.TRUE : null,
-                        line.getParentSetModel()))
+                        line.getParentSetModel(),
+                        line.getBundleSetOptions()))
                 .toList();
         return new EstimateSnapshot(
                 this.estimateNo,
@@ -563,7 +564,8 @@ public class Estimate extends BaseEntity {
                 // 재생성 시 이후 저장에서 구성품 배분가가 가격기억에 각인되는 오염이 재유입된다.
                 if (snapLine.parentSetModel() != null && !snapLine.parentSetModel().isBlank()) {
                     restored.assignBundleComponent(
-                            snapLine.parentSetModel(), Boolean.TRUE.equals(snapLine.setHead()));
+                            snapLine.parentSetModel(), Boolean.TRUE.equals(snapLine.setHead()),
+                            snapLine.bundleSetOptions());
                 }
                 this.lines.add(restored);
             }
