@@ -610,6 +610,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [partnerDcConfig, setPartnerDcConfig] = useState<PartnerDcConfig | null>(null)
   const [priceLookupAnnouncement, setPriceLookupAnnouncement] = useState('')
   const selectedPartnerIdRef = useRef<string | null>(null)
+  const dcRequestSeqRef = useRef(0)
   selectedPartnerIdRef.current = selectedPartner?.id ?? null
   // R8-FE-3: 안내 낭독을 실제 적용 여부와 같은 조건으로 묶기 위한 최신 라인 스냅샷
   // (견적 EstimateFormPage.linesRef 와 동일 패턴 — 비대칭 해소).
@@ -771,25 +772,28 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       product?.sellingPrice != null ? String(product.sellingPrice) : line.unitPrice
     // 자동채움 판정은 견적과 공용 헬퍼(shouldAutoFillPrice) — 비대칭 재발 구조 차단(R4-F1).
     const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
-    let dcResult: ReturnType<typeof calculateSlipDiscount> | null = null
-    if (shouldAutoFill && product?.sellingPrice != null && selectedPartner?.partnerCode) {
-      const config = partnerDcConfig ?? await getPartnerDcConfig(selectedPartner.partnerCode)
-      if (!partnerDcConfig) setPartnerDcConfig(config)
-      const category = product.categoryKey === 'homemulti'
-        ? 'HOMEMULTI'
-        : product.categoryKey === 'commercialMulti'
-          ? 'COMMERCIAL_MULTI'
-          : 'OTHER'
-      dcResult = calculateSlipDiscount({
+    const partnerId = selectedPartner?.id
+    const partnerCode = selectedPartner?.partnerCode
+    const category = product?.categoryKey === 'homemulti'
+      ? 'HOMEMULTI'
+      : product?.categoryKey === 'commercialMulti'
+        ? 'COMMERCIAL_MULTI'
+        : 'OTHER'
+    const calculateWithConfig = (config: PartnerDcConfig | null) => product?.sellingPrice == null
+      ? null
+      : calculateSlipDiscount({
         listPrice: Number(product.sellingPrice),
         fixedDiscountRate: product.fixedDiscountRate,
         category,
+        hasVariableDiscount: product.hasVariableDiscount,
       }, config)
-    }
+    // 품목 UUID/정가는 DC 조회와 독립적으로 먼저 확정한다.
+    const dcResult = shouldAutoFill && partnerCode && partnerDcConfig
+      ? calculateWithConfig(partnerDcConfig)
+      : null
     const nextUnitPrice = shouldAutoFill
       ? String(dcResult?.unitPrice ?? fallbackUnitPrice)
       : line.unitPrice
-    const partnerId = selectedPartner?.id
     const pricedLine = recalculateLineVat(asVatLine({ ...line, unitPrice: nextUnitPrice }), 'PRICE')
     const nextLine: LineDraft = {
       ...pricedLine,
@@ -807,7 +811,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       productType: product?.productType ?? null,
       modelCode: product?.modelCode ?? null,
       lookupError: null,
-      lookupLoading: Boolean(partnerId && productId && shouldAutoFill),
+      lookupLoading: Boolean(partnerId && productId && shouldAutoFill && !dcResult),
     }
     updateLine(line.id, nextLine)
     // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
@@ -818,6 +822,34 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         setPriceLookupAnnouncement(`라인 ${lineNumber} ${dcResult?.info ?? '판매가 적용'}`)
       }
       return
+    }
+    let resolvedDcResult = dcResult
+    if (!resolvedDcResult && partnerCode) {
+      try {
+        const config = partnerDcConfig ?? await withPriceLookupTimeout(getPartnerDcConfig(partnerCode))
+        if (selectedPartnerIdRef.current !== partnerId) return
+        if (!partnerDcConfig) setPartnerDcConfig(config)
+        resolvedDcResult = calculateWithConfig(config)
+        if (resolvedDcResult && resolvedDcResult.source !== 'NONE') {
+          const discountedPrice = String(resolvedDcResult.unitPrice)
+          setLines((currentLines) => currentLines.map((current) =>
+            current.id === line.id
+              && current.productId === productId
+              && selectedPartnerIdRef.current === partnerId
+              && current.priceSource !== 'USER'
+              ? {
+                ...recalculateLineVat(asVatLine({ ...current, unitPrice: discountedPrice }), 'PRICE'),
+                unitPrice: discountedPrice,
+                priceSource: 'CATALOG',
+                discountInfo: resolvedDcResult?.info ?? null,
+                lookupLoading: true,
+              }
+              : current,
+          ))
+        }
+      } catch {
+        // DC 실패/timeout은 이미 확정한 정가 fallback을 유지한다.
+      }
     }
     /**
      * R8-FE-3: 응답 도착 시점에 이 라인에 단가를 실제로 쓸 수 있는가.
@@ -842,9 +874,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       const memory = await withPriceLookupTimeout(getPriceMemory(partnerId, productId))
       const remembered = memory?.unitPrice
       // 최근단가 miss/실패 시 이미 계산한 고정DC·전역DC 단가를 정가로 되돌리지 않는다.
-      const hasAuthoritativeDiscount = dcResult != null && dcResult.source !== 'NONE'
+      const hasAuthoritativeDiscount = resolvedDcResult != null && resolvedDcResult.source !== 'NONE'
       const resolvedUnitPrice = hasAuthoritativeDiscount || remembered == null
-        ? String(dcResult?.unitPrice ?? fallbackUnitPrice)
+        ? String(resolvedDcResult?.unitPrice ?? fallbackUnitPrice)
         : String(remembered)
       const usesRememberedPrice = !hasAuthoritativeDiscount && remembered != null
       const applied = canStillApply()
@@ -881,7 +913,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             : current,
         ),
       )
-      if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} ${dcResult?.info ?? '판매가 적용'}`)
+      if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} ${resolvedDcResult?.info ?? '판매가 적용'}`)
     }
   }
 
@@ -999,6 +1031,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const handlePartnerAutocompleteChange = async (
     partner: PartnerOption | null,
   ) => {
+    const dcRequestSeq = ++dcRequestSeqRef.current
     setSelectedPartner(partner)
     setPartnerDcConfig(null)
     selectedPartnerIdRef.current = partner?.id ?? null
@@ -1030,7 +1063,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     }
     if (partner.id) {
       void refreshAutoPricesForPartner(partner.id)
-      void getPartnerDcConfig(partner.partnerCode).then(setPartnerDcConfig)
+      void getPartnerDcConfig(partner.partnerCode).then((config) => {
+        if (dcRequestSeqRef.current === dcRequestSeq && selectedPartnerIdRef.current === partner.id) {
+          setPartnerDcConfig(config)
+        }
+      })
     }
 
     // 1단계: search summary 즉시 fill

@@ -37,6 +37,7 @@ const harness = vi.hoisted(() => ({
     sellingPrice: '1000',
     modelCode: 'A',
     categoryKey: 'homemulti',
+    hasVariableDiscount: true,
   },
   productB: {
     id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -280,6 +281,8 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  harness.productA.hasVariableDiscount = true
+  harness.productA.sellingPrice = '1000'
   harness.isMobile = false
   harness.listWarehouses.mockResolvedValue([])
   harness.lookupPartnerForAutoFill.mockResolvedValue({})
@@ -616,6 +619,35 @@ describe('SlipFormPage price memory autofill', () => {
     expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({
       discountInfo: '거래처 전역DC 48% 적용',
     }))
+  })
+
+  it('does not apply global DC to a non-variable-discount product with a physical fallback category', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    harness.productA.hasVariableDiscount = false
+    harness.productA.sellingPrice = '204000'
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('204000'))
+    expect(screen.queryByText('거래처 전역DC 48% 적용')).toBeNull()
+  })
+
+  it('confirms the selected product at catalog price before a pending DC request completes', async () => {
+    const pending = new Promise<null>(() => undefined)
+    harness.getPartnerDcConfig.mockReturnValue(pending)
+    renderPage()
+    await selectPartnerA()
+
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+    expect(unitPrice().value).toBe(harness.productA.sellingPrice)
   })
 
   it('uses the global discount result instead of a remembered list price', async () => {

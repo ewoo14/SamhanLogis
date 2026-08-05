@@ -36,6 +36,8 @@ export interface ProductOption {
   /** 저장 전표 DC 계산용 원천값 — UUID가 아닌 가격 규칙만 전달한다. */
   categoryKey?: string | null
   fixedDiscountRate?: number | null
+  /** 변동DC 적용 자격 — 물리 카테고리 fallback과 별개인 BE 원천 플래그. */
+  hasVariableDiscount?: boolean | null
 }
 
 export interface ProductAutocompleteProps {

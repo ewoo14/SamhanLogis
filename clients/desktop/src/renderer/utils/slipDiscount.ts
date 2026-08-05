@@ -4,6 +4,7 @@ export interface SlipDiscountInput {
   listPrice: number
   fixedDiscountRate?: number | null
   category: SlipDiscountCategory
+  hasVariableDiscount?: boolean | null
 }
 
 export interface SlipDiscountConfig {
@@ -27,9 +28,9 @@ export function calculateSlipDiscount(
     const unitPrice = Math.round(input.listPrice * (1 - fixed / 100))
     return { unitPrice, rate: fixed, source: 'FIXED', info: `품목 고정DC ${fixed}% 적용` }
   }
-  const raw = input.category === 'HOMEMULTI'
+  const raw = input.category === 'HOMEMULTI' && input.hasVariableDiscount === true
     ? config?.homeMultiDc
-    : input.category === 'COMMERCIAL_MULTI'
+    : input.category === 'COMMERCIAL_MULTI' && input.hasVariableDiscount === true
       ? config?.commercialMultiDc
       : null
   const rate = raw == null ? 0 : Number(String(raw).replace('%', '').trim())

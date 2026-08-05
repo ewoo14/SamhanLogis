@@ -36,6 +36,7 @@ interface ProductSummaryResponse {
   productType?: string | null
   categoryKey?: string | null
   fixedDiscountRate?: number | null
+  hasVariableDiscount?: boolean | null
 }
 
 /**
@@ -86,6 +87,7 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
       specification: p.specification ?? undefined,
       categoryKey: p.categoryKey ?? undefined,
       fixedDiscountRate: p.fixedDiscountRate ?? null,
+      hasVariableDiscount: p.hasVariableDiscount ?? null,
   }
 }
 
