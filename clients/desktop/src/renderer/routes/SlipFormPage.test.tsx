@@ -903,7 +903,7 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
   })
 
-  it('세트 선택은 세트 헤드 없이 구성품 행으로 즉시 전개하고 저장 payload도 구성품만 보낸다', async () => {
+  it('EXPAND 세트 선택은 구성품 계보와 옵션 문맥을 저장 payload에도 보낸다', async () => {
     harness.expandBundleLine.mockResolvedValueOnce([
       {
         productId: harness.productA.id,
@@ -913,6 +913,8 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
         quantity: 2,
         unitPrice: 6000,
         specification: '구성품 규격',
+        componentKind: 'INDOOR',
+        setHead: true,
       },
       {
         productId: harness.productB.id,
@@ -922,6 +924,8 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
         quantity: 1,
         unitPrice: 4000,
         specification: null,
+        componentKind: 'OUTDOOR',
+        setHead: false,
       },
     ])
     renderPage()
@@ -944,6 +948,17 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     const savedLines = harness.createSlip.mock.calls[0][0].lines
     expect(savedLines).toHaveLength(2)
     expect(savedLines.every((saved: { productId: string }) => saved.productId !== harness.bundle.id)).toBe(true)
+    expect(savedLines[0]).toEqual(expect.objectContaining({
+      setHead: true,
+      parentSetModel: 'SET-1',
+      bundleParentProductId: harness.bundle.id,
+      setOptions: expect.anything(),
+    }))
+    expect(savedLines[1]).toEqual(expect.objectContaining({
+      setHead: false,
+      parentSetModel: 'SET-1',
+      bundleParentProductId: harness.bundle.id,
+    }))
   })
 
   it('빠른 전개 성공 뒤에도 옵션을 확정하면 최신 옵션 한 벌로 다시 전개한다', async () => {

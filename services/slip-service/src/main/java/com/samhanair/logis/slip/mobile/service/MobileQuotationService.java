@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.mobile.dto.MobileQuotationRequest;
 import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
+import com.samhanair.logis.slip.service.BundleModePolicy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -141,7 +142,7 @@ public class MobileQuotationService {
             String modelName = lineReq.modelName() != null
                     ? lineReq.modelName()
                     : (summary != null ? summary.modelName() : null);
-            boolean bundle = summary != null && "BUNDLE".equals(summary.productType());
+            boolean bundle = BundleModePolicy.shouldExpand(summary);
             if (bundle) {
                 if (summary.modelCode() == null || summary.modelCode().isBlank()) {
                     throw new BusinessException(ErrorCode.INVALID_INPUT,

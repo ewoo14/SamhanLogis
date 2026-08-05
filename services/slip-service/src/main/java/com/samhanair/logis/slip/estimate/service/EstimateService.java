@@ -22,6 +22,7 @@ import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.realtime.EstimateListRealtime;
 import com.samhanair.logis.slip.service.BundleLineageResolver;
+import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.service.LineIdContractGate;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
@@ -89,7 +90,7 @@ public class EstimateService {
                                  List<PendingPlainLine> pendingPlainLines) {
         boolean authoritative = AuthoritativeAmountValidator.isComplete(
                 supplyAmount, vatAmount, lineTotalWithVat);
-        boolean bundle = summary != null && "BUNDLE".equals(summary.productType());
+        boolean bundle = BundleModePolicy.shouldExpand(summary);
         if (bundle && (summary.modelCode() == null || summary.modelCode().isBlank())) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "세트 품목의 구성품 전개 정보가 없어 견적을 저장할 수 없습니다");
@@ -519,7 +520,7 @@ public class EstimateService {
         }
         if (estimate.getLines().stream().anyMatch(line -> {
             ProductSummary summary = summaries.get(line.getProductId());
-            return summary != null && "BUNDLE".equals(summary.productType());
+            return BundleModePolicy.shouldExpand(summary);
         })) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "세트 품목은 구성품으로 전개된 견적만 복원할 수 있습니다");

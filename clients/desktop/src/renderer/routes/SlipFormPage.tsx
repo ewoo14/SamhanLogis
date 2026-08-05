@@ -856,6 +856,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             productType,
             modelCode: component.modelCode ?? null,
             priceSource: 'CATALOG',
+            parentSetModel: source.modelCode ?? null,
+            setHead: Boolean(component.setHead),
+            bundleParentProductId: source.productId,
+            bundleParentUnitPrice: source.unitPrice,
+            setOptions: source.setOptions ?? emptyBundleSetOptions(),
           }), 'PRICE'),
           productId: component.productId,
           modelName: component.modelName ?? '',
@@ -866,6 +871,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           productType,
           modelCode: component.modelCode ?? null,
           priceSource: 'CATALOG',
+          parentSetModel: source.modelCode ?? null,
+          setHead: Boolean(component.setHead),
+          bundleParentProductId: source.productId,
+          bundleParentUnitPrice: source.unitPrice,
+          setOptions: source.setOptions ?? emptyBundleSetOptions(),
           lookupError: null,
           lookupLoading: false,
         } satisfies LineDraft
@@ -1460,9 +1470,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             quantity: Number(l.quantity),
             unitPrice: l.unitPrice || '0',
             setOptions: toApiBundleSetOptions(
-              l.productType,
+              l.parentSetModel ? 'BUNDLE' : l.productType,
               expandedBundleOptionsRef.current[l.id]?.setOptions ?? l.setOptions,
             ),
+            ...(l.parentSetModel
+              ? {
+                  parentSetModel: l.parentSetModel,
+                  setHead: Boolean(l.setHead),
+                  bundleParentProductId: l.bundleParentProductId,
+                  bundleParentUnitPrice: l.bundleParentUnitPrice,
+                }
+              : {}),
             // 단가 부가세포함 — BE 가 라인 단위로 공급가액/부가세 분리(eCount 방식)
             priceVatInclusive: true,
             // VAT 열을 실제 편집한 라인만 권위 3값을 명시 전송한다. 미편집 라인은

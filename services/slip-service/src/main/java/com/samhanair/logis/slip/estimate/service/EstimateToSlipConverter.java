@@ -11,6 +11,7 @@ import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
+import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -111,7 +112,9 @@ public class EstimateToSlipConverter {
                             line.getProductId(), line.getProductName(), line.getModelName(),
                             line.getSpecification(), line.getQuantity(), line.getUnitPrice(),
                             line.getNote());
-            slipLine.assignBundleComponent(line.getParentSetModel(), line.isSetHead());
+            if (line.getParentSetModel() != null && !line.getParentSetModel().isBlank()) {
+                slipLine.assignBundleComponent(line.getParentSetModel(), line.isSetHead());
+            }
             slip.addLine(slipLine);
         }
 
@@ -137,7 +140,7 @@ public class EstimateToSlipConverter {
         boolean bundleParent = estimate.getLines().stream()
                 .anyMatch(line -> {
                     var summary = summaries.get(line.getProductId());
-                    return summary != null && "BUNDLE".equals(summary.productType());
+                    return BundleModePolicy.shouldExpand(summary);
                 });
         if (bundleParent) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,

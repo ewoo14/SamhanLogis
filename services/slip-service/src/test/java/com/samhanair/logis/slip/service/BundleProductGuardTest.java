@@ -9,8 +9,16 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class BundleProductGuardTest {
+
+    @Test
+    void bundleMode_판정은_KEEP만_부모로_허용하고_나머지는_전개한다() {
+        assertThat(BundleModePolicy.shouldExpand(summary("KEEP"))).isFalse();
+        assertThat(BundleModePolicy.shouldExpand(summary("EXPAND"))).isTrue();
+        assertThat(BundleModePolicy.shouldExpand(summary(null))).isTrue();
+    }
 
     @Test
     void KEEP_부모는_정상_왕복을_허용한다() {

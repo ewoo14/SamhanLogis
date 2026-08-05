@@ -337,6 +337,14 @@ export interface SlipLineInput {
   note?: string
   /** 세트 전개 옵션 — BUNDLE 품목 라인에 한해 전달(BE BundleExpander). */
   setOptions?: BundleSetOptions
+  /** 화면에서 전개된 구성품의 부모 세트 modelCode. */
+  parentSetModel?: string | null
+  /** 화면에서 전개된 세트의 첫 구성품 여부. */
+  setHead?: boolean
+  /** 화면 전개 세트의 원 부모 productId — 가격기억 기준. */
+  bundleParentProductId?: string | null
+  /** 화면 전개 세트의 원 부모 입력단가 — 가격기억 기준. */
+  bundleParentUnitPrice?: string | null
   /**
    * 단가 부가세포함 여부 — true 면 `unitPrice` 가 VAT 포함 단가이며 BE 가 라인 단위로
    * 공급가액/부가세를 분리(eCount 방식). 2026-06-09 단가 부가세포함 전환.

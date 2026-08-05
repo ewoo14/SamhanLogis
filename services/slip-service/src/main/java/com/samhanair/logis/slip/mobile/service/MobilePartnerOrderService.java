@@ -11,6 +11,7 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.mobile.dto.MobilePartnerOrderRequest;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
+import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.WarehouseCodeSnapshotService;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
@@ -106,8 +107,7 @@ public class MobilePartnerOrderService {
         for (ProductSummary s : summaries) {
             byId.put(s.id(), s);
         }
-        if (summaries.stream().anyMatch(summary -> summary != null
-                && "BUNDLE".equals(summary.productType()))) {
+        if (summaries.stream().anyMatch(BundleModePolicy::shouldExpand)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "세트 품목은 모바일 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
         }
