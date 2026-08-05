@@ -69,7 +69,9 @@ public class SlipLookupController {
                 request.parentModelCode(), java.math.BigDecimal.valueOf(request.quantity()), options, request.unitPrice());
         return ApiResponse.ok(expanded.stream().map(line -> new ExpandedSlipLineResponse(
                 line.productId(), line.modelCode(), line.modelName(), line.name(), line.quantity(), line.unitPrice(),
-                line.componentKind(), line.setHead(), line.specification()
+                line.componentKind(), line.setHead(),
+                line.specification() != null && !line.specification().isBlank()
+                        ? line.specification() : request.specification()
         )).toList());
     }
 }

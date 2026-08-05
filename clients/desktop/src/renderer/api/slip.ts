@@ -309,6 +309,7 @@ export async function expandBundleLine(input: {
   parentModelCode: string
   quantity: number
   unitPrice: string
+  specification?: string
   setOptions?: BundleSetOptions
 }): Promise<ExpandedSlipLine[]> {
   const res = await apiClient.post<ApiEnvelope<ExpandedSlipLine[]>>('/slips/expand-line', input)

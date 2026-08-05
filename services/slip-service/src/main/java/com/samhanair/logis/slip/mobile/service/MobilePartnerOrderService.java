@@ -103,6 +103,11 @@ public class MobilePartnerOrderService {
         for (ProductSummary s : summaries) {
             byId.put(s.id(), s);
         }
+        if (summaries.stream().anyMatch(summary -> summary != null
+                && "BUNDLE".equals(summary.productType()))) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "세트 품목은 모바일 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
+        }
 
         // 3. 채번
         LocalDate slipDate = req.slipDate() != null ? req.slipDate() : LocalDate.now(clock);

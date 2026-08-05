@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 
@@ -12,5 +13,6 @@ public record ExpandSlipLineRequest(
         @NotBlank String parentModelCode,
         @NotNull @Positive Integer quantity,
         @NotNull @DecimalMin("0.00") BigDecimal unitPrice,
+        @Size(max = 50) String specification,
         BundleSetOptions setOptions) {
 }

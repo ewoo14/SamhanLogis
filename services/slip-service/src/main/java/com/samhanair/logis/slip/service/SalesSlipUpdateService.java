@@ -3,6 +3,8 @@ package com.samhanair.logis.slip.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
+import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
@@ -47,6 +49,7 @@ public class SalesSlipUpdateService {
     private final SlipAuditLogService auditLogService;
     private final SlipRevisionService slipRevisionService;
     private final PartnerProductPriceMemoryService priceMemoryService;
+    private final ProductClient productClient;
 
     /**
      * 매출 전표 헤더와 라인을 전체 교체한다.
@@ -78,6 +81,7 @@ public class SalesSlipUpdateService {
         verifyVersion(slip, request.updatedAt());
         // validateLines 는 BusinessException(SLIP_UPDATE_INVALID_LINE) 을 던지므로 try 외부에서 처리
         validateLines(request.lines());
+        rejectBundleProducts(request.lines());
         validateLineIds(slip.getLines(), request.lines());
 
         String before = summarize(slip);
@@ -174,6 +178,27 @@ public class SalesSlipUpdateService {
             if (line.unitPrice() == null || line.unitPrice().signum() < 0) {
                 throw invalidLine("단가는 0 이상이어야 합니다.");
             }
+        }
+    }
+
+    /** 판매전표 전체수정에서 BUNDLE 부모가 전표 라인으로 우회 영속되지 않도록 저장 전에 차단한다. */
+    private void rejectBundleProducts(List<SlipUpdateRequest.LineRequest> lines) {
+        List<UUID> productIds = lines.stream()
+                .map(SlipUpdateRequest.LineRequest::productId)
+                .distinct()
+                .toList();
+        List<ProductSummary> summaries = productClient.lookup(productIds);
+        if (summaries == null) {
+            return;
+        }
+        Set<UUID> bundleIds = summaries.stream()
+                .filter(summary -> summary != null && "BUNDLE".equals(summary.productType()))
+                .map(ProductSummary::id)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        if (!bundleIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
         }
     }
 

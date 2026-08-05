@@ -10,7 +10,7 @@ const apiClientMock = vi.hoisted(() => ({
 
 vi.mock('./client', () => ({ apiClient: apiClientMock }))
 
-import { duplicateSlip, getPriceMemories } from './slip'
+import { duplicateSlip, expandBundleLine, getPriceMemories } from './slip'
 
 describe('slip price contract', () => {
   beforeEach(() => {
@@ -122,5 +122,34 @@ describe('slip price contract', () => {
   it('bulk lookup still rejects an empty productIds list', async () => {
     await expect(getPriceMemories('partner-1', [])).rejects.toThrow(/at least 1 unique/)
     expect(apiClientMock.post).not.toHaveBeenCalled()
+  })
+})
+
+describe('slip bundle expansion contract', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('passes the parent specification together with set options to the preview endpoint', async () => {
+    apiClientMock.post.mockResolvedValueOnce({ data: { data: [] } })
+
+    await expandBundleLine({
+      parentModelCode: 'SET-1',
+      quantity: 2,
+      unitPrice: '10000',
+      specification: '현장규격',
+      setOptions: {
+        remoteOption: 'REMOTE-X',
+        remoteExcluded: false,
+        panelOption: 'PANEL-X',
+        panelShape360: '사각',
+        materialIncluded: true,
+      },
+    } as any)
+
+    expect(apiClientMock.post).toHaveBeenCalledWith('/slips/expand-line', expect.objectContaining({
+      specification: '현장규격',
+      setOptions: expect.objectContaining({ remoteOption: 'REMOTE-X' }),
+    }))
   })
 })

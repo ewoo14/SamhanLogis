@@ -9,6 +9,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
@@ -37,7 +41,35 @@ class SalesSlipUpdateServiceTest {
             mock(SlipRepository.class),
             mock(SlipAuditLogService.class),
             mock(SlipRevisionService.class),
-            mock(PartnerProductPriceMemoryService.class));
+            mock(PartnerProductPriceMemoryService.class),
+            mock(ProductClient.class));
+
+    @Test
+    @DisplayName("매출 전체수정은 BUNDLE 자체 라인을 영속하지 않고 거부한다")
+    void salesUpdate_rejectsBundleLineBeforePersistence() {
+        UUID slipId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        Slip slip = Slip.createOutbound("2026/07/25-0", LocalDate.of(2026, 7, 25), 0,
+                UUID.randomUUID(), UUID.randomUUID(), partnerId, "테스트 거래처", null, null, "tester");
+        ReflectionTestUtils.setField(slip, "id", slipId);
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 7, 25, 10, 0);
+        ReflectionTestUtils.setField(slip, "createdAt", updatedAt);
+        SlipRepository repository = (SlipRepository) ReflectionTestUtils.getField(service, "slipRepository");
+        ProductClient productClient = (ProductClient) ReflectionTestUtils.getField(service, "productClient");
+        when(repository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.lookup(List.of(bundleId))).thenReturn(List.of(
+                new ProductSummary(bundleId, "세트", "SET", null, UUID.randomUUID(),
+                        new BigDecimal("10000"), "ACTIVE", false, "SET-1", "BUNDLE", null)));
+        SlipUpdateRequest.LineRequest line = new SlipUpdateRequest.LineRequest(
+                bundleId, "세트", "SET", null, 1, new BigDecimal("10000"), null, null);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.update(slipId, new SlipUpdateRequest(
+                updatedAt, partnerId, "테스트 거래처", null, null, null, null, null,
+                null, null, null, List.of(line), true), UUID.randomUUID(), "테스터"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
+        verify(repository, org.mockito.Mockito.never()).saveAndFlush(any(Slip.class));
+    }
 
     @Test
     @DisplayName("권위 금액 라인은 입력 단가를 VAT 포함 가격기억으로 그대로 저장한다")

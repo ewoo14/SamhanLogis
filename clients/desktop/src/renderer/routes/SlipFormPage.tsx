@@ -599,6 +599,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // 이 카운터를 늘려 문구 끝에 보이지 않는 폭 없는 공백을 붙임으로써 DOM 텍스트 자체를
   // 실제로 바꾼다(시각적으로는 무영향 — 이 span 은 이미 스크린리더 전용으로 숨겨져 있다).
   const expansionSeqRef = useRef(0)
+  /** 세트 전개 요청의 행별 최신성. 사용자 입력이 오면 이전 응답은 적용하지 않는다. */
+  const bundleExpansionGenerationRef = useRef(new Map<string, number>())
   // link-dispatch-slice 신규 — 기사명 + 기사 휴대폰 (LinkDispatchListPage 자동 그룹의 키)
   const [driverName, setDriverName] = useState('')
   const [driverPhone, setDriverPhone] = useState('')
@@ -701,6 +703,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   /** 사용자 셀 변경 공통 경로 — 제품 선택과 수량/금액/규격 입력이 같은 증식 규칙을 쓴다. */
   const updateLineFromUser = (id: string, updater: (line: LineDraft) => LineDraft) => {
     const before = linesRef.current.find((line) => line.id === id)
+    bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
     setLines((current) => current.map((line) => (
       line.id === id ? updater(line) : line
     )))
@@ -749,7 +752,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               productId: component.productId,
               modelName: component.modelName ?? '',
               productName: component.name ?? '',
-              specification: component.specification ?? '',
+              specification: component.specification ?? source.specification ?? '',
               quantity,
               unitPrice,
               productType: 'SINGLE',
@@ -759,7 +762,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             productId: component.productId,
             modelName: component.modelName ?? '',
             productName: component.name ?? '',
-            specification: component.specification ?? '',
+            specification: component.specification ?? source.specification ?? '',
             quantity,
             unitPrice,
             productType: 'SINGLE',
@@ -782,15 +785,28 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const expandSelectedBundle = async (source: LineDraft, selected: LineDraft): Promise<void> => {
+    const generation = bundleExpansionGenerationRef.current.get(source.id) ?? 0
     try {
       const expanded = await expandBundleLine({
         parentModelCode: selected.modelCode ?? '',
         quantity: Number(selected.quantity),
         unitPrice: selected.unitPrice || '0',
+        specification: selected.specification.trim() || undefined,
         setOptions: toApiBundleSetOptions(selected.productType, selected.setOptions),
       })
+      const latest = linesRef.current.find((line) => line.id === source.id)
+      const currentGeneration = bundleExpansionGenerationRef.current.get(source.id) ?? 0
+      if (currentGeneration !== generation) {
+        if (latest?.productType === 'BUNDLE') await expandSelectedBundle(source, latest)
+        return
+      }
+      if (!latest || latest.productId !== selected.productId || latest.productType !== 'BUNDLE') return
       replaceWithExpandedBundleLines(source, expanded)
     } catch {
+      const latest = linesRef.current.find((line) => line.id === source.id)
+      if (!latest || latest.productId !== selected.productId
+        || latest.productType !== 'BUNDLE'
+        || (bundleExpansionGenerationRef.current.get(source.id) ?? 0) !== generation) return
       replaceWithExpandedBundleLines(source, [])
       setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
     }
@@ -828,6 +844,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   ) => updateLineFromUser(id, (line) => editSlipLineAmount(asVatLine(line), authority, value))
 
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
+    bundleExpansionGenerationRef.current.set(line.id, (bundleExpansionGenerationRef.current.get(line.id) ?? 0) + 1)
     setPriceLookupAnnouncement('')
     const lineNumber = Math.max(1, lines.findIndex((candidate) => candidate.id === line.id) + 1)
     const productId = product?.id ?? null

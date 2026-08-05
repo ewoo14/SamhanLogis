@@ -853,6 +853,68 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     expect(screen.getByRole('button', { name: '저장' })).toHaveProperty('disabled', true)
   })
 
+  it('늦게 도착한 세트 전개 응답은 이후 일반 품목 선택을 덮지 않는다', async () => {
+    const pending = deferred<any[]>()
+    harness.expandBundleLine.mockReturnValueOnce(pending.promise)
+    harness.expandBundleLine.mockResolvedValue([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 3,
+      unitPrice: 2000,
+      specification: null,
+    }])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName)
+
+    await act(async () => {
+      pending.resolve([{
+        productId: harness.productB.id,
+        modelName: harness.productB.modelName,
+        name: harness.productB.productName,
+        quantity: 1,
+        unitPrice: 2000,
+        specification: null,
+      }])
+    })
+
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent)
+      .toBe(harness.productA.productName))
+  })
+
+  it('늦은 세트 전개 응답은 그 사이 사용자가 입력한 최신 수량을 보존한다', async () => {
+    const pending = deferred<any[]>()
+    harness.expandBundleLine.mockReturnValueOnce(pending.promise)
+    harness.expandBundleLine.mockResolvedValue([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 3,
+      unitPrice: 2000,
+      specification: null,
+    }])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '3' } })
+    await act(async () => {
+      pending.resolve([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 3,
+        unitPrice: 2000,
+        specification: null,
+      }])
+    })
+
+    await waitFor(() => expect((screen.getByLabelText('line-1-quantity') as HTMLInputElement).value)
+      .toBe('3'))
+  })
+
   it('초기에는 입력 가능한 빈 행 5개를 보여준다', () => {
     renderPage()
 
