@@ -24,6 +24,8 @@ test.describe('S3 운송사·배차 그룹 mock 화면', () => {
     await expect(page.getByTestId('dispatch-group-page')).toBeVisible()
     await expect(page.getByText('DG-20260804-01')).toBeVisible()
     await expect(page.getByText('미전송')).toBeVisible()
+    await expect(page.getByText('전송 확인 중')).toBeVisible()
+    await expect(page.getByText('전송 결과 확인 중입니다. 확인이 끝나면 상태가 자동으로 갱신됩니다.')).toBeVisible()
     await expect(page.getByRole('columnheader', { name: '전송 상태' })).toBeVisible()
     await expect(page.getByRole('button', { name: /아로로지스로 전송/ })).toBeVisible()
   })

@@ -20,7 +20,7 @@ export interface DispatchGroup {
   carrierCode: string | null
   carrierName: string | null
   carrierArologis: boolean | null
-  transferStatus: 'NOT_SENT' | 'SENT' | 'FAILED'
+  transferStatus: 'NOT_SENT' | 'SENT' | 'FAILED' | 'PENDING'
   slips: DispatchGroupSlip[]
 }
 

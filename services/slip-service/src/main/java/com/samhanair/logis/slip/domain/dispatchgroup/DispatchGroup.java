@@ -50,20 +50,20 @@ public class DispatchGroup extends BaseEntity {
     }
 
     public void update(LocalDate dispatchDate, String vehicleLabel) {
-        if (transferStatus == TransferStatus.SENT) throw new IllegalStateException("아로로지스 전송 완료 그룹은 수정할 수 없습니다.");
+        ensureTransferEditable("수정", "아로로지스 전송 완료 그룹은 수정할 수 없습니다.");
         if (dispatchDate != null) this.dispatchDate = dispatchDate;
         if (vehicleLabel != null && !vehicleLabel.isBlank()) this.vehicleLabel = vehicleLabel.trim();
     }
 
     public void assignCarrier(Carrier carrier) {
-        if (transferStatus == TransferStatus.SENT) throw new IllegalStateException("아로로지스 전송 완료 그룹은 운송사를 변경할 수 없습니다.");
+        ensureTransferEditable("운송사를 변경", "아로로지스 전송 완료 그룹은 운송사를 변경할 수 없습니다.");
         if (carrier == null) { this.carrierId = null; return; }
         if (!carrier.isActive()) throw new IllegalStateException("비활성 운송사는 지정할 수 없습니다.");
         this.carrierId = carrier.getId();
     }
 
     public void clearCarrier() {
-        if (transferStatus == TransferStatus.SENT) throw new IllegalStateException("아로로지스 전송 완료 그룹은 운송사를 변경할 수 없습니다.");
+        ensureTransferEditable("운송사를 변경", "아로로지스 전송 완료 그룹은 운송사를 변경할 수 없습니다.");
         this.carrierId = null;
     }
 
@@ -78,6 +78,21 @@ public class DispatchGroup extends BaseEntity {
     }
 
     public void markTransferFailed() { transferStatus = TransferStatus.FAILED; }
+
+    /** 원격 수신 결과가 유실되어 재확인이 필요한 상태로 남긴다. */
+    public void markTransferPending() {
+        if (transferStatus != TransferStatus.SENT) {
+            transferStatus = TransferStatus.PENDING;
+            transferredAt = null;
+        }
+    }
+
+    private void ensureTransferEditable(String action, String sentMessage) {
+        if (transferStatus == TransferStatus.SENT) throw new IllegalStateException(sentMessage);
+        if (transferStatus == TransferStatus.PENDING) {
+            throw new IllegalStateException("아로로지스 전송 결과 확인 중인 그룹은 " + action + "할 수 없습니다.");
+        }
+    }
 
     public void markDeletedWithName(String userId, String actorName) {
         markDeleted(userId); // actorName은 공통 audit의 userId와 별도 표시 필드가 없어 기록 주체로 보존한다.

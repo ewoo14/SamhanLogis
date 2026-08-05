@@ -28,8 +28,19 @@ public class PreClassifyService {
         List<PreClassifySlip> slips = slipQuery.find(from, to);
         List<String> partnerCodes = slips.stream().map(PreClassifySlip::partnerCode).filter(c -> c != null && !c.isBlank()).distinct().toList();
         PreClassifySupport support = supportClient.getSupport(partnerCodes);
-        int unknown = (int) slips.stream().filter(s -> !Set.of("SANGIL", "CHOWOL").contains(s.warehouseBusinessType())).count();
-        if (mode != null) slips = slips.stream().filter(s -> matchesMode(s, mode)).toList();
+        int unknown = (int) slips.stream()
+                .filter(s -> !Set.of("SANGIL", "CHOWOL").contains(s.warehouseBusinessType()))
+                .count();
+        if (mode != null) {
+            List<PreClassifySlip> modeSlips = slips.stream().filter(s -> matchesMode(s, mode)).toList();
+            // 모드 조회 결과에 실제로 제외된 UNKNOWN만 경고한다. STACK UNKNOWN은 일반 모드에
+            // 의도적으로 보존되므로 전체 원본 UNKNOWN을 세면 화면 결과와 경고가 어긋난다.
+            int unknownInResult = (int) modeSlips.stream()
+                    .filter(s -> !Set.of("SANGIL", "CHOWOL").contains(s.warehouseBusinessType()))
+                    .count();
+            unknown -= unknownInResult;
+            slips = modeSlips;
+        }
         Set<String> planned = support.plannedPartnerCodes().stream().collect(Collectors.toSet());
         Map<String, List<PreClassifyResponse.Entry>> groups = new LinkedHashMap<>();
         List<PreClassifyResponse.Entry> unclassified = new ArrayList<>();

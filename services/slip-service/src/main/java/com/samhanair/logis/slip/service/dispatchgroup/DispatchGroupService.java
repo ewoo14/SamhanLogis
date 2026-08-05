@@ -18,11 +18,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DispatchGroupService {
     private final DispatchGroupRepository groupRepository;
     private final DispatchGroupSlipRepository groupSlipRepository;
@@ -111,7 +115,7 @@ public class DispatchGroupService {
         return response(group);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public DispatchGroupResponse transfer(String groupNo) {
         DispatchGroup group = load(groupNo);
         var carrier = group.getCarrierId() == null ? null : carrierService.loadInternal(group.getCarrierId());
@@ -126,21 +130,58 @@ public class DispatchGroupService {
             return new DispatchGroupTransferRequest.Slip(s.getSlipNo(), m.getInclusionType().name(), m.getSequence(),
                     s.getPartnerCode(), s.getPartnerName(), s.getDeliveryAddress());
         }).toList();
+        DispatchGroupTransferRequest request = new DispatchGroupTransferRequest(group.getGroupNo(),
+                group.getDispatchDate(), group.getVehicleLabel(), carrier.getCode(), carrier.getName(), slips);
         try {
-            arologisClient.send(new DispatchGroupTransferRequest(group.getGroupNo(), group.getDispatchDate(),
-                    group.getVehicleLabel(), carrier.getCode(), carrier.getName(), slips));
+            sendWithOneImmediateRetry(request);
             group.markTransferSent();
         } catch (RuntimeException ex) {
-            group.markTransferFailed();
-            throw new BusinessException(ErrorCode.CONFLICT, "아로로지스 전송 실패 — 재시도할 수 있습니다.");
+            // 원격 upsert가 이미 커밋됐을 수 있으므로 FAILED로 확정하지 않는다.
+            // PENDING은 같은 멱등 요청을 scheduler가 재확인할 때까지 그룹과 운송사 수정을 잠근다.
+            group.markTransferPending();
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "아로로지스 전송 결과 확인 중입니다. 같은 그룹은 중복 없이 자동 재확인됩니다.");
         }
         return response(group);
+    }
+
+    /** 응답 유실의 흔한 일시 경로를 즉시 한 번 재확인한다. 수신 endpoint는 groupNo 기준 upsert다. */
+    private void sendWithOneImmediateRetry(DispatchGroupTransferRequest request) {
+        try {
+            arologisClient.send(request);
+        } catch (RuntimeException firstFailure) {
+            try {
+                arologisClient.send(request);
+            } catch (RuntimeException secondFailure) {
+                secondFailure.addSuppressed(firstFailure);
+                throw secondFailure;
+            }
+        }
+    }
+
+    /** 두 번의 동기 확인도 결과를 받지 못한 PENDING 그룹을 멱등 재전송해 최종 SENT로 수렴시킨다. */
+    @Scheduled(fixedDelayString = "${samhan.dispatch-group.transfer-retry-delay-ms:30000}")
+    @Transactional(noRollbackFor = BusinessException.class)
+    public void retryPendingTransfers() {
+        groupRepository.findAllByTransferStatusAndIsDeletedFalseOrderByModifiedAtAsc(
+                        com.samhanair.logis.slip.domain.dispatchgroup.TransferStatus.PENDING,
+                        PageRequest.of(0, 100))
+                .forEach(group -> {
+                    try {
+                        transfer(group.getGroupNo());
+                    } catch (RuntimeException ex) {
+                        log.warn("아로로지스 전송 결과 재확인 대기 — groupNo={} reason={}",
+                                group.getGroupNo(), ex.getMessage());
+                    }
+                });
     }
 
     public boolean hasActiveReference(UUID slipId) { return groupSlipRepository.existsBySlipIdAndIsDeletedFalse(slipId); }
     private void ensureMutable(DispatchGroup group, String action) {
         if (group.getTransferStatus() == com.samhanair.logis.slip.domain.dispatchgroup.TransferStatus.SENT)
             throw new BusinessException(ErrorCode.CONFLICT, "아로로지스 전송 완료 그룹은 " + action + "할 수 없습니다.");
+        if (group.getTransferStatus() == com.samhanair.logis.slip.domain.dispatchgroup.TransferStatus.PENDING)
+            throw new BusinessException(ErrorCode.CONFLICT, "아로로지스 전송 결과 확인 중인 그룹은 " + action + "할 수 없습니다.");
     }
     public DispatchGroup load(String groupNo) { return groupRepository.findByGroupNoAndIsDeletedFalse(groupNo)
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "배차 그룹을 찾을 수 없습니다.")); }

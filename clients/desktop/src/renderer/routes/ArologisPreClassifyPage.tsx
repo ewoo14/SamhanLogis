@@ -353,7 +353,7 @@ function RegionTabPanel(props: RegionTabPanelProps) {
           <>
             {(data.unknownWarehouseCount ?? 0) > 0 ? (
               <div style={warningStyle}>
-                창고 업무 구분 미확정 {data.unknownWarehouseCount}건은 분류에서 제외되었습니다. 창고 정보를 확인한 뒤 다시 조회해 주세요.
+                창고 업무 구분 미확정 {data.unknownWarehouseCount}건이 이번 실행 모드에서 제외되었습니다. 창고 코드 보강 결과를 확인해 주세요. 상일·초월 외 창고는 가배차 대상이 아닙니다.
               </div>
             ) : null}
 

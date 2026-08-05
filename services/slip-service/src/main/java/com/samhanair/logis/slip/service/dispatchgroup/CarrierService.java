@@ -3,11 +3,13 @@ package com.samhanair.logis.slip.service.dispatchgroup;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.dispatchgroup.Carrier;
+import com.samhanair.logis.slip.domain.dispatchgroup.TransferStatus;
 import com.samhanair.logis.slip.dto.dispatchgroup.CarrierRequests;
 import com.samhanair.logis.slip.dto.dispatchgroup.CarrierResponse;
 import com.samhanair.logis.slip.repository.dispatchgroup.CarrierRepository;
 import com.samhanair.logis.slip.repository.dispatchgroup.DispatchGroupRepository;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,11 @@ public class CarrierService {
     @Transactional
     public CarrierResponse update(String code, CarrierRequests.Update request) {
         Carrier carrier = load(code);
+        if (groupRepository.existsByCarrierIdAndTransferStatusInAndIsDeletedFalse(
+                carrier.getId(), Set.of(TransferStatus.SENT, TransferStatus.PENDING))) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "전송 완료 또는 결과 확인 중인 배차 그룹의 운송사는 변경할 수 없습니다.");
+        }
         if (request.code() != null && !request.code().equalsIgnoreCase(carrier.getCode())
                 && repository.existsByCodeIgnoreCaseAndIsDeletedFalse(request.code()))
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 운송사 코드입니다.");

@@ -67,6 +67,7 @@ class PreClassifyServiceTest {
 
         assertThat(result.regionGroups().values()).flatExtracting(x -> x)
                 .extracting(PreClassifyResponse.Entry::slipNo).containsExactly("stack");
+        assertThat(result.unknownWarehouseCount()).isEqualTo(1);
     }
 
     @Test

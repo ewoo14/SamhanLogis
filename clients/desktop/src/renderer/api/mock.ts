@@ -11554,6 +11554,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (url.match(/\/admin\/dispatch-groups(?:\?.*)?$/)) {
     if (method === 'GET') return envelope([
       { groupNo: 'DG-20260804-01', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'NOT_SENT', slips: [{ slipNo: '2026/08/04-1', inclusionType: 'OUTBOUND', sequence: 1 }] },
+      { groupNo: 'DG-20260804-PENDING', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 02', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'PENDING', slips: [{ slipNo: '2026/08/04-2', inclusionType: 'OUTBOUND', sequence: 1 }] },
     ])
     if (method === 'POST') return envelope({ groupNo: 'DG-NEW', dispatchDate: '2026-08-04', vehicleLabel: '신규 차량', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT', slips: [] })
   }

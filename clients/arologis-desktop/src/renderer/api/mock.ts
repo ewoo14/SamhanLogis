@@ -25,6 +25,7 @@ const ALL_ADMIN_PERMISSIONS: PermissionMap = {
   'arologis.accounting.summary': fullActions(),
   'arologis.accounting.accounts': fullActions(),
   'arologis.admin.permissions': fullActions(),
+  'arologis.dispatch.ops': ['VIEW'],
 }
 
 const ROLE_PERMISSION_FIXTURES: Record<string, PermissionMap> = {

@@ -154,10 +154,24 @@ const router = createHashRouter([
         children: [
           { index: true, element: <Navigate to="/dispatches/manual" replace /> },
           { path: 'manual', element: <ArologisManualDispatchPage /> },
-          { path: 'pre-classify', element: <ArologisPreClassifyPage /> },
+          {
+            path: 'pre-classify',
+            element: (
+              <PermissionGuard pageCode="arologis.dispatch.ops" action="view">
+                <ArologisPreClassifyPage />
+              </PermissionGuard>
+            ),
+          },
           { path: 'unassigned', element: <ArologisUnassignedPage /> },
           { path: 'reconcile', element: <ArologisDispatchReconcilePage /> },
-          { path: 'received-groups', element: <ReceivedGroupsPage /> },
+          {
+            path: 'received-groups',
+            element: (
+              <PermissionGuard pageCode="arologis.dispatch.ops" action="view">
+                <ReceivedGroupsPage />
+              </PermissionGuard>
+            ),
+          },
           // SP-10-2 FE-3/FE-4: 배차 상세 페이지 — 사이드바 links 배열 변경 없음
           { path: 'detail/:dispatchCode', element: <DispatchDetailRouteWrapper /> },
         ],
