@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web.dto;
 
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -52,7 +53,8 @@ public record SlipLineResponse(
          * 세트 구성품의 부모 세트 modelCode — PR-3 V34 신규 (PR #461 갱신).
          * 세트 구성품 라인인 경우 부모 세트의 modelCode. 일반 단품 라인 = null.
          */
-        String parentSetModel) {
+        String parentSetModel,
+        BundleSetOptions setOptions) {
 
     /**
      * {@link SlipLine} 도메인 객체에서 응답 DTO 로 변환한다.
@@ -76,6 +78,7 @@ public record SlipLineResponse(
                 line.getVatAmount(),
                 line.getUnitPriceDomain() == null ? null : line.getUnitPriceDomain().name(),
                 line.isSetHead(),
-                line.getParentSetModel());
+                line.getParentSetModel(),
+                line.getBundleSetOptions());
     }
 }

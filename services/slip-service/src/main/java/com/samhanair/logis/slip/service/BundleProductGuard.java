@@ -29,8 +29,7 @@ public final class BundleProductGuard {
     public static void rejectParents(List<ProductSummary> summaries) {
         if (summaries != null && summaries.stream()
                 .filter(Objects::nonNull)
-                .anyMatch(summary -> "BUNDLE".equals(summary.productType())
-                        && !"KEEP".equalsIgnoreCase(summary.bundleMode()))) {
+                .anyMatch(BundleModePolicy::shouldExpand)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "세트 품목은 구성품으로 전개한 뒤 저장해야 합니다.");
         }

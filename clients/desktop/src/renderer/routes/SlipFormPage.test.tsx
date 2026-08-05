@@ -800,6 +800,32 @@ describe('SlipFormPage price memory autofill', () => {
     await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
     expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({ partnerId: undefined }))
   })
+
+  it('KEEP BUNDLE 부모는 저장 payload에 자기 계보를 부여하지 않는다', async () => {
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.bundle.id,
+      modelName: harness.bundle.modelName,
+      name: harness.bundle.productName,
+      modelCode: harness.bundle.modelCode,
+      quantity: 1,
+      unitPrice: 10000,
+      specification: null,
+      componentKind: null,
+      setHead: false,
+    }])
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.bundle.productName))
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+
+    const savedLine = harness.createSlip.mock.calls[0][0].lines[0]
+    expect(savedLine.productId).toBe(harness.bundle.id)
+    expect(savedLine.parentSetModel).toBeUndefined()
+    expect(savedLine.setHead).toBeUndefined()
+    expect(savedLine.bundleParentProductId).toBeUndefined()
+  })
 })
 
 describe('SlipFormPage 이카운트식 라인 입력', () => {

@@ -182,7 +182,7 @@ public class SlipService {
                     : SlipLine.create(slip, productId, productName, modelName,
                             specification, quantity, unitPrice, note);
             if (parentSetModel != null && !parentSetModel.isBlank()) {
-                plainLine.assignBundleComponent(parentSetModel, Boolean.TRUE.equals(setHead));
+                plainLine.assignBundleComponent(parentSetModel, Boolean.TRUE.equals(setHead), setOptions);
                 if (Boolean.TRUE.equals(setHead) && bundleParentProductId != null
                         && bundleParentUnitPrice != null) {
                     collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), bundleParentProductId,
@@ -224,7 +224,7 @@ public class SlipService {
                             compSpec, q, compUnit, note, null)
                     : SlipLine.create(slip, el.productId(), el.name(), el.modelName(),
                             compSpec, q, compUnit, note);
-            line.assignBundleComponent(summary.modelCode(), el.setHead());
+            line.assignBundleComponent(summary.modelCode(), el.setHead(), setOptions);
             slip.addLine(line);
             added++;
         }

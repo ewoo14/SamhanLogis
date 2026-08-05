@@ -840,7 +840,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       .map((component) => {
         const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
         const unitPrice = String(component.unitPrice ?? '0')
-        const productType = component.componentKind === null && source.productType === 'BUNDLE'
+        const isKeepParent = component.componentKind === null && source.productType === 'BUNDLE'
+        const productType = isKeepParent
           ? 'BUNDLE'
           : 'SINGLE'
         const base = emptyLine()
@@ -856,10 +857,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             productType,
             modelCode: component.modelCode ?? null,
             priceSource: 'CATALOG',
-            parentSetModel: source.modelCode ?? null,
-            setHead: Boolean(component.setHead),
-            bundleParentProductId: source.productId,
-            bundleParentUnitPrice: source.unitPrice,
+            ...(isKeepParent ? {} : {
+              parentSetModel: source.modelCode ?? null,
+              setHead: Boolean(component.setHead),
+              bundleParentProductId: source.productId,
+              bundleParentUnitPrice: source.unitPrice,
+            }),
             setOptions: source.setOptions ?? emptyBundleSetOptions(),
           }), 'PRICE'),
           productId: component.productId,
@@ -871,10 +874,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           productType,
           modelCode: component.modelCode ?? null,
           priceSource: 'CATALOG',
-          parentSetModel: source.modelCode ?? null,
-          setHead: Boolean(component.setHead),
-          bundleParentProductId: source.productId,
-          bundleParentUnitPrice: source.unitPrice,
+          ...(isKeepParent ? {} : {
+            parentSetModel: source.modelCode ?? null,
+            setHead: Boolean(component.setHead),
+            bundleParentProductId: source.productId,
+            bundleParentUnitPrice: source.unitPrice,
+          }),
           setOptions: source.setOptions ?? emptyBundleSetOptions(),
           lookupError: null,
           lookupLoading: false,

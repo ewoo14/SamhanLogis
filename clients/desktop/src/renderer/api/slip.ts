@@ -92,6 +92,8 @@ export interface SlipLineDetail {
    * 일반 단품 라인 = null.
    */
   parentSetModel?: string | null
+  /** 저장 후 재조회되는 EXPAND 선택 옵션 문맥. */
+  setOptions?: BundleSetOptions | null
 }
 
 /**
