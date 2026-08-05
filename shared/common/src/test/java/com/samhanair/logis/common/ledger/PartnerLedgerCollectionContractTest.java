@@ -155,4 +155,50 @@ class PartnerLedgerCollectionContractTest {
         assertThat(totals.adjustmentTotal()).isEqualByComparingTo("-775");
         assertThat(totals.closingBalance()).isEqualByComparingTo("225");
     }
+
+    @Test
+    void R51_RED_A_reversalSaleUsesNegativeSalesAxis() {
+        var classified = PartnerLedgerCollectionContract.classify(List.of(
+                PartnerLedgerCollectionContract.Evidence.journal("2026/07/26-2", DAY, "SLIP", null,
+                        "110", BigDecimal.ZERO, new BigDecimal("330000"), false),
+                PartnerLedgerCollectionContract.Evidence.journal("2026/07/26-2", DAY, "SLIP", null,
+                        "255", new BigDecimal("30000"), BigDecimal.ZERO, false),
+                PartnerLedgerCollectionContract.Evidence.journal("2026/07/26-2", DAY, "SLIP", null,
+                        "401", new BigDecimal("300000"), BigDecimal.ZERO, false)));
+
+        assertThat(classified).singleElement().satisfies(document -> {
+            assertThat(document.type()).isEqualTo(PartnerLedgerContract.DocumentType.SALE_SUMMARY);
+            assertThat(document.effect()).isEqualTo(PartnerLedgerContract.Effect.SALE);
+            assertThat(document.amount()).isEqualByComparingTo("-330000");
+            assertThat(document.debit()).isZero();
+            assertThat(document.credit()).isEqualByComparingTo("330000");
+        });
+    }
+
+    @Test
+    void R51_RED_B_keepsNonOperatingAdjustmentSeparateFromReversalSales() {
+        var classified = PartnerLedgerCollectionContract.classify(
+                List.of(
+                        PartnerLedgerCollectionContract.Evidence.journal("reversal", DAY, "SLIP", null,
+                                "110", BigDecimal.ZERO, new BigDecimal("299999"), false),
+                        PartnerLedgerCollectionContract.Evidence.journal("reversal", DAY, "SLIP", null,
+                                "401", new BigDecimal("272727"), BigDecimal.ZERO, false),
+                        PartnerLedgerCollectionContract.Evidence.journal("gain", DAY, "MANUAL", null,
+                                "110", new BigDecimal("67"), BigDecimal.ZERO, false),
+                        PartnerLedgerCollectionContract.Evidence.journal("gain", DAY, "MANUAL", null,
+                                "9199", BigDecimal.ZERO, new BigDecimal("67"), false),
+                        PartnerLedgerCollectionContract.Evidence.journal("loss", DAY, "MANUAL", null,
+                                "9549", new BigDecimal("842"), BigDecimal.ZERO, false),
+                        PartnerLedgerCollectionContract.Evidence.journal("loss", DAY, "MANUAL", null,
+                                "110", BigDecimal.ZERO, new BigDecimal("842"), false)),
+                Set.of("110"), Set.of("401"), Set.of("201", "2519"));
+
+        var effects = classified.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        PartnerLedgerCollectionContract.Classified::sourceKey,
+                        PartnerLedgerCollectionContract.Classified::effect));
+        assertThat(effects.get("reversal")).isEqualTo(PartnerLedgerContract.Effect.SALE);
+        assertThat(effects.get("gain")).isEqualTo(PartnerLedgerContract.Effect.ADJUSTMENT);
+        assertThat(effects.get("loss")).isEqualTo(PartnerLedgerContract.Effect.ADJUSTMENT);
+    }
 }

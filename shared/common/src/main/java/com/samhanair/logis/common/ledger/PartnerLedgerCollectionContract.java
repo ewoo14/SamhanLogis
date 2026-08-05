@@ -122,6 +122,7 @@ public final class PartnerLedgerCollectionContract {
         private final Set<String> payableCodes;
         private BigDecimal attributedRevenue = BigDecimal.ZERO;
         private BigDecimal effectRevenue = BigDecimal.ZERO;
+        private BigDecimal recognizedRevenueDebit = BigDecimal.ZERO;
         private BigDecimal receivableDebit = BigDecimal.ZERO;
         private BigDecimal receivableCredit = BigDecimal.ZERO;
         private BigDecimal otherDebit = BigDecimal.ZERO;
@@ -145,6 +146,7 @@ public final class PartnerLedgerCollectionContract {
             if (recognizedSaleAccount) {
                 attributedRevenue = attributedRevenue.add(credit).subtract(debit);
                 effectRevenue = effectRevenue.add(effectCredit).subtract(effectDebit);
+                recognizedRevenueDebit = recognizedRevenueDebit.add(effectDebit);
             }
             if (receivableCodes.contains(item.accountCode())) {
                 receivableDebit = receivableDebit.add(debit);
@@ -165,6 +167,12 @@ public final class PartnerLedgerCollectionContract {
             if (first.systemSeed()) return none();
             if ("CASH_RECEIPT".equals(first.sourceType())) {
                 return payment(receivableCredit.signum() == 0 ? attributedRevenue.abs() : receivableCredit);
+            }
+            if (receivableCredit.signum() > 0 && recognizedRevenueDebit.signum() > 0) {
+                BigDecimal amount = receivableCredit.negate();
+                var direction = PartnerLedgerContract.direction(amount);
+                return new Classified(first.sourceKey(), first.date(), PartnerLedgerContract.DocumentType.SALE_SUMMARY,
+                        PartnerLedgerContract.Effect.SALE, amount, direction.debit(), direction.credit());
             }
             if (receivableCredit.signum() > 0 && payableDebit.signum() > 0) return payment(receivableCredit);
             if (receivableDebit.signum() > 0) {
