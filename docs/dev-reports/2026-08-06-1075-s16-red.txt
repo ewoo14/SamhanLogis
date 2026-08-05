@@ -1,0 +1,14 @@
+S16 RED-A raw output (before implementation)
+
+ RUN  v2.1.9 C:/dev/Samhan-Public/.claude/worktrees/t1075/clients/desktop
+
+ × src/renderer/routes/EstimateFormPage.coedit.test.tsx > EstimateFormPage 견적 편집 full-form coedit 배선 > S16 RED-A: preserves user specification across save and reopen before product clear
+   → expected '' to be 'USER-SAVED-SPEC' // Object.is equality
+
+ Test Files  1 failed (1)
+ Tests       1 failed | 1 passed | 40 skipped
+ AssertionError: expected '' to be 'USER-SAVED-SPEC' // Object.is equality
+ Location: src/renderer/routes/EstimateFormPage.coedit.test.tsx:550
+
+Meaning: updateEstimate received the user specification through the save request, but after reopening from the same detail response and clearing the product, the specification was emptied because hydrate classified the non-empty value as CATALOG.
+

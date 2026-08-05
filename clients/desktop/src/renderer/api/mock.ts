@@ -16936,7 +16936,7 @@ const MOCK_ESTIMATE_DETAIL_LINES = [
     productId: 'p-aj040',
     productName: '시스템에어컨 4Way 4HP',
     modelName: 'AJ040RXH4BC1',
-    specification: '4HP',
+    specification: '\u20604HP',
     quantity: 2,
     unitPrice: '1850000',
     supplyAmount: '3700000',

@@ -434,7 +434,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
       lines: [expect.objectContaining({
         productId: '44444444-4444-4444-4444-444444444444',
         modelName: 'AJ040RXH4BC1',
-        specification: '냉방 4HP',
+        specification: expect.stringMatching(/^\u2060.*4HP$/),
         unitPrice: '1850000',
       })],
     })))
@@ -500,6 +500,133 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect((screen.getByTestId('estimate-coedit-items-0-unitPrice') as HTMLInputElement).value).toBe('12345')
     expect(provider.getItemValue(0, 'specification')).toBe('사용자 규격')
     expect(provider.getItemValue(0, 'unitPrice')).toBe('12345')
+  })
+
+  it('S16 RED-A: preserves user specification across save and reopen before product clear', async () => {
+    const provider = makeProvider()
+    const initial = makeEstimate()
+    let savedBody: any
+    mocks.getEstimate.mockResolvedValueOnce(initial)
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updateEstimate.mockImplementationOnce(async (_id: string, body: any) => {
+      savedBody = body
+      return { id: 'estimate-1' }
+    })
+
+    renderPage()
+    const specification = await screen.findByTestId('estimate-coedit-items-0-specification')
+    const unitPrice = await screen.findByTestId('estimate-coedit-items-0-unitPrice')
+    fireEvent.change(specification, { target: { value: 'USER-SAVED-SPEC' } })
+    fireEvent.change(unitPrice, { target: { value: '12345' } })
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(savedBody.lines[0]).toEqual(expect.objectContaining({
+      specification: 'USER-SAVED-SPEC',
+      unitPrice: '12345',
+    }))
+
+    cleanup()
+    const reopened = makeEstimate({
+      lines: [{
+        ...initial.lines[0],
+        specification: savedBody.lines[0].specification,
+        unitPrice: savedBody.lines[0].unitPrice,
+        unitPriceWithVat: savedBody.lines[0].unitPrice,
+      }],
+    })
+    mocks.getEstimate.mockResolvedValueOnce(reopened)
+    const reopenedProvider = makeProvider()
+    mocks.createDocCoeditProvider.mockResolvedValueOnce(reopenedProvider)
+    renderPage()
+
+    const model = (await screen.findAllByRole('textbox'))
+      .find((input) => (input as HTMLInputElement).value === 'MODEL-1') as HTMLInputElement
+    fireEvent.change(model, { target: { value: '' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect(model.value).toBe(''))
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe('USER-SAVED-SPEC')
+    expect((screen.getByTestId('estimate-coedit-items-0-unitPrice') as HTMLInputElement).value)
+      .toBe('12345')
+    expect(reopenedProvider.getItemValue(0, 'specification')).toBe('USER-SAVED-SPEC')
+  })
+
+  it('S16 RED-A: preserves a catalog-original value after the user edits it back before save', async () => {
+    const provider = makeProvider()
+    const initial = makeEstimate()
+    const catalogOriginal = initial.lines[0].specification!
+    let savedBody: any
+    mocks.getEstimate.mockResolvedValueOnce(initial)
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updateEstimate.mockImplementationOnce(async (_id: string, body: any) => {
+      savedBody = body
+      return { id: 'estimate-1' }
+    })
+
+    renderPage()
+    const specification = await screen.findByTestId('estimate-coedit-items-0-specification')
+    fireEvent.change(specification, { target: { value: `${catalogOriginal}-EDITED` } })
+    fireEvent.change(specification, { target: { value: catalogOriginal } })
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(savedBody.lines[0].specification).toBe(catalogOriginal)
+
+    cleanup()
+    mocks.getEstimate.mockResolvedValueOnce(makeEstimate({
+      lines: [{ ...initial.lines[0], specification: savedBody.lines[0].specification }],
+    }))
+    const reopenedProvider = makeProvider()
+    mocks.createDocCoeditProvider.mockResolvedValueOnce(reopenedProvider)
+    renderPage()
+    const model = (await screen.findAllByRole('textbox'))
+      .find((input) => (input as HTMLInputElement).value === 'MODEL-1') as HTMLInputElement
+    fireEvent.change(model, { target: { value: '' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect(model.value).toBe(''))
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe(catalogOriginal)
+    expect(reopenedProvider.getItemValue(0, 'specification')).toBe(catalogOriginal)
+  })
+
+  it('S16 RED-B: removes a persisted catalog specification after product clear', async () => {
+    const provider = makeProvider()
+    const persistedCatalogSpecification = '\u2060CATALOG-SPEC'
+    const initial = makeEstimate({
+      lines: [{ ...makeEstimate().lines[0], specification: persistedCatalogSpecification }],
+    })
+    let savedBody: any
+    mocks.getEstimate.mockResolvedValueOnce(initial)
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updateEstimate.mockImplementationOnce(async (_id: string, body: any) => {
+      savedBody = body
+      return { id: 'estimate-1' }
+    })
+
+    renderPage()
+    await screen.findByTestId('estimate-form-save-button')
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(savedBody.lines[0].specification).toBe(persistedCatalogSpecification)
+
+    cleanup()
+    mocks.getEstimate.mockResolvedValueOnce(makeEstimate({
+      lines: [{ ...initial.lines[0], specification: savedBody.lines[0].specification }],
+    }))
+    const reopenedProvider = makeProvider()
+    mocks.createDocCoeditProvider.mockResolvedValueOnce(reopenedProvider)
+    renderPage()
+
+    const model = (await screen.findAllByRole('textbox'))
+      .find((input) => (input as HTMLInputElement).value === 'MODEL-1') as HTMLInputElement
+    fireEvent.change(model, { target: { value: '' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect(model.value).toBe(''))
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe('')
+    expect(reopenedProvider.getItemValue(0, 'specification')).toBe('')
   })
 
   it('RED-B: 부분 모델 검색은 공용 품목 결과 모달의 규격·단가 후보를 사용한다', async () => {

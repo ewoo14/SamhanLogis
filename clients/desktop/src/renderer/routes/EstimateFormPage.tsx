@@ -79,6 +79,10 @@ import {
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { BundleOptionRow } from './components/BundleOptionRow'
+import {
+  decodeEstimateSpecification,
+  encodeEstimateSpecification,
+} from '../utils/estimateSpecificationProvenance'
 
 let __lineUidCounter = 0
 const nextLineUid = (): string => `est-line-${++__lineUidCounter}`
@@ -266,10 +270,10 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           productId: line.productId,
           modelName: line.modelName ?? '',
           productName: line.productName ?? '',
-          specification: line.specification ?? '',
           // 상세 API는 규격의 provenance를 별도 전송하지 않는다. 저장된 품목 규격은
           // catalog snapshot으로 시작하고, 현재 세션의 직접 편집에서 USER로 승격한다.
-          specificationSource: (line.specification ?? '').trim() ? 'CATALOG' : null,
+          specification: decodeEstimateSpecification(line.specification).value,
+          specificationSource: decodeEstimateSpecification(line.specification).source,
           quantity: String(line.quantity),
           // 단가 부가세포함: 폼 단가 입력은 VAT 포함값. 편집 hydrate/coedit seed 모두 같은 값으로 보존.
           unitPrice: canonicalUnitPrice,
@@ -330,6 +334,7 @@ function seedEstimateCoeditProvider(provider: DocCoeditProvider, estimate: Estim
       modelName: line.modelName,
       productName: line.productName,
       specification: line.specification,
+      specificationSource: line.specificationSource ?? '',
       quantity: line.quantity,
       unitPrice: line.unitPrice,
       productId: line.productId ?? '',
@@ -369,6 +374,7 @@ function coeditLinesToDraftLines(
     const isRemoteSpecificationChange = Boolean(
       previous && specification !== previous.specification,
     )
+    const providerSpecificationSource = provider.getItemValue(index, 'specificationSource')
     return {
       uid: previous?.uid ?? nextLineUid(),
       lineId: resolveServerLineId(provider, index, knownServerLineIds),
@@ -378,7 +384,9 @@ function coeditLinesToDraftLines(
       specification,
       specificationSource: isRemoteSpecificationChange
         ? 'USER'
-        : previous?.specificationSource ?? null,
+        : providerSpecificationSource === 'CATALOG' || providerSpecificationSource === 'USER'
+          ? providerSpecificationSource
+          : previous?.specificationSource ?? null,
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice,
       supplyAmount: previous?.supplyAmount ?? '0',
@@ -1142,6 +1150,13 @@ export function EstimateFormPage() {
       linesRef.current = next
       return next
     })
+    if (fromUser && patch.specification !== undefined && estimateFormCoeditProvider) {
+      try {
+        estimateFormCoeditProvider.setItemValue(index, 'specificationSource', 'USER')
+      } catch {
+        // local state remains authoritative while the coedit provider unmounts.
+      }
+    }
   }
 
   const updatePrice = (index: number, unitPrice: string) => {
@@ -1474,6 +1489,13 @@ export function EstimateFormPage() {
           estimateFormCoeditProvider.setItemValue(currentIndex, 'modelName', result.modelName)
           estimateFormCoeditProvider.setItemValue(currentIndex, 'productName', result.productName)
           estimateFormCoeditProvider.setItemValue(currentIndex, 'specification', result.specification ?? '')
+          estimateFormCoeditProvider.setItemValue(
+            currentIndex,
+            'specificationSource',
+            hasCatalogSpecification && !preservesUserSpecification
+              ? 'CATALOG'
+              : nextLine.specificationSource ?? '',
+          )
           if (applyPrice) {
             localAutoPriceWritesRef.current.set(line.uid, {
               unitPrice: nextUnitPrice,
@@ -1536,6 +1558,7 @@ export function EstimateFormPage() {
         estimateFormCoeditProvider?.setItemValue(index, 'productName', '')
         estimateFormCoeditProvider?.setItemValue(index, 'productId', '')
         if (hadAutoSpecification) estimateFormCoeditProvider?.setItemValue(index, 'specification', '')
+        if (hadAutoSpecification) estimateFormCoeditProvider?.setItemValue(index, 'specificationSource', '')
         if (hadAutoPrice) estimateFormCoeditProvider?.setItemValue(index, 'unitPrice', '0')
       } catch {
         // Product clear remains local if the coedit provider is already unmounting.
@@ -1651,7 +1674,7 @@ export function EstimateFormPage() {
         productId: l.productId!,
         productName: l.productName.trim() || undefined,
         modelName: l.modelName.trim() || undefined,
-        specification: l.specification.trim() || undefined,
+        specification: encodeEstimateSpecification(l.specification, l.specificationSource ?? null).trim() || undefined,
         quantity: Number.parseInt(l.quantity || '0', 10),
         unitPrice: l.unitPrice || '0',
         note: l.note.trim() || undefined,
