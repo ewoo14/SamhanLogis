@@ -103,6 +103,50 @@ describe('주문서 앱 접근권한 mock report 계약', () => {
   })
 })
 
+describe('slip bundle expansion mock 계약', () => {
+  it('명시한 KEEP/EXPAND/NULL 모드에 대해 서버 전개 응답을 고정한다', () => {
+    const request = {
+      method: 'POST',
+      url: '/slips/expand-line',
+      data: JSON.stringify({
+        parentModelCode: 'SET-HM2WAY',
+        quantity: 1,
+        unitPrice: '5400000',
+        specification: '현장규격',
+        setOptions: {
+          remoteExcluded: true,
+          remoteOption: null,
+          panelOption: null,
+          panelShape360: null,
+          materialIncluded: false,
+        },
+      }),
+    } satisfies AxiosRequestConfig
+
+    const keep = mockRequest(request) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(keep.data).toHaveLength(1)
+    expect(keep.data[0]).toMatchObject({
+      modelCode: 'SET-HM2WAY',
+      componentKind: null,
+      setHead: false,
+    })
+
+    const expand = mockRequest({ ...request, url: '/slips/expand-line?mockBundleMode=EXPAND' }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(expand.data.length).toBeGreaterThan(1)
+    expect(expand.data[0]).toMatchObject({
+      modelCode: 'AJ040RXH4BC1',
+      componentKind: 'INDOOR',
+      setHead: true,
+      specification: '현장규격',
+    })
+    expect(expand.data.some((line) => line['componentKind'] === 'OUTDOOR')).toBe(false)
+
+    const nullMode = mockRequest({ ...request, url: '/slips/expand-line?mockBundleMode=NULL' }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(nullMode.data.length).toBeGreaterThan(1)
+    expect(nullMode.data.some((line) => line['componentKind'] === 'INDOOR')).toBe(true)
+  })
+})
+
 describe('mock 결재양식 optionsJson 정규화', () => {
   it('실 BE와 동일하게 대소문자 변종을 dedup하지 않고 모두 보존한다', () => {
     const response = mockRequest({
