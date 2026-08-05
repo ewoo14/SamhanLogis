@@ -10,6 +10,7 @@ const harness = vi.hoisted(() => ({
   getPriceMemories: vi.fn(),
   lookupPartnerForAutoFill: vi.fn(),
   createSlip: vi.fn(),
+  expandBundleLine: vi.fn(),
   listWarehouses: vi.fn(),
   searchProducts: vi.fn(),
   searchPartners: vi.fn(),
@@ -61,6 +62,14 @@ const harness = vi.hoisted(() => ({
     productType: 'SINGLE',
     sellingPrice: null,
     modelCode: 'D',
+  },
+  bundle: {
+    id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    modelName: 'BUNDLE-1',
+    productName: '세트 1',
+    productType: 'BUNDLE',
+    sellingPrice: '10000',
+    modelCode: 'SET-1',
   },
 }))
 
@@ -158,6 +167,9 @@ vi.mock('@samhan/design-system', () => ({
         <button type="button" data-testid={`select-product-d-${lineNo}`} onClick={() => onChange(harness.productD)}>
           product-d
         </button>
+        <button type="button" data-testid={`select-bundle-${lineNo}`} onClick={() => onChange(harness.bundle)}>
+          bundle
+        </button>
         <button type="button" data-testid={`type-product-${lineNo}`} onClick={() => onInputCommitChange?.(false)}>
           type-product
         </button>
@@ -202,6 +214,7 @@ vi.mock('@dnd-kit/utilities', () => ({
 
 vi.mock('../api/slip', () => ({
   createSlip: harness.createSlip,
+  expandBundleLine: harness.expandBundleLine,
   getPriceMemories: harness.getPriceMemories,
   getPriceMemory: harness.getPriceMemory,
   lookupPartnerForAutoFill: harness.lookupPartnerForAutoFill,
@@ -278,6 +291,7 @@ beforeEach(() => {
   harness.listWarehouses.mockResolvedValue([])
   harness.lookupPartnerForAutoFill.mockResolvedValue({})
   harness.createSlip.mockResolvedValue({})
+  harness.expandBundleLine.mockResolvedValue([])
   harness.getPriceMemory.mockResolvedValue(null)
   harness.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
 })
@@ -785,6 +799,60 @@ describe('SlipFormPage price memory autofill', () => {
 })
 
 describe('SlipFormPage 이카운트식 라인 입력', () => {
+  it('세트 선택은 세트 헤드 없이 구성품 행으로 즉시 전개하고 저장 payload도 구성품만 보낸다', async () => {
+    harness.expandBundleLine.mockResolvedValueOnce([
+      {
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        modelCode: harness.productA.modelCode,
+        quantity: 2,
+        unitPrice: 6000,
+        specification: '구성품 규격',
+      },
+      {
+        productId: harness.productB.id,
+        modelName: harness.productB.modelName,
+        name: harness.productB.productName,
+        modelCode: harness.productB.modelCode,
+        quantity: 1,
+        unitPrice: 4000,
+        specification: null,
+      },
+    ])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      parentModelCode: 'SET-1',
+      quantity: 1,
+      unitPrice: '10000',
+    })))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe('Product A'))
+    expect(screen.getByTestId('product-name-2').textContent).toBe('Product B')
+    expect(screen.queryByTestId('line-3')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
+    expect(screen.queryByTestId('product-name-3')?.textContent).not.toBe('세트 1')
+
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    const savedLines = harness.createSlip.mock.calls[0][0].lines
+    expect(savedLines).toHaveLength(2)
+    expect(savedLines.every((saved: { productId: string }) => saved.productId !== harness.bundle.id)).toBe(true)
+  })
+
+  it('구성품 전개 실패도 세트 라인을 저장하지 않고 사용자에게 오류를 보인다', async () => {
+    harness.expandBundleLine.mockRejectedValueOnce(new Error('구성품 조회 실패'))
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+
+    await waitFor(() => expect(screen.getByText('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')).toBeTruthy())
+    expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
+    expect(screen.getByRole('button', { name: '저장' })).toHaveProperty('disabled', true)
+  })
+
   it('초기에는 입력 가능한 빈 행 5개를 보여준다', () => {
     renderPage()
 

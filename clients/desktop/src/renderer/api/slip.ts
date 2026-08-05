@@ -294,6 +294,27 @@ export function toApiBundleSetOptions(
   }
 }
 
+export interface ExpandedSlipLine {
+  productId: string | null
+  modelCode?: string | null
+  modelName?: string | null
+  name?: string | null
+  quantity: number
+  unitPrice: number | string
+  specification?: string | null
+}
+
+/** 저장 경로와 동일한 product-service BundleExpander 결과를 입력 행으로 사용한다. */
+export async function expandBundleLine(input: {
+  parentModelCode: string
+  quantity: number
+  unitPrice: string
+  setOptions?: BundleSetOptions
+}): Promise<ExpandedSlipLine[]> {
+  const res = await apiClient.post<ApiEnvelope<ExpandedSlipLine[]>>('/slips/expand-line', input)
+  return res.data.data
+}
+
 /** 라인 input — BE `CreateSlipRequest.SlipLineRequest`. */
 export interface SlipLineInput {
   /** 상세 응답 `id` 왕복값 — payload 전용, 화면 미표시. 신규 라인은 null/미지정. */

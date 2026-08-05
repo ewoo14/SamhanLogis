@@ -3,11 +3,17 @@ package com.samhanair.logis.slip.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.web.dto.ExpandSlipLineRequest;
+import com.samhanair.logis.slip.web.dto.ExpandedSlipLineResponse;
+import jakarta.validation.Valid;
+import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,5 +54,22 @@ public class SlipLookupController {
     @RequirePermission(page = "slip.lookup-product", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<ProductSummary> lookupProduct(@RequestParam String modelName) {
         return ApiResponse.ok(productClient.lookupByModel(modelName));
+    }
+
+    /** 저장 시 {@code SlipService.addSlipLinesExpanded}와 동일한 엔진으로 화면 행을 전개한다. */
+    @PostMapping("/expand-line")
+    @RequirePermission(page = "slip.lookup-product", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
+    public ApiResponse<List<ExpandedSlipLineResponse>> expandLine(
+            @Valid @org.springframework.web.bind.annotation.RequestBody ExpandSlipLineRequest request) {
+        ExpandedLineDto.Options options = request.setOptions() == null ? null : new ExpandedLineDto.Options(
+                request.setOptions().remoteOption(), Boolean.TRUE.equals(request.setOptions().remoteExcluded()),
+                request.setOptions().panelOption(), request.setOptions().panelShape360(),
+                Boolean.TRUE.equals(request.setOptions().materialIncluded()));
+        List<ExpandedLineDto> expanded = productClient.expand(
+                request.parentModelCode(), java.math.BigDecimal.valueOf(request.quantity()), options, request.unitPrice());
+        return ApiResponse.ok(expanded.stream().map(line -> new ExpandedSlipLineResponse(
+                line.productId(), line.modelCode(), line.modelName(), line.name(), line.quantity(), line.unitPrice(),
+                line.componentKind(), line.setHead(), line.specification()
+        )).toList());
     }
 }

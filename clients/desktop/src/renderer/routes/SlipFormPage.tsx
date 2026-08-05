@@ -68,6 +68,7 @@ import {
 } from '../api/inventory'
 import {
   createSlip,
+  expandBundleLine,
   getPriceMemory,
   lookupPartnerForAutoFill,
   emptyBundleSetOptions,
@@ -84,6 +85,7 @@ import { toLocalDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
   appendBlankRowIfLastChanged,
+  ensureTrailingBlankRow,
   removeLinePreservingMinimum,
 } from '../utils/autoBlankRow'
 import {
@@ -727,6 +729,73 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const updateLine = (id: string, patch: Partial<LineDraft>) =>
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)))
 
+  /** 서버 저장과 같은 BundleExpander 결과로 선택 행을 구성품 행들로 교체한다. */
+  const replaceWithExpandedBundleLines = (
+    source: LineDraft,
+    expanded: Awaited<ReturnType<typeof expandBundleLine>>,
+  ) => {
+    setLines((current) => {
+      const index = current.findIndex((line) => line.id === source.id)
+      if (index < 0) return current
+      const componentLines = expanded
+        .filter((component) => component.productId)
+        .map((component) => {
+          const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
+          const unitPrice = String(component.unitPrice ?? '0')
+          const base = emptyLine()
+          return {
+            ...recalculateLineVat(asVatLine({
+              ...base,
+              productId: component.productId,
+              modelName: component.modelName ?? '',
+              productName: component.name ?? '',
+              specification: component.specification ?? '',
+              quantity,
+              unitPrice,
+              productType: 'SINGLE',
+              modelCode: component.modelCode ?? null,
+              priceSource: 'CATALOG',
+            }), 'PRICE'),
+            productId: component.productId,
+            modelName: component.modelName ?? '',
+            productName: component.name ?? '',
+            specification: component.specification ?? '',
+            quantity,
+            unitPrice,
+            productType: 'SINGLE',
+            modelCode: component.modelCode ?? null,
+            priceSource: 'CATALOG',
+            lookupError: null,
+            lookupLoading: false,
+          } satisfies LineDraft
+        })
+      const next = componentLines.length > 0
+        ? [...current.slice(0, index), ...componentLines, ...current.slice(index + 1)]
+        : [...current.slice(0, index), { ...emptyLine(), lookupError: '세트 구성품을 찾을 수 없습니다. 관리자에게 문의해 주세요.' }, ...current.slice(index + 1)]
+      return ensureTrailingBlankRow(next, emptyLine, (line) => Boolean(line.productId && Number(line.quantity) > 0))
+    })
+    setSelectedIds((selected) => {
+      const next = new Set(selected)
+      next.delete(source.id)
+      return next
+    })
+  }
+
+  const expandSelectedBundle = async (source: LineDraft, selected: LineDraft): Promise<void> => {
+    try {
+      const expanded = await expandBundleLine({
+        parentModelCode: selected.modelCode ?? '',
+        quantity: Number(selected.quantity),
+        unitPrice: selected.unitPrice || '0',
+        setOptions: toApiBundleSetOptions(selected.productType, selected.setOptions),
+      })
+      replaceWithExpandedBundleLines(source, expanded)
+    } catch {
+      replaceWithExpandedBundleLines(source, [])
+      setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
+    }
+  }
+
   const updatePrice = (id: string, unitPrice: string) =>
     updateLineFromUser(id, (line) => {
       if (line.id !== id) return line
@@ -785,6 +854,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       lookupLoading: Boolean(partnerId && productId && shouldAutoFill),
     }
     updateLine(line.id, nextLine)
+    if (nextLine.productType === 'BUNDLE' && (!partnerId || !productId || !shouldAutoFill)) {
+      await expandSelectedBundle(line, nextLine)
+      return
+    }
     // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
     // 실제로 다를 때만, 그리고 마지막 행일 때만 빈 행을 증식한다.
     maybeExpandLastLine(line.id, line, nextLine)
@@ -834,6 +907,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           }
         }),
       )
+      if (nextLine.productType === 'BUNDLE' && canStillApply()) {
+        await expandSelectedBundle(line, { ...nextLine, unitPrice: resolvedUnitPrice, lookupLoading: false })
+        return
+      }
       if (applied) {
         setPriceLookupAnnouncement(
           `라인 ${lineNumber} ${remembered == null ? '판매가' : '거래처 최근단가'} 적용`,
@@ -851,6 +928,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             : current,
         ),
       )
+      if (nextLine.productType === 'BUNDLE' && canStillApply()) {
+        await expandSelectedBundle(line, { ...nextLine, lookupLoading: false })
+        return
+      }
       if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} 판매가 적용`)
     }
   }
@@ -1186,6 +1267,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             index={index}
             onChange={(patch) => updateSetOption(line.id, patch)}
           />
+        ) : null}
+        {line.lookupError ? (
+          <div className="mobile-line-error" role="alert">{line.lookupError}</div>
         ) : null}
         {reason ? <IncompleteLineNotice lineNumber={index + 1} reason={reason} /> : null}
       </>
