@@ -1,0 +1,28 @@
+S29 RED-A: initial BundleProductGuardTest run before implementation
+Command:
+  .\gradlew.bat :services:slip-service:test --tests 'com.samhanair.logis.slip.service.BundleProductGuardTest' --console=plain --rerun-tasks
+
+Result: FAILED (compileTestJava, exit code 1)
+Cause: the expected bundleMode-aware ProductSummary constructor and guard contract do not exist at HEAD.
+Raw Gradle output:
+> Task :services:slip-service:compileTestJava FAILED
+C:\dev\Samhan-Public\.claude\worktrees\t1069\services\slip-service\src\test\java\com\samhanair\logis\slip\service\BundleProductGuardTest.java:19: error: method rejectParents in class BundleProductGuard cannot be applied to given types;
+        assertThatCode(() -> BundleProductGuard.rejectParents(List.of(keep)))
+                                               ^
+  required: ProductClient,List<UUID>
+  found:    List<ProductSummary>
+  reason: actual and formal argument lists differ in length
+C:\dev\Samhan-Public\.claude\worktrees\t1069\services\slip-service\src\test\java\com\samhanair\logis\slip\service\BundleProductGuardTest.java:42: error: no suitable constructor found for ProductSummary(UUID,String,String,<null>,<null>,BigDecimal,String,boolean,String,String,<null>,String)
+        return new ProductSummary(UUID.randomUUID(), "세트", "SET", null,
+               ^
+    constructor ProductSummary.ProductSummary(UUID,String,String,UUID,BigDecimal,String) is not applicable
+    constructor ProductSummary.ProductSummary(UUID,String,String,UUID,BigDecimal,String,boolean) is not applicable
+    constructor ProductSummary.ProductSummary(UUID,String,String,String,UUID,BigDecimal,String) is not applicable
+    constructor ProductSummary.ProductSummary(UUID,String,String,String,UUID,BigDecimal,String,boolean) is not applicable
+    constructor ProductSummary.ProductSummary(UUID,String,String,String,UUID,BigDecimal,String,boolean,String,String) is not applicable
+    constructor ProductSummary.ProductSummary(UUID,String,String,String,UUID,BigDecimal,String,boolean,String,String,String) is not applicable
+7 errors
+
+FAILURE: Build failed with an exception.
+> Task :services:slip-service:compileTestJava FAILED
+BUILD FAILED in 21s
