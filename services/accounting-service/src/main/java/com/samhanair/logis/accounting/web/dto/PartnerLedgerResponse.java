@@ -15,20 +15,21 @@ public record PartnerLedgerResponse(
         BigDecimal salesTotal,
         BigDecimal paymentTotal,
         BigDecimal closingBalance,
-        List<Document> documents) {
+        List<Document> documents,
+        BigDecimal adjustmentTotal) {
 
     public PartnerLedgerResponse(String partnerCode, String partnerName,
                                  LocalDate periodFrom, LocalDate periodTo,
                                  List<Document> documents) {
         this(partnerCode, partnerName, null, periodFrom, periodTo,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, documents);
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, documents, BigDecimal.ZERO);
     }
 
     public PartnerLedgerResponse(String partnerCode, String partnerName, String partnerBusinessNo,
                                  LocalDate periodFrom, LocalDate periodTo,
                                  List<Document> documents) {
         this(partnerCode, partnerName, partnerBusinessNo, periodFrom, periodTo,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, documents);
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, documents, BigDecimal.ZERO);
     }
 
     public PartnerLedgerResponse {
@@ -37,6 +38,7 @@ public record PartnerLedgerResponse(
         paymentTotal = paymentTotal == null ? BigDecimal.ZERO : paymentTotal;
         closingBalance = closingBalance == null ? BigDecimal.ZERO : closingBalance;
         documents = documents == null ? List.of() : List.copyOf(documents);
+        adjustmentTotal = adjustmentTotal == null ? BigDecimal.ZERO : adjustmentTotal;
     }
 
     public record Document(
@@ -51,12 +53,13 @@ public record PartnerLedgerResponse(
             String accountCode,
             String description,
             BigDecimal debit,
-            BigDecimal credit) {
+            BigDecimal credit,
+            String effect) {
         public Document(String type, String documentNo, LocalDate date, String partnerCode,
                         String partnerName, String deliveryAddress, BigDecimal amount,
                         List<Line> lines) {
             this(type, documentNo, date, partnerCode, partnerName, deliveryAddress, amount, lines,
-                    null, null, null, null);
+                    null, null, null, null, null);
         }
 
         public Document {
@@ -64,6 +67,7 @@ public record PartnerLedgerResponse(
             lines = lines == null ? List.of() : List.copyOf(lines);
             debit = debit == null ? BigDecimal.ZERO : debit;
             credit = credit == null ? BigDecimal.ZERO : credit;
+            effect = effect == null ? "NONE" : effect;
         }
     }
 

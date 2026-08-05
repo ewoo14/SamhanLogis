@@ -20,7 +20,7 @@ public final class PartnerLedgerContract {
     public enum DocumentType { SALE, SALE_SUMMARY, CASH_RECEIPT, JOURNAL_ONLY }
 
     /** 문서가 원장 산식에 미치는 업무 효과. 문서 타입과 효과를 재추론하지 않도록 분리한다. */
-    public enum Effect { SALE, PAYMENT, NONE }
+    public enum Effect { SALE, PAYMENT, ADJUSTMENT, NONE }
 
     /** 한 문서의 표시 금액과 원장 방향. journal-only는 분개 방향을 그대로 보관한다. */
     public record Entry(DocumentType type, BigDecimal amount,
@@ -87,6 +87,7 @@ public final class PartnerLedgerContract {
 
     /** 세 화면이 공유하는 원장 fold 결과. */
     public record Totals(BigDecimal openingBalance, BigDecimal salesTotal, BigDecimal paymentTotal,
+                         BigDecimal adjustmentTotal,
                          BigDecimal periodDelta, BigDecimal closingBalance) { }
 
     /**
@@ -98,6 +99,7 @@ public final class PartnerLedgerContract {
     public static Totals fold(Collection<Entry> entries, BigDecimal openingBalance) {
         BigDecimal sales = BigDecimal.ZERO;
         BigDecimal payments = BigDecimal.ZERO;
+        BigDecimal adjustments = BigDecimal.ZERO;
         BigDecimal delta = BigDecimal.ZERO;
         if (entries != null) {
             for (Entry entry : entries) {
@@ -108,11 +110,14 @@ public final class PartnerLedgerContract {
                 if (entry.effect() == Effect.PAYMENT) {
                     payments = payments.add(entry.amount());
                 }
+                if (entry.effect() == Effect.ADJUSTMENT) {
+                    adjustments = adjustments.add(entry.amount());
+                }
             }
         }
         BigDecimal opening = openingBalance == null ? BigDecimal.ZERO : openingBalance;
-        delta = sales.subtract(payments);
-        return new Totals(opening, sales, payments, delta, opening.add(delta));
+        delta = sales.add(adjustments).subtract(payments);
+        return new Totals(opening, sales, payments, adjustments, delta, opening.add(delta));
     }
 
     /** signed movement를 음수 금액 없이 차변/대변 칸으로 투영한다. */

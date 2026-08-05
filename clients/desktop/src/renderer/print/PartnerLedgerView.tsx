@@ -69,6 +69,7 @@ interface LedgerLine {
   /** 구조화된 배송주소. 적요에서 파싱하지 않는다. */
   deliveryAddress?: string | null
   documentType?: string
+  effect?: 'SALE' | 'PAYMENT' | 'ADJUSTMENT' | 'NONE'
 }
 
 /**
@@ -235,6 +236,7 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
       balance: Number(line.balance) || 0,
       deliveryAddress: line.deliveryAddress,
       documentType: line.documentType,
+      effect: line.effect,
     }))
     return {
       partnerCode: source.partnerCode,
@@ -299,6 +301,7 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
               <tr>
                 <th className={styles.colDate}>일자</th>
                 <th className={styles.colSlipNo}>분개번호</th>
+                <th>구분</th>
                 <th>배송주소</th>
                 <th className={styles.colDesc}>적요</th>
                 <th className={styles.colDebit}>차변</th>
@@ -309,7 +312,7 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
             <tbody>
               {/* 기초 잔액 row */}
               <tr className={styles.openingRow}>
-                <td colSpan={4} className={styles.openingLabel}>
+                <td colSpan={5} className={styles.openingLabel}>
                   [기초 잔액 — {krDate(data.periodFrom)} 이전]
                 </td>
                 <td className={styles.num}>-</td>
@@ -323,6 +326,7 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
                 <tr key={`${line.date}-${line.slipNo}-${idx}`}>
                   <td className={styles.dateCell}>{line.date}</td>
                   <td className={styles.slipNoCell}>{line.slipNo}</td>
+                  <td>{line.effect === 'PAYMENT' ? '수금' : line.effect === 'ADJUSTMENT' ? '조정' : '매출'}</td>
                   <td>{line.deliveryAddress || '—'}</td>
                   <td className={styles.descCell}>
                     {line.description}
@@ -341,7 +345,7 @@ export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}
             </tbody>
             <tbody className={styles.summaryBody} data-testid="partner-ledger-print-summary">
               <tr className={styles.totalRow}>
-                <td colSpan={4} className={styles.totalLabel}>
+                <td colSpan={5} className={styles.totalLabel}>
                   합계
                 </td>
                 <td className={`${styles.num} ${styles.debitCell} ${styles.strong}`}>

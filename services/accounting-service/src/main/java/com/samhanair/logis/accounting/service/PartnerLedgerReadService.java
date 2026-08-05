@@ -58,7 +58,7 @@ public class PartnerLedgerReadService {
             return new PartnerLedgerResponse(partner.partnerCode(), partner.partnerName(),
                     partner.businessNumber(), from, to, partner.openingBalance(), partner.salesTotal(),
                     partner.paymentTotal(), partner.receivableBalance(), partner.documents().stream()
-                    .map(this::responseDocument).toList());
+                    .map(this::responseDocument).toList(), partner.adjustmentTotal());
         }
         if (from == null || to == null || to.isBefore(from)) {
             throw new IllegalArgumentException("from/to 기간이 올바르지 않습니다");
@@ -174,7 +174,7 @@ public class PartnerLedgerReadService {
                 document.partnerCode(), document.partnerName(), document.deliveryAddress(), document.amount(),
                 document.lines().stream().map(line -> new Line(line.productName(), line.modelName(), line.quantity(),
                         line.unitPriceWithVat(), line.lineAmount())).toList(), document.accountCode(),
-                document.description(), document.debit(), document.credit());
+                document.description(), document.debit(), document.credit(), document.effect().name());
     }
 
     private static boolean saleBelongsToPartner(PartnerLedgerSalesClient.Sale sale, PartnerSummary partner) {

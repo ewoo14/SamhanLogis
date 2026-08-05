@@ -57,6 +57,8 @@ export interface SalesAggregateRow {
   salesTotal: string
   /** 기간 수금 합계 (KRW BigDecimal — string). */
   paymentTotal: string
+  /** 기간 조정 합계 (매출·수금이 아닌 채권 변동). */
+  adjustmentTotal?: string
   /** 기초잔액 + 기간 매출 - 기간 수금으로 계산한 기말 채권 잔액 (KRW BigDecimal — string). */
   receivableBalance: string
   /** 집계 시작 일자 (YYYY-MM-DD). */
@@ -87,6 +89,7 @@ export interface LedgerLine {
   deliveryAddress?: string | null
   /** 원장 문서 종류. JOURNAL_ONLY는 판매전표 미이관 분개 행이다. */
   documentType?: 'SALE' | 'SALE_SUMMARY' | 'CASH_RECEIPT' | 'JOURNAL_ONLY'
+  effect?: 'SALE' | 'PAYMENT' | 'ADJUSTMENT' | 'NONE'
 }
 
 /**
@@ -110,6 +113,7 @@ export interface LedgerData {
   openingBalance?: string
   salesTotal?: string
   paymentTotal?: string
+  adjustmentTotal?: string
   closingBalance?: string
   /** 분개 라인 목록 (date 오름차순 → journalNo 오름차순). */
   lines: LedgerLine[]
@@ -132,6 +136,7 @@ export interface PartnerLedgerSourceDocument {
   description?: string | null
   debit?: string | null
   credit?: string | null
+  effect?: 'SALE' | 'PAYMENT' | 'ADJUSTMENT' | 'NONE' | null
 }
 
 /** API 문서 순서를 보존하면서 debit-credit 누적잔액을 계산한다. */
@@ -189,6 +194,7 @@ export function buildPartnerLedgerLines(
           credit: direction.credit,
           deliveryAddress: document.deliveryAddress,
           documentType: document.type,
+          effect: document.effect ?? (document.type === 'CASH_RECEIPT' ? 'PAYMENT' : 'SALE'),
         }
       })
       : [{
@@ -213,6 +219,7 @@ export function buildPartnerLedgerLines(
                 : document.amount).credit,
           deliveryAddress: document.deliveryAddress,
           documentType: document.type,
+          effect: document.effect ?? 'NONE',
         }]
     return rows.map((row) => {
       balance += Number(row.debit) - Number(row.credit)
@@ -232,6 +239,7 @@ export interface LedgerSnapshotResponse {
   openingBalance?: string
   salesTotal?: string
   paymentTotal?: string
+  adjustmentTotal?: string
   closingBalance?: string
   documents: PartnerLedgerSourceDocument[]
   lines: LedgerLine[]
@@ -331,6 +339,7 @@ export function mapPartnerLedgerResponse(
     openingBalance: source.openingBalance ?? '0',
     salesTotal: source.salesTotal ?? '0',
     paymentTotal: source.paymentTotal ?? '0',
+    adjustmentTotal: source.adjustmentTotal ?? '0',
     closingBalance: source.closingBalance ?? source.openingBalance ?? '0',
     lines: buildPartnerLedgerLines(source.documents ?? [], source.openingBalance ?? '0'),
   }
@@ -348,6 +357,7 @@ export function mapLedgerSnapshotResponse(source: LedgerSnapshotResponse): Ledge
     openingBalance: source.openingBalance ?? '0',
     salesTotal: source.salesTotal ?? '0',
     paymentTotal: source.paymentTotal ?? '0',
+    adjustmentTotal: source.adjustmentTotal ?? '0',
     closingBalance: source.closingBalance ?? source.openingBalance ?? '0',
     lines: source.documents?.length
       ? buildPartnerLedgerLines(source.documents, source.openingBalance ?? '0')
@@ -364,6 +374,7 @@ export interface PartnerLedgerResponse {
   openingBalance?: string
   salesTotal?: string
   paymentTotal?: string
+  adjustmentTotal?: string
   closingBalance?: string
   documents: PartnerLedgerSourceDocument[]
 }

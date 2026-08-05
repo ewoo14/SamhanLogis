@@ -85,7 +85,8 @@ public class SalesAggregateService {
                             partner.partnerCode() == null ? "-" : partner.partnerCode(),
                             partner.businessNumber() == null ? "" : partner.businessNumber().replaceAll("[^0-9]", ""),
                             partner.partnerName() == null ? "-" : partner.partnerName(),
-                            partner.salesTotal(), partner.paymentTotal(), partner.receivableBalance(), from, to))
+                            partner.salesTotal(), partner.paymentTotal(), partner.adjustmentTotal(),
+                            partner.receivableBalance(), from, to))
                     .toList();
         }
         if (from == null || to == null) {
@@ -219,6 +220,7 @@ public class SalesAggregateService {
                     name == null ? "-" : name,
                     agg.salesTotal,
                     agg.paymentTotal,
+                    BigDecimal.ZERO,
                     balance,
                     from,
                     to));
@@ -233,6 +235,7 @@ public class SalesAggregateService {
                             : (legacy.partnerName == null ? "-" : legacy.partnerName),
                     aggregate.salesTotal,
                     aggregate.paymentTotal,
+                    BigDecimal.ZERO,
                     aggregate.receivableDebit.subtract(aggregate.paymentTotal),
                     from,
                     to));

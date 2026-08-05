@@ -18,6 +18,8 @@ import java.util.Set;
 public final class PartnerLedgerCollectionContract {
     private static final Set<String> LEGACY_REVENUE_CODES = Set.of("401");
     private static final Set<String> LEGACY_RECEIVABLE_CODES = Set.of("110");
+    /** 현금·예금 대체와 정산성 매입채무를 수금 effect로 인정한다. */
+    private static final Set<String> CASH_AND_SETTLEMENT_CODES = Set.of("102");
 
     public record Evidence(String sourceKey, LocalDate date, String sourceType, String sourceRefKey,
                            String accountCode, BigDecimal debit, BigDecimal credit,
@@ -72,14 +74,26 @@ public final class PartnerLedgerCollectionContract {
     public static List<Classified> classify(Collection<Evidence> evidence,
                                             Set<String> receivableCodes,
                                             Set<String> revenueCodes) {
+        return classify(evidence, receivableCodes, revenueCodes, null);
+    }
+
+    /** 채권·매출·매입 계정 의미를 함께 주입해 수금과 조정을 구분한다. */
+    public static List<Classified> classify(Collection<Evidence> evidence,
+                                            Set<String> receivableCodes,
+                                            Set<String> revenueCodes,
+                                            Set<String> payableCodes) {
         Set<String> resolvedReceivableCodes = normalizeCodes(receivableCodes, LEGACY_RECEIVABLE_CODES);
         Set<String> resolvedRevenueCodes = normalizeCodes(revenueCodes, LEGACY_REVENUE_CODES);
+        Set<String> resolvedPayableCodes = payableCodes == null
+                ? null : java.util.stream.Stream.concat(
+                        normalizeCodes(payableCodes, Set.of("201")).stream(),
+                        CASH_AND_SETTLEMENT_CODES.stream()).collect(java.util.stream.Collectors.toUnmodifiableSet());
         Map<String, Bundle> bundles = new LinkedHashMap<>();
         if (evidence != null) {
             for (Evidence item : evidence) {
                 if (item == null) continue;
                 Bundle bundle = bundles.computeIfAbsent(item.sourceKey(),
-                        ignored -> new Bundle(item, resolvedReceivableCodes, resolvedRevenueCodes));
+                        ignored -> new Bundle(item, resolvedReceivableCodes, resolvedRevenueCodes, resolvedPayableCodes));
                 bundle.add(item);
             }
         }
@@ -105,16 +119,20 @@ public final class PartnerLedgerCollectionContract {
         private final Evidence first;
         private final Set<String> receivableCodes;
         private final Set<String> revenueCodes;
+        private final Set<String> payableCodes;
         private BigDecimal attributedRevenue = BigDecimal.ZERO;
         private BigDecimal effectRevenue = BigDecimal.ZERO;
         private BigDecimal receivableDebit = BigDecimal.ZERO;
         private BigDecimal receivableCredit = BigDecimal.ZERO;
         private BigDecimal otherDebit = BigDecimal.ZERO;
+        private BigDecimal payableDebit = BigDecimal.ZERO;
 
-        private Bundle(Evidence first, Set<String> receivableCodes, Set<String> revenueCodes) {
+        private Bundle(Evidence first, Set<String> receivableCodes, Set<String> revenueCodes,
+                       Set<String> payableCodes) {
             this.first = first;
             this.receivableCodes = receivableCodes;
             this.revenueCodes = revenueCodes;
+            this.payableCodes = payableCodes;
         }
 
         private void add(Evidence item) {
@@ -122,15 +140,20 @@ public final class PartnerLedgerCollectionContract {
             BigDecimal credit = zero(item.credit());
             BigDecimal effectDebit = zero(item.effectDebit());
             BigDecimal effectCredit = zero(item.effectCredit());
-            if (revenueCodes.contains(item.accountCode())) {
+            boolean recognizedSaleAccount = revenueCodes.contains(item.accountCode())
+                    || "9049".equals(item.accountCode());
+            if (recognizedSaleAccount) {
                 attributedRevenue = attributedRevenue.add(credit).subtract(debit);
                 effectRevenue = effectRevenue.add(effectCredit).subtract(effectDebit);
             }
             if (receivableCodes.contains(item.accountCode())) {
                 receivableDebit = receivableDebit.add(debit);
                 receivableCredit = receivableCredit.add(credit);
-            } else if (!revenueCodes.contains(item.accountCode()) && !"SLIP".equals(item.accountCode())) {
+            } else if (!recognizedSaleAccount && !"SLIP".equals(item.accountCode())) {
                 otherDebit = otherDebit.add(effectDebit);
+                if (payableCodes == null || payableCodes.contains(item.accountCode())) {
+                    payableDebit = payableDebit.add(effectDebit);
+                }
             }
         }
 
@@ -143,17 +166,18 @@ public final class PartnerLedgerCollectionContract {
             if ("CASH_RECEIPT".equals(first.sourceType())) {
                 return payment(receivableCredit.signum() == 0 ? attributedRevenue.abs() : receivableCredit);
             }
-            if (receivableCredit.signum() > 0 && otherDebit.signum() > 0) return payment(receivableCredit);
+            if (receivableCredit.signum() > 0 && payableDebit.signum() > 0) return payment(receivableCredit);
             if (receivableDebit.signum() > 0) {
-                return new Classified(first.sourceKey(), first.date(), PartnerLedgerContract.DocumentType.SALE_SUMMARY,
-                        PartnerLedgerContract.Effect.SALE, receivableDebit, receivableDebit, BigDecimal.ZERO);
+                if (hasRecognizedRevenueCredit()) {
+                    return new Classified(first.sourceKey(), first.date(), PartnerLedgerContract.DocumentType.SALE_SUMMARY,
+                            PartnerLedgerContract.Effect.SALE, receivableDebit, receivableDebit, BigDecimal.ZERO);
+                }
+                return adjustment(receivableDebit);
             }
-            if (receivableCredit.signum() > 0 && effectRevenue.signum() < 0) {
-                BigDecimal amount = receivableCredit.negate();
-                var direction = PartnerLedgerContract.direction(amount);
-                return new Classified(first.sourceKey(), first.date(), PartnerLedgerContract.DocumentType.SALE_SUMMARY,
-                        PartnerLedgerContract.Effect.SALE, amount, direction.debit(), direction.credit());
+            if (receivableCredit.signum() > 0 && effectRevenue.signum() > 0) {
+                return adjustment(receivableCredit.negate());
             }
+            if (receivableCredit.signum() > 0) return adjustment(receivableCredit.negate());
             if (attributedRevenue.signum() != 0) {
                 BigDecimal amount = attributedRevenue;
                 var direction = PartnerLedgerContract.direction(amount);
@@ -166,6 +190,16 @@ public final class PartnerLedgerCollectionContract {
         private Classified payment(BigDecimal amount) {
             return new Classified(first.sourceKey(), first.date(), PartnerLedgerContract.DocumentType.JOURNAL_ONLY,
                     PartnerLedgerContract.Effect.PAYMENT, amount, BigDecimal.ZERO, amount);
+        }
+
+        private boolean hasRecognizedRevenueCredit() {
+            return effectRevenue.signum() > 0;
+        }
+
+        private Classified adjustment(BigDecimal amount) {
+            var direction = PartnerLedgerContract.direction(amount);
+            return new Classified(first.sourceKey(), first.date(), PartnerLedgerContract.DocumentType.JOURNAL_ONLY,
+                    PartnerLedgerContract.Effect.ADJUSTMENT, amount, direction.debit(), direction.credit());
         }
 
         private Classified none() {

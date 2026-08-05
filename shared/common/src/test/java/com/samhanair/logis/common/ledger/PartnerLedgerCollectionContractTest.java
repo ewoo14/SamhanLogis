@@ -104,4 +104,55 @@ class PartnerLedgerCollectionContractTest {
             assertThat(document.credit()).isEqualByComparingTo("33000");
         });
     }
+
+    @Test
+    void RED_A5_keepsRentAsSaleAndFeeSettlementAsPayment() {
+        var rent = PartnerLedgerCollectionContract.classify(List.of(
+                PartnerLedgerCollectionContract.Evidence.journal("rent", DAY, "MANUAL", null,
+                        "1089", new BigDecimal("4180000"), BigDecimal.ZERO, false),
+                PartnerLedgerCollectionContract.Evidence.journal("rent", DAY, "MANUAL", null,
+                        "9049", BigDecimal.ZERO, new BigDecimal("3800000"), false),
+                PartnerLedgerCollectionContract.Evidence.journal("rent", DAY, "MANUAL", null,
+                        "2559", BigDecimal.ZERO, new BigDecimal("380000"), false)),
+                Set.of("110", "1089"), Set.of("401", "4019"), Set.of("201", "2519"));
+        var fee = PartnerLedgerCollectionContract.classify(List.of(
+                new PartnerLedgerCollectionContract.Evidence("fee", DAY, "MANUAL", null, "1089",
+                        BigDecimal.ZERO, new BigDecimal("412500"), false, false,
+                        BigDecimal.ZERO, new BigDecimal("412500")),
+                new PartnerLedgerCollectionContract.Evidence("fee", DAY, "MANUAL", null, "2519",
+                        BigDecimal.ZERO, BigDecimal.ZERO, false, false,
+                        new BigDecimal("412500"), BigDecimal.ZERO)),
+                Set.of("110", "1089"), Set.of("401", "4019"), Set.of("201", "2519"));
+
+        assertThat(rent).singleElement().satisfies(document -> {
+            assertThat(document.type()).isEqualTo(PartnerLedgerContract.DocumentType.SALE_SUMMARY);
+            assertThat(document.effect()).isEqualTo(PartnerLedgerContract.Effect.SALE);
+            assertThat(document.amount()).isEqualByComparingTo("4180000");
+        });
+        assertThat(fee).singleElement().extracting(PartnerLedgerCollectionContract.Classified::effect)
+                .isEqualTo(PartnerLedgerContract.Effect.PAYMENT);
+    }
+
+    @Test
+    void RED_B2_excludesNonOperatingGainAndLossFromSalesAndPayments() {
+        var classified = PartnerLedgerCollectionContract.classify(List.of(
+                PartnerLedgerCollectionContract.Evidence.journal("gain", DAY, "MANUAL", null,
+                        "1089", new BigDecimal("67"), BigDecimal.ZERO, false),
+                PartnerLedgerCollectionContract.Evidence.journal("gain", DAY, "MANUAL", null,
+                        "9199", BigDecimal.ZERO, new BigDecimal("67"), false),
+                PartnerLedgerCollectionContract.Evidence.journal("loss", DAY, "MANUAL", null,
+                        "9549", new BigDecimal("842"), BigDecimal.ZERO, false),
+                PartnerLedgerCollectionContract.Evidence.journal("loss", DAY, "MANUAL", null,
+                        "1089", BigDecimal.ZERO, new BigDecimal("842"), false)),
+                Set.of("110", "1089"), Set.of("401", "4019"), Set.of("201", "2519"));
+
+        assertThat(classified).extracting(PartnerLedgerCollectionContract.Classified::effect)
+                .containsOnly(PartnerLedgerContract.Effect.ADJUSTMENT);
+        var totals = PartnerLedgerContract.fold(PartnerLedgerCollectionContract.toEntries(classified),
+                new BigDecimal("1000"));
+        assertThat(totals.salesTotal()).isZero();
+        assertThat(totals.paymentTotal()).isZero();
+        assertThat(totals.adjustmentTotal()).isEqualByComparingTo("-775");
+        assertThat(totals.closingBalance()).isEqualByComparingTo("225");
+    }
 }

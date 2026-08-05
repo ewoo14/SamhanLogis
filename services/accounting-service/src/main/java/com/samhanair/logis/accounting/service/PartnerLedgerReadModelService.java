@@ -311,7 +311,7 @@ public class PartnerLedgerReadModelService {
                         linesForJournal -> linesForJournal.get(0).getJournal().getJournalNo(),
                         (first, ignored) -> first));
         return PartnerLedgerCollectionContract.classify(evidence, accountCodes.receivableCodes(),
-                        accountCodes.revenueCodes()).stream()
+                        accountCodes.revenueCodes(), accountCodes.payableCodes()).stream()
                 .map(document -> new PartnerLedgerReadModel.Document(
                         switch (document.type()) {
                             case SALE -> PartnerLedgerReadModel.DocumentType.SALE;
@@ -364,7 +364,8 @@ public class PartnerLedgerReadModelService {
                 .toList();
         var totals = com.samhanair.logis.common.ledger.PartnerLedgerContract.fold(entries, openingBalance);
         return new PartnerLedgerReadModel.Partner(group.partnerId, code, name, biz, docs,
-                totals.salesTotal(), totals.paymentTotal(), openingBalance, totals.closingBalance());
+                totals.salesTotal(), totals.paymentTotal(), openingBalance, totals.closingBalance(),
+                totals.adjustmentTotal());
     }
 
     private static com.samhanair.logis.common.ledger.PartnerLedgerContract.DocumentType toContractType(
@@ -472,7 +473,7 @@ public class PartnerLedgerReadModelService {
         List<PartnerLedgerCollectionContract.Evidence> evidence = aggregateEvidence.values().stream()
                 .flatMap(Collection::stream).toList();
         return PartnerLedgerCollectionContract.classify(evidence, accountCodes.receivableCodes(),
-                        accountCodes.revenueCodes()).stream()
+                accountCodes.revenueCodes(), accountCodes.payableCodes()).stream()
                 .map(document -> new PartnerLedgerReadModel.Document(
                         document.type() == PartnerLedgerContract.DocumentType.SALE_SUMMARY
                                 ? PartnerLedgerReadModel.DocumentType.SALE_SUMMARY

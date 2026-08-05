@@ -22,6 +22,7 @@ public record LedgerSnapshotResponse(
         BigDecimal salesTotal,
         BigDecimal paymentTotal,
         BigDecimal closingBalance,
+        BigDecimal adjustmentTotal,
         List<PartnerLedgerResponse.Document> documents,
         List<LedgerImageResponse.LedgerLine> lines) {
 
@@ -33,6 +34,7 @@ public record LedgerSnapshotResponse(
         salesTotal = salesTotal == null ? BigDecimal.ZERO : salesTotal;
         paymentTotal = paymentTotal == null ? BigDecimal.ZERO : paymentTotal;
         closingBalance = closingBalance == null ? BigDecimal.ZERO : closingBalance;
+        adjustmentTotal = adjustmentTotal == null ? BigDecimal.ZERO : adjustmentTotal;
     }
 
     /** 화면 GET과 같은 read model payload를 복원 응답으로 투영한다. */
@@ -40,6 +42,7 @@ public record LedgerSnapshotResponse(
         return new LedgerSnapshotResponse(ledger.partnerCode(), ledger.partnerName(),
                 ledger.partnerBusinessNo(), List.of(), ledger.periodFrom(), ledger.periodTo(),
                 ledger.openingBalance(), ledger.salesTotal(), ledger.paymentTotal(), ledger.closingBalance(),
+                ledger.adjustmentTotal(),
                 ledger.documents(), List.of());
     }
 
@@ -48,6 +51,7 @@ public record LedgerSnapshotResponse(
         return new LedgerSnapshotResponse(ledger.partnerCode(), ledger.partnerName(),
                 ledger.partnerBusinessNo(), ledger.chatRoomNames(), ledger.periodFrom(),
                 ledger.periodTo(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 List.of(), ledger.lines());
     }
 

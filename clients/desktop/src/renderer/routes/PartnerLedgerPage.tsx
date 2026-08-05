@@ -129,6 +129,7 @@ export function buildCsv(
       '거래처명',
       '매출합계',
       '수금합계',
+      '조정합계',
       '채권잔액',
       '기간시작',
       '기간종료',
@@ -143,6 +144,7 @@ export function buildCsv(
         row.partnerName,
         row.salesTotal,
         row.paymentTotal,
+        row.adjustmentTotal ?? '0',
         row.receivableBalance,
         row.periodFrom,
         row.periodTo,
@@ -529,6 +531,7 @@ export function PartnerLedgerPage() {
                   <th style={thStyle}>거래처명</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>매출 합계</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>수금 합계</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>조정 합계</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>채권 잔액</th>
                   <th style={{ ...thStyle, width: 110 }}>원장</th>
                 </tr>
@@ -572,6 +575,9 @@ export function PartnerLedgerPage() {
                       </td>
                       <td style={amountStyle(row.paymentTotal)}>
                         {fmtKrw(row.paymentTotal)}
+                      </td>
+                      <td style={amountStyle(row.adjustmentTotal)}>
+                        {fmtKrw(row.adjustmentTotal)}
                       </td>
                       <td style={amountStyle(row.receivableBalance)}>
                         {fmtKrw(row.receivableBalance)}
@@ -848,9 +854,9 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
                   <td style={tdStyle}>{ln.date}</td>
                   <td style={tdStyle}>{ln.journalNo}</td>
                   <td style={tdStyle}>
-                    {ln.documentType === 'CASH_RECEIPT'
+                    {ln.effect === 'PAYMENT'
                       ? '수금'
-                      : ln.documentType === 'JOURNAL_ONLY' ? '분개' : '매출'}
+                      : ln.effect === 'ADJUSTMENT' ? '조정' : '매출'}
                   </td>
                   <td style={tdStyle}>{ln.deliveryAddress || '—'}</td>
                   <td style={tdStyle}>{ln.description || '-'}</td>
@@ -906,6 +912,7 @@ function snapshotAggregateRow(data: LedgerData): SalesAggregateRow {
     partnerName: data.partnerName,
     salesTotal: data.salesTotal ?? '0',
     paymentTotal: data.paymentTotal ?? '0',
+    adjustmentTotal: data.adjustmentTotal ?? '0',
     receivableBalance: data.closingBalance ?? data.lines.at(-1)?.balance ?? data.openingBalance ?? '0',
     periodFrom: data.periodFrom,
     periodTo: data.periodTo,

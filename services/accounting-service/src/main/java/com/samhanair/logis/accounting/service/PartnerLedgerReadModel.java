@@ -14,12 +14,13 @@ public record PartnerLedgerReadModel(List<Partner> partners, Partner selected) {
 
     public record Partner(UUID partnerId, String partnerCode, String partnerName, String businessNumber,
                           List<Document> documents, BigDecimal salesTotal, BigDecimal paymentTotal,
-                          BigDecimal openingBalance, BigDecimal receivableBalance) {
+                          BigDecimal openingBalance, BigDecimal receivableBalance,
+                          BigDecimal adjustmentTotal) {
         public Partner(UUID partnerId, String partnerCode, String partnerName, String businessNumber,
                        List<Document> documents, BigDecimal salesTotal, BigDecimal paymentTotal,
                        BigDecimal receivableBalance) {
             this(partnerId, partnerCode, partnerName, businessNumber, documents, salesTotal,
-                    paymentTotal, BigDecimal.ZERO, receivableBalance);
+                    paymentTotal, BigDecimal.ZERO, receivableBalance, BigDecimal.ZERO);
         }
 
         public Partner {
@@ -28,6 +29,7 @@ public record PartnerLedgerReadModel(List<Partner> partners, Partner selected) {
             paymentTotal = paymentTotal == null ? BigDecimal.ZERO : paymentTotal;
             openingBalance = openingBalance == null ? BigDecimal.ZERO : openingBalance;
             receivableBalance = receivableBalance == null ? BigDecimal.ZERO : receivableBalance;
+            adjustmentTotal = adjustmentTotal == null ? BigDecimal.ZERO : adjustmentTotal;
         }
     }
 
