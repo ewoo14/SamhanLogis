@@ -173,7 +173,7 @@ public class ProductService {
      * Internal endpoint 전용 경로 (slip-service ProductClient 가 호출).
      *
      * @param modelName 정확 매칭할 모델명
-     * @return ProductSummaryResponse (id/name/modelName/categoryId/sellingPrice/status)
+     * @return ProductSummaryResponse (id/name/modelName/specification/categoryId/sellingPrice/status)
      * @throws BusinessException(NOT_FOUND) 매칭 제품 없음
      */
     @Transactional(readOnly = true)

@@ -94,7 +94,6 @@ export function TransferFormPage() {
     onSuccess: () => navigate('/transfers'),
   })
 
-  const addLine = () => setLines((ls) => [...ls, emptyLine()])
   const removeLine = (idx: number) =>
     setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, i) => i !== idx)))
   const updateLine = (idx: number, patch: Partial<TransferLineDraft>, fromUser = false) => {
@@ -299,10 +298,6 @@ export function TransferFormPage() {
             </Button>
           </div>
         ))}
-        <Button variant="secondary" size="sm" onClick={addLine}>
-          + 라인 추가
-        </Button>
-
         {errorMessage ? (
           <div className="error-banner" role="alert" style={{ marginTop: 16 }}>
             {errorMessage}

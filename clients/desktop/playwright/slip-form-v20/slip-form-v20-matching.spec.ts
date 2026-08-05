@@ -243,8 +243,8 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
       timeout: 20000,
     })
     await expect(
-      page.getByRole('button', { name: '+ 라인 추가' }),
-      '전표 작성 화면 로드 실패 — "+ 라인 추가" 버튼 미표시',
+      page.getByRole('heading', { name: '새 판매전표' }),
+      '전표 작성 화면 로드 실패 — 제목 미표시',
     ).toBeVisible({ timeout: 15000 })
 
     const deliveryField = page.locator(CREATE_FORM_FIELDS.deliveryAddress)
@@ -357,7 +357,7 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
       timeout: 20000,
     })
     await expect(
-      page.getByRole('button', { name: '+ 라인 추가' }),
+      page.getByRole('heading', { name: '새 판매전표' }),
       '전표 작성 화면 로드 실패',
     ).toBeVisible({ timeout: 15000 })
 

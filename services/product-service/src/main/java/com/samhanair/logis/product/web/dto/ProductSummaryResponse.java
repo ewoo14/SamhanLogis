@@ -23,6 +23,7 @@ import java.util.UUID;
  * <p>PR-B(2026-06-11) 추가 필드: usageScope/estimateCategory/usageScopeManual/displayOrder.
  * V18 이후 estimateCategory/displayOrder 는 카탈로그 DTO 전용 다중 노출 정보로 이동했으므로
  * 본 요약 DTO 의 deprecated 호환 필드는 null 을 반환한다.
+ * 품목 검색 모달의 규격 열을 채우기 위해 {@code specification} 도 함께 반환한다.
  */
 public record ProductSummaryResponse(
         UUID id,
@@ -46,7 +47,8 @@ public record ProductSummaryResponse(
         BigDecimal releasePrice,
         BigDecimal deliveryPrice,
         Boolean hasVariableDiscount,
-        String parentSetModelCode) {
+        String parentSetModelCode,
+        String specification) {
 
     /** parentSetModelCode 추가 전 canonical 호출 호환 생성자. */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
@@ -60,7 +62,7 @@ public record ProductSummaryResponse(
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, usageScope, estimateCategory, usageScopeManual, displayOrder,
                 categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
-                hasVariableDiscount, null);
+                hasVariableDiscount, null, null);
     }
 
     /**
@@ -154,7 +156,8 @@ public record ProductSummaryResponse(
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
                 p.getHasVariableDiscount(),
-                null);
+                null,
+                p.getSpecification());
     }
 
     /** 내부 소비자가 구성품의 레거시 세트 매칭명을 함께 보존할 때 사용하는 변환. */
@@ -165,7 +168,8 @@ public record ProductSummaryResponse(
                 base.sellingPrice(), base.status(), base.serialManaged(), base.goods(), base.modelCode(),
                 base.productType(), base.usageScope(), base.estimateCategory(), base.usageScopeManual(),
                 base.displayOrder(), base.categoryKey(), base.fixedDiscountRate(), base.discountFlags(),
-                base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode);
+                base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode,
+                base.specification());
     }
 
     /**

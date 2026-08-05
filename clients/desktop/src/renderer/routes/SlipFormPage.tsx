@@ -659,11 +659,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   // ── 라인 조작 핸들러 ─────────────────────────────────────
 
-  const addLine = () => {
-    const next = emptyLine()
-    setLines((ls) => [...ls, next])
-  }
-
   /**
    * 마지막 행이 이 편집으로 실제로 바뀌었으면(H2) 빈 행을 정확히 하나만 덧붙인다.
    *
@@ -1579,9 +1574,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             >
               {stockButtonLabel}
             </Button>
-            <Button variant="primary" size="sm" onClick={addLine}>
-              + 라인 추가
-            </Button>
           </div>
           {/* 자동 증식은 현재 입력 포커스를 유지하고, 추가 사실만 한 번 낭독한다. */}
           <span
@@ -1655,7 +1647,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       label=""
                       ariaLabel={`라인 ${idx + 1} 품목`}
                       placeholder="모델명 또는 품목명"
-                      resultSelectionMode={null}
+                      resultSelectionMode="single"
                       debounceMs={250}
                     />
                   }
@@ -1733,7 +1725,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                           label=""
                           ariaLabel={`라인 ${idx + 1} 품목`}
                           placeholder="모델명 또는 품목명"
-                          resultSelectionMode={null}
+                          resultSelectionMode="single"
                           debounceMs={250}
                         />
                       }

@@ -879,12 +879,15 @@ export function EstimateFormPage() {
         (line) => Boolean(line.productId),
       ).length
       const providerLineCount = nextProvider.items.toArray().length
-      // 슬1은 협업 중 라인 추가/삭제를 잠가 index seed-lock 을 유지한다.
-      // provider 라인수와 서버 라인수가 다르면(구조 변화) server-wins full-seed 한다.
-      if (nextProvider.isEmpty()
-        || providerLineCount !== serverLineCount) {
+      // 서버 응답은 trailing 빈행을 하나만 만들지만, Y.Doc에는 사용자가 이미 입력을
+      // 시작한 미저장 행이 그보다 여러 개 존재할 수 있다. provider가 서버 기준보다
+      // 앞선 경우를 구조 불일치로 오인해 full-seed하면 다른 참가자 진입/재연결 때
+      // 미저장 입력을 잃는다. 비어 있거나 서버보다 뒤처진 문서만 서버 seed로 복구하고,
+      // 앞선 Y.Doc은 협업 문서의 현재 상태로 보존한다.
+      if (nextProvider.isEmpty() || providerLineCount < serverLineCount) {
         seedEstimateCoeditProvider(nextProvider, estimate)
-      } else if (coeditLineIdsAreStale(nextProvider, knownServerLineIds)) {
+      } else if (providerLineCount === serverLineCount
+        && coeditLineIdsAreStale(nextProvider, knownServerLineIds)) {
         // 라인수는 같은데 lineId 가 전부 클라 랜덤 UUID(lineId seed 이전 구 Y.Doc) — 그대로 두면
         // 전 라인이 신규로 강등돼 계보가 소실되고 계보 보유 견적이면 BE requireLineIdContract 가
         // 400(R8-FE-9). ⚠️ 전표 R8 회귀와 동일: full-seed 는 원격 헤더/셀 편집을 파괴하므로
@@ -1219,11 +1222,6 @@ export function EstimateFormPage() {
       return next
     })
   }
-  const addLine = () => setLines((prev) => {
-    const next = [...prev, emptyLine()]
-    linesRef.current = next
-    return next
-  })
   const removeLine = (index: number) => {
     setLines((prev) => {
       const target = prev[index]
@@ -2087,15 +2085,6 @@ export function EstimateFormPage() {
 
         {!isReadOnly ? (
           <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={addLine}
-              disabled={coeditActive}
-              data-testid="estimate-form-add-line"
-            >
-              + 라인 추가
-            </Button>
             {!isMobile && canViewProductLookups ? (
               <Button
                 variant="ghost"

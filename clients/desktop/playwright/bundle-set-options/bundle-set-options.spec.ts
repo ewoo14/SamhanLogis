@@ -62,7 +62,7 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
     waitUntil: 'domcontentloaded',
   })
   await expect(
-    page.getByRole('button', { name: '+ 라인 추가' }),
+    page.getByRole('heading', { name: '새 판매전표' }),
   ).toBeVisible({ timeout: 15_000 })
 }
 
@@ -189,7 +189,6 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
     await page.getByTestId('bundle-options-0-material-included').check()
 
     // 라인 2: SINGLE 품목
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
     await selectProduct(page, 2, 'AJ040', /AJ040RXH4BC1/)
 
     // 저장
@@ -293,7 +292,6 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
     await expect(productInput(page, 1)).toHaveValue('SET-HM2WAY')
 
     // 라인 2: SINGLE 품목
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
     await selectProduct(page, 2, 'AJ040', /AJ040RXH4BC1/)
     await expect(productInput(page, 2)).toHaveValue('AJ040RXH4BC1')
 

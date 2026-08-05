@@ -307,6 +307,10 @@ function estimateUnitPrice(index = 0): HTMLInputElement {
   return screen.getByTestId(`estimate-coedit-items-${index}-unitPrice`) as HTMLInputElement
 }
 
+function estimateQuantity(index = 0): HTMLInputElement {
+  return screen.getByTestId(`estimate-coedit-items-${index}-quantity`) as HTMLInputElement
+}
+
 function estimateModel(index = 0): HTMLInputElement {
   return screen.getByTestId(`estimate-coedit-items-${index}-modelName`) as HTMLInputElement
 }
@@ -548,6 +552,46 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     ])
   })
 
+  it('R23 RED-B4 다른 참가자 진입 시 Y.Doc의 미저장 입력 행을 보존한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.__setRows([
+      {
+        modelName: 'MODEL-1',
+        productName: '제품 1',
+        specification: '스펙 1',
+        quantity: '2',
+        unitPrice: '11000',
+        productId: 'product-1',
+      },
+      {
+        modelName: 'DRAFT-1',
+        productName: '미저장 제품 1',
+        specification: '미저장 스펙 1',
+        quantity: '1',
+        unitPrice: '100',
+        productId: 'draft-product-1',
+      },
+      {
+        modelName: 'DRAFT-2',
+        productName: '미저장 제품 2',
+        specification: '미저장 스펙 2',
+        quantity: '1',
+        unitPrice: '200',
+        productId: 'draft-product-2',
+      },
+    ])
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).not.toHaveBeenCalled()
+    expect((screen.getByTestId('estimate-coedit-items-1-modelName') as HTMLInputElement).value).toBe('DRAFT-1')
+    expect((screen.getByTestId('estimate-coedit-items-2-modelName') as HTMLInputElement).value).toBe('DRAFT-2')
+  })
+
   it('newEstimate_autofillsRememberedPrice', async () => {
     mocks.lookupProductByModelName.mockResolvedValue({
       productId: 'product-new',
@@ -712,8 +756,9 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     }], failedProductIds: [] })
     renderPage()
 
-    await waitFor(() => expect((screen.getByTestId('estimate-form-add-line') as HTMLButtonElement).disabled).toBe(false))
-    fireEvent.click(screen.getByTestId('estimate-form-add-line'))
+    await waitFor(() => expect(estimateQuantity()).toBeTruthy())
+    fireEvent.change(estimateQuantity(), { target: { value: '3' } })
+    await waitFor(() => expect(estimateModel(1)).toBeTruthy())
     fireEvent.change(estimateModel(1), { target: { value: 'MODEL-SESSION' } })
     fireEvent.blur(estimateModel(1))
     await waitFor(() => expect(estimateUnitPrice(1).value).toBe('44000'))

@@ -31,7 +31,7 @@ export interface ProductOption {
   modelCode?: string
   /** 품목 유형 (선택) — "SINGLE" | "BUNDLE". BUNDLE 이면 세트 옵션 노출. */
   productType?: string
-  /** 규격 (선택). 현재 검색 API가 생략하는 경우 모달에서 —로 표시한다. */
+  /** 규격 (선택). ProductSummaryResponse가 제공하는 실제 규격을 모달에 표시한다. */
   specification?: string | null
 }
 

@@ -11,7 +11,7 @@ const EPSILON = 1
 
 async function gotoSlipNewPage(page: Page, requireDesktopLineTable = false): Promise<void> {
   await page.goto('/#/sales/new?mockRole=MANAGER', { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('button', { name: '+ 라인 추가' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: '새 판매전표' })).toBeVisible({ timeout: 15_000 })
   if (requireDesktopLineTable) {
     await expect(page.locator('.sfp-line-table')).toBeVisible()
   }

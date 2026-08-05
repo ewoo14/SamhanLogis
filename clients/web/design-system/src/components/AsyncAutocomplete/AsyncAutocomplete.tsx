@@ -210,7 +210,6 @@ function AsyncAutocompleteInner<T>(
       setDraft('')
     }
     setActiveIndex(-1)
-    setCommitted(value === null)
     latestSeq.current = ++instanceSeq.current
     setSearchState({ candidates: [], resolvedQuery: '' })
     setStatus('idle')

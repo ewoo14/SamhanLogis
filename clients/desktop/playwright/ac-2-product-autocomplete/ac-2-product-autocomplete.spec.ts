@@ -78,9 +78,9 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/#/sales/new?mockRole=MANAGER`, {
     waitUntil: 'domcontentloaded',
   })
-  // 페이지 로드 완료 확인 — "새 출고전표" 또는 "라인 추가" 버튼 기다림
+  // 페이지 로드 완료 확인 — 신규 판매전표 제목 대기
   await expect(
-    page.getByRole('button', { name: '+ 라인 추가' }),
+    page.getByRole('heading', { name: '새 판매전표' }),
   ).toBeVisible({ timeout: 15_000 })
 }
 
@@ -266,9 +266,6 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
   test('시나리오 7: 멀티라인 — 라인1·라인2 각각 독립 품목 선택 (per-instance seq)', async ({ page }) => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
-
-    // 라인 추가 → 라인 2 생성
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
 
     // 라인 1: AJ040 검색 후 선택
     const input1 = page.getByRole('combobox', { name: /라인 1 품목/ })

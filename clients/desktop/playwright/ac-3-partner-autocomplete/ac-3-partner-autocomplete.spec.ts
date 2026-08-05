@@ -70,9 +70,9 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/#/sales/new?mockRole=MANAGER`, {
     waitUntil: 'domcontentloaded',
   })
-  // 페이지 로드 완료 확인 — "+ 라인 추가" 버튼 대기
+  // 페이지 로드 완료 확인 — 신규 판매전표 제목 대기
   await expect(
-    page.getByRole('button', { name: '+ 라인 추가' }),
+    page.getByRole('heading', { name: '새 판매전표' }),
   ).toBeVisible({ timeout: 15_000 })
 }
 

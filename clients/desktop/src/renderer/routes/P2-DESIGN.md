@@ -335,7 +335,7 @@
 | `estimate-form-date-input` | 작성일 `<input type="date">` |
 | `estimate-form-valid-until-input` | 유효기간 `<input type="date">` |
 | `estimate-form-note-input` | 비고 `<input>` |
-| `estimate-form-add-line-button` | [+ 행 추가] `<button>` |
+| (없음) | 마지막 행에 값을 입력하면 자동으로 빈 행이 생성됨 |
 | `estimate-form-line-{uid}-model` | 모델코드 행 input |
 | `estimate-form-line-{uid}-qty` | 수량 행 input |
 | `estimate-form-line-{uid}-unit-price` | 단가 행 input |

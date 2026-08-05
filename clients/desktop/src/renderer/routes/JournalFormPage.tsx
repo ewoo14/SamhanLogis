@@ -387,8 +387,6 @@ export function JournalFormPage() {
         : prev
     })
   }
-  const addLine = () => setLines((prev) => [...prev, emptyLine()])
-
   const createMutation = useMutation({
     mutationFn: (body: CreateJournalRequest) => createJournal(body),
     onSuccess: (created) => {
@@ -619,12 +617,6 @@ export function JournalFormPage() {
             </div>
           </>
         )}
-
-        <div style={{ marginTop: 12 }}>
-          <Button variant="ghost" size="sm" onClick={addLine}>
-            + 라인 추가
-          </Button>
-        </div>
 
         {/* 합계 표시 */}
         {isMobile ? (
