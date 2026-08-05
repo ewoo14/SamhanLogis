@@ -68,6 +68,81 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await page.screenshot({ path: test.info().outputPath('03-new-filled-next-blank.png'), fullPage: true })
   })
 
+  test('견적 후보 모달을 취소하면 blur lookup 없이 미확정 draft를 버린다', async ({ page }) => {
+    await page.goto('/#/sales/estimates/new?mockRole=MASTER', {
+      waitUntil: 'domcontentloaded',
+    })
+
+    await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
+    const partner = page.getByRole('combobox', { name: '거래처 검색' })
+    await partner.fill('삼')
+    const partnerOptions = page.getByRole('listbox', { name: '거래처 목록' }).locator('li[id^="ds-aac-list-"]')
+    await expect(partnerOptions.first()).toBeVisible({ timeout: 10_000 })
+    await partner.press('ArrowDown')
+    await partner.press('Enter')
+
+    const model = page.getByTestId('estimate-form-line-0').getByRole('combobox', { name: '라인 1 모델명' })
+    await model.fill('AJ')
+    const dialog = page.getByRole('dialog', { name: '품목 검색 결과' })
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: '취소' }).click()
+    await expect(dialog).toBeHidden()
+    await page.waitForTimeout(250)
+
+    // 취소 직후 검색 draft 자체는 모달 복원 계약상 남을 수 있지만, 확정 품목·단가는 비어야 한다.
+    await expect(page.getByRole('textbox', { name: '라인 1 품목명' })).toHaveValue('')
+    await expect(page.getByRole('textbox', { name: '라인 1 단가' })).toHaveValue('0')
+  })
+
+  test('견적 확정 품목을 삭제하고 blur하면 공란을 유지한다', async ({ page }) => {
+    await page.goto('/#/sales/estimates/new?mockRole=MASTER', {
+      waitUntil: 'domcontentloaded',
+    })
+
+    await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
+    const partner = page.getByRole('combobox', { name: '거래처 검색' })
+    await partner.fill('삼')
+    const partnerOptions = page.getByRole('listbox', { name: '거래처 목록' }).locator('li[id^="ds-aac-list-"]')
+    await expect(partnerOptions.first()).toBeVisible({ timeout: 10_000 })
+    await partner.press('ArrowDown')
+    await partner.press('Enter')
+
+    const model = page.getByTestId('estimate-form-line-0').getByRole('combobox', { name: '라인 1 모델명' })
+    await model.fill('AJ040')
+    await expect(model).toHaveValue('AJ040RXH4BC1', { timeout: 10_000 })
+    await model.click()
+    await model.press('Control+A')
+    await model.press('Delete')
+    await model.blur()
+    await page.waitForTimeout(250)
+
+    await expect(model).toHaveValue('')
+    await expect(page.getByRole('textbox', { name: '라인 1 품목명' })).toHaveValue('')
+  })
+
+  test('provider 실패 폴백과 분리된 자동 빈행 계약은 원문 단정을 유지한다', async ({ page }) => {
+    await page.goto('/#/sales/estimates/new?mockRole=MASTER', {
+      waitUntil: 'domcontentloaded',
+    })
+
+    await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
+    const partner = page.getByRole('combobox', { name: '거래처 검색' })
+    await partner.fill('삼')
+    const partnerOptions = page.getByRole('listbox', { name: '거래처 목록' }).locator('li[id^="ds-aac-list-"]')
+    await expect(partnerOptions.first()).toBeVisible({ timeout: 10_000 })
+    await partner.press('ArrowDown')
+    await partner.press('Enter')
+
+    for (let index = 0; index < 3; index += 1) {
+      const model = page.getByTestId(`estimate-form-line-${index}`).getByRole('combobox', { name: `라인 ${index + 1} 모델명` })
+      await model.fill('AJ040')
+      await expect(model).toHaveValue('AJ040RXH4BC1', { timeout: 10_000 })
+    }
+
+    await expect(page.getByTestId('estimate-form-line-3')).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(4)
+  })
+
   test('견적 편집 provider 연결 중에는 trailing 빈행 구조 추가를 잠근다', async ({ page }) => {
     await page.goto('/#/sales/estimates/est-001/edit?mockRole=MASTER', {
       waitUntil: 'domcontentloaded',

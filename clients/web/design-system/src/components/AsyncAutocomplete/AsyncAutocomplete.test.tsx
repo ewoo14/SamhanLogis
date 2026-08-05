@@ -9,6 +9,38 @@ interface Option {
 }
 
 describe('AsyncAutocomplete', () => {
+  it('결과 모달로 이동하는 blur에서는 소비자 exact lookup을 호출하지 않는다', async () => {
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
+      { id: 'first', label: 'AJ 첫 품목' },
+      { id: 'second', label: 'AJ 둘째 품목' },
+    ])
+    const onInputBlur = vi.fn()
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={vi.fn()}
+        onInputBlur={onInputBlur}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        resultSelectionMode="single"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AJ' } })
+    await screen.findByRole('dialog', { name: '검색 결과 선택' })
+    fireEvent.blur(input)
+
+    expect(onInputBlur).not.toHaveBeenCalled()
+  })
+
   it('모달 취소 직후 검색어는 남지만 필드 왕복 후에는 정리된다', async () => {
     const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
       { id: 'first', label: 'AJ 첫 품목' },

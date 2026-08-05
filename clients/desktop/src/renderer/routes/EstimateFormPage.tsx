@@ -1479,7 +1479,35 @@ export function EstimateFormPage() {
 
   const handleProductSelection = (index: number, product: ProductOption | null) => {
     const line = linesRef.current[index]
-    if (!line || !product || !isCoeditLineValueEditable(line)) return
+    if (!line || !isCoeditLineValueEditable(line)) return
+    if (!product) {
+      const hadAutoPrice = isAutoPriceSource(line.priceSource)
+      const nextLine: Partial<DraftLine> = {
+        productId: null,
+        modelName: '',
+        productName: '',
+        productType: null,
+        catalogUnitPrice: null,
+        priceMemoryUpdatedAt: null,
+        priceRefreshChanged: false,
+        partnerRefreshEligible: false,
+        lookupError: null,
+        lookupLoading: false,
+        priceSource: hadAutoPrice ? null : line.priceSource,
+        unitPrice: hadAutoPrice ? '0' : line.unitPrice,
+      }
+      selectedProductRef.current.delete(line.uid)
+      updateLine(index, nextLine, true)
+      try {
+        estimateFormCoeditProvider?.setItemValue(index, 'modelName', '')
+        estimateFormCoeditProvider?.setItemValue(index, 'productName', '')
+        estimateFormCoeditProvider?.setItemValue(index, 'productId', '')
+        if (hadAutoPrice) estimateFormCoeditProvider?.setItemValue(index, 'unitPrice', '0')
+      } catch {
+        // Product clear remains local if the coedit provider is already unmounting.
+      }
+      return
+    }
     updateLine(index, {
       modelName: product.modelName,
       productId: null,
@@ -1954,7 +1982,7 @@ export function EstimateFormPage() {
                   onInputCommitChange={(committed) => {
                     if (committed) return
                     if (!isCoeditLineValueEditable(line)) return
-                    updateLine(i, { productId: null, productName: '' }, true)
+                    handleProductSelection(i, null)
                   }}
                   onInputBlur={(draft) => {
                     if (!isCoeditLineValueEditable(line) || !draft.trim()) return
@@ -2047,7 +2075,7 @@ export function EstimateFormPage() {
                 onInputCommitChange={(committed) => {
                   if (committed) return
                   if (!isCoeditLineValueEditable(line)) return
-                  updateLine(i, { productId: null, productName: '' }, true)
+                  handleProductSelection(i, null)
                 }}
                 onInputBlur={(draft) => {
                   if (!isCoeditLineValueEditable(line) || !draft.trim()) return

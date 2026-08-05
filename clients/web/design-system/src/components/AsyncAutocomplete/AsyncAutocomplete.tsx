@@ -248,7 +248,10 @@ function AsyncAutocompleteInner<T>(
   )
 
   const handleBlur = (_e: FocusEvent<HTMLInputElement>) => {
-    onInputBlur?.(draft)
+    // 결과 모달을 열기 위한 blur는 아직 사용자의 확정/취소 결정 전이다.
+    // 이 시점에 소비자 exact lookup을 시작하면 취소 뒤에도 값이 확정된다.
+    const movingToSelectionModal = preserveDraftOnNextFocusRef.current
+    if (!movingToSelectionModal) onInputBlur?.(draft)
     if (blurTimer.current !== undefined) {
       window.clearTimeout(blurTimer.current)
     }
