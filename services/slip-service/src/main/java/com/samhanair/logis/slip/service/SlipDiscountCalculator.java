@@ -17,10 +17,40 @@ public class SlipDiscountCalculator {
         return lines.stream().map(line -> calculated.getOrDefault(line.lineId(), line.listPrice())).toList();
     }
 
+    public Calculation calculateDetailed(String partnerCode, List<Line> lines) {
+        DiscountPriceClient.CalculationResult result = client.calculateDetailed(partnerCode, lines);
+        String info;
+        if (!result.available()) {
+            info = "DC 미적용: 가격계산 조회 실패, 입력 단가로 저장";
+        } else if (result.appliedRates().isEmpty()) {
+            info = "DC 없음: 정가 저장";
+        } else {
+            info = result.appliedRates().entrySet().stream()
+                    .map(entry -> {
+                        Line line = lines.stream().filter(candidate -> candidate.lineId().equals(entry.getKey()))
+                                .findFirst().orElse(null);
+                        String source = line != null && line.fixedDiscountRate() != null ? "고정DC" : "전역DC";
+                        return source + " " + entry.getValue().stripTrailingZeros().toPlainString() + "%";
+                    })
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining(", ", "DC 적용: ", ""));
+        }
+        return new Calculation(lines.stream()
+                .map(line -> result.prices().getOrDefault(line.lineId(), line.listPrice()))
+                .toList(), info);
+    }
+
     public record Line(String lineId, String category, BigDecimal listPrice,
                        BigDecimal fixedDiscountRate, int quantity) {
+        public boolean hasVariableDiscount() {
+            return fixedDiscountRate == null;
+        }
+
         public String modelCode() {
             return lineId;
         }
+    }
+
+    public record Calculation(List<BigDecimal> prices, String discountInfo) {
     }
 }

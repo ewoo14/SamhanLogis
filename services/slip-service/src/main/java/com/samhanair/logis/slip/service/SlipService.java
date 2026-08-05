@@ -282,10 +282,14 @@ public class SlipService {
                         summary == null ? null : summary.fixedDiscountRate(), line.quantity()));
             }
         }
-        List<BigDecimal> calculatedPrices = discountLines.isEmpty()
-                ? req.lines().stream().map(CreateSlipRequest.SlipLineRequest::unitPrice).toList()
+        SlipDiscountCalculator.Calculation discountCalculation = discountLines.isEmpty()
+                ? new SlipDiscountCalculator.Calculation(
+                        req.lines().stream().map(CreateSlipRequest.SlipLineRequest::unitPrice).toList(),
+                        req.slipType() == SlipType.OUTBOUND && resolvedPartnerCode == null
+                                ? "DC 미적용: 거래처 코드 조회 실패, 입력 단가로 저장" : null)
                 : new SlipDiscountCalculator(discountPriceClient)
-                        .calculate(resolvedPartnerCode, discountLines);
+                        .calculateDetailed(resolvedPartnerCode, discountLines);
+        List<BigDecimal> calculatedPrices = discountCalculation.prices();
 
         List<PartnerProductPriceMemoryCommand> priceMemoryCommands = new ArrayList<>();
         for (int lineIndex = 0; lineIndex < req.lines().size(); lineIndex++) {
@@ -322,7 +326,8 @@ public class SlipService {
                 resolvedIoType, resolvedTimeDate,
                 req.customerTel(), req.customerAddress(), req.customerRepresentative(),
                 req.shippingAddress(), req.inspectionAddress(), req.receiverPhone(),
-                req.paymentDueLabel(), req.discountInfo(),
+                req.paymentDueLabel(), req.discountInfo() == null || req.discountInfo().isBlank()
+                        ? discountCalculation.discountInfo() : req.discountInfo(),
                 req.collectTerm(), req.agreeTerm());
 
         // 8. V20 — 판매/구매조회 신규 5 필드 저장

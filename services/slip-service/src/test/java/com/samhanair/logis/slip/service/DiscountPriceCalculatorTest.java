@@ -56,4 +56,22 @@ class DiscountPriceCalculatorTest {
 
         assertThat(prices).containsExactly(new BigDecimal("100000"));
     }
+
+    @Test
+    void calculationCarriesDiscountExplanationWithoutUuid() {
+        DiscountPriceClient client = mock(DiscountPriceClient.class);
+        when(client.calculateDetailed(any(), any())).thenReturn(
+                new DiscountPriceClient.CalculationResult(
+                        Map.of("0", new BigDecimal("561600")),
+                        Map.of("0", new BigDecimal("48")), true));
+
+        SlipDiscountCalculator calculator = new SlipDiscountCalculator(client);
+
+        SlipDiscountCalculator.Calculation calculation = calculator.calculateDetailed("4348703365", List.of(
+                new SlipDiscountCalculator.Line("0", "HOMEMULTI", new BigDecimal("1080000"), null, 1)));
+
+        assertThat(calculation.prices()).containsExactly(new BigDecimal("561600"));
+        assertThat(calculation.discountInfo()).contains("전역DC 48%");
+        assertThat(calculation.discountInfo()).doesNotContain("-");
+    }
 }

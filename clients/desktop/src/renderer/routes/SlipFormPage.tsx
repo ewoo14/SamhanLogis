@@ -75,6 +75,8 @@ import {
   type SlipLineInput,
   type SlipType,
 } from '../api/slip'
+import { getPartnerDcConfig } from '../api/sales'
+import type { PartnerDcConfig } from '../api/sales'
 import {
   computeUnloadDate,
   isScheduledTag,
@@ -99,6 +101,7 @@ import {
   willLineBeSaved,
   type LineIncompleteReason,
 } from '../utils/slipLineDraft'
+import { calculateSlipDiscount } from '../utils/slipDiscount'
 import {
   usePartnerPriceRefresh,
   type PartnerRepriceCandidate,
@@ -603,6 +606,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   // AC-3: 거래처 자동완성 선택 상태 (PartnerAutocomplete controlled value)
   const [selectedPartner, setSelectedPartner] = useState<PartnerOption | null>(null)
+  const [partnerDcConfig, setPartnerDcConfig] = useState<PartnerDcConfig | null>(null)
   const [priceLookupAnnouncement, setPriceLookupAnnouncement] = useState('')
   const selectedPartnerIdRef = useRef<string | null>(null)
   selectedPartnerIdRef.current = selectedPartner?.id ?? null
@@ -766,7 +770,24 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       product?.sellingPrice != null ? String(product.sellingPrice) : line.unitPrice
     // 자동채움 판정은 견적과 공용 헬퍼(shouldAutoFillPrice) — 비대칭 재발 구조 차단(R4-F1).
     const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
-    const nextUnitPrice = shouldAutoFill ? fallbackUnitPrice : line.unitPrice
+    let dcResult: ReturnType<typeof calculateSlipDiscount> | null = null
+    if (shouldAutoFill && product?.sellingPrice != null && selectedPartner?.partnerCode) {
+      const config = partnerDcConfig ?? await getPartnerDcConfig(selectedPartner.partnerCode)
+      if (!partnerDcConfig) setPartnerDcConfig(config)
+      const category = product.categoryKey === 'homemulti'
+        ? 'HOMEMULTI'
+        : product.categoryKey === 'commercialMulti'
+          ? 'COMMERCIAL_MULTI'
+          : 'OTHER'
+      dcResult = calculateSlipDiscount({
+        listPrice: Number(product.sellingPrice),
+        fixedDiscountRate: product.fixedDiscountRate,
+        category,
+      }, config)
+    }
+    const nextUnitPrice = shouldAutoFill
+      ? String(dcResult?.unitPrice ?? fallbackUnitPrice)
+      : line.unitPrice
     const partnerId = selectedPartner?.id
     const pricedLine = recalculateLineVat(asVatLine({ ...line, unitPrice: nextUnitPrice }), 'PRICE')
     const nextLine: LineDraft = {
@@ -777,6 +798,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       unitPrice: nextUnitPrice,
       priceSource: shouldAutoFill ? 'CATALOG' : line.priceSource,
       catalogUnitPrice: product?.sellingPrice != null ? String(product.sellingPrice) : line.catalogUnitPrice ?? null,
+      categoryKey: product?.categoryKey ?? null,
+      fixedDiscountRate: product?.fixedDiscountRate ?? null,
+      discountInfo: dcResult?.info ?? null,
       priceMemoryUpdatedAt: null,
       priceRefreshChanged: false,
       productType: product?.productType ?? null,
@@ -788,9 +812,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
     // 실제로 다를 때만, 그리고 마지막 행일 때만 빈 행을 증식한다.
     maybeExpandLastLine(line.id, line, nextLine)
-    if (!partnerId || !productId || !shouldAutoFill) {
+    if (!partnerId || !productId || !shouldAutoFill || dcResult) {
       if (productId && shouldAutoFill) {
-        setPriceLookupAnnouncement(`라인 ${lineNumber} 판매가 적용`)
+        setPriceLookupAnnouncement(`라인 ${lineNumber} ${dcResult?.info ?? '판매가 적용'}`)
       }
       return
     }
@@ -966,10 +990,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     partner: PartnerOption | null,
   ) => {
     setSelectedPartner(partner)
+    setPartnerDcConfig(null)
     selectedPartnerIdRef.current = partner?.id ?? null
 
     if (!partner) {
       partnerReprice.invalidate()
+      setPartnerDcConfig(null)
       setLines((current) => current.map((line) => ({
         ...line,
         lookupLoading: false,
@@ -991,6 +1017,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     }
     if (partner.id) {
       void refreshAutoPricesForPartner(partner.id)
+      void getPartnerDcConfig(partner.partnerCode).then(setPartnerDcConfig)
     }
 
     // 1단계: search summary 즉시 fill
@@ -1127,6 +1154,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                 }
               : {}),
           })),
+        discountInfo: lines
+          .filter((l) => l.productId && Number(l.quantity) > 0 && l.discountInfo)
+          .map((l) => l.discountInfo)
+          .filter((info, index, all): info is string => Boolean(info) && all.indexOf(info) === index)
+          .join(', ') || undefined,
       }
       return createSlip(payload)
     },

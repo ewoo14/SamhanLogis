@@ -33,6 +33,9 @@ export interface ProductOption {
   productType?: string
   /** 규격 (선택). ProductSummaryResponse가 제공하는 실제 규격을 모달에 표시한다. */
   specification?: string | null
+  /** 저장 전표 DC 계산용 원천값 — UUID가 아닌 가격 규칙만 전달한다. */
+  categoryKey?: string | null
+  fixedDiscountRate?: number | null
 }
 
 export interface ProductAutocompleteProps {

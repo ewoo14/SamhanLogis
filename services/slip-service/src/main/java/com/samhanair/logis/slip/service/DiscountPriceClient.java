@@ -37,13 +37,19 @@ public class DiscountPriceClient {
     /** lineId → DC 적용 단가. 미설정/장애/응답 결측은 빈 Map으로 반환한다. */
     public Map<String, BigDecimal> calculatePrices(String partnerCode,
                                                     List<SlipDiscountCalculator.Line> lines) {
+        return calculateDetailed(partnerCode, lines).prices();
+    }
+
+    /** 계산 단가와 적용율을 함께 반환한다. UUID/내부 식별자는 설명에 포함하지 않는다. */
+    public CalculationResult calculateDetailed(String partnerCode,
+                                               List<SlipDiscountCalculator.Line> lines) {
         if (partnerCode == null || partnerCode.isBlank() || lines == null || lines.isEmpty()) {
-            return Map.of();
+            return new CalculationResult(Map.of(), Map.of(), false);
         }
         String token = authProperties.getToken();
         if (token == null || token.isBlank()) {
             log.warn("전표 DC 계산 생략: internal token 미설정 (partnerCode={})", partnerCode);
-            return Map.of();
+            return new CalculationResult(Map.of(), Map.of(), false);
         }
         try {
             Map<String, Object> body = new HashMap<>();
@@ -59,19 +65,21 @@ public class DiscountPriceClient {
                     .body(new ParameterizedTypeReference<ApiResponse<PriceResult>>() {});
             if (response == null || !response.isSuccess() || response.getData() == null
                     || response.getData().lines() == null) {
-                return Map.of();
+                return new CalculationResult(Map.of(), Map.of(), false);
             }
             Map<String, BigDecimal> prices = new HashMap<>();
+            Map<String, BigDecimal> rates = new HashMap<>();
             for (PriceResult.Line line : response.getData().lines()) {
                 if (line.lineId() != null && line.finalPrice() != null) {
                     prices.put(line.lineId(), line.finalPrice());
+                    if (line.appliedRate() != null) rates.put(line.lineId(), line.appliedRate());
                 }
             }
-            return prices;
+            return new CalculationResult(prices, rates, true);
         } catch (RuntimeException ex) {
             log.warn("전표 DC 계산 실패 — 정가 저장으로 계속합니다 (partnerCode={}, reason={})",
                     partnerCode, ex.getMessage());
-            return Map.of();
+            return new CalculationResult(Map.of(), Map.of(), false);
         }
     }
 
@@ -83,12 +91,18 @@ public class DiscountPriceClient {
         item.put("category", line.category());
         item.put("quantity", line.quantity());
         item.put("fixedDiscountRate", line.fixedDiscountRate());
+        // 수기 출고전표의 고정DC 미설정 품목은 거래처 전역DC 적용 대상이다.
+        item.put("hasVariableDiscount", line.hasVariableDiscount());
         return item;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record PriceResult(List<Line> lines) {
         @JsonIgnoreProperties(ignoreUnknown = true)
-        record Line(String lineId, BigDecimal finalPrice) {}
+        record Line(String lineId, BigDecimal finalPrice, BigDecimal appliedRate) {}
     }
+
+    public record CalculationResult(Map<String, BigDecimal> prices,
+                                    Map<String, BigDecimal> appliedRates,
+                                    boolean available) {}
 }

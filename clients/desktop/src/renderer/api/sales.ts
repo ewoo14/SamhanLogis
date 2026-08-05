@@ -1189,6 +1189,18 @@ export async function updatePartnerDcConfig(
   return res.data.data
 }
 
+/** 거래처 전표 가격계산용 DC 설정 단건 조회. */
+export async function getPartnerDcConfig(partnerCode: string): Promise<PartnerDcConfig | null> {
+  try {
+    const res = await apiClient.get<ApiEnvelope<PartnerDcConfig>>(
+      `/api/v1/partner-dc-configs/${encodeURIComponent(partnerCode)}`,
+    )
+    return res.data.data ?? null
+  } catch {
+    return null
+  }
+}
+
 // ---------------------------------------------------------------------------
 // dc-config-service — 종합견적서 전역 가격 설정 (/sales/estimate-config)
 // ---------------------------------------------------------------------------
