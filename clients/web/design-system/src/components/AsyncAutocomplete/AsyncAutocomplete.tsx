@@ -164,7 +164,9 @@ function AsyncAutocompleteInner<T>(
   const previousValueKeyRef = useRef<string | null>(value ? getKey(value) : null)
   // 모달 취소 뒤 Modal의 포커스 복원은 새 검색 시작이 아니므로 draft를 유지한다.
   const preserveDraftOnNextFocusRef = useRef(false)
-  const lastTypedDraftRef = useRef('')
+  // 이번 포커스 이후 입력 이벤트가 없으면 null, 사용자가 입력했으면 draft를 보관한다.
+  // 빈 문자열도 실제 지움 이벤트의 결과이므로 포커스-only와 구별해야 한다.
+  const lastTypedDraftRef = useRef<string | null>(null)
 
   const { candidates, resolvedQuery } = searchState
 
@@ -206,7 +208,7 @@ function AsyncAutocompleteInner<T>(
     // 모달 취소 직후 포커스 복원 1회만 검색어를 보존하고, 다음 왕복부터는 정리한다.
     preserveDraftOnNextFocusRef.current = false
     if (!preserveDraft) {
-      lastTypedDraftRef.current = ''
+      lastTypedDraftRef.current = null
       setDraft('')
     }
     setActiveIndex(-1)
@@ -228,7 +230,7 @@ function AsyncAutocompleteInner<T>(
   const pick = useCallback(
     (item: T) => {
       cancelDebouncedSearch()
-      lastTypedDraftRef.current = ''
+      lastTypedDraftRef.current = null
       setCommitted(true)
       onChange(item)
       setDraft(getInputLabel(item))
@@ -269,8 +271,9 @@ function AsyncAutocompleteInner<T>(
         setSearchState({ candidates: [], resolvedQuery: '' })
         setStatus('idle')
         setErrorMsg(null)
-        lastTypedDraftRef.current = ''
-        if (value) onChange(null)
+        const wasEdited = lastTypedDraftRef.current !== null
+        lastTypedDraftRef.current = null
+        if (value && wasEdited) onChange(null)
         setDraft('')
         setCommitted(true)
         return
@@ -439,13 +442,13 @@ function AsyncAutocompleteInner<T>(
     // 동기화가 아니라 현재 draft의 결과이므로, surface/draft를 닫거나 덮어쓰면
     // 첫 글자와 검색어가 사라진다. blur에서 실제 onChange(null)이 오기 전까지
     // 진행 중 검색을 그대로 보존한다.
-    if (nextKey === null && lastTypedDraftRef.current !== '') {
+    if (nextKey === null && lastTypedDraftRef.current !== null) {
       previousValueKeyRef.current = nextKey
       return
     }
 
     previousValueKeyRef.current = nextKey
-    lastTypedDraftRef.current = ''
+    lastTypedDraftRef.current = null
     cancelDebouncedSearch()
     if (blurTimer.current !== undefined) {
       window.clearTimeout(blurTimer.current)
@@ -537,7 +540,7 @@ function AsyncAutocompleteInner<T>(
 
   const closeSelection = useCallback((preserveDraft: boolean) => {
     preserveDraftOnNextFocusRef.current = preserveDraft
-    if (preserveDraft) setDraft(lastTypedDraftRef.current)
+    if (preserveDraft) setDraft(lastTypedDraftRef.current ?? '')
     setSelectionOpen(false)
     setSelectionCandidates([])
     closeSearchSurface({ resetDraft: !preserveDraft })
