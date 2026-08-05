@@ -1332,8 +1332,19 @@ export function EstimateFormPage() {
     }
 
     try {
-      const result = selectedProductRef.current.get(line.uid) ?? await lookupProductByModelName(modelName)
+      const rawResult = selectedProductRef.current.get(line.uid) ?? await lookupProductByModelName(modelName)
       selectedProductRef.current.delete(line.uid)
+      // 공용 ProductOption(id/sellingPrice:number/specification)과 레거시 lookup
+      // 응답(productId/sellingPrice:string)을 여기서만 견적 내부 계약으로 정규화한다.
+      // 후보 선택을 레거시 lookup처럼 처리하면 id가 productId로 승격되지 않고 규격도 유실된다.
+      const result = {
+        productId: 'productId' in rawResult ? rawResult.productId : rawResult.id,
+        modelName: rawResult.modelName,
+        productName: rawResult.productName,
+        specification: 'specification' in rawResult ? rawResult.specification : null,
+        sellingPrice: String(rawResult.sellingPrice ?? ''),
+        productType: rawResult.productType,
+      }
       const currentAfterProductLookup = linesRef.current.find((current) => current.uid === line.uid)
       if (!currentAfterProductLookup || !isProductBindCurrent(currentAfterProductLookup)) {
         finishStaleRequest()
@@ -1391,6 +1402,7 @@ export function EstimateFormPage() {
         modelName: result.modelName || current.modelName,
         productId: result.productId,
         productName: result.productName,
+        specification: result.specification ?? current.specification,
         productType: result.productType ?? 'SINGLE',
         catalogUnitPrice: result.sellingPrice,
         unitPrice: applyPrice ? nextUnitPrice : current.unitPrice,
@@ -1416,6 +1428,7 @@ export function EstimateFormPage() {
         try {
           estimateFormCoeditProvider.setItemValue(currentIndex, 'modelName', result.modelName)
           estimateFormCoeditProvider.setItemValue(currentIndex, 'productName', result.productName)
+          estimateFormCoeditProvider.setItemValue(currentIndex, 'specification', result.specification ?? '')
           if (applyPrice) {
             localAutoPriceWritesRef.current.set(line.uid, {
               unitPrice: nextUnitPrice,

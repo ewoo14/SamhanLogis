@@ -38,20 +38,33 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
   })
 
-  test('견적 수정 화면은 처음부터 trailing 빈행을 두고, 확정 후 다음 빈행을 만든다', async ({ page }) => {
-    await page.goto('/#/sales/estimates/est-001/edit?mockRole=MASTER', {
+  test('견적 신규 화면은 trailing 빈행을 두고, 후보 확정 후 다음 빈행을 만든다', async ({ page }) => {
+    await page.goto('/#/sales/estimates/new?mockRole=MASTER', {
       waitUntil: 'domcontentloaded',
     })
 
     await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByTestId('estimate-form-line-1')).toBeVisible()
-    await expect(page.getByTestId('estimate-form-line-2')).toBeVisible()
-    await page.screenshot({ path: test.info().outputPath('02-edit-open-trailing-blank.png'), fullPage: true })
-    await page.getByTestId('estimate-form-line-2-model').fill('AJ040RXH4BC1')
-    await page.getByTestId('estimate-form-line-2-model').blur()
-    await expect(page.getByTestId('estimate-form-line-3')).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(4)
+    const partner = page.getByRole('combobox', { name: '거래처 검색' })
+    await partner.fill('삼')
+    const partnerOptions = page.getByRole('listbox', { name: '거래처 목록' }).locator('li[id^="ds-aac-list-"]')
+    await expect(partnerOptions.first()).toBeVisible({ timeout: 10_000 })
+    await partner.press('ArrowDown')
+    await partner.press('Enter')
+    await page.screenshot({ path: test.info().outputPath('02-new-open-trailing-blank.png'), fullPage: true })
+    const lineModel = page.getByTestId('estimate-form-line-0').getByRole('combobox', { name: '라인 1 모델명' })
+    await lineModel.click()
+    await lineModel.fill('AJ')
+    const productDialog = page.getByRole('dialog', { name: '품목 검색 결과' })
+    await expect(productDialog).toBeVisible({ timeout: 10_000 })
+    await productDialog.getByRole('radio').first().check()
+    await productDialog.getByRole('button', { name: '선택 확정' }).click()
+    await expect(page.getByTestId('estimate-form-line-1')).toBeVisible({ timeout: 10_000 })
+    await expect(lineModel).toHaveValue('AJ040RXH4BC1')
+    // 현재 mock 후보의 규격 값은 데이터 fixture에 따라 공란일 수 있으므로,
+    // 현재 사용자 계약인 규격 입력 surface가 확정 라인에 유지되는지 단정한다.
+    await expect(page.getByRole('textbox', { name: '라인 1 규격' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: '라인 1 단가' })).toHaveValue('1850000')
 
-    await page.screenshot({ path: test.info().outputPath('03-edit-filled-next-blank.png'), fullPage: true })
+    await page.screenshot({ path: test.info().outputPath('03-new-filled-next-blank.png'), fullPage: true })
   })
 })

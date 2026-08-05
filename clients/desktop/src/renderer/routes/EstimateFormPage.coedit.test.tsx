@@ -384,6 +384,41 @@ beforeEach(() => {
 })
 
 describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
+  it('RED-A: 공용 ProductOption 확정은 id·모델명·품목명·규격·단가를 저장 라인에 보존한다', async () => {
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.searchProducts.mockResolvedValue([{
+      id: '44444444-4444-4444-4444-444444444444',
+      modelName: 'AJ040RXH4BC1',
+      productName: '시스템에어컨 4Way 4HP',
+      specification: '냉방 4HP',
+      sellingPrice: 1850000,
+    }])
+
+    renderPage('/sales/estimates/new')
+    const model = await screen.findByLabelText('라인 1 모델명')
+    fireEvent.change(model, { target: { value: 'AJ040' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-modelName') as HTMLInputElement).value).toBe('AJ040RXH4BC1'))
+    expect((screen.getByTestId('estimate-coedit-items-0-productName') as HTMLInputElement).value).toBe('시스템에어컨 4Way 4HP')
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe('냉방 4HP')
+    expect((screen.getByTestId('estimate-coedit-items-0-unitPrice') as HTMLInputElement).value).toBe('1850000')
+    fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
+    const saveButton = screen.getByTestId('estimate-form-save-button') as HTMLButtonElement
+    await waitFor(() => expect(saveButton.disabled).toBe(false))
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(mocks.createEstimate).toHaveBeenCalledWith(expect.objectContaining({
+      lines: [expect.objectContaining({
+        productId: '44444444-4444-4444-4444-444444444444',
+        modelName: 'AJ040RXH4BC1',
+        specification: '냉방 4HP',
+        unitPrice: '1850000',
+      })],
+    })))
+  })
+
   it('RED-B: 부분 모델 검색은 공용 품목 결과 모달의 규격·단가 후보를 사용한다', async () => {
     mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
     mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
