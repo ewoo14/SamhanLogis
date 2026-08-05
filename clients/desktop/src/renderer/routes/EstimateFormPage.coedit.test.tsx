@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { EstimateDetail } from '../api/estimateApi'
+import { markEstimateRestoreFence } from '../utils/estimateRestoreFence'
 
 const mocks = vi.hoisted(() => ({
   getEstimate: vi.fn(),
@@ -318,6 +319,7 @@ function estimateModel(index = 0): HTMLInputElement {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  window.sessionStorage.clear()
 })
 
 beforeEach(() => {
@@ -486,6 +488,24 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
   })
 
+  it('R28 읽기 전용 견적은 서버 확정행만 hydrate하고 trailing 빈행을 만들지 않는다', async () => {
+    const base = makeEstimate().lines[0]
+    mocks.getEstimate.mockResolvedValue(makeEstimate({
+      status: 'QUOTE_CONVERTED',
+      lines: [
+        base,
+        { ...base, id: 'line-2', productId: 'product-2', modelName: 'MODEL-2', productName: '제품 2' },
+      ],
+    }))
+
+    renderPage()
+
+    await screen.findByText('이 견적서는 수락/거절/변환되어 더 이상 수정할 수 없습니다.')
+    expect(screen.getByTestId('estimate-form-line-0')).not.toBeNull()
+    expect(screen.getByTestId('estimate-form-line-1')).not.toBeNull()
+    expect(screen.queryByTestId('estimate-form-line-2')).toBeNull()
+  })
+
   it('모델 lookup 성공 시 productName/unitPrice/productId 를 provider 에도 동기화한다', async () => {
     const provider = makeProvider()
     mocks.getEstimate.mockResolvedValue(makeEstimate())
@@ -634,6 +654,27 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(provider.replaceItems).not.toHaveBeenCalled()
     expect((screen.getByTestId('estimate-coedit-items-1-modelName') as HTMLInputElement).value).toBe('DRAFT-1')
     expect((screen.getByTestId('estimate-coedit-items-2-modelName') as HTMLInputElement).value).toBe('DRAFT-2')
+  })
+
+  it('R28 복원 fence가 있으면 marker 없는 stale Y.Doc도 서버 복원 결과로 재시드한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.__setRows([
+      { lineId: 'line-1', modelName: 'MODEL-STALE', productName: '복원 전 제품', productId: 'stale-product' },
+      { lineId: 'line-old', modelName: 'MODEL-OLD', productName: '삭제된 제품', productId: 'old-product' },
+    ])
+    markEstimateRestoreFence('estimate-1', 2)
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ version: 2 }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).toHaveBeenCalledWith([
+      expect.objectContaining({ modelName: 'MODEL-1', productName: '제품 1' }),
+      expect.objectContaining({ modelName: '', productName: '', productId: '' }),
+    ])
+    expect(window.sessionStorage.getItem('samhan:estimate-restore-version:estimate-1')).toBeNull()
   })
 
   it('newEstimate_autofillsRememberedPrice', async () => {

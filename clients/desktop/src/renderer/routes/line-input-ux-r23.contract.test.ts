@@ -25,6 +25,17 @@ describe('R23 line input contracts', () => {
       .toContain('ensureTrailingBlankRow(next, emptyRow, isConfirmed)')
   })
 
+  it('R28 읽기 전용 hydrate와 legacy 복원 fence의 경계를 유지한다', () => {
+    const estimate = route('EstimateFormPage.tsx')
+    const history = readFileSync(
+      resolve(process.cwd(), 'src/renderer/components/audit/EstimateVersionHistoryPanel.tsx'),
+      'utf8',
+    )
+    expect(estimate).toContain('const readOnlyEstimate = e.status !== \'QUOTE_DRAFT\' && e.status !== \'QUOTE_SENT\'')
+    expect(estimate).toContain('consumeEstimateRestoreFence(editId, serverVersion)')
+    expect(history).toContain('markEstimateRestoreFence(estimateId, restored.version)')
+  })
+
   it('R23 RED-B2 판매·구매 신규 전표 두 자동완성 모두 다건 모달을 사용한다', () => {
     const source = route('SlipFormPage.tsx')
     expect(source).not.toContain('resultSelectionMode={null}')

@@ -133,9 +133,9 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
   })
 
   // ──────────────────────────────────────────────────────────
-  // 시나리오 3: 후보 클릭 선택 → modelName 입력란 반영
+  // 시나리오 3: 단일 후보 즉시 확정 → modelName 입력란 반영
   // ──────────────────────────────────────────────────────────
-  test('시나리오 3: 후보 클릭 선택 → 입력란에 modelName 표시', async ({ page }) => {
+  test('시나리오 3: 단일 후보 즉시 확정 → 입력란에 modelName 반영', async ({ page }) => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
 
@@ -143,19 +143,9 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ040')
 
-    const listbox = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox).toBeVisible({ timeout: 5_000 })
-
-    // AJ040RXH4BC1 옵션 클릭
-    const option = listbox.getByRole('option', { name: /AJ040RXH4BC1/ })
-    await expect(option).toBeVisible()
-    await option.click()
-
-    // 선택 후 입력란에 modelName 표시
-    await expect(input).toHaveValue('AJ040RXH4BC1')
-
-    // listbox 닫힘
-    await expect(listbox).not.toBeVisible()
+    // 단일 후보는 목록 표시/클릭 없이 즉시 확정된다.
+    await expect(input).toHaveValue('AJ040RXH4BC1', { timeout: 5_000 })
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
   })
 
   // ──────────────────────────────────────────────────────────
@@ -194,10 +184,8 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ040')
 
-    const listbox = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox).toBeVisible({ timeout: 5_000 })
-
-    await listbox.getByRole('option', { name: /AJ040RXH4BC1/ }).click()
+    await expect(input).toHaveValue('AJ040RXH4BC1', { timeout: 5_000 })
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
 
     // 단가 input — 라인 1 단가 (aria-label "라인 1 단가")
     const priceInput = page.getByRole('textbox', { name: '라인 1 단가' })
@@ -255,19 +243,15 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     const input1 = page.getByRole('combobox', { name: /라인 1 품목/ })
     await input1.click()
     await input1.fill('AJ040')
-    const listbox1 = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox1).toBeVisible({ timeout: 5_000 })
-    await listbox1.getByRole('option', { name: /AJ040RXH4BC1/ }).click()
     await expect(input1).toHaveValue('AJ040RXH4BC1')
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
 
     // 라인 2: AJ052 검색 후 선택 (라인1 seq 오염 없이 독립 동작)
     const input2 = page.getByRole('combobox', { name: /라인 2 품목/ })
     await input2.click()
     await input2.fill('AJ052')
-    const listbox2 = page.getByRole('listbox', { name: '품목 목록' })
-    await expect(listbox2).toBeVisible({ timeout: 5_000 })
-    await listbox2.getByRole('option', { name: /AJ052RXH5BC1/ }).click()
     await expect(input2).toHaveValue('AJ052RXH5BC1')
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
 
     // 라인 1 값 유지 확인
     await expect(input1).toHaveValue('AJ040RXH4BC1')

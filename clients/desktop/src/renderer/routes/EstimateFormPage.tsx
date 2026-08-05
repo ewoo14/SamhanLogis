@@ -66,6 +66,7 @@ import {
   resolveServerLineId,
   toServerLineIdSet,
 } from '../realtime/coeditLineIds'
+import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { BundleOptionRow } from './components/BundleOptionRow'
 
@@ -795,11 +796,11 @@ export function EstimateFormPage() {
     setEstimateDate(e.estimateDate)
     setValidUntil(e.validUntil ?? '')
     setMemo(e.memo ?? '')
-    const draftLines = ensureTrailingBlankRow(
-      toDraftLinesFromEstimate(e),
-      emptyLine,
-      (line) => Boolean(line.productId),
-    )
+    const hydratedLines = toDraftLinesFromEstimate(e)
+    const readOnlyEstimate = e.status !== 'QUOTE_DRAFT' && e.status !== 'QUOTE_SENT'
+    const draftLines = readOnlyEstimate
+      ? hydratedLines
+      : ensureTrailingBlankRow(hydratedLines, emptyLine, (line) => Boolean(line.productId))
     linesRef.current = draftLines
     setLines(draftLines)
     setHydratedEstimateId(editId ?? null)
@@ -885,6 +886,7 @@ export function EstimateFormPage() {
       const providerServerVersion = nextProvider.getHeaderValue(ESTIMATE_SERVER_VERSION_HEADER)
       const serverVersionChanged = providerServerVersion !== ''
         && providerServerVersion !== serverVersion
+      const restoreFenceMatched = consumeEstimateRestoreFence(editId, serverVersion)
       // 서버 응답은 trailing 빈행을 하나만 만들지만, Y.Doc에는 사용자가 이미 입력을
       // 시작한 미저장 행이 그보다 여러 개 존재할 수 있다. provider가 서버 기준보다
       // 앞선 경우를 구조 불일치로 오인해 full-seed하면 다른 참가자 진입/재연결 때
@@ -893,7 +895,7 @@ export function EstimateFormPage() {
       // 버전 복원은 서버 version을 바꾸므로, 그때만 stale-ahead 문서를 server seed로
       // 수렴시킨다. 이 marker가 없던 구 문서는 미저장 입력 보존을 우선해 그대로 읽고
       // 현재 세대를 기록한다.
-      if (nextProvider.isEmpty() || providerLineCount < serverLineCount || serverVersionChanged) {
+      if (nextProvider.isEmpty() || providerLineCount < serverLineCount || serverVersionChanged || restoreFenceMatched) {
         seedEstimateCoeditProvider(nextProvider, estimate)
       } else if (providerLineCount === serverLineCount
         && coeditLineIdsAreStale(nextProvider, knownServerLineIds)) {

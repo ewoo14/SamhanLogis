@@ -65,6 +65,8 @@ export interface ProductAutocompleteProps {
   debounceMs?: number
   /** 여러 후보를 별도 선택 모달로 보낼지 여부. null 이면 인라인 listbox 를 유지한다. */
   resultSelectionMode?: SearchResultSelectionMode | null
+  /** 후보가 정확히 1건이면 즉시 확정한다. 기본값은 품목 입력의 일반 UX 계약인 true. */
+  autoSelectSingleResult?: boolean
 }
 
 export interface ProductMultiSelectAutocompleteProps {
@@ -152,6 +154,7 @@ export const ProductAutocomplete = forwardRef<
     label = '품목',
     placeholder = '모델명 또는 품목명 입력…',
     resultSelectionMode = 'single',
+    autoSelectSingleResult = true,
     ...rest
   },
   ref,
@@ -185,6 +188,7 @@ export const ProductAutocomplete = forwardRef<
       resultSelectionMode={resultSelectionMode ?? undefined}
       resultSelectionTitle="품목 검색 결과"
       resultSelectionColumns={productResultColumns}
+      autoSelectSingleResult={autoSelectSingleResult}
       {...rest}
     />
   )

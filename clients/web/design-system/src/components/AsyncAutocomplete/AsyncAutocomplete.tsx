@@ -343,18 +343,19 @@ function AsyncAutocompleteInner<T>(
         // stale 응답 — 더 최신 요청이 발행됐으면 버림
         if (latestSeq.current !== seq) return
         // 후보와 그 후보를 만든 검색어를 원자적으로 갱신한다.
-        // ProductMultiSelectAutocomplete의 기존 단일 후보 즉시 칩 계약은 유지한다.
-        // 그 외에는 정확 입력·키보드 선택·기존 클릭 사용자 흐름을 자동선택으로
-        // 바꾸지 않도록 1건은 dropdown에 남긴다. 모달 계약은 2건 이상일 때만 적용한다.
-        if (
-          autoSelectSingleResult &&
-          resultSelectionMode === 'multiple' &&
-          onResultsConfirmed &&
-          results.length === 1
-        ) {
-          onResultsConfirmed(results)
-          closeSearchSurface({ resetDraft: true })
-          return
+        // autoSelectSingleResult가 켜진 wrapper는 단일 후보를 즉시 확정한다.
+        // 꺼진 일반 AsyncAutocomplete은 정확 입력·키보드 선택·기존 클릭 사용자 흐름을
+        // 유지하며 1건을 dropdown에 남긴다. 모달 계약은 2건 이상일 때만 적용한다.
+        if (autoSelectSingleResult && results.length === 1) {
+          if (resultSelectionMode === 'multiple' && onResultsConfirmed) {
+            onResultsConfirmed(results)
+            closeSearchSurface({ resetDraft: true })
+            return
+          }
+          if (resultSelectionMode !== 'multiple') {
+            pick(results[0]!)
+            return
+          }
         }
         if (resultSelectionMode && results.length > 1) {
           setSelectionCandidates(results)
@@ -493,6 +494,12 @@ function AsyncAutocompleteInner<T>(
   }, [cancelDebouncedSearch, disabled, selectedLabel, setCommitted])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // 확정값에 focus하면 화면 draft를 비워 둔다. 이 상태에서 Backspace/Delete는
+    // 브라우저가 값 변경 input을 만들지 않으므로, 실제 삭제 의도를 별도로 기록해야
+    // focus-only blur(null sentinel)과 구분할 수 있다(R28 B).
+    if (value && e.currentTarget.value === '' && (e.key === 'Backspace' || e.key === 'Delete')) {
+      lastTypedDraftRef.current = ''
+    }
     if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
     if (!open) return
     const candidatesAreFresh = draft.trim() === resolvedQuery

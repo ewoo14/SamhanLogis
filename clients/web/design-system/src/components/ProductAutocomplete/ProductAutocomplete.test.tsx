@@ -19,6 +19,7 @@ describe('ProductAutocomplete', () => {
         searchProducts={searchProducts}
         ariaLabel="품목"
         debounceMs={0}
+        autoSelectSingleResult={false}
       />,
     )
 
@@ -49,6 +50,7 @@ describe('ProductAutocomplete', () => {
         searchProducts={searchProducts}
         ariaLabel="품목"
         debounceMs={0}
+        autoSelectSingleResult={false}
       />,
     )
 
@@ -85,6 +87,7 @@ describe('ProductAutocomplete', () => {
         searchProducts={searchProducts}
         ariaLabel="품목"
         debounceMs={0}
+        autoSelectSingleResult={false}
       />,
     )
 
@@ -124,6 +127,35 @@ describe('ProductAutocomplete', () => {
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith(product))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('option', { name: /검색 중/ })).toBeNull()
+  })
+
+  it('일반 품목 검색의 단일 후보는 dropdown에 남지 않고 즉시 확정한다', async () => {
+    const product: ProductOption = {
+      id: 'product-single',
+      modelName: 'AJ040RXH4BC1',
+      productName: '시스템에어컨 4Way 4HP',
+    }
+    const onChange = vi.fn()
+    const searchProducts = vi.fn<(query: string) => Promise<ProductOption[]>>()
+      .mockResolvedValue([product])
+
+    render(
+      <ProductAutocomplete
+        value={null}
+        onChange={onChange}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AJ040' } })
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(product))
+    expect(input.value).toBe(product.modelName)
+    expect(screen.queryByRole('option')).toBeNull()
   })
 
   it('복수 모드에서 결과 2건 이상은 UUID 없이 모달에서 복수 확정한다', async () => {

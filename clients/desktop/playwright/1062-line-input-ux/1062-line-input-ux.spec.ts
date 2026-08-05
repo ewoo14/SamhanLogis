@@ -33,16 +33,9 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await dialog.getByRole('button', { name: '취소' }).click()
     await expect(dialog).toBeHidden()
     await input.fill('AJ040RXH4BC1')
-    const dropdown = page.getByRole('listbox', { name: '품목 목록' })
-    const option = dropdown.getByRole('option').first()
-    await expect(option).toContainText('AJ040RXH4BC1')
-    await expect(option).toContainText('시스템에어컨 4Way 4HP')
-    const layout = await option.evaluate((element) => ({
-      clientWidth: element.clientWidth,
-      scrollWidth: element.scrollWidth,
-    }))
-    expect(layout.clientWidth).toBeGreaterThan(0)
-    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
+    // 단일 후보는 R29에서 목록을 거치지 않고 즉시 확정된다.
+    await expect(input).toHaveValue('AJ040RXH4BC1')
+    await expect(page.getByRole('listbox', { name: '품목 목록' })).not.toBeVisible()
   })
 
   test('견적 수정 화면은 처음부터 trailing 빈행을 두고, 확정 후 다음 빈행을 만든다', async ({ page }) => {

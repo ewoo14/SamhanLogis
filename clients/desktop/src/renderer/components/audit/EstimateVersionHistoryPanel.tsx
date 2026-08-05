@@ -27,6 +27,7 @@ import {
   type EstimateRevisionType,
 } from '../../api/estimateRevision'
 import { type EstimateStatus } from '../../api/estimateApi'
+import { markEstimateRestoreFence } from '../../utils/estimateRestoreFence'
 
 export interface EstimateVersionHistoryPanelProps {
   /** 견적서 UUID — react-query 키 + API path 전용 (화면 노출 X). */
@@ -117,7 +118,8 @@ export function EstimateVersionHistoryPanel({
 
   const restoreMutation = useMutation({
     mutationFn: (revisionNo: number) => restoreRevision(estimateId, revisionNo),
-    onSuccess: (_restored, revisionNo) => {
+    onSuccess: (restored, revisionNo) => {
+      markEstimateRestoreFence(estimateId, restored.version)
       setRestoreTarget(null)
       void queryClient.invalidateQueries({ queryKey: ['estimate', estimateId] })
       void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', estimateId] })

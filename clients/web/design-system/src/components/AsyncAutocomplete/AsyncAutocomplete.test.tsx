@@ -747,6 +747,45 @@ describe('AsyncAutocomplete', () => {
     expect(input.value).toBe('')
   })
 
+  it.each(['Backspace', 'Delete'])('R28 B 확정값을 바로 %s로 지우고 blur하면 선택을 해제한다', async (key) => {
+    const selected: Option = { id: 'selected', label: '확정 품목' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    function ControlledAutocomplete() {
+      const [value, setValue] = useState<Option | null>(selected)
+      return (
+        <AsyncAutocomplete<Option>
+          value={value}
+          onChange={(next) => {
+            onChange(next)
+            setValue(next)
+          }}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.label}</span>}
+          listboxLabel="품목 목록"
+          ariaLabel="품목"
+        />
+      )
+    }
+
+    render(<ControlledAutocomplete />)
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    expect(input.value).toBe('')
+    fireEvent.keyDown(input, { key })
+    fireEvent.blur(input)
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 140))
+    })
+
+    expect(onChange).toHaveBeenCalledWith(null)
+    expect(input.value).toBe('')
+  })
+
   it('R27 A3 확정값 위에 AJ를 입력하면 AJ가 첫 글자부터 유지된다', () => {
     const selected: Option = { id: 'selected', label: '확정 품목' }
     const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
@@ -804,6 +843,36 @@ describe('AsyncAutocomplete', () => {
 
     expect(input.value).toBe('AJ')
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('R28 단일 후보 자동확정은 단일 선택에서도 값을 확정한다', async () => {
+    const only: Option = { id: 'only', label: '유일 품목' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([only])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '유일' } })
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(only))
+    expect(input.value).toBe(only.label)
+    expect(screen.queryByRole('option')).toBeNull()
   })
 
   it('R23 RED-A2 후보 1건은 단일 선택 모달 없이 종전 listbox 선택을 유지한다', async () => {
