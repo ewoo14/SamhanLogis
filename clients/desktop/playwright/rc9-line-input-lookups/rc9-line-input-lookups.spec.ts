@@ -149,7 +149,7 @@ test.describe('RC9 라인 입력 lookup mock runtime', () => {
     await page.reload({ waitUntil: 'domcontentloaded' })
 
     await expect(page.getByTestId('sidebar-sales-estimates')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByRole('heading', { name: '견적서 작성' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('header-page-title')).toHaveText('견적서 작성', { timeout: 15_000 })
     await expect(page.getByTestId('estimate-line-lookup-btn')).toHaveCount(0)
   })
 })

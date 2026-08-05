@@ -61,9 +61,9 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/#/sales/new?mockRole=MANAGER`, {
     waitUntil: 'domcontentloaded',
   })
-  await expect(
-    page.getByRole('heading', { name: '새 판매전표' }),
-  ).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', {
+    timeout: 15_000,
+  })
 }
 
 /** 라인 N 품목 combobox. */

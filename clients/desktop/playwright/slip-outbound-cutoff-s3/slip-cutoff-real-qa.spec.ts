@@ -308,7 +308,7 @@ test.describe('B. 마감 게이트 인과 증명', () => {
 
     // 신규 출고전표 페이지로 이동
     await page.goto(`${BASE_URL}/#/sales/new`, { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: '새 판매전표' })).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', { timeout: 20_000 })
     await page.waitForTimeout(1500)
 
     await capture(page, 'B1-new-slip-form-loaded.png')

@@ -11,7 +11,7 @@ const EPSILON = 1
 
 async function gotoSlipNewPage(page: Page, requireDesktopLineTable = false): Promise<void> {
   await page.goto('/#/sales/new?mockRole=MANAGER', { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('heading', { name: '새 판매전표' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', { timeout: 15_000 })
   if (requireDesktopLineTable) {
     await expect(page.locator('.sfp-line-table')).toBeVisible()
   }
@@ -71,7 +71,9 @@ test.describe('B1-B DS a11y/layout mock hard gate', () => {
       await expectBadgeInsideOption(await openPartnerOption(page, '1234567890'), '코드')
       await expectBadgeInsideOption(await openPartnerOption(page, '45-678'), '사업자번호')
       await expectBadgeInsideOption(await openProductOption(page, 'AJ040'), '모델명')
-      await expectBadgeInsideOption(await openProductOption(page, '에어컨'), '품목명')
+      // R23 이후 2건 이상 품목 검색은 표 modal로 전환되므로, inline badge 경로는
+      // 단일 결과의 고유 품목명 검색으로 검증한다.
+      await expectBadgeInsideOption(await openProductOption(page, '10HP'), '품목명')
     }
   })
 

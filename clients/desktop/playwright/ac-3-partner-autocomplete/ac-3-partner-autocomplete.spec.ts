@@ -70,10 +70,10 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/#/sales/new?mockRole=MANAGER`, {
     waitUntil: 'domcontentloaded',
   })
-  // 페이지 로드 완료 확인 — 신규 판매전표 제목 대기
-  await expect(
-    page.getByRole('heading', { name: '새 판매전표' }),
-  ).toBeVisible({ timeout: 15_000 })
+  // 페이지 로드 완료 확인 — AppLayout의 고유 페이지 제목 대기
+  await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', {
+    timeout: 15_000,
+  })
 }
 
 /**

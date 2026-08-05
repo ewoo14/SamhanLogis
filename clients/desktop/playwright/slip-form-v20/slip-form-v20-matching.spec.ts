@@ -243,9 +243,9 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
       timeout: 20000,
     })
     await expect(
-      page.getByRole('heading', { name: '새 판매전표' }),
+      page.getByTestId('header-page-title'),
       '전표 작성 화면 로드 실패 — 제목 미표시',
-    ).toBeVisible({ timeout: 15000 })
+    ).toHaveText('새 판매전표', { timeout: 15000 })
 
     const deliveryField = page.locator(CREATE_FORM_FIELDS.deliveryAddress)
     const supervisionField = page.locator(CREATE_FORM_FIELDS.supervisionAddress)
@@ -357,9 +357,9 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
       timeout: 20000,
     })
     await expect(
-      page.getByRole('heading', { name: '새 판매전표' }),
+      page.getByTestId('header-page-title'),
       '전표 작성 화면 로드 실패',
-    ).toBeVisible({ timeout: 15000 })
+    ).toHaveText('새 판매전표', { timeout: 15000 })
 
     // 창고 선택(필수 — canSubmit 전제) — mock GET /inventory/warehouses 5건 중 본사창고.
     const warehouseInput = page.getByRole('combobox', { name: /출고 창고/ })
