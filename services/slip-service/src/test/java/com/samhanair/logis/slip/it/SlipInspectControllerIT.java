@@ -240,6 +240,42 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
     }
 
     /**
+     * R4 RED — SALES/ACCOUNTANT 역할 템플릿 UPDATE가 없어도 검수 결재선 개인이면
+     * INSPECTING → COMPLETED 검수 POST를 수행할 수 있어야 한다.
+     */
+    @Test
+    void inspect_approvalLineMember_withoutStaticUpdatePermission_completes() throws Exception {
+        String slipId = createAndSendOutbound();
+        mockMvc.perform(post("/slips/" + slipId + "/accept")
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-User-Role", "WAREHOUSE")).andExpect(status().isOk());
+        mockMvc.perform(post("/slips/" + slipId + "/process")
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-User-Role", "WAREHOUSE")).andExpect(status().isOk());
+        mockMvc.perform(post("/slips/" + slipId + "/complete")
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-User-Role", "WAREHOUSE")).andExpect(status().isOk());
+
+        UUID approverId = UUID.randomUUID();
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(approverId),
+                        ArgumentMatchers.eq("slip.transfer.process"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        Mockito.when(approvalLineAuthorizeClient.authorize(
+                        ArgumentMatchers.eq("SLIP_OUTBOUND"),
+                        ArgumentMatchers.eq("OUTBOUND_INSPECT"),
+                        ArgumentMatchers.eq(approverId)))
+                .thenReturn(new com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult(true, true));
+
+        mockMvc.perform(post("/slips/" + slipId + "/inspect")
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+    }
+
+    /**
      * 시나리오 5 — DRAFT 상태에서 inspect 호출 시 409 CONFLICT (잘못된 상태 전이).
      * inspect 는 INSPECTING 상태에서만 허용.
      */

@@ -521,11 +521,16 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치")
     })
     @PostMapping("/{id}/inspect")
-    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> inspect(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        SlipType slipType = slipService.getOne(id).slipType();
+        SlipDetailResponse current = slipService.getOne(id);
+        SlipType slipType = current.slipType();
+        boolean approvalLineMember = slipService.isOutboundInspectApprovalMember(
+                slipType, current.status(), callerHeader);
+        if (!approvalLineMember) {
+            requireAccountPermission(callerHeader, "slip.transfer.process", PermissionAction.UPDATE);
+        }
         if (SlipType.INBOUND.equals(slipType)) {
             requireAccountPermission(callerHeader, INBOUND_INSPECTION_PAGE_CODE, PermissionAction.UPDATE);
         }

@@ -281,10 +281,11 @@ function slipStatusLabel(status: string): string {
  * status 별 가능 transition 액션 목록 (Slice A 갱신 — INSPECTING 신규).
  * OUTBOUND/INBOUND 차이 (ship/deliver 는 출고전표 한정) 는 mode 로 필터.
  */
-function actionsForStatus(
+export function actionsForStatus(
   status: SlipDetail['status'],
   mode: SlipType,
 ): SlipTransitionAction[] {
+  if (status === 'INSPECTING') return ['inspect']
   switch (status) {
     case 'DRAFT':
       return ['save', 'cancel']
@@ -295,9 +296,7 @@ function actionsForStatus(
     case 'ACCEPTED':
       return ['process', 'reject']
     case 'PROCESSING':
-      return ['inspect'] // Slice A: complete → inspect (검수 단계 거침)
-    case 'INSPECTING':
-      return ['complete'] // Slice A 신규
+      return ['complete']
     case 'COMPLETED':
       return mode === 'OUTBOUND' ? ['ship'] : ['confirm']
     case 'SHIPPING':
@@ -314,8 +313,8 @@ const ACTION_LABEL: Record<SlipTransitionAction, string> = {
   send: '전송',
   accept: '수락',
   process: '처리 시작',
-  inspect: '검수 시작', // Slice A 신규
-  complete: '처리 완료',
+  inspect: '처리 완료',
+  complete: '출고 완료',
   ship: '배송 시작',
   deliver: '배송 완료',
   confirm: '확정',
