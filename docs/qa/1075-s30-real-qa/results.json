@@ -1,0 +1,8 @@
+[
+  {
+    "scenario": "HARNESS",
+    "verdict": "PARTIAL",
+    "error": "TimeoutError: page.waitForResponse: Timeout 30000ms exceeded while waiting for event \"response\"",
+    "stack": "page.waitForResponse: Timeout 30000ms exceeded while waiting for event \"response\"\n    at waitSave (C:\\Users\\user\\AppData\\Local\\Temp\\s30-run.cjs:12:135)\n    at verifyB (C:\\Users\\user\\AppData\\Local\\Temp\\s30-run.cjs:17:368)\n    at async C:\\Users\\user\\AppData\\Local\\Temp\\s30-run.cjs:23:408"
+  }
+]

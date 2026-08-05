@@ -1,0 +1,21 @@
+{
+  "status": 200,
+  "method": "GET",
+  "url": "/api/v1/slips/lookup-product?modelName=AR09TXEAAWKNEU-04",
+  "response": {
+    "success": true,
+    "code": "OK",
+    "data": {
+      "id": "[MASKED_UUID]",
+      "name": "삼성 윈드프리 9평형",
+      "modelName": "AR09TXEAAWKNEU-04",
+      "productCode": "AR09TXEAAWKNEU-04",
+      "sellingPrice": 1080000.0,
+      "modelCode": "AR09TXEAAWKNEU-04",
+      "productType": "SINGLE",
+      "fixedDiscountRate": null,
+      "specification": "9평형 / R32 / 인버터 / 윈드프리"
+    }
+  },
+  "authentication": "Bearer [MASKED]"
+}
