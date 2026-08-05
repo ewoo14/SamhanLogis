@@ -95,6 +95,9 @@ public class NotificationRequest extends BaseEntity {
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
+    @Column(name = "dispatch_lease_until")
+    private LocalDateTime dispatchLeaseUntil;
+
     private NotificationRequest(RecipientType recipientType, UUID recipientId, String recipientAddress,
                                 NotificationChannel channel, String templateCode,
                                 String subject, String body, String payload, String idempotencyKey) {
@@ -149,6 +152,10 @@ public class NotificationRequest extends BaseEntity {
         this.status = NotificationStatus.SENT;
         this.lastAttemptedAt = LocalDateTime.now();
         this.attemptCount = this.attemptCount + 1;
+    }
+
+    public void clearDispatchLease() {
+        this.dispatchLeaseUntil = null;
     }
 
     /**

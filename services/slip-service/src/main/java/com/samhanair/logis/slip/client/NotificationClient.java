@@ -149,13 +149,16 @@ public class NotificationClient {
     /** 저장 사건별 멱등 키를 notification-service에 전달한다. */
     public boolean sendUserPushWithResult(UUID recipientUserId, String subject, String body,
                                           UUID idempotencyKey) {
-        return sendInternalWithResult(Map.of(
+        Map<String, Object> requestBody = new java.util.HashMap<>(Map.of(
                 "recipientType", "USER",
                 "recipientId", recipientUserId.toString(),
                 "channel", "PUSH",
                 "subject", safeTruncate(subject, 200),
-                "body", safeTruncate(body, 2000),
-                "idempotencyKey", idempotencyKey == null ? "" : idempotencyKey.toString()));
+                "body", safeTruncate(body, 2000)));
+        if (idempotencyKey != null) {
+            requestBody.put("idempotencyKey", idempotencyKey.toString());
+        }
+        return sendInternalWithResult(requestBody);
     }
 
     private void sendInternal(Map<String, Object> requestBody) {

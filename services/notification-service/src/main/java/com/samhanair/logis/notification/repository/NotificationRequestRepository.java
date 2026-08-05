@@ -14,6 +14,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 발송 요청 저장소 — 채널 / 상태 필터 + 수신자 별 inbox 검색. */
 @Repository
@@ -25,6 +27,19 @@ public interface NotificationRequestRepository extends JpaRepository<Notificatio
     @Query("select n from NotificationRequest n where n.idempotencyKey = :idempotencyKey")
     java.util.Optional<NotificationRequest> findByIdempotencyKeyForUpdate(
             @Param("idempotencyKey") String idempotencyKey);
+
+    @Modifying
+    @Transactional
+    @Query("""
+            update NotificationRequest n
+               set n.dispatchLeaseUntil = :leaseUntil
+             where n.id = :id
+               and n.status in (com.samhanair.logis.notification.domain.NotificationStatus.PENDING,
+                                com.samhanair.logis.notification.domain.NotificationStatus.FAILED,
+                                com.samhanair.logis.notification.domain.NotificationStatus.RETRYING)
+               and (n.dispatchLeaseUntil is null or n.dispatchLeaseUntil <= :now)
+            """)
+    int claimDispatch(UUID id, LocalDateTime now, LocalDateTime leaseUntil);
 
     List<NotificationRequest> findTop100ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
             NotificationStatus status, LocalDateTime cutoff);

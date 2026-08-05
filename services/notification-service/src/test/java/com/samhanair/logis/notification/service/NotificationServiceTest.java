@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -205,11 +207,48 @@ class NotificationServiceTest {
         assertThat(result.getAttemptCount()).isGreaterThanOrEqualTo(6);
     }
 
+    @Test
+    void concurrentSamePendingRequest_entersGatewayOnlyOnce() throws Exception {
+        NotificationDispatchPersistence persistence = mock(NotificationDispatchPersistence.class);
+        NotificationRequest pending = NotificationRequest.open(
+                RecipientType.USER, UUID.randomUUID(), null, NotificationChannel.PUSH,
+                null, "안내", "본문", null, "same-event");
+        when(persistence.prepare(any())).thenReturn(pending);
+        when(persistence.claim(any())).thenReturn(java.util.Optional.of(pending), java.util.Optional.empty());
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        AtomicInteger entries = new AtomicInteger();
+        UUID recipientId = UUID.randomUUID();
+        pushGateway.blocking = true;
+        pushGateway.firstEntered = firstEntered;
+        pushGateway.releaseFirst = releaseFirst;
+        pushGateway.entryCount = entries;
+        NotificationService concurrent = new NotificationService(
+                requestRepository, logRepository, gatewayMap, userClient,
+                null, 5, null, persistence);
+        NotificationSendRequest request = new NotificationSendRequest(
+                RecipientType.USER, recipientId, null, NotificationChannel.PUSH,
+                null, "안내", "본문", null, "same-event");
+
+        ExecutorServicePair pair = new ExecutorServicePair();
+        pair.execute(() -> concurrent.send(request));
+        assertThat(firstEntered.await(2, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        pair.execute(() -> concurrent.send(request));
+        Thread.sleep(100);
+        assertThat(entries).as("동일 PENDING gateway 동시 진입").hasValue(1);
+        releaseFirst.countDown();
+        pair.await();
+    }
+
     /** 단위 테스트용 가변 게이트웨이 — nextResult 로 success / failure 토글. */
     static class TestGateway implements NotificationGateway {
         final NotificationChannel channel;
         NotificationGatewayResult nextResult;
         int sendCount;
+        boolean blocking;
+        CountDownLatch firstEntered;
+        CountDownLatch releaseFirst;
+        AtomicInteger entryCount;
 
         TestGateway(NotificationChannel channel) {
             this.channel = channel;
@@ -223,10 +262,31 @@ class NotificationServiceTest {
         @Override
         public NotificationGatewayResult send(NotificationRequest request) {
             sendCount++;
+            if (blocking) {
+                entryCount.incrementAndGet();
+                firstEntered.countDown();
+                try {
+                    releaseFirst.await(2, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             if (nextResult != null) {
                 return nextResult;
             }
             return NotificationGatewayResult.success("test-" + request.getId(), "{\"ok\":true}");
+        }
+    }
+
+    private static final class ExecutorServicePair {
+        private final java.util.concurrent.ExecutorService executor =
+                java.util.concurrent.Executors.newFixedThreadPool(2);
+
+        void execute(Runnable task) { executor.execute(task); }
+
+        void await() throws InterruptedException {
+            executor.shutdown();
+            assertThat(executor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
         }
     }
 }

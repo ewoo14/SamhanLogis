@@ -133,6 +133,9 @@ public class NotificationService {
             if (prepared.getStatus() == NotificationStatus.SENT) {
                 return new SendResult(prepared, null);
             }
+            if (dispatchPersistence.claim(prepared).isEmpty()) {
+                return new SendResult(prepared, null);
+            }
             NotificationGatewayResult result = invokeGatewayWithResult(prepared);
             return new SendResult(dispatchPersistence.complete(prepared), result);
         }
@@ -181,6 +184,9 @@ public class NotificationService {
                         NotificationStatus.PENDING, LocalDateTime.now().minusSeconds(30));
         for (NotificationRequest request : pending) {
             try {
+                if (dispatchPersistence.claim(request).isEmpty()) {
+                    continue;
+                }
                 NotificationGatewayResult result = invokeGatewayWithResult(request);
                 dispatchPersistence.complete(request);
                 log.info("[NotificationService] PENDING 복구 완료 requestId={} status={}",

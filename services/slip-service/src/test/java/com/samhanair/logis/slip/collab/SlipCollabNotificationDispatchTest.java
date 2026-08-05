@@ -140,4 +140,53 @@ class SlipCollabNotificationDispatchTest {
                 .getBytes(StandardCharsets.UTF_8));
         org.mockito.Mockito.verify(client).sendUserPushWithResult(recipientId, "subject", "body", expectedKey);
     }
+
+    @Test
+    void unresolvedRecipient_isTerminalAndVisibleInsteadOfRetryingForever() {
+        SlipCollabNotificationOutboxRepository repository = mock(SlipCollabNotificationOutboxRepository.class);
+        UserIdResolver resolver = mock(UserIdResolver.class);
+        when(resolver.resolve("system")).thenReturn(Optional.empty());
+        SlipCollabNotificationOutbox row = SlipCollabNotificationOutbox.create(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "system", "subject", "body");
+        when(repository.findById(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(row));
+        SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
+                repository, resolver, mock(NotificationClient.class));
+
+        service.deliver(row);
+
+        assertThat(readField(row, "status").toString()).isEqualTo("TERMINAL");
+        assertThat(readField(row, "terminalReason")).isEqualTo("RECIPIENT_UNRESOLVED");
+        org.mockito.Mockito.verify(repository).save(row);
+    }
+
+    @Test
+    void transientNotificationFailure_remainsRetryableBeforeTerminalLimit() {
+        SlipCollabNotificationOutboxRepository repository = mock(SlipCollabNotificationOutboxRepository.class);
+        UserIdResolver resolver = mock(UserIdResolver.class);
+        NotificationClient client = mock(NotificationClient.class);
+        UUID recipientId = UUID.randomUUID();
+        when(resolver.resolve("recipient")).thenReturn(Optional.of(recipientId));
+        when(client.sendUserPushWithResult(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(false);
+        SlipCollabNotificationOutbox row = SlipCollabNotificationOutbox.create(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "recipient", "subject", "body");
+        when(repository.findById(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(row));
+        SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
+                repository, resolver, client);
+
+        service.deliver(row);
+
+        assertThat(readField(row, "status").toString()).isEqualTo("PENDING");
+    }
+
+    private static Object readField(Object target, String name) {
+        try {
+            java.lang.reflect.Field field = target.getClass().getDeclaredField(name);
+            field.setAccessible(true);
+            return field.get(target);
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
 }

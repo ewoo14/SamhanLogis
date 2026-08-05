@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 public class SlipCollabNotificationOutboxService {
+    private static final int MAX_DELIVERY_ATTEMPTS = 5;
     private final SlipCollabNotificationOutboxRepository repository;
     private final UserIdResolver userIdResolver;
     private final NotificationClient notificationClient;
@@ -64,12 +65,17 @@ public class SlipCollabNotificationOutboxService {
     protected void deliver(SlipCollabNotificationOutbox row) {
         try {
             Optional<UUID> recipient = userIdResolver.resolve(row.getRawRecipient());
-            boolean sent = false;
-            if (recipient.isPresent() && !recipient.get().equals(row.getEditorId())) {
-                sent = notificationClient.sendUserPushWithResult(
+            if (recipient.isEmpty()) {
+                finishTerminal(row.getId(), "RECIPIENT_UNRESOLVED");
+                return;
+            }
+            if (recipient.get().equals(row.getEditorId())) {
+                finishTerminal(row.getId(), "RECIPIENT_IS_EDITOR");
+                return;
+            }
+            boolean sent = notificationClient.sendUserPushWithResult(
                         recipient.get(), row.getSubject(), row.getBody(),
                         stableIdempotencyKey(row.getEventId(), recipient.get()));
-            }
             finish(row.getId(), sent);
         } catch (RuntimeException ex) {
             log.warn("[SlipCollab] durable 알림 전달 실패 — outboxId={}", row.getId(), ex);
@@ -80,7 +86,17 @@ public class SlipCollabNotificationOutboxService {
     @Transactional
     protected void finish(UUID id, boolean sent) {
         repository.findById(id).ifPresent(row -> {
-            if (sent) row.markSent(); else row.markRetry();
+            if (sent) row.markSent();
+            else if (row.getAttempts() + 1 >= MAX_DELIVERY_ATTEMPTS) row.markTerminal("GATEWAY_RETRY_LIMIT");
+            else row.markRetry();
+            repository.save(row);
+        });
+    }
+
+    @Transactional
+    protected void finishTerminal(UUID id, String reason) {
+        repository.findById(id).ifPresent(row -> {
+            row.markTerminal(reason);
             repository.save(row);
         });
     }

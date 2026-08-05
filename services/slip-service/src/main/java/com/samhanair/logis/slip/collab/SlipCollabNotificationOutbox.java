@@ -21,7 +21,7 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "slip_collab_notification_outbox")
 @SQLRestriction("is_deleted = false")
 public class SlipCollabNotificationOutbox extends BaseEntity {
-    public enum Status { PENDING, SENDING, SENT }
+    public enum Status { PENDING, SENDING, SENT, TERMINAL }
 
     @Id @GeneratedValue @UuidGenerator
     @Column(name = "id", nullable = false, updatable = false)
@@ -37,6 +37,7 @@ public class SlipCollabNotificationOutbox extends BaseEntity {
     private Status status = Status.PENDING;
     @Column(name = "attempts", nullable = false) private int attempts;
     @Column(name = "next_attempt_at", nullable = false) private LocalDateTime nextAttemptAt = LocalDateTime.now();
+    @Column(name = "terminal_reason", length = 100) private String terminalReason;
 
     protected SlipCollabNotificationOutbox() { }
 
@@ -72,4 +73,8 @@ public class SlipCollabNotificationOutbox extends BaseEntity {
     public void markSending() { status = Status.SENDING; nextAttemptAt = LocalDateTime.now().plusSeconds(30); }
     public void markSent() { status = Status.SENT; }
     public void markRetry() { status = Status.PENDING; attempts++; nextAttemptAt = LocalDateTime.now().plusSeconds(Math.min(60L, 1L << Math.min(attempts, 6))); }
+    public void markTerminal(String reason) { status = Status.TERMINAL; terminalReason = reason; nextAttemptAt = LocalDateTime.now(); }
+    public Status getStatus() { return status; }
+    public String getTerminalReason() { return terminalReason; }
+    public int getAttempts() { return attempts; }
 }

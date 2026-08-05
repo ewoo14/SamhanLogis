@@ -52,6 +52,7 @@ class NotificationClientTest {
                 .andExpect(jsonPath("$.recipientType").value("USER"))
                 .andExpect(jsonPath("$.recipientId").value(RECIPIENT_ID.toString()))
                 .andExpect(jsonPath("$.channel").value("PUSH"))
+                .andExpect(jsonPath("$.idempotencyKey").doesNotExist())
                 .andRespond(withSuccess());
 
         client.sendUserSms(RECIPIENT_ID, "sms", "body");
