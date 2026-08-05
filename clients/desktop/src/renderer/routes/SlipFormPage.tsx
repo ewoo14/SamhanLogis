@@ -103,6 +103,7 @@ import {
 } from '../utils/slipLineDraft'
 import { calculateSlipDiscount } from '../utils/slipDiscount'
 import {
+  partnerRepriceSessionIsCurrent,
   usePartnerPriceRefresh,
   withPriceLookupTimeout,
   type PartnerRepriceCandidate,
@@ -970,7 +971,13 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // 같은 거래처가 A→B→A로 재선택된 경우도 이전 요청 세대로부터 격리한다.
     if (selectedPartnerIdRef.current !== partnerId || dcRequestSeqRef.current !== requestSeq) return
     const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates, discountConfig)
-    if (!isCurrent()) return
+    if (!partnerRepriceSessionIsCurrent(
+      requestSeq,
+      dcRequestSeqRef.current,
+      partnerId,
+      selectedPartnerIdRef.current ?? '',
+      isCurrent(),
+    )) return
     const outcomeById = new Map(outcomes.map((outcome) => [outcome.key, outcome]))
     setLines((current) =>
       current.map((candidate) => {
@@ -1059,12 +1066,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setSelectedPartner(partner)
     setPartnerDcConfig(null)
     selectedPartnerIdRef.current = partner?.id ?? null
+    // 거래처를 고른 즉시 직전 거래처의 DC/최근단가 세션을 stale 처리한다.
+    // 새 DC가 끝나 새 bulk run을 시작하기 전에도 늦은 직전 outcome이 적용되지 않아야 한다.
+    partnerReprice.invalidate(partner?.id ?? null)
     // 거래처 교체/무효화 직후 이전 요청의 busy 표시를 먼저 제거한다. 새 후보가 있으면
     // refreshAutoPricesForPartner 가 다시 true 로 올리고, 실패/무응답이면 timeout 경로가 내린다.
     setLines((current) => current.map((line) => ({ ...line, lookupLoading: false })))
 
     if (!partner) {
-      partnerReprice.invalidate()
       setPartnerDcConfig(null)
       setLines((current) => current.map((line) => ({
         ...line,

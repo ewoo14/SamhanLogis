@@ -97,6 +97,7 @@ vi.mock('@samhan/design-system', () => ({
         data-product-id={props.line.productId ?? ''}
         data-price-source={props.line.priceSource ?? ''}
         data-discount-info={props.line.discountInfo ?? ''}
+        data-lookup-loading={String(props.line.lookupLoading ?? false)}
         data-partner-selected={String(props.partnerSelected ?? '')}
         data-excluded-from-save={String(props.excludedFromSave ?? '')}
       >
@@ -399,6 +400,49 @@ describe('SlipFormPage price memory autofill', () => {
       await first.promise
     })
     expect(unitPrice().value).toBe('222000')
+  })
+
+  it('does not apply a prior partner bulk result while the newly selected partner DC is pending', async () => {
+    const pendingPreviousPartnerBulk = deferred<{
+      hits: Array<{ productId: string; unitPrice: number; source: string; updatedAt: string }>
+      failedProductIds: string[]
+    }>()
+    const pendingCurrentPartnerDc = deferred<null>()
+    let partnerACallCount = 0
+    harness.getPartnerDcConfig.mockImplementation((partnerCode: string) => {
+      if (partnerCode === harness.partnerA.partnerCode) {
+        partnerACallCount += 1
+        return partnerACallCount >= 3 ? pendingCurrentPartnerDc.promise : Promise.resolve(null)
+      }
+      return Promise.resolve({
+        partnerCode,
+        companyName: harness.partnerB.name,
+        homeMultiDc: '45%',
+        commercialMultiDc: null,
+      })
+    })
+    harness.getPriceMemories.mockReturnValueOnce(pendingPreviousPartnerBulk.promise)
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
+
+    await selectPartnerB()
+    await waitFor(() => expect(harness.getPriceMemories).toHaveBeenCalledWith(harness.partnerB.id, [harness.productA.id]))
+
+    await selectPartnerA()
+    expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
+
+    await act(async () => {
+      pendingPreviousPartnerBulk.resolve({ hits: [], failedProductIds: [] })
+      await pendingPreviousPartnerBulk.promise
+    })
+
+    expect(unitPrice().value).toBe(harness.productA.sellingPrice)
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info')).toBe('')
+    expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
+    expect(screen.getByTestId('slip-price-refresh-banner').textContent).toBe('')
   })
 
   it('ignores a late response when the same line changes to another product', async () => {
