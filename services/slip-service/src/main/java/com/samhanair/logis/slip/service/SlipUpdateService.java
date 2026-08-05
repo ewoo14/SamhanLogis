@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
+import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
@@ -44,6 +45,7 @@ public class SlipUpdateService {
     private final SlipAuditLogService auditLogService;
     private final SlipRevisionService slipRevisionService;
     private final PartnerProductPriceMemoryService priceMemoryService;
+    private final ProductClient productClient;
 
     /**
      * 매입 전표 헤더와 라인을 전체 교체한다.
@@ -74,6 +76,9 @@ public class SlipUpdateService {
         verifyVersion(slip, request.updatedAt());
         // validateLines 는 BusinessException(SLIP_UPDATE_INVALID_LINE) 을 던지므로 try 외부에서 처리
         validateLines(request.lines());
+        BundleProductGuard.rejectParents(productClient, request.lines().stream()
+                .map(SlipUpdateRequest.LineRequest::productId)
+                .toList());
         validateLineIds(slip.getLines(), request.lines());
 
         String before = summarize(slip);

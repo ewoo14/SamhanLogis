@@ -67,7 +67,7 @@ class SlipUpdateLineIdContractTest {
     private final ProductClient productClient = mock(ProductClient.class);
 
     private final SlipUpdateService purchaseUpdateService = new SlipUpdateService(
-            slipRepository, auditLogService, revisionService, priceMemoryService);
+            slipRepository, auditLogService, revisionService, priceMemoryService, productClient);
     private final SalesSlipUpdateService salesUpdateService = new SalesSlipUpdateService(
             slipRepository, auditLogService, revisionService, priceMemoryService, productClient);
 
