@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class PartnerLedgerCollectionContractTest {
@@ -82,5 +83,25 @@ class PartnerLedgerCollectionContractTest {
         assertThat(totals.closingBalance()).isEqualByComparingTo("750");
         assertThat(totals.closingBalance()).isEqualByComparingTo(
                 totals.openingBalance().add(totals.salesTotal()).subtract(totals.paymentTotal()));
+    }
+
+    @Test
+    void canonicalAccountCodesUseFullEffectButOnlyAttributedAmount() {
+        var classified = PartnerLedgerCollectionContract.classify(List.of(
+                new PartnerLedgerCollectionContract.Evidence(
+                        "payment-ecount", DAY, "MANUAL", null, "1089",
+                        BigDecimal.ZERO, new BigDecimal("33000"), false, false,
+                        BigDecimal.ZERO, new BigDecimal("33000")),
+                new PartnerLedgerCollectionContract.Evidence(
+                        "payment-ecount", DAY, "MANUAL", null, "2519",
+                        BigDecimal.ZERO, BigDecimal.ZERO, false, false,
+                        new BigDecimal("33000"), BigDecimal.ZERO)),
+                Set.of("110", "1089"), Set.of("401", "4019"));
+
+        assertThat(classified).singleElement().satisfies(document -> {
+            assertThat(document.effect()).isEqualTo(PartnerLedgerContract.Effect.PAYMENT);
+            assertThat(document.amount()).isEqualByComparingTo("33000");
+            assertThat(document.credit()).isEqualByComparingTo("33000");
+        });
     }
 }
