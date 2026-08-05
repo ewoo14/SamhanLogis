@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -49,6 +50,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,6 +71,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -440,6 +447,29 @@ class SlipCollabIT extends AbstractPostgresIT {
     }
 
     /**
+     * 외부 알림은 저장 transaction 이 아직 끝나지 않은 시점에는 발화하지 않는다.
+     * 테스트 transaction 이 롤백되므로 커밋되지 않은 변경의 phantom 알림도 없어야 한다.
+     */
+    @Test
+    void commitEdit_doesNotNotifyBeforeTransactionCommit() throws Exception {
+        UUID recipientId = UUID.randomUUID();
+        Slip slip = seedCompletedOutboundSlip(
+                "2099/06/13-NOTI-PRECOMMIT-" + SEQ.getAndIncrement(),
+                recipientId.toString(), recipientId.toString());
+
+        mvc.perform(post("/slips/{slipId}/collab/edits", slip.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "커밋전알림검증")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"before\":\"출고 메모\",\"after\":\"커밋전 메모\"}}"))))
+                .andExpect(status().isCreated());
+
+        verify(notificationClient, never()).sendUserPush(
+                any(UUID.class), any(String.class), any(String.class));
+    }
+
+    /**
      * 같은 필드의 오래된 협업 초안은 최신 값을 되돌리지 않고 409 로 거부한다.
      *
      * <p>첫 번째 editor 가 저장한 뒤 두 번째 editor 가 같은 baseline 을 가진 초안을 저장하는
@@ -510,6 +540,76 @@ class SlipCollabIT extends AbstractPostgresIT {
     }
 
     /**
+     * 같은 전표의 실제 병렬 저장은 첫 저장의 느린 notification 외부 호출 때문에 행 잠금을 기다리면 안 된다.
+     *
+     * <p>첫 요청의 notification 을 의도적으로 붙잡은 상태에서 둘째 요청을 별도 요청 스레드로 시작한다.
+     * 둘째 요청이 3초 잠금 timeout 전에 다른 필드를 저장하지 못하면, R39 결함인 500/잠금 대기가 재현된다.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void commitEdit_parallelDifferentFields_doesNotWaitForSlowNotification() throws Exception {
+        UUID recipientId = UUID.randomUUID();
+        Slip slip = seedCompletedOutboundSlip(
+                "2099/06/13-COL-PARALLEL-" + SEQ.getAndIncrement(),
+                recipientId.toString(), recipientId.toString());
+        CountDownLatch authStarted = new CountDownLatch(1);
+        CountDownLatch releaseAuth = new CountDownLatch(1);
+        CountDownLatch notificationStarted = new CountDownLatch(1);
+        CountDownLatch releaseNotification = new CountDownLatch(1);
+        when(authAccountLookupClient.findAccountIdByLoginId("collab-it-seeder"))
+                .thenAnswer(invocation -> {
+                    authStarted.countDown();
+                    releaseAuth.await(10, TimeUnit.SECONDS);
+                    return Optional.of(recipientId);
+                });
+        org.mockito.Mockito.doAnswer(invocation -> {
+            notificationStarted.countDown();
+            releaseNotification.await(10, TimeUnit.SECONDS);
+            return null;
+        }).when(notificationClient).sendUserPush(
+                any(UUID.class), any(String.class), any(String.class));
+
+        ExecutorService requests = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> first = requests.submit(() -> mvc.perform(
+                    post("/slips/{slipId}/collab/edits", slip.getId())
+                            .with(user("slip-user").roles("MANAGER"))
+                            .header(USER_ID_HEADER, ACTOR_ID)
+                            .header(USER_NAME_HEADER, "병렬메모편집자")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of(
+                                    "changeSet", "{\"memo\":{\"before\":\"출고 메모\",\"after\":\"병렬 메모\"}}"))))
+                    .andReturn().getResponse().getStatus());
+
+            assertThat(authStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            releaseAuth.countDown();
+            assertThat(notificationStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<Integer> second = requests.submit(() -> mvc.perform(
+                    post("/slips/{slipId}/collab/edits", slip.getId())
+                            .with(user("slip-user").roles("MANAGER"))
+                            .header(USER_ID_HEADER, SECOND_ACTOR_ID)
+                            .header(USER_NAME_HEADER, "병렬배송지편집자")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of(
+                                    "changeSet", "{\"shippingAddress\":{\"before\":null,\"after\":\"서울 강남구\"}}"))))
+                    .andReturn().getResponse().getStatus());
+
+            assertThat(second.get(2, TimeUnit.SECONDS)).isEqualTo(201);
+            releaseNotification.countDown();
+            assertThat(first.get(5, TimeUnit.SECONDS)).isEqualTo(201);
+        } finally {
+            releaseAuth.countDown();
+            releaseNotification.countDown();
+            requests.shutdownNow();
+        }
+
+        Slip reloaded = slipRepository.findById(slip.getId()).orElseThrow();
+        assertThat(reloaded.getMemo()).isEqualTo("병렬 메모");
+        assertThat(reloaded.getShippingAddress()).isEqualTo("서울 강남구");
+    }
+
+    /**
      * 수정완료가 성공하면 해당 전표의 기여자와 다음 결재자에게 변경 요약 푸시를 보낸다.
      *
      * <p>수신자 소스는 작성자(createdBy/requesterId), 버전 이력 actor, 수정 이력 proposer/decider,
@@ -518,6 +618,7 @@ class SlipCollabIT extends AbstractPostgresIT {
      * 내부 UUID 는 노출하지 않는다.
      */
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void commitEdit_notifies_contributors_and_next_approvers_after_successful_history_save()
             throws Exception {
         UUID requesterAccountId = UUID.randomUUID();
@@ -557,25 +658,27 @@ class SlipCollabIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
 
-        verify(notificationClient).sendUserPush(eq(requesterAccountId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(requesterAccountId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient).sendUserPush(eq(createdByAccountId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(createdByAccountId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient).sendUserPush(eq(revisionActorId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(revisionActorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient).sendUserPush(eq(suggestionActorId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(suggestionActorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient).sendUserPush(eq(commentAuthorId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(commentAuthorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient).sendUserPush(eq(inspectorId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(inspectorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
         verify(notificationClient, never()).sendUserPush(eq(editorId),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
-        verify(authAccountLookupClient).findAccountIdByLoginId("collab-it-seeder");
-        verify(authAccountLookupClient).findAccountIdByLoginId("slip-user");
+        verify(authAccountLookupClient, org.mockito.Mockito.timeout(5000))
+                .findAccountIdByLoginId("collab-it-seeder");
+        verify(authAccountLookupClient, org.mockito.Mockito.timeout(5000))
+                .findAccountIdByLoginId("slip-user");
 
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(notificationClient, times(6)).sendUserPush(
+        verify(notificationClient, org.mockito.Mockito.timeout(5000).times(6)).sendUserPush(
                 org.mockito.ArgumentMatchers.any(UUID.class),
                 eq("[전표 수정] " + slip.getSlipNo()),
                 bodyCaptor.capture());
@@ -602,6 +705,7 @@ class SlipCollabIT extends AbstractPostgresIT {
      * 명시적으로 검증한다 (vacuous pass 방지 — §7 협업 Round C P2 fix).
      */
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void commitEdit_skips_notification_when_dispatcher_and_inspector_are_null() throws Exception {
         // by-login 조회 결과를 명시적으로 empty 로 고정 — stub 누락 vacuous pass 방지
         when(authAccountLookupClient.findAccountIdByLoginId("collab-it-seeder"))
@@ -625,14 +729,17 @@ class SlipCollabIT extends AbstractPostgresIT {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString());
         // by-login 조회가 실제로 시도됐는지 검증 (stub 경로 실증)
-        verify(authAccountLookupClient).findAccountIdByLoginId("collab-it-seeder");
-        verify(authAccountLookupClient).findAccountIdByLoginId("slip-user");
+        verify(authAccountLookupClient, org.mockito.Mockito.timeout(5000))
+                .findAccountIdByLoginId("collab-it-seeder");
+        verify(authAccountLookupClient, org.mockito.Mockito.timeout(5000))
+                .findAccountIdByLoginId("slip-user");
     }
 
     /**
      * 출고자와 검수자가 같은 user-id 이면 같은 전표 수정 알림을 1회만 보낸다.
      */
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void commitEdit_deduplicates_notification_when_dispatcher_equals_inspector() throws Exception {
         UUID workerId = UUID.randomUUID();
         Slip slip = seedCompletedOutboundSlip(
@@ -648,7 +755,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                                 "changeSet", "{\"memo\":{\"before\":\"출고 메모\",\"after\":\"중복 제거\"}}"))))
                 .andExpect(status().isCreated());
 
-        verify(notificationClient, times(1)).sendUserPush(eq(workerId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000).times(1)).sendUserPush(eq(workerId),
                 eq("[전표 수정] " + slip.getSlipNo()),
                 org.mockito.ArgumentMatchers.anyString());
     }

@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.OptimisticLockException;
+import jakarta.persistence.PessimisticLockException;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -59,6 +63,29 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getCode()).isEqualTo("CONFLICT");
         assertThat(response.getBody().getMessage())
                 .isEqualTo("동시 수정 충돌 — 다시 시도해 주세요");
+    }
+
+    @Test
+    void handlePessimisticLock_jpaTimeout_returns409WithRetryableMessage() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handlePessimisticLock(
+                new LockTimeoutException("internal slip id=11111111-2222-3333-4444-555555555555"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo("CONFLICT");
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("다른 사용자가 전표를 수정 중입니다. 최신 내용으로 다시 확인해 주세요.")
+                .doesNotContain("11111111-2222-3333-4444-555555555555");
+    }
+
+    @Test
+    void handlePessimisticLock_springTimeoutFamilies_return409() {
+        assertThat(handler.handlePessimisticLock(new PessimisticLockException("lock timeout"))
+                .getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(handler.handlePessimisticLock(new PessimisticLockingFailureException("lock timeout"))
+                .getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(handler.handlePessimisticLock(new QueryTimeoutException("lock timeout", null))
+                .getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test

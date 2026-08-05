@@ -15,9 +15,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 전표 협업 1-인 수정완료 서비스.
@@ -35,17 +39,20 @@ public class SlipCollabEditService {
     private final NotificationClient notificationClient;
     private final UserIdResolver userIdResolver;
     private final ObjectMapper objectMapper;
+    private final Executor notificationExecutor;
 
     public SlipCollabEditService(SlipCollabSuggestionRepository suggestionRepository,
                                  CollabRealtimePublisher publisher,
                                  NotificationClient notificationClient,
                                  UserIdResolver userIdResolver,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 @Qualifier("applicationTaskExecutor") Executor notificationExecutor) {
         this.suggestionRepository = suggestionRepository;
         this.publisher = publisher;
         this.notificationClient = notificationClient;
         this.userIdResolver = userIdResolver;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
+        this.notificationExecutor = notificationExecutor;
     }
 
     /**
@@ -54,8 +61,8 @@ public class SlipCollabEditService {
      * <p>권한 검사는 changeSet baseline 정규화 이전에 수행하여 무효 actor 가 수정 경로에
      * 진입하지 못하도록 차단한다.
      *
-     * <p>알림 발송은 기존 {@code SlipEditRequestService.notifyTargetRole} 와 동일하게 트랜잭션 내 동기
-     * best-effort 다(발송 실패가 수정완료를 되돌리지 않음). 수신자 소수 + 타임아웃 가드로 커넥션 점유는 제한적.
+     * <p>알림 수신자 스냅샷만 트랜잭션 안에서 확정하고, 실제 auth 조회·푸시는 커밋 후 비동기로 실행한다.
+     * 따라서 외부 호출 지연이 행 잠금과 요청 응답을 막지 않으며, 롤백된 변경의 알림도 발송하지 않는다.
      *
      * @return ACCEPTED 이력과 변경 후 전표 상세
      */
@@ -77,10 +84,9 @@ public class SlipCollabEditService {
         edit.accept(editorId, editorName);
         SlipCollabSuggestion saved = suggestionRepository.save(edit);
 
-        // 알림 — 기여자+다음결재자에게 best-effort 발송. 기존 SlipEditRequestService.notifyTargetRole 와
-        // 동일하게 트랜잭션 내 동기 발송이다(발송 실패가 수정완료 적용/이력 저장을 되돌리지 않음, 수신자 소수
-        // + NotificationClient connect/read 타임아웃 가드). collab-core 전 문서가 따를 일관 패턴.
-        sendNotifications(
+        // 수신자 식별자와 본문은 커밋 전 스냅샷으로 고정한다. 실제 auth/notification 외부 호출은
+        // afterCommit 이후 비동기로 넘겨, 이미 성공한 저장과 이력만 알림 대상으로 삼는다.
+        scheduleNotifications(
                 List.copyOf(port.resolveNotificationRecipients(slipId, editorId)),
                 "[전표 수정] " + updated.slipNo(),
                 limitBody(String.format("%s 님이 전표 %s 를 수정완료했습니다.%n변경: %s",
@@ -102,7 +108,45 @@ public class SlipCollabEditService {
     }
 
     /**
-     * 수정완료 적용/이력 저장 후 수신자 목록에 푸시 알림을 발송한다(트랜잭션 내 동기 best-effort).
+     * 저장 transaction 이 성공한 뒤에만 알림 작업을 executor 로 넘긴다.
+     *
+     * <p>커밋 전에 executor 를 호출하면 외부 호출이 커밋보다 먼저 시작될 수 있어 phantom 알림이 생긴다.
+     * 반대로 afterCommit 안에서 동기 발송하면 행 잠금은 풀려도 수정완료 응답이 외부 timeout 만큼 멈춘다.
+     * 두 경계를 모두 지키기 위해 afterCommit 에서는 작업 제출만 수행한다.
+     */
+    private void scheduleNotifications(List<String> rawRecipients, String subject, String body,
+                                       String slipNo, UUID editorId) {
+        Runnable notificationTask = () -> sendNotifications(rawRecipients, subject, body, slipNo, editorId);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    dispatchNotifications(notificationTask, slipNo);
+                }
+            });
+            return;
+        }
+        // 트랜잭션 없는 단위 호출은 기존 best-effort 의미를 유지하되, 외부 호출은 여전히 비동기다.
+        dispatchNotifications(notificationTask, slipNo);
+    }
+
+    private void dispatchNotifications(Runnable notificationTask, String slipNo) {
+        try {
+            notificationExecutor.execute(notificationTask);
+        } catch (java.util.concurrent.RejectedExecutionException ex) {
+            // 알림은 보조 신호이지만 큐 포화로 조용히 누락시키지 않는다. 커밋 후 현재 스레드에서
+            // 마지막 best-effort 로 실행하여 저장 성공과 알림 실패를 분리한다.
+            log.warn("[SlipCollab] 전표 수정완료 알림 비동기 제출 거부 — slipNo={}", slipNo, ex);
+            try {
+                notificationTask.run();
+            } catch (RuntimeException taskFailure) {
+                log.warn("[SlipCollab] 전표 수정완료 알림 fallback 실패 — slipNo={}", slipNo, taskFailure);
+            }
+        }
+    }
+
+    /**
+     * 커밋 후 수신자 목록에 푸시 알림을 발송한다(best-effort).
      *
      * <p>알림은 best-effort 이므로 개별 발송 실패가 전체 수정완료 적용/이력 저장을 되돌리지 않는다.
      * 수신자 식별자(UUID 또는 loginId)는 auth-service 내부 조회로 accountId 로 정규화하며,

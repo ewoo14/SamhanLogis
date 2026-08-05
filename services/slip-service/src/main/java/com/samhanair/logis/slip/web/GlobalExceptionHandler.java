@@ -4,10 +4,14 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
+import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.OptimisticLockException;
+import jakarta.persistence.PessimisticLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -115,6 +119,25 @@ public class GlobalExceptionHandler {
         log.warn("Optimistic lock conflict: {}", ex.getClass().getSimpleName());
         return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.CONFLICT, "동시 수정 충돌 — 다시 시도해 주세요"));
+    }
+
+    /**
+     * 비관적 락 획득 실패/timeout — 일반 500 대신 재확인 가능한 409로 반환한다.
+     *
+     * <p>협업 저장의 행 잠금은 저장 원자성을 위한 것이므로 잠금 경합은 사용자 입력 오류가 아니다.
+     * 잠금 예외를 내부 오류로 내려보내면 같은 필드 stale 409와 다른 필드 병합 의미를 잃고,
+     * 내부 JDBC/Hibernate 메시지가 응답에 노출될 수 있다.
+     */
+    @ExceptionHandler({
+            LockTimeoutException.class,
+            PessimisticLockException.class,
+            PessimisticLockingFailureException.class,
+            QueryTimeoutException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handlePessimisticLock(Exception ex) {
+        log.warn("Pessimistic lock conflict: {}", ex.getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.CONFLICT, "다른 사용자가 전표를 수정 중입니다. 최신 내용으로 다시 확인해 주세요."));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
