@@ -94,6 +94,8 @@ interface DraftLine {
   modelName: string
   productName: string
   specification: string
+  /** 품목 lookup 자동 반영 규격과 사용자가 직접 입력한 규격을 구분한다. */
+  specificationSource?: 'CATALOG' | 'USER' | null
   quantity: string
   unitPrice: string
   supplyAmount: string
@@ -137,6 +139,7 @@ const emptyLine = (): DraftLine => ({
   modelName: '',
   productName: '',
   specification: '',
+  specificationSource: null,
   quantity: '1',
   unitPrice: '0',
   supplyAmount: '0',
@@ -264,6 +267,9 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           modelName: line.modelName ?? '',
           productName: line.productName ?? '',
           specification: line.specification ?? '',
+          // 상세 API는 규격의 provenance를 별도 전송하지 않는다. 저장된 품목 규격은
+          // catalog snapshot으로 시작하고, 현재 세션의 직접 편집에서 USER로 승격한다.
+          specificationSource: (line.specification ?? '').trim() ? 'CATALOG' : null,
           quantity: String(line.quantity),
           // 단가 부가세포함: 폼 단가 입력은 VAT 포함값. 편집 hydrate/coedit seed 모두 같은 값으로 보존.
           unitPrice: canonicalUnitPrice,
@@ -359,13 +365,20 @@ function coeditLinesToDraftLines(
     const isRemoteUnitPriceChange = Boolean(
       previous && unitPrice !== previous.unitPrice && !isExpectedAutoWrite,
     )
+    const specification = provider.getItemValue(index, 'specification')
+    const isRemoteSpecificationChange = Boolean(
+      previous && specification !== previous.specification,
+    )
     return {
       uid: previous?.uid ?? nextLineUid(),
       lineId: resolveServerLineId(provider, index, knownServerLineIds),
       productId: provider.getItemValue(index, 'productId') || null,
       modelName: provider.getItemValue(index, 'modelName'),
       productName: provider.getItemValue(index, 'productName'),
-      specification: provider.getItemValue(index, 'specification'),
+      specification,
+      specificationSource: isRemoteSpecificationChange
+        ? 'USER'
+        : previous?.specificationSource ?? null,
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice,
       supplyAmount: previous?.supplyAmount ?? '0',
@@ -1097,6 +1110,11 @@ export function EstimateFormPage() {
   }
 
   const updateLine = (index: number, patch: Partial<DraftLine>, fromUser = false) => {
+    const normalizedPatch = fromUser
+      && patch.specification !== undefined
+      && patch.specificationSource === undefined
+      ? { ...patch, specificationSource: 'USER' as const }
+      : patch
     if (patch.unitPrice !== undefined && patch.priceSource === 'USER') {
       const lineUid = linesRef.current[index]?.uid
       // 사용자가 단가를 직접 확정하면 해당 행의 자동 출처/미확보 경고와 배너 집계만 해제한다.
@@ -1114,7 +1132,7 @@ export function EstimateFormPage() {
     setLines((prev) => {
       const before = prev[index]
       if (!before) return prev
-      const after = { ...before, ...patch }
+      const after = { ...before, ...normalizedPatch }
       const next = fromUser
         ? appendBlankRowIfLastChanged(prev, before, after, (line) => line.uid, emptyLine, (a, b) => a.uid === b.uid
           && a.modelName === b.modelName && a.productName === b.productName && a.specification === b.specification
@@ -1413,12 +1431,23 @@ export function EstimateFormPage() {
         && current.priceSource !== 'USER'
         && selectedPartnerIdRef.current === resolvedPartnerId
       const currentIndex = linesRef.current.findIndex((candidate) => candidate.uid === line.uid)
+      const hasCatalogSpecification = Boolean(result.specification?.trim())
+      const preservesUserSpecification = current.specificationSource === 'USER'
       const nextLine: DraftLine = {
         ...current,
         modelName: result.modelName || current.modelName,
         productId: result.productId,
         productName: result.productName,
-        specification: result.specification ?? current.specification,
+        specification: hasCatalogSpecification
+          ? result.specification!
+          : preservesUserSpecification
+            ? current.specification
+            : '',
+        specificationSource: hasCatalogSpecification
+          ? 'CATALOG'
+          : preservesUserSpecification
+            ? 'USER'
+            : null,
         productType: result.productType ?? 'SINGLE',
         catalogUnitPrice: result.sellingPrice,
         unitPrice: applyPrice ? nextUnitPrice : current.unitPrice,
@@ -1482,12 +1511,16 @@ export function EstimateFormPage() {
     if (!line || !isCoeditLineValueEditable(line)) return
     if (!product) {
       const hadAutoPrice = isAutoPriceSource(line.priceSource)
+      const hadAutoSpecification = line.specificationSource === 'CATALOG'
       const nextLine: Partial<DraftLine> = {
         productId: null,
         modelName: '',
         productName: '',
         productType: null,
         catalogUnitPrice: null,
+        ...(hadAutoSpecification
+          ? { specification: '', specificationSource: null }
+          : {}),
         priceMemoryUpdatedAt: null,
         priceRefreshChanged: false,
         partnerRefreshEligible: false,
@@ -1502,6 +1535,7 @@ export function EstimateFormPage() {
         estimateFormCoeditProvider?.setItemValue(index, 'modelName', '')
         estimateFormCoeditProvider?.setItemValue(index, 'productName', '')
         estimateFormCoeditProvider?.setItemValue(index, 'productId', '')
+        if (hadAutoSpecification) estimateFormCoeditProvider?.setItemValue(index, 'specification', '')
         if (hadAutoPrice) estimateFormCoeditProvider?.setItemValue(index, 'unitPrice', '0')
       } catch {
         // Product clear remains local if the coedit provider is already unmounting.

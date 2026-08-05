@@ -110,6 +110,7 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     const model = page.getByTestId('estimate-form-line-0').getByRole('combobox', { name: '라인 1 모델명' })
     await model.fill('AJ040')
     await expect(model).toHaveValue('AJ040RXH4BC1', { timeout: 10_000 })
+    await expect(page.getByRole('textbox', { name: '라인 1 단가' })).toHaveValue('1850000')
     await model.click()
     await model.press('Control+A')
     await model.press('Delete')
@@ -118,6 +119,30 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
 
     await expect(model).toHaveValue('')
     await expect(page.getByRole('textbox', { name: '라인 1 품목명' })).toHaveValue('')
+    await expect(page.getByRole('textbox', { name: '라인 1 규격' })).toHaveValue('')
+    await expect(page.getByRole('textbox', { name: '라인 1 단가' })).toHaveValue('0')
+  })
+
+  test('견적 편집 coedit에서 1행 품목 해제는 2행 로컬·coedit 값을 건드리지 않는다', async ({ page }) => {
+    await page.goto('/#/sales/estimates/est-001/edit?mockRole=MASTER', {
+      waitUntil: 'domcontentloaded',
+    })
+
+    await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
+    const line1Model = page.getByTestId('estimate-form-line-0').getByRole('combobox', { name: '라인 1 모델명' })
+    await line1Model.click()
+    await line1Model.press('Control+A')
+    await line1Model.press('Delete')
+    await line1Model.blur()
+    await page.waitForTimeout(250)
+
+    await expect(line1Model).toHaveValue('')
+    await expect(page.getByRole('textbox', { name: '라인 1 규격' })).toHaveValue('')
+    await expect(page.getByTestId('estimate-coedit-items-0-modelName')).toHaveValue('')
+    await expect(page.getByTestId('estimate-form-line-1').getByRole('combobox', { name: '라인 2 모델명' })).toHaveValue('MWR-WE10N')
+    await expect(page.getByRole('textbox', { name: '라인 2 품목명' })).toHaveValue('유선 리모컨 (WE10N)')
+    await expect(page.getByRole('textbox', { name: '라인 2 규격' })).toHaveValue('220V')
+    await expect(page.getByTestId('estimate-coedit-items-1-modelName')).toHaveValue('MWR-WE10N')
   })
 
   test('provider 실패 폴백과 분리된 자동 빈행 계약은 원문 단정을 유지한다', async ({ page }) => {

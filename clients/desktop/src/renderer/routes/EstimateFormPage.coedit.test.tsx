@@ -440,6 +440,68 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     })))
   })
 
+  it('S14 RED-A: 자동 반영 규격은 품목 해제 시 로컬·coedit에서 함께 회수한다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.searchProducts.mockResolvedValue([{
+      id: '44444444-4444-4444-4444-444444444444',
+      modelName: 'AJ040RXH4BC1',
+      productName: '시스템에어컨 4Way 4HP',
+      specification: '4HP',
+      sellingPrice: 1850000,
+    }])
+    mocks.lookupProductByModelName.mockResolvedValue({
+      productId: '44444444-4444-4444-4444-444444444444',
+      modelName: 'AJ040RXH4BC1',
+      productName: '시스템에어컨 4Way 4HP',
+      specification: '4HP',
+      sellingPrice: '1850000',
+      productType: 'SINGLE',
+    })
+
+    renderPage()
+    await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+    const coeditModel = await screen.findByTestId('estimate-coedit-items-0-modelName')
+    provider.setItemValue(0, 'modelName', 'AJ040RXH4BC1')
+    act(() => provider.__emit())
+    fireEvent.blur(coeditModel)
+
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe('4HP'))
+    const model = await screen.findByLabelText('라인 1 모델명')
+    fireEvent.change(model, { target: { value: '' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-modelName') as HTMLInputElement).value).toBe(''))
+    expect((screen.getByTestId('estimate-coedit-items-0-productName') as HTMLInputElement).value).toBe('')
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe('')
+    expect((screen.getByTestId('estimate-coedit-items-0-unitPrice') as HTMLInputElement).value).toBe('11000')
+    expect(provider.getItemValue(0, 'productId')).toBe('')
+    expect(provider.getItemValue(0, 'specification')).toBe('')
+    expect(provider.setItemValue).toHaveBeenCalledWith(0, 'specification', '')
+  })
+
+  it('S14 RED-B: 사용자 입력 규격·단가는 품목 해제만으로 지우지 않는다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    const model = await screen.findByLabelText('라인 1 모델명')
+    const specification = await screen.findByLabelText('라인 1 규격')
+    const unitPrice = await screen.findByLabelText('라인 1 단가')
+    fireEvent.change(specification, { target: { value: '사용자 규격' } })
+    fireEvent.change(unitPrice, { target: { value: '12345' } })
+    fireEvent.change(model, { target: { value: '' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-modelName') as HTMLInputElement).value).toBe(''))
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe('사용자 규격')
+    expect((screen.getByTestId('estimate-coedit-items-0-unitPrice') as HTMLInputElement).value).toBe('12345')
+    expect(provider.getItemValue(0, 'specification')).toBe('사용자 규격')
+    expect(provider.getItemValue(0, 'unitPrice')).toBe('12345')
+  })
+
   it('RED-B: 부분 모델 검색은 공용 품목 결과 모달의 규격·단가 후보를 사용한다', async () => {
     mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
     mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
