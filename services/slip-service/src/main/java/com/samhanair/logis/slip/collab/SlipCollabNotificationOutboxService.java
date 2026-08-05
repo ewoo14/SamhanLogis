@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.collab;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.UserIdResolver;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -66,7 +67,8 @@ public class SlipCollabNotificationOutboxService {
             boolean sent = false;
             if (recipient.isPresent() && !recipient.get().equals(row.getEditorId())) {
                 sent = notificationClient.sendUserPushWithResult(
-                        recipient.get(), row.getSubject(), row.getBody(), row.getId());
+                        recipient.get(), row.getSubject(), row.getBody(),
+                        stableIdempotencyKey(row.getEventId(), recipient.get()));
             }
             finish(row.getId(), sent);
         } catch (RuntimeException ex) {
@@ -81,5 +83,11 @@ public class SlipCollabNotificationOutboxService {
             if (sent) row.markSent(); else row.markRetry();
             repository.save(row);
         });
+    }
+
+    /** 동일한 수정 사건과 수신자 조합이 재시도에서도 같은 notification 요청 키를 사용한다. */
+    static UUID stableIdempotencyKey(UUID eventId, UUID recipientId) {
+        return UUID.nameUUIDFromBytes(("slip-collab:" + eventId + ":" + recipientId)
+                .getBytes(StandardCharsets.UTF_8));
     }
 }

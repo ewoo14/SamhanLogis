@@ -9,6 +9,7 @@ import com.samhanair.logis.collab.CollabRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.UserIdResolver;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.lang.reflect.Method;
@@ -112,5 +113,31 @@ class SlipCollabNotificationDispatchTest {
 
         org.mockito.Mockito.verify(repository,
                 org.mockito.Mockito.times(2)).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void deliveryUsesStablePerRecipientIdempotencyKeyAndEventPayloadKey() {
+        SlipCollabNotificationOutboxRepository repository = mock(SlipCollabNotificationOutboxRepository.class);
+        UserIdResolver resolver = mock(UserIdResolver.class);
+        NotificationClient client = mock(NotificationClient.class);
+        UUID eventId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        UUID slipId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        UUID editorId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        UUID recipientId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        SlipCollabNotificationOutbox row = SlipCollabNotificationOutbox.create(
+                eventId, slipId, editorId, "recipient", "subject", "body");
+        when(resolver.resolve("recipient")).thenReturn(Optional.of(recipientId));
+        when(client.sendUserPushWithResult(org.mockito.ArgumentMatchers.eq(recipientId),
+                org.mockito.ArgumentMatchers.eq("subject"), org.mockito.ArgumentMatchers.eq("body"),
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(repository.findById(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(row));
+
+        SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
+                repository, resolver, client);
+        service.deliver(row);
+
+        UUID expectedKey = UUID.nameUUIDFromBytes(("slip-collab:" + eventId + ":" + recipientId)
+                .getBytes(StandardCharsets.UTF_8));
+        org.mockito.Mockito.verify(client).sendUserPushWithResult(recipientId, "subject", "body", expectedKey);
     }
 }

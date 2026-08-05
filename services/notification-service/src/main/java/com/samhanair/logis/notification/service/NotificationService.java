@@ -21,12 +21,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -166,6 +168,27 @@ public class NotificationService {
         NotificationRequest saved = requestRepository.save(entity);
         NotificationGatewayResult gatewayResult = invokeGatewayWithResult(saved);
         return new SendResult(saved, gatewayResult);
+    }
+
+    /** gateway 성공 후 complete 전에 종료된 오래된 PENDING 요청을 재처리한다. */
+    @Scheduled(fixedDelayString = "${samhan.notification.pending-recovery-delay-ms:5000}")
+    public void recoverPending() {
+        if (dispatchPersistence == null) {
+            return;
+        }
+        List<NotificationRequest> pending = requestRepository
+                .findTop100ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
+                        NotificationStatus.PENDING, LocalDateTime.now().minusSeconds(30));
+        for (NotificationRequest request : pending) {
+            try {
+                NotificationGatewayResult result = invokeGatewayWithResult(request);
+                dispatchPersistence.complete(request);
+                log.info("[NotificationService] PENDING 복구 완료 requestId={} status={}",
+                        request.getId(), result.gatewayStatus());
+            } catch (RuntimeException ex) {
+                log.warn("[NotificationService] PENDING 복구 실패 requestId={}", request.getId(), ex);
+            }
+        }
     }
 
     /**
