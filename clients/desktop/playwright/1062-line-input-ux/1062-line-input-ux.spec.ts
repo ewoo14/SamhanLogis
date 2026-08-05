@@ -68,7 +68,7 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await page.screenshot({ path: test.info().outputPath('03-new-filled-next-blank.png'), fullPage: true })
   })
 
-  test('견적 편집 화면은 기존 행을 보존하고 coedit 중에도 품목을 교체한다', async ({ page }) => {
+  test('견적 편집 coedit은 기존 행만 교체하고 trailing 빈행의 구조 추가를 잠근다', async ({ page }) => {
     await page.goto('/#/sales/estimates/est-001/edit?mockRole=MASTER', {
       waitUntil: 'domcontentloaded',
     })
@@ -78,24 +78,38 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await expect(page.getByTestId('estimate-form-line-2')).toBeVisible()
     await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(3)
 
-    const lineModel = page.getByTestId('estimate-form-line-2').getByRole('combobox', { name: '라인 3 모델명' })
-    await expect(lineModel).toBeEnabled()
+    const existingLineModel = page.getByTestId('estimate-form-line-0').getByRole('combobox', { name: '라인 1 모델명' })
+    const trailingLineModel = page.getByTestId('estimate-form-line-2').getByRole('combobox', { name: '라인 3 모델명' })
+    await expect(existingLineModel).toBeEnabled()
+    await expect(trailingLineModel).toBeDisabled()
     await expect(page.getByRole('button', { name: '라인 3 삭제' })).toBeDisabled()
-    await lineModel.click()
-    await lineModel.fill('AJ')
+    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(3)
+    await existingLineModel.click()
+    await existingLineModel.fill('AJ')
 
     const productDialog = page.getByRole('dialog', { name: '품목 검색 결과' })
     await expect(productDialog).toBeVisible({ timeout: 10_000 })
     await productDialog.getByRole('radio').nth(1).check()
     await productDialog.getByRole('button', { name: '선택 확정' }).click()
 
-    await expect(lineModel).toHaveValue('AJ052RXH5BC1')
-    await expect(page.getByTestId('estimate-form-line-3')).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(4)
-    await expect(page.getByRole('textbox', { name: '라인 3 규격' })).toBeVisible()
-    await expect(page.getByRole('textbox', { name: '라인 3 단가' })).toHaveValue('2120000')
+    // ProductAutocomplete의 표시 입력은 coedit lookup 중 잠시 draft를 비울 수 있으므로,
+    // 저장·동기화 권위인 CollaborativeSlipInput에도 교체 모델명이 도착했는지 함께 본다.
+    await expect(page.getByTestId('estimate-coedit-items-0-modelName')).toHaveValue('AJ052RXH5BC1')
+    await expect(page.getByTestId('estimate-form-line-2')).toBeVisible()
+    await expect(page.getByTestId('estimate-form-line-3')).toHaveCount(0)
+    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(3)
+    await expect(page.getByRole('textbox', { name: '라인 1 규격' })).toBeVisible()
+    // 기존 확정행의 사용자 단가는 품목 교체만으로 덮지 않는다(가격기억 회귀 방지).
+    await expect(page.getByRole('textbox', { name: '라인 1 단가' })).toHaveValue('1850000')
     await expect(page.getByTestId('estimate-form-save-button')).toBeEnabled()
     await expect(page.getByTestId('estimate-form-send-button')).toBeEnabled()
+    let sendDialogMessage = ''
+    page.once('dialog', async (dialog) => {
+      sendDialogMessage = dialog.message()
+      await dialog.accept()
+    })
+    await page.getByTestId('estimate-form-send-button').click()
+    expect(sendDialogMessage).toContain('발송하시겠습니까')
 
     await page.screenshot({ path: test.info().outputPath('04-edit-coedit-existing-lines-and-trailing-blank.png'), fullPage: true })
   })

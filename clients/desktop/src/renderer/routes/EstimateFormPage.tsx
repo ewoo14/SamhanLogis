@@ -773,6 +773,14 @@ export function EstimateFormPage() {
     !isReadOnly &&
     canAccess('estimates.list', 'update')
   const coeditActive = Boolean(estimateFormCoeditProvider) || estimateFormCoeditPending
+  // S7: coedit 연결 시점에 이미 존재하던 유효 라인만 품목 교체를 허용한다.
+  // trailing 빈행은 coedit 중 구조 추가 대상이므로, 이후 productId가 채워져도 자격이
+  // 승격되지 않도록 스냅샷을 한 번만 만든다. uid는 CRDT 재동기화에서도 기존 index에
+  // 매핑되어 유지되고, lineId가 없는 미저장 행도 안전하게 구분한다.
+  const coeditEditableLineUidsRef = useRef<ReadonlySet<string>>(new Set())
+  const coeditLineSnapshotTakenRef = useRef(false)
+  const isCoeditLineValueEditable = (line: DraftLine) =>
+    !coeditActive || coeditEditableLineUidsRef.current.has(line.uid)
   // coedit useEffect 가 detailQuery.data 객체를 deps 로 두면 React Query 리페치/SSE invalidate 마다
   // provider 가 재생성돼 협업 세션이 끊기고 미저장 CRDT 델타가 재시드로 유실된다(듀얼리뷰 HIGH).
   // seed 용 최신 스냅샷은 ref 로 읽어 effect 를 안정 트리거(canCollabEdit/editId/isEdit)로만 재실행한다.
@@ -831,6 +839,8 @@ export function EstimateFormPage() {
     let disposed = false
     let provider: DocCoeditProvider | null = null
     let unsubscribeDoc: (() => void) | null = null
+    coeditEditableLineUidsRef.current = new Set()
+    coeditLineSnapshotTakenRef.current = false
     setEstimateFormCoeditPending(true)
 
     // 계보/가격기억 귀속의 권위 — 현재 로드된 상세 응답의 라인 id 집합(전표와 동일 계약).
@@ -876,6 +886,12 @@ export function EstimateFormPage() {
         emptyLine,
         (line) => Boolean(line.productId),
       )
+      if (!coeditLineSnapshotTakenRef.current) {
+        coeditEditableLineUidsRef.current = new Set(
+          nextLines.filter((line) => Boolean(line.productId)).map((line) => line.uid),
+        )
+        coeditLineSnapshotTakenRef.current = true
+      }
       linesRef.current = nextLines
       setLines(nextLines)
     }
@@ -1463,7 +1479,7 @@ export function EstimateFormPage() {
 
   const handleProductSelection = (index: number, product: ProductOption | null) => {
     const line = linesRef.current[index]
-    if (!line || !product) return
+    if (!line || !product || !isCoeditLineValueEditable(line)) return
     updateLine(index, {
       modelName: product.modelName,
       productId: null,
@@ -1936,6 +1952,7 @@ export function EstimateFormPage() {
                   onChange={(product) => handleProductSelection(i, product)}
                   onInputCommitChange={(committed) => {
                     if (committed) return
+                    if (!isCoeditLineValueEditable(line)) return
                     updateLine(i, { productId: null, productName: '' }, true)
                   }}
                   searchProducts={searchEstimateProducts}
@@ -1945,7 +1962,7 @@ export function EstimateFormPage() {
                   resultSelectionMode="single"
                   autoSelectSingleResult
                   debounceMs={250}
-                  disabled={Boolean(isReadOnly) || estimateFormCoeditPending}
+                  disabled={Boolean(isReadOnly) || estimateFormCoeditPending || !isCoeditLineValueEditable(line)}
                   error={line.lookupError ?? undefined}
                 />
               }
@@ -2023,6 +2040,7 @@ export function EstimateFormPage() {
                 onChange={(product) => handleProductSelection(i, product)}
                 onInputCommitChange={(committed) => {
                   if (committed) return
+                  if (!isCoeditLineValueEditable(line)) return
                   updateLine(i, { productId: null, productName: '' }, true)
                 }}
                 searchProducts={searchEstimateProducts}
@@ -2032,7 +2050,7 @@ export function EstimateFormPage() {
                 resultSelectionMode="single"
                 autoSelectSingleResult
                 debounceMs={250}
-                disabled={Boolean(isReadOnly) || estimateFormCoeditPending}
+                disabled={Boolean(isReadOnly) || estimateFormCoeditPending || !isCoeditLineValueEditable(line)}
                 error={line.lookupError ?? undefined}
               />
               <CollaborativeSlipInput

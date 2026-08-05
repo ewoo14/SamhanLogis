@@ -386,6 +386,25 @@ beforeEach(() => {
 })
 
 describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
+  it('S7 RED-B: coedit 중 기존 행 품목은 열고 trailing 빈행 품목 선택은 잠근다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.searchProducts.mockResolvedValue([
+      { id: 'product-a', modelName: 'AJ052RXH5BC1', productName: 'AJ 제품', sellingPrice: 22000 },
+      { id: 'product-b', modelName: 'AJ060RXH5BC1', productName: 'AJ 제품 2', sellingPrice: 33000 },
+    ])
+
+    renderPage()
+
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    const existingLineModel = await screen.findByLabelText('라인 1 모델명')
+    const trailingLineModel = await screen.findByLabelText('라인 2 모델명')
+
+    expect(existingLineModel.disabled).toBe(false)
+    expect(trailingLineModel.disabled).toBe(true)
+  })
+
   it('RED-A: 공용 ProductOption 확정은 id·모델명·품목명·규격·단가를 저장 라인에 보존한다', async () => {
     mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
     mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
