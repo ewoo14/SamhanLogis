@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card } from '@samhan/design-system'
 import { listSlips } from '../api/slip'
-import { useSessionStore } from '../stores/session'
+import { canQueryPurchases, canQuerySales, useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -20,9 +20,12 @@ export function DashboardPage() {
   const auth = useSessionStore((s) => s.auth)
   const navigate = useNavigate()
   const { canAccess } = usePermissions()
+  const canReadSales = canQuerySales(auth)
+  const canReadPurchases = canQueryPurchases(auth)
 
   const processingQuery = useQuery({
     queryKey: ['slips', 'processing-count'],
+    enabled: canReadSales,
     queryFn: () =>
       listSlips({
         slipType: 'OUTBOUND',
@@ -77,12 +80,16 @@ export function DashboardPage() {
           >
             새 판매전표
           </Button>
-          <Button variant="secondary" onClick={() => navigate('/sales')}>
-            판매관리
-          </Button>
-          <Button variant="secondary" onClick={() => navigate('/purchases')}>
-            구매관리
-          </Button>
+          {canReadSales ? (
+            <Button variant="secondary" onClick={() => navigate('/sales')}>
+              판매관리
+            </Button>
+          ) : null}
+          {canReadPurchases ? (
+            <Button variant="secondary" onClick={() => navigate('/purchases')}>
+              구매관리
+            </Button>
+          ) : null}
           <Button variant="secondary" onClick={() => navigate('/transfers')}>
             재고이동 관리
           </Button>

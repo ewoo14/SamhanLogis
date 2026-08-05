@@ -15,6 +15,8 @@ import { Navigate } from 'react-router-dom'
 import { MascotLoader } from '@samhan/design-system'
 import { usePermissions } from '../hooks/usePermissions'
 import type { PageCode, PermissionLookupAction } from '../api/permissionsApi'
+import { canQueryPurchases, canQuerySales, useSessionStore } from '../stores/session'
+import type { SlipType } from '../api/slip'
 
 export interface PermissionGuardProps {
   /**
@@ -63,6 +65,31 @@ export function PermissionGuard({
 
   // 권한 없음 → 홈 redirect (사이드바에도 없으므로 404 동일 효과)
   if (!hasAccess) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
+}
+
+/**
+ * 전표 유형별 서버 조회 guard와 동일한 진입 경로 guard.
+ *
+ * PageCode의 VIEW seed는 서버의 전표 유형별 조회 허용 집합보다 넓을 수 있으므로,
+ * 메뉴·목록·상세가 모두 같은 유형 판정을 소비해야 403을 사용자에게 노출하지 않는다.
+ */
+export function SlipReadGuard({
+  mode,
+  children,
+}: {
+  mode: SlipType
+  children: ReactNode
+}) {
+  const auth = useSessionStore((state) => state.auth)
+  const hasReadAccess = mode === 'OUTBOUND'
+    ? canQuerySales(auth)
+    : canQueryPurchases(auth)
+
+  if (!hasReadAccess) {
     return <Navigate to="/" replace />
   }
 

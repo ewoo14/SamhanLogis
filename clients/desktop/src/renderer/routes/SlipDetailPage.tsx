@@ -1128,7 +1128,8 @@ export function transitionDestinationStatus(
 export type TransitionConflictCause = 'concurrent' | 'inventory' | 'unknown' | 'other'
 
 const CONCURRENT_TRANSITION_MESSAGE = '다른 사용자가 먼저 전표를 전이했습니다. 현재 편집 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.'
-const INVENTORY_SHORTAGE_MESSAGE = '재고가 부족하여 전표를 수락할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.'
+const INVENTORY_SHORTAGE_ACCEPT_MESSAGE = '재고가 부족하여 전표를 수락할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.'
+const INVENTORY_SHORTAGE_COMPLETE_MESSAGE = '재고가 부족하여 전표를 검수 대기 상태로 전환할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.'
 const UNKNOWN_TRANSITION_CONFLICT_MESSAGE = '전이 실패 원인을 확인할 수 없습니다. 최신 전표 상태를 확인한 뒤 다시 시도하세요.'
 const CONCURRENT_TRANSITION_MARKERS = ['전이 가능한 상태가 아닙니다', '동시 수정 충돌'] as const
 const INVENTORY_SHORTAGE_MARKERS = ['재고 부족'] as const
@@ -1157,9 +1158,15 @@ export function classifyTransitionConflict(error: unknown): TransitionConflictCa
 /** 전이 409 원인별 사용자 안내와 편집 표면 잠금 정책. */
 export function transitionConflictEditPolicy(
   cause: Exclude<TransitionConflictCause, 'other'>,
+  action: SlipTransitionAction = 'accept',
 ): { message: string; blockEditSurfaces: boolean } {
   if (cause === 'inventory') {
-    return { message: INVENTORY_SHORTAGE_MESSAGE, blockEditSurfaces: false }
+    return {
+      message: action === 'complete'
+        ? INVENTORY_SHORTAGE_COMPLETE_MESSAGE
+        : INVENTORY_SHORTAGE_ACCEPT_MESSAGE,
+      blockEditSurfaces: false,
+    }
   }
   if (cause === 'unknown') {
     return { message: UNKNOWN_TRANSITION_CONFLICT_MESSAGE, blockEditSurfaces: true }
@@ -1186,6 +1193,22 @@ export function canOpenCollabEdit(
   hasPermission: boolean,
 ): boolean {
   return hasPermission && isCollabEditStatus(status)
+}
+
+/**
+ * 직접수정과 협업수정은 같은 저장 필드(memo)를 공유하므로 편집 표면을 배타적으로 연다.
+ * 버튼 라벨과 이 상태 판정은 데스크톱·모바일 진입점에서 함께 사용한다.
+ */
+export function editSurfaceEntryAvailability(
+  directAllowed: boolean,
+  collabAllowed: boolean,
+  directOpen: boolean,
+  collabOpen: boolean,
+): { direct: boolean; collab: boolean } {
+  return {
+    direct: directAllowed && !collabOpen,
+    collab: collabAllowed && !directOpen,
+  }
 }
 
 /** 직접수정 폼의 서버 저장 payload 기준 fingerprint — UI용 random key는 비교에서 제외한다. */
@@ -1694,13 +1717,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       void queryClient.invalidateQueries({ queryKey: ['slipRedline', id] })
       setRejectReason('')
     },
-    onError: (error) => {
+    onError: (error, vars) => {
       // 서버 상태가 유지된 실패에서는 모든 편집 표면과 입력을 그대로 둔다.
       transitionDiscardRef.current = false
       if (axios.isAxiosError(error) && error.response?.status === 409) {
         const cause = classifyTransitionConflict(error)
         if (cause === 'other') return
-        const policy = transitionConflictEditPolicy(cause)
+        const policy = transitionConflictEditPolicy(cause, vars.action)
         setEditSurfaceNotice(policy.message)
         if (policy.blockEditSurfaces) {
           if (salesEditOpen) setSalesEditStale(true)
@@ -2272,8 +2295,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     && canAccessSlipAction('reject', mode, canAccess)
   const canCancelSlip = possibleActions.includes('cancel')
     && canAccessSlipAction('cancel', mode, canAccess)
-  const canDirectEditPurchase = mode === 'INBOUND'
-    && canOpenDirectEdit(mode, slip.status, canAccess)
+  const directEditAllowed = canOpenDirectEdit(mode, slip.status, canAccess)
 
   const canDirectDeletePurchase = mode === 'INBOUND'
     && canSoftDeleteSlip(mode, slip.status, canAccess)
@@ -2284,8 +2306,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    * - canAccess('sales.slip.edit', 'update') — 동적 권한(MASTER 자동 전권)
    * - status = SAVED 또는 DRAFT
    */
-  const canDirectEditSales = mode === 'OUTBOUND'
-    && canOpenDirectEdit(mode, slip.status, canAccess)
+  const canDirectEditSalesByPermission = mode === 'OUTBOUND' && directEditAllowed
 
   /**
    * SP-08-6-3: 매출 전표 soft delete 권한 판단.
@@ -2326,6 +2347,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     slip.status,
     canAccess('slip.audit-overlay', 'update'),
   )
+  const directEditOpen = salesEditOpen || purchaseEditOpen || editingDriver
+  const editSurfaceEntries = editSurfaceEntryAvailability(
+    directEditAllowed,
+    canCollabEdit,
+    directEditOpen,
+    collabEditMode,
+  )
+  const canDirectEditSales = canDirectEditSalesByPermission && editSurfaceEntries.direct
+  const canDirectEditPurchase = mode === 'INBOUND' && editSurfaceEntries.direct
+  const canCollabEditEntry = editSurfaceEntries.collab
   const resolvedCollabEditBlockedReason = collabEditBlockedReason
     ?? (collabEditMode && !canCollabEdit
       ? `현재 단계(${slipStatusLabel(slip.status)})에서는 협업 수정 내용을 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.`
@@ -2494,7 +2525,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const desktopFooterActionSet = desktopFooterActions(
     slip.status,
     mode,
-    canCollabEdit,
+    canCollabEditEntry,
     slip.sourceType ?? 'MANUAL',
   )
 
@@ -3617,7 +3648,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setSalesEditOpen(true)
               }}
             >
-              수정
+              직접 수정
             </Button>
           ) : null}
           {canDirectEditPurchase ? (
@@ -3636,10 +3667,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setPurchaseEditOpen(true)
               }}
             >
-              수정
+              직접 수정
             </Button>
           ) : null}
-          {canCollabEdit ? (
+          {canCollabEditEntry ? (
             <Button
               variant="primary"
               size="sm"
@@ -3780,7 +3811,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         setSalesEditOpen(true)
                       }}
                     >
-                      수정
+                      직접 수정
                     </button>
                   ) : null}
                   {canDirectEditPurchase ? (
@@ -3799,10 +3830,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         setPurchaseEditOpen(true)
                       }}
                     >
-                      수정
+                      직접 수정
                     </button>
                   ) : null}
-                  {canCollabEdit ? (
+                  {canCollabEditEntry ? (
                     <button
                       type="button"
                       className="mobile-more-sheet-item"

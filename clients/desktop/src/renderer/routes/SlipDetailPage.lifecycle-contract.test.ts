@@ -9,6 +9,7 @@ import {
   canSoftDeleteSlip,
   classifyTransitionConflict,
   desktopFooterActions,
+  editSurfaceEntryAvailability,
   isCollabEditStatus,
   isDirectEditStatus,
   slipActionPermissionRequirements,
@@ -241,6 +242,11 @@ describe('SlipDetailPage lifecycle contract', () => {
       message: '재고가 부족하여 전표를 수락할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.',
       blockEditSurfaces: false,
     })
+    expect(transitionConflictEditPolicy('inventory', 'complete')).toEqual({
+      message: '재고가 부족하여 전표를 검수 대기 상태로 전환할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.',
+      blockEditSurfaces: false,
+    })
+    expect(transitionConflictEditPolicy('inventory', 'complete').message).not.toContain('수락')
 
     const openSurfaces = ['direct', 'driver', 'collab'] as const
     const transitionKinds = ['accept', 'complete'] as const
@@ -424,6 +430,18 @@ describe('SlipDetailPage lifecycle contract', () => {
     )?.[0] ?? ''
     expect(collabEntry).toContain('협업 수정')
     expect(source).not.toContain('canCollabEdit && !canDirectEditSales && !canDirectEditPurchase')
+  })
+
+  it('R35: 직접수정·협업수정 진입점은 이름이 다르고 두 편집 표면이 동시에 열리지 않는다', () => {
+    expect(editSurfaceEntryAvailability(true, true, false, false)).toEqual({ direct: true, collab: true })
+    expect(editSurfaceEntryAvailability(true, true, true, false)).toEqual({ direct: true, collab: false })
+    expect(editSurfaceEntryAvailability(true, true, false, true)).toEqual({ direct: false, collab: true })
+    expect(editSurfaceEntryAvailability(true, true, true, true)).toEqual({ direct: false, collab: false })
+
+    const source = fs.readFileSync(sourcePath, 'utf8')
+    expect(source).toContain('직접 수정')
+    expect(source).toContain('협업 수정')
+    expect(source).toContain('const canCollabEditEntry = editSurfaceEntries.collab')
   })
 
   it('R33 RED-B4: 취소와 soft delete는 이름·핸들러·확인 문구가 실제 동작과 다르지 않다', () => {

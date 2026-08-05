@@ -36,7 +36,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useSessionStore } from '../stores/session'
+import { canQueryPurchases, canQuerySales, useSessionStore } from '../stores/session'
 import { usePageTitleStore } from '../stores/pageTitle'
 // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 사이드바 메뉴 동적 hidden 연동.
 import { usePermissions } from '../hooks/usePermissions'
@@ -552,8 +552,10 @@ export function AppLayout() {
 
   // [SP-D4] 잔여 7 도메인 22 PageCode 동적 RBAC 연동.
   // SP-D 일관성: dynamicCanAccess 는 캐시 미로드 시 false 로 deny 하며 로딩 flash 를 만들지 않는다.
-  const showSalesSlipList          = dynamicCanAccess('sales.slip.list',             'view')
-  const showPurchaseSlipList       = dynamicCanAccess('purchases.slip.list',         'view')
+  // PageCode VIEW seed보다 좁은 slip-service 유형별 조회 guard를 메뉴에도 적용해
+  // 메뉴→목록 진입 뒤 403이 발생하는 경로를 만들지 않는다.
+  const showSalesSlipList          = dynamicCanAccess('sales.slip.list', 'view') && canQuerySales(auth)
+  const showPurchaseSlipList       = dynamicCanAccess('purchases.slip.list', 'view') && canQueryPurchases(auth)
   const showEstimatesList          = dynamicCanAccess('estimates.list',               'view')
   const showPartnerOrderList       = dynamicCanAccess('sales.partner-order.list',     'view')
   const showInventoryWarehouse     = dynamicCanAccess('inventory.warehouse',          'view')

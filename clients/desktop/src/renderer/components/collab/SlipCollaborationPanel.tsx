@@ -25,7 +25,7 @@ export interface SlipCollaborationPanelProps {
   slipId: string
   /** overlay 편집 필드의 현재 값 snapshot. */
   currentValues?: Record<string, string | null | undefined>
-  /** 상세 상단 "수정" 버튼과 연결되는 편집모드 상태. */
+  /** 상세 상단 "협업 수정" 버튼과 연결되는 편집모드 상태. */
   editMode?: boolean
   /** 편집모드 상태 변경 콜백. */
   onEditModeChange?: (next: boolean) => void
