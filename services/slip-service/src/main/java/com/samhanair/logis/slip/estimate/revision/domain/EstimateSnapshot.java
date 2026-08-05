@@ -73,6 +73,7 @@ public record EstimateSnapshot(
      * @param setHead 세트 전개 그룹 첫 구성품 여부 (R6-H3, head 만 {@code true} — 일반 라인/구
      *        스냅샷은 null, 복원 시 {@code Boolean.TRUE.equals} 로 판정)
      * @param parentSetModel 세트 구성품일 때 부모 세트 modelCode (R6-H3 — 일반 라인/구 스냅샷은 null)
+     * @param specificationSource 규격 출처 (CATALOG/USER, 구 JSONB는 null)
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Line(
@@ -88,7 +89,8 @@ public record EstimateSnapshot(
             String note,
             BigDecimal unitPriceWithVat,
             Boolean setHead,
-            String parentSetModel) {
+            String parentSetModel,
+            String specificationSource) {
 
         /**
          * 세트 계보/VAT 포함 단가 없는 구 시그니처 호환 생성자 — 기존 호출처(테스트 포함)와
@@ -98,7 +100,7 @@ public record EstimateSnapshot(
                     int quantity, BigDecimal unitPrice, BigDecimal supplyAmount,
                     BigDecimal vatAmount, BigDecimal lineTotal, String note) {
             this(productId, productName, modelName, specification, quantity, unitPrice,
-                    supplyAmount, vatAmount, lineTotal, note, null, null, null);
+                    supplyAmount, vatAmount, lineTotal, note, null, null, null, null);
         }
 
         /**
@@ -110,7 +112,17 @@ public record EstimateSnapshot(
                     BigDecimal vatAmount, BigDecimal lineTotal, String note,
                     Boolean setHead, String parentSetModel) {
             this(productId, productName, modelName, specification, quantity, unitPrice,
-                    supplyAmount, vatAmount, lineTotal, note, null, setHead, parentSetModel);
+                    supplyAmount, vatAmount, lineTotal, note, null, setHead, parentSetModel, null);
+        }
+
+        /** provenance 없는 VAT/세트 계보 호환 생성자 — 구 호출처는 source=null. */
+        public Line(UUID productId, String productName, String modelName, String specification,
+                    int quantity, BigDecimal unitPrice, BigDecimal supplyAmount,
+                    BigDecimal vatAmount, BigDecimal lineTotal, String note,
+                    BigDecimal unitPriceWithVat, Boolean setHead, String parentSetModel) {
+            this(productId, productName, modelName, specification, quantity, unitPrice,
+                    supplyAmount, vatAmount, lineTotal, note, unitPriceWithVat,
+                    setHead, parentSetModel, null);
         }
     }
 }

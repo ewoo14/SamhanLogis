@@ -82,6 +82,31 @@ class EstimateRevisionSnapshotTest {
     }
 
     @Test
+    @DisplayName("S20 RED-B: provenance가 있는 JSONB와 없는 구 JSONB를 모두 역직렬화한다")
+    void snapshotSpecificationSourceRoundTripAndLegacyJsonBackwardCompat() throws Exception {
+        String currentJson = """
+                {"productId":"%s","productName":"펌프","specification":"220V",
+                 "specificationSource":"CATALOG","quantity":2,"unitPrice":15000.00}
+                """.formatted(UUID.randomUUID());
+
+        EstimateSnapshot.Line current = objectMapper.readValue(currentJson, EstimateSnapshot.Line.class);
+        assertThat(current.specification()).isEqualTo("220V");
+        assertThat(current.specificationSource()).isEqualTo("CATALOG");
+        EstimateSnapshot.Line serializedAgain = objectMapper.readValue(
+                objectMapper.writeValueAsString(current), EstimateSnapshot.Line.class);
+        assertThat(serializedAgain.specification()).isEqualTo("220V");
+        assertThat(serializedAgain.specificationSource()).isEqualTo("CATALOG");
+
+        String legacyJson = """
+                {"productId":"%s","productName":"펌프","specification":"직접입력",
+                 "quantity":2,"unitPrice":15000.00}
+                """.formatted(UUID.randomUUID());
+        EstimateSnapshot.Line legacy = objectMapper.readValue(legacyJson, EstimateSnapshot.Line.class);
+        assertThat(legacy.specification()).isEqualTo("직접입력");
+        assertThat(legacy.specificationSource()).isNull();
+    }
+
+    @Test
     @DisplayName("EstimateRevision.of 는 RESTORE 스냅샷을 생성하고 source revision 을 보존한다")
     void factoryCreatesRestoreRevision() {
         UUID estimateId = UUID.randomUUID();

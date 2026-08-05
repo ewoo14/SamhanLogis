@@ -84,6 +84,8 @@ class EstimateRestoreTest {
         UUID actorId = UUID.randomUUID();
 
         // rev1 스냅샷 캡처 (복원 대상)
+        estimate.getLines().get(0).changeSpecificationSource("CATALOG");
+        estimate.getLines().get(1).changeSpecificationSource("USER");
         EstimateSnapshot rev1Snapshot = estimate.toSnapshot();
         assertThat(rev1Snapshot.lines()).hasSize(2);
 
@@ -118,6 +120,8 @@ class EstimateRestoreTest {
         assertThat(estimate.getLines().get(0).getLineTotal()).isEqualByComparingTo("33000.00");
         assertThat(estimate.getLines().get(1).getProductName()).isEqualTo("밸브");
         assertThat(estimate.getLines().get(1).getLineTotal()).isEqualByComparingTo("16500.00");
+        assertThat(estimate.getLines().get(0).getSpecificationSource()).isEqualTo("CATALOG");
+        assertThat(estimate.getLines().get(1).getSpecificationSource()).isEqualTo("USER");
         // 합계 재계산 (스냅샷 무시, 라인 기준): 30000+15000=45000 공급, VAT 4500, 합계 49500
         assertThat(estimate.getTotalSupply()).isEqualByComparingTo("45000.00");
         assertThat(estimate.getTotalVat()).isEqualByComparingTo("4500.00");
@@ -127,6 +131,7 @@ class EstimateRestoreTest {
         assertThat(restored.getSourceRevisionNo()).isEqualTo(1);
         assertThat(restored.getRevisionNo()).isEqualTo(2);
         assertThat(restored.getSnapshot().lines()).hasSize(2);
+        assertThat(restored.getSnapshot().lines().get(0).specificationSource()).isEqualTo("CATALOG");
     }
 
     @Test
@@ -228,6 +233,20 @@ class EstimateRestoreTest {
         assertThat(restored.getSupplyAmount()).isEqualByComparingTo("30000.00");
         assertThat(restored.getVatAmount()).isEqualByComparingTo("3000.00");
         assertThat(restored.getLineTotal()).isEqualByComparingTo("33000.00");
+    }
+
+    @Test
+    @DisplayName("S20 RED-A: toSnapshot → restoreFromSnapshot 왕복에서 규격 provenance를 보존한다")
+    void restoreFromSnapshotPreservesSpecificationSource() throws Exception {
+        Estimate estimate = rev1Estimate(UUID.randomUUID());
+        estimate.getLines().get(0).changeSpecificationSource("CATALOG");
+        estimate.getLines().get(1).changeSpecificationSource("USER");
+
+        EstimateSnapshot snapshot = estimate.toSnapshot();
+        estimate.restoreFromSnapshot(snapshot);
+
+        assertThat(estimate.getLines().get(0).getSpecificationSource()).isEqualTo("CATALOG");
+        assertThat(estimate.getLines().get(1).getSpecificationSource()).isEqualTo("USER");
     }
 
     @Test

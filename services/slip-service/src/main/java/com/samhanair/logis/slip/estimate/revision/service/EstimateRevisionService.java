@@ -401,6 +401,7 @@ public class EstimateRevisionService {
         return !Objects.equals(a.productName(), b.productName())
                 || !Objects.equals(a.modelName(), b.modelName())
                 || !Objects.equals(a.specification(), b.specification())
+                || !Objects.equals(a.specificationSource(), b.specificationSource())
                 || !Objects.equals(a.note(), b.note());
     }
 

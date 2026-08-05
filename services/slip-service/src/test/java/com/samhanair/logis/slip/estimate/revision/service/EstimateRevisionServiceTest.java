@@ -248,6 +248,23 @@ class EstimateRevisionServiceTest {
     }
 
     @Test
+    @DisplayName("S20: 규격은 같고 provenance만 달라져도 라인 변경으로 집계한다")
+    void summarizeCountsSpecificationSourceChange() {
+        UUID productId = UUID.randomUUID();
+        EstimateSnapshot.Line catalog = new EstimateSnapshot.Line(productId, "품목", "모델", "규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "CATALOG");
+        EstimateSnapshot.Line user = new EstimateSnapshot.Line(productId, "품목", "모델", "규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "USER");
+
+        ChangeSummary summary = service.summarize(snapshot("memo", List.of(catalog)),
+                snapshot("memo", List.of(user)));
+
+        assertThat(summary.lineModified()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("listWithSummary: 최신 우선 정렬 + 각 항목이 직전 revisionNo 대비 changeSummary 를 가지며 "
             + "actorId 는 노출하지 않는다")
     void listWithSummaryBuildsAdjacentSummariesNewestFirst() {

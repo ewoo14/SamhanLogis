@@ -461,7 +461,8 @@ public class Estimate extends BaseEntity {
                         line.getUnitPriceWithVat(),
                         // R6-H3 — 세트 계보 캡처. head 만 true, 일반 라인은 null 로 생략(NON_NULL).
                         line.isSetHead() ? Boolean.TRUE : null,
-                        line.getParentSetModel()))
+                        line.getParentSetModel(),
+                        line.getSpecificationSource()))
                 .toList();
         return new EstimateSnapshot(
                 this.estimateNo,
@@ -559,6 +560,7 @@ public class Estimate extends BaseEntity {
                                 snapLine.quantity(),
                                 snapLine.unitPrice(),
                                 snapLine.note());
+                restored.changeSpecificationSource(snapLine.specificationSource());
                 // R6-H3 — 스냅샷의 세트 계보 복원. 계보가 없으면(일반 라인/구 스냅샷 null) 평면
                 // 재생성 시 이후 저장에서 구성품 배분가가 가격기억에 각인되는 오염이 재유입된다.
                 if (snapLine.parentSetModel() != null && !snapLine.parentSetModel().isBlank()) {
