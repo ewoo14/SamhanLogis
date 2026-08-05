@@ -277,7 +277,10 @@ public class EstimateRevisionService {
      *       식별자 전부). 라인 리스트는 헤더 카운트에서 제외.</li>
      *   <li><b>라인</b>: productId 기준 매칭 — cur 에만 있으면 added, prev 에만 있으면 removed,
      *       양쪽 존재하나 라인 필드(quantity, unitPrice, supplyAmount, vatAmount, lineTotal,
-     *       productName, modelName, specification, note) 중 하나라도 다르면 modified.</li>
+     *       productName, modelName, specification, note) 중 하나라도 다르면 modified.
+     *       구 revision/DB의 source 누락(null)이 현재 저장 과정에서 정규화된 경우에는 표시 규격이
+     *       같다면 provenance만으로 modified로 세지 않으며, 양쪽 source가 명시된 CATALOG↔USER
+     *       전환은 실제 사용자 의미 변경으로 계속 modified로 센다.</li>
      * </ul>
      *
      * <p>productId 가 null 인 라인은 매칭 키가 없어 added/removed 로만 집계된다 (modified 미판정).
@@ -401,8 +404,16 @@ public class EstimateRevisionService {
         return !Objects.equals(a.productName(), b.productName())
                 || !Objects.equals(a.modelName(), b.modelName())
                 || !Objects.equals(a.specification(), b.specification())
-                || !Objects.equals(a.specificationSource(), b.specificationSource())
+                || specificationSourceDiffers(a.specificationSource(), b.specificationSource())
                 || !Objects.equals(a.note(), b.note());
+    }
+
+    /**
+     * 구 snapshot의 source 누락과 현재 hydrate 정규화를 실제 source 전환과 구분한다.
+     * 양쪽 모두 source가 있을 때만 provenance 차이를 변경으로 취급한다.
+     */
+    private boolean specificationSourceDiffers(String previous, String current) {
+        return previous != null && current != null && !Objects.equals(previous, current);
     }
 
     /**
