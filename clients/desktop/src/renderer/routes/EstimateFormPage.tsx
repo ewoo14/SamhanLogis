@@ -81,7 +81,6 @@ import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { BundleOptionRow } from './components/BundleOptionRow'
 import {
   decodeEstimateSpecification,
-  encodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
 
 let __lineUidCounter = 0
@@ -264,16 +263,17 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
         const canonicalUnitPrice = String(
           hasVatInclusivePrice ? line.unitPriceWithVat : line.unitPrice,
         )
+        const decodedSpecification = decodeEstimateSpecification(line.specification)
         return {
           uid: nextLineUid(),
           lineId: line.id,
           productId: line.productId,
           modelName: line.modelName ?? '',
           productName: line.productName ?? '',
-          // 상세 API는 규격의 provenance를 별도 전송하지 않는다. 저장된 품목 규격은
-          // catalog snapshot으로 시작하고, 현재 세션의 직접 편집에서 USER로 승격한다.
-          specification: decodeEstimateSpecification(line.specification).value,
-          specificationSource: decodeEstimateSpecification(line.specification).source,
+          // 신규 상세 API는 규격 원문과 provenance를 별도 전송한다. U+2060을 사용한
+          // 구 저장 레코드는 decodeEstimateSpecification으로만 호환한다.
+          specification: decodedSpecification.value,
+          specificationSource: line.specificationSource ?? decodedSpecification.source,
           quantity: String(line.quantity),
           // 단가 부가세포함: 폼 단가 입력은 VAT 포함값. 편집 hydrate/coedit seed 모두 같은 값으로 보존.
           unitPrice: canonicalUnitPrice,
@@ -375,6 +375,11 @@ function coeditLinesToDraftLines(
       previous && specification !== previous.specification,
     )
     const providerSpecificationSource = provider.getItemValue(index, 'specificationSource')
+    const specificationSource = providerSpecificationSource === 'CATALOG' || providerSpecificationSource === 'USER'
+      ? providerSpecificationSource
+      : isRemoteSpecificationChange
+        ? 'USER'
+        : previous?.specificationSource ?? null
     return {
       uid: previous?.uid ?? nextLineUid(),
       lineId: resolveServerLineId(provider, index, knownServerLineIds),
@@ -382,11 +387,7 @@ function coeditLinesToDraftLines(
       modelName: provider.getItemValue(index, 'modelName'),
       productName: provider.getItemValue(index, 'productName'),
       specification,
-      specificationSource: isRemoteSpecificationChange
-        ? 'USER'
-        : providerSpecificationSource === 'CATALOG' || providerSpecificationSource === 'USER'
-          ? providerSpecificationSource
-          : previous?.specificationSource ?? null,
+      specificationSource,
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice,
       supplyAmount: previous?.supplyAmount ?? '0',
@@ -1674,7 +1675,8 @@ export function EstimateFormPage() {
         productId: l.productId!,
         productName: l.productName.trim() || undefined,
         modelName: l.modelName.trim() || undefined,
-        specification: encodeEstimateSpecification(l.specification, l.specificationSource ?? null).trim() || undefined,
+        specification: l.specification.trim() || undefined,
+        specificationSource: l.specificationSource ?? undefined,
         quantity: Number.parseInt(l.quantity || '0', 10),
         unitPrice: l.unitPrice || '0',
         note: l.note.trim() || undefined,

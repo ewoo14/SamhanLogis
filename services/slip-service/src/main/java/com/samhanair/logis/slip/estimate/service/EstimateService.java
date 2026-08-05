@@ -82,6 +82,7 @@ public class EstimateService {
      */
     private int addEstimateLines(Estimate estimate, int lineNo, UUID productId, ProductSummary summary,
                                  String reqName, String reqModel, String specification, int quantity,
+                                 String specificationSource,
                                  BigDecimal unitPrice, String note, BundleSetOptions setOptions,
                                  boolean priceVatInclusive, BigDecimal supplyAmount, BigDecimal vatAmount,
                                  BigDecimal lineTotalWithVat, UUID sourceLineId, String actor,
@@ -108,6 +109,7 @@ public class EstimateService {
                             specification, quantity, unitPrice, note)
                     : EstimateLine.create(estimate, lineNo, productId, productName, modelName,
                             specification, quantity, unitPrice, note);
+            line.changeSpecificationSource(specificationSource);
             estimate.addLine(line);
             // PUT 의 기존 라인은 sourceLineId 로 계보를 복원해야 하므로, 전 라인 저장 후
             // lineId 기반 복원 결과를 반영할 수 있도록 LINE_SAVE 기억 수집과 함께 지연한다
@@ -143,6 +145,10 @@ public class EstimateService {
                             el.name(), el.modelName(), compSpec, q, compUnit, note)
                     : EstimateLine.create(estimate, lineNo++, el.productId(),
                             el.name(), el.modelName(), compSpec, q, compUnit, note);
+            line.changeSpecificationSource(compSpec != null && !compSpec.isBlank()
+                    ? (el.specification() != null && !el.specification().isBlank()
+                        ? "CATALOG" : specificationSource)
+                    : null);
             line.assignBundleComponent(summary.modelCode(), el.setHead());
             estimate.addLine(line);
             added++;
@@ -195,7 +201,7 @@ public class EstimateService {
         for (CreateEstimateRequest.EstimateLineRequest lineReq : req.lines()) {
             lineNo = addEstimateLines(estimate, lineNo, lineReq.productId(),
                     byId.get(lineReq.productId()), lineReq.productName(), lineReq.modelName(),
-                    lineReq.specification(), lineReq.quantity(), lineReq.unitPrice(),
+                    lineReq.specification(), lineReq.quantity(), lineReq.specificationSource(), lineReq.unitPrice(),
                     lineReq.note(), lineReq.setOptions(),
                     Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
                     lineReq.vatAmount(), lineReq.lineTotalWithVat(), null, requesterId, priceMemoryCommands,
@@ -266,7 +272,7 @@ public class EstimateService {
             for (UpdateEstimateRequest.EstimateLineUpdate lineReq : req.lines()) {
                 lineNo = addEstimateLines(estimate, lineNo, lineReq.productId(),
                         byId.get(lineReq.productId()), lineReq.productName(), lineReq.modelName(),
-                        lineReq.specification(), lineReq.quantity(), lineReq.unitPrice(),
+                        lineReq.specification(), lineReq.quantity(), lineReq.specificationSource(), lineReq.unitPrice(),
                         lineReq.note(), lineReq.setOptions(),
                         Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
                         lineReq.vatAmount(), lineReq.lineTotalWithVat(), lineReq.lineId(), callerId,

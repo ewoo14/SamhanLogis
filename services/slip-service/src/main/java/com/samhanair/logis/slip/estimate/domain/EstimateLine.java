@@ -103,6 +103,10 @@ public class EstimateLine extends BaseEntity {
     @Column(name = "specification", length = 50)
     private String specification;
 
+    /** specification 길이와 독립적으로 왕복하는 규격 provenance. */
+    @Column(name = "specification_source", length = 20)
+    private String specificationSource;
+
     @Column(name = "quantity", nullable = false)
     private int quantity;
 
@@ -176,6 +180,10 @@ public class EstimateLine extends BaseEntity {
         // 동일 결함군, #824 R1 MED-4 주석으로 이미 짝을 이룬 클래스).
         line.validateStorableAmounts();
         return line;
+    }
+
+    public void changeSpecificationSource(String source) {
+        this.specificationSource = source;
     }
 
     /**

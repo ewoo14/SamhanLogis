@@ -78,14 +78,15 @@ public record UpdateEstimateRequest(
             /** 권위 부가세 V — 공급가액·합계와 함께 보낼 때만 적용한다. */
             BigDecimal vatAmount,
             /** 권위 VAT 포함 합계 T — 견적 lineTotal 컬럼과 동일한 의미다. */
-            BigDecimal lineTotalWithVat) {
+            BigDecimal lineTotalWithVat,
+            String specificationSource) {
         /** 기존 lineId 계약을 사용하는 호출자용 — VAT 권위 필드는 모두 생략한다. */
         public EstimateLineUpdate(UUID productId, String productName, String modelName,
                                   String specification, Integer quantity, BigDecimal unitPrice,
                                   String note, BundleSetOptions setOptions, Boolean priceVatInclusive,
                                   UUID lineId) {
             this(productId, productName, modelName, specification, quantity, unitPrice, note,
-                    setOptions, priceVatInclusive, lineId, null, null, null);
+                    setOptions, priceVatInclusive, lineId, null, null, null, null);
         }
     }
 }

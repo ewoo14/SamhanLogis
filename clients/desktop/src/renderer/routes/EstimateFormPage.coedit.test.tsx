@@ -347,6 +347,24 @@ function renderPage(initialPath = '/sales/estimates/estimate-1/edit') {
   )
 }
 
+function renderTwoCoeditConsumers() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={['/sales/estimates/consumer-a/edit']}>
+        <Routes>
+          <Route path="/sales/estimates/:id/edit" element={<EstimateFormPage />} />
+        </Routes>
+      </MemoryRouter>
+      <MemoryRouter initialEntries={['/sales/estimates/consumer-b/edit']}>
+        <Routes>
+          <Route path="/sales/estimates/:id/edit" element={<EstimateFormPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -406,13 +424,14 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
   })
 
   it('RED-A: 공용 ProductOption 확정은 id·모델명·품목명·규격·단가를 저장 라인에 보존한다', async () => {
+    const catalogSpecification = '가'.repeat(50)
     mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
     mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
     mocks.searchProducts.mockResolvedValue([{
       id: '44444444-4444-4444-4444-444444444444',
       modelName: 'AJ040RXH4BC1',
       productName: '시스템에어컨 4Way 4HP',
-      specification: '냉방 4HP',
+      specification: catalogSpecification,
       sellingPrice: 1850000,
     }])
 
@@ -423,7 +442,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
 
     await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-modelName') as HTMLInputElement).value).toBe('AJ040RXH4BC1'))
     expect((screen.getByTestId('estimate-coedit-items-0-productName') as HTMLInputElement).value).toBe('시스템에어컨 4Way 4HP')
-    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe('냉방 4HP')
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe(catalogSpecification)
     expect((screen.getByTestId('estimate-coedit-items-0-unitPrice') as HTMLInputElement).value).toBe('1850000')
     fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
     const saveButton = screen.getByTestId('estimate-form-save-button') as HTMLButtonElement
@@ -434,7 +453,8 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
       lines: [expect.objectContaining({
         productId: '44444444-4444-4444-4444-444444444444',
         modelName: 'AJ040RXH4BC1',
-        specification: expect.stringMatching(/^\u2060.*4HP$/),
+        specification: catalogSpecification,
+        specificationSource: 'CATALOG',
         unitPrice: '1850000',
       })],
     })))
@@ -575,7 +595,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
 
     cleanup()
     mocks.getEstimate.mockResolvedValueOnce(makeEstimate({
-      lines: [{ ...initial.lines[0], specification: savedBody.lines[0].specification }],
+      lines: [{ ...initial.lines[0], specification: savedBody.lines[0].specification, specificationSource: 'USER' }],
     }))
     const reopenedProvider = makeProvider()
     mocks.createDocCoeditProvider.mockResolvedValueOnce(reopenedProvider)
@@ -609,11 +629,12 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     await screen.findByTestId('estimate-form-save-button')
     fireEvent.click(screen.getByTestId('estimate-form-save-button'))
     await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
-    expect(savedBody.lines[0].specification).toBe(persistedCatalogSpecification)
+    expect(savedBody.lines[0].specification).toBe('CATALOG-SPEC')
+    expect(savedBody.lines[0].specificationSource).toBe('CATALOG')
 
     cleanup()
     mocks.getEstimate.mockResolvedValueOnce(makeEstimate({
-      lines: [{ ...initial.lines[0], specification: savedBody.lines[0].specification }],
+      lines: [{ ...initial.lines[0], specification: savedBody.lines[0].specification, specificationSource: 'CATALOG' }],
     }))
     const reopenedProvider = makeProvider()
     mocks.createDocCoeditProvider.mockResolvedValueOnce(reopenedProvider)
@@ -627,6 +648,69 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     await waitFor(() => expect(model.value).toBe(''))
     expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe('')
     expect(reopenedProvider.getItemValue(0, 'specification')).toBe('')
+  })
+
+  it('원격 CATALOG 규격은 값이 바뀌어도 USER로 강등하지 않고 품목 해제 시 회수한다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    provider.__setRows([{
+      modelName: 'REMOTE-MODEL',
+      productName: '원격 품목',
+      specification: 'REMOTE-CATALOG-SPEC',
+      specificationSource: 'CATALOG',
+      quantity: '2',
+      unitPrice: '10000',
+      productId: 'product-remote',
+    }])
+    act(() => provider.__emit())
+
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe('REMOTE-CATALOG-SPEC'))
+    const model = await screen.findByLabelText('라인 1 모델명')
+    fireEvent.change(model, { target: { value: '' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value).toBe(''))
+    expect(provider.getItemValue(0, 'specification')).toBe('')
+    expect(provider.getItemValue(0, 'specificationSource')).toBe('')
+  })
+
+  it('두 실제 EstimateFormPage 소비자가 원격 CATALOG 수신·해제를 함께 수렴한다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderTwoCoeditConsumers()
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(2))
+    provider.__setRows([{
+      modelName: 'REMOTE-TWO-CONSUMERS',
+      productName: '원격 품목',
+      specification: 'REMOTE-CATALOG-SPEC',
+      specificationSource: 'CATALOG',
+      quantity: '2',
+      unitPrice: '10000',
+      productId: 'product-remote',
+    }])
+    act(() => provider.__emit())
+
+    await waitFor(() => expect(screen.getAllByTestId('estimate-coedit-items-0-specification'))
+      .toHaveLength(2))
+    expect(screen.getAllByTestId('estimate-coedit-items-0-specification')
+      .every((input) => (input as HTMLInputElement).value === 'REMOTE-CATALOG-SPEC')).toBe(true)
+
+    const models = screen.getAllByLabelText('라인 1 모델명')
+    fireEvent.change(models[1], { target: { value: '' } })
+    fireEvent.blur(models[1])
+    act(() => provider.__emit())
+
+    await waitFor(() => expect(screen.getAllByTestId('estimate-coedit-items-0-specification')
+      .every((input) => (input as HTMLInputElement).value === '')).toBe(true))
+    expect(provider.getItemValue(0, 'specification')).toBe('')
+    expect(provider.getItemValue(0, 'specificationSource')).toBe('')
   })
 
   it('RED-B: 부분 모델 검색은 공용 품목 결과 모달의 규격·단가 후보를 사용한다', async () => {

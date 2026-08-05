@@ -58,6 +58,7 @@ export interface EstimateLine {
   productName: string | null
   modelName: string | null
   specification: string | null
+  specificationSource?: 'CATALOG' | 'USER' | null
   quantity: number
   unitPrice: string
   supplyAmount: string
@@ -161,6 +162,7 @@ export interface EstimateLineRequest {
   productName?: string
   modelName?: string
   specification?: string
+  specificationSource?: 'CATALOG' | 'USER'
   quantity: number
   /** 단가 (BigDecimal — string). */
   unitPrice: string

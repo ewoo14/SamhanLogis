@@ -9,8 +9,9 @@ export function encodeEstimateSpecification(
   specification: string,
   source: EstimateSpecificationSource,
 ): string {
-  if (source !== 'CATALOG' || !specification.trim()) return specification
-  return `${CATALOG_MARKER}${specification}`
+  // 신규 API는 provenance를 별도 필드로 저장한다. marker는 구 API가 저장한
+  // 레코드를 읽을 때만 decodeEstimateSpecification에서 호환한다.
+  return specification
 }
 
 export function decodeEstimateSpecification(specification: string | null | undefined): {
