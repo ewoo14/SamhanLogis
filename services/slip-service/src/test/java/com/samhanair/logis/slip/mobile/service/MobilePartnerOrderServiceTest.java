@@ -107,6 +107,8 @@ class MobilePartnerOrderServiceTest {
         UUID sourceWarehouseId = UUID.randomUUID();
         when(partnerInternalClient.verifyPartnerCode("P-001"))
                 .thenReturn(PartnerInternalClient.PartnerVerifyResult.found(Optional.of(partnerId)));
+        when(partnerInternalClient.resolveBusinessNumber(partnerId))
+                .thenReturn(Optional.of("123-45-67890"));
         when(productClient.lookup(List.of(productId))).thenReturn(List.of(
                 new ProductSummary(productId, "에어컨", "AC-1", UUID.randomUUID(),
                         new BigDecimal("1000.00"), "ACTIVE")));
@@ -128,7 +130,9 @@ class MobilePartnerOrderServiceTest {
 
         service.createOrder(request, "sales-1");
 
-        verify(slipRepository).save(any(Slip.class));
+        org.mockito.ArgumentCaptor<Slip> captor = org.mockito.ArgumentCaptor.forClass(Slip.class);
+        verify(slipRepository).save(captor.capture());
+        assertThat(captor.getValue().getBusinessNumber()).isEqualTo("123-45-67890");
         verifyNoInteractions(priceMemoryService);
     }
 

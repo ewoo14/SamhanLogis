@@ -68,6 +68,7 @@ public class EstimateToSlipConverter {
                 null,
                 buildSlipMemo(estimate),
                 estimate.getRequesterId());
+        slip.withProjectInfo(estimate.getPartnerBusinessNo(), null, null, null, null, null);
 
         // [게이트②] 견적→출고전표 변환 마감 게이트 — createOutbound 직후.
         // deliveryTag null(견적 변환 시 항상 null) 이므로 assertWithinCutoff 내부에서 즉시 통과.

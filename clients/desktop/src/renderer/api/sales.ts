@@ -1029,6 +1029,14 @@ export interface PartnerApproval {
   assignedManagerName: string | null
 }
 
+/** 주문서 앱 접근권한 미리보기 — 후보와 외부 조회 보류를 함께 표시한다. */
+export interface PartnerAccessPreview {
+  candidates: PartnerApproval[]
+  deferred: boolean
+  deferredPartnerCount: number
+  deferredSources: ('ORDER' | 'SHIPMENT')[]
+}
+
 /**
  * 주문서 승인 페이지 조회 — `/api/v1/partner-approvals?page=&size=&status=`.
  */
@@ -1053,9 +1061,9 @@ export async function listPartnerApprovals(
  */
 export async function previewPartnerAccess(
   unusedDays: number,
-): Promise<PartnerApproval[]> {
-  const res = await apiClient.get<ApiEnvelope<PartnerApproval[]>>(
-    '/api/v1/partner-approvals/access-preview',
+): Promise<PartnerAccessPreview> {
+  const res = await apiClient.get<ApiEnvelope<PartnerAccessPreview>>(
+    '/api/v1/partner-approvals/access-preview/report',
     { params: { unusedDays } },
   )
   return res.data.data

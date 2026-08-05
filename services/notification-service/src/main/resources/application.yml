@@ -52,6 +52,8 @@ samhan:
   # PR-E 진입 전 선행 BE-E — RestClientPartnerLookupClient 활성. partner-service base URL.
   partner-service:
     url: ${SAMHAN_PARTNER_SERVICE_URL:http://localhost:8095}
+  slip-service:
+    url: ${SAMHAN_SLIP_SERVICE_URL:http://localhost:8086}
   notification:
     aligo:
       api-url: ${SAMHAN_ALIGO_API_URL:https://apis.aligo.in/send/}

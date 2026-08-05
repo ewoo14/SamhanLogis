@@ -135,11 +135,14 @@ public enum PageCode {
 
     // ---- 알림 / SMS (notification) ----
 
-    /** Aligo SMS 발송 이력 화면 (SP-09-2). */
-    NOTIFICATION_DISPATCH_SMS_SEND_AUDIT("notification.dispatch-sms.send-audit", "배차 SMS 발송 이력"),
-
     /** 알림 발송 admin 화면/API — SP-D6-3. */
     NOTIFICATIONS_ADMIN("notifications.admin", "알림 발송 관리"),
+
+    /** 배차안내문자 화면의 V92 공통 인가 근거 — 기존 SEND_AUDIT 권한 정본과 정렬한다. */
+    DISPATCH_SMS_SEND_AUDIT("notification.dispatch-sms.send-audit", "배차안내 SMS"),
+
+    /** R19 표시·편집·복사 전용 배차안내 SMS 화면 — V92 회수 권한과 분리한다. */
+    DISPATCH_SMS_DISPLAY("notification.dispatch-sms.display", "배차안내 SMS 표시"),
 
     /** 사용자 통합 알림 센터 — SP-D7. */
     NOTIFICATIONS_CENTER("notifications.center", "알림 센터"),

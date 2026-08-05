@@ -112,8 +112,8 @@ public class NotificationService {
     /**
      * 발송 요청 생성 + 즉시 1회 게이트웨이 호출 + status 전이. gateway 결과(msg_id / raw) 포함 반환.
      *
-     * <p>SP-09-2 — {@code DispatchBatchSendService} 가 각 entry 별 Aligo msg_id / gatewayRaw 를
-     * SEND_AUDIT responsePayload 에 연결할 수 있도록 gateway 결과를 함께 반환한다.
+     * <p>공용 gateway 결과를 반환한다. 배차안내문자 Scope A는 이 공용 경로를 호출하지 않지만,
+     * 다른 알림 소비자의 감사/추적 계약을 위해 유지한다.
      * 기존 {@link #send} 는 본 메서드에 위임하여 하위 호환을 유지한다.
      *
      * @param req 발송 요청 DTO
@@ -147,7 +147,7 @@ public class NotificationService {
     /**
      * 발송 결과 — NotificationRequest + NotificationGatewayResult 쌍.
      *
-     * <p>SP-09-2 — SEND_AUDIT payload 에 msg_id / gatewayRaw 를 연결하기 위해 도입.
+     * <p>공용 알림 gateway 결과와 NotificationRequest를 함께 반환한다.
      *
      * @param notificationRequest 영속화된 발송 요청 엔티티
      * @param gatewayResult       게이트웨이 호출 결과 (msg_id / rawResponse 포함)
@@ -225,7 +225,7 @@ public class NotificationService {
      * 주입된 경우 channel × result 별 counter increment ({@code notification_gateway_send_total}
      * actuator/prometheus 노출).
      *
-     * <p>SP-09-2 — {@link NotificationGatewayResult} 반환 추가 (msg_id / rawResponse SEND_AUDIT 연결).
+     * <p>{@link NotificationGatewayResult}를 포함해 공용 알림 소비자가 gateway 원문을 추적할 수 있다.
      *
      * @return 게이트웨이 호출 결과 (어댑터 미등록 시 FAILURE_NO_ADAPTER 결과 반환)
      */

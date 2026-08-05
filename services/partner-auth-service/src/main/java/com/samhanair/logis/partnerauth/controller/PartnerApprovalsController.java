@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.partnerauth.dto.PartnerApprovalResponse;
 import com.samhanair.logis.partnerauth.dto.PartnerApprovalStatus;
 import com.samhanair.logis.partnerauth.dto.UpdatePartnerApprovalStatusRequest;
+import com.samhanair.logis.partnerauth.dto.PartnerAccessPreviewResponse;
 import com.samhanair.logis.partnerauth.service.PartnerApprovalService;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
@@ -20,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import java.util.List;
 
 /**
  * 데스크탑 영업 "주문서 승인" 화면(`/sales/order-approvals`) 외부 노출 endpoints.
@@ -68,12 +68,22 @@ public class PartnerApprovalsController {
 
     /** 기간별 장기미사용 후보를 비밀번호 초기화 전에 미리 보여준다. */
     @Operation(summary = "주문서 앱 접근권한 후보 미리보기",
-            description = "마지막 로그인일 우선, 없으면 비밀번호 변경일 기준으로 기간별 후보 조회")
+            description = "구버전 데스크톱 호환을 위해 후보 배열을 유지한다")
     @GetMapping("/access-preview")
     @RequirePermission(page = "sales.partner-order.list", action = PermissionAction.VIEW)
-    public ApiResponse<List<PartnerApprovalResponse>> accessPreview(
+    public ApiResponse<java.util.List<PartnerApprovalResponse>> accessPreview(
             @RequestParam(defaultValue = "30") int unusedDays) {
         return ApiResponse.ok(partnerApprovalService.previewLongUnused(unusedDays));
+    }
+
+    /** 보류 건수까지 필요한 신형 데스크톱용 확장 계약. 기존 배열 endpoint는 변경하지 않는다. */
+    @Operation(summary = "주문서 앱 접근권한 후보 미리보기 상세",
+            description = "후보 배열과 외부 활동 조회 보류 상태를 함께 반환한다")
+    @GetMapping("/access-preview/report")
+    @RequirePermission(page = "sales.partner-order.list", action = PermissionAction.VIEW)
+    public ApiResponse<PartnerAccessPreviewResponse> accessPreviewReport(
+            @RequestParam(defaultValue = "30") int unusedDays) {
+        return ApiResponse.ok(partnerApprovalService.previewLongUnusedReport(unusedDays));
     }
 
     @Operation(summary = "거래처 승인 status 변경", description = "영업자 화면 DropdownSelect 토글")

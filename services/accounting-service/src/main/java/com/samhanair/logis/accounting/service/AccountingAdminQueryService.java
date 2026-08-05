@@ -150,7 +150,8 @@ public class AccountingAdminQueryService {
                 order.getValidUntil(),
                 order.getTotalSupplyAmount(),
                 order.getTotalVatAmount(),
-                order.getTotalSupplyAmount().add(order.getTotalVatAmount()));
+                order.getTotalSupplyAmount().add(order.getTotalVatAmount()),
+                (int) order.getLines().stream().filter(line -> line.getProductId() == null).count());
     }
 
     private OrderDetailResponse toOrderDetail(Order order) {
@@ -164,7 +165,8 @@ public class AccountingAdminQueryService {
                         line.getSupplyAmount(),
                         line.getVatAmount(),
                         line.getSupplyAmount().add(line.getVatAmount()),
-                        line.getItemDueDate()))
+                        line.getItemDueDate(),
+                        line.getProductId() == null))
                 .toList();
         return new OrderDetailResponse(
                 order.getOrderNo(),

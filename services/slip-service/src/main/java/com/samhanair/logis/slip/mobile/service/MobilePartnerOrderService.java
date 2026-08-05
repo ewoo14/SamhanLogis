@@ -129,6 +129,11 @@ public class MobilePartnerOrderService {
         // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦이 잡는다.
         cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
 
+        if (partnerId != null) {
+            partnerInternalClient.resolveBusinessNumber(partnerId)
+                    .ifPresent(slip::setBusinessNumber);
+        }
+
         // 5. partnerCode snapshot 기록 (V15 컬럼)
         slip.setPartnerCode(req.partnerCode());
 

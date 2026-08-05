@@ -43,6 +43,7 @@ public record PublishFromOrdersMergeRequest(
         String ioDate,
         @NotNull UUID partnerId,
         @Size(max = 100) String partnerCode,
+        @NotBlank @Size(max = 20) String bizCode,
         @Size(max = 100) String partnerName,
         @Size(max = 50) String employeeCode,
         @NotBlank @Size(max = 50) String warehouseCode,
@@ -54,4 +55,16 @@ public record PublishFromOrdersMergeRequest(
         @Size(max = 200) String paymentDueLabel,
         @Size(max = 200) String discountInfo,
         @NotEmpty @Valid List<PublishLineRequest> lines) {
+
+    /** bizCode 도입 전 호출부·fixture 호환 생성자. */
+    public PublishFromOrdersMergeRequest(
+            List<SourceOrderRef> sourceOrders, String ioDate, UUID partnerId,
+            String partnerCode, String partnerName, String employeeCode,
+            String warehouseCode, String warehouseId, String shippingAddress,
+            String deliveryAddress, String receiverPhone, String memo,
+            String paymentDueLabel, String discountInfo, List<PublishLineRequest> lines) {
+        this(sourceOrders, ioDate, partnerId, partnerCode, null, partnerName, employeeCode,
+                warehouseCode, warehouseId, shippingAddress, deliveryAddress, receiverPhone,
+                memo, paymentDueLabel, discountInfo, lines);
+    }
 }

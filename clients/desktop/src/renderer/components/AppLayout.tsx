@@ -601,15 +601,13 @@ export function AppLayout() {
   const showArologisManual = dynamicCanAccess('arologis.dispatch.admin', 'view')
   // 가배차리스트 / 미배차리스트 / 실배차 비교 — 라우트 공통 arologis.dispatch.ops
   const showArologisOps = dynamicCanAccess('arologis.dispatch.ops', 'view')
-  const showDispatchSmsPage = dynamicCanAccess('dispatch.batch', 'view')
-  const showDispatchSmsSendAudit = dynamicCanAccess('notification.dispatch-sms.send-audit', 'view')
+  const showDispatchSmsPage = dynamicCanAccess('notification.dispatch-sms.display', 'view')
   const showExternalCarriers = dynamicCanAccess('dispatch.external-carriers', 'view')
-  // arologis 그룹 가시성 — arologis.dispatch.admin route 권한 / ops 3종 / 배차안내 SMS / 발송 이력 / P1-5 admin 중 하나라도 보이면 그룹 노출
+  // arologis 그룹 가시성 — arologis.dispatch.admin route 권한 / ops 3종 / 배차안내문자 / P1-5 admin 중 하나라도 보이면 그룹 노출
   const showArologis
     = showArologisManual
     || showArologisOps
     || showDispatchSmsPage
-    || showDispatchSmsSendAudit
     || showExternalCarriers
     || showArologisAdminPage
 
@@ -1502,7 +1500,6 @@ export function AppLayout() {
               '/arologis/pre-classify',
               '/arologis/unassigned',
               '/arologis/dispatch-sms',
-              '/arologis/dispatch-sms/send-audit',
               '/arologis/dispatch-reconcile',
               '/admin/regions',
               '/admin/external-carriers',
@@ -1553,15 +1550,6 @@ export function AppLayout() {
                 data-testid="sidebar-arologis-dispatch-sms"
               >
                 배차안내 SMS
-              </SidebarLink>
-              {/* [SP-09-2 FE] SMS 발송 이력 — SEND_AUDIT 전용 조회화면. */}
-              <SidebarLink
-                to="/arologis/dispatch-sms/send-audit"
-                show={showDispatchSmsSendAudit}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-sms-send-audit"
-              >
-                SMS 발송 이력
               </SidebarLink>
               {/* [SP-04] 운송사 실배차 비교 — hidden route 를 공식 메뉴 entry 로 승격. */}
               <SidebarLink

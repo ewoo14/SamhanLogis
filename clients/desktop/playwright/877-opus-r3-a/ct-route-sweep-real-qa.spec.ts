@@ -44,7 +44,7 @@ const ROUTES = [
   '/accounting/reports/notes-receivable', '/accounting/reports/collection-plans',
   '/accounting/bank-card-admin', '/accounting/bank-transactions',
   '/accounting/reports/journal-status', '/accounting/reports/account-statement',
-  '/accounting/funds/status', '/arologis/dispatch-sms/send-audit', '/dispatch-board/history',
+  '/accounting/funds/status', '/dispatch-board/history',
   '/arologis/admin/auto-dispatch', '/arologis/admin/manual-dispatch', '/warehouse/closing',
   '/accounting/sales-slips', '/accounting/purchase-slips', '/accounting/daily-closing',
   '/accounting/ledgers', '/accounting/period-close', '/sales/closing',
