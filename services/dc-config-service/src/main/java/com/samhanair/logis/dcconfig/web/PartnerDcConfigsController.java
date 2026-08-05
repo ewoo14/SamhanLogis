@@ -58,6 +58,14 @@ public class PartnerDcConfigsController {
         return ApiResponse.ok(result);
     }
 
+    /** 거래처 전표 가격계산 화면용 DC 설정 단건 조회. */
+    @Operation(summary = "거래처 DC 설정 단건 조회", description = "전표/견적 화면이 적용할 홈멀티·상업멀티 DC를 조회")
+    @GetMapping("/{partnerCode}")
+    @RequirePermission(page = "sales.partner-dc-config", action = PermissionAction.VIEW)
+    public ApiResponse<PartnerDcConfigResponse> getOne(@PathVariable String partnerCode) {
+        return ApiResponse.ok(PartnerDcConfigResponse.from(dcConfigService.getByPartnerCode(partnerCode)));
+    }
+
     @Operation(summary = "거래처 DC 설정 단건 수정 (인라인)",
             description = "외부 표시 문자열 그대로 송신 가능 ('46%', '₩70,000', 'Yes'/'No'). "
                     + "null/blank 필드는 변경 없음 (PATCH 시맨틱). DC 미설정 거래처는 자동 생성. "

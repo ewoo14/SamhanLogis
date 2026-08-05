@@ -104,6 +104,7 @@ import {
 import { calculateSlipDiscount } from '../utils/slipDiscount'
 import {
   usePartnerPriceRefresh,
+  withPriceLookupTimeout,
   type PartnerRepriceCandidate,
 } from '../utils/usePartnerPriceRefresh'
 import { searchProducts as searchProductsApi } from '../api/productApi'
@@ -812,7 +813,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
     // 실제로 다를 때만, 그리고 마지막 행일 때만 빈 행을 증식한다.
     maybeExpandLastLine(line.id, line, nextLine)
-    if (!partnerId || !productId || !shouldAutoFill || dcResult) {
+    if (!partnerId || !productId || !shouldAutoFill) {
       if (productId && shouldAutoFill) {
         setPriceLookupAnnouncement(`라인 ${lineNumber} ${dcResult?.info ?? '판매가 적용'}`)
       }
@@ -838,9 +839,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return true
     }
     try {
-      const memory = await getPriceMemory(partnerId, productId)
+      const memory = await withPriceLookupTimeout(getPriceMemory(partnerId, productId))
       const remembered = memory?.unitPrice
-      const resolvedUnitPrice = remembered == null ? fallbackUnitPrice : String(remembered)
+      // 최근단가 miss/실패 시 이미 계산한 고정DC·전역DC 단가를 정가로 되돌리지 않는다.
+      const resolvedUnitPrice = remembered == null
+        ? String(dcResult?.unitPrice ?? fallbackUnitPrice)
+        : String(remembered)
       const applied = canStillApply()
       setLines((currentLines) =>
         currentLines.map((current) => {
@@ -860,7 +864,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       )
       if (applied) {
         setPriceLookupAnnouncement(
-          `라인 ${lineNumber} ${remembered == null ? '판매가' : '거래처 최근단가'} 적용`,
+          `라인 ${lineNumber} ${remembered == null ? (dcResult?.info ?? '판매가 적용') : '거래처 최근단가'} 적용`,
         )
       }
     } catch {
@@ -875,7 +879,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             : current,
         ),
       )
-      if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} 판매가 적용`)
+      if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} ${dcResult?.info ?? '판매가 적용'}`)
     }
   }
 
@@ -895,7 +899,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         // 카탈로그 미확보 시 옛 거래처 단가 fallback 금지 — 공용 훅이 UNAVAILABLE로 비운다.
         catalogFallback: line.catalogUnitPrice ?? null,
       }))
-    if (candidates.length === 0) return
+    if (candidates.length === 0) {
+      // 직전 거래처의 bulk 조회가 남긴 busy 표시는 새 거래처에 후보가 없어도 정리한다.
+      setLines((current) => current.map((line) => ({ ...line, lookupLoading: false })))
+      return
+    }
     const candidateIds = new Set(candidates.map((candidate) => candidate.key))
     setLines((current) =>
       current.map((line) =>
@@ -992,6 +1000,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setSelectedPartner(partner)
     setPartnerDcConfig(null)
     selectedPartnerIdRef.current = partner?.id ?? null
+    // 거래처 교체/무효화 직후 이전 요청의 busy 표시를 먼저 제거한다. 새 후보가 있으면
+    // refreshAutoPricesForPartner 가 다시 true 로 올리고, 실패/무응답이면 timeout 경로가 내린다.
+    setLines((current) => current.map((line) => ({ ...line, lookupLoading: false })))
 
     if (!partner) {
       partnerReprice.invalidate()

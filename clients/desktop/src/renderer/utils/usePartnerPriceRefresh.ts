@@ -17,6 +17,20 @@
 import { useRef, useState } from 'react'
 import { getPriceMemories as defaultGetPriceMemories, type BulkPriceMemoryLookupResult } from '../api/slip'
 
+/** 최근단가 조회가 네트워크에서 영영 끝나 저장을 영구 차단하지 않도록 하는 상한. */
+export const PRICE_LOOKUP_TIMEOUT_MS = 5000
+
+/** 단건·bulk 조회가 같은 timeout/finally 계약을 공유하도록 감싼다. */
+export function withPriceLookupTimeout<T>(operation: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(
+      () => reject(new Error('최근단가 조회 시간 초과')),
+      PRICE_LOOKUP_TIMEOUT_MS,
+    )
+    operation.then(resolve, reject).finally(() => clearTimeout(timeoutId))
+  })
+}
+
 /** 재조회 후보 — 소비자가 현재 라인에서 뽑아 넘긴다. */
 export interface PartnerRepriceCandidate {
   /** 라인 식별자(폼=line.id, 모달=line.key/lineId). */
@@ -142,7 +156,9 @@ export function usePartnerPriceRefresh(
     }
 
     try {
-      const { hits } = await fetchMemories(partnerId, candidates.map((candidate) => candidate.productId))
+      const { hits } = await withPriceLookupTimeout(
+        fetchMemories(partnerId, candidates.map((candidate) => candidate.productId)),
+      )
       const byProductId = new Map(hits.map((hit) => [hit.productId, hit]))
       return { outcomes: candidates.map((candidate) => toOutcome(candidate, byProductId.get(candidate.productId))), isCurrent }
     } catch {

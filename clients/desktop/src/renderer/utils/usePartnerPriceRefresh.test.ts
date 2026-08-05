@@ -101,6 +101,26 @@ describe('usePartnerPriceRefresh (D-R8-10 공용 재조회 훅)', () => {
     expect(result.current.isPending).toBe(false)
   })
 
+  it('재조회가 끝나지 않아도 제한시간 후 CATALOG fallback 으로 저장을 막지 않는다', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchMemories = vi.fn().mockReturnValue(new Promise(() => undefined))
+      const { result } = renderHook(() => usePartnerPriceRefresh({ fetchMemories }))
+
+      let runPromise!: ReturnType<typeof result.current.run>
+      act(() => { runPromise = result.current.run('partnerX', [candidate()]) })
+      expect(result.current.isPending).toBe(true)
+
+      let settled = false
+      void runPromise.then(() => { settled = true })
+      await act(async () => { vi.advanceTimersByTime(5001) })
+
+      expect(settled).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('후속 run 이 이전 run 을 supersede 한다 (isCurrent 로 stale 폐기)', async () => {
     const fetchMemories = vi.fn().mockResolvedValue({ hits: [], failedProductIds: [] })
     const { result } = renderHook(() => usePartnerPriceRefresh({ fetchMemories }))

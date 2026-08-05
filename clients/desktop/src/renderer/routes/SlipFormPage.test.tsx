@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom'
 const harness = vi.hoisted(() => ({
   getPriceMemory: vi.fn(),
   getPriceMemories: vi.fn(),
+  getPartnerDcConfig: vi.fn(),
   lookupPartnerForAutoFill: vi.fn(),
   createSlip: vi.fn(),
   listWarehouses: vi.fn(),
@@ -35,6 +36,7 @@ const harness = vi.hoisted(() => ({
     productType: 'SINGLE',
     sellingPrice: '1000',
     modelCode: 'A',
+    categoryKey: 'homemulti',
   },
   productB: {
     id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -218,6 +220,10 @@ vi.mock('../api/inventory', () => ({
   listWarehouses: harness.listWarehouses,
 }))
 
+vi.mock('../api/sales', () => ({
+  getPartnerDcConfig: harness.getPartnerDcConfig,
+}))
+
 vi.mock('../api/productApi', () => ({
   searchProducts: harness.searchProducts,
 }))
@@ -280,6 +286,7 @@ beforeEach(() => {
   harness.createSlip.mockResolvedValue({})
   harness.getPriceMemory.mockResolvedValue(null)
   harness.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
+  harness.getPartnerDcConfig.mockResolvedValue(null)
 })
 
 describe('SlipFormPage price memory autofill', () => {
@@ -589,6 +596,26 @@ describe('SlipFormPage price memory autofill', () => {
     await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
     await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
     expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('keeps the global discount price when recent price lookup misses', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({
+      discountInfo: '거래처 전역DC 48% 적용',
+    }))
   })
 
   it('bulk refresh failure does not overwrite a user edit made while the request is pending', async () => {
