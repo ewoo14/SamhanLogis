@@ -152,8 +152,12 @@ public class SlipService {
                                       List<PartnerProductPriceMemoryCommand> priceMemoryCommands) {
         boolean authoritative = AuthoritativeAmountValidator.isComplete(
                 supplyAmount, vatAmount, lineTotalWithVat);
-        boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
-                && summary.modelCode() != null && !summary.modelCode().isBlank();
+        boolean bundle = summary != null && "BUNDLE".equals(summary.productType());
+        if (bundle && (summary.modelCode() == null || summary.modelCode().isBlank())) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
+                    "세트 구성품 전개에 필요한 모델코드가 없습니다.");
+        }
         if (bundle && authoritative) {
             throw new com.samhanair.logis.common.exception.BusinessException(
                     com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,

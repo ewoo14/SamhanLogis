@@ -1,10 +1,14 @@
 package com.samhanair.logis.slip.publish;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import java.lang.reflect.Method;
@@ -15,6 +19,21 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class SlipPublishFingerprintTest {
+
+    @Test
+    void 공유_발행_resolver는_BUNDLE_부모를_전표라인으로_해석하지_않는다() throws Exception {
+        ProductClient productClient = mock(ProductClient.class);
+        when(productClient.lookupByModel("BUNDLE-001")).thenReturn(new ProductSummary(
+                UUID.randomUUID(), "세트", "세트", null, null, BigDecimal.TEN, "ACTIVE",
+                false, "BUNDLE-001", "BUNDLE", "SET"));
+        SlipPublishService service = service(productClient);
+        Method method = SlipPublishService.class.getDeclaredMethod("resolveLines", List.class);
+        method.setAccessible(true);
+
+        assertThatThrownBy(() -> method.invoke(service, List.of(line(1, "BUNDLE-001", null))))
+                .hasCauseInstanceOf(BusinessException.class)
+                .hasRootCauseMessage("세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
+    }
 
     @Test
     void 구_저장_규약의_VAT포함단가도_동일_재시도로_판정한다() throws Exception {
@@ -123,8 +142,12 @@ class SlipPublishFingerprintTest {
     }
 
     private static SlipPublishService service() {
+        return service(null);
+    }
+
+    private static SlipPublishService service(ProductClient productClient) {
         return new SlipPublishService(
-                null, null, null, null, null, null, null, null,
+                null, null, null, null, productClient, null, null, null,
                 new ObjectMapper(), null, null, Clock.systemUTC());
     }
 
