@@ -212,7 +212,7 @@ public class ProductService {
      * 품목 식별자(product_code/alias_code/model_name) 정확 매칭 단건 조회 후 ProductSummaryResponse 로 변환.
      * S3 인스턴스 출고 예약에서 productCode 기반 serialManaged 확인에 사용한다.
      *
-     * @param productCode 정확 매칭할 품목코드
+     * @param productCode 정확 매칭할 품목코드 또는 이카운트 순번코드
      * @return ProductSummaryResponse
      * @throws BusinessException(INVALID_INPUT) productCode null/blank
      * @throws BusinessException(NOT_FOUND) 매칭 제품 없음

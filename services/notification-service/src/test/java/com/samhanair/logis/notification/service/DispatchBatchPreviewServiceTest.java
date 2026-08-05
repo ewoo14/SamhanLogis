@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
 import com.samhanair.logis.notification.client.OutboundSlipDto;
@@ -14,13 +15,17 @@ import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.domain.PartnerChatRoomMapping;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewRequest;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse;
+import com.samhanair.logis.notification.dto.DispatchDriverContactInput;
 import com.samhanair.logis.notification.repository.PartnerChatRoomMappingRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * {@link DispatchBatchPreviewService} 단위 테스트 — PR-E1 BE-4 (5 case).
@@ -99,6 +104,7 @@ class DispatchBatchPreviewServiceTest {
         assertThat(resp.unmapped()).hasSize(1);
         assertThat(resp.unmapped().get(0).partnerCode()).isEqualTo("P-002");
         assertThat(resp.unmapped().get(0).slipNo()).isEqualTo("OUT-002");
+        verify(blockedPartnerLookupClient).isBlocked("P-002");
     }
 
     @Test
@@ -172,6 +178,146 @@ class DispatchBatchPreviewServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.preview(new DispatchBatchPreviewRequest(null)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("같은 단톡방의 서로 다른 하차일은 레거시 하차일별 그룹 문구를 공유한다")
+    void preview_buildsLegacyUnloadDayGroupMessage() {
+        LocalDate date = LocalDate.of(2026, 8, 3);
+        OutboundSlipDto first = new OutboundSlipDto(
+                "OUT-1", "P-001", "거래처A", date, null,
+                "서울시 강남구", List.of(new OutboundSlipLineDto("품목A", 1)),
+                null, date.plusDays(3), "010-1111-2222");
+        OutboundSlipDto second = new OutboundSlipDto(
+                "OUT-2", "P-002", "거래처B", date, null,
+                "경기도 성남시", List.of(new OutboundSlipLineDto("품목B", 2)),
+                null, date.plusDays(2), "010-3333-4444");
+        when(slipServiceClient.getOutboundSlips(date, date)).thenReturn(List.of(first, second));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-001"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-001", "거래처A", "공통방")));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-002"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-002", "거래처B", "공통방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(date));
+
+        assertThat(response.chatRooms()).hasSize(1);
+        assertThat(response.chatRooms().get(0).partners()).hasSize(2);
+        String firstMessage = response.chatRooms().get(0).partners().get(0).groupMessage();
+        assertThat(firstMessage).contains("5일 하차 건 배송기사님 연락처를 안내드립니다.")
+                .contains("6일 하차 건 배송기사님 연락처를 안내드립니다.")
+                .contains("010-1111-2222 / 서울시 강남구")
+                .contains("010-3333-4444 / 경기도 성남시")
+                .doesNotContain("[배차안내]");
+        assertThat(response.chatRooms().get(0).partners().get(1).groupMessage())
+                .isEqualTo(firstMessage);
+    }
+
+    @Test
+    @DisplayName("레거시 배송기사내역 입력의 연락처 override로 전표 라인을 만든다")
+    void preview_usesLegacyDriverContactInput() {
+        LocalDate date = LocalDate.of(2026, 8, 3);
+        OutboundSlipDto slip = new OutboundSlipDto(
+                "OUT-INPUT", "P-INPUT", "거래처 입력", date, null,
+                "서울시 강남구 테헤란로", List.of(new OutboundSlipLineDto("품목", 1)),
+                null, date, null);
+        when(slipServiceClient.getOutboundSlips(date, date)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-INPUT"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-INPUT", "거래처 입력", "입력방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(
+                date,
+                List.of(new DispatchDriverContactInput("OUT-INPUT", "거래처 입력", "010-9999-8888", date))));
+
+        assertThat(response.chatRooms().get(0).partners().get(0).groupMessage())
+                .contains("010-9999-8888 / 서울시 강남구 테헤란로")
+                .doesNotContain("기사번호 없음 확인요망!");
+    }
+
+    @ParameterizedTest(name = "레거시 전표 입력 형태: {0}")
+    @MethodSource("legacySlipNumberInputs")
+    @DisplayName("레거시가 허용하는 전표번호 입력 형태를 모두 기사 연락처 매칭한다")
+    void preview_matchesAllLegacySlipNumberInputForms(String input) {
+        LocalDate date = LocalDate.of(2026, 8, 3);
+        OutboundSlipDto slip = new OutboundSlipDto(
+                "2026/08/03-1", "P-LEGACY", "거래처 레거시", date, null,
+                "서울시 강남구 테헤란로", List.of(new OutboundSlipLineDto("품목", 1)),
+                null, date, null);
+        when(slipServiceClient.getOutboundSlips(date, date)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-LEGACY"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-LEGACY", "거래처 레거시", "레거시방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(
+                date, List.of(new DispatchDriverContactInput(input, input, "010-9999-8888", date))));
+
+        assertThat(response.chatRooms().get(0).partners().get(0).groupMessage())
+                .contains("010-9999-8888 / 서울시 강남구 테헤란로")
+                .doesNotContain("기사번호 없음 확인요망!");
+    }
+
+    static Stream<String> legacySlipNumberInputs() {
+        return Stream.of("1", "2026/08/03-1", "업체-1", "전표 1", "2 / 1");
+    }
+
+    @Test
+    @DisplayName("다른 날짜의 레거시 전표번호 입력은 매칭하지 않는다")
+    void preview_doesNotMatchLegacyInputFromAnotherDate() {
+        LocalDate requestedDate = LocalDate.of(2026, 8, 3);
+        OutboundSlipDto slip = new OutboundSlipDto(
+                "2026/08/03-1", "P-LEGACY-DATE", "거래처 날짜", requestedDate, null,
+                "서울시 강남구", List.of(new OutboundSlipLineDto("품목", 1)),
+                null, requestedDate, null);
+        when(slipServiceClient.getOutboundSlips(requestedDate, requestedDate)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-LEGACY-DATE"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-LEGACY-DATE", "거래처 날짜", "날짜방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(
+                requestedDate,
+                List.of(new DispatchDriverContactInput("1", "1", "010-0000-0000", requestedDate.minusDays(1)))));
+
+        assertThat(response.chatRooms().get(0).partners().get(0).groupMessage())
+                .contains("기사번호 없음 확인요망!")
+                .doesNotContain("010-0000-0000");
+    }
+
+    @Test
+    @DisplayName("기사 연락처 입력이 없으면 기존 fallback을 유지한다")
+    void preview_withoutDriverContactInput_keepsFallback() {
+        LocalDate date = LocalDate.of(2026, 8, 3);
+        OutboundSlipDto slip = new OutboundSlipDto(
+                "OUT-EMPTY", "P-EMPTY", "거래처 공란", date, null,
+                "서울시 강남구", List.of(new OutboundSlipLineDto("품목", 1)),
+                null, date, null);
+        when(slipServiceClient.getOutboundSlips(date, date)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-EMPTY"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-EMPTY", "거래처 공란", "공란방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(
+                date, List.of(new DispatchDriverContactInput("OUT-EMPTY", "거래처 공란", "", date))));
+
+        assertThat(response.chatRooms().get(0).partners().get(0).groupMessage())
+                .contains("기사번호 없음 확인요망!");
+    }
+
+    @Test
+    @DisplayName("다른 날짜의 기사 연락처 입력은 날짜 필터로 제외하고 공란 fallback을 유지한다")
+    void preview_staleDriverContactDate_doesNotOverrideRequestedDate() {
+        LocalDate requestedDate = LocalDate.of(2026, 8, 1);
+        OutboundSlipDto slip = new OutboundSlipDto(
+                "OUT-STALE", "P-STALE", "거래처 날짜", requestedDate, null,
+                "서울시 강남구", List.of(new OutboundSlipLineDto("품목", 1)),
+                null, requestedDate, null);
+        when(slipServiceClient.getOutboundSlips(requestedDate, requestedDate)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-STALE"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-STALE", "거래처 날짜", "날짜방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(
+                requestedDate,
+                List.of(new DispatchDriverContactInput(
+                        "OUT-STALE", "거래처 날짜", "010-0000-0000", requestedDate.minusDays(2)))));
+
+        assertThat(response.chatRooms().get(0).partners().get(0).groupMessage())
+                .contains("기사번호 없음 확인요망!")
+                .doesNotContain("010-0000-0000");
     }
 
     private OutboundSlipDto newSlip(String partnerCode, String partnerName, String slipNo) {

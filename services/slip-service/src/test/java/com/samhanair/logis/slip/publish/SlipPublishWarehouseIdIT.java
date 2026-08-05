@@ -102,6 +102,7 @@ class SlipPublishWarehouseIdIT extends AbstractPostgresIT {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("partnerOrderId", partnerOrderId);
         payload.put("partnerCode", "TEST-PARTNER");
+        payload.put("bizCode", "123-45-67890");
         payload.put("ioDate", "20260531");
         payload.put("warehouseCode", "WH-001");
         if (warehouseId != null) {

@@ -772,6 +772,19 @@ class ProductServiceTest {
     }
 
     @Test
+    void lookupSummaryByProductCode_aliasCode_returnsMainProduct() {
+        when(productRepository.findByProductCodeAndIsDeletedFalse("ECOUNT-ALIAS-01"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ECOUNT-ALIAS-01"))
+                .thenReturn(Optional.of(ProductAlias.create("ECOUNT-ALIAS-01", product, "ECOUNT_IMPORT")));
+
+        ProductSummaryResponse summary = service.lookupSummaryByProductCode(" ECOUNT-ALIAS-01 ");
+
+        assertThat(summary.id()).isEqualTo(productId);
+        assertThat(summary.modelName()).isEqualTo("SHA-W15K");
+    }
+
+    @Test
     void getByModelName_existing_returnsFullResponse() {
         when(productRepository.findByModelNameAndIsDeletedFalse("SHA-W15K"))
                 .thenReturn(Optional.of(product));

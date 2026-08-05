@@ -54,11 +54,11 @@ import org.springframework.test.web.servlet.MockMvc;
  * UserClient / SlipServiceClient / PartnerLookupClient / BlockedPartnerLookupClient /
  * AligoCsvSourceClient / AligoAddressBookClient 전체 lenient stub.
  *
- * <p><b>send_audit DB 검증</b>:
+ * <p><b>SMS 발송 결과 DB 검증</b>:
  * <ul>
  *   <li>placeholder 발송 완료 후 notification_requests.status = SENT</li>
  *   <li>notification_logs.gateway_status 가 SUCCESS (stub) 또는 FAILURE_ALIGO_N (real 실패)</li>
- *   <li>SEND_AUDIT 이력 쿼리 결과 row count 검증</li>
+ *   <li>SMS 발송 결과 목록 쿼리와 row count 검증</li>
  * </ul>
  *
  * <p>SP-09-1 패턴: Testcontainers AbstractPostgresIT (Docker 미가용 skip) + @MockBean lenient.
@@ -192,7 +192,7 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
     }
 
     /**
-     * TC-4: SEND_AUDIT 발송 이력 목록 — MANAGER 권한 조회 + DB row count 정합성.
+     * TC-4: SMS 발송 결과 목록 — MANAGER 권한 조회 + DB row count 정합성.
      *
      * <p>IT 내에서 placeholder stub 발송 2건 실행 후:
      * <ul>
@@ -205,8 +205,8 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
      * <p>AligoSmsAdapter placeholder 분기 → 비전송 실패 → NotificationService → DB save.
      */
     @Test
-    @DisplayName("TC-4: placeholder stub 발송 2건 후 SEND_AUDIT 이력 DB 정합 + API 조회")
-    void sendAuditHistoryDbIntegrityAndApiList() throws Exception {
+    @DisplayName("TC-4: placeholder stub 발송 2건 후 SMS 결과 DB 정합 + API 조회")
+    void smsDeliveryResultDbIntegrityAndApiList() throws Exception {
         // ── 1) placeholder 환경에서만 의미 있는 IT (운영 key 시 RestClient 실 호출)
         boolean anyPlaceholder = isAnyPlaceholder();
 

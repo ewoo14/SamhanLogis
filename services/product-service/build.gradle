@@ -51,6 +51,7 @@ dependencies {
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 
     implementation project(':shared:common')
+    implementation project(':shared:ecount-io')
     implementation project(':shared:security')
     // PR-H4b (Phase 12 Step 4b BE-C) — shared:realtime-abstraction module 적용.
     // Product master mutation 흐름에 audit overlay + SSE + EditLockGuard (DISCONTINUED 후 잠금)
