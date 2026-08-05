@@ -32,25 +32,39 @@ public class SlipCollabNotificationOutbox extends BaseEntity {
     @Column(name = "raw_recipient", nullable = false, length = 255) private String rawRecipient;
     @Column(name = "subject", nullable = false, length = 200) private String subject;
     @Column(name = "body", nullable = false, length = 2000) private String body;
+    @Column(name = "slip_no", length = 100) private String slipNo;
     @Column(name = "fingerprint", nullable = false, length = 64) private String fingerprint;
     @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false, length = 20)
     private Status status = Status.PENDING;
     @Column(name = "attempts", nullable = false) private int attempts;
     @Column(name = "next_attempt_at", nullable = false) private LocalDateTime nextAttemptAt = LocalDateTime.now();
     @Column(name = "terminal_reason", length = 100) private String terminalReason;
+    @Column(name = "retry_started_at", nullable = false) private LocalDateTime retryStartedAt = LocalDateTime.now();
 
     protected SlipCollabNotificationOutbox() { }
 
     private SlipCollabNotificationOutbox(UUID eventId, UUID slipId, UUID editorId, String rawRecipient,
                                          String subject, String body) {
+        this(eventId, slipId, editorId, rawRecipient, subject, body, null);
+    }
+
+    private SlipCollabNotificationOutbox(UUID eventId, UUID slipId, UUID editorId, String rawRecipient,
+                                         String subject, String body, String slipNo) {
         this.eventId = eventId; this.slipId = slipId; this.editorId = editorId; this.rawRecipient = rawRecipient;
         this.subject = subject; this.body = body;
+        this.slipNo = slipNo;
         this.fingerprint = fingerprint(slipId, editorId, rawRecipient, subject, body);
     }
 
     public static SlipCollabNotificationOutbox create(UUID eventId, UUID slipId, UUID editorId,
                                                        String rawRecipient, String subject, String body) {
         return new SlipCollabNotificationOutbox(eventId, slipId, editorId, rawRecipient, subject, body);
+    }
+
+    public static SlipCollabNotificationOutbox create(UUID eventId, UUID slipId, UUID editorId,
+                                                       String rawRecipient, String subject, String body,
+                                                       String slipNo) {
+        return new SlipCollabNotificationOutbox(eventId, slipId, editorId, rawRecipient, subject, body, slipNo);
     }
 
     public static String fingerprint(UUID slipId, UUID editorId, String rawRecipient,
@@ -76,5 +90,7 @@ public class SlipCollabNotificationOutbox extends BaseEntity {
     public void markTerminal(String reason) { status = Status.TERMINAL; terminalReason = reason; nextAttemptAt = LocalDateTime.now(); }
     public Status getStatus() { return status; }
     public String getTerminalReason() { return terminalReason; }
+    public String getSlipNo() { return slipNo; }
+    public LocalDateTime getRetryStartedAt() { return retryStartedAt; }
     public int getAttempts() { return attempts; }
 }

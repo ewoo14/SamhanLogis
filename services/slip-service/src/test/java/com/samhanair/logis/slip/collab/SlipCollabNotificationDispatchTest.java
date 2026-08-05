@@ -180,6 +180,78 @@ class SlipCollabNotificationDispatchTest {
         assertThat(readField(row, "status").toString()).isEqualTo("PENDING");
     }
 
+    @Test
+    void transientOutageAcrossFiveFastRetries_recoversOnNextOpportunity() {
+        SlipCollabNotificationOutboxRepository repository = mock(SlipCollabNotificationOutboxRepository.class);
+        UserIdResolver resolver = mock(UserIdResolver.class);
+        NotificationClient client = mock(NotificationClient.class);
+        UUID recipientId = UUID.randomUUID();
+        AtomicInteger calls = new AtomicInteger();
+        when(resolver.resolve("recipient")).thenReturn(Optional.of(recipientId));
+        when(client.sendUserPushWithResult(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> calls.incrementAndGet() > 5);
+        SlipCollabNotificationOutbox row = SlipCollabNotificationOutbox.create(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "recipient", "subject", "body");
+        when(repository.findById(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(row));
+        SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
+                repository, resolver, client);
+
+        for (int i = 0; i < 5; i++) {
+            service.deliver(row);
+        }
+
+        assertThat(row.getStatus()).isNotEqualTo(SlipCollabNotificationOutbox.Status.TERMINAL);
+        service.deliver(row);
+
+        assertThat(row.getStatus()).isEqualTo(SlipCollabNotificationOutbox.Status.SENT);
+        assertThat(calls).hasValue(6);
+    }
+
+    @Test
+    void terminalFailures_areReadableWithSlipNumberAndReason() {
+        SlipCollabNotificationOutboxRepository repository = mock(SlipCollabNotificationOutboxRepository.class);
+        SlipCollabNotificationOutbox row = SlipCollabNotificationOutbox.create(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "system", "subject", "body", "SLIP-874");
+        row.markTerminal("GATEWAY_RETRY_LIMIT");
+        when(repository.findTop100ByStatusOrderByCreatedAtAsc(SlipCollabNotificationOutbox.Status.TERMINAL))
+                .thenReturn(List.of(row));
+
+        SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
+                repository, mock(UserIdResolver.class), mock(NotificationClient.class));
+
+        assertThat(service.listTerminalFailures())
+                .extracting(SlipCollabNotificationOutbox::getSlipNo,
+                        SlipCollabNotificationOutbox::getTerminalReason)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("SLIP-874", "GATEWAY_RETRY_LIMIT"));
+    }
+
+    @Test
+    void gatewayFailure_afterRetryWindowStillConvergesToFiniteTerminal() throws Exception {
+        SlipCollabNotificationOutboxRepository repository = mock(SlipCollabNotificationOutboxRepository.class);
+        UserIdResolver resolver = mock(UserIdResolver.class);
+        NotificationClient client = mock(NotificationClient.class);
+        UUID recipientId = UUID.randomUUID();
+        when(resolver.resolve("recipient")).thenReturn(Optional.of(recipientId));
+        when(client.sendUserPushWithResult(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(false);
+        SlipCollabNotificationOutbox row = SlipCollabNotificationOutbox.create(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "recipient", "subject", "body");
+        java.lang.reflect.Field started = SlipCollabNotificationOutbox.class.getDeclaredField("retryStartedAt");
+        started.setAccessible(true);
+        started.set(row, LocalDateTime.now().minusHours(25));
+        when(repository.findById(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(row));
+        SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
+                repository, resolver, client);
+
+        service.deliver(row);
+
+        assertThat(row.getStatus()).isEqualTo(SlipCollabNotificationOutbox.Status.TERMINAL);
+        assertThat(row.getTerminalReason()).isEqualTo("GATEWAY_RETRY_LIMIT");
+    }
+
     private static Object readField(Object target, String name) {
         try {
             java.lang.reflect.Field field = target.getClass().getDeclaredField(name);

@@ -85,7 +85,7 @@ public class SlipCollabEditService {
         notificationOutboxService.enqueue(
                 saved.getId(),
                 List.copyOf(port.resolveNotificationRecipients(slipId, editorId)),
-                slipId, editorId, subject, body);
+                slipId, editorId, subject, body, updated.slipNo());
         scheduleNotifications();
 
         publisher.publish(slipId, CollabSuggestionService.EVENT_SUGGESTION_ACCEPTED,

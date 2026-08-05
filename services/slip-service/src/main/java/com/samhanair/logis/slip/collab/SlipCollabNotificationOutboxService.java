@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 public class SlipCollabNotificationOutboxService {
-    private static final int MAX_DELIVERY_ATTEMPTS = 5;
+    private static final int MAX_RETRY_AGE_HOURS = 24;
     private final SlipCollabNotificationOutboxRepository repository;
     private final UserIdResolver userIdResolver;
     private final NotificationClient notificationClient;
@@ -32,9 +32,15 @@ public class SlipCollabNotificationOutboxService {
     @Transactional
     public void enqueue(UUID eventId, List<String> rawRecipients, UUID slipId, UUID editorId,
                         String subject, String body) {
+        enqueue(eventId, rawRecipients, slipId, editorId, subject, body, null);
+    }
+
+    @Transactional
+    public void enqueue(UUID eventId, List<String> rawRecipients, UUID slipId, UUID editorId,
+                        String subject, String body, String slipNo) {
         rawRecipients.stream().distinct().forEach(rawRecipient -> {
             repository.save(SlipCollabNotificationOutbox.create(
-                    eventId, slipId, editorId, rawRecipient, subject, body));
+                    eventId, slipId, editorId, rawRecipient, subject, body, slipNo));
         });
     }
 
@@ -87,7 +93,9 @@ public class SlipCollabNotificationOutboxService {
     protected void finish(UUID id, boolean sent) {
         repository.findById(id).ifPresent(row -> {
             if (sent) row.markSent();
-            else if (row.getAttempts() + 1 >= MAX_DELIVERY_ATTEMPTS) row.markTerminal("GATEWAY_RETRY_LIMIT");
+            else if (row.getRetryStartedAt().plusHours(MAX_RETRY_AGE_HOURS).isBefore(LocalDateTime.now())) {
+                row.markTerminal("GATEWAY_RETRY_LIMIT");
+            }
             else row.markRetry();
             repository.save(row);
         });
@@ -99,6 +107,11 @@ public class SlipCollabNotificationOutboxService {
             row.markTerminal(reason);
             repository.save(row);
         });
+    }
+
+    @Transactional(readOnly = true)
+    public List<SlipCollabNotificationOutbox> listTerminalFailures() {
+        return repository.findTop100ByStatusOrderByCreatedAtAsc(SlipCollabNotificationOutbox.Status.TERMINAL);
     }
 
     /** 동일한 수정 사건과 수신자 조합이 재시도에서도 같은 notification 요청 키를 사용한다. */

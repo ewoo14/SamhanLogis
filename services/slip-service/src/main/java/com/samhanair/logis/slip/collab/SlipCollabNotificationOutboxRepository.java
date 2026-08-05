@@ -25,4 +25,6 @@ public interface SlipCollabNotificationOutboxRepository extends JpaRepository<Sl
     int claim(UUID id, LocalDateTime now, LocalDateTime leaseUntil);
     List<SlipCollabNotificationOutbox> findTop100ByStatusInAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
             List<SlipCollabNotificationOutbox.Status> statuses, LocalDateTime now);
+    List<SlipCollabNotificationOutbox> findTop100ByStatusOrderByCreatedAtAsc(
+            SlipCollabNotificationOutbox.Status status);
 }
