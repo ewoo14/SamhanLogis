@@ -143,7 +143,8 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
         mockMvc.perform(get("/slips/{id}", assignedSlipId)
                         .header("X-User-Id", approverId.toString())
                         .header("X-User-Role", "ACCOUNTANT"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canInspect").value(true));
     }
 
     @Test

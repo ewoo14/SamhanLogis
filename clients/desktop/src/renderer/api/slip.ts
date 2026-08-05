@@ -113,6 +113,8 @@ export interface SlipDetail extends SlipSummary {
   lines: SlipLineDetail[]
   partnerCode?: string | null
   inspectionStatus?: 'READY' | 'NOT_READY' | null
+  /** 서버가 현재 로그인 사용자에게 계산해 준 OUTBOUND INSPECT capability. */
+  canInspect?: boolean
   /**
    * 기사명 — link-dispatch-slice 신규 (Designer plan §7).
    * DRAFT/SAVED 단계만 편집 가능 (BE 가드와 동일).

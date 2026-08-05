@@ -274,10 +274,10 @@ public class SlipController {
             @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
             @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        SlipDetailResponse response = slipService.getOne(id);
+        SlipDetailResponse response = slipService.getOne(id, userId);
         SlipPurchaseAccessGuard.guardInboundPurchaseRead(response.slipType(), role, userGroups, isSystemMaster);
         boolean approvalLineAllowed = !SlipSalesAccessGuard.canReadOutboundSales(role, userGroups, isSystemMaster)
-                && slipService.isOutboundInspectApprovalMember(response.slipType(), response.status(), userId);
+                && response.canInspect();
         SlipSalesAccessGuard.guardOutboundSalesRead(response.slipType(), response.status(), role, userGroups,
                 isSystemMaster, approvalLineAllowed);
         return ApiResponse.ok(response);

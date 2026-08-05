@@ -108,6 +108,8 @@ public record SlipDetailResponse(
          * INBOUND 전표의 SAVED/CONFIRMED 는 구매관리 화면에서 검수 Dialog 진입 가능 상태다.
          */
         InspectionReadyStatus inspectionStatus,
+        /** 현재 요청 사용자가 OUTBOUND INSPECT 결재선 개인인지 서버가 계산한 capability. */
+        boolean canInspect,
         /**
          * 담당자 성명 — user-service internal lookup 결과 (SP-08-5-5 신규).
          * 단건 GET 전용. mutation 응답 / user-service 호출 실패 시 null.
@@ -185,6 +187,18 @@ public record SlipDetailResponse(
             String dispatcherFullName,
             String inspectorFullName,
             String acceptedByFullName) {
+        return from(slip, ownerFullName, dispatcherFullName, inspectorFullName,
+                acceptedByFullName, false);
+    }
+
+    /** 단건 조회 요청자에게만 서버가 계산한 inspect capability를 포함한다. */
+    public static SlipDetailResponse from(
+            Slip slip,
+            String ownerFullName,
+            String dispatcherFullName,
+            String inspectorFullName,
+            String acceptedByFullName,
+            boolean canInspect) {
         return new SlipDetailResponse(
                 slip.getId(),
                 slip.getSlipType(),
@@ -232,6 +246,7 @@ public record SlipDetailResponse(
                 slip.getPaymentDueDate(),
                 slip.getPrintedAt() != null,
                 inspectionStatusOf(slip),
+                canInspect,
                 ownerFullName,
                 dispatcherFullName,
                 inspectorFullName,

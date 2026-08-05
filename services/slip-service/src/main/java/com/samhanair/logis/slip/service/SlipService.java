@@ -1383,6 +1383,12 @@ public class SlipService {
      */
     @Transactional(readOnly = true)
     public SlipDetailResponse getOne(UUID id) {
+        return getOne(id, null);
+    }
+
+    /** 단건 조회 요청자에 대한 서버 계산 inspect capability를 포함한다. */
+    @Transactional(readOnly = true)
+    public SlipDetailResponse getOne(UUID id, String actorUserId) {
         Slip slip = loadOrThrow(id);
         boolean outbound = slip.getSlipType() == SlipType.OUTBOUND;
         String ownerFullName = resolveOwnerFullName(slip.getCreatedBy());
@@ -1392,8 +1398,9 @@ public class SlipService {
         String dispatcherFullName = outbound ? resolveUserFullName(slip.getDispatcherUserId()) : null;
         String acceptedByFullName = outbound ? null : resolveUserFullName(slip.getAcceptedBy());
         String inspectorFullName = resolveUserFullName(slip.getInspectorUserId());
+        boolean canInspect = isOutboundInspectApprovalMember(slip.getSlipType(), slip.getStatus(), actorUserId);
         return SlipDetailResponse.from(slip, ownerFullName, dispatcherFullName,
-                inspectorFullName, acceptedByFullName);
+                inspectorFullName, acceptedByFullName, canInspect);
     }
 
     /**

@@ -102,6 +102,7 @@ import {
 } from '../realtime/coeditLineIds'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import type { PageCode } from '../api/permissionsApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePresence } from '../hooks/usePresence'
 import { OUTBOUND_DELIVERY_TAG_LABELS } from '../api/slipCutoff'
@@ -314,7 +315,7 @@ const ACTION_LABEL: Record<SlipTransitionAction, string> = {
   accept: '수락',
   process: '처리 시작',
   inspect: '처리 완료',
-  complete: '출고 완료',
+  complete: '완료',
   ship: '배송 시작',
   deliver: '배송 완료',
   confirm: '확정',
@@ -1119,6 +1120,26 @@ function slipActionPageCode(
     case 'cancel':
       return { pageCode: 'sales.slip.cancel' }
   }
+}
+
+type CanAccess = (pageCode: PageCode, action: 'update') => boolean
+
+/** inspect만 서버 단건 capability로 정적 UPDATE 차단을 보완한다. */
+export function canTransitionSlipAction(
+  action: SlipTransitionAction,
+  canAccess: CanAccess,
+  canInspect: boolean,
+): boolean {
+  if (action === 'inspect') {
+    return canAccess(slipActionPageCode(action).pageCode, 'update') || canInspect
+  }
+  return canAccess(slipActionPageCode(action).pageCode, 'update')
+}
+
+/** 공용 상세의 전이 라벨은 전표 유형에 맞춰 표시한다. */
+export function labelForAction(action: SlipTransitionAction, mode: SlipType): string {
+  if (action === 'complete') return mode === 'OUTBOUND' ? '출고 완료' : '입고 완료'
+  return ACTION_LABEL[action]
 }
 
 export function SlipDetailPage({ mode }: SlipDetailPageProps) {
@@ -1985,7 +2006,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       alert(PARTNER_REQUIRED_SEND_MESSAGE)
       return
     }
-    if (!canAccess(slipActionPageCode(action).pageCode, 'update')) {
+    if (!canTransitionSlipAction(action, canAccess, slip.canInspect === true)) {
       alert('해당 전표 상태를 변경할 권한이 없습니다.')
       return
     }
@@ -2085,6 +2106,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   /** 하단 "완료" — 다음 정상 단계 transition 실행. */
   const handleAdvanceStage = () => {
     if (!nextPrimaryAction) return
+    if (!canTransitionSlipAction(nextPrimaryAction, canAccess, slip.canInspect === true)) {
+      alert('해당 전표 상태를 변경할 권한이 없습니다.')
+      return
+    }
     if (shouldBlockPartnerlessSend(slip, nextPrimaryAction)) {
       alert(PARTNER_REQUIRED_SEND_MESSAGE)
       return
@@ -2132,11 +2157,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   )
   const mobilePrimaryAction = nextPrimaryAction
     ? {
-        label: ACTION_LABEL[nextPrimaryAction],
+        label: labelForAction(nextPrimaryAction, mode),
         onClick: () => handleTransition(nextPrimaryAction),
         disabled:
           transitionMutation.isPending
-          || !canAccess(slipActionPageCode(nextPrimaryAction).pageCode, 'update'),
+          || !canTransitionSlipAction(nextPrimaryAction, canAccess, slip.canInspect === true),
       }
     : null
   const handleMobilePrint = () => {
@@ -4347,17 +4372,17 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             variant="primary"
             disabled={
               !nextPrimaryAction
-              || !canAccess(slipActionPageCode(nextPrimaryAction).pageCode, 'update')
+              || !canTransitionSlipAction(nextPrimaryAction, canAccess, slip.canInspect === true)
               || transitionMutation.isPending
             }
             onClick={handleAdvanceStage}
             title={
               nextPrimaryAction
-                ? `다음 단계: ${ACTION_LABEL[nextPrimaryAction]}`
+                ? `다음 단계: ${labelForAction(nextPrimaryAction, mode)}`
                 : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
             }
           >
-            {nextPrimaryAction ? `완료 (${ACTION_LABEL[nextPrimaryAction]})` : '완료'}
+            {nextPrimaryAction ? `완료 (${labelForAction(nextPrimaryAction, mode)})` : '완료'}
           </Button>
         )}
       </div>
