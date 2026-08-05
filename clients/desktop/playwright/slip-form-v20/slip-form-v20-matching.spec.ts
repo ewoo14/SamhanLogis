@@ -377,9 +377,8 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
     const productInput = page.getByRole('combobox', { name: /라인 1 품목/ })
     await productInput.click()
     await productInput.fill('AJ040')
-    await expect(page.getByRole('listbox', { name: '품목 목록' }), '품목 후보 목록 미표시').toBeVisible({ timeout: 5000 })
-    await productInput.press('ArrowDown')
-    await productInput.press('Enter')
+    // R29: 단일 후보는 품목 목록 클릭 없이 자동 확정된다.
+    await expect(productInput, '단일 품목 자동 확정 실패').toHaveValue('AJ040RXH4BC1', { timeout: 5000 })
 
     await page.screenshot({
       path: path.join(QA_DIR, 'tc-v3-step1-form-filled.png'),

@@ -71,14 +71,12 @@ function productInput(page: Page, lineNo: number) {
   return page.getByRole('combobox', { name: new RegExp(`라인 ${lineNo} 품목`) })
 }
 
-/** 모델 검색 후 첫 옵션 클릭 선택. */
+/** R29 계약: 후보 1건은 listbox 클릭 없이 즉시 확정된다. */
 async function selectProduct(page: Page, lineNo: number, query: string, optionName: RegExp) {
   const input = productInput(page, lineNo)
   await input.click()
   await input.fill(query)
-  const listbox = page.getByRole('listbox', { name: '품목 목록' })
-  await expect(listbox).toBeVisible({ timeout: 5_000 })
-  await listbox.getByRole('option', { name: optionName }).first().click()
+  await expect(input).toHaveValue(optionName, { timeout: 5_000 })
 }
 
 test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
