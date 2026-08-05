@@ -72,7 +72,9 @@ public class FcmPushAdapter implements PushAdapter {
     private Message buildMessage(NotificationRequest request, String token) {
         Message.Builder builder = Message.builder()
                 .setToken(token)
-                .putData("requestId", String.valueOf(request.getId()));
+                .putData("requestId", String.valueOf(request.getId()))
+                .putData("eventId", request.getIdempotencyKey() == null
+                        ? String.valueOf(request.getId()) : request.getIdempotencyKey());
         if (request.getTemplateCode() != null) {
             builder.putData("templateCode", request.getTemplateCode());
         }

@@ -569,6 +569,69 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("같은 집계축의 모든 원천 행이 불일치이면 첫 route 순서와 무관하게 불일치로 표시한다")
+    void dailyDetailDoesNotHideLaterAccessoryFailureBehindFirstRoute() {
+        UUID panelProduct = UUID.randomUUID();
+        UUID mainProduct = UUID.randomUUID();
+        TaxInvoice panelFirst = newIssued("TI-R16-PANEL-FIRST", "R16 거래처", DATE);
+        addLineWithAxis(panelFirst, 1, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        addLineWithAxis(panelFirst, 2, "본체", "AC023CN1DBC1", "singleSets", BigDecimal.ONE,
+                new BigDecimal("80000"));
+        addLineWithAxis(panelFirst, 3, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        recalcSnapshot(panelFirst);
+
+        TaxInvoice mainFirst = newIssued("TI-R16-MAIN-FIRST", "R16 거래처", DATE);
+        addLineWithAxis(mainFirst, 1, "본체", "AC023CN1DBC1", "singleSets", BigDecimal.ONE,
+                new BigDecimal("80000"));
+        addLineWithAxis(mainFirst, 2, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        addLineWithAxis(mainFirst, 3, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        recalcSnapshot(mainFirst);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(panelFirst), List.of(mainFirst));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "패널", ProductLabelMatch.matched(panelProduct, "PC1BWCK3NW"),
+                "본체", ProductLabelMatch.matched(mainProduct, "AC023CN1DBC1")));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                panelProduct, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
+                mainProduct, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+
+        DailyClosingDetailResponse panelFirstResponse = service.getDailyDetail(DATE);
+        DailyClosingDetailResponse mainFirstResponse = service.getDailyDetail(DATE);
+
+        assertThat(findProductLine(panelFirstResponse, "패널").verified()).isFalse();
+        assertThat(findProductLine(mainFirstResponse, "패널").verified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("모든 원천 route가 확인이면 보수적 집계도 확인을 유지한다")
+    void dailyDetailKeepsConfirmedAggregateWhenEverySourceRouteConfirms() {
+        UUID panelProduct = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-R16-ALL-TRUE", "R16 확인 거래처", DATE);
+        addLineWithAxis(ti, 1, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        addLineWithAxis(ti, 2, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "패널", ProductLabelMatch.matched(panelProduct, "PC1BWCK3NW")));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                panelProduct, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(DATE);
+
+        assertThat(findProductLine(response, "패널").verified()).isTrue();
+        assertThat(findProductLine(response, "패널").revalidationStatus()).isEqualTo("VERIFIED");
+    }
+
+    @Test
     @DisplayName("일마감 detail — 라벨 벌크 해소가 INVALID_INPUT 이면 부분성공 없이 전체 배치가 실패한다")
     void taxInvoiceDetailPropagatesBulkInvalidInput() {
         TaxInvoice ti = newIssued("TI-BLANK", "블랭크거래처", DATE);
@@ -882,7 +945,12 @@ class DailyClosingDetailServiceTest {
 
     private static void addLineWithAxis(TaxInvoice ti, String itemName, String modelName,
                                         String categoryKey, BigDecimal qty, BigDecimal unitPrice) {
-        TaxInvoiceLine line = TaxInvoiceLine.create(ti, 1, itemName, null, qty, unitPrice, null);
+        addLineWithAxis(ti, 1, itemName, modelName, categoryKey, qty, unitPrice);
+    }
+
+    private static void addLineWithAxis(TaxInvoice ti, int lineNo, String itemName, String modelName,
+                                        String categoryKey, BigDecimal qty, BigDecimal unitPrice) {
+        TaxInvoiceLine line = TaxInvoiceLine.create(ti, lineNo, itemName, null, qty, unitPrice, null);
         setField(line, "modelName", modelName);
         setField(line, "categoryKey", categoryKey);
         addLine(ti, line);

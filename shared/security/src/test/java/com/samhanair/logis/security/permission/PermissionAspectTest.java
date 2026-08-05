@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.util.List;
 import java.util.UUID;
 import org.aspectj.lang.annotation.Aspect;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,9 @@ import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -45,6 +49,12 @@ class PermissionAspectTest {
 
     private static final String SERVICE_NAME = "accounting-service";
     private static final UUID ACCOUNT_ID = UUID.fromString("a0000000-0000-0000-0000-000000000001");
+    private static final UUID DISPATCH_MANAGER_ACCOUNT_ID =
+            UUID.fromString("a0000000-0000-0000-0000-000000000101");
+    private static final UUID DISPATCH_ACCOUNTANT_ACCOUNT_ID =
+            UUID.fromString("a0000000-0000-0000-0000-000000000102");
+    private static final UUID DISPATCH_DRIVER_ACCOUNT_ID =
+            UUID.fromString("a0000000-0000-0000-0000-000000000103");
 
     @Mock
     private DynamicPermissionClient client;
@@ -63,6 +73,7 @@ class PermissionAspectTest {
 
         given(clientProvider.getIfAvailable()).willReturn(client);
         RequestContextHolder.resetRequestAttributes();
+        SecurityContextHolder.clearContext();
     }
 
     /**
@@ -186,7 +197,7 @@ class PermissionAspectTest {
                 new PermissionGuardMetrics(meterRegistry),
                 SERVICE_NAME,
                 true));
-        attachHeaders(null, "AROLOGIS_MANAGER", null, null);
+        attachIndependentArologisHeaders("AROLOGIS_MANAGER");
         given(client.canEdit("AROLOGIS_MANAGER", "accounting.journals")).willReturn(true);
 
         String result = roleProxy.createJournal(null, "AROLOGIS_MANAGER");
@@ -203,7 +214,7 @@ class PermissionAspectTest {
                 new PermissionGuardMetrics(meterRegistry),
                 SERVICE_NAME,
                 true));
-        attachHeaders(null, "AROLOGIS_DRIVER", null, null);
+        attachIndependentArologisHeaders("AROLOGIS_DRIVER");
         given(client.canView("AROLOGIS_DRIVER", "arologis.driver")).willReturn(true);
 
         String result = roleProxy.viewDriverPage(null, "AROLOGIS_DRIVER");
@@ -220,7 +231,7 @@ class PermissionAspectTest {
                 new PermissionGuardMetrics(meterRegistry),
                 SERVICE_NAME,
                 true));
-        attachHeaders(null, "AROLOGIS_MASTER", null, null);
+        attachIndependentArologisHeaders("AROLOGIS_MASTER");
 
         String result = roleProxy.createJournal(null, "AROLOGIS_MASTER");
 
@@ -296,7 +307,7 @@ class PermissionAspectTest {
                 new PermissionGuardMetrics(meterRegistry),
                 SERVICE_NAME,
                 true));
-        attachHeaders(null, "AROLOGIS_MANAGER", null, null);
+        attachIndependentArologisHeaders("AROLOGIS_MANAGER");
         given(client.canEdit("AROLOGIS_MANAGER", "accounting.journals")).willReturn(false);
 
         assertThatThrownBy(() -> roleProxy.createJournal(null, "AROLOGIS_MANAGER"))
@@ -306,6 +317,112 @@ class PermissionAspectTest {
         verify(client).canEdit("AROLOGIS_MANAGER", "accounting.journals");
         verify(client, never()).check(null, "accounting.journals", PermissionAction.CREATE);
         assertThat(deniedCount("accounting.journals", "AROLOGIS_MANAGER", "CREATE")).isEqualTo(1.0);
+    }
+
+    // -----------------------------------------------------------------------
+    // R16 RED: gateway employee account/group path vs independent Arologis JWT
+    // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("RED-A: 게이트웨이 MANAGER는 role 없이 account 권한으로 가배차 VIEW 허용")
+    void redA_gatewayManager_withoutRole_usesAccountPermission() {
+        TestProtectedTarget hybridProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                "arologis-service",
+                true));
+        attachGatewayHeaders(DISPATCH_MANAGER_ACCOUNT_ID);
+        given(client.check(
+                DISPATCH_MANAGER_ACCOUNT_ID,
+                "arologis.dispatch.ops",
+                PermissionAction.VIEW)).willReturn(true);
+
+        String result = hybridProxy.viewDispatchOps(DISPATCH_MANAGER_ACCOUNT_ID.toString(), null);
+
+        assertThat(result).isEqualTo("dispatch-view-ok");
+        verify(client).check(DISPATCH_MANAGER_ACCOUNT_ID, "arologis.dispatch.ops", PermissionAction.VIEW);
+        verify(client, never()).canView(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("RED-B: 게이트웨이 ACCOUNTANT는 account 권한 false로 가배차 VIEW 거부")
+    void redB_gatewayAccountant_withoutRole_usesAccountPermissionAndDenies() {
+        TestProtectedTarget hybridProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                "arologis-service",
+                true));
+        attachGatewayHeaders(DISPATCH_ACCOUNTANT_ACCOUNT_ID);
+        given(client.check(
+                DISPATCH_ACCOUNTANT_ACCOUNT_ID,
+                "arologis.dispatch.ops",
+                PermissionAction.VIEW)).willReturn(false);
+
+        assertThatThrownBy(() -> hybridProxy.viewDispatchOps(DISPATCH_ACCOUNTANT_ACCOUNT_ID.toString(), null))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("account permission missing");
+        verify(client).check(DISPATCH_ACCOUNTANT_ACCOUNT_ID, "arologis.dispatch.ops", PermissionAction.VIEW);
+        verify(client, never()).canView(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("GREEN-B: 게이트웨이 DRIVER는 account 권한 false로 가배차 VIEW 거부")
+    void gatewayDriver_withoutRole_usesAccountPermissionAndDenies() {
+        TestProtectedTarget hybridProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                "arologis-service",
+                true));
+        attachGatewayHeaders(DISPATCH_DRIVER_ACCOUNT_ID);
+        given(client.check(
+                DISPATCH_DRIVER_ACCOUNT_ID,
+                "arologis.dispatch.ops",
+                PermissionAction.VIEW)).willReturn(false);
+
+        assertThatThrownBy(() -> hybridProxy.viewDispatchOps(DISPATCH_DRIVER_ACCOUNT_ID.toString(), null))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("account permission missing");
+        verify(client).check(DISPATCH_DRIVER_ACCOUNT_ID, "arologis.dispatch.ops", PermissionAction.VIEW);
+        verify(client, never()).canView(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("RED-C: 아로로지스 독립 JWT role 경로는 기존 role 권한을 유지")
+    void redC_independentArologisJwt_keepsRolePermissionPath() {
+        TestProtectedTarget hybridProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                "arologis-service",
+                true));
+        attachIndependentArologisHeaders("AROLOGIS_MANAGER");
+        given(client.canView("AROLOGIS_MANAGER", "arologis.dispatch.ops")).willReturn(true);
+
+        String result = hybridProxy.viewDispatchOps(ACCOUNT_ID.toString(), "AROLOGIS_MANAGER");
+
+        assertThat(result).isEqualTo("dispatch-view-ok");
+        verify(client).canView("AROLOGIS_MANAGER", "arologis.dispatch.ops");
+        verify(client, never()).check(any(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("GREEN-A: 게이트웨이 MANAGER는 role 없이 가배차 실행 UPDATE도 account 권한으로 허용")
+    void gatewayManager_withoutRole_usesAccountPermissionForExecution() {
+        TestProtectedTarget hybridProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                "arologis-service",
+                true));
+        attachGatewayHeaders(DISPATCH_MANAGER_ACCOUNT_ID);
+        given(client.check(
+                DISPATCH_MANAGER_ACCOUNT_ID,
+                "arologis.dispatch.ops",
+                PermissionAction.UPDATE)).willReturn(true);
+
+        String result = hybridProxy.executeDispatchOps(DISPATCH_MANAGER_ACCOUNT_ID.toString(), null);
+
+        assertThat(result).isEqualTo("dispatch-execute-ok");
+        verify(client).check(DISPATCH_MANAGER_ACCOUNT_ID, "arologis.dispatch.ops", PermissionAction.UPDATE);
+        verify(client, never()).canEdit(anyString(), anyString());
     }
 
     private double deniedCount(String page, String role, String action) {
@@ -394,6 +511,26 @@ class PermissionAspectTest {
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(req));
     }
 
+    private void attachGatewayHeaders(UUID accountId) {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.addHeader("X-User-Id", accountId.toString());
+        req.addHeader("X-User-Groups", "00000000-0000-0000-0000-000000000201");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(req));
+        SecurityContextHolder.clearContext();
+    }
+
+    private void attachIndependentArologisHeaders(String role) {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.addHeader("X-User-Id", ACCOUNT_ID.toString());
+        req.addHeader("X-User-Role", role);
+        req.addHeader("Authorization", "Bearer validated-arologis-jwt");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(req));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                ACCOUNT_ID.toString(),
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + role))));
+    }
+
     private TestProtectedTarget createProxy(PermissionAspect aspect) {
         AspectJProxyFactory factory = new AspectJProxyFactory(new TestProtectedTarget());
         factory.addAspect(aspect);
@@ -428,6 +565,20 @@ class PermissionAspectTest {
                 @RequestHeader(value = "X-User-Id", required = false) String accountId,
                 @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
             return "view-ok";
+        }
+
+        @RequirePermission(page = "arologis.dispatch.ops", action = PermissionAction.VIEW)
+        public String viewDispatchOps(
+                @RequestHeader(value = "X-User-Id", required = false) String accountId,
+                @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            return "dispatch-view-ok";
+        }
+
+        @RequirePermission(page = "arologis.dispatch.ops", action = PermissionAction.UPDATE)
+        public String executeDispatchOps(
+                @RequestHeader(value = "X-User-Id", required = false) String accountId,
+                @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            return "dispatch-execute-ok";
         }
     }
 }

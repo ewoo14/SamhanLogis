@@ -138,12 +138,57 @@ public class NotificationClient {
      * @param body 본문
      */
     public void sendUserPush(UUID recipientUserId, String subject, String body) {
-        sendInternal(Map.of(
+        sendUserPushWithResult(recipientUserId, subject, body);
+    }
+
+    /** 푸시 전달 성공 여부를 durable outbox가 재시도 판정에 사용한다. */
+    public boolean sendUserPushWithResult(UUID recipientUserId, String subject, String body) {
+        return sendUserPushWithResult(recipientUserId, subject, body, null);
+    }
+
+    /** 저장 사건별 멱등 키를 notification-service에 전달한다. */
+    public boolean sendUserPushWithResult(UUID recipientUserId, String subject, String body,
+                                           UUID idempotencyKey) {
+        Map<String, Object> requestBody = new java.util.HashMap<>(Map.of(
                 "recipientType", "USER",
                 "recipientId", recipientUserId.toString(),
                 "channel", "PUSH",
                 "subject", safeTruncate(subject, 200),
                 "body", safeTruncate(body, 2000)));
+        if (idempotencyKey != null) {
+            requestBody.put("idempotencyKey", idempotencyKey.toString());
+        }
+        return sendInternalWithResult(requestBody);
+    }
+
+    /** 협업 수정 PUSH와 같은 사건을 알림센터 인앱 목록에도 기록한다. */
+    public boolean publishUserNotificationCenter(UUID recipientUserId, String subject, String body,
+                                                 UUID eventId) {
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("[NotificationClient] internal token missing — notification center publish skip");
+            return false;
+        }
+        try {
+            CenterPublishEnvelope response = restClient.post()
+                    .uri("/internal/notifications")
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "channel", "MESSENGER",
+                            "severity", "INFO",
+                            "title", safeTruncate(subject, 200),
+                            "body", safeTruncate(body, 2000),
+                            "targetUserId", recipientUserId,
+                            "sourceService", "slip-service",
+                            "sourceRefId", eventId.toString()))
+                    .retrieve()
+                    .body(CenterPublishEnvelope.class);
+            return response != null && response.data() != null;
+        } catch (Exception ex) {
+            log.warn("[NotificationClient] notification center publish failed — msg={}", ex.getMessage());
+            return false;
+        }
     }
 
     private void sendInternal(Map<String, Object> requestBody) {
@@ -188,6 +233,10 @@ public class NotificationClient {
     /** 내부 발송 응답 중 성공 판정에 필요한 상태만 보유한다. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record NotificationSendData(String status) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record CenterPublishEnvelope(UUID data) {
     }
 
     private static String safeTruncate(String value, int max) {

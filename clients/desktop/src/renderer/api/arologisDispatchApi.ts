@@ -11,7 +11,7 @@
  *
  * <p>노출 endpoint (BE @PreAuthorize 와 1:1):
  * <ul>
- *   <li>GET /admin/arologis/dispatches/pre-classify?from&to — 권역 분류 (REGION 마스터)
+ *   <li>GET /admin/dispatches/pre-classify?from&to — 삼한 권역 분류 (REGION 마스터)
  *       (MASTER/MANAGER/DISPATCH)</li>
  *   <li>GET /admin/arologis/dispatches/regional?date        — 시도 분류 (광역 prefix)
  *       (MASTER/MANAGER/DISPATCH)</li>
@@ -67,6 +67,7 @@ export interface PreClassifyEntry {
 export interface PreClassifyResponse {
   regionGroups: Record<string, PreClassifyEntry[]>
   unclassified: PreClassifyEntry[]
+  unknownWarehouseCount: number
 }
 
 /**
@@ -111,7 +112,7 @@ export async function getPreClassify(
   mode?: DispatchExecutionMode,
 ): Promise<PreClassifyResponse> {
   const res = await apiClient.get<ApiEnvelope<PreClassifyResponse>>(
-    '/admin/arologis/dispatches/pre-classify',
+    '/admin/dispatches/pre-classify',
     { params: { from, to, ...(mode ? { mode } : {}) } },
   )
   return res.data.data

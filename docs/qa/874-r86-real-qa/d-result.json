@@ -1,0 +1,12 @@
+{
+  "price": "939,400",
+  "saveEnabled": true,
+  "elapsedMsFromProductInputToSaveEnabled": 5393,
+  "productSelectedAt": 1785958955808,
+  "dcRequestAt": 1785958954981,
+  "dcResponseAt": null,
+  "elapsedMsFromProductConfirmedToSaveEnabled": 4273,
+  "elapsedMsFromDcRequestToSaveEnabled": 5100,
+  "dcDelayMs": null,
+  "uuidVisible": false
+}

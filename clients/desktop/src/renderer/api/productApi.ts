@@ -34,6 +34,9 @@ interface ProductSummaryResponse {
   modelCode?: string | null
   /** 품목 유형 — "SINGLE" | "BUNDLE". BE ProductSummaryResponse 신규. */
   productType?: string | null
+  categoryKey?: string | null
+  fixedDiscountRate?: number | null
+  hasVariableDiscount?: boolean | null
 }
 
 /**
@@ -82,6 +85,9 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
     modelCode: p.modelCode ?? undefined,
       productType: p.productType ?? undefined,
       specification: p.specification ?? undefined,
+      categoryKey: p.categoryKey ?? undefined,
+      fixedDiscountRate: p.fixedDiscountRate ?? null,
+      hasVariableDiscount: p.hasVariableDiscount ?? null,
   }
 }
 

@@ -150,7 +150,7 @@ public record ProductSummaryResponse(
                 null,
                 p.isUsageScopeManual(),
                 null,
-                categoryKey(p.getProductCategory()),
+                categoryKey(p),
                 p.getFixedDiscountRate(),
                 p.getDiscountFlags(),
                 p.getReleasePrice(),
@@ -183,9 +183,10 @@ public record ProductSummaryResponse(
         return p.getModelName();
     }
 
-    private static String categoryKey(ProductCategory productCategory) {
+    private static String categoryKey(Product p) {
+        ProductCategory productCategory = p.getProductCategory();
         if (productCategory == null) {
-            return null;
+            return categoryKeyFromPhysicalCategory(p.getCategory());
         }
         return switch (productCategory) {
             case HOME_MULTI -> "homemulti";
@@ -195,6 +196,22 @@ public record ProductSummaryResponse(
             case COMMERCIAL_PART -> "commercialParts";
             case OLD -> "oldProducts";
             case MATERIAL -> "singleMatPrices";
+        };
+    }
+
+    /**
+     * native ECOUNT/HVAC 적재처럼 product_category 없이 category_id만 채워진 품목의
+     * 레거시 화면용 카테고리 키를 물리 카테고리에서 파생한다.
+     * 명시적인 product_category가 있으면 위의 시트 분류를 우선한다.
+     */
+    private static String categoryKeyFromPhysicalCategory(com.samhanair.logis.product.domain.Category category) {
+        if (category == null || category.getCode() == null) {
+            return null;
+        }
+        return switch (category.getCode()) {
+            case "INDOOR_WALL" -> "homemulti";
+            case "OUTDOOR", "INDOOR_CEILING" -> "commercialMulti";
+            default -> null;
         };
     }
 }

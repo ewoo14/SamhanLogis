@@ -93,8 +93,8 @@ class PartnerPublicControllerIT extends AbstractPostgresIT {
     @Test
     void publicResponse_doesNotLeakAnyDcField() throws Exception {
         MvcResult result = mockMvc.perform(get("/partners/" + partnerCode)
-                        .header("X-User-Id", UUID.randomUUID().toString())
-                        .header("X-User-Role", "SALES"))
+                .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.partnerCode").value(partnerCode))
                 .andExpect(jsonPath("$.data.name").value("테스트 거래처"))

@@ -17,6 +17,9 @@ import org.springframework.data.repository.query.Param;
  */
 public interface NotificationCenterRepository extends JpaRepository<NotificationCenter, UUID> {
 
+    java.util.Optional<NotificationCenter> findFirstByTargetUserIdAndSourceServiceAndSourceRefIdAndChannel(
+            UUID targetUserId, String sourceService, String sourceRefId, String channel);
+
     /**
      * 사용자 미확인 알림 (read_at IS NULL) 조회. 최신순.
      * (target_user_id = userId 이거나, role 이 있을 때 target_role 에 role 이 포함되는) 조합.

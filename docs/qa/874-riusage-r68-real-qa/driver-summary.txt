@@ -1,0 +1,19 @@
+{
+  "mixed": "NO_POST_RESPONSE\n저장 버튼 비활성: 최근단가 확인 중…\nAPI_RESOURCES\nhttp://localhost:5299/api/mock.ts\nhttp://localhost:5299/api/appVersion.ts\nhttp://localhost:5299/api/appNotice.ts\nhttp://localhost:5299/api/activityLog.ts\nhttp://localhost:5299/api/auth.ts\nhttp://localhost:5299/api/passwordApi.ts\nhttp://localhost:5299/api/slip.ts?t=1785946165896\nhttp://localhost:5299/api/notificationApi.ts\nhttp://localhost:5299/api/inventory.ts\nhttp://localhost:5299/api/adminApi.ts\nhttp://localhost:5299/api/apiError.ts\nhttp://localhost:5299/api/excelExportApi.ts\nhttp://localhost:5299/api/sales.ts?t=1785945990138\nhttp://localhost:5299/api/productApi.ts?t=1785945990109\nhttp://localhost:5299/api/partnerApi.ts",
+  "noGlobal": "NO_POST_RESPONSE\n저장 버튼 비활성: 최근단가 확인 중…\nAPI_RESOURCES\nhttp://localhost:5299/api/mock.ts\nhttp://localhost:5299/api/appNotice.ts\nhttp://localhost:5299/api/appVersion.ts\nhttp://localhost:5299/api/client.ts\nhttp://localhost:5299/api/activityLog.ts\nhttp://localhost:5299/api/auth.ts\nhttp://localhost:5299/api/passwordApi.ts\nhttp://localhost:5299/api/slip.ts?t=1785946165896\nhttp://localhost:5299/api/notificationApi.ts\nhttp://localhost:5299/api/adminApi.ts\nhttp://localhost:5299/api/inventory.ts\nhttp://localhost:5299/api/apiError.ts\nhttp://localhost:5299/api/excelExportApi.ts\nhttp://localhost:5299/api/sales.ts?t=1785945990138\nhttp://localhost:5299/api/productApi.ts?t=1785945990109\nhttp://localhost:5299/api/partnerApi.ts",
+  "errors": [
+    "requestfailed: GET http://localhost:8080/app/notices/active :: net::ERR_ABORTED",
+    "requestfailed: GET http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev :: net::ERR_ABORTED",
+    "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "console: Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "console: Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "console: Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "console: Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "console: Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ]
+}

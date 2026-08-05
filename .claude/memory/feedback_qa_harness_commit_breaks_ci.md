@@ -47,8 +47,31 @@ metadata:
 
 개발책임자 A안(자동 SMS 제거)으로 그 경로를 없앴는데 **스펙이 옛 계약을 그대로 단언**하고 있었다. 🔑**경로·계약을 제거하는 fix 는 그것을 단언하는 문서·계약 테스트를 함께 세라.**
 
+## 🚨 PM 은 **라운드마다 CI 를 따로 본다** — 2026-08-06 하룻밤에 두 번 놓쳤다
+
+라운드 보고서는 **지정 suite 만 좁게** 돌린다. 좁히는 것 자체는 완주를 위해 옳다([[feedback_narrow_briefing_completes_wide_times_out]]) — 대신 **PM 이 매 라운드 CI 를 본다**. 안 봐서 생긴 일 둘:
+
+```
+#1077  충돌(CONFLICTING) → pull_request run 이 아예 0건.  네 커밋 동안 몰랐다.
+       "큐에 있음" 처럼 보이고 에러가 없다.  → [[feedback_pr_conflict_blocks_all_workflows]]
+#1057  Harness Guard 가 네 SHA 연속 red.  CI 잡도 같은 가드라 함께 red.
+       가드가 잡던 것이 바로 위 ④의 덮어쓰기 상수(const qaDir / const out)였다.
+```
+
+특히 `#1057` 은 뼈아프다 — **가드는 네 SHA 동안 정확히 그 사고를 말하고 있었고**, PM 은 그 신호가 아니라 우연한 `git status` 대조로 같은 사고를 발견했다.
+
+라운드 종료 때 함께 볼 것:
+
+```powershell
+gh pr view <PR> --json mergeable,mergeStateStatus      # CONFLICTING 이면 run 0건
+gh run list --branch <branch> --limit 6 --json headSha,status,conclusion,name
+```
+
+**체크가 현재 SHA 에 하나도 없으면 그것부터.** 실패가 있으면 라운드 판정보다 먼저 본다 — 게이트 ②는 "성공 수 = 전체 수" 다.
+
 ## 관련
 
+- [[feedback_live_qa_artifacts_vanish_silently]] — 증거가 사라지는 네 경로(이 파일의 가드가 막는 것)
 - [[feedback_live_qa_first_not_last]] — 같은 세션에서 나온 순서 개편
 - [[feedback_screenshot_restore_scope_destroys_edits]] — QA 산출물 커밋이 다른 것을 망가뜨리는 계열
 - [[feedback_design_system_playwright_mock_suite]]

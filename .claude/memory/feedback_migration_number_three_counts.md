@@ -41,5 +41,22 @@ docker exec samhan-postgres psql -U samhan -d <db> -t -c "SELECT MAX(version::nu
 - 브리핑에 *"마이그레이션을 새로 만들었으면 파일명을 목록으로 보고하라"* 를 항상 넣는다 → [[feedback_pm_copy_untracked_files]]
 - 다른 서비스에 마이그레이션이 생겼다면 **범위 이탈 신호**이기도 하다. `#1057` R49 의 accounting `V96` 은 번호 충돌인 동시에 다른 트랙(`#1061`)의 서비스를 건드린 것이었다 → [[feedback_fix_in_current_pr_no_split]]
 
+## 네 번째 — **main 과 직접 이름 충돌** (2026-08-06 `#1075` S18)
+
+구현자가 `V101__add_estimate_specification_source.sql` 을 만들었는데 **main 에 이미 `V101__preserve_source_warehouse_code.sql` 이 있었다.** 둘 다 들어가면 Flyway 중복 버전으로 slip-service 가 아예 기동하지 않는다.
+
+왜 브랜치에서 안 보였나 — **그 브랜치가 main 보다 9 커밋 뒤처져 있었다.** 브랜치의 `db/migration/` 최고는 `V100` 이라 `V101` 이 자연스러워 보였다. main 에는 이미 `V101~V107` 이 있었다.
+
+```
+① 그 서비스 최고        브랜치에서 세면 V100  ← 함정. main 기준으로 세야 V107
+② 그 DB 적용 최고       V112  (#1057 이 라이브QA 배포로 적용해 둠)
+③ 열린 PR 예약분        #1057 이 V108~V112
+⟹ V113
+```
+
+- 🚨 ①은 **브랜치가 아니라 `origin/main` 기준으로** 센다: `git ls-tree -r --name-only origin/main <migration dir>`.
+- 브랜치가 main 보다 뒤처져 있으면 그 자체가 신호다: `git rev-list --count HEAD..origin/main`.
+- 네 번 다 **CI 는 통과했다.** 빈 DB 에 순서대로 적용하기 때문이다. 네 번 다 PM 이 `git status` 에서 `migration` 을 눈으로 찾아 잡았다 — 그 육안 확인이 유일하게 작동한 장치다.
+
 ## 관련
-[[feedback_unmerged_migration_blocks_other_tracks]](스키마 잔재 판) · [[feedback_parallel_backend_tracks_share_docker_stack]] · PR #1057
+[[feedback_unmerged_migration_blocks_other_tracks]](스키마 잔재 판) · [[feedback_parallel_backend_tracks_share_docker_stack]] · PR #1057 · PR #1078

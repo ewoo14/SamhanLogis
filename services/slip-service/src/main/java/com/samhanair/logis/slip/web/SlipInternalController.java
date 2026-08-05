@@ -6,6 +6,8 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.attachment.web.dto.SlipAttachmentResponse;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.publish.WarehouseCodeMapper;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
@@ -84,6 +86,8 @@ public class SlipInternalController {
     private final SlipRepository slipRepository;
     private final SlipService slipService;
     private final SlipPartnerBackfillService slipPartnerBackfillService;
+    private final WarehouseInternalClient warehouseInternalClient;
+    private final WarehouseCodeMapper warehouseCodeMapper;
 
     /**
      * 커밋 전표 거래처 동적 보정 — cutover 시점에 partner-service 경유로 실행한다.
@@ -319,7 +323,9 @@ public class SlipInternalController {
         List<OutboundSlipResponse> rows = slipRepository
                 .findByPeriodWithLines(SlipType.OUTBOUND, from, to, null)
                 .stream()
-                .map(OutboundSlipResponse::from)
+                .map(slip -> OutboundSlipResponse.from(slip,
+                        warehouseInternalClient.findWarehouseName(slip.getSourceWarehouseId()).orElse(null),
+                        warehouseCodeMapper.businessType(slip.getSourceWarehouseCode())))
                 .toList();
         return ApiResponse.ok(rows);
     }

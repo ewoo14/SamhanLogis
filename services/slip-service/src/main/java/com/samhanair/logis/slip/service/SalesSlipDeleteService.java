@@ -7,6 +7,7 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.realtime.SlipListRealtime;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.web.dto.SlipDeleteRequest;
+import com.samhanair.logis.slip.service.dispatchgroup.DispatchGroupSlipReferenceGuard;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import jakarta.persistence.OptimisticLockException;
 import java.time.LocalDateTime;
@@ -40,6 +41,7 @@ public class SalesSlipDeleteService {
     private final SlipRepository slipRepository;
     private final SlipAuditLogService auditLogService;
     private final CollectionRealtimePublisher collectionRealtimePublisher;
+    private final DispatchGroupSlipReferenceGuard dispatchGroupSlipReferenceGuard;
 
     /**
      * 매출 전표를 soft delete 처리한다.
@@ -67,6 +69,8 @@ public class SalesSlipDeleteService {
                        UUID actorId, String actorName) {
         Slip slip = load(slipId);
         verifyVersion(slip, request.updatedAt());
+        slip.validateDeleteForSales();
+        dispatchGroupSlipReferenceGuard.assertDeletable(slipId);
 
         String before = summarize(slip);
         try {

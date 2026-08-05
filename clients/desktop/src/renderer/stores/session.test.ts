@@ -49,6 +49,32 @@ describe('session store authProvider 배선', () => {
     useSessionStore.setState({ auth: null, bootstrapped: false })
   })
 
+  it('전표 조회 권한은 서버의 유형별 guard 집합을 role·빌트인 그룹 양쪽에서 따른다', async () => {
+    const { canQueryPurchases, canQuerySales } = await import('./session')
+    const authFor = (role: string, groups: { id: string; name: string; builtin?: boolean }[] = []) => ({
+      token: '',
+      userId: 'u-read',
+      role,
+      fullName: '조회 사용자',
+      groups,
+    })
+
+    expect(canQuerySales(authFor('SALES'))).toBe(true)
+    expect(canQuerySales(authFor('WAREHOUSE'))).toBe(false)
+    expect(canQueryPurchases(authFor('WAREHOUSE'))).toBe(true)
+    expect(canQueryPurchases(authFor('ACCOUNTANT'))).toBe(false)
+    expect(canQuerySales(authFor('CUSTOM', [{
+      id: '00000000-0000-0000-0000-000000000102',
+      name: '영업',
+      builtin: true,
+    }]))).toBe(true)
+    expect(canQueryPurchases(authFor('CUSTOM', [{
+      id: '00000000-0000-0000-0000-000000000103',
+      name: '창고',
+      builtin: true,
+    }]))).toBe(true)
+  })
+
   it('bootstrap 은 provider 세션을 AuthSnapshot 으로 미러링하되 웹 token 은 비운다', async () => {
     authProvider.bootstrap.mockResolvedValue({
       userId: 'u-1',

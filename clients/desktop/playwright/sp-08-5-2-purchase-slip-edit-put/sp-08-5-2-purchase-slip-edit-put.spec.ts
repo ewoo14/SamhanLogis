@@ -44,7 +44,8 @@ test.describe('SP-08-5-2 매입 수정 direct PUT 계약', () => {
     const page = read('clients/desktop/src/renderer/routes/SlipDetailPage.tsx')
     const api = read('clients/desktop/src/renderer/api/slip.ts')
 
-    expect(page).toContain("canAccess('purchases.slip.edit', 'update')")
+    expect(page).toContain('canOpenDirectEdit')
+    expect(page).toContain("'purchases.slip.edit'")
     expect(page).toContain("mode === 'INBOUND'")
     expect(page).toContain('purchase-slip-edit-open')
     expect(page).toContain('purchase-slip-edit-form')
