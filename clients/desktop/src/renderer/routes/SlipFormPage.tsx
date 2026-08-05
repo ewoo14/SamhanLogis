@@ -724,7 +724,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     )))
     if (!before) return
     const after = updater(before)
-    const optionContext = expandedBundleOptionsRef.current[before.productId ?? id]
+    const optionContext = expandedBundleOptionsRef.current[before.id]
     if (optionContext) {
       setExpandedBundleOptions((current) => ({
         ...current,
@@ -757,7 +757,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       const next = { ...current }
       const line = linesRef.current.find((candidate) => candidate.id === id)
       delete next[id]
-      if (line?.productId) delete next[line.productId]
       return next
     })
     // #902 R2: 안내는 이제 이력(touchedLineIds)이 아니라 현재 내용의 순수 함수라(H1),
@@ -773,28 +772,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     expanded: Awaited<ReturnType<typeof expandBundleLine>>,
     parentSpecification: string,
   ) => {
-    setLines((current) => {
-      const index = current.findIndex((line) => line.id === source.id)
-      if (index < 0) return current
-      const componentLines = expanded
-        .filter((component) => component.productId)
-        .map((component) => {
-          const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
-          const unitPrice = String(component.unitPrice ?? '0')
-          const base = emptyLine()
-          return {
-            ...recalculateLineVat(asVatLine({
-              ...base,
-              productId: component.productId,
-              modelName: component.modelName ?? '',
-              productName: component.name ?? '',
-              specification: component.specification ?? parentSpecification,
-              quantity,
-              unitPrice,
-              productType: 'SINGLE',
-              modelCode: component.modelCode ?? null,
-              priceSource: 'CATALOG',
-            }), 'PRICE'),
+    const componentLines = expanded
+      .filter((component) => component.productId)
+      .map((component) => {
+        const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
+        const unitPrice = String(component.unitPrice ?? '0')
+        const base = emptyLine()
+        return {
+          ...recalculateLineVat(asVatLine({
+            ...base,
             productId: component.productId,
             modelName: component.modelName ?? '',
             productName: component.name ?? '',
@@ -804,10 +790,23 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             productType: 'SINGLE',
             modelCode: component.modelCode ?? null,
             priceSource: 'CATALOG',
-            lookupError: null,
-            lookupLoading: false,
-          } satisfies LineDraft
-        })
+          }), 'PRICE'),
+          productId: component.productId,
+          modelName: component.modelName ?? '',
+          productName: component.name ?? '',
+          specification: component.specification ?? parentSpecification,
+          quantity,
+          unitPrice,
+          productType: 'SINGLE',
+          modelCode: component.modelCode ?? null,
+          priceSource: 'CATALOG',
+          lookupError: null,
+          lookupLoading: false,
+        } satisfies LineDraft
+      })
+    setLines((current) => {
+      const index = current.findIndex((line) => line.id === source.id)
+      if (index < 0) return current
       const next = componentLines.length > 0
         ? [...current.slice(0, index), ...componentLines, ...current.slice(index + 1)]
         : [...current.slice(0, index), { ...emptyLine(), lookupError: '세트 구성품을 찾을 수 없습니다. 관리자에게 문의해 주세요.' }, ...current.slice(index + 1)]
@@ -829,9 +828,13 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setExpandedBundleOptions((current) => {
       const next = { ...current }
       delete next[source.id]
-      const firstComponent = expanded.find((component) => component.productId)
-      if (firstComponent && context && !existingContext?.expansionPending) {
-        next[firstComponent.productId!] = context
+      const shouldRetainOptions = componentLines.length > 0
+        && context
+        && (!existingContext || componentLines[0].productId === source.productId)
+      if (shouldRetainOptions) {
+        // 전개 결과의 productId는 행 간에 재사용될 수 있으므로 옵션 컨텍스트의
+        // 소유권은 항상 새로 만든 구성품 행 ID로 연결한다.
+        next[componentLines[0].id] = { ...context, expansionPending: false }
       }
       return next
     })
@@ -847,7 +850,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const retryLatestBundleGeneration = async () => {
       const latest = linesRef.current.find((line) => line.id === source.id)
       const currentGeneration = bundleExpansionGenerationRef.current.get(source.id) ?? 0
-      const context = expandedBundleOptionsRef.current[latest?.productId ?? source.id]
+      const context = expandedBundleOptionsRef.current[latest?.id ?? source.id]
       if (currentGeneration === generation || (!latest && !context)) return false
       const latestBundle = latest?.productType === 'BUNDLE'
         ? latest
@@ -880,7 +883,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       if (await retryLatestBundleGeneration()) {
         return
       }
-      const context = expandedBundleOptionsRef.current[latest?.productId ?? source.id]
+      const context = expandedBundleOptionsRef.current[latest?.id ?? source.id]
       const isCurrentBundle = latest
         && (latest.productType === 'BUNDLE'
           ? latest.productId === selected.productId
@@ -890,7 +893,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     } catch {
       const latest = linesRef.current.find((line) => line.id === source.id)
       if (await retryLatestBundleGeneration()) return
-      const context = expandedBundleOptionsRef.current[latest?.productId ?? source.id]
+      const context = expandedBundleOptionsRef.current[latest?.id ?? source.id]
       const isCurrentBundle = latest
         && (latest.productType === 'BUNDLE'
           ? latest.productId === selected.productId
@@ -938,7 +941,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setExpandedBundleOptions((current) => {
       const next = { ...current }
       delete next[line.id]
-      if (line.productId) delete next[line.productId]
       return next
     })
     setPriceLookupAnnouncement('')
@@ -1117,7 +1119,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const updateSetOption = (id: string, patch: Partial<BundleSetOptions>) => {
     const line = linesRef.current.find((candidate) => candidate.id === id)
-    const context = expandedBundleOptionsRef.current[line?.productId ?? id]
+    const context = expandedBundleOptionsRef.current[line?.id ?? id]
     if (!context) {
       updateLineFromUser(id, (current) => ({
         ...current,
@@ -1130,13 +1132,13 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
       setExpandedBundleOptions((current) => ({
         ...current,
-        [line!.productId!]: { ...context, setOptions: nextOptions },
+        [line!.id]: { ...context, setOptions: nextOptions },
       }))
       return
     }
     setExpandedBundleOptions((current) => ({
       ...current,
-      [line!.productId!]: { ...context, setOptions: nextOptions, expansionPending: true },
+      [line!.id]: { ...context, setOptions: nextOptions, expansionPending: true },
     }))
     bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
     if (!line) return
@@ -1317,6 +1319,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const mutation = useMutation({
     mutationFn: () => {
+      const latestLines = linesRef.current
       const payload: Parameters<typeof createSlip>[0] = {
         slipType: mode,
         slipDate: today,
@@ -1344,7 +1347,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         unloadDate: isOutbound && isScheduledTag(tag)
           ? (sameDay ? today : (unloadDate || undefined))
           : undefined,
-        lines: lines
+        lines: latestLines
           .filter((l) => l.productId && Number(l.quantity) > 0)
           .map<SlipLineInput>((l) => ({
             productId: l.productId!,
@@ -1353,7 +1356,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             specification: l.specification.trim() || undefined,
             quantity: Number(l.quantity),
             unitPrice: l.unitPrice || '0',
-            setOptions: toApiBundleSetOptions(l.productType, l.setOptions),
+            setOptions: toApiBundleSetOptions(
+              l.productType,
+              expandedBundleOptionsRef.current[l.id]?.setOptions ?? l.setOptions,
+            ),
             // 단가 부가세포함 — BE 가 라인 단위로 공급가액/부가세 분리(eCount 방식)
             priceVatInclusive: true,
             // VAT 열을 실제 편집한 라인만 권위 3값을 명시 전송한다. 미편집 라인은
@@ -1390,13 +1396,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // 거래처 변경 최근단가 재조회/가격기억 조회가 in-flight 인 동안 저장하면 이전 거래처
   // 단가가 새 거래처(partnerId)로 전송되어 가격기억이 교차 오염된다 — 저장 차단(R4-F4).
   const priceResolutionBusy = partnerReprice.isPending || lines.some((l) => l.lookupLoading)
+  const bundleExpansionPending = Object.values(expandedBundleOptions).some((context) => context.expansionPending)
   const hasUnresolvedCatalogPrice = lines.some((line) => line.lookupError && !line.unitPrice.trim())
   // R4-D4: 마커 카피 분기/해제 기준 — 가격기억 조회가 실제 가능한 상태(UUID 보유 거래처 선택)와 일치.
   const partnerSelected = Boolean(selectedPartner?.id)
   // R4-D9: 배너 live region 은 상시 마운트 — 내용과 함께 조건부 마운트하면 일부 SR 이 미낭독.
   const priceRefreshNoticeActive = lines.some((line) => line.priceRefreshChanged)
   const canSubmit =
-    !!requiredWh && validLineCount > 0 && !mutation.isPending && !priceResolutionBusy && !hasUnresolvedCatalogPrice
+    !!requiredWh && validLineCount > 0 && !mutation.isPending && !priceResolutionBusy
+    && !bundleExpansionPending && !hasUnresolvedCatalogPrice
 
   // ── Header 체크박스 상태 ────────────────────────────────
 
@@ -1414,7 +1422,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // #902 R2 H1: 안내는 이제 순수하게 "현재 내용"의 함수다(lineIncompleteReason) — 이력을
     // 남기지 않으므로, 입력을 원복하면 삭제 없이도 안내가 자동으로 사라진다(D1).
     const reason = lineIncompleteReason(line)
-    const optionContext = expandedBundleOptions[line.productId ?? line.id]
+    const optionContext = expandedBundleOptions[line.id]
     const isBundle = line.productType === 'BUNDLE' || Boolean(optionContext)
     return (
       <>

@@ -983,6 +983,86 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
   })
 
+  it('재전개 전후 첫 구성품이 같아도 옵션 UI를 유지하고 후속 변경을 다시 전개한다', async () => {
+    const second = deferred<any[]>()
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        modelCode: harness.productA.modelCode,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockReturnValueOnce(second.promise)
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        modelCode: harness.productA.modelCode,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+
+    expect(screen.getByTestId('bundle-option-change')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    second.resolve([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 1,
+      unitPrice: 10000,
+      specification: null,
+    }])
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(3))
+    expect(harness.expandBundleLine.mock.calls[2][0]).toEqual(expect.objectContaining({
+      setOptions: expect.objectContaining({ panelOption: 'PANEL-3' }),
+    }))
+  })
+
+  it('옵션 재전개가 진행 중이면 옛 구성품 payload로 저장하지 않는다', async () => {
+    const pending = deferred<any[]>()
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockReturnValueOnce(pending.promise)
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+
+    const saveButton = screen.getByRole('button', { name: /저장/ })
+    expect(saveButton).toHaveProperty('disabled', true)
+    expect(harness.createSlip).not.toHaveBeenCalled()
+
+    pending.resolve([{
+      productId: harness.productB.id,
+      modelName: harness.productB.modelName,
+      name: harness.productB.productName,
+      quantity: 1,
+      unitPrice: 10000,
+      specification: null,
+    }])
+  })
+
   it('빠른 첫 성공 뒤 옵션 연속 변경은 중간 응답을 버리고 최종 한 벌로 수렴한다', async () => {
     const second = deferred<any[]>()
     harness.expandBundleLine
