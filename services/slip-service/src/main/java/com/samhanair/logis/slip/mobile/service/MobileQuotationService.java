@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.mobile.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.PartnerInternalClient.PartnerVerifyResult;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
@@ -140,17 +141,62 @@ public class MobileQuotationService {
             String modelName = lineReq.modelName() != null
                     ? lineReq.modelName()
                     : (summary != null ? summary.modelName() : null);
-            estimate.addLine(EstimateLine.create(
-                    estimate, lineNo++, lineReq.productId(),
-                    productName2, modelName, lineReq.specification(),
-                    lineReq.quantity(), lineReq.unitPrice(), lineReq.note()));
-            if (partnerId != null) {
-                BigDecimal vatInclusive = lineReq.unitPrice()
-                        .multiply(new BigDecimal("1.1"))
-                        .setScale(2, RoundingMode.HALF_UP);
-                priceMemoryCommands.add(new PartnerProductPriceMemoryCommand(
-                        partnerId, lineReq.productId(), vatInclusive,
-                        PartnerProductPriceMemory.SOURCE_LINE_SAVE, requesterId));
+            boolean bundle = summary != null && "BUNDLE".equals(summary.productType());
+            if (bundle) {
+                if (summary.modelCode() == null || summary.modelCode().isBlank()) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "세트 품목의 구성품 전개 정보가 없어 견적을 저장할 수 없습니다");
+                }
+                if (partnerId != null) {
+                    priceMemoryCommands.add(new PartnerProductPriceMemoryCommand(
+                            partnerId, lineReq.productId(), lineReq.unitPrice()
+                                    .multiply(new BigDecimal("1.1"))
+                                    .setScale(2, RoundingMode.HALF_UP),
+                            PartnerProductPriceMemory.SOURCE_BUNDLE_SET, requesterId));
+                }
+                List<ExpandedLineDto> expanded = productClient.expand(
+                        summary.modelCode(), BigDecimal.valueOf(lineReq.quantity()), null,
+                        lineReq.unitPrice());
+                int added = 0;
+                for (ExpandedLineDto component : expanded) {
+                    if (component.productId() == null) {
+                        continue;
+                    }
+                    int quantity = component.quantity() == null
+                            ? lineReq.quantity()
+                            : component.quantity().setScale(0, RoundingMode.HALF_UP).intValue();
+                    if (quantity <= 0) {
+                        quantity = 1;
+                    }
+                    String specification = component.specification() != null
+                            && !component.specification().isBlank()
+                            ? component.specification() : lineReq.specification();
+                    EstimateLine componentLine = EstimateLine.create(
+                            estimate, lineNo++, component.productId(), component.name(),
+                            component.modelName(), specification, quantity,
+                            component.unitPrice() == null ? BigDecimal.ZERO : component.unitPrice(),
+                            lineReq.note());
+                    componentLine.assignBundleComponent(summary.modelCode(), component.setHead());
+                    estimate.addLine(componentLine);
+                    added++;
+                }
+                if (added == 0 || added < expanded.size()) {
+                    throw new BusinessException(ErrorCode.NOT_FOUND,
+                            "세트 구성품 일부를 찾을 수 없습니다(미등록/단종): " + summary.modelCode());
+                }
+            } else {
+                estimate.addLine(EstimateLine.create(
+                        estimate, lineNo++, lineReq.productId(),
+                        productName2, modelName, lineReq.specification(),
+                        lineReq.quantity(), lineReq.unitPrice(), lineReq.note()));
+                if (partnerId != null) {
+                    BigDecimal vatInclusive = lineReq.unitPrice()
+                            .multiply(new BigDecimal("1.1"))
+                            .setScale(2, RoundingMode.HALF_UP);
+                    priceMemoryCommands.add(new PartnerProductPriceMemoryCommand(
+                            partnerId, lineReq.productId(), vatInclusive,
+                            PartnerProductPriceMemory.SOURCE_LINE_SAVE, requesterId));
+                }
             }
         }
 
