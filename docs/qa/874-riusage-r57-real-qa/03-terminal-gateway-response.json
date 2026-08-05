@@ -1,0 +1,11 @@
+{
+  "url": "http://localhost:8080/admin/slip-collab-notifications/terminal",
+  "status": 200,
+  "body": {
+    "success": true,
+    "code": "OK",
+    "message": "성공",
+    "data": [],
+    "timestamp": "2026-08-05T14:04:11.516588787Z"
+  }
+}

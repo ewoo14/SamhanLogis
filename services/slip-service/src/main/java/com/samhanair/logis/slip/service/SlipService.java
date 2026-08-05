@@ -103,6 +103,7 @@ public class SlipService {
     private final SlipRepository slipRepository;
     private final SlipNumberService slipNumberService;
     private final ProductClient productClient;
+    /** 신규 출고전표의 라인별 전역DC/고정DC 계산기. 장애 시 입력 정가를 보존한다. */
     private final InventoryClient inventoryClient;
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     private final SlipAuditLogService auditLogService;
@@ -285,11 +286,22 @@ public class SlipService {
 
         // 4. 라인 추가 — 직접 전표생성도 등록품목으로(개발책임자). BUNDLE(세트)면 product-service expand
         //    로 구성품 라인 N개 전개(견적 경로와 동일 단일 엔진), 아니면 1 라인.
+        String resolvedPartnerCode = req.slipType() == SlipType.OUTBOUND
+                ? partnerInternalClient.resolvePartnerCode(req.partnerId()).orElse(null) : null;
+        // 단가는 화면이 DC/최근단가/사용자 협의가를 반영해 확정한 값을 정본으로 사용한다.
+        // 서버에서 다시 dc-config-service를 호출하면 화면의 할인 완료 단가를 정가로 오인해
+        // 전역DC를 재적용하므로(예: 970,200 -> 494,802) 계산하지 않는다.
+        SlipDiscountCalculator.Calculation discountCalculation = new SlipDiscountCalculator.Calculation(
+                req.lines().stream().map(CreateSlipRequest.SlipLineRequest::unitPrice).toList(),
+                req.discountInfo());
+        List<BigDecimal> calculatedPrices = discountCalculation.prices();
+
         List<PartnerProductPriceMemoryCommand> priceMemoryCommands = new ArrayList<>();
-        for (CreateSlipRequest.SlipLineRequest lineReq : req.lines()) {
+        for (int lineIndex = 0; lineIndex < req.lines().size(); lineIndex++) {
+            CreateSlipRequest.SlipLineRequest lineReq = req.lines().get(lineIndex);
             addSlipLinesExpanded(slip, lineReq.productId(), byId.get(lineReq.productId()),
                     lineReq.productName(), lineReq.modelName(), lineReq.specification(),
-                    lineReq.quantity(), lineReq.unitPrice(), lineReq.note(), lineReq.setOptions(),
+                    lineReq.quantity(), calculatedPrices.get(lineIndex), lineReq.note(), lineReq.setOptions(),
                     lineReq.parentSetModel(), lineReq.setHead(), lineReq.bundleParentProductId(),
                     lineReq.bundleParentUnitPrice(),
                     Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
@@ -321,7 +333,8 @@ public class SlipService {
                 resolvedIoType, resolvedTimeDate,
                 req.customerTel(), req.customerAddress(), req.customerRepresentative(),
                 req.shippingAddress(), req.inspectionAddress(), req.receiverPhone(),
-                req.paymentDueLabel(), req.discountInfo(),
+                req.paymentDueLabel(), req.discountInfo() == null || req.discountInfo().isBlank()
+                        ? discountCalculation.discountInfo() : req.discountInfo(),
                 req.collectTerm(), req.agreeTerm());
 
         // 8. V20 — 판매/구매조회 신규 5 필드 저장
@@ -330,9 +343,8 @@ public class SlipService {
         String resolvedBusinessNumber = resolveBusinessNumber(req.partnerId());
         // partnerCode snapshot (2026-06-10) — 거래명세서 공급받는자 주소/대표번호가 FE 에서
         // getPartnerFull(partnerCode) 로 조회되므로 생성 시점에 resolve. 실패 시 NULL 유지.
-        if (req.partnerId() != null) {
-            partnerInternalClient.resolvePartnerCode(req.partnerId())
-                    .ifPresent(slip::setPartnerCode);
+        if (resolvedPartnerCode != null) {
+            slip.setPartnerCode(resolvedPartnerCode);
         }
         slip.withProjectInfo(
                 resolvedBusinessNumber,
@@ -576,18 +588,31 @@ public class SlipService {
      *
      * @param id 전표 ID
      * @param patches 필드명 → 새 값 (순서 보존)
+     * @param expectedBefore 필드명 → 편집 시작 시 클라이언트가 캡처한 baseline
      * @param callerId 호출자 user-id (audit actor)
      * @param callerName 호출자 표시명 (UUID 비공개 가드, null 이면 callerId 사용)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      * @throws BusinessException(INVALID_INPUT) 미지원 필드 또는 길이 초과
-     * @throws BusinessException(CONFLICT) 물리 종결 전표 — 협업 제안 수락 불가
+     * @throws BusinessException(CONFLICT) 물리 종결 전표 또는 필드별 baseline 충돌 — 협업 제안 수락 불가
      */
     public SlipDetailResponse applyOverlayPatchBatch(UUID id, Map<String, String> patches,
+                                                     Map<String, String> expectedBefore,
                                                      String callerId, String callerName) {
-        Slip slip = loadOrThrow(id);
+        // 편집 화면이 아니라 실제 저장 구간만 행 잠금으로 직렬화한다. 잠금 획득 후 최신
+        // 필드값을 baseline 과 비교하므로 서로 다른 필드는 JPA @Version 충돌 없이 병합된다.
+        Slip slip = loadOrThrowForCollabUpdate(id);
         // 협업 수락 전용 가드 — 물리 종결(배송중/배송완료/취소/반려) 만 차단, APPROVED 소진 불요
         guardCollabModifiable(slip);
+        // 전역 revision 잠금이 아니라 필드별 baseline 을 검증한다. 따라서 같은 필드의 stale
+        // 저장은 409로 차단하면서, 서로 다른 필드를 편집한 협업 저장은 병합할 수 있다.
+        for (String fieldName : patches.keySet()) {
+            if (expectedBefore == null || !expectedBefore.containsKey(fieldName)
+                    || !java.util.Objects.equals(expectedBefore.get(fieldName), slip.readOverlayField(fieldName))) {
+                throw new BusinessException(ErrorCode.SLIP_OPTIMISTIC_LOCK_CONFLICT,
+                        "전표 협업 수정 대상 필드가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요.");
+            }
+        }
         UUID actorId = parseActorId(callerId);
         String auditActorName = (callerName != null && !callerName.isBlank())
                 ? callerName
@@ -1700,6 +1725,11 @@ public class SlipService {
 
     private Slip loadOrThrow(UUID id) {
         return slipRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다"));
+    }
+
+    private Slip loadOrThrowForCollabUpdate(UUID id) {
+        return slipRepository.findByIdForCollabUpdate(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다"));
     }
 

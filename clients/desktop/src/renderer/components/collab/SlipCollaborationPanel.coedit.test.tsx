@@ -47,7 +47,7 @@ vi.mock('../../api/slipCollab', () => ({
   commitSlipCollabEdit: vi.fn(),
 }))
 
-import { addSlipCollabComment } from '../../api/slipCollab'
+import { addSlipCollabComment, commitSlipCollabEdit } from '../../api/slipCollab'
 import { SlipCollaborationPanel } from './SlipCollaborationPanel'
 
 function renderPanel(slipId: string) {
@@ -63,6 +63,7 @@ afterEach(() => {
   cleanup()
   canAccessMock.mockReturnValue(true)
   vi.mocked(addSlipCollabComment).mockReset()
+  vi.mocked(commitSlipCollabEdit).mockReset()
 })
 
 describe('SlipCollaborationPanel 협업 패널 배치', () => {
@@ -114,6 +115,49 @@ describe('SlipCollaborationPanel 협업 패널 배치', () => {
       expect(addSlipCollabComment).toHaveBeenCalledWith('slip/id with spaces', {
         body: '배송지 확인 요청',
         anchor: 'shippingAddress',
+      })
+    })
+  })
+
+  it('협업 수정 라벨을 사용하고 원격 갱신 뒤에도 편집 시작 baseline 으로 저장한다', async () => {
+    vi.mocked(commitSlipCollabEdit).mockResolvedValue({} as never)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const onEditModeChange = vi.fn()
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <SlipCollaborationPanel
+          slipId="slip/concurrency"
+          currentValues={{ memo: '초기 메모', shippingAddress: null }}
+          editMode
+          onEditModeChange={onEditModeChange}
+        />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByLabelText('협업 수정')).not.toBeNull()
+    expect(screen.queryByLabelText('수정', { exact: true })).toBeNull()
+    const memoInput = await screen.findByLabelText('메모 수정값')
+    expect((memoInput as HTMLInputElement).value).toBe('초기 메모')
+    fireEvent.change(memoInput, { target: { value: '로컬 초안' } })
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <SlipCollaborationPanel
+          slipId="slip/concurrency"
+          currentValues={{ memo: '원격 최신값', shippingAddress: null }}
+          editMode
+          onEditModeChange={onEditModeChange}
+        />
+      </QueryClientProvider>,
+    )
+
+    expect((screen.getByLabelText('메모 수정값') as HTMLInputElement).value).toBe('로컬 초안')
+    fireEvent.click(screen.getByRole('button', { name: '수정완료' }))
+
+    await waitFor(() => {
+      expect(commitSlipCollabEdit).toHaveBeenCalledWith('slip/concurrency', {
+        changeSet: JSON.stringify({ memo: { before: '초기 메모', after: '로컬 초안' } }),
+        reason: undefined,
       })
     })
   })

@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom'
 const harness = vi.hoisted(() => ({
   getPriceMemory: vi.fn(),
   getPriceMemories: vi.fn(),
+  getPartnerDcConfig: vi.fn(),
   lookupPartnerForAutoFill: vi.fn(),
   createSlip: vi.fn(),
   expandBundleLine: vi.fn(),
@@ -36,6 +37,8 @@ const harness = vi.hoisted(() => ({
     productType: 'SINGLE',
     sellingPrice: '1000',
     modelCode: 'A',
+    categoryKey: 'homemulti',
+    hasVariableDiscount: true,
   },
   productB: {
     id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -70,6 +73,8 @@ const harness = vi.hoisted(() => ({
     productType: 'BUNDLE',
     sellingPrice: '10000',
     modelCode: 'SET-1',
+    categoryKey: 'homemulti',
+    hasVariableDiscount: true,
   },
 }))
 
@@ -102,6 +107,8 @@ vi.mock('@samhan/design-system', () => ({
         data-testid={`line-${lineNo}`}
         data-product-id={props.line.productId ?? ''}
         data-price-source={props.line.priceSource ?? ''}
+        data-discount-info={props.line.discountInfo ?? ''}
+        data-lookup-loading={String(props.line.lookupLoading ?? false)}
         data-partner-selected={String(props.partnerSelected ?? '')}
         data-excluded-from-save={String(props.excludedFromSave ?? '')}
       >
@@ -231,6 +238,10 @@ vi.mock('../api/inventory', () => ({
   listWarehouses: harness.listWarehouses,
 }))
 
+vi.mock('../api/sales', () => ({
+  getPartnerDcConfig: harness.getPartnerDcConfig,
+}))
+
 vi.mock('../api/productApi', () => ({
   searchProducts: harness.searchProducts,
 }))
@@ -291,6 +302,8 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  harness.productA.hasVariableDiscount = true
+  harness.productA.sellingPrice = '1000'
   harness.isMobile = false
   harness.listWarehouses.mockResolvedValue([])
   harness.lookupPartnerForAutoFill.mockResolvedValue({})
@@ -298,6 +311,7 @@ beforeEach(() => {
   harness.expandBundleLine.mockResolvedValue([])
   harness.getPriceMemory.mockResolvedValue(null)
   harness.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
+  harness.getPartnerDcConfig.mockResolvedValue(null)
 })
 
 describe('SlipFormPage price memory autofill', () => {
@@ -406,6 +420,49 @@ describe('SlipFormPage price memory autofill', () => {
       await first.promise
     })
     expect(unitPrice().value).toBe('222000')
+  })
+
+  it('does not apply a prior partner bulk result while the newly selected partner DC is pending', async () => {
+    const pendingPreviousPartnerBulk = deferred<{
+      hits: Array<{ productId: string; unitPrice: number; source: string; updatedAt: string }>
+      failedProductIds: string[]
+    }>()
+    const pendingCurrentPartnerDc = deferred<null>()
+    let partnerACallCount = 0
+    harness.getPartnerDcConfig.mockImplementation((partnerCode: string) => {
+      if (partnerCode === harness.partnerA.partnerCode) {
+        partnerACallCount += 1
+        return partnerACallCount >= 3 ? pendingCurrentPartnerDc.promise : Promise.resolve(null)
+      }
+      return Promise.resolve({
+        partnerCode,
+        companyName: harness.partnerB.name,
+        homeMultiDc: '45%',
+        commercialMultiDc: null,
+      })
+    })
+    harness.getPriceMemories.mockReturnValueOnce(pendingPreviousPartnerBulk.promise)
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
+
+    await selectPartnerB()
+    await waitFor(() => expect(harness.getPriceMemories).toHaveBeenCalledWith(harness.partnerB.id, [harness.productA.id]))
+
+    await selectPartnerA()
+    expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
+
+    await act(async () => {
+      pendingPreviousPartnerBulk.resolve({ hits: [], failedProductIds: [] })
+      await pendingPreviousPartnerBulk.promise
+    })
+
+    expect(unitPrice().value).toBe(harness.productA.sellingPrice)
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info')).toBe('')
+    expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
+    expect(screen.getByTestId('slip-price-refresh-banner').textContent).toBe('')
   })
 
   it('ignores a late response when the same line changes to another product', async () => {
@@ -607,6 +664,150 @@ describe('SlipFormPage price memory autofill', () => {
     await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
     await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
     expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('keeps the global discount price when recent price lookup misses', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({
+      discountInfo: '거래처 전역DC 48% 적용',
+    }))
+  })
+
+  it('applies global DC to a BUNDLE base price before expanding its components', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: null,
+    })
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 1,
+      unitPrice: 5200,
+      specification: null,
+    }])
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('5200'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      unitPrice: '5200',
+    })))
+  })
+
+  it('reprices an existing variable-DC line with the new partner global discount after a memory miss', async () => {
+    harness.getPartnerDcConfig.mockImplementation(async (partnerCode: string) => ({
+      partnerCode,
+      companyName: partnerCode === 'P-A' ? 'Partner A' : 'Partner B',
+      homeMultiDc: partnerCode === 'P-A' ? '48%' : '45%',
+      commercialMultiDc: null,
+    }))
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+
+    await selectPartnerB()
+    await waitFor(() => expect(unitPrice().value).toBe('550'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 전역DC 45% 적용')
+  })
+
+  it('announces the resolved global discount rather than the initial catalog fallback', async () => {
+    const pendingDc = deferred<{
+      partnerCode: string
+      companyName: string
+      homeMultiDc: string
+      commercialMultiDc: string
+    }>()
+    harness.getPartnerDcConfig.mockReturnValue(pendingDc.promise)
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    expect(unitPrice().value).toBe('1000')
+    await act(async () => {
+      pendingDc.resolve({
+        partnerCode: 'P-A',
+        companyName: 'Partner A',
+        homeMultiDc: '48%',
+        commercialMultiDc: '49%',
+      })
+      await pendingDc.promise
+    })
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 전역DC 48% 적용')
+    expect(screen.getByTestId('slip-price-refresh-banner').textContent)
+      .toContain('거래처 전역DC 48% 적용')
+  })
+
+  it('does not apply global DC to a non-variable-discount product with a physical fallback category', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    harness.productA.hasVariableDiscount = false
+    harness.productA.sellingPrice = '204000'
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('204000'))
+    expect(screen.queryByText('거래처 전역DC 48% 적용')).toBeNull()
+  })
+
+  it('confirms the selected product at catalog price before a pending DC request completes', async () => {
+    const pending = new Promise<null>(() => undefined)
+    harness.getPartnerDcConfig.mockReturnValue(pending)
+    renderPage()
+    await selectPartnerA()
+
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+    expect(unitPrice().value).toBe(harness.productA.sellingPrice)
+  })
+
+  it('uses the global discount result instead of a remembered list price', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    harness.getPriceMemory.mockResolvedValueOnce({
+      unitPrice: 999,
+      source: 'LINE_SAVE',
+      updatedAt: '2026-08-06T00:00:00',
+    })
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    expect(screen.getByTestId('line-1').getAttribute('data-price-source')).toBe('CATALOG')
   })
 
   it('bulk refresh failure does not overwrite a user edit made while the request is pending', async () => {

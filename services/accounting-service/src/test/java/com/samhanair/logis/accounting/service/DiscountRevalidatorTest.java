@@ -187,6 +187,25 @@ class DiscountRevalidatorTest {
     }
 
     @Test
+    @DisplayName("고정DC 30%와 거래처 전역DC 48%가 다르면 고정DC 30%를 적용한다")
+    void fixedDiscountRateWinsOverDifferentGlobalRate() {
+        DiscountRevalidator.Revalidation result = revalidator.revalidate(
+                "AJ040RXH4BC1 (RX다배관)",
+                ModelTokenExtractor.extractModelToken("AJ040RXH4BC1 (RX다배관)"),
+                new BigDecimal("70000"),
+                new BigDecimal("100000"),
+                new BigDecimal("70000"),
+                new BigDecimal("30.00"),
+                DiscountRevalidator.GlobalDiscount.found(
+                        new BigDecimal("0.48"), new BigDecimal("0.48")),
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(result.expectedRate()).isEqualTo(30);
+        assertThat(result.actualRate()).isEqualTo(30);
+        assertThat(result.verified()).isTrue();
+    }
+
+    @Test
     @DisplayName("멀티 fixedDc null은 45 폴백이며 null과 0을 구분한다")
     void multiNullFixedDiscountFallsBackToFortyFive() {
         DiscountRevalidator.Revalidation result = revalidate(

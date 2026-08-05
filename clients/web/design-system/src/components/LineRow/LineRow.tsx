@@ -112,6 +112,13 @@ export interface LineDraft {
   productType?: string | null
   /** 품목코드 (선택) — 세트 전개 시 부모 modelCode. */
   modelCode?: string | null
+  /** 저장 전표 DC 표시용 품목 카테고리/고정율 — 화면에는 UUID를 포함하지 않는다. */
+  categoryKey?: string | null
+  fixedDiscountRate?: number | null
+  /** 거래처 전역DC 자격 — 거래처 변경 재가격 시에도 원 품목 자격을 보존한다. */
+  hasVariableDiscount?: boolean | null
+  /** 적용 규칙 사용자 안내용. */
+  discountInfo?: string | null
   /** 세트 전개 옵션 (선택) — BUNDLE 라인에 한해 채움. */
   setOptions?: BundleSetOptions
   /** EXPAND 저장 계보 — 부모 세트 modelCode. */

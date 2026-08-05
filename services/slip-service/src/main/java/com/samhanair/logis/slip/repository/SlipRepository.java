@@ -10,9 +10,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Collection;
 import java.util.UUID;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -186,6 +188,18 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
 
     /** 전표 유형 + 전표번호 단건 조회. 판매/구매 번호 중복 허용 정책의 기본 조회 방식. */
     Optional<Slip> findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType slipType, String slipNo);
+
+    /**
+     * 협업 수정 저장용 행 잠금 조회.
+     *
+     * <p>편집 화면을 잠그는 것이 아니라 실제 짧은 저장 transaction 동안만 행을 잠근다.
+     * 첫 번째 저장이 끝난 뒤 두 번째 저장이 최신 row를 다시 읽어 필드별 baseline을 비교하므로,
+     * 서로 다른 필드는 병합되고 같은 필드만 409가 된다. JPA {@code @Version} 충돌로 정상적인
+     * 서로 다른 필드 협업 저장을 막지 않기 위한 저장 시점 serialization이다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Slip s WHERE s.id = :id")
+    Optional<Slip> findByIdForCollabUpdate(@Param("id") UUID id);
 
     /**
      * soft-deleted row 를 포함해 slipId 로 조회한다.

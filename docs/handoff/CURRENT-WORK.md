@@ -11,6 +11,7 @@
 59277c728  [FIX]  #1062 전표 라인 입력 UX — 네 화면 자동 빈행 (#1063)       → 이슈 #1062 close
 35afbb1d7  [FEAT] #1039 가배차 — 분류 계산 삼한 이전·배차그룹/운송사 (#1045) → 이슈 #1039 close
 3c4012db1  [FIX]  #1073 시간 의존 테스트가 CI 를 랜덤 차단 (#1079)          → 이슈 #1073 close
+7e21eb8f9  [FIX]  #1080 #1073 이 잃은 단정 복원 — 전달 완전성·비용 상한 (#1081) → 이슈 #1080 close
 ```
 
 ### 1. 🚨 개발책임자 지시 (2026-08-05~06 집PC) — 전부 메모리·워크플로우에 반영
@@ -30,11 +31,12 @@
 
 | PR | 브랜치 | ① 도달결함 | ② CI | ③ 라이브QA | 다음 한 수 |
 |---|---|---|---|---|---|
-| `#1057` `#874` | `feat/874-set-riusage-global-dc` | DC 반영 진행 중 | 확인 필요 | R70 진행 | 전역DC 561,600 실측 |
-| `#1069` `#1077` | `feat/1069-bundle-expansion-in-form` | S22 1건 | 미확인 | 미실시 | S23 → SOL |
-| `#1075` `#1078` | `feat/1075-estimate-product-candidate-modal` | ✅ 0 | 🔴 red 2잡 | 미실시 | S10 CI 해소 |
-| `#1080` `#1081` | `chore/1080-restore-cost-assertions` | ✅ 0 (S5) | 확인 중 | 해당 없음 | CI green → 머지 |
-| `#1066` `#1065` | `fix/1065-outbound-inspect-approval-gate` | 2건 | ✅ 42/42 | 미실시 | `#1057` 머지 후 |
+| `#1057` `#874` | `feat/874-set-riusage-global-dc` | ✅ **0 (R85 머지 권고)** | GitGuardian 판정 완료 · 잔여 2잡 대기 | ✅ **R86 전 항목 PASS** | 잔여 CI pass → **PM 머지** |
+| `#1069` `#1077` | `feat/1069-bundle-expansion-in-form` | S36 검증 중 (S35 fix 반영) | ✅ **4/4 green** `0ef964762` | 미실시 | S36 결함 0 → 라이브QA → 머지 |
+| `#1075` `#1078` | `feat/1075-estimate-product-candidate-modal` | S23 검증 중 (S22 fix 반영) | 2잡 green · 2잡 진행 | 미실시 | S23 결함 0 → 라이브QA → 머지 |
+| `#1066` `#1065` | `fix/1065-outbound-inspect-approval-gate` | 2건 | ✅ 42/42 | 미실시 | **`#1057` 머지 직후 재개** |
+
+> **머지 순서 주의** — `#1057` 과 `#1077` 이 `ProductSummaryResponse.java` · `ProductSummary.java` 를 함께 바꾼다. 먼저 머지되는 쪽 기준으로 나중 PR 에서 **`hasVariableDiscount`(#874)와 `bundleMode`(#1069)를 둘 다 보존**해 수동 해소한다.
 
 ### 3. 🔑 이 세션에서 값을 한 것
 
@@ -1674,3 +1676,57 @@ slip 없는 회계분개   30건 · 401 순매출 412,300,000원
 
 ---
 
+
+---
+
+## 2026-08-06 새벽 구간 추가 기록 — 게이트가 어두웠던 두 사례
+
+이 구간의 소득은 fix 자체보다 **게이트 ②가 조용히 비어 있던 것을 두 번 잡은 것**이다.
+
+### ① `#1077` — 충돌이면 워크플로가 **0건**이다
+
+```
+gh pr view 1077 --json mergeable   →  CONFLICTING / DIRTY
+브랜치 최근 네 커밋                →  pull_request run 이 하나도 생성되지 않음
+```
+
+에러가 없고 "큐에 있음" 처럼 보인다. S29·S31 의 결과가 CI 에서 한 번도 확인된 적 없는 상태로 네 커밋이 쌓였다. 충돌 파일은 `MobilePartnerOrderServiceTest.java` 하나였고, main 의 `#1039 가배차`와 브랜치의 `#1069 S3` 가 같은 테스트를 바꾼 것이었다.
+
+**머지 해소는 fix 다.** 해소 후 `BUILD SUCCESSFUL` + `Vitest 224/224` 를 받고도 **`tsc` 를 안 돌려** 타입 오류 5건이 CI 에서 터졌다(Vitest 는 esbuild 라 타입을 안 본다). → 머지 해소 라운드의 필수 명령에 `typecheck` 를 넣는다.
+
+### ② `#1057` — `Harness Guard` 가 네 SHA 연속 red
+
+가드가 잡던 것이 **하필 PM 이 두 시간 전에 손으로 발견한 사고**였다.
+
+```
+G3a  커밋 QA 증거로 직접 쓰는 경로 상수 (const qaDir / const shotDir)   드라이버 10개
+H2b  docs/qa 안의 스크립트가 자기가 속한 커밋 디렉토리에 직접 쓴다        1개
+```
+
+그 상수 때문에 R71 의 커밋된 증거(`494,802` — 이중 적용 결함이 살아 있던 시절의 기록)가 나중 라운드 값(`970,200`)으로 덮여 있었다. 드라이버 11개를 제거해 해소했다. **증거는 보고서와 캡처이지 드라이버가 아니다.**
+
+### 🔑 그래서 규칙이 하나 늘었다
+
+라운드 보고서는 **지정 suite 만 좁게** 돈다(완주를 위해 유지). 대신 **PM 이 라운드마다 CI 를 따로 본다.**
+
+```powershell
+gh pr view <PR> --json mergeable,mergeStateStatus    # CONFLICTING 이면 run 0건
+gh run list --branch <branch> --limit 6 --json headSha,status,conclusion,name
+```
+
+**현재 SHA 에 체크가 하나도 없으면 그것부터.** → [[feedback_qa_harness_commit_breaks_ci]]
+
+### 그 밖에 이 구간에서 나온 것
+
+| 사건 | 기록 |
+|---|---|
+| 결함이 살아 있을 때 돈 라이브QA 가 DB 에 오염 값을 남겨 다음 라운드가 BLOCK 을 냈다 | [[feedback_defective_round_poisons_db_for_next_round]] |
+| mock handler 없는 endpoint 가 실 API 로 누출 — 로컬 green · CI red | [[feedback_mock_gate_leaks_to_real_api]] |
+| 마이그레이션 번호 네 번째 — 브랜치가 main 보다 뒤처져 `V101` 이 겹쳤다 | [[feedback_migration_number_three_counts]] |
+| 라이브QA 가 로그인 응답 원문을 남겨 dev-seed JWT 가 다섯 파일에 섞였다 | [[feedback_live_qa_artifacts_vanish_silently]] ⑤ |
+
+### PM 이 만든 함정 (자기 기록)
+
+- `#1069` CI red 에 **이지선다**(*"spec 이 낡았나 / 기능이 깨졌나"*)를 줬는데 **둘 다 아니었다.** 브리핑의 *"제 전제가 틀렸다면 중단·보고"* 가 작동해 검증자가 반려했고 한 사이클을 아꼈다.
+- `#1075` 에도 이지선다(*"coedit 전용인가 / 카탈로그 비교 추론인가"*)를 줬는데 답은 **`U+2060` marker** 라는 제3의 방식이었다.
+- ⟹ 갈래를 제시할 때는 **"셋째 가능성이 있으면 그것을 내라"** 를 항상 함께 적는다.

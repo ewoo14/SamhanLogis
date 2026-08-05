@@ -1,0 +1,50 @@
+﻿[
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/notifications/my",
+        "postData":  null
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/api/notifications/my",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"34365f7f-7f38-4e0c-bf23-f0ccf5dd1005\",\"channel\":\"MESSENGER\",\"severity\":\"INFO\",\"title\":\"[전표 수정] 2026/08/05-9\",\"body\":\"[DEV-SEED] 개발마스터 님이 전표 2026/08/05-9 를 수정완료했습니다.\\n변경: memo: R57 live QA 2026-08-05T14:02:23.040Z → R59 LIVE QA COLLAB EDIT 2026-08-05 23:20\",\"deeplink\":null,\"createdAt\":\"2026-08-05T23:27:35.463324\",\"readAt\":null,\"refId\":\"578ea683-c7e6-46b2-80ea-c2701d4354e1\"}],\"timestamp\":\"2026-08-05T19:42:31.442491165Z\"}"
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/v1/partner-dc-configs/4348703365",
+        "postData":  null
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/products?q=AY047BA1SBA\u0026size=20\u0026usageScope=PARTNER_ORDER",
+        "postData":  null
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/api/v1/partner-dc-configs/4348703365",
+        "postData":  null
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/api/products?q=AY047BA1SBA\u0026size=20\u0026usageScope=PARTNER_ORDER",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"id\":\"896542b5-e838-4049-885f-0c026572035d\",\"name\":\"시스템제습기 본체\",\"modelName\":\"AY047BA1SBA\",\"productCode\":\"AY047BA1SBA\",\"categoryId\":\"00000000-0000-0000-0000-000000001004\",\"sellingPrice\":939400.00,\"status\":\"ACTIVE\",\"serialManaged\":true,\"goods\":true,\"modelCode\":\"AY047BA1SBA\",\"productType\":\"SINGLE\",\"usageScope\":\"BOTH\",\"estimateCategory\":null,\"usageScopeManual\":false,\"displayOrder\":null,\"categoryKey\":\"homemulti\",\"fixedDiscountRate\":null,\"discountFlags\":\"000000\",\"releasePrice\":600000.00,\"deliveryPrice\":600000.00,\"hasVariableDiscount\":false,\"parentSetModelCode\":null,\"specification\":\"시스템제습기\"}],\"pageable\":{\"pageNumber\":0,\"pageSize\":20,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"offset\":0,\"unpaged\":false,\"paged\":true},\"totalPages\":1,\"totalElements\":1,\"last\":true,\"first\":true,\"numberOfElements\":1,\"size\":20,\"number\":0,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"empty\":false},\"timestamp\":\"2026-08-05T19:42:34.977072109Z\"}"
+    },
+    {
+        "kind":  "request",
+        "method":  "GET",
+        "url":  "http://localhost:8080/slips/price-memory?partnerId=77d0513c-5d31-441d-81db-e6007691a482\u0026productId=896542b5-e838-4049-885f-0c026572035d",
+        "postData":  null
+    },
+    {
+        "kind":  "response",
+        "status":  200,
+        "url":  "http://localhost:8080/slips/price-memory?partnerId=77d0513c-5d31-441d-81db-e6007691a482\u0026productId=896542b5-e838-4049-885f-0c026572035d",
+        "body":  "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"unitPrice\":939400.00,\"source\":\"LINE_SAVE\",\"updatedAt\":\"2026-08-06T04:41:48.014035\"},\"timestamp\":\"2026-08-05T19:42:39.998256883Z\"}"
+    }
+]

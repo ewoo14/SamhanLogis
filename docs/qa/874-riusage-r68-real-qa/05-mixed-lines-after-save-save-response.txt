@@ -1,0 +1,18 @@
+NO_POST_RESPONSE
+저장 버튼 비활성: 최근단가 확인 중…
+API_RESOURCES
+http://localhost:5299/api/mock.ts
+http://localhost:5299/api/appVersion.ts
+http://localhost:5299/api/appNotice.ts
+http://localhost:5299/api/activityLog.ts
+http://localhost:5299/api/auth.ts
+http://localhost:5299/api/passwordApi.ts
+http://localhost:5299/api/slip.ts?t=1785946165896
+http://localhost:5299/api/notificationApi.ts
+http://localhost:5299/api/inventory.ts
+http://localhost:5299/api/adminApi.ts
+http://localhost:5299/api/apiError.ts
+http://localhost:5299/api/excelExportApi.ts
+http://localhost:5299/api/sales.ts?t=1785945990138
+http://localhost:5299/api/productApi.ts?t=1785945990109
+http://localhost:5299/api/partnerApi.ts

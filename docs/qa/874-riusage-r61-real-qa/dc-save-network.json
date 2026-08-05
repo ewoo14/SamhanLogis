@@ -1,0 +1,20 @@
+[
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://localhost:8080/api/v1/partner-dc-configs?page=0&size=250",
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"partnerCode\":\"4348703365\",\"companyName\":\"주식회사 엠엠시스템에어(고영현)\",\"homeMultiDc\":\"46%\",\"commercialMultiDc\":null,\"flexibleHoseTypeI\":\"Yes\",\"threeSixty\":null,\"fourWay\":null,\"oneWay\":null,\"stand\":null,\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},{\"partnerCode\":\"4563501301\",\"companyName\":\"엠엠시스템에어 호남지사-김유나\",\"homeMultiDc\":\"46%\",\"commercialMultiDc\":null,\"flexibleHoseTypeI\":\"Yes\",\"threeSixty\":null,\"fourWay\":null,\"oneWay\":null,\"stand\":null,\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},{\"partnerCode\":\"2568700899\",\"companyName\":\"주식회사 제이앤피공조\",\"homeMultiDc\":null,\"commercialMultiDc\":null,\"flexibleHoseTypeI\":\"No\",\"threeSixty\":\"₩70,000\",\"fourWay\":\"₩70,000\",\"oneWay\":\"₩50,000\",\"stand\":\"₩70,000\",\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},{\"partnerCode\":\"2188601069\",\"companyName\":\"(주)삼성에스에이씨비투비(더블유케이)\",\"homeMultiDc\":\"45%\",\"commercialMultiDc\":null,\"flexibleHoseTypeI\":\"No\",\"threeSixty\":\"₩20,000\",\"fourWay\":\"₩20,000\",\"oneWay\":\"₩20,000\",\"stand\":\"₩20,000\",\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},{\"partnerCode\":\"4091808577\",\"companyName\":\"제일냉온상사\",\"homeMultiDc\":\"46%"
+  },
+  {
+    "method": "PATCH",
+    "status": 200,
+    "url": "http://localhost:8080/api/v1/partner-dc-configs/4348703365",
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"partnerCode\":\"4348703365\",\"companyName\":\"주식회사 엠엠시스템에어(고영현)\",\"homeMultiDc\":\"48%\",\"commercialMultiDc\":\"49%\",\"flexibleHoseTypeI\":\"Yes\",\"threeSixty\":null,\"fourWay\":null,\"oneWay\":null,\"stand\":null,\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},\"timestamp\":\"2026-08-05T14:52:47.321879492Z\"}"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://localhost:8080/api/v1/partner-dc-configs?page=0&size=250",
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"partnerCode\":\"4563501301\",\"companyName\":\"엠엠시스템에어 호남지사-김유나\",\"homeMultiDc\":\"46%\",\"commercialMultiDc\":null,\"flexibleHoseTypeI\":\"Yes\",\"threeSixty\":null,\"fourWay\":null,\"oneWay\":null,\"stand\":null,\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},{\"partnerCode\":\"2568700899\",\"companyName\":\"주식회사 제이앤피공조\",\"homeMultiDc\":null,\"commercialMultiDc\":null,\"flexibleHoseTypeI\":\"No\",\"threeSixty\":\"₩70,000\",\"fourWay\":\"₩70,000\",\"oneWay\":\"₩50,000\",\"stand\":\"₩70,000\",\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},{\"partnerCode\":\"2188601069\",\"companyName\":\"(주)삼성에스에이씨비투비(더블유케이)\",\"homeMultiDc\":\"45%\",\"commercialMultiDc\":null,\"flexibleHoseTypeI\":\"No\",\"threeSixty\":\"₩20,000\",\"fourWay\":\"₩20,000\",\"oneWay\":\"₩20,000\",\"stand\":\"₩20,000\",\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},{\"partnerCode\":\"4091808577\",\"companyName\":\"제일냉온상사\",\"homeMultiDc\":\"46%\",\"commercialMultiDc\":\"46%\",\"flexibleHoseTypeI\":\"No\",\"threeSixty\":\"₩20,000\",\"fourWay\":\"₩20,000\",\"oneWay\":\"₩20,000\",\"stand\":\"₩20,000\",\"deluxe\":null,\"firstGrade\":null,\"unitProcess\":\"No\",\"remark\":null},{\"partnerCode\":\"1985500078\",\"companyName\":\"현주시스템(전현주)\",\"home"
+  }
+]

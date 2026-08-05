@@ -363,6 +363,15 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void findByPeriod_missingInternalToken_returns403() throws Exception {
+        mockMvc.perform(get("/internal/slips/by-period")
+                        .param("type", "OUTBOUND")
+                        .param("from", "2026-08-03")
+                        .param("to", "2026-08-03"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void findFullDetail_doesNotExposeWarehouseUuidAsSourceWarehouseName() throws Exception {
         String slipId = createInspectingSlip();
 

@@ -113,7 +113,7 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
     }
 
     /**
-     * path → {after} changeSet 을 기존 overlay patch 경로로 적용한다.
+     * path → {before, after} changeSet 을 기존 overlay patch 경로로 적용한다.
      *
      * <p>path 는 {@code memo} 또는 JSON Pointer 형태 {@code /memo} 를 허용한다.
      * 파싱/구조 검증은 {@link #parseChangeSet} 을 재사용한다 — 수정완료 시점
@@ -134,15 +134,16 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
     @Transactional
     public com.samhanair.logis.slip.web.dto.SlipDetailResponse applyOverlayPatchBatch(
             UUID documentId, String changeSetJson, UUID actorId, String actorName) {
-        Map<String, String> patches = parseChangeSet(changeSetJson);
+        ParsedChangeSet parsed = parseChangeSet(changeSetJson);
         return slipService.applyOverlayPatchBatch(
-                documentId, patches, actorId == null ? null : actorId.toString(), actorName);
+                documentId, parsed.patches(), parsed.expectedBefore(),
+                actorId == null ? null : actorId.toString(), actorName);
     }
 
     /**
      * changeSet JSON 의 구조를 수정완료 시점에 조기 검증한다 (§7 협업 Round C P2).
      *
-     * <p>{@link #applyChangeSet} 과 동일한 파싱·after-검증을 재사용한다. 본 검증 없이 제안이 저장되면:
+     * <p>{@link #applyChangeSet} 과 동일한 파싱·before/after 검증을 재사용한다. 본 검증 없이 제안이 저장되면:
      * <ul>
      *   <li>비JSON 문자열({@code "{broken"}) — jsonb cast 가 INSERT flush 에서 실패해 500.</li>
      *   <li>구조 불량({@code {"memo":"x"}}) — 저장은 되지만 accept 마다 400 이 반복되는
@@ -159,19 +160,20 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
     }
 
     /**
-     * changeSet 에 현재 전표의 before 값을 보강한다.
+     * changeSet 의 클라이언트 baseline 을 보존하고 저장 계약을 정규화한다.
      *
-     * <p>외부 요청 계약은 path → {after} 이지만 수정 이력 UI 는 old → new diff 를 즉시 보여줘야 한다.
-     * 따라서 이력 저장 전 현재 overlay 필드 값을 읽어 path → {before, after} 형태로 정규화한다.
+     * <p>협업 편집은 여러 사용자가 서로 다른 필드를 동시에 저장할 수 있어야 한다. 따라서
+     * 저장 직전 DB 현재값을 새 {@code before} 로 덮어쓰지 않고, 클라이언트가 편집을 시작할 때
+     * 캡처한 필드별 baseline 을 그대로 전달한다. 실제 비교는 {@link SlipService} 가 mutation
+     * 전에 원자적으로 수행한다.
      */
     @Transactional(readOnly = true)
     public String enrichChangeSetWithBefore(UUID documentId, String changeSetJson) {
-        Map<String, String> patches = parseChangeSet(changeSetJson);
-        Slip slip = loadSlip(documentId);
+        ParsedChangeSet parsed = parseChangeSet(changeSetJson);
         com.fasterxml.jackson.databind.node.ObjectNode root = objectMapper.createObjectNode();
-        for (Map.Entry<String, String> patch : patches.entrySet()) {
+        for (Map.Entry<String, String> patch : parsed.patches().entrySet()) {
             com.fasterxml.jackson.databind.node.ObjectNode change = objectMapper.createObjectNode();
-            String before = slip.readOverlayField(patch.getKey());
+            String before = parsed.expectedBefore().get(patch.getKey());
             if (before == null) {
                 change.putNull("before");
             } else {
@@ -193,34 +195,42 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
     }
 
     /**
-     * changeSet JSON 을 {@code 필드명 → after 값} map 으로 파싱·검증한다 (propose/accept 공용).
+     * changeSet JSON 을 {@code 필드명 → before/after 값} map 으로 파싱·검증한다 (propose/accept 공용).
      *
-     * <p>각 entry 는 {@code after} 필드를 가진 JSON object 여야 하며, path 는 단일 overlay
-     * 필드명({@code memo} 또는 {@code /memo})만 허용한다. 적용할 필드가 0건이면 거부한다.
+     * <p>각 entry 는 {@code before}, {@code after} 필드를 가진 JSON object 여야 하며, path 는
+     * 단일 overlay 필드명({@code memo} 또는 {@code /memo})만 허용한다. 적용할 필드가 0건이면
+     * 거부한다.
      *
      * @param changeSetJson changeSet JSON 문자열
-     * @return 필드명 → after 값 (입력 순서 보존, after=null 은 필드 clear)
+     * @return 필드별 baseline 과 새 값 (입력 순서 보존, null 은 필드 clear)
      * @throws BusinessException(INVALID_INPUT) JSON 형식 오류 / 구조 불량 / 적용 필드 0건
      */
-    private Map<String, String> parseChangeSet(String changeSetJson) {
+    private ParsedChangeSet parseChangeSet(String changeSetJson) {
         JsonNode root = parseObject(changeSetJson, "changeSet");
+        Map<String, String> expectedBefore = new LinkedHashMap<>();
         Map<String, String> patches = new LinkedHashMap<>();
         Iterator<Map.Entry<String, JsonNode>> fields = root.fields();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> entry = fields.next();
             String fieldName = normalizePath(entry.getKey());
             JsonNode change = entry.getValue();
-            if (change == null || !change.isObject() || !change.has("after")) {
+            if (change == null || !change.isObject()
+                    || !change.has("before") || !change.has("after")) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,
-                        "changeSet entry 는 after 필드를 가진 JSON object 여야 합니다: " + entry.getKey());
+                        "changeSet entry 는 before/after 필드를 가진 JSON object 여야 합니다: " + entry.getKey());
             }
+            expectedBefore.put(fieldName, toNullableText(change.get("before")));
             JsonNode afterNode = change.get("after");
             patches.put(fieldName, toNullableText(afterNode));
         }
         if (patches.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet 에 적용할 필드가 없습니다");
         }
-        return patches;
+        return new ParsedChangeSet(expectedBefore, patches);
+    }
+
+    private record ParsedChangeSet(Map<String, String> expectedBefore,
+                                   Map<String, String> patches) {
     }
 
     /**

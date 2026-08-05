@@ -673,6 +673,13 @@ spring:
           filters:
             - JwtAuthentication
 
+        - id: slip-collab-notification-admin-noprefix
+          uri: lb://slip-service
+          predicates:
+            - Path=/admin/slip-collab-notifications,/admin/slip-collab-notifications/**
+          filters:
+            - JwtAuthentication
+
         - id: arologis-service-noprefix
           uri: lb://arologis-service
           predicates:

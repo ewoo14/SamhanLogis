@@ -70,6 +70,7 @@ public class PurchaseAccountingSlip extends BaseEntity {
     @Column(name = "memo", columnDefinition = "TEXT") private String memo;
 
     @OneToMany(mappedBy = "slip", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("lineNo ASC")
     private List<PurchaseAccountingSlipLine> lines = new ArrayList<>();
 
     public static PurchaseAccountingSlip createDraft(String slipNo, LocalDate slipDate,

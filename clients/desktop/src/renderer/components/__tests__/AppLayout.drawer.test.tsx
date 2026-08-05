@@ -15,6 +15,8 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 
 vi.mock('../../stores/session', () => ({
+  canQuerySales: () => true,
+  canQueryPurchases: () => true,
   useSessionStore: (selector: (state: { auth: { fullName: string; role: string }; logout: () => Promise<void> }) => unknown) =>
     selector({
       auth: { fullName: '오병승', role: 'MASTER' },
