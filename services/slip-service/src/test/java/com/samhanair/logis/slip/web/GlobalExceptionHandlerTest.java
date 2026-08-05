@@ -84,8 +84,18 @@ class GlobalExceptionHandlerTest {
                 .getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(handler.handlePessimisticLock(new PessimisticLockingFailureException("lock timeout"))
                 .getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(handler.handlePessimisticLock(new QueryTimeoutException("lock timeout", null))
-                .getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void handlePessimisticLock_nonLockQueryTimeout_doesNotReturnFalse409() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleQueryTimeout(
+                new QueryTimeoutException("select timeout", null));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage())
+                .doesNotContain("다른 사용자가 전표를 수정 중입니다")
+                .doesNotContain("select timeout");
     }
 
     @Test

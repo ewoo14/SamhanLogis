@@ -6,13 +6,9 @@ import com.samhanair.logis.collab.CollabRealtimePublisher;
 import com.samhanair.logis.collab.CollabSuggestionService;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.slip.client.NotificationClient;
-import com.samhanair.logis.slip.client.UserIdResolver;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -36,21 +32,18 @@ public class SlipCollabEditService {
 
     private final SlipCollabSuggestionRepository suggestionRepository;
     private final CollabRealtimePublisher publisher;
-    private final NotificationClient notificationClient;
-    private final UserIdResolver userIdResolver;
+    private final SlipCollabNotificationOutboxService notificationOutboxService;
     private final ObjectMapper objectMapper;
     private final Executor notificationExecutor;
 
     public SlipCollabEditService(SlipCollabSuggestionRepository suggestionRepository,
                                  CollabRealtimePublisher publisher,
-                                 NotificationClient notificationClient,
-                                 UserIdResolver userIdResolver,
+                                 SlipCollabNotificationOutboxService notificationOutboxService,
                                  ObjectMapper objectMapper,
                                  @Qualifier("applicationTaskExecutor") Executor notificationExecutor) {
         this.suggestionRepository = suggestionRepository;
         this.publisher = publisher;
-        this.notificationClient = notificationClient;
-        this.userIdResolver = userIdResolver;
+        this.notificationOutboxService = notificationOutboxService;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
         this.notificationExecutor = notificationExecutor;
     }
@@ -86,12 +79,13 @@ public class SlipCollabEditService {
 
         // 수신자 식별자와 본문은 커밋 전 스냅샷으로 고정한다. 실제 auth/notification 외부 호출은
         // afterCommit 이후 비동기로 넘겨, 이미 성공한 저장과 이력만 알림 대상으로 삼는다.
-        scheduleNotifications(
+        String subject = "[전표 수정] " + updated.slipNo();
+        String body = limitBody(String.format("%s 님이 전표 %s 를 수정완료했습니다.%n변경: %s",
+                displayActor(editorName), updated.slipNo(), summarizeChangeSet(validatedChangeSet)));
+        notificationOutboxService.enqueue(
                 List.copyOf(port.resolveNotificationRecipients(slipId, editorId)),
-                "[전표 수정] " + updated.slipNo(),
-                limitBody(String.format("%s 님이 전표 %s 를 수정완료했습니다.%n변경: %s",
-                        displayActor(editorName), updated.slipNo(), summarizeChangeSet(validatedChangeSet))),
-                updated.slipNo(), editorId);
+                slipId, editorId, subject, body);
+        scheduleNotifications();
 
         publisher.publish(slipId, CollabSuggestionService.EVENT_SUGGESTION_ACCEPTED,
                 java.util.Map.of(
@@ -114,70 +108,27 @@ public class SlipCollabEditService {
      * 반대로 afterCommit 안에서 동기 발송하면 행 잠금은 풀려도 수정완료 응답이 외부 timeout 만큼 멈춘다.
      * 두 경계를 모두 지키기 위해 afterCommit 에서는 작업 제출만 수행한다.
      */
-    private void scheduleNotifications(List<String> rawRecipients, String subject, String body,
-                                       String slipNo, UUID editorId) {
-        Runnable notificationTask = () -> sendNotifications(rawRecipients, subject, body, slipNo, editorId);
+    private void scheduleNotifications() {
+        Runnable notificationTask = notificationOutboxService::drainPending;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    dispatchNotifications(notificationTask, slipNo);
+                    dispatchNotifications(notificationTask);
                 }
             });
             return;
         }
         // 트랜잭션 없는 단위 호출은 기존 best-effort 의미를 유지하되, 외부 호출은 여전히 비동기다.
-        dispatchNotifications(notificationTask, slipNo);
+        dispatchNotifications(notificationTask);
     }
 
-    private void dispatchNotifications(Runnable notificationTask, String slipNo) {
+    private void dispatchNotifications(Runnable notificationTask) {
         try {
             notificationExecutor.execute(notificationTask);
         } catch (java.util.concurrent.RejectedExecutionException ex) {
-            // 알림은 보조 신호이지만 큐 포화로 조용히 누락시키지 않는다. 커밋 후 현재 스레드에서
-            // 마지막 best-effort 로 실행하여 저장 성공과 알림 실패를 분리한다.
-            log.warn("[SlipCollab] 전표 수정완료 알림 비동기 제출 거부 — slipNo={}", slipNo, ex);
-            try {
-                notificationTask.run();
-            } catch (RuntimeException taskFailure) {
-                log.warn("[SlipCollab] 전표 수정완료 알림 fallback 실패 — slipNo={}", slipNo, taskFailure);
-            }
-        }
-    }
-
-    /**
-     * 커밋 후 수신자 목록에 푸시 알림을 발송한다(best-effort).
-     *
-     * <p>알림은 best-effort 이므로 개별 발송 실패가 전체 수정완료 적용/이력 저장을 되돌리지 않는다.
-     * 수신자 식별자(UUID 또는 loginId)는 auth-service 내부 조회로 accountId 로 정규화하며,
-     * resolve 실패·중복·현재 수정자는 skip 한다. 본문에는 전표번호·수정자명·필드별 before→after
-     * 요약만 포함하고 내부 UUID 는 노출하지 않는다.
-     *
-     * @param rawRecipients 포트가 모은 수신자 식별자 목록 (UUID 또는 loginId 혼합)
-     * @param subject       알림 제목
-     * @param body          알림 본문 (2000자 이내)
-     * @param slipNo        로그용 전표번호
-     * @param editorId      현재 수정자 UUID (self-skip 용)
-     */
-    private void sendNotifications(List<String> rawRecipients, String subject, String body,
-                                   String slipNo, UUID editorId) {
-        Set<UUID> recipients = new LinkedHashSet<>();
-        for (String rawRecipient : rawRecipients) {
-            userIdResolver.resolve(rawRecipient)
-                    .filter(resolved -> !resolved.equals(editorId))
-                    .ifPresent(recipients::add);
-        }
-        if (recipients.isEmpty()) {
-            return;
-        }
-
-        for (UUID recipient : recipients) {
-            try {
-                notificationClient.sendUserPush(recipient, subject, body);
-            } catch (RuntimeException ex) {
-                log.warn("[SlipCollab] 전표 수정완료 알림 발송 실패 — slipNo={} recipient={}",
-                        slipNo, recipient, ex);
-            }
+            // row는 이미 커밋된 durable outbox에 있으므로 scheduler가 다음 기회에 회수한다.
+            log.warn("[SlipCollab] durable 알림 worker 제출 거부 — scheduler 재회수 대기", ex);
         }
     }
 

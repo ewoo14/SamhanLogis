@@ -131,13 +131,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
             LockTimeoutException.class,
             PessimisticLockException.class,
-            PessimisticLockingFailureException.class,
-            QueryTimeoutException.class
+            PessimisticLockingFailureException.class
     })
     public ResponseEntity<ApiResponse<Void>> handlePessimisticLock(Exception ex) {
         log.warn("Pessimistic lock conflict: {}", ex.getClass().getSimpleName());
         return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.CONFLICT, "다른 사용자가 전표를 수정 중입니다. 최신 내용으로 다시 확인해 주세요."));
+    }
+
+    @ExceptionHandler(QueryTimeoutException.class)
+    public ResponseEntity<ApiResponse<Void>> handleQueryTimeout(QueryTimeoutException ex) {
+        log.warn("Query timeout: {}", ex.getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, "요청 처리 시간이 초과되었습니다."));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

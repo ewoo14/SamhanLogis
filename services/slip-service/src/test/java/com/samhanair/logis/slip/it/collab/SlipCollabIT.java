@@ -565,8 +565,8 @@ class SlipCollabIT extends AbstractPostgresIT {
         org.mockito.Mockito.doAnswer(invocation -> {
             notificationStarted.countDown();
             releaseNotification.await(10, TimeUnit.SECONDS);
-            return null;
-        }).when(notificationClient).sendUserPush(
+            return true;
+        }).when(notificationClient).sendUserPushWithResult(
                 any(UUID.class), any(String.class), any(String.class));
 
         ExecutorService requests = Executors.newFixedThreadPool(2);
@@ -658,19 +658,19 @@ class SlipCollabIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
 
-        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(requesterAccountId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPushWithResult(eq(requesterAccountId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(createdByAccountId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPushWithResult(eq(createdByAccountId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(revisionActorId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPushWithResult(eq(revisionActorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(suggestionActorId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPushWithResult(eq(suggestionActorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(commentAuthorId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPushWithResult(eq(commentAuthorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPush(eq(inspectorId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000)).sendUserPushWithResult(eq(inspectorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
-        verify(notificationClient, never()).sendUserPush(eq(editorId),
+        verify(notificationClient, never()).sendUserPushWithResult(eq(editorId),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
         verify(authAccountLookupClient, org.mockito.Mockito.timeout(5000))
                 .findAccountIdByLoginId("collab-it-seeder");
@@ -678,7 +678,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                 .findAccountIdByLoginId("slip-user");
 
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(notificationClient, org.mockito.Mockito.timeout(5000).times(6)).sendUserPush(
+        verify(notificationClient, org.mockito.Mockito.timeout(5000).times(6)).sendUserPushWithResult(
                 org.mockito.ArgumentMatchers.any(UUID.class),
                 eq("[전표 수정] " + slip.getSlipNo()),
                 bodyCaptor.capture());
@@ -724,7 +724,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated());
 
         // 알림 수신자 없음: dispatcher/inspector null + 기여자 by-login empty
-        verify(notificationClient, never()).sendUserPush(
+        verify(notificationClient, never()).sendUserPushWithResult(
                 org.mockito.ArgumentMatchers.any(UUID.class),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString());
@@ -755,7 +755,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                                 "changeSet", "{\"memo\":{\"before\":\"출고 메모\",\"after\":\"중복 제거\"}}"))))
                 .andExpect(status().isCreated());
 
-        verify(notificationClient, org.mockito.Mockito.timeout(5000).times(1)).sendUserPush(eq(workerId),
+        verify(notificationClient, org.mockito.Mockito.timeout(5000).times(1)).sendUserPushWithResult(eq(workerId),
                 eq("[전표 수정] " + slip.getSlipNo()),
                 org.mockito.ArgumentMatchers.anyString());
     }

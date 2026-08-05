@@ -138,7 +138,12 @@ public class NotificationClient {
      * @param body 본문
      */
     public void sendUserPush(UUID recipientUserId, String subject, String body) {
-        sendInternal(Map.of(
+        sendUserPushWithResult(recipientUserId, subject, body);
+    }
+
+    /** 푸시 전달 성공 여부를 durable outbox가 재시도 판정에 사용한다. */
+    public boolean sendUserPushWithResult(UUID recipientUserId, String subject, String body) {
+        return sendInternalWithResult(Map.of(
                 "recipientType", "USER",
                 "recipientId", recipientUserId.toString(),
                 "channel", "PUSH",
