@@ -301,6 +301,8 @@ export interface ExpandedSlipLine {
   name?: string | null
   quantity: number
   unitPrice: number | string
+  /** 서버가 null을 명시하면 KEEP 부모(BUNDLE)이며, 구성품은 componentKind를 가진다. */
+  componentKind?: string | null
   specification?: string | null
 }
 

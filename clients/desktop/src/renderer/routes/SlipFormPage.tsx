@@ -840,6 +840,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       .map((component) => {
         const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
         const unitPrice = String(component.unitPrice ?? '0')
+        const productType = component.componentKind === null && source.productType === 'BUNDLE'
+          ? 'BUNDLE'
+          : 'SINGLE'
         const base = emptyLine()
         return {
           ...recalculateLineVat(asVatLine({
@@ -850,7 +853,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             specification: component.specification ?? parentSpecification,
             quantity,
             unitPrice,
-            productType: 'SINGLE',
+            productType,
             modelCode: component.modelCode ?? null,
             priceSource: 'CATALOG',
           }), 'PRICE'),
@@ -860,7 +863,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           specification: component.specification ?? parentSpecification,
           quantity,
           unitPrice,
-          productType: 'SINGLE',
+          productType,
           modelCode: component.modelCode ?? null,
           priceSource: 'CATALOG',
           lookupError: null,

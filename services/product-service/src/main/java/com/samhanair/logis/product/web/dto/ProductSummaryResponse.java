@@ -37,6 +37,7 @@ public record ProductSummaryResponse(
         boolean goods,
         String modelCode,
         String productType,
+        String bundleMode,
         UsageScope usageScope,
         EstimateCategory estimateCategory,
         boolean usageScopeManual,
@@ -60,7 +61,7 @@ public record ProductSummaryResponse(
                                   BigDecimal releasePrice, BigDecimal deliveryPrice,
                                   Boolean hasVariableDiscount) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
-                modelCode, productType, usageScope, estimateCategory, usageScopeManual, displayOrder,
+                modelCode, productType, null, usageScope, estimateCategory, usageScopeManual, displayOrder,
                 categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
                 hasVariableDiscount, null, null);
     }
@@ -74,8 +75,8 @@ public record ProductSummaryResponse(
                                   UsageScope usageScope, EstimateCategory estimateCategory,
                                   boolean usageScopeManual, Integer displayOrder) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
-                modelCode, productType, usageScope, estimateCategory, usageScopeManual, displayOrder,
-                null, null, null, null, null, null);
+                modelCode, productType, null, usageScope, estimateCategory, usageScopeManual, displayOrder,
+                null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -84,7 +85,7 @@ public record ProductSummaryResponse(
     public ProductSummaryResponse(UUID id, String name, String modelName, UUID categoryId,
                                   BigDecimal sellingPrice, ProductStatus status) {
         this(id, name, modelName, null, categoryId, sellingPrice, status, false, true, null, null,
-                null, null, false, null, null, null, null, null, null, null);
+                null, null, null, false, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -93,7 +94,7 @@ public record ProductSummaryResponse(
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, true, null, null,
-                null, null, false, null, null, null, null, null, null, null);
+                null, null, null, false, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -103,7 +104,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, true, null, null,
-                null, null, false, null, null, null, null, null, null, null);
+                null, null, null, false, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -113,7 +114,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged, String modelCode, String productType) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, true,
-                modelCode, productType, null, null, false, null, null, null, null, null, null, null);
+                modelCode, productType, null, null, null, false, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -123,7 +124,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged, boolean goods, String modelCode, String productType) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
-                modelCode, productType, null, null, false, null, null, null, null, null, null, null);
+                modelCode, productType, null, null, null, false, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -146,6 +147,7 @@ public record ProductSummaryResponse(
                 p.getGoodsType() == ProductGoodsType.GOODS,
                 p.getModelCode() == null || p.getModelCode().isBlank() ? p.getModelName() : p.getModelCode(),
                 p.getProductType() == null ? null : p.getProductType().name(),
+                p.getBundleMode() == null ? null : p.getBundleMode().name(),
                 p.getUsageScope(),
                 null,
                 p.isUsageScopeManual(),
@@ -166,7 +168,7 @@ public record ProductSummaryResponse(
         return new ProductSummaryResponse(
                 base.id(), base.name(), base.modelName(), base.productCode(), base.categoryId(),
                 base.sellingPrice(), base.status(), base.serialManaged(), base.goods(), base.modelCode(),
-                base.productType(), base.usageScope(), base.estimateCategory(), base.usageScopeManual(),
+                base.productType(), base.bundleMode(), base.usageScope(), base.estimateCategory(), base.usageScopeManual(),
                 base.displayOrder(), base.categoryKey(), base.fixedDiscountRate(), base.discountFlags(),
                 base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode,
                 base.specification());
