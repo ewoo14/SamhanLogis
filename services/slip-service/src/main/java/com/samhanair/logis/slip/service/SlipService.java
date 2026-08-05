@@ -26,6 +26,7 @@ import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.service.dispatchgroup.DispatchGroupSlipReferenceGuard;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
@@ -117,6 +118,8 @@ public class SlipService {
      * 호출 실패 시 graceful fallback (ownerFullName=NULL 유지).
      */
     private final UserInternalClient userInternalClient;
+    /** 신규 OUTBOUND 저장 후 inventory warehouse code를 best-effort 보강한다. */
+    private final WarehouseCodeSnapshotService warehouseCodeSnapshotService;
     /**
      * 권한 재편 Phase 2.1 Task 2 — 전표 버전이력 스냅샷 캡처.
      * create/updateSlip/applyOverlayPatch mutation 성공 직후 같은 트랜잭션에서 capture 호출.
@@ -137,6 +140,7 @@ public class SlipService {
     private final OutboundCutoffGuard cutoffGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
+    private final DispatchGroupSlipReferenceGuard dispatchGroupSlipReferenceGuard;
 
     /**
      * 전표 라인 추가 — BUNDLE(세트)면 product-service expand 로 구성품 라인 N개 전개(첫 setHead+parentSetModel),
@@ -323,7 +327,15 @@ public class SlipService {
                 req.recipientPhone(),
                 req.paymentDueDate());
 
+        if (slip.getSlipType() == SlipType.OUTBOUND) {
+            slip.markSourceWarehouseCodePending();
+        }
+
         Slip saved = slipRepository.save(slip);
+        if (saved.getSlipType() == SlipType.OUTBOUND) {
+            warehouseCodeSnapshotService.scheduleAfterCommit(
+                    saved.getId(), saved.getSourceWarehouseId());
+        }
         // 권한 재편 Phase 2.1 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
         // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(saved, SlipRevisionType.CREATE, null,
@@ -600,6 +612,7 @@ public class SlipService {
     public void softDelete(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
+        dispatchGroupSlipReferenceGuard.assertDeletable(id);
         applyMutation(() -> slip.markDeleted(callerId == null ? "system" : callerId));
         consumedApproval.ifPresent(approval ->
                 editRequestService.consumeApproval(approval.getId(), callerId));

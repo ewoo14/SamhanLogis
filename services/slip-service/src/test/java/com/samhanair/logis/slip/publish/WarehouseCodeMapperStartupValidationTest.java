@@ -1,5 +1,7 @@
 package com.samhanair.logis.slip.publish;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -12,6 +14,18 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /** 외부 창고 조회 없이 설정값 자체만으로 기동 검증하는지 확인한다. */
 class WarehouseCodeMapperStartupValidationTest {
+
+    @Test
+    void legacyCode가_업무구분의_권위출처다() {
+        WarehouseCodeMapper mapper = new WarehouseCodeMapper();
+        mapper.setWarehouseCodeMap(Map.of(
+                "00003", "11111111-1111-1111-1111-000000000001",
+                "2", "11111111-1111-1111-1111-000000000002"));
+
+        assertThat(mapper.businessType("00003")).isEqualTo("CHOWOL");
+        assertThat(mapper.businessType("2")).isEqualTo("SANGIL");
+        assertThat(mapper.businessType("14")).isEqualTo("UNKNOWN");
+    }
 
     @Test
     void 미치환_placeholder는_UUID를_노출하지_않고_기동_실패한다() {

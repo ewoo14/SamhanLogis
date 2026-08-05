@@ -5,7 +5,7 @@
  * 2-탭 통합 화면. legacy GAS 2번 (REGION) + 15번 (시도) 이식, 가배차 작업 전 사전 분류.
  *
  * <p>BE 출처 (commit e5dc20f):
- * - GET /admin/arologis/dispatches/pre-classify?from&to → PreClassifyResponse (BE-A2)
+ * - GET /admin/dispatches/pre-classify?from&to → PreClassifyResponse (slip-service S2)
  * - GET /admin/arologis/dispatches/regional?date       → RegionalDispatchResponse (BE-A4)
  *
  * <p>구성:
@@ -38,10 +38,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Badge, Button, Card, FormField } from '@samhan/design-system'
+import { Badge, Button, Card, FormField, Select } from '@samhan/design-system'
 import {
   getPreClassify,
   getRegional,
+  type DispatchExecutionMode,
   type PreClassifyEntry,
   type PreClassifyResponse,
   type RegionalEntry,
@@ -51,6 +52,17 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { useIsMobile } from '../hooks/useIsMobile'
 
 type TabKey = 'region' | 'regional'
+
+const EXECUTION_MODES: Array<{ value: DispatchExecutionMode; label: string }> = [
+  { value: 'SANGIL_AND_CHOWOL_REGION_EXCLUDED', label: '상일+초월 (지방 제외)' },
+  { value: 'CHOWOL_REGION_EXCLUDED', label: '초월 (지방 제외)' },
+  { value: 'SANGIL_REGION_EXCLUDED', label: '상일 (지방 제외)' },
+  { value: 'STACK_ONLY', label: '야적 only' },
+  { value: 'REGION_ONLY', label: '지방 only' },
+  { value: 'SANGIL_AND_CHOWOL_REGION_INCLUDED', label: '상일+초월 (지방 포함)' },
+  { value: 'CHOWOL_REGION_INCLUDED', label: '초월 (지방 포함)' },
+  { value: 'SANGIL_REGION_INCLUDED', label: '상일 (지방 포함)' },
+]
 
 /** ISO YYYY-MM-DD (브라우저 로컬 기준) — 오늘 기본값. */
 function todayIso(): string {
@@ -91,14 +103,17 @@ export function ArologisPreClassifyPage() {
   const today = todayIso()
   const [from, setFrom] = useState<string>(today)
   const [to, setTo] = useState<string>(today)
+  const [executionMode, setExecutionMode] = useState<DispatchExecutionMode>(
+    'SANGIL_AND_CHOWOL_REGION_EXCLUDED',
+  )
 
   // 탭2 — 시도: date 단일
   const [date, setDate] = useState<string>(today)
 
   // 탭1 query — 활성 탭일 때만 fetch
   const regionQuery = useQuery<PreClassifyResponse>({
-    queryKey: ['arologis', 'pre-classify', from, to],
-    queryFn: () => getPreClassify(from, to),
+    queryKey: ['arologis', 'pre-classify', from, to, executionMode],
+    queryFn: () => getPreClassify(from, to, executionMode),
     enabled: tab === 'region',
     // PR-H4c FE-B: 30초 polling — 멀티 워크스테이션 동기화 안전망
     refetchInterval: 30_000,
@@ -185,6 +200,9 @@ export function ArologisPreClassifyPage() {
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ───── 탭 헤더 + 실시간 갱신 안내 ───── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <Link to="/admin/dispatch-groups" data-testid="arologis-preclassify-dispatch-groups-link" style={{ marginLeft: 'auto' }}>
+          배차 그룹에 담기
+        </Link>
         <div role="tablist" aria-label="가배차 분류 탭" style={{ display: 'flex', gap: 4 }}>
           <button
             role="tab"
@@ -222,6 +240,8 @@ export function ArologisPreClassifyPage() {
           to={to}
           onFromChange={setFrom}
           onToChange={setTo}
+          executionMode={executionMode}
+          onExecutionModeChange={setExecutionMode}
           query={regionQuery}
           total={regionTotal}
           onCsv={handleCsvRegion}
@@ -250,6 +270,8 @@ interface RegionTabPanelProps {
   to: string
   onFromChange: (v: string) => void
   onToChange: (v: string) => void
+  executionMode: DispatchExecutionMode
+  onExecutionModeChange: (v: DispatchExecutionMode) => void
   query: ReturnType<typeof useQuery<PreClassifyResponse>>
   total: number
   onCsv: () => void
@@ -257,7 +279,7 @@ interface RegionTabPanelProps {
 }
 
 function RegionTabPanel(props: RegionTabPanelProps) {
-  const { from, to, onFromChange, onToChange, query, total, onCsv, isMobile } = props
+  const { from, to, onFromChange, onToChange, executionMode, onExecutionModeChange, query, total, onCsv, isMobile } = props
   const data = query.data
 
   return (
@@ -278,6 +300,16 @@ function RegionTabPanel(props: RegionTabPanelProps) {
               />
             )}
           />
+          <Select
+            label="실행 모드"
+            value={executionMode}
+            onChange={(event) => onExecutionModeChange(event.target.value as DispatchExecutionMode)}
+            data-testid="arologis-preclassify-mode"
+          >
+            {EXECUTION_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>{mode.label}</option>
+            ))}
+          </Select>
           <FormField
             label="종료일"
             id="arologis-preclassify-to"
@@ -319,7 +351,14 @@ function RegionTabPanel(props: RegionTabPanelProps) {
 
         {!query.isLoading && data ? (
           <>
-            {Object.keys(data.regionGroups ?? {}).length === 0 && (data.unclassified?.length ?? 0) === 0 ? (
+            {(data.unknownWarehouseCount ?? 0) > 0 ? (
+              <div style={warningStyle}>
+                창고 업무 구분 미확정 {data.unknownWarehouseCount}건이 이번 실행 모드에서 제외되었습니다. 창고 코드 보강 결과를 확인해 주세요. 상일·초월 외 창고는 가배차 대상이 아닙니다.
+              </div>
+            ) : null}
+
+            {Object.keys(data.regionGroups ?? {}).length === 0 && (data.unclassified?.length ?? 0) === 0
+              && (data.unknownWarehouseCount ?? 0) === 0 ? (
               <div style={emptyStyle}>해당 기간에 출고전표가 없습니다.</div>
             ) : null}
 
@@ -739,6 +778,15 @@ const errorStyle: React.CSSProperties = {
   borderRadius: 4,
   background: '#FEF2F2',
   color: '#991B1B',
+  fontSize: 13,
+}
+
+const warningStyle: React.CSSProperties = {
+  padding: 12,
+  border: '1px solid #FCD34D',
+  borderRadius: 4,
+  background: '#FFFBEB',
+  color: '#92400E',
   fontSize: 13,
 }
 

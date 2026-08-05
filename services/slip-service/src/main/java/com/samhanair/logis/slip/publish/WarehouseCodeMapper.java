@@ -20,6 +20,9 @@ import org.springframework.stereotype.Component;
 @Setter
 public class WarehouseCodeMapper {
 
+    private static final String CHOWOL_CODE = "00003";
+    private static final String SANGIL_CODE = "2";
+
     private static final String CANONICAL_UUID_PATTERN =
             "(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
@@ -89,5 +92,16 @@ public class WarehouseCodeMapper {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "warehouseCode '" + warehouseCode + "' 의 매핑값이 UUID 형식이 아닙니다");
         }
+    }
+
+    /**
+     * 레거시 warehouseCode 자체를 업무 구분으로 변환한다.
+     * 표시명이나 UUID를 역추론하지 않으며, 00003=초월·2=상일만 권위로 사용한다.
+     */
+    public String businessType(String warehouseCode) {
+        String code = warehouseCode == null ? "" : warehouseCode.trim();
+        if (SANGIL_CODE.equals(code)) return "SANGIL";
+        if (CHOWOL_CODE.equals(code)) return "CHOWOL";
+        return "UNKNOWN";
     }
 }

@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.delivery.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -12,11 +13,13 @@ import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.service.WarehouseCodeSnapshotService;
 import com.samhanair.logis.slip.delivery.domain.DeliveryBatch;
 import com.samhanair.logis.slip.delivery.repository.DeliveryBatchRepository;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.delivery.sms.SmsResult;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -56,6 +59,7 @@ class PublicSlipControllerIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private DeliveryBatchRepository batchRepository;
+    @Autowired private SlipRepository slipRepository;
 
     @MockBean private InventoryClient inventoryClient;
     @MockBean private ProductClient productClient;
@@ -65,6 +69,7 @@ class PublicSlipControllerIT extends AbstractPostgresIT {
     /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
     @MockBean
     private WarehouseInternalClient warehouseInternalClient;
+    @MockBean private WarehouseCodeSnapshotService warehouseCodeSnapshotService;
 
     @BeforeEach
     void mockClients() {
@@ -111,6 +116,38 @@ class PublicSlipControllerIT extends AbstractPostgresIT {
                 // UUID 비공개 가드 — slip.id / batch.id 응답 본문에 없음
                 .andExpect(jsonPath("$.data.slips[0].id").doesNotExist())
                 .andExpect(jsonPath("$.data.id").doesNotExist());
+    }
+
+    @Test
+    void createOutbound_withWarehouseCode_preservesSourceWarehouseCode() throws Exception {
+        UUID sourceWarehouseId = UUID.randomUUID();
+        String slipDate = LocalDate.now().toString();
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "테스트");
+        line.put("modelName", "MOD-001");
+        line.put("quantity", 1);
+        line.put("unitPrice", 100000);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "OUTBOUND");
+        body.put("slipDate", slipDate);
+        body.put("sourceWarehouseId", sourceWarehouseId.toString());
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerId", UUID.randomUUID().toString());
+        body.put("partnerName", "거래처");
+        body.put("lines", List.of(line));
+
+        MvcResult result = mockMvc.perform(post("/slips")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        Mockito.verify(warehouseCodeSnapshotService).scheduleAfterCommit(
+                ArgumentMatchers.any(), ArgumentMatchers.eq(sourceWarehouseId));
     }
 
     @Test

@@ -2229,6 +2229,7 @@ function colorForPresence(seed: string): MockPresenceColor {
 export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const method = (config.method ?? 'get').toUpperCase()
   const url = config.url ?? ''
+  const body = parseMockBody(config)
 
   // POST /auth/login → 토큰 응답
   if (method === 'POST' && url.endsWith('/auth/login')) {
@@ -11641,6 +11642,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /arologis/pre-classify — PreClassifyPage (REGION + 광역 prefix 2-탭)
+  if (method === 'GET' && url.includes('/admin/dispatches/pre-classify')) {
+    return envelope({
+      regionGroups: { 서울특별시: [
+        { slipNo: '2026/08/04-1', partnerCode: 'P-001', partnerName: '삼한 거래처', address: '서울 강남구', regionGroup: '서울특별시', dispatchPlanned: false },
+      ] },
+      unclassified: [],
+      unknownWarehouseCount: 0,
+    })
+  }
+
   if (method === 'GET' && url.includes('/arologis/pre-classify')) {
     return envelope({
       date: '2026-05-10',
@@ -11657,6 +11668,55 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         { prefix: '부산', slipCount: 4 },
       ],
     })
+  }
+
+  // S10 배차 화면 운송사 조회 mock — dispatch.board VIEW alias.
+  const dispatchCarrierLookupMatch = url.match(/\/admin\/carriers\/dispatch-lookup(?:\/([^/?]+))?$/)
+  if (method === 'GET' && dispatchCarrierLookupMatch) {
+    const carriers = [
+      { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true },
+      { code: 'QUICK-01', name: '한빛퀵', isArologis: false, isActive: true },
+    ]
+    const code = dispatchCarrierLookupMatch[1] ? decodeURIComponent(dispatchCarrierLookupMatch[1]) : null
+    return envelope(code ? carriers.find((carrier) => carrier.code === code) ?? null : carriers)
+  }
+
+  // S4 운송사 그룹 전송 mock — 인사 마스터 CRUD 경로.
+  if (url.match(/\/admin\/carriers(?:\?.*)?$/)) {
+    if (method === 'GET') return envelope([
+      { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true },
+      { code: 'QUICK-01', name: '한빛퀵', isArologis: false, isActive: true },
+    ])
+    if (method === 'POST') return envelope({ code: 'NEW', name: '신규 운송사', isArologis: false, isActive: true })
+  }
+  const carrierMutationMatch = url.match(/\/admin\/carriers\/([^/?]+)$/)
+  if (carrierMutationMatch) {
+    if (method === 'PATCH') return envelope({ code: decodeURIComponent(carrierMutationMatch[1]!), name: (body as { name?: string })?.name ?? '운송사', isArologis: false, isActive: true })
+    if (method === 'DELETE') return envelope(null)
+  }
+  if (url.match(/\/admin\/dispatch-groups(?:\?.*)?$/)) {
+    if (method === 'GET') return envelope([
+      { groupNo: 'DG-20260804-01', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'NOT_SENT', slips: [{ slipNo: '2026/08/04-1', inclusionType: 'OUTBOUND', sequence: 1 }] },
+      { groupNo: 'DG-20260804-PENDING', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 02', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'PENDING', slips: [{ slipNo: '2026/08/04-2', inclusionType: 'OUTBOUND', sequence: 1 }] },
+    ])
+    if (method === 'POST') return envelope({ groupNo: 'DG-NEW', dispatchDate: '2026-08-04', vehicleLabel: '신규 차량', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT', slips: [] })
+  }
+  const groupTransferMatch = url.match(/\/admin\/dispatch-groups\/([^/?]+)\/transfer$/)
+  if (method === 'POST' && groupTransferMatch) return envelope({ groupNo: decodeURIComponent(groupTransferMatch[1]!), dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'SENT', slips: [{ slipNo: '2026/08/04-1', inclusionType: 'OUTBOUND', sequence: 1 }] })
+  const groupMutationMatch = url.match(/\/admin\/dispatch-groups\/([^/?]+)(?:\/([^/?]+)(?:\/([^/?]+))?)?$/)
+  if (groupMutationMatch) {
+    const groupNo = decodeURIComponent(groupMutationMatch[1]!)
+    const action = groupMutationMatch[2]
+    const target = decodeURIComponent(groupMutationMatch[3] ?? '')
+    const base = { groupNo, dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT' as const, slips: [] }
+    if (method === 'GET') return envelope(base)
+    if (method === 'PUT' && !action) return envelope({ ...base, ...(body as object) })
+    if (method === 'DELETE' && !action) return envelope(null)
+    if (action === 'carrier' && method === 'PUT') return envelope({ ...base, carrierCode: target, carrierName: target })
+    if (action === 'carrier' && method === 'DELETE') return envelope(base)
+    if (action === 'slips' && target === 'order' && method === 'PUT') return envelope(base)
+    if (action === 'slips' && method === 'POST') return envelope({ ...base, slips: [{ ...(body as object), sequence: 1 }] })
+    if (action === 'slips' && method === 'DELETE') return envelope(base)
   }
 
   // SP-08-3-4: /admin/notifications/dispatch-sms/history — 배차문자 저장내역 mock.
@@ -18547,6 +18607,7 @@ const SP_D1_PAGES = [
   'sales.slip.list',
   'inbound.inspection',
   'dispatch.board',
+  'hr.carriers',
   'dispatch.external-carriers',
   'admin.permissions',
   'admin.permission-groups',
@@ -18754,7 +18815,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.detail', 'inventory.adjust', 'inventory.transfer',
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
-    'admin.employees', 'admin.app-release',
+    'admin.employees', 'hr.carriers', 'admin.app-release',
     'partners.list', 'partners.detail', 'partners.search', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
@@ -18935,7 +18996,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.adjust', 'inventory.transfer', 'inventory.stock-balance',
     'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
-    'admin.employees', 'admin.app-release',
+    'admin.employees', 'hr.carriers', 'admin.app-release',
     'partners.list', 'partners.detail', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',

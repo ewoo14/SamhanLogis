@@ -98,8 +98,8 @@ const GROUP_GATE_CODES: Record<(typeof GROUP_LABELS)[number], string[]> = {
   ],
   그룹웨어: ['slip.delivery-batch', 'aligo.address-book', 'messenger.admin'],
   // [Round C P3 #11] AppLayout showAdminHrGroup OR 식과 1:1 — admin.users 는 그룹 게이트에서 제외됨
-  //   (admin.users 단독 권한자 빈 '인사' 헤더 방지, Round B #3). 게이트 코드도 제거해 정합.
-  인사: ['admin.employees', 'system.permission-admin'],
+  //   (admin.users 단독 권한자 빈 '인사' 헤더 방지, Round B #3). S3 운송사 목록 권한을 포함한다.
+  인사: ['admin.employees', 'hr.carriers', 'system.permission-admin', 'admin.approval-line-config', 'hr.slip-cutoff'],
   배차: [
     'dispatch.board',
     'arologis.dispatch.admin',

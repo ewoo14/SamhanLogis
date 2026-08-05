@@ -42,5 +42,22 @@ cd clients/desktop ; node <임시>.mjs   # import { chromium } from '@playwright
 - 라이브QA 가 브라우저 문제로 멈추면 **제품 결함으로 세기 전에 PM 이 `node` 로 직접 한 번 띄워 본다.**
 - 렌더러는 **`localhost`** 로 띄운다. `127.0.0.1` 로 띄우면 API 쿠키가 분리돼 로그인 세션이 안 붙는다(2026-08-05 실측).
 
+## ③ `*.log` — RED 원문을 지시한 대로 남겼는데 커밋이 안 된다 (2026-08-06 `#1069` S29)
+
+S27 의 RED 가 **git 에 없는 중간 상태**에서 얻은 것이라 재생 불가였다. 그래서 S29 브리핑에 *"RED raw log 를 파일로 남기라"* 를 넣었고 구현자는 정확히 `2026-08-06-1069-s29-red.log` 로 남겼다. 그런데
+
+```
+.gitignore:35   *.log
+```
+
+에 걸려 `git add -- docs/dev-reports` 가 **성공하고 그 파일만 안 담았다.** `git status` 도 깨끗하다 — 이미 무시되고 있으니 아무 신호가 없다. PM 이 `git diff --stat` 에 `.log` 가 없는 것을 보고 알아챘다.
+
+- 브리핑에서 raw 출력을 요구할 때는 **확장자를 `.txt`/`.md` 로 못박는다.**
+- 커밋 직후 `git diff --stat HEAD~1 HEAD` 로 **요구한 파일이 실제로 들어갔는지** 센다. `git status` 가 깨끗한 것은 증거가 아니다 — ignore 된 파일은 애초에 안 나온다.
+
+## 🔑 세 경로의 공통점
+
+전부 **`git add` 가 성공하고 에러가 없다.** 증거가 사라졌다는 사실은 나중에 그 증거를 인용하려 할 때에야 드러난다. 그래서 **"담겼나" 를 세는 것이 라운드의 일부**여야 한다.
+
 ## 관련
-[[feedback_live_qa_every_round_screenshots]] · [[feedback_qa_harness_commit_breaks_ci]] · [[feedback_qa_environment_verification_first]] · [[feedback_pr_screenshot_sha_pinned_urls]] · PR #1063
+[[feedback_live_qa_every_round_screenshots]] · [[feedback_qa_harness_commit_breaks_ci]] · [[feedback_qa_environment_verification_first]] · [[feedback_pr_screenshot_sha_pinned_urls]] · [[feedback_defective_round_poisons_db_for_next_round]] · PR #1063 · PR #1077

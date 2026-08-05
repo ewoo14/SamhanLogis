@@ -25,6 +25,7 @@ const ALL_ADMIN_PERMISSIONS: PermissionMap = {
   'arologis.accounting.summary': fullActions(),
   'arologis.accounting.accounts': fullActions(),
   'arologis.admin.permissions': fullActions(),
+  'arologis.dispatch.ops': ['VIEW'],
 }
 
 const ROLE_PERMISSION_FIXTURES: Record<string, PermissionMap> = {
@@ -61,6 +62,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'get' && url.endsWith('/admin/arologis/permissions/my')) {
     const role = useAuthStore.getState().auth?.role ?? ''
     return envelope(clonePermissionMap(permissionFixtures[role] ?? {}))
+  }
+  if (method === 'get' && url.startsWith('/admin/arologis/dispatch-groups')) {
+    return envelope([{ groupNo: 'DG-20260804-01', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', slips: '[2026/08/04-1]' }])
   }
 
   // 배차 상세(GET /admin/arologis/dispatches/{id}) 와 동일한 depth 의 형제 라우트.

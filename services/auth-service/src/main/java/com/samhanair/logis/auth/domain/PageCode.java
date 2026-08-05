@@ -312,6 +312,9 @@ public enum PageCode {
     /** 출고 마감시간 설정 — 배송태그별 당일 출고전표 생성 마감시각 CRUD (인사 그룹, MASTER/MANAGER). */
     HR_SLIP_CUTOFF("hr.slip-cutoff", "출고 마감시간 설정"),
 
+    /** 운송사 마스터 관리 — S3 배차 그룹 UI. */
+    HR_CARRIERS("hr.carriers", "운송사 목록"),
+
     /** 시스템 권한 매트릭스 관리 화면 — SP-D6-1 bootstrap 이중 가드. */
     SYSTEM_PERMISSION_ADMIN("system.permission-admin", "시스템 권한 관리"),
 

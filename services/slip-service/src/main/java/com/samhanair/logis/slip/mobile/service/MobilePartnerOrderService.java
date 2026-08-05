@@ -11,6 +11,7 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.mobile.dto.MobilePartnerOrderRequest;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
+import com.samhanair.logis.slip.service.WarehouseCodeSnapshotService;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import java.time.Clock;
@@ -58,6 +59,8 @@ public class MobilePartnerOrderService {
     private final SlipNumberService slipNumberService;
     private final ProductClient productClient;
     private final PartnerInternalClient partnerInternalClient;
+    /** 신규 모바일 OUTBOUND 저장 후 inventory 원천 warehouse code 보강. */
+    private final WarehouseCodeSnapshotService warehouseCodeSnapshotService;
     /** 출고전표 마감 게이트 — 모바일 주문 발행 생성 경로(게이트③). */
     private final OutboundCutoffGuard cutoffGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
@@ -174,7 +177,11 @@ public class MobilePartnerOrderService {
         // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦ 에서 applyDeliverySchedule 가 수행.
         slip.applyDeliverySchedule(slip.getDeliveryTag(), null);
 
+        slip.markSourceWarehouseCodePending();
+
         Slip saved = slipRepository.save(slip);
+        warehouseCodeSnapshotService.scheduleAfterCommit(
+                saved.getId(), saved.getSourceWarehouseId());
         return SlipDetailResponse.from(saved);
     }
 }

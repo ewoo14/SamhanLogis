@@ -564,6 +564,7 @@ export function AppLayout() {
   const showInventoryDps           = dynamicCanAccess('inventory.dps',                'view')
   const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
   const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
+  const showCarrierMaster           = dynamicCanAccess('hr.carriers',                 'view')
   // admin.users — 인사 그룹 자식 링크 소비처 없음('인사 관리'/admin/users 는 admin.employees 게이트).
   // [Round B P3] showAdminHrGroup 에서 제거 — admin.users 단독 권한자가 빈 '인사' 헤더만 보던 갭 해소.
   // 사이드바/라우트 직접 소비처 없으나 page-code 자체는 유효 → 향후 메뉴 연결 예약(underscore).
@@ -590,7 +591,7 @@ export function AppLayout() {
   // [Round A P3] 구 showInventoryGroup 집계 변수 삭제 — 창고운영 그룹 게이트는
   // showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 로 교체되어 미소비(dead) 였음.
   // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
-  const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation || showApprovalLineConfig || showSlipCutoff
+  const showAdminHrGroup   = showAdminEmployees || showCarrierMaster || showPermissionAdmin || showPermissionDelegation || showApprovalLineConfig || showSlipCutoff
   // DEV-3: 개발 그룹은 버전관리(admin.app-release) + 팝업공지(dev.popup-notice) + 로그(dev.activity-log) 중 하나라도 노출한다.
   const showDevelopmentGroup = showAppReleaseAdmin || showPopupNoticeAdmin || showActivityLogAdmin
 
@@ -1383,6 +1384,7 @@ export function AppLayout() {
               '/admin/permission-groups/delegation',
               '/admin/approval-line-config',
               '/admin/slip-cutoff',
+              '/admin/carriers',
             ]}
           >
             {/* admin.employees — MASTER/MANAGER (SP-D4 §2). */}
@@ -1392,6 +1394,14 @@ export function AppLayout() {
               data-testid="sidebar-hr-users"
             >
               인사 관리
+            </SidebarLink>
+            <SidebarLink
+              to="/admin/carriers"
+              show={showCarrierMaster}
+              requiredRole="MANAGER / MASTER"
+              data-testid="sidebar-hr-carriers"
+            >
+              운송사 목록
             </SidebarLink>
             {/* 권한 관리 — MASTER 전용. route 도 RoleGuard + system.permission-admin(view) 로 이중 가드. */}
             <SidebarLink
@@ -1486,6 +1496,7 @@ export function AppLayout() {
             testId="sidebar-category-toggle-배차"
             activeTargets={[
               '/dispatch-board/history',
+              '/admin/dispatch-groups',
               '/arologis/pre-classify',
               '/arologis/unassigned',
               '/arologis/dispatch-sms',
@@ -1504,6 +1515,14 @@ export function AppLayout() {
                 data-testid="sidebar-dispatch-history"
               >
                 배차현황
+              </SidebarLink>
+              <SidebarLink
+                to="/admin/dispatch-groups"
+                show={showDispatchBoard}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-dispatch-groups"
+              >
+                배차 그룹
               </SidebarLink>
               {/* [Phase 10 PR-E1 FE-2] 가배차리스트 — MASTER/MANAGER/DISPATCH. */}
               <SidebarLink

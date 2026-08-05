@@ -5,6 +5,7 @@ import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Collection;
@@ -14,8 +15,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Slip 헤더 — 단건/필터 페이지 조회. partial unique 는 {@code slip_type + slip_no} 컬럼에 적용.
@@ -41,6 +44,145 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
 
     /** 전표번호({@code yyyy/MM/dd-N}) 단건 조회. soft-delete 제외. 중복 가능성 때문에 신규 코드는 type 지정 조회 권장. */
     Optional<Slip> findBySlipNo(String slipNo);
+
+    /**
+     * due PENDING 또는 lease가 만료된 PROCESSING snapshot 후보를 조회한다.
+     *
+     * <p>nextAttemptAt 오름차순이므로 backoff 중인 오래된 실패 row가 새 정상 row를 가리지
+     * 않는다. limit은 scheduler의 한 tick 작업량 상한이며, 영구 실패 row는 처리 후 다음 tick에서
+     * 목록에서 빠진다.
+     */
+    @Query("""
+            SELECT s
+              FROM Slip s
+             WHERE s.isDeleted = false
+               AND (
+                    (s.sourceWarehouseCodeSnapshotStatus =
+                        com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PENDING
+                     AND s.sourceWarehouseCodeNextAttemptAt <= :now)
+                    OR
+                    (s.sourceWarehouseCodeSnapshotStatus =
+                        com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PROCESSING
+                     AND s.sourceWarehouseCodeClaimedAt < :leaseCutoff)
+               )
+             ORDER BY s.sourceWarehouseCodeNextAttemptAt ASC, s.createdAt ASC
+            """)
+    List<Slip> findWarehouseCodeSnapshotCandidates(
+            @Param("now") LocalDateTime now,
+            @Param("leaseCutoff") LocalDateTime leaseCutoff,
+            Pageable pageable);
+
+    /**
+     * snapshot worker 하나만 PENDING/stale PROCESSING row의 claim을 획득한다.
+     *
+     * <p>executor와 scheduler가 동시에 호출해도 UPDATE 조건을 통과한 한 쪽만 1을 받는다.
+     * 프로세스가 죽어 PROCESSING이 남으면 lease 만료 후 다른 worker가 재점유한다.
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Slip s
+               SET s.sourceWarehouseCodeSnapshotStatus =
+                       com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PROCESSING,
+                   s.sourceWarehouseCodePending = true,
+                   s.sourceWarehouseCodeClaimedAt = :now,
+                   s.sourceWarehouseCodeClaimToken = :claimToken,
+                   s.sourceWarehouseCodeAttemptCount = s.sourceWarehouseCodeAttemptCount + 1
+             WHERE s.id = :slipId
+               AND s.isDeleted = false
+               AND s.sourceWarehouseCode IS NULL
+               AND (
+                    (s.sourceWarehouseCodeSnapshotStatus =
+                        com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PENDING
+                     AND s.sourceWarehouseCodeNextAttemptAt <= :now)
+                    OR
+                    (s.sourceWarehouseCodeSnapshotStatus =
+                        com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PROCESSING
+                     AND s.sourceWarehouseCodeClaimedAt < :leaseCutoff)
+               )
+            """)
+    int claimWarehouseCodeSnapshot(
+            @Param("slipId") UUID slipId,
+            @Param("claimToken") UUID claimToken,
+            @Param("now") LocalDateTime now,
+            @Param("leaseCutoff") LocalDateTime leaseCutoff);
+
+    /** claim 소유 worker의 성공 결과만 반영한다. Slip @Version을 건드리지 않아 lifecycle mutation과 충돌하지 않는다. */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Slip s
+               SET s.sourceWarehouseCode = :code,
+                   s.sourceWarehouseCodePending = false,
+                   s.sourceWarehouseCodeSnapshotStatus =
+                       com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.COMPLETED,
+                   s.sourceWarehouseCodeNextAttemptAt = NULL,
+                   s.sourceWarehouseCodeClaimedAt = NULL,
+                   s.sourceWarehouseCodeClaimToken = NULL,
+                   s.sourceWarehouseCodeLastError = NULL,
+                   s.sourceWarehouseCodeAbandonedAt = NULL
+             WHERE s.id = :slipId
+               AND s.isDeleted = false
+               AND s.sourceWarehouseCode IS NULL
+               AND s.sourceWarehouseCodeSnapshotStatus =
+                       com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PROCESSING
+               AND s.sourceWarehouseCodeClaimToken = :claimToken
+            """)
+    int completeWarehouseCodeSnapshot(
+            @Param("slipId") UUID slipId,
+            @Param("claimToken") UUID claimToken,
+            @Param("code") String code);
+
+    /** 일시 장애 결과를 PENDING으로 되돌린다. claim token이 바뀌었으면 stale worker는 no-op이다. */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Slip s
+               SET s.sourceWarehouseCodePending = true,
+                   s.sourceWarehouseCodeSnapshotStatus =
+                       com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PENDING,
+                   s.sourceWarehouseCodeNextAttemptAt = :nextAttemptAt,
+                   s.sourceWarehouseCodeClaimedAt = NULL,
+                   s.sourceWarehouseCodeClaimToken = NULL,
+                   s.sourceWarehouseCodeLastError = :error
+             WHERE s.id = :slipId
+               AND s.isDeleted = false
+               AND s.sourceWarehouseCode IS NULL
+               AND s.sourceWarehouseCodeSnapshotStatus =
+                       com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PROCESSING
+               AND s.sourceWarehouseCodeClaimToken = :claimToken
+            """)
+    int retryWarehouseCodeSnapshot(
+            @Param("slipId") UUID slipId,
+            @Param("claimToken") UUID claimToken,
+            @Param("nextAttemptAt") LocalDateTime nextAttemptAt,
+            @Param("error") String error);
+
+    /** 영구 실패를 ABANDONED로 격리한다. 사용자 lifecycle version과 독립된 metadata update다. */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Slip s
+               SET s.sourceWarehouseCodePending = false,
+                   s.sourceWarehouseCodeSnapshotStatus =
+                       com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.ABANDONED,
+                   s.sourceWarehouseCodeNextAttemptAt = NULL,
+                   s.sourceWarehouseCodeClaimedAt = NULL,
+                   s.sourceWarehouseCodeClaimToken = NULL,
+                   s.sourceWarehouseCodeLastError = :error,
+                   s.sourceWarehouseCodeAbandonedAt = :abandonedAt
+             WHERE s.id = :slipId
+               AND s.isDeleted = false
+               AND s.sourceWarehouseCode IS NULL
+               AND s.sourceWarehouseCodeSnapshotStatus =
+                       com.samhanair.logis.slip.domain.WarehouseCodeSnapshotStatus.PROCESSING
+               AND s.sourceWarehouseCodeClaimToken = :claimToken
+            """)
+    int abandonWarehouseCodeSnapshot(
+            @Param("slipId") UUID slipId,
+            @Param("claimToken") UUID claimToken,
+            @Param("abandonedAt") LocalDateTime abandonedAt,
+            @Param("error") String error);
 
     /** 전표 유형 + 전표번호 단건 조회. 판매/구매 번호 중복 허용 정책의 기본 조회 방식. */
     Optional<Slip> findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType slipType, String slipNo);

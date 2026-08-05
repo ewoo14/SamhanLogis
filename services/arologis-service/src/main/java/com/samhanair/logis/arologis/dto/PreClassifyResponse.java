@@ -18,7 +18,8 @@ import java.util.Map;
  */
 public record PreClassifyResponse(
         Map<String, List<Entry>> regionGroups,
-        List<Entry> unclassified
+        List<Entry> unclassified,
+        int unknownWarehouseCount
 ) {
 
     /**

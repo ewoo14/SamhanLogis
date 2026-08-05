@@ -176,11 +176,10 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     await flushZeroDelayTasks()
 
     fireEvent.click(screen.getByTestId('codef-save-scope-button'))
-    // 저장 스파이 호출 자체가 mutate() 호출 직후 마이크로태스크를 몇 틱 더 거쳐야 관측된다
-    // (RED 조사에서 클릭 직후 동기적으로는 calls.length===0임을 실측). 전체 스위트 동시
-    // 실행처럼 스케줄링 지연이 커지는 환경에서도 이 관측 자체는 무너지지 않도록(assert가
-    // 검증하는 낙관적 잠금 계약은 그대로 두고) 대기 한도만 넉넉히 잡는다.
-    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
+    // mutation 호출은 비동기 경계를 지난다. 시간 한도에 기대지 않고 예약된
+    // timer/React scheduler 큐를 결정적으로 배출한 뒤 낙관적 잠금 계약을 단정한다.
+    await flushZeroDelayTasks()
+    expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(1)
     expect(saveCodefImportScopeMock.mock.calls[0]![0]).toMatchObject({ version: 0 })
 
     fireEvent.click(screen.getByTestId('codef-bank-account-1'))
@@ -188,7 +187,8 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     // 클릭 전에 보장한다 — 위와 동일한 이유(대기 조건 부재가 아니라 상태 갱신 타이밍).
     await flushZeroDelayTasks()
     fireEvent.click(screen.getByTestId('codef-save-scope-button'))
-    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2), { timeout: 5000 })
+    await flushZeroDelayTasks()
+    expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2)
     expect(saveCodefImportScopeMock.mock.calls[1]![0]).toMatchObject({ version: 1 })
   })
 
@@ -890,7 +890,8 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
 
     fireEvent.click(screen.getByTestId('codef-import-button'))
 
-    await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
+    await flushZeroDelayTasks()
+    expect(importScopedCodefMock).toHaveBeenCalledTimes(1)
     // 핵심 단언 — branch B는 저장 여부와 무관하게 현재 화면 범위(type)로 필터링된 선택만
     // 실행 계약에 명시한다. 화면에 없는 계좌(BANK_A)는 accountRefs 에 나타나지 않는다.
     expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({

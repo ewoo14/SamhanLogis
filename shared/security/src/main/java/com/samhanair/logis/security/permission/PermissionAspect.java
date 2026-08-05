@@ -42,8 +42,11 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  *       [실측 결론 C5-3] partner-auth JWT 에 partnerCode 클레임 추가 후 전환. role 폴백 제거.
  *       partnerSelfService opt-in endpoint 는 service 계층 자기범위 검증을 전제로 통과.</li>
  *   <li>account 모드: 그 외 {@link DynamicPermissionClient#check(UUID, String, PermissionAction)} == false → deny</li>
- *   <li>role 모드: VIEW 는 {@link DynamicPermissionClient#canView(String, String)},
- *       나머지 action 은 {@link DynamicPermissionClient#canEdit(String, String)} == false → deny</li>
+ *   <li>role 모드의 아로로지스 독립 JWT: 자체 JWT filter가 주입한 {@code X-User-Role}이 있는
+ *       경우 VIEW 는 {@link DynamicPermissionClient#canView(String, String)}, 나머지 action 은
+ *       {@link DynamicPermissionClient#canEdit(String, String)} == false → deny</li>
+ *   <li>role 모드의 Samhan 게이트웨이 직원 요청: role 헤더가 없으면 account UUID 기반
+ *       {@link DynamicPermissionClient#check(UUID, String, PermissionAction)} 경로로 판정</li>
  * </ul>
  *
  * <p>Phase C5-3 추가 — {@link #parseGroupsHeader(String)} 공유 파서:
@@ -125,9 +128,10 @@ public class PermissionAspect {
      * @param metrics              deny 횟수 카운터 컴포넌트
      * @param serviceName          {@code spring.application.name} 값 (Counter tag {@code service} 에 사용).
      *                             blank 시 {@code "unknown"} 으로 정규화.
-     * @param roleBasedEnforcement true 이면 계정 UUID 대신 기존 role_page_permissions 기반
-     *                             canView/canEdit 를 사용한다. 기본값은 false 이며,
-     *                             아로로지스 독립 auth descope 전용 opt-in 이다.
+     * @param roleBasedEnforcement true 이면 아로로지스 role 헤더가 있는 독립 로그인은 기존
+     *                             role_page_permissions 기반 canView/canEdit를 사용하고,
+     *                             role 헤더가 없는 게이트웨이 직원 요청은 account 권한을 사용한다.
+     *                             기본값은 false 이며, 아로로지스 독립 auth descope 전용 opt-in 이다.
      */
     public PermissionAspect(
             ObjectProvider<DynamicPermissionClient> clientProvider,
@@ -159,9 +163,11 @@ public class PermissionAspect {
         PermissionAction action = annotation.action();
         String actionName = action.name();
 
-        String roleCode = normalizeHeader(extractHeader(joinPoint, signature, ROLE_HEADER), "UNKNOWN");
+        String rawRoleHeader = extractHeader(joinPoint, signature, ROLE_HEADER);
+        String roleCode = normalizeHeader(rawRoleHeader, "UNKNOWN");
         String isSystemMasterHeader = extractHeader(joinPoint, signature, IS_SYSTEM_MASTER_HEADER);
-        if (isMasterBypass(roleCode, isSystemMasterHeader)) {
+        boolean hasIndependentRoleHeader = hasIndependentArologisRoleHeader(rawRoleHeader);
+        if (isMasterBypass(roleCode, isSystemMasterHeader, hasIndependentRoleHeader)) {
             return joinPoint.proceed();
         }
 
@@ -179,7 +185,7 @@ public class PermissionAspect {
             deny(page, "PARTNER", actionName, "PARTNER identity (X-Is-Partner=true)");
         }
 
-        if (roleBasedEnforcement) {
+        if (roleBasedEnforcement && hasIndependentRoleHeader) {
             checkRolePermission(page, roleCode, action);
             return joinPoint.proceed();
         }
@@ -252,9 +258,9 @@ public class PermissionAspect {
      * Set 은 O(1) 교집합 체크용. 공유 단일 구현 — 서비스 계층 guard(SlipSalesAccessGuard 등)도
      * 본 메서드를 사용한다(중복 구현 금지, PR #414 dual review P2).
      *
-     * <p>현재 Aspect 판정 경로는 본 메서드를 소비하지 않는다 — PR-2(C5-4)에서
-     * X-User-Role 제거와 함께 그룹 집합 기반 판정으로 소비 예정.
-     * [실측 C5-3] partner-auth JWT 에 partnerCode 클레임 부재 → PARTNER 식별 전환도 PR-2 선행 additive 후 수행.
+     * <p>role 모드의 Samhan 게이트웨이 경로는 X-User-Role 없이 X-User-Groups를 전달받는다.
+     * 실제 권한 판정은 account UUID를 auth-service에 전달하여 account/group effective 권한을
+     * 조회하며, 이 파서는 HeaderAuthenticationFilter의 group authority 구성에 사용된다.
      *
      * @param raw X-User-Groups 헤더 raw 값 (null 허용)
      * @return 그룹 UUID 문자열 집합 (null 미반환)
@@ -317,17 +323,39 @@ public class PermissionAspect {
      * 임의 role 문자열 주입으로 bypass 되는 위험 제거. X-Is-System-Master 헤더는
      * 게이트웨이가 JWT 서명 검증 후 claim 에서 주입하므로 신뢰 가능.
      *
-     * @param roleCode            X-User-Role 헤더 값 (null-safe, normalized) — arologis 전용
-     * @param isSystemMasterHeader X-Is-System-Master 헤더 값 (null 허용)
+     * @param roleCode                 X-User-Role 헤더 값 (null-safe, normalized) — arologis 전용
+     * @param isSystemMasterHeader      X-Is-System-Master 헤더 값 (null 허용)
+     * @param hasIndependentRoleHeader 자체 JWT filter가 주입한 role 헤더 존재 여부
      * @return bypass 허용 여부
      */
-    private boolean isMasterBypass(String roleCode, String isSystemMasterHeader) {
+    private boolean isMasterBypass(
+            String roleCode,
+            String isSystemMasterHeader,
+            boolean hasIndependentRoleHeader) {
         // Phase C4 경로: X-Is-System-Master == "true" (게이트웨이 JWT 클레임 기반, 신뢰)
         if ("true".equalsIgnoreCase(isSystemMasterHeader)) {
             return true;
         }
         // 아로로지스 독립 운영 단위 전용 — roleBasedEnforcement 모드에서 AROLOGIS_MASTER bypass
-        return roleBasedEnforcement && "AROLOGIS_MASTER".equalsIgnoreCase(roleCode);
+        return roleBasedEnforcement
+                && hasIndependentRoleHeader
+                && "AROLOGIS_MASTER".equalsIgnoreCase(roleCode);
+    }
+
+    /**
+     * 아로로지스 자체 JWT 경로 여부를 role 헤더의 존재로 판정한다.
+     *
+     * <p>게이트웨이 경유 직원 요청은 C5-4에 따라 {@code X-User-Id}/{@code X-User-Groups}만
+     * 주입하고 {@code X-User-Role}은 제거한다. 반면 {@code ArologisJwtFilter}는 자체 JWT
+     * 검증 후 role claim을 {@code X-User-Role}로 주입한다. 이 분기는 arologis-service의
+     * 독립 로그인 전용 role 소비와 게이트웨이 직원의 account 소비를 가르는 것이며,
+     * 전역 게이트웨이 role 헤더를 복구하지 않는다.
+     *
+     * @param rawRoleHeader ArologisJwtFilter가 주입한 role 헤더 값
+     * @return role 헤더가 있으면 true
+     */
+    private boolean hasIndependentArologisRoleHeader(String rawRoleHeader) {
+        return roleBasedEnforcement && rawRoleHeader != null && !rawRoleHeader.isBlank();
     }
 
     private void deny(String page, String roleCode, String action, String reason) {
