@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,15 +79,18 @@ public class PreClassifyService {
     private String classifyRegion(String address, List<RegionRule> rules) {
         if (address == null || address.isBlank()) return null;
         String normalized = address.replace(" ", "");
-        for (RegionRule rule : rules) {
+        List<RegionRule> orderedRules = rules.stream()
+                .sorted(Comparator.comparingInt(RegionRule::sortOrder).thenComparing(RegionRule::groupName))
+                .toList();
+        for (RegionRule rule : orderedRules) {
             String prefix = cityPrefix(rule.groupName());
-            if (prefix != null && normalized.contains(prefix)) {
+            if (prefix != null && normalized.startsWith(prefix)) {
                 for (String keyword : rule.keywords().split(",")) if (!keyword.isBlank() && normalized.contains(keyword.replace(" ", ""))) return rule.groupName();
                 return rule.groupName();
             }
         }
-        for (RegionRule rule : rules) for (String keyword : rule.keywords().split(",")) if (!keyword.isBlank() && normalized.contains(keyword.replace(" ", ""))) return rule.groupName();
-        for (RegionRule rule : rules) if (cityPrefix(rule.groupName()) != null && normalized.contains(cityPrefix(rule.groupName()))) return rule.groupName();
+        for (RegionRule rule : orderedRules) for (String keyword : rule.keywords().split(",")) if (!keyword.isBlank() && normalized.contains(keyword.replace(" ", ""))) return rule.groupName();
+        for (RegionRule rule : orderedRules) if (cityPrefix(rule.groupName()) != null && normalized.startsWith(cityPrefix(rule.groupName()))) return rule.groupName();
         return null;
     }
 

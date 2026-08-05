@@ -99,6 +99,77 @@ class PreClassifyServiceTest {
                 .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class);
     }
 
+    @Test
+    void classify_usesLeadingSidoInsteadOfSubstringInsideLowerAddress() {
+        when(supportClient.getSupport(any())).thenReturn(new PreClassifySupport(
+                List.of(
+                        new RegionRule("대구광역시", "중구, 수성구, 달서구", 2),
+                        new RegionRule("부산광역시", "중구, 해운대구, 수영구", 1)),
+                List.of()));
+        when(slipQuery.find(any(), any())).thenReturn(List.of(
+                outbound("busan", "SANGIL", null, "부산 해운대구 해운대해변로 300")));
+
+        var result = service.classify(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 8, 5), null);
+
+        assertThat(result.regionGroups()).containsKey("부산광역시");
+        assertThat(result.regionGroups()).doesNotContainKey("대구광역시");
+    }
+
+    @Test
+    void classify_isIndependentOfRegionRuleListOrder() {
+        var slip = outbound("busan", "SANGIL", null, "부산 해운대구 해운대해변로 300");
+        var rules = List.of(
+                new RegionRule("부산광역시", "해운대구", 1),
+                new RegionRule("대구광역시", "수성구", 2));
+        when(slipQuery.find(any(), any())).thenReturn(List.of(slip));
+
+        when(supportClient.getSupport(any())).thenReturn(new PreClassifySupport(rules, List.of()));
+        var forward = service.classify(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 8, 5), null);
+
+        when(supportClient.getSupport(any())).thenReturn(new PreClassifySupport(
+                List.of(rules.get(1), rules.get(0)), List.of()));
+        var reversed = service.classify(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 8, 5), null);
+
+        assertThat(forward.regionGroups().keySet()).containsExactly("부산광역시");
+        assertThat(reversed.regionGroups().keySet()).containsExactly("부산광역시");
+    }
+
+    @Test
+    void classify_preservesKeywordFallbackWhenSidoPrefixIsUnavailable() {
+        when(supportClient.getSupport(any())).thenReturn(new PreClassifySupport(
+                List.of(
+                        new RegionRule("광주광역시", "광주광역시, 북구", 2),
+                        new RegionRule("경기동부", "광주, 하남, 이천", 1)),
+                List.of()));
+        when(slipQuery.find(any(), any())).thenReturn(List.of(
+                outbound("gwangju", "SANGIL", null, "경기 광주시 초월읍")));
+
+        var result = service.classify(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 8, 5), null);
+
+        assertThat(result.regionGroups()).containsKey("경기동부");
+        assertThat(result.regionGroups()).doesNotContainKey("광주광역시");
+    }
+
+    @Test
+    void classify_disambiguatesSameCountyByLeadingProvince() {
+        when(supportClient.getSupport(any())).thenReturn(new PreClassifySupport(
+                List.of(
+                        new RegionRule("강원도", "고성군", 1),
+                        new RegionRule("경상남도", "고성군", 2)),
+                List.of()));
+        when(slipQuery.find(any(), any())).thenReturn(List.of(
+                outbound("gangwon", "SANGIL", null, "강원도 고성군 토성면"),
+                outbound("gyeongnam", "SANGIL", null, "경상남도 고성군 고성읍")));
+
+        var result = service.classify(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 8, 5), null);
+
+        assertThat(result.regionGroups()).containsKeys("강원도", "경상남도");
+        assertThat(result.regionGroups().get("강원도")).extracting(PreClassifyResponse.Entry::slipNo)
+                .containsExactly("gangwon");
+        assertThat(result.regionGroups().get("경상남도")).extracting(PreClassifyResponse.Entry::slipNo)
+                .containsExactly("gyeongnam");
+    }
+
     private static PreClassifySlip outbound(String id, String warehouse, String tag, String address) {
         return new PreClassifySlip(id, "P-" + id, "거래처-" + id, address, tag, warehouse);
     }
