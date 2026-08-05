@@ -242,7 +242,11 @@ vi.mock('../api/partnerApi', () => ({
 vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: () => harness.isMobile }))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: harness.usePageTitle }))
 vi.mock('./components/InventoryLookupModal', () => ({ InventoryLookupModal: () => null }))
-vi.mock('./components/BundleOptionRow', () => ({ BundleOptionRow: () => null }))
+vi.mock('./components/BundleOptionRow', () => ({ BundleOptionRow: ({ onChange }: any) => (
+  <button type="button" data-testid="bundle-option-change" onClick={() => onChange({ panelOption: 'PANEL-3' })}>
+    change bundle option
+  </button>
+) }))
 
 import { SlipFormPage } from './SlipFormPage'
 
@@ -951,6 +955,81 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     await waitFor(() => expect(screen.getByText('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')).toBeTruthy())
     expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
     expect(screen.getByRole('button', { name: '저장' })).toHaveProperty('disabled', true)
+  })
+
+  it('전개 실패 중 수량이 바뀌면 실패한 세대를 버리고 최신 수량으로 다시 전개한다', async () => {
+    const first = deferred<any[]>()
+    harness.expandBundleLine.mockReturnValueOnce(first.promise)
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 3,
+      unitPrice: 2000,
+      specification: null,
+    }])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      quantity: 1,
+    })))
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '3' } })
+
+    await act(async () => {
+      first.reject(new Error('첫 전개 실패'))
+      await first.promise.catch(() => undefined)
+    })
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      quantity: 3,
+    })))
+    expect(harness.expandBundleLine).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id'))
+      .not.toBe(harness.bundle.id))
+  })
+
+  it.each([
+    ['단가', 'line-1-unit-price', { unitPrice: '7777' }, { unitPrice: '7777' }],
+    ['규격', 'line-1-specification', { specification: '현장규격' }, { specification: '현장규격' }],
+  ])('전개 실패 중 %s가 바뀌면 최신 스냅샷으로 다시 전개한다', async (_field, label, change, expected) => {
+    const first = deferred<any[]>()
+    harness.expandBundleLine.mockReturnValueOnce(first.promise)
+    harness.expandBundleLine.mockResolvedValueOnce([])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(1))
+    fireEvent.change(screen.getByLabelText(label), { target: { value: Object.values(change)[0] } })
+
+    await act(async () => {
+      first.reject(new Error('첫 전개 실패'))
+      await first.promise.catch(() => undefined)
+    })
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining(expected)))
+    expect(harness.expandBundleLine).toHaveBeenCalledTimes(2)
+  })
+
+  it('전개 실패 중 옵션이 바뀌면 최신 스냅샷으로 다시 전개한다', async () => {
+    const first = deferred<any[]>()
+    harness.expandBundleLine.mockReturnValueOnce(first.promise)
+    harness.expandBundleLine.mockResolvedValueOnce([])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+
+    await act(async () => {
+      first.reject(new Error('첫 전개 실패'))
+      await first.promise.catch(() => undefined)
+    })
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      setOptions: undefined,
+    })))
+    expect(harness.expandBundleLine).toHaveBeenCalledTimes(2)
   })
 
   it('늦게 도착한 세트 전개 응답은 이후 일반 품목 선택을 덮지 않는다', async () => {

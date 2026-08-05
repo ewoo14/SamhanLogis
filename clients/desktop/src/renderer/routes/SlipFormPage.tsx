@@ -787,6 +787,13 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const expandSelectedBundle = async (source: LineDraft, selected: LineDraft): Promise<void> => {
     const generation = bundleExpansionGenerationRef.current.get(source.id) ?? 0
+    const retryLatestBundleGeneration = async () => {
+      const latest = linesRef.current.find((line) => line.id === source.id)
+      const currentGeneration = bundleExpansionGenerationRef.current.get(source.id) ?? 0
+      if (currentGeneration === generation || latest?.productType !== 'BUNDLE') return false
+      await expandSelectedBundle(source, latest)
+      return true
+    }
     try {
       const expanded = await expandBundleLine({
         parentModelCode: selected.modelCode ?? '',
@@ -796,15 +803,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         setOptions: toApiBundleSetOptions(selected.productType, selected.setOptions),
       })
       const latest = linesRef.current.find((line) => line.id === source.id)
-      const currentGeneration = bundleExpansionGenerationRef.current.get(source.id) ?? 0
-      if (currentGeneration !== generation) {
-        if (latest?.productType === 'BUNDLE') await expandSelectedBundle(source, latest)
+      if (await retryLatestBundleGeneration()) {
         return
       }
       if (!latest || latest.productId !== selected.productId || latest.productType !== 'BUNDLE') return
       replaceWithExpandedBundleLines(source, expanded, selected.specification)
     } catch {
       const latest = linesRef.current.find((line) => line.id === source.id)
+      if (await retryLatestBundleGeneration()) return
       if (!latest || latest.productId !== selected.productId
         || latest.productType !== 'BUNDLE'
         || (bundleExpansionGenerationRef.current.get(source.id) ?? 0) !== generation) return
