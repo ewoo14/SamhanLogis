@@ -39,6 +39,14 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
 
+const BUNDLE_CONVERSION_MESSAGE = '세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.'
+
+function safeConversionMessage(value: unknown): string | null {
+  return typeof value === 'string' && value.includes('세트 품목') && value.includes('구성품으로 전개')
+    ? BUNDLE_CONVERSION_MESSAGE
+    : null
+}
+
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 const PARTNER_ORDER_INVENTORY_LOOKUP_TEST_ID = 'partner-order-inventory-lookup-btn'
 const statusBadgeStyle = (status: string) => {
@@ -362,6 +370,14 @@ export function SalesPartnerOrderDetailPage() {
         if (error.response?.status === 403) {
           setConvertErrorMessage('판매전표 전환 권한이 없습니다. 관리자에게 문의해 주세요.')
           return
+        }
+        if (error.response?.status === 400) {
+          const respData = error.response.data as Record<string, unknown> | undefined
+          const bundleMessage = safeConversionMessage(respData?.['message'])
+          if (bundleMessage) {
+            setConvertErrorMessage(bundleMessage)
+            return
+          }
         }
       }
       setConvertErrorMessage('전환에 실패했습니다. 잠시 후 다시 시도해 주세요.')
