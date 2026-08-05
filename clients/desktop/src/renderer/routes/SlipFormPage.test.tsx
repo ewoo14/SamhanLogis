@@ -864,6 +864,41 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
   })
 
+  it('거래처 최근단가 대기 중 지운 부모 규격을 구성품에 되살리지 않는다', async () => {
+    const pricePending = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
+    harness.getPriceMemory.mockReturnValueOnce(pricePending.promise)
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 1,
+      unitPrice: 1000,
+      specification: null,
+    }])
+    renderPage()
+    await selectPartnerA()
+
+    fireEvent.change(screen.getByLabelText('line-1-specification'), { target: { value: '현장규격' } })
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(
+      harness.partnerA.id,
+      harness.bundle.id,
+    ))
+    fireEvent.change(screen.getByLabelText('line-1-specification'), { target: { value: '' } })
+
+    await act(async () => {
+      pricePending.resolve({ unitPrice: 9000, source: 'LINE_SAVE', updatedAt: '2026-08-05T09:00:00' })
+      await pricePending.promise
+    })
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      specification: undefined,
+    })))
+    await waitFor(() => expect((screen.getByLabelText('line-1-specification') as HTMLInputElement).value).toBe(''))
+    expect(harness.expandBundleLine).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
+  })
+
   it('세트 선택은 세트 헤드 없이 구성품 행으로 즉시 전개하고 저장 payload도 구성품만 보낸다', async () => {
     harness.expandBundleLine.mockResolvedValueOnce([
       {
@@ -978,6 +1013,44 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
 
     await waitFor(() => expect((screen.getByLabelText('line-1-quantity') as HTMLInputElement).value)
       .toBe('3'))
+  })
+
+  it('전개 응답 대기 중 지운 부모 규격을 재전개 응답도 되살리지 않는다', async () => {
+    const pending = deferred<any[]>()
+    harness.expandBundleLine.mockReturnValueOnce(pending.promise)
+    harness.expandBundleLine.mockResolvedValue([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 1,
+      unitPrice: 2000,
+      specification: null,
+    }])
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-1-specification'), { target: { value: '현장규격' } })
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(1))
+    fireEvent.change(screen.getByLabelText('line-1-specification'), { target: { value: '' } })
+
+    await act(async () => {
+      pending.resolve([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 2000,
+        specification: null,
+      }])
+      await pending.promise
+    })
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      specification: undefined,
+    })));
+    await waitFor(() => expect((screen.getByLabelText('line-1-specification') as HTMLInputElement).value).toBe(''))
+    expect(harness.expandBundleLine).toHaveBeenCalledTimes(2)
+    expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
   })
 
   it('초기에는 입력 가능한 빈 행 5개를 보여준다', () => {

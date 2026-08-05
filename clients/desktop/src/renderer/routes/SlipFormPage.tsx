@@ -736,6 +736,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const replaceWithExpandedBundleLines = (
     source: LineDraft,
     expanded: Awaited<ReturnType<typeof expandBundleLine>>,
+    parentSpecification: string,
   ) => {
     setLines((current) => {
       const index = current.findIndex((line) => line.id === source.id)
@@ -752,7 +753,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               productId: component.productId,
               modelName: component.modelName ?? '',
               productName: component.name ?? '',
-              specification: component.specification ?? source.specification ?? '',
+              specification: component.specification ?? parentSpecification,
               quantity,
               unitPrice,
               productType: 'SINGLE',
@@ -762,7 +763,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             productId: component.productId,
             modelName: component.modelName ?? '',
             productName: component.name ?? '',
-            specification: component.specification ?? source.specification ?? '',
+            specification: component.specification ?? parentSpecification,
             quantity,
             unitPrice,
             productType: 'SINGLE',
@@ -801,13 +802,13 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         return
       }
       if (!latest || latest.productId !== selected.productId || latest.productType !== 'BUNDLE') return
-      replaceWithExpandedBundleLines(source, expanded)
+      replaceWithExpandedBundleLines(source, expanded, selected.specification)
     } catch {
       const latest = linesRef.current.find((line) => line.id === source.id)
       if (!latest || latest.productId !== selected.productId
         || latest.productType !== 'BUNDLE'
         || (bundleExpansionGenerationRef.current.get(source.id) ?? 0) !== generation) return
-      replaceWithExpandedBundleLines(source, [])
+      replaceWithExpandedBundleLines(source, [], latest.specification)
       setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
     }
   }
