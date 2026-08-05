@@ -16,7 +16,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, FormField, Input, PartnerAutocomplete, Spinner, type PartnerOption } from '@samhan/design-system'
+import {
+  Button,
+  Card,
+  FormField,
+  Input,
+  PartnerAutocomplete,
+  ProductAutocomplete,
+  Spinner,
+  type PartnerOption,
+  type ProductOption,
+} from '@samhan/design-system'
 import {
   createEstimate,
   getEstimate,
@@ -35,7 +45,7 @@ import {
   emptyBundleSetOptions,
   toApiBundleSetOptions,
 } from '../api/slip'
-import { lookupProducts } from '../api/productApi'
+import { lookupProducts, searchProducts } from '../api/productApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -420,6 +430,7 @@ function EstimateMobileLineCard(props: {
   onUpdate: (patch: Partial<DraftLine>, fromUser?: boolean) => void
   onLookup: () => void
   onRemove: () => void
+  modelCell?: ReactNode
   children?: ReactNode
 }) {
   const lineNumber = props.index + 1
@@ -449,29 +460,31 @@ function EstimateMobileLineCard(props: {
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">모델명</label>
-        <CollaborativeSlipInput
-          provider={props.provider}
-          coeditPending={props.coeditPending}
-          fieldPath={`items.${props.index}.modelName`}
-          value={props.line.modelName}
-          onValueChange={(value) => props.onUpdate({
-            modelName: value,
-            productId: null,
-            productName: '',
-          }, true)}
-          onDocSyncValueChange={(value) => props.onUpdate({
-            modelName: value,
-            productId: null,
-            productName: '',
-          })}
-          onBlur={props.onLookup}
-          inputSize="sm"
-          readOnly={props.isReadOnly}
-          type="text"
-          placeholder="예: AJ040RXH4BC1"
-          error={props.line.lookupError ?? undefined}
-          aria-label={`라인 ${lineNumber} 모델명`}
-        />
+        {props.modelCell ?? (
+          <CollaborativeSlipInput
+            provider={props.provider}
+            coeditPending={props.coeditPending}
+            fieldPath={`items.${props.index}.modelName`}
+            value={props.line.modelName}
+            onValueChange={(value) => props.onUpdate({
+              modelName: value,
+              productId: null,
+              productName: '',
+            }, true)}
+            onDocSyncValueChange={(value) => props.onUpdate({
+              modelName: value,
+              productId: null,
+              productName: '',
+            })}
+            onBlur={props.onLookup}
+            inputSize="sm"
+            readOnly={props.isReadOnly}
+            type="text"
+            placeholder="예: AJ040RXH4BC1"
+            error={props.line.lookupError ?? undefined}
+            aria-label={`라인 ${lineNumber} 모델명`}
+          />
+        )}
       </div>
 
       <div className="mobile-line-field">
@@ -716,6 +729,7 @@ export function EstimateFormPage() {
   const selectedPartnerIdRef = useRef<string>('')
   const priceRefreshRequestRef = useRef(0)
   const modelLookupRequestRef = useRef(new Map<string, number>())
+  const selectedProductRef = useRef(new Map<string, ProductOption>())
   const localAutoPriceWritesRef = useRef(new Map<string, LocalAutoPriceWrite>())
   const linesRef = useRef(lines)
   linesRef.current = lines
@@ -1001,6 +1015,29 @@ export function EstimateFormPage() {
       bizNo: row.businessRegistrationNumber,
       phone: row.contactPhone ?? undefined,
     }))
+  }
+
+  /**
+   * 견적 라인 품목 검색 — 판매전표와 같은 ProductAutocomplete 공용 검색 경로를 사용한다.
+   * 기존 정확 모델 lookup은 레거시 서버/테스트 계약의 안전망으로만 남겨, 부분검색 API가
+   * 후보를 반환하면 절대 실행하지 않는다.
+   */
+  const searchEstimateProducts = async (q: string): Promise<ProductOption[]> => {
+    const candidates = await searchProducts(q)
+    if (candidates.length > 0) return candidates
+    try {
+      const legacy = await lookupProductByModelName(q)
+      return [{
+        id: legacy.productId,
+        modelName: legacy.modelName,
+        productName: legacy.productName,
+        sellingPrice: Number(legacy.sellingPrice),
+        modelCode: legacy.modelCode,
+        productType: legacy.productType,
+      }]
+    } catch {
+      return []
+    }
   }
 
   const handlePartnerOptionChange = (option: PartnerOption | null) => {
@@ -1295,7 +1332,8 @@ export function EstimateFormPage() {
     }
 
     try {
-      const result = await lookupProductByModelName(modelName)
+      const result = selectedProductRef.current.get(line.uid) ?? await lookupProductByModelName(modelName)
+      selectedProductRef.current.delete(line.uid)
       const currentAfterProductLookup = linesRef.current.find((current) => current.uid === line.uid)
       if (!currentAfterProductLookup || !isProductBindCurrent(currentAfterProductLookup)) {
         finishStaleRequest()
@@ -1350,6 +1388,7 @@ export function EstimateFormPage() {
       const currentIndex = linesRef.current.findIndex((candidate) => candidate.uid === line.uid)
       const nextLine: DraftLine = {
         ...current,
+        modelName: result.modelName || current.modelName,
         productId: result.productId,
         productName: result.productName,
         productType: result.productType ?? 'SINGLE',
@@ -1375,6 +1414,7 @@ export function EstimateFormPage() {
       }
       if (estimateFormCoeditProvider) {
         try {
+          estimateFormCoeditProvider.setItemValue(currentIndex, 'modelName', result.modelName)
           estimateFormCoeditProvider.setItemValue(currentIndex, 'productName', result.productName)
           if (applyPrice) {
             localAutoPriceWritesRef.current.set(line.uid, {
@@ -1406,6 +1446,23 @@ export function EstimateFormPage() {
         lookupLoading: false,
       })
     }
+  }
+
+  const handleProductSelection = (index: number, product: ProductOption | null) => {
+    const line = linesRef.current[index]
+    if (!line || !product) return
+    updateLine(index, {
+      modelName: product.modelName,
+      productId: null,
+      productName: '',
+    }, true)
+    try {
+      estimateFormCoeditProvider?.setItemValue(index, 'modelName', product.modelName)
+    } catch {
+      // Product selection remains local if the coedit provider is already unmounting.
+    }
+    selectedProductRef.current.set(line.uid, product)
+    void handleModelLookup(index)
   }
 
   const createMutation = useMutation({
@@ -1836,8 +1893,8 @@ export function EstimateFormPage() {
           const priceStatusId = `estimate-price-status-${line.uid}`
           const priceChangedStatusId = `estimate-price-changed-${line.uid}`
           if (isMobile) {
-            return (
-              <EstimateMobileLineCard
+          return (
+            <EstimateMobileLineCard
                 key={line.uid}
                 line={line}
                 index={i}
@@ -1850,10 +1907,36 @@ export function EstimateFormPage() {
                 lineVat={lineVat}
                 hasPartner={hasPartner}
                 vatEditable={!isReadOnly && !isBundle && !coeditActive}
-                onUpdate={(patch, fromUser) => updateLine(i, patch, fromUser)}
-                onLookup={() => handleModelLookup(i)}
-                onRemove={() => removeLine(i)}
-              >
+              onUpdate={(patch, fromUser) => updateLine(i, patch, fromUser)}
+              onLookup={() => handleModelLookup(i)}
+              onRemove={() => removeLine(i)}
+              modelCell={
+                <ProductAutocomplete
+                  value={line.productId && line.modelName ? {
+                    id: line.productId,
+                    modelName: line.modelName,
+                    productName: line.productName,
+                    productType: line.productType ?? undefined,
+                    sellingPrice: line.catalogUnitPrice == null ? undefined : Number(line.catalogUnitPrice),
+                    specification: line.specification,
+                  } : null}
+                  onChange={(product) => handleProductSelection(i, product)}
+                  onInputCommitChange={(committed) => {
+                    if (committed) return
+                    updateLine(i, { productId: null, productName: '' }, true)
+                  }}
+                  searchProducts={searchEstimateProducts}
+                  label=""
+                  ariaLabel={`라인 ${i + 1} 모델명`}
+                  placeholder="모델명 또는 품목명"
+                  resultSelectionMode="single"
+                  autoSelectSingleResult
+                  debounceMs={250}
+                  disabled={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
+                  error={line.lookupError ?? undefined}
+                />
+              }
+            >
                 {isBundle ? (
                   <BundleOptionRow
                     line={line}
@@ -1915,31 +1998,51 @@ export function EstimateFormPage() {
               >
                 {i + 1}
               </div>
-              <div>
-                <CollaborativeSlipInput
-                  provider={estimateFormCoeditProvider}
-                  coeditPending={estimateFormCoeditPending}
-                  fieldPath={`items.${i}.modelName`}
-                  type="text"
-                  value={line.modelName}
-                  onValueChange={(value) => updateLine(i, {
-                    modelName: value,
-                    productId: null,
-                    productName: '',
-                  }, true)}
-                  onDocSyncValueChange={(value) => updateLine(i, {
-                    modelName: value,
-                    productId: null,
-                    productName: '',
-                  })}
-                  onBlur={() => handleModelLookup(i)}
-                  readOnly={Boolean(isReadOnly)}
-                  placeholder="예: AJ040RXH4BC1"
-                  error={line.lookupError ?? undefined}
-                  aria-label={`라인 ${i + 1} 모델명`}
-                  data-testid={`estimate-form-line-${i}-model`}
-                />
-              </div>
+              <ProductAutocomplete
+                value={line.productId && line.modelName ? {
+                  id: line.productId,
+                  modelName: line.modelName,
+                  productName: line.productName,
+                  productType: line.productType ?? undefined,
+                  sellingPrice: line.catalogUnitPrice == null ? undefined : Number(line.catalogUnitPrice),
+                  specification: line.specification,
+                } : null}
+                onChange={(product) => handleProductSelection(i, product)}
+                onInputCommitChange={(committed) => {
+                  if (committed) return
+                  updateLine(i, { productId: null, productName: '' }, true)
+                }}
+                searchProducts={searchEstimateProducts}
+                label=""
+                ariaLabel={`라인 ${i + 1} 모델명`}
+                placeholder="모델명 또는 품목명"
+                resultSelectionMode="single"
+                autoSelectSingleResult
+                debounceMs={250}
+                disabled={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
+                error={line.lookupError ?? undefined}
+              />
+              <CollaborativeSlipInput
+                provider={estimateFormCoeditProvider}
+                coeditPending={estimateFormCoeditPending}
+                fieldPath={`items.${i}.modelName`}
+                value={line.modelName}
+                onValueChange={(value) => updateLine(i, {
+                  modelName: value,
+                  productId: null,
+                  productName: '',
+                }, true)}
+                onDocSyncValueChange={(value) => updateLine(i, {
+                  modelName: value,
+                  productId: null,
+                  productName: '',
+                })}
+                onBlur={() => handleModelLookup(i)}
+                readOnly={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
+                aria-label={`라인 ${i + 1} 모델명 동기화`}
+                inputStyle={{ display: 'none' }}
+                data-testid={`estimate-coedit-items-${i}-modelName`}
+              />
               <CollaborativeSlipInput
                 provider={estimateFormCoeditProvider}
                 coeditPending={estimateFormCoeditPending}

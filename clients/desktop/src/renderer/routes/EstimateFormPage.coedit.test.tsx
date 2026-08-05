@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   sendEstimate: vi.fn(),
   searchPartners: vi.fn(),
   lookupProductByModelName: vi.fn(),
+  searchProducts: vi.fn(),
   getPriceMemory: vi.fn(),
   getPriceMemories: vi.fn(),
   lookupProducts: vi.fn(),
@@ -92,6 +93,53 @@ vi.mock('@samhan/design-system', () => ({
     )
   },
   Spinner: ({ label }: { label?: string }) => <div role="status">{label}</div>,
+  ProductAutocomplete: ({
+    value,
+    onChange,
+    onInputCommitChange,
+    searchProducts,
+    resultSelectionMode,
+    ariaLabel,
+  }: any) => {
+    const [draft, setDraft] = React.useState(value?.modelName ?? '')
+    const [candidates, setCandidates] = React.useState<any[]>([])
+    const lineNumber = Number(/라인 (\d+)/.exec(ariaLabel)?.[1] ?? 1)
+    const search = async () => {
+      const next = await searchProducts(draft)
+      if (next.length === 1) {
+        onChange(next[0])
+        return
+      }
+      setCandidates(next)
+    }
+    return (
+      <div>
+        <input
+          aria-label={ariaLabel}
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            onInputCommitChange?.(false)
+          }}
+          onBlur={() => void search()}
+        />
+        {candidates.length > 1 ? (
+          <div role="dialog" aria-label="품목 검색 결과">
+            {candidates.map((candidate) => (
+              <div key={candidate.id}>
+                <span>{candidate.modelName}</span>
+                <span>{candidate.productName}</span>
+                <span>{candidate.specification}</span>
+                <span>{candidate.sellingPrice?.toLocaleString('ko-KR')}원</span>
+                <button type="button" onClick={() => onChange(candidate)}>선택</button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <span data-testid="estimate-product-result-selection-mode">{resultSelectionMode}</span>
+      </div>
+    )
+  },
 }))
 
 vi.mock('../components/collab/CollaborativeSlipInput', () => ({
@@ -106,10 +154,12 @@ vi.mock('../components/collab/CollaborativeSlipInput', () => ({
     onBlur?: () => void
     'aria-label': string
     'aria-describedby'?: string
+    inputStyle?: React.CSSProperties
   }) => (
     <input
       aria-label={props['aria-label']}
       aria-describedby={props['aria-describedby']}
+      style={props.inputStyle}
       data-testid={`estimate-coedit-${props.fieldPath.replace(/\./g, '-')}`}
       data-field-path={props.fieldPath}
       data-provider-present={String(!!props.provider)}
@@ -159,6 +209,7 @@ vi.mock('../api/slip', () => ({
 
 vi.mock('../api/productApi', () => ({
   lookupProducts: mocks.lookupProducts,
+  searchProducts: mocks.searchProducts,
 }))
 
 vi.mock('./components/LineLookupReferenceModal', () => ({
@@ -327,11 +378,63 @@ beforeEach(() => {
   mocks.getPriceMemory.mockResolvedValue(null)
   mocks.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
   mocks.lookupProducts.mockResolvedValue([])
+  mocks.searchProducts.mockResolvedValue([])
   mocks.createEstimate.mockResolvedValue({ id: 'estimate-created' })
   mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
 })
 
 describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
+  it('RED-B: 부분 모델 검색은 공용 품목 결과 모달의 규격·단가 후보를 사용한다', async () => {
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.searchProducts.mockResolvedValue([
+      {
+        id: '11111111-1111-1111-1111-111111111111',
+        modelName: 'AJ-ONE',
+        productName: '제품 하나',
+        specification: '220V',
+        sellingPrice: 11000,
+      },
+      {
+        id: '22222222-2222-2222-2222-222222222222',
+        modelName: 'AJ-TWO',
+        productName: '제품 둘',
+        specification: '380V',
+        sellingPrice: 22000,
+      },
+    ])
+
+    renderPage()
+    const model = await screen.findByLabelText('라인 1 모델명')
+    fireEvent.change(model, { target: { value: 'AJ' } })
+    fireEvent.blur(model)
+
+    const dialog = await screen.findByRole('dialog', { name: '품목 검색 결과' })
+    expect(mocks.searchProducts).toHaveBeenCalledWith('AJ')
+    expect(dialog.textContent).toContain('220V')
+    expect(dialog.textContent).toContain('22,000원')
+    expect(dialog.textContent).not.toContain('11111111-1111-1111-1111-111111111111')
+  })
+
+  it('RED-B: 공용 품목 검색의 단일 후보는 모달 없이 자동 확정한다', async () => {
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.searchProducts.mockResolvedValue([{
+      id: '33333333-3333-3333-3333-333333333333',
+      modelName: 'AJ-ONE',
+      productName: '제품 하나',
+      specification: '220V',
+      sellingPrice: 11000,
+    }])
+
+    renderPage()
+    const model = await screen.findByLabelText('라인 1 모델명')
+    fireEvent.change(model, { target: { value: 'AJ' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '품목 검색 결과' })).toBeNull())
+  })
+
   it('provider 생성 옵션과 헤더/라인 CollaborativeSlipInput fieldPath 를 slip 패턴으로 배선한다', async () => {
     const provider = makeProvider()
     mocks.getEstimate.mockResolvedValue(makeEstimate())
