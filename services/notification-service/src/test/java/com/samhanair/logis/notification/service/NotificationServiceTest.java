@@ -93,6 +93,25 @@ class NotificationServiceTest {
     }
 
     @Test
+    void sameIdempotencyKey_afterTransientFailure_retriesGateway() {
+        String key = "collab-event-1";
+        NotificationSendRequest req = new NotificationSendRequest(
+                RecipientType.USER, UUID.randomUUID(), null,
+                NotificationChannel.PUSH, null, null, "본문", key);
+        pushGateway.nextResult = NotificationGatewayResult.failure(
+                "FAILURE_TRANSIENT", "{\"error\":\"forced\"}");
+
+        NotificationRequest first = service.send(req);
+        pushGateway.nextResult = NotificationGatewayResult.success("msg-2", "{\"ok\":true}");
+        when(requestRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(first));
+
+        NotificationService.SendResult second = service.sendWithGatewayResult(req);
+
+        assertThat(second.notificationRequest().getStatus()).isEqualTo(NotificationStatus.SENT);
+        assertThat(pushGateway.sendCount).isEqualTo(2);
+    }
+
+    @Test
     void send_missing_user_recipient_throws_404() {
         when(userClient.exists(any())).thenReturn(false);
         NotificationSendRequest req = new NotificationSendRequest(
@@ -190,6 +209,7 @@ class NotificationServiceTest {
     static class TestGateway implements NotificationGateway {
         final NotificationChannel channel;
         NotificationGatewayResult nextResult;
+        int sendCount;
 
         TestGateway(NotificationChannel channel) {
             this.channel = channel;
@@ -202,6 +222,7 @@ class NotificationServiceTest {
 
         @Override
         public NotificationGatewayResult send(NotificationRequest request) {
+            sendCount++;
             if (nextResult != null) {
                 return nextResult;
             }

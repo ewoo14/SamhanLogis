@@ -52,6 +52,7 @@ public class NotificationService {
     private final Map<NotificationChannel, NotificationGateway> gatewayMap;
     private final UserClient userClient;
     private final PushDeviceTokenService pushDeviceTokenService;
+    private final NotificationDispatchPersistence dispatchPersistence;
 
     /**
      * 발송 재시도 최대 횟수 — post-W5 backlog cleanup (Q-W3-1 채택, D-P9-21).
@@ -78,7 +79,7 @@ public class NotificationService {
                                UserClient userClient,
                                int maxRetryAttempts,
                                NotificationGatewayMetrics gatewayMetrics) {
-        this(requestRepository, logRepository, gatewayMap, userClient, null, maxRetryAttempts, gatewayMetrics);
+        this(requestRepository, logRepository, gatewayMap, userClient, null, maxRetryAttempts, gatewayMetrics, null);
     }
 
     @Autowired
@@ -88,7 +89,8 @@ public class NotificationService {
                                UserClient userClient,
                                @Autowired(required = false) PushDeviceTokenService pushDeviceTokenService,
                                @Value("${samhan.notification.retry.max-attempts:5}") int maxRetryAttempts,
-                               @Autowired(required = false) NotificationGatewayMetrics gatewayMetrics) {
+                               @Autowired(required = false) NotificationGatewayMetrics gatewayMetrics,
+                               @Autowired(required = false) NotificationDispatchPersistence dispatchPersistence) {
         this.requestRepository = requestRepository;
         this.logRepository = logRepository;
         this.gatewayMap = gatewayMap;
@@ -96,6 +98,7 @@ public class NotificationService {
         this.pushDeviceTokenService = pushDeviceTokenService;
         this.maxRetryAttempts = maxRetryAttempts;
         this.gatewayMetrics = gatewayMetrics;
+        this.dispatchPersistence = dispatchPersistence;
     }
 
     /**
@@ -104,7 +107,6 @@ public class NotificationService {
      * @param req 발송 요청 DTO
      * @return 영속화된 NotificationRequest (status = SENT 또는 FAILED)
      */
-    @Transactional
     public NotificationRequest send(NotificationSendRequest req) {
         return sendWithGatewayResult(req).notificationRequest();
     }
@@ -119,12 +121,28 @@ public class NotificationService {
      * @param req 발송 요청 DTO
      * @return {@link SendResult} — NotificationRequest + NotificationGatewayResult 쌍
      */
-    @Transactional
     public SendResult sendWithGatewayResult(NotificationSendRequest req) {
+        if (dispatchPersistence != null) {
+            if (req.recipientType() == RecipientType.USER && req.recipientId() != null
+                    && !userClient.exists(req.recipientId())) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "수신자(USER) 미존재: " + req.recipientId());
+            }
+            NotificationRequest prepared = dispatchPersistence.prepare(req);
+            if (prepared.getStatus() == NotificationStatus.SENT) {
+                return new SendResult(prepared, null);
+            }
+            NotificationGatewayResult result = invokeGatewayWithResult(prepared);
+            return new SendResult(dispatchPersistence.complete(prepared), result);
+        }
         if (req.idempotencyKey() != null && !req.idempotencyKey().isBlank()) {
             var existing = requestRepository.findByIdempotencyKey(req.idempotencyKey());
             if (existing.isPresent()) {
-                return new SendResult(existing.get(), null);
+                NotificationRequest existingRequest = existing.get();
+                if (existingRequest.getStatus() == NotificationStatus.SENT) {
+                    return new SendResult(existingRequest, null);
+                }
+                NotificationGatewayResult retryResult = invokeGatewayWithResult(existingRequest);
+                return new SendResult(existingRequest, retryResult);
             }
         }
         NotificationRequest entity = NotificationRequest.open(
