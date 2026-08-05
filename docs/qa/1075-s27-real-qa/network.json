@@ -1,0 +1,313 @@
+[
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/auth/password/policy",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/auth/me",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/auth/me",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "POST",
+    "url": "http://localhost:8080/auth/login",
+    "postData": "{\"loginId\":\"dev_master\",\"password\":\"[REDACTED]\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/auth/password/policy",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"minLength\":8,\"maxLength\":32,\"requireLetter\":true,\"requireDigit\":true,\"requireSpecial\":true,\"historyReuseBlock\":5,\"maxFailedLoginAttempts\":5,\"resetTokenTtlMinutes\":30,\"description\":\"비밀번호는 8 자 이상 32 자 이하이며, 영문 / 숫자 / 특수문자를 각각 1 자 이상 포함해야 합니다\"},\"timestamp\":\"2026-08-05T21:12:54.041011434Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/auth/me",
+    "status": 401,
+    "body": "{\"success\":false,\"code\":\"UNAUTHORIZED\",\"message\":\"인증 토큰이 없습니다\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/auth/me",
+    "status": 401,
+    "body": "{\"success\":false,\"code\":\"UNAUTHORIZED\",\"message\":\"인증 토큰이 없습니다\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+    "status": 503,
+    "body": "{\"timestamp\":\"2026-08-05T21:12:54.107+00:00\",\"path\":\"/app/version\",\"status\":503,\"error\":\"Service Unavailable\",\"requestId\":\"8ecb3baa-10152\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/app/notices/active",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "POST",
+    "url": "http://localhost:8080/auth/login",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"token\":\"[REDACTED]\",\"userId\":\"a0000000-0000-0000-0000-000000000001\",\"role\":\"MASTER\",\"displayName\":\"[DEV-SEED] 개발마스터\",\"partnerCode\":null,\"groups\":[{\"id\":\"00000000-0000-0000-0000-000000000100\",\"name\":\"마스터\",\"builtin\":true}]},\"timestamp\":\"2026-08-05T21:12:54.273061301Z\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/api/notifications/my",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/auth/admin/permissions/my",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/app/notices/active",
+    "status": 503,
+    "body": "{\"timestamp\":\"2026-08-05T21:12:54.282+00:00\",\"path\":\"/app/notices/active\",\"status\":503,\"error\":\"Service Unavailable\",\"requestId\":\"6f765d27-10153\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/slips?page=0&size=1&slipType=OUTBOUND&status=PROCESSING",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/auth/admin/permissions/my",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accounting.tax-invoice.emit-nts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.deposit-match\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.daily-closing\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.general-ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.accounts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.journals\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.balances\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.reports\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.receivables\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.bank-matching\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.deposit-mapping\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.bank-card-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.period-close\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.statement-batch\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.partner-ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.cancel\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.issue-request\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.realtime\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.inbound.manage\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.hometax-export\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.daily-closing.run\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.daily-closing.unlock\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.period-close.reverse\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.journals.realtime\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.balances.trial-balance\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.sales-slip.accounting\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.purchase-slip.accounting\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.supplier-profiles\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.cash-receipts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"notifications.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"notification.dispatch-sms.send-audit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"notification.dispatch-sms.display\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"notifications.center\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"aligo.address-book\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"messenger.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"messenger.send\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"groupware.schedules\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"groupware.approvals\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"groupware.approval-templates\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.approval-line-config\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"purchases.slip.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"purchases.slip.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"purchases.slip.delete\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.create\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.confirm\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.cancel\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-dc-config\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.estimate-config\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.transfer.process\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.reject\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.period-lock\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.print.next-day\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.print.export\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.cleanup\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.cleanup-history\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.attachments.upload\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.attachments.delete\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.delivery-attachments.upload\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.photo-audit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.comments\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.audit-overlay\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.audit-revert\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.signature\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.lookup-product\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.delivery-batch\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.mobile-sales\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.publish.from-estimate\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.publish.from-partner-order\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inbound.inspection\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dispatch.board\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dispatch.external-carriers\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dispatch.sms-save-history\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dispatch.batch\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.permissions\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.permission-groups\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.app-release\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dev.popup-notice\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dev.activity-log\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"hr.role-management\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"hr.slip-cutoff\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"system.permission-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"system.password-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"system.account-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dc-config.import\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dashboard.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"estimates.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.draft\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.confirm\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.history\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.history.view\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.print\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.tutorial\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.convert\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.revisions\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.warehouse\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.warehouse.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.stock\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.stock-transfer\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.dps\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.audit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.detail\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.adjust\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.transfer\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.stock-balance\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.stock-balance.view\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.safety-stock\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.import.inventory\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.employees\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.users\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.detail\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.detail.view\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.block\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.edit-request\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.search\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.delete\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.credit-history\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.block.bulk\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.4tab\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.4tab.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.list.view\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.price\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.ecount-import\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.sync\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.price-schedule\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.region\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.dispatch.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.dispatch.ops\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.region.manage\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.driver\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.hr.employees\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.hr.departments\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.accounting.cashbook\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.accounting.summary\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.admin.permissions\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.accounting.accounts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.sales-slip.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.purchase-slip.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.batch-issue\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.inbound\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.product\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.account\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.department\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.warehouse\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.card\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig3.purchase-slip\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig3.sales-slip\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig3.general-voucher\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig3.journal-entry\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig4.tax-invoice\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig4.sales-slip-line\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig4.summary\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig4.order\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig5.stock-transfer\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig5.expense-voucher\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig5.deposit-report\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.bank-account\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.employee\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.employee-card\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.payroll-employee\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.fixed-asset-type\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig7.cash-disbursement\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig7.cash-receipt\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig8.order\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig9.cash-journal.disbursement\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig9.cash-journal.receipt\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig10.order-employee-backfill\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig11.sales-ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig11.purchase-ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig14.order-list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig14.ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.reimport\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig.ops-dashboard\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"]},\"timestamp\":\"2026-08-05T21:12:54.300360453Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/api/notifications/my",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"f1e7b93b-f773-46ec-88f3-0b621329dead\",\"channel\":\"MESSENGER\",\"severity\":\"INFO\",\"title\":\"[전표 수정] 2026/08/05-9\",\"body\":\"[DEV-SEED] 개발매니저 님이 전표 2026/08/05-9 를 수정완료했습니다.\\n변경: memo: R59 LIVE QA COLLAB EDIT 2026-08-05 23:20 → R60 LIVE QA COLLAB EDIT 2026-08-05 23:55\",\"deeplink\":null,\"createdAt\":\"2026-08-05T23:41:11.759737\",\"readAt\":null,\"refId\":\"3a837f7a-56b9-4594-8553-827b70c6a57e\"}],\"timestamp\":\"2026-08-05T21:12:54.303473346Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/slips?page=0&size=1&slipType=OUTBOUND&status=PROCESSING",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"id\":\"624bb426-b892-4d1b-9536-d535baa92b91\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/07-2\",\"slipDate\":\"2026-08-07\",\"seqNo\":2,\"status\":\"PROCESSING\",\"partnerId\":\"513cf102-de45-4602-9d0f-0720b8785a3e\",\"partnerName\":\"한울냉열시스템\",\"partnerCode\":\"000011111111\",\"sourceWarehouseId\":\"11111111-1111-1111-1111-000000000001\",\"destinationWarehouseId\":null,\"deliveryTag\":\"DAY\",\"deliveryTagLabel\":\"당일\",\"requesterId\":\"a0000000-0000-0000-0000-000000000004\",\"acceptedBy\":\"a0000000-0000-0000-0000-000000000006\",\"acceptedAt\":\"2026-08-06T05:40:35.094136\",\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-06T05:40:35.188015\",\"version\":4,\"businessNumber\":\"000011111111\",\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"memo\":\"QA #1065 R5 SOL 재수렴 API 생성 성공표본\",\"totalAmount\":0.00,\"displayTotalAmount\":0.00,\"totalQuantity\":1,\"salesPersonName\":\"a0000000-0000-0000-0000-000000000004\",\"editHistoryCount\":0,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null}],\"pageable\":{\"pageNumber\":0,\"pageSize\":1,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"offset\":0,\"unpaged\":false,\"paged\":true},\"totalElements\":8,\"totalPages\":8,\"last\":false,\"first\":true,\"numberOfElements\":1,\"size\":1,\"number\":0,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"empty\":false},\"timestamp\":\"2026-08-05T21:12:54.316634299Z\"}"
+  },
+  {
+    "kind": "request",
+    "method": "POST",
+    "url": "http://localhost:8080/logs/front",
+    "postData": "{\"action\":\"MENU_ACCESS\",\"resourceType\":\"MENU\",\"resourceId\":\"estimates.list\",\"userId\":\"a0000000-0000-0000-0000-000000000001\",\"userRole\":\"MASTER\",\"description\":\"견적 메뉴 진입\",\"occurredAt\":\"2026-08-05T21:12:56.025Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "POST",
+    "url": "http://localhost:8080/logs/front",
+    "status": 503,
+    "body": "{\"timestamp\":\"2026-08-05T21:12:56.030+00:00\",\"path\":\"/logs/front\",\"status\":503,\"error\":\"Service Unavailable\",\"requestId\":\"6f765d27-10158\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/admin/partners/search?q=%EC%97%90%EC%96%B4%EC%BB%A8&page=0&size=8",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/admin/partners/search?q=%EC%97%90%EC%96%B4%EC%BB%A8&page=0&size=8",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"items\":[{\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerCode\":\"01023627199\",\"name\":\"개인-강남에어컨설치팀장\",\"bizNo\":\"01023627199\",\"phone\":null,\"status\":\"ACTIVE\",\"creditLimit\":0.00,\"outstandingBalance\":0.00,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null},{\"partnerId\":\"93f04797-3b14-4acc-b116-0240753df248\",\"partnerCode\":\"01037522131\",\"name\":\"안양에어컨(김춘달)\",\"bizNo\":\"01037522131\",\"phone\":\"010-3752-2131\",\"status\":\"ACTIVE\",\"creditLimit\":0.00,\"outstandingBalance\":0.00,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null},{\"partnerId\":\"538227d0-2889-4ee7-9f00-87e302ad4df0\",\"partnerCode\":\"09155747900\",\"name\":\"쿨에어컨(필리핀)\",\"bizNo\":\"09155747900\",\"phone\":\"0915-574-7900\",\"status\":\"ACTIVE\",\"creditLimit\":0.00,\"outstandingBalance\":0.00,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null},{\"partnerId\":\"e0559578-38ef-4db5-90df-f988b9edd75b\",\"partnerCode\":\"100000006\",\"name\":\"공항공사 55차-통일에어컨(정용석)\",\"bizNo\":\"100000006\",\"phone\":null,\"status\":\"ACTIVE\",\"creditLimit\":0.00,\"outstandingBalance\":0.00,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null},{\"partnerId\":\"02ded358-0100-463d-a8d1-ef87d51a0bed\",\"partnerCode\":\"100000008\",\"name\":\"공항공사 55차-에어컨나라_인천(김경철)\",\"bizNo\":\"100000008\",\"phone\":null,\"status\":\"ACTIVE\",\"creditLimit\":0.00,\"outstandingBalance\":0.00,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null},{\"partnerId\":\"073814d1-ef07-4534-89e4-76fce885b45e\",\"partnerCode\":\"100000009\",\"name\":\"공항공사 55차-통일에어컨(이광희)\",\"bizNo\":\"100000009\",\"phone\":null,\"status\":\"ACTIVE\",\"creditLimit\":0.00,\"outstandingBalance\":0.00,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null},{\"partnerId\":\"562adc1f-581e-4ff6-9687-1d5fe0efaf1c\",\"partnerCode\":\"100000010\",\"name\":\"공항공사 55차-최광에어컨\",\"bizNo\":\"100000010\",\"phone\":null,\"status\":\"ACTIVE\",\"creditLimit\":0.00,\"outstandingBalance\":0.00,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null},{\"partnerId\":\"fbf6fbdc-75da-4d25-bbe6-59d280fdbe55\",\"partnerCode\":\"10001000\",\"name\":\"쿨 에어컨(이상엽.김미라)-임시\",\"bizNo\":\"10001000\",\"phone\":null,\"status\":\"ACTIVE\",\"creditLimit\":0.00,\"outstandingBalance\":0.00,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null}],\"total\":1024,\"page\":0,\"size\":8},\"timestamp\":\"2026-08-05T21:12:56.101624215Z\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/api/products?q=AR09TXEAAWKNEU-04&size=20",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/slips/price-memory?partnerId=9008cfd0-b540-4f64-a81e-37a6c67a112e&productId=d7f488a5-6259-379c-8035-ed551e75a102",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/api/products?q=AR09TXEAAWKNEU-04&size=20",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"id\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"name\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"productCode\":\"AR09TXEAAWKNEU-04\",\"categoryId\":\"00000000-0000-0000-0000-000000001004\",\"sellingPrice\":1080000.00,\"status\":\"ACTIVE\",\"serialManaged\":true,\"goods\":true,\"modelCode\":\"AR09TXEAAWKNEU-04\",\"productType\":\"SINGLE\",\"usageScope\":\"BOTH\",\"estimateCategory\":null,\"usageScopeManual\":false,\"displayOrder\":null,\"categoryKey\":\"homemulti\",\"fixedDiscountRate\":null,\"discountFlags\":\"000000\",\"releasePrice\":1080000.00,\"deliveryPrice\":900000.00,\"hasVariableDiscount\":false,\"parentSetModelCode\":null,\"specification\":\"9평형 / R32 / 인버터 / 윈드프리\"}],\"pageable\":{\"pageNumber\":0,\"pageSize\":20,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"offset\":0,\"unpaged\":false,\"paged\":true},\"totalPages\":1,\"totalElements\":1,\"last\":true,\"first\":true,\"numberOfElements\":1,\"size\":20,\"number\":0,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"empty\":false},\"timestamp\":\"2026-08-05T21:12:56.947365281Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/slips/price-memory?partnerId=9008cfd0-b540-4f64-a81e-37a6c67a112e&productId=d7f488a5-6259-379c-8035-ed551e75a102",
+    "status": 403,
+    "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"전표 생성 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-05T21:12:56.965573194Z\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/slips/lookup-product?modelName=AR09TXEAAWKNEU-04",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/slips/price-memory?partnerId=9008cfd0-b540-4f64-a81e-37a6c67a112e&productId=d7f488a5-6259-379c-8035-ed551e75a102",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/slips/lookup-product?modelName=AR09TXEAAWKNEU-04",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"name\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"productCode\":\"AR09TXEAAWKNEU-04\",\"categoryId\":\"00000000-0000-0000-0000-000000001004\",\"sellingPrice\":1080000.0,\"status\":\"ACTIVE\",\"serialManaged\":true,\"modelCode\":\"AR09TXEAAWKNEU-04\",\"productType\":\"SINGLE\",\"categoryKey\":\"homemulti\",\"fixedDiscountRate\":null},\"timestamp\":\"2026-08-05T21:12:57.620466076Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/slips/price-memory?partnerId=9008cfd0-b540-4f64-a81e-37a6c67a112e&productId=d7f488a5-6259-379c-8035-ed551e75a102",
+    "status": 403,
+    "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"전표 생성 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-05T21:12:57.635977143Z\"}"
+  },
+  {
+    "kind": "request",
+    "method": "POST",
+    "url": "http://localhost:8080/slips/estimates",
+    "postData": "{\"estimateDate\":\"2026-08-06\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"validUntil\":\"2026-09-05\",\"lines\":[{\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"quantity\":1,\"unitPrice\":\"1080000\",\"priceVatInclusive\":true}]}"
+  },
+  {
+    "kind": "response",
+    "method": "POST",
+    "url": "http://localhost:8080/slips/estimates",
+    "status": 201,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"49621ebb-4b3e-459b-b5fe-d27299109776\",\"estimateNo\":\"2026/08/06-5\",\"estimateDate\":\"2026-08-06\",\"seqNo\":5,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"d749e238-ab9d-494c-adfc-2fb03b5fe233\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":null,\"specificationSource\":null,\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:12:58.837872036Z\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/revisions",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/comments?limit=20",
+    "postData": ""
+  },
+  {
+    "kind": "request",
+    "method": "POST",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/leave",
+    "postData": "{\"sessionId\":\"b4b78e7c-66c2-46e8-a788-9390dbae0866\",\"displayName\":\"사용자\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"49621ebb-4b3e-459b-b5fe-d27299109776\",\"estimateNo\":\"2026/08/06-5\",\"estimateDate\":\"2026-08-06\",\"seqNo\":5,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"d749e238-ab9d-494c-adfc-2fb03b5fe233\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":null,\"specificationSource\":null,\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:12:58.869194902Z\"}"
+  },
+  {
+    "kind": "request",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence",
+    "postData": ""
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/comments?limit=20",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-05T21:12:58.900931406Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/revisions",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"revisionNo\":1,\"revisionType\":\"CREATE\",\"sourceRevisionNo\":null,\"estimateNo\":\"2026/08/06-5\",\"estimateDate\":\"2026-08-06\",\"actorName\":\"[DEV-SEED] 개발마스터\",\"createdAt\":\"2026-08-06T06:12:58.810996\",\"changeSummary\":{\"headerChanged\":0,\"lineAdded\":1,\"lineRemoved\":0,\"lineModified\":0}}],\"timestamp\":\"2026-08-05T21:12:58.901448490Z\"}"
+  },
+  {
+    "kind": "request",
+    "method": "POST",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/join",
+    "postData": "{\"sessionId\":\"5da81cad-919e-4bae-9592-1f4c29d1a9c3\",\"displayName\":\"[DEV-SEED] 개발마스터\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-05T21:12:58.908333374Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "POST",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/leave",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:12:58.909972207Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "GET",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-05T21:12:58.913905401Z\"}"
+  },
+  {
+    "kind": "response",
+    "method": "POST",
+    "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/join",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"sessionId\":\"5da81cad-919e-4bae-9592-1f4c29d1a9c3\",\"displayName\":\"[DEV-SEED] 개발마스터\",\"color\":\"BLUE\"},\"timestamp\":\"2026-08-05T21:12:58.921270863Z\"}"
+  }
+]

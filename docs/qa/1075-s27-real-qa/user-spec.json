@@ -1,0 +1,482 @@
+{
+  "id": "49621ebb-4b3e-459b-b5fe-d27299109776",
+  "spec": "사용자 입력 규격 S27",
+  "before": "사용자 입력 규격 S27",
+  "after": "사용자 입력 규격 S27",
+  "network": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/auth/password/policy",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/auth/me",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/auth/me",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/auth/login",
+      "postData": "{\"loginId\":\"dev_master\",\"password\":\"[REDACTED]\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/auth/password/policy",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"minLength\":8,\"maxLength\":32,\"requireLetter\":true,\"requireDigit\":true,\"requireSpecial\":true,\"historyReuseBlock\":5,\"maxFailedLoginAttempts\":5,\"resetTokenTtlMinutes\":30,\"description\":\"비밀번호는 8 자 이상 32 자 이하이며, 영문 / 숫자 / 특수문자를 각각 1 자 이상 포함해야 합니다\"},\"timestamp\":\"2026-08-05T21:14:48.407946568Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/auth/me",
+      "status": 401,
+      "body": "{\"success\":false,\"code\":\"UNAUTHORIZED\",\"message\":\"인증 토큰이 없습니다\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/auth/me",
+      "status": 401,
+      "body": "{\"success\":false,\"code\":\"UNAUTHORIZED\",\"message\":\"인증 토큰이 없습니다\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+      "status": 503,
+      "body": "{\"timestamp\":\"2026-08-05T21:14:48.482+00:00\",\"path\":\"/app/version\",\"status\":503,\"error\":\"Service Unavailable\",\"requestId\":\"f832e339-10265\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/app/notices/active",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/auth/login",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"token\":\"[REDACTED]\",\"userId\":\"a0000000-0000-0000-0000-000000000001\",\"role\":\"MASTER\",\"displayName\":\"[DEV-SEED] 개발마스터\",\"partnerCode\":null,\"groups\":[{\"id\":\"00000000-0000-0000-0000-000000000100\",\"name\":\"마스터\",\"builtin\":true}]},\"timestamp\":\"2026-08-05T21:14:48.649440022Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/notifications/my",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/auth/admin/permissions/my",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/app/notices/active",
+      "status": 503,
+      "body": "{\"timestamp\":\"2026-08-05T21:14:48.658+00:00\",\"path\":\"/app/notices/active\",\"status\":503,\"error\":\"Service Unavailable\",\"requestId\":\"7caf408b-10267\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/slips?page=0&size=1&slipType=OUTBOUND&status=PROCESSING",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/auth/admin/permissions/my",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accounting.tax-invoice.emit-nts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.deposit-match\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.daily-closing\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.general-ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.accounts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.journals\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.balances\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.reports\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.receivables\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.bank-matching\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.deposit-mapping\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.bank-card-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.period-close\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.statement-batch\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.partner-ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.cancel\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.issue-request\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.realtime\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.inbound.manage\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.hometax-export\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.daily-closing.run\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.daily-closing.unlock\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.period-close.reverse\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.journals.realtime\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.balances.trial-balance\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.sales-slip.accounting\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.purchase-slip.accounting\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.supplier-profiles\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.cash-receipts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"notifications.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"notification.dispatch-sms.send-audit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"notification.dispatch-sms.display\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"notifications.center\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"aligo.address-book\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"messenger.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"messenger.send\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"groupware.schedules\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"groupware.approvals\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"groupware.approval-templates\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.approval-line-config\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"purchases.slip.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"purchases.slip.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"purchases.slip.delete\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.create\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.confirm\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.slip.cancel\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-dc-config\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.estimate-config\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.transfer.process\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.reject\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.period-lock\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.print.next-day\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.print.export\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.cleanup\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.cleanup-history\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.attachments.upload\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.attachments.delete\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.delivery-attachments.upload\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.photo-audit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.comments\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.audit-overlay\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.audit-revert\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.signature\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.lookup-product\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.delivery-batch\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.mobile-sales\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.publish.from-estimate\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"slip.publish.from-partner-order\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inbound.inspection\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dispatch.board\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dispatch.external-carriers\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dispatch.sms-save-history\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dispatch.batch\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.permissions\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.permission-groups\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.app-release\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dev.popup-notice\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dev.activity-log\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"hr.role-management\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"hr.slip-cutoff\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"system.permission-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"system.password-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"system.account-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dc-config.import\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"dashboard.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"estimates.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.draft\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.confirm\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.history\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.history.view\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.print\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.tutorial\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.convert\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"sales.partner-order.revisions\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.warehouse\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.warehouse.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.stock\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.stock-transfer\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.dps\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.audit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.detail\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.adjust\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.transfer\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.stock-balance\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.stock-balance.view\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.safety-stock\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"inventory.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.import.inventory\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.employees\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"admin.users\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.detail\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.detail.view\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.block\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.edit-request\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.search\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.delete\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.credit-history\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.block.bulk\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.4tab\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.4tab.edit\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"partners.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.list.view\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.price\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.ecount-import\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.sync\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"products.price-schedule\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.region\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.dispatch.admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.dispatch.ops\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.region.manage\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.edit-requests\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.driver\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.hr.employees\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.hr.departments\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.accounting.cashbook\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.accounting.summary\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.admin.permissions\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"arologis.accounting.accounts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.sales-slip.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.purchase-slip.list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.batch-issue\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"accounting.tax-invoice.inbound\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.product\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.account\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.department\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.warehouse\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig2.card\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig3.purchase-slip\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig3.sales-slip\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig3.general-voucher\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig3.journal-entry\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig4.tax-invoice\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig4.sales-slip-line\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig4.summary\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig4.order\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig5.stock-transfer\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig5.expense-voucher\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig5.deposit-report\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.bank-account\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.employee\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.employee-card\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.payroll-employee\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig6.fixed-asset-type\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig7.cash-disbursement\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig7.cash-receipt\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig8.order\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig9.cash-journal.disbursement\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig9.cash-journal.receipt\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig10.order-employee-backfill\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig11.sales-ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig11.purchase-ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig14.order-list\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig14.ledger\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.reimport\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"],\"ecount.mig.ops-dashboard\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"RESTORE\",\"DOWNLOAD\",\"PRINT\"]},\"timestamp\":\"2026-08-05T21:14:48.676853635Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/notifications/my",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"f1e7b93b-f773-46ec-88f3-0b621329dead\",\"channel\":\"MESSENGER\",\"severity\":\"INFO\",\"title\":\"[전표 수정] 2026/08/05-9\",\"body\":\"[DEV-SEED] 개발매니저 님이 전표 2026/08/05-9 를 수정완료했습니다.\\n변경: memo: R59 LIVE QA COLLAB EDIT 2026-08-05 23:20 → R60 LIVE QA COLLAB EDIT 2026-08-05 23:55\",\"deeplink\":null,\"createdAt\":\"2026-08-05T23:41:11.759737\",\"readAt\":null,\"refId\":\"3a837f7a-56b9-4594-8553-827b70c6a57e\"}],\"timestamp\":\"2026-08-05T21:14:48.679288182Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/slips?page=0&size=1&slipType=OUTBOUND&status=PROCESSING",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"id\":\"624bb426-b892-4d1b-9536-d535baa92b91\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/07-2\",\"slipDate\":\"2026-08-07\",\"seqNo\":2,\"status\":\"PROCESSING\",\"partnerId\":\"513cf102-de45-4602-9d0f-0720b8785a3e\",\"partnerName\":\"한울냉열시스템\",\"partnerCode\":\"000011111111\",\"sourceWarehouseId\":\"11111111-1111-1111-1111-000000000001\",\"destinationWarehouseId\":null,\"deliveryTag\":\"DAY\",\"deliveryTagLabel\":\"당일\",\"requesterId\":\"a0000000-0000-0000-0000-000000000004\",\"acceptedBy\":\"a0000000-0000-0000-0000-000000000006\",\"acceptedAt\":\"2026-08-06T05:40:35.094136\",\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-06T05:40:35.188015\",\"version\":4,\"businessNumber\":\"000011111111\",\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"memo\":\"QA #1065 R5 SOL 재수렴 API 생성 성공표본\",\"totalAmount\":0.00,\"displayTotalAmount\":0.00,\"totalQuantity\":1,\"salesPersonName\":\"a0000000-0000-0000-0000-000000000004\",\"editHistoryCount\":0,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null}],\"pageable\":{\"pageNumber\":0,\"pageSize\":1,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"offset\":0,\"unpaged\":false,\"paged\":true},\"totalElements\":8,\"totalPages\":8,\"last\":false,\"first\":true,\"numberOfElements\":1,\"size\":1,\"number\":0,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"empty\":false},\"timestamp\":\"2026-08-05T21:14:48.694910020Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"49621ebb-4b3e-459b-b5fe-d27299109776\",\"estimateNo\":\"2026/08/06-5\",\"estimateDate\":\"2026-08-06\",\"seqNo\":5,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"d749e238-ab9d-494c-adfc-2fb03b5fe233\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":null,\"specificationSource\":null,\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:14:49.008554264Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"updates\":[\"ARr75YLcCAAoAQZoZWFkZXIJcGFydG5lcklkAXckOTAwOGNmZDAtYjU0MC00ZjY0LWE4MWUtMzdhNmM2N2ExMTJlKAEGaGVhZGVyC3BhcnRuZXJOYW1lAXci6rCc7J24LeqwleuCqOyXkOyWtOy7qOyEpOy5mO2MgOyepSgBBmhlYWRlchFwYXJ0bmVyQnVzaW5lc3NObwF3CzAxMDIzNjI3MTk5KAEGaGVhZGVyDnBhcnRuZXJBZGRyZXNzAXcAKAEGaGVhZGVyDGVzdGltYXRlRGF0ZQF3CjIwMjYtMDgtMDYoAQZoZWFkZXIKdmFsaWRVbnRpbAF3CjIwMjYtMDktMDUnAQZoZWFkZXIEbWVtbwIHAQVpdGVtcwEoAPvlgtwIBwZsaW5lSWQBdyRkNzQ5ZTIzOC1hYjlkLTQ5NGMtYWRmYy0yZmIwM2I1ZmUyMzMoAPvlgtwIBwltb2RlbE5hbWUBdxFBUjA5VFhFQUFXS05FVS0wNCgA++WC3AgHC3Byb2R1Y3ROYW1lAXcb7IK87ISxIOyciOuTnO2UhOumrCA57Y+J7ZiVKAD75YLcCAcNc3BlY2lmaWNhdGlvbgF3ACgA++WC3AgHE3NwZWNpZmljYXRpb25Tb3VyY2UBdwAoAPvlgtwIBwhxdWFudGl0eQF3ATEoAPvlgtwIBwl1bml0UHJpY2UBdwcxMDgwMDAwKAD75YLcCAcJcHJvZHVjdElkAXckZDdmNDg4YTUtNjI1OS0zNzljLTgwMzUtZWQ1NTFlNzVhMTAyh/vlgtwIBwEoAPvlgtwIEAZsaW5lSWQBdyQ0OTQwZDMzNS01YmVjLTQwZGEtOTg2NC1kNmNmYWZiZWM5NmMoAPvlgtwIEAltb2RlbE5hbWUBdwAoAPvlgtwIEAtwcm9kdWN0TmFtZQF3ACgA++WC3AgQDXNwZWNpZmljYXRpb24BdwAoAPvlgtwIEBNzcGVjaWZpY2F0aW9uU291cmNlAXcAKAD75YLcCBAIcXVhbnRpdHkBdwExKAD75YLcCBAJdW5pdFByaWNlAXcBMCgA++WC3AgQCXByb2R1Y3RJZAF3ACgBBmhlYWRlchVlc3RpbWF0ZVNlcnZlclZlcnNpb24BdwEwAA==\"]},\"timestamp\":\"2026-08-05T21:14:49.024387786Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "postData": "{\"awareness\":\"AfWq1tIDAUd7InVzZXIiOnsiZGlzcGxheU5hbWUiOiJbREVWLVNFRURdIOqwnOuwnOuniOyKpO2EsCIsImNvbG9yIjoiIzI1NjNFQiJ9fQ==\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:49.152591104Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/logs/front",
+      "postData": "{\"action\":\"MENU_ACCESS\",\"resourceType\":\"MENU\",\"resourceId\":\"estimates.list\",\"userId\":\"a0000000-0000-0000-0000-000000000001\",\"userRole\":\"MASTER\",\"description\":\"견적 메뉴 진입\",\"occurredAt\":\"2026-08-05T21:14:50.008Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/logs/front",
+      "status": 503,
+      "body": "{\"timestamp\":\"2026-08-05T21:14:50.012+00:00\",\"path\":\"/logs/front\",\"status\":503,\"error\":\"Service Unavailable\",\"requestId\":\"7caf408b-10279\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "postData": "{\"awareness\":\"AfWq1tIDCckBeyJ1c2VyIjp7ImRpc3BsYXlOYW1lIjoiW0RFVi1TRUVEXSDqsJzrsJzrp4jsiqTthLAiLCJjb2xvciI6IiMyNTYzRUIifSwiY3Vyc29yIjp7ImZpZWxkUGF0aCI6Iml0ZW1zLjAucXVhbnRpdHkiLCJhbmNob3IiOjAsImhlYWQiOjF9LCJsYXN0RWRpdCI6eyJmaWVsZFBhdGgiOiJpdGVtcy4wLnNwZWNpZmljYXRpb24iLCJ0cyI6MTc4NTk2NDQ5MDIxNX19\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:50.361327368Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/update",
+      "postData": "{\"update\":\"AQL1qtbSAwCI++WC3AgMAXcEVVNFUoj75YLcCAsBdxvsgqzsmqnsnpAg7J6F66ClIOq3nOqyqSBTMjcB++WC3AgBCwI=\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/update",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:50.378040062Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "PUT",
+      "url": "http://localhost:8080/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776",
+      "postData": "{\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"validUntil\":\"2026-09-05\",\"lines\":[{\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"사용자 입력 규격 S27\",\"specificationSource\":\"USER\",\"quantity\":1,\"unitPrice\":\"1080000\",\"priceVatInclusive\":true,\"lineId\":\"d749e238-ab9d-494c-adfc-2fb03b5fe233\",\"supplyAmount\":\"\",\"vatAmount\":\"\",\"lineTotalWithVat\":\"\"}],\"lineIdContract\":true}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "PUT",
+      "url": "http://localhost:8080/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"49621ebb-4b3e-459b-b5fe-d27299109776\",\"estimateNo\":\"2026/08/06-5\",\"estimateDate\":\"2026-08-06\",\"seqNo\":5,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"f0f32cda-1a5d-4d71-b196-ef22abb04a47\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"사용자 입력 규격 S27\",\"specificationSource\":\"USER\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:14:50.664414845Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/revisions",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "postData": "{\"awareness\":\"AfWq1tIDCskBeyJ1c2VyIjp7ImRpc3BsYXlOYW1lIjoiW0RFVi1TRUVEXSDqsJzrsJzrp4jsiqTthLAiLCJjb2xvciI6IiMyNTYzRUIifSwiY3Vyc29yIjp7ImZpZWxkUGF0aCI6Iml0ZW1zLjAucXVhbnRpdHkiLCJhbmNob3IiOjAsImhlYWQiOjF9LCJsYXN0RWRpdCI6eyJmaWVsZFBhdGgiOiJpdGVtcy4wLnNwZWNpZmljYXRpb24iLCJ0cyI6MTc4NTk2NDQ5MDIxNX19\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/comments?limit=20",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/leave",
+      "postData": "{\"sessionId\":\"d5caaff8-d569-4e86-a210-134954bdf863\",\"displayName\":\"사용자\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"49621ebb-4b3e-459b-b5fe-d27299109776\",\"estimateNo\":\"2026/08/06-5\",\"estimateDate\":\"2026-08-06\",\"seqNo\":5,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"f0f32cda-1a5d-4d71-b196-ef22abb04a47\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"사용자 입력 규격 S27\",\"specificationSource\":\"USER\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:14:50.677183002Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "status": 200,
+      "body": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/revisions",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"revisionNo\":2,\"revisionType\":\"EDIT\",\"sourceRevisionNo\":null,\"estimateNo\":\"2026/08/06-5\",\"estimateDate\":\"2026-08-06\",\"actorName\":\"[DEV-SEED] 개발마스터\",\"createdAt\":\"2026-08-06T06:14:50.652031\",\"changeSummary\":{\"headerChanged\":0,\"lineAdded\":0,\"lineRemoved\":0,\"lineModified\":1}},{\"revisionNo\":1,\"revisionType\":\"CREATE\",\"sourceRevisionNo\":null,\"estimateNo\":\"2026/08/06-5\",\"estimateDate\":\"2026-08-06\",\"actorName\":\"[DEV-SEED] 개발마스터\",\"createdAt\":\"2026-08-06T06:12:58.810996\",\"changeSummary\":{\"headerChanged\":0,\"lineAdded\":1,\"lineRemoved\":0,\"lineModified\":0}}],\"timestamp\":\"2026-08-05T21:14:50.709092207Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:50.717179151Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/comments?limit=20",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-05T21:14:50.726073190Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/leave",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:50.733754530Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/join",
+      "postData": "{\"sessionId\":\"d4f2ade9-d440-4eaa-b297-0a1e0d7a2dea\",\"displayName\":\"[DEV-SEED] 개발마스터\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"sessionId\":\"5da81cad-919e-4bae-9592-1f4c29d1a9c3\",\"displayName\":\"[DEV-SEED] 개발마스터\",\"color\":\"BLUE\"}],\"timestamp\":\"2026-08-05T21:14:50.741112962Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"sessionId\":\"5da81cad-919e-4bae-9592-1f4c29d1a9c3\",\"displayName\":\"[DEV-SEED] 개발마스터\",\"color\":\"BLUE\"}],\"timestamp\":\"2026-08-05T21:14:50.749350810Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/join",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"sessionId\":\"d4f2ade9-d440-4eaa-b297-0a1e0d7a2dea\",\"displayName\":\"[DEV-SEED] 개발마스터\",\"color\":\"BLUE\"},\"timestamp\":\"2026-08-05T21:14:50.757496673Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/leave",
+      "postData": "{\"sessionId\":\"d4f2ade9-d440-4eaa-b297-0a1e0d7a2dea\",\"displayName\":\"[DEV-SEED] 개발마스터\"}"
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit",
+      "postData": ""
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit",
+      "postData": ""
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "status": 200,
+      "body": ""
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "status": 200,
+      "body": ""
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "postData": "{\"awareness\":\"AdCQv4gGAUd7InVzZXIiOnsiZGlzcGxheU5hbWUiOiJbREVWLVNFRURdIOqwnOuwnOuniOyKpO2EsCIsImNvbG9yIjoiIzI1NjNFQiJ9fQ==\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"updates\":[\"ARr75YLcCAAoAQZoZWFkZXIJcGFydG5lcklkAXckOTAwOGNmZDAtYjU0MC00ZjY0LWE4MWUtMzdhNmM2N2ExMTJlKAEGaGVhZGVyC3BhcnRuZXJOYW1lAXci6rCc7J24LeqwleuCqOyXkOyWtOy7qOyEpOy5mO2MgOyepSgBBmhlYWRlchFwYXJ0bmVyQnVzaW5lc3NObwF3CzAxMDIzNjI3MTk5KAEGaGVhZGVyDnBhcnRuZXJBZGRyZXNzAXcAKAEGaGVhZGVyDGVzdGltYXRlRGF0ZQF3CjIwMjYtMDgtMDYoAQZoZWFkZXIKdmFsaWRVbnRpbAF3CjIwMjYtMDktMDUnAQZoZWFkZXIEbWVtbwIHAQVpdGVtcwEoAPvlgtwIBwZsaW5lSWQBdyRkNzQ5ZTIzOC1hYjlkLTQ5NGMtYWRmYy0yZmIwM2I1ZmUyMzMoAPvlgtwIBwltb2RlbE5hbWUBdxFBUjA5VFhFQUFXS05FVS0wNCgA++WC3AgHC3Byb2R1Y3ROYW1lAXcb7IK87ISxIOyciOuTnO2UhOumrCA57Y+J7ZiVKAD75YLcCAcNc3BlY2lmaWNhdGlvbgF3ACgA++WC3AgHE3NwZWNpZmljYXRpb25Tb3VyY2UBdwAoAPvlgtwIBwhxdWFudGl0eQF3ATEoAPvlgtwIBwl1bml0UHJpY2UBdwcxMDgwMDAwKAD75YLcCAcJcHJvZHVjdElkAXckZDdmNDg4YTUtNjI1OS0zNzljLTgwMzUtZWQ1NTFlNzVhMTAyh/vlgtwIBwEoAPvlgtwIEAZsaW5lSWQBdyQ0OTQwZDMzNS01YmVjLTQwZGEtOTg2NC1kNmNmYWZiZWM5NmMoAPvlgtwIEAltb2RlbE5hbWUBdwAoAPvlgtwIEAtwcm9kdWN0TmFtZQF3ACgA++WC3AgQDXNwZWNpZmljYXRpb24BdwAoAPvlgtwIEBNzcGVjaWZpY2F0aW9uU291cmNlAXcAKAD75YLcCBAIcXVhbnRpdHkBdwExKAD75YLcCBAJdW5pdFByaWNlAXcBMCgA++WC3AgQCXByb2R1Y3RJZAF3ACgBBmhlYWRlchVlc3RpbWF0ZVNlcnZlclZlcnNpb24BdwEwAA==\",\"AQL1qtbSAwCI++WC3AgMAXcEVVNFUoj75YLcCAsBdxvsgqzsmqnsnpAg7J6F66ClIOq3nOqyqSBTMjcB++WC3AgBCwI=\"]},\"timestamp\":\"2026-08-05T21:14:53.682802947Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/stream",
+      "status": 200,
+      "body": ""
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/presence/leave",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:53.683820019Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"updates\":[\"ARr75YLcCAAoAQZoZWFkZXIJcGFydG5lcklkAXckOTAwOGNmZDAtYjU0MC00ZjY0LWE4MWUtMzdhNmM2N2ExMTJlKAEGaGVhZGVyC3BhcnRuZXJOYW1lAXci6rCc7J24LeqwleuCqOyXkOyWtOy7qOyEpOy5mO2MgOyepSgBBmhlYWRlchFwYXJ0bmVyQnVzaW5lc3NObwF3CzAxMDIzNjI3MTk5KAEGaGVhZGVyDnBhcnRuZXJBZGRyZXNzAXcAKAEGaGVhZGVyDGVzdGltYXRlRGF0ZQF3CjIwMjYtMDgtMDYoAQZoZWFkZXIKdmFsaWRVbnRpbAF3CjIwMjYtMDktMDUnAQZoZWFkZXIEbWVtbwIHAQVpdGVtcwEoAPvlgtwIBwZsaW5lSWQBdyRkNzQ5ZTIzOC1hYjlkLTQ5NGMtYWRmYy0yZmIwM2I1ZmUyMzMoAPvlgtwIBwltb2RlbE5hbWUBdxFBUjA5VFhFQUFXS05FVS0wNCgA++WC3AgHC3Byb2R1Y3ROYW1lAXcb7IK87ISxIOyciOuTnO2UhOumrCA57Y+J7ZiVKAD75YLcCAcNc3BlY2lmaWNhdGlvbgF3ACgA++WC3AgHE3NwZWNpZmljYXRpb25Tb3VyY2UBdwAoAPvlgtwIBwhxdWFudGl0eQF3ATEoAPvlgtwIBwl1bml0UHJpY2UBdwcxMDgwMDAwKAD75YLcCAcJcHJvZHVjdElkAXckZDdmNDg4YTUtNjI1OS0zNzljLTgwMzUtZWQ1NTFlNzVhMTAyh/vlgtwIBwEoAPvlgtwIEAZsaW5lSWQBdyQ0OTQwZDMzNS01YmVjLTQwZGEtOTg2NC1kNmNmYWZiZWM5NmMoAPvlgtwIEAltb2RlbE5hbWUBdwAoAPvlgtwIEAtwcm9kdWN0TmFtZQF3ACgA++WC3AgQDXNwZWNpZmljYXRpb24BdwAoAPvlgtwIEBNzcGVjaWZpY2F0aW9uU291cmNlAXcAKAD75YLcCBAIcXVhbnRpdHkBdwExKAD75YLcCBAJdW5pdFByaWNlAXcBMCgA++WC3AgQCXByb2R1Y3RJZAF3ACgBBmhlYWRlchVlc3RpbWF0ZVNlcnZlclZlcnNpb24BdwEwAA==\",\"AQL1qtbSAwCI++WC3AgMAXcEVVNFUoj75YLcCAsBdxvsgqzsmqnsnpAg7J6F66ClIOq3nOqyqSBTMjcB++WC3AgBCwI=\"]},\"timestamp\":\"2026-08-05T21:14:53.690981648Z\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:53.696190326Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "postData": "{\"awareness\":\"AbztuqUFAUd7InVzZXIiOnsiZGlzcGxheU5hbWUiOiJbREVWLVNFRURdIOqwnOuwnOuniOyKpO2EsCIsImNvbG9yIjoiIzI1NjNFQiJ9fQ==\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:53.811424314Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/update",
+      "postData": "{\"update\":\"AQG87bqlBQCo++WC3AgIAXckZjBmMzJjZGEtMWE1ZC00ZDcxLWIxOTYtZWYyMmFiYjA0YTQ3AfvlgtwIAQgB\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/update",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:53.858513218Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "postData": "{\"awareness\":\"AbztuqUFBIkBeyJ1c2VyIjp7ImRpc3BsYXlOYW1lIjoiW0RFVi1TRUVEXSDqsJzrsJzrp4jsiqTthLAiLCJjb2xvciI6IiMyNTYzRUIifSwiY3Vyc29yIjp7ImZpZWxkUGF0aCI6Iml0ZW1zLjAucHJvZHVjdE5hbWUiLCJhbmNob3IiOjAsImhlYWQiOjExfX0=\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:54.857513177Z\"}"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/update",
+      "postData": "{\"update\":\"AQO87bqlBQGI++WC3AgJAXcAiPvlgtwICgF3AIj75YLcCA8BdwAB++WC3AgCCQIPAQ==\"}"
+    },
+    {
+      "kind": "response",
+      "method": "POST",
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/update",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:14:55.017429307Z\"}"
+    }
+  ]
+}
