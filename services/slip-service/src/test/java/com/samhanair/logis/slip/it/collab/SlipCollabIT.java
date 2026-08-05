@@ -96,6 +96,8 @@ class SlipCollabIT extends AbstractPostgresIT {
 
     /** 권한 stub 에 사용할 고정 사용자 UUID. 수정자 ID 로도 재사용. */
     private static final String ACTOR_ID = "20000000-0000-0000-0000-000000000001";
+    /** 서로 다른 협업 편집자 저장 순서를 실증할 두 번째 actor. */
+    private static final String SECOND_ACTOR_ID = "20000000-0000-0000-0000-000000000002";
 
     /** 테스트 slipNo 의 날짜 prefix — 미래 날짜 사용으로 seqNo 충돌 최소화. */
     private static final LocalDate TEST_DATE = LocalDate.of(2099, 6, 13);
@@ -370,7 +372,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "수정자박과장")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"새 메모 내용\"}}",
+                                "changeSet", "{\"memo\":{\"before\":\"초기 메모\",\"after\":\"새 메모 내용\"}}",
                                 "reason", "메모 수정"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"))
@@ -421,7 +423,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "changeSet",
-                                "{\"memo\":{\"after\":\"M\"},\"shippingAddress\":{\"after\":\"서울 강남구\"}}"))))
+                                "{\"memo\":{\"before\":\"초기 메모\",\"after\":\"M\"},\"shippingAddress\":{\"before\":null,\"after\":\"서울 강남구\"}}"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
 
@@ -435,6 +437,76 @@ class SlipCollabIT extends AbstractPostgresIT {
         assertThat(auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(slipId))
                 .filteredOn(row -> row.getRevisionNo() == reloaded.getRevisionCount())
                 .hasSize(2);
+    }
+
+    /**
+     * 같은 필드의 오래된 협업 초안은 최신 값을 되돌리지 않고 409 로 거부한다.
+     *
+     * <p>첫 번째 editor 가 저장한 뒤 두 번째 editor 가 같은 baseline 을 가진 초안을 저장하는
+     * 순서를 고정한다. baseline 비교가 저장 전에 실행되므로 두 번째 제안/감사 이력도 생기지 않는다.
+     */
+    @Test
+    void commitEdit_rejects_stale_same_field_without_lost_update() throws Exception {
+        Slip slip = seedOutboundSlip("2099/06/13-COLLISION-SAME-" + SEQ.getAndIncrement());
+        UUID slipId = slip.getId();
+        String baseline = "초기 메모";
+
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "첫번째편집자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"before\":\"" + baseline
+                                        + "\",\"after\":\"최신 메모\"}}"))))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
+                        .header(USER_ID_HEADER, SECOND_ACTOR_ID)
+                        .header(USER_NAME_HEADER, "두번째편집자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"before\":\"" + baseline
+                                        + "\",\"after\":\"오래된 메모\"}}"))))
+                .andExpect(status().isConflict());
+
+        slipRepository.flush();
+        assertThat(slipRepository.findById(slipId).orElseThrow().getMemo()).isEqualTo("최신 메모");
+        assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                CollabDocumentType.SLIP_OUTBOUND, slipId)).hasSize(1);
+    }
+
+    /**
+     * 두 editor 가 같은 시점의 전표에서 서로 다른 필드를 저장하면 둘 다 병합된다.
+     *
+     * <p>전역 revision 잠금이 아니라 필드별 baseline 을 사용해야 하는 A4 회귀 방지 테스트다.
+     */
+    @Test
+    void commitEdit_merges_concurrent_different_fields() throws Exception {
+        Slip slip = seedOutboundSlip("2099/06/13-COL-DIF-" + SEQ.getAndIncrement());
+        UUID slipId = slip.getId();
+
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "메모편집자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"before\":\"초기 메모\",\"after\":\"병합 메모\"}}"))))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
+                        .header(USER_ID_HEADER, SECOND_ACTOR_ID)
+                        .header(USER_NAME_HEADER, "배송지편집자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"shippingAddress\":{\"before\":null,\"after\":\"서울 강남구\"}}"))))
+                .andExpect(status().isCreated());
+
+        slipRepository.flush();
+        Slip reloaded = slipRepository.findById(slipId).orElseThrow();
+        assertThat(reloaded.getMemo()).isEqualTo("병합 메모");
+        assertThat(reloaded.getShippingAddress()).isEqualTo("서울 강남구");
+        assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                CollabDocumentType.SLIP_OUTBOUND, slipId)).hasSize(2);
     }
 
     /**
@@ -481,7 +553,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "수정자박과장")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"알림 메모\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"출고 메모\",\"after\":\"알림 메모\"}}"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
 
@@ -544,7 +616,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "수정자무알림")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"미출고 수정\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"초기 메모\",\"after\":\"미출고 수정\"}}"))))
                 .andExpect(status().isCreated());
 
         // 알림 수신자 없음: dispatcher/inspector null + 기여자 by-login empty
@@ -573,7 +645,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "수정자중복")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"중복 제거\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"출고 메모\",\"after\":\"중복 제거\"}}"))))
                 .andExpect(status().isCreated());
 
         verify(notificationClient, times(1)).sendUserPush(eq(workerId),
@@ -597,7 +669,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "무효수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"거부\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"초기 메모\",\"after\":\"거부\"}}"))))
                 .andExpect(status().isForbidden());
 
         assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
@@ -648,7 +720,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, ACTOR_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"거부될 제안\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"초기 메모\",\"after\":\"거부될 제안\"}}"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -669,7 +741,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "타입확인자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"아웃바운드\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"초기 메모\",\"after\":\"아웃바운드\"}}"))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         @SuppressWarnings("unchecked")
@@ -691,7 +763,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "인바운드타입")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"인바운드 메모\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"입고 메모\",\"after\":\"인바운드 메모\"}}"))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         @SuppressWarnings("unchecked")
@@ -756,7 +828,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                 "INSERT INTO slip_collab_suggestions " +
                         "(id, document_type, document_id, proposer_id, proposer_name, change_set, status, " +
                         "version, created_at, created_by, is_deleted) VALUES " +
-                        "(gen_random_uuid(), 'SLIP_OUTBOUND', ?, ?, '테스터', '{\"f\":{\"after\":\"v\"}}', 'BAD', " +
+                        "(gen_random_uuid(), 'SLIP_OUTBOUND', ?, ?, '테스터', '{\"f\":{\"before\":null,\"after\":\"v\"}}', 'BAD', " +
                         "0, NOW(), 'system', false)",
                 slipId, proposerId))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -807,7 +879,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "스코프수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"전표A 수정\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"초기 메모\",\"after\":\"전표A 수정\"}}"))))
                 .andExpect(status().isCreated());
 
         mvc.perform(get("/slips/{slipId}/collab/edits", slipB)
@@ -848,7 +920,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "확정수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"확정 전표 공인 수정\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"입고 메모\",\"after\":\"확정 전표 공인 수정\"}}"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
 
@@ -883,7 +955,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "배송완료수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"배송완료 변경 시도\"}}"))))
+                                "changeSet", "{\"memo\":{\"before\":\"출고 메모\",\"after\":\"배송완료 변경 시도\"}}"))))
                 .andExpect(status().isConflict());
 
         assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
@@ -899,7 +971,7 @@ class SlipCollabIT extends AbstractPostgresIT {
     /**
      * 구조가 잘못된 changeSet 은 수정완료 시점에 400 으로 조기 거부되고 저장되지 않는다.
      *
-     * <p>(a) 비JSON 문자열 — 기존에는 jsonb cast 실패로 500. (b) entry 가 {@code {after}} object 가
+     * <p>(a) 비JSON 문자열 — 기존에는 jsonb cast 실패로 500. (b) entry 가 before/after object 가
      * 아닌 scalar — 둘 다 {@code SlipDocumentCollaborationPort.validateChangeSet} 이 저장 전에
      * 400 으로 거부해야 한다.
      */

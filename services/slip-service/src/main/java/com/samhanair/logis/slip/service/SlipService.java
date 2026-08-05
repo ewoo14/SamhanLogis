@@ -545,18 +545,31 @@ public class SlipService {
      *
      * @param id 전표 ID
      * @param patches 필드명 → 새 값 (순서 보존)
+     * @param expectedBefore 필드명 → 편집 시작 시 클라이언트가 캡처한 baseline
      * @param callerId 호출자 user-id (audit actor)
      * @param callerName 호출자 표시명 (UUID 비공개 가드, null 이면 callerId 사용)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      * @throws BusinessException(INVALID_INPUT) 미지원 필드 또는 길이 초과
-     * @throws BusinessException(CONFLICT) 물리 종결 전표 — 협업 제안 수락 불가
+     * @throws BusinessException(CONFLICT) 물리 종결 전표 또는 필드별 baseline 충돌 — 협업 제안 수락 불가
      */
     public SlipDetailResponse applyOverlayPatchBatch(UUID id, Map<String, String> patches,
+                                                     Map<String, String> expectedBefore,
                                                      String callerId, String callerName) {
-        Slip slip = loadOrThrow(id);
+        // 편집 화면이 아니라 실제 저장 구간만 행 잠금으로 직렬화한다. 잠금 획득 후 최신
+        // 필드값을 baseline 과 비교하므로 서로 다른 필드는 JPA @Version 충돌 없이 병합된다.
+        Slip slip = loadOrThrowForCollabUpdate(id);
         // 협업 수락 전용 가드 — 물리 종결(배송중/배송완료/취소/반려) 만 차단, APPROVED 소진 불요
         guardCollabModifiable(slip);
+        // 전역 revision 잠금이 아니라 필드별 baseline 을 검증한다. 따라서 같은 필드의 stale
+        // 저장은 409로 차단하면서, 서로 다른 필드를 편집한 협업 저장은 병합할 수 있다.
+        for (String fieldName : patches.keySet()) {
+            if (expectedBefore == null || !expectedBefore.containsKey(fieldName)
+                    || !java.util.Objects.equals(expectedBefore.get(fieldName), slip.readOverlayField(fieldName))) {
+                throw new BusinessException(ErrorCode.SLIP_OPTIMISTIC_LOCK_CONFLICT,
+                        "전표 협업 수정 대상 필드가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요.");
+            }
+        }
         UUID actorId = parseActorId(callerId);
         String auditActorName = (callerName != null && !callerName.isBlank())
                 ? callerName
@@ -1667,6 +1680,11 @@ public class SlipService {
 
     private Slip loadOrThrow(UUID id) {
         return slipRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다"));
+    }
+
+    private Slip loadOrThrowForCollabUpdate(UUID id) {
+        return slipRepository.findByIdForCollabUpdate(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다"));
     }
 

@@ -3677,12 +3677,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         decidedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       }
-      collabSuggestionsStore[slipId] = [created, ...(collabSuggestionsStore[slipId] ?? [])]
       const slip = MOCK_SLIPS.find((s) => s.id === slipId) as Record<string, unknown> | undefined
       if (slip) {
         try {
-          const parsed = JSON.parse(created.changeSet) as Record<string, { after?: unknown }>
-          for (const [field, change] of Object.entries(parsed)) {
+          const parsed = JSON.parse(created.changeSet) as Record<string, { before?: unknown; after?: unknown }>
+          const entries = Object.entries(parsed)
+          if (entries.some(([, change]) => (
+            !change || typeof change !== 'object'
+            || !Object.prototype.hasOwnProperty.call(change, 'before')
+            || !Object.prototype.hasOwnProperty.call(change, 'after')
+          ))) {
+            return mockError(400, 'INVALID_INPUT', 'changeSet entry 는 before/after 필드를 가진 JSON object 여야 합니다')
+          }
+          if (entries.some(([field, change]) => (slip[field] ?? null) !== (change.before ?? null))) {
+            return mockError(409, 'SLIP_OPTIMISTIC_LOCK_CONFLICT', '전표 협업 수정 대상 필드가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요.')
+          }
+          for (const [field, change] of entries) {
             slip[field] = change.after ?? null
           }
         } catch {
@@ -3690,6 +3700,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         }
       }
       if (!slip) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다')
+      collabSuggestionsStore[slipId] = [created, ...(collabSuggestionsStore[slipId] ?? [])]
       return envelope({ edit: created, slip })
     }
   }

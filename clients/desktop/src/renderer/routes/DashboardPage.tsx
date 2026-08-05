@@ -20,8 +20,8 @@ export function DashboardPage() {
   const auth = useSessionStore((s) => s.auth)
   const navigate = useNavigate()
   const { canAccess } = usePermissions()
-  const canReadSales = canQuerySales(auth)
-  const canReadPurchases = canQueryPurchases(auth)
+  const canReadSales = canAccess('sales.slip.list', 'view') && canQuerySales(auth)
+  const canReadPurchases = canAccess('purchases.slip.list', 'view') && canQueryPurchases(auth)
 
   const processingQuery = useQuery({
     queryKey: ['slips', 'processing-count'],
@@ -44,12 +44,14 @@ export function DashboardPage() {
       </p>
 
       <div className="dashboard-grid">
-        <Card padding={4} shadow="sm">
-          <p className="stat-label">처리중 판매전표</p>
-          <p className="stat-value">
-            {processingQuery.isLoading ? '...' : processingCount}
-          </p>
-        </Card>
+        {canReadSales ? (
+          <Card padding={4} shadow="sm">
+            <p className="stat-label">처리중 판매전표</p>
+            <p className="stat-value">
+              {processingQuery.isLoading ? '...' : processingCount}
+            </p>
+          </Card>
+        ) : null}
         <Card padding={4} shadow="sm">
           <p className="stat-label">저재고 알림</p>
           <p className="stat-value" style={{ color: 'var(--color-neutral-400)' }}>

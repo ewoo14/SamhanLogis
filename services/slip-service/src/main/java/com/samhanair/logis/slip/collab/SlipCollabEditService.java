@@ -51,8 +51,8 @@ public class SlipCollabEditService {
     /**
      * changeSet 검증, overlay batch 적용, ACCEPTED 이력 저장을 하나의 트랜잭션으로 수행한다.
      *
-     * <p>권한 검사는 DB read({@code enrichChangeSetWithBefore}) 이전에 수행하여 무효 actor 가
-     * DB 조회를 유발하지 못하도록 차단한다.
+     * <p>권한 검사는 changeSet baseline 정규화 이전에 수행하여 무효 actor 가 수정 경로에
+     * 진입하지 못하도록 차단한다.
      *
      * <p>알림 발송은 기존 {@code SlipEditRequestService.notifyTargetRole} 와 동일하게 트랜잭션 내 동기
      * best-effort 다(발송 실패가 수정완료를 되돌리지 않음). 수신자 소수 + 타임아웃 가드로 커넥션 점유는 제한적.
@@ -62,18 +62,18 @@ public class SlipCollabEditService {
     @Transactional
     public Result commitEdit(SlipDocumentCollaborationPort port, UUID slipId,
                              UUID editorId, String editorName, String changeSet, String reason) {
-        // fix 2 — 권한 체크를 enrichChangeSetWithBefore(DB read) 이전으로 이동
+        // 권한 체크를 baseline 정규화 이전에 수행한다.
         if (!port.canPropose(editorId, slipId) || !port.canDecide(editorId, slipId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "전표 수정완료 권한이 없습니다");
         }
 
-        String enrichedChangeSet = port.enrichChangeSetWithBefore(slipId, changeSet);
+        String validatedChangeSet = port.enrichChangeSetWithBefore(slipId, changeSet);
 
-        SlipDetailResponse updated = port.applyOverlayPatchBatch(slipId, enrichedChangeSet, editorId, editorName);
+        SlipDetailResponse updated = port.applyOverlayPatchBatch(slipId, validatedChangeSet, editorId, editorName);
 
         SlipCollabSuggestion edit = SlipCollabSuggestion.create(
-                port.documentType(), slipId, editorId, editorName, enrichedChangeSet, blankToNull(reason));
+                port.documentType(), slipId, editorId, editorName, validatedChangeSet, blankToNull(reason));
         edit.accept(editorId, editorName);
         SlipCollabSuggestion saved = suggestionRepository.save(edit);
 
@@ -84,7 +84,7 @@ public class SlipCollabEditService {
                 List.copyOf(port.resolveNotificationRecipients(slipId, editorId)),
                 "[전표 수정] " + updated.slipNo(),
                 limitBody(String.format("%s 님이 전표 %s 를 수정완료했습니다.%n변경: %s",
-                        displayActor(editorName), updated.slipNo(), summarizeChangeSet(enrichedChangeSet))),
+                        displayActor(editorName), updated.slipNo(), summarizeChangeSet(validatedChangeSet))),
                 updated.slipNo(), editorId);
 
         publisher.publish(slipId, CollabSuggestionService.EVENT_SUGGESTION_ACCEPTED,

@@ -125,6 +125,7 @@ export function SlipCollaborationPanel({
    */
   const [activeFieldPaths, setActiveFieldPaths] = useState<string[]>([])
   const editModeInitializedRef = useRef(false)
+  const editBaselineRef = useRef<Record<string, string>>({})
 
   const commentQueryKey = useMemo(() => ['slipCollabComments', slipId] as const, [slipId])
 
@@ -142,6 +143,7 @@ export function SlipCollaborationPanel({
   useEffect(() => {
     if (!editMode) {
       editModeInitializedRef.current = false
+      editBaselineRef.current = {}
       return
     }
     if (editModeInitializedRef.current) return
@@ -150,6 +152,7 @@ export function SlipCollaborationPanel({
     for (const option of OVERLAY_FIELD_OPTIONS) {
       next[option.value] = valueForEdit(currentValues[option.value])
     }
+    editBaselineRef.current = next
     setEditValues(next)
     setEditReason('')
     setEditNotice(null)
@@ -196,7 +199,7 @@ export function SlipCollaborationPanel({
     mutationFn: () => {
       const changeSet: Record<string, { before: string | null; after: string | null }> = {}
       for (const option of OVERLAY_FIELD_OPTIONS) {
-        const before = valueForEdit(currentValues[option.value])
+        const before = valueForEdit(editBaselineRef.current[option.value])
         const after = valueForEdit(editValues[option.value])
         if (before !== after) {
           changeSet[option.value] = {
@@ -240,7 +243,7 @@ export function SlipCollaborationPanel({
   const editDirty = editMode
     && editModeInitializedRef.current
     && (OVERLAY_FIELD_OPTIONS.some((option) => (
-      valueForEdit(currentValues[option.value]) !== valueForEdit(editValues[option.value])
+      valueForEdit(editBaselineRef.current[option.value]) !== valueForEdit(editValues[option.value])
     )) || editReason.trim().length > 0)
 
   useEffect(() => {
@@ -425,7 +428,7 @@ export function SlipCollaborationPanel({
           </section>
 
           {canEdit && editMode ? (
-            <section aria-label="수정" style={{ width: '100%' }}>
+            <section aria-label="협업 수정" style={{ width: '100%' }}>
                 {editBlockedReason ? (
                   <p role="alert" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
                     {editBlockedReason}
