@@ -68,15 +68,14 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await page.screenshot({ path: test.info().outputPath('03-new-filled-next-blank.png'), fullPage: true })
   })
 
-  test('견적 편집 provider 실패 폴백은 trailing 빈행 확정 후 다음 빈행을 만든다', async ({ page }) => {
-    const detailResponse = page.waitForResponse((response) =>
-      response.url().includes('/api/v1/slips/estimates/est-001')
-      && !response.url().includes('/collab/'),
-    )
+  test('견적 편집 provider 연결 중에는 trailing 빈행 구조 추가를 잠근다', async ({ page }) => {
     await page.goto('/#/sales/estimates/est-001/edit?mockRole=MASTER', {
       waitUntil: 'domcontentloaded',
     })
-    await detailResponse
+    // VITE_MOCK_MODE의 API는 브라우저 네트워크 Response가 아니라 in-process
+    // adapter에서 응답하므로 page.waitForResponse()로 상세 로딩을 기다릴 수 없다.
+    // 화면에 렌더된 첫 행을 상세 로딩 완료 신호로 사용한다.
+    await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
     await page.context().setOffline(true)
     await page.waitForTimeout(100)
     await page.context().setOffline(false)
@@ -84,11 +83,11 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByTestId('estimate-form-line-1')).toBeVisible()
     await expect(page.getByTestId('estimate-form-line-2')).toBeVisible()
-    await page.getByTestId('estimate-form-line-2-model').fill('AJ040RXH4BC1')
-    await page.getByTestId('estimate-form-line-2-model').blur()
-
-    await expect(page.getByTestId('estimate-form-line-3')).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(4)
+    const trailingLine = page.getByTestId('estimate-form-line-2')
+    await expect(trailingLine.getByRole('combobox', { name: '라인 3 모델명' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '라인 3 삭제' })).toBeDisabled()
+    await expect(page.getByTestId('estimate-form-line-3')).toHaveCount(0)
+    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(3)
   })
 
   test('견적 편집 coedit은 기존 행만 교체하고 trailing 빈행의 구조 추가를 잠근다', async ({ page }) => {

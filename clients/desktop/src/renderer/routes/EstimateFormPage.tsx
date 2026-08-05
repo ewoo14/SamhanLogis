@@ -1484,6 +1484,7 @@ export function EstimateFormPage() {
       modelName: product.modelName,
       productId: null,
       productName: '',
+      productType: product.productType ?? null,
     }, true)
     try {
       estimateFormCoeditProvider?.setItemValue(index, 'modelName', product.modelName)
@@ -1955,6 +1956,11 @@ export function EstimateFormPage() {
                     if (!isCoeditLineValueEditable(line)) return
                     updateLine(i, { productId: null, productName: '' }, true)
                   }}
+                  onInputBlur={(draft) => {
+                    if (!isCoeditLineValueEditable(line) || !draft.trim()) return
+                    updateLine(i, { modelName: draft.trim(), productId: null, productName: '' }, true)
+                    window.setTimeout(() => void handleModelLookup(i), 0)
+                  }}
                   searchProducts={searchEstimateProducts}
                   label=""
                   ariaLabel={`라인 ${i + 1} 모델명`}
@@ -2042,6 +2048,11 @@ export function EstimateFormPage() {
                   if (committed) return
                   if (!isCoeditLineValueEditable(line)) return
                   updateLine(i, { productId: null, productName: '' }, true)
+                }}
+                onInputBlur={(draft) => {
+                  if (!isCoeditLineValueEditable(line) || !draft.trim()) return
+                  updateLine(i, { modelName: draft.trim(), productId: null, productName: '' }, true)
+                  window.setTimeout(() => void handleModelLookup(i), 0)
                 }}
                 searchProducts={searchEstimateProducts}
                 label=""

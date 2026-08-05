@@ -35,6 +35,8 @@ export interface AsyncAutocompleteProps<T> {
   onChange: (item: T | null) => void
   /** 표시 중 입력이 마지막 확정 선택(getKey)과 일치하는지 알린다. */
   onInputCommitChange?: (committed: boolean) => void
+  /** blur 시점의 현재 입력 draft를 소비자에게 전달한다. */
+  onInputBlur?: (draft: string) => void
   /** 비동기 검색 함수 (호출자 주입). */
   search: (q: string) => Promise<T[]>
   /**
@@ -102,6 +104,7 @@ function AsyncAutocompleteInner<T>(
     value,
     onChange,
     onInputCommitChange,
+    onInputBlur,
     search,
     getKey,
     getInputLabel,
@@ -245,6 +248,7 @@ function AsyncAutocompleteInner<T>(
   )
 
   const handleBlur = (_e: FocusEvent<HTMLInputElement>) => {
+    onInputBlur?.(draft)
     if (blurTimer.current !== undefined) {
       window.clearTimeout(blurTimer.current)
     }
