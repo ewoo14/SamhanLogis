@@ -799,6 +799,71 @@ describe('SlipFormPage price memory autofill', () => {
 })
 
 describe('SlipFormPage 이카운트식 라인 입력', () => {
+  it('거래처 최근단가 대기 중 바꾼 최신 수량으로 세트를 전개한다', async () => {
+    const pricePending = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
+    harness.getPriceMemory.mockReturnValueOnce(pricePending.promise)
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 1,
+      unitPrice: 1000,
+      specification: null,
+    }])
+    renderPage()
+    await selectPartnerA()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(
+      harness.partnerA.id,
+      harness.bundle.id,
+    ))
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '3' } })
+
+    await act(async () => {
+      pricePending.resolve({ unitPrice: 9000, source: 'LINE_SAVE', updatedAt: '2026-08-05T09:00:00' })
+      await pricePending.promise
+    })
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      quantity: 3,
+    })))
+    expect(harness.expandBundleLine).toHaveBeenCalledTimes(1)
+  })
+
+  it('거래처 최근단가 대기 중 직접 입력한 단가로 세트를 한 번 전개한다', async () => {
+    const pricePending = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
+    harness.getPriceMemory.mockReturnValueOnce(pricePending.promise)
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      quantity: 1,
+      unitPrice: 7777,
+      specification: null,
+    }])
+    renderPage()
+    await selectPartnerA()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(
+      harness.partnerA.id,
+      harness.bundle.id,
+    ))
+    fireEvent.change(unitPrice(), { target: { value: '7777' } })
+
+    await act(async () => {
+      pricePending.resolve({ unitPrice: 9000, source: 'LINE_SAVE', updatedAt: '2026-08-05T09:00:00' })
+      await pricePending.promise
+    })
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
+      unitPrice: '7777',
+    })))
+    expect(harness.expandBundleLine).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('line-1')?.getAttribute('data-product-id')).not.toBe(harness.bundle.id)
+  })
+
   it('세트 선택은 세트 헤드 없이 구성품 행으로 즉시 전개하고 저장 payload도 구성품만 보낸다', async () => {
     harness.expandBundleLine.mockResolvedValueOnce([
       {

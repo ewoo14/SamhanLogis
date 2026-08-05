@@ -907,7 +907,16 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       const memory = await getPriceMemory(partnerId, productId)
       const remembered = memory?.unitPrice
       const resolvedUnitPrice = remembered == null ? fallbackUnitPrice : String(remembered)
+      const latestBeforePriceApply = linesRef.current.find((candidate) => candidate.id === line.id)
       const applied = canStillApply()
+      const latestBundle = latestBeforePriceApply
+        && latestBeforePriceApply.productId === productId
+        && latestBeforePriceApply.productType === 'BUNDLE'
+        ? latestBeforePriceApply
+        : null
+      const bundleToExpand = latestBundle && latestBundle.priceSource === 'USER'
+        ? latestBundle
+        : latestBundle && { ...latestBundle, unitPrice: resolvedUnitPrice }
       setLines((currentLines) =>
         currentLines.map((current) => {
           if (current.id !== line.id) return current
@@ -924,8 +933,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           }
         }),
       )
-      if (nextLine.productType === 'BUNDLE' && canStillApply()) {
-        await expandSelectedBundle(line, { ...nextLine, unitPrice: resolvedUnitPrice, lookupLoading: false })
+      if (bundleToExpand) {
+        await expandSelectedBundle(line, { ...bundleToExpand, lookupLoading: false })
         return
       }
       if (applied) {
@@ -936,17 +945,22 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     } catch {
       // 가격기억 조회 실패는 품목 선택 자체를 막지 않는다. miss/오류 모두 판매가(catalog) fallback 유지.
       const applied = canStillApply()
+      const latestBundle = linesRef.current.find((candidate) =>
+        candidate.id === line.id
+        && candidate.productId === productId
+        && candidate.productType === 'BUNDLE',
+      )
       setLines((currentLines) =>
         currentLines.map((current) =>
           current.id === line.id
             && current.productId === productId
             && selectedPartnerIdRef.current === partnerId
             ? { ...current, lookupLoading: false }
-            : current,
+          : current,
         ),
       )
-      if (nextLine.productType === 'BUNDLE' && canStillApply()) {
-        await expandSelectedBundle(line, { ...nextLine, lookupLoading: false })
+      if (latestBundle) {
+        await expandSelectedBundle(line, { ...latestBundle, lookupLoading: false })
         return
       }
       if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} 판매가 적용`)
