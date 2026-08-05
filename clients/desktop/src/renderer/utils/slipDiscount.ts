@@ -23,7 +23,7 @@ export function calculateSlipDiscount(
   config: SlipDiscountConfig | null,
 ): SlipDiscountResult {
   const fixed = input.fixedDiscountRate
-  if (fixed != null && Number.isFinite(fixed)) {
+  if (fixed != null && Number.isFinite(fixed) && fixed > 0) {
     const unitPrice = Math.round(input.listPrice * (1 - fixed / 100))
     return { unitPrice, rate: fixed, source: 'FIXED', info: `품목 고정DC ${fixed}% 적용` }
   }

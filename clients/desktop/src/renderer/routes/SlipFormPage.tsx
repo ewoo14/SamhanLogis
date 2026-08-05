@@ -842,9 +842,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       const memory = await withPriceLookupTimeout(getPriceMemory(partnerId, productId))
       const remembered = memory?.unitPrice
       // 최근단가 miss/실패 시 이미 계산한 고정DC·전역DC 단가를 정가로 되돌리지 않는다.
-      const resolvedUnitPrice = remembered == null
+      const hasAuthoritativeDiscount = dcResult != null && dcResult.source !== 'NONE'
+      const resolvedUnitPrice = hasAuthoritativeDiscount || remembered == null
         ? String(dcResult?.unitPrice ?? fallbackUnitPrice)
         : String(remembered)
+      const usesRememberedPrice = !hasAuthoritativeDiscount && remembered != null
       const applied = canStillApply()
       setLines((currentLines) =>
         currentLines.map((current) => {
@@ -855,8 +857,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           return {
             ...recalculateLineVat(asVatLine({ ...current, unitPrice: resolvedUnitPrice }), 'PRICE'),
             unitPrice: resolvedUnitPrice,
-            priceSource: remembered == null ? 'CATALOG' : 'REMEMBERED',
-            priceMemoryUpdatedAt: memory?.updatedAt ?? null,
+            priceSource: usesRememberedPrice ? 'REMEMBERED' : 'CATALOG',
+            priceMemoryUpdatedAt: usesRememberedPrice ? memory?.updatedAt ?? null : null,
             priceRefreshChanged: false,
             lookupLoading: false,
           }

@@ -618,6 +618,27 @@ describe('SlipFormPage price memory autofill', () => {
     }))
   })
 
+  it('uses the global discount result instead of a remembered list price', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    harness.getPriceMemory.mockResolvedValueOnce({
+      unitPrice: 999,
+      source: 'LINE_SAVE',
+      updatedAt: '2026-08-06T00:00:00',
+    })
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    expect(screen.getByTestId('line-1').getAttribute('data-price-source')).toBe('CATALOG')
+  })
+
   it('bulk refresh failure does not overwrite a user edit made while the request is pending', async () => {
     const pending = deferred<{ hits: Array<{ productId: string; unitPrice: number; source: string; updatedAt: string }>; failedProductIds: string[] }>()
     harness.getPriceMemory.mockResolvedValueOnce({

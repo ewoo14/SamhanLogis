@@ -104,7 +104,6 @@ public class SlipService {
     private final SlipNumberService slipNumberService;
     private final ProductClient productClient;
     /** 신규 출고전표의 라인별 전역DC/고정DC 계산기. 장애 시 입력 정가를 보존한다. */
-    private final DiscountPriceClient discountPriceClient;
     private final InventoryClient inventoryClient;
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     private final SlipAuditLogService auditLogService;
@@ -272,23 +271,12 @@ public class SlipService {
         //    로 구성품 라인 N개 전개(견적 경로와 동일 단일 엔진), 아니면 1 라인.
         String resolvedPartnerCode = req.slipType() == SlipType.OUTBOUND
                 ? partnerInternalClient.resolvePartnerCode(req.partnerId()).orElse(null) : null;
-        List<SlipDiscountCalculator.Line> discountLines = new ArrayList<>();
-        if (resolvedPartnerCode != null) {
-            for (int i = 0; i < req.lines().size(); i++) {
-                CreateSlipRequest.SlipLineRequest line = req.lines().get(i);
-                ProductSummary summary = byId.get(line.productId());
-                discountLines.add(new SlipDiscountCalculator.Line(String.valueOf(i),
-                        dcCategory(summary), line.unitPrice(),
-                        summary == null ? null : summary.fixedDiscountRate(), line.quantity()));
-            }
-        }
-        SlipDiscountCalculator.Calculation discountCalculation = discountLines.isEmpty()
-                ? new SlipDiscountCalculator.Calculation(
-                        req.lines().stream().map(CreateSlipRequest.SlipLineRequest::unitPrice).toList(),
-                        req.slipType() == SlipType.OUTBOUND && resolvedPartnerCode == null
-                                ? "DC 미적용: 거래처 코드 조회 실패, 입력 단가로 저장" : null)
-                : new SlipDiscountCalculator(discountPriceClient)
-                        .calculateDetailed(resolvedPartnerCode, discountLines);
+        // 단가는 화면이 DC/최근단가/사용자 협의가를 반영해 확정한 값을 정본으로 사용한다.
+        // 서버에서 다시 dc-config-service를 호출하면 화면의 할인 완료 단가를 정가로 오인해
+        // 전역DC를 재적용하므로(예: 970,200 -> 494,802) 계산하지 않는다.
+        SlipDiscountCalculator.Calculation discountCalculation = new SlipDiscountCalculator.Calculation(
+                req.lines().stream().map(CreateSlipRequest.SlipLineRequest::unitPrice).toList(),
+                req.discountInfo());
         List<BigDecimal> calculatedPrices = discountCalculation.prices();
 
         List<PartnerProductPriceMemoryCommand> priceMemoryCommands = new ArrayList<>();
@@ -1713,18 +1701,6 @@ public class SlipService {
             // 상세 조회(getOne)는 정상 반환해야 하므로 graceful fallback — 이름 null.
             return null;
         }
-    }
-
-    /** product-service categoryKey를 dc-config-service 가격계산 카테고리로 변환한다. */
-    private String dcCategory(ProductSummary summary) {
-        if (summary == null || summary.categoryKey() == null) {
-            return "OTHER";
-        }
-        return switch (summary.categoryKey()) {
-            case "homemulti" -> "HOMEMULTI";
-            case "commercialMulti" -> "COMMERCIAL_MULTI";
-            default -> "OTHER";
-        };
     }
 
     private Slip loadOrThrow(UUID id) {

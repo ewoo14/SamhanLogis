@@ -22,4 +22,19 @@ describe('slip discount', () => {
       null,
     ).unitPrice).toBe(100000)
   })
+  it('global discount is authoritative even when a remembered price exists', () => {
+    const result = calculateSlipDiscount(
+      { listPrice: 1080000, fixedDiscountRate: null, category: 'HOMEMULTI' },
+      { homeMultiDc: '48%', commercialMultiDc: '49%' },
+    )
+
+    expect(result).toMatchObject({ unitPrice: 561600, source: 'GLOBAL', rate: 48 })
+  })
+
+  it('treats a zero fixed-DC value as unset so the global DC still applies', () => {
+    expect(calculateSlipDiscount(
+      { listPrice: 1080000, fixedDiscountRate: 0, category: 'HOMEMULTI' },
+      { homeMultiDc: '48%', commercialMultiDc: '49%' },
+    )).toMatchObject({ unitPrice: 561600, source: 'GLOBAL', rate: 48 })
+  })
 })
