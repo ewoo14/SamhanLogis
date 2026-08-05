@@ -103,6 +103,8 @@ public class SlipService {
     private final SlipRepository slipRepository;
     private final SlipNumberService slipNumberService;
     private final ProductClient productClient;
+    /** 신규 출고전표의 라인별 전역DC/고정DC 계산기. 장애 시 입력 정가를 보존한다. */
+    private final DiscountPriceClient discountPriceClient;
     private final InventoryClient inventoryClient;
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     private final SlipAuditLogService auditLogService;
@@ -268,11 +270,29 @@ public class SlipService {
 
         // 4. 라인 추가 — 직접 전표생성도 등록품목으로(개발책임자). BUNDLE(세트)면 product-service expand
         //    로 구성품 라인 N개 전개(견적 경로와 동일 단일 엔진), 아니면 1 라인.
+        String resolvedPartnerCode = req.slipType() == SlipType.OUTBOUND
+                ? partnerInternalClient.resolvePartnerCode(req.partnerId()).orElse(null) : null;
+        List<SlipDiscountCalculator.Line> discountLines = new ArrayList<>();
+        if (resolvedPartnerCode != null) {
+            for (int i = 0; i < req.lines().size(); i++) {
+                CreateSlipRequest.SlipLineRequest line = req.lines().get(i);
+                ProductSummary summary = byId.get(line.productId());
+                discountLines.add(new SlipDiscountCalculator.Line(String.valueOf(i),
+                        dcCategory(summary), line.unitPrice(),
+                        summary == null ? null : summary.fixedDiscountRate(), line.quantity()));
+            }
+        }
+        List<BigDecimal> calculatedPrices = discountLines.isEmpty()
+                ? req.lines().stream().map(CreateSlipRequest.SlipLineRequest::unitPrice).toList()
+                : new SlipDiscountCalculator(discountPriceClient)
+                        .calculate(resolvedPartnerCode, discountLines);
+
         List<PartnerProductPriceMemoryCommand> priceMemoryCommands = new ArrayList<>();
-        for (CreateSlipRequest.SlipLineRequest lineReq : req.lines()) {
+        for (int lineIndex = 0; lineIndex < req.lines().size(); lineIndex++) {
+            CreateSlipRequest.SlipLineRequest lineReq = req.lines().get(lineIndex);
             addSlipLinesExpanded(slip, lineReq.productId(), byId.get(lineReq.productId()),
                     lineReq.productName(), lineReq.modelName(), lineReq.specification(),
-                    lineReq.quantity(), lineReq.unitPrice(), lineReq.note(), lineReq.setOptions(),
+                    lineReq.quantity(), calculatedPrices.get(lineIndex), lineReq.note(), lineReq.setOptions(),
                     Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
                     lineReq.vatAmount(), lineReq.lineTotalWithVat(), requesterId, priceMemoryCommands);
         }
@@ -311,9 +331,8 @@ public class SlipService {
         String resolvedBusinessNumber = resolveBusinessNumber(req.partnerId());
         // partnerCode snapshot (2026-06-10) — 거래명세서 공급받는자 주소/대표번호가 FE 에서
         // getPartnerFull(partnerCode) 로 조회되므로 생성 시점에 resolve. 실패 시 NULL 유지.
-        if (req.partnerId() != null) {
-            partnerInternalClient.resolvePartnerCode(req.partnerId())
-                    .ifPresent(slip::setPartnerCode);
+        if (resolvedPartnerCode != null) {
+            slip.setPartnerCode(resolvedPartnerCode);
         }
         slip.withProjectInfo(
                 resolvedBusinessNumber,
@@ -1689,6 +1708,18 @@ public class SlipService {
             // 상세 조회(getOne)는 정상 반환해야 하므로 graceful fallback — 이름 null.
             return null;
         }
+    }
+
+    /** product-service categoryKey를 dc-config-service 가격계산 카테고리로 변환한다. */
+    private String dcCategory(ProductSummary summary) {
+        if (summary == null || summary.categoryKey() == null) {
+            return "OTHER";
+        }
+        return switch (summary.categoryKey()) {
+            case "homemulti" -> "HOMEMULTI";
+            case "commercialMulti" -> "COMMERCIAL_MULTI";
+            default -> "OTHER";
+        };
     }
 
     private Slip loadOrThrow(UUID id) {
