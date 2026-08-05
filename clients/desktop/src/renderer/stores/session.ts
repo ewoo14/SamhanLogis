@@ -10,7 +10,7 @@
  * C5-2c: hasAdminRole / canTransitionSlip / canTransitionTransfer 헬퍼는
  * usePermissions().canAccess() 로 이관 완료. session.ts 에서 제거됨.
  *   - hasAdminRole     → canAccess('inventory.warehouse.admin', 'create')
- *   - canTransitionSlip  → canAccess(slipActionPageCode(action), 'update')   [SlipDetailPage]
+ *   - canTransitionSlip  → canAccessSlipAction(action, mode, canAccess)       [SlipDetailPage]
  *   - canTransitionTransfer → canAccess(transferActionPageCode(action), 'update') [TransferDetailPage]
  *
  * C5 follow-up: canQuerySales 는 BE SlipSalesAccessGuard(SALES/MANAGER/MASTER 한정)와

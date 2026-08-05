@@ -3,10 +3,15 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   actionsForStatus,
+  canAccessSlipAction,
+  canOpenDirectEdit,
+  canOpenCollabEdit,
+  canSoftDeleteSlip,
   classifyTransitionConflict,
   desktopFooterActions,
   isCollabEditStatus,
   isDirectEditStatus,
+  slipActionPermissionRequirements,
   transitionConflictEditPolicy,
   transitionDestinationStatus,
 } from './SlipDetailPage'
@@ -245,5 +250,216 @@ describe('SlipDetailPage lifecycle contract', () => {
           `${transition}/${surface}`).toBe(false)
       }
     }
+  })
+
+  it('R33 RED-A/B: 전표 유형별 서버 권한 요구사항과 화면 활성 조건을 일치시킨다', () => {
+    expect(slipActionPermissionRequirements('save', 'INBOUND')).toEqual([
+      { pageCode: 'purchases.slip.edit', action: 'update' },
+    ])
+    expect(slipActionPermissionRequirements('send', 'INBOUND')).toEqual([
+      { pageCode: 'purchases.slip.edit', action: 'update' },
+    ])
+    expect(slipActionPermissionRequirements('cancel', 'INBOUND')).toEqual([
+      { pageCode: 'purchases.slip.edit', action: 'update' },
+    ])
+    expect(slipActionPermissionRequirements('confirm', 'INBOUND')).toEqual([
+      { pageCode: 'purchases.slip.edit', action: 'update' },
+    ])
+    expect(slipActionPermissionRequirements('inspect', 'INBOUND')).toEqual([
+      { pageCode: 'slip.transfer.process', action: 'update' },
+      { pageCode: 'inbound.inspection', action: 'update' },
+    ])
+    expect(slipActionPermissionRequirements('inspect', 'OUTBOUND')).toEqual([
+      { pageCode: 'slip.transfer.process', action: 'update' },
+    ])
+
+    const managerInbound = (pageCode: string, action = 'view') =>
+      pageCode === 'slip.transfer.process' && action === 'update'
+    const warehouseInbound = (pageCode: string, action = 'view') =>
+      ['purchases.slip.edit', 'slip.transfer.process', 'inbound.inspection'].includes(pageCode)
+      && action === 'update'
+    const managerOutbound = () => true
+    const denied = () => false
+
+    expect(canAccessSlipAction('inspect', 'INBOUND', managerInbound)).toBe(false)
+    expect(canAccessSlipAction('save', 'INBOUND', warehouseInbound)).toBe(true)
+    expect(canAccessSlipAction('send', 'INBOUND', warehouseInbound)).toBe(true)
+    expect(canAccessSlipAction('cancel', 'INBOUND', warehouseInbound)).toBe(true)
+    expect(canAccessSlipAction('confirm', 'INBOUND', warehouseInbound)).toBe(true)
+    expect(canAccessSlipAction('save', 'INBOUND', denied)).toBe(false)
+
+    for (const action of [
+      'save', 'send', 'accept', 'process', 'complete', 'inspect',
+      'ship', 'deliver', 'confirm', 'cancel',
+    ] as const) {
+      expect(canAccessSlipAction(action, 'OUTBOUND', managerOutbound), action).toBe(true)
+    }
+  })
+
+  it('R33 RED-A/B: 대표 역할별 INBOUND·OUTBOUND 전이 권한 차집합이 0이다', () => {
+    const permissionsByRole: Record<string, Set<string>> = {
+      MANAGER: new Set([
+        'purchases.slip.edit:update', 'purchases.slip.delete:delete',
+        'sales.slip.edit:update', 'sales.slip.edit:delete',
+        'slip.transfer.process:update', 'sales.slip.confirm:update',
+        'slip.reject:update', 'sales.slip.cancel:update',
+      ]),
+      SALES: new Set(['sales.slip.edit:update', 'sales.slip.cancel:update']),
+      WAREHOUSE: new Set([
+        'purchases.slip.edit:update', 'purchases.slip.delete:delete',
+        'slip.transfer.process:update', 'inbound.inspection:update',
+      ]),
+      ACCOUNTANT: new Set(['sales.slip.confirm:update']),
+    }
+    const canAccessFor = (role: string) => (pageCode: string, action = 'view') =>
+      permissionsByRole[role].has(`${pageCode}:${action}`)
+    const actions = [
+      'save', 'send', 'accept', 'process', 'complete', 'inspect',
+      'ship', 'deliver', 'confirm', 'reject', 'cancel',
+    ] as const
+    const actionsByMode: Record<'INBOUND' | 'OUTBOUND', readonly typeof actions[number][]> = {
+      INBOUND: [
+        'save', 'send', 'accept', 'process', 'complete', 'inspect',
+        'confirm', 'reject', 'cancel',
+      ],
+      OUTBOUND: [
+        'save', 'send', 'accept', 'process', 'complete', 'inspect',
+        'ship', 'deliver', 'confirm', 'reject', 'cancel',
+      ],
+    }
+    const expected: Record<string, Record<'INBOUND' | 'OUTBOUND', string[]>> = {
+      MANAGER: {
+        INBOUND: ['save', 'send', 'accept', 'process', 'complete', 'confirm', 'reject', 'cancel'],
+        OUTBOUND: [...actions],
+      },
+      SALES: {
+        INBOUND: [],
+        OUTBOUND: ['save', 'send', 'cancel'],
+      },
+      WAREHOUSE: {
+        INBOUND: ['save', 'send', 'accept', 'process', 'complete', 'inspect', 'confirm', 'cancel'],
+        OUTBOUND: ['accept', 'process', 'complete', 'inspect', 'ship', 'deliver'],
+      },
+      ACCOUNTANT: {
+        INBOUND: [],
+        OUTBOUND: ['confirm'],
+      },
+    }
+
+    for (const [role, byMode] of Object.entries(expected)) {
+      for (const mode of ['INBOUND', 'OUTBOUND'] as const) {
+        for (const action of actionsByMode[mode]) {
+          expect(
+            canAccessSlipAction(action, mode, canAccessFor(role)),
+            `${role}/${mode}/${action}`,
+          ).toBe(byMode[mode].includes(action))
+        }
+      }
+    }
+
+    const surfacePermissionsByRole: Record<string, Set<string>> = {
+      MANAGER: new Set([
+        'purchases.slip.edit:update', 'purchases.slip.delete:delete',
+        'sales.slip.edit:update', 'sales.slip.edit:delete', 'slip.audit-overlay:update',
+      ]),
+      SALES: new Set(['sales.slip.edit:update', 'sales.slip.edit:delete', 'slip.audit-overlay:update']),
+      WAREHOUSE: new Set([
+        'purchases.slip.edit:update', 'purchases.slip.delete:delete', 'slip.audit-overlay:update',
+      ]),
+      ACCOUNTANT: new Set(['sales.slip.confirm:update']),
+    }
+    const surfaceAccessFor = (role: string) => (pageCode: string, action = 'view') =>
+      surfacePermissionsByRole[role].has(`${pageCode}:${action}`)
+    const expectedSurfaceAccess: Record<string, Record<'INBOUND' | 'OUTBOUND', {
+      directEdit: boolean
+      softDelete: boolean
+      collab: boolean
+    }>> = {
+      MANAGER: {
+        INBOUND: { directEdit: true, softDelete: true, collab: true },
+        OUTBOUND: { directEdit: true, softDelete: true, collab: true },
+      },
+      SALES: {
+        INBOUND: { directEdit: false, softDelete: false, collab: true },
+        OUTBOUND: { directEdit: true, softDelete: true, collab: true },
+      },
+      WAREHOUSE: {
+        INBOUND: { directEdit: true, softDelete: true, collab: true },
+        OUTBOUND: { directEdit: false, softDelete: false, collab: true },
+      },
+      ACCOUNTANT: {
+        INBOUND: { directEdit: false, softDelete: false, collab: false },
+        OUTBOUND: { directEdit: false, softDelete: false, collab: false },
+      },
+    }
+    for (const [role, byMode] of Object.entries(expectedSurfaceAccess)) {
+      for (const mode of ['INBOUND', 'OUTBOUND'] as const) {
+        const canAccess = surfaceAccessFor(role)
+        expect(canOpenDirectEdit(mode, 'DRAFT', canAccess), `${role}/${mode}/direct-edit`).toBe(byMode[mode].directEdit)
+        expect(canOpenDirectEdit(mode, 'SAVED', canAccess), `${role}/${mode}/direct-edit-saved`).toBe(byMode[mode].directEdit)
+        expect(canSoftDeleteSlip(mode, 'DRAFT', canAccess), `${role}/${mode}/soft-delete`).toBe(byMode[mode].softDelete)
+        expect(canSoftDeleteSlip(mode, 'SAVED', canAccess), `${role}/${mode}/soft-delete-saved`).toBe(byMode[mode].softDelete)
+        expect(canOpenCollabEdit('DRAFT', byMode[mode].collab), `${role}/${mode}/collab-draft`).toBe(byMode[mode].collab)
+        expect(canOpenCollabEdit('SAVED', byMode[mode].collab), `${role}/${mode}/collab-saved`).toBe(byMode[mode].collab)
+        for (const status of ['SHIPPING', 'DELIVERED', 'CANCELED', 'REJECTED'] as const) {
+          expect(canOpenDirectEdit(mode, status, canAccess), `${role}/${mode}/${status}/direct-edit`).toBe(false)
+          expect(canSoftDeleteSlip(mode, status, canAccess), `${role}/${mode}/${status}/soft-delete`).toBe(false)
+          expect(canOpenCollabEdit(status, byMode[mode].collab), `${role}/${mode}/${status}/collab`).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('R33 RED-B3: 직접수정 권한이 있어도 DRAFT/SAVED 협업수정 진입점이 있고 종결 상태는 닫혀 있다', () => {
+    for (const status of ['DRAFT', 'SAVED'] as const) {
+      expect(canOpenCollabEdit(status, true)).toBe(true)
+    }
+    for (const status of ['SHIPPING', 'DELIVERED', 'CANCELED', 'REJECTED'] as const) {
+      expect(canOpenCollabEdit(status, true)).toBe(false)
+    }
+
+    const source = fs.readFileSync(sourcePath, 'utf8')
+    const collabEntry = source.match(
+      /data-testid="slip-collab-edit-open"[\s\S]{0,300}/,
+    )?.[0] ?? ''
+    expect(collabEntry).toContain('협업 수정')
+    expect(source).not.toContain('canCollabEdit && !canDirectEditSales && !canDirectEditPurchase')
+  })
+
+  it('R33 RED-B4: 취소와 soft delete는 이름·핸들러·확인 문구가 실제 동작과 다르지 않다', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8')
+
+    expect(source).toContain('const handleCancelSlip')
+    expect(source).not.toContain('handleDeleteSlip')
+    expect(source).toMatch(/>\s*전표 삭제\s*</)
+    expect(source).toMatch(/>\s*전표 취소\s*</)
+    expect(source).toContain('deletePurchaseSlipMutation.mutate()')
+    expect(source).toContain('deleteSalesSlipMutation.mutate()')
+    expect(source).toContain("handleTransition('cancel')")
+  })
+
+  it('R33 RED-B5: 알 수 없는 409를 동시전이로 조용히 대체하지 않고 서버 표지 결합을 검사한다', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8')
+    const inventoryClientPath = path.resolve(
+      __dirname,
+      '../../../../../services/slip-service/src/main/java/com/samhanair/logis/slip/client/InventoryClient.java',
+    )
+    const inventoryClient = fs.readFileSync(inventoryClientPath, 'utf8')
+    const changedInventoryMessage = {
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: { code: 'CONFLICT', message: '재고가 모자랍니다: 가용 0, 필요 1' },
+      },
+    }
+
+    expect(classifyTransitionConflict(changedInventoryMessage)).toBe('unknown')
+    expect(transitionConflictEditPolicy('unknown')).toEqual({
+      message: '전이 실패 원인을 확인할 수 없습니다. 최신 전표 상태를 확인한 뒤 다시 시도하세요.',
+      blockEditSurfaces: true,
+    })
+    expect(source).toContain('INVENTORY_SHORTAGE_MARKERS')
+    expect(inventoryClient).toContain('재고 부족')
+    expect(inventoryClient).toContain('return body.isBlank() ? "재고 부족 등" : body')
   })
 })
