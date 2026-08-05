@@ -79,10 +79,12 @@ public class SlipCollabNotificationOutboxService {
                 finishTerminal(row.getId(), "RECIPIENT_IS_EDITOR");
                 return;
             }
-            boolean sent = notificationClient.sendUserPushWithResult(
+            boolean pushSent = notificationClient.sendUserPushWithResult(
                         recipient.get(), row.getSubject(), row.getBody(),
                         stableIdempotencyKey(row.getEventId(), recipient.get()));
-            finish(row.getId(), sent);
+            boolean centerPublished = pushSent && notificationClient.publishUserNotificationCenter(
+                    recipient.get(), row.getSubject(), row.getBody(), row.getEventId());
+            finish(row.getId(), pushSent && centerPublished);
         } catch (RuntimeException ex) {
             log.warn("[SlipCollab] durable 알림 전달 실패 — outboxId={}", row.getId(), ex);
             finish(row.getId(), false);

@@ -130,6 +130,9 @@ class SlipCollabNotificationDispatchTest {
         when(client.sendUserPushWithResult(org.mockito.ArgumentMatchers.eq(recipientId),
                 org.mockito.ArgumentMatchers.eq("subject"), org.mockito.ArgumentMatchers.eq("body"),
                 org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(client.publishUserNotificationCenter(org.mockito.ArgumentMatchers.eq(recipientId),
+                org.mockito.ArgumentMatchers.eq("subject"), org.mockito.ArgumentMatchers.eq("body"),
+                org.mockito.ArgumentMatchers.eq(eventId))).thenReturn(true);
         when(repository.findById(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(row));
 
         SlipCollabNotificationOutboxService service = new SlipCollabNotificationOutboxService(
@@ -139,6 +142,7 @@ class SlipCollabNotificationDispatchTest {
         UUID expectedKey = UUID.nameUUIDFromBytes(("slip-collab:" + eventId + ":" + recipientId)
                 .getBytes(StandardCharsets.UTF_8));
         org.mockito.Mockito.verify(client).sendUserPushWithResult(recipientId, "subject", "body", expectedKey);
+        org.mockito.Mockito.verify(client).publishUserNotificationCenter(recipientId, "subject", "body", eventId);
     }
 
     @Test
@@ -192,6 +196,9 @@ class SlipCollabNotificationDispatchTest {
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(invocation -> calls.incrementAndGet() > 5);
+        when(client.publishUserNotificationCenter(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
         SlipCollabNotificationOutbox row = SlipCollabNotificationOutbox.create(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "recipient", "subject", "body");
         when(repository.findById(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.of(row));
