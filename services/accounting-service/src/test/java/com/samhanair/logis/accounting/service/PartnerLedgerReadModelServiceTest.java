@@ -262,6 +262,7 @@ class PartnerLedgerReadModelServiceTest {
         lenient().when(line.getDebitAmount()).thenReturn(new BigDecimal("500"));
         lenient().when(line.getCreditAmount()).thenReturn(BigDecimal.ZERO);
         lenient().when(line.getMemo()).thenReturn("분개만 존재");
+        lenient().when(line.getPartnerId()).thenReturn(partnerId);
         when(journalLineRepository.findJournalLinesInRangeForPartner(partnerId, FROM, TO)).thenReturn(List.of(line));
 
         var result = new PartnerLedgerReadModelService(
@@ -271,6 +272,209 @@ class PartnerLedgerReadModelServiceTest {
         assertThat(result.selected().documents()).hasSize(1);
         assertThat(result.selected().documents().get(0).description())
                 .contains("판매전표 없음 / 전표 미이관");
+    }
+
+    @Test
+    void RED_A1_singlePartnerJournalSaleRemainsAReceivableSale() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = partner(partnerId, "P-RED-A1");
+        when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
+                new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+        Journal journal = journal("RED-A1", FROM);
+        org.mockito.Mockito.doReturn(List.of(
+                        line(journal, 1, "110", "100", "0", partnerId),
+                        line(journal, 2, "401", "0", "100", null)))
+                .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
+        when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
+        lenient().when(salesClient.find(FROM, TO, partner.partnerCode(), partnerId)).thenReturn(List.of());
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read(partner.partnerCode(), FROM, TO);
+
+        assertThat(result.selected().salesTotal()).isEqualByComparingTo("100");
+        assertThat(result.selected().paymentTotal()).isZero();
+        assertThat(result.selected().documents()).singleElement()
+                .satisfies(document -> {
+                    assertThat(document.effect()).isEqualTo(PartnerLedgerContract.Effect.SALE);
+                    assertThat(document.amount()).isEqualByComparingTo("100");
+                });
+    }
+
+    @Test
+    void RED_A2_unconnectedCounterLineStillClassifiesTheJournalAsPayment() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = partner(partnerId, "P-RED-A2");
+        when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
+                new Total(partnerId, "110", BigDecimal.ZERO, new BigDecimal("100"))));
+        Journal journal = journal("RED-A2", FROM);
+        org.mockito.Mockito.doReturn(List.of(
+                        line(journal, 1, "110", "0", "100", partnerId),
+                        line(journal, 2, "102", "100", "0", null)))
+                .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
+        when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
+        lenient().when(salesClient.find(FROM, TO, partner.partnerCode(), partnerId)).thenReturn(List.of());
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read(partner.partnerCode(), FROM, TO);
+
+        assertThat(result.selected().salesTotal()).isZero();
+        assertThat(result.selected().paymentTotal()).isEqualByComparingTo("100");
+        assertThat(result.selected().receivableBalance()).isEqualByComparingTo("-100");
+    }
+
+    @Test
+    void RED_A3_openingPlusSalesMinusPaymentEqualsClosing() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = partner(partnerId, "P-RED-A3");
+        LocalDate asOf = FROM.minusDays(1);
+        when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
+                new Total(partnerId, "110", new BigDecimal("100"), new BigDecimal("30"))));
+        when(journalLineRepository.aggregateAgingByAccount("110", asOf)).thenReturn(List.of(
+                new Total(partnerId, "110", new BigDecimal("50"), BigDecimal.ZERO)));
+        Journal openingJournal = journal("RED-A3-OPEN", asOf);
+        org.mockito.Mockito.doReturn(List.of(
+                        line(openingJournal, 1, "110", "50", "0", partnerId),
+                        line(openingJournal, 2, "401", "0", "50", null)))
+                .when(journalLineRepository).findJournalLinesUpToForPartner(partnerId, asOf);
+        Journal saleJournal = journal("RED-A3-SALE", FROM);
+        Journal paymentJournal = journal("RED-A3-PAY", FROM.plusDays(1));
+        org.mockito.Mockito.doReturn(List.of(
+                        line(saleJournal, 1, "110", "100", "0", partnerId),
+                        line(saleJournal, 2, "401", "0", "100", null),
+                        line(paymentJournal, 1, "110", "0", "30", partnerId),
+                        line(paymentJournal, 2, "102", "30", "0", null)))
+                .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
+        when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
+        lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
+                org.mockito.ArgumentMatchers.eq(partner.partnerCode()), org.mockito.ArgumentMatchers.eq(partnerId)))
+                .thenReturn(List.of());
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read(partner.partnerCode(), FROM, TO);
+
+        assertThat(result.selected().openingBalance()).isEqualByComparingTo("50");
+        assertThat(result.selected().salesTotal()).isEqualByComparingTo("100");
+        assertThat(result.selected().paymentTotal()).isEqualByComparingTo("30");
+        assertThat(result.selected().receivableBalance()).isEqualByComparingTo(
+                result.selected().openingBalance()
+                        .add(result.selected().salesTotal())
+                        .subtract(result.selected().paymentTotal()));
+    }
+
+    @Test
+    void RED_A4_aggregateDetailAndPrintPathsExposeTheSameClosingBalance() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = partner(partnerId, "P-RED-A4");
+        when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
+                new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+        Journal journal = journal("RED-A4", FROM);
+        org.mockito.Mockito.doReturn(List.of(
+                        line(journal, 1, "110", "100", "0", partnerId),
+                        line(journal, 2, "401", "0", "100", null)))
+                .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
+        when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
+        lenient().when(salesClient.find(FROM, TO, partner.partnerCode(), partnerId)).thenReturn(List.of());
+
+        var readModel = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient);
+        var detailService = new PartnerLedgerReadService(
+                salesClient, cashReceiptRepository, journalRepository, partnerLookupClient, readModel);
+        var aggregateService = new SalesAggregateService(
+                journalLineRepository, cashReceiptRepository, partnerLookupClient, salesClient, readModel);
+
+        var model = readModel.read(partner.partnerCode(), FROM, TO).selected();
+        var detail = detailService.read(partner.partnerCode(), FROM, TO);
+        var aggregate = aggregateService.aggregate(FROM, TO, partner.partnerCode()).get(0);
+        var method = com.samhanair.logis.accounting.web.AccountingReportController.class
+                .getDeclaredMethod("toLegacyLedgerResponse",
+                        com.samhanair.logis.accounting.web.dto.PartnerLedgerResponse.class);
+        method.setAccessible(true);
+        var print = (com.samhanair.logis.accounting.web.dto.LedgerImageResponse)
+                method.invoke(null, detail);
+
+        assertThat(model.receivableBalance()).isEqualByComparingTo("100");
+        assertThat(detail.closingBalance()).isEqualByComparingTo(model.receivableBalance());
+        assertThat(aggregate.receivableBalance()).isEqualByComparingTo(model.receivableBalance());
+        assertThat(print.lines()).last().satisfies(line ->
+                assertThat(line.balance()).isEqualByComparingTo(model.receivableBalance()));
+    }
+
+    @Test
+    void RED_B1_eachPartnerOwnsOnlyItsReceivableLinesInOneJournal() {
+        UUID partnerAId = UUID.randomUUID();
+        UUID partnerBId = UUID.randomUUID();
+        PartnerSummary partnerA = partner(partnerAId, "P-RED-B1-A");
+        PartnerSummary partnerB = partner(partnerBId, "P-RED-B1-B");
+        when(partnerLookupClient.findByPartnerCodeResult(partnerA.partnerCode()))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partnerA));
+        when(partnerLookupClient.findByPartnerCodeResult(partnerB.partnerCode()))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partnerB));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
+                new Total(partnerAId, "110", new BigDecimal("100"), BigDecimal.ZERO),
+                new Total(partnerBId, "110", new BigDecimal("200"), BigDecimal.ZERO)));
+        Journal journal = journal("RED-B1", FROM);
+        List<JournalLine> lines = List.of(
+                line(journal, 1, "110", "100", "0", partnerAId),
+                line(journal, 2, "110", "200", "0", partnerBId),
+                line(journal, 3, "401", "0", "300", null));
+        when(journalLineRepository.findJournalLinesInRangeForPartner(partnerAId, FROM, TO)).thenReturn(lines);
+        when(journalLineRepository.findJournalLinesInRangeForPartner(partnerBId, FROM, TO)).thenReturn(lines);
+        when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
+        lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
+                org.mockito.ArgumentMatchers.anyString(), any(UUID.class))).thenReturn(List.of());
+
+        var service = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient);
+
+        var resultA = service.read(partnerA.partnerCode(), FROM, TO).selected();
+        var resultB = service.read(partnerB.partnerCode(), FROM, TO).selected();
+
+        assertThat(resultA.salesTotal()).isEqualByComparingTo("100");
+        assertThat(resultB.salesTotal()).isEqualByComparingTo("200");
+    }
+
+    @Test
+    void RED_B2_reversalPairBeforePeriodUsesTheSameCollectionContractAsThePeriod() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = partner(partnerId, "P-RED-B2");
+        LocalDate priorDate = FROM.minusDays(1);
+        when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
+                new Total(partnerId, "110", BigDecimal.ONE, BigDecimal.ZERO)));
+        when(journalLineRepository.aggregateAgingByAccount("110", priorDate)).thenReturn(List.of(
+                new Total(partnerId, "110", new BigDecimal("777"), new BigDecimal("777"))));
+        Journal original = journal("RED-B2-ORIGINAL", priorDate);
+        Journal reversal = journal("RED-B2-REVERSAL", priorDate);
+        org.mockito.Mockito.doReturn(List.of(
+                        line(original, 1, "110", "777", "0", partnerId),
+                        line(original, 2, "401", "0", "777", null),
+                        line(reversal, 1, "110", "0", "777", partnerId),
+                        line(reversal, 2, "401", "777", "0", null)))
+                .when(journalLineRepository).findJournalLinesUpToForPartner(partnerId, priorDate);
+        when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
+        lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
+                org.mockito.ArgumentMatchers.eq(partner.partnerCode()), org.mockito.ArgumentMatchers.eq(partnerId)))
+                .thenReturn(List.of());
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read(partner.partnerCode(), FROM, TO).selected();
+
+        assertThat(result.openingBalance()).isZero();
     }
 
     @Test
@@ -340,5 +544,32 @@ class PartnerLedgerReadModelServiceTest {
         @Override public com.samhanair.logis.accounting.domain.JournalSourceType getSourceType() { return null; }
         @Override public BigDecimal getDebitTotal() { return debitTotal; }
         @Override public BigDecimal getCreditTotal() { return creditTotal; }
+    }
+
+    private static PartnerSummary partner(UUID id, String code) {
+        return new PartnerSummary(id, code, code + " 거래처", "", "");
+    }
+
+    private static Journal journal(String journalNo, LocalDate date) {
+        Journal journal = org.mockito.Mockito.mock(Journal.class);
+        org.mockito.Mockito.lenient().doReturn(UUID.randomUUID()).when(journal).getId();
+        org.mockito.Mockito.lenient().doReturn(journalNo).when(journal).getJournalNo();
+        org.mockito.Mockito.lenient().doReturn(date).when(journal).getJournalDate();
+        org.mockito.Mockito.lenient().doReturn(com.samhanair.logis.accounting.domain.JournalSourceType.MANUAL)
+                .when(journal).getSourceType();
+        org.mockito.Mockito.lenient().doReturn("RED-TEST").when(journal).getPostedBy();
+        return journal;
+    }
+
+    private static JournalLine line(Journal journal, int lineNo, String accountCode,
+                                    String debit, String credit, UUID partnerId) {
+        JournalLine line = org.mockito.Mockito.mock(JournalLine.class);
+        org.mockito.Mockito.lenient().doReturn(journal).when(line).getJournal();
+        org.mockito.Mockito.lenient().doReturn(lineNo).when(line).getLineNo();
+        org.mockito.Mockito.lenient().doReturn(accountCode).when(line).getAccountCode();
+        org.mockito.Mockito.lenient().doReturn(new BigDecimal(debit)).when(line).getDebitAmount();
+        org.mockito.Mockito.lenient().doReturn(new BigDecimal(credit)).when(line).getCreditAmount();
+        org.mockito.Mockito.lenient().doReturn(partnerId).when(line).getPartnerId();
+        return line;
     }
 }

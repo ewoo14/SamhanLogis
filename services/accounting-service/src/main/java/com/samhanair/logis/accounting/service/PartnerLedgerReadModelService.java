@@ -269,15 +269,7 @@ public class PartnerLedgerReadModelService {
             var journal = first.getJournal();
             String sourceRefKey = journal.getSourceRefId() == null ? null : journal.getSourceRefId().toString();
             if (sourceRefKey != null && canonicalSlipKeys.contains(sourceRefKey)) continue;
-            boolean seed = "SYSTEM_SEED".equals(journal.getPostedBy())
-                    || entry.getValue().stream().anyMatch(line -> line.getMemo() != null
-                    && line.getMemo().contains("[DEV-SEED]"));
-            for (JournalLine line : entry.getValue()) {
-                evidence.add(new PartnerLedgerCollectionContract.Evidence(
-                        entry.getKey().toString(), journal.getJournalDate(), journal.getSourceType().name(),
-                        sourceRefKey,
-                        line.getAccountCode(), zero(line.getDebitAmount()), zero(line.getCreditAmount()), seed, false));
-            }
+            evidence.addAll(journalEvidence(entry.getValue(), canonicalSlipKeys, group.partnerId));
         }
         Map<String, String> journalNumbers = byJournal.values().stream()
                 .collect(Collectors.toMap(linesForJournal -> linesForJournal.get(0).getJournal().getId().toString(),
@@ -358,9 +350,11 @@ public class PartnerLedgerReadModelService {
         for (var total : journalLineRepository.aggregateAgingByAccount(RECEIVABLES, from.minusDays(1))) {
             UUID partnerId = total.getPartnerId();
             if (partnerId == null || selectedId != null && !selectedId.equals(partnerId)) continue;
-            List<JournalLine> lines = journalLineRepository.findPartnerLinesUpTo(partnerId, from.minusDays(1));
+            List<JournalLine> lines = journalLineRepository.findJournalLinesUpToForPartner(
+                    partnerId, from.minusDays(1));
             java.util.Set<String> canonicalSlipKeys = Set.of();
-            List<PartnerLedgerCollectionContract.Evidence> evidence = journalEvidence(lines, canonicalSlipKeys);
+            List<PartnerLedgerCollectionContract.Evidence> evidence = journalEvidence(
+                    lines, canonicalSlipKeys, partnerId);
             var totals = PartnerLedgerContract.fold(
                     PartnerLedgerCollectionContract.toEntries(PartnerLedgerCollectionContract.classify(evidence)),
                     BigDecimal.ZERO);
@@ -379,8 +373,8 @@ public class PartnerLedgerReadModelService {
         return result;
     }
 
-    private static List<PartnerLedgerCollectionContract.Evidence> journalEvidence(List<JournalLine> lines,
-                                                                                    java.util.Set<String> canonicalSlipKeys) {
+    private static List<PartnerLedgerCollectionContract.Evidence> journalEvidence(
+            List<JournalLine> lines, java.util.Set<String> canonicalSlipKeys, UUID targetPartnerId) {
         if (lines == null) return List.of();
         Map<UUID, List<JournalLine>> byJournal = lines.stream()
                 .filter(line -> line != null && line.getJournal() != null
@@ -396,10 +390,21 @@ public class PartnerLedgerReadModelService {
                     || entry.getValue().stream().anyMatch(line -> line.getMemo() != null
                     && line.getMemo().contains("[DEV-SEED]"));
             for (JournalLine line : entry.getValue()) {
+                // 전표 전체 라인은 effect 판정에 남기되, 금액 귀속은 대상 거래처 line으로 제한한다.
+                // 거래처 미연결 상대 계정(401/현금 등)은 분류에 필요하므로 보존하고,
+                // 미연결 110은 어느 거래처에도 귀속되지 않았으므로 대상 금액에서 제외한다.
+                boolean belongsToOtherPartner = line.getPartnerId() != null
+                        && !line.getPartnerId().equals(targetPartnerId);
+                boolean unownedReceivable = line.getPartnerId() == null
+                        && RECEIVABLES.equals(line.getAccountCode());
+                boolean excludeFromTargetAttribution = belongsToOtherPartner || unownedReceivable;
                 evidence.add(new PartnerLedgerCollectionContract.Evidence(
                         entry.getKey().toString(), journal.getJournalDate(), journal.getSourceType().name(),
                         sourceRefKey,
-                        line.getAccountCode(), zero(line.getDebitAmount()), zero(line.getCreditAmount()), seed, false));
+                        line.getAccountCode(),
+                        excludeFromTargetAttribution ? BigDecimal.ZERO : zero(line.getDebitAmount()),
+                        excludeFromTargetAttribution ? BigDecimal.ZERO : zero(line.getCreditAmount()),
+                        seed, false));
             }
         }
         return evidence;

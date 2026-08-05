@@ -137,18 +137,21 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
                                                         @Param("from") LocalDate from,
                                                         @Param("to") LocalDate to);
 
-    /** 거래처별 기준일 포함 이전 분개 라인 — 기간과 동일한 collection contract 입력용. */
+    /** 거래처가 연결된 전표의 기준일 포함 전체 라인 — 기간과 동일한 collection contract 입력용. */
     @Query("""
             SELECT l FROM JournalLine l
-            WHERE l.partnerId = :partnerId
-              AND l.journal.journalDate <= :asOf
+            WHERE l.journal.journalDate <= :asOf
               AND l.journal.status IN (
                     com.samhanair.logis.accounting.domain.JournalStatus.POSTED,
                     com.samhanair.logis.accounting.domain.JournalStatus.REVERSED)
+              AND EXISTS (
+                    SELECT linked.id FROM JournalLine linked
+                    WHERE linked.journal.id = l.journal.id
+                      AND linked.partnerId = :partnerId)
             ORDER BY l.journal.journalDate ASC, l.journal.journalNo ASC, l.lineNo ASC
             """)
-    List<JournalLine> findPartnerLinesUpTo(@Param("partnerId") UUID partnerId,
-                                           @Param("asOf") LocalDate asOf);
+    List<JournalLine> findJournalLinesUpToForPartner(@Param("partnerId") UUID partnerId,
+                                                     @Param("asOf") LocalDate asOf);
 
     /**
      * 재무상태표 집계용 — asOfDate 이전 누적 POSTED+REVERSED(보상쌍 상쇄) 분개 라인의 accountCode 별 차/대 합계.
