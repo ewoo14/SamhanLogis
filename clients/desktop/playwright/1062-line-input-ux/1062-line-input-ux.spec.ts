@@ -67,4 +67,36 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
 
     await page.screenshot({ path: test.info().outputPath('03-new-filled-next-blank.png'), fullPage: true })
   })
+
+  test('견적 편집 화면은 기존 행을 보존하고 coedit 중에도 품목을 교체한다', async ({ page }) => {
+    await page.goto('/#/sales/estimates/est-001/edit?mockRole=MASTER', {
+      waitUntil: 'domcontentloaded',
+    })
+
+    await expect(page.getByTestId('estimate-form-line-0')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('estimate-form-line-1')).toBeVisible()
+    await expect(page.getByTestId('estimate-form-line-2')).toBeVisible()
+    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(3)
+
+    const lineModel = page.getByTestId('estimate-form-line-2').getByRole('combobox', { name: '라인 3 모델명' })
+    await expect(lineModel).toBeEnabled()
+    await expect(page.getByRole('button', { name: '라인 3 삭제' })).toBeDisabled()
+    await lineModel.click()
+    await lineModel.fill('AJ')
+
+    const productDialog = page.getByRole('dialog', { name: '품목 검색 결과' })
+    await expect(productDialog).toBeVisible({ timeout: 10_000 })
+    await productDialog.getByRole('radio').nth(1).check()
+    await productDialog.getByRole('button', { name: '선택 확정' }).click()
+
+    await expect(lineModel).toHaveValue('AJ052RXH5BC1')
+    await expect(page.getByTestId('estimate-form-line-3')).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('[data-testid^="estimate-form-line-"][data-price-source]')).toHaveCount(4)
+    await expect(page.getByRole('textbox', { name: '라인 3 규격' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: '라인 3 단가' })).toHaveValue('2120000')
+    await expect(page.getByTestId('estimate-form-save-button')).toBeEnabled()
+    await expect(page.getByTestId('estimate-form-send-button')).toBeEnabled()
+
+    await page.screenshot({ path: test.info().outputPath('04-edit-coedit-existing-lines-and-trailing-blank.png'), fullPage: true })
+  })
 })

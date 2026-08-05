@@ -100,6 +100,7 @@ vi.mock('@samhan/design-system', () => ({
     searchProducts,
     resultSelectionMode,
     ariaLabel,
+    disabled,
   }: any) => {
     const [draft, setDraft] = React.useState(value?.modelName ?? '')
     const [candidates, setCandidates] = React.useState<any[]>([])
@@ -116,6 +117,7 @@ vi.mock('@samhan/design-system', () => ({
       <div>
         <input
           aria-label={ariaLabel}
+          disabled={disabled}
           value={draft}
           onChange={(event) => {
             setDraft(event.target.value)
@@ -540,6 +542,18 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     // pending REMEMBERED/CATALOG 분류를 USER 로 재분류하지 않게 분리한다(타 필드는 기존 경로).
     expect(screen.getByTestId('estimate-coedit-items-0-unitPrice').getAttribute('data-doc-sync')).toBe('true')
     expect(screen.getByTestId('estimate-coedit-items-0-modelName').getAttribute('data-doc-sync')).toBe('true')
+  })
+
+  it('coedit 연결 후 모델명은 활성이고 라인 구조 삭제는 잠근다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    expect((screen.getByLabelText('라인 1 모델명') as HTMLInputElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: '라인 1 삭제' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('subscribeDoc 원격 업데이트를 React form state 에 반영한다', async () => {

@@ -1945,7 +1945,7 @@ export function EstimateFormPage() {
                   resultSelectionMode="single"
                   autoSelectSingleResult
                   debounceMs={250}
-                  disabled={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
+                  disabled={Boolean(isReadOnly) || estimateFormCoeditPending}
                   error={line.lookupError ?? undefined}
                 />
               }
@@ -2032,7 +2032,7 @@ export function EstimateFormPage() {
                 resultSelectionMode="single"
                 autoSelectSingleResult
                 debounceMs={250}
-                disabled={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
+                disabled={Boolean(isReadOnly) || estimateFormCoeditPending}
                 error={line.lookupError ?? undefined}
               />
               <CollaborativeSlipInput
