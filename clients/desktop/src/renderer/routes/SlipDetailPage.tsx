@@ -1124,6 +1124,37 @@ export function transitionDestinationStatus(
   }
 }
 
+export type TransitionConflictCause = 'concurrent' | 'inventory' | 'other'
+
+const CONCURRENT_TRANSITION_MESSAGE = '다른 사용자가 먼저 전표를 전이했습니다. 현재 편집 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.'
+const INVENTORY_SHORTAGE_MESSAGE = '재고가 부족하여 전표를 수락할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.'
+
+/** 409 응답에서 업무 재고 부족과 전표 동시 전이를 구분한다. 알 수 없는 409는 보수적으로 동시 전이로 본다. */
+export function classifyTransitionConflict(error: unknown): TransitionConflictCause {
+  if (!axios.isAxiosError(error) || error.response?.status !== 409) return 'other'
+
+  const responseData = error.response.data
+  const responseText = typeof responseData === 'string'
+    ? responseData
+    : responseData && typeof responseData === 'object'
+      ? Object.values(responseData as Record<string, unknown>)
+          .filter((value): value is string => typeof value === 'string')
+          .join(' ')
+      : ''
+
+  return responseText.includes('재고 부족') ? 'inventory' : 'concurrent'
+}
+
+/** 전이 409 원인별 사용자 안내와 편집 표면 잠금 정책. */
+export function transitionConflictEditPolicy(
+  cause: Exclude<TransitionConflictCause, 'other'>,
+): { message: string; blockEditSurfaces: boolean } {
+  if (cause === 'inventory') {
+    return { message: INVENTORY_SHORTAGE_MESSAGE, blockEditSurfaces: false }
+  }
+  return { message: CONCURRENT_TRANSITION_MESSAGE, blockEditSurfaces: true }
+}
+
 /** 직접수정·기사 PATCH가 서버에서 허용되는 status. */
 export function isDirectEditStatus(status: SlipDetail['status']): boolean {
   return status === 'DRAFT' || status === 'SAVED'
@@ -1609,13 +1640,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       // 서버 상태가 유지된 실패에서는 모든 편집 표면과 입력을 그대로 둔다.
       transitionDiscardRef.current = false
       if (axios.isAxiosError(error) && error.response?.status === 409) {
-        const conflictMessage = '다른 사용자가 먼저 전표를 전이했습니다. 현재 편집 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.'
-        setEditSurfaceNotice(conflictMessage)
-        if (salesEditOpen) setSalesEditStale(true)
-        if (purchaseEditOpen) setPurchaseEditStale(true)
-        if (editingDriver) setEditingDriverStale(true)
-        if (collabEditMode) setCollabEditBlockedReason(conflictMessage)
-        void refetchDetail()
+        const cause = classifyTransitionConflict(error)
+        const policy = transitionConflictEditPolicy(cause === 'inventory' ? 'inventory' : 'concurrent')
+        setEditSurfaceNotice(policy.message)
+        if (policy.blockEditSurfaces) {
+          if (salesEditOpen) setSalesEditStale(true)
+          if (purchaseEditOpen) setPurchaseEditStale(true)
+          if (editingDriver) setEditingDriverStale(true)
+          if (collabEditMode) setCollabEditBlockedReason(policy.message)
+          void refetchDetail()
+        }
       }
     },
   })

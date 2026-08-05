@@ -3,9 +3,11 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   actionsForStatus,
+  classifyTransitionConflict,
   desktopFooterActions,
   isCollabEditStatus,
   isDirectEditStatus,
+  transitionConflictEditPolicy,
   transitionDestinationStatus,
 } from './SlipDetailPage'
 
@@ -178,6 +180,70 @@ describe('SlipDetailPage lifecycle contract', () => {
           ? !['REJECTED', 'SHIPPING', 'DELIVERED', 'CANCELED'].includes(destination)
           : false,
       )
+    }
+  })
+
+  it('R32 RED-A: 진짜 동시 전이는 종전 문구·stale/blocked를 유지하고 비-409 처리는 변하지 않는다', () => {
+    const concurrent409Messages = [
+      '전이 가능한 상태가 아닙니다: 현재 수락완료, 필요 전송완료',
+      '동시 수정 충돌 — 다시 시도해 주세요',
+    ]
+
+    for (const message of concurrent409Messages) {
+      const concurrent409 = {
+        isAxiosError: true,
+        response: {
+          status: 409,
+          data: { code: 'CONFLICT', message },
+        },
+      }
+
+      expect(classifyTransitionConflict(concurrent409)).toBe('concurrent')
+    }
+    expect(transitionConflictEditPolicy('concurrent')).toEqual({
+      message: '다른 사용자가 먼저 전표를 전이했습니다. 현재 편집 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.',
+      blockEditSurfaces: true,
+    })
+
+    for (const status of [400, 403, 500]) {
+      expect(classifyTransitionConflict({ isAxiosError: true, response: { status } })).toBe('other')
+    }
+
+    const openSurfaces = ['direct', 'driver', 'collab'] as const
+    const transitionKinds = ['save', 'send', 'accept', 'process', 'complete', 'inspect', 'ship', 'deliver', 'confirm', 'cancel'] as const
+    for (const transition of transitionKinds) {
+      for (const surface of openSurfaces) {
+        expect(transitionConflictEditPolicy('concurrent').blockEditSurfaces,
+          `${transition}/${surface}`).toBe(true)
+      }
+    }
+  })
+
+  it('R32 RED-B: 재고 부족 409는 업무 실패로 안내하고 직접·기사·협업 입력을 잠그지 않는다', () => {
+    const stock409 = {
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: {
+          code: 'CONFLICT',
+          message: 'inventory-service 호출 실패(CONFLICT): {"success":false,"code":"CONFLICT","message":"재고 부족: 가용 0, 필요 1"}',
+        },
+      },
+    }
+
+    expect(classifyTransitionConflict(stock409)).toBe('inventory')
+    expect(transitionConflictEditPolicy('inventory')).toEqual({
+      message: '재고가 부족하여 전표를 수락할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.',
+      blockEditSurfaces: false,
+    })
+
+    const openSurfaces = ['direct', 'driver', 'collab'] as const
+    const transitionKinds = ['accept', 'complete'] as const
+    for (const transition of transitionKinds) {
+      for (const surface of openSurfaces) {
+        expect(transitionConflictEditPolicy('inventory').blockEditSurfaces,
+          `${transition}/${surface}`).toBe(false)
+      }
     }
   })
 })
