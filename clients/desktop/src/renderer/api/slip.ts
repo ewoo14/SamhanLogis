@@ -432,6 +432,8 @@ export interface ProductLookupResult {
   modelCode?: string
   /** 품목 유형 — "SINGLE" | "BUNDLE". BUNDLE 이면 세트 옵션 노출. */
   productType?: string
+  /** 카탈로그 자동 규격 — 견적 라인 확정 시 저장되는 값. */
+  specification?: string | null
 }
 
 interface ProductLookupWireResult {
@@ -441,6 +443,7 @@ interface ProductLookupWireResult {
   sellingPrice: string | number | null
   modelCode?: string | null
   productType?: string | null
+  specification?: string | null
 }
 
 /** 거래처+품목 최근 수동단가 기억 응답 — 단가는 VAT 포함 입력 단가. */
@@ -797,6 +800,7 @@ export async function lookupProductByModelName(
     sellingPrice: String(data.sellingPrice ?? '0'),
     modelCode: data.modelCode ?? undefined,
     productType: data.productType ?? undefined,
+    specification: data.specification ?? undefined,
   }
 }
 

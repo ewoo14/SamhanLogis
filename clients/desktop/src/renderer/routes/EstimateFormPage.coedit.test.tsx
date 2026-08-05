@@ -97,6 +97,7 @@ vi.mock('@samhan/design-system', () => ({
     value,
     onChange,
     onInputCommitChange,
+    onInputBlur,
     searchProducts,
     resultSelectionMode,
     ariaLabel,
@@ -109,9 +110,10 @@ vi.mock('@samhan/design-system', () => ({
       const next = await searchProducts(draft)
       if (next.length === 1) {
         onChange(next[0])
-        return
+        return next
       }
       setCandidates(next)
+      return next
     }
     return (
       <div>
@@ -123,7 +125,10 @@ vi.mock('@samhan/design-system', () => ({
             setDraft(event.target.value)
             onInputCommitChange?.(false)
           }}
-          onBlur={() => void search()}
+          onBlur={async () => {
+            const next = await search()
+            if (next?.length !== 1) onInputBlur?.(draft)
+          }}
         />
         {candidates.length > 1 ? (
           <div role="dialog" aria-label="품목 검색 결과">
@@ -425,8 +430,21 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
 
   it('RED-A: 공용 ProductOption 확정은 id·모델명·품목명·규격·단가를 저장 라인에 보존한다', async () => {
     const catalogSpecification = '가'.repeat(50)
+    const created = makeEstimate({
+      id: 'estimate-created',
+      lines: [{
+        ...makeEstimate().lines[0],
+        productId: '44444444-4444-4444-4444-444444444444',
+        modelName: 'AJ040RXH4BC1',
+        productName: '시스템에어컨 4Way 4HP',
+        specification: catalogSpecification,
+        specificationSource: 'CATALOG',
+        unitPrice: 1850000 as unknown as string,
+      }],
+    })
     mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
     mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.createEstimate.mockResolvedValue(created)
     mocks.searchProducts.mockResolvedValue([{
       id: '44444444-4444-4444-4444-444444444444',
       modelName: 'AJ040RXH4BC1',
@@ -458,6 +476,67 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
         unitPrice: '1850000',
       })],
     })))
+    const createdResponse = await mocks.createEstimate.mock.results[0].value
+    expect(createdResponse.lines[0]).toEqual(expect.objectContaining({
+      specification: catalogSpecification,
+      specificationSource: 'CATALOG',
+    }))
+
+    cleanup()
+    mocks.getEstimate.mockResolvedValue(createdResponse)
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    renderPage('/sales/estimates/estimate-created/edit')
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe(catalogSpecification))
+  })
+
+  it('S28 RED-A: 품목 확정 후 규격 없는 blur와 POST 저장·재조회도 자동 규격/source를 보존한다', async () => {
+    const catalogSpecification = '9평형 / R32 / 인버터 / 윈드프리'
+    const saved = makeEstimate({
+      lines: [{ ...makeEstimate().lines[0], specification: catalogSpecification, specificationSource: 'CATALOG' }],
+    })
+    mocks.getEstimate.mockResolvedValue(makeEstimate({
+      lines: [{ ...makeEstimate().lines[0], specification: catalogSpecification, specificationSource: 'CATALOG' }],
+    }))
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.searchProducts.mockResolvedValue([])
+    mocks.lookupProductByModelName.mockResolvedValue({
+      productId: 'product-1',
+      modelName: 'MODEL-1',
+      productName: '제품 1',
+      sellingPrice: '1080000',
+      productType: 'SINGLE',
+      specification: undefined,
+    })
+
+    renderPage()
+    const model = await screen.findByLabelText('라인 1 모델명')
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe(catalogSpecification)
+    fireEvent.blur(model)
+    await waitFor(() => expect(mocks.lookupProductByModelName).toHaveBeenCalledWith('MODEL-1'))
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe(catalogSpecification))
+
+    mocks.updateEstimate.mockResolvedValue(saved)
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    const body = mocks.updateEstimate.mock.calls[0][1]
+    expect(body.lines[0]).toEqual(expect.objectContaining({
+      specification: catalogSpecification,
+      specificationSource: 'CATALOG',
+    }))
+    expect(saved.lines[0]).toEqual(expect.objectContaining({
+      specification: catalogSpecification,
+      specificationSource: 'CATALOG',
+    }))
+
+    cleanup()
+    mocks.getEstimate.mockResolvedValue(saved)
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    renderPage()
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe(catalogSpecification))
   })
 
   it('S14 RED-A: 자동 반영 규격은 품목 해제 시 로컬·coedit에서 함께 회수한다', async () => {

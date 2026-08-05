@@ -1382,7 +1382,8 @@ export function EstimateFormPage() {
     }
 
     try {
-      const rawResult = selectedProductRef.current.get(line.uid) ?? await lookupProductByModelName(modelName)
+      const selectedProduct = selectedProductRef.current.get(line.uid)
+      const rawResult = selectedProduct ?? await lookupProductByModelName(modelName)
       selectedProductRef.current.delete(line.uid)
       // 공용 ProductOption(id/sellingPrice:number/specification)과 레거시 lookup
       // 응답(productId/sellingPrice:string)을 여기서만 견적 내부 계약으로 정규화한다.
@@ -1449,21 +1450,39 @@ export function EstimateFormPage() {
       const currentIndex = linesRef.current.findIndex((candidate) => candidate.uid === line.uid)
       const hasCatalogSpecification = Boolean(result.specification?.trim())
       const preservesUserSpecification = current.specificationSource === 'USER'
+      // 구버전 lookup-product 응답에는 specification이 없을 수 있다. 이미 확정된
+      // 동일 품목의 자동 규격을 단순 blur가 회수하지 않도록 보존한다. 명시적인 새 품목
+      // 선택(selectedProduct)이면 기존 자동 규격을 새 품목 기준으로 교체/회수한다.
+      const existingSpecification = current.specification.trim() || line.specification
+      const sameProductLookup = line.productId === result.productId || current.productId === result.productId
+      const preservesExistingSpecification = sameProductLookup
+        && Boolean(existingSpecification.trim())
+      const isExplicitProductSelection = Boolean(selectedProduct && line.productId !== result.productId)
+      const nextSpecification = hasCatalogSpecification
+        ? result.specification!
+        : isExplicitProductSelection
+          ? preservesUserSpecification
+            ? current.specification
+            : ''
+          : preservesExistingSpecification
+            ? existingSpecification
+            : current.specification
+      const nextSpecificationSource = hasCatalogSpecification
+        ? 'CATALOG' as const
+        : isExplicitProductSelection
+          ? preservesUserSpecification
+            ? 'USER' as const
+            : null
+          : preservesExistingSpecification
+            ? current.specificationSource ?? line.specificationSource
+            : current.specificationSource
       const nextLine: DraftLine = {
         ...current,
         modelName: result.modelName || current.modelName,
         productId: result.productId,
         productName: result.productName,
-        specification: hasCatalogSpecification
-          ? result.specification!
-          : preservesUserSpecification
-            ? current.specification
-            : '',
-        specificationSource: hasCatalogSpecification
-          ? 'CATALOG'
-          : preservesUserSpecification
-            ? 'USER'
-            : null,
+        specification: nextSpecification,
+        specificationSource: nextSpecificationSource,
         productType: result.productType ?? 'SINGLE',
         catalogUnitPrice: result.sellingPrice,
         unitPrice: applyPrice ? nextUnitPrice : current.unitPrice,
@@ -1489,13 +1508,11 @@ export function EstimateFormPage() {
         try {
           estimateFormCoeditProvider.setItemValue(currentIndex, 'modelName', result.modelName)
           estimateFormCoeditProvider.setItemValue(currentIndex, 'productName', result.productName)
-          estimateFormCoeditProvider.setItemValue(currentIndex, 'specification', result.specification ?? '')
+          estimateFormCoeditProvider.setItemValue(currentIndex, 'specification', nextLine.specification)
           estimateFormCoeditProvider.setItemValue(
             currentIndex,
             'specificationSource',
-            hasCatalogSpecification && !preservesUserSpecification
-              ? 'CATALOG'
-              : nextLine.specificationSource ?? '',
+            nextLine.specificationSource ?? '',
           )
           if (applyPrice) {
             localAutoPriceWritesRef.current.set(line.uid, {

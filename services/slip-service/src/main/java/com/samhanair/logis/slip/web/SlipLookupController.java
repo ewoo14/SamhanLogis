@@ -33,7 +33,7 @@ public class SlipLookupController {
      * {@code POST /products/internal/lookup-by-model} 을 호출.
      *
      * @param modelName 정확 매칭할 제품 모델명 (URL query param, 공백 trim 적용)
-     * @return 200, ProductSummary (id/name/modelName/categoryId/sellingPrice/status)
+     * @return 200, ProductSummary (id/name/modelName/categoryId/sellingPrice/status/specification)
      *         ; 미존재 시 404 NOT_FOUND
      */
     @Operation(summary = "모델명으로 제품 단건 조회 (facade)",
