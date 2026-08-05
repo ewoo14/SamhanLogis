@@ -12,8 +12,17 @@ describe('R23 line input contracts', () => {
   })
 
   it('R23 RED-A5 분개 최소 2행·이동 최소 1행 규칙을 유지한다', () => {
-    expect(route('JournalFormPage.tsx')).toContain('removeLinePreservingMinimum(prev, target.uid, (line) => line.uid, emptyLine, 2)')
-    expect(route('TransferFormPage.tsx')).toContain('lines.length === 1')
+    expect(route('JournalFormPage.tsx')).toContain('isJournalLineConfirmed')
+    expect(route('TransferFormPage.tsx')).toContain('emptyLine,\n          1,')
+    expect(route('EstimateFormPage.tsx')).toContain('emptyLine,\n        1,')
+  })
+
+  it('R26 네 화면 삭제 경로는 최소행 뒤에도 trailing 입력행을 복원한다', () => {
+    for (const name of ['SlipFormPage.tsx', 'EstimateFormPage.tsx', 'JournalFormPage.tsx', 'TransferFormPage.tsx']) {
+      expect(route(name), name).toContain('removeLinePreservingMinimum')
+    }
+    expect(readFileSync(resolve(process.cwd(), 'src/renderer/utils/autoBlankRow.ts'), 'utf8'))
+      .toContain('ensureTrailingBlankRow(next, emptyRow, isConfirmed)')
   })
 
   it('R23 RED-B2 판매·구매 신규 전표 두 자동완성 모두 다건 모달을 사용한다', () => {

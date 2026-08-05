@@ -707,7 +707,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const removeLine = (id: string) => {
-    setLines((ls) => removeLinePreservingMinimum(ls, id, (line) => line.id, emptyLine, 1))
+    setLines((ls) => removeLinePreservingMinimum(
+      ls,
+      id,
+      (line) => line.id,
+      emptyLine,
+      1,
+      (line) => Boolean(line.productId),
+    ))
     setSelectedIds((prev) => {
       const next = new Set(prev)
       next.delete(id)

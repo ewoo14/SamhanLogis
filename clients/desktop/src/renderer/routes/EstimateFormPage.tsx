@@ -173,6 +173,8 @@ const datePlusDays = (iso: string, days: number): string => {
 
 const fmt = (n: number): string => Math.trunc(n).toLocaleString('ko-KR')
 const ESTIMATE_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
+/** 서버 견적 version과 협업 Y.Doc의 seed 세대를 연결하는 내부 헤더 키. 화면 미노출. */
+const ESTIMATE_SERVER_VERSION_HEADER = 'estimateServerVersion'
 
 /**
  * 단가 출처 마커 라벨/설명 — 전표(LineRow/SlipMobileLineCard)와 동일 카피.
@@ -879,12 +881,19 @@ export function EstimateFormPage() {
         (line) => Boolean(line.productId),
       ).length
       const providerLineCount = nextProvider.items.toArray().length
+      const serverVersion = String(estimate.version)
+      const providerServerVersion = nextProvider.getHeaderValue(ESTIMATE_SERVER_VERSION_HEADER)
+      const serverVersionChanged = providerServerVersion !== ''
+        && providerServerVersion !== serverVersion
       // 서버 응답은 trailing 빈행을 하나만 만들지만, Y.Doc에는 사용자가 이미 입력을
       // 시작한 미저장 행이 그보다 여러 개 존재할 수 있다. provider가 서버 기준보다
       // 앞선 경우를 구조 불일치로 오인해 full-seed하면 다른 참가자 진입/재연결 때
       // 미저장 입력을 잃는다. 비어 있거나 서버보다 뒤처진 문서만 서버 seed로 복구하고,
-      // 앞선 Y.Doc은 협업 문서의 현재 상태로 보존한다.
-      if (nextProvider.isEmpty() || providerLineCount < serverLineCount) {
+      // 같은 서버 version 세대의 앞선 Y.Doc은 협업 문서의 현재 상태로 보존한다.
+      // 버전 복원은 서버 version을 바꾸므로, 그때만 stale-ahead 문서를 server seed로
+      // 수렴시킨다. 이 marker가 없던 구 문서는 미저장 입력 보존을 우선해 그대로 읽고
+      // 현재 세대를 기록한다.
+      if (nextProvider.isEmpty() || providerLineCount < serverLineCount || serverVersionChanged) {
         seedEstimateCoeditProvider(nextProvider, estimate)
       } else if (providerLineCount === serverLineCount
         && coeditLineIdsAreStale(nextProvider, knownServerLineIds)) {
@@ -904,6 +913,9 @@ export function EstimateFormPage() {
         // 재시드 대상이 아니면(예: 라인 0건 견적) 여기서 backfill 하지 않는 한
         // applyProviderState 가 빈 문자열로 partnerIdSnapshot 을 덮어 저장이 막힌다.
         nextProvider.setHeaderValue('partnerId', estimate.partnerId)
+      }
+      if (providerServerVersion !== serverVersion) {
+        nextProvider.setHeaderValue(ESTIMATE_SERVER_VERSION_HEADER, serverVersion)
       }
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
@@ -1226,7 +1238,14 @@ export function EstimateFormPage() {
     setLines((prev) => {
       const target = prev[index]
       if (!target) return prev
-      const normalized = removeLinePreservingMinimum(prev, target.uid, (line) => line.uid, emptyLine, 1)
+      const normalized = removeLinePreservingMinimum(
+        prev,
+        target.uid,
+        (line) => line.uid,
+        emptyLine,
+        1,
+        (line) => Boolean(line.productId),
+      )
       linesRef.current = normalized
       return normalized
     })

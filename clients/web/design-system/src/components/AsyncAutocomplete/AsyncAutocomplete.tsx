@@ -228,6 +228,7 @@ function AsyncAutocompleteInner<T>(
   const pick = useCallback(
     (item: T) => {
       cancelDebouncedSearch()
+      lastTypedDraftRef.current = ''
       setCommitted(true)
       onChange(item)
       setDraft(getInputLabel(item))
@@ -263,11 +264,14 @@ function AsyncAutocompleteInner<T>(
       const trimmed = draft.trim()
 
       if (!trimmed) {
-        // 빈 입력 blur — 더미 onChange 금지 (blur 게이트 원칙).
+        // 확정값을 비운 뒤 blur하면 null을 실제 선택 해제로 전달한다.
+        // 값이 이미 null인 입력은 더미 callback을 만들지 않는다.
         setSearchState({ candidates: [], resolvedQuery: '' })
         setStatus('idle')
         setErrorMsg(null)
-        setDraft(selectedLabel)
+        lastTypedDraftRef.current = ''
+        if (value) onChange(null)
+        setDraft('')
         setCommitted(true)
         return
       }
@@ -429,7 +433,19 @@ function AsyncAutocompleteInner<T>(
   useEffect(() => {
     const nextKey = value ? getKey(value) : null
     if (previousValueKeyRef.current === nextKey) return
+
+    // 사용자가 확정값을 다시 편집하면 소비자는 입력 중인 선택을 저장 대상에서
+    // 먼저 제외하기 위해 controlled value를 null로 바꿀 수 있다. 이 null은 외부
+    // 동기화가 아니라 현재 draft의 결과이므로, surface/draft를 닫거나 덮어쓰면
+    // 첫 글자와 검색어가 사라진다. blur에서 실제 onChange(null)이 오기 전까지
+    // 진행 중 검색을 그대로 보존한다.
+    if (nextKey === null && lastTypedDraftRef.current !== '') {
+      previousValueKeyRef.current = nextKey
+      return
+    }
+
     previousValueKeyRef.current = nextKey
+    lastTypedDraftRef.current = ''
     cancelDebouncedSearch()
     if (blurTimer.current !== undefined) {
       window.clearTimeout(blurTimer.current)

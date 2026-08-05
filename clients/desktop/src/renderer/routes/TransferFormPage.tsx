@@ -29,7 +29,10 @@ import {
 } from '../api/inventory'
 import { lookupProductByModelName } from '../api/slip'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { appendBlankRowIfLastChanged } from '../utils/autoBlankRow'
+import {
+  appendBlankRowIfLastChanged,
+  removeLinePreservingMinimum,
+} from '../utils/autoBlankRow'
 
 interface TransferLineDraft {
   uid: string
@@ -95,7 +98,19 @@ export function TransferFormPage() {
   })
 
   const removeLine = (idx: number) =>
-    setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, i) => i !== idx)))
+    setLines((ls) => {
+      const target = ls[idx]
+      return target
+        ? removeLinePreservingMinimum(
+          ls,
+          target.uid,
+          (line) => line.uid,
+          emptyLine,
+          1,
+          (line) => Boolean(line.productId),
+        )
+        : ls
+    })
   const updateLine = (idx: number, patch: Partial<TransferLineDraft>, fromUser = false) => {
     setLines((current) => {
       const before = current[idx]

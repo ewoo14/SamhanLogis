@@ -44,8 +44,12 @@ export function removeLinePreservingMinimum<T>(
   getId: (row: T) => string,
   emptyRow: () => T,
   minimumRows: number,
+  isConfirmed: (row: T) => boolean,
 ): T[] {
   const next = rows.filter((row) => getId(row) !== id)
   while (next.length < minimumRows) next.push(emptyRow())
-  return next
+  // 삭제 대상이 마지막 trailing 빈행이어도 다음 입력 경로를 끊지 않는다.
+  // 최소행을 채운 뒤 판정해야 분개처럼 최소 2행인 화면도 빈행을 정확히 하나만
+  // trailing으로 유지한다.
+  return ensureTrailingBlankRow(next, emptyRow, isConfirmed)
 }

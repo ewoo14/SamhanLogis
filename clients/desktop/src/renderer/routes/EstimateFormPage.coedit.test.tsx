@@ -552,6 +552,29 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     ])
   })
 
+  it('R26 버전 복원으로 서버 version이 바뀌면 선행 stale Y.Doc을 재시드한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.setHeaderValue('estimateServerVersion', '1')
+    provider.__setRows([
+      { lineId: 'line-1', modelName: 'MODEL-1', productName: '제품 1', productId: 'product-1' },
+      { lineId: 'line-old', modelName: 'MODEL-OLD', productName: '복원 전 제품', productId: 'old-product' },
+      { lineId: 'draft-line', modelName: '', productName: '', productId: '' },
+    ])
+    provider.setHeaderValue.mockClear()
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ version: 2 }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).toHaveBeenCalledWith([
+      expect.objectContaining({ modelName: 'MODEL-1', productName: '제품 1' }),
+      expect.objectContaining({ modelName: '', productName: '', productId: '' }),
+    ])
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('estimateServerVersion', '2')
+  })
+
   it('R23 RED-B4 다른 참가자 진입 시 Y.Doc의 미저장 입력 행을 보존한다', async () => {
     const provider = makeProvider()
     provider.isEmpty.mockReturnValue(false)
@@ -582,6 +605,27 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
       },
     ])
     mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).not.toHaveBeenCalled()
+    expect((screen.getByTestId('estimate-coedit-items-1-modelName') as HTMLInputElement).value).toBe('DRAFT-1')
+    expect((screen.getByTestId('estimate-coedit-items-2-modelName') as HTMLInputElement).value).toBe('DRAFT-2')
+  })
+
+  it('R26 같은 서버 version 세대의 선행 Y.Doc 미저장 행을 보존한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.setHeaderValue('estimateServerVersion', '1')
+    provider.setHeaderValue.mockClear()
+    provider.__setRows([
+      { modelName: 'MODEL-1', productName: '제품 1', productId: 'product-1' },
+      { modelName: 'DRAFT-1', productName: '미저장 제품 1', productId: 'draft-product-1' },
+      { modelName: 'DRAFT-2', productName: '미저장 제품 2', productId: 'draft-product-2' },
+    ])
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ version: 1 }))
     mocks.createDocCoeditProvider.mockResolvedValue(provider)
 
     renderPage()

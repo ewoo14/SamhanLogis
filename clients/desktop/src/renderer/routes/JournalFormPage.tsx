@@ -72,6 +72,16 @@ const emptyLine = (): DraftLine => ({
   note: '',
 })
 
+/** 삭제 후 trailing 입력행을 보장할 때 쓰는 분개 라인 확정 판정. */
+const isJournalLineConfirmed = (line: DraftLine): boolean => Boolean(
+  line.accountCode.trim()
+  || line.debit > 0
+  || line.credit > 0
+  || line.partnerId
+  || line.partnerName.trim()
+  || line.note.trim(),
+)
+
 /** YYYY-MM-DD 오늘 날짜 (한국 시간 기준 클라이언트 local). */
 const today = (): string => {
   const d = new Date()
@@ -383,7 +393,14 @@ export function JournalFormPage() {
     setLines((prev) => {
       const target = prev[index]
       return target
-        ? removeLinePreservingMinimum(prev, target.uid, (line) => line.uid, emptyLine, 2)
+        ? removeLinePreservingMinimum(
+          prev,
+          target.uid,
+          (line) => line.uid,
+          emptyLine,
+          2,
+          isJournalLineConfirmed,
+        )
         : prev
     })
   }
