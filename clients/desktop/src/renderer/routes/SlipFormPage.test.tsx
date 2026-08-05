@@ -1248,6 +1248,7 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
 
     pending.resolve([])
     await waitFor(() => expect(notice.textContent).toBe(''))
+    expect(notice.getAttribute('aria-label')).toBeNull()
   })
 
   it('빠른 첫 성공 뒤 옵션 연속 변경은 중간 응답을 버리고 최종 한 벌로 수렴한다', async () => {

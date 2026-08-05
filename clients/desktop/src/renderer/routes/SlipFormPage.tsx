@@ -2169,7 +2169,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           <span
             role="status"
             aria-live="polite"
-            aria-label="세트 구성품 반영 중"
+            aria-label={bundleExpansionPending ? '세트 구성품 반영 중' : undefined}
             data-testid="slip-form-bundle-expansion-busy"
             style={
               bundleExpansionPending
