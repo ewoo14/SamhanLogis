@@ -728,7 +728,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     if (optionContext) {
       setExpandedBundleOptions((current) => ({
         ...current,
-        [before.productId!]: {
+        [before.id]: {
           ...optionContext,
           specification: after.specification,
           quantity: after.quantity,
@@ -754,9 +754,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return next
     })
     setExpandedBundleOptions((current) => {
-      const next = { ...current }
-      const line = linesRef.current.find((candidate) => candidate.id === id)
-      delete next[id]
+      const liveIds = new Set(linesRef.current.filter((line) => line.id !== id).map((line) => line.id))
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([key]) => liveIds.has(key)),
+      )
       return next
     })
     // #902 R2: 안내는 이제 이력(touchedLineIds)이 아니라 현재 내용의 순수 함수라(H1),
@@ -826,8 +827,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         }
       : null)
     setExpandedBundleOptions((current) => {
-      const next = { ...current }
-      delete next[source.id]
+      // 컨텍스트 소유권은 화면의 실제 구성품 행 ID뿐이다. 재전개 중 사용자
+      // 편집으로 남을 수 있는 productId 키 등 현재 행과 무관한 키를 함께 제거한다.
+      const nextLineIds = new Set(linesRef.current.map((line) => line.id))
+      nextLineIds.delete(source.id)
+      componentLines.forEach((line) => nextLineIds.add(line.id))
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([key]) => nextLineIds.has(key)),
+      )
       const shouldRetainOptions = componentLines.length > 0
         && context
         && (!existingContext || componentLines[0].productId === source.productId)
@@ -939,8 +946,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
     bundleExpansionGenerationRef.current.set(line.id, (bundleExpansionGenerationRef.current.get(line.id) ?? 0) + 1)
     setExpandedBundleOptions((current) => {
-      const next = { ...current }
-      delete next[line.id]
+      const liveIds = new Set(linesRef.current.filter((candidate) => candidate.id !== line.id).map((candidate) => candidate.id))
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([key]) => liveIds.has(key)),
+      )
       return next
     })
     setPriceLookupAnnouncement('')
@@ -1396,7 +1405,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // 거래처 변경 최근단가 재조회/가격기억 조회가 in-flight 인 동안 저장하면 이전 거래처
   // 단가가 새 거래처(partnerId)로 전송되어 가격기억이 교차 오염된다 — 저장 차단(R4-F4).
   const priceResolutionBusy = partnerReprice.isPending || lines.some((l) => l.lookupLoading)
-  const bundleExpansionPending = Object.values(expandedBundleOptions).some((context) => context.expansionPending)
+  const bundleExpansionPending = lines.some((line) => expandedBundleOptions[line.id]?.expansionPending)
   const hasUnresolvedCatalogPrice = lines.some((line) => line.lookupError && !line.unitPrice.trim())
   // R4-D4: 마커 카피 분기/해제 기준 — 가격기억 조회가 실제 가능한 상태(UUID 보유 거래처 선택)와 일치.
   const partnerSelected = Boolean(selectedPartner?.id)
@@ -2065,6 +2074,18 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             }
           >
             {priceResolutionBusy ? '최근단가 확인 중…' : null}
+          </span>
+          <span
+            role="status"
+            aria-live="polite"
+            data-testid="slip-form-bundle-expansion-busy"
+            style={
+              bundleExpansionPending
+                ? { fontSize: 12, color: 'var(--ink-secondary, #5C6773)', alignSelf: 'center' }
+                : undefined
+            }
+          >
+            {bundleExpansionPending ? '세트 구성품 반영 중… 저장할 수 없습니다.' : null}
           </span>
           <Button variant="ghost" onClick={() => navigate(listPath)}>
             취소

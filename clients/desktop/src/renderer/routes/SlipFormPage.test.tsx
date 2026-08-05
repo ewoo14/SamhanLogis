@@ -997,6 +997,14 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
       }])
       .mockReturnValueOnce(second.promise)
       .mockResolvedValueOnce([{
+        productId: harness.productB.id,
+        modelName: harness.productB.modelName,
+        name: harness.productB.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockResolvedValueOnce([{
         productId: harness.productA.id,
         modelName: harness.productA.modelName,
         name: harness.productA.productName,
@@ -1061,6 +1069,120 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
       unitPrice: 10000,
       specification: null,
     }])
+  })
+
+  it.each([
+    ['수량', 'line-1-quantity', '3'],
+    ['단가', 'line-1-unit-price', '7777'],
+    ['규격', 'line-1-specification', '현장규격'],
+  ])('재전개 성공 중 %s 편집 뒤에는 고아 pending 없이 저장할 수 있다', async (_name, label, value) => {
+    const second = deferred<any[]>()
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockReturnValueOnce(second.promise)
+      .mockResolvedValueOnce([{
+        productId: harness.productB.id,
+        modelName: harness.productB.modelName,
+        name: harness.productB.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    fireEvent.change(screen.getByLabelText(label), { target: { value } })
+
+    await act(async () => {
+      second.resolve([{
+        productId: harness.productB.id,
+        modelName: harness.productB.modelName,
+        name: harness.productB.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      await second.promise
+    })
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productB.productName))
+
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    expect(screen.getByRole('button', { name: '저장' })).toHaveProperty('disabled', false)
+  })
+
+  it.each([
+    ['수량', 'line-1-quantity', '3'],
+    ['단가', 'line-1-unit-price', '7777'],
+    ['규격', 'line-1-specification', '현장규격'],
+  ])('재전개 실패(timeout) 중 %s 편집 뒤에는 고아 pending 없이 행을 교체해 저장할 수 있다', async (_name, label, value) => {
+    const second = deferred<any[]>()
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockReturnValueOnce(second.promise)
+      .mockRejectedValueOnce(new Error('timeout'))
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    fireEvent.change(screen.getByLabelText(label), { target: { value } })
+
+    await act(async () => {
+      second.reject(new Error('timeout'))
+      await second.promise.catch(() => undefined)
+    })
+    await waitFor(() => expect(screen.getByText('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')).toBeTruthy())
+
+    fireEvent.click(screen.getByTestId('select-product-c-1'))
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    expect(screen.getByRole('button', { name: '저장' })).toHaveProperty('disabled', false)
+  })
+
+  it('재전개 대기 중 저장 차단 사유를 가시·접근성 안내로 알린다', async () => {
+    const second = deferred<any[]>()
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockReturnValueOnce(second.promise)
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+
+    const notice = screen.getByTestId('slip-form-bundle-expansion-busy')
+    expect(notice.getAttribute('role')).toBe('status')
+    expect(notice.getAttribute('aria-live')).toBe('polite')
+    expect(notice.textContent).toContain('세트 구성품 반영 중')
+    expect(screen.getByRole('button', { name: '저장' })).toHaveProperty('disabled', true)
+
+    second.resolve([])
+    await waitFor(() => expect(screen.getByTestId('slip-form-bundle-expansion-busy').textContent).toBe(''))
   })
 
   it('빠른 첫 성공 뒤 옵션 연속 변경은 중간 응답을 버리고 최종 한 벌로 수렴한다', async () => {
