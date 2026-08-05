@@ -492,6 +492,57 @@ interface ExpandedBundleOptionContext {
 }
 
 /**
+ * 지연된 세트 전개 응답을 반영할 때 비교하는 단일 최신성 스냅샷.
+ * 품목·수량·단가·규격·모델 식별자·품목 유형·5개 세트 옵션을 여기서만 정의한다.
+ */
+interface BundleExpansionSnapshot {
+  productId: string | null
+  modelCode: string | null
+  modelName: string
+  productType: LineDraft['productType']
+  quantity: string
+  unitPrice: string
+  specification: string
+  setOptions: BundleSetOptions
+}
+
+const createBundleExpansionSnapshot = (line: LineDraft): BundleExpansionSnapshot => ({
+  productId: line.productId,
+  modelCode: line.modelCode,
+  modelName: line.modelName,
+  productType: line.productType,
+  quantity: line.quantity,
+  unitPrice: line.unitPrice,
+  specification: line.specification,
+  setOptions: {
+    remoteOption: line.setOptions?.remoteOption ?? null,
+    remoteExcluded: line.setOptions?.remoteExcluded ?? null,
+    panelOption: line.setOptions?.panelOption ?? null,
+    panelShape360: line.setOptions?.panelShape360 ?? null,
+    materialIncluded: line.setOptions?.materialIncluded ?? null,
+  },
+})
+
+const areBundleExpansionSnapshotsEqual = (
+  left: BundleExpansionSnapshot | null,
+  right: BundleExpansionSnapshot | null,
+): boolean => {
+  if (!left || !right) return left === right
+  return left.productId === right.productId
+    && left.modelCode === right.modelCode
+    && left.modelName === right.modelName
+    && left.productType === right.productType
+    && left.quantity === right.quantity
+    && left.unitPrice === right.unitPrice
+    && left.specification === right.specification
+    && left.setOptions.remoteOption === right.setOptions.remoteOption
+    && left.setOptions.remoteExcluded === right.setOptions.remoteExcluded
+    && left.setOptions.panelOption === right.setOptions.panelOption
+    && left.setOptions.panelShape360 === right.setOptions.panelShape360
+    && left.setOptions.materialIncluded === right.setOptions.materialIncluded
+}
+
+/**
  * dnd-kit useSortable 을 적용한 LineRow wrapper — SlipFormPage 내부 전용.
  *
  * useSortable 은 hook 이라 LineRow 외부에서 호출하고 setNodeRef + transform CSS
@@ -764,6 +815,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // 행 삭제 시 별도로 지워줄 이력이 없다 — 배열에서 빠지는 즉시 안내도 함께 사라진다.
   }
 
+  /** 품목명 재입력처럼 세트가 해제되는 사용자 행동은 해당 행의 전개만 무효화한다. */
+  const invalidateBundleExpansionForLine = (id: string) => {
+    bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
+    setExpandedBundleOptions((current) => {
+      if (!current[id]) return current
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+  }
+
   const updateLine = (id: string, patch: Partial<LineDraft>) =>
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)))
 
@@ -854,11 +916,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const expandSelectedBundle = async (source: LineDraft, selected: LineDraft): Promise<void> => {
     const generation = bundleExpansionGenerationRef.current.get(source.id) ?? 0
+    const requestSnapshot = createBundleExpansionSnapshot(selected)
     const retryLatestBundleGeneration = async () => {
       const latest = linesRef.current.find((line) => line.id === source.id)
       const currentGeneration = bundleExpansionGenerationRef.current.get(source.id) ?? 0
       const context = expandedBundleOptionsRef.current[latest?.id ?? source.id]
-      if (currentGeneration === generation || (!latest && !context)) return false
       const latestBundle = latest?.productType === 'BUNDLE'
         ? latest
         : context
@@ -874,6 +936,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               setOptions: context.setOptions,
             }
           : null
+      const latestSnapshot = latestBundle ? createBundleExpansionSnapshot(latestBundle) : null
+      if (areBundleExpansionSnapshotsEqual(requestSnapshot, latestSnapshot) && currentGeneration === generation) return false
       if (!latestBundle) return false
       await expandSelectedBundle(source, latestBundle)
       return true
@@ -895,7 +959,19 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         && (latest.productType === 'BUNDLE'
           ? latest.productId === selected.productId
           : context?.parentProductId === selected.productId)
-      if (!isCurrentBundle) return
+      const currentSnapshot = latest && isCurrentBundle
+        ? createBundleExpansionSnapshot(latest.productType === 'BUNDLE'
+          ? latest
+          : {
+              ...latest,
+              productId: context!.parentProductId,
+              modelCode: context!.parentModelCode,
+              modelName: context!.modelName,
+              productType: 'BUNDLE',
+              setOptions: context!.setOptions,
+            })
+        : null
+      if (!isCurrentBundle || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
       replaceWithExpandedBundleLines(source, expanded, selected.specification)
     } catch {
       const latest = linesRef.current.find((line) => line.id === source.id)
@@ -905,8 +981,20 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         && (latest.productType === 'BUNDLE'
           ? latest.productId === selected.productId
           : context?.parentProductId === selected.productId)
+      const currentSnapshot = latest && isCurrentBundle
+        ? createBundleExpansionSnapshot(latest.productType === 'BUNDLE'
+          ? latest
+          : {
+              ...latest,
+              productId: context!.parentProductId,
+              modelCode: context!.parentModelCode,
+              modelName: context!.modelName,
+              productType: 'BUNDLE',
+              setOptions: context!.setOptions,
+            })
+        : null
       if (!isCurrentBundle
-        || (bundleExpansionGenerationRef.current.get(source.id) ?? 0) !== generation) return
+        || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
       replaceWithExpandedBundleLines(source, [], latest.specification)
       setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
     }
@@ -1024,8 +1112,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       const bundleToExpand = latestBundle && latestBundle.priceSource === 'USER'
         ? latestBundle
         : latestBundle && { ...latestBundle, unitPrice: resolvedUnitPrice }
-      setLines((currentLines) =>
-        currentLines.map((current) => {
+      const resolvedLines = linesRef.current.map((current) => {
           if (current.id !== line.id) return current
           if (current.productId !== productId) return current
           if (selectedPartnerIdRef.current !== partnerId) return current
@@ -1038,8 +1125,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             priceRefreshChanged: false,
             lookupLoading: false,
           }
-        }),
-      )
+        })
+      // 바로 이어지는 세트 전개도 방금 확정한 가격을 현재 스냅샷으로 본다.
+      linesRef.current = resolvedLines
+      setLines(resolvedLines)
       if (bundleToExpand) {
         await expandSelectedBundle({ ...line, ...bundleToExpand }, { ...bundleToExpand, lookupLoading: false })
         return
@@ -1904,6 +1993,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       onChange={(p) => void applyProductSelection(line, p)}
                       onInputCommitChange={(committed) => {
                         if (committed) return
+                        invalidateBundleExpansionForLine(line.id)
                         updateLine(line.id, {
                           productId: null,
                           productName: '',
@@ -1982,6 +2072,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                           onChange={(p) => void applyProductSelection(line, p)}
                           onInputCommitChange={(committed) => {
                             if (committed) return
+                            invalidateBundleExpansionForLine(line.id)
                             updateLine(line.id, {
                               productId: null,
                               productName: '',
@@ -2078,6 +2169,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           <span
             role="status"
             aria-live="polite"
+            aria-label="세트 구성품 반영 중"
             data-testid="slip-form-bundle-expansion-busy"
             style={
               bundleExpansionPending

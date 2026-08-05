@@ -1185,6 +1185,71 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     await waitFor(() => expect(screen.getByTestId('slip-form-bundle-expansion-busy').textContent).toBe(''))
   })
 
+  it('재전개 중 구성품 품목명을 다시 입력하면 지연 응답이 해제한 옛 구성품을 되살리지 않는다', async () => {
+    const pending = deferred<any[]>()
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockReturnValueOnce(pending.promise)
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+
+    // 확정 품목명을 다시 편집한 실제 경로: 현재 구성품을 저장 대상에서 해제한다.
+    fireEvent.click(screen.getByTestId('type-product-1'))
+    expect(screen.getByTestId('product-name-1').textContent).toBe('')
+
+    await act(async () => {
+      pending.resolve([{
+        productId: harness.productB.id,
+        modelName: harness.productB.modelName,
+        name: harness.productB.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      await pending.promise
+    })
+
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(''))
+    expect(harness.expandBundleLine).toHaveBeenCalledTimes(2)
+  })
+
+  it('재전개 저장 차단 status는 접근성 이름으로 식별된다', async () => {
+    const pending = deferred<any[]>()
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockReturnValueOnce(pending.promise)
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+
+    const notice = screen.getByTestId('slip-form-bundle-expansion-busy')
+    expect(notice.getAttribute('aria-label')).toBe('세트 구성품 반영 중')
+
+    pending.resolve([])
+    await waitFor(() => expect(notice.textContent).toBe(''))
+  })
+
   it('빠른 첫 성공 뒤 옵션 연속 변경은 중간 응답을 버리고 최종 한 벌로 수렴한다', async () => {
     const second = deferred<any[]>()
     harness.expandBundleLine
