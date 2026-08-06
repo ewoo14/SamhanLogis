@@ -303,6 +303,7 @@ beforeEach(() => {
   harness.productA.sellingPrice = '1000'
   harness.bundle.modelCode = 'SET-1'
   harness.bundle.sellingPrice = '10000'
+  ;(harness.bundle as any).deliveryPrice = undefined
   harness.bundle.categoryKey = 'homemulti'
   harness.isMobile = false
   harness.listWarehouses.mockResolvedValue([])
@@ -799,6 +800,59 @@ describe('SlipFormPage price memory autofill', () => {
     await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
     expect(harness.expandBundleLine.mock.calls[1][0]).toEqual(expect.objectContaining({ unitPrice: '955000' }))
     await waitFor(() => expect(unitPrice().value).toBe('955000'))
+  })
+
+  it('uses the bundle delivery price, not selling price, as the partner reprice base', async () => {
+    harness.bundle.sellingPrice = '2780800'
+    ;(harness.bundle as any).deliveryPrice = 1840000
+    harness.bundle.modelCode = 'AC072CS6PBH1SY'
+    harness.bundle.categoryKey = null
+    harness.getPartnerDcConfig.mockImplementation(async (partnerCode: string) => ({
+      partnerCode,
+      companyName: partnerCode === 'P-A' ? 'Partner A' : 'Partner B',
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: partnerCode === 'P-B' ? '30,000' : null,
+      fourWay: null,
+      oneWay: null,
+      stand: null,
+      deluxe: null,
+      firstGrade: null,
+    }))
+    harness.expandBundleLine
+      .mockResolvedValueOnce([
+        { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 1000000 },
+        { productId: harness.productB.id, modelName: 'Outdoor', name: 'Outdoor', modelCode: 'OUTDOOR', quantity: 1, unitPrice: 840000 },
+      ])
+      .mockResolvedValueOnce([
+        { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 1000000 },
+        { productId: harness.productB.id, modelName: 'Outdoor', name: 'Outdoor', modelCode: 'OUTDOOR', quantity: 1, unitPrice: 810000 },
+      ])
+      .mockResolvedValueOnce([
+        { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 1000000 },
+        { productId: harness.productB.id, modelName: 'Outdoor', name: 'Outdoor', modelCode: 'OUTDOOR', quantity: 1, unitPrice: 840000 },
+      ])
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(unitPrice(1).value).toBe('1000000'))
+
+    await selectPartnerB()
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    expect(harness.expandBundleLine.mock.calls[1][0]).toEqual(expect.objectContaining({ unitPrice: '1810000' }))
+    await waitFor(() => expect(unitPrice(1).value).toBe('1000000'))
+    expect(unitPrice(2).value).toBe('810000')
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 싱글세트 정액DC 30000원 적용')
+    expect(Number(unitPrice(1).value) + Number(unitPrice(2).value)).toBe(1810000)
+
+    await selectPartnerA()
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(3))
+    expect(harness.expandBundleLine.mock.calls[2][0]).toEqual(expect.objectContaining({ unitPrice: '1840000' }))
+    await waitFor(() => expect(unitPrice(2).value).toBe('840000'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info')).toBe('')
+    expect(Number(unitPrice(1).value) + Number(unitPrice(2).value)).toBe(1840000)
   })
 
   it('stores the bundle discount evidence on the saved slip payload', async () => {

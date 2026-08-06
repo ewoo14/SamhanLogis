@@ -927,11 +927,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       category: 'OTHER',
       hasVariableDiscount: false,
     }, discountConfig)
+    // 재가격 시 새 거래처의 계산 결과만 근거로 남긴다. 이전 거래처의
+    // discountInfo를 fallback 하면 금액은 원복돼도 근거만 잔류한다(I2/I3/I4).
     const bundleDiscountInfo = bundleDiscountResult.source !== 'NONE'
       ? bundleDiscountResult.info
-      : source.discountInfo && source.discountInfo !== 'DC 없음'
-        ? source.discountInfo
-        : null
+      : null
     const previousComponentLines = (context?.componentLineIds ?? [source.id])
       .map((lineId) => linesRef.current.find((line) => line.id === lineId))
       .filter((line): line is LineDraft => line != null)
@@ -1227,8 +1227,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setPriceLookupAnnouncement('')
     const lineNumber = Math.max(1, lines.findIndex((candidate) => candidate.id === line.id) + 1)
     const productId = product?.id ?? null
+    const isBundleProduct = product?.productType === 'BUNDLE'
+    const catalogUnitPrice = isBundleProduct
+      ? product?.deliveryPrice ?? product?.sellingPrice
+      : product?.sellingPrice
     const fallbackUnitPrice =
-      product?.sellingPrice != null ? String(product.sellingPrice) : line.unitPrice
+      catalogUnitPrice != null ? String(catalogUnitPrice) : line.unitPrice
     // 자동채움 판정은 견적과 공용 헬퍼(shouldAutoFillPrice) — 비대칭 재발 구조 차단(R4-F1).
     const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
     const partnerId = selectedPartner?.id
@@ -1238,14 +1242,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       : product?.categoryKey === 'commercialMulti'
         ? 'COMMERCIAL_MULTI'
         : 'OTHER'
-    const calculateWithConfig = (config: PartnerDcConfig | null) => product?.sellingPrice == null
+    const calculateWithConfig = (config: PartnerDcConfig | null) => catalogUnitPrice == null
       ? null
       : calculateSlipDiscount({
-        listPrice: Number(product.sellingPrice),
-        modelCode: product.modelCode,
-        fixedDiscountRate: product.fixedDiscountRate,
+        listPrice: Number(catalogUnitPrice),
+        modelCode: product?.modelCode,
+        fixedDiscountRate: product?.fixedDiscountRate,
         category,
-        hasVariableDiscount: product.hasVariableDiscount,
+        hasVariableDiscount: product?.hasVariableDiscount,
       }, config)
     // 품목 UUID/정가는 DC 조회와 독립적으로 먼저 확정한다.
     const dcResult = shouldAutoFill && partnerCode && partnerDcConfig
@@ -1262,7 +1266,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       productName: product?.productName ?? '',
       unitPrice: nextUnitPrice,
       priceSource: shouldAutoFill ? 'CATALOG' : line.priceSource,
-      catalogUnitPrice: product?.sellingPrice != null ? String(product.sellingPrice) : line.catalogUnitPrice ?? null,
+      catalogUnitPrice: catalogUnitPrice != null ? String(catalogUnitPrice) : line.catalogUnitPrice ?? null,
       categoryKey: product?.categoryKey ?? null,
       fixedDiscountRate: product?.fixedDiscountRate ?? null,
       hasVariableDiscount: product?.hasVariableDiscount ?? null,
