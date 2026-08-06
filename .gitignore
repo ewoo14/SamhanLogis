@@ -232,3 +232,7 @@ services/notification-service/config/*fcm*.json
 services/notification-service/src/main/resources/*service-account*.json
 services/notification-service/src/main/resources/*firebase*.json
 services/notification-service/src/main/resources/*fcm*.json
+
+# 라이브QA 가 만드는 Electron user-data 프로필 (세션 토큰 포함 — 절대 커밋 금지)
+qa-profile*/
+**/qa-profile*/
