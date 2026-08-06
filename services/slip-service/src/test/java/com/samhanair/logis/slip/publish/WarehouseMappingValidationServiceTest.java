@@ -2,7 +2,10 @@ package com.samhanair.logis.slip.publish;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -14,8 +17,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.ReadinessState;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.task.TaskExecutor;
 
@@ -27,6 +35,7 @@ class WarehouseMappingValidationServiceTest {
 
     private WarehouseCodeMapper mapper;
     private WarehouseInternalClient client;
+    private ApplicationEventPublisher publisher;
     private WarehouseMappingValidationService service;
 
     @BeforeEach
@@ -35,9 +44,80 @@ class WarehouseMappingValidationServiceTest {
         mapper.setMappingMode("STRICT");
         mapper.setWarehouseCodeMap(Map.of("00003", HQ.toString(), "2", HUB.toString()));
         client = mock(WarehouseInternalClient.class);
-        ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        publisher = mock(ApplicationEventPublisher.class);
         TaskExecutor directExecutor = Runnable::run;
         service = new WarehouseMappingValidationService(mapper, client, directExecutor, publisher);
+    }
+
+    @Test
+    void STRICT_검증_전_Boot_ACCEPTING_TRAFFIC은_즉시_REFUSING_TRAFFIC으로_되돌린다() {
+        service.onAvailabilityChange(new AvailabilityChangeEvent<>(this,
+                ReadinessState.ACCEPTING_TRAFFIC));
+
+        ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
+        verify(publisher).publishEvent(eventCaptor.capture());
+        assertThat(((AvailabilityChangeEvent<?>) eventCaptor.getValue()).getState())
+                .isEqualTo(ReadinessState.REFUSING_TRAFFIC);
+        assertThat(mapper.validationStatus("00003"))
+                .isEqualTo(WarehouseMappingStatus.UNVERIFIED);
+    }
+
+    @Test
+    void 미설정_mode는_외부_조회_없이_INVALID_CONFIGURATION으로_기동하고_발행을_차단한다() {
+        mapper.setMappingMode("");
+
+        service.validateNow();
+
+        assertThat(mapper.validationStatus("00003"))
+                .isEqualTo(WarehouseMappingStatus.INVALID_CONFIGURATION);
+        assertThatThrownBy(() -> mapper.resolve("00003"))
+                .hasMessageContaining("INVALID_CONFIGURATION");
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void 무지연_scheduled가_Ready보다_먼저_시작해도_Boot_ACCEPTING_TRAFFIC을_재차단한다()
+            throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
+        TaskExecutor asynchronousExecutor = command -> {
+            Thread worker = new Thread(() -> {
+                try {
+                    command.run();
+                } finally {
+                    finished.countDown();
+                }
+            }, "warehouse-validation-race-test");
+            worker.start();
+        };
+        service = new WarehouseMappingValidationService(
+                mapper, client, asynchronousExecutor, publisher);
+        when(client.findEcountWarehouseAliases(Set.of("00003", "2"))).thenAnswer(invocation -> {
+            entered.countDown();
+            assertThat(release.await(2, TimeUnit.SECONDS)).isTrue();
+            return Map.of(
+                    "00003", new WarehouseInternalClient.EcountWarehouseAlias("00003", HQ),
+                    "2", new WarehouseInternalClient.EcountWarehouseAlias("2", HUB));
+        });
+
+        service.scheduleValidation();
+        assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+        service.onApplicationReady(mock(ApplicationReadyEvent.class));
+        service.onAvailabilityChange(new AvailabilityChangeEvent<>(this,
+                ReadinessState.ACCEPTING_TRAFFIC));
+
+        ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
+        verify(publisher, atLeast(2)).publishEvent(eventCaptor.capture());
+        assertThat(((AvailabilityChangeEvent<?>) eventCaptor.getAllValues().get(
+                eventCaptor.getAllValues().size() - 1)).getState())
+                .isEqualTo(ReadinessState.REFUSING_TRAFFIC);
+
+        release.countDown();
+        assertThat(finished.await(2, TimeUnit.SECONDS)).isTrue();
+        verify(client).findEcountWarehouseAliases(any());
+        assertThat(mapper.validationStatus("00003"))
+                .isEqualTo(WarehouseMappingStatus.VERIFIED);
     }
 
     @Test

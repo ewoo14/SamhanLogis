@@ -39,7 +39,7 @@ public class WarehouseMappingValidationService {
         this.eventPublisher = eventPublisher;
     }
 
-    /** Spring context가 ready가 된 뒤에만 첫 외부 조회를 예약한다. */
+    /** Ready 시점에도 검증을 보장하되, 무지연 scheduler가 먼저 시작한 작업과 중복하지 않는다. */
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady(ApplicationReadyEvent ignored) {
         scheduleValidation();
@@ -62,6 +62,7 @@ public class WarehouseMappingValidationService {
                     validateNow();
                 } finally {
                     validationRunning.set(false);
+                    reconcileReadiness();
                 }
             });
         } catch (RuntimeException ex) {
@@ -121,6 +122,18 @@ public class WarehouseMappingValidationService {
                 : ReadinessState.REFUSING_TRAFFIC);
     }
 
+    /**
+     * Spring Boot는 ApplicationReadyEvent listener가 끝난 뒤 기본 ACCEPTING_TRAFFIC을
+     * 발행한다. 검증이 그보다 먼저 실패하거나 아직 진행 중이면 그 전이를 즉시 되돌려
+     * validator의 fail-closed 결과가 actuator와 발행 경로에 계속 반영되게 한다.
+     */
+    @EventListener(AvailabilityChangeEvent.class)
+    public void onAvailabilityChange(AvailabilityChangeEvent<?> event) {
+        if (event.getState() == ReadinessState.ACCEPTING_TRAFFIC && !readinessAllowed()) {
+            publishReadiness(ReadinessState.REFUSING_TRAFFIC);
+        }
+    }
+
     private void applyDevSubstitute() {
         mapper.configuredWarehouseCodes().forEach(code ->
                 mapper.markStatus(code, WarehouseMappingStatus.DEV_SUBSTITUTE));
@@ -137,6 +150,21 @@ public class WarehouseMappingValidationService {
     private boolean allVerified(Set<String> codes) {
         return !codes.isEmpty() && codes.stream()
                 .allMatch(code -> mapper.validationStatus(code) == WarehouseMappingStatus.VERIFIED);
+    }
+
+    private boolean readinessAllowed() {
+        if (mapper.mode().orElse(null) == WarehouseMappingMode.DEV_SUBSTITUTE) {
+            return true;
+        }
+        return !validationRunning.get()
+                && mapper.mode().orElse(null) == WarehouseMappingMode.STRICT
+                && allVerified(mapper.configuredWarehouseCodes());
+    }
+
+    private void reconcileReadiness() {
+        publishReadiness(readinessAllowed()
+                ? ReadinessState.ACCEPTING_TRAFFIC
+                : ReadinessState.REFUSING_TRAFFIC);
     }
 
     private void publishReadiness(ReadinessState state) {

@@ -34,7 +34,9 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.boot.WebApplicationType;
+import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.ResponseEntity;
 
 /** Spring Boot의 ApplicationReadyEvent 뒤 기본 readiness 전이를 포함한 회귀 테스트. */
@@ -42,6 +44,8 @@ class WarehouseReadinessLifecycleTest {
 
     private static final UUID HQ = UUID.fromString("11111111-1111-1111-1111-000000000001");
     private static final UUID HUB = UUID.fromString("11111111-1111-1111-1111-000000000002");
+    private static final UUID ANSEONG = UUID.fromString("11111111-1111-1111-1111-000000000003");
+    private static final UUID CHANGWON = UUID.fromString("11111111-1111-1111-1111-000000000004");
     private static volatile Controls activeControls;
 
     @Test
@@ -104,6 +108,8 @@ class WarehouseReadinessLifecycleTest {
                 "--app.publish.mapping-mode=" + mode,
                 "--app.publish.warehouse-code-map.[00003]=" + HQ,
                 "--app.publish.warehouse-code-map.[2]=" + HUB,
+                "--app.publish.warehouse-code-map.[14]=" + ANSEONG,
+                "--app.publish.warehouse-code-map.[1]=" + CHANGWON,
                 "--eureka.client.enabled=false",
                 "--spring.cloud.discovery.enabled=false",
                 "--management.endpoints.web.exposure.include=health",
@@ -128,6 +134,12 @@ class WarehouseReadinessLifecycleTest {
         int port = ((org.springframework.boot.web.context.WebServerApplicationContext) context)
                 .getWebServer().getPort();
         RestTemplate restTemplate = new RestTemplate();
+        restTemplate.setErrorHandler(new DefaultResponseErrorHandler() {
+            @Override
+            public boolean hasError(ClientHttpResponse response) {
+                return false;
+            }
+        });
         ResponseEntity<String> readiness = restTemplate.getForEntity(
                 "http://localhost:" + port + "/actuator/health/readiness", String.class);
         ResponseEntity<String> overall = restTemplate.getForEntity(
@@ -154,7 +166,9 @@ class WarehouseReadinessLifecycleTest {
             mapper.setMappingMode(environment.getProperty("app.test.mapping-mode", ""));
             mapper.setWarehouseCodeMap(Map.of(
                     "00003", HQ.toString(),
-                    "2", HUB.toString()));
+                    "2", HUB.toString(),
+                    "14", ANSEONG.toString(),
+                    "1", CHANGWON.toString()));
             return mapper;
         }
 
@@ -168,14 +182,18 @@ class WarehouseReadinessLifecycleTest {
                 when(client.findEcountWarehouseAliases(anyCollection()))
                         .thenReturn(Map.of(
                                 "00003", new WarehouseInternalClient.EcountWarehouseAlias("00003", HQ),
-                                "2", new WarehouseInternalClient.EcountWarehouseAlias("2", HUB)));
+                                "2", new WarehouseInternalClient.EcountWarehouseAlias("2", HUB),
+                                "14", new WarehouseInternalClient.EcountWarehouseAlias("14", ANSEONG),
+                                "1", new WarehouseInternalClient.EcountWarehouseAlias("1", CHANGWON)));
             } else if ("DELAYED".equals(behavior)) {
                 when(client.findEcountWarehouseAliases(anyCollection())).thenAnswer(invocation -> {
                     controls.validationEntered.countDown();
                     assertThat(controls.validationRelease.await(5, TimeUnit.SECONDS)).isTrue();
                     return Map.of(
                             "00003", new WarehouseInternalClient.EcountWarehouseAlias("00003", HQ),
-                            "2", new WarehouseInternalClient.EcountWarehouseAlias("2", HUB));
+                            "2", new WarehouseInternalClient.EcountWarehouseAlias("2", HUB),
+                            "14", new WarehouseInternalClient.EcountWarehouseAlias("14", ANSEONG),
+                            "1", new WarehouseInternalClient.EcountWarehouseAlias("1", CHANGWON));
                 });
             } else {
                 when(client.findEcountWarehouseAliases(anyCollection()))
