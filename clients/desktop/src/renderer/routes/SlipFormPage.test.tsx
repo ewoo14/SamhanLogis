@@ -311,6 +311,9 @@ beforeEach(() => {
   harness.productA.hasVariableDiscount = true
   harness.productA.categoryKey = 'homemulti'
   harness.productA.sellingPrice = '1000'
+  harness.bundle.modelCode = 'SET-1'
+  harness.bundle.sellingPrice = '10000'
+  harness.bundle.categoryKey = 'homemulti'
   harness.isMobile = false
   harness.listWarehouses.mockResolvedValue([])
   harness.lookupPartnerForAutoFill.mockResolvedValue({})
@@ -719,7 +722,7 @@ describe('SlipFormPage price memory autofill', () => {
     })))
   })
 
-  it('applies a single-set fixed amount to each expanded component by model code', async () => {
+  it('preserves server-allocated component prices after applying a single-set fixed amount to the parent', async () => {
     harness.getPartnerDcConfig.mockResolvedValue({
       partnerCode: harness.partnerA.partnerCode,
       companyName: harness.partnerA.name,
@@ -746,9 +749,66 @@ describe('SlipFormPage price memory autofill', () => {
     await selectPartnerA()
     fireEvent.click(screen.getByTestId('select-bundle-1'))
 
-    await waitFor(() => expect(unitPrice().value).toBe('70000'))
-    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
-      .toBe('거래처 싱글세트 정액DC 30000원 적용')
+    await waitFor(() => expect(unitPrice().value).toBe('100000'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info')).toBe('')
+  })
+
+  it('applies a single-set fixed amount once when two expanded components carry the flag', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: '30,000',
+      fourWay: null,
+      oneWay: null,
+      stand: null,
+      deluxe: null,
+      firstGrade: null,
+    })
+    harness.expandBundleLine.mockResolvedValueOnce([
+      { productId: harness.productA.id, modelName: 'Flag A', name: 'Flag A', modelCode: 'AC072CS6PBH1SY', quantity: 1, unitPrice: 70000, specification: null },
+      { productId: harness.productB.id, modelName: 'Flag B', name: 'Flag B', modelCode: 'AC072CS6PBH1SY', quantity: 1, unitPrice: 30000, specification: null },
+    ])
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+
+    await waitFor(() => expect(unitPrice(1).value).toBe('70000'))
+    expect(unitPrice(2).value).toBe('30000')
+    expect(Number(unitPrice(1).value) + Number(unitPrice(2).value)).toBe(100000)
+  })
+
+  it('re-expands an expanded bundle from its parent catalog price after a partner switch', async () => {
+    harness.bundle.sellingPrice = '1000000'
+    harness.bundle.modelCode = 'AC072CS6PBH1SY'
+    harness.bundle.categoryKey = null
+    harness.getPartnerDcConfig.mockImplementation(async (partnerCode: string) => ({
+      partnerCode,
+      companyName: partnerCode === 'P-A' ? 'Partner A' : 'Partner B',
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: partnerCode === 'P-A' ? '30,000' : '45,000',
+      fourWay: null,
+      oneWay: null,
+      stand: null,
+      deluxe: null,
+      firstGrade: null,
+    }))
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{ productId: harness.productA.id, modelName: 'Flag A', name: 'Flag A', modelCode: 'AC072CS6PBH1SY', quantity: 1, unitPrice: 970000, specification: null }])
+      .mockResolvedValueOnce([{ productId: harness.productA.id, modelName: 'Flag A', name: 'Flag A', modelCode: 'AC072CS6PBH1SY', quantity: 1, unitPrice: 955000, specification: null }])
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(unitPrice().value).toBe('970000'))
+
+    await selectPartnerB()
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    expect(harness.expandBundleLine.mock.calls[1][0]).toEqual(expect.objectContaining({ unitPrice: '955000' }))
+    await waitFor(() => expect(unitPrice().value).toBe('955000'))
   })
 
   it('C-1 판별: 비세트 상업멀티 품목에도 거래처 전역DC가 적용된다', async () => {

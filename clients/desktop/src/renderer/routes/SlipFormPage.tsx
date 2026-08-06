@@ -492,6 +492,11 @@ interface ExpandedBundleOptionContext {
   specification: string
   quantity: string
   unitPrice: string
+  /** 거래처 전환 시 이전 거래처 단가가 섞인 구성행 대신 부모 카탈로그 기준가로 재전개한다. */
+  parentCatalogUnitPrice: string | null
+  parentCategoryKey: LineDraft['categoryKey']
+  parentFixedDiscountRate: number | null
+  parentHasVariableDiscount: boolean | null
   setOptions: BundleSetOptions
   expansionPending: boolean
   /** 현재 부모 전개가 소유한 구성품 행 ID — 재전개 때 이전 형제 행까지 함께 교체한다. */
@@ -844,6 +849,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     expanded: Awaited<ReturnType<typeof expandBundleLine>>,
     parentSpecification: string,
     discountConfig: SlipDiscountConfig | null = partnerDcConfig,
+    parentContextOverrides: { unitPrice?: string } = {},
   ) => {
     const existingContext = expandedBundleOptionsRef.current[source.id]
     const context = existingContext ?? (source.productType === 'BUNDLE' && source.productId
@@ -854,6 +860,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           specification: parentSpecification,
           quantity: source.quantity,
           unitPrice: source.unitPrice,
+          parentCatalogUnitPrice: source.catalogUnitPrice ?? null,
+          parentCategoryKey: source.categoryKey ?? null,
+          parentFixedDiscountRate: source.fixedDiscountRate ?? null,
+          parentHasVariableDiscount: source.hasVariableDiscount ?? null,
           setOptions: source.setOptions ?? emptyBundleSetOptions(),
           expansionPending: false,
         }
@@ -864,20 +874,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     ])
     const parentProductId = context?.parentProductId ?? source.productId
     const parentModelCode = context?.parentModelCode ?? source.modelCode
-    const parentUnitPrice = context?.unitPrice ?? source.unitPrice
+    const parentUnitPrice = parentContextOverrides.unitPrice ?? context?.unitPrice ?? source.unitPrice
     const componentLines = expanded
       .filter((component) => component.productId)
       .map((component) => {
         const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
         const catalogUnitPrice = String(component.unitPrice ?? '0')
-        const componentDiscount = calculateSlipDiscount({
-          listPrice: Number(catalogUnitPrice),
-          modelCode: component.modelCode,
-          fixedDiscountRate: null,
-          category: 'OTHER',
-          hasVariableDiscount: false,
-        }, discountConfig)
-        const unitPrice = String(componentDiscount.unitPrice)
+        // 서버는 부모 세트 단가를 구성행에 이미 배분한다. 구성품 modelCode로
+        // 정액DC를 다시 계산하면 플래그 구성품 수만큼 정액이 중복 차감된다.
+        const unitPrice = catalogUnitPrice
         const isKeepParent = component.componentKind === null && source.productType === 'BUNDLE'
         const productType = isKeepParent
           ? 'BUNDLE'
@@ -896,7 +901,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             modelCode: component.modelCode ?? null,
             priceSource: 'CATALOG',
             catalogUnitPrice,
-            discountInfo: componentDiscount.source === 'NONE' ? null : componentDiscount.info,
+            discountInfo: null,
             ...(isKeepParent ? {} : {
               parentSetModel: parentModelCode ?? null,
               setHead: Boolean(component.setHead),
@@ -915,7 +920,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           modelCode: component.modelCode ?? null,
           priceSource: 'CATALOG',
           catalogUnitPrice,
-          discountInfo: componentDiscount.source === 'NONE' ? null : componentDiscount.info,
+          discountInfo: null,
           ...(isKeepParent ? {} : {
             parentSetModel: parentModelCode ?? null,
             setHead: Boolean(component.setHead),
@@ -955,18 +960,24 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         Object.entries(current).filter(([key]) => nextLineIds.has(key)),
       )
       const firstComponentLine = componentLines[0]
-      const shouldRetainOptions = componentLines.length > 0
+      const shouldExposeOptions = componentLines.length > 0
         && context
         && firstComponentLine !== undefined
         && (!existingContext || firstComponentLine.productId === source.productId)
-      if (shouldRetainOptions && firstComponentLine) {
+      if (context && firstComponentLine && componentLines.length > 0) {
         // 전개 결과의 productId는 행 간에 재사용될 수 있으므로 옵션 컨텍스트의
         // 소유권은 항상 새로 만든 구성품 행 ID로 연결한다.
-        next[firstComponentLine.id] = {
+        const retainedContext = {
           ...context,
+          unitPrice: parentContextOverrides.unitPrice ?? context.unitPrice,
           expansionPending: false,
           componentLineIds: componentLines.map((line) => line.id),
         }
+        expandedBundleOptionsRef.current = {
+          ...expandedBundleOptionsRef.current,
+          [firstComponentLine.id]: retainedContext,
+        }
+        if (shouldExposeOptions) next[firstComponentLine.id] = retainedContext
       }
       return next
     })
@@ -981,6 +992,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     source: LineDraft,
     selected: LineDraft,
     discountConfig: SlipDiscountConfig | null = partnerDcConfig,
+    parentContextOverrides: { unitPrice?: string } = {},
   ): Promise<void> => {
     const generation = bundleExpansionGenerationRef.current.get(source.id) ?? 0
     const requestSnapshot = createBundleExpansionSnapshot(selected)
@@ -1067,7 +1079,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       if (!isCurrentBundle || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
       if (expanded.filter((component) => component.productId).length === 0
         && restorePreviousExpansion(latest, context)) return
-      replaceWithExpandedBundleLines(source, expanded, selected.specification, discountConfig)
+      replaceWithExpandedBundleLines(source, expanded, selected.specification, discountConfig, parentContextOverrides)
     } catch {
       const latest = linesRef.current.find((line) => line.id === source.id)
       if (await retryLatestBundleGeneration()) return
@@ -1094,7 +1106,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       if (!isCurrentBundle
         || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
       if (restorePreviousExpansion(latest, context)) return
-      replaceWithExpandedBundleLines(source, [], latest.specification, discountConfig)
+      replaceWithExpandedBundleLines(source, [], latest.specification, discountConfig, parentContextOverrides)
       setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
     }
   }
@@ -1342,8 +1354,27 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   ) => {
     // R6-M5: 재조회 시작 시 stale 단건 안내를 클리어(미클리어 시 배너 비활성 폴백이 aria-live 거짓 고지).
     setPriceLookupAnnouncement('')
+    const bundleContexts = Object.entries(expandedBundleOptionsRef.current)
+      .map(([lineId, context]) => ({
+        lineId,
+        context,
+        source: linesRef.current.find((line) => line.id === lineId
+          || context.componentLineIds?.includes(line.id)),
+      }))
+      .filter((entry): entry is {
+        lineId: string
+        context: ExpandedBundleOptionContext
+        source: LineDraft
+      } => entry.source != null)
+    const expandedBundleComponentLineIds = new Set(
+      bundleContexts.flatMap(({ lineId, context }) => context.componentLineIds?.length
+        ? context.componentLineIds
+        : [lineId]),
+    )
     const candidates: PartnerRepriceCandidate[] = linesRef.current
-      .filter((line) => line.productId && isAutoPriceSource(line.priceSource))
+      .filter((line) => line.productId
+        && isAutoPriceSource(line.priceSource)
+        && !expandedBundleComponentLineIds.has(line.id))
       .map((line) => ({
         key: line.id,
         productId: line.productId!,
@@ -1363,7 +1394,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             hasVariableDiscount: line.hasVariableDiscount,
           },
       }))
-    if (candidates.length === 0) {
+    if (candidates.length === 0 && bundleContexts.length === 0) {
       // 새 거래처에 재조회 대상이 없어도 이전 거래처 bulk 응답은 무효화한다.
       partnerReprice.invalidate(partnerId)
       // 직전 거래처의 bulk 조회가 남긴 busy 표시는 새 거래처에 후보가 없어도 정리한다.
@@ -1382,6 +1413,36 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // DC 응답을 기다리는 동안 거래처가 다시 바뀌었으면 이 run 자체를 시작하지 않는다.
     // 같은 거래처가 A→B→A로 재선택된 경우도 이전 요청 세대로부터 격리한다.
     if (selectedPartnerIdRef.current !== partnerId || dcRequestSeqRef.current !== requestSeq) return
+    await Promise.all(bundleContexts.map(async ({ lineId, context, source }) => {
+      if (context.parentCatalogUnitPrice == null) return
+      const category = context.parentCategoryKey === 'homemulti'
+        ? 'HOMEMULTI'
+        : context.parentCategoryKey === 'commercialMulti'
+          ? 'COMMERCIAL_MULTI'
+          : 'OTHER'
+      const parentDiscount = calculateSlipDiscount({
+        listPrice: Number(context.parentCatalogUnitPrice),
+        modelCode: context.parentModelCode,
+        fixedDiscountRate: context.parentFixedDiscountRate,
+        category,
+        hasVariableDiscount: context.parentHasVariableDiscount,
+      }, discountConfig)
+      const parentUnitPrice = String(parentDiscount.unitPrice)
+      setExpandedBundleOptions((current) => current[lineId]
+        ? { ...current, [lineId]: { ...current[lineId], unitPrice: parentUnitPrice, expansionPending: true } }
+        : current)
+      await expandSelectedBundle(source, {
+        ...source,
+        productId: context.parentProductId,
+        modelCode: context.parentModelCode,
+        modelName: context.modelName,
+        specification: context.specification,
+        quantity: context.quantity,
+        unitPrice: parentUnitPrice,
+        productType: 'BUNDLE',
+        setOptions: context.setOptions,
+      }, discountConfig, { unitPrice: parentUnitPrice })
+    }))
     const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates, discountConfig)
     if (!partnerRepriceSessionIsCurrent(
       requestSeq,
