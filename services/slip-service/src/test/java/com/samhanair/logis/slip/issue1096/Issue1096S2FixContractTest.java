@@ -47,6 +47,19 @@ class Issue1096S2FixContractTest {
         assertThat(orderRestore).contains("ErrorCode.CONFLICT");
         assertThat(estimateRestore).contains("QA797-");
         assertThat(estimateRestore).contains("비정본 QA 잔재 견적은 일반 복원할 수 없습니다");
+        assertThat(estimateRestore).contains("mixedQaAndCanonical");
+        assertThat(estimateRestore).contains("hasCanonicalLine");
+    }
+
+    @Test
+    void s5_cleanupDeletesMixedDocumentsAndTheActiveQa797ResidueAsOneBatch() throws Exception {
+        String migration = read("services/slip-service/src/main/resources/db/migration/V117__soft_delete_test_seed_documents.sql");
+
+        assertThat(migration)
+                .contains("2026/07/17-1", "2026/07/17-2", "2026/07/17-5", "2026/07/17-20")
+                .contains("2026/07/27-1")
+                .contains("l.estimate_id IN (SELECT id FROM _issue_1096_cleanup_estimate_ids)")
+                .contains("deleted_by='issue-1096-test-seed-cleanup'");
     }
 
     private static String read(String relative) throws Exception {

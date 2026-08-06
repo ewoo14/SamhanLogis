@@ -4,8 +4,9 @@
 -- UPDATE <table> SET is_deleted=FALSE, deleted_at=NULL, deleted_by=NULL
 -- WHERE deleted_by='issue-1096-test-seed-cleanup';
 
--- 혼합 전표/견적은 부모를 보존하고 테스트 라인만 정리한다.
--- 순수 테스트 전표의 첨부만 함께 soft-delete한다.
+-- 혼합 전표는 부모를 보존하고 테스트 라인만 정리한다.
+-- 혼합 견적 4건과 순수 QA797 견적 1건은 개발책임자 결정에 따라 문서 전체를 정리한다.
+-- 헤더와 모든 라인은 동일한 cleanup actor로 표시해 한 묶음 복원이 가능하도록 한다.
 CREATE TEMP TABLE _issue_1096_test_product_ids (id UUID PRIMARY KEY) ON COMMIT DROP;
 INSERT INTO _issue_1096_test_product_ids (id) VALUES
     ('b0000000-0000-0000-0000-000000000001'::uuid),
@@ -110,13 +111,30 @@ INSERT INTO _issue_1096_test_product_ids (id) VALUES
     ('25e9c490-21df-3b32-9b27-d45c57c4c4c6'::uuid),
     ('0fdcd680-d002-3ee4-a397-0d0eae1af8fb'::uuid);
 
+CREATE TEMP TABLE _issue_1096_cleanup_estimate_ids (id UUID PRIMARY KEY) ON COMMIT DROP;
+INSERT INTO _issue_1096_cleanup_estimate_ids (id)
+SELECT id
+FROM estimates
+WHERE estimate_no IN (
+    '2026/07/17-1',
+    '2026/07/17-2',
+    '2026/07/17-5',
+    '2026/07/17-20',
+    '2026/07/27-1'
+)
+  AND is_deleted=FALSE
+  AND status='QUOTE_DRAFT'
+  AND converted_slip_id IS NULL;
+
 UPDATE slip_lines l SET is_deleted=TRUE, deleted_at=COALESCE(l.deleted_at,CURRENT_TIMESTAMP),
  deleted_by='issue-1096-test-seed-cleanup'
  WHERE l.is_deleted=FALSE AND l.product_id IN (SELECT id FROM _issue_1096_test_product_ids);
 
 UPDATE estimate_lines l SET is_deleted=TRUE, deleted_at=COALESCE(l.deleted_at,CURRENT_TIMESTAMP),
  deleted_by='issue-1096-test-seed-cleanup'
- WHERE l.is_deleted=FALSE AND l.product_id IN (SELECT id FROM _issue_1096_test_product_ids);
+ WHERE l.is_deleted=FALSE
+   AND (l.product_id IN (SELECT id FROM _issue_1096_test_product_ids)
+        OR l.estimate_id IN (SELECT id FROM _issue_1096_cleanup_estimate_ids));
 
 -- 혼합 견적의 정본 라인은 보존하되, 헤더 금액은 삭제 직후 활성 라인의 정본 합계로 맞춘다.
 UPDATE estimates e SET

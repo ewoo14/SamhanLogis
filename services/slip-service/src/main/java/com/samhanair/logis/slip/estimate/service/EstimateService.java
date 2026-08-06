@@ -445,17 +445,27 @@ public class EstimateService {
 
     /** 단건 조회. */
     /**
-     * QA797 잔재와 이번 이슈의 테스트 시더 정리 산물을 일반 복원 경로에서 격리한다.
+     * 순수 QA797 잔재와 비정본 cleanup 산물을 일반 복원 경로에서 격리한다.
+     * QA797 라인과 정본 라인이 함께 정리된 혼합 문서는 전체 그래프를 일괄 복원한다.
      * 행은 감사 판정을 위해 soft-delete 상태로 보존하며, 정본 문서에는 적용하지 않는다.
      */
     private boolean isNonCanonicalQaResidue(Estimate estimate, List<EstimateLine> lines) {
-        if ("issue-1096-test-seed-cleanup".equals(estimate.getDeletedBy())) {
-            return true;
-        }
-        return lines.stream()
-                .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+        boolean hasQa797Line = lines.stream()
                 .anyMatch(line -> startsWithQa797(line.getModelName())
                         || startsWithQa797(line.getProductName()));
+        boolean hasCanonicalLine = lines.stream()
+                .anyMatch(line -> !startsWithQa797(line.getModelName())
+                        && !startsWithQa797(line.getProductName()));
+        boolean mixedQaAndCanonical = hasQa797Line && hasCanonicalLine;
+
+        // 순수 QA797 문서는 라인의 현재 삭제 여부와 무관하게 감사 잔재로 격리한다.
+        // 단, 개발책임자 결정으로 문서 전체를 정리한 혼합 문서는 QA 라인과 정본 라인이
+        // 함께 존재하므로 정상적인 일괄 복원을 허용한다.
+        if (hasQa797Line && !mixedQaAndCanonical) {
+            return true;
+        }
+        return "issue-1096-test-seed-cleanup".equals(estimate.getDeletedBy())
+                && !mixedQaAndCanonical;
     }
 
     private boolean startsWithQa797(String value) {
