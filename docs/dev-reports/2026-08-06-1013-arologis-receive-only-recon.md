@@ -821,3 +821,127 @@ samhan_dispatch_task_id  | uuid
 - `services/arologis-service/src/test/java/com/samhanair/logis/arologis/dispatch/ReceiveOnlyContractTest.java`
 
 이번 후속 라운드에서도 DB 데이터, operational dispatch 코드, 3~7단계 표면은 삭제·수정하지 않았다. 커밋·푸시는 PM이 수행한다.
+
+## 2026-08-06 Codex S2 — 제거 순서 3단계: 구형 분류 소비자 보류 고정
+
+### ① 호출 경로 전수 추적과 결정 지점
+
+현재 호출 경로는 다음과 같다.
+
+```text
+slip-service /admin/dispatches/pre-classify
+  -> PreClassifyAdminController
+  -> PreClassifyService.classify(from, to, mode)
+  -> PreClassifySlipQuery.find(from, to)
+  -> ArologisPreClassifySupportClient.getSupport(partnerCodes)
+  -> GET http://arologis-service/internal/arologis/preclassify-support?partnerCodes=...
+  -> ArologisInternalController.preClassifySupport()
+  -> regionRules + plannedPartnerCodes
+  -> PreClassifyService.classifyRegion(address, regionRules)
+  -> PreClassifyResponse.Entry.dispatchPlanned = plannedPartnerCodes.contains(partnerCode)
+```
+
+코드상 결정은 둘로 나뉜다.
+
+- `delivery_tag`는 `matchesMode`에서 `REGION_ONLY`/`STACK_ONLY` 및 일반 8모드의 포함·제외만 결정한다.
+- `regionRules`는 주소를 지역 그룹명으로 매핑한다. 시도 prefix, keyword fallback, sort order가 모두 이 응답을 사용한다.
+- `plannedPartnerCodes`는 아로로지스 `vehicle_stops.parsed_partner_code`와 삼한 전표 `partnerCode`의 일치로 `dispatchPlanned` 플래그를 결정한다.
+
+그러므로 support endpoint를 제거하면 호출 오류뿐 아니라 기존 API의 `regionGroups`와 `dispatchPlanned` 결과가 사라진다.
+
+### ② 판정: 이번 라운드는 교체가 아니라 명시적 보류
+
+`delivery_tag`만으로는 현재 두 결과를 동치로 만들 수 없다. 현재 태그는 업무 분류(`REGION`, `STACK`, `DAY`, `RETURN_RENTAL`)를 나타내지만 지역 그룹명·주소 keyword 규칙과 차량 정류의 배차예정 partner code를 제공하지 않는다.
+
+따라서 다음 조건이 모두 충족될 때까지 `ArologisPreClassifySupportClient`와 `/internal/arologis/preclassify-support`를 유지한다.
+
+1. 삼한 delivery-tag 계약에 지역 그룹 결정값(또는 그 값을 제공하는 검증된 대체 API)이 포함된다.
+2. `plannedPartnerCodes`에 대응하는 배차예정 판정 필드/계약이 삼한에서 정의된다.
+3. 동일한 입력 표본에 대해 8모드 결과, `regionGroups`, `unclassified`, `dispatchPlanned`가 기존 support 경로와 일치한다.
+4. support 호출자 전수 grep 및 실제 호출 telemetry에서 더 이상 소비자가 없음을 확인한다.
+
+이 조건 전에는 endpoint/client 삭제가 I3·RED-A·RED-B 위반이다. 이번 코드 변경은 이 보류 조건을 검사하는 `ReceiveOnlyContractTest` 가드 추가뿐이며, 운영 구현·endpoint·데이터는 제거하지 않았다.
+
+### ③ 현재 로컬 실측 — 표본 변경으로 판정 불가 유지
+
+이번 세션의 읽기 전용 SELECT 원문은 다음과 같다.
+
+```text
+docker exec samhan-postgres psql -U samhan -d arologis_db -c "SELECT COUNT(*) AS active_region_rules FROM region_dispatch_classifications WHERE is_deleted = false;"
+ active_region_rules
+---------------------
+                  20
+(1 row)
+```
+
+```text
+docker exec samhan-postgres psql -U samhan -d arologis_db -c "SELECT COUNT(*) AS total_rows, COUNT(*) FILTER (WHERE is_deleted = false) AS active_rows, COUNT(*) FILTER (WHERE is_deleted = false AND parsed_partner_code IS NOT NULL) AS active_with_partner_code, COUNT(DISTINCT parsed_partner_code) FILTER (WHERE is_deleted = false AND parsed_partner_code IS NOT NULL) AS active_distinct_partner_codes FROM vehicle_stops;"
+ total_rows | active_rows | active_with_partner_code | active_distinct_partner_codes
+------------+-------------+---------------------------+-------------------------------
+        157 |         157 |                         0 |                             0
+(1 row)
+```
+
+```text
+docker exec samhan-postgres psql -U samhan -d slip_db -c "SELECT COUNT(*) AS active_outbound, COUNT(*) FILTER (WHERE delivery_tag = 'REGION') AS active_region, COUNT(*) FILTER (WHERE delivery_tag = 'STACK') AS active_stack, COUNT(*) FILTER (WHERE delivery_tag = 'DAY') AS active_day, COUNT(*) FILTER (WHERE delivery_tag = 'RETURN_RENTAL') AS active_return_rental FROM slips WHERE is_deleted = false AND slip_type = 'OUTBOUND';"
+ active_outbound | active_region | active_stack | active_day | active_return_rental
+----------------+---------------+--------------+------------+----------------------
+            2346 |            14 |           12 |         55 |                   14
+(1 row)
+```
+
+현재 표본에서 `plannedPartnerCodes`는 active partner code 원천이 0건이므로 실제 `dispatchPlanned=true`를 만드는 건수는 0건이다. 그러나 `regionRules`는 20건이고 REGION 전표 후보는 14건이므로 region 분류 효과를 0건으로 결론 낼 수 없다. 착수 보고서의 이전 표본(아로로지스 region master 0건 등)과 현재 DB가 다르므로, 이 결과는 결함 0이 아니라 **판정 불가**다. 실 경로 표본은 REGION 전표 14건을 같은 날짜 범위로 `PreClassifyService`에 통과시켜 기존 support 결과와 대체 결과를 나란히 비교해야 하며, 이번 라운드에는 service 호출/DB 쓰기/컨테이너 재기동을 하지 않았다.
+
+operational dispatch 보존 재확인:
+
+```text
+docker exec samhan-postgres psql -U samhan -d arologis_db -c "SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE is_deleted = false) AS active FROM dispatches;"
+ total | active
+-------+--------
+    26 |     26
+(1 row)
+```
+
+```text
+docker exec samhan-postgres psql -U samhan -d arologis_db -c "SELECT id, dispatch_date, dispatch_type, samhan_dispatch_task_id FROM dispatches WHERE is_deleted = false ORDER BY dispatch_date, id LIMIT 1;"
+                  id                  | dispatch_date | dispatch_type | samhan_dispatch_task_id
+--------------------------------------+---------------+---------------+-------------------------
+ 6fca3392-f1c3-42ad-9d52-6597e6b87e01 | 2026-04-01    | DAY           |
+(1 row)
+```
+
+착수 전 보고서의 26건/활성 26건 및 동일 대표 행과 현재 결과가 일치한다.
+
+### RED-first 및 자기표면 닫기
+
+```text
+& '.\\gradlew.bat' :services:slip-service:test --tests "com.samhanair.logis.slip.service.preclassify.PreClassifyServiceTest" --tests "com.samhanair.logis.slip.service.preclassify.PreClassifyAdminControllerTest"
+BUILD SUCCESSFUL in 9s
+18 actionable tasks: 1 executed, 17 up-to-date
+```
+
+```text
+& '.\\gradlew.bat' :services:arologis-service:test --tests "com.samhanair.logis.arologis.dispatch.ReceiveOnlyContractTest"
+BUILD SUCCESSFUL in 6s
+15 actionable tasks: 2 executed, 13 up-to-date
+```
+
+- RED-A: 삼한 `PreClassifyServiceTest` 8모드·제외·STACK·region·planned 결과 테스트가 GREEN이다.
+- RED-B: 새 `ReceiveOnlyContractTest.legacy_preclassify_support_contract_is_retained_until_delivery_tag_replacement_is_proven`가 client URI, 두 support 필드 소비, endpoint mapping을 동시에 고정한다.
+- RED-C: 이번 라운드에는 delivery_tag 대체 구현을 하지 않았으므로 해당 GREEN 주장은 해당 없음이다. 대체 결과 비교 표본이 아직 없어 교체하지 않았다.
+- RED-D: 기존 `ReceiveOnlyContractTest` 4개와 operational dispatch SELECT가 유지된다.
+
+① 새로 가능해진 조합: support endpoint/client가 존재하는 상태에서 기존 8모드 분류를 실행하는 조합만 유지했다. delivery_tag만으로 지역명·planned를 대체하는 조합은 열지 않았다.
+
+② 제거·이동·개명 식별자 grep: `ArologisPreClassifySupportClient`, `/internal/arologis/preclassify-support`, `RegionalService`, `RegionAdminController`, `ManualDispatchPage`, `classified_region_group`, `arologisDispatch.ts`, `ArologisRealtimeClient`가 모두 여전히 검색된다. 제거·이동·개명은 없다.
+
+③ 바꾼 파일 참조 테스트: 변경된 테스트 파일을 포함한 `ReceiveOnlyContractTest`와 삼한 pre-classify 관련 두 테스트 클래스만 실행했으며 모두 GREEN이다. Testcontainers IT, 브라우저 QA, 전체 suite는 실행하지 않았다.
+
+### 마이그레이션·변경 파일
+
+- 서비스 브랜치 파일 최고: `arologis-service V25`, `slip-service V112`.
+- DB 적용 최고: `arologis_db V25`, `slip_db V115`.
+- 열린 PR #1088 예약 migration: 없음.
+- 신규 migration: 없음. DB 데이터 변경·hard delete·컨테이너 재빌드/재시작 없음.
+- 수정 파일: `services/arologis-service/src/test/java/com/samhanair/logis/arologis/dispatch/ReceiveOnlyContractTest.java`.
+- 신규 파일: 없음.

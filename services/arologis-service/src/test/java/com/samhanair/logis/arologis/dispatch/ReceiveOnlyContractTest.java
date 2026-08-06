@@ -48,6 +48,20 @@ class ReceiveOnlyContractTest {
         assertThat(service).contains("groupNo={} status=PENDING");
     }
 
+    @Test
+    void legacy_preclassify_support_contract_is_retained_until_delivery_tag_replacement_is_proven() throws Exception {
+        String client = readFromRepo(
+                "services/slip-service/src/main/java/com/samhanair/logis/slip/service/preclassify/ArologisPreClassifySupportClient.java");
+        String service = readFromRepo(
+                "services/slip-service/src/main/java/com/samhanair/logis/slip/service/preclassify/PreClassifyService.java");
+        String controller = read("java/com/samhanair/logis/arologis/controller/ArologisInternalController.java");
+
+        assertThat(client).contains("/internal/arologis/preclassify-support");
+        assertThat(service).contains("support.regionRules()");
+        assertThat(service).contains("support.plannedPartnerCodes()");
+        assertThat(controller).contains("@GetMapping(\"/preclassify-support\")");
+    }
+
     private static String read(String relativePath) throws Exception {
         return Files.readString(MAIN.resolve(relativePath));
     }
