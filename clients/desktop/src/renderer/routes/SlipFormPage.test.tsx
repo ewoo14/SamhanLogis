@@ -857,6 +857,7 @@ describe('SlipFormPage price memory autofill', () => {
 
   it('stores the bundle discount evidence on the saved slip payload', async () => {
     harness.bundle.modelCode = 'AC072CS6PBH1SY'
+    harness.bundle.categoryKey = 'singleSets'
     harness.getPartnerDcConfig.mockResolvedValue({
       partnerCode: harness.partnerA.partnerCode,
       companyName: harness.partnerA.name,

@@ -103,7 +103,7 @@ import {
   willLineBeSaved,
   type LineIncompleteReason,
 } from '../utils/slipLineDraft'
-import { calculateSlipDiscount, type SlipDiscountConfig } from '../utils/slipDiscount'
+import { calculateBundleParentDiscount, calculateSlipDiscount, type SlipDiscountConfig } from '../utils/slipDiscount'
 import {
   partnerRepriceSessionIsCurrent,
   usePartnerPriceRefresh,
@@ -921,11 +921,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const parentProductId = context?.parentProductId ?? source.productId
     const parentModelCode = context?.parentModelCode ?? source.modelCode
     const parentUnitPrice = parentContextOverrides.unitPrice ?? context?.unitPrice ?? source.unitPrice
-    const bundleDiscountResult = calculateSlipDiscount({
+    const bundleDiscountResult = calculateBundleParentDiscount({
       listPrice: Number(context?.parentCatalogUnitPrice ?? source.catalogUnitPrice ?? source.unitPrice),
       modelCode: parentModelCode,
-      category: 'OTHER',
-      hasVariableDiscount: false,
+      categoryKey: context?.parentCategoryKey ?? source.categoryKey,
+      fixedDiscountRate: context?.parentFixedDiscountRate ?? source.fixedDiscountRate,
+      hasVariableDiscount: context?.parentHasVariableDiscount ?? source.hasVariableDiscount,
     }, discountConfig)
     // 재가격 시 새 거래처의 계산 결과만 근거로 남긴다. 이전 거래처의
     // discountInfo를 fallback 하면 금액은 원복돼도 근거만 잔류한다(I2/I3/I4).
@@ -1492,16 +1493,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     if (selectedPartnerIdRef.current !== partnerId || dcRequestSeqRef.current !== requestSeq) return
     await Promise.all(bundleContexts.map(async ({ lineId, context, source }) => {
       if (context.parentCatalogUnitPrice == null) return
-      const category = context.parentCategoryKey === 'homemulti'
-        ? 'HOMEMULTI'
-        : context.parentCategoryKey === 'commercialMulti'
-          ? 'COMMERCIAL_MULTI'
-          : 'OTHER'
-      const parentDiscount = calculateSlipDiscount({
+      const parentDiscount = calculateBundleParentDiscount({
         listPrice: Number(context.parentCatalogUnitPrice),
         modelCode: context.parentModelCode,
+        categoryKey: context.parentCategoryKey,
         fixedDiscountRate: context.parentFixedDiscountRate,
-        category,
         hasVariableDiscount: context.parentHasVariableDiscount,
       }, discountConfig)
       const parentUnitPrice = String(parentDiscount.unitPrice)

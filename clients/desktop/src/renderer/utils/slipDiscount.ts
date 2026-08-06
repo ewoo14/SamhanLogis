@@ -26,6 +26,33 @@ export interface SlipDiscountResult {
   info: string
 }
 
+export interface BundleParentDiscountInput {
+  listPrice: number
+  modelCode?: string | null
+  categoryKey?: string | null
+  fixedDiscountRate?: number | null
+  hasVariableDiscount?: boolean | null
+}
+
+/** 세트 부모의 상품 메타데이터를 전표 할인 계산 입력으로 정규화한다. */
+export function calculateBundleParentDiscount(
+  input: BundleParentDiscountInput,
+  config: SlipDiscountConfig | null,
+): SlipDiscountResult {
+  const category: SlipDiscountCategory = input.categoryKey === 'homemulti'
+    ? 'HOMEMULTI'
+    : input.categoryKey === 'commercialMulti'
+      ? 'COMMERCIAL_MULTI'
+      : 'OTHER'
+  return calculateSlipDiscount({
+    listPrice: input.listPrice,
+    modelCode: input.modelCode,
+    fixedDiscountRate: input.fixedDiscountRate,
+    category,
+    hasVariableDiscount: input.hasVariableDiscount,
+  }, config)
+}
+
 export function calculateSlipDiscount(
   input: SlipDiscountInput,
   config: SlipDiscountConfig | null,
