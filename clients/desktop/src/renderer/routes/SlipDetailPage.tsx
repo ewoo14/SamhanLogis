@@ -1291,6 +1291,10 @@ export function canAccessSlipAction(
   canAccess: CanAccess,
   canInspect = false,
 ): boolean {
+  // OUTBOUND inspect는 서버가 반환한 전표별 결재선 capability가 최종 자격이다.
+  // 정적 transfer 권한만으로는 결재선 밖 사용자의 버튼을 열지 않는다.
+  if (action === 'inspect' && mode === 'OUTBOUND' && !canInspect) return false
+
   return slipActionPermissionRequirements(action, mode)
     .every(({ pageCode, action: permissionAction }) => {
       if (canAccess(pageCode, permissionAction)) return true

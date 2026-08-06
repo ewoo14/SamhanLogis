@@ -79,9 +79,12 @@ export function PermissionGuard({
  */
 export function SlipReadGuard({
   mode,
+  allowApprovalLineCandidate = false,
   children,
 }: {
   mode: SlipType
+  /** OUTBOUND 상세 API가 전표별 결재선 capability를 판정하도록 정적 목록 가드를 건너뛴다. */
+  allowApprovalLineCandidate?: boolean
   children: ReactNode
 }) {
   const auth = useSessionStore((state) => state.auth)
@@ -89,7 +92,7 @@ export function SlipReadGuard({
     ? canQuerySales(auth)
     : canQueryPurchases(auth)
 
-  if (!hasReadAccess) {
+  if (!hasReadAccess && !(mode === 'OUTBOUND' && allowApprovalLineCandidate)) {
     return <Navigate to="/" replace />
   }
 

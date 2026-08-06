@@ -17,6 +17,7 @@ import {
   transitionConflictEditPolicy,
   transitionDestinationStatus,
 } from './SlipDetailPage'
+import type { SlipTransitionAction } from './SlipDetailPage'
 
 const sourcePath = path.resolve(__dirname, 'SlipDetailPage.tsx')
 const collaborationPanelSourcePath = path.resolve(
@@ -302,7 +303,10 @@ describe('SlipDetailPage lifecycle contract', () => {
       'save', 'send', 'accept', 'process', 'complete', 'inspect',
       'ship', 'deliver', 'confirm', 'cancel',
     ] as const) {
-      expect(canAccessSlipAction(action, 'OUTBOUND', managerOutbound), action).toBe(true)
+      expect(
+        canAccessSlipAction(action, 'OUTBOUND', managerOutbound, action === 'inspect'),
+        action,
+      ).toBe(true)
     }
   })
 
@@ -323,11 +327,7 @@ describe('SlipDetailPage lifecycle contract', () => {
     }
     const canAccessFor = (role: string) => (pageCode: string, action = 'view') =>
       permissionsByRole[role].has(`${pageCode}:${action}`)
-    const actions = [
-      'save', 'send', 'accept', 'process', 'complete', 'inspect',
-      'ship', 'deliver', 'confirm', 'reject', 'cancel',
-    ] as const
-    const actionsByMode: Record<'INBOUND' | 'OUTBOUND', readonly typeof actions[number][]> = {
+    const actionsByMode: Record<'INBOUND' | 'OUTBOUND', readonly SlipTransitionAction[]> = {
       INBOUND: [
         'save', 'send', 'accept', 'process', 'complete', 'inspect',
         'confirm', 'reject', 'cancel',
@@ -340,7 +340,7 @@ describe('SlipDetailPage lifecycle contract', () => {
     const expected: Record<string, Record<'INBOUND' | 'OUTBOUND', string[]>> = {
       MANAGER: {
         INBOUND: ['save', 'send', 'accept', 'process', 'complete', 'confirm', 'reject', 'cancel'],
-        OUTBOUND: [...actions],
+        OUTBOUND: ['save', 'send', 'accept', 'process', 'complete', 'ship', 'deliver', 'confirm', 'reject', 'cancel'],
       },
       SALES: {
         INBOUND: [],
@@ -348,7 +348,7 @@ describe('SlipDetailPage lifecycle contract', () => {
       },
       WAREHOUSE: {
         INBOUND: ['save', 'send', 'accept', 'process', 'complete', 'inspect', 'confirm', 'cancel'],
-        OUTBOUND: ['accept', 'process', 'complete', 'inspect', 'ship', 'deliver'],
+        OUTBOUND: ['accept', 'process', 'complete', 'ship', 'deliver'],
       },
       ACCOUNTANT: {
         INBOUND: [],

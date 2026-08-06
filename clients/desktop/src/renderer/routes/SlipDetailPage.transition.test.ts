@@ -29,6 +29,7 @@ describe('출고 검수 전이 액션 계약', () => {
       pageCode === 'slip.transfer.process' && action === 'update'
 
     expect(canAccessSlipAction('inspect', 'OUTBOUND', () => false, true)).toBe(true)
+    expect(canAccessSlipAction('inspect', 'OUTBOUND', () => true, false)).toBe(false)
     expect(canAccessSlipAction('inspect', 'INBOUND', transferOnly, true)).toBe(false)
     expect(canAccessSlipAction('save', 'INBOUND', transferOnly, true)).toBe(false)
   })

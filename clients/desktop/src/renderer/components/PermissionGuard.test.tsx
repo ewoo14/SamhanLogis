@@ -8,6 +8,8 @@
  * 가드가 진짜로 홈으로 보내는지 확인한다.
  */
 import React from 'react'
+import fs from 'node:fs'
+import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -57,6 +59,14 @@ afterEach(() => {
 })
 
 describe('PermissionGuard', () => {
+  it('OUTBOUND 상세 라우트는 승인선 후보 진입 경로를 SlipReadGuard에 전달한다', () => {
+    const routes = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/renderer/routes/index.tsx'),
+      'utf8',
+    )
+    expect(routes).toContain('allowApprovalLineCandidate')
+  })
+
   it('단일 pageCode(string)·canAccess true 이면 children 을 렌더한다(하위호환)', () => {
     mocks.canAccess.mockReturnValue(true)
 
