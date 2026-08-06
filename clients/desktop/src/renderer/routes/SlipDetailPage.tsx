@@ -1317,6 +1317,14 @@ export function canTransitionSlipAction(
   return canAccessSlipAction(action, mode, canAccess, canInspect)
 }
 
+/** 상세 조회 실패를 사용자에게 노출할 메시지로 변환한다. 403은 일반 로드 실패와 구분한다. */
+export function slipDetailErrorMessage(error: unknown): string {
+  const status = (error as { response?: { status?: number } } | null)?.response?.status
+  return status === 403
+    ? '이 전표를 조회할 권한이 없습니다. 담당 관리자에게 접근 권한을 요청하세요.'
+    : '전표를 불러오지 못했습니다.'
+}
+
 /** DRAFT/SAVED 직접수정 진입 권한 — 전표 유형에 맞는 edit UPDATE만 본다. */
 export function canOpenDirectEdit(
   mode: SlipType,
@@ -2316,7 +2324,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="error-banner" role="alert">
-        전표를 불러오지 못했습니다.
+        <strong>{slipDetailErrorMessage(detailQuery.error)}</strong>
+        {slipDetailErrorMessage(detailQuery.error).includes('조회할 권한') ? (
+          <button type="button" onClick={() => navigate(listPath)}>
+            목록으로 돌아가기
+          </button>
+        ) : null}
       </div>
     )
   }

@@ -56,14 +56,14 @@ final class SlipSalesAccessGuard {
      *
      * <p>허용 조건 (OR):
      * <ol>
-     *   <li>status == INSPECTING 이고 검수 결재선 allowed — OUTBOUND 검수 액션 상태 경로</li>
+     *   <li>검수 결재선 allowed 이고 검수 후속 전이 상태 — OUTBOUND 검수/배송 상태 경로</li>
      *   <li>role ∈ {SALES, MANAGER, MASTER} — 기존 role 경로 (병행 유지)</li>
      *   <li>groups ∩ {@link #OUTBOUND_ALLOWED_GROUP_IDS} ≠ ∅ — Phase C5-3 그룹 경로</li>
      *   <li>isSystemMaster == "true" — Phase C4 시스템 마스터 경로</li>
      * </ol>
      *
      * @param slipType      전표 유형 (null 이면 가드 스킵)
-     * @param status        전표 상태 (검수 결재선 경로에는 INSPECTING 만 허용)
+     * @param status        전표 상태 (검수 결재선 경로에는 검수 후속 전이 상태만 허용)
      * @param role          X-User-Role 헤더 값 (null/blank 이면 그룹 경로로만 판정)
      * @param userGroups    X-User-Groups 헤더 값 comma-join (null/blank 이면 빈 Set)
      * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" 이면 bypass)
@@ -76,7 +76,7 @@ final class SlipSalesAccessGuard {
         if (slipType != SlipType.OUTBOUND) {
             return;
         }
-        if (status == SlipStatus.INSPECTING && approvalLineAllowed) {
+        if (isOutboundInspectionApprovalStage(status) && approvalLineAllowed) {
             return;
         }
         if (canReadOutboundSales(role, userGroups, isSystemMaster)) {
@@ -84,6 +84,14 @@ final class SlipSalesAccessGuard {
         }
         throw new BusinessException(ErrorCode.FORBIDDEN,
                 "매출 전표 조회는 SALES / MANAGER / MASTER 권한만 허용합니다.");
+    }
+
+    /** 검수 결재선 개인이 검수 완료 후 상세를 재조회할 수 있는 상태 범위. */
+    private static boolean isOutboundInspectionApprovalStage(SlipStatus status) {
+        return status == SlipStatus.INSPECTING
+                || status == SlipStatus.COMPLETED
+                || status == SlipStatus.SHIPPING
+                || status == SlipStatus.DELIVERED;
     }
 
     /**

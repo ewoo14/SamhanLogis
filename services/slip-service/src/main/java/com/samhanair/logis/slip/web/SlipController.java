@@ -552,16 +552,20 @@ public class SlipController {
     /** COMPLETED → SHIPPING (출고전표 한정). */
     @Operation(summary = "배송 시작", description = "COMPLETED → SHIPPING (OUTBOUND only)")
     @PostMapping("/{id}/ship")
-    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    public ApiResponse<SlipDetailResponse> ship(@PathVariable UUID id) {
+    public ApiResponse<SlipDetailResponse> ship(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        checkOutboundPostInspectionPermission(callerHeader, id, "slip.transfer.process");
         return ApiResponse.ok(slipService.ship(id));
     }
 
     /** SHIPPING → DELIVERED (출고전표 한정). */
     @Operation(summary = "배송 완료", description = "SHIPPING → DELIVERED (OUTBOUND only)")
     @PostMapping("/{id}/deliver")
-    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    public ApiResponse<SlipDetailResponse> deliver(@PathVariable UUID id) {
+    public ApiResponse<SlipDetailResponse> deliver(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        checkOutboundPostInspectionPermission(callerHeader, id, "slip.transfer.process");
         return ApiResponse.ok(slipService.deliver(id));
     }
 
@@ -571,8 +575,12 @@ public class SlipController {
     public ApiResponse<SlipDetailResponse> confirm(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
-                SALES_SLIP_CONFIRM_PAGE_CODE, PermissionAction.UPDATE);
+        if (SlipType.OUTBOUND.equals(resolveSlipType(id))) {
+            checkOutboundPostInspectionPermission(callerHeader, id, SALES_SLIP_CONFIRM_PAGE_CODE);
+        } else {
+            checkSlipMutationPermission(callerHeader, SlipType.INBOUND,
+                    SALES_SLIP_CONFIRM_PAGE_CODE, PermissionAction.UPDATE);
+        }
         return ApiResponse.ok(slipService.confirm(id, callerOrSystem(callerHeader)));
     }
 
@@ -810,6 +818,18 @@ public class SlipController {
             return;
         }
         requireAccountPermission(callerHeader, outboundPageCode, outboundAction);
+    }
+
+    /** OUTBOUND 후속 전이는 기존 정적 권한자 또는 검수 결재선 개인에게 허용한다. */
+    private void checkOutboundPostInspectionPermission(
+            String callerHeader, UUID id, String pageCode) {
+        SlipDetailResponse current = slipService.getOne(id);
+        boolean approvalLineMember = current.slipType() == SlipType.OUTBOUND
+                && slipService.isOutboundInspectApprovalMember(
+                        current.slipType(), current.status(), callerHeader);
+        if (!approvalLineMember) {
+            requireAccountPermission(callerHeader, pageCode, PermissionAction.UPDATE);
+        }
     }
 
     /**

@@ -1003,7 +1003,7 @@ public class SlipService {
     public boolean isOutboundInspectApprovalMember(
             SlipType slipType, SlipStatus status, String actorUserId) {
         if (slipType != SlipType.OUTBOUND
-                || status != SlipStatus.INSPECTING
+                || !isOutboundInspectionApprovalStage(status)
                 || !isRealUser(actorUserId)) {
             return false;
         }
@@ -1015,6 +1015,14 @@ public class SlipService {
             log.warn("출고 검수 결재선 조회 실패 — 상세 조회 권한을 허용하지 않습니다: {}", ex.getMessage());
             return false;
         }
+    }
+
+    /** 검수 결재선 개인이 검수 완료 후 배송 후속 전이도 이어갈 수 있는 상태 범위. */
+    private boolean isOutboundInspectionApprovalStage(SlipStatus status) {
+        return status == SlipStatus.INSPECTING
+                || status == SlipStatus.COMPLETED
+                || status == SlipStatus.SHIPPING
+                || status == SlipStatus.DELIVERED;
     }
 
     /** 검수 실행과 단건 조회가 동일한 결재선 client 판정을 사용하도록 한다. */

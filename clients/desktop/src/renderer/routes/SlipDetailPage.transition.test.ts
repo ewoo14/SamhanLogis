@@ -4,6 +4,7 @@ import {
   canAccessSlipAction,
   canTransitionSlipAction,
   labelForAction,
+  slipDetailErrorMessage,
 } from './SlipDetailPage'
 
 describe('출고 검수 전이 액션 계약', () => {
@@ -38,5 +39,10 @@ describe('출고 검수 전이 액션 계약', () => {
     expect(labelForAction('complete', 'INBOUND')).toBe('입고 완료')
     expect(labelForAction('complete', 'INBOUND')).not.toBe('출고 완료')
     expect(labelForAction('complete', 'OUTBOUND')).toBe('출고 완료')
+  })
+
+  it('403 상세 조회는 일반 로드 실패가 아닌 명확한 접근 차단 안내를 반환한다', () => {
+    expect(slipDetailErrorMessage({ response: { status: 403 } })).toContain('접근 권한')
+    expect(slipDetailErrorMessage({ response: { status: 500 } })).toBe('전표를 불러오지 못했습니다.')
   })
 })

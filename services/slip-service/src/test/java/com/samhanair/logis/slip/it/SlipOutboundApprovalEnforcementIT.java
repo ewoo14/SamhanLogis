@@ -173,6 +173,71 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
     }
 
     @Test
+    void outboundInspectApprovalMember_canShipDeliverAndConfirmAfterInspection() throws Exception {
+        UUID approverId = user("0021");
+        String slipId = createInspectingSlip("OUTBOUND");
+        when(approvalLineAuthorizeClient.authorize("SLIP_OUTBOUND", "OUTBOUND_INSPECT", approverId))
+                .thenReturn(new ApprovalLineAuthorizeResult(true, true));
+
+        mockMvc.perform(post("/slips/{id}/inspect", slipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
+        // 프런트 mutation 성공 후 상세 재조회도 같은 결재선 개인에게 열려 있어야 한다.
+        mockMvc.perform(get("/slips/{id}", slipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
+        mockMvc.perform(post("/slips/{id}/ship", slipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SHIPPING"));
+
+        mockMvc.perform(get("/slips/{id}", slipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SHIPPING"));
+
+        mockMvc.perform(post("/slips/{id}/deliver", slipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DELIVERED"));
+
+        mockMvc.perform(get("/slips/{id}", slipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DELIVERED"));
+
+        mockMvc.perform(post("/slips/{id}/confirm", slipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void outboundPostInspection_nonApproverStill403() throws Exception {
+        String slipId = createInspectingSlip("OUTBOUND");
+        UUID inspectorId = user("0022");
+        mockMvc.perform(post("/slips/{id}/inspect", slipId)
+                        .header("X-User-Id", inspectorId.toString())
+                        .header("X-User-Role", "WAREHOUSE"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/slips/{id}/ship", slipId)
+                        .header("X-User-Role", "DEVELOPER"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void inboundAcceptAndInspect_invokesInboundApprovalGate() throws Exception {
         String slipId = createSentSlip("INBOUND");
         UUID userId = user("0005");
