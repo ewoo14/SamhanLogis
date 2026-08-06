@@ -424,7 +424,9 @@ services:
     depends_on:
       <<: *app-depends
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8086/actuator/health || exit 1"]
+      # readiness에는 inventory 권위 alias 검증 결과가 포함된다.
+      # alias 0행/부분 누락/조회 실패 시 Docker가 healthy를 선언하지 않는다.
+      test: ["CMD-SHELL", "curl -fs http://localhost:8086/actuator/health/readiness || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 20

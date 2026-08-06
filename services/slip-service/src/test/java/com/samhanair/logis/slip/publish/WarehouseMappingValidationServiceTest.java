@@ -165,6 +165,21 @@ class WarehouseMappingValidationServiceTest {
     }
 
     @Test
+    void 권위_alias가_0행이면_모든_코드를_NOT_FOUND로_두고_발행을_차단한다() {
+        when(client.findEcountWarehouseAliases(Set.of("00003", "2")))
+                .thenReturn(Map.of());
+
+        service.validateNow();
+
+        assertThat(mapper.validationStatus("00003"))
+                .isEqualTo(WarehouseMappingStatus.NOT_FOUND);
+        assertThat(mapper.validationStatus("2"))
+                .isEqualTo(WarehouseMappingStatus.NOT_FOUND);
+        assertThatThrownBy(() -> mapper.resolve("00003"))
+                .hasMessageContaining("NOT_FOUND");
+    }
+
+    @Test
     void DEV_SUBSTITUTE를_명시하면_외부_조회_없이_정상_매핑을_사용한다() {
         mapper.setMappingMode("DEV_SUBSTITUTE");
 

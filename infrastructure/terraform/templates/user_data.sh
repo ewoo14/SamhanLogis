@@ -349,7 +349,7 @@ cd /opt/samhanlogis
 docker compose \
     -f docker-compose.prod.yml \
     --env-file .env.production \
-    up -d --pull always
+    up -d --pull always --wait
 
 echo "=== SamhanLogis Phase 11 초기화 완료 $(date) ==="
 echo "=== 서비스 상태 확인: docker compose -f /opt/samhanlogis/docker-compose.prod.yml ps ==="

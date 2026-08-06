@@ -41,6 +41,27 @@ class WarehouseBootPathConfigurationTest {
     }
 
     @Test
+    void production_기동은_slip_readiness와_권위_alias_준비를_완료조건으로_기다린다() throws IOException {
+        String userData = Files.readString(
+                repositoryRoot().resolve("infrastructure/terraform/templates/user_data.sh"));
+        String compose = Files.readString(
+                repositoryRoot().resolve("infrastructure/docker-compose.prod.yml"));
+        String deploy = Files.readString(
+                repositoryRoot().resolve("infrastructure/scripts/phase11-deploy.ps1"));
+
+        assertThat(userData)
+                .contains("up -d --pull always --wait")
+                .contains("WAREHOUSE_MAPPING_MODE=STRICT");
+        assertThat(compose)
+                .contains("/actuator/health/readiness")
+                .contains("slip-service:");
+        assertThat(deploy)
+                .contains("/admin/warehouses/imports/ecount")
+                .contains("배포 실패")
+                .contains("exit 1");
+    }
+
+    @Test
     void dev_seed는_명시적인_DEV_SUBSTITUTE와_코드기반_변수를_공급한다() throws IOException {
         String seed = Files.readString(
                 repositoryRoot().resolve("infrastructure/env-templates/.env.dev-seed"));
