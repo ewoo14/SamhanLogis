@@ -1,5 +1,7 @@
 package com.samhanair.logis.product.service;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Product;
@@ -18,6 +20,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * BUNDLE(세트) → 구성품 전개 엔진 — legacy 종합견적서 index.html explodeSetParts/explodeCommSets_/
@@ -36,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class BundleExpander {
+
+    private static final Logger log = LoggerFactory.getLogger(BundleExpander.class);
 
     private final ProductRepository productRepository;
     private final BundleComponentRepository componentRepository;
@@ -78,6 +84,8 @@ public class BundleExpander {
                 .orElseThrow(() -> new EntityNotFoundException("Product 없음: " + parentModelCode));
         BigDecimal setUnit = opts.setUnitOverride() != null ? round(opts.setUnitOverride())
                 : round(nz(parent.getDeliveryPrice()));
+        log.info("[R29-INSTRUMENT] ① parent={} opts.setUnitOverride={} ② setUnit={} ③ category={}",
+                parentModelCode, opts.setUnitOverride(), setUnit, parent.getProductCategory());
 
         String parentSpec = specOf(parent.getSpecText());
         if (parent.getProductType() != ProductType.BUNDLE) {
@@ -118,8 +126,11 @@ public class BundleExpander {
         // explodeCommSets_ 처럼 필터/재배분 없이 전 구성품 개별 단가 유지.
         boolean isSingleSet = parent.getProductCategory() == ProductCategory.SINGLE_SET;
         List<Part> picked = isSingleSet ? pickedFilter(parts, opts) : parts;
+        log.info("[R29-INSTRUMENT] ④ picked parent={} parts={}", parentModelCode,
+                picked.stream().map(p -> p.modelCode + "/" + p.kind + "/" + round(p.price))
+                        .collect(Collectors.joining(", ")));
         if (isSingleSet) {
-            redistribute(picked, parent, setUnit);
+            redistribute(picked, parent, setUnit, opts.setUnitOverride() != null);
         }
 
         List<ExpandedLine> result = new ArrayList<>(picked.size());
@@ -128,6 +139,8 @@ public class BundleExpander {
             result.add(new ExpandedLine(p.modelCode, p.productId, p.name, p.modelName, p.qty, unit, p.kind,
                     p.specification));
         }
+        log.info("[R29-INSTRUMENT] ⑦ result parent={} unitSum={}", parentModelCode,
+                result.stream().map(ExpandedLine::unitPrice).reduce(BigDecimal.ZERO, BigDecimal::add));
         return result;
     }
 
@@ -289,7 +302,7 @@ public class BundleExpander {
     }
 
     // ── 싱글세트 재배분 — legacy explodeSetParts 후반부 + splitIndoorOutdoorToK ──────
-    private void redistribute(List<Part> picked, Product parent, BigDecimal setUnit) {
+    private void redistribute(List<Part> picked, Product parent, BigDecimal setUnit, boolean explicitUnitOverride) {
         boolean household = isHousehold(parent.getName(), parent.getModelCode(), parent.getSpecText());
 
         List<Part> indoor = new ArrayList<>();
@@ -309,8 +322,16 @@ public class BundleExpander {
                 fixed.add(p);
             }
         }
+        log.info("[R29-INSTRUMENT] ⑤ parent={} indoor={} outdoor={} fixed={} indoorCodes={} outdoorCodes={} fixedCodes={}",
+                parent.getModelCode(), indoor.size(), outdoor.size(), fixed.size(),
+                codes(indoor), codes(outdoor), codes(fixed));
         if (indoor.isEmpty() || outdoor.isEmpty()) {
-            return; // 한쪽 본체 없으면 재배분 안 함(부품 원단가 유지)
+            log.warn("[R29-INSTRUMENT] ⑥ EARLY_RETURN parent={} reason=indoor_or_outdoor_empty", parent.getModelCode());
+            if (!explicitUnitOverride) {
+                return; // 레거시 override 없는 호출은 기존 원단가 동작을 보존한다.
+            }
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "싱글세트 구성품에 실내/실외 본체가 모두 필요합니다: " + parent.getModelCode());
         }
 
         int ratioIn = household ? 6 : 4;
@@ -323,6 +344,12 @@ public class BundleExpander {
 
         assignGroup(indoor, split.indoor);
         assignGroup(outdoor, split.outdoor);
+        log.info("[R29-INSTRUMENT] ⑥ redistributed parent={} indoorTotal={} outdoorTotal={}",
+                parent.getModelCode(), split.indoor, split.outdoor);
+    }
+
+    private static String codes(List<Part> parts) {
+        return parts.stream().map(p -> p.modelCode).collect(Collectors.joining(","));
     }
 
     /** 그룹 가격 배분 — 1개면 통째, 다수면 기존단가 비례 + 마지막 잔차 흡수(천원 반올림). */

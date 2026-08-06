@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
@@ -10,6 +11,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
@@ -411,6 +413,21 @@ class BundleExpanderIT extends AbstractPostgresIT {
         assertThat(lines).hasSize(2);
         assertThat(unit(lines, "CM_A")).isEqualByComparingTo("4000000"); // 개별단가 유지(재배분 X)
         assertThat(unit(lines, "CM_B")).isEqualByComparingTo("1500000");
+    }
+
+    @Test
+    void 싱글세트_실외기없는_구성은_원단가를_조용히_유지하지_않고_거부한다() {
+        Category cat = categoryRepository.save(Category.create("MISSING-OUTDOOR", "test", null, 16));
+        Product parent = bundleSet("MISSING_OUTDOOR_SET", "1way 냉난방", cat, new BigDecimal("500000"));
+        product("MISSING_OUTDOOR_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        comp(parent, "MISSING_OUTDOOR_IN", BundleComponent.ComponentKind.INDOOR);
+        flush();
+
+        assertThatThrownBy(() -> expander.expand("MISSING_OUTDOOR_SET", BigDecimal.ONE,
+                new BundleExpander.ExpandOptions("", false, "", "원형", false,
+                        new BigDecimal("450000"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("실내/실외 본체");
     }
 
     @Test
