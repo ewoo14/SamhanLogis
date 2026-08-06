@@ -86,7 +86,7 @@ public class PartnerOrderUpdateService {
                                              UUID actorId, String actorName) {
         PartnerOrder order = load(id);
         verifyVersion(order, request.updatedAt());
-        validateLines(request.lines());
+        validateLines(order, request.lines());
 
         List<ChangeEntry> changes = diff(order, request);
         if (changes.isEmpty()) {
@@ -330,7 +330,7 @@ public class PartnerOrderUpdateService {
         }
     }
 
-    private void validateLines(List<PartnerOrderUpdateRequest.LineRequest> lines) {
+    private void validateLines(PartnerOrder order, List<PartnerOrderUpdateRequest.LineRequest> lines) {
         if (lines == null || lines.isEmpty()) {
             throw invalidLine("주문 라인은 1건 이상이어야 합니다.");
         }
@@ -343,10 +343,34 @@ public class PartnerOrderUpdateService {
             }
             if (line.authority() != null && !line.authority().isBlank()) {
                 parseAuthority(line.authority());
-            } else if (line.supplyAmount() != null || line.vatAmount() != null) {
+            } else if ((line.supplyAmount() != null || line.vatAmount() != null)
+                    && !sameStoredAmounts(findExistingLine(order, line), line)) {
                 throw invalidLine("공급가액·부가세·합계를 사용할 때 authority는 필수입니다.");
             }
         }
+    }
+
+    private PartnerOrderLine findExistingLine(PartnerOrder order,
+                                               PartnerOrderUpdateRequest.LineRequest requested) {
+        String key = lineKey(requested.modelCode(), requested.productName(), requested.categoryKey());
+        return order.getLines().stream()
+                .filter(existing -> lineKey(existing.getModelName(), existing.getProductName(),
+                        existing.getCategoryKey()).equals(key))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean sameStoredAmounts(PartnerOrderLine existing,
+                                      PartnerOrderUpdateRequest.LineRequest requested) {
+        return existing != null && existing.getQuantity() == requested.quantity()
+                && sameAmount(existing.getPriceVat(), requested.deliveryPrice())
+                && sameAmount(existing.getSupplyAmount(), requested.supplyAmount())
+                && sameAmount(existing.getVatAmount(), requested.vatAmount())
+                && sameAmount(existing.getLineTotal(), requested.lineTotal());
+    }
+
+    private boolean sameAmount(BigDecimal left, BigDecimal right) {
+        return left == null ? right == null : right != null && left.compareTo(right) == 0;
     }
 
     private BusinessException invalidLine(String message) {
@@ -362,26 +386,34 @@ public class PartnerOrderUpdateService {
         }
 
         Map<String, UUID> resolvedProductIds = new LinkedHashMap<>();
+        Map<String, PartnerOrderLine> matchedExisting = new HashMap<>();
         List<PartnerOrderUpdateRequest.LineRequest> catalogLines = new ArrayList<>();
         Set<String> modelCodes = new LinkedHashSet<>();
-        for (PartnerOrderUpdateRequest.LineRequest requested : requestedLines) {
-            modelCodes.add(requested.modelCode());
-        }
-        Map<String, UUID> catalogProductIds = lookupCatalogProductIds(modelCodes);
+        Set<String> matchedModelCodes = new LinkedHashSet<>();
         for (PartnerOrderUpdateRequest.LineRequest requested : requestedLines) {
             List<PartnerOrderLine> candidates = existingByKey.get(lineKey(
                     requested.modelCode(), requested.productName(), requested.categoryKey()));
             if (candidates != null && !candidates.isEmpty()) {
-                UUID catalogProductId = catalogProductIds.get(requested.modelCode());
-                UUID existingProductId = candidates.remove(0).getProductId();
-                resolvedProductIds.put(requestKey(requested), catalogProductId != null
-                        ? catalogProductId : existingProductId);
+                PartnerOrderLine existing = candidates.remove(0);
+                matchedExisting.put(requestKey(requested), existing);
+                resolvedProductIds.put(requestKey(requested), existing.getProductId());
+                matchedModelCodes.add(requested.modelCode());
             } else {
                 catalogLines.add(requested);
+                modelCodes.add(requested.modelCode());
+            }
+        }
+
+        Map<String, UUID> recoveredProductIds = lookupCatalogProductIdsFailSoft(matchedModelCodes);
+        for (PartnerOrderUpdateRequest.LineRequest requested : requestedLines) {
+            UUID recovered = recoveredProductIds.get(requested.modelCode());
+            if (recovered != null && matchedExisting.containsKey(requestKey(requested))) {
+                resolvedProductIds.put(requestKey(requested), recovered);
             }
         }
 
         if (!catalogLines.isEmpty()) {
+            Map<String, UUID> catalogProductIds = lookupCatalogProductIds(modelCodes);
             if (modelCodes.size() > 100) {
                 throw invalidLine("한 번에 조회할 수 있는 품목 수는 100건 이하입니다.");
             }
@@ -395,7 +427,8 @@ public class PartnerOrderUpdateService {
         }
 
         return requestedLines.stream()
-                .map(line -> toLine(line, resolvedProductIds.get(requestKey(line))))
+                .map(line -> toLine(line, resolvedProductIds.get(requestKey(line)),
+                        matchedExisting.get(requestKey(line))))
                 .toList();
     }
 
@@ -415,10 +448,23 @@ public class PartnerOrderUpdateService {
         return catalogProductIds;
     }
 
-    private PartnerOrderLine toLine(PartnerOrderUpdateRequest.LineRequest line, UUID productId) {
+    private Map<String, UUID> lookupCatalogProductIdsFailSoft(Set<String> modelCodes) {
+        if (modelCodes.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return lookupCatalogProductIds(modelCodes);
+        } catch (RuntimeException ex) {
+            return Map.of();
+        }
+    }
+
+    private PartnerOrderLine toLine(PartnerOrderUpdateRequest.LineRequest line, UUID productId,
+                                    PartnerOrderLine existing) {
         PartnerOrderLine.AmountAuthority authority = line.authority() == null
                 || line.authority().isBlank()
-                ? PartnerOrderLine.AmountAuthority.PRICE
+                ? (existing != null && (line.supplyAmount() != null || line.vatAmount() != null)
+                        ? PartnerOrderLine.AmountAuthority.VAT : PartnerOrderLine.AmountAuthority.PRICE)
                 : parseAuthority(line.authority());
         return PartnerOrderLine.createFromAuthoritativeAmounts(
                 productId,

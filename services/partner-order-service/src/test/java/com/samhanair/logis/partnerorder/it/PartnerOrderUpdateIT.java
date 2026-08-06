@@ -398,6 +398,76 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
 
     @Test
     @WithMockUser(roles = {"SALES"})
+    void stored_supply_vat_round_trip_allows_memo_change_without_authority() throws Exception {
+        PartnerOrder order = saveAmountOrder("2026/08/07-1");
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(storedAmountUpdateJson(currentModifiedAt(order.getId()), "220000", "memo 왕복")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memo").value("memo 왕복"))
+                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(200000))
+                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(20000))
+                .andExpect(jsonPath("$.data.lines[0].lineTotal").value(220000))
+                .andExpect(jsonPath("$.data.lines[0].authority").value("VAT"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void stored_supply_vat_change_without_authority_is_rejected() throws Exception {
+        PartnerOrder order = saveAmountOrder("2026/08/07-2");
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(storedAmountUpdateJson(currentModifiedAt(order.getId()), "220001", "금액 조작")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PARTNER_ORDER_UPDATE_INVALID_LINE"));
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement().extracting(PartnerOrderLine::getLineTotal)
+                .isEqualTo(new BigDecimal("220000.00"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void existing_line_memo_update_does_not_call_product_service_when_unavailable() throws Exception {
+        PartnerOrder order = saveOrder("2026/08/07-3", false);
+        when(productClient.lookupByModelCodes(any())).thenThrow(new RuntimeException("product-service unavailable"));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(existingLineMemoUpdateJson(currentModifiedAt(order.getId()),
+                                order.getLines().get(0), "기존 라인 메모")))
+                .andExpect(status().isOk());
+
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void new_line_still_fails_explicitly_when_product_service_is_unavailable() throws Exception {
+        PartnerOrder order = saveOrder("2026/08/07-4", false);
+        when(productClient.lookupByModelCodes(any())).thenThrow(new RuntimeException("product-service unavailable"));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(twoLineUpdateJson(currentModifiedAt(order.getId()), "NEW-UNAVAILABLE", "신규 품목", "homemulti")))
+                .andExpect(status().is5xxServerError());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement().extracting(PartnerOrderLine::getModelName)
+                .isEqualTo("AJ040RXH4BC1");
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
     void orphan_existing_line_is_relinked_to_catalog_product_id() throws Exception {
         PartnerOrder order = PartnerOrder.create(
                 "P-SP0842", "1010101010", "2026/05/17-17", "IT-SP0842-2026/05/17-17", BigDecimal.ZERO);
@@ -504,6 +574,17 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         if (deleted) {
             order.markDeleted("it");
         }
+        return orderRepository.saveAndFlush(order);
+    }
+
+    private PartnerOrder saveAmountOrder(String orderNo) {
+        PartnerOrder order = PartnerOrder.create(
+                "P-SP0842", "1010101010", orderNo, "IT-SP0842-" + orderNo, BigDecimal.ZERO);
+        order.addLine(PartnerOrderLine.createFromAuthoritativeAmounts(
+                fixtureProductId("AR-EH05"), "AR-EH05", "금액 품목", "homemulti", 2,
+                new BigDecimal("110000.00"), new BigDecimal("200000.00"),
+                new BigDecimal("20000.00"), new BigDecimal("220000.00"),
+                PartnerOrderLine.AmountAuthority.VAT, "금액 라인"));
         return orderRepository.saveAndFlush(order);
     }
 
@@ -618,6 +699,34 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                   }]
                 }
                 """.formatted(updatedAt, memo, lineTotal);
+    }
+
+    private String storedAmountUpdateJson(String updatedAt, String lineTotal, String memo) {
+        return """
+                {
+                  "updatedAt": "%s", "partnerCode": "P-SP0842", "bizCode": "1010101010",
+                  "memo": "%s", "lines": [{
+                    "modelCode": "AR-EH05", "productName": "금액 품목",
+                    "categoryKey": "homemulti", "quantity": 2, "deliveryPrice": 110000,
+                    "supplyAmount": 200000, "vatAmount": 20000, "lineTotal": %s,
+                    "remark": "금액 라인"
+                  }]
+                }
+                """.formatted(updatedAt, memo, lineTotal);
+    }
+
+    private String existingLineMemoUpdateJson(String updatedAt, PartnerOrderLine line, String memo) {
+        return """
+                {
+                  "updatedAt": "%s", "partnerCode": "P-SP0842", "bizCode": "1010101010",
+                  "memo": "%s", "lines": [{
+                    "modelCode": "%s", "productName": "%s",
+                    "categoryKey": "%s", "quantity": %d, "deliveryPrice": %s,
+                    "remark": "기존 라인 메모"
+                  }]
+                }
+                """.formatted(updatedAt, memo, line.getModelName(), line.getProductName(),
+                        line.getCategoryKey(), line.getQuantity(), line.getPriceVat());
     }
 
     private UUID fixtureProductId(String modelCode) {
