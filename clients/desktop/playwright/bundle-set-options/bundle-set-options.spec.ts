@@ -144,9 +144,9 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
     await material.check()
     await expect(material).toBeChecked()
 
-    // 텍스트 옵션(판넬 모델코드) 입력 round-trip 검증 (controlled value 바인딩)
+    // 서버 도메인 판넬 옵션 선택 round-trip 검증 (controlled value 바인딩)
     const panelOption = page.getByTestId('bundle-options-0-panel-option')
-    await panelOption.fill('블랙판넬')
+    await panelOption.selectOption('블랙판넬')
     await expect(panelOption).toHaveValue('블랙판넬')
   })
 

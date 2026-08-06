@@ -254,7 +254,7 @@ vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: () => harness.isMobile }))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: harness.usePageTitle }))
 vi.mock('./components/InventoryLookupModal', () => ({ InventoryLookupModal: () => null }))
 vi.mock('./components/BundleOptionRow', () => ({ BundleOptionRow: ({ onChange }: any) => (
-  <button type="button" data-testid="bundle-option-change" onClick={() => onChange({ panelOption: 'PANEL-3' })}>
+  <button type="button" data-testid="bundle-option-change" onClick={() => onChange({ panelOption: '블랙판넬' })}>
     change bundle option
   </button>
 ) }))
@@ -1238,7 +1238,7 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
 
     await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
     expect(harness.expandBundleLine.mock.calls[1][0]).toEqual(expect.objectContaining({
-      setOptions: expect.objectContaining({ panelOption: 'PANEL-3' }),
+      setOptions: expect.objectContaining({ panelOption: '블랙판넬' }),
     }))
     await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productB.productName))
     expect(screen.queryByTestId('bundle-option-change')).toBeNull()
@@ -1294,7 +1294,7 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     }])
     await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(3))
     expect(harness.expandBundleLine.mock.calls[2][0]).toEqual(expect.objectContaining({
-      setOptions: expect.objectContaining({ panelOption: 'PANEL-3' }),
+      setOptions: expect.objectContaining({ panelOption: '블랙판넬' }),
     }))
   })
 
@@ -1665,7 +1665,7 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     })
 
     await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
-      setOptions: expect.objectContaining({ panelOption: 'PANEL-3' }),
+      setOptions: expect.objectContaining({ panelOption: '블랙판넬' }),
     })))
     expect(harness.expandBundleLine).toHaveBeenCalledTimes(2)
   })
