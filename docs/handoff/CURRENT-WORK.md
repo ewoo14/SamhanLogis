@@ -1,6 +1,6 @@
 ﻿# 현재 작업 핸드오프 노트
 
-## 2026-08-05~06 집PC 야간 세션 (진행 중) — **머지 4건** · 6트랙 병렬
+## 2026-08-05~06 집PC 야간 세션 (**종료** · 회사PC 인계) — **머지 6건** · 5트랙 병렬
 
 > **다음 세션은 이 절만 읽으면 된다.** 세션이 아직 진행 중이라 아래 수치는 갱신될 수 있다.
 
@@ -1730,3 +1730,148 @@ gh run list --branch <branch> --limit 6 --json headSha,status,conclusion,name
 - `#1069` CI red 에 **이지선다**(*"spec 이 낡았나 / 기능이 깨졌나"*)를 줬는데 **둘 다 아니었다.** 브리핑의 *"제 전제가 틀렸다면 중단·보고"* 가 작동해 검증자가 반려했고 한 사이클을 아꼈다.
 - `#1075` 에도 이지선다(*"coedit 전용인가 / 카탈로그 비교 추론인가"*)를 줬는데 답은 **`U+2060` marker** 라는 제3의 방식이었다.
 - ⟹ 갈래를 제시할 때는 **"셋째 가능성이 있으면 그것을 내라"** 를 항상 함께 적는다.
+
+---
+
+# 🚩 회사PC 인계 — 2026-08-06 집PC 세션 종료 시점
+
+**다음 세션은 이 절부터 읽으면 된다.** 위 절들은 이력이다.
+
+## 1. 머지 — 이 세션 6건
+
+```text
+d82fb265c  [FEAT] #874  거래처 전역DC · 고정DC 반영 (#1057)                 → 이슈 #874 close
+7e21eb8f9  [FIX]  #1080 #1073 이 잃은 단정 복원 (#1081)                     → 이슈 #1080 close
+3c4012db1  [FIX]  #1073 시간 의존 테스트가 CI 를 랜덤 차단 (#1079)          → 이슈 #1073 close
+35afbb1d7  [FEAT] #1039 가배차 — 분류 계산 삼한 이전 (#1045)                → 이슈 #1039 close
+59277c728  [FIX]  #1062 전표 라인 입력 UX (#1063)                           → 이슈 #1062 close
+7a038483b  [FEAT] #1001 거래처별 원장 (#1061)                               → 이슈 #1001 close
+```
+
+## 2. 🚨 회사PC 에서 **가장 먼저** 할 것
+
+### ① `#1077` 은 병합 완료 (`4ef966266`) · `#1078` 은 아직 필요하다
+
+`#1077` 은 세션 마지막에 S41 로 해소했다. `bundleMode`(#1069)와 `fixedDiscountRate`(#874)를 둘 다 보존했고, **BUNDLE 전개 구성품 라인에 전역DC 가 적용되는지 회귀 테스트로 고정**했다. `MERGEABLE` 로 돌아왔다.
+
+`#1078` 은 아직 병합 전이다 — SOL S25 가 자동 병합을 예상했으나(충돌 marker 0) **다시 확인할 것.**
+
+<details><summary>당시 충돌 내역 (참고)</summary>
+
+`#874` 가 머지되면서 두 PR 이 같은 파일을 건드리게 됐다.
+
+```text
+#1077  CONFLICTING — SlipFormPage.tsx · ProductSummary.java · SlipService.java
+       🚨 ProductSummary.java 는 양쪽이 각자 필드를 더한 파일이다
+          #874  hasVariableDiscount   전역DC 적용 자격
+          #1069 bundleMode            KEEP/EXPAND/NULL 판정
+          한쪽을 버리면 그 기능이 조용히 죽는다
+#1078  자동 병합 예상(SOL S25 확인, 충돌 marker 0) — 다만 다시 확인할 것
+```
+
+🚨 **머지 해소는 fix 다.** 텍스트가 붙어도 의미는 어긋날 수 있다. 필수 명령에 **`npm run typecheck`(exit 0)** 를 반드시 넣을 것 — 이 세션의 직전 머지 해소가 `BUILD SUCCESSFUL` + `Vitest 224/224` 를 받고도 `tsc` 를 안 돌려 **타입 오류 5건이 CI 에서 터졌다**(Vitest 는 esbuild 라 타입을 안 본다).
+
+</details>
+
+🚨 **머지 해소는 fix 다.** 필수 명령에 **`npm run typecheck`(exit 0)** 를 반드시 넣을 것 — 이 세션의 S32 가 `BUILD SUCCESSFUL` + `Vitest 224/224` 를 받고도 `tsc` 를 안 돌려 **타입 오류 5건이 CI 에서 터졌다**(Vitest 는 esbuild 라 타입을 안 본다).
+
+🚨 그리고 **두 기능이 한 화면에서 공존하는지** 반드시 확인할 것 — 텍스트가 붙는 것과 함께 도는 것은 다르다. `#1077` 에서 이 각도가 회귀 테스트를 만들어 냈다.
+
+### ② 마이그레이션 번호 — 이 세션에 **다섯 번** 걸렸다
+
+```text
+main 최고        slip-service V112   (#874 머지로 V108~V112 가 올라감)
+#1078 예약       V113
+#1077 예약       V114 · V115
+⟹ 새 마이그레이션은 V116 부터
+```
+
+🚨 **①은 브랜치가 아니라 `origin/main` 기준으로 센다.** 브랜치가 main 보다 뒤처져 있으면 브랜치에서 세는 순간 틀린다 — 이 세션에서 `#1078`(`V101` 충돌)과 `#1077`(`V108` 충돌)이 정확히 그렇게 걸렸다. **CI 는 다섯 번 다 통과했다**(빈 DB 에 순서대로 적용하므로). 매번 PM 이 `git status` 에서 눈으로 찾아 잡았다.
+
+### ③ 백엔드 배포는 **한 번에 하나**
+
+Docker 스택(이미지 태그·데몬·DB)은 전 트랙 공유다. 이 세션에서 PM 이 `#1078` 라이브QA 를 위해 `slip-service` 를 재배포하면서 **`#1066` R7 이 실 화면을 판정하지 못했다.** 배포 전에 다른 트랙 라운드가 도는지 먼저 볼 것.
+
+그리고 재배포 명령은 **compose 파일 세 개를 함께** 지정해야 한다.
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.local-all.yml -f docker-compose.slip-port-override.yml build slip-service
+```
+하나만 쓰면 `service "api-gateway" refers to undefined network samhan-net` 로 실패한다(실측).
+
+⚠️ **브랜치가 main 보다 뒤처진 상태로 배포하면 Flyway 가 기동을 막는다** — DB 에 적용된 마이그레이션 파일이 브랜치에 없으면 `Detected applied migration not resolved locally` 로 죽는다. 이 세션에서 `slip-service` 가 실제로 그렇게 내려갔고, `git merge origin/main` 후 재빌드로 복구했다.
+
+### ④ 🚨 `#1078` 의 `B` — **회사PC 세션의 첫 질문**
+
+S30 라이브QA 에서 모델명을 지우고 blur 한 뒤 **저장 버튼을 눌렀는데 견적 `PUT` 이 발생하지 않았다.** 두 가지일 수 있고 아직 안 갈렸다.
+
+```text
+(a) 모델명을 지우면 라인이 무효가 되어 저장이 정당하게 막히는 것   → 정상 동작
+(b) 품목을 지운 뒤 저장이 안 되는 실제 결함                        → 심각
+```
+
+**(b) 라면** 사용자가 라인에서 품목만 빼고 저장할 수 없다는 뜻이고, 이 트랙이 `S13` 부터 만들어 온 **"품목 해제 시 자동 규격 회수" 가 저장까지 도달하지 못한다**는 얘기가 된다.
+
+🚫 **추측으로 (a) 라고 넘기지 말 것.** 넘기면 (b) 를 그대로 머지한다.
+
+함께 남은 것 — `H 판매전표 회귀`(전역DC/고정DC 각각의 저장·재조회 미완료. `#874` 머지로 같은 화면의 단가 경로가 새로 바뀌었으므로 중요) · `D 다른 품목 재확정` · `F 버전 이력 복원` · `G 협업 두 창`.
+
+## 3. 트랙 현황 — 열린 트랙 5개
+
+| PR | 이슈 | ① 도달결함 0 | ② CI | ③ 라이브QA | 다음 한 수 |
+|---|---|---|---|---|---|
+| `#1077` | `#1069` 세트 전개 | ✅ **S40 머지 권고** | 재측정 중 (`4ef966266` · S41 로 충돌 해소·`MERGEABLE`) | 🔴 **미실시** | CI green 확인 → **`slip-service` 배포 → 라이브QA** → 머지 |
+| `#1078` | `#1075` 견적 규격 | ✅ **S25 머지 권고** | ✅ 49/49 (구 SHA) | 🔴 **미완** — 핵심 PASS, `B` **FAIL** | 아래 ④를 먼저 갈 것 |
+| `#1066` | `#1065` 검수 결재 | ✅ **코드 기준 0** (실 화면 축 미판정) | 42/42 (구 SHA) | **미실시** | slip-service 배포 → `INSPECTING→COMPLETED→CONFIRMED` 실행 |
+| `#1082` | `#1051` 품목연결 | 진단 D2 완료 | — | — | **개발책임자 판단 대기** (다섯 갈래 분리) |
+| `#1083` | `#1052` 창고UUID | 진단 D2 완료 | — | — | `user_data.sh` dev UUID 수정 + 탐지 설계 |
+
+### `#1066` 이 열리면 `#874` 의 미검증도 함께 닫힌다
+
+`#874` 는 **riUsage 일마감 축을 미검증으로 남기고 머지**했다. `sales_accounting_slips` POSTED 0건이고 전표 `CONFIRMED` 사슬이 `#1065` 로 막혀 있었다. `#1066` 이 그 사슬을 열면 그 축을 실제로 밟을 수 있다.
+
+### `#1064` 는 닫지 않았다
+
+입고 lifecycle 이슈다. main 에 전이표는 들어갔지만 `#1066` R5 가 *"INBOUND PROCESSING 화면에 `출고 완료` 가 표시된다"* 는 공용 화면 회귀를 찾았다. `#1066` 머지 후 **실제로 입고 완료가 되는 것을 확인하고** 닫을 것.
+
+## 4. 🔑 이 세션이 남긴 규칙 (메모리 반영 완료)
+
+| 규칙 | 파일 |
+|---|---|
+| 결함이 살아 있을 때 돌린 라이브QA 가 DB 를 오염시켜 다음 라운드가 BLOCK 을 낸다 | [[feedback_defective_round_poisons_db_for_next_round]] |
+| mock handler 없는 endpoint 가 실 API 로 누출 — 로컬 green · CI red. `VITE_API_BASE_URL=http://127.0.0.1:1` 격리로 18초에 판별 | [[feedback_mock_gate_leaks_to_real_api]] |
+| QA 라운드가 공유 DB 에 남긴 잔재가 결함·복구대상처럼 보인다 (하룻밤 4건) | [[feedback_qa_rounds_pollute_shared_data]] |
+| 증거가 사라지는 다섯 경로 (`*.log` 삼킴 · 앞 라운드 디렉토리 덮어쓰기 · 로그인 응답 JWT 혼입 추가) | [[feedback_live_qa_artifacts_vanish_silently]] |
+| **PM 은 라운드마다 CI 를 따로 본다** — 충돌이면 checks 0건, 하네스 가드 red 를 네 SHA 놓쳤다 | [[feedback_qa_harness_commit_breaks_ci]] |
+| 마이그레이션 번호 네 번째·다섯 번째 — `origin/main` 기준으로 셀 것 | [[feedback_migration_number_three_counts]] |
+
+## 5. 🚨 PM 이 이 세션에 만든 함정 — 회사PC 세션이 반복하지 말 것
+
+**제 전제가 네 번 틀렸고 네 번 다 검증자가 반려해서 살았다.**
+
+```text
+#1069 CI red   "(가) spec 이 낡았나 / (나) 기능이 깨졌나" 이지선다 → 둘 다 아님(mock 누출)
+#1075 provenance  "coedit 전용인가 / 카탈로그 비교 추론인가" → 제3의 방식(U+2060 marker)
+#1052 조회 경로   "legacy·UUID 둘 다 404 였다" → UUID 는 4/4 200 이었음
+#1051 표본        "#1019 4,196건이 이 PC 에서 0건" → 다른 지표였고 실제 4,225건
+```
+
+🔑 브리핑에 항상 넣을 것 — **"제 전제가 틀렸다면 고치지 말고 중단·보고하십시오"** 와 **"셋째 가능성이 있으면 그것을 내십시오"**. 갈래를 제시하면 검증자가 **주어진 칸에 답을 욱여넣는다.**
+
+그리고 **설계 승인 요청은 승인하지 않는다.** 이 세션에서 구현자가 두 번 요청했고, 승인 대신 **조건과 되물을 질문**을 돌려줬더니 더 나은 답이 나왔다(`#1078` 은 화면 우회 대신 **계약 자체**를 고쳤다).
+
+## 2026-08-06 Codex S31 Update — #1075 병합·개번·B 규명
+
+- `origin/main`을 `--no-commit`으로 병합했다. 텍스트 충돌은 없었고, incoming diff에는 `clients/`·`services/` 코드가 없었다.
+- `V113__add_estimate_specification_source.sql`을 `V116__add_estimate_specification_source.sql`로 이동했다. 코드·설정·테스트의 V113 참조는 0건이며 과거 handoff/QA/memory/dev-report 기록은 보존했다.
+- B는 (b) 실제 결함으로 규명했다. 견적 유일 품목 해제 후 `buildBody()`의 `valid.length === 0` 가드가 `null`을 반환해 `updateMutation.mutate()`와 PUT을 막는다. 백엔드의 빈 `lines` 전체 삭제 계약과 모순된다.
+- `EstimateFormPage.coedit.test.tsx`에 S31 RED를 추가했고 46 pass / 1 fail로 재현했다. 실패 원문: `expected "spy" to be called 1 times, but got 0 times`.
+- `npm run typecheck` exit 0, `:slip-service:test --tests "*Estimate*"` exit 0. B 수정, Docker 재배포, commit, push는 하지 않았다.
+- 상세 보고서: `docs/dev-reports/2026-08-06-1075-s31-merge-renumber-b-diagnosis.md`
+
+## 6. 🚨 이 세션의 가장 비싼 교훈
+
+`#1078` 은 **S13~S25 스물다섯 라운드**를 돌며 provenance 경계·정규화 예외·버전 이력 diff 를 정교하게 다듬었다. 게이트 ①(결함 0)과 ②(CI 49/49)를 다 통과했다. 그리고 **첫 라이브QA 가 본 기능의 핵심 경로가 죽어 있는 것**을 잡았다 — 품목을 고르고 blur 하면 자동 규격이 사라지고 저장 payload 에서 누락됐다.
+
+**"라이브QA 는 마지막이 아니라 첫 라운드다" 는 규칙을 이 트랙에서 지키지 않은 대가다.** 코드 검증이 부실했던 게 아니라 **안 보이는 층이 실재한다.**
+
+⟹ 회사PC 세션은 **새 트랙을 열면 구현 직후 라이브QA 를 한 번** 돌리고 시작할 것.

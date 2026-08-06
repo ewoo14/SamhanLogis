@@ -729,6 +729,25 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(reopenedProvider.getItemValue(0, 'specification')).toBe('')
   })
 
+  it('S31 RED: 유일한 품목을 해제한 편집 견적도 빈 lines로 PUT 저장한다', async () => {
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
+
+    renderPage()
+    const model = await screen.findByLabelText('라인 1 모델명')
+    fireEvent.change(model, { target: { value: '' } })
+    fireEvent.blur(model)
+
+    await waitFor(() => expect(model.value).toBe(''))
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(mocks.updateEstimate).toHaveBeenCalledWith('estimate-1', expect.objectContaining({
+      lines: [],
+    }))
+  })
+
   it('원격 CATALOG 규격은 값이 바뀌어도 USER로 강등하지 않고 품목 해제 시 회수한다', async () => {
     const provider = makeProvider()
     mocks.getEstimate.mockResolvedValue(makeEstimate())
