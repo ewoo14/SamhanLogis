@@ -343,7 +343,7 @@ public class PartnerOrderUpdateService {
             }
             if (line.authority() != null && !line.authority().isBlank()) {
                 parseAuthority(line.authority());
-            } else if (line.supplyAmount() != null || line.vatAmount() != null || line.lineTotal() != null) {
+            } else if (line.supplyAmount() != null || line.vatAmount() != null) {
                 throw invalidLine("공급가액·부가세·합계를 사용할 때 authority는 필수입니다.");
             }
         }
@@ -363,29 +363,27 @@ public class PartnerOrderUpdateService {
 
         Map<String, UUID> resolvedProductIds = new LinkedHashMap<>();
         List<PartnerOrderUpdateRequest.LineRequest> catalogLines = new ArrayList<>();
+        Set<String> modelCodes = new LinkedHashSet<>();
+        for (PartnerOrderUpdateRequest.LineRequest requested : requestedLines) {
+            modelCodes.add(requested.modelCode());
+        }
+        Map<String, UUID> catalogProductIds = lookupCatalogProductIds(modelCodes);
         for (PartnerOrderUpdateRequest.LineRequest requested : requestedLines) {
             List<PartnerOrderLine> candidates = existingByKey.get(lineKey(
                     requested.modelCode(), requested.productName(), requested.categoryKey()));
             if (candidates != null && !candidates.isEmpty()) {
-                resolvedProductIds.put(requestKey(requested), candidates.remove(0).getProductId());
+                UUID catalogProductId = catalogProductIds.get(requested.modelCode());
+                UUID existingProductId = candidates.remove(0).getProductId();
+                resolvedProductIds.put(requestKey(requested), catalogProductId != null
+                        ? catalogProductId : existingProductId);
             } else {
                 catalogLines.add(requested);
             }
         }
 
         if (!catalogLines.isEmpty()) {
-            Set<String> modelCodes = new LinkedHashSet<>();
-            for (PartnerOrderUpdateRequest.LineRequest line : catalogLines) {
-                modelCodes.add(line.modelCode());
-            }
             if (modelCodes.size() > 100) {
                 throw invalidLine("한 번에 조회할 수 있는 품목 수는 100건 이하입니다.");
-            }
-            Map<String, UUID> catalogProductIds = new HashMap<>();
-            for (ProductSummary product : productClient.lookupByModelCodes(new ArrayList<>(modelCodes))) {
-                if (product != null && product.id() != null && product.modelCode() != null) {
-                    catalogProductIds.put(product.modelCode(), product.id());
-                }
             }
             for (PartnerOrderUpdateRequest.LineRequest line : catalogLines) {
                 UUID productId = catalogProductIds.get(line.modelCode());
@@ -399,6 +397,22 @@ public class PartnerOrderUpdateService {
         return requestedLines.stream()
                 .map(line -> toLine(line, resolvedProductIds.get(requestKey(line))))
                 .toList();
+    }
+
+    private Map<String, UUID> lookupCatalogProductIds(Set<String> modelCodes) {
+        if (modelCodes.isEmpty()) {
+            return Map.of();
+        }
+        if (modelCodes.size() > 100) {
+            throw invalidLine("한 번에 조회할 수 있는 품목 수는 100건 이하입니다.");
+        }
+        Map<String, UUID> catalogProductIds = new HashMap<>();
+        for (ProductSummary product : productClient.lookupByModelCodes(new ArrayList<>(modelCodes))) {
+            if (product != null && product.id() != null && product.modelCode() != null) {
+                catalogProductIds.put(product.modelCode(), product.id());
+            }
+        }
+        return catalogProductIds;
     }
 
     private PartnerOrderLine toLine(PartnerOrderUpdateRequest.LineRequest line, UUID productId) {
