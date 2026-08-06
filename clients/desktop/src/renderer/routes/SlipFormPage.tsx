@@ -115,7 +115,6 @@ import { searchPartners as searchPartnersApi } from '../api/partnerApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
-import { BundleOptionRow } from './components/BundleOptionRow'
 
 /**
  * 본 슬라이스용 OUTBOUND 배송태그 옵션 — BE `DeliveryTag` enum 의 OUTBOUND 8종.
@@ -502,12 +501,19 @@ interface ExpandedBundleOptionContext {
   expansionPending: boolean
   /** 현재 부모 전개가 소유한 구성품 행 ID — 재전개 때 이전 형제 행까지 함께 교체한다. */
   componentLineIds?: string[]
+  /** 사용자가 구성행에서 명시적으로 삭제한 품목 식별자 — 거래처 재전개에서도 복구하지 않는다. */
+  excludedComponentKeys?: string[]
   userOverrides?: Record<string, {
     unitPrice?: string
     quantity?: string
     specification?: string
   }>
 }
+
+const bundleComponentKey = (component: Pick<LineDraft, 'productId' | 'modelCode'> | {
+  productId: string | null
+  modelCode?: string | null
+}): string => `${component.productId ?? ''}:${component.modelCode ?? ''}`
 
 /**
  * 지연된 세트 전개 응답을 반영할 때 비교하는 단일 최신성 스냅샷.
@@ -824,6 +830,28 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const removeLine = (id: string) => {
+    const removedLine = linesRef.current.find((line) => line.id === id)
+    const liveIds = new Set(linesRef.current.filter((line) => line.id !== id).map((line) => line.id))
+    const nextContexts: Record<string, ExpandedBundleOptionContext> = {}
+    Object.entries(expandedBundleOptionsRef.current).forEach(([key, context]) => {
+      const remainingComponentIds = (context.componentLineIds ?? []).filter((lineId) => liveIds.has(lineId))
+      if (remainingComponentIds.length === 0) return
+      const owner = liveIds.has(key) ? key : remainingComponentIds[0]!
+      const deletedComponent = removedLine && context.componentLineIds?.includes(id)
+        ? bundleComponentKey(removedLine)
+        : null
+      nextContexts[owner] = {
+        ...context,
+        componentLineIds: remainingComponentIds,
+        excludedComponentKeys: deletedComponent
+          ? [...new Set([...(context.excludedComponentKeys ?? []), deletedComponent])]
+          : context.excludedComponentKeys,
+        userOverrides: Object.fromEntries(
+          Object.entries(context.userOverrides ?? {}).filter(([lineId]) => liveIds.has(lineId)),
+        ),
+      }
+    })
+    expandedBundleOptionsRef.current = nextContexts
     setLines((ls) => removeLinePreservingMinimum(
       ls,
       id,
@@ -838,21 +866,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return next
     })
     setExpandedBundleOptions((current) => {
-      const liveIds = new Set(linesRef.current.filter((line) => line.id !== id).map((line) => line.id))
-      const next: Record<string, ExpandedBundleOptionContext> = {}
-      Object.entries(current).forEach(([key, context]) => {
-        const remainingComponentIds = (context.componentLineIds ?? []).filter((lineId) => liveIds.has(lineId))
-        if (remainingComponentIds.length === 0) return
-        const owner = liveIds.has(key) ? key : remainingComponentIds[0]!
-        next[owner] = {
-          ...context,
-          componentLineIds: remainingComponentIds,
-          userOverrides: Object.fromEntries(
-            Object.entries(context.userOverrides ?? {}).filter(([lineId]) => liveIds.has(lineId)),
-          ),
-        }
-      })
-      return next
+      return nextContexts
     })
     // #902 R2: 안내는 이제 이력(touchedLineIds)이 아니라 현재 내용의 순수 함수라(H1),
     // 행 삭제 시 별도로 지워줄 이력이 없다 — 배열에서 빠지는 즉시 안내도 함께 사라진다.
@@ -923,7 +937,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       .filter((line): line is LineDraft => line != null)
     const usedPreviousLineIds = new Set<string>()
     const componentLines = expanded
-      .filter((component) => component.productId)
+      .filter((component) => component.productId
+        && !context?.excludedComponentKeys?.includes(bundleComponentKey(component)))
       .map((component) => {
         const previous = previousComponentLines.find((line) =>
           !usedPreviousLineIds.has(line.id)
@@ -1020,10 +1035,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         }
       })
       const firstComponentLine = componentLines[0]
-      const shouldExposeOptions = componentLines.length > 0
-        && context
-        && firstComponentLine !== undefined
-        && (!existingContext || firstComponentLine.productId === source.productId)
       if (context && firstComponentLine && componentLines.length > 0) {
         // 전개 결과의 productId는 행 간에 재사용될 수 있으므로 옵션 컨텍스트의
         // 소유권은 항상 새로 만든 구성품 행 ID로 연결한다.
@@ -1040,7 +1051,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           ...expandedBundleOptionsRef.current,
           [firstComponentLine.id]: retainedContext,
         }
-        if (shouldExposeOptions) next[firstComponentLine.id] = retainedContext
+        next[firstComponentLine.id] = retainedContext
       }
       return next
     })
@@ -1113,7 +1124,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         quantity: Number(selected.quantity),
         unitPrice: selected.unitPrice || '0',
         specification: selected.specification.trim() || undefined,
-        setOptions: toApiBundleSetOptions(selected.productType, selected.setOptions),
       })
       const latest = linesRef.current.find((line) => line.id === source.id)
       if (await retryLatestBundleGeneration()) {
@@ -1548,44 +1558,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     )
   }
 
-  const updateSetOption = (id: string, patch: Partial<BundleSetOptions>) => {
-    const line = linesRef.current.find((candidate) => candidate.id === id)
-    const context = expandedBundleOptionsRef.current[line?.id ?? id]
-    if (!context) {
-      updateLineFromUser(id, (current) => ({
-        ...current,
-        setOptions: { ...(current.setOptions ?? emptyBundleSetOptions()), ...patch },
-      }))
-      return
-    }
-    const nextOptions = { ...context.setOptions, ...patch }
-    if (context.expansionPending) {
-      bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
-      setExpandedBundleOptions((current) => ({
-        ...current,
-        [line!.id]: { ...context, setOptions: nextOptions },
-      }))
-      return
-    }
-    setExpandedBundleOptions((current) => ({
-      ...current,
-      [line!.id]: { ...context, setOptions: nextOptions, expansionPending: true },
-    }))
-    bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
-    if (!line) return
-    void expandSelectedBundle(line, {
-      ...line,
-      productId: context.parentProductId,
-      modelCode: context.parentModelCode,
-      modelName: context.modelName,
-      specification: context.specification,
-      quantity: context.quantity,
-      unitPrice: context.unitPrice,
-      productType: 'BUNDLE',
-      setOptions: nextOptions,
-    }, line.priceSource === 'USER' ? null : partnerDcConfig)
-  }
-
   const toggleSelect = (id: string, selected: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -1882,20 +1854,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // #902 R2 H1: 안내는 이제 순수하게 "현재 내용"의 함수다(lineIncompleteReason) — 이력을
     // 남기지 않으므로, 입력을 원복하면 삭제 없이도 안내가 자동으로 사라진다(D1).
     const reason = lineIncompleteReason(line)
-    const optionContext = expandedBundleOptions[line.id]
-    const isBundle = line.productType === 'BUNDLE' || Boolean(optionContext)
     return (
       <>
-        {isBundle ? (
-          <BundleOptionRow
-            line={{
-              modelName: optionContext?.modelName ?? line.modelName,
-              setOptions: optionContext?.setOptions ?? line.setOptions ?? emptyBundleSetOptions(),
-            }}
-            index={index}
-            onChange={(patch) => updateSetOption(line.id, patch)}
-          />
-        ) : null}
         {line.lookupError ? (
           <div className="mobile-line-error" role="alert">{line.lookupError}</div>
         ) : null}

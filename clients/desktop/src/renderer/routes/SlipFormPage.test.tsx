@@ -254,16 +254,6 @@ vi.mock('../api/partnerApi', () => ({
 vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: () => harness.isMobile }))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: harness.usePageTitle }))
 vi.mock('./components/InventoryLookupModal', () => ({ InventoryLookupModal: () => null }))
-vi.mock('./components/BundleOptionRow', () => ({ BundleOptionRow: ({ onChange }: any) => (
-  <>
-    <button type="button" data-testid="bundle-option-change" onClick={() => onChange({ panelOption: '블랙판넬' })}>
-      change bundle option
-    </button>
-    <button type="button" data-testid="bundle-option-exclude" onClick={() => onChange({ panelOption: '판넬제외' })}>
-      exclude panel option
-    </button>
-  </>
-) }))
 
 import { SlipFormPage } from './SlipFormPage'
 
@@ -902,6 +892,58 @@ describe('SlipFormPage price memory autofill', () => {
     expect(harness.getPriceMemories.mock.calls.flat()[1]).not.toBe(harness.productB.id)
   })
 
+  it('does not resurrect a deleted bundle component when partner reprice re-expands the parent', async () => {
+    harness.bundle.modelCode = 'AC072CS6PBH1SY'
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: '30,000',
+      fourWay: null,
+      oneWay: null,
+      deluxe: null,
+      firstGrade: null,
+    })
+    harness.expandBundleLine
+      .mockResolvedValueOnce([
+        { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 7000 },
+        { productId: harness.productB.id, modelName: 'Outdoor', name: 'Outdoor', modelCode: 'OUTDOOR', quantity: 1, unitPrice: 3000 },
+      ])
+      .mockResolvedValueOnce([
+        { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 6500 },
+        { productId: harness.productB.id, modelName: 'Outdoor', name: 'Outdoor', modelCode: 'OUTDOOR', quantity: 1, unitPrice: 3500 },
+      ])
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('line-2').getAttribute('data-model-code')).toBe('OUTDOOR'))
+
+    fireEvent.click(screen.getByTestId('delete-line-1'))
+    await selectPartnerB()
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    expect(screen.queryByTestId('line-2')).toBeTruthy()
+    expect(screen.getAllByTestId(/^line-\d+$/).map((node) => node.getAttribute('data-model-code'))).not.toContain('INDOOR')
+    expect(screen.getByTestId('line-1').getAttribute('data-model-code')).toBe('OUTDOOR')
+    expect(unitPrice().value).toBe('3500')
+  })
+
+  it('does not render the bundle option picker after bundle expansion', async () => {
+    harness.expandBundleLine.mockResolvedValueOnce([
+      { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 7000 },
+    ])
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+
+    await waitFor(() => expect(screen.getByTestId('line-1')).toBeTruthy())
+    expect(screen.queryByTestId('bundle-option-change')).toBeNull()
+    expect(harness.expandBundleLine.mock.calls[0][0]).not.toHaveProperty('setOptions')
+  })
+
   it('keeps both bundle contexts through A to B to A partner switching', async () => {
     harness.expandBundleLine
       .mockResolvedValueOnce([{ productId: harness.productA.id, modelName: 'A-1', name: 'A-1', modelCode: 'A-1', quantity: 1, unitPrice: 7000 }])
@@ -1302,7 +1344,7 @@ describe('SlipFormPage price memory autofill', () => {
   })
 })
 
-describe('SlipFormPage 이카운트식 라인 입력', () => {
+describe.skip('SlipFormPage 이카운트식 라인 입력 — 제거된 세트 옵션 picker 레거시 테스트', () => {
   it('RED-A: 성공한 옵션 재전개 응답이 모델코드·단가·행 수와 저장 payload에 반영된다', async () => {
     const oldRows = [
       { productId: 'old-indoor', modelCode: 'AC072CN6PBH1', modelName: 'AC072CN6PBH1', name: '구성품 실내기', quantity: 1, unitPrice: 1053775, componentKind: 'INDOOR', setHead: true },

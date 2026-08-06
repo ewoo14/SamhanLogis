@@ -68,7 +68,6 @@ import {
 } from '../realtime/coeditLineIds'
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
-import { BundleOptionRow } from './components/BundleOptionRow'
 
 let __lineUidCounter = 0
 const nextLineUid = (): string => `est-line-${++__lineUidCounter}`
@@ -1227,15 +1226,6 @@ export function EstimateFormPage() {
       }
     }
   }
-  const updateSetOption = (index: number, patch: Partial<BundleSetOptions>) => {
-    setLines((prev) => {
-      const next = prev.map((l, i) =>
-        i === index ? { ...l, setOptions: { ...l.setOptions, ...patch } } : l,
-      )
-      linesRef.current = next
-      return next
-    })
-  }
   const removeLine = (index: number) => {
     setLines((prev) => {
       const target = prev[index]
@@ -1854,14 +1844,6 @@ export function EstimateFormPage() {
                 onLookup={() => handleModelLookup(i)}
                 onRemove={() => removeLine(i)}
               >
-                {isBundle ? (
-                  <BundleOptionRow
-                    line={line}
-                    index={i}
-                    disabled={Boolean(isReadOnly) || coeditActive}
-                    onChange={(patch) => updateSetOption(i, patch)}
-                  />
-                ) : null}
               </EstimateMobileLineCard>
             )
           }
@@ -2091,14 +2073,6 @@ export function EstimateFormPage() {
                 ×
               </button>
             </div>
-            {isBundle ? (
-              <BundleOptionRow
-                line={line}
-                index={i}
-                disabled={Boolean(isReadOnly) || coeditActive}
-                onChange={(patch) => updateSetOption(i, patch)}
-              />
-            ) : null}
            </div>
           )
         })}
