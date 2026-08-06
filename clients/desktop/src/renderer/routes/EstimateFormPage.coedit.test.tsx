@@ -400,6 +400,8 @@ afterEach(() => {
 
 beforeEach(() => {
   mocks.selectPartnerOnMount = false
+  mocks.lookupProductByModelName.mockReset()
+  mocks.searchProducts.mockReset()
   mocks.getPriceMemory.mockResolvedValue(null)
   mocks.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
   mocks.lookupProducts.mockResolvedValue([])
@@ -735,8 +737,10 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
 
     renderPage()
+    await waitFor(() => expect(screen.queryByTestId('estimate-form-coedit-pending')).toBeNull())
     const model = await screen.findByLabelText('라인 1 모델명')
     fireEvent.change(model, { target: { value: '' } })
+    await waitFor(() => expect((model as HTMLInputElement).value).toBe(''))
     fireEvent.blur(model)
 
     await waitFor(() => expect(model.value).toBe(''))
@@ -746,6 +750,181 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(mocks.updateEstimate).toHaveBeenCalledWith('estimate-1', expect.objectContaining({
       lines: [],
     }))
+  })
+
+  it('S32 RED-A: 여러 기존 품목을 모두 해제하면 편집 견적은 빈 lines로 PUT 저장한다', async () => {
+    const firstLine = makeEstimate().lines[0]
+    mocks.getEstimate.mockResolvedValue(makeEstimate({
+      lines: [
+        firstLine,
+        { ...firstLine, id: 'line-2', productId: 'product-2', modelName: 'MODEL-2', productName: '제품 2' },
+      ],
+    }))
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
+
+    renderPage()
+    await waitFor(() => expect(screen.queryByTestId('estimate-form-coedit-pending')).toBeNull())
+    const firstModel = await screen.findByLabelText('라인 1 모델명')
+    const secondModel = await screen.findByLabelText('라인 2 모델명')
+    fireEvent.change(firstModel, { target: { value: '' } })
+    await waitFor(() => expect((firstModel as HTMLInputElement).value).toBe(''))
+    fireEvent.blur(firstModel)
+    fireEvent.change(secondModel, { target: { value: '' } })
+    await waitFor(() => expect((secondModel as HTMLInputElement).value).toBe(''))
+    fireEvent.blur(secondModel)
+
+    await waitFor(() => expect((firstModel as HTMLInputElement).value).toBe(''))
+    await waitFor(() => expect((secondModel as HTMLInputElement).value).toBe(''))
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(mocks.updateEstimate).toHaveBeenCalledWith('estimate-1', expect.objectContaining({ lines: [] }))
+  })
+
+  it('S32 RED-A: 일부 품목만 해제하면 남은 유효 라인으로 기존 저장을 유지한다', async () => {
+    const firstLine = makeEstimate().lines[0]
+    mocks.getEstimate.mockResolvedValue(makeEstimate({
+      lines: [
+        firstLine,
+        { ...firstLine, id: 'line-2', productId: 'product-2', modelName: 'MODEL-2', productName: '제품 2' },
+      ],
+    }))
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
+
+    renderPage()
+    await waitFor(() => expect(screen.queryByTestId('estimate-form-coedit-pending')).toBeNull())
+    const firstModel = await screen.findByLabelText('라인 1 모델명')
+    fireEvent.change(firstModel, { target: { value: '' } })
+    await waitFor(() => expect((firstModel as HTMLInputElement).value).toBe(''))
+    fireEvent.blur(firstModel)
+
+    await waitFor(() => expect((firstModel as HTMLInputElement).value).toBe(''))
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(mocks.updateEstimate.mock.calls[0][1].lines).toEqual([
+      expect.objectContaining({ productId: 'product-2', modelName: 'MODEL-2' }),
+    ])
+  })
+
+  it('S32 RED-B: 신규 작성의 빈 라인은 계속 저장하지 않고 실행 가능한 문구를 표시한다', async () => {
+    renderPage('/sales/estimates/new')
+    fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(
+      '신규 견적은 모델명 lookup 성공 + 수량 > 0인 품목 1개 이상을 입력하세요.',
+    ))
+    expect(mocks.createEstimate).not.toHaveBeenCalled()
+  })
+
+  it('S32 RED-B: 원래 0라인인 편집 견적은 명시적 전체 삭제 근거가 없어 저장하지 않는다', async () => {
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(
+      '유효한 라인이 없습니다. 품목을 입력하거나, 전체 삭제하려면 기존 품목을 모두 해제한 뒤 저장하세요.',
+    ))
+    expect(mocks.updateEstimate).not.toHaveBeenCalled()
+  })
+
+  it('S32 RED-B: 수량만 0으로 만들어진 편집 견적은 품목 전체 삭제로 간주하지 않는다', async () => {
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+
+    renderPage()
+    await waitFor(() => expect(screen.queryByTestId('estimate-form-coedit-pending')).toBeNull())
+    const quantity = await screen.findByLabelText('라인 1 수량')
+    fireEvent.change(quantity, { target: { value: '0' } })
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(
+      '유효한 라인이 없습니다. 품목을 입력하거나, 전체 삭제하려면 기존 품목을 모두 해제한 뒤 저장하세요.',
+    ))
+    expect(mocks.updateEstimate).not.toHaveBeenCalled()
+  })
+
+  it('S32 RED-B: 협업 상대가 원격으로 품목을 비운 상태는 로컬 명시적 삭제 없이 저장하지 않는다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    provider.__setRows([{
+      modelName: '',
+      productName: '',
+      specification: '',
+      quantity: '2',
+      unitPrice: '10000',
+      productId: '',
+    }])
+    act(() => provider.__emit())
+    await waitFor(() => expect(estimateModel().value).toBe(''))
+
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(
+      '유효한 라인이 없습니다. 품목을 입력하거나, 전체 삭제하려면 기존 품목을 모두 해제한 뒤 저장하세요.',
+    ))
+    expect(mocks.updateEstimate).not.toHaveBeenCalled()
+  })
+
+  it('S32 RED-A: 협업 편집 중 현재 사용자가 기존 품목을 모두 해제하면 빈 lines 저장을 허용한다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
+
+    renderPage()
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.queryByTestId('estimate-form-coedit-pending')).toBeNull())
+    const model = await screen.findByLabelText('라인 1 모델명')
+    fireEvent.change(model, { target: { value: '' } })
+    await waitFor(() => expect((model as HTMLInputElement).value).toBe(''))
+    fireEvent.blur(model)
+
+    await waitFor(() => expect((model as HTMLInputElement).value).toBe(''))
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(mocks.updateEstimate).toHaveBeenCalledWith('estimate-1', expect.objectContaining({ lines: [] }))
+  })
+
+  it('S32 RED-A: 협업 편집 중 여러 기존 품목을 모두 해제하면 빈 lines 저장을 허용한다', async () => {
+    const firstLine = makeEstimate().lines[0]
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate({
+      lines: [
+        firstLine,
+        { ...firstLine, id: 'line-2', productId: 'product-2', modelName: 'MODEL-2', productName: '제품 2' },
+      ],
+    }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
+
+    renderPage()
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.queryByTestId('estimate-form-coedit-pending')).toBeNull())
+    const firstModel = await screen.findByLabelText('라인 1 모델명')
+    const secondModel = await screen.findByLabelText('라인 2 모델명')
+    fireEvent.change(firstModel, { target: { value: '' } })
+    await waitFor(() => expect((firstModel as HTMLInputElement).value).toBe(''))
+    fireEvent.blur(firstModel)
+    fireEvent.change(secondModel, { target: { value: '' } })
+    await waitFor(() => expect((secondModel as HTMLInputElement).value).toBe(''))
+    fireEvent.blur(secondModel)
+
+    await waitFor(() => expect((firstModel as HTMLInputElement).value).toBe(''))
+    await waitFor(() => expect((secondModel as HTMLInputElement).value).toBe(''))
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(mocks.updateEstimate).toHaveBeenCalledWith('estimate-1', expect.objectContaining({ lines: [] }))
   })
 
   it('원격 CATALOG 규격은 값이 바뀌어도 USER로 강등하지 않고 품목 해제 시 회수한다', async () => {

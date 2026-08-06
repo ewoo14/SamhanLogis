@@ -729,6 +729,14 @@ export function EstimateFormPage() {
   const [validUntil, setValidUntil] = useState<string>(datePlusDays(today(), 30))
   const [memo, setMemo] = useState<string>('')
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()])
+  /**
+   * 빈 lines 저장은 신규/우발적 공백 상태와 기존 견적의 명시적 전체 삭제를 구분해야 한다.
+   * lineId 는 서버가 소유한 기존 라인만 식별하므로, 새 빈행이나 원격으로 비워진 행은 삭제 의도로
+   * 승격되지 않는다.
+   */
+  const hydratedEstimateLineIdsRef = useRef<ReadonlySet<string>>(new Set())
+  const explicitlyClearedEstimateLineIdsRef = useRef(new Set<string>())
+  const hydratedEstimateDeletionContextRef = useRef<string | null>(null)
   // query data 커밋과 hydrate effect 사이에는 초기 빈 라인이 잠깐 렌더될 수 있다. 이때 거래처를
   // 선택하면 재조회 후보 0건으로 소실된 뒤 원 상세가 덮으므로, 어느 견적을 hydrate했는지 별도 추적한다.
   const [hydratedEstimateId, setHydratedEstimateId] = useState<string | null>(null)
@@ -755,6 +763,14 @@ export function EstimateFormPage() {
   const localAutoPriceWritesRef = useRef(new Map<string, LocalAutoPriceWrite>())
   const linesRef = useRef(lines)
   linesRef.current = lines
+  const markExplicitLineDeletion = (line: DraftLine) => {
+    if (!isEdit || !line.lineId || !hydratedEstimateLineIdsRef.current.has(line.lineId)) return
+    explicitlyClearedEstimateLineIdsRef.current.add(line.lineId)
+  }
+  const clearExplicitLineDeletion = (line: DraftLine) => {
+    if (!line.lineId) return
+    explicitlyClearedEstimateLineIdsRef.current.delete(line.lineId)
+  }
   /**
    * R4-D4: 마커 카피 분기/해제 기준 — 저장 payload partnerId·가격기억 흐름과 동일 소스(반응형 스냅샷).
    *
@@ -841,6 +857,16 @@ export function EstimateFormPage() {
     setValidUntil(e.validUntil ?? '')
     setMemo(e.memo ?? '')
     const hydratedLines = toDraftLinesFromEstimate(e)
+    const nextHydratedLineIds = new Set(
+      hydratedLines.flatMap((line) => line.lineId ? [line.lineId] : []),
+    )
+    const sameHydratedLineIds = nextHydratedLineIds.size === hydratedEstimateLineIdsRef.current.size
+      && [...nextHydratedLineIds].every((lineId) => hydratedEstimateLineIdsRef.current.has(lineId))
+    if (hydratedEstimateDeletionContextRef.current !== editId || !sameHydratedLineIds) {
+      hydratedEstimateLineIdsRef.current = nextHydratedLineIds
+      explicitlyClearedEstimateLineIdsRef.current.clear()
+      hydratedEstimateDeletionContextRef.current = editId ?? null
+    }
     const readOnlyEstimate = e.status !== 'QUOTE_DRAFT' && e.status !== 'QUOTE_SENT'
     const draftLines = readOnlyEstimate
       ? hydratedLines
@@ -908,6 +934,9 @@ export function EstimateFormPage() {
         emptyLine,
         (line) => Boolean(line.productId),
       )
+      nextLines.forEach((line) => {
+        if (line.productId) clearExplicitLineDeletion(line)
+      })
       if (!coeditLineSnapshotTakenRef.current) {
         coeditEditableLineUidsRef.current = new Set(
           nextLines.filter((line) => Boolean(line.productId)).map((line) => line.uid),
@@ -1327,6 +1356,7 @@ export function EstimateFormPage() {
     setLines((prev) => {
       const target = prev[index]
       if (!target) return prev
+      markExplicitLineDeletion(target)
       const normalized = removeLinePreservingMinimum(
         prev,
         target.uid,
@@ -1442,6 +1472,7 @@ export function EstimateFormPage() {
         finishStaleRequest()
         return
       }
+      clearExplicitLineDeletion(current)
       // 명시적 USER 편집만 현재 단가를 보존한다. 거래처 stale 은 위에서 최신 partner+새 product 로
       // 재resolve했으므로 0원 중간 상태로 품목만 바인딩하지 않는다(R5-H3).
       const applyPrice = shouldAutoFill
@@ -1550,6 +1581,7 @@ export function EstimateFormPage() {
     const line = linesRef.current[index]
     if (!line || !isCoeditLineValueEditable(line)) return
     if (!product) {
+      markExplicitLineDeletion(line)
       const hadAutoPrice = isAutoPriceSource(line.priceSource)
       const hadAutoSpecification = line.specificationSource === 'CATALOG'
       const nextLine: Partial<DraftLine> = {
@@ -1583,6 +1615,7 @@ export function EstimateFormPage() {
       }
       return
     }
+    clearExplicitLineDeletion(line)
     updateLine(index, {
       modelName: product.modelName,
       productId: null,
@@ -1674,9 +1707,35 @@ export function EstimateFormPage() {
     const valid = lines.filter(
       (l) => l.productId && Number.parseInt(l.quantity || '0', 10) > 0,
     )
-    if (valid.length === 0) {
+    const allHydratedLinesExplicitlyCleared = isEdit
+      && hydratedEstimateLineIdsRef.current.size > 0
+      && [...hydratedEstimateLineIdsRef.current]
+        .every((lineId) => explicitlyClearedEstimateLineIdsRef.current.has(lineId))
+    const hasUnresolvedNewLineInput = lines.some((line) => {
+      if (line.productId) return false
+      const isExplicitlyClearedPersistedLine = Boolean(
+        line.lineId
+        && hydratedEstimateLineIdsRef.current.has(line.lineId)
+        && explicitlyClearedEstimateLineIdsRef.current.has(line.lineId)
+        && !line.modelName.trim()
+        && !line.productName.trim(),
+      )
+      if (isExplicitlyClearedPersistedLine) return false
+      return Boolean(
+        line.modelName.trim()
+        || line.productName.trim()
+        || line.specification.trim()
+        || line.note.trim()
+        || line.unitPrice !== '0'
+        || line.quantity !== '1',
+      )
+    })
+    const canSaveExplicitEmptyLines = allHydratedLinesExplicitlyCleared && !hasUnresolvedNewLineInput
+    if (valid.length === 0 && !canSaveExplicitEmptyLines) {
       setTopError(
-        '라인 1개 이상 (모델명 lookup 성공 + 수량 > 0) 을 입력하세요.',
+        isEdit
+          ? '유효한 라인이 없습니다. 품목을 입력하거나, 전체 삭제하려면 기존 품목을 모두 해제한 뒤 저장하세요.'
+          : '신규 견적은 모델명 lookup 성공 + 수량 > 0인 품목 1개 이상을 입력하세요.',
       )
       return null
     }
