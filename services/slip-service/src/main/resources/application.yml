@@ -159,6 +159,8 @@ app:
     # dev profile + true 시에만 활성. CI/prod 기본 OFF (idempotent — 안전 재실행).
     # W10-5 회고 — env 변수 prefix 통일 (SAMHAN_SLIP_SEED_TEST_DATA 우선, SLIP_SEED_TEST_DATA legacy fallback).
     seed-test-data: ${SAMHAN_SLIP_SEED_TEST_DATA:${SLIP_SEED_TEST_DATA:false}}
+    # 신규 개발자 full-seed 명시적 opt-in. 기본 OFF이며 기존 삭제행 포함 멱등성은 유지한다.
+    full-seed-test-data: ${SAMHAN_FULL_SEED_TEST_DATA:false}
     # Phase 12 Step 3 (PR-H3) — 슬립 수정 요청 만료 시간 (시간 단위, default 24h).
     # 영업직원이 발행 후 슬립 수정 요청 발송 → 관리자 무응답 시 본 임계 초과 후 자동 EXPIRED.
     # SlipEditRequest.requestedAt + expires-hours < now() → status = EXPIRED 전환 (스케줄러).

@@ -16,7 +16,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -50,7 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @Profile("dev")
-@ConditionalOnProperty(value = "app.slip.seed-test-data", havingValue = "true")
+@ConditionalOnExpression("'${app.slip.seed-test-data:false}' == 'true' or '${app.slip.full-seed-test-data:false}' == 'true'")
 @Order(40)
 public class EstimateSeeder implements CommandLineRunner {
 

@@ -410,6 +410,10 @@ public class EstimateService {
             List<EstimateLine> allLines = estimateLineRepository
                     .findAllIncludingDeletedByEstimateId(estimate.getId());
             String deletedBy = estimate.getDeletedBy();
+            if (isNonCanonicalQaResidue(estimate, allLines)) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "비정본 QA 잔재 견적은 일반 복원할 수 없습니다: " + estimate.getEstimateNo());
+            }
             long deletedLineCount = allLines.stream()
                     .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
                     .count();
@@ -440,6 +444,24 @@ public class EstimateService {
     }
 
     /** 단건 조회. */
+    /**
+     * QA797 잔재와 이번 이슈의 테스트 시더 정리 산물을 일반 복원 경로에서 격리한다.
+     * 행은 감사 판정을 위해 soft-delete 상태로 보존하며, 정본 문서에는 적용하지 않는다.
+     */
+    private boolean isNonCanonicalQaResidue(Estimate estimate, List<EstimateLine> lines) {
+        if ("issue-1096-test-seed-cleanup".equals(estimate.getDeletedBy())) {
+            return true;
+        }
+        return lines.stream()
+                .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                .anyMatch(line -> startsWithQa797(line.getModelName())
+                        || startsWithQa797(line.getProductName()));
+    }
+
+    private boolean startsWithQa797(String value) {
+        return value != null && value.trim().toUpperCase().startsWith("QA797-");
+    }
+
     @Transactional(readOnly = true)
     public EstimateDetailResponse getOne(UUID id) {
         return EstimateDetailResponse.from(loadOrThrow(id));

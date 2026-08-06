@@ -77,6 +77,8 @@ app:
       token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_TOKEN:dev-only-token-replace}}
   partner-order:
     seed-test-data: ${SAMHAN_PARTNER_ORDER_SEED_TEST_DATA:false}
+    # 신규 개발자 full-seed 명시적 opt-in. 기본 OFF.
+    full-seed-test-data: ${SAMHAN_FULL_SEED_TEST_DATA:false}
     # PR-H4b (Phase 12 Step 4b BE-C) — 거래처 주문 수정/삭제 요청 자동 만료 (시간 단위, default 24h).
     # PartnerOrderEditRequest.requestedAt + expires-hours < now() → status = EXPIRED 전환 (스케줄러 1h 주기).
     edit-request:

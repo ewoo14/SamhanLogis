@@ -253,6 +253,7 @@ services:
       SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093
+      SAMHAN_FULL_SEED_TEST_DATA: ${SAMHAN_FULL_SEED_TEST_DATA:-false}
       # #809 운영 노브: compose 호출 환경/--env-file 값을 컨테이너에 명시 전달.
       SAMHAN_AUTH_CONNECT_TIMEOUT_MS: ${SAMHAN_AUTH_CONNECT_TIMEOUT_MS:-2000}
       SAMHAN_AUTH_READ_TIMEOUT_MS: ${SAMHAN_AUTH_READ_TIMEOUT_MS:-3000}
@@ -340,6 +341,7 @@ services:
       # dev 시드 toggle — partner/accounting/arologis 와 일관. PartnerOrderSeeder
       # (@Profile dev + app.partner-order.seed-test-data) 30주문 표준 orderNo(2026/04/15-N).
       SAMHAN_PARTNER_ORDER_SEED_TEST_DATA: "false"
+      SAMHAN_FULL_SEED_TEST_DATA: ${SAMHAN_FULL_SEED_TEST_DATA:-false}
     ports:
       - "127.0.0.1:8088:8088"
     depends_on: *service-depends

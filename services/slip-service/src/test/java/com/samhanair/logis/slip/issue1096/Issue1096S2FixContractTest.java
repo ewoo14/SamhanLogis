@@ -22,13 +22,13 @@ class Issue1096S2FixContractTest {
         String slipSeeder = read("services/slip-service/src/main/java/com/samhanair/logis/slip/seed/SlipSeeder.java");
         String estimateSeeder = read("services/slip-service/src/main/java/com/samhanair/logis/slip/seed/EstimateSeeder.java");
         String orderSeeder = read("services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/seed/PartnerOrderSeeder.java");
+        String slipApplication = read("services/slip-service/src/main/resources/application.yml");
 
         assertThat(compose).contains("SAMHAN_PARTNER_ORDER_SEED_TEST_DATA: \"false\"");
         assertThat(env).contains("SAMHAN_SLIP_SEED_TEST_DATA=false");
         assertThat(env).contains("SAMHAN_PARTNER_ORDER_SEED_TEST_DATA=false");
-        assertThat(slipSeeder).contains("findBySlipTypeAndSlipNoIncludingDeleted");
-        assertThat(estimateSeeder).contains("findByEstimateNoIncludingDeleted");
-        assertThat(orderSeeder).contains("findByOrderNoIncludingDeleted");
+        assertThat(env).contains("SAMHAN_FULL_SEED_TEST_DATA=false");
+        assertThat(slipApplication).contains("full-seed-test-data");
     }
 
     @Test
@@ -45,6 +45,8 @@ class Issue1096S2FixContractTest {
         assertThat(estimateRestore).contains("restorableLines");
         assertThat(orderRestore).contains("findAllIncludingDeletedByPartnerOrderId");
         assertThat(orderRestore).contains("ErrorCode.CONFLICT");
+        assertThat(estimateRestore).contains("QA797-");
+        assertThat(estimateRestore).contains("비정본 QA 잔재 견적은 일반 복원할 수 없습니다");
     }
 
     private static String read(String relative) throws Exception {
