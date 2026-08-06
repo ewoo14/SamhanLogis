@@ -112,6 +112,7 @@ class WarehouseReadinessLifecycleTest {
                 "--app.publish.warehouse-code-map.[1]=" + CHANGWON,
                 "--eureka.client.enabled=false",
                 "--spring.cloud.discovery.enabled=false",
+                "--management.health.redis.enabled=false",
                 "--management.endpoints.web.exposure.include=health",
                 "--management.endpoint.health.probes.enabled=true",
                 "--management.endpoint.health.group.readiness.include=readinessState");
