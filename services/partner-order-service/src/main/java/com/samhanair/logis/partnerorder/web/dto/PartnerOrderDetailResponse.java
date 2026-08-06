@@ -129,8 +129,7 @@ public record PartnerOrderDetailResponse(
      * @param supplyAmount 공급가액 S. legacy 주문은 null.
      * @param vatAmount 부가세 V. legacy 주문은 null.
      * @param lineTotal VAT 포함 라인 합계 T (=subtotal).
-     * @param authority 저장된 S/V snapshot을 왕복시킬 유효 권위. 영속 authority 컬럼이 없는
-     *        기존 주문은 S/V가 존재하면 VAT 경로로 복원한다.
+     * @param authority 저장된 금액 권위. GET에서 S/V 존재만으로 권위를 추측하지 않는다.
      * @param remark 라인 비고.
      * @param convertedQuantity 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0.
      * @param bundleMode 번들 처리 방식. 현재 저장 컬럼이 없어 {@code null}.
@@ -186,7 +185,7 @@ public record PartnerOrderDetailResponse(
                     line.getSupplyAmount(),
                     line.getVatAmount(),
                     line.getLineTotal(),
-                    line.getSupplyAmount() != null || line.getVatAmount() != null ? "VAT" : null,
+                    line.getAmountAuthority() == null ? null : line.getAmountAuthority().name(),
                     line.getRemark(),
                     line.getConvertedQuantity(),
                     null,

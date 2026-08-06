@@ -296,14 +296,14 @@ public class PartnerOrderRevisionService {
 
     /** 금액 컬럼이 있는 신규 snapshot은 그대로 복원하고, legacy snapshot은 기존 PRICE 경로를 쓴다. */
     private PartnerOrderLine restoreLine(PartnerOrderSnapshot.LineSnapshot line) {
-        if (line.supplyAmount() == null || line.vatAmount() == null) {
+        if (line.authority() == null) {
             return PartnerOrderLine.create(line.productId(), line.modelName(), line.productName(),
                     line.categoryKey(), line.quantity(), line.priceVat(), line.remark());
         }
         return PartnerOrderLine.createFromAuthoritativeAmounts(
                 line.productId(), line.modelName(), line.productName(), line.categoryKey(),
                 line.quantity(), line.priceVat(), line.supplyAmount(), line.vatAmount(),
-                line.subtotal(), PartnerOrderLine.AmountAuthority.VAT, line.remark());
+                line.subtotal(), line.authority(), line.remark());
     }
 
     // ── 조회 API 지원 ─────────────────────────────────────────────────────────

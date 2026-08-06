@@ -56,6 +56,10 @@ class PartnerOrderLineSupplyVatTest {
         assertThat(supply.getVatAmount()).isEqualByComparingTo("10000");
         assertThat(vat.getVatAmount()).isEqualByComparingTo("9999");
         assertThat(total.getSupplyAmount()).isEqualByComparingTo("100004");
+        assertThat(price.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.PRICE);
+        assertThat(supply.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.SUPPLY);
+        assertThat(vat.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.VAT);
+        assertThat(total.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.TOTAL);
     }
 
     @Test

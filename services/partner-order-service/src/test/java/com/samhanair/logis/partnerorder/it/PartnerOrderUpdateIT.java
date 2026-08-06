@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -172,6 +173,35 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(order.getId()))
                 .extracting("fieldName")
                 .contains("납기", "요청사항", "주문 라인");
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void price_line_get_put_round_trip_preserves_price_authority_and_recalculates_quantity() throws Exception {
+        PartnerOrder order = saveOrder("2026/08/07-1051-price", false);
+
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[0].authority").value("PRICE"))
+                .andExpect(jsonPath("$.data.lines[0].quantity").value(2))
+                .andExpect(jsonPath("$.data.lines[0].lineTotal").value(240000));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(priceLineUpdateJson(currentModifiedAt(order.getId()), 3,
+                                "120000", "PRICE 수량 변경")))
+                .andExpect(status().isOk());
+
+        PartnerOrderLine line = lineRepository.findAllByPartnerOrder_Id(order.getId())
+                .stream().findFirst().orElseThrow();
+        assertThat(line.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.PRICE);
+        assertThat(line.getQuantity()).isEqualTo(3);
+        assertThat(line.getPriceVat()).isEqualByComparingTo("120000");
+        assertThat(line.getLineTotal()).isEqualByComparingTo("360000");
     }
 
     @Test
@@ -651,6 +681,20 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                   }]
                 }
                 """.formatted(updatedAt, memo, modelCode, productName, categoryKey);
+    }
+
+    private String priceLineUpdateJson(String updatedAt, int quantity, String deliveryPrice,
+                                       String memo) {
+        return """
+                {
+                  "updatedAt": "%s", "partnerCode": "P-SP0842", "bizCode": "1010101010",
+                  "memo": "%s", "lines": [{
+                    "modelCode": "AJ040RXH4BC1", "productName": "실외기",
+                    "categoryKey": "homemulti", "quantity": %d, "deliveryPrice": %s,
+                    "remark": "현장 납품"
+                  }]
+                }
+                """.formatted(updatedAt, memo, quantity, deliveryPrice);
     }
 
     private String twoLineUpdateJson(String updatedAt, String addedModelCode, String addedProductName,

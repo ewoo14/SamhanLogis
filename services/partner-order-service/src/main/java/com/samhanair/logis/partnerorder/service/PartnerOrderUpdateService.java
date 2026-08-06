@@ -342,7 +342,16 @@ public class PartnerOrderUpdateService {
                 throw invalidLine("납품가는 0 이상이어야 합니다.");
             }
             if (line.authority() != null && !line.authority().isBlank()) {
-                parseAuthority(line.authority());
+                PartnerOrderLine.AmountAuthority requestedAuthority = parseAuthority(line.authority());
+                PartnerOrderLine existing = findExistingLine(order, line);
+                if (existing != null && existing.getAmountAuthority() != null
+                        && existing.getAmountAuthority() != requestedAuthority) {
+                    throw invalidLine("기존 라인의 금액 권위는 변경할 수 없습니다.");
+                }
+                if (existing != null && requestedAuthority != PartnerOrderLine.AmountAuthority.PRICE
+                        && !sameAmount(existing.getPriceVat(), line.deliveryPrice())) {
+                    throw invalidLine("PRICE가 아닌 라인의 납품가는 변경할 수 없습니다.");
+                }
             } else if ((line.supplyAmount() != null || line.vatAmount() != null)
                     && !sameStoredAmounts(findExistingLine(order, line), line)) {
                 throw invalidLine("공급가액·부가세·합계를 사용할 때 authority는 필수입니다.");
@@ -463,8 +472,8 @@ public class PartnerOrderUpdateService {
                                     PartnerOrderLine existing) {
         PartnerOrderLine.AmountAuthority authority = line.authority() == null
                 || line.authority().isBlank()
-                ? (existing != null && (line.supplyAmount() != null || line.vatAmount() != null)
-                        ? PartnerOrderLine.AmountAuthority.VAT : PartnerOrderLine.AmountAuthority.PRICE)
+                ? (existing != null && existing.getAmountAuthority() != null
+                        ? existing.getAmountAuthority() : PartnerOrderLine.AmountAuthority.PRICE)
                 : parseAuthority(line.authority());
         return PartnerOrderLine.createFromAuthoritativeAmounts(
                 productId,

@@ -6,6 +6,8 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.financial.VatAmountCalculator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -113,6 +115,11 @@ public class PartnerOrderLine extends BaseEntity {
         TOTAL
     }
 
+    /** 생성·편집 시 금액을 결정한 원천. legacy 행은 migration에서 PRICE로 명시한다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "amount_authority", length = 10, nullable = false)
+    private AmountAuthority amountAuthority;
+
     private PartnerOrderLine(UUID productId, String modelName, String productName,
                              String categoryKey, int quantity, BigDecimal priceVat,
                              String remark) {
@@ -218,6 +225,7 @@ public class PartnerOrderLine extends BaseEntity {
         line.subtotal = resolvedTotal;
         line.supplyAmount = resolvedSupply;
         line.vatAmount = resolvedVat;
+        line.amountAuthority = authority;
         // MED-4(#824 R2) — PRICE/SUPPLY/VAT/TOTAL 네 권위 경로가 전부 이 지점으로 수렴하므로
         // 자릿수 가드는 여기 한 곳만 있으면 된다. R1 이전에는 requireNonNegative(부호만 검사)
         // 뿐이라 자릿수 가드 자체가 전혀 없었다(SlipLine/EstimateLine 과 동일 결함군).
