@@ -145,6 +145,24 @@ function loadCurrentEstimateViewFunction(name, contextOverrides = {}) {
   return loadEstimateViewFunctionFromSource(source, name, contextOverrides);
 }
 
+describe('전표 생성 UI 응답 계약', () => {
+  test('ok:true 이고 전표번호가 있을 때만 성공으로 판정한다', () => {
+    const context = loadCurrentEstimateViewFunction('isSlipPublishSuccess');
+
+    expect(context.isSlipPublishSuccess({ ok: true, slipNo: 'SLIP-1' })).toBe(true);
+    expect(context.isSlipPublishSuccess({ ok: false, error: 'slip-service 실패' })).toBe(false);
+    expect(context.isSlipPublishSuccess({ ok: true })).toBe(false);
+    expect(context.isSlipPublishSuccess({ ok: false, slipNo: 'SHOULD-NOT-SUCCEED' })).toBe(false);
+    expect(context.isSlipPublishSuccess({ ok: true, slipNo: '' })).toBe(false);
+  });
+
+  test('두 전표 생성 콜백 모두 공통 성공 판정을 사용한다', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
+    const callbackCount = (source.match(/!isSlipPublishSuccess\(res\)/g) || []).length;
+    expect(callbackCount).toBe(2);
+  });
+});
+
 function runCardFeeCase(loadFn, rows, checked = true) {
   const chkCard = { checked };
   const context = loadFn('applyCardFeeLogic', {
