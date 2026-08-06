@@ -53,6 +53,15 @@ import { usePermissions } from '../../hooks/usePermissions'
 // 컴포넌트
 // ---------------------------------------------------------------------------
 
+/** Axios 오류 또는 테스트/mock 오류에서 HTTP 상태만 안전하게 추출한다. */
+function getHttpStatus(error: unknown): number | null {
+  if (typeof error !== 'object' || error === null) return null
+  const response = (error as { response?: unknown }).response
+  if (typeof response !== 'object' || response === null) return null
+  const status = (response as { status?: unknown }).status
+  return typeof status === 'number' ? status : null
+}
+
 export function AligoAddressBookPage() {
   usePageTitle('알리고 주소록 자동 동기화')
   const { canAccess } = usePermissions()
@@ -82,6 +91,7 @@ export function AligoAddressBookPage() {
   const syncPending = syncMutation.isPending
   const result: AligoAddressBookSyncResponse | null =
     syncMutation.data ?? null
+  const syncForbidden = getHttpStatus(syncMutation.error) === 403
   const hasExternalDelivery =
     result?.deliveryStatus === 'DELIVERED' || result?.deliveryStatus === 'PARTIALLY_DELIVERED'
 
@@ -130,9 +140,9 @@ export function AligoAddressBookPage() {
             type="button"
             variant="primary"
             data-testid="admin-aligo-sync-btn"
-            disabled={syncPending || !canSync}
+            disabled={syncPending || !canSync || syncForbidden}
             onClick={() => {
-              if (!canSync) return
+              if (!canSync || syncForbidden) return
               syncMutation.mutate()
             }}
           >
@@ -192,7 +202,26 @@ export function AligoAddressBookPage() {
             fontSize: 13,
           }}
         >
-          동기화 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.
+          {syncForbidden
+            ? '주소록 동기화 권한이 없습니다. 관리자에게 권한을 요청한 뒤 화면을 새로고침해 주세요.'
+            : '동기화 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'}
+        </div>
+      ) : null}
+
+      {syncMutation.isSuccess && !result ? (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 12,
+            padding: '8px 12px',
+            border: '1px solid var(--color-danger-300, #fca5a5)',
+            background: 'var(--color-danger-50, #fef2f2)',
+            color: 'var(--color-danger-700, #b91c1c)',
+            borderRadius: 6,
+            fontSize: 13,
+          }}
+        >
+          동기화 결과를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.
         </div>
       ) : null}
 
@@ -204,7 +233,7 @@ export function AligoAddressBookPage() {
         <FailedList failures={result.failed} />
       ) : null}
 
-      {!result && !syncPending ? (
+      {!result && !syncPending && !syncMutation.isSuccess && !syncMutation.isError ? (
         <div
           style={{
             padding: 24,
@@ -216,7 +245,9 @@ export function AligoAddressBookPage() {
             background: 'var(--color-neutral-50, #F9FAFB)',
           }}
         >
-          상단의 "주소록 동기화 실행" 버튼을 눌러 sync 를 시작하세요.
+          {canSync
+            ? '상단의 "주소록 동기화 실행" 버튼을 눌러 sync 를 시작하세요.'
+            : '주소록 동기화 실행 권한이 없어 실행할 수 없습니다. 관리자에게 동기화 권한을 요청하세요.'}
         </div>
       ) : null}
     </>

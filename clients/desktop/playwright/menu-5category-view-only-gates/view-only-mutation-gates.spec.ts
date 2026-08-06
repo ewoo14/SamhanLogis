@@ -305,12 +305,16 @@ test.describe('menu-5category view-only mutation gates', () => {
 
     await expect(page.locator('[data-testid="admin-aligo-sync-btn"]')).toBeDisabled()
     await expect(page.locator('[data-testid="admin-aligo-csv-btn"]')).not.toBeDisabled()
+    await expect(page.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeVisible()
+    await expect(page.getByText(/상단의 "주소록 동기화 실행" 버튼을 눌러 sync 를 시작하세요/)).toHaveCount(0)
   })
 
   test('알리고 주소록 update 보유: 동기화 버튼이 활성화된다', async ({ page }) => {
     await gotoWithPerm(page, '/admin/aligo-address-book', 'aligo.address-book', true)
 
     await expect(page.locator('[data-testid="admin-aligo-sync-btn"]')).not.toBeDisabled()
+    await expect(page.getByText(/상단의 "주소록 동기화 실행" 버튼을 눌러 sync 를 시작하세요/)).toBeVisible()
+    await expect(page.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toHaveCount(0)
   })
 
   test('배차 SMS view-only: 미리보기 버튼이 비활성화된다', async ({ page }) => {
