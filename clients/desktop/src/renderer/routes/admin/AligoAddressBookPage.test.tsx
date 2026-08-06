@@ -26,11 +26,16 @@ import { AligoAddressBookPage } from './AligoAddressBookPage'
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  const buildUi = () => (
     <QueryClientProvider client={queryClient}>
       <AligoAddressBookPage />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
+  const view = render(buildUi())
+  return {
+    ...view,
+    rerenderPage: () => view.rerender(buildUi()),
+  }
 }
 
 afterEach(() => {
@@ -81,6 +86,26 @@ describe('AligoAddressBookPage 권한·오류 상태', () => {
     expect(syncAligoAddressBookMock).toHaveBeenCalledTimes(1)
   })
 
+  it('403 결과 뒤 UPDATE가 회수되어도 서버 권한 오류보다 현재 권한 원인을 우선한다', async () => {
+    syncAligoAddressBookMock.mockRejectedValueOnce(
+      Object.assign(new Error('Forbidden'), { response: { status: 403 } }),
+    )
+
+    const view = renderPage()
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent)
+      .toContain('동기화 권한이 없습니다'))
+
+    permissionState.canSync = false
+    view.rerenderPage()
+
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeTruthy()
+    expect(screen.queryByText(/잠시 후 다시 시도해 주세요/)).toBeNull()
+    expect(screen.queryByText(/화면을 새로고침해 주세요/)).toBeNull()
+    expect(syncAligoAddressBookMock).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
     { name: 'HTTP 500', error: Object.assign(new Error('Server error'), { response: { status: 500 } }) },
     { name: '네트워크 오류', error: new Error('Network error') },
@@ -107,6 +132,94 @@ describe('AligoAddressBookPage 권한·오류 상태', () => {
     expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(false)
     expect(screen.queryByText(/상단의 "주소록 동기화 실행" 버튼을 눌러 sync 를 시작하세요/)).toBeNull()
     expect(screen.getByText(/CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다/)).toBeTruthy()
+  })
+
+  it('같은 mount의 idle 상태에서 UPDATE가 회수되면 권한 부재 원인을 즉시 표시한다', () => {
+    const view = renderPage()
+
+    permissionState.canSync = false
+    view.rerenderPage()
+
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeTruthy()
+    expect(screen.queryByText(/상단의 "주소록 동기화 실행" 버튼을 눌러 sync 를 시작하세요/)).toBeNull()
+    expect(syncAligoAddressBookMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'HTTP 500',
+      error: Object.assign(new Error('Server error'), { response: { status: 500 } }),
+    },
+    { name: '네트워크 오류', error: new Error('Network error') },
+  ])('$name 뒤 UPDATE가 회수되면 재시도 대신 권한 원인을 표시하고 재부여 시 회복한다', async ({ error }) => {
+    syncAligoAddressBookMock.mockRejectedValueOnce(error)
+
+    const view = renderPage()
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent)
+      .toContain('잠시 후 다시 시도해 주세요'))
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(false)
+
+    permissionState.canSync = false
+    view.rerenderPage()
+
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeTruthy()
+    expect(screen.queryByText(/잠시 후 다시 시도해 주세요/)).toBeNull()
+    expect(syncAligoAddressBookMock).toHaveBeenCalledTimes(1)
+
+    permissionState.canSync = true
+    syncAligoAddressBookMock.mockResolvedValueOnce({
+      added: 1,
+      updated: 0,
+      skipped: 0,
+      failed: [],
+      deliveryStatus: 'NOT_DELIVERED',
+    })
+    view.rerenderPage()
+
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByText(/잠시 후 다시 시도해 주세요/)).toBeTruthy()
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+    await waitFor(() => expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
+      .toContain('실제 알리고 전달 0건'))
+    expect(syncAligoAddressBookMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('null 결과 뒤 UPDATE가 회수되면 null 재시도 안내를 숨기고 재부여 시 재시도할 수 있다', async () => {
+    syncAligoAddressBookMock.mockResolvedValueOnce(null)
+
+    const view = renderPage()
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent)
+      .toContain('동기화 결과를 확인할 수 없습니다'))
+
+    permissionState.canSync = false
+    view.rerenderPage()
+
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeTruthy()
+    expect(screen.queryByText(/동기화 결과를 확인할 수 없습니다/)).toBeNull()
+    expect(syncAligoAddressBookMock).toHaveBeenCalledTimes(1)
+
+    permissionState.canSync = true
+    syncAligoAddressBookMock.mockResolvedValueOnce({
+      added: 0,
+      updated: 0,
+      skipped: 0,
+      failed: [],
+      deliveryStatus: 'NOT_DELIVERED',
+    })
+    view.rerenderPage()
+
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByText(/동기화 결과를 확인할 수 없습니다/)).toBeTruthy()
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+    await waitFor(() => expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
+      .toContain('실제 알리고 전달 0건'))
+    expect(syncAligoAddressBookMock).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -223,5 +336,88 @@ describe('AligoAddressBookPage 외부 전달 상태 표시', () => {
     expect(screen.getByTestId('admin-aligo-result-updated').textContent).toContain('변경 0')
     expect(screen.getByTestId('admin-aligo-result-failed').textContent)
       .toContain(`실패 ${failed.length}`)
+  })
+
+  it.each([
+    {
+      name: 'NOT_DELIVERED',
+      response: {
+        added: 7,
+        updated: 2,
+        skipped: 1,
+        failed: [] as string[],
+        deliveryStatus: 'NOT_DELIVERED' as const,
+      },
+      statusText: '실제 알리고 전달 0건',
+    },
+    {
+      name: 'DELIVERED',
+      response: {
+        added: 3,
+        updated: 1,
+        skipped: 0,
+        failed: [] as string[],
+        deliveryStatus: 'DELIVERED' as const,
+      },
+      statusText: '실제 전달된 결과',
+    },
+    {
+      name: 'PARTIALLY_DELIVERED',
+      response: {
+        added: 2,
+        updated: 1,
+        skipped: 0,
+        failed: ['chunk#2 HTTP 500'],
+        deliveryStatus: 'PARTIALLY_DELIVERED' as const,
+      },
+      statusText: '일부 연락처만 실제',
+    },
+  ])('$name 200 결과 뒤 UPDATE가 회수되어도 결과·CSV 고지를 보존한다', async ({ response, statusText }) => {
+    syncAligoAddressBookMock.mockResolvedValueOnce(response)
+
+    const view = renderPage()
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+    await waitFor(() => expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
+      .toContain(statusText))
+
+    permissionState.canSync = false
+    view.rerenderPage()
+
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeTruthy()
+    expect(screen.queryByText(/잠시 후 다시 시도해 주세요/)).toBeNull()
+    expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
+      .toContain(statusText)
+    expect(screen.getByText(/CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다/)).toBeTruthy()
+    expect(syncAligoAddressBookMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('403 잠금은 화면 새로고침으로 해소된 실제 UPDATE 권한과 다음 정상 POST를 허용한다', async () => {
+    syncAligoAddressBookMock.mockRejectedValueOnce(
+      Object.assign(new Error('Forbidden'), { response: { status: 403 } }),
+    )
+
+    renderPage()
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent)
+      .toContain('동기화 권한이 없습니다'))
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(true)
+
+    permissionState.canSync = true
+    cleanup()
+    syncAligoAddressBookMock.mockResolvedValueOnce({
+      added: 1,
+      updated: 1,
+      skipped: 0,
+      failed: [],
+      deliveryStatus: 'DELIVERED',
+    })
+    renderPage()
+
+    expect((screen.getByTestId('admin-aligo-sync-btn') as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+    await waitFor(() => expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
+      .toContain('실제 전달된 결과'))
+    expect(syncAligoAddressBookMock).toHaveBeenCalledTimes(2)
   })
 })

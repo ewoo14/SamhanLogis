@@ -189,7 +189,24 @@ export function AligoAddressBookPage() {
         </div>
       ) : null}
 
-      {syncMutation.isError ? (
+      {!canSync && (syncMutation.isSuccess || syncMutation.isError) ? (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 12,
+            padding: '8px 12px',
+            border: '1px solid var(--color-danger-300, #fca5a5)',
+            background: 'var(--color-danger-50, #fef2f2)',
+            color: 'var(--color-danger-700, #b91c1c)',
+            borderRadius: 6,
+            fontSize: 13,
+          }}
+        >
+          주소록 동기화 실행 권한이 없어 실행할 수 없습니다. 관리자에게 동기화 권한을 요청하세요.
+        </div>
+      ) : null}
+
+      {syncMutation.isError && canSync ? (
         <div
           role="alert"
           style={{
@@ -208,7 +225,7 @@ export function AligoAddressBookPage() {
         </div>
       ) : null}
 
-      {syncMutation.isSuccess && !result ? (
+      {syncMutation.isSuccess && !result && canSync ? (
         <div
           role="alert"
           style={{
