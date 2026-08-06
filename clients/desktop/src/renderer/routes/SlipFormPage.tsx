@@ -494,6 +494,8 @@ interface ExpandedBundleOptionContext {
   unitPrice: string
   setOptions: BundleSetOptions
   expansionPending: boolean
+  /** 현재 부모 전개가 소유한 구성품 행 ID — 재전개 때 이전 형제 행까지 함께 교체한다. */
+  componentLineIds?: string[]
 }
 
 /**
@@ -842,6 +844,26 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     expanded: Awaited<ReturnType<typeof expandBundleLine>>,
     parentSpecification: string,
   ) => {
+    const existingContext = expandedBundleOptionsRef.current[source.id]
+    const context = existingContext ?? (source.productType === 'BUNDLE' && source.productId
+      ? {
+          parentProductId: source.productId,
+          parentModelCode: source.modelCode ?? '',
+          modelName: source.modelName,
+          specification: parentSpecification,
+          quantity: source.quantity,
+          unitPrice: source.unitPrice,
+          setOptions: source.setOptions ?? emptyBundleSetOptions(),
+          expansionPending: false,
+        }
+      : null)
+    const previousComponentLineIds = new Set([
+      source.id,
+      ...(existingContext?.componentLineIds ?? []),
+    ])
+    const parentProductId = context?.parentProductId ?? source.productId
+    const parentModelCode = context?.parentModelCode ?? source.modelCode
+    const parentUnitPrice = context?.unitPrice ?? source.unitPrice
     const componentLines = expanded
       .filter((component) => component.productId)
       .map((component) => {
@@ -865,12 +887,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             modelCode: component.modelCode ?? null,
             priceSource: 'CATALOG',
             ...(isKeepParent ? {} : {
-              parentSetModel: source.modelCode ?? null,
+              parentSetModel: parentModelCode ?? null,
               setHead: Boolean(component.setHead),
-              bundleParentProductId: source.productId,
-              bundleParentUnitPrice: source.unitPrice,
+              bundleParentProductId: parentProductId,
+              bundleParentUnitPrice: parentUnitPrice,
             }),
-            setOptions: source.setOptions ?? emptyBundleSetOptions(),
+            setOptions: context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions(),
           }), 'PRICE'),
           productId: component.productId,
           modelName: component.modelName ?? '',
@@ -882,12 +904,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           modelCode: component.modelCode ?? null,
           priceSource: 'CATALOG',
           ...(isKeepParent ? {} : {
-            parentSetModel: source.modelCode ?? null,
+            parentSetModel: parentModelCode ?? null,
             setHead: Boolean(component.setHead),
-            bundleParentProductId: source.productId,
-            bundleParentUnitPrice: source.unitPrice,
+            bundleParentProductId: parentProductId,
+            bundleParentUnitPrice: parentUnitPrice,
           }),
-          setOptions: source.setOptions ?? emptyBundleSetOptions(),
+          setOptions: context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions(),
           lookupError: null,
           lookupLoading: false,
         } satisfies LineDraft
@@ -895,24 +917,21 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setLines((current) => {
       const index = current.findIndex((line) => line.id === source.id)
       if (index < 0) return current
-      const next = componentLines.length > 0
-        ? [...current.slice(0, index), ...componentLines, ...current.slice(index + 1)]
-        : [...current.slice(0, index), { ...emptyLine(), lookupError: '세트 구성품을 찾을 수 없습니다. 관리자에게 문의해 주세요.' }, ...current.slice(index + 1)]
+      const remaining = current.filter((line) => !previousComponentLineIds.has(line.id))
+      const insertionIndex = current
+        .slice(0, index)
+        .filter((line) => !previousComponentLineIds.has(line.id))
+        .length
+      const replacement = componentLines.length > 0
+        ? componentLines
+        : [{ ...emptyLine(), lookupError: '세트 구성품을 찾을 수 없습니다. 관리자에게 문의해 주세요.' }]
+      const next = [
+        ...remaining.slice(0, insertionIndex),
+        ...replacement,
+        ...remaining.slice(insertionIndex),
+      ]
       return ensureTrailingBlankRow(next, emptyLine, (line) => Boolean(line.productId && Number(line.quantity) > 0))
     })
-    const existingContext = expandedBundleOptionsRef.current[source.id]
-    const context = existingContext ?? (source.productType === 'BUNDLE' && source.productId
-      ? {
-          parentProductId: source.productId,
-          parentModelCode: source.modelCode ?? '',
-          modelName: source.modelName,
-          specification: parentSpecification,
-          quantity: source.quantity,
-          unitPrice: source.unitPrice,
-          setOptions: source.setOptions ?? emptyBundleSetOptions(),
-          expansionPending: false,
-        }
-      : null)
     setExpandedBundleOptions((current) => {
       // 컨텍스트 소유권은 화면의 실제 구성품 행 ID뿐이다. 재전개 중 사용자
       // 편집으로 남을 수 있는 productId 키 등 현재 행과 무관한 키를 함께 제거한다.
@@ -930,7 +949,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       if (shouldRetainOptions && firstComponentLine) {
         // 전개 결과의 productId는 행 간에 재사용될 수 있으므로 옵션 컨텍스트의
         // 소유권은 항상 새로 만든 구성품 행 ID로 연결한다.
-        next[firstComponentLine.id] = { ...context, expansionPending: false }
+        next[firstComponentLine.id] = {
+          ...context,
+          expansionPending: false,
+          componentLineIds: componentLines.map((line) => line.id),
+        }
       }
       return next
     })
@@ -1018,6 +1041,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               modelCode: context!.parentModelCode,
               modelName: context!.modelName,
               productType: 'BUNDLE',
+              quantity: context!.quantity,
+              unitPrice: context!.unitPrice,
+              specification: context!.specification,
               setOptions: context!.setOptions,
             })
         : null
@@ -1042,6 +1068,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               modelCode: context!.parentModelCode,
               modelName: context!.modelName,
               productType: 'BUNDLE',
+              quantity: context!.quantity,
+              unitPrice: context!.unitPrice,
+              specification: context!.specification,
               setOptions: context!.setOptions,
             })
         : null

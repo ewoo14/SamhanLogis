@@ -106,6 +106,7 @@ vi.mock('@samhan/design-system', () => ({
       <div
         data-testid={`line-${lineNo}`}
         data-product-id={props.line.productId ?? ''}
+        data-model-code={props.line.modelCode ?? ''}
         data-price-source={props.line.priceSource ?? ''}
         data-discount-info={props.line.discountInfo ?? ''}
         data-lookup-loading={String(props.line.lookupLoading ?? false)}
@@ -254,9 +255,14 @@ vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: () => harness.isMobile }))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: harness.usePageTitle }))
 vi.mock('./components/InventoryLookupModal', () => ({ InventoryLookupModal: () => null }))
 vi.mock('./components/BundleOptionRow', () => ({ BundleOptionRow: ({ onChange }: any) => (
-  <button type="button" data-testid="bundle-option-change" onClick={() => onChange({ panelOption: '블랙판넬' })}>
-    change bundle option
-  </button>
+  <>
+    <button type="button" data-testid="bundle-option-change" onClick={() => onChange({ panelOption: '블랙판넬' })}>
+      change bundle option
+    </button>
+    <button type="button" data-testid="bundle-option-exclude" onClick={() => onChange({ panelOption: '판넬제외' })}>
+      exclude panel option
+    </button>
+  </>
 ) }))
 
 import { SlipFormPage } from './SlipFormPage'
@@ -1050,6 +1056,120 @@ describe('SlipFormPage price memory autofill', () => {
 })
 
 describe('SlipFormPage 이카운트식 라인 입력', () => {
+  it('RED-A: 성공한 옵션 재전개 응답이 모델코드·단가·행 수와 저장 payload에 반영된다', async () => {
+    const oldRows = [
+      { productId: 'old-indoor', modelCode: 'AC072CN6PBH1', modelName: 'AC072CN6PBH1', name: '구성품 실내기', quantity: 1, unitPrice: 1053775, componentKind: 'INDOOR', setHead: true },
+      { productId: 'old-outdoor', modelCode: 'AC072CXAPBH1', modelName: 'AC072CXAPBH1', name: '구성품 실외기', quantity: 1, unitPrice: 1580450, componentKind: 'OUTDOOR', setHead: false },
+      { productId: 'old-panel', modelCode: 'PC6NUNK1NW', modelName: 'PC6NUNK1NW', name: '기본 판넬', quantity: 1, unitPrice: 104060, componentKind: 'PANEL', setHead: false },
+      { productId: 'old-remote', modelCode: 'AR-EH05', modelName: 'AR-EH05', name: '무선 리모컨', quantity: 1, unitPrice: 13915, componentKind: 'REMOTE', setHead: false },
+    ]
+    const blackPanelRows = [
+      { productId: 'old-indoor', modelCode: 'AC072CN6PBH1', modelName: 'AC072CN6PBH1', name: '구성품 실내기', quantity: 1, unitPrice: 1034755, componentKind: 'INDOOR', setHead: true },
+      { productId: 'old-outdoor', modelCode: 'AC072CXAPBH1', modelName: 'AC072CXAPBH1', name: '구성품 실외기', quantity: 1, unitPrice: 1553490, componentKind: 'OUTDOOR', setHead: false },
+      { productId: 'black-panel', modelCode: 'PC6NBNK1NW', modelName: 'PC6NBNK1NW', name: '블랙 판넬', quantity: 1, unitPrice: 150040, componentKind: 'PANEL', setHead: false },
+      { productId: 'old-remote', modelCode: 'AR-EH05', modelName: 'AR-EH05', name: '무선 리모컨', quantity: 1, unitPrice: 13915, componentKind: 'REMOTE', setHead: false },
+    ]
+    harness.expandBundleLine
+      .mockResolvedValueOnce(oldRows)
+      .mockResolvedValueOnce(blackPanelRows)
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('line-3').getAttribute('data-model-code')).toBe('PC6NUNK1NW'))
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('line-3').getAttribute('data-model-code')).toBe('PC6NBNK1NW'))
+    expect(screen.getByTestId('line-1').getAttribute('data-model-code')).toBe('AC072CN6PBH1')
+    expect((screen.getByLabelText('line-1-unit-price') as HTMLInputElement).value).toBe('1034755')
+    expect(screen.getByTestId('line-3').getAttribute('data-product-id')).toBe('black-panel')
+    expect(screen.queryByTestId('line-4')?.getAttribute('data-product-id')).toBe('old-remote')
+    expect([...document.querySelectorAll('[data-product-id]')]
+      .map((row) => row.getAttribute('data-product-id'))
+      .filter(Boolean))
+      .toEqual(['old-indoor', 'old-outdoor', 'black-panel', 'old-remote'])
+
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    const savedLines = harness.createSlip.mock.calls[0][0].lines
+    expect(savedLines).toHaveLength(4)
+    expect(savedLines).toEqual(expect.arrayContaining([
+      expect.objectContaining({ productId: 'black-panel', unitPrice: '150040' }),
+      expect.objectContaining({ productId: 'old-indoor', unitPrice: '1034755' }),
+      expect.objectContaining({ productId: 'old-outdoor', unitPrice: '1553490' }),
+    ]))
+  })
+
+  it('RED-A: 판넬제외 성공 응답은 화면에서도 PANEL 행을 제거한다', async () => {
+    harness.expandBundleLine
+      .mockResolvedValueOnce([
+        { productId: 'default-indoor', modelCode: 'DEFAULT-IN', modelName: 'DEFAULT-IN', name: '기본 실내기', quantity: 1, unitPrice: 1000, componentKind: 'INDOOR', setHead: true },
+        { productId: 'default-outdoor', modelCode: 'DEFAULT-OUT', modelName: 'DEFAULT-OUT', name: '기본 실외기', quantity: 1, unitPrice: 2000, componentKind: 'OUTDOOR', setHead: false },
+        { productId: 'default-panel', modelCode: 'DEFAULT-PANEL', modelName: 'DEFAULT-PANEL', name: '기본 판넬', quantity: 1, unitPrice: 3000, componentKind: 'PANEL', setHead: false },
+        { productId: 'default-remote', modelCode: 'DEFAULT-REMOTE', modelName: 'DEFAULT-REMOTE', name: '기본 리모컨', quantity: 1, unitPrice: 4000, componentKind: 'REMOTE', setHead: false },
+      ])
+      .mockResolvedValueOnce([
+        { productId: 'default-indoor', modelCode: 'DEFAULT-IN', modelName: 'DEFAULT-IN', name: '기본 실내기', quantity: 1, unitPrice: 1100, componentKind: 'INDOOR', setHead: true },
+        { productId: 'default-outdoor', modelCode: 'DEFAULT-OUT', modelName: 'DEFAULT-OUT', name: '기본 실외기', quantity: 1, unitPrice: 2200, componentKind: 'OUTDOOR', setHead: false },
+        { productId: 'default-remote', modelCode: 'DEFAULT-REMOTE', modelName: 'DEFAULT-REMOTE', name: '기본 리모컨', quantity: 1, unitPrice: 4000, componentKind: 'REMOTE', setHead: false },
+      ])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('line-3').getAttribute('data-model-code')).toBe('DEFAULT-PANEL'))
+    fireEvent.click(screen.getByTestId('bundle-option-exclude'))
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('line-3').getAttribute('data-model-code')).toBe('DEFAULT-REMOTE'))
+    const modelCodes = [...document.querySelectorAll('[data-model-code]')].map((row) => row.getAttribute('data-model-code'))
+    expect(modelCodes).not.toContain('DEFAULT-PANEL')
+    expect([...document.querySelectorAll('[data-product-id]')]
+      .map((row) => row.getAttribute('data-product-id'))
+      .filter(Boolean))
+      .toEqual(['default-indoor', 'default-outdoor', 'default-remote'])
+    expect((screen.getByLabelText('line-1-unit-price') as HTMLInputElement).value).toBe('1100')
+  })
+
+  it('RED-B: 빈 응답은 기존 구성품을 유지하고 재전개 저장 차단을 해제한다', async () => {
+    const existingRows = [
+      { productId: 'existing-indoor', modelCode: 'OLD-IN', modelName: 'OLD-IN', name: '기존 실내기', quantity: 1, unitPrice: 10000, componentKind: 'INDOOR', setHead: true },
+      { productId: 'existing-panel', modelCode: 'OLD-PANEL', modelName: 'OLD-PANEL', name: '기존 판넬', quantity: 1, unitPrice: 20000, componentKind: 'PANEL', setHead: false },
+    ]
+    harness.expandBundleLine
+      .mockResolvedValueOnce(existingRows)
+      .mockResolvedValueOnce([])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('line-2').getAttribute('data-model-code')).toBe('OLD-PANEL'))
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('line-2').getAttribute('data-model-code')).toBe('OLD-PANEL'))
+    expect(screen.getByTestId('line-1').getAttribute('data-product-id')).toBe('existing-indoor')
+    expect(screen.getByTestId('line-2').getAttribute('data-product-id')).toBe('existing-panel')
+
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    expect(screen.getByRole('button', { name: '저장' })).toHaveProperty('disabled', false)
+  })
+
+  it('RED-B: 옵션 미입력 기본 전개는 서버 응답 4행을 그대로 표시한다', async () => {
+    harness.expandBundleLine.mockResolvedValueOnce([
+      { productId: 'default-indoor', modelCode: 'DEFAULT-IN', modelName: 'DEFAULT-IN', name: '기본 실내기', quantity: 1, unitPrice: 1000, componentKind: 'INDOOR', setHead: true },
+      { productId: 'default-outdoor', modelCode: 'DEFAULT-OUT', modelName: 'DEFAULT-OUT', name: '기본 실외기', quantity: 1, unitPrice: 2000, componentKind: 'OUTDOOR', setHead: false },
+      { productId: 'default-panel', modelCode: 'DEFAULT-PANEL', modelName: 'DEFAULT-PANEL', name: '기본 판넬', quantity: 1, unitPrice: 3000, componentKind: 'PANEL', setHead: false },
+      { productId: 'default-remote', modelCode: 'DEFAULT-REMOTE', modelName: 'DEFAULT-REMOTE', name: '기본 리모컨', quantity: 1, unitPrice: 4000, componentKind: 'REMOTE', setHead: false },
+    ])
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByTestId('line-4').getAttribute('data-model-code')).toBe('DEFAULT-REMOTE'))
+    expect(screen.getByTestId('line-1').getAttribute('data-model-code')).toBe('DEFAULT-IN')
+    expect(screen.queryByTestId('line-5')?.getAttribute('data-product-id')).toBe('')
+  })
+
   it('거래처 최근단가 대기 중 바꾼 최신 수량으로 세트를 전개한다', async () => {
     const pricePending = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
     harness.getPriceMemory.mockReturnValueOnce(pricePending.promise)
