@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { usePermissions } from '../../hooks/usePermissions'
 
 const links = [
   { to: '/dispatches/manual', label: '수동 배차' },
@@ -8,6 +9,10 @@ const links = [
 ]
 
 export function DispatchesLayout(): JSX.Element {
+  const { canAccess, isLoading, isError } = usePermissions()
+  const canViewReceivedGroups =
+    !isLoading && !isError && canAccess('arologis.dispatch.ops', 'view')
+
   return (
     <section>
       <header style={{ marginBottom: 16 }}>
@@ -35,6 +40,24 @@ export function DispatchesLayout(): JSX.Element {
               {link.label}
             </NavLink>
           ))}
+          {canViewReceivedGroups ? (
+            <NavLink
+              to="/dispatches/received-groups"
+              style={({ isActive }) => ({
+                padding: '6px 10px',
+                borderRadius: 4,
+                textDecoration: 'none',
+                border: '1px solid var(--color-border)',
+                color: isActive
+                  ? 'var(--color-primary)'
+                  : 'var(--color-text-muted)',
+                background: isActive ? 'var(--color-surface)' : 'transparent',
+                fontWeight: isActive ? 600 : 400,
+              })}
+            >
+              수신 배차 그룹
+            </NavLink>
+          ) : null}
         </nav>
       </header>
       <Outlet />
