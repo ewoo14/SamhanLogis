@@ -1069,6 +1069,50 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     discountConfig: SlipDiscountConfig | null = partnerDcConfig,
     parentContextOverrides: { unitPrice?: string } = {},
   ): Promise<void> => {
+    // 전개 응답 전에도 거래처 전환이 이 부모를 재전개 대상으로 볼 수 있어야 한다.
+    // 이 등록이 늦으면 pending 첫 전개 중 partner switch가 bundleContexts에서 누락되어
+    // 새 거래처 요청이 생략되고, 이전 거래처 응답이 화면에 남는다.
+    if (selected.productType === 'BUNDLE' && selected.productId) {
+      const existingEntry = Object.entries(expandedBundleOptionsRef.current)
+        .find(([key, context]) => key === source.id || context.componentLineIds?.includes(source.id))
+      const ownerId = existingEntry?.[0] ?? source.id
+      const existingContext = existingEntry?.[1]
+      const pendingContext: ExpandedBundleOptionContext = {
+        ...(existingContext ?? {
+          parentProductId: selected.productId,
+          parentModelCode: selected.modelCode ?? '',
+          modelName: selected.modelName,
+          specification: selected.specification,
+          quantity: selected.quantity,
+          unitPrice: selected.unitPrice,
+          parentCatalogUnitPrice: selected.catalogUnitPrice ?? null,
+          parentCategoryKey: selected.categoryKey ?? null,
+          parentFixedDiscountRate: selected.fixedDiscountRate ?? null,
+          parentHasVariableDiscount: selected.hasVariableDiscount ?? null,
+          discountInfo: selected.discountInfo ?? null,
+          setOptions: selected.setOptions ?? emptyBundleSetOptions(),
+          expansionPending: true,
+        }),
+        unitPrice: parentContextOverrides.unitPrice ?? selected.unitPrice,
+        expansionPending: true,
+      }
+      expandedBundleOptionsRef.current = {
+        ...expandedBundleOptionsRef.current,
+        [ownerId]: pendingContext,
+      }
+      setExpandedBundleOptions((current) => ({
+        ...current,
+        [ownerId]: pendingContext,
+      }))
+      if (ownerId === source.id) {
+        linesRef.current = linesRef.current.map((line) => line.id === source.id
+          ? recalculateLineVat(asVatLine({ ...line, unitPrice: pendingContext.unitPrice }), 'PRICE')
+          : line)
+        setLines((current) => current.map((line) => line.id === source.id
+          ? recalculateLineVat(asVatLine({ ...line, unitPrice: pendingContext.unitPrice }), 'PRICE')
+          : line))
+      }
+    }
     const generation = bundleExpansionGenerationRef.current.get(source.id) ?? 0
     const requestSnapshot = createBundleExpansionSnapshot(selected)
     const retryLatestBundleGeneration = async () => {

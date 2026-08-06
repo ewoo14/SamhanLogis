@@ -1397,6 +1397,67 @@ describe('SlipFormPage price memory autofill', () => {
     expect(savedLine.setHead).toBeUndefined()
     expect(savedLine.bundleParentProductId).toBeUndefined()
   })
+
+  it('R30 계측: partner 전환 중 bundle expand 요청·응답·최종 행 순서를 기록한다', async () => {
+    harness.bundle.modelCode = 'AC060CS6PBH1SY'
+    harness.bundle.categoryKey = 'singleSets'
+    ;(harness.bundle as any).deliveryPrice = '1660000'
+    harness.getPartnerDcConfig.mockImplementation(async (partnerCode: string) => ({
+      partnerCode,
+      companyName: partnerCode === 'P-A' ? 'Partner A' : 'Partner B',
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: '₩70,000',
+      fourWay: null,
+      oneWay: null,
+      stand: null,
+      deluxe: null,
+      firstGrade: null,
+    }))
+
+    const first = deferred<any[]>()
+    const second = deferred<any[]>()
+    const trace: string[] = []
+    harness.expandBundleLine.mockImplementation((request: { unitPrice: string }) => {
+      const requestNo = harness.expandBundleLine.mock.calls.length
+      trace.push(`request#${requestNo}:unitPrice=${request.unitPrice}`)
+      return requestNo === 1 ? first.promise : second.promise
+    })
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(1))
+
+    await selectPartnerB()
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    trace.push('response#2:componentSum=1590000')
+    second.resolve([
+      { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 954000 },
+      { productId: harness.productB.id, modelName: 'Outdoor', name: 'Outdoor', modelCode: 'OUTDOOR', quantity: 1, unitPrice: 636000 },
+    ])
+    await waitFor(() => expect(unitPrice(1).value).toBe('954000'))
+    trace.push(`setLines:unitPrice=${unitPrice(1).value};sum=${Number(unitPrice(1).value) + Number(unitPrice(2).value)}`)
+
+    trace.push('response#1:componentSum=1660000')
+    first.resolve([
+      { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 996000 },
+      { productId: harness.productB.id, modelName: 'Outdoor', name: 'Outdoor', modelCode: 'OUTDOOR', quantity: 1, unitPrice: 664000 },
+    ])
+    await act(async () => {
+      await first.promise
+    })
+    await waitFor(() => expect(unitPrice(1).value).toBe('954000'))
+    trace.push(`final:unitPrice=${unitPrice(1).value};sum=${Number(unitPrice(1).value) + Number(unitPrice(2).value)}`)
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    const savedLines = harness.createSlip.mock.calls[0][0].lines
+    trace.push(`save:sum=${savedLines.reduce((sum: number, line: { unitPrice: string; quantity: number }) => sum + Number(line.unitPrice) * line.quantity, 0)}`)
+    expect(savedLines.reduce((sum: number, line: { unitPrice: string; quantity: number }) => sum + Number(line.unitPrice) * line.quantity, 0))
+      .toBe(1590000)
+    console.log(`[R30-TRACE] ${trace.join(' | ')}`)
+  })
 })
 
 describe('SlipFormPage 이카운트식 라인 입력 — 제거된 세트 옵션 picker 레거시 테스트', () => {
