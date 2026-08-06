@@ -1,0 +1,32 @@
+[
+  {
+    "item": "① 세트 riUsage·거래처 전역DC 실 화면",
+    "result": "미실시",
+    "capture": "screenshots/01-daily-closing-riusage-global-dc.png",
+    "note": "2020-01-02 조회 결과 상세 전표·모델별 재검증 행 0건; 할인율 머리글만 확인"
+  },
+  {
+    "item": "② 전표 협업 수정 저장·알림",
+    "result": "FAIL",
+    "capture": "screenshots/06-notification-history-after-collab-edit.png",
+    "note": "전표=2026/08/01-7, POST=201, UI 대기=105ms, outbox=SENT이나 알림센터 신규 항목 없음"
+  },
+  {
+    "item": "③-a TERMINAL 관리자 조회·게이트웨이·권한",
+    "result": "PASS",
+    "capture": "screenshots/05-terminal-gateway-response.png",
+    "note": "dev_master=200, dev_accountant=403"
+  },
+  {
+    "item": "③-b TERMINAL 응답 필드",
+    "result": "미실시",
+    "capture": "screenshots/05-terminal-gateway-response.png",
+    "note": "관리자 응답 data=[]라 실 TERMINAL 행의 전표번호·사유·시도 횟수·UUID 비공개 계약을 검증할 표본 없음"
+  },
+  {
+    "item": "④ 저장·수정 차단/눈에 띄는 지연",
+    "result": "PASS",
+    "capture": "screenshots/04-collab-edit-saved.png",
+    "note": "POST=201, UI 대기=105ms; outbox 비동기 처리"
+  }
+]

@@ -95,6 +95,7 @@ public class SlipDuplicateService {
                     source.getSourceWarehouseId(), source.getDestinationWarehouseId(),
                     source.getPartnerId(), source.getPartnerName(),
                     source.getDeliveryTag(), source.getMemo(), requesterId);
+            copy.setSourceWarehouseCode(source.getSourceWarehouseCode());
             // 복사도 신규 출고 생성이다 — 태그 null 이면 게이트 내부에서 즉시 통과(opt-in).
             cutoffGuard.assertWithinCutoff(copy.getDeliveryTag(), copy.getSlipDate());
         } else {

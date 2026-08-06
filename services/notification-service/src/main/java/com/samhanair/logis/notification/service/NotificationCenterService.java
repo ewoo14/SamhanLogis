@@ -32,6 +32,13 @@ public class NotificationCenterService {
 
     @Transactional
     public UUID publish(NotificationPublishRequest req) {
+        if (req.targetUserId() != null && req.sourceRefId() != null) {
+            var existing = repository.findFirstByTargetUserIdAndSourceServiceAndSourceRefIdAndChannel(
+                    req.targetUserId(), req.sourceService(), req.sourceRefId(), req.channel());
+            if (existing.isPresent()) {
+                return existing.get().getId();
+            }
+        }
         NotificationCenter n = NotificationCenter.publish(
                 req.channel(), req.severity(), req.title(), req.body(),
                 req.targetRole(), req.targetUserId(),

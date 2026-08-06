@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { EstimateDetail } from '../api/estimateApi'
+import { markEstimateRestoreFence } from '../utils/estimateRestoreFence'
 
 const mocks = vi.hoisted(() => ({
   getEstimate: vi.fn(),
@@ -307,6 +308,10 @@ function estimateUnitPrice(index = 0): HTMLInputElement {
   return screen.getByTestId(`estimate-coedit-items-${index}-unitPrice`) as HTMLInputElement
 }
 
+function estimateQuantity(index = 0): HTMLInputElement {
+  return screen.getByTestId(`estimate-coedit-items-${index}-quantity`) as HTMLInputElement
+}
+
 function estimateModel(index = 0): HTMLInputElement {
   return screen.getByTestId(`estimate-coedit-items-${index}-modelName`) as HTMLInputElement
 }
@@ -314,6 +319,7 @@ function estimateModel(index = 0): HTMLInputElement {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  window.sessionStorage.clear()
 })
 
 beforeEach(() => {
@@ -359,6 +365,12 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
         unitPrice: '11000',
         productId: 'product-1',
       }),
+      expect.objectContaining({
+        modelName: '',
+        productName: '',
+        quantity: '1',
+        productId: '',
+      }),
     ])
 
     for (const fieldPath of [
@@ -389,7 +401,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     // R4-F6: 단가 필드만 doc-sync 전용 콜백 배선 — 자동채움 provider write 의 doc-sync 가
     // pending REMEMBERED/CATALOG 분류를 USER 로 재분류하지 않게 분리한다(타 필드는 기존 경로).
     expect(screen.getByTestId('estimate-coedit-items-0-unitPrice').getAttribute('data-doc-sync')).toBe('true')
-    expect(screen.getByTestId('estimate-coedit-items-0-modelName').getAttribute('data-doc-sync')).toBe('false')
+    expect(screen.getByTestId('estimate-coedit-items-0-modelName').getAttribute('data-doc-sync')).toBe('true')
   })
 
   it('subscribeDoc 원격 업데이트를 React form state 에 반영한다', async () => {
@@ -476,6 +488,24 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
   })
 
+  it('R28 읽기 전용 견적은 서버 확정행만 hydrate하고 trailing 빈행을 만들지 않는다', async () => {
+    const base = makeEstimate().lines[0]
+    mocks.getEstimate.mockResolvedValue(makeEstimate({
+      status: 'QUOTE_CONVERTED',
+      lines: [
+        base,
+        { ...base, id: 'line-2', productId: 'product-2', modelName: 'MODEL-2', productName: '제품 2' },
+      ],
+    }))
+
+    renderPage()
+
+    await screen.findByText('이 견적서는 수락/거절/변환되어 더 이상 수정할 수 없습니다.')
+    expect(screen.getByTestId('estimate-form-line-0')).not.toBeNull()
+    expect(screen.getByTestId('estimate-form-line-1')).not.toBeNull()
+    expect(screen.queryByTestId('estimate-form-line-2')).toBeNull()
+  })
+
   it('모델 lookup 성공 시 productName/unitPrice/productId 를 provider 에도 동기화한다', async () => {
     const provider = makeProvider()
     mocks.getEstimate.mockResolvedValue(makeEstimate())
@@ -538,7 +568,113 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(provider.replaceItems).toHaveBeenCalledWith([
       expect.objectContaining({ modelName: 'MODEL-1', productName: '제품 1' }),
       expect.objectContaining({ modelName: 'MODEL-2', productName: '제품 2' }),
+      expect.objectContaining({ modelName: '', productName: '', productId: '' }),
     ])
+  })
+
+  it('R26 버전 복원으로 서버 version이 바뀌면 선행 stale Y.Doc을 재시드한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.setHeaderValue('estimateServerVersion', '1')
+    provider.__setRows([
+      { lineId: 'line-1', modelName: 'MODEL-1', productName: '제품 1', productId: 'product-1' },
+      { lineId: 'line-old', modelName: 'MODEL-OLD', productName: '복원 전 제품', productId: 'old-product' },
+      { lineId: 'draft-line', modelName: '', productName: '', productId: '' },
+    ])
+    provider.setHeaderValue.mockClear()
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ version: 2 }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).toHaveBeenCalledWith([
+      expect.objectContaining({ modelName: 'MODEL-1', productName: '제품 1' }),
+      expect.objectContaining({ modelName: '', productName: '', productId: '' }),
+    ])
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('estimateServerVersion', '2')
+  })
+
+  it('R23 RED-B4 다른 참가자 진입 시 Y.Doc의 미저장 입력 행을 보존한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.__setRows([
+      {
+        modelName: 'MODEL-1',
+        productName: '제품 1',
+        specification: '스펙 1',
+        quantity: '2',
+        unitPrice: '11000',
+        productId: 'product-1',
+      },
+      {
+        modelName: 'DRAFT-1',
+        productName: '미저장 제품 1',
+        specification: '미저장 스펙 1',
+        quantity: '1',
+        unitPrice: '100',
+        productId: 'draft-product-1',
+      },
+      {
+        modelName: 'DRAFT-2',
+        productName: '미저장 제품 2',
+        specification: '미저장 스펙 2',
+        quantity: '1',
+        unitPrice: '200',
+        productId: 'draft-product-2',
+      },
+    ])
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).not.toHaveBeenCalled()
+    expect((screen.getByTestId('estimate-coedit-items-1-modelName') as HTMLInputElement).value).toBe('DRAFT-1')
+    expect((screen.getByTestId('estimate-coedit-items-2-modelName') as HTMLInputElement).value).toBe('DRAFT-2')
+  })
+
+  it('R26 같은 서버 version 세대의 선행 Y.Doc 미저장 행을 보존한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.setHeaderValue('estimateServerVersion', '1')
+    provider.setHeaderValue.mockClear()
+    provider.__setRows([
+      { modelName: 'MODEL-1', productName: '제품 1', productId: 'product-1' },
+      { modelName: 'DRAFT-1', productName: '미저장 제품 1', productId: 'draft-product-1' },
+      { modelName: 'DRAFT-2', productName: '미저장 제품 2', productId: 'draft-product-2' },
+    ])
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ version: 1 }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).not.toHaveBeenCalled()
+    expect((screen.getByTestId('estimate-coedit-items-1-modelName') as HTMLInputElement).value).toBe('DRAFT-1')
+    expect((screen.getByTestId('estimate-coedit-items-2-modelName') as HTMLInputElement).value).toBe('DRAFT-2')
+  })
+
+  it('R28 복원 fence가 있으면 marker 없는 stale Y.Doc도 서버 복원 결과로 재시드한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.__setRows([
+      { lineId: 'line-1', modelName: 'MODEL-STALE', productName: '복원 전 제품', productId: 'stale-product' },
+      { lineId: 'line-old', modelName: 'MODEL-OLD', productName: '삭제된 제품', productId: 'old-product' },
+    ])
+    markEstimateRestoreFence('estimate-1', 2)
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ version: 2 }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+
+    await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).toHaveBeenCalledWith([
+      expect.objectContaining({ modelName: 'MODEL-1', productName: '제품 1' }),
+      expect.objectContaining({ modelName: '', productName: '', productId: '' }),
+    ])
+    expect(window.sessionStorage.getItem('samhan:estimate-restore-version:estimate-1')).toBeNull()
   })
 
   it('newEstimate_autofillsRememberedPrice', async () => {
@@ -705,8 +841,9 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     }], failedProductIds: [] })
     renderPage()
 
-    await waitFor(() => expect((screen.getByTestId('estimate-form-add-line') as HTMLButtonElement).disabled).toBe(false))
-    fireEvent.click(screen.getByTestId('estimate-form-add-line'))
+    await waitFor(() => expect(estimateQuantity()).toBeTruthy())
+    fireEvent.change(estimateQuantity(), { target: { value: '3' } })
+    await waitFor(() => expect(estimateModel(1)).toBeTruthy())
     fireEvent.change(estimateModel(1), { target: { value: 'MODEL-SESSION' } })
     fireEvent.blur(estimateModel(1))
     await waitFor(() => expect(estimateUnitPrice(1).value).toBe('44000'))

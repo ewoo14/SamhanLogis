@@ -21,12 +21,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -52,6 +54,7 @@ public class NotificationService {
     private final Map<NotificationChannel, NotificationGateway> gatewayMap;
     private final UserClient userClient;
     private final PushDeviceTokenService pushDeviceTokenService;
+    private final NotificationDispatchPersistence dispatchPersistence;
 
     /**
      * 발송 재시도 최대 횟수 — post-W5 backlog cleanup (Q-W3-1 채택, D-P9-21).
@@ -78,7 +81,7 @@ public class NotificationService {
                                UserClient userClient,
                                int maxRetryAttempts,
                                NotificationGatewayMetrics gatewayMetrics) {
-        this(requestRepository, logRepository, gatewayMap, userClient, null, maxRetryAttempts, gatewayMetrics);
+        this(requestRepository, logRepository, gatewayMap, userClient, null, maxRetryAttempts, gatewayMetrics, null);
     }
 
     @Autowired
@@ -88,7 +91,8 @@ public class NotificationService {
                                UserClient userClient,
                                @Autowired(required = false) PushDeviceTokenService pushDeviceTokenService,
                                @Value("${samhan.notification.retry.max-attempts:5}") int maxRetryAttempts,
-                               @Autowired(required = false) NotificationGatewayMetrics gatewayMetrics) {
+                               @Autowired(required = false) NotificationGatewayMetrics gatewayMetrics,
+                               @Autowired(required = false) NotificationDispatchPersistence dispatchPersistence) {
         this.requestRepository = requestRepository;
         this.logRepository = logRepository;
         this.gatewayMap = gatewayMap;
@@ -96,6 +100,7 @@ public class NotificationService {
         this.pushDeviceTokenService = pushDeviceTokenService;
         this.maxRetryAttempts = maxRetryAttempts;
         this.gatewayMetrics = gatewayMetrics;
+        this.dispatchPersistence = dispatchPersistence;
     }
 
     /**
@@ -104,7 +109,6 @@ public class NotificationService {
      * @param req 발송 요청 DTO
      * @return 영속화된 NotificationRequest (status = SENT 또는 FAILED)
      */
-    @Transactional
     public NotificationRequest send(NotificationSendRequest req) {
         return sendWithGatewayResult(req).notificationRequest();
     }
@@ -119,8 +123,33 @@ public class NotificationService {
      * @param req 발송 요청 DTO
      * @return {@link SendResult} — NotificationRequest + NotificationGatewayResult 쌍
      */
-    @Transactional
     public SendResult sendWithGatewayResult(NotificationSendRequest req) {
+        if (dispatchPersistence != null) {
+            if (req.recipientType() == RecipientType.USER && req.recipientId() != null
+                    && !userClient.exists(req.recipientId())) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "수신자(USER) 미존재: " + req.recipientId());
+            }
+            NotificationRequest prepared = dispatchPersistence.prepare(req);
+            if (prepared.getStatus() == NotificationStatus.SENT) {
+                return new SendResult(prepared, null);
+            }
+            if (dispatchPersistence.claim(prepared).isEmpty()) {
+                return new SendResult(prepared, null);
+            }
+            NotificationGatewayResult result = invokeGatewayWithResult(prepared);
+            return new SendResult(dispatchPersistence.complete(prepared), result);
+        }
+        if (req.idempotencyKey() != null && !req.idempotencyKey().isBlank()) {
+            var existing = requestRepository.findByIdempotencyKey(req.idempotencyKey());
+            if (existing.isPresent()) {
+                NotificationRequest existingRequest = existing.get();
+                if (existingRequest.getStatus() == NotificationStatus.SENT) {
+                    return new SendResult(existingRequest, null);
+                }
+                NotificationGatewayResult retryResult = invokeGatewayWithResult(existingRequest);
+                return new SendResult(existingRequest, retryResult);
+            }
+        }
         NotificationRequest entity = NotificationRequest.open(
                 req.recipientType(),
                 req.recipientId(),
@@ -129,7 +158,7 @@ public class NotificationService {
                 req.templateCode(),
                 req.subject(),
                 req.body(),
-                req.payload());
+                req.payload(), req.idempotencyKey());
 
         // 수신자 검증 (USER / PARTNER 만)
         if (req.recipientType() == RecipientType.USER && req.recipientId() != null) {
@@ -142,6 +171,30 @@ public class NotificationService {
         NotificationRequest saved = requestRepository.save(entity);
         NotificationGatewayResult gatewayResult = invokeGatewayWithResult(saved);
         return new SendResult(saved, gatewayResult);
+    }
+
+    /** gateway 성공 후 complete 전에 종료된 오래된 PENDING 요청을 재처리한다. */
+    @Scheduled(fixedDelayString = "${samhan.notification.pending-recovery-delay-ms:5000}")
+    public void recoverPending() {
+        if (dispatchPersistence == null) {
+            return;
+        }
+        List<NotificationRequest> pending = requestRepository
+                .findTop100ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
+                        NotificationStatus.PENDING, LocalDateTime.now().minusSeconds(30));
+        for (NotificationRequest request : pending) {
+            try {
+                if (dispatchPersistence.claim(request).isEmpty()) {
+                    continue;
+                }
+                NotificationGatewayResult result = invokeGatewayWithResult(request);
+                dispatchPersistence.complete(request);
+                log.info("[NotificationService] PENDING 복구 완료 requestId={} status={}",
+                        request.getId(), result.gatewayStatus());
+            } catch (RuntimeException ex) {
+                log.warn("[NotificationService] PENDING 복구 실패 requestId={}", request.getId(), ex);
+            }
+        }
     }
 
     /**

@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,13 +37,17 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Samhan Public 이식 강조 — 출고전표 자동 조회 + REGION (PR-D) 활용. 이카운트 의존 0.
  *
- * <p>graceful empty 패턴 — slip-service skeleton-mode / 호출 실패 시 빈 응답 (regionGroups + unclassified
- * 모두 빈 컨테이너) 으로 admin 화면 정상 렌더링.
+ * <p>정상 0건과 조회 장애를 구분한다. slip-service 호출 실패는 예외로 전파하고, 정상 빈 목록은
+ * regionGroups/unclassified가 빈 컨테이너인 성공 응답으로 반환한다. warehouse code provenance가
+ * 없는 행은 {@code unknownWarehouseCount}로 별도 표시한다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PreClassifyService {
+
+    private static final Pattern LEGACY_CARRIER_MARKER =
+            Pattern.compile("(?:경동|로젠)[^/|:]*[/|:]");
 
     private final SlipServiceClient slipServiceClient;
     private final RegionClassifier regionClassifier;
@@ -73,6 +78,10 @@ public class PreClassifyService {
     public PreClassifyResponse classify(LocalDate from, LocalDate to, DispatchExecutionMode mode) {
         validateRange(from, to);
         List<OutboundSlipSummary> slips = slipServiceClient.getOutboundSlips(from, to);
+        int unknownWarehouseCount = (int) slips.stream()
+                .filter(slip -> !"SANGIL".equals(slip.warehouseBusinessType())
+                        && !"CHOWOL".equals(slip.warehouseBusinessType()))
+                .count();
         if (mode != null) {
             slips = slips.stream().filter(slip -> matchesMode(slip, mode)).toList();
         }
@@ -102,19 +111,22 @@ public class PreClassifyService {
                 regionGroups.computeIfAbsent(regionGroup, k -> new ArrayList<>()).add(entry);
             }
         }
-        return new PreClassifyResponse(regionGroups, unclassified);
+        return new PreClassifyResponse(regionGroups, unclassified, unknownWarehouseCount);
     }
 
     /** 레거시 공통 제외·태그·창고 규칙을 적용한다. */
     private boolean matchesMode(OutboundSlipSummary slip, DispatchExecutionMode mode) {
         String address = value(slip.address());
-        String memo = value(slip.memo());
         String prefix = address.substring(0, Math.min(10, address.length()));
         boolean commonExcluded = containsAny(prefix, "회수", "회차", "차용", "대여", "반납", "자가")
-                || containsAny(address, "경동", "로젠");
+                || LEGACY_CARRIER_MARKER.matcher(address).find();
         boolean stack = "STACK".equals(slip.deliveryTag());
         boolean region = "REGION".equals(slip.deliveryTag());
 
+        // 레거시 공통 제외가 모든 모드보다 먼저 적용된다.
+        if (commonExcluded) return false;
+
+        // 야적/지방 전용도 업무 구분이 확정된 창고만 대상으로 한다.
         if (mode == DispatchExecutionMode.STACK_ONLY) {
             return stack && warehouseAllowed(slip, mode);
         }
@@ -122,11 +134,8 @@ public class PreClassifyService {
             return region && warehouseAllowed(slip, mode);
         }
         if (stack) {
-            // 레거시 1~3/6~8은 야적을 별도 묶음으로 먼저 보존한다.
-            return warehouseAllowed(slip, mode);
-        }
-        if (commonExcluded || containsAny(memo, "회수", "회차", "차용", "대여", "반납", "자가")) {
-            return false;
+            // 레거시 1~3/6~8은 창고 판정 전에 야적을 보존한다.
+            return true;
         }
         if (mode.number() <= 3 && region) {
             return false;
@@ -134,17 +143,16 @@ public class PreClassifyService {
         return warehouseAllowed(slip, mode);
     }
 
-    /** 모드별 출고창고 포함 규칙. 창고 정보가 없는 구형 projection은 보수적으로 통과시킨다. */
+    /** 레거시 출고창고 표시값 기반 모드 필터. 창고명이 없으면 해당 모드에 포함하지 않는다. */
     private boolean warehouseAllowed(OutboundSlipSummary slip, DispatchExecutionMode mode) {
-        String warehouse = value(slip.warehouse());
-        if (warehouse.isBlank()) {
-            return true;
-        }
         return switch (mode) {
-            case CHOWOL_REGION_EXCLUDED, CHOWOL_REGION_INCLUDED -> warehouse.contains("초월");
-            case SANGIL_REGION_EXCLUDED, SANGIL_REGION_INCLUDED -> warehouse.contains("상일");
+            case CHOWOL_REGION_EXCLUDED, CHOWOL_REGION_INCLUDED ->
+                    "CHOWOL".equals(slip.warehouseBusinessType());
+            case SANGIL_REGION_EXCLUDED, SANGIL_REGION_INCLUDED ->
+                    "SANGIL".equals(slip.warehouseBusinessType());
             case SANGIL_AND_CHOWOL_REGION_EXCLUDED, SANGIL_AND_CHOWOL_REGION_INCLUDED,
-                    STACK_ONLY, REGION_ONLY -> warehouse.contains("상일") || warehouse.contains("초월");
+                    STACK_ONLY, REGION_ONLY -> "SANGIL".equals(slip.warehouseBusinessType())
+                            || "CHOWOL".equals(slip.warehouseBusinessType());
         };
     }
 

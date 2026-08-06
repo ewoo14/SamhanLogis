@@ -82,6 +82,9 @@ public class NotificationRequest extends BaseEntity {
     @Column(name = "payload", columnDefinition = "jsonb")
     private String payload;
 
+    @Column(name = "idempotency_key", length = 100, updatable = false)
+    private String idempotencyKey;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private NotificationStatus status;
@@ -92,9 +95,12 @@ public class NotificationRequest extends BaseEntity {
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
+    @Column(name = "dispatch_lease_until")
+    private LocalDateTime dispatchLeaseUntil;
+
     private NotificationRequest(RecipientType recipientType, UUID recipientId, String recipientAddress,
                                 NotificationChannel channel, String templateCode,
-                                String subject, String body, String payload) {
+                                String subject, String body, String payload, String idempotencyKey) {
         if (recipientType == null) {
             throw new IllegalArgumentException("recipientType 필수");
         }
@@ -117,6 +123,7 @@ public class NotificationRequest extends BaseEntity {
         this.subject = subject;
         this.body = body;
         this.payload = payload;
+        this.idempotencyKey = idempotencyKey;
         this.status = NotificationStatus.PENDING;
         this.attemptCount = 0;
     }
@@ -128,7 +135,14 @@ public class NotificationRequest extends BaseEntity {
                                            NotificationChannel channel, String templateCode,
                                            String subject, String body, String payload) {
         return new NotificationRequest(recipientType, recipientId, recipientAddress,
-                channel, templateCode, subject, body, payload);
+                channel, templateCode, subject, body, payload, null);
+    }
+
+    public static NotificationRequest open(RecipientType recipientType, UUID recipientId, String recipientAddress,
+                                           NotificationChannel channel, String templateCode,
+                                           String subject, String body, String payload, String idempotencyKey) {
+        return new NotificationRequest(recipientType, recipientId, recipientAddress,
+                channel, templateCode, subject, body, payload, idempotencyKey);
     }
 
     /**
@@ -138,6 +152,10 @@ public class NotificationRequest extends BaseEntity {
         this.status = NotificationStatus.SENT;
         this.lastAttemptedAt = LocalDateTime.now();
         this.attemptCount = this.attemptCount + 1;
+    }
+
+    public void clearDispatchLease() {
+        this.dispatchLeaseUntil = null;
     }
 
     /**

@@ -146,6 +146,7 @@ export type PageCode =
   | 'slip.publish.from-partner-order'
   | 'inbound.inspection'
   | 'dispatch.board'
+  | 'hr.carriers'
   | 'dispatch.external-carriers'
   | 'dispatch.sms-save-history'
   | 'dispatch.batch'

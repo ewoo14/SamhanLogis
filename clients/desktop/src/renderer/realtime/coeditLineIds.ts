@@ -88,9 +88,17 @@ export function coeditLineIdsAreStale(
   knownServerLineIds: ReadonlySet<string>,
 ): boolean {
   const rowCount = provider.items.toArray().length
+  const seenServerLineIds = new Set<string>()
   for (let index = 0; index < rowCount; index += 1) {
+    // trailing 입력행은 아직 품목을 확정하지 않은 화면 전용 행이다. replaceItems가
+    // 호환성을 위해 client lineId를 부여하더라도 서버 라인 집합의 정합성 판정에는
+    // 참여시키지 않는다. 이 행을 stale로 보면 원격 삭제 뒤 위치 재시드가 빈행에
+    // 서버 lineId를 붙여 다음 행의 계보를 오염시킨다.
+    if (!provider.getItemValue(index, 'productId').trim()) continue
     const docLineId = readCoeditLineId(provider, index)
     if (!docLineId || !knownServerLineIds.has(docLineId)) return true
+    if (seenServerLineIds.has(docLineId)) return true
+    seenServerLineIds.add(docLineId)
   }
   return false
 }
@@ -114,12 +122,15 @@ export function reseedCoeditLineIds(
   provider: DocCoeditProvider,
   orderedServerLineIds: ReadonlyArray<string>,
 ): void {
-  const rowCount = provider.items.toArray().length
-  const count = Math.min(rowCount, orderedServerLineIds.length)
+  const serverLineIds = new Set(orderedServerLineIds.filter(Boolean))
   provider.doc.transact(() => {
-    for (let index = 0; index < count; index += 1) {
-      const lineId = orderedServerLineIds[index]
+    let serverIndex = 0
+    for (let index = 0; index < provider.items.toArray().length && serverIndex < orderedServerLineIds.length; index += 1) {
+      // 미확정 빈행은 서버 라인이 아니므로 서버 ID를 소비하지 않고 그대로 둔다.
+      if (!provider.getItemValue(index, 'productId').trim()) continue
+      const lineId = orderedServerLineIds[serverIndex]
       if (lineId) provider.setItemValue(index, LINE_ID_CELL, lineId)
+      serverIndex += 1
     }
   })
 }

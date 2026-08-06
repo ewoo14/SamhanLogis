@@ -19,6 +19,21 @@ export function appendBlankRowIfLastChanged<T>(
   return [...next, emptyRow()]
 }
 
+/**
+ * 수정 hydrate와 협업 문서에도 입력용 trailing 빈행을 보장한다.
+ * 빈행 여부는 화면 텍스트가 아니라 호출자가 주입한 확정 키로 판정한다.
+ */
+export function ensureTrailingBlankRow<T>(
+  rows: readonly T[],
+  emptyRow: () => T,
+  isConfirmed: (row: T) => boolean,
+): T[] {
+  if (rows.length === 0) return [emptyRow()]
+  const next = [...rows]
+  if (isConfirmed(next[next.length - 1]!)) next.push(emptyRow())
+  return next
+}
+
 export function filterMeaningfulRows<T>(rows: readonly T[], isMeaningful: (row: T) => boolean): T[] {
   return rows.filter(isMeaningful)
 }
@@ -29,8 +44,12 @@ export function removeLinePreservingMinimum<T>(
   getId: (row: T) => string,
   emptyRow: () => T,
   minimumRows: number,
+  isConfirmed: (row: T) => boolean,
 ): T[] {
   const next = rows.filter((row) => getId(row) !== id)
   while (next.length < minimumRows) next.push(emptyRow())
-  return next
+  // 삭제 대상이 마지막 trailing 빈행이어도 다음 입력 경로를 끊지 않는다.
+  // 최소행을 채운 뒤 판정해야 분개처럼 최소 2행인 화면도 빈행을 정확히 하나만
+  // trailing으로 유지한다.
+  return ensureTrailingBlankRow(next, emptyRow, isConfirmed)
 }

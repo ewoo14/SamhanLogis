@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom'
 const harness = vi.hoisted(() => ({
   getPriceMemory: vi.fn(),
   getPriceMemories: vi.fn(),
+  getPartnerDcConfig: vi.fn(),
   lookupPartnerForAutoFill: vi.fn(),
   createSlip: vi.fn(),
   listWarehouses: vi.fn(),
@@ -35,6 +36,8 @@ const harness = vi.hoisted(() => ({
     productType: 'SINGLE',
     sellingPrice: '1000',
     modelCode: 'A',
+    categoryKey: 'homemulti',
+    hasVariableDiscount: true,
   },
   productB: {
     id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -67,7 +70,7 @@ const harness = vi.hoisted(() => ({
 vi.mock('@samhan/design-system', () => ({
   Button: ({ children, variant: _variant, size: _size, loading: _loading, ...props }: any) => {
     const text = Array.isArray(children) ? children.join('') : String(children ?? '')
-    const testId = props['data-testid'] ?? (text.includes('+') ? 'add-line-button' : undefined)
+    const testId = props['data-testid']
     return (
       <button {...props} data-testid={testId} type="button">
         {children}
@@ -93,6 +96,8 @@ vi.mock('@samhan/design-system', () => ({
         data-testid={`line-${lineNo}`}
         data-product-id={props.line.productId ?? ''}
         data-price-source={props.line.priceSource ?? ''}
+        data-discount-info={props.line.discountInfo ?? ''}
+        data-lookup-loading={String(props.line.lookupLoading ?? false)}
         data-partner-selected={String(props.partnerSelected ?? '')}
         data-excluded-from-save={String(props.excludedFromSave ?? '')}
       >
@@ -139,10 +144,13 @@ vi.mock('@samhan/design-system', () => ({
     </div>
   ),
   PhoneInput: ({ helperText: _helperText, ...props }: any) => <input {...props} />,
-  ProductAutocomplete: ({ ariaLabel, onChange }: any) => {
+  ProductAutocomplete: ({ ariaLabel, onChange, onInputCommitChange, resultSelectionMode }: any) => {
     const lineNo = /(\d+)/.exec(String(ariaLabel ?? ''))?.[1] ?? '1'
     return (
-      <div data-testid={`product-autocomplete-${lineNo}`}>
+      <div
+        data-testid={`product-autocomplete-${lineNo}`}
+        data-result-selection-mode={resultSelectionMode ?? ''}
+      >
         <button type="button" data-testid={`select-product-a-${lineNo}`} onClick={() => onChange(harness.productA)}>
           product-a
         </button>
@@ -154,6 +162,9 @@ vi.mock('@samhan/design-system', () => ({
         </button>
         <button type="button" data-testid={`select-product-d-${lineNo}`} onClick={() => onChange(harness.productD)}>
           product-d
+        </button>
+        <button type="button" data-testid={`type-product-${lineNo}`} onClick={() => onInputCommitChange?.(false)}>
+          type-product
         </button>
       </div>
     )
@@ -212,6 +223,10 @@ vi.mock('../api/inventory', () => ({
   listWarehouses: harness.listWarehouses,
 }))
 
+vi.mock('../api/sales', () => ({
+  getPartnerDcConfig: harness.getPartnerDcConfig,
+}))
+
 vi.mock('../api/productApi', () => ({
   searchProducts: harness.searchProducts,
 }))
@@ -268,15 +283,39 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  harness.productA.hasVariableDiscount = true
+  harness.productA.sellingPrice = '1000'
   harness.isMobile = false
   harness.listWarehouses.mockResolvedValue([])
   harness.lookupPartnerForAutoFill.mockResolvedValue({})
   harness.createSlip.mockResolvedValue({})
   harness.getPriceMemory.mockResolvedValue(null)
   harness.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
+  harness.getPartnerDcConfig.mockResolvedValue(null)
 })
 
 describe('SlipFormPage price memory autofill', () => {
+  it('R23 RED-A3 마지막 행을 채우면 수동 버튼 없이 다음 빈행이 계속 생긴다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-5-specification'), {
+      target: { value: '첫 자동행' },
+    })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('line-6-specification'), {
+      target: { value: '둘째 자동행' },
+    })
+    expect(screen.getByTestId('line-7')).toBeTruthy()
+  })
+
+  it('R23 RED-B2 판매·구매 신규 전표의 후보 다건은 단일 선택 모달 계약을 유지한다', () => {
+    renderPage()
+
+    expect(screen.getByTestId('product-autocomplete-1').getAttribute('data-result-selection-mode'))
+      .toBe('single')
+  })
+
   it('uses remembered unit price when price memory exists', async () => {
     harness.getPriceMemory.mockResolvedValueOnce({
       unitPrice: 999000,
@@ -363,6 +402,49 @@ describe('SlipFormPage price memory autofill', () => {
     expect(unitPrice().value).toBe('222000')
   })
 
+  it('does not apply a prior partner bulk result while the newly selected partner DC is pending', async () => {
+    const pendingPreviousPartnerBulk = deferred<{
+      hits: Array<{ productId: string; unitPrice: number; source: string; updatedAt: string }>
+      failedProductIds: string[]
+    }>()
+    const pendingCurrentPartnerDc = deferred<null>()
+    let partnerACallCount = 0
+    harness.getPartnerDcConfig.mockImplementation((partnerCode: string) => {
+      if (partnerCode === harness.partnerA.partnerCode) {
+        partnerACallCount += 1
+        return partnerACallCount >= 3 ? pendingCurrentPartnerDc.promise : Promise.resolve(null)
+      }
+      return Promise.resolve({
+        partnerCode,
+        companyName: harness.partnerB.name,
+        homeMultiDc: '45%',
+        commercialMultiDc: null,
+      })
+    })
+    harness.getPriceMemories.mockReturnValueOnce(pendingPreviousPartnerBulk.promise)
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
+
+    await selectPartnerB()
+    await waitFor(() => expect(harness.getPriceMemories).toHaveBeenCalledWith(harness.partnerB.id, [harness.productA.id]))
+
+    await selectPartnerA()
+    expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
+
+    await act(async () => {
+      pendingPreviousPartnerBulk.resolve({ hits: [], failedProductIds: [] })
+      await pendingPreviousPartnerBulk.promise
+    })
+
+    expect(unitPrice().value).toBe(harness.productA.sellingPrice)
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info')).toBe('')
+    expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
+    expect(screen.getByTestId('slip-price-refresh-banner').textContent).toBe('')
+  })
+
   it('ignores a late response when the same line changes to another product', async () => {
     const first = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
     const second = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
@@ -397,20 +479,18 @@ describe('SlipFormPage price memory autofill', () => {
     harness.getPriceMemory.mockReturnValueOnce(pending.promise)
     renderPage()
     await selectPartnerA()
-    fireEvent.click(screen.getByTestId('add-line-button'))
-
     fireEvent.click(screen.getByTestId('select-product-a-2'))
     await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(harness.partnerA.id, harness.productA.id))
     fireEvent.click(screen.getByTestId('delete-line-2'))
-    // 초기 5행 + 수동 1행 상태에서 2번 행을 삭제하면 뒤 행이 번호를 당긴다.
-    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(5)
+    // 초기 자동 빈행 5개에서 2번 행을 삭제하면 뒤 행이 번호를 당긴다.
+    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(4)
 
     await act(async () => {
       pending.resolve({ unitPrice: 999000, source: 'LINE_SAVE', updatedAt: '2026-07-10T09:00:00' })
       await pending.promise
     })
     // 늦은 가격 응답 이후에도 삭제로 줄어든 행 수가 복원되지 않는다.
-    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(5)
+    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(4)
     expect(unitPrice(1).value).toBe('0')
   })
 
@@ -431,7 +511,6 @@ describe('SlipFormPage price memory autofill', () => {
     fireEvent.click(screen.getByTestId('select-product-a-1'))
     await waitFor(() => expect(unitPrice(1).value).toBe('100000'))
 
-    fireEvent.click(screen.getByTestId('add-line-button'))
     fireEvent.change(unitPrice(2), { target: { value: '7777' } })
     fireEvent.click(screen.getByTestId('select-product-b-2'))
     await waitFor(() => expect(screen.getByTestId('product-name-2').textContent).toBe(harness.productB.productName))
@@ -493,7 +572,6 @@ describe('SlipFormPage price memory autofill', () => {
     await selectPartnerA()
     fireEvent.click(screen.getByTestId('select-product-a-1'))
     await waitFor(() => expect(unitPrice(1).value).toBe(harness.productA.sellingPrice))
-    fireEvent.click(screen.getByTestId('add-line-button'))
     fireEvent.click(screen.getByTestId('select-product-b-2'))
     await waitFor(() => expect(unitPrice(2).value).toBe(harness.productB.sellingPrice))
 
@@ -539,7 +617,6 @@ describe('SlipFormPage price memory autofill', () => {
 
     await waitFor(() => expect(screen.getByTestId('line-1').getAttribute('data-price-source')).toBe('REMEMBERED'))
 
-    fireEvent.click(screen.getByTestId('add-line-button'))
     fireEvent.change(unitPrice(2), { target: { value: '7777' } })
     fireEvent.click(screen.getByTestId('select-product-b-2'))
     await waitFor(() => expect(screen.getByTestId('product-name-2').textContent).toBe(harness.productB.productName))
@@ -567,6 +644,124 @@ describe('SlipFormPage price memory autofill', () => {
     await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
     await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
     expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('keeps the global discount price when recent price lookup misses', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({
+      discountInfo: '거래처 전역DC 48% 적용',
+    }))
+  })
+
+  it('reprices an existing variable-DC line with the new partner global discount after a memory miss', async () => {
+    harness.getPartnerDcConfig.mockImplementation(async (partnerCode: string) => ({
+      partnerCode,
+      companyName: partnerCode === 'P-A' ? 'Partner A' : 'Partner B',
+      homeMultiDc: partnerCode === 'P-A' ? '48%' : '45%',
+      commercialMultiDc: null,
+    }))
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+
+    await selectPartnerB()
+    await waitFor(() => expect(unitPrice().value).toBe('550'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 전역DC 45% 적용')
+  })
+
+  it('announces the resolved global discount rather than the initial catalog fallback', async () => {
+    const pendingDc = deferred<{
+      partnerCode: string
+      companyName: string
+      homeMultiDc: string
+      commercialMultiDc: string
+    }>()
+    harness.getPartnerDcConfig.mockReturnValue(pendingDc.promise)
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    expect(unitPrice().value).toBe('1000')
+    await act(async () => {
+      pendingDc.resolve({
+        partnerCode: 'P-A',
+        companyName: 'Partner A',
+        homeMultiDc: '48%',
+        commercialMultiDc: '49%',
+      })
+      await pendingDc.promise
+    })
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 전역DC 48% 적용')
+    expect(screen.getByTestId('slip-price-refresh-banner').textContent)
+      .toContain('거래처 전역DC 48% 적용')
+  })
+
+  it('does not apply global DC to a non-variable-discount product with a physical fallback category', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    harness.productA.hasVariableDiscount = false
+    harness.productA.sellingPrice = '204000'
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('204000'))
+    expect(screen.queryByText('거래처 전역DC 48% 적용')).toBeNull()
+  })
+
+  it('confirms the selected product at catalog price before a pending DC request completes', async () => {
+    const pending = new Promise<null>(() => undefined)
+    harness.getPartnerDcConfig.mockReturnValue(pending)
+    renderPage()
+    await selectPartnerA()
+
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+    expect(unitPrice().value).toBe(harness.productA.sellingPrice)
+  })
+
+  it('uses the global discount result instead of a remembered list price', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '48%',
+      commercialMultiDc: '49%',
+    })
+    harness.getPriceMemory.mockResolvedValueOnce({
+      unitPrice: 999,
+      source: 'LINE_SAVE',
+      updatedAt: '2026-08-06T00:00:00',
+    })
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('520'))
+    expect(screen.getByTestId('line-1').getAttribute('data-price-source')).toBe('CATALOG')
   })
 
   it('bulk refresh failure does not overwrite a user edit made while the request is pending', async () => {
@@ -838,6 +1033,17 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
 
     expect(screen.getByTestId('line-1-incomplete-notice').textContent).toContain('저장에서 제외')
+  })
+
+  it('선택된 품목을 다시 타이핑하면 품목코드 확정을 해제한다', async () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('line-1').getAttribute('data-product-id')).toBe(harness.productA.id))
+
+    fireEvent.click(screen.getByTestId('type-product-1'))
+
+    expect(screen.getByTestId('line-1').getAttribute('data-product-id')).toBe('')
+    expect(screen.getByTestId('line-1').getAttribute('data-excluded-from-save')).toBe('true')
   })
 
   it('자동 증식 사실을 낭독하고 현재 입력 포커스를 끊지 않는다', () => {

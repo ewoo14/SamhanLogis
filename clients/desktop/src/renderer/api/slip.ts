@@ -24,6 +24,9 @@ import type { DeliveryTagCode } from '@samhan/design-system'
 /** 본 슬라이스 범위 — 출고/입고 2종. */
 export type SlipType = 'OUTBOUND' | 'INBOUND'
 
+/** 전표 발행 출처 — 취소 가능 여부처럼 subtype별 lifecycle 가드에 사용한다. */
+export type SlipSourceType = 'ESTIMATE' | 'PARTNER_ORDER' | 'MANUAL' | 'MIGRATED_ECOUNT'
+
 /** 목록용 요약 응답 — BE `SlipResponse`. */
 export interface SlipSummary {
   id: string
@@ -109,6 +112,8 @@ export interface SlipApprovalActor {
 
 /** 상세 응답 — BE `SlipDetailResponse`. */
 export interface SlipDetail extends SlipSummary {
+  /** 발행 출처. 구 응답 누락 시 기존 수기 전표와 동일하게 처리한다. */
+  sourceType?: SlipSourceType
   memo: string | null
   lines: SlipLineDetail[]
   partnerCode?: string | null

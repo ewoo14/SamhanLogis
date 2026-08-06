@@ -129,7 +129,7 @@
   vertical-align: top;
 }
 
-.ledgerTable tfoot td {
+.ledgerTable .summaryBody td {
   border: 1px solid #d1d5db;
   padding: 2.2mm 2.5mm;
 }

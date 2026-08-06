@@ -153,6 +153,6 @@ export async function listSlipAllocationSources(
   if (options.partnerId) params.set('partnerId', options.partnerId)
   const res = await apiClient.get<
     SlipAllocationSourceSummary[] | ApiEnvelope<SlipAllocationSourceSummary[]>
-  >(`/internal/slips/by-period?${params.toString()}`)
+  >(`/slips/by-period?${params.toString()}`)
   return unwrap(res.data)
 }

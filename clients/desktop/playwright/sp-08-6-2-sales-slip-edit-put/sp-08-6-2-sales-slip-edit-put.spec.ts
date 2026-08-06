@@ -55,8 +55,9 @@ test.describe('SP-08-6-2 매출 수정 direct PUT 계약', () => {
     const page = read('clients/desktop/src/renderer/routes/SlipDetailPage.tsx')
     const api = read('clients/desktop/src/renderer/api/slip.ts')
 
-    // canAccess 동적 권한 게이트
-    expect(page).toContain("canAccess('sales.slip.edit', 'update')")
+    // 유형·상태별 동적 권한 게이트
+    expect(page).toContain('canOpenDirectEdit')
+    expect(page).toContain("'sales.slip.edit'")
 
     // mode 분기 — OUTBOUND 진입 시에만 canDirectEditSales = true
     expect(page).toContain("mode === 'OUTBOUND'")

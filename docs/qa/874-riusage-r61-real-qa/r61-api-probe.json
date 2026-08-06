@@ -1,0 +1,854 @@
+{
+  "slipCount": 2420,
+  "dates": [
+    "2026-08-05",
+    "2026-08-03",
+    "2026-08-01",
+    "2026-07-31",
+    "2026-07-27",
+    "2026-07-26",
+    "2026-07-25",
+    "2026-07-22",
+    "2026-07-19",
+    "2026-07-18",
+    "2026-07-17",
+    "2026-07-16",
+    "2026-07-15",
+    "2026-07-05",
+    "2026-06-27",
+    "2026-06-25",
+    "2026-06-24",
+    "2026-06-23",
+    "2026-06-08",
+    "2026-06-07",
+    "2026-06-03",
+    "2026-05-31",
+    "2026-05-30",
+    "2026-05-20",
+    "2026-03-11",
+    "2026-03-10",
+    "2026-03-09",
+    "2026-03-08",
+    "2026-03-07",
+    "2026-03-06",
+    "2026-03-05",
+    "2026-03-04",
+    "2026-03-03",
+    "2026-03-02",
+    "2026-03-01",
+    "2026-02-28",
+    "2026-02-27",
+    "2026-02-26",
+    "2026-02-25",
+    "2026-02-24",
+    "2026-02-23",
+    "2026-02-22",
+    "2026-02-21",
+    "2026-02-20",
+    "2026-02-19",
+    "2026-02-18",
+    "2026-02-17",
+    "2026-02-16",
+    "2026-02-15",
+    "2026-02-14",
+    "2026-02-13",
+    "2026-02-12",
+    "2026-02-11",
+    "2026-02-10",
+    "2026-02-09",
+    "2026-02-08",
+    "2026-02-07",
+    "2026-02-06",
+    "2026-02-05",
+    "2026-02-04",
+    "2026-02-03",
+    "2026-02-02",
+    "2026-02-01",
+    "2026-01-31",
+    "2026-01-30",
+    "2026-01-29",
+    "2026-01-28",
+    "2026-01-27",
+    "2026-01-26",
+    "2026-01-25",
+    "2026-01-24",
+    "2026-01-23",
+    "2026-01-22",
+    "2026-01-21",
+    "2026-01-20",
+    "2026-01-19",
+    "2026-01-18",
+    "2026-01-17",
+    "2026-01-16",
+    "2026-01-15",
+    "2026-01-14",
+    "2026-01-13",
+    "2026-01-12",
+    "2026-01-11",
+    "2026-01-10",
+    "2026-01-09",
+    "2026-01-08",
+    "2026-01-07",
+    "2026-01-06",
+    "2026-01-05",
+    "2026-01-04",
+    "2026-01-03",
+    "2026-01-02",
+    "2026-01-01"
+  ],
+  "target": [],
+  "results": [
+    {
+      "date": "2026-08-05",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-08-05\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.516416025Z\"}"
+    },
+    {
+      "date": "2026-08-03",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-08-03\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.597860246Z\"}"
+    },
+    {
+      "date": "2026-08-01",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-08-01\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.650101925Z\"}"
+    },
+    {
+      "date": "2026-07-31",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-31\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.705015332Z\"}"
+    },
+    {
+      "date": "2026-07-27",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-27\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.758990215Z\"}"
+    },
+    {
+      "date": "2026-07-26",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-26\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.812426423Z\"}"
+    },
+    {
+      "date": "2026-07-25",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-25\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.865697931Z\"}"
+    },
+    {
+      "date": "2026-07-22",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-22\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.935633446Z\"}"
+    },
+    {
+      "date": "2026-07-19",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-19\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:47.993067841Z\"}"
+    },
+    {
+      "date": "2026-07-18",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-18\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.053346934Z\"}"
+    },
+    {
+      "date": "2026-07-17",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-17\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.100821548Z\"}"
+    },
+    {
+      "date": "2026-07-16",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-16\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.144529163Z\"}"
+    },
+    {
+      "date": "2026-07-15",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-15\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.188812132Z\"}"
+    },
+    {
+      "date": "2026-07-05",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-07-05\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.238166792Z\"}"
+    },
+    {
+      "date": "2026-06-27",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-06-27\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.283541331Z\"}"
+    },
+    {
+      "date": "2026-06-25",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-06-25\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.331032086Z\"}"
+    },
+    {
+      "date": "2026-06-24",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-06-24\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.374891026Z\"}"
+    },
+    {
+      "date": "2026-06-23",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-06-23\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.418593700Z\"}"
+    },
+    {
+      "date": "2026-06-08",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-06-08\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.462571012Z\"}"
+    },
+    {
+      "date": "2026-06-07",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-06-07\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.509963395Z\"}"
+    },
+    {
+      "date": "2026-06-03",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-06-03\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.564631910Z\"}"
+    },
+    {
+      "date": "2026-05-31",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-05-31\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.608794088Z\"}"
+    },
+    {
+      "date": "2026-05-30",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-05-30\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.653682200Z\"}"
+    },
+    {
+      "date": "2026-05-20",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-05-20\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.698621642Z\"}"
+    },
+    {
+      "date": "2026-03-11",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-11\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.744353023Z\"}"
+    },
+    {
+      "date": "2026-03-10",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-10\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.792342184Z\"}"
+    },
+    {
+      "date": "2026-03-09",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-09\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.841178865Z\"}"
+    },
+    {
+      "date": "2026-03-08",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-08\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.887462141Z\"}"
+    },
+    {
+      "date": "2026-03-07",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-07\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.934806515Z\"}"
+    },
+    {
+      "date": "2026-03-06",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-06\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:48.986007244Z\"}"
+    },
+    {
+      "date": "2026-03-05",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-05\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.035514121Z\"}"
+    },
+    {
+      "date": "2026-03-04",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-04\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.089252020Z\"}"
+    },
+    {
+      "date": "2026-03-03",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-03\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.151593264Z\"}"
+    },
+    {
+      "date": "2026-03-02",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-02\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.200980367Z\"}"
+    },
+    {
+      "date": "2026-03-01",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-03-01\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.253239049Z\"}"
+    },
+    {
+      "date": "2026-02-28",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-28\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.304483699Z\"}"
+    },
+    {
+      "date": "2026-02-27",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-27\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.356659964Z\"}"
+    },
+    {
+      "date": "2026-02-26",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-26\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.403978895Z\"}"
+    },
+    {
+      "date": "2026-02-25",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-25\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.456244669Z\"}"
+    },
+    {
+      "date": "2026-02-24",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-24\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.500190901Z\"}"
+    },
+    {
+      "date": "2026-02-23",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-23\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.544157897Z\"}"
+    },
+    {
+      "date": "2026-02-22",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-22\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.588005055Z\"}"
+    },
+    {
+      "date": "2026-02-21",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-21\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.639418328Z\"}"
+    },
+    {
+      "date": "2026-02-20",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-20\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.686203270Z\"}"
+    },
+    {
+      "date": "2026-02-19",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-19\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.733269921Z\"}"
+    },
+    {
+      "date": "2026-02-18",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-18\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.781173344Z\"}"
+    },
+    {
+      "date": "2026-02-17",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-17\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.829555913Z\"}"
+    },
+    {
+      "date": "2026-02-16",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-16\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.875372741Z\"}"
+    },
+    {
+      "date": "2026-02-15",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-15\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.921469807Z\"}"
+    },
+    {
+      "date": "2026-02-14",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-14\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:49.969647806Z\"}"
+    },
+    {
+      "date": "2026-02-13",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-13\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.019268436Z\"}"
+    },
+    {
+      "date": "2026-02-12",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-12\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.072021013Z\"}"
+    },
+    {
+      "date": "2026-02-11",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-11\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.118403447Z\"}"
+    },
+    {
+      "date": "2026-02-10",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-10\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.173738708Z\"}"
+    },
+    {
+      "date": "2026-02-09",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-09\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.220532908Z\"}"
+    },
+    {
+      "date": "2026-02-08",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-08\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.267925902Z\"}"
+    },
+    {
+      "date": "2026-02-07",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-07\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.315082479Z\"}"
+    },
+    {
+      "date": "2026-02-06",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-06\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.367492577Z\"}"
+    },
+    {
+      "date": "2026-02-05",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-05\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.419526270Z\"}"
+    },
+    {
+      "date": "2026-02-04",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-04\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.467989391Z\"}"
+    },
+    {
+      "date": "2026-02-03",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-03\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.517696791Z\"}"
+    },
+    {
+      "date": "2026-02-02",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-02\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.568901442Z\"}"
+    },
+    {
+      "date": "2026-02-01",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-02-01\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.616580435Z\"}"
+    },
+    {
+      "date": "2026-01-31",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-31\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.668607459Z\"}"
+    },
+    {
+      "date": "2026-01-30",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-30\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.720990260Z\"}"
+    },
+    {
+      "date": "2026-01-29",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-29\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.768239563Z\"}"
+    },
+    {
+      "date": "2026-01-28",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-28\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.817897676Z\"}"
+    },
+    {
+      "date": "2026-01-27",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-27\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.866607865Z\"}"
+    },
+    {
+      "date": "2026-01-26",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-26\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.917765550Z\"}"
+    },
+    {
+      "date": "2026-01-25",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-25\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:50.970282587Z\"}"
+    },
+    {
+      "date": "2026-01-24",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-24\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.015942754Z\"}"
+    },
+    {
+      "date": "2026-01-23",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-23\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.061489705Z\"}"
+    },
+    {
+      "date": "2026-01-22",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-22\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.104991171Z\"}"
+    },
+    {
+      "date": "2026-01-21",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-21\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.148634825Z\"}"
+    },
+    {
+      "date": "2026-01-20",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-20\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.192100657Z\"}"
+    },
+    {
+      "date": "2026-01-19",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-19\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.242470292Z\"}"
+    },
+    {
+      "date": "2026-01-18",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-18\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.288869517Z\"}"
+    },
+    {
+      "date": "2026-01-17",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-17\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.334719014Z\"}"
+    },
+    {
+      "date": "2026-01-16",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-16\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.378578881Z\"}"
+    },
+    {
+      "date": "2026-01-15",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-15\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.426305935Z\"}"
+    },
+    {
+      "date": "2026-01-14",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-14\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.469828778Z\"}"
+    },
+    {
+      "date": "2026-01-13",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-13\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.513286273Z\"}"
+    },
+    {
+      "date": "2026-01-12",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-12\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.562008386Z\"}"
+    },
+    {
+      "date": "2026-01-11",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-11\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.605945103Z\"}"
+    },
+    {
+      "date": "2026-01-10",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-10\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.650443594Z\"}"
+    },
+    {
+      "date": "2026-01-09",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-09\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.695981041Z\"}"
+    },
+    {
+      "date": "2026-01-08",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-08\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.748909848Z\"}"
+    },
+    {
+      "date": "2026-01-07",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-07\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.798745844Z\"}"
+    },
+    {
+      "date": "2026-01-06",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-06\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.851810973Z\"}"
+    },
+    {
+      "date": "2026-01-05",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-05\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.896210068Z\"}"
+    },
+    {
+      "date": "2026-01-04",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-04\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.944244963Z\"}"
+    },
+    {
+      "date": "2026-01-03",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-03\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:51.992643358Z\"}"
+    },
+    {
+      "date": "2026-01-02",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-02\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:52.041936162Z\"}"
+    },
+    {
+      "date": "2026-01-01",
+      "status": 200,
+      "tax": 0,
+      "products": 0,
+      "sample": [],
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"date\":\"2026-01-01\",\"totalTaxInvoiceCount\":0,\"totalSupply\":0,\"totalVat\":0,\"totalAmount\":0,\"totalDiscount\":0,\"taxInvoices\":[],\"productSummaries\":[]},\"timestamp\":\"2026-08-05T14:53:52.089782627Z\"}"
+    }
+  ]
+}

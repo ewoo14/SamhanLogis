@@ -84,8 +84,9 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
     // BE-A9 endpoint
     expect(reportCtrl).toContain('@GetMapping("/accounting/journals/ledger-data")')
     expect(reportCtrl).toContain('LedgerImageResponse')
-    // 거래처 필터는 partnerCode로 유지하고, 작성자 UUID는 응답 DTO가 아닌 내부 snapshot audit으로만 전달한다.
-    expect(reportCtrl).toContain('ledgerImageService.getLedger(partnerCode, from, to, parseUuid(userId))')
+    // R41: 구형 응답 shape만 유지하고 수집·분류는 신규 원장 read contract를 소비한다.
+    expect(reportCtrl).toContain('partnerLedgerReadService.read(partnerCode, from, to)')
+    expect(reportCtrl).toContain('toLegacyLedgerResponse')
 
     // partnerCode 필수 파라미터 — 거래처 필터
     expect(reportCtrl).toContain('@RequestParam String partnerCode')
@@ -177,7 +178,7 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
     expect(api).toContain('LedgerData')
     expect(api).toContain('LedgerLine')
     expect(api).toContain('SalesAggregateRow')
-    expect(api).toContain('/accounting/journals/ledger-data')
+    expect(api).toContain('/accounting/journals/partner-ledger')
     expect(api).toContain('/accounting/sales/aggregate')
 
     // UUID 비공개 — 인터페이스 필드에 partnerId 없음 (주석 언급은 허용)

@@ -33,11 +33,12 @@
  * 사용자 Edge 캡처 검토 후 2~5차 iteration 으로 미세 조정 예정.
  */
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
+import { getLedgerData, mapLedgerSnapshotResponse, restoreLedger, type LedgerData } from '../api/partnerLedgerApi'
 import styles from './PartnerLedgerView.module.css'
 
 /**
@@ -65,6 +66,10 @@ interface LedgerLine {
   credit: number
   /** 누적 잔액 (KRW 정수, 음수 가능). BE 가 라인 순서대로 누적 계산. */
   balance: number
+  /** 구조화된 배송주소. 적요에서 파싱하지 않는다. */
+  deliveryAddress?: string | null
+  documentType?: string
+  effect?: 'SALE' | 'PAYMENT' | 'ADJUSTMENT' | 'NONE'
 }
 
 /**
@@ -103,7 +108,7 @@ interface PartnerLedgerData {
  *
  * <p>본 mock 은 전형적 운영 시나리오 (월간 거래처 6~10 line, 기초 잔액 + 매출/입금 mix).
  */
-const MOCK_DATA: PartnerLedgerData = {
+const _MOCK_DATA: PartnerLedgerData = {
   partnerCode: 'P-00123',
   partnerName: '강남공조㈜',
   businessRegNo: '120-81-23456',
@@ -194,13 +199,15 @@ function resolvePeriodDate(
  * 잔액 표시 헬퍼 — 음수 시 △ prefix (한국 회계 관행).
  */
 function formatBalance(n: number): string {
-  if (n < 0) return `△ ${krw(Math.abs(n))}`
+  if (n === 0) return '—'
+  if (n < 0) return `-${krw(Math.abs(n))}`
   return krw(n)
 }
 
-export function PartnerLedgerView() {
+export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}) {
   const [searchParams] = useSearchParams()
-  const partnerCodeParam = searchParams.get('partnerCode')
+  const partnerCodeParam = partnerCode ?? searchParams.get('partnerCode')
+  const batchNoParam = searchParams.get('batchNo')
   const periodFrom = useMemo(
     () => resolvePeriodDate(searchParams.get('from'), 'from'),
     [searchParams],
@@ -210,20 +217,49 @@ export function PartnerLedgerView() {
     [searchParams],
   )
 
-  // PR-E2 FE 단계에서 useQuery 로 교체 — 본 mock 단계는 정적 데이터.
-  const data: PartnerLedgerData = useMemo(
-    () => ({
-      ...MOCK_DATA,
-      partnerCode: partnerCodeParam ?? MOCK_DATA.partnerCode,
-      periodFrom,
-      periodTo,
-    }),
-    [partnerCodeParam, periodFrom, periodTo],
-  )
+  const ledgerQuery = useQuery<LedgerData>({
+    queryKey: ['partner-ledger-print', partnerCodeParam, periodFrom, periodTo, batchNoParam ?? ''],
+    queryFn: async () => batchNoParam
+      ? mapLedgerSnapshotResponse((await restoreLedger(batchNoParam)).ledger!)
+      : getLedgerData(partnerCodeParam ?? '', periodFrom, periodTo),
+    enabled: Boolean(partnerCodeParam),
+  })
+  const data: PartnerLedgerData | null = useMemo(() => {
+    if (!ledgerQuery.data) return null
+    const source = ledgerQuery.data
+    const lines = source.lines.map((line) => ({
+      date: line.date,
+      slipNo: line.journalNo,
+      description: line.description,
+      debit: Number(line.debit) || 0,
+      credit: Number(line.credit) || 0,
+      balance: Number(line.balance) || 0,
+      deliveryAddress: line.deliveryAddress,
+      documentType: line.documentType,
+      effect: line.effect,
+    }))
+    return {
+      partnerCode: source.partnerCode,
+      partnerName: source.partnerName,
+      businessRegNo: source.partnerBusinessNo,
+      chatRoomName: source.chatRoomNames.join(' / '),
+      periodFrom: source.periodFrom,
+      periodTo: source.periodTo,
+      openingBalance: Number(source.openingBalance) || 0,
+      lines,
+      totalDebit: lines.reduce((sum, line) => sum + line.debit, 0),
+      totalCredit: lines.reduce((sum, line) => sum + line.credit, 0),
+      closingBalance: Number(source.closingBalance ?? lines.at(-1)?.balance ?? source.openingBalance) || 0,
+    }
+  }, [ledgerQuery.data])
 
   const { company } = useCompanyProfile()
 
-  usePageTitle('거래처 원장', data.partnerName)
+  usePageTitle('거래처 원장', data?.partnerName ?? '거래처 원장')
+
+  if (!data) {
+    return <div data-testid="partner-ledger-print-area">{ledgerQuery.isError ? '원장을 불러오지 못했습니다.' : '원장을 불러오는 중입니다.'}</div>
+  }
 
   return (
     <PrintLayout paper="a4-portrait" backTo="/accounting">
@@ -264,7 +300,9 @@ export function PartnerLedgerView() {
             <thead>
               <tr>
                 <th className={styles.colDate}>일자</th>
-                <th className={styles.colSlipNo}>전표번호</th>
+                <th className={styles.colSlipNo}>분개번호</th>
+                <th>구분</th>
+                <th>배송주소</th>
                 <th className={styles.colDesc}>적요</th>
                 <th className={styles.colDebit}>차변</th>
                 <th className={styles.colCredit}>대변</th>
@@ -274,12 +312,12 @@ export function PartnerLedgerView() {
             <tbody>
               {/* 기초 잔액 row */}
               <tr className={styles.openingRow}>
-                <td colSpan={3} className={styles.openingLabel}>
+                <td colSpan={5} className={styles.openingLabel}>
                   [기초 잔액 — {krDate(data.periodFrom)} 이전]
                 </td>
                 <td className={styles.num}>-</td>
                 <td className={styles.num}>-</td>
-                <td className={`${styles.num} ${styles.balanceCell}`}>
+                <td className={`${styles.num} ${styles.balanceCell}`} style={{ color: data.openingBalance < 0 ? '#DC2626' : undefined }}>
                   {formatBalance(data.openingBalance)}
                 </td>
               </tr>
@@ -287,44 +325,48 @@ export function PartnerLedgerView() {
               {data.lines.map((line, idx) => (
                 <tr key={`${line.date}-${line.slipNo}-${idx}`}>
                   <td className={styles.dateCell}>{line.date}</td>
-                  <td className={styles.slipNoCell}>{stripSlipNoZeros(line.slipNo)}</td>
-                  <td className={styles.descCell}>{line.description}</td>
-                  <td className={`${styles.num} ${styles.debitCell}`}>
-                    {line.debit > 0 ? krw(line.debit) : ''}
+                  <td className={styles.slipNoCell}>{line.slipNo}</td>
+                  <td>{line.effect === 'PAYMENT' ? '수금' : line.effect === 'ADJUSTMENT' ? '조정' : '매출'}</td>
+                  <td>{line.deliveryAddress || '—'}</td>
+                  <td className={styles.descCell}>
+                    {line.description}
                   </td>
-                  <td className={`${styles.num} ${styles.creditCell}`}>
-                    {line.credit > 0 ? krw(line.credit) : ''}
+                  <td className={`${styles.num} ${styles.debitCell}`} style={{ color: line.debit < 0 ? '#DC2626' : undefined }}>
+                    {formatBalance(line.debit)}
                   </td>
-                  <td className={`${styles.num} ${styles.balanceCell}`}>
+                  <td className={`${styles.num} ${styles.creditCell}`} style={{ color: line.credit < 0 ? '#DC2626' : undefined }}>
+                    {formatBalance(line.credit)}
+                  </td>
+                  <td className={`${styles.num} ${styles.balanceCell}`} style={{ color: line.balance < 0 ? '#DC2626' : undefined }}>
                     {formatBalance(line.balance)}
                   </td>
                 </tr>
               ))}
             </tbody>
-            <tfoot>
+            <tbody className={styles.summaryBody} data-testid="partner-ledger-print-summary">
               <tr className={styles.totalRow}>
-                <td colSpan={3} className={styles.totalLabel}>
+                <td colSpan={5} className={styles.totalLabel}>
                   합계
                 </td>
                 <td className={`${styles.num} ${styles.debitCell} ${styles.strong}`}>
-                  {krw(data.totalDebit)}
+                  {formatBalance(data.totalDebit)}
                 </td>
                 <td className={`${styles.num} ${styles.creditCell} ${styles.strong}`}>
-                  {krw(data.totalCredit)}
+                  {formatBalance(data.totalCredit)}
                 </td>
                 <td className={`${styles.num} ${styles.balanceCell} ${styles.strong}`}>
-                  -
+                  {formatBalance(0)}
                 </td>
               </tr>
               <tr className={styles.closingRow}>
-                <td colSpan={5} className={styles.closingLabel}>
+                <td colSpan={6} className={styles.closingLabel}>
                   기말 잔액 ({krDate(data.periodTo)} 기준)
                 </td>
-                <td className={`${styles.num} ${styles.balanceCell} ${styles.strong}`}>
+                <td className={`${styles.num} ${styles.balanceCell} ${styles.strong}`} style={{ color: data.closingBalance < 0 ? '#DC2626' : undefined }}>
                   {formatBalance(data.closingBalance)}
                 </td>
               </tr>
-            </tfoot>
+            </tbody>
           </table>
         )}
 

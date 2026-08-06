@@ -23,6 +23,7 @@ import java.util.UUID;
  * <p>PR-B(2026-06-11) 추가 필드: usageScope/estimateCategory/usageScopeManual/displayOrder.
  * V18 이후 estimateCategory/displayOrder 는 카탈로그 DTO 전용 다중 노출 정보로 이동했으므로
  * 본 요약 DTO 의 deprecated 호환 필드는 null 을 반환한다.
+ * 품목 검색 모달의 규격 열을 채우기 위해 {@code specification} 도 함께 반환한다.
  */
 public record ProductSummaryResponse(
         UUID id,
@@ -46,7 +47,8 @@ public record ProductSummaryResponse(
         BigDecimal releasePrice,
         BigDecimal deliveryPrice,
         Boolean hasVariableDiscount,
-        String parentSetModelCode) {
+        String parentSetModelCode,
+        String specification) {
 
     /** parentSetModelCode 추가 전 canonical 호출 호환 생성자. */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
@@ -60,7 +62,7 @@ public record ProductSummaryResponse(
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, usageScope, estimateCategory, usageScopeManual, displayOrder,
                 categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
-                hasVariableDiscount, null);
+                hasVariableDiscount, null, null);
     }
 
     /**
@@ -148,13 +150,14 @@ public record ProductSummaryResponse(
                 null,
                 p.isUsageScopeManual(),
                 null,
-                categoryKey(p.getProductCategory()),
+                categoryKey(p),
                 p.getFixedDiscountRate(),
                 p.getDiscountFlags(),
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
                 p.getHasVariableDiscount(),
-                null);
+                null,
+                p.getSpecification());
     }
 
     /** 내부 소비자가 구성품의 레거시 세트 매칭명을 함께 보존할 때 사용하는 변환. */
@@ -165,7 +168,8 @@ public record ProductSummaryResponse(
                 base.sellingPrice(), base.status(), base.serialManaged(), base.goods(), base.modelCode(),
                 base.productType(), base.usageScope(), base.estimateCategory(), base.usageScopeManual(),
                 base.displayOrder(), base.categoryKey(), base.fixedDiscountRate(), base.discountFlags(),
-                base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode);
+                base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode,
+                base.specification());
     }
 
     /**
@@ -179,9 +183,10 @@ public record ProductSummaryResponse(
         return p.getModelName();
     }
 
-    private static String categoryKey(ProductCategory productCategory) {
+    private static String categoryKey(Product p) {
+        ProductCategory productCategory = p.getProductCategory();
         if (productCategory == null) {
-            return null;
+            return categoryKeyFromPhysicalCategory(p.getCategory());
         }
         return switch (productCategory) {
             case HOME_MULTI -> "homemulti";
@@ -191,6 +196,22 @@ public record ProductSummaryResponse(
             case COMMERCIAL_PART -> "commercialParts";
             case OLD -> "oldProducts";
             case MATERIAL -> "singleMatPrices";
+        };
+    }
+
+    /**
+     * native ECOUNT/HVAC 적재처럼 product_category 없이 category_id만 채워진 품목의
+     * 레거시 화면용 카테고리 키를 물리 카테고리에서 파생한다.
+     * 명시적인 product_category가 있으면 위의 시트 분류를 우선한다.
+     */
+    private static String categoryKeyFromPhysicalCategory(com.samhanair.logis.product.domain.Category category) {
+        if (category == null || category.getCode() == null) {
+            return null;
+        }
+        return switch (category.getCode()) {
+            case "INDOOR_WALL" -> "homemulti";
+            case "OUTDOOR", "INDOOR_CEILING" -> "commercialMulti";
+            default -> null;
         };
     }
 }

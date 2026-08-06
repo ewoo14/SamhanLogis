@@ -14,8 +14,8 @@
  * - SAVED      → send / cancel
  * - SENT       → accept / reject / cancel
  * - ACCEPTED   → process / reject
- * - PROCESSING → inspect (Slice A 신규 — 기존 complete 대신)
- * - INSPECTING → complete (Slice A 신규)
+ * - PROCESSING → complete (재고 반영 후 검수 대기 — BE complete endpoint)
+ * - INSPECTING → inspect / reject (처리 완료 또는 반려 — BE inspect/reject endpoint)
  * - COMPLETED  → ship (OUTBOUND) / confirm (INBOUND 즉시)
  * - SHIPPING   → deliver
  * - DELIVERED  → confirm (OUTBOUND)
@@ -63,6 +63,7 @@ import {
   updateSlipDriver,
   type SlipDetail,
   type SlipLineInput,
+  type SlipSourceType,
   type SlipTransitionAction,
   type SlipType,
 } from '../api/slip'
@@ -102,9 +103,9 @@ import {
 } from '../realtime/coeditLineIds'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
-import type { PageCode } from '../api/permissionsApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePresence } from '../hooks/usePresence'
+import { type PageCode, type PermissionLookupAction } from '../api/permissionsApi'
 import { OUTBOUND_DELIVERY_TAG_LABELS } from '../api/slipCutoff'
 import {
   partnerRepriceSessionIsCurrent,
@@ -285,19 +286,23 @@ function slipStatusLabel(status: string): string {
 export function actionsForStatus(
   status: SlipDetail['status'],
   mode: SlipType,
+  sourceType: SlipSourceType = 'MANUAL',
 ): SlipTransitionAction[] {
-  if (status === 'INSPECTING') return ['inspect']
   switch (status) {
     case 'DRAFT':
       return ['save', 'cancel']
     case 'SAVED':
       return ['send', 'cancel']
     case 'SENT':
-      return ['accept', 'reject', 'cancel']
+      return sourceType === 'PARTNER_ORDER'
+        ? ['accept', 'reject']
+        : ['accept', 'reject', 'cancel']
     case 'ACCEPTED':
       return ['process', 'reject']
     case 'PROCESSING':
-      return ['complete']
+      return ['complete'] // Slice A: complete → inspect (검수 단계 거침)
+    case 'INSPECTING':
+      return ['inspect', 'reject'] // Slice A: inspect → COMPLETED 또는 reject → REJECTED
     case 'COMPLETED':
       return mode === 'OUTBOUND' ? ['ship'] : ['confirm']
     case 'SHIPPING':
@@ -309,18 +314,49 @@ export function actionsForStatus(
   }
 }
 
+export function desktopFooterActions(
+  status: SlipDetail['status'],
+  mode: SlipType,
+  canCollabEdit: boolean,
+  sourceType: SlipSourceType = 'MANUAL',
+): Array<SlipTransitionAction | 'collab-edit'> {
+  const nextPrimaryAction = actionsForStatus(status, mode, sourceType)
+    .find((action) => action !== 'reject' && action !== 'cancel')
+
+  return [
+    ...(nextPrimaryAction ? [nextPrimaryAction] : []),
+    ...(status === 'COMPLETED' && canCollabEdit ? ['collab-edit' as const] : []),
+  ]
+}
+
 const ACTION_LABEL: Record<SlipTransitionAction, string> = {
   save: '저장',
   send: '전송',
   accept: '수락',
   process: '처리 시작',
   inspect: '처리 완료',
-  complete: '완료',
+  complete: '처리 완료',
   ship: '배송 시작',
   deliver: '배송 완료',
   confirm: '확정',
   reject: '반려',
   cancel: '취소',
+}
+
+export function labelForAction(action: SlipTransitionAction, mode: SlipType): string {
+  if (action === 'complete') return mode === 'OUTBOUND' ? '출고 완료' : '입고 완료'
+  return ACTION_LABEL[action]
+}
+
+export function transitionActionLabel(
+  status: SlipDetail['status'],
+  action: SlipTransitionAction,
+  mode: SlipType,
+): string {
+  if (status === 'PROCESSING' && action === 'complete') {
+    return `재고 반영 후 검수 대기 (${labelForAction(action, mode)})`
+  }
+  return labelForAction(action, mode)
 }
 
 const INSPECTION_STATUS_LABEL: Record<string, string> = {
@@ -1077,6 +1113,122 @@ export function buildDetailLinePayload(line: PurchaseEditLine): SlipLineInput {
   }
 }
 
+/** lifecycle 전이 성공 후 서버가 채택하는 도착 status — 편집 표면 조정의 단일 진실원. */
+export function transitionDestinationStatus(
+  action: SlipTransitionAction,
+): SlipDetail['status'] {
+  switch (action) {
+    case 'save': return 'SAVED'
+    case 'send': return 'SENT'
+    case 'accept': return 'ACCEPTED'
+    case 'process': return 'PROCESSING'
+    case 'complete': return 'INSPECTING'
+    case 'inspect': return 'COMPLETED'
+    case 'ship': return 'SHIPPING'
+    case 'deliver': return 'DELIVERED'
+    case 'confirm': return 'CONFIRMED'
+    case 'reject': return 'REJECTED'
+    case 'cancel': return 'CANCELED'
+  }
+}
+
+export type TransitionConflictCause = 'concurrent' | 'inventory' | 'unknown' | 'other'
+
+const CONCURRENT_TRANSITION_MESSAGE = '다른 사용자가 먼저 전표를 전이했습니다. 현재 편집 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.'
+const INVENTORY_SHORTAGE_ACCEPT_MESSAGE = '재고가 부족하여 전표를 수락할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.'
+const INVENTORY_SHORTAGE_COMPLETE_MESSAGE = '재고가 부족하여 전표를 검수 대기 상태로 전환할 수 없습니다. 재고를 확인한 뒤 다시 시도하세요.'
+const UNKNOWN_TRANSITION_CONFLICT_MESSAGE = '전이 실패 원인을 확인할 수 없습니다. 최신 전표 상태를 확인한 뒤 다시 시도하세요.'
+const CONCURRENT_TRANSITION_MARKERS = ['전이 가능한 상태가 아닙니다', '동시 수정 충돌'] as const
+const INVENTORY_SHORTAGE_MARKERS = ['재고 부족'] as const
+
+/** 409 응답에서 업무 재고 부족과 전표 동시 전이를 구분한다. 알 수 없는 409는 식별 실패로 남긴다. */
+export function classifyTransitionConflict(error: unknown): TransitionConflictCause {
+  if (!axios.isAxiosError(error) || error.response?.status !== 409) return 'other'
+
+  const responseData = error.response.data
+  const responseText = typeof responseData === 'string'
+    ? responseData
+    : responseData && typeof responseData === 'object'
+      ? Object.values(responseData as Record<string, unknown>)
+          .filter((value): value is string => typeof value === 'string')
+          .join(' ')
+      : ''
+
+  if (INVENTORY_SHORTAGE_MARKERS.some((marker) => responseText.includes(marker))) {
+    return 'inventory'
+  }
+  return CONCURRENT_TRANSITION_MARKERS.some((marker) => responseText.includes(marker))
+    ? 'concurrent'
+    : 'unknown'
+}
+
+/** 전이 409 원인별 사용자 안내와 편집 표면 잠금 정책. */
+export function transitionConflictEditPolicy(
+  cause: Exclude<TransitionConflictCause, 'other'>,
+  action: SlipTransitionAction = 'accept',
+): { message: string; blockEditSurfaces: boolean } {
+  if (cause === 'inventory') {
+    return {
+      message: action === 'complete'
+        ? INVENTORY_SHORTAGE_COMPLETE_MESSAGE
+        : INVENTORY_SHORTAGE_ACCEPT_MESSAGE,
+      blockEditSurfaces: false,
+    }
+  }
+  if (cause === 'unknown') {
+    return { message: UNKNOWN_TRANSITION_CONFLICT_MESSAGE, blockEditSurfaces: true }
+  }
+  return { message: CONCURRENT_TRANSITION_MESSAGE, blockEditSurfaces: true }
+}
+
+/** 직접수정·기사 PATCH가 서버에서 허용되는 status. */
+export function isDirectEditStatus(status: SlipDetail['status']): boolean {
+  return status === 'DRAFT' || status === 'SAVED'
+}
+
+/** 협업 overlay 저장이 서버에서 허용되는 물리 종결 전 status. */
+export function isCollabEditStatus(status: SlipDetail['status']): boolean {
+  return status !== 'SHIPPING'
+    && status !== 'DELIVERED'
+    && status !== 'CANCELED'
+    && status !== 'REJECTED'
+}
+
+/** 협업수정 권한이 있어도 서버가 저장하지 않는 물리 종결 상태에서는 진입점을 닫는다. */
+export function canOpenCollabEdit(
+  status: SlipDetail['status'],
+  hasPermission: boolean,
+): boolean {
+  return hasPermission && isCollabEditStatus(status)
+}
+
+/**
+ * 직접수정과 협업수정은 같은 저장 필드(memo)를 공유하므로 편집 표면을 배타적으로 연다.
+ * 버튼 라벨과 이 상태 판정은 데스크톱·모바일 진입점에서 함께 사용한다.
+ */
+export function editSurfaceEntryAvailability(
+  directAllowed: boolean,
+  collabAllowed: boolean,
+  directOpen: boolean,
+  collabOpen: boolean,
+): { direct: boolean; collab: boolean } {
+  return {
+    direct: directAllowed && !collabOpen,
+    collab: collabAllowed && !directOpen,
+  }
+}
+
+/** 직접수정 폼의 서버 저장 payload 기준 fingerprint — UI용 random key는 비교에서 제외한다. */
+function editDraftFingerprint(
+  fields: Record<string, string | null>,
+  lines: PurchaseEditLine[],
+): string {
+  return JSON.stringify({
+    ...fields,
+    lines: lines.map(buildDetailLinePayload),
+  })
+}
+
 /**
  * "2026-05-04T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4.
  */
@@ -1085,61 +1237,100 @@ function formatHHmm(iso: string | null | undefined): string {
   return iso.slice(11, 16)
 }
 
+export interface SlipActionPermissionRequirement {
+  pageCode: PageCode
+  action: PermissionLookupAction
+}
+
 /**
- * 전표 transition action → BE @RequirePermission page-code + action 매핑.
+ * 전표 유형·전이 조합별 서버 {@code SlipController} 권한 계약.
  *
- * C5-2c: canTransitionSlip() 헬퍼를 canAccess() 로 이관.
- * 근거: services/slip-service/.../SlipController.java @RequirePermission + V36 seed.
- *
- *   save / send          → sales.slip.edit        / update (MASTER/MANAGER/SALES)
- *   accept/process/      → slip.transfer.process  / update (MASTER/MANAGER/WAREHOUSE/INVENTORY)
- *     inspect/complete/
- *     ship/deliver
- *   confirm              → sales.slip.confirm     / update (MASTER/MANAGER/ACCOUNTANT)
- *   reject               → slip.reject            / update (MASTER/MANAGER)
- *   cancel               → sales.slip.cancel      / update (MASTER/MANAGER/SALES)
+ * INBOUND save/send/cancel/confirm은 purchases.slip.edit UPDATE를 사용한다.
+ * INBOUND inspect는 공통 transfer 권한과 inbound.inspection UPDATE를 함께 요구한다.
+ * 이 표를 실행·disabled 양쪽에서 공유해 화면이 서버보다 넓거나 좁아지지 않게 한다.
  */
-function slipActionPageCode(
+export function slipActionPermissionRequirements(
   action: SlipTransitionAction,
-): { pageCode: 'sales.slip.edit' | 'slip.transfer.process' | 'sales.slip.confirm' | 'slip.reject' | 'sales.slip.cancel' } {
+  mode: SlipType,
+): SlipActionPermissionRequirement[] {
+  const editPage: PageCode = mode === 'INBOUND' ? 'purchases.slip.edit' : 'sales.slip.edit'
+  const update = (pageCode: PageCode): SlipActionPermissionRequirement => ({
+    pageCode,
+    action: 'update',
+  })
+
   switch (action) {
     case 'save':
     case 'send':
-      return { pageCode: 'sales.slip.edit' }
+      return [update(editPage)]
     case 'accept':
     case 'process':
-    case 'inspect':
     case 'complete':
     case 'ship':
     case 'deliver':
-      return { pageCode: 'slip.transfer.process' }
+      return [update('slip.transfer.process')]
+    case 'inspect':
+      return mode === 'INBOUND'
+        ? [update('slip.transfer.process'), update('inbound.inspection')]
+        : [update('slip.transfer.process')]
     case 'confirm':
-      return { pageCode: 'sales.slip.confirm' }
+      return [update(mode === 'INBOUND' ? 'purchases.slip.edit' : 'sales.slip.confirm')]
     case 'reject':
-      return { pageCode: 'slip.reject' }
+      return [update('slip.reject')]
     case 'cancel':
-      return { pageCode: 'sales.slip.cancel' }
+      return [update(mode === 'INBOUND' ? 'purchases.slip.edit' : 'sales.slip.cancel')]
   }
 }
 
-type CanAccess = (pageCode: PageCode, action: 'update') => boolean
+type CanAccess = (pageCode: PageCode, action?: PermissionLookupAction) => boolean
 
-/** inspect만 서버 단건 capability로 정적 UPDATE 차단을 보완한다. */
+/** 전이 실행·활성화 공통 권한 판정. 모든 서버 요구 권한을 만족해야 true다. */
+export function canAccessSlipAction(
+  action: SlipTransitionAction,
+  mode: SlipType,
+  canAccess: CanAccess,
+  canInspect = false,
+): boolean {
+  return slipActionPermissionRequirements(action, mode)
+    .every(({ pageCode, action: permissionAction }) => {
+      if (canAccess(pageCode, permissionAction)) return true
+      // 서버 capability는 OUTBOUND inspect의 단일 transfer UPDATE만 보완한다.
+      // INBOUND inspect의 다중 요구와 inspect 이외 액션은 모두 정적 권한을 요구한다.
+      return action === 'inspect'
+        && mode === 'OUTBOUND'
+        && pageCode === 'slip.transfer.process'
+        && canInspect
+    })
+}
+
+/** inspect capability를 포함한 실제 전이 실행 가드. 모든 실행 표면이 공유한다. */
 export function canTransitionSlipAction(
   action: SlipTransitionAction,
+  mode: SlipType,
   canAccess: CanAccess,
-  canInspect: boolean,
+  canInspect = false,
 ): boolean {
-  if (action === 'inspect') {
-    return canAccess(slipActionPageCode(action).pageCode, 'update') || canInspect
-  }
-  return canAccess(slipActionPageCode(action).pageCode, 'update')
+  return canAccessSlipAction(action, mode, canAccess, canInspect)
 }
 
-/** 공용 상세의 전이 라벨은 전표 유형에 맞춰 표시한다. */
-export function labelForAction(action: SlipTransitionAction, mode: SlipType): string {
-  if (action === 'complete') return mode === 'OUTBOUND' ? '출고 완료' : '입고 완료'
-  return ACTION_LABEL[action]
+/** DRAFT/SAVED 직접수정 진입 권한 — 전표 유형에 맞는 edit UPDATE만 본다. */
+export function canOpenDirectEdit(
+  mode: SlipType,
+  status: SlipDetail['status'],
+  canAccess: (pageCode: PageCode, action?: PermissionLookupAction) => boolean,
+): boolean {
+  const pageCode: PageCode = mode === 'INBOUND' ? 'purchases.slip.edit' : 'sales.slip.edit'
+  return isDirectEditStatus(status) && canAccess(pageCode, 'update')
+}
+
+/** DRAFT/SAVED soft delete 진입 권한 — INBOUND/OUTBOUND 삭제 계약을 분리한다. */
+export function canSoftDeleteSlip(
+  mode: SlipType,
+  status: SlipDetail['status'],
+  canAccess: (pageCode: PageCode, action?: PermissionLookupAction) => boolean,
+): boolean {
+  const pageCode: PageCode = mode === 'INBOUND' ? 'purchases.slip.delete' : 'sales.slip.edit'
+  return isDirectEditStatus(status) && canAccess(pageCode, 'delete')
 }
 
 export function SlipDetailPage({ mode }: SlipDetailPageProps) {
@@ -1192,6 +1383,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   // SP-08-6-2: 매출 direct PUT 수정 modal state.
   const [salesEditOpen, setSalesEditOpen] = useState(false)
+  const [salesEditStale, setSalesEditStale] = useState(false)
   const [salesConflictMessage, setSalesConflictMessage] = useState<string | null>(null)
   const [salesIsConflict, setSalesIsConflict] = useState(false)
   const [salesReloadSuccessMessage, setSalesReloadSuccessMessage] = useState<string | null>(null)
@@ -1212,6 +1404,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   // SP-08-5-2/E1-b-2: 매입 direct PUT 수정 state.
   const [purchaseEditOpen, setPurchaseEditOpen] = useState(false)
+  const [purchaseEditStale, setPurchaseEditStale] = useState(false)
   const [purchaseConflictMessage, setPurchaseConflictMessage] = useState<string | null>(null)
   const [purchaseIsConflict, setPurchaseIsConflict] = useState(false)
   const [purchaseReloadSuccessMessage, setPurchaseReloadSuccessMessage] = useState<string | null>(null)
@@ -1260,6 +1453,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }, [purchaseEditOpen, mode])
   // §7 협업 수정완료: 확정/완료 전표도 물리 종결 전이면 overlay 필드 편집 가능.
   const [collabEditMode, setCollabEditMode] = useState(false)
+  const [collabEditBlockedReason, setCollabEditBlockedReason] = useState<string | null>(null)
+  const [collabEditDirty, setCollabEditDirty] = useState(false)
+  const [collabCommitPending, setCollabCommitPending] = useState(false)
+  const [editingDriverStale, setEditingDriverStale] = useState(false)
+  const [editSurfaceNotice, setEditSurfaceNotice] = useState<string | null>(null)
+  const salesEditBaselineRef = useRef<string | null>(null)
+  const purchaseEditBaselineRef = useRef<string | null>(null)
+  const driverEditBaselineRef = useRef<{ name: string; phone: string } | null>(null)
+  const previousSlipStatusRef = useRef<SlipDetail['status'] | null>(null)
+  const transitionDiscardRef = useRef(false)
   const [slipFormCoeditProvider, setSlipFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
   // coedit provider 로딩 중 여부 — 로딩 중에만 입력/저장 잠금(이중소스 방지). 로드 실패(provider=null) 시엔 비-coedit 평문 편집·저장 허용(콜랩 서버 다운 시 영구잠금 회귀 방지, 리뷰 Opus 라운드2 BLOCKING).
   const [slipFormCoeditPending, setSlipFormCoeditPending] = useState(false)
@@ -1289,6 +1492,72 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   salesPartnerIdRef.current = salesPartnerId
   const purchasePartnerIdRef = useRef(purchasePartnerId)
   purchasePartnerIdRef.current = purchasePartnerId
+  const salesEditFingerprint = useMemo(() => editDraftFingerprint({
+    partnerId: salesPartnerId,
+    partnerName: salesPartnerName,
+    partnerCode: salesPartnerCode,
+    businessNumber: salesBusinessNumber,
+    memo: salesMemo,
+    deliveryAddress: salesDeliveryAddress,
+    supervisionAddress: salesSupervisionAddress,
+    projectName: salesProjectName,
+    recipientPhone: salesRecipientPhone,
+    paymentDueDate: salesPaymentDueDate,
+  }, salesEditLines), [
+    salesPartnerId,
+    salesPartnerName,
+    salesPartnerCode,
+    salesBusinessNumber,
+    salesMemo,
+    salesDeliveryAddress,
+    salesSupervisionAddress,
+    salesProjectName,
+    salesRecipientPhone,
+    salesPaymentDueDate,
+    salesEditLines,
+  ])
+  const purchaseEditFingerprint = useMemo(() => editDraftFingerprint({
+    partnerId: purchasePartnerId,
+    partnerName: purchasePartnerName,
+    partnerCode: purchasePartnerCode,
+    businessNumber: purchaseBusinessNumber,
+    memo: purchaseMemo,
+    deliveryAddress: purchaseDeliveryAddress,
+    projectName: purchaseProjectName,
+    recipientPhone: purchaseRecipientPhone,
+    paymentDueDate: purchasePaymentDueDate,
+  }, purchaseEditLines), [
+    purchasePartnerId,
+    purchasePartnerName,
+    purchasePartnerCode,
+    purchaseBusinessNumber,
+    purchaseMemo,
+    purchaseDeliveryAddress,
+    purchaseProjectName,
+    purchaseRecipientPhone,
+    purchasePaymentDueDate,
+    purchaseEditLines,
+  ])
+  const salesEditDirty = salesEditOpen
+    && salesEditBaselineRef.current !== null
+    && salesEditFingerprint !== salesEditBaselineRef.current
+  const purchaseEditDirty = purchaseEditOpen
+    && purchaseEditBaselineRef.current !== null
+    && purchaseEditFingerprint !== purchaseEditBaselineRef.current
+  const driverEditDirty = editingDriver
+    && driverEditBaselineRef.current !== null
+    && (draftDriverName !== driverEditBaselineRef.current.name
+      || draftDriverPhone !== driverEditBaselineRef.current.phone)
+  const salesEditDirtyRef = useRef(false)
+  const purchaseEditDirtyRef = useRef(false)
+  const driverEditDirtyRef = useRef(false)
+  const collabEditDirtyRef = useRef(false)
+  const collabCommitPendingRef = useRef(false)
+  salesEditDirtyRef.current = salesEditDirty
+  purchaseEditDirtyRef.current = purchaseEditDirty
+  driverEditDirtyRef.current = driverEditDirty
+  collabEditDirtyRef.current = collabEditDirty
+  collabCommitPendingRef.current = collabCommitPending
   // 편집 세션 종료(두 폼 모두 닫힘) 시 재조회 강조 초기화 — 다음 세션에 이전 강조가 잔존하지 않도록.
   useEffect(() => {
     if (!salesEditOpen && !purchaseEditOpen) {
@@ -1440,12 +1709,58 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const transitionMutation = useMutation({
     mutationFn: (vars: { action: SlipTransitionAction; reason?: string }) =>
       transitionSlip(id, vars.action, vars.reason ? { reason: vars.reason } : undefined),
-    onSuccess: () => {
+    onSuccess: (_updated, vars) => {
+      const destinationStatus = transitionDestinationStatus(vars.action)
+      const discardConfirmed = transitionDiscardRef.current
+
+      // lifecycle 전이로 이전 상태 전용 저장 경로가 무효화된 표면은 성공시에만 닫는다.
+      // 실패 callback에서는 이 정리를 하지 않아 사용자가 입력을 수정·재시도할 수 있다.
+      if (discardConfirmed || !isDirectEditStatus(destinationStatus)) {
+        setSalesEditOpen(false)
+        setSalesEditStale(false)
+        setPurchaseEditOpen(false)
+        setPurchaseEditStale(false)
+        setEditingDriver(false)
+        setEditingDriverStale(false)
+        salesEditBaselineRef.current = null
+        purchaseEditBaselineRef.current = null
+        driverEditBaselineRef.current = null
+      }
+      // ACCEPTED/PROCESSING/INSPECTING/COMPLETED/CONFIRMED 등 협업 저장이 아직 유효한
+      // 도착점에서는 입력을 유지한다. SHIPPING/DELIVERED/REJECTED/CANCELED 에서만 닫는다.
+      if (discardConfirmed || !isCollabEditStatus(destinationStatus)) {
+        setCollabEditMode(false)
+        setCollabEditBlockedReason(null)
+        setCollabEditDirty(false)
+      }
+      if (discardConfirmed) {
+        setEditSurfaceNotice('전이 전에 확인한 대로 저장하지 않은 편집 내용을 폐기했습니다.')
+      } else {
+        setEditSurfaceNotice(null)
+      }
+      transitionDiscardRef.current = false
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['slips'] })
       // S2d-1 NB6: 임계 전이(send/inspect)가 redline anchor 를 세팅하므로 redline 도 갱신한다.
       void queryClient.invalidateQueries({ queryKey: ['slipRedline', id] })
       setRejectReason('')
+    },
+    onError: (error, vars) => {
+      // 서버 상태가 유지된 실패에서는 모든 편집 표면과 입력을 그대로 둔다.
+      transitionDiscardRef.current = false
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const cause = classifyTransitionConflict(error)
+        if (cause === 'other') return
+        const policy = transitionConflictEditPolicy(cause, vars.action)
+        setEditSurfaceNotice(policy.message)
+        if (policy.blockEditSurfaces) {
+          if (salesEditOpen) setSalesEditStale(true)
+          if (purchaseEditOpen) setPurchaseEditStale(true)
+          if (editingDriver) setEditingDriverStale(true)
+          if (collabEditMode) setCollabEditBlockedReason(policy.message)
+          void refetchDetail()
+        }
+      }
     },
   })
 
@@ -1463,6 +1778,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       setSalesReloadSuccessMessage(null)
       setRepriceChangedLineIds(new Set())
       setSalesEditOpen(false)
+      setSalesEditStale(false)
+      salesEditBaselineRef.current = null
       queryClient.setQueryData(['slip', id], updated)
       await queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
       await queryClient.invalidateQueries({ queryKey: ['slips'] })
@@ -1504,6 +1821,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       setPurchaseReloadSuccessMessage(null)
       setRepriceChangedLineIds(new Set())
       setPurchaseEditOpen(false)
+      setPurchaseEditStale(false)
+      purchaseEditBaselineRef.current = null
       queryClient.setQueryData(['slip', id], updated)
       await queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
       await queryClient.invalidateQueries({ queryKey: ['slips'] })
@@ -1633,6 +1952,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       }),
     onSuccess: () => {
       setEditingDriver(false)
+      setEditingDriverStale(false)
+      driverEditBaselineRef.current = null
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['delivery-batches'] })
     },
@@ -1687,6 +2008,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   })
 
   const syncPurchaseFormFromData = useCallback((data: SlipDetail) => {
+    const nextLines = toPurchaseEditLines(data)
     setPurchasePartnerId(data.partnerId ?? '')
     setPurchasePartnerName(data.partnerName ?? '')
     setPurchasePartnerCode(data.partnerCode ?? '')
@@ -1696,8 +2018,19 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     setPurchaseProjectName(data.projectName ?? '')
     setPurchaseRecipientPhone(data.recipientPhone ?? '')
     setPurchasePaymentDueDate(data.paymentDueDate ?? '')
-    setPurchaseEditLines(toPurchaseEditLines(data))
+    setPurchaseEditLines(nextLines)
     setPurchaseUpdatedAt(data.updatedAt)
+    purchaseEditBaselineRef.current = editDraftFingerprint({
+      partnerId: data.partnerId ?? '',
+      partnerName: data.partnerName ?? '',
+      partnerCode: data.partnerCode ?? '',
+      businessNumber: data.businessNumber ?? '',
+      memo: data.memo ?? '',
+      deliveryAddress: data.deliveryAddress ?? '',
+      projectName: data.projectName ?? '',
+      recipientPhone: data.recipientPhone ?? '',
+      paymentDueDate: data.paymentDueDate ?? '',
+    }, nextLines)
   }, [setPurchaseUpdatedAt])
 
   const handlePurchaseConflictReload = useCallback(async () => {
@@ -1733,6 +2066,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   // SP-08-6-2: 매출 수정 폼 동기화 + 충돌 reload 핸들러
   const syncSalesFormFromData = useCallback((data: SlipDetail) => {
+    const nextLines = toPurchaseEditLines(data)
     setSalesPartnerId(data.partnerId ?? '')
     setSalesPartnerName(data.partnerName ?? '')
     setSalesPartnerCode(data.partnerCode ?? '')
@@ -1743,8 +2077,20 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     setSalesProjectName(data.projectName ?? '')
     setSalesRecipientPhone(data.recipientPhone ?? '')
     setSalesPaymentDueDate(data.paymentDueDate ?? '')
-    setSalesEditLines(toPurchaseEditLines(data))
+    setSalesEditLines(nextLines)
     setSalesUpdatedAt(data.updatedAt)
+    salesEditBaselineRef.current = editDraftFingerprint({
+      partnerId: data.partnerId ?? '',
+      partnerName: data.partnerName ?? '',
+      partnerCode: data.partnerCode ?? '',
+      businessNumber: data.businessNumber ?? '',
+      memo: data.memo ?? '',
+      deliveryAddress: data.deliveryAddress ?? '',
+      supervisionAddress: data.supervisionAddress ?? '',
+      projectName: data.projectName ?? '',
+      recipientPhone: data.recipientPhone ?? '',
+      paymentDueDate: data.paymentDueDate ?? '',
+    }, nextLines)
   }, [setSalesUpdatedAt])
 
   const handleSalesConflictReload = useCallback(async () => {
@@ -1880,6 +2226,79 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     }
   }, [detailQuery.data, id, mode, purchaseEditOpen, salesEditOpen, slipCollabBasePath])
 
+  // SSE/refetch 로 status 가 바뀌는 타 브라우저 경로도 lifecycle 조정기를 통과시킨다.
+  // dirty 입력은 화면에 남겨 복사할 기회를 주되, 새 status에서 저장 버튼은 차단한다.
+  useEffect(() => {
+    const currentStatus = detailQuery.data?.status
+    if (!currentStatus) return
+    const previousStatus = previousSlipStatusRef.current
+    previousSlipStatusRef.current = currentStatus
+    if (!previousStatus || previousStatus === currentStatus) return
+
+    const directStatusInvalid = !isDirectEditStatus(currentStatus)
+    const collabStatusInvalid = !isCollabEditStatus(currentStatus)
+    const affectedSurfaces: string[] = []
+
+    if (salesEditOpen && directStatusInvalid) {
+      affectedSurfaces.push('매출 직접수정')
+      if (salesEditDirtyRef.current || salesUpdateMutation.isPending) {
+        setSalesEditStale(true)
+      } else {
+        setSalesEditOpen(false)
+        setSalesEditStale(false)
+        salesEditBaselineRef.current = null
+      }
+    }
+    if (purchaseEditOpen && directStatusInvalid) {
+      affectedSurfaces.push('매입 직접수정')
+      if (purchaseEditDirtyRef.current || purchaseUpdateMutation.isPending) {
+        setPurchaseEditStale(true)
+      } else {
+        setPurchaseEditOpen(false)
+        setPurchaseEditStale(false)
+        purchaseEditBaselineRef.current = null
+      }
+    }
+    if (editingDriver && directStatusInvalid) {
+      affectedSurfaces.push('기사 정보')
+      if (driverEditDirtyRef.current || driverMutation.isPending) {
+        setEditingDriverStale(true)
+      } else {
+        setEditingDriver(false)
+        setEditingDriverStale(false)
+        driverEditBaselineRef.current = null
+      }
+    }
+    if (collabEditMode && collabStatusInvalid) {
+      affectedSurfaces.push('협업 수정')
+      if (collabEditDirtyRef.current || collabCommitPendingRef.current) {
+        setCollabEditBlockedReason(
+          `다른 사용자가 전표를 ${slipStatusLabel(currentStatus)} 단계로 변경했습니다. `
+          + '현재 입력은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.',
+        )
+      } else {
+        setCollabEditMode(false)
+        setCollabEditBlockedReason(null)
+      }
+    }
+
+    if (affectedSurfaces.length > 0) {
+      setEditSurfaceNotice(
+        `다른 사용자가 전표를 ${slipStatusLabel(currentStatus)} 단계로 변경했습니다. `
+        + `${affectedSurfaces.join(', ')}은(는) 현재 상태에서 저장할 수 없습니다.`,
+      )
+    }
+  }, [
+    detailQuery.data?.status,
+    editingDriver,
+    purchaseEditOpen,
+    salesEditOpen,
+    collabEditMode,
+    driverMutation.isPending,
+    purchaseUpdateMutation.isPending,
+    salesUpdateMutation.isPending,
+  ])
+
   if (!id) return null
 
   if (detailQuery.isLoading) {
@@ -1899,18 +2318,15 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   const slip = detailQuery.data
-  const possibleActions = actionsForStatus(slip.status, mode)
+  const possibleActions = actionsForStatus(slip.status, mode, slip.sourceType ?? 'MANUAL')
   const canRejectSlip = possibleActions.includes('reject')
-    && canAccess('slip.reject', 'update')
+    && canAccessSlipAction('reject', mode, canAccess)
   const canCancelSlip = possibleActions.includes('cancel')
-    && canAccess(slipActionPageCode('cancel').pageCode, 'update')
-  const canDirectEditPurchase = mode === 'INBOUND'
-    && canAccess('purchases.slip.edit', 'update')
-    && (slip.status === 'SAVED' || slip.status === 'DRAFT')
+    && canAccessSlipAction('cancel', mode, canAccess)
+  const directEditAllowed = canOpenDirectEdit(mode, slip.status, canAccess)
 
   const canDirectDeletePurchase = mode === 'INBOUND'
-    && canAccess('purchases.slip.delete', 'delete')
-    && (slip.status === 'SAVED' || slip.status === 'DRAFT')
+    && canSoftDeleteSlip(mode, slip.status, canAccess)
 
   /**
    * SP-08-6-2: 매출 전표 직접 수정 권한 판단.
@@ -1918,9 +2334,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    * - canAccess('sales.slip.edit', 'update') — 동적 권한(MASTER 자동 전권)
    * - status = SAVED 또는 DRAFT
    */
-  const canDirectEditSales = mode === 'OUTBOUND'
-    && canAccess('sales.slip.edit', 'update')
-    && (slip.status === 'SAVED' || slip.status === 'DRAFT')
+  const canDirectEditSalesByPermission = mode === 'OUTBOUND' && directEditAllowed
 
   /**
    * SP-08-6-3: 매출 전표 soft delete 권한 판단.
@@ -1929,8 +2343,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    * - status = SAVED 또는 DRAFT
    */
   const canDirectDeleteSales = mode === 'OUTBOUND'
-    && canAccess('sales.slip.edit', 'delete')
-    && (slip.status === 'SAVED' || slip.status === 'DRAFT')
+    && canSoftDeleteSlip(mode, slip.status, canAccess)
 
   /**
    * PR-H3: 창고/관리자 수락이 필요한 단계 (LOCKED_REQUIRES_APPROVAL).
@@ -1958,7 +2371,24 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   const isLocked = isPhysicalTerminal
 
-  const canCollabEdit = canAccess('slip.audit-overlay', 'update') && !isPhysicalTerminal
+  const canCollabEdit = canOpenCollabEdit(
+    slip.status,
+    canAccess('slip.audit-overlay', 'update'),
+  )
+  const directEditOpen = salesEditOpen || purchaseEditOpen || editingDriver
+  const editSurfaceEntries = editSurfaceEntryAvailability(
+    directEditAllowed,
+    canCollabEdit,
+    directEditOpen,
+    collabEditMode,
+  )
+  const canDirectEditSales = canDirectEditSalesByPermission && editSurfaceEntries.direct
+  const canDirectEditPurchase = mode === 'INBOUND' && editSurfaceEntries.direct
+  const canCollabEditEntry = editSurfaceEntries.collab
+  const resolvedCollabEditBlockedReason = collabEditBlockedReason
+    ?? (collabEditMode && !canCollabEdit
+      ? `현재 단계(${slipStatusLabel(slip.status)})에서는 협업 수정 내용을 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.`
+      : null)
 
   const collabEditValues: Record<string, string | null | undefined> = {
     memo: slip.memo,
@@ -2000,13 +2430,36 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     return '알 수 없는 오류'
   })()
 
+  const editSavePending = slipFormCoeditPending
+    || modalRepricePending
+    || partnerReprice.isPending
+    || salesUpdateMutation.isPending
+    || purchaseUpdateMutation.isPending
+    || driverMutation.isPending
+    || collabCommitPending
+
+  const dirtyEditSurfaces = [
+    salesEditDirty ? '매출 직접수정' : null,
+    purchaseEditDirty ? '매입 직접수정' : null,
+    driverEditDirty ? '기사 정보' : null,
+    collabEditDirty ? '협업 수정' : null,
+  ].filter((label): label is string => label !== null)
+
+  const handleDriverEditSave = () => {
+    if (editingDriverStale) {
+      setEditSurfaceNotice('현재 전표 상태가 바뀌어 기사 정보를 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.')
+      return
+    }
+    driverMutation.mutate()
+  }
+
   const handleTransition = (action: SlipTransitionAction) => {
     if (transitionMutation.isPending) return
     if (shouldBlockPartnerlessSend(slip, action)) {
       alert(PARTNER_REQUIRED_SEND_MESSAGE)
       return
     }
-    if (!canTransitionSlipAction(action, canAccess, slip.canInspect === true)) {
+    if (!canTransitionSlipAction(action, mode, canAccess, slip.canInspect === true)) {
       alert('해당 전표 상태를 변경할 권한이 없습니다.')
       return
     }
@@ -2016,7 +2469,26 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         alert('반려 사유를 입력하세요.')
         return
       }
-      transitionMutation.mutate({ action, reason })
+    }
+
+    if (editSavePending) {
+      alert('편집 저장 또는 단가 확인이 진행 중입니다. 저장이 끝난 뒤 전이를 실행하세요.')
+      return
+    }
+    if (dirtyEditSurfaces.length > 0) {
+      const shouldDiscard = window.confirm(
+        `저장되지 않은 편집 내용(${dirtyEditSurfaces.join(', ')})이 있습니다. `
+        + '먼저 각 폼에서 저장하거나, 확인을 눌러 입력을 폐기하고 전이하시겠습니까? '
+        + '취소를 누르면 전이를 실행하지 않고 입력을 유지합니다.',
+      )
+      if (!shouldDiscard) return
+      transitionDiscardRef.current = true
+    } else {
+      transitionDiscardRef.current = false
+    }
+
+    if (action === 'reject') {
+      transitionMutation.mutate({ action, reason: rejectReason.trim() })
     } else {
       transitionMutation.mutate({ action })
     }
@@ -2078,6 +2550,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const nextPrimaryAction
     = possibleActions.find((a) => a !== 'reject' && a !== 'cancel') ?? null
 
+  const desktopFooterActionSet = desktopFooterActions(
+    slip.status,
+    mode,
+    canCollabEditEntry,
+    slip.sourceType ?? 'MANUAL',
+  )
+
   /** 하단 "전표 복사" — 사용자 확인 후 신규 DRAFT 생성. */
   const handleDuplicate = () => {
     if (!window.confirm('현재 전표를 복사하여 새 작성중 전표를 생성합니다. 진행할까요?')) {
@@ -2086,27 +2565,27 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     duplicateMutation.mutate()
   }
 
-  /** 하단 "삭제" — 경고창 후 cancel transition (BE soft-delete). */
-  const handleDeleteSlip = () => {
+  /** 하단 "전표 취소" — 경고창 후 CANCELED transition을 실행한다. */
+  const handleCancelSlip = () => {
     if (!possibleActions.includes('cancel')) {
-      alert(`현재 단계(${slipStatusLabel(slip.status)})에서는 삭제(취소)할 수 없습니다.`)
+      alert(`현재 단계(${slipStatusLabel(slip.status)})에서는 전표를 취소할 수 없습니다.`)
       return
     }
     if (!canCancelSlip) {
-      alert('전표를 삭제(취소)할 권한이 없습니다.')
+      alert('전표를 취소할 권한이 없습니다.')
       return
     }
     if (transitionMutation.isPending) return
-    if (!window.confirm('정말로 이 전표를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 전표가 취소 상태로 변경됩니다.')) {
+    if (!window.confirm('정말로 이 전표를 취소하시겠습니까?\n\n이 작업은 전표를 취소 상태로 변경합니다.')) {
       return
     }
-    transitionMutation.mutate({ action: 'cancel' })
+    handleTransition('cancel')
   }
 
   /** 하단 "완료" — 다음 정상 단계 transition 실행. */
   const handleAdvanceStage = () => {
     if (!nextPrimaryAction) return
-    if (!canTransitionSlipAction(nextPrimaryAction, canAccess, slip.canInspect === true)) {
+    if (!canTransitionSlipAction(nextPrimaryAction, mode, canAccess, slip.canInspect === true)) {
       alert('해당 전표 상태를 변경할 권한이 없습니다.')
       return
     }
@@ -2114,7 +2593,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       alert(PARTNER_REQUIRED_SEND_MESSAGE)
       return
     }
-    transitionMutation.mutate({ action: nextPrimaryAction })
+    // transitionMutation.mutate 는 dirty/stale/discard 정책을 포함한 공통 handleTransition 뒤에서 실행한다.
+    handleTransition(nextPrimaryAction)
   }
 
   // 분기 사유 (REJECTED 시 BE 가 응답에 reason 을 별도 필드로 줄 수 있음 — Slice A 는 memo 사용)
@@ -2157,11 +2637,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   )
   const mobilePrimaryAction = nextPrimaryAction
     ? {
-        label: labelForAction(nextPrimaryAction, mode),
+        label: transitionActionLabel(slip.status, nextPrimaryAction, mode),
         onClick: () => handleTransition(nextPrimaryAction),
         disabled:
           transitionMutation.isPending
-          || !canTransitionSlipAction(nextPrimaryAction, canAccess, slip.canInspect === true),
+          || !canTransitionSlipAction(nextPrimaryAction, mode, canAccess, slip.canInspect === true),
       }
     : null
   const handleMobilePrint = () => {
@@ -2392,6 +2872,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   )
 
   const handlePurchaseEditSave = () => {
+    if (purchaseEditStale) {
+      setEditSurfaceNotice('현재 전표 상태가 바뀌어 매입 직접수정 내용을 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.')
+      return
+    }
     // R9 #3/#4: 재조회 중이거나 카탈로그 미확보 단가를 직접 확인하지 않은 상태는 저장 금지.
     if (modalRepricePending || partnerReprice.isPending || hasUnavailableReprice) return
     purchaseUpdateMutation.mutate({
@@ -2411,6 +2895,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   const handleSalesEditSave = () => {
+    if (salesEditStale) {
+      setEditSurfaceNotice('현재 전표 상태가 바뀌어 매출 직접수정 내용을 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.')
+      return
+    }
     // 매출·매입 미러 — B 거래처에 A 단가가 각인되는 저장 race/fail-open을 이중 방어한다.
     if (modalRepricePending || partnerReprice.isPending || hasUnavailableReprice) return
     salesUpdateMutation.mutate({
@@ -2447,7 +2935,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setSalesEditOpen(false)}
+            onClick={() => {
+              setSalesEditOpen(false)
+              setSalesEditStale(false)
+              salesEditBaselineRef.current = null
+            }}
             disabled={salesUpdateMutation.isPending}
             data-testid="sales-slip-edit-cancel"
           >
@@ -2457,7 +2949,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             type="button"
             variant="primary"
             loading={salesUpdateMutation.isPending || modalRepricePending || partnerReprice.isPending}
-            disabled={salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || salesEditLines.length === 0}
+            disabled={salesEditStale || salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || salesEditLines.length === 0}
             data-testid="sales-slip-edit-save"
             onClick={handleSalesEditSave}
           >
@@ -2465,6 +2957,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </Button>
         </div>
       </div>
+
+      {salesEditStale ? (
+        <div className="error-banner" role="alert" data-testid="sales-slip-edit-stale-banner">
+          다른 사용자가 전표를 전이했습니다. 현재 매출 수정 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.
+        </div>
+      ) : null}
 
       {salesConflictMessage ? (
         <div className="error-banner" role="alert" data-testid="sales-slip-edit-conflict-banner">
@@ -2781,7 +3279,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setPurchaseEditOpen(false)}
+            onClick={() => {
+              setPurchaseEditOpen(false)
+              setPurchaseEditStale(false)
+              purchaseEditBaselineRef.current = null
+            }}
             disabled={purchaseUpdateMutation.isPending}
             data-testid="purchase-slip-edit-cancel"
           >
@@ -2791,7 +3293,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             type="button"
             variant="primary"
             loading={purchaseUpdateMutation.isPending || modalRepricePending || partnerReprice.isPending}
-            disabled={purchaseUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || purchaseEditLines.length === 0}
+            disabled={purchaseEditStale || purchaseUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || purchaseEditLines.length === 0}
             data-testid="purchase-slip-edit-submit"
             onClick={handlePurchaseEditSave}
           >
@@ -2799,6 +3301,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </Button>
         </div>
       </div>
+
+      {purchaseEditStale ? (
+        <div className="error-banner" role="alert" data-testid="purchase-slip-edit-stale-banner">
+          다른 사용자가 전표를 전이했습니다. 현재 매입 수정 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.
+        </div>
+      ) : null}
 
       {purchaseConflictMessage ? (
         <div className="error-banner" role="alert" data-testid="purchase-slip-edit-conflict-banner">
@@ -3167,10 +3675,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setSalesConflictMessage(null)
                 setSalesIsConflict(false)
                 setSalesReloadSuccessMessage(null)
+                setSalesEditStale(false)
+                setEditSurfaceNotice(null)
                 setSalesEditOpen(true)
               }}
             >
-              수정
+              직접 수정
             </Button>
           ) : null}
           {canDirectEditPurchase ? (
@@ -3184,20 +3694,26 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setPurchaseConflictMessage(null)
                 setPurchaseIsConflict(false)
                 setPurchaseReloadSuccessMessage(null)
+                setPurchaseEditStale(false)
+                setEditSurfaceNotice(null)
                 setPurchaseEditOpen(true)
               }}
             >
-              수정
+              직접 수정
             </Button>
           ) : null}
-          {canCollabEdit && !canDirectEditSales && !canDirectEditPurchase ? (
+          {canCollabEditEntry ? (
             <Button
               variant="primary"
               size="sm"
               data-testid="slip-collab-edit-open"
-              onClick={() => setCollabEditMode(true)}
+              onClick={() => {
+                setCollabEditBlockedReason(null)
+                setEditSurfaceNotice(null)
+                setCollabEditMode(true)
+              }}
             >
-              수정
+              협업 수정
             </Button>
           ) : null}
           {canDirectDeletePurchase ? (
@@ -3211,7 +3727,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setPurchaseDeleteOpen(true)
               }}
             >
-              삭제
+              전표 삭제
             </Button>
           ) : null}
           {canDirectDeleteSales ? (
@@ -3225,7 +3741,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setSalesDeleteOpen(true)
               }}
             >
-              삭제
+              전표 삭제
             </Button>
           ) : null}
           <Button variant="ghost" onClick={() => navigate(listPath)}>
@@ -3322,10 +3838,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         setSalesConflictMessage(null)
                         setSalesIsConflict(false)
                         setSalesReloadSuccessMessage(null)
+                        setSalesEditStale(false)
+                        setEditSurfaceNotice(null)
                         setSalesEditOpen(true)
                       }}
                     >
-                      수정
+                      직접 수정
                     </button>
                   ) : null}
                   {canDirectEditPurchase ? (
@@ -3339,22 +3857,26 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         setPurchaseConflictMessage(null)
                         setPurchaseIsConflict(false)
                         setPurchaseReloadSuccessMessage(null)
+                        setPurchaseEditStale(false)
+                        setEditSurfaceNotice(null)
                         setPurchaseEditOpen(true)
                       }}
                     >
-                      수정
+                      직접 수정
                     </button>
                   ) : null}
-                  {canCollabEdit && !canDirectEditSales && !canDirectEditPurchase ? (
+                  {canCollabEditEntry ? (
                     <button
                       type="button"
                       className="mobile-more-sheet-item"
                       onClick={() => {
                         setMobileMoreOpen(false)
+                        setCollabEditBlockedReason(null)
+                        setEditSurfaceNotice(null)
                         setCollabEditMode(true)
                       }}
                     >
-                      수정
+                      협업 수정
                     </button>
                   ) : null}
                   {canDirectDeletePurchase ? (
@@ -3405,7 +3927,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                       disabled={!canCancelSlip || transitionMutation.isPending}
                       onClick={() => {
                         setMobileMoreOpen(false)
-                        handleDeleteSlip()
+                        handleCancelSlip()
                       }}
                     >
                       전표 취소
@@ -3746,6 +4268,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 onClick={() => {
                   setDraftDriverName(slip.driverName ?? '')
                   setDraftDriverPhone(slip.driverPhone ?? '')
+                  driverEditBaselineRef.current = {
+                    name: slip.driverName ?? '',
+                    phone: slip.driverPhone ?? '',
+                  }
+                  setEditingDriverStale(false)
+                  setEditSurfaceNotice(null)
                   setEditingDriver(true)
                 }}
               >
@@ -3754,6 +4282,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             ) : null}
           </div>
           {editingDriver ? (
+            <>
+            {editingDriverStale ? (
+              <div className="error-banner" role="alert" data-testid="slip-driver-edit-stale-banner" style={{ marginBottom: 8 }}>
+                다른 사용자가 전표를 전이했습니다. 현재 기사 정보는 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.
+              </div>
+            ) : null}
             <div className="driver-edit-grid">
               <label className="driver-edit-field">
                 <span className="detail-label">기사명</span>
@@ -3780,7 +4314,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setEditingDriver(false)}
+                  onClick={() => {
+                    setEditingDriver(false)
+                    setEditingDriverStale(false)
+                    driverEditBaselineRef.current = null
+                  }}
                   disabled={driverMutation.isPending}
                 >
                   취소
@@ -3790,15 +4328,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   size="sm"
                   loading={driverMutation.isPending}
                   disabled={
-                    !!draftDriverPhone
+                    editingDriverStale
+                    || (!!draftDriverPhone
                     && !KOREAN_MOBILE_PHONE_PATTERN.test(draftDriverPhone)
+                    )
                   }
-                  onClick={() => driverMutation.mutate()}
+                  onClick={handleDriverEditSave}
                 >
                   저장
                 </Button>
               </div>
             </div>
+            </>
           ) : (
             <div className="detail-grid">
               <DetailGridItem value={slip.driverName}>
@@ -4266,7 +4807,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       </Modal>
 
       {/*
-        반려 사유 입력 (필요 시) — 반려 가능 단계 (SENT/ACCEPTED) 에서 표시.
+        반려 사유 입력 (필요 시) — 반려 가능 단계 (SENT/ACCEPTED/INSPECTING) 에서 표시.
       */}
       {possibleActions.includes('reject') ? (
         <Card padding={4} shadow="sm" style={{ marginTop: 24 }}>
@@ -4308,6 +4849,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             currentValues={collabEditValues}
             editMode={collabEditMode}
             onEditModeChange={setCollabEditMode}
+            editBlockedReason={resolvedCollabEditBlockedReason}
+            onDirtyChange={setCollabEditDirty}
+            onPendingChange={setCollabCommitPending}
             onCommitted={() => {
               void queryClient.invalidateQueries({ queryKey: ['slip', id] })
               void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
@@ -4321,6 +4865,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           currentValues={collabEditValues}
           editMode={collabEditMode}
           onEditModeChange={setCollabEditMode}
+          editBlockedReason={resolvedCollabEditBlockedReason}
+          onDirtyChange={setCollabEditDirty}
+          onPendingChange={setCollabCommitPending}
           onCommitted={() => {
             void queryClient.invalidateQueries({ queryKey: ['slip', id] })
             void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
@@ -4330,7 +4877,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       )}
 
       {/*
-        하단 액션 버튼 (사용자 명시) — 전표 복사 / 삭제 (경고창 필수) / 완료 (다음 단계).
+        하단 액션 버튼 (사용자 명시) — 전표 복사 / 전표 취소 (경고창 필수) / 완료 (다음 단계).
       */}
       {!isMobile ? (
       <div className="slip-detail-footer-actions" role="toolbar" aria-label="전표 액션">
@@ -4341,56 +4888,65 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         >
           전표 복사
         </Button>
-        <Button
-          variant="ghost"
-          disabled={
-            !possibleActions.includes('cancel')
-            || !canAccess(slipActionPageCode('cancel').pageCode, 'update')
-            || transitionMutation.isPending
-          }
-          onClick={handleDeleteSlip}
-          title={
-            !possibleActions.includes('cancel')
-              ? '현재 단계에서는 삭제(취소) 불가'
-              : !canAccess(slipActionPageCode('cancel').pageCode, 'update')
-                ? '삭제(취소) 권한이 없습니다'
+        {possibleActions.includes('cancel') ? (
+          <Button
+            variant="ghost"
+            disabled={
+              !canAccessSlipAction('cancel', mode, canAccess)
+              || transitionMutation.isPending
+            }
+            onClick={handleCancelSlip}
+            title={
+              !canAccessSlipAction('cancel', mode, canAccess)
+                ? '전표 취소 권한이 없습니다'
                 : undefined
-          }
-        >
-          삭제
-        </Button>
-        {slip.status === 'COMPLETED' && canCollabEdit ? (
+            }
+          >
+            전표 취소
+          </Button>
+        ) : null}
+        {desktopFooterActionSet.includes('collab-edit') ? (
           <Button
             variant="primary"
             data-testid="slip-collab-edit-footer"
-            onClick={() => setCollabEditMode(true)}
+            onClick={() => {
+              setCollabEditBlockedReason(null)
+              setEditSurfaceNotice(null)
+              setCollabEditMode(true)
+            }}
           >
-            수정
+            협업 수정
           </Button>
-        ) : (
-          <Button
-            variant="primary"
-            disabled={
-              !nextPrimaryAction
-              || !canTransitionSlipAction(nextPrimaryAction, canAccess, slip.canInspect === true)
-              || transitionMutation.isPending
-            }
-            onClick={handleAdvanceStage}
-            title={
-              nextPrimaryAction
-                ? `다음 단계: ${labelForAction(nextPrimaryAction, mode)}`
-                : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
-            }
-          >
-            {nextPrimaryAction ? `완료 (${labelForAction(nextPrimaryAction, mode)})` : '완료'}
-          </Button>
-        )}
+        ) : null}
+        <Button
+          variant="primary"
+          disabled={
+            !nextPrimaryAction
+            || !canTransitionSlipAction(nextPrimaryAction, mode, canAccess, slip.canInspect === true)
+            || transitionMutation.isPending
+          }
+          onClick={handleAdvanceStage}
+          title={
+            nextPrimaryAction
+              ? `다음 단계: ${transitionActionLabel(slip.status, nextPrimaryAction, mode)}`
+              : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
+          }
+        >
+          {nextPrimaryAction
+            ? `완료 (${transitionActionLabel(slip.status, nextPrimaryAction, mode)})`
+            : '완료'}
+        </Button>
       </div>
       ) : null}
 
       {errorMessage ? (
         <div className="error-banner" role="alert" style={{ marginTop: 12 }}>
           {errorMessage}
+        </div>
+      ) : null}
+      {editSurfaceNotice ? (
+        <div className="error-banner" role="alert" data-testid="slip-edit-surface-notice" style={{ marginTop: 12 }}>
+          {editSurfaceNotice}
         </div>
       ) : null}
 

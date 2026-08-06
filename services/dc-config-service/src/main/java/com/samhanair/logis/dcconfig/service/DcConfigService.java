@@ -49,7 +49,7 @@ public class DcConfigService {
      * partnerCode 로 DC 설정 강제 조회 (없으면 404).
      */
     public DcConfig getByPartnerCode(String partnerCode) {
-        return dcConfigRepository.findByPartner_PartnerCode(partnerCode)
+        return dcConfigRepository.findWithPartnerByPartnerCode(partnerCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DC 설정을 찾을 수 없습니다: " + partnerCode));
     }

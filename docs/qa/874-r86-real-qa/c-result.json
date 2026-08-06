@@ -1,0 +1,59 @@
+{
+  "initial": {
+    "prices": [
+      "1,355,640",
+      "0",
+      "0",
+      "0",
+      "0"
+    ],
+    "live": [
+      {
+        "text": "라인 1 거래처 최근단가 적용",
+        "label": null,
+        "testid": "slip-price-refresh-banner"
+      }
+    ]
+  },
+  "bSelected": {
+    "prices": [
+      "1,355,640",
+      "0",
+      "0",
+      "0",
+      "0"
+    ],
+    "bulkHeld": true
+  },
+  "during": {
+    "prices": [
+      "1,355,640",
+      "0",
+      "0",
+      "0",
+      "0"
+    ],
+    "live": [
+      {
+        "text": "최근단가 확인 중…",
+        "label": null,
+        "testid": "slip-form-price-refresh-busy"
+      }
+    ],
+    "saveDisabled": true,
+    "bulkHeld": true,
+    "aDcCount": 2
+  },
+  "final": {
+    "prices": [
+      "1,355,640",
+      "0",
+      "0",
+      "0",
+      "0"
+    ],
+    "live": [],
+    "saveDisabled": false,
+    "aDcCount": 2
+  }
+}

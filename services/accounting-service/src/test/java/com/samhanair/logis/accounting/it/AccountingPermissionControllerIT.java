@@ -33,6 +33,7 @@ import com.samhanair.logis.accounting.service.LedgerSnapshotService;
 import com.samhanair.logis.accounting.service.Mig7CashDisbursementTransformService;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
 import com.samhanair.logis.accounting.service.PurchaseAccountingSlipService;
+import com.samhanair.logis.accounting.service.PartnerLedgerReadService;
 import com.samhanair.logis.accounting.service.SalesAggregateService;
 import com.samhanair.logis.accounting.service.SalesAccountingSlipService;
 import com.samhanair.logis.accounting.service.StatementBatchService;
@@ -134,6 +135,7 @@ class AccountingPermissionControllerIT {
     @Autowired private MeterRegistry meterRegistry;
 
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean private PartnerLedgerReadService partnerLedgerReadService;
     @MockBean private AccountService accountService;
     @MockBean private AccountingEditRequestService editRequestService;
     @MockBean private BankDepositReceiptService bankDepositReceiptService;

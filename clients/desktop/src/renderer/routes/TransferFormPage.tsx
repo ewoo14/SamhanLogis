@@ -29,8 +29,13 @@ import {
 } from '../api/inventory'
 import { lookupProductByModelName } from '../api/slip'
 import { usePageTitle } from '../hooks/usePageTitle'
+import {
+  appendBlankRowIfLastChanged,
+  removeLinePreservingMinimum,
+} from '../utils/autoBlankRow'
 
 interface TransferLineDraft {
+  uid: string
   productId: string | null
   modelName: string
   productName: string
@@ -39,7 +44,11 @@ interface TransferLineDraft {
   lookupLoading: boolean
 }
 
+let __lineUidCounter = 0
+const nextLineUid = (): string => `transfer-line-${++__lineUidCounter}`
+
 const emptyLine = (): TransferLineDraft => ({
+  uid: nextLineUid(),
   productId: null,
   modelName: '',
   productName: '',
@@ -88,11 +97,39 @@ export function TransferFormPage() {
     onSuccess: () => navigate('/transfers'),
   })
 
-  const addLine = () => setLines((ls) => [...ls, emptyLine()])
   const removeLine = (idx: number) =>
-    setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, i) => i !== idx)))
-  const updateLine = (idx: number, patch: Partial<TransferLineDraft>) =>
-    setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
+    setLines((ls) => {
+      const target = ls[idx]
+      return target
+        ? removeLinePreservingMinimum(
+          ls,
+          target.uid,
+          (line) => line.uid,
+          emptyLine,
+          1,
+          (line) => Boolean(line.productId),
+        )
+        : ls
+    })
+  const updateLine = (idx: number, patch: Partial<TransferLineDraft>, fromUser = false) => {
+    setLines((current) => {
+      const before = current[idx]
+      if (!before) return current
+      const after = { ...before, ...patch }
+      return fromUser
+        ? appendBlankRowIfLastChanged(
+          current,
+          before,
+          after,
+          (line) => line.uid,
+          emptyLine,
+          (a, b) => a.modelName === b.modelName
+            && a.productName === b.productName
+            && a.requestedQuantity === b.requestedQuantity,
+        )
+        : current.map((line, index) => (index === idx ? after : line))
+    })
+  }
 
   const handleModelNameBlur = async (idx: number, modelName: string) => {
     const trimmed = modelName.trim()
@@ -218,7 +255,7 @@ export function TransferFormPage() {
 
         <h4 style={{ marginTop: 0 }}>이동 라인</h4>
         {lines.map((line, idx) => (
-          <div className="line-row line-row-transfer" key={idx}>
+          <div className="line-row line-row-transfer" key={line.uid}>
             <FormField
               label={`라인 ${idx + 1} - 모델명`}
               required
@@ -227,7 +264,11 @@ export function TransferFormPage() {
                 <input
                   id={id}
                   value={line.modelName}
-                  onChange={(e) => updateLine(idx, { modelName: e.target.value })}
+                  onChange={(e) => updateLine(idx, {
+                    modelName: e.target.value,
+                    productId: null,
+                    productName: '',
+                  }, true)}
                   onBlur={(e) => void handleModelNameBlur(idx, e.target.value)}
                   placeholder="예: AJ040RXH4BC1"
                   style={inputStyle}
@@ -256,7 +297,7 @@ export function TransferFormPage() {
                   min={1}
                   value={line.requestedQuantity}
                   onChange={(e) =>
-                    updateLine(idx, { requestedQuantity: e.target.value })
+                    updateLine(idx, { requestedQuantity: e.target.value }, true)
                   }
                   style={inputStyle}
                 />
@@ -272,10 +313,6 @@ export function TransferFormPage() {
             </Button>
           </div>
         ))}
-        <Button variant="secondary" size="sm" onClick={addLine}>
-          + 라인 추가
-        </Button>
-
         {errorMessage ? (
           <div className="error-banner" role="alert" style={{ marginTop: 16 }}>
             {errorMessage}
