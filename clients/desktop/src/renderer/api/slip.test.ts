@@ -10,7 +10,7 @@ const apiClientMock = vi.hoisted(() => ({
 
 vi.mock('./client', () => ({ apiClient: apiClientMock }))
 
-import { duplicateSlip, expandBundleLine, getPriceMemories } from './slip'
+import { duplicateSlip, expandBundleLine, getPriceMemories, toApiBundleSetOptions } from './slip'
 
 describe('slip price contract', () => {
   beforeEach(() => {
@@ -141,7 +141,7 @@ describe('slip bundle expansion contract', () => {
       setOptions: {
         remoteOption: 'REMOTE-X',
         remoteExcluded: false,
-        panelOption: 'PANEL-X',
+        panelOption: '블랙판넬',
         panelShape360: '사각',
         materialIncluded: true,
       },
@@ -150,6 +150,12 @@ describe('slip bundle expansion contract', () => {
     expect(apiClientMock.post).toHaveBeenCalledWith('/slips/expand-line', expect.objectContaining({
       specification: '현장규격',
       setOptions: expect.objectContaining({ remoteOption: 'REMOTE-X' }),
+    }))
+  })
+
+  it('RED-A: 판넬 모델코드처럼 서버 도메인 밖의 값은 기본 옵션으로 정규화한다', () => {
+    expect(toApiBundleSetOptions('BUNDLE', { panelOption: 'PC6NUCK1NW' })).toEqual(expect.objectContaining({
+      panelOption: null,
     }))
   })
 })

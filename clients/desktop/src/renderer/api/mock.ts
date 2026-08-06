@@ -15,6 +15,7 @@
  */
 import type { AxiosRequestConfig } from 'axios'
 import { vatFromSupply } from '../utils/vatRounding'
+import { isSinglePanelOption } from '../utils/bundleOptionDomain'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import {
   DISPATCH_TONNAGE_LABEL,
@@ -1794,14 +1795,23 @@ function mockBundleExpansionResponse(config: AxiosRequestConfig): unknown | null
   const options = (body['setOptions'] ?? {}) as Record<string, unknown>
   const remoteExcluded = options['remoteExcluded'] === true
   const materialIncluded = options['materialIncluded'] === true
-  const selectedPanel = typeof options['panelOption'] === 'string'
-    ? options['panelOption'].trim().toUpperCase()
+  const rawPanelOption = typeof options['panelOption'] === 'string'
+    ? options['panelOption'].trim()
     : ''
+  const selectedPanel = isSinglePanelOption(rawPanelOption) ? rawPanelOption : ''
+  const selectedPanelVariant = selectedPanel === '블랙판넬'
+    ? '블랙'
+    : selectedPanel === '승강판넬'
+      ? '승강'
+      : selectedPanel === '공청판넬'
+        ? '공청'
+        : ''
   const rows = (MOCK_BUNDLE_COMPONENTS[parentModelCode] ?? []).filter((component) => {
     if (component.componentKind === 'OUTDOOR' && remoteExcluded) return false
     if (component.componentKind === 'MATERIAL' && !materialIncluded) return false
     if (component.componentKind === 'PANEL') {
-      if (selectedPanel && component.componentProductCode !== selectedPanel) return false
+      if (selectedPanel === '판넬제외') return false
+      if (selectedPanelVariant && component.componentVariant !== selectedPanelVariant) return false
       if (!selectedPanel && component.isDefault === false) return false
     }
     if (component.componentKind === 'REMOTE') {

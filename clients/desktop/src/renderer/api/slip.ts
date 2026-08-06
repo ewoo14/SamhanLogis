@@ -20,6 +20,7 @@ import {
 import { withLineIdContract } from './lineIdContract'
 import type { SlipStatus } from '@samhan/design-system'
 import type { DeliveryTagCode } from '@samhan/design-system'
+import { isSinglePanelOption } from '../utils/bundleOptionDomain'
 
 /** 본 슬라이스 범위 — 출고/입고 2종. */
 export type SlipType = 'OUTBOUND' | 'INBOUND'
@@ -256,7 +257,7 @@ export interface BundleSetOptions {
   remoteOption?: string | null
   /** 실외기 제외 여부 — true 면 실외기 구성품 전개 제외. */
   remoteExcluded?: boolean | null
-  /** 판넬 선택 modelCode — 1종 택1. */
+  /** 판넬 선택 — '' | 판넬제외 | 블랙판넬 | 승강판넬 | 공청판넬 중 1종. */
   panelOption?: string | null
   /**
    * 판넬 360 형상값 — BE `BundleExpander` 가 패널 variant 와 **정확 일치**로 매칭.
@@ -281,7 +282,7 @@ export function emptyBundleSetOptions(): BundleSetOptions {
 /**
  * 라인 setOptions 를 API 전송용으로 정규화.
  * - `productType !== "BUNDLE"` → `undefined` (BE 전개 생략).
- * - 빈 문자열 modelCode/형상 → `null` (BE 기본값 사용).
+ * - 빈 문자열/서버 도메인 밖의 판넬 옵션/형상 → `null` (BE 기본값 사용).
  * 견적/전표 양 화면 공용 (중복 제거 + panelShape360 String 계약 단일점 보장).
  */
 export function toApiBundleSetOptions(
@@ -292,10 +293,11 @@ export function toApiBundleSetOptions(
   const o = opts ?? emptyBundleSetOptions()
   const trimOrNull = (v: string | null | undefined): string | null =>
     v && v.trim() ? v.trim() : null
+  const panelOption = trimOrNull(o.panelOption)
   return {
     remoteOption: trimOrNull(o.remoteOption),
     remoteExcluded: Boolean(o.remoteExcluded),
-    panelOption: trimOrNull(o.panelOption),
+    panelOption: isSinglePanelOption(panelOption) ? panelOption : null,
     panelShape360: trimOrNull(o.panelShape360),
     materialIncluded: Boolean(o.materialIncluded),
   }

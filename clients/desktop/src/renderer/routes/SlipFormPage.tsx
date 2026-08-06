@@ -969,6 +969,29 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       await expandSelectedBundle(source, latestBundle)
       return true
     }
+    const restorePreviousExpansion = (
+      latest: LineDraft | undefined,
+      context: ExpandedBundleOptionContext | undefined,
+    ): boolean => {
+      if (!latest || latest.productType === 'BUNDLE' || !context
+        || context.parentProductId !== selected.productId) return false
+      // 재전개 실패는 이미 저장 가능한 이전 구성품을 빈 행으로 바꾸지 않는다.
+      // latest.setOptions는 실패한 요청 직전의 마지막 성공 옵션이다.
+      const previousOptions = latest.setOptions ?? emptyBundleSetOptions()
+      setLines((current) => current.map((line) => line.id === latest.id
+        ? { ...line, setOptions: previousOptions, lookupError: null, lookupLoading: false }
+        : line))
+      setExpandedBundleOptions((current) => {
+        const currentContext = current[latest.id]
+        if (!currentContext) return current
+        return {
+          ...current,
+          [latest.id]: { ...currentContext, setOptions: previousOptions, expansionPending: false },
+        }
+      })
+      setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 이전 구성을 유지합니다.')
+      return true
+    }
     try {
       const expanded = await expandBundleLine({
         parentModelCode: selected.modelCode ?? '',
@@ -999,6 +1022,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             })
         : null
       if (!isCurrentBundle || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
+      if (expanded.filter((component) => component.productId).length === 0
+        && restorePreviousExpansion(latest, context)) return
       replaceWithExpandedBundleLines(source, expanded, selected.specification)
     } catch {
       const latest = linesRef.current.find((line) => line.id === source.id)
@@ -1022,6 +1047,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         : null
       if (!isCurrentBundle
         || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
+      if (restorePreviousExpansion(latest, context)) return
       replaceWithExpandedBundleLines(source, [], latest.specification)
       setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
     }

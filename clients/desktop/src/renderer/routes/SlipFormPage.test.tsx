@@ -303,6 +303,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.resetAllMocks()
   harness.productA.hasVariableDiscount = true
+  harness.productA.categoryKey = 'homemulti'
   harness.productA.sellingPrice = '1000'
   harness.isMobile = false
   harness.listWarehouses.mockResolvedValue([])
@@ -710,6 +711,25 @@ describe('SlipFormPage price memory autofill', () => {
     await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledWith(expect.objectContaining({
       unitPrice: '5200',
     })))
+  })
+
+  it('C-1 판별: 비세트 상업멀티 품목에도 거래처 전역DC가 적용된다', async () => {
+    harness.productA.categoryKey = 'commercialMulti'
+    harness.productA.sellingPrice = '20680000'
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: '45%',
+      commercialMultiDc: '46%',
+    })
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('11167200'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 전역DC 46% 적용')
   })
 
   it('reprices an existing variable-DC line with the new partner global discount after a memory miss', async () => {
@@ -1391,7 +1411,7 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
       second.reject(new Error('timeout'))
       await second.promise.catch(() => undefined)
     })
-    await waitFor(() => expect(screen.getByText('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/세트 구성품을 불러오지 못했습니다/)).toBeTruthy())
 
     fireEvent.click(screen.getByTestId('select-product-c-1'))
     fireEvent.click(screen.getByTestId('select-warehouse'))
@@ -1425,6 +1445,30 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
 
     second.resolve([])
     await waitFor(() => expect(screen.getByTestId('slip-form-bundle-expansion-busy').textContent).toBe(''))
+  })
+
+  it('RED-B: 무효 옵션으로 재전개가 실패해도 기존 구성품을 보존하고 저장을 영구 차단하지 않는다', async () => {
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{
+        productId: harness.productA.id,
+        modelName: harness.productA.modelName,
+        name: harness.productA.productName,
+        quantity: 1,
+        unitPrice: 10000,
+        specification: null,
+      }])
+      .mockRejectedValueOnce(new Error('무효 판넬 옵션'))
+    renderPage()
+
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('bundle-option-change')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('bundle-option-change'))
+
+    await waitFor(() => expect(screen.getByText(/세트 구성품을 불러오지 못했습니다/)).toBeTruthy())
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+
+    expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName)
+    expect(screen.getByRole('button', { name: '저장' })).toHaveProperty('disabled', false)
   })
 
   it('재전개 중 구성품 품목명을 다시 입력하면 지연 응답이 해제한 옛 구성품을 되살리지 않는다', async () => {

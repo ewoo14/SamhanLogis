@@ -156,9 +156,38 @@ class BundleExpanderIT extends AbstractPostgresIT {
         flush();
 
         var opts = new BundleExpander.ExpandOptions("", false, "블랙판넬", "원형", false, null);
+        var defaultLines = expander.expand("OPT_SET", BigDecimal.ONE);
         var lines = expander.expand("OPT_SET", BigDecimal.ONE, opts);
+        assertThat(unit(defaultLines, "PNL_W")).isEqualByComparingTo("50000");
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
                 .containsExactly("PNL_B"); // 블랙 판넬만(화이트 제외, 자재 제외)
+        assertThat(unit(lines, "PNL_B")).isEqualByComparingTo("60000");
+    }
+
+    @Test
+    void 기본옵션은_판넬과_리모컨을_포함한_4행이고_판넬제외는_나머지를_유지한다() {
+        Category cat = categoryRepository.save(Category.create("OPT-DEFAULT-ROWS", "test", null, 130));
+        Product parent = bundleSet("OPT_DEFAULT_ROWS", "가정용 에어컨 무풍", cat, new BigDecimal("500000"));
+        product("ROW_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        product("ROW_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("200000"));
+        product("ROW_PANEL", "기본 판넬", cat, ProductCategory.SINGLE_PART, new BigDecimal("50000"));
+        product("ROW_REMOTE", "기본 유선리모컨", cat, ProductCategory.SINGLE_PART, new BigDecimal("20000"));
+        comp(parent, "ROW_IN", BundleComponent.ComponentKind.INDOOR, null, true, 1);
+        comp(parent, "ROW_OUT", BundleComponent.ComponentKind.OUTDOOR, null, true, 2);
+        comp(parent, "ROW_PANEL", BundleComponent.ComponentKind.PANEL, "기본", true, 3);
+        comp(parent, "ROW_REMOTE", BundleComponent.ComponentKind.REMOTE, "기본", true, 4);
+        flush();
+
+        var defaults = expander.expand("OPT_DEFAULT_ROWS", BigDecimal.ONE);
+        var withoutPanel = expander.expand("OPT_DEFAULT_ROWS", BigDecimal.ONE,
+                new BundleExpander.ExpandOptions("", false, "판넬제외", "원형", false, null));
+
+        assertThat(defaults).hasSize(4)
+                .extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("ROW_IN", "ROW_OUT", "ROW_PANEL", "ROW_REMOTE");
+        assertThat(withoutPanel).hasSize(3)
+                .extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("ROW_IN", "ROW_OUT", "ROW_REMOTE");
     }
 
     @Test

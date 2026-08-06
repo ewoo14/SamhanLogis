@@ -10,11 +10,13 @@
  * (판매전표 SalesAccountingSlipFormPage 는 기존 전표 라인 할당 기반이라 품목 직접선택·
  *  BUNDLE 진입점이 없어 미적용.)
  *
- * <p>옵션 modelCode 는 자유 입력(빈 값 → BE 기본값 사용). 실외기 제외 체크 시 교체 모델
- * 입력은 비활성화한다(상호배타). 판넬 360 형상은 BE 가 variant(`원형`/`사각`)와 정확 일치로
- * 매칭하므로 **문자열 선택**(미지정/원형/사각)으로 입력받는다(boolean 아님).
+ * <p>옵션은 BE BundleExpander와 동일한 도메인 값(빈 값/판넬제외/블랙판넬/승강판넬/
+ * 공청판넬)을 사용한다. 실외기 제외 체크 시 교체 모델 입력은 비활성화한다(상호배타).
+ * 판넬 360 형상은 BE가 variant(`원형`/`사각`)와 정확 일치로 매칭하므로
+ * **문자열 선택**(미지정/원형/사각)으로 입력받는다(boolean 아님).
  */
 import type { BundleSetOptions } from '../../api/slip'
+import { isSinglePanelOption, SINGLE_PANEL_OPTIONS } from '../../utils/bundleOptionDomain'
 
 interface BundleOptionRowProps {
   /** 표시용 — 어떤 라인의 옵션인지 식별 (modelName 노출, UUID 미노출). */
@@ -60,6 +62,7 @@ export function BundleOptionRow({
 }: BundleOptionRowProps) {
   const o = line.setOptions
   const remoteExcluded = Boolean(o.remoteExcluded)
+  const panelOption = isSinglePanelOption(o.panelOption) ? o.panelOption : ''
   return (
     <div
       data-testid={`bundle-options-${index}`}
@@ -117,18 +120,23 @@ export function BundleOptionRow({
         />
       </label>
 
-      {/* 판넬 선택 모델 */}
+      {/* 판넬 옵션 — BundleExpander.pickPanel 서버 도메인과 동일 */}
       <label style={checkboxLabelStyle}>
-        판넬 선택
-        <input
-          type="text"
-          value={o.panelOption ?? ''}
-          placeholder="판넬 모델코드 (미입력=기본)"
+        판넬 옵션
+        <select
+          value={panelOption}
+          aria-label="판넬 옵션 (미입력=기본)"
           disabled={disabled}
           onChange={(e) => onChange({ panelOption: e.target.value })}
-          style={optionInputStyle}
+          style={{ ...optionInputStyle, minWidth: 140 }}
           data-testid={`bundle-options-${index}-panel-option`}
-        />
+        >
+          {SINGLE_PANEL_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option || '미입력=기본'}
+            </option>
+          ))}
+        </select>
       </label>
 
       {/* 판넬 360 형상 (문자열 선택 — BE variant 정확 매칭) */}

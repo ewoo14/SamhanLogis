@@ -145,6 +145,28 @@ describe('slip bundle expansion mock 계약', () => {
     expect(nullMode.data.length).toBeGreaterThan(1)
     expect(nullMode.data.some((line) => line['componentKind'] === 'INDOOR')).toBe(true)
   })
+
+  it('RED-A 후속 표면: 서버 판넬 키워드 도메인을 mock 전개에도 적용한다', () => {
+    const response = mockRequest({
+      method: 'POST',
+      url: '/slips/expand-line?mockBundleMode=EXPAND',
+      data: JSON.stringify({
+        parentModelCode: 'SET-HM2WAY',
+        quantity: 1,
+        unitPrice: '5400000',
+        setOptions: {
+          remoteExcluded: true,
+          remoteOption: null,
+          panelOption: '블랙판넬',
+          panelShape360: null,
+          materialIncluded: false,
+        },
+      }),
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+
+    expect(response.data.some((line) => line['modelCode'] === 'PNL-BLACK')).toBe(true)
+    expect(response.data.some((line) => line['modelCode'] === 'PNL-BASIC')).toBe(false)
+  })
 })
 
 describe('mock 결재양식 optionsJson 정규화', () => {
