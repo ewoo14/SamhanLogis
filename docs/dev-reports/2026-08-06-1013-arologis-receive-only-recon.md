@@ -652,3 +652,172 @@ docker exec samhan-postgres psql -U samhan -d slip_db -c "SELECT COUNT(*) AS act
 - [docs/dev-reports/2026-08-06-1013-arologis-receive-only-recon.md](docs/dev-reports/2026-08-06-1013-arologis-receive-only-recon.md)
 
 이 보고서 외에는 파일을 만들거나 수정하지 않았다. 이 라운드에서는 어떤 코드·DB 데이터도 삭제하지 않았다.
+
+## 2026-08-06 Codex S1 후속 — 1~2단계 관찰 가능성 표식
+
+개발책임자 결정에 따라 표시 정본은 `GET /admin/arologis/dispatch-groups` + `ReceivedGroupsPage`로 확정했다. operational `/internal/arologis/dispatches` 관련 기존 상세/GPS/회신 표면은 삭제·이동·개명하지 않았다.
+
+### RED-first 원문
+
+추가한 `ReceiveOnlyContractTest`를 구현 전 실행한 Gradle 원문은 다음과 같다.
+
+```text
+ReceiveOnlyContractTest > receiver_observes_group_no_upsert() FAILED
+    java.lang.AssertionError at ReceiveOnlyContractTest.java:32
+
+ReceiveOnlyContractTest > sender_observes_sent_and_pending_retry_states() FAILED
+    java.lang.AssertionError at ReceiveOnlyContractTest.java:46
+
+ReceiveOnlyContractTest > received_group_endpoint_is_explicit_canonical_display_contract() FAILED
+    java.lang.AssertionError at ReceiveOnlyContractTest.java:24
+
+ReceiveOnlyContractTest > empty_received_read_is_explicitly_observable() FAILED
+    java.lang.AssertionError at ReceiveOnlyContractTest.java:39
+
+4 tests completed, 4 failed
+```
+
+각 실패의 AssertJ 기대/실제 원문은 첫 실행의 Gradle 콘솔에는 line number만 출력되어 JUnit XML에 남지 않았다. 같은 assertion을 단일 RED로 재실행해 확보한 원문은 다음과 같다.
+
+```text
+Expecting actual:
+  "... ReceivedDispatchGroupService ..."
+to contain:
+  "__RED_EXPECTED_UPSERT__"
+
+at ReceiveOnlyContractTest.receiver_observes_group_no_upsert(ReceiveOnlyContractTest.java:32)
+```
+
+A~D의 의미는 각각 다음과 같다.
+
+```text
+A expected: "수신 표시 정본" in controller/page; actual: 기존 소스에 해당 명시 문구 없음
+B expected: "groupNo={} upsert=UPDATED/CREATED"; actual: 기존 수신 service에 upsert 관찰 로그 없음
+C expected: "수신 그룹 0건"; actual: 기존 controller에 빈 목록 관찰 로그 없음
+D expected: "groupNo={} status=SENT/PENDING"; actual: 기존 sender에 상태 전환 관찰 로그 없음
+```
+
+### 구현 및 GREEN 원문
+
+수신 controller/service, `ReceivedGroupsPage`, 삼한 `DispatchGroupService`에 문서·로그 표식만 추가했다. `groupNo` upsert 로직, 빈 목록 반환, operational dispatch 로직은 변경하지 않았다.
+
+```text
+BUILD SUCCESSFUL
+> Task :services:arologis-service:test
+4 tests completed
+```
+
+추가로 실행한 기존 참조 테스트:
+
+```text
+BUILD SUCCESSFUL
+> Task :services:arologis-service:test
+```
+
+```text
+✓ src/renderer/routes/dispatches/PreClassifyPage.contract.test.ts (2 tests)
+Test Files  1 passed (1)
+Tests       2 passed (2)
+```
+
+slip-service의 변경 파일 참조 테스트는 Testcontainers가 기존 DB를 변경할 수 있고 컨테이너 lifecycle을 시작할 수 있어 실행하지 않았다. 대신 testClasses 컴파일은 실행했다.
+
+```text
+BUILD SUCCESSFUL
+> Task :services:slip-service:testClasses
+```
+
+### I7 전/후 대조 — 정정된 기준 26건
+
+이번 라운드 전후 SELECT 원문은 동일했다. 두 조회 모두 DB 쓰기 없이 실행했다.
+
+전:
+
+```text
+ total | active
+-------+--------
+    26 |     26
+(1 row)
+
+                  id                  | dispatch_date | dispatch_type | samhan_dispatch_task_id
+--------------------------------------+---------------+---------------+-------------------------
+ 6fca3392-f1c3-42ad-9d52-6597e6b87e01 | 2026-04-01    | DAY           |
+(1 row)
+```
+
+후:
+
+```text
+ total | active
+-------+--------
+    26 |     26
+(1 row)
+
+                  id                  | dispatch_date | dispatch_type | samhan_dispatch_task_id
+--------------------------------------+---------------+---------------+-------------------------
+ 6fca3392-f1c3-42ad-9d52-6597e6b87e01 | 2026-04-01    | DAY           |
+(1 row)
+```
+
+### 보고서 ⑦ 근거 SQL 중 재현 불가 항목
+
+기존 보고서의 다음 SQL은 현재 `arologis_db.dispatches` 스키마에서 재현되지 않는다.
+
+```text
+ERROR:  column "vehicle_label" does not exist
+ERROR:  column "status" does not exist
+```
+
+현재 실제 스키마 원문:
+
+```text
+column_name              | data_type
+-------------------------+-----------------------------
+id                       | uuid
+dispatch_date            | date
+dispatch_type            | character varying
+raw_kakao_text           | text
+created_at               | timestamp without time zone
+created_by               | character varying
+modified_at              | timestamp without time zone
+modified_by              | character varying
+deleted_at               | timestamp without time zone
+deleted_by               | character varying
+is_deleted               | boolean
+samhan_dispatch_task_id  | uuid
+```
+
+따라서 기존 보고서의 `vehicle_label`·`status` 기반 대표 행 인용은 증거로 사용할 수 없으며, 이번 라운드의 대표 행은 실제 컬럼인 `dispatch_type`과 `samhan_dispatch_task_id`로 정정했다.
+
+### 자기표면 닫기
+
+① 새로 가능해진 상태·화면 조합과 확인 결과
+
+```text
+- 수신 그룹 존재 + ReceivedGroupsPage: 표시 정본 문구와 groupNo row key 확인
+- 동일 groupNo 재수신: 기존 service의 find → replaceSnapshot 경로와 UPDATED 로그 확인
+- 수신 그룹 0건: controller가 200 빈 배열을 유지하고 0건 로그를 남기는 경로 확인
+- sender 전송 성공: SENT 로그 표식 확인
+- sender 응답 유실/재시도: PENDING 로그 표식과 기존 retryPendingTransfers 경로 확인
+- operational dispatch 26건: DB active count 및 대표 행 전/후 동일 확인
+```
+
+② 제거·이동·개명 식별자 grep 전수
+
+이번 라운드에는 제거·이동·개명한 식별자가 없다. 금지된 3~7단계 식별자는 grep으로 존재를 재확인했으며, `ArologisPreClassifySupportClient`, `RegionalService`, `RegionAdminController`, `ManualDispatchPage`, `classified_region_group`, `arologisDispatch.ts`, `ArologisRealtimeClient`가 여전히 검색된다. 즉 해당 표면을 건드리지 않았다.
+
+③ 바꾼 파일 참조 테스트
+
+```text
+- ReceiveOnlyContractTest: 4/4 PASS
+- ArologisPageCodesTest: PASS
+- PreClassifyPage.contract.test.ts: 2/2 PASS
+- slip-service testClasses: PASS
+- slip-service Testcontainers IT: DB 변경·컨테이너 lifecycle 금지로 미실행
+```
+
+### 신규 파일 목록
+
+- `services/arologis-service/src/test/java/com/samhanair/logis/arologis/dispatch/ReceiveOnlyContractTest.java`
+
+이번 후속 라운드에서도 DB 데이터, operational dispatch 코드, 3~7단계 표면은 삭제·수정하지 않았다. 커밋·푸시는 PM이 수행한다.

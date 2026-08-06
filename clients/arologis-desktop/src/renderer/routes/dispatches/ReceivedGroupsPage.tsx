@@ -3,6 +3,8 @@ import { Card, DataTable, Input, type DataTableColumn } from '@samhan/design-sys
 import { useState } from 'react'
 import { receivedDispatchGroupsApi, type ReceivedDispatchGroup } from '../../api/receivedDispatchGroups'
 import { usePageTitle } from '../../hooks/usePageTitle'
+
+/** 수신 표시 정본 — 삼한 퍼블릭이 보낸 그룹 snapshot만 표시하고 수정·재분류하지 않는다. */
 export function ReceivedGroupsPage() {
   usePageTitle('수신 배차 그룹')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))

@@ -135,10 +135,12 @@ public class DispatchGroupService {
         try {
             sendWithOneImmediateRetry(request);
             group.markTransferSent();
+            log.info("[dispatch-group-transfer] groupNo={} status=SENT", groupNo);
         } catch (RuntimeException ex) {
             // 원격 upsert가 이미 커밋됐을 수 있으므로 FAILED로 확정하지 않는다.
             // PENDING은 같은 멱등 요청을 scheduler가 재확인할 때까지 그룹과 운송사 수정을 잠근다.
             group.markTransferPending();
+            log.warn("[dispatch-group-transfer] groupNo={} status=PENDING reason={}", groupNo, ex.getMessage());
             throw new BusinessException(ErrorCode.CONFLICT,
                     "아로로지스 전송 결과 확인 중입니다. 같은 그룹은 중복 없이 자동 재확인됩니다.");
         }
