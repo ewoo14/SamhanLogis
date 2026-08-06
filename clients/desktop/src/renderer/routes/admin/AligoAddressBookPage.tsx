@@ -82,6 +82,8 @@ export function AligoAddressBookPage() {
   const syncPending = syncMutation.isPending
   const result: AligoAddressBookSyncResponse | null =
     syncMutation.data ?? null
+  const hasExternalDelivery =
+    result?.deliveryStatus === 'DELIVERED' || result?.deliveryStatus === 'PARTIALLY_DELIVERED'
 
   return (
     <>
@@ -150,8 +152,14 @@ export function AligoAddressBookPage() {
           borderRadius: 4,
         }}
       >
-        주소록 동기화는 현재 외부 전달 없는 mock 모드입니다. 실행해도 알리고에
-        연락처가 등록·변경되지 않으며, CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다.
+        {hasExternalDelivery ? (
+          'CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다.'
+        ) : (
+          <>
+            주소록 동기화는 현재 외부 전달 없는 mock 모드입니다. 실행해도 알리고에
+            연락처가 등록·변경되지 않으며, CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다.
+          </>
+        )}
       </p>
 
       {csvMutation.isError ? (

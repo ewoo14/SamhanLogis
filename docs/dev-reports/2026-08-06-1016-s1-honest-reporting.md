@@ -57,13 +57,34 @@
 - `clients/desktop/src/renderer/routes/admin/AligoAddressBookPage.test.tsx:36-55`
   - 화면의 mock 응답이 양수여도 상태 문구가 “실제 알리고 전달 0건”이고 신규·변경 chip은 0이다.
 
-실행 원문:
+실행 원문 정정:
+
+첫 실행 · 캐시 (구현자가 처음 기록한 참고값, 강제 재실행 증거 아님):
 
 ```text
 PS> ./gradlew :services:notification-service:test --tests "*Aligo*" --tests "*AddressBook*" --console=plain
 > Task :services:notification-service:test
 BUILD SUCCESSFUL in 42s
 18 actionable tasks: 3 executed, 15 up-to-date
+```
+
+최종 강제 재실행 · S1 당시 PM 직접 확인 (최종 권위 증거):
+
+```text
+PS> .\gradlew :services:notification-service:test --tests "*Aligo*" --tests "*AddressBook*" --console=plain --rerun-tasks
+BUILD SUCCESSFUL in 37s
+18 actionable tasks: 18 executed
+```
+
+위 두 실행은 서로 다른 시점의 원문이다. 첫 실행의 캐시 수치는 삭제하지 않고 참고값으로 남겼으며,
+PR·커밋이 지목한 최종 검증은 `--rerun-tasks`를 포함한 두 번째 실행이다.
+
+S3 fix 라운드 재확인 (지시서 ⑤의 좁은 테스트 경계):
+
+```text
+PS> .\gradlew :services:notification-service:test --tests "*AligoAddressBookSyncServiceTest" --tests "*MockAligoAddressBookClientTest" --tests "*NotificationPermissionControllerIT.migratedEndpoint_withGrant*" --console=plain --rerun-tasks
+BUILD SUCCESSFUL in 22s
+18 actionable tasks: 18 executed
 ```
 
 ```text

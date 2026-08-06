@@ -49,6 +49,8 @@ describe('AligoAddressBookPage 외부 전달 상태 표시', () => {
 
     await waitFor(() => expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
       .toContain('실제 알리고 전달 0건'))
+    expect(screen.getByText(/현재 외부 전달 없는 mock 모드입니다/)).toBeTruthy()
+    expect(screen.getByText(/CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다/)).toBeTruthy()
     expect(screen.getByTestId('admin-aligo-result-added').textContent).toContain('신규 0')
     expect(screen.getByTestId('admin-aligo-result-updated').textContent).toContain('변경 0')
   })
@@ -67,6 +69,8 @@ describe('AligoAddressBookPage 외부 전달 상태 표시', () => {
 
     await waitFor(() => expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
       .toContain('실제 전달된 결과'))
+    expect(screen.queryByText(/현재 외부 전달 없는 mock 모드입니다/)).toBeNull()
+    expect(screen.getByText(/CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다/)).toBeTruthy()
     expect(screen.getByTestId('admin-aligo-result-added').textContent).toContain('신규 3')
     expect(screen.getByTestId('admin-aligo-result-updated').textContent).toContain('변경 1')
   })
@@ -85,7 +89,62 @@ describe('AligoAddressBookPage 외부 전달 상태 표시', () => {
 
     await waitFor(() => expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
       .toContain('일부 연락처만 실제'))
+    expect(screen.queryByText(/현재 외부 전달 없는 mock 모드입니다/)).toBeNull()
+    expect(screen.getByText(/CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다/)).toBeTruthy()
     expect(screen.getByTestId('admin-aligo-result-added').textContent).toContain('신규 2')
     expect(screen.getByTestId('admin-aligo-result-failed').textContent).toContain('실패 1')
+  })
+
+  it.each([
+    {
+      name: 'NOT_DELIVERED',
+      deliveryStatus: 'NOT_DELIVERED' as const,
+      failed: [] as string[],
+      statusText: '실제 알리고 전달 0건',
+      showsMockNotice: true,
+    },
+    {
+      name: 'DELIVERED',
+      deliveryStatus: 'DELIVERED' as const,
+      failed: [] as string[],
+      statusText: '실제 전달된 결과',
+      showsMockNotice: false,
+    },
+    {
+      name: 'PARTIALLY_DELIVERED',
+      deliveryStatus: 'PARTIALLY_DELIVERED' as const,
+      failed: ['chunk#2 HTTP 500'],
+      statusText: '일부 연락처만 실제',
+      showsMockNotice: false,
+    },
+  ])('건수 0인 $name 결과도 전달 문구와 모순되지 않는다', async ({
+    deliveryStatus,
+    failed,
+    statusText,
+    showsMockNotice,
+  }) => {
+    syncAligoAddressBookMock.mockResolvedValue({
+      added: 0,
+      updated: 0,
+      skipped: 1,
+      failed,
+      deliveryStatus,
+    })
+
+    renderPage()
+    fireEvent.click(screen.getByTestId('admin-aligo-sync-btn'))
+
+    await waitFor(() => expect(screen.getByTestId('admin-aligo-delivery-status').textContent)
+      .toContain(statusText))
+    if (showsMockNotice) {
+      expect(screen.getByText(/현재 외부 전달 없는 mock 모드입니다/)).toBeTruthy()
+    } else {
+      expect(screen.queryByText(/현재 외부 전달 없는 mock 모드입니다/)).toBeNull()
+    }
+    expect(screen.getByText(/CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다/)).toBeTruthy()
+    expect(screen.getByTestId('admin-aligo-result-added').textContent).toContain('신규 0')
+    expect(screen.getByTestId('admin-aligo-result-updated').textContent).toContain('변경 0')
+    expect(screen.getByTestId('admin-aligo-result-failed').textContent)
+      .toContain(`실패 ${failed.length}`)
   })
 })
