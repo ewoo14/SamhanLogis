@@ -323,7 +323,11 @@ public class ProductInternalController {
     @PostMapping("/expand")
     public ApiResponse<List<ExpandedLineResponse>> expand(@Valid @RequestBody ExpandRequest request) {
         ExpandRequest.Options o = request.options();
-        BundleExpander.ExpandOptions opts = o == null ? BundleExpander.ExpandOptions.defaults()
+        BundleExpander.ExpandOptions defaults = BundleExpander.ExpandOptions.defaults();
+        BundleExpander.ExpandOptions opts = o == null
+                ? new BundleExpander.ExpandOptions(defaults.remoteOption(), defaults.remoteExcluded(),
+                defaults.panelOption(), defaults.panelShape360(), defaults.materialIncluded(),
+                request.setUnitOverride())
                 : new BundleExpander.ExpandOptions(o.remoteOption(), o.remoteExcluded(),
                 o.panelOption(), o.panelShape360(), o.materialIncluded(), request.setUnitOverride());
         List<BundleExpander.ExpandedLine> lines =

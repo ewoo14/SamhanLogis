@@ -2,6 +2,7 @@ package com.samhanair.logis.product.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,13 +16,16 @@ import com.samhanair.logis.security.InternalTokenFilter;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.EcountAliasResolveService;
+import com.samhanair.logis.product.service.BundleExpander;
 import com.samhanair.logis.product.service.ProductService;
+import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -42,6 +46,7 @@ class ProductInternalControllerTest {
     private ProductService productService;
     private ProductRepository productRepository;
     private EcountAliasResolveService ecountAliasResolveService;
+    private BundleExpander bundleExpander;
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -50,6 +55,7 @@ class ProductInternalControllerTest {
         productService = Mockito.mock(ProductService.class);
         productRepository = Mockito.mock(ProductRepository.class);
         ecountAliasResolveService = Mockito.mock(EcountAliasResolveService.class);
+        bundleExpander = Mockito.mock(BundleExpander.class);
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(VALID_TOKEN);
         // W10-4 (PR #99) DV-3 — product-service application.yml 호환
@@ -57,12 +63,60 @@ class ProductInternalControllerTest {
         props.setRole("INTERNAL");
         props.setAllowMissingToken(false);
 
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProductInternalController(productService, productRepository,
-                        Mockito.mock(com.samhanair.logis.product.service.BundleExpander.class),
+                mockMvc = MockMvcBuilders.standaloneSetup(new ProductInternalController(productService, productRepository,
+                        bundleExpander,
                         ecountAliasResolveService))
                 .addFilters(new InternalTokenFilter(props), new HeaderAuthenticationFilter())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void expand_withoutOptions_preservesSetUnitOverride() throws Exception {
+        when(bundleExpander.expand(eq("AC060CS6PBH1SY"), eq(BigDecimal.ONE), any(BundleExpander.ExpandOptions.class)))
+                .thenReturn(List.of(new BundleExpander.ExpandedLine(
+                        "AC060CS6PBH1SY", UUID.randomUUID(), "세트", "세트",
+                        BigDecimal.ONE, new BigDecimal("1590000"), null, null)));
+
+        var body = new ExpandRequest("AC060CS6PBH1SY", BigDecimal.ONE,
+                new BigDecimal("1590000"), null);
+
+        mockMvc.perform(MockMvcRequestBuilders
+                        .post("/products/internal/expand")
+                        .header("X-Internal-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+
+        ArgumentCaptor<BundleExpander.ExpandOptions> options = ArgumentCaptor.forClass(BundleExpander.ExpandOptions.class);
+        verify(bundleExpander).expand(eq("AC060CS6PBH1SY"), eq(BigDecimal.ONE), options.capture());
+        assertThat(options.getValue().setUnitOverride()).isEqualByComparingTo("1590000");
+        assertThat(options.getValue().remoteOption()).isEqualTo("");
+        assertThat(options.getValue().remoteExcluded()).isFalse();
+        assertThat(options.getValue().panelOption()).isEqualTo("");
+        assertThat(options.getValue().panelShape360()).isEqualTo("원형");
+        assertThat(options.getValue().materialIncluded()).isFalse();
+    }
+
+    @Test
+    void expand_withoutSetUnitOverride_keepsNullOverride() throws Exception {
+        when(bundleExpander.expand(eq("AC060CS6PBH1SY"), eq(BigDecimal.ONE), any(BundleExpander.ExpandOptions.class)))
+                .thenReturn(List.of(new BundleExpander.ExpandedLine(
+                        "AC060CS6PBH1SY", UUID.randomUUID(), "세트", "세트",
+                        BigDecimal.ONE, new BigDecimal("1660000"), null, null)));
+
+        var body = new ExpandRequest("AC060CS6PBH1SY", BigDecimal.ONE, null, null);
+
+        mockMvc.perform(MockMvcRequestBuilders
+                        .post("/products/internal/expand")
+                        .header("X-Internal-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+
+        ArgumentCaptor<BundleExpander.ExpandOptions> options = ArgumentCaptor.forClass(BundleExpander.ExpandOptions.class);
+        verify(bundleExpander).expand(eq("AC060CS6PBH1SY"), eq(BigDecimal.ONE), options.capture());
+        assertThat(options.getValue().setUnitOverride()).isNull();
     }
 
     @Test
