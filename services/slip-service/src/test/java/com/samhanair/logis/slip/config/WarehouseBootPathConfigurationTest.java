@@ -28,29 +28,39 @@ class WarehouseBootPathConfigurationTest {
     }
 
     @Test
-    void dev_seed는_slip_service_창고_UUID_네_개를_공급한다() throws IOException {
-        String seed = Files.readString(
-                repositoryRoot().resolve("infrastructure/env-templates/.env.dev-seed"));
+    void production_템플릿은_환경별_UUID를_공급하지_않고_STRICT만_선언한다() throws IOException {
+        String userData = Files.readString(
+                repositoryRoot().resolve("infrastructure/terraform/templates/user_data.sh"));
 
-        assertThat(seed)
-                .contains("WAREHOUSE_UUID_HQ=")
-                .contains("WAREHOUSE_UUID_HUBAL=")
-                .contains("WAREHOUSE_UUID_ANSEONG=")
-                .contains("WAREHOUSE_UUID_CHANGWON=");
+        assertThat(userData)
+                .contains("WAREHOUSE_MAPPING_MODE=STRICT")
+                .doesNotContain("WAREHOUSE_UUID_HQ=")
+                .doesNotContain("WAREHOUSE_UUID_HUBAL=")
+                .doesNotContain("WAREHOUSE_UUID_ANSEONG=")
+                .doesNotContain("WAREHOUSE_UUID_CHANGWON=");
     }
 
     @Test
-    void dev_seed는_업무창고가_없는_세_값을_기존전표보존용_fallback으로_명시한다() throws IOException {
+    void dev_seed는_명시적인_DEV_SUBSTITUTE와_코드기반_변수를_공급한다() throws IOException {
         String seed = Files.readString(
                 repositoryRoot().resolve("infrastructure/env-templates/.env.dev-seed"));
 
         assertThat(seed)
-                .contains("업무 창고(HUBAL/ANSEONG/CHANGWON)를 만들지 않는다")
-                .contains("기존 전표의 warehouse_id 참조를 보존")
-                .contains("VH-001 1호차 차량재고 (fallback)")
-                .contains("CS-001 거래처 위탁창고 (fallback)")
-                .contains("VR-001 가상창고 (fallback)")
-                .contains("기존 전표 1,428건");
+                .contains("WAREHOUSE_MAPPING_MODE=DEV_SUBSTITUTE")
+                .contains("WAREHOUSE_UUID_ECOUNT_00003=")
+                .contains("WAREHOUSE_UUID_ECOUNT_2=")
+                .contains("WAREHOUSE_UUID_ECOUNT_14=")
+                .contains("WAREHOUSE_UUID_ECOUNT_1=");
+    }
+
+    @Test
+    void dev_seed는_UUID가_권위_alias가_아닌_대체값임을_명시한다() throws IOException {
+        String seed = Files.readString(
+                repositoryRoot().resolve("infrastructure/env-templates/.env.dev-seed"));
+
+        assertThat(seed)
+                .contains("WAREHOUSE_MAPPING_MODE=DEV_SUBSTITUTE")
+                .contains("consumer 대체값이며 staging alias 권위 원본이 아니다");
     }
 
     private static Path repositoryRoot() {

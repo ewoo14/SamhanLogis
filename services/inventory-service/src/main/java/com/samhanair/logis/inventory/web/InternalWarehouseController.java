@@ -4,11 +4,17 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.domain.Warehouse;
+import com.samhanair.logis.inventory.repository.EcountWarehouseAliasRepository;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.inventory.web.dto.EcountWarehouseAliasResponse;
 import com.samhanair.logis.inventory.web.dto.WarehouseByCodeResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.UUID;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>현재 제공 endpoint:
  * <ul>
  *   <li>{@code GET /internal/inventory/warehouses/by-code?code=} — warehouseCode → UUID 역조회</li>
+ *   <li>{@code GET /internal/inventory/warehouses/by-ecount-codes?codes=} — staging alias 일괄 조회</li>
  *   <li>{@code GET /internal/inventory/warehouses/{id}} — warehouseId(UUID) → 창고명 조회</li>
  * </ul>
  */
@@ -35,6 +42,29 @@ import org.springframework.web.bind.annotation.RestController;
 public class InternalWarehouseController {
 
     private final WarehouseRepository warehouseRepository;
+    private final EcountWarehouseAliasRepository ecountWarehouseAliasRepository;
+
+    /**
+     * eCount 코드 → 내부 창고 UUID alias를 권위 staging 원본에서 일괄 조회한다.
+     *
+     * <p>기존 {@code by-code}는 {@code warehouses.code}를 조회하는 legacy 내부 계약이다.
+     * eCount 코드는 같은 namespace라고 가정할 수 없으므로, 매핑 검증은 반드시 이 endpoint를
+     * 사용한다. 결과에 없는 코드는 실제 alias 부재이며, HTTP 오류는 호출자에서 장애로 분류한다.
+     *
+     * @param codes comma-separated eCount codes
+     * @return staging alias 중 활성 warehouse에 연결된 행
+     */
+    @Operation(
+            summary = "eCount 창고 코드 alias 일괄 조회 (internal)",
+            description = "staging.ecount_warehouse_map을 권위 원본으로 사용. X-Internal-Token 인증 필수."
+    )
+    @GetMapping("/by-ecount-codes")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<List<EcountWarehouseAliasResponse>> byEcountCodes(
+            @RequestParam(name = "codes") String codes) {
+        Set<String> requestedCodes = parseCodes(codes);
+        return ApiResponse.ok(ecountWarehouseAliasRepository.findActiveByEcountCodes(requestedCodes));
+    }
 
     /**
      * warehouseCode → UUID 역조회.
@@ -100,5 +130,20 @@ public class InternalWarehouseController {
                         "창고를 찾을 수 없습니다"));
         return ApiResponse.ok(new WarehouseByCodeResponse(
                 warehouse.getId(), warehouse.getCode(), warehouse.getName()));
+    }
+
+    private Set<String> parseCodes(String codes) {
+        if (codes == null || codes.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "codes 파라미터는 필수입니다");
+        }
+        Set<String> parsed = new LinkedHashSet<>(Arrays.stream(codes.split(","))
+                .map(String::trim)
+                .filter(code -> !code.isBlank())
+                .toList());
+        if (parsed.isEmpty() || parsed.size() > 100) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "codes 파라미터는 1~100개의 eCount 코드를 가져야 합니다");
+        }
+        return parsed;
     }
 }

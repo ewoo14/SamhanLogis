@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.Optional;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.time.Duration;
 import org.slf4j.Logger;
@@ -24,6 +27,17 @@ public class WarehouseInternalClient {
         public WarehouseNotFoundException(String message, Throwable cause) {
             super(message, cause);
         }
+    }
+
+    /** alias endpoint 자체를 사용할 수 없을 때의 일시 장애 신호. */
+    public static final class WarehouseAliasUnavailableException extends IllegalStateException {
+        public WarehouseAliasUnavailableException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /** staging alias 응답의 내부 표현. UUID는 actuator/로그에 직접 노출하지 않는다. */
+    public record EcountWarehouseAlias(String ecountCode, UUID warehouseId) {
     }
 
     private static final Logger log = LoggerFactory.getLogger(WarehouseInternalClient.class);
@@ -103,6 +117,54 @@ public class WarehouseInternalClient {
         }
     }
 
+    /**
+     * eCount 코드 alias를 inventory의 권위 staging 원본에서 일괄 조회한다.
+     *
+     * <p>기존 {@code /by-code} 역조회는 native warehouse code namespace를 조회하므로 이
+     * 검증에 사용하지 않는다. HTTP 404를 alias 미실재로 해석하지 않고 endpoint/서비스 장애로
+     * 분류하여, 호출자가 {@code NOT_FOUND}와 {@code UNAVAILABLE}을 구분할 수 있게 한다.
+     *
+     * @param ecountCodes 검증할 eCount 코드
+     * @return 응답에 존재한 alias만 code keyed map으로 반환
+     * @throws WarehouseAliasUnavailableException 외부 조회 timeout/오류/계약 오류
+     */
+    public Map<String, EcountWarehouseAlias> findEcountWarehouseAliases(
+            Collection<String> ecountCodes) {
+        if (ecountCodes == null || ecountCodes.isEmpty()) {
+            return Map.of();
+        }
+        String codes = ecountCodes.stream()
+                .map(String::trim)
+                .filter(code -> !code.isBlank())
+                .distinct()
+                .reduce((left, right) -> left + "," + right)
+                .orElseThrow(() -> new WarehouseAliasUnavailableException(
+                        "eCount alias 조회 코드가 없습니다", null));
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            throw new WarehouseAliasUnavailableException(
+                    "eCount alias 조회 실패: internal token이 없습니다", null);
+        }
+        try {
+            String body = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/internal/inventory/warehouses/by-ecount-codes")
+                            .queryParam("codes", codes)
+                            .build())
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            return parseEcountAliases(body);
+        } catch (RestClientResponseException ex) {
+            throw new WarehouseAliasUnavailableException(
+                    "eCount alias 조회 실패: HTTP " + ex.getStatusCode().value(), ex);
+        } catch (WarehouseAliasUnavailableException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new WarehouseAliasUnavailableException("eCount alias 조회 실패", ex);
+        }
+    }
+
     /** UUID 원천으로 inventory가 보유한 업무 구분 code를 조회한다. */
     public Optional<String> findWarehouseCode(UUID warehouseId) {
         if (warehouseId == null) {
@@ -161,5 +223,43 @@ public class WarehouseInternalClient {
             if (ex instanceof IllegalStateException illegalStateException) throw illegalStateException;
             throw new IllegalStateException("창고 조회 실패: 응답 파싱 오류", ex);
         }
+    }
+
+    private Map<String, EcountWarehouseAlias> parseEcountAliases(String body) {
+        if (body == null || body.isBlank()) {
+            throw new WarehouseAliasUnavailableException("eCount alias 응답이 비어 있습니다", null);
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            if (data == null || !data.isArray()) {
+                throw new IllegalStateException("eCount alias 응답 data가 배열이 아닙니다");
+            }
+            Map<String, EcountWarehouseAlias> aliases = new LinkedHashMap<>();
+            for (JsonNode item : data) {
+                String code = text(item, "ecountCode", "ecount_code");
+                String warehouseId = text(item, "warehouseId", "warehouse_uuid", "warehouseUuid");
+                if (code == null || warehouseId == null) {
+                    throw new IllegalStateException("eCount alias 응답 필드가 없습니다");
+                }
+                aliases.put(code.trim(), new EcountWarehouseAlias(
+                        code.trim(), UUID.fromString(warehouseId.trim())));
+            }
+            return aliases;
+        } catch (WarehouseAliasUnavailableException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new WarehouseAliasUnavailableException("eCount alias 응답 파싱 실패", ex);
+        }
+    }
+
+    private static String text(JsonNode node, String... keys) {
+        for (String key : keys) {
+            JsonNode value = node.get(key);
+            if (value != null && !value.isNull() && !value.asText().isBlank()) {
+                return value.asText();
+            }
+        }
+        return null;
     }
 }

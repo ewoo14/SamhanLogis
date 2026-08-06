@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -12,6 +13,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.UUID;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -84,6 +86,40 @@ class WarehouseInternalClientTest {
                         () -> noTokenClient.findWarehouseName(WAREHOUSE_ID))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("internal token");
+        server.verify();
+    }
+
+    @Test
+    void eCount_alias_bulk_응답은_staging_계약으로_파싱한다() {
+        server.expect(queryParam("codes", "00003,2"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess(
+                        "{\"data\":["
+                                + "{\"ecountCode\":\"00003\",\"warehouseId\":\""
+                                + "50000000-0000-0000-0000-000000000001\"},"
+                                + "{\"ecountCode\":\"2\",\"warehouseId\":\""
+                                + "50000000-0000-0000-0000-000000000002\"}]}" ,
+                        MediaType.APPLICATION_JSON));
+
+        Map<String, WarehouseInternalClient.EcountWarehouseAlias> aliases =
+                client.findEcountWarehouseAliases(java.util.Set.of("00003", "2"));
+
+        assertThat(aliases).containsKeys("00003", "2");
+        assertThat(aliases.get("00003").warehouseId())
+                .isEqualTo(UUID.fromString("50000000-0000-0000-0000-000000000001"));
+        server.verify();
+    }
+
+    @Test
+    void eCount_alias_404와_503는_NOT_FOUND가_아닌_UNAVAILABLE이다() {
+        server.expect(queryParam("codes", "00003"))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        client.findEcountWarehouseAliases(java.util.Set.of("00003")))
+                .isInstanceOf(WarehouseInternalClient.WarehouseAliasUnavailableException.class)
+                .hasMessageContaining("HTTP 503");
         server.verify();
     }
 
