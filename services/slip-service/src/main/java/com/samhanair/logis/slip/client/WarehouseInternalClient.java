@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.time.Duration;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,9 +138,12 @@ public class WarehouseInternalClient {
                 .map(String::trim)
                 .filter(code -> !code.isBlank())
                 .distinct()
-                .reduce((left, right) -> left + "," + right)
-                .orElseThrow(() -> new WarehouseAliasUnavailableException(
-                        "eCount alias 조회 코드가 없습니다", null));
+                .sorted()
+                .collect(Collectors.joining(","));
+        if (codes.isBlank()) {
+            throw new WarehouseAliasUnavailableException(
+                    "eCount alias 조회 코드가 없습니다", null);
+        }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
             throw new WarehouseAliasUnavailableException(
