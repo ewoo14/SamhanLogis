@@ -116,6 +116,7 @@ export interface EstimateSummary {
   isDeleted: boolean
   deletedAt: string | null
   deletedByName: string | null
+  restoreAvailable?: boolean
 }
 
 /** 견적서 단건 상세 — BE {@code EstimateDetailResponse}. */

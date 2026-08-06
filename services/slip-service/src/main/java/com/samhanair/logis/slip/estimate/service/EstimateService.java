@@ -509,7 +509,31 @@ public class EstimateService {
                                        LocalDate startDate, LocalDate endDate, Pageable pageable) {
         return estimateRepository.searchIncludingDeleted(
                         status == null ? null : status.name(), partnerId, startDate, endDate, pageable)
-                .map(EstimateResponse::from);
+                .map(estimate -> EstimateResponse.from(estimate, isRestoreAvailable(estimate)));
+    }
+
+    /**
+     * 삭제행의 복원 버튼 노출 여부를 현재 삭제 배치의 전체 라인 그래프로 판정한다.
+     * 순수 QA/cleanup 산물은 API 호출 자체도 차단되므로 목록에서 복원 버튼을 숨긴다.
+     */
+    private boolean isRestoreAvailable(Estimate estimate) {
+        if (!Boolean.TRUE.equals(estimate.getIsDeleted())) {
+            return false;
+        }
+        List<EstimateLine> allLines = estimateLineRepository
+                .findAllIncludingDeletedByEstimateId(estimate.getId());
+        if (isNonCanonicalQaResidue(estimate, allLines)) {
+            return false;
+        }
+        long deletedLineCount = allLines.stream()
+                .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                .count();
+        long restorableLines = allLines.stream()
+                .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                .filter(line -> estimate.getDeletedBy() != null
+                        && estimate.getDeletedBy().equals(line.getDeletedBy()))
+                .count();
+        return deletedLineCount == restorableLines;
     }
 
     /**

@@ -250,7 +250,7 @@ export function EstimateListPage() {
       align: 'right',
       mobilePriority: 'secondary',
       render: (row) =>
-        row.isDeleted && canAccess('estimates.list', 'restore') ? (
+        row.isDeleted && row.restoreAvailable && canAccess('estimates.list', 'restore') ? (
           <Button
             type="button"
             variant="secondary"

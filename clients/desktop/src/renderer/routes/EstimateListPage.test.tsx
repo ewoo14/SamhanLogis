@@ -68,6 +68,7 @@ function estimateRow(overrides: Partial<EstimateSummary> = {}): EstimateSummary 
     isDeleted: false,
     deletedAt: null,
     deletedByName: null,
+    restoreAvailable: true,
     ...overrides,
   }
 }
@@ -190,5 +191,20 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     const alert = await screen.findByTestId('estimate-list-restore-error')
     expect(alert.textContent).toContain('이미 사용 중인 견적번호')
     expect(alert.getAttribute('style') ?? '').toContain('var(--color-danger-700, #991B1B)')
+  })
+
+  it('복원 불가 삭제행은 복원 버튼을 노출하지 않는다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([
+      estimateRow({
+        id: 'qa-residue',
+        isDeleted: true,
+        restoreAvailable: false,
+      }),
+    ]))
+
+    renderPage()
+
+    const row = await screen.findByTestId('estimate-list-row-qa-residue')
+    expect(within(row).queryByTestId('estimate-list-row-qa-residue-restore')).toBeNull()
   })
 })

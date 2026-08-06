@@ -52,14 +52,22 @@ class Issue1096S2FixContractTest {
     }
 
     @Test
-    void s5_cleanupDeletesMixedDocumentsAndTheActiveQa797ResidueAsOneBatch() throws Exception {
+    void s6_cleanupSelectsDocumentsBySeedLineProvenanceNotEstimateNumber() throws Exception {
         String migration = read("services/slip-service/src/main/resources/db/migration/V117__soft_delete_test_seed_documents.sql");
 
         assertThat(migration)
-                .contains("2026/07/17-1", "2026/07/17-2", "2026/07/17-5", "2026/07/17-20")
-                .contains("2026/07/27-1")
-                .contains("l.estimate_id IN (SELECT id FROM _issue_1096_cleanup_estimate_ids)")
+                .doesNotContain("2026/07/17-1", "2026/07/17-2", "2026/07/17-5", "2026/07/17-20")
+                .doesNotContain("2026/07/27-1")
+                .contains("l.product_id IN (SELECT id FROM _issue_1096_test_product_ids)")
+                .contains("EXISTS (SELECT 1 FROM estimate_lines")
                 .contains("deleted_by='issue-1096-test-seed-cleanup'");
+    }
+
+    @Test
+    void s6_estimateListCarriesRestoreAvailabilityForDeletedRows() throws Exception {
+        String response = read("services/slip-service/src/main/java/com/samhanair/logis/slip/estimate/web/dto/EstimateResponse.java");
+
+        assertThat(response).contains("Boolean restoreAvailable");
     }
 
     private static String read(String relative) throws Exception {

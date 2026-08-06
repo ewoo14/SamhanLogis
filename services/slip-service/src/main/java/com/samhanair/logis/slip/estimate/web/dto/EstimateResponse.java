@@ -29,9 +29,14 @@ public record EstimateResponse(
         Long version,
         Boolean isDeleted,
         LocalDateTime deletedAt,
-        String deletedByName) {
+        String deletedByName,
+        Boolean restoreAvailable) {
 
     public static EstimateResponse from(Estimate estimate) {
+        return from(estimate, true);
+    }
+
+    public static EstimateResponse from(Estimate estimate, boolean restoreAvailable) {
         return new EstimateResponse(
                 estimate.getId(),
                 estimate.getEstimateNo(),
@@ -53,6 +58,7 @@ public record EstimateResponse(
                 estimate.getVersion(),
                 estimate.getIsDeleted(),
                 estimate.getDeletedAt(),
-                estimate.getDeletedByName());
+                estimate.getDeletedByName(),
+                restoreAvailable);
     }
 }
