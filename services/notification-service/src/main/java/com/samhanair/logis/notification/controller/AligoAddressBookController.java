@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p><b>Samhan Public 이식 — legacy GAS 9번 "알리고 자동 업로드" 의 1단계 자동화.</b>
  * 운영자가 본 endpoint 호출 시 partner-service 의 활성 거래처 (BE-1 Part A 의 CSV) 를 fetch +
- * parse → 알리고 주소록 API 호출 (현 단계는 mock dryRun, PR-F2 후속에서 실 구현체 교체).
+ * parse → 알리고 주소록 API client 호출 (현 단계는 외부 미전달 mock, 후속에서 실 구현체 교체).
  *
  * <p>인증 = X-User-* 헤더 (gateway 경유) + {@code @RequirePermission} 동적 권한 가드.
  * SALES / WAREHOUSE 등 일반 사용자는 sync trigger 불가.
@@ -32,15 +32,15 @@ public class AligoAddressBookController {
     /**
      * 알리고 주소록 sync 실행.
      *
-     * <p>현 시점 응답 = {@link AligoAddressBookSyncResponse} 의 4 카테고리 (added/updated/skipped/failed).
+     * <p>현 시점 응답 = {@link AligoAddressBookSyncResponse} 의 4 카테고리와 deliveryStatus.
      * 알리고 실 API spec 사용자 결정 후 추가 메타 (예: requestId, durationMs) 보강 가능.
      *
      * @return 200 + {@link AligoAddressBookSyncResponse}
      */
     @Operation(summary = "알리고 주소록 자동 sync (Phase 10 PR-F1 BE-1)",
-            description = "MASTER / MANAGER 권한 필요. 현 단계는 mock dryRun — 실 알리고 API spec 후 자동 격상.")
+            description = "MASTER / MANAGER 권한 필요. 현 단계는 외부 미전달 mock — 실 client 연결 후 전달 상태 전환.")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "sync 완료 (added/updated/skipped/failed 응답)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "sync 결과 (added/updated/skipped/failed/deliveryStatus 응답)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @PostMapping("/sync")

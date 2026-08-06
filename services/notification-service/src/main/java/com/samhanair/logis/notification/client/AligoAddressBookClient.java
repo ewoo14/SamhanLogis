@@ -1,5 +1,6 @@
 package com.samhanair.logis.notification.client;
 
+import com.samhanair.logis.notification.dto.AligoAddressBookDeliveryStatus;
 import java.util.List;
 
 /**
@@ -14,7 +15,7 @@ import java.util.List;
  * <p>본 PR 시점에는 알리고 주소록 API 의 실 spec (endpoint / 인증 / payload schema / rate limit)
  * 이 사용자에게 제공되지 않았다. 따라서 본 인터페이스의 production 구현체
  * {@link MockAligoAddressBookClient} 는 dryRun-only — 실제 외부 호출은 수행하지 않으며 호출만
- * 기록한다 (응답은 입력 contact 수만큼 added 카운트). PR-F2 시점에 사용자가 알리고 spec 을
+ * 기록한다 (응답은 외부 미전달 상태와 added=0으로 반환). PR-F2 시점에 사용자가 알리고 spec 을
  * 확정한 후 RestClient 기반 실 구현체로 교체 예정이며, 본 인터페이스 자체는 변경하지 않는다
  * (계약 안정성 보장).
  *
@@ -60,18 +61,40 @@ public interface AligoAddressBookClient {
      *   <li>{@code rawBody} — debugging 용 응답 body (truncated, sensitive data 제거 후)</li>
      * </ul>
      */
-    record UploadResult(int added, int updated, int skipped, int httpStatus, String rawBody) {
+    record UploadResult(int added, int updated, int skipped, int httpStatus, String rawBody,
+                        AligoAddressBookDeliveryStatus deliveryStatus) {
+
+        /** 기존 5개 필드 생성 호출과의 소스 호환 — 2xx 결과는 외부 전달 완료로 해석한다. */
+        public UploadResult(int added, int updated, int skipped, int httpStatus, String rawBody) {
+            this(added, updated, skipped, httpStatus, rawBody,
+                    httpStatus >= 200 && httpStatus < 300
+                            ? AligoAddressBookDeliveryStatus.DELIVERED
+                            : AligoAddressBookDeliveryStatus.NOT_DELIVERED);
+        }
 
         public static UploadResult success(int added) {
-            return new UploadResult(added, 0, 0, 200, null);
+            return new UploadResult(added, 0, 0, 200, null,
+                    AligoAddressBookDeliveryStatus.DELIVERED);
+        }
+
+        /** 외부 호출 없이 처리한 mock/dry-run 결과 — 어떤 건수도 성공으로 계수하지 않는다. */
+        public static UploadResult notDelivered() {
+            return new UploadResult(0, 0, 0, 200, "dry-run-not-delivered",
+                    AligoAddressBookDeliveryStatus.NOT_DELIVERED);
         }
 
         public static UploadResult rateLimited() {
-            return new UploadResult(0, 0, 0, 429, "rate-limited");
+            return new UploadResult(0, 0, 0, 429, "rate-limited",
+                    AligoAddressBookDeliveryStatus.NOT_DELIVERED);
         }
 
         public boolean isRateLimited() {
             return httpStatus == 429;
+        }
+
+        public boolean isExternallyDelivered() {
+            return deliveryStatus == AligoAddressBookDeliveryStatus.DELIVERED
+                    || deliveryStatus == AligoAddressBookDeliveryStatus.PARTIALLY_DELIVERED;
         }
     }
 }

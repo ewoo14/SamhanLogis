@@ -9,15 +9,15 @@
  * <ol>
  *   <li>"거래처 CSV 다운로드" — partner-service 가 SF벤더 그룹 CSV (UTF-8 BOM) 생성
  *       → 한국어 파일명 {@code 알리고_주소록_YYYY-MM-DD.csv} 로 사용자 저장</li>
- *   <li>"주소록 동기화 실행" — notification-service mock dryRun (PR-F1) →
- *       4 카테고리 chip 표시 (added / updated / skipped / failed)</li>
+ *   <li>"주소록 동기화 실행" — notification-service 외부 미전달 mock (PR-F1) →
+ *       4 카테고리 chip 과 외부 전달 상태 표시 (added / updated / skipped / failed)</li>
  * </ol>
  *
  * <h2>BE 연결</h2>
  * <ul>
  *   <li>GET {@code /admin/partners/export/aligo-csv} — partner-service commit f3b313a</li>
  *   <li>POST {@code /admin/notification/aligo/address-book/sync} —
- *       notification-service commit f3b313a (mock dryRun)</li>
+ *       notification-service commit f3b313a (외부 미전달 mock)</li>
  * </ul>
  *
  * <h2>설계 노트</h2>
@@ -35,6 +35,7 @@
  *   <li>{@code admin-aligo-csv-btn}</li>
  *   <li>{@code admin-aligo-sync-btn}</li>
  *   <li>{@code admin-aligo-result-added / updated / skipped / failed}</li>
+ *   <li>{@code admin-aligo-delivery-status}</li>
  * </ul>
  */
 import { useMutation } from '@tanstack/react-query'
@@ -72,9 +73,7 @@ export function AligoAddressBookPage() {
     },
   })
 
-  // 주소록 sync mutation — 4 카테고리 응답.
-  // TODO(PR-F2): 알리고 실 spec 후 dryRun=false 활성. 현 BE 는 MockAligoAddressBookClient
-  // 가 항상 dryRun 으로 동작 (chunk 별 sample memo + dryRun=true 누적).
+  // 주소록 sync mutation — 외부 전달 상태를 포함한 응답.
   const syncMutation = useMutation({
     mutationFn: syncAligoAddressBook,
   })
@@ -151,8 +150,8 @@ export function AligoAddressBookPage() {
           borderRadius: 4,
         }}
       >
-        주소록 동기화는 현재 mock dryRun 모드입니다 (실 알리고 호출 없음). 알리고
-        실 API 스펙 확정 후 dryRun=false 로 격상 예정입니다 (TODO PR-F2).
+        주소록 동기화는 현재 외부 전달 없는 mock 모드입니다. 실행해도 알리고에
+        연락처가 등록·변경되지 않으며, CSV 다운로드도 알리고 전달 완료를 뜻하지 않습니다.
       </p>
 
       {csvMutation.isError ? (
@@ -189,6 +188,8 @@ export function AligoAddressBookPage() {
         </div>
       ) : null}
 
+      {result ? <DeliveryStatusNotice status={result.deliveryStatus} /> : null}
+
       {result ? <ResultChips result={result} /> : null}
 
       {result && result.failed.length > 0 ? (
@@ -218,11 +219,45 @@ export function AligoAddressBookPage() {
 // 결과 4분 chip — added / updated / skipped / failed (Designer mock 보존)
 // ---------------------------------------------------------------------------
 
+interface DeliveryStatusNoticeProps {
+  status: AligoAddressBookSyncResponse['deliveryStatus'] | undefined
+}
+
+function DeliveryStatusNotice({ status }: DeliveryStatusNoticeProps) {
+  const copy =
+    status === 'DELIVERED'
+      ? '현재 상태: 알리고에 실제 전달된 결과입니다.'
+      : status === 'PARTIALLY_DELIVERED'
+        ? '현재 상태: 일부 연락처만 실제 알리고에 전달되었습니다. 신규·변경 건수는 실제 전달된 알리고 응답 기준입니다.'
+        : '현재 상태: 실제 알리고 전달 0건입니다. 이 결과의 신규·변경 건수는 성공으로 볼 수 없습니다.'
+
+  return (
+    <div
+      role="status"
+      data-testid="admin-aligo-delivery-status"
+      style={{
+        marginBottom: 12,
+        padding: '8px 12px',
+        fontSize: 12,
+        color: 'var(--color-warning-800, #8C5C13)',
+        background: 'var(--color-warning-50, #fffbeb)',
+        border: '1px solid var(--color-warning-200, #fde68a)',
+        borderRadius: 4,
+      }}
+    >
+      {copy}
+    </div>
+  )
+}
+
 interface ResultChipsProps {
   result: AligoAddressBookSyncResponse
 }
 
 function ResultChips({ result }: ResultChipsProps) {
+  const hasExternalDelivery =
+    result.deliveryStatus === 'DELIVERED' || result.deliveryStatus === 'PARTIALLY_DELIVERED'
+
   return (
     <div
       style={{
@@ -235,13 +270,13 @@ function ResultChips({ result }: ResultChipsProps) {
     >
       <ResultChip
         label="신규"
-        value={result.added}
+        value={hasExternalDelivery ? result.added : 0}
         tone="brand"
         testId="admin-aligo-result-added"
       />
       <ResultChip
         label="변경"
-        value={result.updated}
+        value={hasExternalDelivery ? result.updated : 0}
         tone="success"
         testId="admin-aligo-result-updated"
       />

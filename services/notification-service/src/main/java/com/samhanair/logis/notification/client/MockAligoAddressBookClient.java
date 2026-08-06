@@ -17,7 +17,8 @@ import org.springframework.context.annotation.Configuration;
  * <p>현재 동작:
  * <ul>
  *   <li>외부 API 호출 X (dryRun)</li>
- *   <li>입력 contact 수만큼 added 카운트 반환 (모든 contact 가 신규 추가된 것으로 simulate)</li>
+ *   <li>added/updated/skipped 를 모두 0으로 반환하고 {@code NOT_DELIVERED} 상태를 명시
+ *       (외부에 전달되지 않은 contact 를 성공/신규로 계수하지 않음)</li>
  *   <li>호출 마다 INFO 로그 (chunk size + sample group/name) — 운영자가 mock 활성을 즉시 인지</li>
  * </ul>
  *
@@ -50,7 +51,7 @@ public class MockAligoAddressBookClient {
                 + "PR-F2 후속에서 알리고 주소록 API spec 확정 후 RestClient impl 등록 필요.");
         return contacts -> {
             if (contacts == null || contacts.isEmpty()) {
-                return AligoAddressBookClient.UploadResult.success(0);
+                return AligoAddressBookClient.UploadResult.notDelivered();
             }
             AligoAddressBookClient.AligoContact sample = contacts.get(0);
             log.info("[MockAligoAddressBookClient] dryRun chunk size={} sample group='{}' name='{}'. "
@@ -58,7 +59,7 @@ public class MockAligoAddressBookClient {
                     contacts.size(),
                     sample.group(),
                     sample.name());
-            return AligoAddressBookClient.UploadResult.success(contacts.size());
+            return AligoAddressBookClient.UploadResult.notDelivered();
         };
     }
 }

@@ -25,6 +25,7 @@ import com.samhanair.logis.notification.domain.NotificationRequest;
 import com.samhanair.logis.notification.domain.PartnerChatRoomMapping;
 import com.samhanair.logis.notification.domain.RecipientType;
 import com.samhanair.logis.notification.dto.AligoAddressBookSyncResponse;
+import com.samhanair.logis.notification.dto.AligoAddressBookDeliveryStatus;
 import com.samhanair.logis.notification.dto.ChatRoomImportResult;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse;
 import com.samhanair.logis.notification.dto.DispatchBatchSendResponse;
@@ -132,7 +133,8 @@ class NotificationPermissionControllerIT {
         lenient().when(notificationService.retry(any())).thenReturn(request);
 
         lenient().when(aligoAddressBookSyncService.sync())
-                .thenReturn(new AligoAddressBookSyncResponse(1, 0, 0, List.of()));
+                .thenReturn(new AligoAddressBookSyncResponse(1, 0, 0, List.of(),
+                        AligoAddressBookDeliveryStatus.DELIVERED));
         lenient().when(chatRoomMappingService.findAll()).thenReturn(List.of());
         lenient().when(chatRoomMappingService.findByPartnerCode(anyString())).thenReturn(List.of());
         lenient().when(chatRoomMappingService.findByPartnerBusinessName(anyString())).thenReturn(List.of());
