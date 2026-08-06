@@ -497,10 +497,16 @@ interface ExpandedBundleOptionContext {
   parentCategoryKey: LineDraft['categoryKey']
   parentFixedDiscountRate: number | null
   parentHasVariableDiscount: boolean | null
+  discountInfo: string | null
   setOptions: BundleSetOptions
   expansionPending: boolean
   /** 현재 부모 전개가 소유한 구성품 행 ID — 재전개 때 이전 형제 행까지 함께 교체한다. */
   componentLineIds?: string[]
+  userOverrides?: Record<string, {
+    unitPrice?: string
+    quantity?: string
+    specification?: string
+  }>
 }
 
 /**
@@ -789,15 +795,28 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     )))
     if (!before) return
     const after = updater(before)
-    const optionContext = expandedBundleOptionsRef.current[before.id]
-    if (optionContext) {
+    const contextEntry = Object.entries(expandedBundleOptionsRef.current)
+      .find(([, context]) => context.componentLineIds?.includes(before.id) || false)
+    const optionContext = contextEntry?.[1]
+    const contextOwnerId = contextEntry?.[0] ?? ''
+    if (optionContext && contextOwnerId) {
+      const override = optionContext.userOverrides?.[before.id] ?? {}
       setExpandedBundleOptions((current) => ({
         ...current,
-        [before.id]: {
+        [contextOwnerId]: {
           ...optionContext,
           specification: after.specification,
           quantity: after.quantity,
           unitPrice: after.unitPrice,
+          userOverrides: {
+            ...(optionContext.userOverrides ?? {}),
+            [before.id]: {
+              ...override,
+              ...(before.unitPrice !== after.unitPrice ? { unitPrice: after.unitPrice } : {}),
+              ...(before.quantity !== after.quantity ? { quantity: after.quantity } : {}),
+              ...(before.specification !== after.specification ? { specification: after.specification } : {}),
+            },
+          },
         },
       }))
     }
@@ -820,9 +839,19 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     })
     setExpandedBundleOptions((current) => {
       const liveIds = new Set(linesRef.current.filter((line) => line.id !== id).map((line) => line.id))
-      const next = Object.fromEntries(
-        Object.entries(current).filter(([key]) => liveIds.has(key)),
-      )
+      const next: Record<string, ExpandedBundleOptionContext> = {}
+      Object.entries(current).forEach(([key, context]) => {
+        const remainingComponentIds = (context.componentLineIds ?? []).filter((lineId) => liveIds.has(lineId))
+        if (remainingComponentIds.length === 0) return
+        const owner = liveIds.has(key) ? key : remainingComponentIds[0]!
+        next[owner] = {
+          ...context,
+          componentLineIds: remainingComponentIds,
+          userOverrides: Object.fromEntries(
+            Object.entries(context.userOverrides ?? {}).filter(([lineId]) => liveIds.has(lineId)),
+          ),
+        }
+      })
       return next
     })
     // #902 R2: 안내는 이제 이력(touchedLineIds)이 아니라 현재 내용의 순수 함수라(H1),
@@ -852,6 +881,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     parentContextOverrides: { unitPrice?: string } = {},
   ) => {
     const existingContext = expandedBundleOptionsRef.current[source.id]
+      ?? Object.values(expandedBundleOptionsRef.current).find((candidate) =>
+        candidate.componentLineIds?.includes(source.id))
     const context = existingContext ?? (source.productType === 'BUNDLE' && source.productId
       ? {
           parentProductId: source.productId,
@@ -864,6 +895,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           parentCategoryKey: source.categoryKey ?? null,
           parentFixedDiscountRate: source.fixedDiscountRate ?? null,
           parentHasVariableDiscount: source.hasVariableDiscount ?? null,
+          discountInfo: source.discountInfo ?? null,
           setOptions: source.setOptions ?? emptyBundleSetOptions(),
           expansionPending: false,
         }
@@ -875,14 +907,39 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const parentProductId = context?.parentProductId ?? source.productId
     const parentModelCode = context?.parentModelCode ?? source.modelCode
     const parentUnitPrice = parentContextOverrides.unitPrice ?? context?.unitPrice ?? source.unitPrice
+    const bundleDiscountResult = calculateSlipDiscount({
+      listPrice: Number(context?.parentCatalogUnitPrice ?? source.catalogUnitPrice ?? source.unitPrice),
+      modelCode: parentModelCode,
+      category: 'OTHER',
+      hasVariableDiscount: false,
+    }, discountConfig)
+    const bundleDiscountInfo = bundleDiscountResult.source !== 'NONE'
+      ? bundleDiscountResult.info
+      : source.discountInfo && source.discountInfo !== 'DC 없음'
+        ? source.discountInfo
+        : null
+    const previousComponentLines = (context?.componentLineIds ?? [source.id])
+      .map((lineId) => linesRef.current.find((line) => line.id === lineId))
+      .filter((line): line is LineDraft => line != null)
+    const usedPreviousLineIds = new Set<string>()
     const componentLines = expanded
       .filter((component) => component.productId)
       .map((component) => {
+        const previous = previousComponentLines.find((line) =>
+          !usedPreviousLineIds.has(line.id)
+          && line.productId === component.productId
+          && (component.modelCode == null || line.modelCode === component.modelCode))
+          ?? previousComponentLines.find((line) => !usedPreviousLineIds.has(line.id))
+        if (previous) usedPreviousLineIds.add(previous.id)
+        const override = previous && context?.userOverrides?.[previous.id]
         const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
         const catalogUnitPrice = String(component.unitPrice ?? '0')
         // 서버는 부모 세트 단가를 구성행에 이미 배분한다. 구성품 modelCode로
         // 정액DC를 다시 계산하면 플래그 구성품 수만큼 정액이 중복 차감된다.
-        const unitPrice = catalogUnitPrice
+        const unitPrice = override?.unitPrice ?? catalogUnitPrice
+        const effectiveQuantity = override?.quantity ?? quantity
+        const effectiveSpecification = override?.specification ?? component.specification ?? parentSpecification
+        const effectivePriceSource = override?.unitPrice != null ? 'USER' : 'CATALOG'
         const isKeepParent = component.componentKind === null && source.productType === 'BUNDLE'
         const productType = isKeepParent
           ? 'BUNDLE'
@@ -894,14 +951,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             productId: component.productId,
             modelName: component.modelName ?? '',
             productName: component.name ?? '',
-            specification: component.specification ?? parentSpecification,
-            quantity,
+            specification: effectiveSpecification,
+            quantity: effectiveQuantity,
             unitPrice,
             productType,
             modelCode: component.modelCode ?? null,
-            priceSource: 'CATALOG',
+            priceSource: effectivePriceSource,
             catalogUnitPrice,
-            discountInfo: null,
+            discountInfo: bundleDiscountInfo,
             ...(isKeepParent ? {} : {
               parentSetModel: parentModelCode ?? null,
               setHead: Boolean(component.setHead),
@@ -913,14 +970,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           productId: component.productId,
           modelName: component.modelName ?? '',
           productName: component.name ?? '',
-          specification: component.specification ?? parentSpecification,
-          quantity,
+          specification: effectiveSpecification,
+          quantity: effectiveQuantity,
           unitPrice,
           productType,
           modelCode: component.modelCode ?? null,
-          priceSource: 'CATALOG',
+          priceSource: effectivePriceSource,
           catalogUnitPrice,
-          discountInfo: null,
+          discountInfo: bundleDiscountInfo,
           ...(isKeepParent ? {} : {
             parentSetModel: parentModelCode ?? null,
             setHead: Boolean(component.setHead),
@@ -951,14 +1008,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return ensureTrailingBlankRow(next, emptyLine, (line) => Boolean(line.productId && Number(line.quantity) > 0))
     })
     setExpandedBundleOptions((current) => {
-      // 컨텍스트 소유권은 화면의 실제 구성품 행 ID뿐이다. 재전개 중 사용자
-      // 편집으로 남을 수 있는 productId 키 등 현재 행과 무관한 키를 함께 제거한다.
-      const nextLineIds = new Set(linesRef.current.map((line) => line.id))
-      nextLineIds.delete(source.id)
-      componentLines.forEach((line) => nextLineIds.add(line.id))
-      const next = Object.fromEntries(
-        Object.entries(current).filter(([key]) => nextLineIds.has(key)),
-      )
+      // 다른 세트의 응답이 근접 도착할 때 linesRef 는 아직 이전 배열일 수 있다.
+      // 현재 화면 ID로 전체 맵을 필터링하면 그 세트의 컨텍스트까지 지워진다.
+      // 이번 원본 계보에 속한 컨텍스트만 제거하고, 나머지는 그대로 보존한다.
+      const next = { ...current }
+      Object.entries(current).forEach(([key, candidate]) => {
+        if (key === source.id
+          || candidate === existingContext
+          || candidate.componentLineIds?.some((lineId) => previousComponentLineIds.has(lineId))) {
+          delete next[key]
+        }
+      })
       const firstComponentLine = componentLines[0]
       const shouldExposeOptions = componentLines.length > 0
         && context
@@ -970,8 +1030,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         const retainedContext = {
           ...context,
           unitPrice: parentContextOverrides.unitPrice ?? context.unitPrice,
+          discountInfo: bundleDiscountInfo,
           expansionPending: false,
           componentLineIds: componentLines.map((line) => line.id),
+          // 서버 응답과 병합한 사용자 입력은 새 구성행 ID에 이미 반영됐다.
+          userOverrides: {},
         }
         expandedBundleOptionsRef.current = {
           ...expandedBundleOptionsRef.current,
@@ -1429,7 +1492,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       }, discountConfig)
       const parentUnitPrice = String(parentDiscount.unitPrice)
       setExpandedBundleOptions((current) => current[lineId]
-        ? { ...current, [lineId]: { ...current[lineId], unitPrice: parentUnitPrice, expansionPending: true } }
+        ? {
+            ...current,
+            [lineId]: {
+              ...current[lineId],
+              unitPrice: parentUnitPrice,
+              discountInfo: parentDiscount.info ?? null,
+              expansionPending: true,
+            },
+          }
         : current)
       await expandSelectedBundle(source, {
         ...source,

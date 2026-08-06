@@ -811,6 +811,161 @@ describe('SlipFormPage price memory autofill', () => {
     await waitFor(() => expect(unitPrice().value).toBe('955000'))
   })
 
+  it('stores the bundle discount evidence on the saved slip payload', async () => {
+    harness.bundle.modelCode = 'AC072CS6PBH1SY'
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: '30,000',
+      fourWay: null,
+      oneWay: null,
+      stand: null,
+      deluxe: null,
+      firstGrade: null,
+    })
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      modelCode: 'AC072CS6PBH1SY',
+      quantity: 1,
+      unitPrice: 970000,
+      specification: null,
+    }])
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(unitPrice().value).toBe('970000'))
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(harness.createSlip.mock.calls[0][0].discountInfo).toContain('거래처 싱글세트 정액DC 30000원 적용')
+  })
+
+  it('preserves a user-edited bundle component price across a partner switch', async () => {
+    harness.expandBundleLine
+      .mockResolvedValueOnce([
+        { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 7000 },
+        { productId: harness.productB.id, modelName: 'Panel', name: 'Panel', modelCode: 'PANEL', quantity: 1, unitPrice: 3000 },
+      ])
+      .mockResolvedValueOnce([
+        { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'INDOOR', quantity: 1, unitPrice: 6500 },
+        { productId: harness.productB.id, modelName: 'Panel', name: 'Panel', modelCode: 'PANEL', quantity: 1, unitPrice: 3500 },
+      ])
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(unitPrice(2).value).toBe('3000'))
+    fireEvent.change(unitPrice(2), { target: { value: '7777' } })
+
+    await selectPartnerB()
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    expect(unitPrice(2).value).toBe('7777')
+    expect(screen.getByTestId('line-2').getAttribute('data-price-source')).toBe('USER')
+  })
+
+  it('reprices once after the first bundle component is deleted', async () => {
+    harness.bundle.modelCode = 'AC072CS6PBH1SY'
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: '30,000',
+      fourWay: null,
+      oneWay: null,
+      stand: null,
+      deluxe: null,
+      firstGrade: null,
+    })
+    harness.expandBundleLine
+      .mockResolvedValueOnce([
+        { productId: harness.productA.id, modelName: 'Outdoor', name: 'Outdoor', modelCode: 'OUTDOOR', quantity: 1, unitPrice: 7000 },
+        { productId: harness.productB.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'AC072CS6PBH1SY', quantity: 1, unitPrice: 970000 },
+      ])
+      .mockResolvedValueOnce([
+        { productId: harness.productB.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'AC072CS6PBH1SY', quantity: 1, unitPrice: 970000 },
+      ])
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(screen.getByTestId('line-2').getAttribute('data-model-code')).toBe('AC072CS6PBH1SY'))
+    fireEvent.click(screen.getByTestId('delete-line-1'))
+
+    await selectPartnerB()
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    expect(unitPrice().value).toBe('970000')
+    expect(harness.getPriceMemories.mock.calls.flat()[1]).not.toBe(harness.productB.id)
+  })
+
+  it('keeps both bundle contexts through A to B to A partner switching', async () => {
+    harness.expandBundleLine
+      .mockResolvedValueOnce([{ productId: harness.productA.id, modelName: 'A-1', name: 'A-1', modelCode: 'A-1', quantity: 1, unitPrice: 7000 }])
+      .mockResolvedValueOnce([{ productId: harness.productB.id, modelName: 'A-2', name: 'A-2', modelCode: 'A-2', quantity: 1, unitPrice: 3000 }])
+      .mockResolvedValueOnce([{ productId: harness.productA.id, modelName: 'B-1', name: 'B-1', modelCode: 'B-1', quantity: 1, unitPrice: 6000 }])
+      .mockResolvedValueOnce([{ productId: harness.productB.id, modelName: 'B-2', name: 'B-2', modelCode: 'B-2', quantity: 1, unitPrice: 4000 }])
+      .mockResolvedValueOnce([{ productId: harness.productA.id, modelName: 'A-1-final', name: 'A-1-final', modelCode: 'A-1-final', quantity: 1, unitPrice: 7000 }])
+      .mockResolvedValueOnce([{ productId: harness.productB.id, modelName: 'A-2-final', name: 'A-2-final', modelCode: 'A-2-final', quantity: 1, unitPrice: 3000 }])
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId('select-bundle-2'))
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+
+    await selectPartnerB()
+    await selectPartnerA()
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(6))
+    expect(screen.getByTestId('line-1').getAttribute('data-model-code')).toBe('A-1-final')
+    expect(screen.getByTestId('line-2').getAttribute('data-model-code')).toBe('A-2-final')
+  })
+
+  it('does not bulk-reprice expanded component lines on partner switch', async () => {
+    harness.expandBundleLine.mockResolvedValueOnce([
+      { productId: harness.productA.id, modelName: 'Indoor', name: 'Indoor', modelCode: 'AC072CS6PBH1SY', quantity: 1, unitPrice: 970000 },
+    ])
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(unitPrice().value).toBe('970000'))
+    await selectPartnerB()
+    await waitFor(() => expect(harness.expandBundleLine).toHaveBeenCalledTimes(2))
+    expect(harness.getPriceMemories.mock.calls.some((call) => call.includes(harness.productA.id))).toBe(false)
+  })
+
+  it('keeps the no-fixed-discount expansion result unchanged', async () => {
+    harness.bundle.modelCode = 'SET-WITHOUT-FLAGS'
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: null,
+      fourWay: null,
+      oneWay: null,
+      stand: null,
+      deluxe: null,
+      firstGrade: null,
+    })
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.productA.id,
+      modelName: 'No-DC component',
+      name: 'No-DC component',
+      modelCode: 'PLAIN-COMPONENT',
+      quantity: 1,
+      unitPrice: 10000,
+    }])
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+    await waitFor(() => expect(unitPrice().value).toBe('10000'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info')).toBe('')
+  })
+
   it('C-1 판별: 비세트 상업멀티 품목에도 거래처 전역DC가 적용된다', async () => {
     harness.productA.categoryKey = 'commercialMulti'
     harness.productA.sellingPrice = '20680000'

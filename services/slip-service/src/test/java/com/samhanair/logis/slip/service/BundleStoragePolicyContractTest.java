@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /** 저장 입구가 BUNDLE 판정을 복제하거나 우회하지 않는다는 소스 계약 게이트. */
@@ -62,15 +63,81 @@ class BundleStoragePolicyContractTest {
                 .isEmpty();
     }
 
+    @Test
+    void 삼천자_텍스트블록도_낮은_스택에서_계약_전처리가_완료된다() throws Exception {
+        String source = "@Query(\"\"\"\n" + "x".repeat(3_000) + "\n\"\"\")\nSlipLine.create(\"x\")";
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread worker = new Thread(null, () -> {
+            try {
+                code(source);
+            } catch (Throwable error) {
+                failure.set(error);
+            }
+        }, "bundle-contract-text-block", 256 * 1024L);
+        worker.start();
+        worker.join();
+        assertThat(failure.get()).isNull();
+    }
+
     private static String source(String fileName) throws Exception {
         return Files.readString(Path.of("src/main/java/com/samhanair/logis/slip/service", fileName));
     }
 
     /** 주석·문자열은 계약의 증거가 아니다. 실제 Java 코드만 남겨 공격 fixture를 차단한다. */
-    private static String code(String source) {
-        return source
-                .replaceAll("(?s)/\\*.*?\\*/", "")
-                .replaceAll("(?m)//.*$", "")
-                .replaceAll("\\\"(?:\\\\.|[^\\\"\\\\])*\\\"", "\"\"");
+    static String code(String source) {
+        StringBuilder code = new StringBuilder(source.length());
+        int index = 0;
+        while (index < source.length()) {
+            char current = source.charAt(index);
+            if (current == '/' && index + 1 < source.length() && source.charAt(index + 1) == '/') {
+                index += 2;
+                while (index < source.length() && source.charAt(index) != '\n') index++;
+                code.append('\n');
+                continue;
+            }
+            if (current == '/' && index + 1 < source.length() && source.charAt(index + 1) == '*') {
+                index += 2;
+                while (index + 1 < source.length()
+                        && !(source.charAt(index) == '*' && source.charAt(index + 1) == '/')) index++;
+                index = Math.min(source.length(), index + 2);
+                code.append(' ');
+                continue;
+            }
+            if (current == '"') {
+                boolean textBlock = index + 2 < source.length()
+                        && source.charAt(index + 1) == '"'
+                        && source.charAt(index + 2) == '"';
+                index += textBlock ? 3 : 1;
+                while (index < source.length()) {
+                    if (textBlock) {
+                        if (index + 2 < source.length()
+                                && source.charAt(index) == '"'
+                                && source.charAt(index + 1) == '"'
+                                && source.charAt(index + 2) == '"') {
+                            index += 3;
+                            break;
+                        }
+                        index++;
+                    } else {
+                        if (source.charAt(index) == '\\') index += Math.min(2, source.length() - index);
+                        else if (source.charAt(index++) == '"') break;
+                    }
+                }
+                code.append("\"\"");
+                continue;
+            }
+            if (current == '\'') {
+                index++;
+                while (index < source.length()) {
+                    if (source.charAt(index) == '\\') index += Math.min(2, source.length() - index);
+                    else if (source.charAt(index++) == '\'') break;
+                }
+                code.append("''");
+                continue;
+            }
+            code.append(current);
+            index++;
+        }
+        return code.toString();
     }
 }
