@@ -1,0 +1,91 @@
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m314[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m18502[22m/[39m
+[2mPM 9:41:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 9:41:39[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh (new export)
+[2mPM 9:41:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 9:43:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 9:43:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 9:43:15[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 9:43:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:17:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 10:17:26[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh (new export)
+[2mPM 10:17:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:17:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 10:17:39[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 10:17:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:17:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/EstimateFormPage.tsx, /routes/SlipDetailPage.tsx[22m
+[2mPM 10:17:51[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 10:17:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:18:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 10:18:50[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 10:18:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:21:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 10:21:29[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 10:21:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:23:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 10:23:35[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 10:23:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:50:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/EstimateFormPage.tsx, /routes/SlipDetailPage.tsx[22m
+[2mPM 10:50:41[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 10:50:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:51:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 10:51:08[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 10:51:08[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 10:51:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 10:51:13[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mPM 10:51:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mPM 11:26:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mPM 11:26:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/EstimateFormPage.tsx, /routes/SlipDetailPage.tsx[22m
+[2mPM 11:26:31[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh (new export)
+[2mPM 11:26:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 12:56:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/components/collab/CollaborativeSlipInput.tsx[22m
+[2mAM 12:56:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mAM 12:57:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mAM 12:57:01[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh (new export)
+[2mAM 12:57:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 12:57:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mAM 12:57:47[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 12:57:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:43:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/components/collab/CollaborativeSlipInput.tsx[22m
+[2mAM 6:48:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mAM 6:48:26[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh (export removed)
+[2mAM 6:48:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:49:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 6:49:43[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipFormPage.tsx[22m Could not Fast Refresh (new export)
+[2mAM 6:49:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:49:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 6:49:51[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipFormPage.tsx[22m Could not Fast Refresh ("buildSalesSlipUpdateRequest" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 6:49:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:50:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 6:50:05[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipFormPage.tsx[22m Could not Fast Refresh ("buildSalesSlipUpdateRequest" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 6:50:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:50:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 6:50:18[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipFormPage.tsx[22m Could not Fast Refresh ("buildSalesSlipUpdateRequest" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 6:50:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:50:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 6:50:51[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipFormPage.tsx[22m Could not Fast Refresh ("buildSalesSlipUpdateRequest" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 6:50:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:51:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:51:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mAM 6:51:15[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 6:51:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:51:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 6:51:19[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipFormPage.tsx[22m Could not Fast Refresh ("buildSalesSlipUpdateRequest" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 6:51:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:51:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 6:51:30[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipFormPage.tsx[22m Could not Fast Refresh ("buildSalesSlipUpdateRequest" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 6:51:30[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 6:53:05[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapi/mock.ts[22m
+[2mAM 7:25:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 7:25:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mAM 7:26:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 7:26:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipDetailPage.tsx[22m
+[2mAM 7:26:23[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipFormPage.tsx[22m Could not Fast Refresh (export removed)
+[2mAM 7:26:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 7:26:23[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/routes/SlipDetailPage.tsx[22m Could not Fast Refresh ("buildDetailLinePayload" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2mAM 7:26:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 7:26:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 7:26:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/index.tsx[22m
+[2mAM 7:27:51[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapi/mock.ts[22m

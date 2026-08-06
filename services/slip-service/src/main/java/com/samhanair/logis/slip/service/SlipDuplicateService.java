@@ -3,7 +3,6 @@ package com.samhanair.logis.slip.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
-import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -57,7 +56,6 @@ public class SlipDuplicateService {
     private final SlipRepository slipRepository;
     private final SlipNumberService slipNumberService;
     private final PartnerInternalClient partnerInternalClient;
-    private final WarehouseInternalClient warehouseInternalClient;
     private final SlipRevisionService slipRevisionService;
     /** #809 — 거래처+품목 최근 VAT 포함 입력단가 기억. 실패해도 복사는 계속된다. */
     private final PartnerProductPriceMemoryService priceMemoryService;
@@ -97,6 +95,7 @@ public class SlipDuplicateService {
                     source.getSourceWarehouseId(), source.getDestinationWarehouseId(),
                     source.getPartnerId(), source.getPartnerName(),
                     source.getDeliveryTag(), source.getMemo(), requesterId);
+            copy.setSourceWarehouseCode(source.getSourceWarehouseCode());
             // 복사도 신규 출고 생성이다 — 태그 null 이면 게이트 내부에서 즉시 통과(opt-in).
             cutoffGuard.assertWithinCutoff(copy.getDeliveryTag(), copy.getSlipDate());
         } else {
@@ -142,12 +141,6 @@ public class SlipDuplicateService {
                             businessNumber, null, null, null, null, null));
             partnerInternalClient.resolvePartnerCode(copy.getPartnerId())
                     .ifPresent(copy::setPartnerCode);
-        }
-
-        // 8. INBOUND — 도착 창고명 snapshot (실패 시 null 유지, 생성과 동일)
-        if (source.getSlipType() == SlipType.INBOUND && copy.getDestinationWarehouseId() != null) {
-            warehouseInternalClient.findWarehouseName(copy.getDestinationWarehouseId())
-                    .ifPresent(copy::snapshotDestinationWarehouseName);
         }
 
         Slip saved = slipRepository.save(copy);

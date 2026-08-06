@@ -36,7 +36,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useSessionStore } from '../stores/session'
+import { canQueryPurchases, canQuerySales, useSessionStore } from '../stores/session'
 import { usePageTitleStore } from '../stores/pageTitle'
 // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 사이드바 메뉴 동적 hidden 연동.
 import { usePermissions } from '../hooks/usePermissions'
@@ -552,17 +552,21 @@ export function AppLayout() {
 
   // [SP-D4] 잔여 7 도메인 22 PageCode 동적 RBAC 연동.
   // SP-D 일관성: dynamicCanAccess 는 캐시 미로드 시 false 로 deny 하며 로딩 flash 를 만들지 않는다.
-  const showSalesSlipList          = dynamicCanAccess('sales.slip.list',             'view')
-  const showPurchaseSlipList       = dynamicCanAccess('purchases.slip.list',         'view')
+  // PageCode VIEW seed보다 좁은 slip-service 유형별 조회 guard를 메뉴에도 적용해
+  // 메뉴→목록 진입 뒤 403이 발생하는 경로를 만들지 않는다.
+  const showSalesSlipList          = dynamicCanAccess('sales.slip.list', 'view') && canQuerySales(auth)
+  const showPurchaseSlipList       = dynamicCanAccess('purchases.slip.list', 'view') && canQueryPurchases(auth)
   const showEstimatesList          = dynamicCanAccess('estimates.list',               'view')
   const showPartnerOrderList       = dynamicCanAccess('sales.partner-order.list',     'view')
   const showInventoryWarehouse     = dynamicCanAccess('inventory.warehouse',          'view')
   // inventory.stock — 현재 사이드바 직접 노출 없음 (재고 현황 서브페이지). 라우트 가드에서 사용.
   const showInventoryStockTransfer = dynamicCanAccess('inventory.stock-transfer',     'view')
   const showInventoryStockBalance  = dynamicCanAccess('inventory.stock-balance',      'view')
+  const showInOutAnalysis          = dynamicCanAccess('accounting.sales-slip.list',  'view')
   const showInventoryDps           = dynamicCanAccess('inventory.dps',                'view')
   const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
   const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
+  const showCarrierMaster           = dynamicCanAccess('hr.carriers',                 'view')
   // admin.users — 인사 그룹 자식 링크 소비처 없음('인사 관리'/admin/users 는 admin.employees 게이트).
   // [Round B P3] showAdminHrGroup 에서 제거 — admin.users 단독 권한자가 빈 '인사' 헤더만 보던 갭 해소.
   // 사이드바/라우트 직접 소비처 없으나 page-code 자체는 유효 → 향후 메뉴 연결 예약(underscore).
@@ -589,7 +593,7 @@ export function AppLayout() {
   // [Round A P3] 구 showInventoryGroup 집계 변수 삭제 — 창고운영 그룹 게이트는
   // showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 로 교체되어 미소비(dead) 였음.
   // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
-  const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation || showApprovalLineConfig || showSlipCutoff
+  const showAdminHrGroup   = showAdminEmployees || showCarrierMaster || showPermissionAdmin || showPermissionDelegation || showApprovalLineConfig || showSlipCutoff
   // DEV-3: 개발 그룹은 버전관리(admin.app-release) + 팝업공지(dev.popup-notice) + 로그(dev.activity-log) 중 하나라도 노출한다.
   const showDevelopmentGroup = showAppReleaseAdmin || showPopupNoticeAdmin || showActivityLogAdmin
 
@@ -599,15 +603,13 @@ export function AppLayout() {
   const showArologisManual = dynamicCanAccess('arologis.dispatch.admin', 'view')
   // 가배차리스트 / 미배차리스트 / 실배차 비교 — 라우트 공통 arologis.dispatch.ops
   const showArologisOps = dynamicCanAccess('arologis.dispatch.ops', 'view')
-  const showDispatchSmsPage = dynamicCanAccess('dispatch.batch', 'view')
-  const showDispatchSmsSendAudit = dynamicCanAccess('notification.dispatch-sms.send-audit', 'view')
+  const showDispatchSmsPage = dynamicCanAccess('notification.dispatch-sms.display', 'view')
   const showExternalCarriers = dynamicCanAccess('dispatch.external-carriers', 'view')
-  // arologis 그룹 가시성 — arologis.dispatch.admin route 권한 / ops 3종 / 배차안내 SMS / 발송 이력 / P1-5 admin 중 하나라도 보이면 그룹 노출
+  // arologis 그룹 가시성 — arologis.dispatch.admin route 권한 / ops 3종 / 배차안내문자 / P1-5 admin 중 하나라도 보이면 그룹 노출
   const showArologis
     = showArologisManual
     || showArologisOps
     || showDispatchSmsPage
-    || showDispatchSmsSendAudit
     || showExternalCarriers
     || showArologisAdminPage
 
@@ -663,7 +665,7 @@ export function AppLayout() {
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
   const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
   const showWarehouseOpsGroup =
-    showInventoryWarehouse || showInventoryStockBalance || showSafetyStockAlerts
+    showInventoryWarehouse || showInventoryStockBalance || showInOutAnalysis || showSafetyStockAlerts
     || showInventoryCompensationFailures || showSlipEditRequests || showPhotoAudit
 
   return (
@@ -756,6 +758,12 @@ export function AppLayout() {
               show={showPartnerOrderList}
             >
               주문서 승인
+            </SidebarLink>
+            <SidebarLink
+              to="/sales/order-approvals"
+              show={showPartnerOrderList}
+            >
+              주문서 앱 접근권한 설정
             </SidebarLink>
             {/* [C5 후속 C-4] 거래처 관리 — /admin/partners 라우트와 동일한 partners.list VIEW 기준. */}
             <SidebarLink
@@ -1378,6 +1386,7 @@ export function AppLayout() {
               '/admin/permission-groups/delegation',
               '/admin/approval-line-config',
               '/admin/slip-cutoff',
+              '/admin/carriers',
             ]}
           >
             {/* admin.employees — MASTER/MANAGER (SP-D4 §2). */}
@@ -1387,6 +1396,14 @@ export function AppLayout() {
               data-testid="sidebar-hr-users"
             >
               인사 관리
+            </SidebarLink>
+            <SidebarLink
+              to="/admin/carriers"
+              show={showCarrierMaster}
+              requiredRole="MANAGER / MASTER"
+              data-testid="sidebar-hr-carriers"
+            >
+              운송사 목록
             </SidebarLink>
             {/* 권한 관리 — MASTER 전용. route 도 RoleGuard + system.permission-admin(view) 로 이중 가드. */}
             <SidebarLink
@@ -1481,10 +1498,10 @@ export function AppLayout() {
             testId="sidebar-category-toggle-배차"
             activeTargets={[
               '/dispatch-board/history',
+              '/admin/dispatch-groups',
               '/arologis/pre-classify',
               '/arologis/unassigned',
               '/arologis/dispatch-sms',
-              '/arologis/dispatch-sms/send-audit',
               '/arologis/dispatch-reconcile',
               '/admin/regions',
               '/admin/external-carriers',
@@ -1500,6 +1517,14 @@ export function AppLayout() {
                 data-testid="sidebar-dispatch-history"
               >
                 배차현황
+              </SidebarLink>
+              <SidebarLink
+                to="/admin/dispatch-groups"
+                show={showDispatchBoard}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-dispatch-groups"
+              >
+                배차 그룹
               </SidebarLink>
               {/* [Phase 10 PR-E1 FE-2] 가배차리스트 — MASTER/MANAGER/DISPATCH. */}
               <SidebarLink
@@ -1527,15 +1552,6 @@ export function AppLayout() {
                 data-testid="sidebar-arologis-dispatch-sms"
               >
                 배차안내 SMS
-              </SidebarLink>
-              {/* [SP-09-2 FE] SMS 발송 이력 — SEND_AUDIT 전용 조회화면. */}
-              <SidebarLink
-                to="/arologis/dispatch-sms/send-audit"
-                show={showDispatchSmsSendAudit}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-sms-send-audit"
-              >
-                SMS 발송 이력
               </SidebarLink>
               {/* [SP-04] 운송사 실배차 비교 — hidden route 를 공식 메뉴 entry 로 승격. */}
               <SidebarLink
@@ -1597,6 +1613,7 @@ export function AppLayout() {
             activeTargets={[
               '/warehouses',
               '/inventory/stock-balance',
+              '/inventory/inout-analysis',
               '/inventory/safety-stock-alerts',
               '/inventory/compensation-failures',
               '/admin/slip-edit-requests',
@@ -1618,6 +1635,14 @@ export function AppLayout() {
                 data-testid="sidebar-inventory-stock-balance"
               >
                 재고 현황
+              </SidebarLink>
+              <SidebarLink
+                to="/inventory/inout-analysis"
+                show={showInOutAnalysis}
+                requiredRole="ACCOUNTANT / SALES / MANAGER / MASTER"
+                data-testid="sidebar-inventory-inout-analysis"
+              >
+                입출고 내역·분석
               </SidebarLink>
               {/* [P1-3] 안전재고 알림 — MASTER/MANAGER/WAREHOUSE. */}
               <SidebarLink

@@ -5,12 +5,15 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
 import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.service.HometaxExportService;
-import com.samhanair.logis.accounting.service.LedgerImageService;
+import com.samhanair.logis.accounting.service.LedgerSnapshotService;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
+import com.samhanair.logis.accounting.service.PartnerLedgerReadService;
 import com.samhanair.logis.accounting.service.SalesAggregateService;
 import com.samhanair.logis.accounting.service.StatementBatchService;
 import com.samhanair.logis.accounting.web.dto.DailyClosingDetailResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
+import com.samhanair.logis.accounting.web.dto.LedgerHistoryResponse;
+import com.samhanair.logis.accounting.web.dto.PartnerLedgerResponse;
 import com.samhanair.logis.accounting.web.dto.SalesAggregateRow;
 import com.samhanair.logis.accounting.web.dto.StatementBatchRow;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchExclusionRequest;
@@ -23,6 +26,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -89,7 +93,8 @@ public class AccountingReportController {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     private final SalesAggregateService salesAggregateService;
-    private final LedgerImageService ledgerImageService;
+    private final PartnerLedgerReadService partnerLedgerReadService;
+    private final LedgerSnapshotService ledgerSnapshotService;
     private final StatementBatchService statementBatchService;
     private final HometaxExportService hometaxExportService;
     private final MonthEndCloseService monthEndCloseService;
@@ -129,8 +134,85 @@ public class AccountingReportController {
     public ApiResponse<LedgerImageResponse> ledger(
             @RequestParam String partnerCode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        // legacy route도 신규 PartnerLedgerCollectionContract 결과를 소비한다. 응답 shape만
+        // 기존 lines로 투영해 기존 호출자를 보존하고, raw journal 직접 계산은 제거한다.
+        return ApiResponse.ok(toLegacyLedgerResponse(partnerLedgerReadService.read(partnerCode, from, to)));
+    }
+
+    private static LedgerImageResponse toLegacyLedgerResponse(PartnerLedgerResponse source) {
+        List<LedgerImageResponse.LedgerLine> lines = new java.util.ArrayList<>();
+        BigDecimal balance = source.openingBalance();
+        for (PartnerLedgerResponse.Document document : source.documents()) {
+            if ("SALE".equals(document.type()) && !document.lines().isEmpty()) {
+                for (PartnerLedgerResponse.Line line : document.lines()) {
+                    BigDecimal debit = line.lineAmount();
+                    BigDecimal credit = BigDecimal.ZERO;
+                    balance = balance.add(debit).subtract(credit);
+                    lines.add(new LedgerImageResponse.LedgerLine(document.date(), document.documentNo(),
+                            document.accountCode(), null, line.productName(), debit, credit, balance));
+                }
+                continue;
+            }
+            BigDecimal debit = document.debit();
+            BigDecimal credit = document.credit();
+            balance = balance.add(debit).subtract(credit);
+            lines.add(new LedgerImageResponse.LedgerLine(document.date(), document.documentNo(),
+                    document.accountCode(), null, document.description(), debit, credit, balance));
+        }
+        return new LedgerImageResponse(source.partnerCode(), source.partnerName(), source.partnerBusinessNo(),
+                List.of(), source.periodFrom(), source.periodTo(), lines);
+    }
+
+    /** 사용자가 명시적으로 원장 snapshot 저장을 요청하는 write 계약. */
+    @PostMapping("/accounting/journals/ledger-snapshots")
+    @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    public ApiResponse<PartnerLedgerResponse> captureLedger(
+            @RequestParam String partnerCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return ApiResponse.ok(ledgerSnapshotService.capture(
+                partnerCode, from, to, parseUuid(userId)));
+    }
+
+    /** 출고 판매전표 품목과 확정 입금보고서를 함께 반환하는 거래처별 원장 read 계약. */
+    @GetMapping("/accounting/journals/partner-ledger")
+    @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
+    public ApiResponse<PartnerLedgerResponse> partnerLedger(
+            @RequestParam(required = false) String partnerCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ApiResponse.ok(ledgerImageService.getLedger(partnerCode, from, to));
+        return ApiResponse.ok(partnerLedgerReadService.read(partnerCode, from, to));
+    }
+
+    /** 거래처별 원장 저장 이력 — 날짜 범위와 거래처 코드로 조회한다. */
+    @GetMapping("/accounting/journals/ledger-history")
+    @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
+    public ApiResponse<Page<LedgerHistoryResponse>> ledgerHistory(
+            @RequestParam String partnerCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @PageableDefault(size = 20, sort = "processedAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        return ApiResponse.ok(ledgerSnapshotService.history(partnerCode, from, to, pageable));
+    }
+
+    /** 거래처별 원장 이력 복원 — 원본 분개를 변경하지 않고 저장 시점 화면 데이터를 반환한다. */
+    @GetMapping("/accounting/journals/ledger-history/{batchNo}/restore")
+    @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
+    public ApiResponse<LedgerHistoryResponse> restoreLedger(@PathVariable String batchNo) {
+        return ApiResponse.ok(ledgerSnapshotService.restore(batchNo));
+    }
+
+    /** 복원 중인 원장 payload를 현재 원장으로 재조회하지 않고 새 저장 이력으로 복사한다. */
+    @PostMapping("/accounting/journals/ledger-history/{batchNo}/copy")
+    @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    public ApiResponse<LedgerHistoryResponse> copyLedger(
+            @PathVariable String batchNo,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return ApiResponse.ok(ledgerSnapshotService.copy(batchNo, parseUuid(userId)));
     }
 
     /** BE-A10 거래명세서 batch. */

@@ -61,12 +61,14 @@ class SlipPartnerLedgerInternalControllerIT extends AbstractPostgresIT {
     @MockBean private ArologisDispatchClient arologisDispatchClient;
 
     @Test
-    void returnsOnlyThreeLedgerStatusesWithLinesAndNoUuid() throws Exception {
+    void returnsEveryOutboundStatusAfterInventoryDispatchWithLinesAndNoUuid() throws Exception {
         Slip completed = persistOutboundAtStatus("P-COMP", "완료 전표", SlipStatus.COMPLETED,
                 LocalDate.of(2026, 7, 28));
         Slip delivered = persistOutboundAtStatus("P-DELIV", "배송 전표", SlipStatus.DELIVERED,
                 LocalDate.of(2026, 7, 29));
         Slip confirmed = persistOutboundAtStatus("P-CONF", "확정 전표", SlipStatus.CONFIRMED,
+                LocalDate.of(2026, 7, 30));
+        Slip inspecting = persistOutboundAtStatus("P-INSP", "검수중 전표", SlipStatus.INSPECTING,
                 LocalDate.of(2026, 7, 30));
         Slip shipping = persistOutboundAtStatus("P-SHIP", "배송중 전표", SlipStatus.SHIPPING,
                 LocalDate.of(2026, 7, 30));
@@ -83,9 +85,10 @@ class SlipPartnerLedgerInternalControllerIT extends AbstractPostgresIT {
         String raw = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
         JsonNode rows = objectMapper.readTree(raw).get("data");
 
-        assertThat(rows).hasSize(3);
+        assertThat(rows).hasSize(5);
         assertThat(raw).contains(completed.getSlipNo(), delivered.getSlipNo(), confirmed.getSlipNo());
-        assertThat(raw).doesNotContain(shipping.getSlipNo(), "slipId", "lineId", "partnerId");
+        assertThat(raw).contains(inspecting.getSlipNo(), shipping.getSlipNo());
+        assertThat(raw).doesNotContain("slipId", "lineId");
         JsonNode completedRow = findBySlipNo(rows, completed.getSlipNo());
         assertThat(completedRow.get("status").asText()).isEqualTo("COMPLETED");
         assertThat(completedRow.get("deliveryAddress").asText())
@@ -124,6 +127,33 @@ class SlipPartnerLedgerInternalControllerIT extends AbstractPostgresIT {
         assertThat(rows).hasSize(1);
         assertThat(raw).contains(included.getSlipNo());
         assertThat(raw).doesNotContain(otherPartner.getSlipNo(), outsideDate.getSlipNo());
+    }
+
+    @Test
+    void filtersByInternalPartnerIdWhenLegacyPartnerCodeIsBlank() throws Exception {
+        Slip included = persistOutboundAtStatus("P-LEGACY-BLANK", "대상 거래처", SlipStatus.CONFIRMED,
+                LocalDate.of(2026, 7, 31));
+        included.setPartnerCode(null);
+        slipRepository.saveAndFlush(included);
+        Slip other = persistOutboundAtStatus("P-OTHER-BLANK", "다른 거래처", SlipStatus.CONFIRMED,
+                LocalDate.of(2026, 7, 31));
+        other.setPartnerCode(null);
+        slipRepository.saveAndFlush(other);
+
+        MvcResult result = mockMvc.perform(get(URL)
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .param("from", "2026-07-31")
+                        .param("to", "2026-07-31")
+                        .param("partnerId", included.getPartnerId().toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String raw = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        JsonNode rows = objectMapper.readTree(raw).get("data");
+        assertThat(rows).hasSize(1);
+        assertThat(raw).contains(included.getSlipNo());
+        assertThat(raw).doesNotContain(other.getSlipNo());
+        assertThat(rows.get(0).get("partnerId").asText()).isEqualTo(included.getPartnerId().toString());
     }
 
     @Test

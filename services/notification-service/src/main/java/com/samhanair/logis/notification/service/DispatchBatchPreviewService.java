@@ -9,11 +9,15 @@ import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.ChatRoomGroup;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.PartnerEntry;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.UnmappedPartner;
+import com.samhanair.logis.notification.dto.DispatchMessageGroupInput;
+import com.samhanair.logis.notification.dto.DispatchDriverContactInput;
 import com.samhanair.logis.notification.repository.PartnerChatRoomMappingRepository;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 배차안내 SMS 발송 미리보기 (dryRun) 서비스 — PR-E1 BE-4 (Samhan Public 이식).
  *
  * <p>legacy GAS 8번 (배차안내문자) 의 수동 워크플로우 (이카운트 전표 업로드 → 단톡방/금지 매핑 →
- * 발송멘트 편집 → 단톡방별 그룹핑 후 복사) 를 자동화한 1단계.
+ * 코멘트 편집 → 단톡방별 그룹핑 후 복사) 를 자동화한 1단계.
  *
  * <p>처리 흐름:
  * <ol>
@@ -49,6 +53,18 @@ public class DispatchBatchPreviewService {
     private final PartnerChatRoomMappingRepository chatRoomMappingRepository;
     private final BlockedPartnerLookupClient blockedPartnerLookupClient;
     private final MessageTemplateService messageTemplateService;
+    private final DispatchMessageGroupComposer dispatchMessageGroupComposer;
+
+    /** 기존 4-인자 단위 테스트·호출자 호환용 생성자. */
+    @Autowired
+    public DispatchBatchPreviewService(
+            SlipServiceClient slipServiceClient,
+            PartnerChatRoomMappingRepository chatRoomMappingRepository,
+            BlockedPartnerLookupClient blockedPartnerLookupClient,
+            MessageTemplateService messageTemplateService) {
+        this(slipServiceClient, chatRoomMappingRepository, blockedPartnerLookupClient,
+                messageTemplateService, new DispatchMessageGroupComposer());
+    }
 
     /**
      * preview 미리보기 — 출고전표 자동 조회 + 단톡방 매핑 + blocked 가드 + 메시지 템플릿 적용.
@@ -67,14 +83,24 @@ public class DispatchBatchPreviewService {
         // 단톡방 → 거래처 N건 (입력 순서 보존)
         Map<String, List<PartnerEntry>> grouped = new LinkedHashMap<>();
         List<UnmappedPartner> unmapped = new ArrayList<>();
+        List<PendingPreviewEntry> pending = new ArrayList<>();
+        List<DispatchMessageGroupInput> groupInputs = new ArrayList<>();
         int mappedCount = 0;
         int unmappedCount = 0;
+        int sequence = 0;
 
         for (OutboundSlipDto slip : slips) {
             String partnerCode = slip.partnerCode();
+            String driverPhone = resolveDriverPhone(slip, req.driverContacts(), req.date());
+            OutboundSlipDto displaySlip = withDriverPhone(slip, driverPhone);
+            String message = messageTemplateService.renderDispatchMessage(displaySlip);
+            String entryKey = entryKey(partnerCode, slip.slipNo(), sequence++);
             if (partnerCode == null || partnerCode.isBlank()) {
                 // partner_code 누락 → unmapped 누적 (slip-service 가 partner_code 없는 row 를 반환할 수 있는 회복성)
-                unmapped.add(new UnmappedPartner(null, slip.partnerName(), slip.slipNo()));
+                pending.add(new PendingPreviewEntry(
+                        entryKey, null, slip.partnerName(), slip.slipNo(), message, false,
+                        null, slip.recipientPhone()));
+                groupInputs.add(toGroupInput(entryKey, displaySlip, null, "이카운트 데이터 없음 최신화요망!", req.date()));
                 unmappedCount++;
                 continue;
             }
@@ -84,21 +110,40 @@ public class DispatchBatchPreviewService {
                 mappings = chatRoomMappingRepository.findAllByPartnerBusinessNameSnapshot(slip.partnerName());
             }
             if (mappings.isEmpty()) {
-                unmapped.add(new UnmappedPartner(partnerCode, slip.partnerName(), slip.slipNo()));
+                lookupBlockedOrDefer(partnerCode);
+                pending.add(new PendingPreviewEntry(
+                        entryKey, partnerCode, slip.partnerName(), slip.slipNo(), message, false,
+                        null, slip.recipientPhone()));
+                groupInputs.add(toGroupInput(entryKey, displaySlip, null, null, req.date()));
                 unmappedCount++;
                 continue;
             }
-            boolean blocked = blockedPartnerLookupClient.isBlocked(partnerCode);
-            String message = messageTemplateService.renderDispatchMessage(slip);
+            boolean blocked = lookupBlockedOrDefer(partnerCode);
             mappedCount++;
             for (PartnerChatRoomMapping mapping : mappings) {
-                grouped.computeIfAbsent(mapping.getChatRoomName(), k -> new ArrayList<>())
+                String chatRoomName = mapping.getChatRoomName();
+                String mappedEntryKey = entryKey + "#" + safeText(chatRoomName);
+                pending.add(new PendingPreviewEntry(
+                        mappedEntryKey, partnerCode, slip.partnerName(), slip.slipNo(), message, blocked,
+                        chatRoomName, slip.recipientPhone()));
+                groupInputs.add(toGroupInput(
+                        mappedEntryKey, displaySlip, chatRoomName,
+                        blocked ? "발송금지 업체입니다." : null, req.date()));
+            }
+        }
+
+        Map<String, String> groupMessages = dispatchMessageGroupComposer.compose(groupInputs);
+        for (PendingPreviewEntry entry : pending) {
+            String groupMessage = groupMessages.getOrDefault(entry.entryKey(), entry.message());
+            if (entry.chatRoomName() == null || entry.chatRoomName().isBlank()) {
+                unmapped.add(new UnmappedPartner(
+                        entry.partnerCode(), entry.partnerName(), entry.slipNo(), entry.message(),
+                        entry.recipientPhone(), groupMessage));
+            } else {
+                grouped.computeIfAbsent(entry.chatRoomName(), ignored -> new ArrayList<>())
                         .add(new PartnerEntry(
-                                partnerCode,
-                                slip.partnerName(),
-                                slip.slipNo(),
-                                message,
-                                blocked));
+                                entry.partnerCode(), entry.partnerName(), entry.slipNo(), entry.message(),
+                                entry.blocked(), groupMessage));
             }
         }
 
@@ -114,5 +159,134 @@ public class DispatchBatchPreviewService {
                 unmappedCount,
                 chatRooms,
                 unmapped);
+    }
+
+    /** blocked 조회 장애는 차단 판정으로 승격하지 않고 조회 불가 상태로 보류한다. */
+    private boolean lookupBlockedOrDefer(String partnerCode) {
+        try {
+            return blockedPartnerLookupClient.isBlocked(partnerCode);
+        } catch (Exception ex) {
+            log.warn("DispatchBatchPreviewService — blocked lookup 실패 partnerCode={}, msg={}",
+                    partnerCode, ex.getMessage());
+            return false;
+        }
+    }
+
+    private DispatchMessageGroupInput toGroupInput(
+            String entryKey,
+            OutboundSlipDto slip,
+            String chatRoomName,
+            String fallbackMessage,
+            LocalDate requestedDate) {
+        String displayLine = legacyDisplayLine(slip);
+        String effectiveFallback = fallbackMessage;
+        if (effectiveFallback == null && !hasText(slip.driverPhone())) {
+            effectiveFallback = "기사번호 없음 확인요망!";
+        }
+        LocalDate unloadDate = slip.unloadDate() != null
+                ? slip.unloadDate()
+                : slip.slipDate() != null ? slip.slipDate() : requestedDate;
+        return new DispatchMessageGroupInput(
+                entryKey,
+                chatRoomName,
+                slip.recipientPhone(),
+                unloadDate == null ? null : unloadDate.getDayOfMonth(),
+                displayLine,
+                effectiveFallback);
+    }
+
+    /** 레거시 라인: 배송기사 연락처 + 주소 앞 세 토큰. */
+    private String legacyDisplayLine(OutboundSlipDto slip) {
+        String address = safeText(slip.deliveryAddress())
+                .replaceFirst("^(지방|야적|야상)\\s*/\\s*", "")
+                .trim();
+        String shortenedAddress = java.util.Arrays.stream(address.split("\\s+"))
+                .filter(part -> !part.isBlank())
+                .limit(3)
+                .reduce((left, right) -> left + " " + right)
+                .orElse("");
+        if (!hasText(slip.driverPhone())) {
+            return "기사번호 없음 확인요망!";
+        }
+        return safeText(slip.driverPhone()) + " / " + shortenedAddress;
+    }
+
+    private String entryKey(String partnerCode, String slipNo, int sequence) {
+        return safeText(partnerCode).isBlank() ? "unmapped#" + safeText(slipNo) + "#" + sequence
+                : safeText(partnerCode) + "#" + safeText(slipNo) + "#" + sequence;
+    }
+
+    private String resolveDriverPhone(
+            OutboundSlipDto slip, List<DispatchDriverContactInput> inputs, LocalDate requestedDate) {
+        for (DispatchDriverContactInput input : inputs) {
+            if (input == null || !hasText(input.driverPhone())) continue;
+            if (input.date() != null && !input.date().equals(requestedDate)) continue;
+            boolean slipMatches = hasText(input.slipNo()) && input.slipNo().trim().equals(safeText(slip.slipNo()));
+            boolean companyMatches = hasText(input.companyName())
+                    && (input.companyName().contains(safeText(slip.slipNo()))
+                    || input.companyName().trim().equals(safeText(slip.partnerName()))
+                    || matchesLegacySlipNumber(input.companyName(), slip.slipNo()));
+            if (slipMatches || companyMatches) return input.driverPhone().trim();
+        }
+        return slip.driverPhone();
+    }
+
+    /**
+     * 레거시 배차안내문자의 업체명 입력 호환 매칭.
+     *
+     * <p>한 행에 {@code /} 로 여러 입력을 넣을 수 있으며, 각 세그먼트는 순수 순번,
+     * 하이픈 뒤 순번, 끝 1~3자리, 숫자만 추출한 값 중 하나가 해당 전표의 순번과
+     * 같을 때만 매칭한다. 전체 전표번호와 정확한 업체명 매칭은 호출부에서 유지한다.
+     */
+    private boolean matchesLegacySlipNumber(String companyName, String slipNo) {
+        String dispatchNumber = safeText(slipNo);
+        int lastHyphen = dispatchNumber.lastIndexOf('-');
+        if (lastHyphen >= 0 && lastHyphen < dispatchNumber.length() - 1) {
+            dispatchNumber = dispatchNumber.substring(lastHyphen + 1);
+        }
+        if (dispatchNumber.isBlank()) return false;
+
+        for (String rawSegment : companyName.split("/")) {
+            String segment = rawSegment.trim();
+            String digits = segment.replaceAll("\\D", "");
+            String suffix = segment.matches(".*\\d{1,3}$")
+                    ? segment.replaceFirst("^.*?(\\d{1,3})$", "$1")
+                    : "";
+            String[] hyphenParts = segment.split("-", -1);
+            boolean hyphenSequenceMatches = hyphenParts.length > 1
+                    && hyphenParts[1].equals(dispatchNumber);
+            if (hyphenSequenceMatches
+                    || segment.matches("^\\d+$") && segment.equals(dispatchNumber)
+                    || suffix.equals(dispatchNumber)
+                    || digits.equals(dispatchNumber)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private OutboundSlipDto withDriverPhone(OutboundSlipDto slip, String driverPhone) {
+        return new OutboundSlipDto(
+                slip.slipNo(), slip.partnerCode(), slip.partnerName(), slip.slipDate(), slip.scheduledAt(),
+                slip.deliveryAddress(), slip.lines(), slip.recipientPhone(), slip.unloadDate(), driverPhone);
+    }
+
+    private static String safeText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private record PendingPreviewEntry(
+            String entryKey,
+            String partnerCode,
+            String partnerName,
+            String slipNo,
+            String message,
+            boolean blocked,
+            String chatRoomName,
+            String recipientPhone) {
     }
 }

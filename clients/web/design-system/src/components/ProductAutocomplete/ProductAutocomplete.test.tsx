@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { ProductAutocomplete, type ProductOption } from './ProductAutocomplete'
+import { ProductAutocomplete, ProductMultiSelectAutocomplete, type ProductOption } from './ProductAutocomplete'
 
 describe('ProductAutocomplete', () => {
   it('기존 1-인자 renderer 계약으로 품목 후보를 정상 표시한다', async () => {
@@ -19,6 +19,7 @@ describe('ProductAutocomplete', () => {
         searchProducts={searchProducts}
         ariaLabel="품목"
         debounceMs={0}
+        autoSelectSingleResult={false}
       />,
     )
 
@@ -49,6 +50,7 @@ describe('ProductAutocomplete', () => {
         searchProducts={searchProducts}
         ariaLabel="품목"
         debounceMs={0}
+        autoSelectSingleResult={false}
       />,
     )
 
@@ -85,6 +87,7 @@ describe('ProductAutocomplete', () => {
         searchProducts={searchProducts}
         ariaLabel="품목"
         debounceMs={0}
+        autoSelectSingleResult={false}
       />,
     )
 
@@ -98,5 +101,142 @@ describe('ProductAutocomplete', () => {
     expect(option.querySelector('mark')?.textContent).toBe('에어컨')
     expect(option.textContent).toContain('품목명')
     expect(option.querySelector('mark')?.textContent).not.toBe('MODEL-CODE-ONLY')
+  })
+
+  it('복수 모드에서 결과 1건은 모달 없이 칩으로 바로 확정한다', async () => {
+    const product: ProductOption = { id: 'uuid-a', modelCode: 'MODEL-A', modelName: 'MODEL-A', productName: '동명 품목' }
+    const selected: ProductOption[] = []
+    const onAdd = vi.fn((item: ProductOption) => selected.push(item))
+    const searchProducts = vi.fn().mockResolvedValue([product])
+
+    render(
+      <ProductMultiSelectAutocomplete
+        selected={selected}
+        onAdd={onAdd}
+        onRemove={vi.fn()}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'MODEL-A' } })
+
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith(product))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('option', { name: /검색 중/ })).toBeNull()
+  })
+
+  it('일반 품목 검색의 단일 후보는 dropdown에 남지 않고 즉시 확정한다', async () => {
+    const product: ProductOption = {
+      id: 'product-single',
+      modelName: 'AJ040RXH4BC1',
+      productName: '시스템에어컨 4Way 4HP',
+    }
+    const onChange = vi.fn()
+    const searchProducts = vi.fn<(query: string) => Promise<ProductOption[]>>()
+      .mockResolvedValue([product])
+
+    render(
+      <ProductAutocomplete
+        value={null}
+        onChange={onChange}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AJ040' } })
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(product))
+    expect(input.value).toBe(product.modelName)
+    expect(screen.queryByRole('option')).toBeNull()
+  })
+
+  it('복수 모드에서 결과 2건 이상은 UUID 없이 모달에서 복수 확정한다', async () => {
+    const products: ProductOption[] = [
+      { id: 'uuid-a', modelCode: 'MODEL-A', modelName: 'MODEL-A', productName: '동명 품목' },
+      { id: 'uuid-b', modelCode: 'MODEL-B', modelName: 'MODEL-B', productName: '동명 품목' },
+    ]
+    const selected: ProductOption[] = []
+    const onAdd = vi.fn((item: ProductOption) => selected.push(item))
+    const searchProducts = vi.fn().mockResolvedValue(products)
+
+    render(
+      <ProductMultiSelectAutocomplete
+        selected={selected}
+        onAdd={onAdd}
+        onRemove={vi.fn()}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '동명' } })
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '품목 검색 결과' })).toBeTruthy())
+    expect(document.body.textContent).not.toContain('uuid-a')
+    expect(document.body.textContent).not.toContain('uuid-b')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'MODEL-A' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'MODEL-B' }))
+    fireEvent.click(screen.getByRole('button', { name: '선택 확정' }))
+
+    await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(2))
+  })
+
+  it('품목 결과 2건 이상은 모델명·품목명·규격·단가 표 모달에서 고른다', async () => {
+    const products = [
+      {
+        id: 'uuid-a',
+        modelCode: 'AP145-A',
+        modelName: 'AP145-A-모델명-끝까지-읽혀야-한다',
+        productName: '첫 번째 품목',
+        specification: '4HP 냉방전용',
+        sellingPrice: 123456,
+      },
+      {
+        id: 'uuid-b',
+        modelCode: 'AP145-B',
+        modelName: 'AP145-B-모델명-끝까지-읽혀야-한다',
+        productName: '두 번째 품목',
+        specification: '5HP 냉난방',
+        sellingPrice: 234567,
+      },
+    ] as ProductOption[]
+    const searchProducts = vi.fn().mockResolvedValue(products)
+
+    render(
+      <ProductAutocomplete
+        value={null}
+        onChange={vi.fn()}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AP145' } })
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '품목 검색 결과' })).toBeTruthy())
+    expect(screen.getByRole('table')).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '모델명' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '품목명' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '규격' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '단가' })).toBeTruthy()
+    expect(screen.getByText('AP145-A-모델명-끝까지-읽혀야-한다')).toBeTruthy()
+    expect(screen.getByText('4HP 냉방전용')).toBeTruthy()
+    expect(screen.getByText('123,456원')).toBeTruthy()
+    expect(document.body.textContent).not.toContain('uuid-a')
+    expect(document.body.textContent).not.toContain('uuid-b')
   })
 })

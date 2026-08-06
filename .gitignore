@@ -93,6 +93,14 @@ clients/desktop/playwright/dispatch-collab-real-qa/
 clients/desktop/playwright/n1b-native-qa/
 clients/desktop/playwright/n3b-fcm-push-real-qa/
 clients/desktop/playwright/e2-partner-list-real-qa/
+clients/desktop/playwright/1001-r5-ledger-real-qa/
+clients/desktop/playwright/1001-r6-ledger-real-qa/
+# playwright 루트에 바로 놓인 라이브QA 드라이버 — H-2 가드는 QA 스펙이 디렉터리 안에 있기를
+# 요구하므로 루트 직하 real-qa 파일은 커밋되면 CI 가 깨진다(2026-08-03 실측). 증거는 보고서와
+# 캡처이지 드라이버가 아니다. ※ 디렉터리형(`<slug>-real-qa/`)은 커밋 증거라 무시하지 않는다.
+clients/desktop/playwright/*-real-qa.spec.ts
+clients/desktop/playwright/*-real-qa.mjs
+clients/desktop/playwright/*-real-qa-result.json
 clients/desktop/iotxn-*.config.ts
 clients/desktop/docs/
 
@@ -127,6 +135,8 @@ _codex_commit_repo/
 
 # ----- 병렬 트랙 전용 Gradle 홈 (트랙별 캐시 경합 회피용 — 커밋 금지) -----
 .gradle-t[0-9]*/
+# `--gradle-user-home` 로 지정한 트랙별 홈도 같은 성격 (2026-08-05 집PC — .gradle-user-t1008b/)
+.gradle-user-*/
 
 # ----- 이카운트 raw (민감) -----
 # 거래처 사업자번호 / 미수금 / 매입매출 등 민감 정보 포함, .gitkeep 만 보존

@@ -47,6 +47,8 @@ public class DiscountRevalidator {
         AMBIGUOUS,
         /** 매칭됐지만 적용 정가(출고가)가 없어 판정 불가. */
         MISSING_REFERENT,
+        /** 거래처 전역DC 조회 실패로 기대율을 결정할 수 없음. */
+        MISSING_GLOBAL_DISCOUNT,
         /** 그룹 수량 합계 0 등으로 실 유효단가를 산출할 수 없어 판정 불가(판정 실패와 구분). */
         NOT_MEASURABLE,
         /** 싱글중대형 기준값을 확인할 수 없어 범위 밖으로 남겨야 하는 분기. */
@@ -71,6 +73,88 @@ public class DiscountRevalidator {
                                    BigDecimal releasePrice,
                                    BigDecimal deliveryPrice,
                                    BigDecimal fixedDc,
+                                   ProductLabelMatch.Status matchStatus) {
+        return revalidate(itemName, modelToken, effectiveUnitPrice, releasePrice, deliveryPrice,
+                fixedDc, GlobalDiscount.notRequired(), matchStatus);
+    }
+
+    /**
+     * 레거시 ordered chain이 이미 선택한 branch를 가격 재검증에도 전달한다.
+     *
+     * <p>기존 이름/token 추론 overload는 외부 단위 계약과 호환성을 위해 유지한다. 일마감
+     * production 경로는 {@link LegacyVerificationChain}의 branch를 사용해야 하며, 그래야
+     * 앞서 {@code COMM_MULTI}/{@code HOME_MULTI}로 전환된 행을 SINGLE 가격 분기로 다시
+     * 해석하지 않는다.
+     */
+    Revalidation revalidateByLegacyBranch(
+            String itemName,
+            String modelToken,
+            BigDecimal effectiveUnitPrice,
+            BigDecimal releasePrice,
+            BigDecimal deliveryPrice,
+            BigDecimal fixedDc,
+            GlobalDiscount globalDiscount,
+            ProductLabelMatch.Status matchStatus,
+            LegacyVerificationChain.Branch branch,
+            LegacyVerificationChain.Zone zone) {
+        String safeModelToken = modelToken == null ? "" : modelToken;
+        BigDecimal effectiveDeliveryPrice = effectiveDeliveryPrice(releasePrice, deliveryPrice);
+        Integer actualRate = actualRate(effectiveUnitPrice, releasePrice);
+
+        // 운임/절삭만 레거시처럼 referent·label 상태를 무시한다. 나머지 branch는 현행
+        // fail-closed 계약(NOT_FOUND/AMBIGUOUS/MISSING_REFERENT)을 보존한 뒤 branch 값을 계산한다.
+        if (branch != LegacyVerificationChain.Branch.FREIGHT_OR_CUTTING) {
+            if (matchStatus == ProductLabelMatch.Status.NOT_FOUND) {
+                return unresolved(Status.NOT_FOUND, releasePrice, effectiveDeliveryPrice);
+            }
+            if (matchStatus == ProductLabelMatch.Status.AMBIGUOUS) {
+                return unresolved(Status.AMBIGUOUS, releasePrice, effectiveDeliveryPrice);
+            }
+            if (releasePrice == null || releasePrice.compareTo(BigDecimal.ZERO) == 0) {
+                return new Revalidation(null, null, null, null, Status.MISSING_REFERENT,
+                        releasePrice, effectiveDeliveryPrice);
+            }
+        }
+
+        return switch (branch) {
+            case FREIGHT_OR_CUTTING, ALWAYS_TRUE ->
+                    verified(true, null, actualRate, releasePrice, effectiveDeliveryPrice);
+            case OLD_RATE_50 -> actualRate == null
+                    ? notMeasurable(50, releasePrice, effectiveDeliveryPrice)
+                    : verified(integerEquals(actualRate, 50), 50, actualRate,
+                            releasePrice, effectiveDeliveryPrice);
+            case OLD_DELIVERY, ACCESSORY_DELIVERY, SINGLE_ACCESSORY ->
+                    verified(integerWonEquals(effectiveUnitPrice, effectiveDeliveryPrice),
+                            null, actualRate, releasePrice, effectiveDeliveryPrice);
+            case MULTI_RATE -> {
+                Integer expectedRate = expectedRate(fixedDc, globalDiscount, safeModelToken, zone);
+                if (expectedRate == null) {
+                    yield new Revalidation(null, null, actualRate, null,
+                            Status.MISSING_GLOBAL_DISCOUNT, releasePrice, effectiveDeliveryPrice);
+                }
+                if (actualRate == null) {
+                    yield notMeasurable(expectedRate, releasePrice, effectiveDeliveryPrice);
+                }
+                yield verified(integerEquals(actualRate, expectedRate), expectedRate, actualRate,
+                        releasePrice, effectiveDeliveryPrice);
+            }
+            case SINGLE_DEFAULT, DEFAULT, SINGLE_MAIN -> revalidate(itemName, modelToken, effectiveUnitPrice, releasePrice,
+                    deliveryPrice, fixedDc, globalDiscount, matchStatus);
+        };
+    }
+
+    /**
+     * 거래처 전역DC를 포함해 일마감 모델 그룹을 재검증한다.
+     *
+     * @param globalDiscount 거래처 전역DC 조회 결과. 고정DC가 없을 때만 기대율 결정에 사용
+     */
+    public Revalidation revalidate(String itemName,
+                                   String modelToken,
+                                   BigDecimal effectiveUnitPrice,
+                                   BigDecimal releasePrice,
+                                   BigDecimal deliveryPrice,
+                                   BigDecimal fixedDc,
+                                   GlobalDiscount globalDiscount,
                                    ProductLabelMatch.Status matchStatus) {
         String safeItemName = itemName == null ? "" : itemName;
         String safeModelToken = modelToken == null ? "" : modelToken;
@@ -113,7 +197,11 @@ public class DiscountRevalidator {
         }
         // 멀티(상업 AM / 홈 AJ zone marker 또는 라벨 "멀티/MULTI"): 고정dc(percent) 또는 45 폴백.
         if (isMulti(safeItemName, safeModelToken)) {
-            Integer expectedRate = fixedDc == null ? 45 : roundPercent(fixedDc);
+            Integer expectedRate = expectedRate(fixedDc, globalDiscount, safeModelToken);
+            if (expectedRate == null) {
+                return new Revalidation(null, null, actualRate, null,
+                        Status.MISSING_GLOBAL_DISCOUNT, releasePrice, effectiveDeliveryPrice);
+            }
             if (actualRate == null) {
                 return notMeasurable(expectedRate, releasePrice, effectiveDeliveryPrice);
             }
@@ -125,6 +213,11 @@ public class DiscountRevalidator {
             if (effectiveUnitPrice == null) {
                 return notMeasurable(null, releasePrice, effectiveDeliveryPrice);
             }
+            BigDecimal optionDiscount = globalDiscount == null
+                    ? null : globalDiscount.optionDiscountFor(safeModelToken);
+            if (optionDiscount != null) {
+                effectiveDeliveryPrice = effectiveDeliveryPrice.subtract(optionDiscount.abs());
+            }
             BigDecimal actualDiscountAmount = discountAmount(releasePrice, effectiveUnitPrice);
             BigDecimal expectedDiscountAmount = discountAmount(releasePrice, effectiveDeliveryPrice);
             return verified(moneyEquals(actualDiscountAmount, expectedDiscountAmount),
@@ -132,6 +225,27 @@ public class DiscountRevalidator {
         }
         // 기타 default: 레거시와 동일 무조건 true. actualRate 는 참고값.
         return verified(true, null, actualRate, releasePrice, effectiveDeliveryPrice);
+    }
+
+    private static Integer expectedRate(BigDecimal fixedDc, GlobalDiscount globalDiscount, String modelToken) {
+        return expectedRate(fixedDc, globalDiscount, modelToken, null);
+    }
+
+    private static Integer expectedRate(BigDecimal fixedDc, GlobalDiscount globalDiscount,
+                                        String modelToken, LegacyVerificationChain.Zone zone) {
+        if (fixedDc != null) {
+            return roundPercent(fixedDc);
+        }
+        if (globalDiscount == null || !globalDiscount.available()) {
+            return null;
+        }
+        if (zone == null && !isLegacyMultiPrefix(modelToken)) {
+            return 45;
+        }
+        boolean home = zone == LegacyVerificationChain.Zone.HOME_MULTI
+                || zone == null && isHomeMulti(modelToken);
+        BigDecimal rate = home ? globalDiscount.homeRate() : globalDiscount.commercialRate();
+        return rate == null ? 45 : roundPercent(rate.multiply(ONE_HUNDRED));
     }
 
     private static Revalidation unresolved(Status status,
@@ -233,6 +347,71 @@ public class DiscountRevalidator {
                 && (zoneMarker == 'X' || zoneMarker == 'N');
     }
 
+    private static boolean isHomeMulti(String modelToken) {
+        return modelToken.startsWith("AJ") && isLegacyMultiPrefix(modelToken);
+    }
+
+    /** 전역DC 원천 조회 결과. 기존 단위 테스트/호출부의 미적용 상태와 조회 실패를 구분한다. */
+    public record GlobalDiscount(boolean available, BigDecimal homeRate, BigDecimal commercialRate,
+                                 BigDecimal discount360Amount, BigDecimal discount4WayAmount,
+                                 BigDecimal discount1WayAmount, BigDecimal discountStandAmount,
+                                 BigDecimal discountDeluxeAmount, BigDecimal discountFirstGradeAmount) {
+        public static GlobalDiscount notRequired() {
+            return found(new BigDecimal("0.45"), new BigDecimal("0.45"));
+        }
+
+        public static GlobalDiscount found(BigDecimal homeRate, BigDecimal commercialRate) {
+            return found(homeRate, commercialRate, null, null, null, null, null, null);
+        }
+
+        public static GlobalDiscount found(BigDecimal homeRate, BigDecimal commercialRate,
+                                           BigDecimal discount360Amount, BigDecimal discount4WayAmount,
+                                           BigDecimal discount1WayAmount, BigDecimal discountStandAmount,
+                                           BigDecimal discountDeluxeAmount, BigDecimal discountFirstGradeAmount) {
+            return new GlobalDiscount(true, homeRate, commercialRate, discount360Amount, discount4WayAmount,
+                    discount1WayAmount, discountStandAmount, discountDeluxeAmount, discountFirstGradeAmount);
+        }
+
+        public static GlobalDiscount unavailable() {
+            return new GlobalDiscount(false, null, null, null, null, null, null, null, null);
+        }
+
+        /** 레거시 세트코드 규칙으로 싱글 세트에 적용할 옵션 정액을 고른다. */
+        BigDecimal discountForSet(String modelToken) {
+            BigDecimal discount = optionDiscountFor(modelToken);
+            return discount == null ? BigDecimal.ZERO : discount.abs();
+        }
+
+        private BigDecimal optionDiscountFor(String modelToken) {
+            String code = modelToken == null ? "" : modelToken.toUpperCase(java.util.Locale.ROOT);
+            if (code.startsWith("AR") && code.endsWith("S") || code.startsWith("AF") && code.endsWith("S")) {
+                return null;
+            }
+            if (code.startsWith("AC") && code.length() >= 9) {
+                if (code.charAt(7) == '6' && code.charAt(8) == 'P') return discount360Amount;
+                if (code.charAt(7) == '4' && (code.charAt(8) == 'P' || code.charAt(8) == 'D')) {
+                    return discount4WayAmount;
+                }
+                if (code.charAt(7) == '1' && (code.charAt(8) == 'P' || code.charAt(8) == 'D')) {
+                    return discount1WayAmount;
+                }
+                if (code.charAt(8) == 'F') return discountFirstGradeAmount;
+            }
+            if (code.startsWith("AP")) {
+                if (code.startsWith("AP230") || code.startsWith("AP290")
+                        || code.length() >= 9 && code.charAt(8) == 'P'
+                        || code.length() >= 11 && code.charAt(8) == 'D' && code.charAt(10) == 'C') {
+                    return discountStandAmount;
+                }
+                if (code.length() >= 11 && code.charAt(8) == 'D' && code.charAt(10) == 'H') {
+                    return discountDeluxeAmount;
+                }
+                if (code.length() >= 9 && code.charAt(8) == 'F') return discountFirstGradeAmount;
+            }
+            return null;
+        }
+    }
+
     private static boolean isSingleSetDependent(String modelToken) {
         return SINGLE_SET_DEPENDENT_PREFIX.matcher(modelToken).matches();
     }
@@ -258,5 +437,11 @@ public class DiscountRevalidator {
             Status status,
             BigDecimal releasePrice,
             BigDecimal deliveryPrice) {
+
+        /** 레거시 riUsage가 주는 확인 판정을 보존하면서 계산 참고값은 유지한다. */
+        public Revalidation withVerified(Boolean value) {
+            return new Revalidation(value, expectedRate, actualRate, discountAmount,
+                    status, releasePrice, deliveryPrice);
+        }
     }
 }

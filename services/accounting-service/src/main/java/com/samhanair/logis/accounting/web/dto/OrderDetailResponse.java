@@ -27,7 +27,8 @@ public record OrderDetailResponse(
             BigDecimal supplyAmount,
             BigDecimal vatAmount,
             BigDecimal lineTotal,
-            LocalDate itemDueDate
+            LocalDate itemDueDate,
+            boolean unresolved
     ) {
     }
 }

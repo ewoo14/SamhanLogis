@@ -42,11 +42,11 @@ import org.springframework.test.web.servlet.MockMvc;
 /**
  * Aligo SMS 어댑터 placeholder 런타임 가드 통합 테스트 — SP-09-2.
  *
- * <p>AligoSmsAdapter.isPlaceholder() 가드 검증 (4종 stub 응답):
+ * <p>AligoSmsAdapter.isPlaceholder() 가드 검증 (4종 비전송 응답):
  * <ol>
- *   <li>key = CHANGE_ME_LOCAL_ONLY → stub-success (aligo-stub-{id}) — 외부 호출 없음</li>
- *   <li>userid = CHANGE_ME_LOCAL_ONLY → stub-success</li>
- *   <li>sender = CHANGE_ME_LOCAL_ONLY → stub-success</li>
+ *   <li>key = CHANGE_ME_LOCAL_ONLY → NOT_SENT — 외부 호출 없음</li>
+ *   <li>userid = CHANGE_ME_LOCAL_ONLY → NOT_SENT</li>
+ *   <li>sender = CHANGE_ME_LOCAL_ONLY → NOT_SENT</li>
  *   <li>3종 모두 정상 key → RestClient 호출 시도 (mock RestClient 응답으로 stub-fail 대체)</li>
  * </ol>
  *
@@ -54,11 +54,11 @@ import org.springframework.test.web.servlet.MockMvc;
  * UserClient / SlipServiceClient / PartnerLookupClient / BlockedPartnerLookupClient /
  * AligoCsvSourceClient / AligoAddressBookClient 전체 lenient stub.
  *
- * <p><b>send_audit DB 검증</b>:
+ * <p><b>SMS 발송 결과 DB 검증</b>:
  * <ul>
  *   <li>placeholder 발송 완료 후 notification_requests.status = SENT</li>
  *   <li>notification_logs.gateway_status 가 SUCCESS (stub) 또는 FAILURE_ALIGO_N (real 실패)</li>
- *   <li>SEND_AUDIT 이력 쿼리 결과 row count 검증</li>
+ *   <li>SMS 발송 결과 목록 쿼리와 row count 검증</li>
  * </ul>
  *
  * <p>SP-09-1 패턴: Testcontainers AbstractPostgresIT (Docker 미가용 skip) + @MockBean lenient.
@@ -112,18 +112,18 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     /**
-     * TC-1: Aligo key placeholder (CHANGE_ME_LOCAL_ONLY) → stub-success.
+     * TC-1: Aligo key placeholder (CHANGE_ME_LOCAL_ONLY) → 비전송 실패.
      *
      * <p>AligoSmsAdapter.isPlaceholder(key) == true 시 외부 RestClient 미호출,
-     * gateway_message_id = "aligo-stub-{requestId}", gateway_status = "SUCCESS".
+     * gateway_status = "NOT_SENT_CREDENTIALS_PLACEHOLDER".
      *
      * <p>SP-09-2 fix (H-BE-03) — 조건부 if-block 제거. @BeforeEach 에서 key 를
      * CHANGE_ME_LOCAL_ONLY 로 직접 주입하여 무조건 assertion 이 실행되도록 수정.
      * CI / 운영 key 주입 환경 모두에서 가드가 작동함을 보장한다.
      */
     @Test
-    @DisplayName("TC-1: Aligo key placeholder → stub-success, 외부 RestClient 미호출")
-    void keyPlaceholderReturnsStubSuccess() {
+    @DisplayName("TC-1: Aligo key placeholder → 비전송 실패, 외부 RestClient 미호출")
+    void keyPlaceholderReturnsNotSent() {
         // TC-1: key 를 placeholder 로 강제 주입 — 무조건 assertion 실행 (H-BE-03 fix)
         String originalKey = aligoProperties.getKey();
         aligoProperties.setKey("CHANGE_ME_LOCAL_ONLY");
@@ -134,16 +134,15 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
             NotificationRequest stubRequest = buildSmsRequest("010-1234-5678", "stub 발송 테스트 TC-1");
             var result = adapter.send(stubRequest);
 
-            assertThat(result.success()).isTrue();
-            assertThat(result.gatewayStatus()).isEqualTo("SUCCESS");
-            assertThat(result.messageId()).startsWith("aligo-stub-");
+            assertThat(result.success()).isFalse();
+            assertThat(result.gatewayStatus()).isEqualTo("NOT_SENT_CREDENTIALS_PLACEHOLDER");
         } finally {
             aligoProperties.setKey(originalKey);
         }
     }
 
     /**
-     * TC-2: Aligo userid placeholder → stub-success.
+     * TC-2: Aligo userid placeholder → 비전송 실패.
      *
      * <p>key 가 정상이어도 userid = CHANGE_ME_LOCAL_ONLY 이면 외부 호출 skip.
      * isPlaceholder(userid) 분기 커버.
@@ -151,8 +150,8 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
      * <p>SP-09-2 fix (H-BE-03) — 조건부 if-block 제거. userid 를 직접 주입하여 무조건 assertion.
      */
     @Test
-    @DisplayName("TC-2: Aligo userid placeholder → stub-success")
-    void useridPlaceholderReturnsStubSuccess() {
+    @DisplayName("TC-2: Aligo userid placeholder → 비전송 실패")
+    void useridPlaceholderReturnsNotSent() {
         String originalUserid = aligoProperties.getUserid();
         aligoProperties.setUserid("CHANGE_ME_LOCAL_ONLY");
         try {
@@ -160,24 +159,24 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
             NotificationRequest stubRequest = buildSmsRequest("010-2345-6789", "stub 발송 테스트 TC-2");
             var result = adapter.send(stubRequest);
 
-            assertThat(result.success()).isTrue();
-            assertThat(result.messageId()).startsWith("aligo-stub-");
+            assertThat(result.success()).isFalse();
+            assertThat(result.gatewayStatus()).isEqualTo("NOT_SENT_CREDENTIALS_PLACEHOLDER");
         } finally {
             aligoProperties.setUserid(originalUserid);
         }
     }
 
     /**
-     * TC-3: Aligo sender placeholder → stub-success.
+     * TC-3: Aligo sender placeholder → 비전송 실패.
      *
-     * <p>sender = CHANGE_ME_LOCAL_ONLY 시 외부 호출 skip + stub-success.
+     * <p>sender = CHANGE_ME_LOCAL_ONLY 시 외부 호출 skip + 비전송 실패.
      * 발신번호 미등록 상태에서의 안전 가드.
      *
      * <p>SP-09-2 fix (H-BE-03) — 조건부 if-block 제거. sender 를 직접 주입하여 무조건 assertion.
      */
     @Test
-    @DisplayName("TC-3: Aligo sender placeholder → stub-success")
-    void senderPlaceholderReturnsStubSuccess() {
+    @DisplayName("TC-3: Aligo sender placeholder → 비전송 실패")
+    void senderPlaceholderReturnsNotSent() {
         String originalSender = aligoProperties.getSender();
         aligoProperties.setSender("CHANGE_ME_LOCAL_ONLY");
         try {
@@ -185,15 +184,15 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
             NotificationRequest stubRequest = buildSmsRequest("010-3456-7890", "stub 발송 테스트 TC-3");
             var result = adapter.send(stubRequest);
 
-            assertThat(result.success()).isTrue();
-            assertThat(result.gatewayStatus()).isEqualTo("SUCCESS");
+            assertThat(result.success()).isFalse();
+            assertThat(result.gatewayStatus()).isEqualTo("NOT_SENT_CREDENTIALS_PLACEHOLDER");
         } finally {
             aligoProperties.setSender(originalSender);
         }
     }
 
     /**
-     * TC-4: SEND_AUDIT 발송 이력 목록 — MANAGER 권한 조회 + DB row count 정합성.
+     * TC-4: SMS 발송 결과 목록 — MANAGER 권한 조회 + DB row count 정합성.
      *
      * <p>IT 내에서 placeholder stub 발송 2건 실행 후:
      * <ul>
@@ -203,11 +202,11 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
      *   <li>GET /admin/notifications?channel=SMS&status=SENT — row 포함</li>
      * </ul>
      *
-     * <p>AligoSmsAdapter placeholder 분기 → stub-success → NotificationService → DB save.
+     * <p>AligoSmsAdapter placeholder 분기 → 비전송 실패 → NotificationService → DB save.
      */
     @Test
-    @DisplayName("TC-4: placeholder stub 발송 2건 후 SEND_AUDIT 이력 DB 정합 + API 조회")
-    void sendAuditHistoryDbIntegrityAndApiList() throws Exception {
+    @DisplayName("TC-4: placeholder stub 발송 2건 후 SMS 결과 DB 정합 + API 조회")
+    void smsDeliveryResultDbIntegrityAndApiList() throws Exception {
         // ── 1) placeholder 환경에서만 의미 있는 IT (운영 key 시 RestClient 실 호출)
         boolean anyPlaceholder = isAnyPlaceholder();
 
@@ -251,11 +250,11 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
         long smsRequestCount = requestRepository.count();
         assertThat(smsRequestCount).isGreaterThanOrEqualTo(2);
 
-        // ── 4) notification_logs — gateway_status = SUCCESS (stub)
-        long successLogCount = logRepository.findAll().stream()
-                .filter(log -> "SUCCESS".equals(log.getGatewayStatus()))
+        // ── 4) notification_logs — gateway_status = NOT_SENT (비전송)
+        long notSentLogCount = logRepository.findAll().stream()
+                .filter(log -> "NOT_SENT_CREDENTIALS_PLACEHOLDER".equals(log.getGatewayStatus()))
                 .count();
-        assertThat(successLogCount).isGreaterThanOrEqualTo(2);
+        assertThat(notSentLogCount).isGreaterThanOrEqualTo(2);
 
         // ── 5) API 조회 — GET /admin/notifications?channel=SMS
         mockMvc.perform(get(ADMIN_LIST_URL)

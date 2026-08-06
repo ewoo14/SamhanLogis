@@ -210,8 +210,8 @@ test.describe('PR #474 §7 전표 수정(협업) 실 QA — 수정완료 1-인 �
     // 수정 버튼 탐색 (다양한 selector 시도)
     const editBtnSelectors = [
       page.getByTestId('slip-collab-edit-open'),
-      page.getByRole('button', { name: '수정' }),
-      page.locator('button').filter({ hasText: '수정' }).first(),
+      page.getByRole('button', { name: '협업 수정', exact: true }),
+      page.locator('button').filter({ hasText: /^협업 수정$/ }).first(),
     ]
 
     let editBtn = null

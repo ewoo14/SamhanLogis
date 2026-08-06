@@ -19,7 +19,7 @@ flowchart TD
     F --> C
     E --> G[수량 입력 + Tab]
     G --> H{더 추가?}
-    H -->|예| I[+ 라인 추가 / 모델명 onBlur lookup 반복]
+    H -->|예| I[마지막 행 입력 / 아래 빈 행 자동 생성 / 모델명 onBlur lookup]
     I --> H
     H -->|아니오| J[저장 버튼 활성화 확인]
     J --> K{선택 항목?}

@@ -39,7 +39,7 @@ clients/web/order-app/index.html:2728   const useRate = (fixedDc ?? rate);
 clients/web/order-app/index.html:2851   const useRate = (fixedDc ?? globalRate);
 ```
 
-⚠️ **`dc-config-service` 에는 `고정DC`/`fixedDiscount` 개념이 아예 없다**(grep 0매치). 그래서 서버 확정 경로는 이 규칙을 표현할 수단이 없고, 표시값과 확정값이 갈린다 → PR #985.
+⚠️ ~~`dc-config-service` 에는 `고정DC`/`fixedDiscount` 개념이 아예 없다(grep 0매치)~~ → **2026-08-02 정정: 사실이 아니다.** DB 컬럼을 직접 읽지 않을 뿐 **요청으로 받은 고정DC 를 전역DC 보다 우선 적용**한다. `fixedDc ?? globalRate` 는 **현행 6곳 + 레거시 3곳 = 9곳**에 이미 구현돼 있다(#874 정찰 실측). 🔑 **grep 0 을 '개념 부재' 로 읽은 오류** — [[feedback_recon_grep_false_negative]] 가 정확히 이 형태다. PM 이 세션 내내 이 문장을 브리핑에 복사해 잘못된 전제를 퍼뜨렸다.
 
 **Why:** 용어가 틀리면 결함 보고서·PR·이슈가 전부 어긋난 축으로 기록되고, 나중에 읽는 사람이 존재하지 않는 개념을 찾게 된다. 이번엔 4개 게시물과 실행 중이던 codex 브리핑까지 오염됐다.
 

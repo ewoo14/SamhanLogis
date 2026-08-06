@@ -10,6 +10,9 @@ import com.samhanair.logis.arologis.dto.dispatch.ArologisModificationRequest;
 import com.samhanair.logis.arologis.dto.insung.InsungDeliveredRequest;
 import com.samhanair.logis.arologis.dto.insung.InsungMatchResultRequest;
 import com.samhanair.logis.arologis.dto.insung.InsungStatusUpdateRequest;
+import com.samhanair.logis.arologis.dto.PreClassifySupportResponse;
+import com.samhanair.logis.arologis.repository.RegionDispatchClassificationRepository;
+import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.arologis.service.dispatch.DispatchReceiveService;
 import com.samhanair.logis.arologis.service.dispatch.ModificationRequestReceiveService;
 import com.samhanair.logis.arologis.service.insung.InsungWebhookService;
@@ -33,6 +36,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -60,6 +65,24 @@ public class ArologisInternalController {
     private final InsungWebhookService insungWebhookService;
     private final ArologisMatcherProperties matcherProperties;
     private final ObjectMapper objectMapper;
+    private final RegionDispatchClassificationRepository regionRepository;
+    private final VehicleStopRepository vehicleStopRepository;
+
+    /** 삼한 분류 계산에 필요한 원천만 제공한다. 아로로지스는 판정하지 않는다. */
+    @GetMapping("/preclassify-support")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<PreClassifySupportResponse> preClassifySupport(
+            @RequestParam(required = false, defaultValue = "") String partnerCodes) {
+        var rules = regionRepository.findAllByOrderBySortOrderAscGroupNameAsc().stream()
+                .map(r -> new PreClassifySupportResponse.RegionRule(r.getGroupName(), r.getKeywords(), r.getSortOrder()))
+                .toList();
+        var codes = java.util.Arrays.stream(partnerCodes.split(","))
+                .filter(c -> !c.isBlank()).toList();
+        var planned = codes.isEmpty() ? java.util.List.<String>of() : vehicleStopRepository.findAllByParsedPartnerCodeIn(codes).stream()
+                .map(com.samhanair.logis.arologis.domain.VehicleStop::getParsedPartnerCode)
+                .filter(c -> c != null && !c.isBlank()).distinct().toList();
+        return ApiResponse.ok(new PreClassifySupportResponse(rules, planned));
+    }
 
     /**
      * 외부 vendor 배차 상태 동기화 callback.

@@ -8,6 +8,7 @@ import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Classification;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductAlias;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductGoodsType;
@@ -172,12 +173,14 @@ public class ProductService {
      * Internal endpoint 전용 경로 (slip-service ProductClient 가 호출).
      *
      * @param modelName 정확 매칭할 모델명
-     * @return ProductSummaryResponse (id/name/modelName/categoryId/sellingPrice/status)
+     * @return ProductSummaryResponse (id/name/modelName/specification/categoryId/sellingPrice/status)
      * @throws BusinessException(NOT_FOUND) 매칭 제품 없음
      */
     @Transactional(readOnly = true)
     public ProductSummaryResponse lookupSummaryByModelName(String modelName) {
-        return ProductSummaryResponse.from(findByModelNameOrThrow(modelName));
+        Product product = findByModelNameOrThrow(modelName);
+        ParentComponentLink parent = findParentComponentLink(product);
+        return ProductSummaryResponse.from(product, parent == null ? null : parent.parentModelCode());
     }
 
     /**
@@ -206,22 +209,38 @@ public class ProductService {
     }
 
     /**
-     * 품목코드(product_code) 정확 매칭 단건 조회 후 ProductSummaryResponse 로 변환.
+     * 품목 식별자(product_code/alias_code/model_name) 정확 매칭 단건 조회 후 ProductSummaryResponse 로 변환.
      * S3 인스턴스 출고 예약에서 productCode 기반 serialManaged 확인에 사용한다.
      *
-     * @param productCode 정확 매칭할 품목코드
+     * @param productCode 정확 매칭할 품목코드 또는 이카운트 순번코드
      * @return ProductSummaryResponse
      * @throws BusinessException(INVALID_INPUT) productCode null/blank
      * @throws BusinessException(NOT_FOUND) 매칭 제품 없음
+     * @throws BusinessException(CONFLICT) 서로 다른 활성 제품이 같은 식별자에 매칭됨
      */
     @Transactional(readOnly = true)
     public ProductSummaryResponse lookupSummaryByProductCode(String productCode) {
         if (productCode == null || productCode.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "품목코드가 비어있습니다");
         }
-        Product product = productRepository.findByProductCodeAndIsDeletedFalse(productCode.trim())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "품목코드에 해당하는 제품이 없습니다"));
+        String normalizedCode = productCode.trim();
+        List<Product> candidates = new ArrayList<>();
+        productRepository.findByProductCodeAndIsDeletedFalse(normalizedCode).ifPresent(candidates::add);
+        productAliasRepository.findByAliasCodeAndIsDeletedFalse(normalizedCode)
+                .map(ProductAlias::getMainProduct)
+                .ifPresent(candidates::add);
+        productRepository.findByModelNameAndIsDeletedFalse(normalizedCode).ifPresent(candidates::add);
+
+        Set<UUID> productIds = candidates.stream()
+                .map(Product::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        if (candidates.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "품목 식별자에 해당하는 제품이 없습니다");
+        }
+        if (productIds.size() > 1) {
+            throw new BusinessException(ErrorCode.CONFLICT, "품목 식별자가 서로 다른 제품에 매칭됩니다: " + normalizedCode);
+        }
+        Product product = candidates.get(0);
         return ProductSummaryResponse.from(product);
     }
 
@@ -418,7 +437,53 @@ public class ProductService {
         if (normalized.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelCode가 비어있습니다");
         }
-        return productRepository.findByModelCodeInAndIsDeletedFalse(normalized).stream()
+        List<Product> codeMatches = productRepository.findByModelCodeInAndIsDeletedFalse(normalized);
+        Set<String> matchedCodes = codeMatches.stream()
+                .map(Product::getModelCode)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.toSet());
+        List<String> unresolved = normalized.stream()
+                .filter(code -> !matchedCodes.contains(code))
+                .toList();
+        List<Product> nameMatches = unresolved.isEmpty()
+                ? List.of()
+                : productRepository.findByModelNameInAndIsDeletedFalse(unresolved);
+
+        List<Product> matches = new ArrayList<>(codeMatches);
+        matches.addAll(nameMatches);
+        return matches.stream()
+                .map(ProductSummaryResponse::from)
+                .toList();
+    }
+
+    /**
+     * 모델명 기준 벌크 조회 — 이카운트 계보처럼 modelCode가 없는 제품도 전건 해소한다.
+     * 기존 모델코드 조회 계약은 다른 호출자가 사용하므로 이 메서드와 분리한다.
+     *
+     * @param modelNames 조회할 모델명 목록
+     * @return 활성 제품 요약 목록
+     */
+    @Transactional(readOnly = true)
+    public List<ProductSummaryResponse> lookupByModelNames(List<String> modelNames) {
+        if (modelNames == null || modelNames.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelName이 비어있습니다");
+        }
+        if (modelNames.size() > LOOKUP_MAX) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "한 번에 조회할 수 있는 최대 제품 수는 " + LOOKUP_MAX + "건입니다");
+        }
+        List<String> normalized = modelNames.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .collect(java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.toCollection(LinkedHashSet::new),
+                        ArrayList::new));
+        if (normalized.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelName이 비어있습니다");
+        }
+        return productRepository.findByModelNameInAndIsDeletedFalse(normalized).stream()
                 .map(ProductSummaryResponse::from)
                 .toList();
     }
@@ -467,6 +532,7 @@ public class ProductService {
     }
 
     public ProductResponse create(CreateProductRequest req) {
+        assertNameAvailable(req.name(), null);
         if (productRepository.existsByModelNameAndIsDeletedFalse(req.modelName())) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 모델명입니다: " + req.modelName());
         }
@@ -517,7 +583,8 @@ public class ProductService {
         quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
 
-        if (req.name() != null) {
+        if (req.name() != null && !Objects.equals(req.name(), product.getName())) {
+            assertNameAvailable(req.name(), product.getId());
             product.rename(req.name());
         }
         if (req.modelName() != null && !Objects.equals(req.modelName(), product.getModelName())) {
@@ -553,6 +620,27 @@ public class ProductService {
         return toResponse(product);
     }
 
+    /**
+     * 신규 등록 또는 이름 변경 시 활성 품목명 충돌을 검사한다.
+     *
+     * <p>기존 데이터에는 의도적으로 동명이 존재하므로 DB 유니크 제약을 추가하지 않고,
+     * API mutation 경로에서만 새 충돌을 차단한다. 수정 시 현재 행은 제외한다.
+     */
+    private void assertNameAvailable(String name, UUID excludedProductId) {
+        String normalizedName = name.trim();
+        productRepository.findByNameAndStatusAndIsDeletedFalse(normalizedName, ProductStatus.ACTIVE).stream()
+                .filter(candidate -> !Objects.equals(candidate.getId(), excludedProductId))
+                .findFirst()
+                .ifPresent(conflict -> {
+                    String conflictModelCode = conflict.getModelCode() != null
+                            ? conflict.getModelCode()
+                            : conflict.getModelName();
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "이미 사용 중인 품목명입니다: " + normalizedName
+                                    + " (충돌 품목 모델코드: " + conflictModelCode + ")");
+                });
+    }
+
     public ProductResponse updatePrice(UUID id, UpdatePriceRequest req) {
         Product product = loadOrThrow(id);
         try {
@@ -585,7 +673,9 @@ public class ProductService {
     }
 
     public void reactivate(UUID id) {
-        loadOrThrow(id).reactivate();
+        Product product = loadOrThrow(id);
+        assertNameAvailable(product.getName(), product.getId());
+        product.reactivate();
     }
 
     /**
@@ -977,13 +1067,24 @@ public class ProductService {
                 .toList();
         Map<UUID, Product> parentsById = productRepository.findAllByIdIn(parentIds).stream()
                 .collect(java.util.stream.Collectors.toMap(Product::getId, p -> p, (left, right) -> left));
-        for (BundleComponent link : links) {
-            Product parent = parentsById.get(link.getBundleProductId());
-            if (parent != null && parent.getProductType() == ProductType.BUNDLE) {
-                return new ParentComponentLink(
-                        parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName(),
-                        link.getComponentKind());
-            }
+        List<ParentComponentLink> parents = links.stream()
+                .map(link -> {
+                    Product parent = parentsById.get(link.getBundleProductId());
+                    if (parent == null || parent.getProductType() != ProductType.BUNDLE) {
+                        return null;
+                    }
+                    return new ParentComponentLink(
+                            parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName(),
+                            link.getComponentKind());
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        // 레거시 GAS는 구성품 단건 lookup의 첫 부모를 고르지 않는다.
+        // 실내기 후보 세트의 구성품·가격을 모두 맞춘 뒤 선택한 setName만 옵션 selector가 된다.
+        // 거래 라인 컨텍스트가 없는 단건 API에서 다중 부모를 임의 확정하면 과차감이 발생하므로
+        // 모호한 경우에는 부모를 반환하지 않고 기존 modelToken fallback을 유지한다.
+        if (parents.size() == 1) {
+            return parents.get(0);
         }
         return null;
     }

@@ -28,6 +28,17 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 
+/** 레거시 가배차분류리스트 호환 8개 실행 모드. */
+export type DispatchExecutionMode =
+  | 'SANGIL_AND_CHOWOL_REGION_EXCLUDED'
+  | 'CHOWOL_REGION_EXCLUDED'
+  | 'SANGIL_REGION_EXCLUDED'
+  | 'STACK_ONLY'
+  | 'REGION_ONLY'
+  | 'SANGIL_AND_CHOWOL_REGION_INCLUDED'
+  | 'CHOWOL_REGION_INCLUDED'
+  | 'SANGIL_REGION_INCLUDED'
+
 /**
  * 가배차 (REGION 권역) 분류 entry — BE {@code PreClassifyResponse.Entry} 와 1:1.
  *
@@ -56,6 +67,8 @@ export interface PreClassifyEntry {
 export interface PreClassifyResponse {
   regionGroups: Record<string, PreClassifyEntry[]>
   unclassified: PreClassifyEntry[]
+  /** 창고 code provenance가 없어 UNKNOWN으로 제외된 원천 전표 수. */
+  unknownWarehouseCount: number
 }
 
 /**
@@ -108,10 +121,11 @@ export const ARO_PRECLASSIFY_ROLES = [
 export async function getPreClassify(
   from: string,
   to: string,
+  mode?: DispatchExecutionMode,
 ): Promise<PreClassifyResponse> {
   const res = await apiClient.get<ApiEnvelope<PreClassifyResponse>>(
     '/admin/arologis/dispatches/pre-classify',
-    { params: { from, to } },
+    { params: { from, to, ...(mode ? { mode } : {}) } },
   )
   return res.data.data
 }

@@ -2141,6 +2141,7 @@ function colorForPresence(seed: string): MockPresenceColor {
 export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const method = (config.method ?? 'get').toUpperCase()
   const url = config.url ?? ''
+  const body = parseMockBody(config)
 
   // POST /auth/login → 토큰 응답
   if (method === 'POST' && url.endsWith('/auth/login')) {
@@ -3353,6 +3354,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // GET /api/products?q=... — AC-2 품목 자동완성 검색 (product-service `/products?q=` 프록시)
   if (method === 'GET' && (url.endsWith('/api/products') || url.includes('/api/products?'))) {
     const q = String(config.params?.['q'] ?? '').toLowerCase()
+    const requestedSize = Number(config.params?.['size'] ?? 20)
+    const size = Number.isFinite(requestedSize) && requestedSize > 0 ? requestedSize : 20
     const usageScope = config.params?.['usageScope'] == null ? null : String(config.params['usageScope'])
     const allProducts = Object.values(MOCK_PRODUCTS_BY_MODEL)
     const matched = q
@@ -3384,11 +3387,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         goods: p.goods ?? true,
         modelCode: p.modelCode ?? p.modelName,
         productType: p.productType ?? 'SINGLE',
-      })),
+      })).slice(0, size),
       totalElements: matched.length,
       totalPages: 1,
       number: 0,
-      size: 20,
+      size,
       first: true,
       last: true,
     })
@@ -3675,12 +3678,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         decidedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       }
-      collabSuggestionsStore[slipId] = [created, ...(collabSuggestionsStore[slipId] ?? [])]
       const slip = MOCK_SLIPS.find((s) => s.id === slipId) as Record<string, unknown> | undefined
       if (slip) {
         try {
-          const parsed = JSON.parse(created.changeSet) as Record<string, { after?: unknown }>
-          for (const [field, change] of Object.entries(parsed)) {
+          const parsed = JSON.parse(created.changeSet) as Record<string, { before?: unknown; after?: unknown }>
+          const entries = Object.entries(parsed)
+          if (entries.some(([, change]) => (
+            !change || typeof change !== 'object'
+            || !Object.prototype.hasOwnProperty.call(change, 'before')
+            || !Object.prototype.hasOwnProperty.call(change, 'after')
+          ))) {
+            return mockError(400, 'INVALID_INPUT', 'changeSet entry 는 before/after 필드를 가진 JSON object 여야 합니다')
+          }
+          if (entries.some(([field, change]) => (slip[field] ?? null) !== (change.before ?? null))) {
+            return mockError(409, 'SLIP_OPTIMISTIC_LOCK_CONFLICT', '전표 협업 수정 대상 필드가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요.')
+          }
+          for (const [field, change] of entries) {
             slip[field] = change.after ?? null
           }
         } catch {
@@ -3688,6 +3701,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         }
       }
       if (!slip) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다')
+      collabSuggestionsStore[slipId] = [created, ...(collabSuggestionsStore[slipId] ?? [])]
       return envelope({ edit: created, slip })
     }
   }
@@ -5302,12 +5316,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { productId: 'p-pc1nw', productCode: 'PC1NWSK3NW', productName: 'WIFI 판넬', warehouseId: 'wh-vr', warehouseCode: 'VR-001', warehouseName: '가상창고', warehouseType: 'VIRTUAL', availableQty: 0, reservedQty: 0, totalQty: 0 },
     ]
     const params = mockLocationParams()
+    const productIdFilter = params.get('productId')
     const warehouseIdFilter = params.get('warehouseId')
-    const filtered = warehouseIdFilter
-      ? mockRows.filter((r) => r.warehouseId === warehouseIdFilter)
-      : mockRows
+    const filtered = mockRows.filter((r) =>
+      (!productIdFilter || r.productId === productIdFilter) &&
+      (!warehouseIdFilter || r.warehouseId === warehouseIdFilter),
+    )
+    const content = filtered.map(({ productId: _productId, warehouseId: _warehouseId, ...row }) => row)
     return envelope({
-      content: filtered,
+      content,
       number: 0,
       size: 50,
       totalElements: filtered.length,
@@ -5623,6 +5640,58 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         )
       : allItems
     return envelope(filtered.slice(0, Number(config.params?.['limit'] ?? 20)))
+  }
+
+  // GET /accounting/journals/partner-ledger — PartnerLedgerResponse VIEW read model.
+  // Must precede the generic /accounting/journals/{id} and page handlers below.
+  if (method === 'GET' && url.includes('/accounting/journals/partner-ledger')) {
+    const partnerCode = String(config.params?.['partnerCode'] ?? 'P-001')
+    const from = String(config.params?.['from'] ?? '2026-04-01')
+    const to = String(config.params?.['to'] ?? '2026-04-30')
+    const partner = ({
+      'P-001': { name: '엘에이시스템에어', businessNo: '123-45-67890' },
+      'P-002': { name: '강남에어솔루션', businessNo: '234-56-78901' },
+      'P-003': { name: '한빛쾌적', businessNo: '345-67-89012' },
+    } as Record<string, { name: string; businessNo: string | null }>)[partnerCode]
+      ?? { name: '테스트 거래처', businessNo: null }
+
+    return envelope({
+      partnerCode,
+      partnerName: partner.name,
+      partnerBusinessNo: partner.businessNo,
+      periodFrom: from,
+      periodTo: to,
+      documents: [
+        {
+          type: 'SALE',
+          documentNo: `${from.replace(/-/g, '/')}-1`,
+          date: from,
+          partnerCode,
+          partnerName: partner.name,
+          deliveryAddress: '서울특별시 강남구 테헤란로 123',
+          amount: '4070000',
+          lines: [
+            {
+              productName: '시스템에어컨 4Way 4HP',
+              modelName: 'AJ040RXH4BC1',
+              quantity: 2,
+              unitPriceWithVat: '2035000',
+              lineAmount: '4070000',
+            },
+          ],
+        },
+        {
+          type: 'CASH_RECEIPT',
+          documentNo: `${to.replace(/-/g, '/')}-1`,
+          date: to,
+          partnerCode,
+          partnerName: partner.name,
+          deliveryAddress: null,
+          amount: '2000000',
+          lines: [],
+        },
+      ],
+    })
   }
 
   // GET /accounting/journals/{id} — 단건 상세 (라인 포함)
@@ -8016,6 +8085,25 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /api/v1/partner-approvals — 주문서 승인 (status 6종)
+  if (method === 'GET' && url.includes('/api/v1/partner-approvals/access-preview/report')) {
+    return envelope({
+      candidates: [
+        {
+          partnerCode: '6789012345',
+          partnerName: '경기냉난방',
+          status: 'LONG_PENDING' as const,
+          approvalRequestedAt: '2025-12-05T08:15:00+09:00',
+          pcTutorialDone: true,
+          mobileTutorialDone: true,
+          assignedManagerName: '오병승',
+        },
+      ],
+      deferred: true,
+      deferredPartnerCount: 1,
+      deferredSources: ['ORDER' as const],
+    })
+  }
+
   if (method === 'GET' && url.includes('/api/v1/partner-approvals')) {
     const sample = [
       {
@@ -11474,6 +11562,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /arologis/pre-classify — PreClassifyPage (REGION + 광역 prefix 2-탭)
+  if (method === 'GET' && url.includes('/admin/dispatches/pre-classify')) {
+    return envelope({
+      regionGroups: { 서울특별시: [
+        { slipNo: '2026/08/04-1', partnerCode: 'P-001', partnerName: '삼한 거래처', address: '서울 강남구', regionGroup: '서울특별시', dispatchPlanned: false },
+      ] },
+      unclassified: [],
+      unknownWarehouseCount: 0,
+    })
+  }
+
   if (method === 'GET' && url.includes('/arologis/pre-classify')) {
     return envelope({
       date: '2026-05-10',
@@ -11490,6 +11588,55 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         { prefix: '부산', slipCount: 4 },
       ],
     })
+  }
+
+  // S10 배차 화면 운송사 조회 mock — dispatch.board VIEW alias.
+  const dispatchCarrierLookupMatch = url.match(/\/admin\/carriers\/dispatch-lookup(?:\/([^/?]+))?$/)
+  if (method === 'GET' && dispatchCarrierLookupMatch) {
+    const carriers = [
+      { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true },
+      { code: 'QUICK-01', name: '한빛퀵', isArologis: false, isActive: true },
+    ]
+    const code = dispatchCarrierLookupMatch[1] ? decodeURIComponent(dispatchCarrierLookupMatch[1]) : null
+    return envelope(code ? carriers.find((carrier) => carrier.code === code) ?? null : carriers)
+  }
+
+  // S4 운송사 그룹 전송 mock — 인사 마스터 CRUD 경로.
+  if (url.match(/\/admin\/carriers(?:\?.*)?$/)) {
+    if (method === 'GET') return envelope([
+      { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true },
+      { code: 'QUICK-01', name: '한빛퀵', isArologis: false, isActive: true },
+    ])
+    if (method === 'POST') return envelope({ code: 'NEW', name: '신규 운송사', isArologis: false, isActive: true })
+  }
+  const carrierMutationMatch = url.match(/\/admin\/carriers\/([^/?]+)$/)
+  if (carrierMutationMatch) {
+    if (method === 'PATCH') return envelope({ code: decodeURIComponent(carrierMutationMatch[1]!), name: (body as { name?: string })?.name ?? '운송사', isArologis: false, isActive: true })
+    if (method === 'DELETE') return envelope(null)
+  }
+  if (url.match(/\/admin\/dispatch-groups(?:\?.*)?$/)) {
+    if (method === 'GET') return envelope([
+      { groupNo: 'DG-20260804-01', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'NOT_SENT', slips: [{ slipNo: '2026/08/04-1', inclusionType: 'OUTBOUND', sequence: 1 }] },
+      { groupNo: 'DG-20260804-PENDING', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 02', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'PENDING', slips: [{ slipNo: '2026/08/04-2', inclusionType: 'OUTBOUND', sequence: 1 }] },
+    ])
+    if (method === 'POST') return envelope({ groupNo: 'DG-NEW', dispatchDate: '2026-08-04', vehicleLabel: '신규 차량', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT', slips: [] })
+  }
+  const groupTransferMatch = url.match(/\/admin\/dispatch-groups\/([^/?]+)\/transfer$/)
+  if (method === 'POST' && groupTransferMatch) return envelope({ groupNo: decodeURIComponent(groupTransferMatch[1]!), dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'SENT', slips: [{ slipNo: '2026/08/04-1', inclusionType: 'OUTBOUND', sequence: 1 }] })
+  const groupMutationMatch = url.match(/\/admin\/dispatch-groups\/([^/?]+)(?:\/([^/?]+)(?:\/([^/?]+))?)?$/)
+  if (groupMutationMatch) {
+    const groupNo = decodeURIComponent(groupMutationMatch[1]!)
+    const action = groupMutationMatch[2]
+    const target = decodeURIComponent(groupMutationMatch[3] ?? '')
+    const base = { groupNo, dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT' as const, slips: [] }
+    if (method === 'GET') return envelope(base)
+    if (method === 'PUT' && !action) return envelope({ ...base, ...(body as object) })
+    if (method === 'DELETE' && !action) return envelope(null)
+    if (action === 'carrier' && method === 'PUT') return envelope({ ...base, carrierCode: target, carrierName: target })
+    if (action === 'carrier' && method === 'DELETE') return envelope(base)
+    if (action === 'slips' && target === 'order' && method === 'PUT') return envelope(base)
+    if (action === 'slips' && method === 'POST') return envelope({ ...base, slips: [{ ...(body as object), sequence: 1 }] })
+    if (action === 'slips' && method === 'DELETE') return envelope(base)
   }
 
   // SP-08-3-4: /admin/notifications/dispatch-sms/history — 배차문자 저장내역 mock.
@@ -11510,6 +11657,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               slipNo: '2026/05/17-1',
               message: '[삼한] 5/17 오전 배송 예정입니다.',
               blocked: false,
+              groupMessage: 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n17일 하차 건 배송기사님 연락처를 안내드립니다.\n010-1111-2222 / 서울 강남구',
             },
             {
               partnerCode: 'P-002',
@@ -11517,12 +11665,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               slipNo: '2026/05/17-2',
               message: '[발송 차단됨]',
               blocked: true,
+              groupMessage: '발송금지 업체입니다.',
             },
           ],
         },
       ],
       unmapped: [
-        { partnerCode: 'P-404', partnerName: '미매핑 거래처', slipNo: '2026/05/17-3' },
+        {
+          partnerCode: 'P-404',
+          partnerName: '미매핑 거래처',
+          slipNo: '2026/05/17-3',
+          message: '[삼한] 5/17 오전 배송 예정입니다.',
+          recipientPhone: '01000000000',
+          groupMessage: 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n17일 하차 건 배송기사님 연락처를 안내드립니다.\n010-3333-4444 / 서울 중구\n\n※출하창고 상황에 따라 지연될 수 있음을 양해 부탁드립니다.',
+        },
       ],
     }
     const row: MockDispatchSmsHistoryRow = {
@@ -11535,74 +11691,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       requestParams: { date: '2026-05-17', rowCount: 3 },
       rowCount: 3,
     }
-    // SP-09-2: SEND_AUDIT mock 데이터 3건 (날짜별, 결과 혼합) — DispatchSmsSendAuditPage 시연용.
-    const auditPayload1 = {
-      date: '2026-05-17',
-      sent: 2,
-      failed: 0,
-      blocked: 1,
-      msgId: 'ALG-2026051700001',
-      details: [
-        { partnerCode: 'P-001', recipientPhone: '01012345678', status: 'SENT', reason: null },
-        { partnerCode: 'P-003', recipientPhone: '01098765432', status: 'SENT', reason: null },
-        { partnerCode: 'P-002', recipientPhone: '01055551234', status: 'BLOCKED', reason: '발송금지 등록됨' },
-      ],
-    }
-    const auditPayload2 = {
-      date: '2026-05-16',
-      sent: 1,
-      failed: 1,
-      blocked: 0,
-      msgId: 'ALG-2026051600002',
-      details: [
-        { partnerCode: 'P-005', recipientPhone: '01011112222', status: 'SENT', reason: null },
-        { partnerCode: 'P-006', recipientPhone: '01033334444', status: 'FAILED', reason: 'Aligo 오류: result_code=-1' },
-      ],
-    }
-    const auditPayload3 = {
-      date: '2026-05-15',
-      sent: 0,
-      failed: 2,
-      blocked: 0,
-      msgId: null,
-      details: [
-        { partnerCode: 'P-007', recipientPhone: '01077778888', status: 'FAILED', reason: 'Aligo 오류: 잘못된 발신번호' },
-        { partnerCode: 'P-008', recipientPhone: '01099990000', status: 'FAILED', reason: 'Aligo 오류: result_code=-2' },
-      ],
-    }
-    const auditRow: MockDispatchSmsHistoryRow = {
-      ...row,
-      id: 'dispatch-sms-history-send-audit',
-      saveMode: 'SEND_AUDIT',
-      topic: '발송 감사 2026-05-17',
-      requestParams: { date: '2026-05-17', rowCount: 3, sent: 2, failed: 0, blocked: 1 },
-      createdAt: '2026-05-17T10:20:00',
-      rowCount: 3,
-      responsePayload: auditPayload1,
-    }
-    const auditRow2: MockDispatchSmsHistoryRow = {
-      ...row,
-      id: 'dispatch-sms-history-send-audit-2',
-      saveMode: 'SEND_AUDIT',
-      topic: '발송 감사 2026-05-16',
-      requestParams: { date: '2026-05-16', rowCount: 2, sent: 1, failed: 1, blocked: 0 },
-      createdAt: '2026-05-16T09:45:00',
-      rowCount: 2,
-      responsePayload: auditPayload2,
-    }
-    const auditRow3: MockDispatchSmsHistoryRow = {
-      ...row,
-      id: 'dispatch-sms-history-send-audit-3',
-      saveMode: 'SEND_AUDIT',
-      topic: '발송 감사 2026-05-15',
-      requestParams: { date: '2026-05-15', rowCount: 2, sent: 0, failed: 2, blocked: 0 },
-      createdAt: '2026-05-15T14:30:00',
-      rowCount: 2,
-      responsePayload: auditPayload3,
-    }
     if (method === 'POST') {
       const body = parseMockBody(config)
       const saveMode = String(body['saveMode'] ?? 'MANUAL_NAMED')
+      if (saveMode !== 'AUTO_LATEST' && saveMode !== 'MANUAL_NAMED') {
+        return mockError(400, 'INVALID_INPUT', '저장 방식은 AUTO_LATEST 또는 MANUAL_NAMED만 사용할 수 있습니다.')
+      }
       const requestParams = (body['requestParams'] && typeof body['requestParams'] === 'object')
         ? body['requestParams'] as Record<string, unknown>
         : {}
@@ -11640,27 +11734,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const id = url.split('/').pop()?.split('?')[0] ?? ''
       const savedRow = mockDispatchSmsHistoryRows.find(item => item.id === id)
       if (savedRow) return envelope(savedRow)
-      // SP-09-2: ID 별 SEND_AUDIT 상세 조회 — 3건 mock 지원
-      if (id === 'dispatch-sms-history-send-audit-2') {
-        return envelope({ ...auditRow2, responsePayload: auditPayload2 })
-      }
-      if (id === 'dispatch-sms-history-send-audit-3') {
-        return envelope({ ...auditRow3, responsePayload: auditPayload3 })
-      }
-      if (id === 'dispatch-sms-history-send-audit' || url.includes('send-audit')) {
-        return envelope({ ...auditRow, responsePayload: auditPayload1 })
-      }
       return envelope({ ...row, responsePayload: previewPayload })
     }
     if (method === 'GET') {
-      if (mockLocationParams().get('mockAligo502') === '1') {
-        return mockError(502, 'SEND_FAILED', 'Aligo SMS 외부 서비스 오류가 발생했습니다.')
-      }
       const mode = new URL(url, 'http://mock.local').searchParams.get('mode')
-      // SP-09-2: SEND_AUDIT 전용 baseRows 3건 포함
-      const baseAuditRows = [auditRow, auditRow2, auditRow3]
-      const baseRows = [...baseAuditRows, row]
-      const allRows = [...mockDispatchSmsHistoryRows, ...baseRows]
+      const allRows = [...mockDispatchSmsHistoryRows, row]
       const filteredRows = mode && mode !== 'ALL'
         ? allRows.filter(item => item.saveMode === mode)
         : allRows
@@ -11691,28 +11769,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           chatRoomName: '서울권 발주방',
           partners: [
-            { partnerCode: 'P-001', partnerName: '엘에이시스템에어', slipNo: '2026/05/17-1', message: '[삼한] 5/17 오전 배송 예정입니다.', blocked: false },
-            { partnerCode: 'P-002', partnerName: '한일냉동기술', slipNo: '2026/05/17-2', message: '[발송 차단됨]', blocked: true },
+            { partnerCode: 'P-001', partnerName: '엘에이시스템에어', slipNo: '2026/05/17-1', message: '[삼한] 5/17 오전 배송 예정입니다.', blocked: false, groupMessage: 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n17일 하차 건 배송기사님 연락처를 안내드립니다.\n010-1111-2222 / 서울 강남구' },
+            { partnerCode: 'P-002', partnerName: '한일냉동기술', slipNo: '2026/05/17-2', message: '[발송 차단됨]', blocked: true, groupMessage: '발송금지 업체입니다.' },
           ],
         },
       ],
       unmapped: [
-        { partnerCode: 'P-404', partnerName: '미매핑 거래처', slipNo: '2026/05/17-3' },
+        {
+          partnerCode: 'P-404',
+          partnerName: '미매핑 거래처',
+          slipNo: '2026/05/17-3',
+          message: '[삼한] 5/17 오전 배송 예정입니다.',
+          recipientPhone: '01000000000',
+          groupMessage: 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n17일 하차 건 배송기사님 연락처를 안내드립니다.\n010-3333-4444 / 서울 중구\n\n※출하창고 상황에 따라 지연될 수 있음을 양해 부탁드립니다.',
+        },
       ],
     })
   }
-  if (method === 'POST' && url.includes('/admin/notifications/dispatch-batch/send')) {
-    return envelope({
-      date: '2026-05-17',
-      sent: 1,
-      failed: 0,
-      blocked: 0,
-      details: [
-        { partnerCode: 'P-001', recipientPhone: 'room:서울권 발주방', status: 'SENT', reason: null },
-      ],
-    })
-  }
-
   // POST /arologis/dispatch/reconcile — 운송사 비교 (multipart)
   if (method === 'POST' && url.includes('/arologis/dispatch/reconcile')) {
     return envelope({
@@ -18450,11 +18523,11 @@ const SP_D1_PAGES = [
   'accounting.daily-closing.run',
   'accounting.daily-closing.unlock',
   'accounting.general-ledger',
-  'notification.dispatch-sms.send-audit',
   'purchases.slip.list',
   'sales.slip.list',
   'inbound.inspection',
   'dispatch.board',
+  'hr.carriers',
   'dispatch.external-carriers',
   'admin.permissions',
   'admin.permission-groups',
@@ -18531,6 +18604,7 @@ const SP_D1_PAGES = [
     'slip.cleanup',
   'arologis.dispatch.admin',
   'arologis.dispatch.ops',
+  'notification.dispatch-sms.display',
   'dispatch.batch',
   'aligo.address-book',
   'groupware.approvals',
@@ -18644,7 +18718,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.inbound', 'accounting.sales-slip.list',
     'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
-    'accounting.general-ledger', 'notification.dispatch-sms.send-audit',
+    'accounting.general-ledger',
     'purchases.slip.list', 'sales.slip.list',
     'inbound.inspection', 'dispatch.board', 'dispatch.external-carriers',
     // SP-D2 회계 7개 — MANAGER: view 허용
@@ -18661,7 +18735,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.detail', 'inventory.adjust', 'inventory.transfer',
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
-    'admin.employees', 'admin.app-release',
+    'admin.employees', 'hr.carriers', 'admin.app-release',
     'partners.list', 'partners.detail', 'partners.search', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
@@ -18673,7 +18747,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page view 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'sales.estimate-config', 'slip.cleanup',
-    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'notification.dispatch-sms.display', 'dispatch.batch', 'dispatch.external-carriers',
     'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     'slip.photo-audit',
     // C2c 동적 권한 전환 — MANAGER: view 허용 (V36/V30/V41 seed)
@@ -18697,11 +18771,11 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'hr.slip-cutoff',
   ],
   DISPATCH: [
-    'notification.dispatch-sms.send-audit', 'dispatch.board', 'dispatch.external-carriers',
+    'dispatch.board', 'dispatch.external-carriers',
     // SP-D4 — DISPATCH: V79/#706 inventory.warehouse view + inventory.stock (view 전용) + arologis.*
     'inventory.warehouse', 'inventory.stock', 'arologis.admin', 'arologis.region',
-    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
-    'arologis.dispatch.ops', 'dispatch.batch',
+    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + V92 canonical dispatch SMS view
+    'arologis.dispatch.ops', 'notification.dispatch-sms.display', 'dispatch.batch',
     // P1-C: arologis.region.manage — V34 seed MASTER/MANAGER 만 허용, DISPATCH 없음 → 제거
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
@@ -18842,7 +18916,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.adjust', 'inventory.transfer', 'inventory.stock-balance',
     'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
-    'admin.employees', 'admin.app-release',
+    'admin.employees', 'hr.carriers', 'admin.app-release',
     'partners.list', 'partners.detail', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
@@ -18854,7 +18928,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page edit 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'sales.estimate-config', 'slip.cleanup',
-    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'notification.dispatch-sms.display', 'dispatch.batch', 'dispatch.external-carriers',
     'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     // slip.photo-audit: MANAGER can_edit=FALSE per V36
     // C2c 동적 권한 전환 — MANAGER: edit 허용 (V36/V30/V41 seed)
@@ -18878,11 +18952,11 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'hr.slip-cutoff',
   ],
   DISPATCH: [
-    'notification.dispatch-sms.send-audit', 'dispatch.board',
+    'dispatch.board',
     // SP-D4 — DISPATCH: arologis.* edit
     'arologis.admin', 'arologis.region',
-    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch edit (V33/V34)
-    'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + V92 canonical dispatch SMS edit
+    'arologis.dispatch.ops', 'notification.dispatch-sms.display', 'dispatch.batch', 'dispatch.external-carriers',
   ],
   SALES: [
     'sales.slip.list',
@@ -19443,7 +19517,9 @@ function mockMessengerResponse(config: AxiosRequestConfig): unknown | null {
     const recipients = normalized
       ? MOCK_MESSENGER_RECIPIENTS.filter((recipient) => recipient.name.toLowerCase().includes(normalized))
       : MOCK_MESSENGER_RECIPIENTS
-    return envelope(recipients.slice(0, 20))
+    const requestedLimit = Number(config.params?.['limit'] ?? 20)
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 20
+    return envelope(recipients.slice(0, limit))
   }
 
   if (method === 'GET' && url.endsWith('/messages/inbox')) {

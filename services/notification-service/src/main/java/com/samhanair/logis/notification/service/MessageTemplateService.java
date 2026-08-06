@@ -21,8 +21,7 @@ import org.springframework.stereotype.Service;
  * </pre>
  *
  * <p>SMS 본문 길이 가드 — 한글 SMS 90byte / LMS 2000byte. 본 템플릿은 LMS 발송 전제로 truncate
- * 정책 운용 (주소 80자 truncate, 품목 100건 cap). 호출 측 (DispatchBatchSendService) 이 SMS/LMS
- * 분기를 결정.
+ * 정책 운용 (주소 80자 truncate, 품목 100건 cap). 채널별 분기는 각 알림 소비자가 결정한다.
  *
  * <p>UUID 비공개 가드 — 본 템플릿은 partnerName / partnerCode (사용자 노출 식별자) 만 사용, UUID 무.
  */

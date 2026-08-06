@@ -2468,16 +2468,22 @@ function unwrapList(data) {
  * legacy saveQuoteSnapshot(payload) (line 2614).
  * SamhanLogis: POST /internal/estimates/snapshots (X-Internal-Token)
  */
-async function saveQuoteSnapshot(payload) {
-  const email = Session.getActiveUser().getEmail();
+async function saveQuoteSnapshot(payload, authenticatedEmail) {
+  const email = String(authenticatedEmail || Session.getActiveUser().getEmail() || '').trim();
+  const snapshotId = payload && payload.snapshotId;
   const body = {
-    userEmail: email,
     createdAt: new Date().toISOString(),
     ...payload,
+    userEmail: email,
   };
-  const resp = await ax.post(SNAPSHOT_BASE, body, { headers: SNAPSHOT_HEADERS });
+  delete body.snapshotId;
+  const resp = snapshotId
+    ? await ax.put(`${SNAPSHOT_BASE}/${encodeURIComponent(snapshotId)}`, body, { headers: SNAPSHOT_HEADERS })
+    : await ax.post(SNAPSHOT_BASE, body, { headers: SNAPSHOT_HEADERS });
   if (resp.status < 200 || resp.status >= 300) {
-    throw new Error(`snapshot 저장 실패: HTTP ${resp.status}`);
+    const error = new Error(`snapshot save failed: HTTP ${resp.status}`);
+    error.statusCode = resp.status;
+    throw error;
   }
   return (resp.data && resp.data.data) || resp.data;
 }
@@ -2487,9 +2493,8 @@ async function saveQuoteSnapshot(payload) {
  * SamhanLogis: GET /internal/estimates/snapshots?startDate=&endDate= (X-Internal-Token)
  */
 async function getQuoteHistory(startDate, endDate) {
-  const email = Session.getActiveUser().getEmail();
   const resp = await ax.get(SNAPSHOT_BASE, {
-    params: { startDate, endDate, userEmail: email },
+    params: { startDate, endDate },
     headers: SNAPSHOT_HEADERS,
   });
   if (resp.status < 200 || resp.status >= 300) {
@@ -2502,12 +2507,11 @@ async function getQuoteHistory(startDate, endDate) {
 
 /**
  * legacy getQuoteHistoryByCustomer(custName) — 거래처명 부분검색 최근 30건 (#31).
- * SamhanLogis: GET /internal/estimates/snapshots/by-customer?custName=&userEmail= (X-Internal-Token)
+ * SamhanLogis: GET /internal/estimates/snapshots/by-customer?custName= (X-Internal-Token)
  */
 async function getQuoteHistoryByCustomer(custName) {
-  const email = Session.getActiveUser().getEmail();
   const resp = await ax.get(`${SNAPSHOT_BASE}/by-customer`, {
-    params: { custName: String(custName || '').trim(), userEmail: email },
+    params: { custName: String(custName || '').trim() },
     headers: SNAPSHOT_HEADERS,
   });
   if (resp.status < 200 || resp.status >= 300) {

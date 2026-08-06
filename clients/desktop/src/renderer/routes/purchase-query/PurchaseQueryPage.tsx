@@ -26,6 +26,7 @@ import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
+import { canQueryPurchases, useSessionStore } from '../../stores/session'
 import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import { ExcelDownloadError } from '../../components/ExcelDownloadError'
@@ -111,7 +112,9 @@ const EMPTY_SEARCH: SearchForm = {
 export function PurchaseQueryPage() {
   usePageTitle('구매관리')
   const navigate = useNavigate()
+  const auth = useSessionStore((s) => s.auth)
   const { canAccess } = usePermissions()
+  const canQuery = canQueryPurchases(auth)
   // [C5-2b] canCreateSlip(role) → canAccess('sales.slip.create')
   const canCreate = canAccess('sales.slip.create', 'create')
   // [C5-2b] canInspectInbound(role) → canAccess('inbound.inspection')
@@ -150,6 +153,7 @@ export function PurchaseQueryPage() {
   // ── 창고 목록 (destinationWarehouseId resolve) ──
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
+    enabled: canQuery,
     queryFn: () => listWarehouses(),
     staleTime: 5 * 60 * 1000,
   })
@@ -161,6 +165,7 @@ export function PurchaseQueryPage() {
   // ── 구매관리 데이터 ──
   const slipsQuery = useQuery({
     queryKey: ['slips', 'query', 'INBOUND', dateFrom, dateTo, page, appliedSearch],
+    enabled: canQuery,
     queryFn: () =>
       querySlips({
         slipType: 'INBOUND',
@@ -305,6 +310,14 @@ export function PurchaseQueryPage() {
     setDateTo(to)
     setPage(0)
     setSelectedIds(new Set())
+  }
+
+  if (!canQuery) {
+    return (
+      <div role="alert" style={{ padding: 32, fontSize: 14, color: 'var(--color-danger-600)' }}>
+        구매 전표 조회 권한이 없습니다. (WAREHOUSE / MANAGER / MASTER 역할 필요)
+      </div>
+    )
   }
 
   return (
@@ -534,7 +547,7 @@ export function PurchaseQueryPage() {
                     {/* 품목 — BE lineSummary 없음 → 임시 "—" */}
                     <Td>—</Td>
                     {/* 금액 — 우측 정렬 */}
-                    <Td align="right">{fmtNumber(row.totalAmount)}</Td>
+                    <Td align="right">{fmtNumber(row.displayTotalAmount ?? row.totalAmount)}</Td>
                     {/* 수량합계 — 우측 정렬 */}
                     <Td align="right">{fmtNumber(row.totalQuantity)}</Td>
                     {/* 입고창고 — destinationWarehouseId resolve */}

@@ -4,8 +4,9 @@
  * 공개 API(`PartnerOption`, `searchPartners`)는 유지하고,
  * 공통 async typeahead 동작은 `AsyncAutocomplete<T>`에 위임한다.
  */
-import { forwardRef } from 'react'
+import { forwardRef, type ReactNode } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
+import type { SearchResultSelectionMode } from '../SearchResultSelectionModal'
 import { splitHighlightMatches } from '../AsyncAutocomplete/highlight'
 import styles from '../AsyncAutocomplete/AsyncAutocomplete.module.css'
 
@@ -57,6 +58,10 @@ export interface PartnerAutocompleteProps {
   debounceMs?: number
   /** 내부 input 의 data-testid (예: 협업 필드 식별자). */
   inputTestId?: string
+  /** 검색 결과 2건 이상에서 공용 결과 선택 모달을 사용할지 여부. */
+  resultSelectionMode?: SearchResultSelectionMode
+  /** 결과 선택 모달 제목. */
+  resultSelectionTitle?: ReactNode
 }
 
 function HighlightedPartnerField({

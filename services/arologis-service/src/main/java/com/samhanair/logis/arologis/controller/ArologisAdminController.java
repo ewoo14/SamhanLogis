@@ -32,6 +32,7 @@ import com.samhanair.logis.arologis.service.DispatchService;
 import com.samhanair.logis.arologis.service.DriverService;
 import com.samhanair.logis.arologis.service.GpsSourceAssembler;
 import com.samhanair.logis.arologis.service.PreClassifyService;
+import com.samhanair.logis.arologis.service.DispatchExecutionMode;
 import com.samhanair.logis.arologis.service.RegionalService;
 import com.samhanair.logis.arologis.service.UnassignedService;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
@@ -341,8 +342,9 @@ public class ArologisAdminController {
     public ApiResponse<PreClassifyResponse> preClassify(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) DispatchExecutionMode mode,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(preClassifyService.classify(from, to));
+        return ApiResponse.ok(preClassifyService.classify(from, to, mode));
     }
 
     /**

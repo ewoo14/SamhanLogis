@@ -5,12 +5,13 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 거래처별 원장에 표시할 판매전표 read projection.
  *
  * <p>원장 화면의 외부 계약은 전표번호·거래처코드·거래처명 같은 업무 식별자만 사용한다.
- * 내부 전표 UUID·거래처 UUID·라인 UUID는 이 projection과 JSON 계약에 포함하지 않는다.
+ * 내부 중복제거용 slipId는 accounting-service internal 호출에서만 소비하고 화면에는 노출하지 않는다.
  * 배송주소는 {@code slips.delivery_address} 원본만 전사하며 다른 주소나 적요로 대체하지 않는다.
  */
 public record PartnerLedgerSalesResponse(
@@ -18,9 +19,23 @@ public record PartnerLedgerSalesResponse(
         LocalDate slipDate,
         String status,
         String partnerCode,
+        UUID partnerId,
         String partnerName,
+        String businessNumber,
         String deliveryAddress,
         List<Line> lines) {
+
+    public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
+                                      String partnerCode, String partnerName,
+                                      String deliveryAddress, List<Line> lines) {
+        this(slipNo, slipDate, status, partnerCode, null, partnerName, null, deliveryAddress, lines);
+    }
+
+    public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
+                                      String partnerCode, String partnerName, String businessNumber,
+                                      String deliveryAddress, List<Line> lines) {
+        this(slipNo, slipDate, status, partnerCode, null, partnerName, businessNumber, deliveryAddress, lines);
+    }
 
     /**
      * 원장 판매전표 품목 projection.
@@ -54,7 +69,9 @@ public record PartnerLedgerSalesResponse(
                 slip.getSlipDate(),
                 slip.getStatus().name(),
                 slip.getPartnerCode(),
+                slip.getPartnerId(),
                 slip.getPartnerName(),
+                slip.getBusinessNumber(),
                 slip.getDeliveryAddress(),
                 lines);
     }

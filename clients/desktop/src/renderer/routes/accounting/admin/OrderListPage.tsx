@@ -96,6 +96,12 @@ export function OrderListPage() {
         render: (row) => <MoneyText value={row.totalAmount} strong />,
       },
       {
+        key: 'unresolvedLineCount',
+        header: '미해소 라인',
+        width: '110px',
+        render: (row) => row.unresolvedLineCount ? `${row.unresolvedLineCount}건` : '-',
+      },
+      {
         key: 'totalSupplyAmount',
         header: '공급가',
         width: '130px',

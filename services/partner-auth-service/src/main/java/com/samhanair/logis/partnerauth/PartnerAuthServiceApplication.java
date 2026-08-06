@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerauth;
 import com.samhanair.logis.common.audit.JpaAuditingConfig;
 import com.samhanair.logis.partnerauth.config.DcConfigClientProperties;
 import com.samhanair.logis.partnerauth.config.PartnerAuthJwtProperties;
+import com.samhanair.logis.partnerauth.config.PartnerActivityClientProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -16,7 +17,8 @@ import org.springframework.context.annotation.Import;
  */
 @SpringBootApplication
 @Import(JpaAuditingConfig.class)
-@EnableConfigurationProperties({PartnerAuthJwtProperties.class, DcConfigClientProperties.class})
+@EnableConfigurationProperties({PartnerAuthJwtProperties.class, DcConfigClientProperties.class,
+        PartnerActivityClientProperties.class})
 public class PartnerAuthServiceApplication {
 
     public static void main(String[] args) {

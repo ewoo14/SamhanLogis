@@ -1,0 +1,2 @@
+2026-08-02T16:23:40.775+09:00  INFO 24108 --- [slip-service] [           main] c.s.l.slip.publish.WarehouseCodeMapper   : warehouse-code-map 로드: 4 entries
+2026-08-02T16:23:47.267+09:00  INFO 24108 --- [slip-service] [           main] c.s.logis.slip.SlipServiceApplication    : Started SlipServiceApplication in 20.909 seconds (process running for 21.817)

@@ -28,8 +28,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 배차문자 저장내역 service.
  *
- * <p>preview 자동 최신 저장은 사용자+프로그램별 활성 1건만 유지하고, 명시 저장과
- * SEND_AUDIT 는 append-only 로 누적한다. 모든 삭제는 BaseEntity soft-delete 만 사용한다.
+ * <p>preview 자동 최신 저장은 사용자+프로그램별 활성 1건만 유지하고, 명시 저장은
+ * append-only 로 누적한다. 모든 삭제는 BaseEntity soft-delete 만 사용한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -191,7 +191,7 @@ public class DispatchSmsSaveHistoryService {
         }
         if (request.saveMode().requiresTopic()
                 && (request.topic() == null || request.topic().isBlank())) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "명시 저장과 발송 감사는 저장주제가 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "명시 저장은 저장주제가 필수입니다.");
         }
         if (payloadSize(request.responsePayload()) > MAX_RESPONSE_PAYLOAD_BYTES) {
             throw new BusinessException(ErrorCode.DISPATCH_SMS_HISTORY_PAYLOAD_TOO_LARGE,

@@ -11,7 +11,7 @@
  *
  * <p>노출 endpoint (BE @PreAuthorize 와 1:1):
  * <ul>
- *   <li>GET /admin/arologis/dispatches/pre-classify?from&to — 권역 분류 (REGION 마스터)
+ *   <li>GET /admin/dispatches/pre-classify?from&to — 삼한 권역 분류 (REGION 마스터)
  *       (MASTER/MANAGER/DISPATCH)</li>
  *   <li>GET /admin/arologis/dispatches/regional?date        — 시도 분류 (광역 prefix)
  *       (MASTER/MANAGER/DISPATCH)</li>
@@ -27,6 +27,17 @@
  * <p>풀네임 ROLE (feedback_role_naming_full.md): MASTER / MANAGER / DISPATCH.
  */
 import { apiClient, type ApiEnvelope } from './client'
+
+/** 레거시 가배차분류리스트 호환 8개 실행 모드. */
+export type DispatchExecutionMode =
+  | 'SANGIL_AND_CHOWOL_REGION_EXCLUDED'
+  | 'CHOWOL_REGION_EXCLUDED'
+  | 'SANGIL_REGION_EXCLUDED'
+  | 'STACK_ONLY'
+  | 'REGION_ONLY'
+  | 'SANGIL_AND_CHOWOL_REGION_INCLUDED'
+  | 'CHOWOL_REGION_INCLUDED'
+  | 'SANGIL_REGION_INCLUDED'
 
 /**
  * 가배차 (REGION 권역) 분류 entry — BE {@code PreClassifyResponse.Entry} 와 1:1.
@@ -56,6 +67,7 @@ export interface PreClassifyEntry {
 export interface PreClassifyResponse {
   regionGroups: Record<string, PreClassifyEntry[]>
   unclassified: PreClassifyEntry[]
+  unknownWarehouseCount: number
 }
 
 /**
@@ -97,10 +109,11 @@ export interface RegionalResponse {
 export async function getPreClassify(
   from: string,
   to: string,
+  mode?: DispatchExecutionMode,
 ): Promise<PreClassifyResponse> {
   const res = await apiClient.get<ApiEnvelope<PreClassifyResponse>>(
-    '/admin/arologis/dispatches/pre-classify',
-    { params: { from, to } },
+    '/admin/dispatches/pre-classify',
+    { params: { from, to, ...(mode ? { mode } : {}) } },
   )
   return res.data.data
 }

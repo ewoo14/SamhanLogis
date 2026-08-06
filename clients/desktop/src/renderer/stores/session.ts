@@ -10,13 +10,13 @@
  * C5-2c: hasAdminRole / canTransitionSlip / canTransitionTransfer 헬퍼는
  * usePermissions().canAccess() 로 이관 완료. session.ts 에서 제거됨.
  *   - hasAdminRole     → canAccess('inventory.warehouse.admin', 'create')
- *   - canTransitionSlip  → canAccess(slipActionPageCode(action), 'update')   [SlipDetailPage]
+ *   - canTransitionSlip  → canAccessSlipAction(action, mode, canAccess)       [SlipDetailPage]
  *   - canTransitionTransfer → canAccess(transferActionPageCode(action), 'update') [TransferDetailPage]
  *
- * C5 follow-up: canQuerySales 는 BE SlipSalesAccessGuard(SALES/MANAGER/MASTER 한정)와
- * 정합을 유지하되 role 문자열 대신 V43 빌트인 role-group UUID 로 판정한다.
- * canAccess('sales.slip.list') 는 seed 가 ACCOUNTANT/INVENTORY 에도 view 를 부여하여
- * FE 화면은 열리나 API 403 이 발생하므로 이 전용 헬퍼를 유지한다.
+ * C5 follow-up: 전표 조회 헬퍼는 BE SlipSalesAccessGuard/
+ * SlipPurchaseAccessGuard 와 같은 유형별 허용 집합을 사용한다.
+ * canAccess('*.slip.list') 는 서버 조회 guard보다 넓은 seed를 가질 수 있으므로 메뉴·목록·상세
+ * 진입점이 이 헬퍼를 공통으로 소비한다.
  */
 import { create } from 'zustand'
 import type { AuthSnapshot, AuthGroupItem } from '../types/electron'
@@ -148,7 +148,27 @@ export const useSessionStore = create<SessionState>((set) => ({
  */
 export function canQuerySales(auth: AuthSnapshot | null): boolean {
   return (
-    hasBuiltinRoleGroup(auth, 'SALES')
+    auth?.role === 'SALES'
+    || auth?.role === 'MANAGER'
+    || auth?.role === 'MASTER'
+    || hasBuiltinRoleGroup(auth, 'SALES')
+    || hasBuiltinRoleGroup(auth, 'MANAGER')
+    || hasBuiltinRoleGroup(auth, 'MASTER')
+  )
+}
+
+/**
+ * 매입(INBOUND) 전표 목록·상세 조회 권한.
+ *
+ * BE `SlipPurchaseAccessGuard` 와 동일하게 WAREHOUSE / MANAGER / MASTER 만 허용한다.
+ * PageCode seed가 ACCOUNTANT 등에도 VIEW를 줄 수 있어 유형별 서버 guard를 함께 반영해야 한다.
+ */
+export function canQueryPurchases(auth: AuthSnapshot | null): boolean {
+  return (
+    auth?.role === 'WAREHOUSE'
+    || auth?.role === 'MANAGER'
+    || auth?.role === 'MASTER'
+    || hasBuiltinRoleGroup(auth, 'WAREHOUSE')
     || hasBuiltinRoleGroup(auth, 'MANAGER')
     || hasBuiltinRoleGroup(auth, 'MASTER')
   )

@@ -12,11 +12,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.UUID;
 
 /**
  * 종합견적서(웹) 견적 저장/불러오기 — legacy 종합견적서 Code.js 노션 견적 DB
@@ -28,7 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>인증 (P0-A 하드닝, 2026-06-10): {@code /internal/} prefix → {@code InternalTokenFilter}
  * 가 X-Internal-Token 검증 → system-internal principal. SecurityConfig 의 {@code /internal/**}
  * 규칙으로 토큰 미제시 403 / 불일치 401 / 유효 통과. 기존 무인증 permitAll 폐기(저민감 견적
- * 초안이라도 server-to-server 게이트 일원화 — 결정 ②). 조회는 userEmail 파라미터로 사용자 격리.
+ * 초안이라도 server-to-server 게이트 일원화 — 결정 ②). 목록은 전체 조회를 기본으로 하고,
+ * 선택적으로 userEmail로 작성자 범위를 좁힌다.
  */
 @RestController
 @RequestMapping("/internal/estimates/snapshots")
@@ -40,7 +44,7 @@ public class QuoteSnapshotController {
     /**
      * 견적 스냅샷 저장 — legacy saveQuoteSnapshot(payload).
      *
-     * @param request 저장 요청 (userEmail/createdAt/data/summary/image)
+     * @param request 저장 요청 (작성자/JSON 상태/계산 합계)
      * @return 저장된 스냅샷 메타 (201)
      */
     @Operation(summary = "견적 저장 (종합견적서)",
@@ -55,10 +59,17 @@ public class QuoteSnapshotController {
         return ApiResponse.ok(quoteSnapshotService.save(request));
     }
 
+    /** 저장된 견적 수정 — 요청 이메일이 작성자와 같을 때만 허용한다. */
+    @PutMapping("/{id}")
+    public ApiResponse<QuoteSnapshotResponse> update(@PathVariable UUID id,
+            @Valid @RequestBody SaveQuoteSnapshotRequest request) {
+        return ApiResponse.ok(quoteSnapshotService.update(id, request));
+    }
+
     /**
      * 견적 이력 조회 — legacy getQuoteHistory(startDate, endDate).
      *
-     * @param userEmail 저장 담당자 이메일 (필수)
+     * @param userEmail 작성자 필터 (생략 시 전체 작성자)
      * @param startDate 조회 시작일 (yyyy-MM-dd 또는 ISO, 선택)
      * @param endDate 조회 종료일 (선택)
      * @return 저장일시 내림차순 스냅샷 목록 (blob 포함 — 그대로 복원용)
@@ -70,7 +81,7 @@ public class QuoteSnapshotController {
     })
     @GetMapping
     public ApiResponse<List<QuoteSnapshotResponse>> history(
-            @RequestParam(name = "userEmail") String userEmail,
+            @RequestParam(name = "userEmail", required = false) String userEmail,
             @RequestParam(name = "startDate", required = false) String startDate,
             @RequestParam(name = "endDate", required = false) String endDate) {
         return ApiResponse.ok(quoteSnapshotService.history(userEmail, startDate, endDate));
@@ -79,7 +90,7 @@ public class QuoteSnapshotController {
     /**
      * 거래처명 부분검색 이력 — legacy getQuoteHistoryByCustomer(custName) (#31).
      *
-     * @param userEmail 저장 담당자 이메일 (필수)
+     * @param userEmail 작성자 필터 (생략 시 전체 작성자)
      * @param custName 거래처명 키워드 (부분 일치, 필수)
      * @return 저장일시 내림차순 최근 30건 (blob 포함)
      */
@@ -90,7 +101,7 @@ public class QuoteSnapshotController {
     })
     @GetMapping("/by-customer")
     public ApiResponse<List<QuoteSnapshotResponse>> historyByCustomer(
-            @RequestParam(name = "userEmail") String userEmail,
+            @RequestParam(name = "userEmail", required = false) String userEmail,
             @RequestParam(name = "custName") String custName) {
         return ApiResponse.ok(quoteSnapshotService.historyByCustomer(userEmail, custName));
     }

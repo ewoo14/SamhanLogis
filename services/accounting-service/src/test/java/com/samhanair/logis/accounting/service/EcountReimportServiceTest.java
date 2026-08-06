@@ -7,10 +7,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.EcountRemoteImportClient;
+import com.samhanair.logis.common.ecount.EcountMig8TransformResult;
 import com.samhanair.logis.common.ecount.EcountReimportResult;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -126,6 +128,49 @@ class EcountReimportServiceTest {
         assertThat(registry.find("ecount_mig_imported").counter()).isNull();
         assertThat(registry.find("ecount_mig_transform_status").counter()).isNull();
         assertThat(registry.find("ecount_mig_rejected").counter()).isNull();
+    }
+
+    @Test
+    void mig8_거부_sample이_관리자_응답의_errors로_전달되고_상세상태가_남는다() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        EcountMig8TransformResult transform = new EcountMig8TransformResult(
+                2, 1, 0, 0, 1, 0,
+                List.of(new EcountMig8TransformResult.Sample(
+                        17, "ERROR", "MIG8_LOOKUP_MISS",
+                        "품목 alias lookup miss: sourceRowNo=17, itemName='없는품목 [규격]'",
+                        "2026-05-20-001", "없는품목")));
+        when(orderTransformService.transformFromStaging(any(Integer.class), eq("tester")))
+                .thenReturn(transform);
+
+        EcountReimportResult result = service(registry).reimportSlice("mig-8", "tester");
+
+        assertThat(result.details()).singleElement()
+                .extracting(EcountReimportResult.SliceResult::status)
+                .isEqualTo("PROCESSED_WITH_REJECTIONS");
+        assertThat(result.errors()).singleElement()
+                .extracting(EcountReimportResult.ErrorSample::message)
+                .asString()
+                .contains("sourceRowNo=17", "없는품목 [규격]");
+        assertThat(registry.counter("ecount_reimport_runs", "slice", "mig-8", "status", "FAIL").count())
+                .isEqualTo(1);
+        assertThat(registry.counter("ecount_reimport_runs", "slice", "mig-8", "status", "SUCCESS").count())
+                .isZero();
+    }
+
+    @Test
+    void mig8_거부_상세는_20건을_초과해도_모두_관리자_응답에_남는다() {
+        EcountMig8TransformResult.Builder builder = EcountMig8TransformResult.builder(21);
+        for (int rowNumber = 1; rowNumber <= 21; rowNumber++) {
+            builder.reject(rowNumber, "MIG8_LOOKUP_MISS", "lookup miss",
+                    "ORDER-" + rowNumber, "품목-" + rowNumber);
+        }
+        when(orderTransformService.transformFromStaging(any(Integer.class), eq("tester")))
+                .thenReturn(builder.build());
+
+        EcountReimportResult result = service().reimportSlice("mig-8", "tester");
+
+        assertThat(result.errors()).hasSize(21);
+        assertThat(result.errors().get(20).message()).contains("sourceRowNo=21", "품목-21");
     }
 
     private Path write(String fileName, String content) throws Exception {

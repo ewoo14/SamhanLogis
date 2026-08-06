@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -130,9 +131,64 @@ class SlipOutboundInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void findOutboundSlipSummaries_returnsDtoContract_withoutUuid() throws Exception {
+        String productCode = "D-1013-" + System.nanoTime();
+        Slip slip = persistOutbound(uniqueSlipNo("2026/06/08"), LocalDate.of(2026, 6, 8),
+                "P-1013", "D-1013 거래처", productCode, "D-1013 품목", 4);
+
+        MvcResult result = mockMvc.perform(get("/internal/slips/outbound")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .param("from", "2026-06-08")
+                        .param("to", "2026-06-08"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].slipNo").value(slip.getSlipNo()))
+                .andExpect(jsonPath("$.data[0].partnerCode").value("P-1013"))
+                .andExpect(jsonPath("$.data[0].partnerName").value("D-1013 거래처"))
+                .andExpect(jsonPath("$.data[0].slipDate").value("2026-06-08"))
+                .andExpect(jsonPath("$.data[0].lines[0].productName").value("D-1013 품목"))
+                .andExpect(jsonPath("$.data[0].lines[0].quantity").value(4))
+                .andReturn();
+
+        String raw = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(raw).doesNotContain("\"id\"")
+                .doesNotContain("\"slipId\"")
+                .doesNotContain("\"partnerId\"");
+    }
+
+    @Test
+    void findOutboundSlipSummaries_includesDeliveryTag_withoutUuid() throws Exception {
+        String productCode = "D-1013-REGION-" + System.nanoTime();
+        Slip slip = persistOutbound(uniqueSlipNo("2026/06/09"), LocalDate.of(2026, 6, 9),
+                "P-1013-REGION", "D-1013 지방 거래처", productCode, "D-1013 지방 품목", 1,
+                DeliveryTag.REGION);
+
+        MvcResult result = mockMvc.perform(get("/internal/slips/outbound")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .param("from", "2026-06-09")
+                        .param("to", "2026-06-09"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].slipNo").value(slip.getSlipNo()))
+                .andExpect(jsonPath("$.data[0].deliveryTag").value("REGION"))
+                .andReturn();
+
+        String raw = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(raw).doesNotContain("\"id\"")
+                .doesNotContain("\"slipId\"")
+                .doesNotContain("\"partnerId\"");
+    }
+
     private Slip persistOutbound(String slipNo, LocalDate slipDate, String partnerCode,
                                  String partnerName, String modelName, String productName,
                                  int quantity) {
+        return persistOutbound(slipNo, slipDate, partnerCode, partnerName, modelName, productName,
+                quantity, null);
+    }
+
+    private Slip persistOutbound(String slipNo, LocalDate slipDate, String partnerCode,
+                                 String partnerName, String modelName, String productName,
+                                 int quantity, DeliveryTag deliveryTag) {
         Slip slip = Slip.createOutbound(
                 slipNo,
                 slipDate,
@@ -141,7 +197,7 @@ class SlipOutboundInternalControllerIT extends AbstractPostgresIT {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 partnerName,
-                null,
+                deliveryTag,
                 "DPS IT",
                 "tester");
         slip.setPartnerCode(partnerCode);

@@ -9,6 +9,7 @@ import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.domain.StockLot;
 import com.samhanair.logis.inventory.domain.StockMovement;
 import com.samhanair.logis.inventory.domain.Warehouse;
+import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
 import com.samhanair.logis.inventory.repository.StockLotRepository;
 import com.samhanair.logis.inventory.repository.StockMovementRepository;
@@ -22,15 +23,22 @@ import com.samhanair.logis.inventory.web.dto.ReleaseRequest;
 import com.samhanair.logis.inventory.web.dto.ReservationResponse;
 import com.samhanair.logis.inventory.web.dto.ReserveRequest;
 import com.samhanair.logis.inventory.web.dto.StockLotResponse;
+import com.samhanair.logis.inventory.web.dto.StockBalanceResponse;
 import jakarta.persistence.OptimisticLockException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +64,114 @@ public class StockService {
     private final ProductClient productClient;
 
     /**
+     * 재고 현황 페이지를 조회하고 페이지에 포함된 품목 메타데이터를 bulk 병합한다.
+     * 품목 UUID 자체는 응답 식별자로 사용하되 화면에는 모델코드/품목명만 표시한다.
+     *
+     * @param productId 기존 품목별 호출의 선택 필터
+     * @param warehouseId 전체 또는 특정 창고 선택 필터
+     * @param pageable 페이지 조건
+     * @return 창고·품목 메타데이터가 채워진 재고 현황 페이지
+     */
+    @Transactional(readOnly = true)
+    public Page<StockBalanceResponse> findBalancePage(UUID productId, UUID warehouseId, Pageable pageable) {
+        Page<StockBalance> balances = stockBalanceRepository.findBalancePage(
+                productId, warehouseId, Pageable.unpaged());
+        List<BalanceRow> rows = balances.getContent().stream()
+                .map(BalanceRow::existing)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        Set<BalanceKey> existingKeys = rows.stream()
+                .map(row -> new BalanceKey(row.productId(), row.warehouse().getCode()))
+                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+
+        List<Warehouse> virtualWarehouses = findVirtualWarehouses(warehouseId);
+        if (!virtualWarehouses.isEmpty()) {
+            // warehouseId=VIRTUAL 이면 기존 조회 결과가 비어 있으므로, 같은 product 모집단을
+            // 일반 창고 잔액에서 다시 읽는다. 그 밖의 warehouseId 는 기존 행만 반환한다.
+            List<StockBalance> productSource = warehouseId == null
+                    ? balances.getContent()
+                    : stockBalanceRepository.findBalancePage(
+                            productId, null, Pageable.unpaged()).getContent();
+            List<UUID> productIdsWithBalances = productSource.stream()
+                    .map(StockBalance::getProductId)
+                    .filter(java.util.Objects::nonNull)
+                    .distinct()
+                    .toList();
+            for (Warehouse virtualWarehouse : virtualWarehouses) {
+                for (UUID productIdWithBalance : productIdsWithBalances) {
+                    if (existingKeys.add(new BalanceKey(
+                            productIdWithBalance, virtualWarehouse.getCode()))) {
+                        rows.add(BalanceRow.virtual(productIdWithBalance, virtualWarehouse));
+                    }
+                }
+            }
+        }
+
+        rows.sort(Comparator.comparing(BalanceRow::productId)
+                .thenComparing(row -> row.warehouse().getCode()));
+
+        Map<UUID, ProductSummary> productsById = new LinkedHashMap<>();
+        List<UUID> productIds = rows.stream()
+                .map(BalanceRow::productId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        for (int from = 0; from < productIds.size(); from += 100) {
+            int to = Math.min(from + 100, productIds.size());
+            for (ProductSummary product : productClient.lookup(productIds.subList(from, to))) {
+                productsById.put(product.id(), product);
+            }
+        }
+
+        List<StockBalanceResponse> responses = rows.stream()
+                .map(row -> row.toResponse(productsById))
+                .toList();
+        return pageOf(responses, pageable);
+    }
+
+    /**
+     * 활성 VIRTUAL 창고만 응답 합성 대상으로 찾는다. HEADQUARTERS 등 일반 창고의
+     * 재고 0 조합은 기존처럼 응답에 추가하지 않는다.
+     */
+    private List<Warehouse> findVirtualWarehouses(UUID warehouseId) {
+        return warehouseRepository.findAllByIsDeletedFalseOrderByDisplayOrderAsc().stream()
+                .filter(warehouse -> warehouse.getType() == WarehouseType.VIRTUAL)
+                .filter(warehouse -> warehouseId == null || warehouseId.equals(warehouse.getId()))
+                .toList();
+    }
+
+    /** 합성된 전체 응답 행을 기존 pageable 계약으로 자른다. */
+    private Page<StockBalanceResponse> pageOf(List<StockBalanceResponse> rows, Pageable pageable) {
+        if (pageable.isUnpaged()) {
+            return new PageImpl<>(rows);
+        }
+        int start = (int) Math.min(pageable.getOffset(), rows.size());
+        int end = Math.min(start + pageable.getPageSize(), rows.size());
+        return new PageImpl<>(rows.subList(start, end), pageable, rows.size());
+    }
+
+    /** DB 잔액 행과 저장하지 않는 VIRTUAL 표시 행을 같은 정렬 단위로 다룬다. */
+    private record BalanceRow(UUID productId, Warehouse warehouse, StockBalance balance) {
+
+        private static BalanceRow existing(StockBalance balance) {
+            return new BalanceRow(balance.getProductId(), balance.getWarehouse(), balance);
+        }
+
+        private static BalanceRow virtual(UUID productId, Warehouse warehouse) {
+            return new BalanceRow(productId, warehouse, null);
+        }
+
+        private StockBalanceResponse toResponse(Map<UUID, ProductSummary> productsById) {
+            ProductSummary product = productsById.get(productId);
+            return balance == null
+                    ? StockBalanceResponse.virtual(warehouse, product)
+                    : StockBalanceResponse.from(balance, product);
+        }
+    }
+
+    private record BalanceKey(UUID productId, String warehouseCode) {
+    }
+
+    /**
      * 입고 — ProductClient 로 productId 존재 검증 후 단일 트랜잭션 안에서
      * StockLot 생성 + StockBalance 가산 + StockMovement(INBOUND) 기록.
      *
@@ -75,8 +191,21 @@ public class StockService {
         }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
 
+        if (req.lotNo() != null) {
+            StockLot existingLot = (req.inboundLineId() == null
+                    ? stockLotRepository.findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
+                            req.productId(), req.warehouseId(), req.lotNo())
+                    : stockLotRepository.findFirstByProductIdAndWarehouse_IdAndLotNoAndInboundLineIdAndIsDeletedFalse(
+                            req.productId(), req.warehouseId(), req.lotNo(), req.inboundLineId()))
+                    .orElse(null);
+            if (existingLot != null) {
+                // 검수 완료 경로가 먼저 만든 동일 전표 lot — 전표 경로는 중복 반영하지 않는다.
+                return StockLotResponse.from(existingLot);
+            }
+        }
+
         StockLot lot = stockLotRepository.save(StockLot.create(
-                req.productId(), warehouse, req.lotNo(), req.quantity(),
+                req.productId(), warehouse, req.lotNo(), req.inboundLineId(), req.quantity(),
                 req.receivedAt(), req.unitCost()));
 
         StockBalance balance = loadOrCreateBalance(req.productId(), warehouse);

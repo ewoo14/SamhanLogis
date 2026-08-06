@@ -28,11 +28,15 @@ interface ProductSummaryResponse {
   name: string
   modelName: string
   productCode: string | null
-  sellingPrice: string | null
+    sellingPrice: string | null
+    specification?: string | null
   /** 품목코드 — BE ProductSummaryResponse 신규 (세트 전개 부모 식별). */
   modelCode?: string | null
   /** 품목 유형 — "SINGLE" | "BUNDLE". BE ProductSummaryResponse 신규. */
   productType?: string | null
+  categoryKey?: string | null
+  fixedDiscountRate?: number | null
+  hasVariableDiscount?: boolean | null
 }
 
 /**
@@ -46,13 +50,17 @@ interface ProductSummaryResponse {
  */
 export async function searchProducts(
   q: string,
-  options: { usageScope?: UsageScope } = {},
+  options: { usageScope?: UsageScope; size?: number } = {},
 ): Promise<ProductOption[]> {
   try {
     const res = await apiClient.get<ApiEnvelope<PageResponse<ProductSummaryResponse>>>(
       '/api/products',
       {
-        params: { q, size: 20, ...(options.usageScope ? { usageScope: options.usageScope } : {}) },
+        params: {
+          q,
+          size: options.size ?? 20,
+          ...(options.usageScope ? { usageScope: options.usageScope } : {}),
+        },
       },
     )
     const page = res.data.data
@@ -75,7 +83,11 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
         ? Number(p.sellingPrice)
         : undefined,
     modelCode: p.modelCode ?? undefined,
-    productType: p.productType ?? undefined,
+      productType: p.productType ?? undefined,
+      specification: p.specification ?? undefined,
+      categoryKey: p.categoryKey ?? undefined,
+      fixedDiscountRate: p.fixedDiscountRate ?? null,
+      hasVariableDiscount: p.hasVariableDiscount ?? null,
   }
 }
 

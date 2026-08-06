@@ -105,10 +105,12 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
     expect(layout).toMatch(/견적서 관리[\s\S]*?<\/SidebarLink>/)
     expect(layout).toContain('주문서 관리')
     expect(layout).toContain('주문서 승인')
+    expect(layout).toContain('주문서 앱 접근권한 설정')
     expect(layout).toContain('거래처 DC 설정')
     expect(salesSubNav).toContain("label: '견적서 관리'")
     expect(salesSubNav).toContain("label: '주문서 관리'")
     expect(salesSubNav).toContain("label: '주문서 승인'")
+    expect(salesSubNav).toContain("label: '주문서 앱 접근권한 설정'")
     expect(salesSubNav).toContain("label: '거래처 DC 설정'")
   })
 

@@ -65,4 +65,14 @@ describe('CashReceiptListPage', () => {
     // 오류+빈 상태 동시 노출 회귀 가드
     expect(screen.queryByText('조건에 맞는 입금 자료가 없습니다.')).toBeNull()
   })
+
+  it('목록에서는 입금보고서 신규 작성 문을 제공하지 않는다', async () => {
+    listCashReceiptsMock.mockResolvedValue({
+      content: [], totalElements: 0, totalPages: 0, number: 0, size: 50, first: true, last: true,
+    })
+    renderPage()
+
+    await waitFor(() => expect(listCashReceiptsMock).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: '신규 작성' })).toBeNull()
+  })
 })

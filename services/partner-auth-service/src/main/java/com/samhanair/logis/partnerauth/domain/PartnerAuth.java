@@ -86,13 +86,17 @@ public class PartnerAuth extends BaseEntity {
     @Column(name = "failed_attempts", nullable = false)
     private int failedAttempts = 0;
 
-    /** 마지막 로그인 성공 시각 (30일 슬라이딩 기준). */
+    /** 마지막 로그인 성공 시각 (인증 이력용이며 장기미발주 판정에는 사용하지 않음). */
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
     /** 마지막 비밀번호 변경 시각 (90일 강제 변경 기준). */
     @Column(name = "password_changed_at")
     private LocalDateTime passwordChangedAt;
+
+    /** 관리자 장기미발주 복구 시각 — 일반 로그인과 분리된 복구 유예 기준. */
+    @Column(name = "access_restored_at")
+    private LocalDateTime accessRestoredAt;
 
     /** PC 튜토리얼 완료 여부. */
     @Column(name = "tutorial_pc_done", nullable = false)
@@ -192,6 +196,21 @@ public class PartnerAuth extends BaseEntity {
         this.status = PartnerStatus.LONG_UNUSED;
     }
 
+    /**
+     * 장기미사용 거래처의 관리자 승인 복구 — 인증 입력 대기 상태로 전환하고 만료 기준을 복구 시점으로 갱신한다.
+     *
+     * <p>복구하지 않은 거래처의 30일 판정은 기존 {@link #expirationAt()} 규칙을 그대로 적용한다.
+     */
+    public void restoreFromLongUnused() {
+        if (this.status != PartnerStatus.LONG_UNUSED) {
+            throw new IllegalStateException(PartnerStatus.LONG_UNUSED.getDisplayName()
+                    + " 상태에서만 승인 복구 가능: " + this.status.getDisplayName());
+        }
+        this.status = PartnerStatus.NEED_PW_INPUT;
+        // 관리자 복구를 일반 로그인과 구분되는 접근 기준시각으로 기록한다.
+        this.accessRestoredAt = LocalDateTime.now();
+    }
+
     /** 관리자 승인 (PENDING → NEED_PW_SET — 임시 비밀번호 발급 직전). */
     public void approvePending() {
         if (this.status != PartnerStatus.PENDING) {
@@ -226,8 +245,24 @@ public class PartnerAuth extends BaseEntity {
 
     /** 30일 슬라이딩 만료 일시 계산 — service 의 GET /partner-expiration 가 호출. */
     public LocalDateTime expirationAt() {
-        LocalDateTime base = lastLoginAt != null ? lastLoginAt : passwordChangedAt;
-        return base == null ? null : base.plusDays(LONG_UNUSED_DAYS);
+        return expirationAt(LONG_UNUSED_DAYS);
+    }
+
+    /**
+     * 설정된 기간을 적용한 접근 만료 일시 계산.
+     *
+     * <p>복구 유예 표시용 기준은 관리자 복구 시각이다. 일반 로그인·비밀번호 변경
+     * 시각은 장기미발주 판정에 사용하지 않는다.
+     *
+     * @param unusedDays 장기미사용으로 볼 기간(일)
+     * @return 만료 일시, 기준 시각이 없으면 {@code null}
+     */
+    public LocalDateTime expirationAt(int unusedDays) {
+        if (unusedDays < 1 || unusedDays > 365) {
+            throw new IllegalArgumentException("장기미사용 기간은 1~365일이어야 합니다");
+        }
+        LocalDateTime base = accessRestoredAt;
+        return base == null ? null : base.plusDays(unusedDays);
     }
 
     /** Read-only history view (테스트/감사용). */

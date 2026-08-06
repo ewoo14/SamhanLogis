@@ -7,10 +7,12 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.BundleExpander;
 import com.samhanair.logis.product.service.EcountAliasResolveService;
+import com.samhanair.logis.product.service.EcountAliasReservationService;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
 import com.samhanair.logis.product.web.dto.EcountAliasResolveRequest;
 import com.samhanair.logis.product.web.dto.EcountAliasResolveResponse;
+import com.samhanair.logis.product.web.dto.EcountAliasReservationReleaseRequest;
 import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
 import com.samhanair.logis.product.web.dto.FixedDiscountResponse;
@@ -20,6 +22,7 @@ import com.samhanair.logis.product.web.dto.LookupByModelRequest;
 import com.samhanair.logis.product.web.dto.LookupByLabelRequest;
 import com.samhanair.logis.product.web.dto.LookupByLabelBulkRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelCodesRequest;
+import com.samhanair.logis.product.web.dto.LookupByModelNamesRequest;
 import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
@@ -31,7 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,13 +49,32 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/products/internal")
-@RequiredArgsConstructor
 public class ProductInternalController {
 
     private final ProductService productService;
     private final ProductRepository productRepository;
     private final BundleExpander bundleExpander;
     private final EcountAliasResolveService ecountAliasResolveService;
+    private final EcountAliasReservationService ecountAliasReservationService;
+
+    @Autowired
+    public ProductInternalController(ProductService productService, ProductRepository productRepository,
+                                     BundleExpander bundleExpander,
+                                     EcountAliasResolveService ecountAliasResolveService,
+                                     EcountAliasReservationService ecountAliasReservationService) {
+        this.productService = productService;
+        this.productRepository = productRepository;
+        this.bundleExpander = bundleExpander;
+        this.ecountAliasResolveService = ecountAliasResolveService;
+        this.ecountAliasReservationService = ecountAliasReservationService;
+    }
+
+    /** 기존 standalone controller 단위 테스트와의 생성자 호환용. 운영 bean은 5-인 생성자를 사용한다. */
+    public ProductInternalController(ProductService productService, ProductRepository productRepository,
+                                     BundleExpander bundleExpander,
+                                     EcountAliasResolveService ecountAliasResolveService) {
+        this(productService, productRepository, bundleExpander, ecountAliasResolveService, null);
+    }
 
     /**
      * 제품 ID 일괄 조회 — inventory-service 등 internal 호출자가 productId 존재 여부 검증에 사용.
@@ -91,6 +113,23 @@ public class ProductInternalController {
         return ApiResponse.ok(productService.lookupByModelCodes(request.modelCodes()));
     }
 
+    /**
+     * 모델명 일괄 조회 (internal) — 전표 분석처럼 입력값이 모델명인 호출자 전용.
+     * modelCode가 없는 이카운트 계보도 model_name으로 조회한다.
+     */
+    @Operation(summary = "모델명 일괄 조회 (internal)",
+            description = "X-Internal-Token 인증 후 호출. 입력 모델명 기준 정확 매칭.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "modelNames 누락/공백"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치")
+    })
+    @PostMapping("/lookup-by-model-names")
+    public ApiResponse<List<ProductSummaryResponse>> lookupByModelNames(
+            @Valid @RequestBody LookupByModelNamesRequest request) {
+        return ApiResponse.ok(productService.lookupByModelNames(request.modelNames()));
+    }
+
     @Operation(summary = "Ecount alias batch resolve (internal)",
             description = "X-Internal-Token authenticated product_db owner lookup for MIG-8 order transform.")
     @ApiResponses({
@@ -101,7 +140,15 @@ public class ProductInternalController {
     public ApiResponse<EcountAliasResolveResponse> resolveEcountAliases(
             @Valid @RequestBody EcountAliasResolveRequest request) {
         return ApiResponse.ok(new EcountAliasResolveResponse(
-                ecountAliasResolveService.resolve(request == null ? null : request.aliasCodes())));
+                ecountAliasResolveService.resolve(request == null ? null : request.aliasCodes(),
+                        request == null ? null : request.reservationToken())));
+    }
+
+    @PostMapping("/release-ecount-alias-reservations")
+    public ApiResponse<Void> releaseEcountAliasReservations(
+            @Valid @RequestBody EcountAliasReservationReleaseRequest request) {
+        ecountAliasReservationService.release(request.reservationToken());
+        return ApiResponse.ok(null);
     }
 
     /**

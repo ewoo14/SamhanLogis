@@ -13,10 +13,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.ApplicablePrice;
+import com.samhanair.logis.accounting.client.EstimateComponent;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.ProductSummary;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerDcConfigClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
 import com.samhanair.logis.accounting.domain.PeriodStatus;
@@ -79,6 +81,7 @@ class DailyClosingDetailServiceTest {
     @Mock private ProductClient productClient;
     @Spy private DiscountRevalidator discountRevalidator = new DiscountRevalidator();
     @Mock private PartnerLookupClient partnerLookupClient;
+    @Mock private PartnerDcConfigClient partnerDcConfigClient;
     @Mock private SalesAccountingSlipRepository salesAccountingSlipRepository;
     @Mock private PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
 
@@ -89,6 +92,10 @@ class DailyClosingDetailServiceTest {
 
     @BeforeEach
     void setUpProductClientDefaults() {
+        lenient().when(partnerDcConfigClient.findByPartnerCode(
+                org.mockito.ArgumentMatchers.nullable(String.class)))
+                .thenReturn(PartnerDcConfigClient.LookupResult.found(
+                        new BigDecimal("0.45"), new BigDecimal("0.45")));
         lenient().when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of());
         lenient().when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of());
         lenient().when(productClient.priceChangeDefaultVariants()).thenReturn(Map.of(
@@ -255,6 +262,88 @@ class DailyClosingDetailServiceTest {
         assertThat(line.revalidationStatus()).isNotEqualTo("AMBIGUOUS");
         assertThat(line.releasePrice()).isEqualByComparingTo("3121800");
         assertThat(line.deliveryPrice()).isEqualByComparingTo("1840000");
+    }
+
+    @Test
+    @DisplayName("세트 카탈로그 매칭 실패 시 구성품 modelToken fallback을 유지한다")
+    void dailyDetailKeepsModelTokenFallbackWhenSetMatchFails() {
+        UUID outdoor = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-SET-NAME", "세트거래처", DATE);
+        // 실 원본 싱글 구성품 시트에 존재하는 완성 세트 구성품 조합.
+        addLineWithAxis(ti, "무풍 4way 냉난방 프레스티지 실외기", "AC060CXAPBH1", "singleSets",
+                BigDecimal.ONE, new BigDecimal("100000"));
+        recalcSnapshot(ti);
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "무풍 4way 냉난방 프레스티지 실외기",
+                ProductLabelMatch.matched(outdoor, "AC060CXAPBH1")));
+        when(productClient.lookupByModel("AC060CXAPBH1"))
+                .thenReturn(new ProductSummary(outdoor, "무풍 4way 냉난방 프레스티지 실외기",
+                        "AC060CXAPBH1", null, null, "ACTIVE", "singleSets", "AC060CXAPBH1",
+                        "AC060CS4PBH2SY"));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                outdoor, new ApplicablePrice(new BigDecimal("150000"), new BigDecimal("100000"), DATE)));
+        when(partnerDcConfigClient.findByPartnerCode(
+                org.mockito.ArgumentMatchers.nullable(String.class)))
+                .thenReturn(PartnerDcConfigClient.LookupResult.found(
+                        new BigDecimal("0.45"), new BigDecimal("0.45"),
+                        null, new BigDecimal("20000"), null, null, null, null));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(DATE);
+        assertThat(findProductLine(response, "무풍 4way 냉난방 프레스티지 실외기").deliveryPrice())
+                .isEqualByComparingTo("100000");
+
+        // 완성 세트 pool이 없으므로 R6는 임의 부모를 선택하지 않고 기존 token fallback을 사용한다.
+        verify(discountRevalidator).revalidate(
+                eq("무풍 4way 냉난방 프레스티지 실외기"), eq("AC060CXAPBH1"),
+                eq(new BigDecimal("110000.0000000000")), eq(new BigDecimal("150000")),
+                eq(new BigDecimal("100000")), eq(null), org.mockito.ArgumentMatchers.any(),
+                eq(ProductLabelMatch.Status.MATCHED));
+    }
+
+    @Test
+    @DisplayName("완성 세트 매칭 시 실내기와 실외기 모두 세트 토큰을 사용한다")
+    void dailyDetailAppliesMatchedSetToIndoorAndOutdoor() {
+        UUID indoor = UUID.randomUUID();
+        UUID outdoor = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-SET-PARITY", "세트거래처", DATE);
+        addLineWithAxis(ti, "싱글 실내기", "AC060CN4PBH1", "singleSets",
+                BigDecimal.ONE, new BigDecimal("100000"));
+        addLineWithAxis(ti, "싱글 실외기", "AC060CXAPBH1", "singleSets",
+                BigDecimal.ONE, new BigDecimal("200000"));
+        recalcSnapshot(ti);
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "싱글 실내기", ProductLabelMatch.matched(indoor, "AC060CN4PBH1"),
+                "싱글 실외기", ProductLabelMatch.matched(outdoor, "AC060CXAPBH1")));
+        when(productClient.lookupByModel("AC060CN4PBH1"))
+                .thenReturn(new ProductSummary(indoor, "싱글 실내기", "AC060CN4PBH1", null, null,
+                        "ACTIVE", "singleSets", "AC060CN4PBH1"));
+        when(productClient.lookupByModel("AC060CXAPBH1"))
+                .thenReturn(new ProductSummary(outdoor, "싱글 실외기", "AC060CXAPBH1", null, null,
+                        "ACTIVE", "singleSets", "AC060CXAPBH1"));
+        when(productClient.estimateComponents(eq("SINGLE_SET"))).thenReturn(List.of(
+                new EstimateComponent("AC060CS4PBH2SY", "AC060CN4PBH1",
+                        new BigDecimal("110000"), new BigDecimal("120000"), "INDOOR"),
+                new EstimateComponent("AC060CS4PBH2SY", "AC060CXAPBH1",
+                        new BigDecimal("220000"), new BigDecimal("230000"), "OUTDOOR")));
+        when(productClient.estimateComponents(eq("COMMERCIAL_MULTI"))).thenReturn(List.of());
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                indoor, new ApplicablePrice(new BigDecimal("120000"), new BigDecimal("110000"), DATE),
+                outdoor, new ApplicablePrice(new BigDecimal("230000"), new BigDecimal("220000"), DATE)));
+
+        service.getDailyDetail(DATE);
+
+        verify(discountRevalidator).revalidate(eq("싱글 실내기"), eq("AC060CS4PBH2SY"),
+                eq(new BigDecimal("110000.0000000000")), eq(new BigDecimal("120000")),
+                eq(new BigDecimal("110000")), eq(null), org.mockito.ArgumentMatchers.any(),
+                eq(ProductLabelMatch.Status.MATCHED));
+        verify(discountRevalidator).revalidate(eq("싱글 실외기"), eq("AC060CS4PBH2SY"),
+                eq(new BigDecimal("220000.0000000000")), eq(new BigDecimal("230000")),
+                eq(new BigDecimal("220000")), eq(null), org.mockito.ArgumentMatchers.any(),
+                eq(ProductLabelMatch.Status.MATCHED));
     }
 
     @Test
@@ -477,6 +566,69 @@ class DailyClosingDetailServiceTest {
                 DailyClosingDetailResponse.DailyProductLine::supplyAmount)
                 .containsExactly(new BigDecimal("50000.00"), new BigDecimal("60000.00"),
                         new BigDecimal("70000.00"));
+    }
+
+    @Test
+    @DisplayName("같은 집계축의 모든 원천 행이 불일치이면 첫 route 순서와 무관하게 불일치로 표시한다")
+    void dailyDetailDoesNotHideLaterAccessoryFailureBehindFirstRoute() {
+        UUID panelProduct = UUID.randomUUID();
+        UUID mainProduct = UUID.randomUUID();
+        TaxInvoice panelFirst = newIssued("TI-R16-PANEL-FIRST", "R16 거래처", DATE);
+        addLineWithAxis(panelFirst, 1, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        addLineWithAxis(panelFirst, 2, "본체", "AC023CN1DBC1", "singleSets", BigDecimal.ONE,
+                new BigDecimal("80000"));
+        addLineWithAxis(panelFirst, 3, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        recalcSnapshot(panelFirst);
+
+        TaxInvoice mainFirst = newIssued("TI-R16-MAIN-FIRST", "R16 거래처", DATE);
+        addLineWithAxis(mainFirst, 1, "본체", "AC023CN1DBC1", "singleSets", BigDecimal.ONE,
+                new BigDecimal("80000"));
+        addLineWithAxis(mainFirst, 2, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        addLineWithAxis(mainFirst, 3, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        recalcSnapshot(mainFirst);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(panelFirst), List.of(mainFirst));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "패널", ProductLabelMatch.matched(panelProduct, "PC1BWCK3NW"),
+                "본체", ProductLabelMatch.matched(mainProduct, "AC023CN1DBC1")));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                panelProduct, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
+                mainProduct, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+
+        DailyClosingDetailResponse panelFirstResponse = service.getDailyDetail(DATE);
+        DailyClosingDetailResponse mainFirstResponse = service.getDailyDetail(DATE);
+
+        assertThat(findProductLine(panelFirstResponse, "패널").verified()).isFalse();
+        assertThat(findProductLine(mainFirstResponse, "패널").verified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("모든 원천 route가 확인이면 보수적 집계도 확인을 유지한다")
+    void dailyDetailKeepsConfirmedAggregateWhenEverySourceRouteConfirms() {
+        UUID panelProduct = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-R16-ALL-TRUE", "R16 확인 거래처", DATE);
+        addLineWithAxis(ti, 1, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        addLineWithAxis(ti, 2, "패널", "PC1BWCK3NW", "singleSets", BigDecimal.ONE,
+                new BigDecimal("63637"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "패널", ProductLabelMatch.matched(panelProduct, "PC1BWCK3NW")));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                panelProduct, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(DATE);
+
+        assertThat(findProductLine(response, "패널").verified()).isTrue();
+        assertThat(findProductLine(response, "패널").revalidationStatus()).isEqualTo("VERIFIED");
     }
 
     @Test
@@ -793,7 +945,12 @@ class DailyClosingDetailServiceTest {
 
     private static void addLineWithAxis(TaxInvoice ti, String itemName, String modelName,
                                         String categoryKey, BigDecimal qty, BigDecimal unitPrice) {
-        TaxInvoiceLine line = TaxInvoiceLine.create(ti, 1, itemName, null, qty, unitPrice, null);
+        addLineWithAxis(ti, 1, itemName, modelName, categoryKey, qty, unitPrice);
+    }
+
+    private static void addLineWithAxis(TaxInvoice ti, int lineNo, String itemName, String modelName,
+                                        String categoryKey, BigDecimal qty, BigDecimal unitPrice) {
+        TaxInvoiceLine line = TaxInvoiceLine.create(ti, lineNo, itemName, null, qty, unitPrice, null);
         setField(line, "modelName", modelName);
         setField(line, "categoryKey", categoryKey);
         addLine(ti, line);

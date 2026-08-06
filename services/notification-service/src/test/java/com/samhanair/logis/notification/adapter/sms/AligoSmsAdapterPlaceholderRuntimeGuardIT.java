@@ -1,6 +1,8 @@
 package com.samhanair.logis.notification.adapter.sms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.samhanair.logis.notification.adapter.NotificationGatewayResult;
 import com.samhanair.logis.notification.config.AligoProperties;
@@ -9,6 +11,8 @@ import com.samhanair.logis.notification.domain.NotificationRequest;
 import com.samhanair.logis.notification.domain.RecipientType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -16,7 +20,7 @@ import org.springframework.web.client.RestClient;
  *
  * <p>SP-09-1 {@code ETaxClientImpl.isPlaceholderApiKey()} 와 동일 패턴:
  * 아래 4가지 placeholder 키워드 중 하나라도 포함된 자격증명이 설정되면 외부 Aligo API 를 호출하지 않고
- * stub-success 응답을 반환해야 한다.
+ * 외부 호출 없이 비전송 결과를 반환해야 한다.
  *
  * <ol>
  *   <li>{@code CHANGE_ME_LOCAL_ONLY} — 기존 dev default placeholder</li>
@@ -52,43 +56,64 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT {
     }
 
     @Test
-    @DisplayName("CHANGE_ME_LOCAL_ONLY — 외부 호출 없이 stub-success 반환")
-    void changeMeLocalOnly_returnsStubSuccess() {
+    @DisplayName("CHANGE_ME_LOCAL_ONLY — 외부 호출 없이 비전송 결과 반환")
+    void changeMeLocalOnly_returnsNotSentResult() {
         NotificationGatewayResult result = callWithPlaceholderKey("CHANGE_ME_LOCAL_ONLY");
 
-        assertThat(result.success()).isTrue();
-        assertThat(result.gatewayStatus()).isEqualTo("SUCCESS");
-        assertThat(result.messageId()).contains("aligo-stub-");
-        assertThat(result.rawResponse()).contains("stub");
+        assertThat(result.success()).isFalse();
+        assertThat(result.gatewayStatus()).isEqualTo("NOT_SENT_CREDENTIALS_PLACEHOLDER");
     }
 
     @Test
-    @DisplayName("PLACEHOLDER_DEV_ONLY — 외부 호출 없이 stub-success 반환")
-    void placeholderDevOnly_returnsStubSuccess() {
+    @DisplayName("PLACEHOLDER_DEV_ONLY — 외부 호출 없이 비전송 결과 반환")
+    void placeholderDevOnly_returnsNotSentResult() {
         NotificationGatewayResult result = callWithPlaceholderKey("PLACEHOLDER_DEV_ONLY");
 
-        assertThat(result.success()).isTrue();
-        assertThat(result.gatewayStatus()).isEqualTo("SUCCESS");
-        assertThat(result.messageId()).contains("aligo-stub-");
+        assertThat(result.success()).isFalse();
+        assertThat(result.gatewayStatus()).isEqualTo("NOT_SENT_CREDENTIALS_PLACEHOLDER");
     }
 
     @Test
-    @DisplayName("changeme (소문자) — 외부 호출 없이 stub-success 반환")
-    void changeme_lowercase_returnsStubSuccess() {
+    @DisplayName("changeme (소문자) — 외부 호출 없이 비전송 결과 반환")
+    void changeme_lowercase_returnsNotSentResult() {
         NotificationGatewayResult result = callWithPlaceholderKey("changeme");
 
-        assertThat(result.success()).isTrue();
-        assertThat(result.gatewayStatus()).isEqualTo("SUCCESS");
-        assertThat(result.messageId()).contains("aligo-stub-");
+        assertThat(result.success()).isFalse();
+        assertThat(result.gatewayStatus()).isEqualTo("NOT_SENT_CREDENTIALS_PLACEHOLDER");
     }
 
     @Test
-    @DisplayName("dummy (소문자) — 외부 호출 없이 stub-success 반환")
-    void dummy_lowercase_returnsStubSuccess() {
+    @DisplayName("dummy (소문자) — 외부 호출 없이 비전송 결과 반환")
+    void dummy_lowercase_returnsNotSentResult() {
         NotificationGatewayResult result = callWithPlaceholderKey("dummy");
 
+        assertThat(result.success()).isFalse();
+        assertThat(result.gatewayStatus()).isEqualTo("NOT_SENT_CREDENTIALS_PLACEHOLDER");
+    }
+
+    @Test
+    @DisplayName("정상 자격증명 — Aligo 호출 경로를 막지 않고 성공 응답을 처리한다")
+    void realCredentials_useGatewaySuccessPath() {
+        AligoProperties props = new AligoProperties();
+        props.setKey("valid-key");
+        props.setUserid("valid-user");
+        props.setSender("01000000000");
+        props.setApiUrl("https://apis.aligo.in/send/");
+
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://apis.aligo.in/send/"))
+                .andRespond(withSuccess(
+                        "{\"result_code\":1,\"msg_id\":\"mock-message\"}",
+                        MediaType.APPLICATION_JSON));
+
+        NotificationRequest request = NotificationRequest.open(
+                RecipientType.EXTERNAL_PHONE, null, "01099990000",
+                NotificationChannel.SMS, "TEST", null, "정상 경로 테스트", null);
+        NotificationGatewayResult result = new AligoSmsAdapter(props, builder).send(request);
+
         assertThat(result.success()).isTrue();
-        assertThat(result.gatewayStatus()).isEqualTo("SUCCESS");
-        assertThat(result.messageId()).contains("aligo-stub-");
+        assertThat(result.messageId()).isEqualTo("mock-message");
+        server.verify();
     }
 }

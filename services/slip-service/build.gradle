@@ -65,6 +65,8 @@ dependencies {
     implementation project(':shared:collab-core')
 
     runtimeOnly 'org.postgresql:postgresql'
+    // local 프로파일은 H2 메모리 DB를 사용하므로 bootRun 런타임 classpath에도 드라이버가 필요하다.
+    runtimeOnly 'com.h2database:h2'
 
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
@@ -83,6 +85,10 @@ bootJar {
 
 tasks.named('test') {
     useJUnitPlatform()
+    maxParallelForks = 1
+    // 컨텍스트별 주/가격/inventory 풀을 무제한으로 보유하면 공유 Testcontainer의
+    // PostgreSQL 연결을 고갈시킨다. 작은 캐시로 닫힌 컨텍스트의 풀을 즉시 반환한다.
+    systemProperty 'spring.test.context.cache.maxSize', '1'
     // slip-service 테스트 스위트(800+ 테스트, 다수 @SpringBootTest 컨텍스트 + Testcontainers)가
     // 포크 테스트 JVM 기본 heap 을 초과해 OOM 하므로 상향(빌드 인프라 설정, 프로덕션 무관).
     maxHeapSize = '2g'

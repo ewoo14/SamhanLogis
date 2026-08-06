@@ -54,8 +54,8 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-111111111111",
-        "app.publish.warehouse-code-map.2=22222222-2222-2222-2222-222222222222"
+        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-000000000001",
+        "app.publish.warehouse-code-map.2=11111111-1111-1111-1111-000000000002"
 })
 class InternalSlipPublishControllerIT extends AbstractPostgresIT {
 

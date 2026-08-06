@@ -1,0 +1,1 @@
+{"success":true,"code":"OK","message":"성공","data":{"token":"<redacted-dev-seed-jwt>","userId":"a0000000-0000-0000-0000-000000000003","role":"MANAGER","displayName":"[DEV-SEED] 개발매니저","partnerCode":null,"groups":[{"id":"00000000-0000-0000-0000-000000000101","name":"매니저","builtin":false}]},"timestamp":"2026-08-05T19:41:31.727951899Z"}

@@ -25,12 +25,26 @@ public interface TaxInvoiceBatchRepository extends JpaRepository<TaxInvoiceBatch
      * @return 페이지 결과
      */
     @Query("SELECT b FROM TaxInvoiceBatch b " +
-           "WHERE b.sourceFromDate >= :from AND b.sourceToDate <= :to " +
+           "WHERE b.documentType = 'HOMETAX' AND b.sourceFromDate >= :from AND b.sourceToDate <= :to " +
            "ORDER BY b.processedAt DESC")
     Page<TaxInvoiceBatch> findByDateRange(
             @Param("from") LocalDate from,
             @Param("to") LocalDate to,
             Pageable pageable);
+
+    /** 문서 유형과 업무 키로 날짜별 스냅샷 이력을 조회한다. */
+    @Query("SELECT b FROM TaxInvoiceBatch b WHERE b.documentType = :documentType "
+            + "AND b.documentKey = :documentKey AND b.sourceFromDate >= :from "
+            + "AND b.sourceToDate <= :to ORDER BY b.processedAt DESC")
+    Page<TaxInvoiceBatch> findDocumentHistory(@Param("documentType") String documentType,
+                                              @Param("documentKey") String documentKey,
+                                              @Param("from") LocalDate from,
+                                              @Param("to") LocalDate to,
+                                              Pageable pageable);
+
+    /** 사용자 노출 배치 번호로 특정 이력을 찾는다. */
+    java.util.Optional<TaxInvoiceBatch> findByBatchNoAndDocumentType(String batchNo,
+                                                                       String documentType);
 
     /**
      * 최신 배치 번호 기준 최대 숫자 suffix 조회 — 채번에 사용.
@@ -46,4 +60,13 @@ public interface TaxInvoiceBatchRepository extends JpaRepository<TaxInvoiceBatch
               AND substring(batch_no from length(:prefix) + 1) ~ '^[0-9]+$'
             """, nativeQuery = true)
     int findMaxSequenceByBatchNoPrefix(@Param("prefix") String prefix);
+
+    /** 원장 snapshot 채번 — soft-deleted 번호도 다시 쓰지 않는다. */
+    @Query(value = """
+            SELECT COALESCE(MAX(CAST(substring(batch_no from length(:prefix) + 1) AS INTEGER)), 0)
+            FROM tax_invoice_batches
+            WHERE batch_no LIKE (:prefix || '%')
+              AND substring(batch_no from length(:prefix) + 1) ~ '^[0-9]+$'
+            """, nativeQuery = true)
+    int findMaxSequenceByBatchNoPrefixIncludingDeleted(@Param("prefix") String prefix);
 }

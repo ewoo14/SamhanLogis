@@ -62,12 +62,34 @@ async function capture(page: Page, name: string): Promise<void> {
 async function chooseApprover(page: Page, name: string): Promise<void> {
   const input = page.getByTestId('approver-search-input')
   await input.fill(name)
+  const dialog = page.getByRole('dialog', { name: '담당자 검색 결과' })
+  if (await dialog.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await dialog.getByRole('checkbox').first().check()
+    await dialog.getByRole('button', { name: '선택 확정' }).click()
+    return
+  }
   const listbox = page.getByRole('listbox', { name: '결재자 검색 결과' })
   await expect(listbox).toBeVisible({ timeout: 10_000 })
   await listbox.getByRole('option').filter({ hasText: name }).first().click()
 }
 
 test.describe('AC-5 칩 복수선택 foundation·결재작성', () => {
+  test('담당자 부분검색 2건 이상은 공용 결과 선택 모달에서 실제로 선택한다', async ({ page }) => {
+    await gotoPage(page, '/groupware/approvals/new', ['groupware.approvals'])
+    await page.getByTestId('groupware-approval-create-template').selectOption({ label: '지출결의서' })
+    const input = page.getByTestId('approver-search-input')
+    await expect(input).toBeVisible({ timeout: 10_000 })
+    await input.fill('팀')
+
+    const dialog = page.getByRole('dialog', { name: '담당자 검색 결과' })
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    await expect(dialog.getByRole('checkbox')).toHaveCount(3)
+    await dialog.getByRole('checkbox').nth(0).check()
+    await dialog.getByRole('checkbox').nth(1).check()
+    await dialog.getByRole('button', { name: '선택 확정' }).click()
+    await expect(page.getByTestId('approver-chip')).toHaveCount(2)
+  })
+
   test('연속 추가·dedup·remove focus·키보드 제거·UUID 비공개', async ({ page }) => {
     await gotoPage(page, '/groupware/approvals/new', ['groupware.approvals'])
     await expect(page.getByTestId('groupware-approval-create-template')).toBeVisible({ timeout: 10_000 })

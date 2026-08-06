@@ -61,7 +61,7 @@ class SlipDocumentCollaborationPortTest {
         port.applyChangeSet(slipId, """
                 {
                   "memo": {"before": "old", "after": "new"},
-                  "/shippingAddress": {"after": "서울시 강남구"}
+                  "/shippingAddress": {"before": null, "after": "서울시 강남구"}
                 }
                 """);
 
@@ -70,8 +70,12 @@ class SlipDocumentCollaborationPortTest {
         java.util.Map<String, String> expected = new java.util.LinkedHashMap<>();
         expected.put("memo", "new");
         expected.put("shippingAddress", "서울시 강남구");
+        java.util.Map<String, String> expectedBefore = new java.util.LinkedHashMap<>();
+        expectedBefore.put("memo", "old");
+        expectedBefore.put("shippingAddress", null);
         verify(slipService).applyOverlayPatchBatch(
-                slipId, expected, "00000000-0000-0000-0000-000000000000", "협업 제안");
+                slipId, expected, expectedBefore,
+                "00000000-0000-0000-0000-000000000000", "협업 제안");
         org.mockito.Mockito.verify(slipService, org.mockito.Mockito.never())
                 .applyOverlayPatch(any(), any(), any(), any(), any());
     }
@@ -89,17 +93,20 @@ class SlipDocumentCollaborationPortTest {
 
         port.applyOverlayPatchBatch(slipId, """
                 {
-                  "memo": {"after": "수정 메모"}
+                  "memo": {"before": null, "after": "수정 메모"}
                 }
                 """, editorId, "수정자김대리");
 
         java.util.Map<String, String> expected = new java.util.LinkedHashMap<>();
         expected.put("memo", "수정 메모");
-        verify(slipService).applyOverlayPatchBatch(slipId, expected, editorId.toString(), "수정자김대리");
+        java.util.Map<String, String> expectedBefore = new java.util.LinkedHashMap<>();
+        expectedBefore.put("memo", null);
+        verify(slipService).applyOverlayPatchBatch(
+                slipId, expected, expectedBefore, editorId.toString(), "수정자김대리");
     }
 
     @Test
-    void applyChangeSetRejectsEntryWithoutAfterField() {
+    void applyChangeSetRejectsEntryWithoutBeforeField() {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
@@ -110,11 +117,11 @@ class SlipDocumentCollaborationPortTest {
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> port.applyChangeSet(slipId, """
                 {
-                  "memo": {"before": "old"}
+                  "memo": {"after": "new"}
                 }
                 """))
                 .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
-                .hasMessageContaining("after");
+                .hasMessageContaining("before/after");
         org.mockito.Mockito.verifyNoInteractions(slipService);
     }
 
@@ -134,7 +141,7 @@ class SlipDocumentCollaborationPortTest {
                 }
                 """))
                 .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
-                .hasMessageContaining("after");
+                .hasMessageContaining("before/after");
         org.mockito.Mockito.verifyNoInteractions(slipService);
     }
 
@@ -158,14 +165,14 @@ class SlipDocumentCollaborationPortTest {
                 .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
                 .hasMessageContaining("JSON");
 
-        // (b) 구조 불량 — entry 가 {after} object 가 아닌 scalar (poison suggestion 차단)
+        // (b) 구조 불량 — entry 가 before/after object 가 아닌 scalar (poison suggestion 차단)
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () -> port.validateChangeSet("{\"memo\":\"x\"}"))
                 .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
                 .hasMessageContaining("after");
 
         // (c) 정상 구조 — 예외 없이 통과
-        port.validateChangeSet("{\"memo\":{\"after\":\"새 값\"}}");
+        port.validateChangeSet("{\"memo\":{\"before\":null,\"after\":\"새 값\"}}");
 
         // 검증은 파싱만 — 도메인 mutation 경로 무접촉
         org.mockito.Mockito.verifyNoInteractions(slipService);

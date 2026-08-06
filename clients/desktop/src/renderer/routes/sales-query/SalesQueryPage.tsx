@@ -222,6 +222,7 @@ export function SalesQueryPage() {
   // ── 창고 목록 (sourceWarehouseId resolve) ──
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
+    enabled: canQuery,
     queryFn: () => listWarehouses(),
     staleTime: 5 * 60 * 1000,
   })
@@ -230,6 +231,7 @@ export function SalesQueryPage() {
   // ── 판매관리 데이터 ──
   const slipsQuery = useQuery({
     queryKey: ['slips', 'query', 'OUTBOUND', dateFrom, dateTo, page, appliedSearch],
+    enabled: canQuery,
     queryFn: () =>
       querySlips({
         slipType: 'OUTBOUND',
@@ -752,7 +754,7 @@ export function SalesQueryPage() {
                       {row.memo ?? '—'}
                     </Td>
                     {/* 금액 — 우측 정렬 */}
-                    <Td align="right">{fmtAmount(row.totalAmount)}</Td>
+                    <Td align="right">{fmtAmount(row.displayTotalAmount ?? row.totalAmount)}</Td>
                     {/* 출고창고 — sourceWarehouseId resolve */}
                     <Td>{resolveWarehouseName(row.sourceWarehouseId, warehouses)}</Td>
                     {/* 출고일자 */}

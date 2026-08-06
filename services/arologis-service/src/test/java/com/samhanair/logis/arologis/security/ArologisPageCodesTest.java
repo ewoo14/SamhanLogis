@@ -3,6 +3,7 @@ package com.samhanair.logis.arologis.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.arologis.web.ReceivedDispatchGroupController;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -83,6 +84,17 @@ class ArologisPageCodesTest {
                     .toList())
                     .isEmpty();
         }
+    }
+
+    @Test
+    void received_dispatch_group_list_requires_dispatch_ops_view() throws NoSuchMethodException {
+        RequirePermission permission = ReceivedDispatchGroupController.class
+                .getDeclaredMethod("list", java.time.LocalDate.class)
+                .getAnnotation(RequirePermission.class);
+
+        assertThat(permission).isNotNull();
+        assertThat(permission.page()).isEqualTo(ArologisPageCodes.DISPATCH_OPS);
+        assertThat(permission.action()).isEqualTo(com.samhanair.logis.security.permission.PermissionAction.VIEW);
     }
 
     private static boolean containsInlineRequirePermissionPageLiteral(Path path) {

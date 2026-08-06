@@ -46,6 +46,11 @@ jobs:
     name: 빌드 + 테스트 (${{ matrix.group.name }})
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.group.timeout }}  # group 별 timeout (slip 60분, 그 외 30분)
+    env:
+      WAREHOUSE_UUID_HQ: 11111111-1111-1111-1111-000000000001
+      WAREHOUSE_UUID_HUBAL: 11111111-1111-1111-1111-000000000002
+      WAREHOUSE_UUID_ANSEONG: 11111111-1111-1111-1111-000000000003
+      WAREHOUSE_UUID_CHANGWON: 11111111-1111-1111-1111-000000000004
     strategy:
       fail-fast: false  # 1 group fail 시 다른 group 도 결과 확인
       matrix:

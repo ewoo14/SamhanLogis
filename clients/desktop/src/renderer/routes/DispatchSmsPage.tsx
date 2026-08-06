@@ -1,19 +1,16 @@
 /**
- * 배차안내 SMS 발송 admin UI — `/arologis/dispatch-sms`.
+ * 배차안내문자 표시·편집·복사 admin UI — `/arologis/dispatch-sms`.
  *
- * <p>미리보기 결과는 AUTO_LATEST 로 자동 저장하고, 운영자 명시 저장은 MANUAL_NAMED,
- * 실 발송 결과는 발송 감사 append-only 저장내역으로 남긴다.
+ * <p>미리보기 결과는 AUTO_LATEST 로 자동 저장하고, 운영자 명시 저장은 MANUAL_NAMED로 남긴다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input, Tabs } from '@samhan/design-system'
+import { Badge, Button, Card, CopyButton, Input, Tabs } from '@samhan/design-system'
 import axios from 'axios'
 import {
   previewDispatchBatch,
-  sendDispatchBatch,
+  type DispatchDriverContactInput,
   type DispatchSmsPreviewResponse,
-  type DispatchSmsSendEntry,
-  type DispatchSmsSendResponse,
 } from '../api/dispatchSmsApi'
 import {
   getLatestDispatchSmsHistory,
@@ -30,23 +27,37 @@ import { DispatchSmsSaveDialog } from '../components/DispatchSmsSaveDialog'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
+import {
+  buildDispatchSmsClipboardText,
+  getDispatchSmsRowKey,
+  type DispatchSmsClipboardRow,
+} from './dispatchSmsClipboard'
 
-type EditedMessages = Record<string, string>
+export type EditedMessages = Record<string, string>
+type DriverContactDraft = DispatchDriverContactInput
+export type DriverContactsByDate = Record<string, DriverContactDraft[]>
 type PreviewHistoryPayload =
   | DispatchSmsPreviewResponse
   | {
       preview: DispatchSmsPreviewResponse
       edited?: EditedMessages
     }
-type SendAuditHistoryPayload =
-  | DispatchSmsSendResponse
-  | {
-      result: DispatchSmsSendResponse
-      preview?: DispatchSmsPreviewResponse
-      edited?: EditedMessages
-    }
-
 const TEST_ID_PREFIX = 'dispatch-sms-history'
+
+export function getDriverContactsForDate(
+  contactsByDate: DriverContactsByDate,
+  date: string,
+): DriverContactDraft[] {
+  return contactsByDate[date] ?? []
+}
+
+export function setDriverContactsForDate(
+  contactsByDate: DriverContactsByDate,
+  date: string,
+  rows: DriverContactDraft[],
+): DriverContactsByDate {
+  return { ...contactsByDate, [date]: rows }
+}
 
 const todayIso = (): string => {
   const d = new Date()
@@ -60,29 +71,13 @@ function buildInitialEdited(preview: DispatchSmsPreviewResponse): EditedMessages
   const result: EditedMessages = {}
   for (const room of preview.chatRooms) {
     for (const p of room.partners) {
-      result[p.partnerCode] = p.message
+      result[getDispatchSmsRowKey(p)] = p.groupMessage ?? p.message
     }
+  }
+  for (const p of preview.unmapped) {
+    result[getDispatchSmsRowKey(p)] = p.groupMessage ?? p.message
   }
   return result
-}
-
-function buildSendEntries(
-  preview: DispatchSmsPreviewResponse,
-  edited: EditedMessages,
-): DispatchSmsSendEntry[] {
-  const entries: DispatchSmsSendEntry[] = []
-  for (const room of preview.chatRooms) {
-    for (const p of room.partners) {
-      if (p.blocked) continue
-      entries.push({
-        partnerCode: p.partnerCode,
-        recipientPhone: `room:${room.chatRoomName}`,
-        message: edited[p.partnerCode] ?? p.message,
-        chatRoomName: room.chatRoomName,
-      })
-    }
-  }
-  return entries
 }
 
 function previewRequestParams(preview: DispatchSmsPreviewResponse): Record<string, unknown> {
@@ -115,49 +110,35 @@ function readPreviewHistoryPayload(payload: unknown): {
   return { preview: candidate as DispatchSmsPreviewResponse }
 }
 
-function readSendAuditHistoryPayload(payload: unknown): DispatchSmsSendResponse {
-  const candidate = payload as SendAuditHistoryPayload
-  if (candidate && typeof candidate === 'object' && 'result' in candidate) {
-    return candidate.result
-  }
-  return candidate as DispatchSmsSendResponse
-}
-
-function sendAuditRequestParams(
-  date: string,
-  entries: DispatchSmsSendEntry[],
-  result: DispatchSmsSendResponse,
-): Record<string, unknown> {
-  return {
-    date,
-    rowCount: entries.length,
-    sent: result.sent,
-    failed: result.failed,
-    blocked: result.blocked,
-  }
-}
-
 export function DispatchSmsPage() {
-  usePageTitle('배차안내 SMS 발송')
+  usePageTitle('배차안내문자')
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
-  const canBatch = canAccess('dispatch.batch', 'create')
+  const canBatch = canAccess('notification.dispatch-sms.display', 'create')
 
   const [date, setDate] = useState<string>(todayIso())
+  const [driverContactsByDate, setDriverContactsByDate] = useState<DriverContactsByDate>({})
   const [preview, setPreview] = useState<DispatchSmsPreviewResponse | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [edited, setEdited] = useState<EditedMessages>({})
-  const [confirmChecked, setConfirmChecked] = useState(false)
-  const [sendResult, setSendResult] = useState<DispatchSmsSendResponse | null>(null)
-  const [auditError, setAuditError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState(0)
   const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [latestRestoreSettled, setLatestRestoreSettled] = useState(false)
+  const [selectedClipboardIds, setSelectedClipboardIds] = useState<Set<string>>(new Set())
   const lastAutoSaveKeyRef = useRef<string | null>(null)
   const skipNextAutoSaveRef = useRef(false)
-  const lastSendEntriesRef = useRef<DispatchSmsSendEntry[]>([])
+
+  const driverContacts = getDriverContactsForDate(driverContactsByDate, date)
+
+  const handleDateChange = (nextDate: string) => {
+    setDate(nextDate)
+  }
+
+  const handleDriverContactsChange = (rows: DriverContactDraft[]) => {
+    setDriverContactsByDate((previous) => setDriverContactsForDate(previous, date, rows))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -209,17 +190,16 @@ export function DispatchSmsPage() {
     if (!canBatch) return
     setPreviewLoading(true)
     setPreviewError(null)
-    setSendResult(null)
-    setAuditError(null)
-    setConfirmChecked(false)
     try {
-      const result = await previewDispatchBatch(date)
+      const result = await previewDispatchBatch(date, driverContacts)
       setPreview(result)
       setEdited(buildInitialEdited(result))
+      setSelectedClipboardIds(new Set())
       setRestoreBanner(null)
     } catch (err) {
       setPreview(null)
       setEdited({})
+      setSelectedClipboardIds(new Set())
       if (axios.isAxiosError(err)) {
         const data = err.response?.data as { message?: string } | undefined
         setPreviewError(data?.message ?? '미리보기 호출에 실패했습니다.')
@@ -250,105 +230,37 @@ export function DispatchSmsPage() {
     },
   })
 
-  const saveSendAudit = useCallback(async (
-    result: DispatchSmsSendResponse,
-    entries: DispatchSmsSendEntry[],
-  ) => {
-    try {
-      setAuditError(null)
-      await saveDispatchSmsHistory({
-        programType: 'DISPATCH_SMS',
-        saveMode: 'SEND_AUDIT',
-        topic: `발송 감사 ${result.date}`,
-        requestParams: sendAuditRequestParams(result.date ?? todayIso(), entries, result),
-        responsePayload: {
-          result,
-          preview,
-          edited,
-        },
-      })
-      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey('DISPATCH_SMS') })
-      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey() })
-    } catch (err) {
-      const message = axios.isAxiosError(err)
-        ? ((err.response?.data as { message?: string } | undefined)?.message ?? '발송 감사 저장에 실패했습니다.')
-        : '발송 감사 저장에 실패했습니다.'
-      setAuditError(message)
-    }
-  }, [edited, preview, queryClient])
+  const clipboardRows = useMemo<DispatchSmsClipboardRow[]>(() => {
+    if (!preview) return []
+    return [
+      ...preview.chatRooms.flatMap((room) => room.partners.map((p) => ({
+        id: getDispatchSmsRowKey(p),
+        partnerName: p.partnerName,
+        slipNo: p.slipNo,
+        message: edited[getDispatchSmsRowKey(p)] ?? p.groupMessage ?? p.message,
+        chatRoomName: room.chatRoomName,
+      }))),
+      ...preview.unmapped.map((p) => ({
+        id: getDispatchSmsRowKey(p),
+        partnerName: p.partnerName,
+        slipNo: p.slipNo,
+        message: edited[getDispatchSmsRowKey(p)] ?? p.groupMessage ?? p.message,
+        chatRoomName: '',
+      })),
+    ]
+  }, [edited, preview])
 
-  const sendMutation = useMutation<DispatchSmsSendResponse, unknown, void>({
-    mutationFn: async () => {
-      if (!preview) throw new Error('미리보기 결과가 없습니다.')
-      const entries = buildSendEntries(preview, edited)
-      lastSendEntriesRef.current = entries
-      return await sendDispatchBatch(date, entries)
-    },
-    onSuccess: (data) => {
-      setSendResult(data)
-      setConfirmChecked(false)
-      void saveSendAudit(data, lastSendEntriesRef.current)
-    },
-  })
-
-  const sendErrorMessage = (() => {
-    if (!sendMutation.isError) return null
-    const err = sendMutation.error
-    if (axios.isAxiosError(err)) {
-      const data = err.response?.data as { message?: string } | undefined
-      return data?.message ?? '실 발송에 실패했습니다.'
-    }
-    if (err instanceof Error) return err.message
-    return '알 수 없는 오류'
-  })()
-
-  const sendableCount = useMemo(() => {
-    if (!preview) return 0
-    return preview.chatRooms.reduce(
-      (sum, room) => sum + room.partners.filter((p) => !p.blocked).length,
-      0,
-    )
-  }, [preview])
-
-  const blockedCount = useMemo(() => {
-    if (!preview) return 0
-    return preview.chatRooms.reduce(
-      (sum, room) => sum + room.partners.filter((p) => p.blocked).length,
-      0,
-    )
-  }, [preview])
-
-  const sendDisabled = !preview || !confirmChecked || sendableCount === 0 || sendMutation.isPending || !canBatch
-
-  const handleSend = () => {
-    if (!canBatch) return
-    if (sendDisabled) return
-    const firstOk = window.confirm(
-      `발송 전 최종 확인입니다.\n발송 대상 ${sendableCount}건, 발송금지 ${blockedCount}건 제외 상태입니다.`,
-    )
-    if (!firstOk) return
-    const secondOk = window.confirm('정말 실 발송을 진행하시겠습니까? 발송 후 발송 감사 이력이 자동 저장됩니다.')
-    if (!secondOk) return
-    sendMutation.mutate()
-  }
+  const clipboardText = useMemo(
+    () => buildDispatchSmsClipboardText(clipboardRows, selectedClipboardIds),
+    [clipboardRows, selectedClipboardIds],
+  )
 
   const handleRestore = useCallback((detail: DispatchSmsSaveHistoryDetailResponse) => {
-    setAuditError(null)
-    if (detail.saveMode === 'SEND_AUDIT') {
-      setSendResult(readSendAuditHistoryPayload(detail.responsePayload))
-      setPreview(null)
-      setEdited({})
-      lastSendEntriesRef.current = []
-      setConfirmChecked(false)
-      setActiveTab(0)
-      setRestoreBanner(`발송 감사 확인: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)}`)
-      return
-    }
     const restored = readPreviewHistoryPayload(detail.responsePayload)
     setPreview(restored.preview)
     setEdited(restored.edited ?? buildInitialEdited(restored.preview))
+    setSelectedClipboardIds(new Set())
     setDate(restored.preview.date)
-    setSendResult(null)
     skipNextAutoSaveRef.current = true
     setActiveTab(0)
     setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)} '${detail.topic}'`)
@@ -376,29 +288,28 @@ export function DispatchSmsPage() {
           <Header preview={preview} onSaveClick={() => setSaveDialogOpen(true)} />
           <PreviewSection
             date={date}
+            driverContacts={driverContacts}
+            onDriverContactsChange={handleDriverContactsChange}
             preview={preview}
             edited={edited}
             previewError={previewError}
             previewLoading={previewLoading}
             canPreview={canBatch}
-            onDateChange={setDate}
+            onDateChange={handleDateChange}
             onPreview={() => void handlePreview()}
-            onMessageChange={(partnerCode, message) => {
-              setEdited((prev) => ({ ...prev, [partnerCode]: message }))
+            clipboardText={clipboardText}
+            selectedClipboardIds={selectedClipboardIds}
+            onClipboardSelectionChange={(id, selected) => {
+              setSelectedClipboardIds((previous) => {
+                const next = new Set(previous)
+                if (selected) next.add(id)
+                else next.delete(id)
+                return next
+              })
             }}
-          />
-          <SendSection
-            preview={preview}
-            confirmChecked={confirmChecked}
-            sendableCount={sendableCount}
-            blockedCount={blockedCount}
-            sendDisabled={sendDisabled}
-            sendPending={sendMutation.isPending}
-            sendResult={sendResult}
-            sendErrorMessage={sendErrorMessage}
-            auditError={auditError}
-            onConfirmChange={setConfirmChecked}
-            onSend={handleSend}
+            onMessageChange={(rowKey, message) => {
+              setEdited((prev) => ({ ...prev, [rowKey]: message }))
+            }}
           />
         </div>
         <DispatchSmsHistoryTab
@@ -429,9 +340,9 @@ function Header({
   return (
     <div style={headerStyle}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0 }}>배차안내 SMS 발송</h3>
+         <h3 style={{ margin: 0 }}>배차안내문자</h3>
         <span data-testid="dispatch-sms-realtime-notice" style={noticeStyle}>
-          미리보기 저장내역 + 발송 감사
+           미리보기 저장내역 + 선택 복사
         </span>
       </div>
       <Button
@@ -448,6 +359,8 @@ function Header({
 
 function PreviewSection({
   date,
+  driverContacts,
+  onDriverContactsChange,
   preview,
   edited,
   previewError,
@@ -455,9 +368,14 @@ function PreviewSection({
   canPreview,
   onDateChange,
   onPreview,
+  clipboardText,
+  selectedClipboardIds,
+  onClipboardSelectionChange,
   onMessageChange,
 }: {
   date: string
+  driverContacts: DriverContactDraft[]
+  onDriverContactsChange: (rows: DriverContactDraft[]) => void
   preview: DispatchSmsPreviewResponse | null
   edited: EditedMessages
   previewError: string | null
@@ -465,7 +383,10 @@ function PreviewSection({
   canPreview: boolean
   onDateChange: (value: string) => void
   onPreview: () => void
-  onMessageChange: (partnerCode: string, message: string) => void
+  clipboardText: string
+  selectedClipboardIds: ReadonlySet<string>
+  onClipboardSelectionChange: (id: string, selected: boolean) => void
+  onMessageChange: (rowKey: string, message: string) => void
 }) {
   return (
     <Card padding={5} shadow="sm" style={{ marginBottom: 16 }}>
@@ -498,6 +419,26 @@ function PreviewSection({
         </div>
       </div>
 
+      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid var(--color-neutral-200)', borderRadius: 6 }}>
+        <legend style={{ padding: '0 6px', fontSize: 13 }}>배송기사내역 입력</legend>
+        <p style={mutedTextStyle}>레거시 입력 경로와 같이 전표번호(업체명)·배송기사 연락처를 입력합니다. 공란은 기존 오류 문구로 표시됩니다.</p>
+        {driverContacts.map((row, index) => (
+          <div key={`${row.slipNo}-${index}`} className="form-row" style={{ alignItems: 'flex-end', marginBottom: 8 }}>
+            <Input label="업체명/전표번호" value={row.companyName || row.slipNo} onChange={(e) => {
+              const next = [...driverContacts]; next[index] = { ...row, slipNo: e.target.value, companyName: e.target.value }; onDriverContactsChange(next)
+            }} />
+            <Input label="배송기사 연락처" value={row.driverPhone} onChange={(e) => {
+              const next = [...driverContacts]; next[index] = { ...row, driverPhone: e.target.value }; onDriverContactsChange(next)
+            }} />
+            <Button variant="ghost" onClick={() => onDriverContactsChange(driverContacts.filter((_, i) => i !== index))}>삭제</Button>
+          </div>
+        ))}
+        <Button variant="ghost" data-testid="dispatch-sms-add-driver-contact" onClick={() => onDriverContactsChange([
+          ...driverContacts,
+          { slipNo: '', companyName: '', driverPhone: '', date },
+        ])}>기사 연락처 행 추가</Button>
+      </fieldset>
+
       {previewError ? <div className="error-banner" role="alert" style={{ marginTop: 12 }}>{previewError}</div> : null}
 
       {preview ? (
@@ -506,6 +447,15 @@ function PreviewSection({
             배차일: <strong>{preview.date}</strong> · 출고전표 <strong>{preview.totalSlips}</strong>건 ·
             단톡방 매핑 <strong>{preview.mappedSlips}</strong>건 · 미매핑 <strong>{preview.unmappedSlips}</strong>건
           </p>
+
+          <div style={copyToolbarStyle}>
+            <span style={noticeStyle}>선택한 배차 대상만 복사 · 거래처명 / 전표번호 / 코멘트 / 단톡방</span>
+            <CopyButton
+              text={clipboardText}
+              label={`선택 복사 (${selectedClipboardIds.size}건)`}
+              disabled={!clipboardText}
+            />
+          </div>
 
           {preview.chatRooms.length === 0 ? (
             <div style={emptyBoxStyle}>해당 일자에 발송할 출고전표가 없습니다.</div>
@@ -523,23 +473,31 @@ function PreviewSection({
               </h5>
 
               {room.partners.map((p) => (
-                <div key={p.partnerCode} style={partnerBoxStyle(p.blocked)}>
+                <div key={getDispatchSmsRowKey(p)} style={partnerBoxStyle(p.blocked)}>
                   <div style={partnerHeaderStyle}>
-                    <div style={{ fontSize: 13 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        aria-label={`${p.partnerName} 배차 대상 선택`}
+                        checked={selectedClipboardIds.has(getDispatchSmsRowKey(p))}
+                        onChange={(e) => onClipboardSelectionChange(getDispatchSmsRowKey(p), e.target.checked)}
+                      />
+                      <span>
                       <strong>{p.partnerName}</strong>{' '}
                       <span style={noticeStyle}>[{p.partnerCode}] · 전표 {p.slipNo}</span>
-                    </div>
+                      </span>
+                    </label>
                     {p.blocked ? (
-                      <Badge data-testid={`dispatch-sms-blocked-badge-${p.partnerCode}`} variant="danger">
+                      <Badge data-testid={`dispatch-sms-blocked-badge-${getDispatchSmsRowKey(p)}`} variant="danger">
                         발송금지
                       </Badge>
                     ) : null}
                   </div>
 
-                  <textarea
-                    data-testid={`dispatch-sms-message-${p.partnerCode}`}
-                    value={edited[p.partnerCode] ?? p.message}
-                    onChange={(e) => onMessageChange(p.partnerCode, e.target.value)}
+                    <textarea
+                        data-testid={`dispatch-sms-message-${getDispatchSmsRowKey(p)}`}
+                        value={edited[getDispatchSmsRowKey(p)] ?? p.groupMessage ?? p.message}
+                    onChange={(e) => onMessageChange(getDispatchSmsRowKey(p), e.target.value)}
                     disabled={p.blocked}
                     rows={3}
                     style={textareaStyle(p.blocked)}
@@ -551,112 +509,34 @@ function PreviewSection({
 
           {preview.unmapped.length > 0 ? (
             <div style={warningBoxStyle}>
-              <strong>단톡방 미매핑 거래처 {preview.unmapped.length}건</strong> — 단톡방 매핑 관리자 화면에서 등록 후 다시 미리보기 하세요.
+               <strong>단톡방 미매핑 전표 {preview.unmapped.length}건</strong> — 인수자 번호와 관계없이 안내 문구를 확인·편집·복사할 수 있습니다.
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                {preview.unmapped.map((u) => (
-                  <li key={`${u.partnerCode}-${u.slipNo}`}>
-                    {u.partnerName} [{u.partnerCode}] · 전표 {u.slipNo}
-                  </li>
-                ))}
+                {preview.unmapped.map((u) => {
+                  const unmappedId = getDispatchSmsRowKey(u)
+                  return (
+                    <li key={unmappedId} style={{ marginBottom: 10 }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          aria-label={`${u.partnerName} 배차 대상 선택`}
+                          checked={selectedClipboardIds.has(unmappedId)}
+                          onChange={(e) => onClipboardSelectionChange(unmappedId, e.target.checked)}
+                        />
+                        {u.partnerName} [미매핑] · 전표 {u.slipNo}
+                      </label>
+                      <textarea
+                        data-testid={`dispatch-sms-unmapped-message-${unmappedId}`}
+                        aria-label={`${u.partnerName} 미매핑 안내 문구`}
+                        value={edited[unmappedId] ?? u.groupMessage ?? u.message}
+                        onChange={(e) => onMessageChange(unmappedId, e.target.value)}
+                        rows={4}
+                        style={textareaStyle(false)}
+                      />
+                    </li>
+                  )
+                })}
               </ul>
             </div>
-          ) : null}
-        </div>
-      ) : null}
-    </Card>
-  )
-}
-
-function SendSection({
-  preview,
-  confirmChecked,
-  sendableCount,
-  blockedCount,
-  sendDisabled,
-  sendPending,
-  sendResult,
-  sendErrorMessage,
-  auditError,
-  onConfirmChange,
-  onSend,
-}: {
-  preview: DispatchSmsPreviewResponse | null
-  confirmChecked: boolean
-  sendableCount: number
-  blockedCount: number
-  sendDisabled: boolean
-  sendPending: boolean
-  sendResult: DispatchSmsSendResponse | null
-  sendErrorMessage: string | null
-  auditError: string | null
-  onConfirmChange: (value: boolean) => void
-  onSend: () => void
-}) {
-  return (
-    <Card padding={5} shadow="sm">
-      <h4 style={{ marginTop: 0 }}>Step 2. 실 발송</h4>
-      <p style={mutedTextStyle}>
-        실 발송은 비가역 작업입니다. 미리보기 결과를 확인하고 발송 확인 체크 후 진행하세요.
-      </p>
-
-      {!preview ? (
-        <div style={emptyBoxStyle}>먼저 Step 1 미리보기를 실행하세요.</div>
-      ) : (
-        <>
-          <label style={confirmLabelStyle(sendableCount === 0)}>
-            <input
-              data-testid="dispatch-sms-confirm-checkbox"
-              type="checkbox"
-              checked={confirmChecked}
-              onChange={(e) => onConfirmChange(e.target.checked)}
-              disabled={sendableCount === 0}
-            />
-            <strong>발송 확인</strong> — 미리보기 결과를 검토했고 실 발송에 동의합니다.
-          </label>
-
-          <div style={sendButtonRowStyle}>
-            <Button
-              data-testid="dispatch-sms-send-button"
-              variant="warning"
-              onClick={onSend}
-              disabled={sendDisabled}
-              loading={sendPending}
-            >
-              SMS 발송 ({sendableCount}건)
-            </Button>
-            <span style={noticeStyle}>발송금지 자동 제외: {blockedCount}건</span>
-          </div>
-        </>
-      )}
-
-      {sendErrorMessage ? <div className="error-banner" role="alert" style={{ marginTop: 12 }}>{sendErrorMessage}</div> : null}
-      {auditError ? (
-        <div role="alert" data-testid="dispatch-sms-history-send-audit-error" style={auditErrorStyle}>
-          {auditError}
-        </div>
-      ) : null}
-
-      {sendResult ? (
-        <div data-testid="dispatch-sms-result-stats" style={successBoxStyle}>
-          <h5 style={{ margin: '0 0 8px', color: 'var(--state-success)' }}>
-            발송 결과 ({sendResult.date})
-          </h5>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <span>성공: <strong>{sendResult.sent}</strong>건</span>
-            <span>실패: <strong>{sendResult.failed}</strong>건</span>
-            <span>발송금지 제외: <strong>{sendResult.blocked}</strong>건</span>
-          </div>
-          {sendResult.failed > 0 || sendResult.blocked > 0 ? (
-            <details style={{ marginTop: 8 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 12 }}>상세 보기 ({sendResult.details.length}건)</summary>
-              <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12 }}>
-                {sendResult.details.map((d, i) => (
-                  <li key={`${d.partnerCode}-${i}`}>
-                    [{d.status}] {d.partnerCode} · {d.recipientPhone}{d.reason ? ` - ${d.reason}` : ''}
-                  </li>
-                ))}
-              </ul>
-            </details>
           ) : null}
         </div>
       ) : null}
@@ -675,6 +555,18 @@ const headerStyle: React.CSSProperties = {
 const noticeStyle: React.CSSProperties = { fontSize: 12, color: 'var(--color-neutral-500)' }
 const mutedTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--color-neutral-500)', marginTop: 0 }
 const summaryTextStyle: React.CSSProperties = { fontSize: 13, marginTop: 0, marginBottom: 12 }
+const copyToolbarStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  flexWrap: 'wrap',
+  marginBottom: 12,
+  padding: '8px 10px',
+  background: 'var(--color-neutral-50)',
+  border: '1px solid var(--color-neutral-200)',
+  borderRadius: 6,
+}
 const emptyBoxStyle: React.CSSProperties = {
   padding: 12,
   background: 'var(--color-neutral-50)',
@@ -723,36 +615,4 @@ const warningBoxStyle: React.CSSProperties = {
   border: '1px solid var(--color-warning)',
   fontSize: 12,
   color: 'var(--state-warning)',
-}
-const confirmLabelStyle = (disabled: boolean): React.CSSProperties => ({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  fontSize: 13,
-  cursor: disabled ? 'not-allowed' : 'pointer',
-  marginBottom: 12,
-})
-const sendButtonRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 12,
-  marginBottom: 12,
-  flexWrap: 'wrap',
-}
-const auditErrorStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 8,
-  border: '1px solid var(--state-danger)',
-  borderRadius: 4,
-  background: 'var(--state-danger-bg)',
-  color: 'var(--state-danger)',
-  fontSize: 12,
-}
-const successBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 12,
-  borderRadius: 6,
-  background: 'var(--state-success-bg)',
-  border: '1px solid var(--state-success)',
-  fontSize: 13,
 }

@@ -71,6 +71,7 @@ public class SalesAccountingSlip extends BaseEntity {
     @Column(name = "memo", columnDefinition = "TEXT") private String memo;
 
     @OneToMany(mappedBy = "slip", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("lineNo ASC")
     private List<SalesAccountingSlipLine> lines = new ArrayList<>();
 
     public static SalesAccountingSlip createDraft(String slipNo, LocalDate slipDate,

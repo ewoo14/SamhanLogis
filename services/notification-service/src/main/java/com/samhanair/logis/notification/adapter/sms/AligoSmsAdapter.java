@@ -29,7 +29,7 @@ import org.springframework.web.client.RestClient;
  * {@code result_code == 1} 만 success, 그 외 모두 failure.
  *
  * <p>SP-09-2 placeholder runtime guard 강화 (SP-09-1 ETaxClientImpl {@code isPlaceholderApiKey()} 와 동일 패턴):
- * 아래 값 중 하나라도 placeholder 로 판정되면 외부 호출 skip + stub-success.
+ * 아래 값 중 하나라도 placeholder 로 판정되면 외부 호출을 건너뛰고 비전송 실패를 반환한다.
  * 판정 대상 키워드 (case-insensitive): {@code CHANGE_ME_LOCAL_ONLY}, {@code PLACEHOLDER_DEV_ONLY},
  * {@code changeme}, {@code dummy}.
  * 운영 / staging 에서 실제 key 주입 시 본격 호출.
@@ -53,10 +53,11 @@ public class AligoSmsAdapter implements SmsAdapter {
     public NotificationGatewayResult send(NotificationRequest request) {
         if (isPlaceholder(properties.getKey()) || isPlaceholder(properties.getUserid())
                 || isPlaceholder(properties.getSender())) {
-            String stubId = "aligo-stub-" + request.getId();
-            log.debug("[AligoSmsAdapter] Aligo credentials placeholder — stub success requestId={} stubId={}",
-                    request.getId(), stubId);
-            return NotificationGatewayResult.success(stubId, "{\"note\":\"Aligo stub (credentials placeholder)\"}");
+            log.debug("[AligoSmsAdapter] Aligo credentials placeholder — not sent requestId={}",
+                    request.getId());
+            return NotificationGatewayResult.notSent(
+                    "NOT_SENT_CREDENTIALS_PLACEHOLDER",
+                    "{\"note\":\"Aligo 호출 생략: 자격증명 placeholder\"}");
         }
 
         try {

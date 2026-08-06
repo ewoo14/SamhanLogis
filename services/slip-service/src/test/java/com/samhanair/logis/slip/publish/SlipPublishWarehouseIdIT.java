@@ -47,7 +47,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "app.publish.warehouse-code-map.WH-001=11111111-1111-1111-1111-111111111111",
+        "app.publish.warehouse-code-map.WH-001=11111111-1111-1111-1111-000000000001",
 })
 class SlipPublishWarehouseIdIT extends AbstractPostgresIT {
 
@@ -95,13 +95,14 @@ class SlipPublishWarehouseIdIT extends AbstractPostgresIT {
 
         Slip saved = slipRepository.findBySlipNo(slipNo).orElseThrow();
         assertThat(saved.getSourceWarehouseId())
-                .isEqualTo(UUID.fromString("11111111-1111-1111-1111-111111111111"));
+                .isEqualTo(UUID.fromString(INVENTORY_WAREHOUSE_ID));
     }
 
     private String publish(String partnerOrderId, String warehouseId) throws Exception {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("partnerOrderId", partnerOrderId);
         payload.put("partnerCode", "TEST-PARTNER");
+        payload.put("bizCode", "123-45-67890");
         payload.put("ioDate", "20260531");
         payload.put("warehouseCode", "WH-001");
         if (warehouseId != null) {

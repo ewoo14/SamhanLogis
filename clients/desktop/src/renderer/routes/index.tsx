@@ -63,6 +63,7 @@
 import {
   createBrowserRouter,
   createHashRouter,
+  Navigate,
   RouterProvider,
   useSearchParams,
 } from 'react-router-dom'
@@ -129,6 +130,8 @@ import { PasswordResetConfirmPage } from './PasswordResetConfirmPage'
 import { ArologisManualDispatchPage } from './ArologisManualDispatchPage'
 // [Phase 10 PR-E1 FE-2] arologis 가배차 분류 admin UI (REGION 권역 + 시도 광역 2-탭, MASTER/MANAGER/DISPATCH)
 import { ArologisPreClassifyPage } from './ArologisPreClassifyPage'
+import { CarrierListPage } from './CarrierListPage'
+import { DispatchGroupPage } from './DispatchGroupPage'
 // [Phase 10 P2-4 / slice 8] legacy 매출 마감 — 일별/월별 (ACCOUNTANT/MANAGER/MASTER 진입, 역마감은 MASTER 만).
 import { MonthEndClosingPage } from './MonthEndClosingPage'
 // [Phase 10 P0-5 / slice 4] 관리자 통합 admin (MASTER 전용 5 페이지)
@@ -171,10 +174,9 @@ import { InventoryDpsComparePage } from './InventoryDpsComparePage'
 import { DpsByProductPage } from './warehouse/DpsByProductPage'
 // [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
-// [PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER 가드
+import { InOutAnalysisPage } from './warehouse/InOutAnalysisPage'
+// [PR-E1 FE-6] 배차안내문자 표시·편집·복사 — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
-// [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회 화면 (DISPATCH / MANAGER / MASTER)
-import { DispatchSmsSendAuditPage } from './DispatchSmsSendAuditPage'
 // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — 일자 필터 + 수동 배차로 이동 link (MASTER/MANAGER/DISPATCH)
 import { ArologisUnassignedPage } from './ArologisUnassignedPage'
 // [PR-E1 FE-4] 내일자 전표 이미지 페이지 + Designer NextDaySlipView 통합 print route
@@ -192,6 +194,7 @@ import { StatementBatchView } from '../print/StatementBatchView'
 // 인쇄 view 는 Designer commit 69fd8f0 의 PartnerLedgerView 재사용.
 import { PartnerLedgerPage } from './PartnerLedgerPage'
 import { PartnerLedgerView } from '../print/PartnerLedgerView'
+import { PartnerLedgerBatchView } from '../print/PartnerLedgerBatchView'
 // [PR-H3 FE-1] 전표 수정/삭제 요청 처리 대시보드 — WAREHOUSE/MANAGER/MASTER.
 // BE: slip-service `GET/POST /api/v1/slips/edit-requests*` (PR-H3 BE-1 슬라이스).
 import { SlipEditRequestsPage } from './admin/SlipEditRequestsPage'
@@ -303,7 +306,7 @@ import { PermissionGroupManagePage } from './PermissionGroupManagePage'
 import { PermissionDelegationPage } from './PermissionDelegationPage'
 import { ApprovalLineConfigPage } from './ApprovalLineConfigPage'
 // [SP-D1 cycle 2] 동적 RBAC PermissionGuard — 서버 권한 매트릭스 기반 라우트 가드.
-import { PermissionGuard } from '../components/PermissionGuard'
+import { PermissionGuard, SlipReadGuard } from '../components/PermissionGuard'
 import { RoleGuard } from '../components/RoleGuard'
 // §7 그룹웨어 결재 — 목록/상세 + 협업 패널.
 import { GroupwareApprovalListPage } from './GroupwareApprovalListPage'
@@ -424,13 +427,24 @@ const routes = [
 
       // [2a 영업·구매 메뉴 통합] 판매관리 — 풍성한 컬럼 + 다중 선택 (SalesQueryPage).
       // 기존 SlipListPage 는 `/sales/slips` 로 이전 — 2c 전표 작성 plumbing 시 활용 예정.
-      { path: '/sales', element: <SalesQueryPage /> },
+      {
+        path: '/sales',
+        element: (
+          <PermissionGuard pageCode="sales.slip.list" action="view">
+            <SlipReadGuard mode="OUTBOUND">
+              <SalesQueryPage />
+            </SlipReadGuard>
+          </PermissionGuard>
+        ),
+      },
       // [SP-D3] 매출 슬립 목록 — sales.slip.list 동적 RBAC (RoleGuard 이중 가드 유지).
       {
         path: '/sales/slips',
         element: (
           <PermissionGuard pageCode="sales.slip.list" action="view">
-            <SlipListPage mode="OUTBOUND" />
+            <SlipReadGuard mode="OUTBOUND">
+              <SlipListPage mode="OUTBOUND" />
+            </SlipReadGuard>
           </PermissionGuard>
         ),
       },
@@ -548,7 +562,16 @@ const routes = [
         ),
       },
 
-      { path: '/sales/:id', element: <SlipDetailPage mode="OUTBOUND" /> },
+      {
+        path: '/sales/:id',
+        element: (
+          <PermissionGuard pageCode="sales.slip.list" action="view">
+            <SlipReadGuard mode="OUTBOUND">
+              <SlipDetailPage mode="OUTBOUND" />
+            </SlipReadGuard>
+          </PermissionGuard>
+        ),
+      },
       // SP-08-6-4 — 거래명세서 (A4 portrait, legacy GAS 동등). 정적 suffix 먼저 매칭.
       { path: '/sales/:id/print/statement', element: <SalesTransactionStatementPrintPage /> },
       // SP-08-6-4 — 세금계산서 (A4 portrait, 공급자/공급받는자 박스 포함). InvoiceView 대체.
@@ -558,13 +581,24 @@ const routes = [
       // [2a 영업·구매 메뉴 통합] 구매관리 — 풍성한 컬럼 + 다중 선택 (PurchaseQueryPage).
       // 기존 SlipListPage 는 `/purchases/slips` 로 이전 — 2c 전표 작성 plumbing 시 활용.
       // `/purchases/slips` 는 정적 path 이므로 `/purchases/:id` 보다 먼저 등록.
-      { path: '/purchases', element: <PurchaseQueryPage /> },
+      {
+        path: '/purchases',
+        element: (
+          <PermissionGuard pageCode="purchases.slip.list" action="view">
+            <SlipReadGuard mode="INBOUND">
+              <PurchaseQueryPage />
+            </SlipReadGuard>
+          </PermissionGuard>
+        ),
+      },
       // [SP-D3] 매입 슬립 목록 — purchases.slip.list 동적 RBAC (RoleGuard 이중 가드 유지).
       {
         path: '/purchases/slips',
         element: (
           <PermissionGuard pageCode="purchases.slip.list" action="view">
-            <SlipListPage mode="INBOUND" />
+            <SlipReadGuard mode="INBOUND">
+              <SlipListPage mode="INBOUND" />
+            </SlipReadGuard>
           </PermissionGuard>
         ),
       },
@@ -576,7 +610,16 @@ const routes = [
           </PermissionGuard>
         ),
       },
-      { path: '/purchases/:id', element: <SlipDetailPage mode="INBOUND" /> },
+      {
+        path: '/purchases/:id',
+        element: (
+          <PermissionGuard pageCode="purchases.slip.list" action="view">
+            <SlipReadGuard mode="INBOUND">
+              <SlipDetailPage mode="INBOUND" />
+            </SlipReadGuard>
+          </PermissionGuard>
+        ),
+      },
       // SP-08-5-5 — 매입 전표 인쇄 양식 (A4 portrait, 창고/관리자 권한)
       { path: '/purchases/:id/print/purchase', element: <PurchaseSlipPrintPage /> },
 
@@ -585,8 +628,16 @@ const routes = [
       {
         path: '/inventory/stock-balance',
         element: (
-          <PermissionGuard pageCode="inventory.stock-balance" action="view">
+          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
             <InventoryStockBalancePage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/inventory/inout-analysis',
+        element: (
+          <PermissionGuard pageCode="inventory.stock-balance" action="view">
+            <InOutAnalysisPage />
           </PermissionGuard>
         ),
       },
@@ -977,6 +1028,14 @@ const routes = [
           </PermissionGuard>
         ),
       },
+      {
+        path: '/print/partner-ledger-batch',
+        element: (
+          <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+            <PartnerLedgerBatchView />
+          </PermissionGuard>
+        ),
+      },
 
       // [Phase 10 P1-5] arologis 수동 배차 admin UI — MASTER / MANAGER (backlog DISPATCH).
       {
@@ -998,6 +1057,22 @@ const routes = [
           </PermissionGuard>
         ),
       },
+      {
+        path: '/admin/carriers',
+        element: (
+          <PermissionGuard pageCode="hr.carriers" action="view">
+            <CarrierListPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/admin/dispatch-groups',
+        element: (
+          <PermissionGuard pageCode="dispatch.board" action="view">
+            <DispatchGroupPage />
+          </PermissionGuard>
+        ),
+      },
 
       // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — MASTER / MANAGER / DISPATCH.
       // 일자 단일 필터 + dispatch 미할당 슬립 표 + "수동 배차로 이동" link (/arologis/manual 자동 채움).
@@ -1010,24 +1085,13 @@ const routes = [
         ),
       },
 
-      // [Phase 10 PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER.
-      // 출고전표 자동 조회 + 단톡방 매핑 + blocked 가드 + 안내 SMS 발송.
+      // [Phase 10 PR-E1 FE-6] 배차안내문자 미리보기·편집·복사 — DISPATCH / MANAGER / MASTER.
+      // 출고전표 자동 조회 + 단톡방 매핑 + blocked 가드 + 하차일별 안내 문구.
       {
         path: '/arologis/dispatch-sms',
         element: (
-          <PermissionGuard pageCode="dispatch.batch" action="view">
+          <PermissionGuard pageCode="notification.dispatch-sms.display" action="view">
             <DispatchSmsPage />
-          </PermissionGuard>
-        ),
-      },
-
-      // [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회화면.
-      // BE SEND_AUDIT append-only row 조회 + 수신번호 마스킹 + 상태 Badge + 날짜/결과 필터.
-      {
-        path: '/arologis/dispatch-sms/send-audit',
-        element: (
-          <PermissionGuard pageCode="notification.dispatch-sms.send-audit" action="view">
-            <DispatchSmsSendAuditPage />
           </PermissionGuard>
         ),
       },
@@ -1194,11 +1258,7 @@ const routes = [
       },
       {
         path: '/accounting/admin/cash-receipts/new',
-        element: (
-          <PermissionGuard pageCode="accounting.cash-receipts" action="create">
-            <CashReceiptFormPage />
-          </PermissionGuard>
-        ),
+        element: <Navigate to="/accounting/admin/cash-receipts" replace />,
       },
       {
         path: '/accounting/admin/cash-receipts/:id/edit',
@@ -1259,8 +1319,26 @@ const routes = [
 
       // [2a 메뉴 통합] `/sales/query` / `/purchases/query` 는 기존 deep-link / bookmark
       // 호환을 위한 alias — 사이드바에서는 제거되었고 `/sales`, `/purchases` 가 정식.
-      { path: '/sales/query', element: <SalesQueryPage /> },
-      { path: '/purchases/query', element: <PurchaseQueryPage /> },
+      {
+        path: '/sales/query',
+        element: (
+          <PermissionGuard pageCode="sales.slip.list" action="view">
+            <SlipReadGuard mode="OUTBOUND">
+              <SalesQueryPage />
+            </SlipReadGuard>
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/purchases/query',
+        element: (
+          <PermissionGuard pageCode="purchases.slip.list" action="view">
+            <SlipReadGuard mode="INBOUND">
+              <PurchaseQueryPage />
+            </SlipReadGuard>
+          </PermissionGuard>
+        ),
+      },
 
       // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
       { path: '/forbidden', element: <ForbiddenPage /> },

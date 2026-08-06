@@ -519,7 +519,7 @@ interface AdminPartnerListResponse {
 }
 
 /**
- * 거래처 부분 검색 — `GET /admin/partners/search?q={q}&size=20`.
+ * 거래처 부분 검색 — `GET /admin/partners/search?q={q}&size={limit}`.
  *
  * <p>admin-service 의 `AdminPartnerController.search` 로 라우팅.
  * `q` 파라미터로 partnerCode/name/bizNo/phone LIKE 검색.
@@ -527,19 +527,21 @@ interface AdminPartnerListResponse {
  * UUID 비공개 가드: partnerId 는 화면 표시 없이 payload 전용으로만 사용한다.
  *
  * @param q 검색어 (거래처명·코드·사업자번호·전화 부분 입력)
+ * @param options.limit 선택 모달 등 전체 후보가 필요한 호출처만 지정하는 상한. 기본 20은
+ * 기존 자동완성 소비처의 비용·동작을 보존한다.
  * @param options.throwOnError 병합 후보처럼 권한/서버 오류를 호출처가 안내해야 할 때 true.
  * 기본값 false는 기존 자동완성 소비처의 graceful degradation 계약을 유지한다.
  * @returns `PartnerOption[]` — 기본값에서는 실패 시 빈 배열
  */
 export async function searchPartners(
   q: string,
-  options?: { activeOnly?: boolean; throwOnError?: boolean },
+  options?: { activeOnly?: boolean; throwOnError?: boolean; limit?: number },
 ): Promise<PartnerOption[]> {
   try {
     const res = await apiClient.get<ApiEnvelope<AdminPartnerListResponse>>(
       '/admin/partners/search',
       {
-        params: { q, size: 20, ...(options?.activeOnly ? { status: 'ACTIVE' } : {}) },
+        params: { q, size: options?.limit ?? 20, ...(options?.activeOnly ? { status: 'ACTIVE' } : {}) },
       },
     )
     const data = res.data.data

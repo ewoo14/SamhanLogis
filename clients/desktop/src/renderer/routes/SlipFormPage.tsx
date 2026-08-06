@@ -75,6 +75,8 @@ import {
   type SlipLineInput,
   type SlipType,
 } from '../api/slip'
+import { getPartnerDcConfig } from '../api/sales'
+import type { PartnerDcConfig } from '../api/sales'
 import {
   computeUnloadDate,
   isScheduledTag,
@@ -82,6 +84,10 @@ import {
 } from '../utils/deliverySchedule'
 import { toLocalDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
+import {
+  appendBlankRowIfLastChanged,
+  removeLinePreservingMinimum,
+} from '../utils/autoBlankRow'
 import {
   changeLineQuantity,
   editSlipLineAmount,
@@ -95,8 +101,11 @@ import {
   willLineBeSaved,
   type LineIncompleteReason,
 } from '../utils/slipLineDraft'
+import { calculateSlipDiscount } from '../utils/slipDiscount'
 import {
+  partnerRepriceSessionIsCurrent,
   usePartnerPriceRefresh,
+  withPriceLookupTimeout,
   type PartnerRepriceCandidate,
 } from '../utils/usePartnerPriceRefresh'
 import { searchProducts as searchProductsApi } from '../api/productApi'
@@ -599,8 +608,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   // AC-3: 거래처 자동완성 선택 상태 (PartnerAutocomplete controlled value)
   const [selectedPartner, setSelectedPartner] = useState<PartnerOption | null>(null)
+  const [partnerDcConfig, setPartnerDcConfig] = useState<PartnerDcConfig | null>(null)
   const [priceLookupAnnouncement, setPriceLookupAnnouncement] = useState('')
   const selectedPartnerIdRef = useRef<string | null>(null)
+  const dcRequestSeqRef = useRef(0)
   selectedPartnerIdRef.current = selectedPartner?.id ?? null
   // R8-FE-3: 안내 낭독을 실제 적용 여부와 같은 조건으로 묶기 위한 최신 라인 스냅샷
   // (견적 EstimateFormPage.linesRef 와 동일 패턴 — 비대칭 해소).
@@ -655,11 +666,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   // ── 라인 조작 핸들러 ─────────────────────────────────────
 
-  const addLine = () => {
-    const next = emptyLine()
-    setLines((ls) => [...ls, next])
-  }
-
   /**
    * 마지막 행이 이 편집으로 실제로 바뀌었으면(H2) 빈 행을 정확히 하나만 덧붙인다.
    *
@@ -683,7 +689,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setLines((current) => {
       const idx = current.findIndex((line) => line.id === id)
       if (idx === -1 || idx !== current.length - 1) return current
-      return [...current, emptyLine()]
+      return appendBlankRowIfLastChanged(current, before, after, (line) => line.id, emptyLine, isLineContentEqual)
     })
 
     // D6·H5: 반복 증식이 같은 문구로 이어지지 않도록 보이지 않는 폭 없는 공백(U+200B)으로
@@ -708,7 +714,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const removeLine = (id: string) => {
-    setLines((ls) => (ls.length === 1 ? ls : ls.filter((l) => l.id !== id)))
+    setLines((ls) => removeLinePreservingMinimum(
+      ls,
+      id,
+      (line) => line.id,
+      emptyLine,
+      1,
+      (line) => Boolean(line.productId),
+    ))
     setSelectedIds((prev) => {
       const next = new Set(prev)
       next.delete(id)
@@ -760,8 +773,28 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       product?.sellingPrice != null ? String(product.sellingPrice) : line.unitPrice
     // 자동채움 판정은 견적과 공용 헬퍼(shouldAutoFillPrice) — 비대칭 재발 구조 차단(R4-F1).
     const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
-    const nextUnitPrice = shouldAutoFill ? fallbackUnitPrice : line.unitPrice
     const partnerId = selectedPartner?.id
+    const partnerCode = selectedPartner?.partnerCode
+    const category = product?.categoryKey === 'homemulti'
+      ? 'HOMEMULTI'
+      : product?.categoryKey === 'commercialMulti'
+        ? 'COMMERCIAL_MULTI'
+        : 'OTHER'
+    const calculateWithConfig = (config: PartnerDcConfig | null) => product?.sellingPrice == null
+      ? null
+      : calculateSlipDiscount({
+        listPrice: Number(product.sellingPrice),
+        fixedDiscountRate: product.fixedDiscountRate,
+        category,
+        hasVariableDiscount: product.hasVariableDiscount,
+      }, config)
+    // 품목 UUID/정가는 DC 조회와 독립적으로 먼저 확정한다.
+    const dcResult = shouldAutoFill && partnerCode && partnerDcConfig
+      ? calculateWithConfig(partnerDcConfig)
+      : null
+    const nextUnitPrice = shouldAutoFill
+      ? String(dcResult?.unitPrice ?? fallbackUnitPrice)
+      : line.unitPrice
     const pricedLine = recalculateLineVat(asVatLine({ ...line, unitPrice: nextUnitPrice }), 'PRICE')
     const nextLine: LineDraft = {
       ...pricedLine,
@@ -771,12 +804,16 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       unitPrice: nextUnitPrice,
       priceSource: shouldAutoFill ? 'CATALOG' : line.priceSource,
       catalogUnitPrice: product?.sellingPrice != null ? String(product.sellingPrice) : line.catalogUnitPrice ?? null,
+      categoryKey: product?.categoryKey ?? null,
+      fixedDiscountRate: product?.fixedDiscountRate ?? null,
+      hasVariableDiscount: product?.hasVariableDiscount ?? null,
+      discountInfo: dcResult?.info ?? null,
       priceMemoryUpdatedAt: null,
       priceRefreshChanged: false,
       productType: product?.productType ?? null,
       modelCode: product?.modelCode ?? null,
       lookupError: null,
-      lookupLoading: Boolean(partnerId && productId && shouldAutoFill),
+      lookupLoading: Boolean(partnerId && productId && shouldAutoFill && !dcResult),
     }
     updateLine(line.id, nextLine)
     // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
@@ -784,9 +821,37 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     maybeExpandLastLine(line.id, line, nextLine)
     if (!partnerId || !productId || !shouldAutoFill) {
       if (productId && shouldAutoFill) {
-        setPriceLookupAnnouncement(`라인 ${lineNumber} 판매가 적용`)
+        setPriceLookupAnnouncement(`라인 ${lineNumber} ${dcResult?.info ?? '판매가 적용'}`)
       }
       return
+    }
+    let resolvedDcResult = dcResult
+    if (!resolvedDcResult && partnerCode) {
+      try {
+        const config = partnerDcConfig ?? await withPriceLookupTimeout(getPartnerDcConfig(partnerCode))
+        if (selectedPartnerIdRef.current !== partnerId) return
+        if (!partnerDcConfig) setPartnerDcConfig(config)
+        resolvedDcResult = calculateWithConfig(config)
+        if (resolvedDcResult && resolvedDcResult.source !== 'NONE') {
+          const discountedPrice = String(resolvedDcResult.unitPrice)
+          setLines((currentLines) => currentLines.map((current) =>
+            current.id === line.id
+              && current.productId === productId
+              && selectedPartnerIdRef.current === partnerId
+              && current.priceSource !== 'USER'
+              ? {
+                ...recalculateLineVat(asVatLine({ ...current, unitPrice: discountedPrice }), 'PRICE'),
+                unitPrice: discountedPrice,
+                priceSource: 'CATALOG',
+                discountInfo: resolvedDcResult?.info ?? null,
+                lookupLoading: true,
+              }
+              : current,
+          ))
+        }
+      } catch {
+        // DC 실패/timeout은 이미 확정한 정가 fallback을 유지한다.
+      }
     }
     /**
      * R8-FE-3: 응답 도착 시점에 이 라인에 단가를 실제로 쓸 수 있는가.
@@ -808,9 +873,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return true
     }
     try {
-      const memory = await getPriceMemory(partnerId, productId)
+      const memory = await withPriceLookupTimeout(getPriceMemory(partnerId, productId))
       const remembered = memory?.unitPrice
-      const resolvedUnitPrice = remembered == null ? fallbackUnitPrice : String(remembered)
+      // 최근단가 miss/실패 시 이미 계산한 고정DC·전역DC 단가를 정가로 되돌리지 않는다.
+      const hasAuthoritativeDiscount = resolvedDcResult != null && resolvedDcResult.source !== 'NONE'
+      const resolvedUnitPrice = hasAuthoritativeDiscount || remembered == null
+        ? String(resolvedDcResult?.unitPrice ?? fallbackUnitPrice)
+        : String(remembered)
+      const usesRememberedPrice = !hasAuthoritativeDiscount && remembered != null
       const applied = canStillApply()
       setLines((currentLines) =>
         currentLines.map((current) => {
@@ -821,16 +891,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           return {
             ...recalculateLineVat(asVatLine({ ...current, unitPrice: resolvedUnitPrice }), 'PRICE'),
             unitPrice: resolvedUnitPrice,
-            priceSource: remembered == null ? 'CATALOG' : 'REMEMBERED',
-            priceMemoryUpdatedAt: memory?.updatedAt ?? null,
+            priceSource: usesRememberedPrice ? 'REMEMBERED' : 'CATALOG',
+            priceMemoryUpdatedAt: usesRememberedPrice ? memory?.updatedAt ?? null : null,
             priceRefreshChanged: false,
+            discountInfo: hasAuthoritativeDiscount ? resolvedDcResult?.info ?? null : null,
             lookupLoading: false,
           }
         }),
       )
       if (applied) {
         setPriceLookupAnnouncement(
-          `라인 ${lineNumber} ${remembered == null ? '판매가' : '거래처 최근단가'} 적용`,
+          `라인 ${lineNumber} ${remembered == null ? (resolvedDcResult?.info ?? '판매가 적용') : '거래처 최근단가'} 적용`,
         )
       }
     } catch {
@@ -845,7 +916,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             : current,
         ),
       )
-      if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} 판매가 적용`)
+      if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} ${resolvedDcResult?.info ?? '판매가 적용'}`)
     }
   }
 
@@ -853,7 +924,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
    * 거래처 변경 bulk 재조회 — 공용 훅(usePartnerPriceRefresh)이 수명주기·조회·해석을 맡고,
    * 여기서는 LineDraft(priceSource/catalog 규약) 로 후보를 뽑아 로컬 state 에 적용한다(D-R8-10).
    */
-  const refreshAutoPricesForPartner = async (partnerId: string) => {
+  const refreshAutoPricesForPartner = async (
+    partnerId: string,
+    discountConfigPromise: Promise<PartnerDcConfig | null>,
+    requestSeq: number,
+  ) => {
     // R6-M5: 재조회 시작 시 stale 단건 안내를 클리어(미클리어 시 배너 비활성 폴백이 aria-live 거짓 고지).
     setPriceLookupAnnouncement('')
     const candidates: PartnerRepriceCandidate[] = linesRef.current
@@ -864,8 +939,25 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         currentUnitPrice: line.unitPrice,
         // 카탈로그 미확보 시 옛 거래처 단가 fallback 금지 — 공용 훅이 UNAVAILABLE로 비운다.
         catalogFallback: line.catalogUnitPrice ?? null,
+        discountInput: line.catalogUnitPrice == null
+          ? undefined
+          : {
+            fixedDiscountRate: line.fixedDiscountRate,
+            category: line.categoryKey === 'homemulti'
+              ? 'HOMEMULTI'
+              : line.categoryKey === 'commercialMulti'
+                ? 'COMMERCIAL_MULTI'
+                : 'OTHER',
+            hasVariableDiscount: line.hasVariableDiscount,
+          },
       }))
-    if (candidates.length === 0) return
+    if (candidates.length === 0) {
+      // 새 거래처에 재조회 대상이 없어도 이전 거래처 bulk 응답은 무효화한다.
+      partnerReprice.invalidate(partnerId)
+      // 직전 거래처의 bulk 조회가 남긴 busy 표시는 새 거래처에 후보가 없어도 정리한다.
+      setLines((current) => current.map((line) => ({ ...line, lookupLoading: false })))
+      return
+    }
     const candidateIds = new Set(candidates.map((candidate) => candidate.key))
     setLines((current) =>
       current.map((line) =>
@@ -874,8 +966,18 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           : line,
       ),
     )
-    const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates)
-    if (!isCurrent()) return
+    const discountConfig = await discountConfigPromise
+    // DC 응답을 기다리는 동안 거래처가 다시 바뀌었으면 이 run 자체를 시작하지 않는다.
+    // 같은 거래처가 A→B→A로 재선택된 경우도 이전 요청 세대로부터 격리한다.
+    if (selectedPartnerIdRef.current !== partnerId || dcRequestSeqRef.current !== requestSeq) return
+    const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates, discountConfig)
+    if (!partnerRepriceSessionIsCurrent(
+      requestSeq,
+      dcRequestSeqRef.current,
+      partnerId,
+      selectedPartnerIdRef.current ?? '',
+      isCurrent(),
+    )) return
     const outcomeById = new Map(outcomes.map((outcome) => [outcome.key, outcome]))
     setLines((current) =>
       current.map((candidate) => {
@@ -892,6 +994,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           priceSource: outcome.source === 'UNAVAILABLE' ? null : outcome.source,
           priceMemoryUpdatedAt: outcome.updatedAt,
           priceRefreshChanged: (outcome.source === 'UNAVAILABLE' ? '' : outcome.unitPrice) !== candidate.unitPrice,
+          discountInfo: outcome.discountInfo,
           lookupError: outcome.source === 'UNAVAILABLE'
             ? '카탈로그 판매가를 확인할 수 없습니다. 단가를 직접 입력해 주세요.'
             : null,
@@ -959,11 +1062,19 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const handlePartnerAutocompleteChange = async (
     partner: PartnerOption | null,
   ) => {
+    const dcRequestSeq = ++dcRequestSeqRef.current
     setSelectedPartner(partner)
+    setPartnerDcConfig(null)
     selectedPartnerIdRef.current = partner?.id ?? null
+    // 거래처를 고른 즉시 직전 거래처의 DC/최근단가 세션을 stale 처리한다.
+    // 새 DC가 끝나 새 bulk run을 시작하기 전에도 늦은 직전 outcome이 적용되지 않아야 한다.
+    partnerReprice.invalidate(partner?.id ?? null)
+    // 거래처 교체/무효화 직후 이전 요청의 busy 표시를 먼저 제거한다. 새 후보가 있으면
+    // refreshAutoPricesForPartner 가 다시 true 로 올리고, 실패/무응답이면 timeout 경로가 내린다.
+    setLines((current) => current.map((line) => ({ ...line, lookupLoading: false })))
 
     if (!partner) {
-      partnerReprice.invalidate()
+      setPartnerDcConfig(null)
       setLines((current) => current.map((line) => ({
         ...line,
         lookupLoading: false,
@@ -984,7 +1095,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return
     }
     if (partner.id) {
-      void refreshAutoPricesForPartner(partner.id)
+      const discountConfigPromise = withPriceLookupTimeout(getPartnerDcConfig(partner.partnerCode))
+        .catch(() => null)
+        .then((config) => {
+          if (dcRequestSeqRef.current === dcRequestSeq && selectedPartnerIdRef.current === partner.id) {
+            setPartnerDcConfig(config)
+          }
+          return config
+        })
+      void refreshAutoPricesForPartner(partner.id, discountConfigPromise, dcRequestSeq)
     }
 
     // 1단계: search summary 즉시 fill
@@ -1121,6 +1240,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                 }
               : {}),
           })),
+        discountInfo: lines
+          .filter((l) => l.productId && Number(l.quantity) > 0 && l.discountInfo)
+          .map((l) => l.discountInfo)
+          .filter((info, index, all): info is string => Boolean(info) && all.indexOf(info) === index)
+          .join(', ') || undefined,
       }
       return createSlip(payload)
     },
@@ -1575,9 +1699,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             >
               {stockButtonLabel}
             </Button>
-            <Button variant="primary" size="sm" onClick={addLine}>
-              + 라인 추가
-            </Button>
           </div>
           {/* 자동 증식은 현재 입력 포커스를 유지하고, 추가 사실만 한 번 낭독한다. */}
           <span
@@ -1638,10 +1759,20 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                     <ProductAutocomplete
                       value={lineProductValue}
                       onChange={(p) => void applyProductSelection(line, p)}
+                      onInputCommitChange={(committed) => {
+                        if (committed) return
+                        updateLine(line.id, {
+                          productId: null,
+                          productName: '',
+                          productType: null,
+                          modelCode: null,
+                        })
+                      }}
                       searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
                       label=""
                       ariaLabel={`라인 ${idx + 1} 품목`}
                       placeholder="모델명 또는 품목명"
+                      resultSelectionMode="single"
                       debounceMs={250}
                     />
                   }
@@ -1706,10 +1837,20 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                         <ProductAutocomplete
                           value={lineProductValue}
                           onChange={(p) => void applyProductSelection(line, p)}
+                          onInputCommitChange={(committed) => {
+                            if (committed) return
+                            updateLine(line.id, {
+                              productId: null,
+                              productName: '',
+                              productType: null,
+                              modelCode: null,
+                            })
+                          }}
                           searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
                           label=""
                           ariaLabel={`라인 ${idx + 1} 품목`}
                           placeholder="모델명 또는 품목명"
+                          resultSelectionMode="single"
                           debounceMs={250}
                         />
                       }

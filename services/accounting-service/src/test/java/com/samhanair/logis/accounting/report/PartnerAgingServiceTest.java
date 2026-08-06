@@ -13,6 +13,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -249,6 +250,7 @@ class PartnerAgingServiceTest {
         return new PartnerAccountTotal() {
             @Override public UUID getPartnerId()       { return partnerId; }
             @Override public String getAccountCode()   { return accountCode; }
+            @Override public JournalSourceType getSourceType() { return null; }
             @Override public BigDecimal getDebitTotal()  { return debit; }
             @Override public BigDecimal getCreditTotal() { return credit; }
         };

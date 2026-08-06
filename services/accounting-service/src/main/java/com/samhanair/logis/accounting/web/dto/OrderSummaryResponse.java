@@ -13,6 +13,7 @@ public record OrderSummaryResponse(
         LocalDate validUntil,
         BigDecimal totalSupplyAmount,
         BigDecimal totalVatAmount,
-        BigDecimal totalAmount
+        BigDecimal totalAmount,
+        int unresolvedLineCount
 ) {
 }

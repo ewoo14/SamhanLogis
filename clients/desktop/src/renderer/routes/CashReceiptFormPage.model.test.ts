@@ -4,9 +4,43 @@ import {
   cashReceiptInitialFormState,
   partnerLookupUnavailableOnHydrate,
   validateCashReceiptForm,
+  type CashReceiptFormState,
 } from './CashReceiptFormPage.model'
 
 describe('CashReceiptFormPage model', () => {
+  it('입금보고서 초기 상태는 마지막 빈행을 하나 가진다', () => {
+    const state = cashReceiptInitialFormState() as CashReceiptFormState & { lines?: unknown[] }
+
+    expect(state.lines).toHaveLength(1)
+    expect(state.lines?.[0]).toMatchObject({
+      partnerCode: '',
+      partnerName: '',
+      amount: '',
+      memo: '',
+    })
+  })
+
+  it('거래처별 행을 분할한 저장 payload를 만든다', () => {
+    const state = cashReceiptInitialFormState({
+      amount: '1000000',
+      partnerCode: 'P-TOTAL',
+      partnerName: '대표 거래처',
+    }) as CashReceiptFormState & { lines?: unknown[] }
+    state.lines = [
+      { partnerCode: 'P-001', partnerName: '거래처A', amount: '600000', memo: 'A 분할' },
+      { partnerCode: 'P-002', partnerName: '거래처B', amount: '400000', memo: 'B 분할' },
+      { partnerCode: '', partnerName: '', amount: '', memo: '' },
+    ]
+
+    expect(buildCashReceiptRequest(state)).toMatchObject({
+      amount: '1000000',
+      lines: [
+        { partnerCode: 'P-001', partnerName: '거래처A', amount: '600000', memo: 'A 분할' },
+        { partnerCode: 'P-002', partnerName: '거래처B', amount: '400000', memo: 'B 분할' },
+      ],
+    })
+  })
+
   it('오늘 날짜와 기본 계정 102/110으로 초기화한다', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-05T10:30:00+09:00'))

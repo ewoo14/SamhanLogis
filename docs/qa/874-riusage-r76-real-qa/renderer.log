@@ -1,0 +1,35 @@
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m354[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5321[22m/[39m
+[2mAM 2:54:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 2:54:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SafetyStockAlertsPage.tsx, /routes/SlipFormPage.tsx, /routes/EstimateFormPage.tsx, /routes/SlipDetailPage.tsx, /routes/EstimateItemsCatalogPage.tsx[22m
+[2mAM 2:54:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 2:54:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 2:55:01[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 2:55:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 2:56:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 3:38:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx, /routes/EstimateFormPage.tsx, /routes/SlipDetailPage.tsx[22m
+[2mAM 3:39:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx, /routes/EstimateFormPage.tsx, /routes/SlipDetailPage.tsx[22m
+[2mAM 3:39:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 3:39:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 3:39:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 3:41:18[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 3:41:41[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx, /routes/EstimateFormPage.tsx, /routes/SlipDetailPage.tsx[22m
+[2mAM 3:42:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/dev/Samhan-Public/.claude/worktrees/t874/clients/web/design-system/dist/index.js[22m
+[2mAM 3:42:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/dev/Samhan-Public/.claude/worktrees/t874/clients/web/design-system/dist/index.js[22m
+[2mAM 3:42:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles/global.css[22m
+[2mAM 3:42:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/dev/Samhan-Public/.claude/worktrees/t874/clients/web/design-system/dist/index.js[22m
+[2mAM 3:42:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles/global.css[22m
+[2mAM 3:42:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles/global.css[22m
+[2mAM 3:42:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles/global.css[22m
+[2mAM 3:44:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 3:57:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/dev/Samhan-Public/.claude/worktrees/t874/clients/web/design-system/dist/index.js[22m
+[2mAM 3:57:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/dev/Samhan-Public/.claude/worktrees/t874/clients/web/design-system/dist/index.js[22m
+[2mAM 3:57:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles/global.css[22m
+[2mAM 3:57:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles/global.css[22m
+[2mAM 4:08:57[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/routes/SlipFormPage.tsx[22m
+[2mAM 4:09:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/dev/Samhan-Public/.claude/worktrees/t874/clients/web/design-system/dist/index.js[22m
+[2mAM 4:09:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/dev/Samhan-Public/.claude/worktrees/t874/clients/web/design-system/dist/index.js[22m
+[2mAM 4:09:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles/global.css[22m
+[2mAM 4:09:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles/global.css[22m

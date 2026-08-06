@@ -363,13 +363,13 @@ test.describe('menu-5category view-only mutation gates', () => {
   })
 
   test('배차 SMS view-only: 미리보기 버튼이 비활성화된다', async ({ page }) => {
-    await gotoWithPerm(page, '/arologis/dispatch-sms', 'dispatch.batch', false, 'DISPATCH')
+    await gotoWithPerm(page, '/arologis/dispatch-sms', 'notification.dispatch-sms.display', false, 'DISPATCH')
 
     await expect(page.locator('[data-testid="dispatch-sms-preview-button"]')).toBeDisabled()
   })
 
   test('배차 SMS create 보유: 미리보기 버튼이 활성화된다', async ({ page }) => {
-    await gotoWithPerm(page, '/arologis/dispatch-sms', 'dispatch.batch', true, 'DISPATCH')
+    await gotoWithPerm(page, '/arologis/dispatch-sms', 'notification.dispatch-sms.display', true, 'DISPATCH')
 
     await expect(page.locator('[data-testid="dispatch-sms-preview-button"]')).not.toBeDisabled()
   })

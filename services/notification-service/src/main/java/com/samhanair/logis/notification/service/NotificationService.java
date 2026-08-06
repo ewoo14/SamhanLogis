@@ -21,12 +21,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -52,6 +54,7 @@ public class NotificationService {
     private final Map<NotificationChannel, NotificationGateway> gatewayMap;
     private final UserClient userClient;
     private final PushDeviceTokenService pushDeviceTokenService;
+    private final NotificationDispatchPersistence dispatchPersistence;
 
     /**
      * 발송 재시도 최대 횟수 — post-W5 backlog cleanup (Q-W3-1 채택, D-P9-21).
@@ -78,7 +81,7 @@ public class NotificationService {
                                UserClient userClient,
                                int maxRetryAttempts,
                                NotificationGatewayMetrics gatewayMetrics) {
-        this(requestRepository, logRepository, gatewayMap, userClient, null, maxRetryAttempts, gatewayMetrics);
+        this(requestRepository, logRepository, gatewayMap, userClient, null, maxRetryAttempts, gatewayMetrics, null);
     }
 
     @Autowired
@@ -88,7 +91,8 @@ public class NotificationService {
                                UserClient userClient,
                                @Autowired(required = false) PushDeviceTokenService pushDeviceTokenService,
                                @Value("${samhan.notification.retry.max-attempts:5}") int maxRetryAttempts,
-                               @Autowired(required = false) NotificationGatewayMetrics gatewayMetrics) {
+                               @Autowired(required = false) NotificationGatewayMetrics gatewayMetrics,
+                               @Autowired(required = false) NotificationDispatchPersistence dispatchPersistence) {
         this.requestRepository = requestRepository;
         this.logRepository = logRepository;
         this.gatewayMap = gatewayMap;
@@ -96,6 +100,7 @@ public class NotificationService {
         this.pushDeviceTokenService = pushDeviceTokenService;
         this.maxRetryAttempts = maxRetryAttempts;
         this.gatewayMetrics = gatewayMetrics;
+        this.dispatchPersistence = dispatchPersistence;
     }
 
     /**
@@ -104,7 +109,6 @@ public class NotificationService {
      * @param req 발송 요청 DTO
      * @return 영속화된 NotificationRequest (status = SENT 또는 FAILED)
      */
-    @Transactional
     public NotificationRequest send(NotificationSendRequest req) {
         return sendWithGatewayResult(req).notificationRequest();
     }
@@ -112,15 +116,40 @@ public class NotificationService {
     /**
      * 발송 요청 생성 + 즉시 1회 게이트웨이 호출 + status 전이. gateway 결과(msg_id / raw) 포함 반환.
      *
-     * <p>SP-09-2 — {@code DispatchBatchSendService} 가 각 entry 별 Aligo msg_id / gatewayRaw 를
-     * SEND_AUDIT responsePayload 에 연결할 수 있도록 gateway 결과를 함께 반환한다.
+     * <p>공용 gateway 결과를 반환한다. 배차안내문자 Scope A는 이 공용 경로를 호출하지 않지만,
+     * 다른 알림 소비자의 감사/추적 계약을 위해 유지한다.
      * 기존 {@link #send} 는 본 메서드에 위임하여 하위 호환을 유지한다.
      *
      * @param req 발송 요청 DTO
      * @return {@link SendResult} — NotificationRequest + NotificationGatewayResult 쌍
      */
-    @Transactional
     public SendResult sendWithGatewayResult(NotificationSendRequest req) {
+        if (dispatchPersistence != null) {
+            if (req.recipientType() == RecipientType.USER && req.recipientId() != null
+                    && !userClient.exists(req.recipientId())) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "수신자(USER) 미존재: " + req.recipientId());
+            }
+            NotificationRequest prepared = dispatchPersistence.prepare(req);
+            if (prepared.getStatus() == NotificationStatus.SENT) {
+                return new SendResult(prepared, null);
+            }
+            if (dispatchPersistence.claim(prepared).isEmpty()) {
+                return new SendResult(prepared, null);
+            }
+            NotificationGatewayResult result = invokeGatewayWithResult(prepared);
+            return new SendResult(dispatchPersistence.complete(prepared), result);
+        }
+        if (req.idempotencyKey() != null && !req.idempotencyKey().isBlank()) {
+            var existing = requestRepository.findByIdempotencyKey(req.idempotencyKey());
+            if (existing.isPresent()) {
+                NotificationRequest existingRequest = existing.get();
+                if (existingRequest.getStatus() == NotificationStatus.SENT) {
+                    return new SendResult(existingRequest, null);
+                }
+                NotificationGatewayResult retryResult = invokeGatewayWithResult(existingRequest);
+                return new SendResult(existingRequest, retryResult);
+            }
+        }
         NotificationRequest entity = NotificationRequest.open(
                 req.recipientType(),
                 req.recipientId(),
@@ -129,7 +158,7 @@ public class NotificationService {
                 req.templateCode(),
                 req.subject(),
                 req.body(),
-                req.payload());
+                req.payload(), req.idempotencyKey());
 
         // 수신자 검증 (USER / PARTNER 만)
         if (req.recipientType() == RecipientType.USER && req.recipientId() != null) {
@@ -144,10 +173,34 @@ public class NotificationService {
         return new SendResult(saved, gatewayResult);
     }
 
+    /** gateway 성공 후 complete 전에 종료된 오래된 PENDING 요청을 재처리한다. */
+    @Scheduled(fixedDelayString = "${samhan.notification.pending-recovery-delay-ms:5000}")
+    public void recoverPending() {
+        if (dispatchPersistence == null) {
+            return;
+        }
+        List<NotificationRequest> pending = requestRepository
+                .findTop100ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
+                        NotificationStatus.PENDING, LocalDateTime.now().minusSeconds(30));
+        for (NotificationRequest request : pending) {
+            try {
+                if (dispatchPersistence.claim(request).isEmpty()) {
+                    continue;
+                }
+                NotificationGatewayResult result = invokeGatewayWithResult(request);
+                dispatchPersistence.complete(request);
+                log.info("[NotificationService] PENDING 복구 완료 requestId={} status={}",
+                        request.getId(), result.gatewayStatus());
+            } catch (RuntimeException ex) {
+                log.warn("[NotificationService] PENDING 복구 실패 requestId={}", request.getId(), ex);
+            }
+        }
+    }
+
     /**
      * 발송 결과 — NotificationRequest + NotificationGatewayResult 쌍.
      *
-     * <p>SP-09-2 — SEND_AUDIT payload 에 msg_id / gatewayRaw 를 연결하기 위해 도입.
+     * <p>공용 알림 gateway 결과와 NotificationRequest를 함께 반환한다.
      *
      * @param notificationRequest 영속화된 발송 요청 엔티티
      * @param gatewayResult       게이트웨이 호출 결과 (msg_id / rawResponse 포함)
@@ -225,7 +278,7 @@ public class NotificationService {
      * 주입된 경우 channel × result 별 counter increment ({@code notification_gateway_send_total}
      * actuator/prometheus 노출).
      *
-     * <p>SP-09-2 — {@link NotificationGatewayResult} 반환 추가 (msg_id / rawResponse SEND_AUDIT 연결).
+     * <p>{@link NotificationGatewayResult}를 포함해 공용 알림 소비자가 gateway 원문을 추적할 수 있다.
      *
      * @return 게이트웨이 호출 결과 (어댑터 미등록 시 FAILURE_NO_ADAPTER 결과 반환)
      */

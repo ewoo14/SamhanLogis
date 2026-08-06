@@ -257,6 +257,8 @@ export function MessengerPage() {
                 minChars={1}
                 required
                 max={RECIPIENT_MAX}
+                resultSelectionMode="multiple"
+                resultSelectionTitle="수신자 검색 결과"
                 disabled={!canSend || sendMutation.isPending}
                 renderChip={(recipient, index, onRemove) => (
                   <TagChip

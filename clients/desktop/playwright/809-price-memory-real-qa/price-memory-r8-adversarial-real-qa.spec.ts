@@ -615,8 +615,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
       '단건 hit 시나리오에서 bulk 호출 발생(경로 오배선)',
     ).toBe(0)
 
-    // miss — 기억 없는 품목은 '판매가' 마커('정가' 아님, D-R4-1). 폼은 1라인으로 시작 → 라인 추가.
-    await page.getByRole('button', { name: '+ 라인 추가' }).click()
+    // miss — 기억 없는 품목은 '판매가' 마커('정가' 아님, D-R4-1). 다음 빈 행에 입력한다.
     await page.waitForTimeout(400)
     await pickAutocomplete(page, '라인 2 품목', '품목 목록', UI_MISS.model)
     await page.waitForTimeout(1500)

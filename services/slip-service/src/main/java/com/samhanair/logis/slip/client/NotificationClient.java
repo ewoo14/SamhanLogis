@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.time.Duration;
 import java.util.Map;
@@ -107,12 +108,14 @@ public class NotificationClient {
      * 외부 전화번호 SMS 발송 결과를 boolean 으로 반환한다.
      *
      * <p>슬3 타배송사 발송 이력의 SENT/FAILED 판정용이다. 기존 graceful void 메서드는 유지하고,
-     * 본 메서드는 HTTP 2xx 일 때만 {@code true}, 토큰/전화번호 누락 또는 예외는 {@code false} 를 반환한다.
+     * 본 메서드는 notification-service 응답 envelope의 {@code data.status == SENT} 일 때만
+     * {@code true}를 반환한다. HTTP 2xx 이더라도 {@code FAILED}, 빈 body 또는 상태 누락은
+     * 비전송으로 처리한다.
      *
      * @param phone 수신 전화번호
      * @param subject 제목
      * @param body 본문
-     * @return notification-service 가 2xx 로 수락했는지 여부
+     * @return notification-service 가 실제 발송 완료(SENT)로 응답했는지 여부
      */
     public boolean sendExternalSmsWithResult(String phone, String subject, String body) {
         if (phone == null || phone.isBlank()) {
@@ -135,12 +138,57 @@ public class NotificationClient {
      * @param body 본문
      */
     public void sendUserPush(UUID recipientUserId, String subject, String body) {
-        sendInternal(Map.of(
+        sendUserPushWithResult(recipientUserId, subject, body);
+    }
+
+    /** 푸시 전달 성공 여부를 durable outbox가 재시도 판정에 사용한다. */
+    public boolean sendUserPushWithResult(UUID recipientUserId, String subject, String body) {
+        return sendUserPushWithResult(recipientUserId, subject, body, null);
+    }
+
+    /** 저장 사건별 멱등 키를 notification-service에 전달한다. */
+    public boolean sendUserPushWithResult(UUID recipientUserId, String subject, String body,
+                                           UUID idempotencyKey) {
+        Map<String, Object> requestBody = new java.util.HashMap<>(Map.of(
                 "recipientType", "USER",
                 "recipientId", recipientUserId.toString(),
                 "channel", "PUSH",
                 "subject", safeTruncate(subject, 200),
                 "body", safeTruncate(body, 2000)));
+        if (idempotencyKey != null) {
+            requestBody.put("idempotencyKey", idempotencyKey.toString());
+        }
+        return sendInternalWithResult(requestBody);
+    }
+
+    /** 협업 수정 PUSH와 같은 사건을 알림센터 인앱 목록에도 기록한다. */
+    public boolean publishUserNotificationCenter(UUID recipientUserId, String subject, String body,
+                                                 UUID eventId) {
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("[NotificationClient] internal token missing — notification center publish skip");
+            return false;
+        }
+        try {
+            CenterPublishEnvelope response = restClient.post()
+                    .uri("/internal/notifications")
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "channel", "MESSENGER",
+                            "severity", "INFO",
+                            "title", safeTruncate(subject, 200),
+                            "body", safeTruncate(body, 2000),
+                            "targetUserId", recipientUserId,
+                            "sourceService", "slip-service",
+                            "sourceRefId", eventId.toString()))
+                    .retrieve()
+                    .body(CenterPublishEnvelope.class);
+            return response != null && response.data() != null;
+        } catch (Exception ex) {
+            log.warn("[NotificationClient] notification center publish failed — msg={}", ex.getMessage());
+            return false;
+        }
     }
 
     private void sendInternal(Map<String, Object> requestBody) {
@@ -154,16 +202,19 @@ public class NotificationClient {
             return false;
         }
         try {
-            restClient.post()
+            NotificationSendEnvelope response = restClient.post()
                     .uri(SEND_PATH)
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
                     .retrieve()
-                    .toBodilessEntity();
+                    .body(NotificationSendEnvelope.class);
+            boolean sent = response != null
+                    && response.data() != null
+                    && "SENT".equals(response.data().status());
             log.info("[NotificationClient] 발송 완료 — recipientType={} channel={}",
                     requestBody.get("recipientType"), requestBody.get("channel"));
-            return true;
+            return sent;
         } catch (RestClientResponseException ex) {
             log.warn("[NotificationClient] notification-service 호출 실패 (graceful fallback) — status={} body={}",
                     ex.getStatusCode(), ex.getResponseBodyAsString());
@@ -172,6 +223,20 @@ public class NotificationClient {
                     ex.getMessage());
         }
         return false;
+    }
+
+    /** notification-service {@code ApiResponse<T>} envelope의 발송 상태만 읽는다. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record NotificationSendEnvelope(NotificationSendData data) {
+    }
+
+    /** 내부 발송 응답 중 성공 판정에 필요한 상태만 보유한다. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record NotificationSendData(String status) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record CenterPublishEnvelope(UUID data) {
     }
 
     private static String safeTruncate(String value, int max) {

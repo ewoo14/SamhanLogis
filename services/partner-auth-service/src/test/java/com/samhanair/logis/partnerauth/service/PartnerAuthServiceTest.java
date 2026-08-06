@@ -67,6 +67,7 @@ class PartnerAuthServiceTest {
     private PartnerAuthJwtProperties jwtProperties;
     private DcConfigClient dcConfigClient;
     private SmsClient smsClient;
+    private PartnerActivityReader activityReader;
     private PartnerAuthService service;
 
     @BeforeEach
@@ -81,6 +82,10 @@ class PartnerAuthServiceTest {
         jwtProperties.setExpirationHours(8);
         dcConfigClient = mock(DcConfigClient.class);
         smsClient = mock(SmsClient.class);
+        activityReader = mock(PartnerActivityReader.class);
+        lenient().when(activityReader.read(anyString())).thenReturn(new PartnerActivity(null, null));
+        lenient().when(activityReader.read(anyString(), anyString()))
+                .thenReturn(new PartnerActivity(null, null));
 
         // lenient — 모든 테스트가 dcConfigClient.findByBizNo 를 호출하지는 않음.
         lenient().when(dcConfigClient.findByBizNo(anyString())).thenReturn(Optional.empty());
@@ -95,7 +100,7 @@ class PartnerAuthServiceTest {
 
         service = new PartnerAuthService(
                 authRepository, attemptRepository, sessionRepository,
-                passwordEncoder, jwtProperties, dcConfigClient, smsClient);
+                passwordEncoder, jwtProperties, dcConfigClient, smsClient, activityReader);
     }
 
     @Test
@@ -194,11 +199,79 @@ class PartnerAuthServiceTest {
         assertThat(parsed.getPayload().containsKey("role")).isFalse();
     }
 
+    @Test
+    @DisplayName("LONG_UNUSED 복구 후 다음 checkStatus에서도 LONG_UNUSED로 되돌아가지 않음")
+    void restoreLongUnused_checkStatus_상태유지() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1357"), PartnerStatus.LONG_UNUSED);
+        setLastLoginAt(pa, LocalDateTime.now().minusDays(31));
+        pa.restoreFromLongUnused();
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        var response = service.checkStatus("1234567890");
+
+        assertThat(response.status()).isEqualTo(PartnerStatus.NEED_PW_INPUT);
+        assertThat(pa.getStatus()).isEqualTo(PartnerStatus.NEED_PW_INPUT);
+    }
+
+    @Test
+    @DisplayName("LONG_UNUSED 복구 후 tryLogin이 비밀번호 검증과 토큰 발급까지 완료")
+    void restoreLongUnused_tryLogin_토큰발급() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1357"), PartnerStatus.LONG_UNUSED);
+        setEntityId(pa, UUID.randomUUID());
+        setLastLoginAt(pa, LocalDateTime.now().minusDays(31));
+        pa.restoreFromLongUnused();
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        TryLoginResponse response = service.tryLogin(
+                new TryLoginRequest("1234567890", "1357", false), "1.1.1.1", "ua");
+
+        assertThat(response.status()).isEqualTo(PartnerStatus.OK);
+        assertThat(response.token()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("복구하지 않은 30일 초과 거래처는 여전히 LONG_UNUSED로 선별")
+    void unrestoredExpired_checkStatus_LONG_UNUSED선별() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1357"), PartnerStatus.NEED_PW_INPUT);
+        setLastLoginAt(pa, LocalDateTime.now().minusDays(31));
+        setCreatedAt(pa, LocalDateTime.now().minusDays(31));
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        var response = service.checkStatus("1234567890");
+
+        assertThat(response.status()).isEqualTo(PartnerStatus.LONG_UNUSED);
+    }
+
+
     private static void setEntityId(PartnerAuth pa, UUID id) {
         try {
             java.lang.reflect.Field f = PartnerAuth.class.getDeclaredField("id");
             f.setAccessible(true);
             f.set(pa, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void setLastLoginAt(PartnerAuth pa, LocalDateTime value) {
+        try {
+            java.lang.reflect.Field f = PartnerAuth.class.getDeclaredField("lastLoginAt");
+            f.setAccessible(true);
+            f.set(pa, value);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void setCreatedAt(PartnerAuth pa, LocalDateTime value) {
+        try {
+            java.lang.reflect.Field f = com.samhanair.logis.common.entity.BaseEntity.class
+                    .getDeclaredField("createdAt");
+            f.setAccessible(true);
+            f.set(pa, value);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -229,6 +302,7 @@ class PartnerAuthServiceTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        setCreatedAt(pa, LocalDateTime.now().minusDays(31));
         when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
 
         TryLoginResponse r = service.tryLogin(
@@ -445,17 +519,11 @@ class PartnerAuthServiceTest {
     }
 
     @Test
-    @DisplayName("getExpiration — lastLoginAt + 30일 = expiresAt")
-    void getExpiration_30일_슬라이딩_계산() {
+    @DisplayName("getExpiration — 생성시각 + 30일 = expiresAt")
+    void getExpiration_생성시각기준_30일_계산() {
         PartnerAuth pa = PartnerAuth.seedFromLegacy(
                 "1234567890", "P001", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_INPUT);
-        try {
-            java.lang.reflect.Field f = PartnerAuth.class.getDeclaredField("lastLoginAt");
-            f.setAccessible(true);
-            f.set(pa, LocalDateTime.now().minusDays(10));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        setCreatedAt(pa, LocalDateTime.now().minusDays(10));
         when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
 
         var r = service.getExpiration("1234567890");

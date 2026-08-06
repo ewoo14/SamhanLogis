@@ -34,6 +34,7 @@ export type DailyProductRevalidationStatus =
   | 'NOT_FOUND'
   | 'AMBIGUOUS'
   | 'MISSING_REFERENT'
+  | 'MISSING_GLOBAL_DISCOUNT'
   | 'NOT_MEASURABLE'
   | 'OUT_OF_SCOPE'
 

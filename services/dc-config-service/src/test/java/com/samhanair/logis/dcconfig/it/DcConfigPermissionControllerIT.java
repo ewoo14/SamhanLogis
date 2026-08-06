@@ -127,6 +127,8 @@ class DcConfigPermissionControllerIT {
                 .thenReturn(new PageImpl<>(List.of(dcConfig), PageRequest.of(0, 50), 1));
         lenient().when(dcConfigService.updatePartnerDcConfig(anyString(), any()))
                 .thenReturn(dcConfig);
+        lenient().when(dcConfigService.getByPartnerCode(anyString()))
+                .thenReturn(dcConfig);
         lenient().when(estimateConfigService.getOrSeedDefault())
                 .thenReturn(EstimateConfig.defaults());
         lenient().when(estimateConfigService.update(any()))
@@ -155,6 +157,15 @@ class DcConfigPermissionControllerIT {
                 .andExpect(status().isForbidden());
 
         assertThat(deniedCount(PARTNER_DC_PAGE, "SALES", PermissionAction.VIEW.name())).isEqualTo(before + 1.0);
+    }
+
+    @Test
+    @DisplayName("전표 가격계산용 거래처 DC 단건 조회는 VIEW 권한이면 200")
+    void partnerDcGet_withViewGrant_returnsCalculationFields() throws Exception {
+        mockMvc.perform(withActor(get("/api/v1/partner-dc-configs/{partnerCode}", PARTNER_CODE), "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.partnerCode").value(PARTNER_CODE));
     }
 
     @Test

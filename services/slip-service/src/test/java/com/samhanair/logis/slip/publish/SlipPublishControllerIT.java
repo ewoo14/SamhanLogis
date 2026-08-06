@@ -64,15 +64,15 @@ import org.springframework.test.web.servlet.MvcResult;
  *   <li>{@link InventoryClient} — 발행만 검증, accept/complete 호출 X 이므로 사용 안 됨 (lenient mock)</li>
  * </ul>
  *
- * <p>{@code @TestPropertySource} 로 warehouse-code-map 주입 (yaml 의 dev 기본값과 동일).
+ * <p>{@code @TestPropertySource} 로 warehouse-code-map 주입.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-111111111111",
-        "app.publish.warehouse-code-map.2=22222222-2222-2222-2222-222222222222",
-        "app.publish.warehouse-code-map.14=33333333-3333-3333-3333-333333333333",
-        "app.publish.warehouse-code-map.1=44444444-4444-4444-4444-444444444444"
+        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-000000000001",
+        "app.publish.warehouse-code-map.2=11111111-1111-1111-1111-000000000002",
+        "app.publish.warehouse-code-map.14=11111111-1111-1111-1111-000000000003",
+        "app.publish.warehouse-code-map.1=11111111-1111-1111-1111-000000000004"
 })
 class SlipPublishControllerIT extends AbstractPostgresIT {
 
@@ -125,6 +125,8 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
         // PR-G1 backlog #1 — strict ON 기본값에서도 happy-path 통과하도록 FOUND 반환.
         Mockito.lenient().when(partnerInternalClient.verifyPartnerCode(ArgumentMatchers.anyString()))
                 .thenReturn(PartnerVerifyResult.found(java.util.Optional.of(RESOLVED_PARTNER_ID)));
+        Mockito.lenient().when(partnerInternalClient.resolveBusinessNumber(ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("230-70-10310"));
     }
 
     // ---------------- happy path: from-estimate ----------------
@@ -133,7 +135,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
     void publishFromEstimate_returns201_andSlipNo() throws Exception {
         Map<String, Object> body = estimateBody("EST-2026-0001");
 
-        mockMvc.perform(post("/api/v1/slips/from-estimate")
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-estimate")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES")
                         .header("Idempotency-Key", "idem-est-001")
@@ -145,7 +147,25 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.sourceType").value("ESTIMATE"))
                 .andExpect(jsonPath("$.data.sourceId").value("EST-2026-0001"))
                 .andExpect(jsonPath("$.data.idempotencyKey").value("idem-est-001"))
-                .andExpect(jsonPath("$.data.idempotentReplay").value(false));
+                .andExpect(jsonPath("$.data.idempotentReplay").value(false))
+                .andReturn();
+        UUID slipId = UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("data").get("slipId").asText());
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow()
+                .getBusinessNumber()).isEqualTo("230-70-10310");
+    }
+
+    @Test
+    void publishFromPartnerOrder_withoutBizCode_returns400InsteadOfCreatingUnidentifiedSlip() throws Exception {
+        Map<String, Object> body = partnerOrderBody("PO-MISSING-BIZ");
+        body.remove("bizCode");
+        mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", "idem-po-missing-biz")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
     }
 
     // ---------------- happy path: from-partner-order ----------------
@@ -153,6 +173,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
     @Test
     void publishFromPartnerOrder_returns201() throws Exception {
         Map<String, Object> body = partnerOrderBody("2026/04/15-1");
+        body.put("bizCode", "230-70-10310");
 
         MvcResult result = mockMvc.perform(post("/api/v1/slips/from-partner-order")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -170,6 +191,8 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                         .get("data").get("slipId").asText());
         org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow().getPartnerId())
                 .isEqualTo(RESOLVED_PARTNER_ID);
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow().getBusinessNumber())
+                .isEqualTo("230-70-10310");
     }
 
     @Test
@@ -653,6 +676,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
         body.put("partnerOrderId", partnerOrderId);
         body.put("ioDate", "20260504");
         body.put("partnerCode", "CUST-0002");
+        body.put("bizCode", "123-45-67890");
         body.put("partnerName", "협력사");
         body.put("employeeCode", "EMP-0002");
         body.put("warehouseCode", "00003");

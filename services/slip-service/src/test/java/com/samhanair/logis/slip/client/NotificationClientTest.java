@@ -25,6 +25,7 @@ class NotificationClientTest {
 
     private static final String TOKEN = "test-internal-token";
     private static final String ENDPOINT = "http://notification-service/internal/notifications/send";
+    private static final String CENTER_ENDPOINT = "http://notification-service/internal/notifications";
     private static final UUID RECIPIENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000401");
 
     private MockRestServiceServer server;
@@ -52,6 +53,7 @@ class NotificationClientTest {
                 .andExpect(jsonPath("$.recipientType").value("USER"))
                 .andExpect(jsonPath("$.recipientId").value(RECIPIENT_ID.toString()))
                 .andExpect(jsonPath("$.channel").value("PUSH"))
+                .andExpect(jsonPath("$.idempotencyKey").doesNotExist())
                 .andRespond(withSuccess());
 
         client.sendUserSms(RECIPIENT_ID, "sms", "body");
@@ -61,14 +63,14 @@ class NotificationClientTest {
     }
 
     @Test
-    void externalSmsResultIsTrueOnlyFor2xx() {
+    void externalSmsResultIsTrueOnlyWhenResponseStatusIsSent() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(jsonPath("$.recipientType").value("EXTERNAL_PHONE"))
                 .andExpect(jsonPath("$.recipientAddress").value("010-0000-0000"))
                 .andExpect(jsonPath("$.channel").value("SMS"))
-                .andRespond(withSuccess());
+                .andRespond(withSuccess("{\"data\":{\"status\":\"SENT\"}}", org.springframework.http.MediaType.APPLICATION_JSON));
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
@@ -94,6 +96,25 @@ class NotificationClientTest {
 
         assertThat(noTokenClient.sendExternalSmsWithResult("010-0000-0000", "subject", "body")).isFalse();
         noCallServer.verify();
+    }
+
+    @Test
+    void publishesUserNotificationCenterEntryWithStableSourceReference() {
+        UUID eventId = UUID.fromString("00000000-0000-0000-0000-000000000402");
+        server.expect(once(), requestTo(CENTER_ENDPOINT))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.channel").value("MESSENGER"))
+                .andExpect(jsonPath("$.severity").value("INFO"))
+                .andExpect(jsonPath("$.targetUserId").value(RECIPIENT_ID.toString()))
+                .andExpect(jsonPath("$.sourceService").value("slip-service"))
+                .andExpect(jsonPath("$.sourceRefId").value(eventId.toString()))
+                .andExpect(jsonPath("$.title").value("[전표 수정] 2026/08/01-7"))
+                .andRespond(withSuccess("{\"data\":\"00000000-0000-0000-0000-000000000403\"}", org.springframework.http.MediaType.APPLICATION_JSON));
+
+        assertThat(client.publishUserNotificationCenter(
+                RECIPIENT_ID, "[전표 수정] 2026/08/01-7", "body", eventId)).isTrue();
+        server.verify();
     }
 
     private static InternalAuthProperties props(String token) {

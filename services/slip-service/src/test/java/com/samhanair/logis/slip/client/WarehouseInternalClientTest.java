@@ -21,7 +21,7 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-/** WarehouseInternalClient — inventory-service 창고 단건 조회 wire 계약 회귀 가드. */
+/** 기존 전표 창고명 snapshot client의 최소 wire 계약만 확인한다. */
 class WarehouseInternalClientTest {
 
     private static final String TOKEN = "test-token";
@@ -35,39 +35,26 @@ class WarehouseInternalClientTest {
     void setUp() {
         RestClient.Builder builder = jacksonRestClientBuilder();
         server = MockRestServiceServer.bindTo(builder).build();
-
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        client = new WarehouseInternalClient(builder, props, new ObjectMapper());
+        client = new WarehouseInternalClient(
+                builder.baseUrl(BASE_URL).build(), props, new ObjectMapper());
     }
 
     @Test
-    void findWarehouseName_200은_inventory_warehouse_response에서_name을_파싱한다() {
+    void 창고명_조회_성공응답을_파싱한다() {
         server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andRespond(withSuccess("""
-                        {
-                          "success": true,
-                          "data": {
-                            "warehouseId": "50000000-0000-0000-0000-000000000001",
-                            "code": "WH-A",
-                            "name": "본사창고",
-                            "type": "MAIN",
-                            "address": "서울"
-                          }
-                        }
-                        """, MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess("{\"data\":{\"name\":\"본사창고\"}}", MediaType.APPLICATION_JSON));
 
         assertThat(client.findWarehouseName(WAREHOUSE_ID)).contains("본사창고");
         server.verify();
     }
 
     @Test
-    void findWarehouseName_404는_empty로_fail_soft_처리한다() {
+    void 창고명_조회_404는_해당창고없음으로부분응답한다() {
         server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
-                .andExpect(method(HttpMethod.GET))
-                .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
         assertThat(client.findWarehouseName(WAREHOUSE_ID)).isEmpty();
@@ -75,13 +62,28 @@ class WarehouseInternalClientTest {
     }
 
     @Test
-    void findWarehouseName_token_blank는_HTTP를_호출하지_않고_empty를_반환한다() {
+    void 정상_빈이름응답은_조회실패로전파한다() {
+        server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
+                .andRespond(withSuccess("{\"data\":null}", MediaType.APPLICATION_JSON));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> client.findWarehouseName(WAREHOUSE_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("창고 조회 실패")
+                .hasNoCause();
+        server.verify();
+    }
+
+    @Test
+    void token이_없으면_조회실패로전파하고_외부호출하지_않는다() {
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(" ");
         WarehouseInternalClient noTokenClient =
                 new WarehouseInternalClient(RestClient.builder(), props, new ObjectMapper());
 
-        assertThat(noTokenClient.findWarehouseName(WAREHOUSE_ID)).isEmpty();
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> noTokenClient.findWarehouseName(WAREHOUSE_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("internal token");
         server.verify();
     }
 
@@ -89,10 +91,9 @@ class WarehouseInternalClientTest {
         ObjectMapper objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        return RestClient.builder()
-                .messageConverters(converters -> {
-                    converters.removeIf(MappingJackson2HttpMessageConverter.class::isInstance);
-                    converters.add(new MappingJackson2HttpMessageConverter(objectMapper));
-                });
+        return RestClient.builder().messageConverters(converters -> {
+            converters.removeIf(MappingJackson2HttpMessageConverter.class::isInstance);
+            converters.add(new MappingJackson2HttpMessageConverter(objectMapper));
+        });
     }
 }

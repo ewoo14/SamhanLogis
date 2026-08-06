@@ -6,6 +6,11 @@
  */
 import { forwardRef } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
+import { MultiSelectAutocomplete } from '../MultiSelectAutocomplete'
+import type {
+  SearchResultSelectionColumn,
+  SearchResultSelectionMode,
+} from '../SearchResultSelectionModal'
 import { splitHighlightMatches } from '../AsyncAutocomplete/highlight'
 import styles from '../AsyncAutocomplete/AsyncAutocomplete.module.css'
 
@@ -26,6 +31,13 @@ export interface ProductOption {
   modelCode?: string
   /** 품목 유형 (선택) — "SINGLE" | "BUNDLE". BUNDLE 이면 세트 옵션 노출. */
   productType?: string
+  /** 규격 (선택). ProductSummaryResponse가 제공하는 실제 규격을 모달에 표시한다. */
+  specification?: string | null
+  /** 저장 전표 DC 계산용 원천값 — UUID가 아닌 가격 규칙만 전달한다. */
+  categoryKey?: string | null
+  fixedDiscountRate?: number | null
+  /** 변동DC 적용 자격 — 물리 카테고리 fallback과 별개인 BE 원천 플래그. */
+  hasVariableDiscount?: boolean | null
 }
 
 export interface ProductAutocompleteProps {
@@ -33,6 +45,8 @@ export interface ProductAutocompleteProps {
   value: ProductOption | null
   /** 선택 변경 콜백. null 은 선택 해제를 의미한다. */
   onChange: (product: ProductOption | null) => void
+  /** 선택된 품목을 다시 편집하면 false를 알린다. 저장 전 품목코드 확정 상태 해제에 사용한다. */
+  onInputCommitChange?: (committed: boolean) => void
   /**
    * 비동기 품목 검색 함수 (호출자 주입).
    * `q` 를 받아 `ProductOption[]` 을 resolve. 실패 시 reject.
@@ -54,6 +68,25 @@ export interface ProductAutocompleteProps {
   minChars?: number
   /** 입력 후 서버 검색까지 debounce 시간 ms (default: 250). */
   debounceMs?: number
+  /** 여러 후보를 별도 선택 모달로 보낼지 여부. null 이면 인라인 listbox 를 유지한다. */
+  resultSelectionMode?: SearchResultSelectionMode | null
+  /** 후보가 정확히 1건이면 즉시 확정한다. 기본값은 품목 입력의 일반 UX 계약인 true. */
+  autoSelectSingleResult?: boolean
+}
+
+export interface ProductMultiSelectAutocompleteProps {
+  selected: ProductOption[]
+  onAdd: (product: ProductOption) => void
+  onRemove: (product: ProductOption) => void
+  searchProducts: (q: string) => Promise<ProductOption[]>
+  label?: string
+  ariaLabel?: string
+  inputTestId?: string
+  placeholder?: string
+  disabled?: boolean
+  minChars?: number
+  debounceMs?: number
+  max?: number
 }
 
 function HighlightedProductField({
@@ -92,6 +125,31 @@ function HighlightedProductField({
   )
 }
 
+const productResultColumns: readonly SearchResultSelectionColumn<ProductOption>[] = [
+  {
+    key: 'modelName',
+    label: '모델명',
+    render: (product) => product.modelName,
+  },
+  {
+    key: 'productName',
+    label: '품목명',
+    render: (product) => product.productName,
+  },
+  {
+    key: 'specification',
+    label: '규격',
+    render: (product) => product.specification?.trim() || '—',
+  },
+  {
+    key: 'sellingPrice',
+    label: '단가',
+    render: (product) => product.sellingPrice == null
+      ? '—'
+      : `${product.sellingPrice.toLocaleString('ko-KR')}원`,
+  },
+]
+
 export const ProductAutocomplete = forwardRef<
   HTMLInputElement,
   ProductAutocompleteProps
@@ -100,6 +158,8 @@ export const ProductAutocomplete = forwardRef<
     searchProducts,
     label = '품목',
     placeholder = '모델명 또는 품목명 입력…',
+    resultSelectionMode = 'single',
+    autoSelectSingleResult = true,
     ...rest
   },
   ref,
@@ -130,6 +190,58 @@ export const ProductAutocomplete = forwardRef<
       )}
       label={label}
       placeholder={placeholder}
+      resultSelectionMode={resultSelectionMode ?? undefined}
+      resultSelectionTitle="품목 검색 결과"
+      resultSelectionColumns={productResultColumns}
+      autoSelectSingleResult={autoSelectSingleResult}
+      {...rest}
+    />
+  )
+})
+
+/** 품목 일괄 추가용 복수 선택 wrapper. 기존 ProductAutocomplete와 동작이 분리된 opt-in이다. */
+export const ProductMultiSelectAutocomplete = forwardRef<
+  HTMLInputElement,
+  ProductMultiSelectAutocompleteProps
+>(function ProductMultiSelectAutocomplete(
+  { searchProducts, label = '품목', placeholder = '모델명 또는 품목명 입력…', ...rest },
+  ref,
+) {
+  return (
+    <MultiSelectAutocomplete<ProductOption, ProductOption>
+      ref={ref}
+      search={searchProducts}
+      getOptionKey={(product) => product.id}
+      getSelectedKey={(product) => product.id}
+      getInputLabel={(product) => product.modelCode ?? product.modelName}
+      listboxLabel="품목 목록"
+      renderOption={(product, context) => (
+        <>
+          <HighlightedProductField
+            value={product.modelCode ?? product.modelName}
+            query={context?.query ?? ''}
+            label="모델코드"
+            className={styles['optionPrimary']}
+          />
+          <span className={styles['optionSep']}>·</span>
+          <HighlightedProductField
+            value={product.productName}
+            query={context?.query ?? ''}
+            label="품목명"
+            className={styles['optionSecondary']}
+          />
+        </>
+      )}
+      getChipProps={(product) => ({
+        label: product.modelCode ?? product.modelName,
+        value: product.productName,
+      })}
+      ariaLabel={rest.ariaLabel ?? '품목'}
+      label={label}
+      placeholder={placeholder}
+      resultSelectionMode="multiple"
+      resultSelectionTitle="품목 검색 결과"
+      autoSelectSingleResult
       {...rest}
     />
   )

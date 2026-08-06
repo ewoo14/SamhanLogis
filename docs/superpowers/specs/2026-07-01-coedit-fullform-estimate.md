@@ -16,7 +16,7 @@
 3. **역동기화**: subscribeDoc → provider header/items 를 로컬 React state(lines/header)로 반영(totals/buildBody 동작). 주문 applyProviderState 패턴.
 4. **바인딩**: 헤더 partnerName/businessNo/address/estimateDate/validUntil/memo → CollaborativeSlipInput `header.X`. 라인 modelName/productName/specification/quantity/unitPrice → `items.${index}.cell`(index seed-lock). **거래처 자동완성(AsyncAutocomplete)=coedit 중 평문/비활성**(주문 categoryKey Select 평문과 동일). 단가/금액 파생(totals)은 로컬 계산 유지.
 5. **productId lookup 동기화**: handleModelLookup 이 productId/productName/unitPrice 갱신 시 **provider 에도 기록**(setItemValue items.index.productName/unitPrice/productId) → 타 편집자 반영.
-6. **add/remove**: coedit 중 addLine/removeLine **비활성**(index seed-lock; provider 라인수≠서버 시 server-wins 재시드, 주문 421-430 가드 동일). 협업 add/remove=슬2(slA1 byId).
+6. **행 생성/삭제**: 수동 행 추가 버튼 없이 마지막 행 입력 시 자동 빈행을 생성한다. coedit 중에도 사용자의 미저장 행은 보존하며, 서버보다 앞선 provider를 행 수 불일치로 간주해 재시드하지 않는다. 행 삭제는 최소 행 규칙을 따른다.
 7. **BUNDLE setOptions**: coedit 제외(로컬 전용; edit 모드는 이미 전개완료 productType=null).
 8. **게이트**: coedit = isEdit && 편집가능(DRAFT/SENT, isReadOnly 반대) && 권한. coeditPending 시 입력/저장 잠금.
 9. **저장**: 기존 updateMutation(updateEstimate PUT). buildBody 는 동기화된 로컬 state 사용.

@@ -127,6 +127,62 @@ class ProductServiceTest {
     }
 
     @Test
+    void summary_exposes_modelName_as_productCode_even_when_modelCode_and_legacy_code_exist() {
+        ReflectionTestUtils.setField(product, "productCode", "010004");
+        ReflectionTestUtils.setField(product, "modelCode", "MODEL-004");
+
+        ProductSummaryResponse withModelCode = ProductSummaryResponse.from(product);
+
+        assertThat(withModelCode.productCode()).isEqualTo("SHA-W15K");
+    }
+
+    @Test
+    void lookup_by_product_code_resolves_legacy_alias_without_changing_product_uuid() {
+        when(productRepository.findByProductCodeAndIsDeletedFalse("010004")).thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("010004"))
+                .thenReturn(Optional.of(ProductAlias.create("010004", product, "S2_LEGACY_PRODUCT_CODE")));
+
+        ProductSummaryResponse result = service.lookupSummaryByProductCode("010004");
+
+        assertThat(result.id()).isEqualTo(productId);
+        verify(productAliasRepository).findByAliasCodeAndIsDeletedFalse("010004");
+    }
+
+    @Test
+    void lookup_by_product_code_resolves_exposed_model_name() {
+        when(productRepository.findByProductCodeAndIsDeletedFalse("SHA-W15K")).thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("SHA-W15K"))
+                .thenReturn(Optional.empty());
+        when(productRepository.findByModelNameAndIsDeletedFalse("SHA-W15K"))
+                .thenReturn(Optional.of(product));
+
+        ProductSummaryResponse result = service.lookupSummaryByProductCode(" SHA-W15K ");
+
+        assertThat(result.id()).isEqualTo(productId);
+        assertThat(result.productCode()).isEqualTo("SHA-W15K");
+    }
+
+    @Test
+    void lookup_by_product_code_rejects_ambiguous_code_across_products() {
+        Product otherProduct = Product.create("다른 제품", "010004", category,
+                BigDecimal.ONE, BigDecimal.ONE, "KRW", null, null);
+        UUID otherProductId = UUID.randomUUID();
+        ReflectionTestUtils.setField(otherProduct, "id", otherProductId);
+        ReflectionTestUtils.setField(product, "productCode", "010004");
+
+        when(productRepository.findByProductCodeAndIsDeletedFalse("010004")).thenReturn(Optional.of(product));
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("010004"))
+                .thenReturn(Optional.empty());
+        when(productRepository.findByModelNameAndIsDeletedFalse("010004"))
+                .thenReturn(Optional.of(otherProduct));
+
+        assertThatThrownBy(() -> service.lookupSummaryByProductCode("010004"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
     void create_persistsDynamicSpecsInRequestOrder() {
         when(productRepository.existsByModelNameAndIsDeletedFalse("SHA-W20K")).thenReturn(false);
         when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
@@ -172,6 +228,22 @@ class ProductServiceTest {
     }
 
     @Test
+    void create_duplicateActiveName_throwsConflict() {
+        when(productRepository.findByNameAndStatusAndIsDeletedFalse("스마트 벽걸이", ProductStatus.ACTIVE))
+                .thenReturn(List.of(product));
+
+        assertThatThrownBy(() -> service.create(new CreateProductRequest(
+                "스마트 벽걸이", "SHA-W20K", categoryId,
+                BigDecimal.ONE, BigDecimal.ONE, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException businessException = (BusinessException) ex;
+                    assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(businessException.getMessage()).contains("스마트 벽걸이");
+                });
+    }
+
+    @Test
     void create_unknownCategory_throwsNotFound() {
         UUID missingCategoryId = UUID.randomUUID();
         when(productRepository.existsByModelNameAndIsDeletedFalse("X")).thenReturn(false);
@@ -199,6 +271,32 @@ class ProductServiceTest {
     }
 
     @Test
+    void lookupByModelCodes_fallsBackToModelNameWhenModelCodeIsBlank() {
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(List.of("SHA-W15K")))
+                .thenReturn(List.of());
+        when(productRepository.findByModelNameInAndIsDeletedFalse(List.of("SHA-W15K")))
+                .thenReturn(List.of(product));
+
+        List<ProductSummaryResponse> result = service.lookupByModelCodes(List.of("SHA-W15K"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).modelCode()).isEqualTo("SHA-W15K");
+        verify(productRepository).findByModelNameInAndIsDeletedFalse(List.of("SHA-W15K"));
+    }
+
+    @Test
+    void lookupByModelNames_resolvesEcountProductWithoutModelCodeLookup() {
+        when(productRepository.findByModelNameInAndIsDeletedFalse(List.of("EC-ONLY-001")))
+                .thenReturn(List.of(product));
+
+        List<ProductSummaryResponse> result = service.lookupByModelNames(List.of("EC-ONLY-001"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).modelName()).isEqualTo("SHA-W15K");
+        verify(productRepository, never()).findByModelCodeInAndIsDeletedFalse(any());
+    }
+
+    @Test
     void update_changesNameAndDescription() {
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
         when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId)).thenReturn(List.of());
@@ -209,6 +307,63 @@ class ProductServiceTest {
         assertThat(response.name()).isEqualTo("새 이름");
         assertThat(response.description()).isEqualTo("새 설명");
         assertThat(response.modelName()).isEqualTo("SHA-W15K");
+    }
+
+    @Test
+    void update_nameToAnotherActiveName_throwsConflictWithConflictingModelCode() {
+        Product conflict = Product.create("다른 품목", "SHA-W99K", category,
+                BigDecimal.ONE, BigDecimal.ONE, "KRW", null, null);
+        ReflectionTestUtils.setField(conflict, "id", UUID.randomUUID());
+        conflict.changeModelCode("MODEL-CONFLICT-99");
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productRepository.findByNameAndStatusAndIsDeletedFalse("다른 품목", ProductStatus.ACTIVE))
+                .thenReturn(List.of(conflict));
+
+        assertThatThrownBy(() -> service.update(productId,
+                new UpdateProductRequest("다른 품목", null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException businessException = (BusinessException) ex;
+                    assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(businessException.getMessage()).contains("다른 품목", "MODEL-CONFLICT-99");
+                });
+    }
+
+    @Test
+    void update_otherFieldOnExistingDuplicateName_isAllowed() {
+        Product duplicate = Product.create("스마트 벽걸이", "SHA-W16K", category,
+                BigDecimal.ONE, BigDecimal.ONE, "KRW", null, null);
+        ReflectionTestUtils.setField(duplicate, "id", UUID.randomUUID());
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId)).thenReturn(List.of());
+
+        ProductResponse response = service.update(productId,
+                new UpdateProductRequest(null, null, null, "가격표 보완"));
+
+        assertThat(response.description()).isEqualTo("가격표 보완");
+        verify(productRepository, never()).findByNameAndStatusAndIsDeletedFalse(
+                any(String.class), any(ProductStatus.class));
+    }
+
+    @Test
+    void create_nameUsedOnlyBySoftDeletedProduct_isAllowed() {
+        when(productRepository.findByNameAndStatusAndIsDeletedFalse("폐기 후 재사용", ProductStatus.ACTIVE))
+                .thenReturn(List.of());
+        when(productRepository.existsByModelNameAndIsDeletedFalse("SHA-REUSE-1")).thenReturn(false);
+        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> {
+            Product saved = inv.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", UUID.randomUUID());
+            return saved;
+        });
+        when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(any(UUID.class)))
+                .thenReturn(List.of());
+
+        ProductResponse response = service.create(new CreateProductRequest(
+                "폐기 후 재사용", "SHA-REUSE-1", categoryId,
+                BigDecimal.ONE, BigDecimal.ONE, null, null, null));
+
+        assertThat(response.name()).isEqualTo("폐기 후 재사용");
     }
 
     @Test
@@ -560,6 +715,36 @@ class ProductServiceTest {
     }
 
     @Test
+    void findByModelName_multipleParents_doesNotChooseAnArbitraryParent() {
+        product.changeModelCode("AC060CXAPBH1");
+        Product firstParent = Product.seedFromSheet("360 세트", "AC060CS6PBH1SY", category,
+                BigDecimal.valueOf(1_000_000), BigDecimal.valueOf(800_000), ProductType.BUNDLE,
+                ProductCategory.SINGLE_SET, com.samhanair.logis.product.domain.UsageScope.BOTH, null);
+        Product secondParent = Product.seedFromSheet("4way 세트", "AC060CS4PBH2SY", category,
+                BigDecimal.valueOf(1_000_000), BigDecimal.valueOf(800_000), ProductType.BUNDLE,
+                ProductCategory.SINGLE_SET, com.samhanair.logis.product.domain.UsageScope.BOTH, null);
+        UUID firstParentId = UUID.randomUUID();
+        UUID secondParentId = UUID.randomUUID();
+        ReflectionTestUtils.setField(firstParent, "id", firstParentId);
+        ReflectionTestUtils.setField(secondParent, "id", secondParentId);
+
+        BundleComponent firstLink = BundleComponent.seed(firstParentId, "AC060CXAPBH1", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR, null, false, null);
+        BundleComponent secondLink = BundleComponent.seed(secondParentId, "AC060CXAPBH1", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR, null, false, null);
+        when(productRepository.findByModelNameAndIsDeletedFalse("AC060CXAPBH1"))
+                .thenReturn(Optional.of(product));
+        when(bundleComponentRepository.findByComponentProductCode("AC060CXAPBH1"))
+                .thenReturn(List.of(firstLink, secondLink));
+        when(productRepository.findAllByIdIn(List.of(firstParentId, secondParentId)))
+                .thenReturn(List.of(firstParent, secondParent));
+
+        ProductSummaryResponse summary = service.lookupSummaryByModelName("AC060CXAPBH1");
+
+        assertThat(summary.parentSetModelCode()).isNull();
+    }
+
+    @Test
     void findByModelName_missing_throwsNotFound() {
         when(productRepository.findByModelNameAndIsDeletedFalse("UNKNOWN-MODEL"))
                 .thenReturn(Optional.empty());
@@ -584,6 +769,19 @@ class ProductServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    void lookupSummaryByProductCode_aliasCode_returnsMainProduct() {
+        when(productRepository.findByProductCodeAndIsDeletedFalse("ECOUNT-ALIAS-01"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ECOUNT-ALIAS-01"))
+                .thenReturn(Optional.of(ProductAlias.create("ECOUNT-ALIAS-01", product, "ECOUNT_IMPORT")));
+
+        ProductSummaryResponse summary = service.lookupSummaryByProductCode(" ECOUNT-ALIAS-01 ");
+
+        assertThat(summary.id()).isEqualTo(productId);
+        assertThat(summary.modelName()).isEqualTo("SHA-W15K");
     }
 
     @Test

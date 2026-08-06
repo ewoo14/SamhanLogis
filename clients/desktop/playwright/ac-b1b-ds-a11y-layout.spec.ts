@@ -11,7 +11,7 @@ const EPSILON = 1
 
 async function gotoSlipNewPage(page: Page, requireDesktopLineTable = false): Promise<void> {
   await page.goto('/#/sales/new?mockRole=MANAGER', { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('button', { name: '+ 라인 추가' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('header-page-title')).toHaveText('새 판매전표', { timeout: 15_000 })
   if (requireDesktopLineTable) {
     await expect(page.locator('.sfp-line-table')).toBeVisible()
   }
@@ -27,14 +27,12 @@ async function openPartnerOption(page: Page, query: string): Promise<Locator> {
   return option
 }
 
-async function openProductOption(page: Page, query: string): Promise<Locator> {
+async function openProductSelectionDialog(page: Page, query: string): Promise<Locator> {
   const input = page.getByRole('combobox', { name: /라인 1 품목/ })
   await input.fill(query)
-  const listbox = page.getByRole('listbox', { name: '품목 목록' })
-  await expect(listbox).toBeVisible({ timeout: 5_000 })
-  const option = listbox.getByRole('option').first()
-  await expect(option).toBeVisible()
-  return option
+  const dialog = page.getByRole('dialog', { name: '품목 검색 결과' })
+  await expect(dialog).toBeVisible({ timeout: 5_000 })
+  return dialog
 }
 
 async function expectBadgeInsideOption(option: Locator, badgeLabel: string): Promise<void> {
@@ -62,7 +60,7 @@ test.describe('B1-B DS a11y/layout mock hard gate', () => {
     expect(requiredParentViolations, 'sfp-line-table aria-required-parent 회귀').toHaveLength(0)
   })
 
-  test('Partner/Product five match badges stay inside options at 360px and 390px', async ({ page }) => {
+  test('Partner inline badges and Product modal fields stay usable at 360px and 390px', async ({ page }) => {
     for (const width of [360, 390]) {
       await page.setViewportSize({ width, height: 900 })
       await gotoSlipNewPage(page)
@@ -70,8 +68,12 @@ test.describe('B1-B DS a11y/layout mock hard gate', () => {
       await expectBadgeInsideOption(await openPartnerOption(page, '엘에이'), '상호')
       await expectBadgeInsideOption(await openPartnerOption(page, '1234567890'), '코드')
       await expectBadgeInsideOption(await openPartnerOption(page, '45-678'), '사업자번호')
-      await expectBadgeInsideOption(await openProductOption(page, 'AJ040'), '모델명')
-      await expectBadgeInsideOption(await openProductOption(page, '에어컨'), '품목명')
+      const productDialog = await openProductSelectionDialog(page, 'AJ')
+      await expect(productDialog.getByRole('columnheader', { name: '모델명' })).toBeVisible()
+      await expect(productDialog.getByRole('columnheader', { name: '품목명' })).toBeVisible()
+      await expect(productDialog.getByText('AJ040RXH4BC1', { exact: true })).toBeVisible()
+      await expect(productDialog).not.toContainText('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040')
+      await page.keyboard.press('Escape')
     }
   })
 
@@ -88,11 +90,11 @@ test.describe('B1-B DS a11y/layout mock hard gate', () => {
     await expect(partnerOption).toContainText('1234567890')
     await expect(partnerOption).toContainText('123-45-67890')
 
-    const productOption = await openProductOption(page, 'AJ040')
-    const productText = (await productOption.textContent()) ?? ''
-    expect(productText.indexOf('AJ040RXH4BC1')).toBeLessThan(productText.indexOf('시스템에어컨 4Way 4HP'))
-    await expect(productOption.locator('[class*="optionSep"]')).toHaveCount(1)
-    await expect(productOption).toContainText('AJ040RXH4BC1')
-    await expect(productOption).toContainText('시스템에어컨 4Way 4HP')
+    const productDialog = await openProductSelectionDialog(page, 'AJ')
+    await expect(productDialog.getByRole('columnheader', { name: '모델명' })).toBeVisible()
+    await expect(productDialog.getByRole('columnheader', { name: '품목명' })).toBeVisible()
+    const productRow = productDialog.getByRole('row').filter({ hasText: 'AJ040RXH4BC1' }).first()
+    await expect(productRow).toContainText('시스템에어컨 4Way 4HP')
+    await expect(productDialog).not.toContainText('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040')
   })
 })

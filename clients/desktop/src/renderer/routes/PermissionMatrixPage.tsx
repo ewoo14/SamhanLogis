@@ -222,6 +222,7 @@ export const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'dispatch.board',
       'dispatch.external-carriers',
+      'notification.dispatch-sms.display',
       'dispatch.sms-save-history',
       'dispatch.batch',
     ],
@@ -229,7 +230,6 @@ export const PAGE_GROUPS: PageGroup[] = [
   {
     label: '알림',
     pages: [
-      'notification.dispatch-sms.send-audit',
       'notifications.admin',
       'notifications.center',
       'aligo.address-book',
@@ -323,6 +323,7 @@ export const PAGE_GROUPS: PageGroup[] = [
     label: '직원·계정',
     pages: [
       'admin.employees',
+      'hr.carriers',
       'admin.users',
       'admin.approval-line-config',
       'ecount.mig2.department',
@@ -412,7 +413,6 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.daily-closing.unlock': '일마감 해제',
   'accounting.general-ledger': '원장',
   'accounting.hometax-export': '홈택스 export',
-  'notification.dispatch-sms.send-audit': 'SMS 이력',
   'notifications.admin': '알림 발송',
   'notifications.center': '알림 센터',
   'aligo.address-book': '알리고 주소록',
@@ -455,6 +455,8 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'inbound.inspection': '입고 검수',
   'dispatch.board': '배차 보드',
   'dispatch.external-carriers': '외부기사/배송사',
+  'notification.dispatch-sms.display': '배차안내 SMS',
+  'notification.dispatch-sms.send-audit': '배차안내 SMS (회수됨)',
   'dispatch.sms-save-history': '배차문자 저장',
   'dispatch.batch': '배차 SMS batch',
   'admin.permissions': '권한 관리',
@@ -550,6 +552,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'ecount.mig2.warehouse': 'MIG-2 창고',
   'ecount.mig5.stock-transfer': 'MIG-5 창고이동',
   'admin.employees': '직원 관리',
+  'hr.carriers': '운송사 목록',
   'admin.users': '계정 관리',
   'ecount.mig2.department': '부서 import',
   'ecount.mig6.employee': '사원 import',

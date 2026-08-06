@@ -1029,6 +1029,14 @@ export interface PartnerApproval {
   assignedManagerName: string | null
 }
 
+/** 주문서 앱 접근권한 미리보기 — 후보와 외부 조회 보류를 함께 표시한다. */
+export interface PartnerAccessPreview {
+  candidates: PartnerApproval[]
+  deferred: boolean
+  deferredPartnerCount: number
+  deferredSources: ('ORDER' | 'SHIPMENT')[]
+}
+
 /**
  * 주문서 승인 페이지 조회 — `/api/v1/partner-approvals?page=&size=&status=`.
  */
@@ -1042,6 +1050,21 @@ export async function listPartnerApprovals(
   const res = await apiClient.get<ApiEnvelope<PageResponse<PartnerApproval>>>(
     '/api/v1/partner-approvals',
     { params },
+  )
+  return res.data.data
+}
+
+/**
+ * 주문서 앱 접근권한 설정 후보 미리보기.
+ *
+ * <p>기간은 화면 표시용이 아니라 backend 선별 query에 전달되어 실제 후보 수를 바꾼다.
+ */
+export async function previewPartnerAccess(
+  unusedDays: number,
+): Promise<PartnerAccessPreview> {
+  const res = await apiClient.get<ApiEnvelope<PartnerAccessPreview>>(
+    '/api/v1/partner-approvals/access-preview/report',
+    { params: { unusedDays } },
   )
   return res.data.data
 }
@@ -1164,6 +1187,18 @@ export async function updatePartnerDcConfig(
     patch,
   )
   return res.data.data
+}
+
+/** 거래처 전표 가격계산용 DC 설정 단건 조회. */
+export async function getPartnerDcConfig(partnerCode: string): Promise<PartnerDcConfig | null> {
+  try {
+    const res = await apiClient.get<ApiEnvelope<PartnerDcConfig>>(
+      `/api/v1/partner-dc-configs/${encodeURIComponent(partnerCode)}`,
+    )
+    return res.data.data ?? null
+  } catch {
+    return null
+  }
 }
 
 // ---------------------------------------------------------------------------

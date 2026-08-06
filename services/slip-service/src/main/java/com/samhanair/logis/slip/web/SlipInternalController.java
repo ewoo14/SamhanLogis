@@ -6,6 +6,8 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.attachment.web.dto.SlipAttachmentResponse;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.publish.WarehouseCodeMapper;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
@@ -20,10 +22,12 @@ import com.samhanair.logis.slip.web.dto.InternalSignatureResponse;
 import com.samhanair.logis.slip.web.dto.LockByPeriodRequest;
 import com.samhanair.logis.slip.web.dto.LockByPeriodResponse;
 import com.samhanair.logis.slip.web.dto.OutboundSlipLineResponse;
+import com.samhanair.logis.slip.web.dto.OutboundSlipResponse;
 import com.samhanair.logis.slip.web.dto.PartnerLedgerSalesResponse;
 import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
 import com.samhanair.logis.slip.web.dto.SlipSummary;
 import com.samhanair.logis.slip.web.dto.SlipPartnerBackfillResponse;
+import com.samhanair.logis.common.ledger.PartnerLedgerContract;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -31,8 +35,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -71,11 +75,10 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class SlipInternalController {
 
-    /** 거래처별 원장에 표시할 판매전표 상태 — 거래 사실 문서 기준. */
+    /** 거래처별 원장 상태 정본 — accounting-service PartnerLedgerReadModel 계약과 동일하다. */
     private static final List<SlipStatus> PARTNER_LEDGER_SALES_STATUSES = List.of(
-            SlipStatus.CONFIRMED,
-            SlipStatus.DELIVERED,
-            SlipStatus.COMPLETED);
+            PartnerLedgerContract.CANONICAL_SALE_STATUSES.stream()
+                    .map(SlipStatus::valueOf).toArray(SlipStatus[]::new));
 
     private final SlipSignatureService signatureService;
     private final SlipAttachmentService attachmentService;
@@ -83,6 +86,8 @@ public class SlipInternalController {
     private final SlipRepository slipRepository;
     private final SlipService slipService;
     private final SlipPartnerBackfillService slipPartnerBackfillService;
+    private final WarehouseInternalClient warehouseInternalClient;
+    private final WarehouseCodeMapper warehouseCodeMapper;
 
     /**
      * 커밋 전표 거래처 동적 보정 — cutover 시점에 partner-service 경유로 실행한다.
@@ -287,6 +292,45 @@ public class SlipInternalController {
     public record LookupResponse(UUID slipId, String slipNo, String status) {}
 
     /**
+     * 배차 계열 공통 출고전표 조회.
+     *
+     * <p>notification-service와 arologis-service가 사용하는 기간 계약이다. 기존
+     * {@code /outbound-lines} 라인 projection과 경로를 분리하고, 응답에는 UUID를 포함하지 않는다.
+     *
+     * @param from 조회 시작일(포함)
+     * @param to 조회 종료일(포함)
+     * @return 활성 OUTBOUND 전표 단위 projection
+     */
+    @Operation(summary = "Internal 배차용 출고전표 조회",
+            description = "X-Internal-Token 인증. 활성 OUTBOUND 전표를 전표 단위로 반환하며 UUID는 포함하지 않는다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "from/to 누락 또는 to < from"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "X-Internal-Token 누락")
+    })
+    @GetMapping("/outbound")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<List<OutboundSlipResponse>> findOutboundSlipsForDispatch(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (from == null || to == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 날짜는 필수입니다");
+        }
+        if (to.isBefore(from)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "to 날짜는 from 날짜 이후여야 합니다");
+        }
+        List<OutboundSlipResponse> rows = slipRepository
+                .findByPeriodWithLines(SlipType.OUTBOUND, from, to, null)
+                .stream()
+                .map(slip -> OutboundSlipResponse.from(slip,
+                        warehouseInternalClient.findWarehouseName(slip.getSourceWarehouseId()).orElse(null),
+                        warehouseCodeMapper.businessType(slip.getSourceWarehouseCode())))
+                .toList();
+        return ApiResponse.ok(rows);
+    }
+
+    /**
      * DPS 입고비교용 출고전표 라인 조회 — inventory-service DpsCompareService source.
      *
      * <p>기존 기간별 조회 query({@link SlipRepository#findByPeriodWithLines}) 를 재사용해 OUTBOUND
@@ -363,7 +407,8 @@ public class SlipInternalController {
     public ApiResponse<List<PartnerLedgerSalesResponse>> findPartnerLedgerSales(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) String partnerCode) {
+            @RequestParam(required = false) String partnerCode,
+            @RequestParam(required = false) UUID partnerId) {
         if (from == null || to == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 날짜는 필수입니다");
         }
@@ -376,7 +421,7 @@ public class SlipInternalController {
                 ? null
                 : partnerCode.trim();
         List<PartnerLedgerSalesResponse> rows = slipRepository.findPartnerLedgerSales(
-                        from, to, normalizedPartnerCode, PARTNER_LEDGER_SALES_STATUSES)
+                        from, to, normalizedPartnerCode, partnerId, PARTNER_LEDGER_SALES_STATUSES)
                 .stream()
                 .map(PartnerLedgerSalesResponse::from)
                 .toList();

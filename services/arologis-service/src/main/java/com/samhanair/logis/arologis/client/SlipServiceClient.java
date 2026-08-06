@@ -38,8 +38,8 @@ import org.springframework.web.client.RestClientResponseException;
  *   <li>false — 실 호출. 환경변수 SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE=false</li>
  * </ul>
  *
- * <p>오류 처리: 4xx/5xx 응답은 빈 리스트 (호출자가 graceful empty 분기). admin 화면이 "조회된 출고전표
- * 없음" 으로 안내. UUID 비공개 가드 — slipId 는 응답에 포함하되 사용자 화면 routing 용 admin 한정.
+ * <p>오류 처리: 4xx/5xx·네트워크·응답 계약 오류는 예외로 전파한다. 정상 200 + data=[]만
+ * 해당 없음으로 처리한다. UUID 비공개 가드 — slipId 는 내부 projection에서만 유지한다.
  */
 @Slf4j
 @Component
@@ -72,14 +72,15 @@ public class SlipServiceClient {
      *   "success": true,
      *   "data": [
      *     { "slipId": "uuid", "slipNo": "2026/05/10-001", "partnerCode": "P-2026-0001",
-     *       "partnerName": "에스엠하나공조", "address": "인천 남동구 구월동 ..." },
+ *       "partnerName": "에스엠하나공조", "sourceWarehouseName": "상일창고",
+ *       "deliveryAddress": "인천 남동구 구월동 ..." },
      *     ...
      *   ]
      * }
      * }</pre>
      *
-     * <p>graceful empty — skeleton-mode / 4xx / 5xx / 네트워크 오류 시 모두 빈 리스트. 호출자(arologis
-     * 분류 서비스) 는 빈 리스트 시 admin 응답을 "출고전표 없음" 으로 처리.
+     * <p>skeleton-mode / 4xx / 5xx / 네트워크 오류는 조회 실패로 전파하고, 정상적인 빈 data 배열만
+     * admin 응답의 "해당 없음"으로 처리한다.
      *
      * @param from 조회 시작일 (inclusive, 필수)
      * @param to 조회 종료일 (inclusive, 필수)
@@ -87,12 +88,10 @@ public class SlipServiceClient {
      */
     public List<OutboundSlipSummary> getOutboundSlips(LocalDate from, LocalDate to) {
         if (from == null || to == null) {
-            return Collections.emptyList();
+            throw new IllegalArgumentException("from/to 날짜는 필수입니다");
         }
         if (skeletonMode) {
-            log.debug("SlipServiceClient.getOutboundSlips skeleton-mode — from={}, to={} (외부 호출 회피)",
-                    from, to);
-            return Collections.emptyList();
+            throw new IllegalStateException("/internal/slips/outbound client is disabled by skeleton-mode");
         }
         try {
             RestClient client = builder.baseUrl(baseUrl).build();
@@ -108,41 +107,50 @@ public class SlipServiceClient {
         } catch (RestClientResponseException ex) {
             log.warn("SlipServiceClient.getOutboundSlips 4xx/5xx — from={}, to={}, status={}",
                     from, to, ex.getStatusCode());
-            return Collections.emptyList();
+            throw new IllegalStateException("/internal/slips/outbound 호출 실패: HTTP " + ex.getStatusCode(), ex);
         } catch (Exception ex) {
             log.warn("SlipServiceClient.getOutboundSlips 호출 실패 — from={}, to={}, msg={}",
                     from, to, ex.getMessage());
-            return Collections.emptyList();
+            throw new IllegalStateException("/internal/slips/outbound 호출 실패", ex);
         }
     }
 
     private List<OutboundSlipSummary> parseSummaryList(String body) {
         if (body == null || body.isBlank()) {
-            return Collections.emptyList();
+            throw new IllegalStateException("/internal/slips/outbound 응답이 비어 있습니다");
         }
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode data = root.has("data") ? root.get("data") : root;
             if (data == null || data.isNull() || !data.isArray()) {
-                return Collections.emptyList();
+                throw new IllegalStateException("/internal/slips/outbound 응답 data 계약이 올바르지 않습니다");
             }
             List<OutboundSlipSummary> out = new ArrayList<>(data.size());
             for (JsonNode node : data) {
-                String slipId = textOrNull(node, "slipId");
                 String slipNo = textOrNull(node, "slipNo");
                 String partnerCode = textOrNull(node, "partnerCode");
                 String partnerName = textOrNull(node, "partnerName");
-                String address = textOrNull(node, "address");
+                String address = textOrNull(node, "deliveryAddress");
+                if (address == null) {
+                    address = textOrNull(node, "address");
+                }
                 if (slipNo == null) {
                     continue;
                 }
-                out.add(new OutboundSlipSummary(slipId, slipNo, partnerCode, partnerName, address));
+                out.add(new OutboundSlipSummary(null, slipNo, partnerCode, partnerName, address,
+                        textOrNull(node, "deliveryTag"), warehouseName(node),
+                        textOrNull(node, "memo"), textOrNull(node, "productName"),
+                        textOrNull(node, "amount"), textOrNull(node, "slipDate"),
+                        textOrNull(node, "sourceWarehouseBusinessType")));
             }
             return out;
         } catch (Exception ex) {
             log.warn("SlipServiceClient response 파싱 실패 — bodyLen={}, msg={}",
                     body.length(), ex.getMessage());
-            return Collections.emptyList();
+            if (ex instanceof IllegalStateException illegalStateException) {
+                throw illegalStateException;
+            }
+            throw new IllegalStateException("/internal/slips/outbound 응답 파싱 실패", ex);
         }
     }
 
@@ -152,6 +160,12 @@ public class SlipServiceClient {
             return null;
         }
         return child.asText();
+    }
+
+    /** slip-service의 출고 원천 창고명 계약을 읽는다. 구형 projection의 warehouse도 호환한다. */
+    private String warehouseName(JsonNode node) {
+        String sourceWarehouseName = textOrNull(node, "sourceWarehouseName");
+        return sourceWarehouseName != null ? sourceWarehouseName : textOrNull(node, "warehouse");
     }
 
     /**
@@ -168,6 +182,36 @@ public class SlipServiceClient {
             String slipNo,
             String partnerCode,
             String partnerName,
-            String address
-    ) {}
+            String address,
+            String deliveryTag,
+            String warehouse,
+            String memo,
+            String productName,
+            String amount,
+            String slipDate,
+            String warehouseBusinessType
+    ) {
+        /** 기존 호출자와 테스트가 사용하는 최소 projection 생성자. */
+        public OutboundSlipSummary(String slipId, String slipNo, String partnerCode,
+                                   String partnerName, String address) {
+            this(slipId, slipNo, partnerCode, partnerName, address,
+                    null, null, null, null, null, null, "UNKNOWN");
+        }
+
+        /** 태그 판정 단위 테스트와 내부 분류 호출자를 위한 간결한 생성자. */
+        public OutboundSlipSummary(String slipId, String slipNo, String partnerCode,
+                                   String partnerName, String address, String deliveryTag) {
+            this(slipId, slipNo, partnerCode, partnerName, address,
+                    deliveryTag, null, null, null, null, null, "UNKNOWN");
+        }
+
+        /** 기존 테스트·호출자용 11필드 projection은 업무 구분을 알 수 없으므로 UNKNOWN이다. */
+        public OutboundSlipSummary(String slipId, String slipNo, String partnerCode,
+                                   String partnerName, String address, String deliveryTag,
+                                   String warehouse, String memo, String productName,
+                                   String amount, String slipDate) {
+            this(slipId, slipNo, partnerCode, partnerName, address, deliveryTag, warehouse,
+                    memo, productName, amount, slipDate, "UNKNOWN");
+        }
+    }
 }

@@ -107,7 +107,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    void send_returns_201_sent() throws Exception {
+    void send_returns_201_failed_when_sms_credentials_are_placeholder() throws Exception {
         NotificationSendRequest req = new NotificationSendRequest(
                 RecipientType.EXTERNAL_PHONE, null, "010-1111-2222",
                 NotificationChannel.SMS, null, null, "테스트 SMS", null);
@@ -117,7 +117,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isCreated())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("SENT"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("FAILED"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.channel").value("SMS"));
     }
 

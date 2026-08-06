@@ -34,6 +34,36 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, UUID
                     """)
     Page<StockBalance> findAllByProductIdAndIsDeletedFalse(@Param("productId") UUID productId, Pageable pageable);
 
+    /**
+     * 품목/창고 선택 필터로 재고 현황 페이지를 조회한다. 두 필터가 모두 null이면 전체 현황이다.
+     * 창고 연관은 DTO 변환 전에 fetch graph 로 읽어 LAZY 초기화 오류와 N+1을 막는다.
+     *
+     * @param productId 선택 품목 UUID (선택)
+     * @param warehouseId 선택 창고 UUID (선택)
+     * @param pageable 페이지 조건
+     * @return 활성 재고 잔량 페이지
+     */
+    @EntityGraph(attributePaths = "warehouse")
+    @Query(
+            value = """
+                    SELECT b
+                    FROM StockBalance b
+                    WHERE b.isDeleted = false
+                      AND (:productId IS NULL OR b.productId = :productId)
+                      AND (:warehouseId IS NULL OR b.warehouse.id = :warehouseId)
+                    ORDER BY b.productId ASC, b.warehouse.code ASC
+                    """,
+            countQuery = """
+                    SELECT COUNT(b)
+                    FROM StockBalance b
+                    WHERE b.isDeleted = false
+                      AND (:productId IS NULL OR b.productId = :productId)
+                      AND (:warehouseId IS NULL OR b.warehouse.id = :warehouseId)
+                    """)
+    Page<StockBalance> findBalancePage(@Param("productId") UUID productId,
+                                       @Param("warehouseId") UUID warehouseId,
+                                       Pageable pageable);
+
     Page<StockBalance> findAllByWarehouse_IdAndIsDeletedFalse(UUID warehouseId, Pageable pageable);
 
     /**

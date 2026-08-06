@@ -89,6 +89,60 @@ class EcountProductImporterTest {
     }
 
     @Test
+    void importCsv_관계없는_중복코드는_이름과_무관하게_각각_반영한다() {
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "절삭\t","절삭\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "00013\t","절삭\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "방진가대S2소\t","방진가대 S2 소\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "00196\t","방진가대 S2 소\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "PC2NWSK1N\t","PC2NWSK1N (신형 2WAY 판넬)\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "00219\t","PC2NWSK1N (신형 2WAY 판넬)\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isEqualTo(6);
+        assertThat(result.aliasImported()).isEqualTo(6);
+        assertThat(result.skippedRelationOrphan()).isZero();
+    }
+
+    @Test
+    void importCsv_관계없는_동명그룹은_품목코드별로_분리한다() {
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "AAAA-00008\t","바람막이\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "ZENG-00009\t","바람막이\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.aliasImported()).isEqualTo(2);
+        assertThat(result.skippedGroupCount()).isZero();
+    }
+
+    @Test
+    void importCsv_동명그룹과_나머지_행을_모두_반영한다() {
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "SAFE-001\t","안전품목A\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "BAD-001\t","결정불가품목\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "BAD-002\t","결정불가품목\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "SAFE-002\t","안전품목B\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isEqualTo(4);
+        assertThat(result.aliasImported()).isEqualTo(4);
+        assertThat(result.skippedGroupCount()).isZero();
+    }
+
+    @Test
     void importCsv_0만있는코드는_placeholder지만_0001은_정상코드다() {
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
@@ -186,7 +240,7 @@ class EcountProductImporterTest {
 
     @Test
     void importCsv_DB_name_fallback은_ACTIVE_단일건만_허용하고_status_필터를_사용한다() {
-        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenReturn(List.of("DB-OLD"));
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
@@ -197,15 +251,13 @@ class EcountProductImporterTest {
 
         importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).queryForList(
-                sql.capture(), any(SqlParameterSource.class), eq(String.class));
-        assertThat(sql.getAllValues())
-                .anySatisfy(value -> assertThat(value).contains("status = 'ACTIVE'"));
+        verify(jdbcTemplate, org.mockito.Mockito.never()).queryForList(
+                anyString(), any(SqlParameterSource.class), eq(String.class));
     }
 
     @Test
-    void importCsv_DB_name_fallback이_ACTIVE_2건이면_MIG2_NO_MAIN_CANDIDATE로_실패한다() {
-        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+    void importCsv_동명_DB_name_fallback이_ACTIVE_2건이어도_raw를_사용한다() {
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenReturn(List.of("DB-001", "DB-002"));
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
@@ -213,12 +265,93 @@ class EcountProductImporterTest {
                 "ALIAS-001\t","동명제품\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
                 """;
 
-        assertThatThrownBy(() -> importer.importCsv(stream(itemCsv), null, null, "tester"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.MIG2_NO_MAIN_CANDIDATE))
-                .hasMessageContaining("DB-001")
-                .hasMessageContaining("DB-002");
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isOne();
+        assertThat(result.aliasImported()).isOne();
+        assertThat(result.skippedGroupCount()).isZero();
+    }
+
+    @Test
+    void importCsv_동명_DB_only_후보는_raw_fingerprint_없이_재사용하지_않는다() {
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenReturn(List.of("DB-OLD"));
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "RAW-001\t","동명제품\t","100","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isOne();
+        assertThat(result.aliasImported()).isOne();
+    }
+
+    @Test
+    void importCsv_관계_main이_raw와_DB에_없으면_관계_alias를_승격하지_않는다() {
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenReturn(List.of());
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "ALIAS-001\t","동명제품\t","100","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "RAW-002\t","동명제품\t","100","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+        String relationCsv = """
+                "데이터관리>품목관계-Excel다운로드"
+                "대표품목코드\t","대표품목명\t","대표품목단위\t","연결품목코드\t","연결품목명\t","연결품목단위\t","연결품목 환산수량\t","대표품목 환산수량\t","수량관리기준\t"
+                "MAIN-DB\t","동명제품\t","\t","ALIAS-001\t","동명제품\t","\t","1","1","대표품목\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(
+                stream(itemCsv), stream(relationCsv), null, "tester");
+
+        assertThat(result.imported()).isOne();
+        assertThat(result.aliasImported()).isEqualTo(2);
+    }
+
+    @Test
+    void importCsv_동명_DB코드가_현재_raw에_있어도_fingerprint가_다르면_재사용하지_않는다() {
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenAnswer(invocation -> {
+                    SqlParameterSource parameters = invocation.getArgument(1);
+                    return "동명제품".equals(parameters.getValue("name"))
+                            ? List.of("DB-MAIN") : List.of();
+                });
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "DB-MAIN\t","현재 다른 이름\t","900","0","","","0","0","0","0","[상품]\t","현재 규격\t","YES\t"
+                "RAW-001\t","동명제품\t","100","0","","","0","0","0","0","[상품]\t","현재 규격\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "r7-red-db-code");
+
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.aliasImported()).isEqualTo(2);
+    }
+
+    @Test
+    void importCsv_동명_singleton도_fingerprint_재그룹화를_건너뛰지_않는다() {
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenAnswer(invocation -> {
+                    SqlParameterSource parameters = invocation.getArgument(1);
+                    return "동명제품".equals(parameters.getValue("name"))
+                            ? List.of("DB-MAIN") : List.of();
+                });
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "DB-MAIN\t","현재 다른 이름\t","900","0","","","0","0","0","0","[상품]\t","현재 규격\t","YES\t"
+                "RAW-001\t","동명제품\t","100","0","","","0","0","0","0","[상품]\t","현재 규격\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "r7-red-singleton");
+
+        assertThat(result.updated()).isZero();
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.aliasImported()).isEqualTo(2);
     }
 
     @Test
@@ -295,7 +428,7 @@ class EcountProductImporterTest {
     }
 
     @Test
-    void importCsv_동명_복수_raw에_DB_main도_relation도_없으면_MIG2_NO_MAIN_CANDIDATE로_실패한다() {
+    void importCsv_동명_복수_raw에_DB_main도_relation도_없으면_한_행으로_병합한다() {
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
                 "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
@@ -303,10 +436,11 @@ class EcountProductImporterTest {
                 "P-002\t","제품A\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
                 """;
 
-        assertThatThrownBy(() -> importer.importCsv(stream(itemCsv), null, null, "tester"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.MIG2_NO_MAIN_CANDIDATE));
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.aliasImported()).isEqualTo(2);
+        assertThat(result.skippedGroupCount()).isZero();
     }
 
     @Test
@@ -330,6 +464,9 @@ class EcountProductImporterTest {
         when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(UUID.class)))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0);
+                    if (sql.contains("p.model_name = :code")) {
+                        return List.of();
+                    }
                     return sql.contains("UPDATE products") ? List.of(PRODUCT_ID) : List.of();
                 });
         String itemCsv = """

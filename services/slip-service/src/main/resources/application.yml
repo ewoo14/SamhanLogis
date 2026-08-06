@@ -6,6 +6,11 @@ server:
 spring:
   application:
     name: slip-service
+  task:
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: ${SAMHAN_TASK_EXECUTION_SHUTDOWN_AWAIT:10s}
   servlet:
     multipart:
       # P1-8 (Stage 4) 슬립 첨부 사진 — 단일 파일 ≤5MB, 배송 사진 자동 압축 권장.
@@ -182,14 +187,13 @@ app:
   public:
     base-url: ${PUBLIC_BASE_URL:https://sign.samhan-air.com}
   # Phase 6 M5 (slip-service-integration) — legacy ecount warehouseCode → 내부 warehouse UUID 매핑.
-  # 본 dev 기본값은 IT/local 용 placeholder UUID (실 운영은 환경 변수로 교체).
+  # 값은 inventory_db.warehouses 실재 행이며, 환경별로 반드시 주입한다.
   publish:
     warehouse-code-map:
-      "[00003]": ${WAREHOUSE_UUID_HQ:11111111-1111-1111-1111-111111111111}
-      "[2]":     ${WAREHOUSE_UUID_HUBAL:22222222-2222-2222-2222-222222222222}
-      "[14]":    ${WAREHOUSE_UUID_ANSEONG:33333333-3333-3333-3333-333333333333}
-      "[1]":     ${WAREHOUSE_UUID_CHANGWON:44444444-4444-4444-4444-444444444444}
-
+      "[00003]": ${WAREHOUSE_UUID_HQ}
+      "[2]":     ${WAREHOUSE_UUID_HUBAL}
+      "[14]":    ${WAREHOUSE_UUID_ANSEONG}
+      "[1]":     ${WAREHOUSE_UUID_CHANGWON}
 management:
   endpoints:
     web:
@@ -217,6 +221,22 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: false
+
+
+# 로컬 개발은 운영 환경변수 없이도 기동할 수 있도록 테스트용 고정 UUID를 사용한다.
+# 운영 문서의 env 필수 매핑은 이 프로파일에서만 같은 키로 덮어쓴다.
+# 아래 매핑은 dev 시드에 후발·안성·창원 창고가 아직 없어 사용하는 실 창고 아닌 대체값이다.
+# UUID 자체는 dev 시드에 존재하지만 라이브 QA 기준 [2]=VH-001 1호차 차량재고,
+# [14]=CS-001 거래처 위탁창고, [1]=VR-001 가상창고를 가리켜 키 이름의 의미와 일치하지 않는다.
+# 이 값을 실 운영값으로 복사하지 말고, 실환경에서는 위 프로파일의 WAREHOUSE_UUID_* 환경변수에
+# 실제 inventory_db.warehouses UUID를 주입한다.
+app:
+  publish:
+    warehouse-code-map:
+      "[00003]": 11111111-1111-1111-1111-000000000001
+      "[2]":     11111111-1111-1111-1111-000000000002
+      "[14]":    11111111-1111-1111-1111-000000000003
+      "[1]":     11111111-1111-1111-1111-000000000004
 
 eureka:
   client:

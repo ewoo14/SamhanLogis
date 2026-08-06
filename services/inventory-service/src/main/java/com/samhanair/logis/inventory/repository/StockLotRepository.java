@@ -2,6 +2,7 @@ package com.samhanair.logis.inventory.repository;
 
 import com.samhanair.logis.inventory.domain.StockLot;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -43,4 +44,19 @@ public interface StockLotRepository extends JpaRepository<StockLot, UUID> {
 
     Page<StockLot> findAllByProductIdAndWarehouse_IdAndIsDeletedFalse(
             UUID productId, UUID warehouseId, Pageable pageable);
+
+    /**
+     * 같은 품목·창고·입고전표번호의 기존 lot — 검수/전표 두 입고 경로 교차 멱등 가드용.
+     *
+     * @param productId 품목 UUID
+     * @param warehouseId 창고 UUID
+     * @param lotNo 입고전표번호
+     * @return 기존 활성 lot (없으면 empty)
+     */
+    Optional<StockLot> findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
+            UUID productId, UUID warehouseId, String lotNo);
+
+    /** 입고전표 라인까지 포함한 교차 경로 멱등 가드. */
+    Optional<StockLot> findFirstByProductIdAndWarehouse_IdAndLotNoAndInboundLineIdAndIsDeletedFalse(
+            UUID productId, UUID warehouseId, String lotNo, UUID inboundLineId);
 }

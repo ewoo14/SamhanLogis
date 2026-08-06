@@ -129,7 +129,7 @@ public class SlipPublishService {
         }
 
         // 1.5 PR-G1 backlog #1 — partnerCode strict 검증 (hybrid policy, default strict)
-        verifyPartnerOrThrow(req.partnerCode());
+        UUID verifiedPartnerId = verifyPartnerOrThrow(req.partnerCode());
 
         // 2. 헤더 매핑 — PR-G1: memo prepend 폐기, 사용자 자유 입력만 보존
         UUID warehouseId = warehouseCodeMapper.resolve(req.warehouseCode());
@@ -147,6 +147,7 @@ public class SlipPublishService {
                 warehouseId, null,
                 null, req.partnerName(),
                 null, memo, requester);
+        slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트④] 견적 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
         cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
@@ -162,6 +163,10 @@ public class SlipPublishService {
                 req.shippingAddress(), req.inspectionAddress(), req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
+        String businessNumber = verifiedPartnerId == null
+                ? null
+                : partnerInternalClient.resolveBusinessNumber(verifiedPartnerId).orElse(null);
+        slip.withProjectInfo(businessNumber, null, null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -226,6 +231,7 @@ public class SlipPublishService {
                 warehouseId, null,
                 partnerId, req.partnerName(),
                 null, memo, requester);
+        slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트⑤] 주문 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
         cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
@@ -242,7 +248,7 @@ public class SlipPublishService {
                 req.shippingAddress(), null, req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
-        slip.withProjectInfo(null, req.deliveryAddress(), null, null, null, null);
+        slip.withProjectInfo(req.bizCode(), req.deliveryAddress(), null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -324,6 +330,7 @@ public class SlipPublishService {
         int seqNo = slipNumberService.extractSeqNo(slipNo);
         Slip slip = Slip.createOutbound(slipNo, slipDate, seqNo,
                 warehouseId, null, partnerId, req.partnerName(), null, memo, requester);
+        slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트⑥] 주문 병합 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
         cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
@@ -340,7 +347,7 @@ public class SlipPublishService {
                 req.shippingAddress(), null, req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
-        slip.withProjectInfo(null, req.deliveryAddress(), null, null, null, null);
+        slip.withProjectInfo(req.bizCode(), req.deliveryAddress(), null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -565,14 +572,14 @@ public class SlipPublishService {
      * @param partnerCode 발행 요청의 partnerCode (null/blank 가능)
      * @throws BusinessException(NOT_FOUND) strict on + 거래처 미등록 (404)
      */
-    private void verifyPartnerOrThrow(String partnerCode) {
+    private UUID verifyPartnerOrThrow(String partnerCode) {
         if (partnerCode == null || partnerCode.isBlank()) {
-            return; // partnerCode 가 비어있으면 lookup 자체 의미 없음 (기존 호환성)
+            return null; // partnerCode 가 비어있으면 lookup 자체 의미 없음 (기존 호환성)
         }
         if (!publishProperties.isPartnerStrictValidation()) {
             log.warn("[strict OFF] partner verify skipped (code={}) — app.slip.partner-strict-validation=false 운영 override",
                     partnerCode);
-            return;
+            return null;
         }
         PartnerVerifyResult result = partnerInternalClient.verifyPartnerCode(partnerCode);
         if (result.isNotFound()) {
@@ -585,6 +592,7 @@ public class SlipPublishService {
                     partnerCode);
         }
         // FOUND / SKIPPED → 정상 진행 (SKIPPED 는 internal token 미설정 시 — 운영 misconfig 지표)
+        return result.partnerId().orElse(null);
     }
 
     private Optional<Slip> lookupByIdempotencyKey(String idempotencyKey) {
@@ -809,6 +817,7 @@ public class SlipPublishService {
         canonical.put("warehouseCode", req.warehouseCode());
         canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
         canonical.put("partnerCode", canonicalOptionalText(req.partnerCode()));
+        canonical.put("bizCode", canonicalOptionalText(req.bizCode()));
         canonical.put("partnerName", req.partnerName());
         canonical.put("shippingAddress", req.shippingAddress());
         canonical.put("deliveryAddress", req.deliveryAddress());
@@ -844,6 +853,7 @@ public class SlipPublishService {
         canonical.put("warehouseCode", req.warehouseCode());
         canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
         canonical.put("partnerCode", canonicalOptionalText(req.partnerCode()));
+        canonical.put("bizCode", canonicalOptionalText(req.bizCode()));
         canonical.put("partnerName", req.partnerName());
         canonical.put("shippingAddress", req.shippingAddress());
         canonical.put("deliveryAddress", req.deliveryAddress());

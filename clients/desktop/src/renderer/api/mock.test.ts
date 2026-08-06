@@ -47,6 +47,8 @@ const ALLOWED_NON_DOCUMENT_MARKERS = new Set([
   'SLIP-UNDISPATCHED',
   '소계',
   'STATUS-F-SLIP',
+  // 배차문자 배송기사내역의 사용자 입력 순번 — BE 반환 전표번호가 아님.
+  '1',
   ' 2026/05 ',
   '2026/05',
   '05/18-1',
@@ -76,6 +78,29 @@ function amount(raw: string | number): number {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
+})
+
+describe('주문서 앱 접근권한 mock report 계약', () => {
+  it('GET /access-preview/report 는 목록 Page가 아닌 후보 report를 반환한다', () => {
+    const response = mockRequest({
+      method: 'GET',
+      url: '/api/v1/partner-approvals/access-preview/report',
+      params: { unusedDays: 30 },
+    }) as MockEnvelope<{
+      candidates: unknown[]
+      deferred: boolean
+      deferredPartnerCount: number
+      deferredSources: string[]
+    }>
+
+    expect(response.data).toEqual(expect.objectContaining({
+      candidates: expect.any(Array),
+      deferred: expect.any(Boolean),
+      deferredPartnerCount: expect.any(Number),
+      deferredSources: expect.any(Array),
+    }))
+    expect(response.data).not.toHaveProperty('content')
+  })
 })
 
 describe('mock 결재양식 optionsJson 정규화', () => {
@@ -3544,5 +3569,73 @@ describe('mock 활성 문서양식(document-templates/active) 핸들러', () => 
     // 핸들러는 반드시 envelope(null) (data:null) 을 반환해야 한다.
     expect(res).not.toBeNull()
     expect(res.data).toBeNull()
+  })
+})
+
+describe('거래처별 원장 mock 응답 계약', () => {
+  it('partner-ledger는 PartnerLedgerResponse documents shape으로 데이터와 라인을 반환한다', () => {
+    type PartnerLedgerLine = {
+      productName: string
+      modelName: string | null
+      quantity: number
+      unitPriceWithVat: string
+      lineAmount: string
+    }
+    type PartnerLedgerDocument = {
+      type: string
+      documentNo: string
+      date: string
+      partnerCode: string
+      partnerName: string
+      deliveryAddress: string | null
+      amount: string
+      lines: PartnerLedgerLine[]
+    }
+    type PartnerLedgerResponse = {
+      partnerCode: string
+      partnerName: string
+      partnerBusinessNo: string | null
+      periodFrom: string
+      periodTo: string
+      documents: PartnerLedgerDocument[]
+    }
+
+    const response = mockRequest({
+      method: 'GET',
+      url: '/accounting/journals/partner-ledger',
+      params: { partnerCode: 'P-001', from: '2026-04-01', to: '2026-04-30' },
+    }) as MockEnvelope<PartnerLedgerResponse> | null
+
+    expect(response).not.toBeNull()
+    if (!response) return
+    expect(response.data).toMatchObject({
+      partnerCode: 'P-001',
+      partnerName: '엘에이시스템에어',
+      partnerBusinessNo: '123-45-67890',
+      periodFrom: '2026-04-01',
+      periodTo: '2026-04-30',
+    })
+    expect(response.data.documents).toHaveLength(2)
+    expect(response.data.documents[0]).toMatchObject({
+      type: 'SALE',
+      partnerCode: 'P-001',
+      partnerName: '엘에이시스템에어',
+    })
+    expect(response.data.documents[0]?.lines[0]).toMatchObject({
+      productName: '시스템에어컨 4Way 4HP',
+      modelName: 'AJ040RXH4BC1',
+      quantity: 2,
+    })
+    expect(response.data.documents[1]).toMatchObject({ type: 'CASH_RECEIPT', lines: [] })
+  })
+
+  it('legacy ledger-data handler는 기존 line 응답을 계속 반환한다', () => {
+    const response = mockRequest({
+      method: 'GET',
+      url: '/accounting/journals/ledger-data',
+      params: { partnerCode: '1234567890', from: '2026-04-01', to: '2026-04-30' },
+    }) as MockEnvelope<{ lines: unknown[] }>
+
+    expect(response.data.lines).toHaveLength(2)
   })
 })

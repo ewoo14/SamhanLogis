@@ -1,4 +1,4 @@
-import type { CashReceiptRequest, CashReceiptRow } from '../api/accounting'
+import type { CashReceiptLine, CashReceiptRequest, CashReceiptRow } from '../api/accounting'
 import type { PartnerOption } from '@samhan/design-system'
 import { localTodayIso } from './localDate'
 
@@ -14,6 +14,15 @@ export interface CashReceiptFormState {
   memo: string
   debitAccountCode: string
   creditAccountCode: string
+  lines: CashReceiptLineState[]
+}
+
+export interface CashReceiptLineState {
+  partnerCode: string
+  bizNo: string
+  partnerName: string
+  amount: string
+  memo: string
 }
 
 export type CashReceiptFormErrors = Partial<Record<keyof CashReceiptFormState | 'partner', string>>
@@ -30,8 +39,45 @@ export function cashReceiptInitialFormState(
     memo: '',
     debitAccountCode: CASH_RECEIPT_DEFAULT_DEBIT_ACCOUNT_CODE,
     creditAccountCode: CASH_RECEIPT_DEFAULT_CREDIT_ACCOUNT_CODE,
+    lines: [emptyCashReceiptLine()],
     ...overrides,
   }
+}
+
+export function emptyCashReceiptLine(): CashReceiptLineState {
+  return { partnerCode: '', bizNo: '', partnerName: '', amount: '', memo: '' }
+}
+
+export function cashReceiptLineHasValue(line: CashReceiptLineState): boolean {
+  return Boolean((line.partnerCode ?? '').trim() || (line.bizNo ?? '').trim() || (line.partnerName ?? '').trim()
+    || (line.amount ?? '').trim() || (line.memo ?? '').trim())
+}
+
+/** 판매전표와 같은 규칙: 마지막 행에 실제 값이 생길 때 빈행 하나를 자동 추가한다. */
+export function updateCashReceiptLine(
+  lines: CashReceiptLineState[],
+  index: number,
+  patch: Partial<CashReceiptLineState>,
+): CashReceiptLineState[] {
+  const before = lines[index]
+  if (!before) return lines
+  const after = { ...before, ...patch }
+  const next = lines.map((line, i) => i === index ? after : line)
+  if (index === lines.length - 1 && cashReceiptLineHasValue(after) && !cashReceiptLineHasValue(before)) {
+    return [...next, emptyCashReceiptLine()]
+  }
+  return next
+}
+
+/** 마지막 빈행은 저장 대상이 아니다. */
+export function persistedCashReceiptLines(lines: CashReceiptLineState[]): CashReceiptLine[] {
+  return lines.filter(cashReceiptLineHasValue).map((line) => ({
+    partnerCode: (line.partnerCode ?? '').trim() || undefined,
+    bizNo: (line.bizNo ?? '').trim() || undefined,
+    partnerName: (line.partnerName ?? '').trim() || undefined,
+    amount: (line.amount ?? '').trim(),
+    memo: (line.memo ?? '').trim() || undefined,
+  }))
 }
 
 export function cashReceiptFormStateFromRow(row: CashReceiptRow): CashReceiptFormState {
@@ -44,6 +90,12 @@ export function cashReceiptFormStateFromRow(row: CashReceiptRow): CashReceiptFor
     memo: row.memo ?? '',
     debitAccountCode: row.debitAccountCode ?? CASH_RECEIPT_DEFAULT_DEBIT_ACCOUNT_CODE,
     creditAccountCode: row.creditAccountCode ?? CASH_RECEIPT_DEFAULT_CREDIT_ACCOUNT_CODE,
+    lines: row.lines?.length
+      ? [...row.lines.map((line) => ({
+        partnerCode: line.partnerCode ?? '', bizNo: line.bizNo ?? '',
+        partnerName: line.partnerName ?? '', amount: String(line.amount ?? ''), memo: line.memo ?? '',
+      })), emptyCashReceiptLine()]
+      : [{ partnerCode: row.partnerCode ?? '', bizNo: row.bizNo ?? '', partnerName: row.partnerName ?? '', amount: String(row.amount ?? ''), memo: row.memo ?? '' }, emptyCashReceiptLine()],
   })
 }
 
@@ -58,7 +110,10 @@ export function partnerOptionFromFormState(state: CashReceiptFormState): Partner
 
 export function validateCashReceiptForm(state: CashReceiptFormState): CashReceiptFormErrors {
   const errors: CashReceiptFormErrors = {}
-  if (!state.partnerCode.trim() && !state.partnerName.trim()) {
+  const lines = persistedCashReceiptLines(state.lines)
+  const firstLine = lines[0]
+  if (!state.partnerCode.trim() && !state.partnerName.trim()
+    && !firstLine?.partnerCode && !firstLine?.partnerName) {
     errors.partner = '거래처를 선택하거나 거래처명을 입력하세요.'
   }
   const amount = Number(state.amount)
@@ -76,6 +131,13 @@ export function validateCashReceiptForm(state: CashReceiptFormState): CashReceip
   }
   if (!state.creditAccountCode.trim()) {
     errors.creditAccountCode = '대변 계정을 선택하세요.'
+  }
+  if (lines.length > 0) {
+    const total = lines.reduce((sum, line) => sum + Number(line.amount), 0)
+    if (!lines.every((line) => Number.isFinite(Number(line.amount)) && Number(line.amount) > 0)
+      || Math.abs(total - Number(state.amount)) > 0.0001) {
+      errors.amount = '행 합계가 입금 총액과 같아야 합니다.'
+    }
   }
   return errors
 }
@@ -103,14 +165,17 @@ function optionalTrim(value: string): string | undefined {
 }
 
 export function buildCashReceiptRequest(state: CashReceiptFormState): CashReceiptRequest {
+  const lines = persistedCashReceiptLines(state.lines)
+  const firstLine = lines[0]
   return {
-    partnerCode: optionalTrim(state.partnerCode),
-    bizNo: optionalTrim(state.bizNo),
-    partnerName: optionalTrim(state.partnerName),
+    partnerCode: optionalTrim(state.partnerCode) ?? firstLine?.partnerCode ?? undefined,
+    bizNo: optionalTrim(state.bizNo) ?? firstLine?.bizNo ?? undefined,
+    partnerName: optionalTrim(state.partnerName) ?? firstLine?.partnerName ?? undefined,
     amount: state.amount.trim(),
     transactionDate: state.transactionDate,
     memo: optionalTrim(state.memo),
     debitAccountCode: optionalTrim(state.debitAccountCode),
     creditAccountCode: optionalTrim(state.creditAccountCode),
+    ...(lines.length > 0 ? { lines } : {}),
   }
 }

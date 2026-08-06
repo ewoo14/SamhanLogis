@@ -276,7 +276,7 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     // 전표 상세 로딩 — 앱헤더 전표번호 표시 확인 (.first() — 버전이력 행 중복 회피)
     await expect(page.getByText('2026/05/02-12').first()).toBeVisible({ timeout: 20_000 })
 
-    // 권한 로딩 대기 후 "수정" 버튼(canDirectEditSales: OUTBOUND+DRAFT+MASTER) 확인
+    // 권한 로딩 대기 후 "직접 수정" 버튼(canDirectEditSales: OUTBOUND+DRAFT+MASTER) 확인
     const editBtn = page.getByTestId('sales-slip-edit-button')
     await expect(editBtn).toBeVisible({ timeout: 15_000 })
 
@@ -402,7 +402,7 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     await expect(page.getByText('2026/05/02-12').first()).toBeVisible({ timeout: 20_000 })
 
     await page.getByRole('button', { name: '더보기' }).click()
-    const editBtn = page.locator('.mobile-more-sheet').getByRole('button', { name: '수정' })
+    const editBtn = page.locator('.mobile-more-sheet').getByRole('button', { name: '직접 수정', exact: true })
     await expect(editBtn, '모바일 액션시트에 직접 수정 버튼이 보여야 한다').toBeVisible({ timeout: 3_000 })
     await editBtn.click()
     const inlineForm = page.getByTestId('sales-slip-edit-modal')

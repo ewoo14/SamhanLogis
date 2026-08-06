@@ -70,8 +70,8 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "app.publish.warehouse-code-map.MERGE-WH=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-111111111111"
+        "app.publish.warehouse-code-map.MERGE-WH=11111111-1111-1111-1111-000000000001",
+        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-000000000001"
 })
 class SlipPublishMergeIT extends AbstractPostgresIT {
 
@@ -165,6 +165,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         body.put("ioDate", "20260531");
         body.put("partnerId", RESOLVED_PARTNER_ID.toString());
         body.put("partnerCode", "P0001");
+        body.put("bizCode", "123-45-67890");
         body.put("partnerName", "거래처A");
         body.put("warehouseCode", WAREHOUSE_CODE);
         body.put("shippingAddress", "서울");
@@ -609,6 +610,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         body.put("ioDate", "20260531");
         body.put("partnerId", RESOLVED_PARTNER_ID.toString());
         body.put("partnerCode", partnerCode);
+        body.put("bizCode", "123-45-67890");
         body.put("partnerName", partnerName);
         body.put("warehouseCode", warehouseCode);
         body.put("shippingAddress", shippingAddress);
