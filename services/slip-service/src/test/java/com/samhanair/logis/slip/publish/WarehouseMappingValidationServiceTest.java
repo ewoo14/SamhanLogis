@@ -136,6 +136,45 @@ class WarehouseMappingValidationServiceTest {
     }
 
     @Test
+    void 미사용_설정코드의_alias가_없어도_실사용코드가_VERIFIED면_readiness를_허용한다() {
+        UUID unusedA = UUID.fromString("11111111-1111-1111-1111-000000000003");
+        UUID unusedB = UUID.fromString("11111111-1111-1111-1111-000000000004");
+        mapper.setWarehouseCodeMap(Map.of(
+                "00003", HQ.toString(), "2", HUB.toString(),
+                "14", unusedA.toString(), "1", unusedB.toString()));
+        when(client.findEcountWarehouseAliases(Set.of("00003", "2")))
+                .thenReturn(Map.of(
+                        "00003", new WarehouseInternalClient.EcountWarehouseAlias("00003", HQ),
+                        "2", new WarehouseInternalClient.EcountWarehouseAlias("2", HUB)));
+
+        service.validateNow();
+
+        assertThat(mapper.resolve("00003")).isEqualTo(HQ);
+        assertThat(mapper.resolve("2")).isEqualTo(HUB);
+        assertThat(mapper.validationStatus("14")).isEqualTo(WarehouseMappingStatus.UNVERIFIED);
+        assertThat(mapper.validationStatus("1")).isEqualTo(WarehouseMappingStatus.UNVERIFIED);
+        assertThat(lastReadiness()).isEqualTo(ReadinessState.ACCEPTING_TRAFFIC);
+    }
+
+    @Test
+    void 실사용코드_alias가_없으면_미사용코드와_무관하게_readiness를_거부한다() {
+        UUID unusedA = UUID.fromString("11111111-1111-1111-1111-000000000003");
+        UUID unusedB = UUID.fromString("11111111-1111-1111-1111-000000000004");
+        mapper.setWarehouseCodeMap(Map.of(
+                "00003", HQ.toString(), "2", HUB.toString(),
+                "14", unusedA.toString(), "1", unusedB.toString()));
+        when(client.findEcountWarehouseAliases(Set.of("00003", "2")))
+                .thenReturn(Map.of("00003",
+                        new WarehouseInternalClient.EcountWarehouseAlias("00003", HQ)));
+
+        service.validateNow();
+
+        assertThat(mapper.validationStatus("2")).isEqualTo(WarehouseMappingStatus.NOT_FOUND);
+        assertThat(lastReadiness()).isEqualTo(ReadinessState.REFUSING_TRAFFIC);
+        assertThatThrownBy(() -> mapper.resolve("2")).hasMessageContaining("NOT_FOUND");
+    }
+
+    @Test
     void UUID가_뒤바뀌면_행의_존재와_무관하게_MISMATCH로_발행을_차단한다() {
         when(client.findEcountWarehouseAliases(Set.of("00003", "2")))
                 .thenReturn(Map.of(
@@ -243,5 +282,12 @@ class WarehouseMappingValidationServiceTest {
         assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(elapsedMillis).isLessThan(500L);
         release.countDown();
+    }
+
+    private ReadinessState lastReadiness() {
+        ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
+        verify(publisher, atLeast(1)).publishEvent(eventCaptor.capture());
+        return (ReadinessState) ((AvailabilityChangeEvent<?>) eventCaptor.getAllValues()
+                .get(eventCaptor.getAllValues().size() - 1)).getState();
     }
 }

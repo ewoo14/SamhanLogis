@@ -27,6 +27,9 @@ public class WarehouseCodeMapper {
 
     private static final String CHOWOL_CODE = "00003";
     private static final String SANGIL_CODE = "2";
+    /** 현재 estimate-app이 전표 발행 요청으로 생성할 수 있는 권위 창고 코드 집합. */
+    private static final Set<String> REQUIRED_WAREHOUSE_CODES =
+            Set.of(CHOWOL_CODE, SANGIL_CODE);
     private static final String CANONICAL_UUID_PATTERN =
             "(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
@@ -76,6 +79,11 @@ public class WarehouseCodeMapper {
 
     public Set<String> configuredWarehouseCodes() {
         return Collections.unmodifiableSet(warehouseCodeMap.keySet());
+    }
+
+    /** readiness가 보장해야 하는 실사용 발행 계약의 코드 집합. */
+    Set<String> requiredWarehouseCodes() {
+        return REQUIRED_WAREHOUSE_CODES;
     }
 
     /** 설정된 consumer UUID를 형식 검증만 하며, 실재성은 검증 서비스가 담당한다. */

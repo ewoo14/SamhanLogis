@@ -50,7 +50,7 @@ class WarehouseBootPathConfigurationTest {
                 repositoryRoot().resolve("infrastructure/scripts/phase11-deploy.ps1"));
 
         assertThat(userData)
-                .contains("up -d --pull always --wait")
+                .contains("up -d --pull always --wait --wait-timeout 300")
                 .contains("WAREHOUSE_MAPPING_MODE=STRICT");
         assertThat(compose)
                 .contains("/actuator/health/readiness")

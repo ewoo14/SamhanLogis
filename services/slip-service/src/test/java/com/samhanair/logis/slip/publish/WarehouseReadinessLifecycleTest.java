@@ -72,6 +72,8 @@ class WarehouseReadinessLifecycleTest {
             controls.validationRelease.countDown();
             awaitStatus(context.getBean(WarehouseCodeMapper.class), "00003",
                     WarehouseMappingStatus.VERIFIED);
+            awaitStatus(context.getBean(WarehouseCodeMapper.class), "2",
+                    WarehouseMappingStatus.VERIFIED);
             awaitReadiness(context, ReadinessState.ACCEPTING_TRAFFIC);
             assertHealth(context, 200);
         }

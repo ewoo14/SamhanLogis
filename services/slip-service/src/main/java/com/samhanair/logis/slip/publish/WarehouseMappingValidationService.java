@@ -85,7 +85,7 @@ public class WarehouseMappingValidationService {
             return;
         }
 
-        Set<String> codes = mapper.configuredWarehouseCodes();
+        Set<String> codes = mapper.requiredWarehouseCodes();
         if (codes.isEmpty()) {
             publishReadiness(ReadinessState.REFUSING_TRAFFIC);
             return;
@@ -94,6 +94,10 @@ public class WarehouseMappingValidationService {
             Map<String, EcountWarehouseAlias> aliases =
                     warehouseInternalClient.findEcountWarehouseAliases(codes);
             for (String code : codes) {
+                if (!mapper.configuredWarehouseCodes().contains(code)) {
+                    mapper.markStatus(code, WarehouseMappingStatus.INVALID_CONFIGURATION);
+                    continue;
+                }
                 if (mapper.hasConfiguredValue(code) && mapper.configuredUuid(code).isEmpty()) {
                     mapper.markStatus(code, WarehouseMappingStatus.INVALID_CONFIGURATION);
                     continue;
@@ -158,7 +162,7 @@ public class WarehouseMappingValidationService {
         }
         return !validationRunning.get()
                 && mapper.mode().orElse(null) == WarehouseMappingMode.STRICT
-                && allVerified(mapper.configuredWarehouseCodes());
+                && allVerified(mapper.requiredWarehouseCodes());
     }
 
     private void reconcileReadiness() {
