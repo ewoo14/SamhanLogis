@@ -271,8 +271,11 @@ test('3. 세트재고 가드 — 출고전표 BUNDLE 라인 재고조회 시 세
   await prodOption.waitFor({ state: 'visible', timeout: 10000 })
   await prodOption.click()
 
-  // BUNDLE 선택 → 세트 옵션 행 노출(productType=BUNDLE 분기) 확인
-  await expect(page.locator('[data-testid="bundle-options-0"]')).toBeVisible({ timeout: 10000 })
+  // BUNDLE 선택 → picker 없이 첫 구성품 행으로 자동 전개되는지 확인
+  await expect(page.getByRole('combobox', { name: '라인 1 품목' })).toHaveValue(
+    'AJ040RXH4BC1',
+    { timeout: 10000 },
+  )
 
   // 3) 라인1 선택 체크박스 ON (재고조회 버튼 활성 조건)
   const lineCheckbox = page.getByRole('checkbox', { name: '라인 1 선택' })

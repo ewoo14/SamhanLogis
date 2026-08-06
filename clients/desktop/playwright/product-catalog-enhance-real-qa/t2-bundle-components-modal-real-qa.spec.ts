@@ -218,8 +218,11 @@ test('T2-전개: 편집된 구성품이 출고전표 세트 전개 라인 수량
   await prodOption.waitFor({ state: 'visible', timeout: 10000 })
   await prodOption.click()
 
-  // BUNDLE 선택 → 세트 옵션 행(BundleOptionRow) 노출 확인(productType=BUNDLE 분기).
-  await expect(page.locator('[data-testid="bundle-options-0"]')).toBeVisible({ timeout: 10000 })
+  // BUNDLE 선택 → picker 없이 첫 구성품 행으로 자동 전개되는지 확인.
+  await expect(page.getByRole('combobox', { name: '라인 1 품목' })).toHaveValue(
+    indoor.componentProductCode,
+    { timeout: 10000 },
+  )
 
   // 3) 라인1 수량 = setQty(1). LineRow 수량 인풋 aria-label="라인 1 수량"(role=spinbutton).
   const qtyInput = page.getByRole('spinbutton', { name: '라인 1 수량' })

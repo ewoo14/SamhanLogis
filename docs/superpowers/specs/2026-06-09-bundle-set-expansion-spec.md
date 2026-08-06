@@ -1,5 +1,7 @@
 # 세트품목 → 전표 구성품 전개 (GAS 완전 충실) — Spec / 에픽
 
+> **R17 현재 계약:** 과거의 FE `BundleOptionRow`/세트 구성 옵션 picker 표면은 제거되었다. 세트 선택 시 저장된 구성품 행으로 자동 전개하며, 이 문서의 과거 picker 언급은 역사적 설계 기록으로만 남긴다.
+
 > 2026-06-09 개발책임자 지시: 세트품목이 실제 전표에 **세트구성품으로 전개**되어 올라가야 한다(기존 GAS 종합견적서/주문서 동일). 현재 우리 구현은 세트가 전표에 한 줄로 올라감 → GAS 동등성 미달. **완전 충실(가격 재배분 6:4 + 옵션 선별 포함)** 으로 이식.
 
 ## 0. 현황 (검증됨)
@@ -38,7 +40,7 @@
 > 개발책임자 2026-06-09 추가: ① 종합견적서로 판매전표 생성, ② **직접 새 전표 생성** 두 경로 모두 **등록된 품목(우리 DB 품목리스트)** 으로 전표 생성 가능해야 함.
 - `EstimateService`가 BUNDLE+옵션 수신 → 전개 → estimate_lines 구성품 영속. `EstimateToSlipConverter`/PartnerOrder 경로 흐름.
 - **직접 전표생성 경로**: slip-service 신규 전표 생성 시 **product-service 등록품목 catalog 조회**(검색/선택) + 세트 선택 시 동일 BundleExpander 전개 → 구성품 라인. (견적 경유/직접 양쪽 동일 전개 엔진.)
-- `SlipLine`/`PartnerOrderLine` 세트헤더/구성품 참조 필드. FE 견적화면 + 직접 전표화면 세트+옵션 picker(등록품목 선택). 전개 회귀 IT(견적→전표 + 직접→전표) + 풀스택 Docker 실QA(세트→전표 구성품).
+- `SlipLine`/`PartnerOrderLine` 세트헤더/구성품 참조 필드. FE 견적화면 + 직접 전표화면에서 등록품목 세트 선택 후 자동 전개. 전개 회귀 IT(견적→전표 + 직접→전표) + 풀스택 Docker 실QA(세트→전표 구성품).
 
 ## 3.5 PR-1b 후속(머지차단 아님 — PR-2 동반 정리 대상)
 - **사양 flapping**: 동일 modelCode 가 여러 사양탭/row 로 등장 시 `loadSpecsForProduct` 의 row-단위 soft-delete 가 서로 키를 지워 flapping + soft-deleted 누적(active set 은 last-row-wins 결정적이라 정합). → **syncAll 전역 spec-key 누적 후 1회 reconcile** 로 전환(union, 누적 차단). 실 QA: 7866 active 정상, deleted 누적 관찰.
