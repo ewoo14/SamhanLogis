@@ -434,17 +434,35 @@ services/arologis-service/src/main/java\com\samhanair\logis\arologis\controller\
   receiveDispatch -> Dispatch/Vehicle/VehicleStop 저장
 ```
 
-현재 활성 DB에는 직접 operational dispatch가 27건이나, 현재 active row 중 `samhan_dispatch_task_id`가 채워진 것은 0건이다.
+> 🚨 **정정 (2026-08-07 · SOL 1차 적대검증)** — 아래 단락의 `27건` 은 **폐기된 측정값이며 현재 근거로 사용 금지**다.
+> 현재값은 **26건 / 활성 26건** 이다. 재실행 원문은 이 절 끝에 있다.
+> 이 오류는 PM 이 PR 본문 서술을 실측 없이 옮긴 데서 나왔고, S2 라운드에서 구현자가 잡았다.
+
+~~현재 활성 DB에는 직접 operational dispatch가 27건이나, 현재 active row 중 `samhan_dispatch_task_id`가 채워진 것은 0건이다.~~ (폐기)
 
 ```text
-docker exec samhan-postgres psql -U samhan -d arologis_db -c "SELECT COUNT(*) AS total_dispatches, COUNT(*) FILTER (WHERE is_deleted = false) AS active_dispatches, COUNT(*) FILTER (WHERE is_deleted = false AND samhan_dispatch_task_id IS NOT NULL) AS active_received_from_samhan FROM dispatches;"
+[폐기된 측정값 — 현재 근거로 사용 금지]
  total_dispatches | active_dispatches | active_received_from_samhan
 ------------------+-------------------+-----------------------------
  27               | 27                | 0
-(1 row)
 ```
 
-이 27건은 기존 operational/direct receive 경로와 관련될 수 있으므로, group snapshot이 있으니 `/internal/arologis/dispatches`도 지워도 된다는 근거가 아니다. 현재 확인된 계약만으로는 “그룹 표시 전용 계약”과 “운영 dispatch/GPS/reply에 쓰일 수 있는 계약”의 canonicalization 결정이 먼저 필요하다.
+**현재값 (2026-08-07 재실행)**
+
+```text
+docker exec samhan-postgres psql -U samhan -d arologis_db -c "SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE is_deleted = false) AS active FROM dispatches;"
+ total | active
+-------+--------
+    26 |     26
+(1 row)
+
+대표 행  6fca3392-f1c3-42ad-9d52-6597e6b87e01 | 2026-04-01 | DAY | samhan_dispatch_task_id = NULL
+```
+
+⚠️ 이 절의 근거 SQL 중 `vehicle_label` · `status` 는 현재 `dispatches` 스키마에 **없는 컬럼**이다.
+실제 컬럼은 `dispatch_type` · `samhan_dispatch_task_id` 다.
+
+이 **26건**은 기존 operational/direct receive 경로와 관련될 수 있으므로, group snapshot이 있으니 `/internal/arologis/dispatches`도 지워도 된다는 근거가 아니다. 현재 확인된 계약만으로는 “그룹 표시 전용 계약”과 “운영 dispatch/GPS/reply에 쓰일 수 있는 계약”의 canonicalization 결정이 먼저 필요하다.
 
 ## ⑤ 세 화면에서 지금 사용자가 실제로 쓰는 것
 
