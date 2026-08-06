@@ -24,6 +24,7 @@ describe('DispatchesLayout', () => {
       permissions: [{ pageCode: 'arologis.dispatch.ops', actions: ['view'] }],
       isLoading: false,
       isError: false,
+      refetch: vi.fn(),
     })
 
     const user = userEvent.setup()
@@ -51,11 +52,32 @@ describe('DispatchesLayout', () => {
       permissions: [],
       isLoading: false,
       isError: false,
+      refetch: vi.fn(),
     })
 
     renderDispatchesLayout()
 
     expect(screen.queryByRole('link', { name: '수신 배차 그룹' })).toBeNull()
+  })
+
+  it('권한 조회 실패는 수신 배차 그룹을 숨기되 원인 안내와 재시도를 표시한다', async () => {
+    const refetch = vi.fn()
+    mockedUsePermissions.mockReturnValue({
+      canAccess: () => false,
+      permissions: undefined,
+      isLoading: false,
+      isError: true,
+      refetch,
+    })
+
+    const user = userEvent.setup()
+    renderDispatchesLayout()
+
+    expect(screen.queryByRole('link', { name: '수신 배차 그룹' })).toBeNull()
+    expect(screen.getByRole('alert').textContent).toContain('권한을 확인하지 못했습니다')
+
+    await user.click(screen.getByRole('button', { name: '권한 다시 확인' }))
+    expect(refetch).toHaveBeenCalledOnce()
   })
 })
 

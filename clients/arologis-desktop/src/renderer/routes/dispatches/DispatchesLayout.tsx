@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { usePermissions } from '../../hooks/usePermissions'
+import { PermissionQueryError } from '../../components/PermissionQueryError'
 
 const links = [
   { to: '/dispatches/manual', label: '수동 배차' },
@@ -9,7 +10,7 @@ const links = [
 ]
 
 export function DispatchesLayout(): JSX.Element {
-  const { canAccess, isLoading, isError } = usePermissions()
+  const { canAccess, isLoading, isError, refetch } = usePermissions()
   const canViewReceivedGroups =
     !isLoading && !isError && canAccess('arologis.dispatch.ops', 'view')
 
@@ -59,6 +60,7 @@ export function DispatchesLayout(): JSX.Element {
             </NavLink>
           ) : null}
         </nav>
+        {isError ? <PermissionQueryError onRetry={() => { void refetch() }} /> : null}
       </header>
       <Outlet />
     </section>

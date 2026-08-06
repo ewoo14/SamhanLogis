@@ -29,6 +29,7 @@ describe('AppLayout', () => {
       permissions: [{ pageCode: 'arologis.accounting.cashbook', actions: ['view'] }],
       isLoading: false,
       isError: false,
+      refetch: vi.fn(),
     })
 
     renderLayout()
@@ -50,6 +51,7 @@ describe('AppLayout', () => {
       permissions: [{ pageCode: 'arologis.admin.permissions', actions: ['view'] }],
       isLoading: false,
       isError: false,
+      refetch: vi.fn(),
     })
 
     renderLayout()
