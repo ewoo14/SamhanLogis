@@ -113,7 +113,9 @@ UPDATE partner_order_lines l SET is_deleted=TRUE, deleted_at=COALESCE(l.deleted_
  deleted_by='issue-1096-test-seed-cleanup'
  WHERE l.is_deleted=FALSE AND l.product_id IN (SELECT id FROM _issue_1096_test_product_ids);
 
-UPDATE partner_orders o SET is_deleted=TRUE, deleted_at=COALESCE(o.deleted_at,CURRENT_TIMESTAMP),
+UPDATE partner_orders o SET is_deleted=TRUE,
+ deleted_at=(SELECT max(l.deleted_at) FROM partner_order_lines l
+             WHERE l.partner_order_id=o.id AND l.deleted_by='issue-1096-test-seed-cleanup'),
  deleted_by='issue-1096-test-seed-cleanup', deleted_by_name='이슈 #1096 테스트 시더 정리'
  WHERE o.is_deleted=FALSE
  AND EXISTS (SELECT 1 FROM partner_order_lines l WHERE l.partner_order_id=o.id AND l.deleted_by='issue-1096-test-seed-cleanup')

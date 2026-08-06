@@ -111,6 +111,17 @@ public class PartnerOrderDeleteService {
 
         LocalDateTime deletedAt = order.getDeletedAt();
         List<PartnerOrderLine> lines = lineRepository.findAllIncludingDeletedByPartnerOrderId(order.getId());
+        long deletedLineCount = lines.stream()
+                .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                .count();
+        long restoredLines = lines.stream()
+                .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                .filter(line -> deletedAt != null && deletedAt.equals(line.getDeletedAt()))
+                .count();
+        if (deletedLineCount != restoredLines) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "주문의 삭제 라인 그래프를 정확히 복원할 수 없습니다: " + order.getOrderNo());
+        }
         order.restoreFromDeleted();
         for (PartnerOrderLine line : lines) {
             if (Boolean.TRUE.equals(line.getIsDeleted()) && deletedAt != null && deletedAt.equals(line.getDeletedAt())) {

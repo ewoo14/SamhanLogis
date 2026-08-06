@@ -104,7 +104,7 @@ public class EstimateSeeder implements CommandLineRunner {
             String estimateNo = formatEstimateNo(estimateDate, seqNo);
 
             // idempotency
-            if (estimateRepository.findByEstimateNo(estimateNo).isPresent()) {
+            if (estimateRepository.findByEstimateNoIncludingDeleted(estimateNo).isPresent()) {
                 skipped++;
                 continue;
             }

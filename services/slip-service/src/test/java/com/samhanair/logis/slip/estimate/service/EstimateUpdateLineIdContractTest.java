@@ -17,6 +17,7 @@ import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.estimate.repository.EstimateRepository;
+import com.samhanair.logis.slip.estimate.repository.EstimateLineRepository;
 import com.samhanair.logis.slip.estimate.revision.service.EstimateRevisionService;
 import com.samhanair.logis.slip.estimate.web.dto.UpdateEstimateRequest;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
@@ -52,6 +53,7 @@ class EstimateUpdateLineIdContractTest {
     private static final String SET_MODEL = "SET-809";
 
     private final EstimateRepository estimateRepository = mock(EstimateRepository.class);
+    private final EstimateLineRepository estimateLineRepository = mock(EstimateLineRepository.class);
     private final EstimateNumberService estimateNumberService = mock(EstimateNumberService.class);
     private final ProductClient productClient = mock(ProductClient.class);
     private final EstimateToSlipConverter slipConverter = mock(EstimateToSlipConverter.class);
@@ -63,8 +65,9 @@ class EstimateUpdateLineIdContractTest {
             mock(PartnerProductPriceMemoryService.class);
 
     private final EstimateService service = new EstimateService(
-            estimateRepository, estimateNumberService, productClient, slipConverter,
-            estimateRevisionService, collectionRealtimePublisher, priceMemoryService);
+            estimateRepository, estimateLineRepository, estimateNumberService, productClient,
+            slipConverter, estimateRevisionService, collectionRealtimePublisher,
+            priceMemoryService);
 
     @Test
     void update_withoutContractMarker_isRejectedAsBadRequest() {

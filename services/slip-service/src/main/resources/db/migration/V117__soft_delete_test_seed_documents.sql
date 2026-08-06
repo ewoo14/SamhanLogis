@@ -118,13 +118,29 @@ UPDATE estimate_lines l SET is_deleted=TRUE, deleted_at=COALESCE(l.deleted_at,CU
  deleted_by='issue-1096-test-seed-cleanup'
  WHERE l.is_deleted=FALSE AND l.product_id IN (SELECT id FROM _issue_1096_test_product_ids);
 
-UPDATE slips s SET is_deleted=TRUE, deleted_at=COALESCE(s.deleted_at,CURRENT_TIMESTAMP),
+-- 혼합 견적의 정본 라인은 보존하되, 헤더 금액은 삭제 직후 활성 라인의 정본 합계로 맞춘다.
+UPDATE estimates e SET
+    total_supply = COALESCE((SELECT SUM(l.supply_amount) FROM estimate_lines l
+                             WHERE l.estimate_id=e.id AND l.is_deleted=FALSE), 0),
+    total_vat = COALESCE((SELECT SUM(l.vat_amount) FROM estimate_lines l
+                          WHERE l.estimate_id=e.id AND l.is_deleted=FALSE), 0),
+    total_amount = COALESCE((SELECT SUM(l.line_total) FROM estimate_lines l
+                             WHERE l.estimate_id=e.id AND l.is_deleted=FALSE), 0)
+ WHERE e.is_deleted=FALSE
+   AND EXISTS (SELECT 1 FROM estimate_lines l
+               WHERE l.estimate_id=e.id AND l.deleted_by='issue-1096-test-seed-cleanup');
+
+UPDATE slips s SET is_deleted=TRUE,
+ deleted_at=(SELECT max(l.deleted_at) FROM slip_lines l
+             WHERE l.slip_id=s.id AND l.deleted_by='issue-1096-test-seed-cleanup'),
  deleted_by='issue-1096-test-seed-cleanup', deleted_by_name='이슈 #1096 테스트 시더 정리'
  WHERE s.is_deleted=FALSE
  AND EXISTS (SELECT 1 FROM slip_lines l WHERE l.slip_id=s.id AND l.deleted_by='issue-1096-test-seed-cleanup')
  AND NOT EXISTS (SELECT 1 FROM slip_lines l WHERE l.slip_id=s.id AND l.is_deleted=FALSE);
 
-UPDATE estimates e SET is_deleted=TRUE, deleted_at=COALESCE(e.deleted_at,CURRENT_TIMESTAMP),
+UPDATE estimates e SET is_deleted=TRUE,
+ deleted_at=(SELECT max(l.deleted_at) FROM estimate_lines l
+             WHERE l.estimate_id=e.id AND l.deleted_by='issue-1096-test-seed-cleanup'),
  deleted_by='issue-1096-test-seed-cleanup', deleted_by_name='이슈 #1096 테스트 시더 정리'
  WHERE e.is_deleted=FALSE
  AND EXISTS (SELECT 1 FROM estimate_lines l WHERE l.estimate_id=e.id AND l.deleted_by='issue-1096-test-seed-cleanup')

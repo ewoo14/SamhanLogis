@@ -45,7 +45,7 @@ class EstimateSeederTest {
 
     @Test
     void seedLinesUseHvacProductModelNamesAndDeterministicProductUuid() {
-        when(estimateRepository.findByEstimateNo(any())).thenReturn(Optional.empty());
+        when(estimateRepository.findByEstimateNoIncludingDeleted(any())).thenReturn(Optional.empty());
         when(sequenceRepository.findByEstimateDate(any())).thenReturn(Optional.empty());
 
         seeder.run();
@@ -64,7 +64,7 @@ class EstimateSeederTest {
 
     @Test
     void existingEstimateNoKeepsIdempotentSkip() {
-        when(estimateRepository.findByEstimateNo(any()))
+        when(estimateRepository.findByEstimateNoIncludingDeleted(any()))
                 .thenReturn(Optional.of(Estimate.create(
                         "2026/01/01-1", LocalDate.of(2026, 1, 1), 1,
                         UUID.randomUUID(), "거래처", "123-45-67890", "서울",

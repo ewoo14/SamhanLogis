@@ -10,6 +10,7 @@ import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.repository.EstimateRepository;
+import com.samhanair.logis.slip.estimate.repository.EstimateLineRepository;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
 import com.samhanair.logis.slip.estimate.revision.service.EstimateRevisionService;
 import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
@@ -26,6 +27,8 @@ import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.service.LineIdContractGate;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import jakarta.persistence.OptimisticLockException;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -66,6 +69,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class EstimateService {
 
     private final EstimateRepository estimateRepository;
+    private final EstimateLineRepository estimateLineRepository;
     private final EstimateNumberService estimateNumberService;
     private final ProductClient productClient;
     private final EstimateToSlipConverter slipConverter;
@@ -73,6 +77,9 @@ public class EstimateService {
     private final CollectionRealtimePublisher collectionRealtimePublisher;
     /** #809 — 거래처+품목 최근 VAT 포함 입력단가 기억. 실패해도 견적 저장은 계속된다. */
     private final PartnerProductPriceMemoryService priceMemoryService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * 견적 라인 추가 — BUNDLE(세트) 품목이면 product-service expand 로 구성품 라인 N개로 전개(옵션 A,
@@ -400,8 +407,29 @@ public class EstimateService {
                             + estimate.getEstimateNo());
         }
         try {
+            List<EstimateLine> allLines = estimateLineRepository
+                    .findAllIncludingDeletedByEstimateId(estimate.getId());
+            String deletedBy = estimate.getDeletedBy();
+            long deletedLineCount = allLines.stream()
+                    .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                    .count();
+            long restorableLines = allLines.stream()
+                    .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                    .filter(line -> deletedBy != null && deletedBy.equals(line.getDeletedBy()))
+                    .count();
+            if (deletedLineCount != restorableLines) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "견적의 삭제 라인 그래프를 정확히 복원할 수 없습니다: " + estimate.getEstimateNo());
+            }
             estimate.markRestoredWithNameCleared();
+            allLines.stream()
+                    .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                    .forEach(EstimateLine::markRestored);
             Estimate restored = estimateRepository.saveAndFlush(estimate);
+            estimateLineRepository.saveAll(allLines);
+            entityManager.refresh(restored);
+            restored.recalculateTotals();
+            estimateRepository.saveAndFlush(restored);
             publishListChanged("RESTORED");
             return EstimateDetailResponse.from(restored);
         } catch (DataIntegrityViolationException ex) {

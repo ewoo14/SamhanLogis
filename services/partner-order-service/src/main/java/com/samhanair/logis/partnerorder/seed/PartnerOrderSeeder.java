@@ -145,7 +145,7 @@ public class PartnerOrderSeeder implements CommandLineRunner {
 
         for (int seq = 1; seq <= 30; seq++) {
             String orderNo = SLIP_DATE_PREFIX + "-" + seq;
-            Optional<PartnerOrder> existing = partnerOrderRepository.findByOrderNo(orderNo);
+            Optional<PartnerOrder> existing = partnerOrderRepository.findByOrderNoIncludingDeleted(orderNo);
             if (existing.isPresent()) {
                 skipped++;
                 continue;

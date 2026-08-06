@@ -189,6 +189,12 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     /** 전표 유형 + 전표번호 단건 조회. 판매/구매 번호 중복 허용 정책의 기본 조회 방식. */
     Optional<Slip> findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType slipType, String slipNo);
 
+    /** 시더 재기동 시 S2 정리로 삭제된 결정적 문서를 다시 만들지 않도록 삭제행도 조회한다. */
+    @Query(value = "SELECT * FROM slips WHERE slip_type = :slipType AND slip_no = :slipNo LIMIT 1",
+            nativeQuery = true)
+    Optional<Slip> findBySlipTypeAndSlipNoIncludingDeleted(
+            @Param("slipType") String slipType, @Param("slipNo") String slipNo);
+
     /**
      * 협업 수정 저장용 행 잠금 조회.
      *
