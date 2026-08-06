@@ -17,6 +17,7 @@ import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -86,14 +87,14 @@ public class PartnerOrderDeleteService {
     /**
      * 목록 인라인 복원. 삭제 전 revision point-in-time 복원과 별개로 soft-delete 플래그만 되돌린다.
      *
-     * <p><b>라인 복원 = 헤더 deletedAt 정확일치 매칭</b>. 주문 라인은 수정 플로우에서도 개별
+     * <p><b>라인 복원 = 헤더 deletedBy + deletedAt 작업 식별자 매칭</b>. 주문 라인은 수정 플로우에서도 개별
      * soft-delete 되므로({@code markDeleted("system-partner-order-update")} 등) 판매전표(D)식
      * "삭제 라인 전량복원" 은 수정으로 제거된 라인을 오복원한다 — 의도적으로 미채택(#757 R2 LOW
-     * disposition). 같은 삭제 작업의 라인만 헤더와 동일 시각({@code softDeleteCascadeWithName}
-     * 단일시각 보장)으로 식별해 복원한다.
+     * disposition). 같은 삭제 작업의 라인만 헤더와 동일한 {@code deletedBy}와 시각
+     * ({@code softDeleteCascadeWithName} 단일시각 보장)으로 식별해 복원한다.
      *
      * <p>한계(레거시): 단일시각 도입 전 구 {@code softDeleteCascade(String)} 삭제분은 헤더≠라인
-     * 시각이라 인라인 복원 시 라인이 남지 않을 수 있다 — 그 경우 삭제 직전 스냅샷을 보존하는
+     * 식별자가 없어 인라인 복원 시 라인이 남지 않을 수 있다 — 그 경우 삭제 직전 스냅샷을 보존하는
      * 버전이력(DELETE revision) 복원 경로가 정식 복구 수단이다.
      */
     @Transactional
@@ -111,20 +112,22 @@ public class PartnerOrderDeleteService {
 
         LocalDateTime deletedAt = order.getDeletedAt();
         List<PartnerOrderLine> lines = lineRepository.findAllIncludingDeletedByPartnerOrderId(order.getId());
+        String deletedBy = order.getDeletedBy();
+        List<PartnerOrderLine> deletionBatchLines = lines.stream()
+                .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
+                .filter(line -> Objects.equals(deletedBy, line.getDeletedBy()))
+                .filter(line -> deletedAt != null && deletedAt.equals(line.getDeletedAt()))
+                .toList();
         long deletedLineCount = lines.stream()
                 .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
                 .count();
-        long restoredLines = lines.stream()
-                .filter(line -> Boolean.TRUE.equals(line.getIsDeleted()))
-                .filter(line -> deletedAt != null && deletedAt.equals(line.getDeletedAt()))
-                .count();
-        if (deletedLineCount != restoredLines) {
+        if (deletedLineCount > 0 && deletionBatchLines.isEmpty()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "주문의 삭제 라인 그래프를 정확히 복원할 수 없습니다: " + order.getOrderNo());
         }
         order.restoreFromDeleted();
         for (PartnerOrderLine line : lines) {
-            if (Boolean.TRUE.equals(line.getIsDeleted()) && deletedAt != null && deletedAt.equals(line.getDeletedAt())) {
+            if (deletionBatchLines.contains(line)) {
                 line.markRestored();
             }
         }
