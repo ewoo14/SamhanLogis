@@ -103,7 +103,7 @@ import {
   willLineBeSaved,
   type LineIncompleteReason,
 } from '../utils/slipLineDraft'
-import { calculateSlipDiscount } from '../utils/slipDiscount'
+import { calculateSlipDiscount, type SlipDiscountConfig } from '../utils/slipDiscount'
 import {
   partnerRepriceSessionIsCurrent,
   usePartnerPriceRefresh,
@@ -843,6 +843,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     source: LineDraft,
     expanded: Awaited<ReturnType<typeof expandBundleLine>>,
     parentSpecification: string,
+    discountConfig: SlipDiscountConfig | null = partnerDcConfig,
   ) => {
     const existingContext = expandedBundleOptionsRef.current[source.id]
     const context = existingContext ?? (source.productType === 'BUNDLE' && source.productId
@@ -868,7 +869,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       .filter((component) => component.productId)
       .map((component) => {
         const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
-        const unitPrice = String(component.unitPrice ?? '0')
+        const catalogUnitPrice = String(component.unitPrice ?? '0')
+        const componentDiscount = calculateSlipDiscount({
+          listPrice: Number(catalogUnitPrice),
+          modelCode: component.modelCode,
+          fixedDiscountRate: null,
+          category: 'OTHER',
+          hasVariableDiscount: false,
+        }, discountConfig)
+        const unitPrice = String(componentDiscount.unitPrice)
         const isKeepParent = component.componentKind === null && source.productType === 'BUNDLE'
         const productType = isKeepParent
           ? 'BUNDLE'
@@ -886,6 +895,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             productType,
             modelCode: component.modelCode ?? null,
             priceSource: 'CATALOG',
+            catalogUnitPrice,
+            discountInfo: componentDiscount.source === 'NONE' ? null : componentDiscount.info,
             ...(isKeepParent ? {} : {
               parentSetModel: parentModelCode ?? null,
               setHead: Boolean(component.setHead),
@@ -903,6 +914,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           productType,
           modelCode: component.modelCode ?? null,
           priceSource: 'CATALOG',
+          catalogUnitPrice,
+          discountInfo: componentDiscount.source === 'NONE' ? null : componentDiscount.info,
           ...(isKeepParent ? {} : {
             parentSetModel: parentModelCode ?? null,
             setHead: Boolean(component.setHead),
@@ -964,7 +977,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     })
   }
 
-  const expandSelectedBundle = async (source: LineDraft, selected: LineDraft): Promise<void> => {
+  const expandSelectedBundle = async (
+    source: LineDraft,
+    selected: LineDraft,
+    discountConfig: SlipDiscountConfig | null = partnerDcConfig,
+  ): Promise<void> => {
     const generation = bundleExpansionGenerationRef.current.get(source.id) ?? 0
     const requestSnapshot = createBundleExpansionSnapshot(selected)
     const retryLatestBundleGeneration = async () => {
@@ -989,7 +1006,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       const latestSnapshot = latestBundle ? createBundleExpansionSnapshot(latestBundle) : null
       if (areBundleExpansionSnapshotsEqual(requestSnapshot, latestSnapshot) && currentGeneration === generation) return false
       if (!latestBundle) return false
-      await expandSelectedBundle(source, latestBundle)
+      await expandSelectedBundle(source, latestBundle, discountConfig)
       return true
     }
     const restorePreviousExpansion = (
@@ -1050,7 +1067,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       if (!isCurrentBundle || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
       if (expanded.filter((component) => component.productId).length === 0
         && restorePreviousExpansion(latest, context)) return
-      replaceWithExpandedBundleLines(source, expanded, selected.specification)
+      replaceWithExpandedBundleLines(source, expanded, selected.specification, discountConfig)
     } catch {
       const latest = linesRef.current.find((line) => line.id === source.id)
       if (await retryLatestBundleGeneration()) return
@@ -1077,7 +1094,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       if (!isCurrentBundle
         || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
       if (restorePreviousExpansion(latest, context)) return
-      replaceWithExpandedBundleLines(source, [], latest.specification)
+      replaceWithExpandedBundleLines(source, [], latest.specification, discountConfig)
       setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
     }
   }
@@ -1140,6 +1157,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       ? null
       : calculateSlipDiscount({
         listPrice: Number(product.sellingPrice),
+        modelCode: product.modelCode,
         fixedDiscountRate: product.fixedDiscountRate,
         category,
         hasVariableDiscount: product.hasVariableDiscount,
@@ -1173,7 +1191,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     }
     updateLine(line.id, nextLine)
     if (nextLine.productType === 'BUNDLE' && (!partnerId || !productId || !shouldAutoFill)) {
-      await expandSelectedBundle(nextLine, nextLine)
+      await expandSelectedBundle(nextLine, nextLine, shouldAutoFill ? partnerDcConfig : null)
       return
     }
     // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
@@ -1186,10 +1204,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return
     }
     let resolvedDcResult = dcResult
+    let resolvedDiscountConfig: PartnerDcConfig | null = partnerDcConfig
     if (!resolvedDcResult && partnerCode) {
       try {
         const config = partnerDcConfig ?? await withPriceLookupTimeout(getPartnerDcConfig(partnerCode))
         if (selectedPartnerIdRef.current !== partnerId) return
+        resolvedDiscountConfig = config
         if (!partnerDcConfig) setPartnerDcConfig(config)
         resolvedDcResult = calculateWithConfig(config)
         if (resolvedDcResult && resolvedDcResult.source !== 'NONE') {
@@ -1270,7 +1290,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       linesRef.current = resolvedLines
       setLines(resolvedLines)
       if (bundleToExpand) {
-        await expandSelectedBundle({ ...line, ...bundleToExpand }, { ...bundleToExpand, lookupLoading: false })
+        await expandSelectedBundle(
+          { ...line, ...bundleToExpand },
+          { ...bundleToExpand, lookupLoading: false },
+          resolvedDiscountConfig,
+        )
         return
       }
       if (applied) {
@@ -1296,7 +1320,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         ),
       )
       if (latestBundle) {
-        await expandSelectedBundle({ ...line, ...latestBundle }, { ...latestBundle, lookupLoading: false })
+        await expandSelectedBundle(
+          { ...line, ...latestBundle },
+          { ...latestBundle, lookupLoading: false },
+          resolvedDiscountConfig,
+        )
         return
       }
       if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} ${resolvedDcResult?.info ?? '판매가 적용'}`)
@@ -1326,6 +1354,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           ? undefined
           : {
             fixedDiscountRate: line.fixedDiscountRate,
+            modelCode: line.modelCode,
             category: line.categoryKey === 'homemulti'
               ? 'HOMEMULTI'
               : line.categoryKey === 'commercialMulti'
@@ -1422,7 +1451,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       unitPrice: context.unitPrice,
       productType: 'BUNDLE',
       setOptions: nextOptions,
-    })
+    }, line.priceSource === 'USER' ? null : partnerDcConfig)
   }
 
   const toggleSelect = (id: string, selected: boolean) => {

@@ -719,6 +719,38 @@ describe('SlipFormPage price memory autofill', () => {
     })))
   })
 
+  it('applies a single-set fixed amount to each expanded component by model code', async () => {
+    harness.getPartnerDcConfig.mockResolvedValue({
+      partnerCode: harness.partnerA.partnerCode,
+      companyName: harness.partnerA.name,
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      threeSixty: '30,000',
+      fourWay: null,
+      oneWay: null,
+      stand: null,
+      deluxe: null,
+      firstGrade: null,
+    })
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: harness.productA.id,
+      modelName: harness.productA.modelName,
+      name: harness.productA.productName,
+      modelCode: 'AC123456P',
+      quantity: 1,
+      unitPrice: 100000,
+      specification: null,
+    }])
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-bundle-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe('70000'))
+    expect(screen.getByTestId('line-1').getAttribute('data-discount-info'))
+      .toBe('거래처 싱글세트 정액DC 30000원 적용')
+  })
+
   it('C-1 판별: 비세트 상업멀티 품목에도 거래처 전역DC가 적용된다', async () => {
     harness.productA.categoryKey = 'commercialMulti'
     harness.productA.sellingPrice = '20680000'
