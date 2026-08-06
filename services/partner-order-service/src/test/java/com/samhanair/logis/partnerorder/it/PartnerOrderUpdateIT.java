@@ -19,6 +19,7 @@ import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
+import com.samhanair.logis.partnerorder.client.ProductSummary;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
@@ -34,6 +35,7 @@ import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -112,6 +114,10 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
                 .thenReturn(true);
+        lenient().when(productClient.lookupByModelCodes(any())).thenReturn(List.of(
+                new ProductSummary(UUID.fromString("00000000-0000-0000-0000-000000000909"),
+                        "벽걸이 실내기", "AR09B9150HZ", null, new BigDecimal("310000"),
+                        "ACTIVE", "AR09B9150HZ", "SINGLE", "singleSets")));
     }
 
     @Test
@@ -325,6 +331,87 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         assertThat(lineRepository.findAllByPartnerOrder_Id(orderId)).hasSize(2);
     }
 
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void memo_only_update_preserves_existing_product_ids() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-11", false);
+        UUID before = order.getLines().get(0).getProductId();
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLineUpdateJson(currentModifiedAt(order.getId()),
+                                "AJ040RXH4BC1", "실외기", "homemulti", "memo 변경")))
+                .andExpect(status().isOk());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement()
+                .extracting(PartnerOrderLine::getProductId)
+                .isEqualTo(before);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void product_replacement_uses_catalog_product_id() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-12", false);
+        UUID catalogId = UUID.fromString("00000000-0000-0000-0000-000000000912");
+        when(productClient.lookupByModelCodes(any())).thenReturn(List.of(
+                new ProductSummary(catalogId, "새 품목", "NEW-MODEL", null,
+                        new BigDecimal("300000"), "ACTIVE", "NEW-MODEL", "SINGLE", "homemulti")));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLineUpdateJson(currentModifiedAt(order.getId()),
+                                "NEW-MODEL", "새 품목", "homemulti", "교체")))
+                .andExpect(status().isOk());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement()
+                .extracting(PartnerOrderLine::getProductId)
+                .isEqualTo(catalogId);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void added_line_uses_catalog_product_id() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-13", false);
+        UUID catalogId = UUID.fromString("00000000-0000-0000-0000-000000000913");
+        when(productClient.lookupByModelCodes(any())).thenReturn(List.of(
+                new ProductSummary(catalogId, "추가 품목", "ADDED-MODEL", null,
+                        new BigDecimal("300000"), "ACTIVE", "ADDED-MODEL", "SINGLE", "homemulti")));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(twoLineUpdateJson(currentModifiedAt(order.getId()),
+                                "ADDED-MODEL", "추가 품목", "homemulti")))
+                .andExpect(status().isOk());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .extracting(PartnerOrderLine::getProductId)
+                .contains(catalogId);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void unknown_catalog_product_is_reported_without_synthetic_id() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-14", false);
+        when(productClient.lookupByModelCodes(any())).thenReturn(List.of());
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLineUpdateJson(currentModifiedAt(order.getId()),
+                                "UNKNOWN-MODEL", "없는 품목", "homemulti", "실패 원인")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PARTNER_ORDER_UPDATE_INVALID_LINE"));
+    }
+
     private PartnerOrder saveOrder(String orderNo, boolean deleted) {
         PartnerOrder order = PartnerOrder.create(
                 "P-SP0842",
@@ -334,7 +421,7 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                 BigDecimal.ZERO);
         order.markSlipPublished("S-" + orderNo.replace("/", "").replace("-", ""));
         order.addLine(PartnerOrderLine.create(
-                stableProductId("AJ040RXH4BC1"),
+                fixtureProductId("AJ040RXH4BC1"),
                 "AJ040RXH4BC1",
                 "실외기",
                 "homemulti",
@@ -396,7 +483,39 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                 """.formatted(updatedAt, quantity);
     }
 
-    private UUID stableProductId(String modelCode) {
+    private String singleLineUpdateJson(String updatedAt, String modelCode, String productName,
+                                         String categoryKey, String memo) {
+        return """
+                {
+                  "updatedAt": "%s",
+                  "partnerCode": "P-SP0842",
+                  "bizCode": "1010101010",
+                  "memo": "%s",
+                  "lines": [{
+                    "modelCode": "%s", "productName": "%s", "categoryKey": "%s",
+                    "quantity": 2, "deliveryPrice": 125000, "remark": "현장 납품"
+                  }]
+                }
+                """.formatted(updatedAt, memo, modelCode, productName, categoryKey);
+    }
+
+    private String twoLineUpdateJson(String updatedAt, String addedModelCode, String addedProductName,
+                                     String addedCategoryKey) {
+        return """
+                {
+                  "updatedAt": "%s",
+                  "partnerCode": "P-SP0842",
+                  "bizCode": "1010101010",
+                  "memo": "라인 추가",
+                  "lines": [
+                    {"modelCode":"AJ040RXH4BC1","productName":"실외기","categoryKey":"homemulti","quantity":2,"deliveryPrice":125000,"remark":"현장 납품"},
+                    {"modelCode":"%s","productName":"%s","categoryKey":"%s","quantity":1,"deliveryPrice":300000,"remark":"추가"}
+                  ]
+                }
+                """.formatted(updatedAt, addedModelCode, addedProductName, addedCategoryKey);
+    }
+
+    private UUID fixtureProductId(String modelCode) {
         return UUID.nameUUIDFromBytes(("sp-08-4-2:" + modelCode).getBytes(StandardCharsets.UTF_8));
     }
 }

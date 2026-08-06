@@ -61,8 +61,8 @@ public record PartnerOrderDetailResponse(
      *
      * <p>{@code productTypeByModelCode} 는 {@code modelCode → "SINGLE"/"BUNDLE"} 매핑이며,
      * product-service 조회 실패(fail-soft) 시 빈 맵이 전달되어 모든 라인 {@code productType=null} 로
-     * 둔다(기존 동작 동일). direct PUT 라인은 synthetic productId 를 저장할 수 있으므로 modelCode
-     * snapshot 을 기준으로 매칭한다. FE 재고조회 모달(2.6d)은 {@code productType="BUNDLE"} 라인을
+     * 둔다(기존 동작 동일). productId 와 무관하게 modelCode snapshot 을 기준으로 매칭한다.
+     * FE 재고조회 모달(2.6d)은 {@code productType="BUNDLE"} 라인을
      * 재고조회 대상에서 제외한다.
      *
      * @param order 주문 엔티티

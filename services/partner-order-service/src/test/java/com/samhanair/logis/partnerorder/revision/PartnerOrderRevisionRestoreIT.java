@@ -1034,7 +1034,7 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
                 "통합테스트 견적",
                 List.of(
                         new EstimateClient.EstimateLineSnapshot(
-                                stableProductId("AJ040RXH4BC1"),
+                                fixtureProductId("AJ040RXH4BC1"),
                                 "AJ040RXH4BC1",
                                 "실외기",
                                 "homemulti",
@@ -1042,7 +1042,7 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
                                 new BigDecimal("120000"),
                                 "현장 납품"),
                         new EstimateClient.EstimateLineSnapshot(
-                                stableProductId("AR09B9150HZ"),
+                                fixtureProductId("AR09B9150HZ"),
                                 "AR09B9150HZ",
                                 "벽걸이 실내기",
                                 "singleSets",
@@ -1119,7 +1119,7 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
      * @param modelCode 모델명
      * @return 모델명 기반 결정적 UUID
      */
-    private UUID stableProductId(String modelCode) {
+    private UUID fixtureProductId(String modelCode) {
         return UUID.nameUUIDFromBytes(("phase-2-4-it:" + modelCode).getBytes(StandardCharsets.UTF_8));
     }
 

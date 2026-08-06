@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.audit.service.PartnerOrderAuditLogService;
+import com.samhanair.logis.partnerorder.client.ProductClient;
+import com.samhanair.logis.partnerorder.client.ProductSummary;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
@@ -17,14 +19,16 @@ import com.samhanair.logis.partnerorder.web.dto.PartnerOrderUpdateRequest;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import jakarta.persistence.OptimisticLockException;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -63,6 +67,7 @@ public class PartnerOrderUpdateService {
     private final PartnerOrderRevisionService revisionService;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
     private final PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
+    private final ProductClient productClient;
 
     /**
      * 주문 헤더와 라인을 즉시 수정한다.
@@ -99,7 +104,7 @@ public class PartnerOrderUpdateService {
                     request.dueDate(), request.memo(),
                     request.deliveryAddress() == null
                             ? order.getDeliveryAddress() : request.deliveryAddress());
-            order.replaceLines(request.lines().stream().map(this::toLine).toList());
+            order.replaceLines(toLines(order, request.lines()));
             PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
 
             auditLogService.recordBatch(saved, actorId, actorName, null, changes);
@@ -348,16 +353,72 @@ public class PartnerOrderUpdateService {
         return new BusinessException(ErrorCode.PARTNER_ORDER_UPDATE_INVALID_LINE, message);
     }
 
-    private PartnerOrderLine toLine(PartnerOrderUpdateRequest.LineRequest line) {
+    private List<PartnerOrderLine> toLines(PartnerOrder order,
+                                           List<PartnerOrderUpdateRequest.LineRequest> requestedLines) {
+        Map<String, List<PartnerOrderLine>> existingByKey = new HashMap<>();
+        for (PartnerOrderLine existing : order.getLines()) {
+            existingByKey.computeIfAbsent(lineKey(existing.getModelName(), existing.getProductName(),
+                    existing.getCategoryKey()), ignored -> new ArrayList<>()).add(existing);
+        }
+
+        Map<String, UUID> resolvedProductIds = new LinkedHashMap<>();
+        List<PartnerOrderUpdateRequest.LineRequest> catalogLines = new ArrayList<>();
+        for (PartnerOrderUpdateRequest.LineRequest requested : requestedLines) {
+            List<PartnerOrderLine> candidates = existingByKey.get(lineKey(
+                    requested.modelCode(), requested.productName(), requested.categoryKey()));
+            if (candidates != null && !candidates.isEmpty()) {
+                resolvedProductIds.put(requestKey(requested), candidates.remove(0).getProductId());
+            } else {
+                catalogLines.add(requested);
+            }
+        }
+
+        if (!catalogLines.isEmpty()) {
+            Set<String> modelCodes = new LinkedHashSet<>();
+            for (PartnerOrderUpdateRequest.LineRequest line : catalogLines) {
+                modelCodes.add(line.modelCode());
+            }
+            if (modelCodes.size() > 100) {
+                throw invalidLine("한 번에 조회할 수 있는 품목 수는 100건 이하입니다.");
+            }
+            Map<String, UUID> catalogProductIds = new HashMap<>();
+            for (ProductSummary product : productClient.lookupByModelCodes(new ArrayList<>(modelCodes))) {
+                if (product != null && product.id() != null && product.modelCode() != null) {
+                    catalogProductIds.put(product.modelCode(), product.id());
+                }
+            }
+            for (PartnerOrderUpdateRequest.LineRequest line : catalogLines) {
+                UUID productId = catalogProductIds.get(line.modelCode());
+                if (productId == null) {
+                    throw invalidLine("카탈로그에서 품목을 찾을 수 없습니다: " + line.modelCode());
+                }
+                resolvedProductIds.put(requestKey(line), productId);
+            }
+        }
+
+        return requestedLines.stream()
+                .map(line -> toLine(line, resolvedProductIds.get(requestKey(line))))
+                .toList();
+    }
+
+    private PartnerOrderLine toLine(PartnerOrderUpdateRequest.LineRequest line, UUID productId) {
         PartnerOrderLine.AmountAuthority authority = line.authority() == null
                 || line.authority().isBlank()
                 ? PartnerOrderLine.AmountAuthority.PRICE
                 : parseAuthority(line.authority());
         return PartnerOrderLine.createFromAuthoritativeAmounts(
-                stableProductId(line.modelCode(), line.productName(), line.categoryKey()),
+                productId,
                 line.modelCode(), line.productName(), line.categoryKey(), line.quantity(),
                 line.deliveryPrice(), line.supplyAmount(), line.vatAmount(), line.lineTotal(),
                 authority, line.remark());
+    }
+
+    private String requestKey(PartnerOrderUpdateRequest.LineRequest line) {
+        return lineKey(line.modelCode(), line.productName(), line.categoryKey());
+    }
+
+    private String lineKey(String modelCode, String productName, String categoryKey) {
+        return modelCode + "\u0000" + productName + "\u0000" + categoryKey;
     }
 
     private PartnerOrderLine.AmountAuthority parseAuthority(String raw) {
@@ -424,11 +485,6 @@ public class PartnerOrderUpdateService {
 
     private String normalize(BigDecimal value) {
         return value == null ? null : value.stripTrailingZeros().toPlainString();
-    }
-
-    private UUID stableProductId(String modelCode, String productName, String categoryKey) {
-        String seed = "partner-order-update:%s:%s:%s".formatted(modelCode, productName, categoryKey);
-        return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8));
     }
 
 }
