@@ -64,6 +64,16 @@ function input(value) {
   };
 }
 
+function specialRowDocument(model, subtotal) {
+  return {
+    querySelector: (selector) => {
+      if (selector.includes('.qty-input')) return null;
+      if (selector.includes(`[data-sub="${model}"]`)) return subtotal;
+      return null;
+    },
+  };
+}
+
 describe('#875 S3 특수행 계승', () => {
   test('S5 RED-A: 저장된 절삭 단가는 네 탭의 입력 표시에서 절댓값으로 렌더링된다', () => {
     for (const renderName of ['renderHome', 'renderSingle', 'renderComm', 'renderOld']) {
@@ -196,5 +206,41 @@ describe('#875 S3 특수행 계승', () => {
     context.handleFreightInput(nonZero, true, priceMap, qtyMap, '절삭', () => {});
     expect(priceMap.get('절삭')).toBe(-500);
     expect(qtyMap.get('절삭')).toBe(1);
+  });
+
+  test('RED-S8: 홈 특수행 소계는 저장용 단가와 읽기전용 수량으로 갱신된다', () => {
+    const subtotal = { textContent: '0' };
+    const doc = specialRowDocument('운임', subtotal);
+    const context = loadFunction('syncHomeUIFromState', {
+      homeRowByModel: new Map([['운임', { name: '운임', source: 'CATALOG_SPECIAL' }]]),
+      homeQty: new Map([['운임', 1]]),
+      homeCustomPrices: new Map([['운임', 1000]]),
+      homeUnitPrice: () => 0,
+      document: doc,
+      fmt: (value) => String(value),
+      syncHomeTotals: () => {},
+    });
+
+    context.syncHomeUIFromState();
+
+    expect(subtotal.textContent).toBe('1000');
+  });
+
+  test('RED-S8: 절삭 특수행 소계는 레거시처럼 음수 기여액으로 표시된다', () => {
+    const subtotal = { textContent: '0' };
+    const doc = specialRowDocument('절삭', subtotal);
+    const context = loadFunction('syncHomeUIFromState', {
+      homeRowByModel: new Map([['절삭', { name: '절삭', source: 'CATALOG_SPECIAL' }]]),
+      homeQty: new Map([['절삭', 1]]),
+      homeCustomPrices: new Map([['절삭', -500]]),
+      homeUnitPrice: () => 0,
+      document: doc,
+      fmt: (value) => String(value),
+      syncHomeTotals: () => {},
+    });
+
+    context.syncHomeUIFromState();
+
+    expect(subtotal.textContent).toBe('-500');
   });
 });

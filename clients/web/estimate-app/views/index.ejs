@@ -8688,6 +8688,18 @@ function computeCommPanelModelForIndoor_(row){
 function syncHomeUIFromState() {
   homeRowByModel.forEach((row, model) => {
     const q = homeQty.get(model) || 0;
+
+    // 특수행은 수량 입력이 없고 저장용 단가 Map이 유일한 표시 단가 출처다.
+    // 일반행용 자동 단가(특수행에서는 0)를 소계에 사용하면 입력·복원 후 소계가 0으로 덮인다.
+    if (row?.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL) {
+      const specialUnit = homeCustomPrices.has(model)
+        ? homeCustomPrices.get(model)
+        : homeUnitPrice(model);
+      const specialSubCell = document.querySelector(`#homeBody [data-sub="${CSS.escape(model)}"]`);
+      if (specialSubCell) specialSubCell.textContent = fmt(specialUnit * q);
+      return;
+    }
+
     // 수량입력창 동기화
     const qtyInp = document.querySelector(`#homeBody .qty-input[data-m="${CSS.escape(model)}"]`);
     if (qtyInp && document.activeElement !== qtyInp) {
