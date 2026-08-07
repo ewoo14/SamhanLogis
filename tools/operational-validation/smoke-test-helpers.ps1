@@ -1,4 +1,4 @@
-function Get-SmokeVerdict {
+﻿function Get-SmokeVerdict {
     param(
         [string]$Status,
         [string]$Body

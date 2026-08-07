@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet("smoke", "baseline", "peak", "stress", "soak", "verify-relogin")]
     [string]$Profile = "smoke",
 

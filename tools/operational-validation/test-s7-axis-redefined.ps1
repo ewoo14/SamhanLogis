@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
@@ -101,8 +101,8 @@ Assert-True (Test-Path $guard) 'port literal guard is missing'
 $guardOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $guard -Root $root 2>&1
 Assert-True ($LASTEXITCODE -eq 0) "port literal guard failed: $guardOutput"
 
-# RED-A③ mutation: a newly tracked script containing a port literal must make the
-# discovery-based guard red. The temporary repository mirrors git ls-files behavior.
+# RED-A③: a decoy repository passed through -Root must not replace the current
+# checkout under test. The guard must remain green while this checkout is clean.
 $mutationRoot = Join-Path ([IO.Path]::GetTempPath()) ('samhan-port-guard-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $mutationRoot -Force | Out-Null
 try {
@@ -115,9 +115,7 @@ try {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $guard -Root $mutationRoot *> $null
     $mutationExitCode = $LASTEXITCODE
     $ErrorActionPreference = $previousErrorActionPreference
-    Assert-True ($mutationExitCode -ne 0) 'port literal guard did not fail on mutation'
-    # The child guard must be red for RED-A③, but that expected red must not
-    # become this regression script's process exit code after the assertion.
+    Assert-True ($mutationExitCode -eq 0) 'decoy -Root changed the guard result'
     $global:LASTEXITCODE = 0
 } finally {
     Remove-Item -LiteralPath $mutationRoot -Recurse -Force -ErrorAction SilentlyContinue

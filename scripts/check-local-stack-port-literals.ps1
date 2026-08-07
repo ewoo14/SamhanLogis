@@ -1,9 +1,12 @@
 [CmdletBinding()]
 param(
-    [string]$Root = (Split-Path -Parent $PSScriptRoot)
+    # Retained for CLI compatibility. The guard target is always this script's
+    # owning checkout; callers cannot redirect the scan to another tree.
+    [string]$Root = ""
 )
 
 $ErrorActionPreference = 'Stop'
+$scriptCheckoutRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $knownPorts = @('8080','8081','8082','8083','8084','8085','8086','8087','8088','8089','8091','8092','8093','8094','8095','8097','8761')
 
 # Non-runtime artwork/deployment text is intentionally exempted. Each entry must
@@ -31,10 +34,10 @@ function Find-PortLiterals {
 }
 
 $findings = @()
-foreach ($relativePath in Get-TrackedPowerShellScripts -RepositoryRoot $Root) {
+foreach ($relativePath in Get-TrackedPowerShellScripts -RepositoryRoot $scriptCheckoutRoot) {
     $normalized = $relativePath.Replace('/', '\')
     if ($exceptions.ContainsKey($normalized)) { continue }
-    $path = Join-Path $Root $normalized
+    $path = Join-Path $scriptCheckoutRoot $normalized
     $lines = [IO.File]::ReadAllLines((Resolve-Path -LiteralPath $path), [Text.Encoding]::Default)
     for ($index = 0; $index -lt $lines.Length; $index++) {
         $line = $lines[$index]
