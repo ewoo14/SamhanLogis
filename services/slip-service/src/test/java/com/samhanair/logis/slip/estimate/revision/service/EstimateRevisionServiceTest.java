@@ -248,6 +248,128 @@ class EstimateRevisionServiceTest {
     }
 
     @Test
+    @DisplayName("S20: 규격은 같고 provenance만 달라져도 라인 변경으로 집계한다")
+    void summarizeCountsSpecificationSourceChange() {
+        UUID productId = UUID.randomUUID();
+        EstimateSnapshot.Line catalog = new EstimateSnapshot.Line(productId, "품목", "모델", "규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "CATALOG");
+        EstimateSnapshot.Line user = new EstimateSnapshot.Line(productId, "품목", "모델", "규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "USER");
+
+        ChangeSummary summary = service.summarize(snapshot("memo", List.of(catalog)),
+                snapshot("memo", List.of(user)));
+
+        assertThat(summary.lineModified()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("S21 RED-A: legacy source null이 USER로 정규화되어도 동일 규격이면 라인 변경이 아니다")
+    void summarizeIgnoresLegacyNullToUserNormalizationWhenSpecificationIsIdentical() {
+        UUID productId = UUID.randomUUID();
+        EstimateSnapshot.Line legacy = new EstimateSnapshot.Line(productId, "품목", "모델", "평문 규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, null);
+        EstimateSnapshot.Line hydrated = new EstimateSnapshot.Line(productId, "품목", "모델", "평문 규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "USER");
+
+        ChangeSummary summary = service.summarize(snapshot("메모", List.of(legacy)),
+                snapshot("변경 메모", List.of(hydrated)));
+
+        assertThat(summary.headerChanged()).isEqualTo(1);
+        assertThat(summary.lineModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("S24 RED-A: legacy marker가 표시값으로 정규화되어 CATALOG가 되어도 라인 변경이 아니다")
+    void summarizeIgnoresLegacyMarkerToCatalogNormalizationWhenSpecificationIsCanonicalized() {
+        UUID productId = UUID.randomUUID();
+        String markerSpecification = "\u2060마커 규격";
+        EstimateSnapshot.Line legacy = new EstimateSnapshot.Line(productId, "품목", "모델", markerSpecification,
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, null);
+        EstimateSnapshot.Line hydrated = new EstimateSnapshot.Line(productId, "품목", "모델", "마커 규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "CATALOG");
+
+        ChangeSummary summary = service.summarize(snapshot("메모", List.of(legacy)),
+                snapshot("변경 메모", List.of(hydrated)));
+
+        assertThat(summary.headerChanged()).isEqualTo(1);
+        assertThat(summary.lineModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("S24 RED-B: legacy marker가 USER로 정규화되면 표시값이 같아도 라인 변경이다")
+    void summarizeCountsLegacyMarkerToUserSourceChange() {
+        UUID productId = UUID.randomUUID();
+        EstimateSnapshot.Line legacy = new EstimateSnapshot.Line(productId, "품목", "모델", "\u2060마커 규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, null);
+        EstimateSnapshot.Line hydrated = new EstimateSnapshot.Line(productId, "품목", "모델", "마커 규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "USER");
+
+        ChangeSummary summary = service.summarize(snapshot("메모", List.of(legacy)),
+                snapshot("메모", List.of(hydrated)));
+
+        assertThat(summary.lineModified()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("S24 RED-C: legacy 평문이 CATALOG로 정규화되면 표시값이 같아도 라인 변경이다")
+    void summarizeCountsLegacyPlainTextToCatalogSourceChange() {
+        UUID productId = UUID.randomUUID();
+        EstimateSnapshot.Line legacy = new EstimateSnapshot.Line(productId, "품목", "모델", "평문 규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, null);
+        EstimateSnapshot.Line hydrated = new EstimateSnapshot.Line(productId, "품목", "모델", "평문 규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "CATALOG");
+
+        ChangeSummary summary = service.summarize(snapshot("메모", List.of(legacy)),
+                snapshot("메모", List.of(hydrated)));
+
+        assertThat(summary.lineModified()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("S24 RED-D: 명시 source에서 null로 복원되면 라인 변경이다")
+    void summarizeCountsExplicitSourceToNullChange() {
+        UUID productId = UUID.randomUUID();
+        EstimateSnapshot.Line catalog = new EstimateSnapshot.Line(productId, "품목", "모델", "규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "CATALOG");
+        EstimateSnapshot.Line missingSource = new EstimateSnapshot.Line(productId, "품목", "모델", "규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, null);
+
+        ChangeSummary summary = service.summarize(snapshot("메모", List.of(catalog)),
+                snapshot("메모", List.of(missingSource)));
+
+        assertThat(summary.lineModified()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("S21 RED-B: 명시된 CATALOG와 USER 전환은 동일 규격이어도 라인 변경이다")
+    void summarizeCountsExplicitSpecificationSourceChange() {
+        UUID productId = UUID.randomUUID();
+        EstimateSnapshot.Line catalog = new EstimateSnapshot.Line(productId, "품목", "모델", "규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "CATALOG");
+        EstimateSnapshot.Line user = new EstimateSnapshot.Line(productId, "품목", "모델", "규격",
+                2, new BigDecimal("1500"), new BigDecimal("3000"), new BigDecimal("300"),
+                new BigDecimal("3300"), null, null, null, null, "USER");
+
+        ChangeSummary summary = service.summarize(snapshot("메모", List.of(catalog)),
+                snapshot("메모", List.of(user)));
+
+        assertThat(summary.lineModified()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("listWithSummary: 최신 우선 정렬 + 각 항목이 직전 revisionNo 대비 changeSummary 를 가지며 "
             + "actorId 는 노출하지 않는다")
     void listWithSummaryBuildsAdjacentSummariesNewestFirst() {

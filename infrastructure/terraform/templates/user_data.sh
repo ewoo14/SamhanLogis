@@ -181,11 +181,12 @@ SAMHAN_DB_PORT=5432
 SAMHAN_DB_USERNAME=$${RDS_USERNAME}
 SAMHAN_DB_PASSWORD=$${DB_PASSWORD}
 
-# ─── slip-service 창고 매핑 (inventory_db.warehouses 실재 행) ─────────────
-WAREHOUSE_UUID_HQ=11111111-1111-1111-1111-000000000001
-WAREHOUSE_UUID_HUBAL=11111111-1111-1111-1111-000000000002
-WAREHOUSE_UUID_ANSEONG=11111111-1111-1111-1111-000000000003
-WAREHOUSE_UUID_CHANGWON=11111111-1111-1111-1111-000000000004
+# ─── slip-service eCount 창고 alias 정책 ───────────────────────────────────
+# production의 UUID는 환경별 inventory_db staging alias에서 결정되므로
+# EC2 최초 기동 템플릿이 값을 추측하거나 dev seed를 복사하지 않는다.
+# STRICT 검증은 기동 후 inventory-service의 staging.ecount_warehouse_map을 읽는다.
+WAREHOUSE_MAPPING_MODE=STRICT
+# WAREHOUSE_UUID_ECOUNT_* 값은 별도 운영 설정이 있을 때만 .env.production에 주입한다.
 
 # ─── AWS ─────────────────────────────────────────────────────
 AWS_DEFAULT_REGION=$${AWS_REGION}
@@ -348,7 +349,7 @@ cd /opt/samhanlogis
 docker compose \
     -f docker-compose.prod.yml \
     --env-file .env.production \
-    up -d --pull always
+    up -d --pull always --wait --wait-timeout 300
 
 echo "=== SamhanLogis Phase 11 초기화 완료 $(date) ==="
 echo "=== 서비스 상태 확인: docker compose -f /opt/samhanlogis/docker-compose.prod.yml ps ==="

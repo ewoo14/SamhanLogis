@@ -2158,7 +2158,8 @@ public class Slip extends BaseEntity {
                         // 보는 쪽)과 감사 이력(스냅샷을 보는 쪽)이 서로 다른 단가를 말하게 된다.
                         line.getUnitPriceDomain() == null ? null : line.getUnitPriceDomain().name(),
                         // PR #991 — 주문이 선택한 categoryKey 축도 복사·복원 경로에서 보존한다.
-                        line.getCategoryKey()))
+                        line.getCategoryKey(),
+                        line.getBundleSetOptions()))
                 .toList();
         return new SlipSnapshot(
                 this.slipNo,
@@ -2287,7 +2288,8 @@ public class Slip extends BaseEntity {
                 // 재생성 시 이후 저장에서 구성품 배분가가 가격기억에 각인되는 오염이 재유입된다.
                 if (snapLine.parentSetModel() != null && !snapLine.parentSetModel().isBlank()) {
                     restored.assignBundleComponent(
-                            snapLine.parentSetModel(), Boolean.TRUE.equals(snapLine.setHead()));
+                            snapLine.parentSetModel(), Boolean.TRUE.equals(snapLine.setHead()),
+                            snapLine.bundleSetOptions());
                 }
                 // #822 계열 sweep — 스냅샷 캡처 금액 권위값 승계. create 는 공급단가에서
                 // vat/withVat 를 재계산하므로 VAT 포함 입력 라인(11의 배수가 아닌 단가)에서

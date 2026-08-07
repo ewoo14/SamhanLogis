@@ -68,6 +68,7 @@ import {
 } from '../api/inventory'
 import {
   createSlip,
+  expandBundleLine,
   getPriceMemory,
   lookupPartnerForAutoFill,
   emptyBundleSetOptions,
@@ -86,6 +87,7 @@ import { toLocalDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
   appendBlankRowIfLastChanged,
+  ensureTrailingBlankRow,
   removeLinePreservingMinimum,
 } from '../utils/autoBlankRow'
 import {
@@ -101,7 +103,7 @@ import {
   willLineBeSaved,
   type LineIncompleteReason,
 } from '../utils/slipLineDraft'
-import { calculateSlipDiscount } from '../utils/slipDiscount'
+import { calculateBundleParentDiscount, calculateSlipDiscount, type SlipDiscountConfig } from '../utils/slipDiscount'
 import {
   partnerRepriceSessionIsCurrent,
   usePartnerPriceRefresh,
@@ -113,7 +115,6 @@ import { searchPartners as searchPartnersApi } from '../api/partnerApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
-import { BundleOptionRow } from './components/BundleOptionRow'
 
 /**
  * 본 슬라이스용 OUTBOUND 배송태그 옵션 — BE `DeliveryTag` enum 의 OUTBOUND 8종.
@@ -483,6 +484,88 @@ export interface SlipFormPageProps {
   mode: SlipType
 }
 
+interface ExpandedBundleOptionContext {
+  parentProductId: string
+  parentModelCode: string
+  modelName: string
+  specification: string
+  quantity: string
+  unitPrice: string
+  /** 거래처 전환 시 이전 거래처 단가가 섞인 구성행 대신 부모 카탈로그 기준가로 재전개한다. */
+  parentCatalogUnitPrice: string | null
+  parentCategoryKey: LineDraft['categoryKey']
+  parentFixedDiscountRate: number | null
+  parentHasVariableDiscount: boolean | null
+  discountInfo: string | null
+  setOptions: BundleSetOptions
+  expansionPending: boolean
+  /** 현재 부모 전개가 소유한 구성품 행 ID — 재전개 때 이전 형제 행까지 함께 교체한다. */
+  componentLineIds?: string[]
+  /** 사용자가 구성행에서 명시적으로 삭제한 품목 식별자 — 거래처 재전개에서도 복구하지 않는다. */
+  excludedComponentKeys?: string[]
+  userOverrides?: Record<string, {
+    unitPrice?: string
+    quantity?: string
+    specification?: string
+  }>
+}
+
+const bundleComponentKey = (component: Pick<LineDraft, 'productId' | 'modelCode'> | {
+  productId: string | null
+  modelCode?: string | null
+}): string => `${component.productId ?? ''}:${component.modelCode ?? ''}`
+
+/**
+ * 지연된 세트 전개 응답을 반영할 때 비교하는 단일 최신성 스냅샷.
+ * 품목·수량·단가·규격·모델 식별자·품목 유형·5개 세트 옵션을 여기서만 정의한다.
+ */
+interface BundleExpansionSnapshot {
+  productId: string | null
+  modelCode: string | null
+  modelName: string
+  productType: LineDraft['productType']
+  quantity: string
+  unitPrice: string
+  specification: string
+  setOptions: BundleSetOptions
+}
+
+const createBundleExpansionSnapshot = (line: LineDraft): BundleExpansionSnapshot => ({
+  productId: line.productId,
+  modelCode: line.modelCode ?? null,
+  modelName: line.modelName,
+  productType: line.productType,
+  quantity: line.quantity,
+  unitPrice: line.unitPrice,
+  specification: line.specification,
+  setOptions: {
+    remoteOption: line.setOptions?.remoteOption ?? null,
+    remoteExcluded: line.setOptions?.remoteExcluded ?? null,
+    panelOption: line.setOptions?.panelOption ?? null,
+    panelShape360: line.setOptions?.panelShape360 ?? null,
+    materialIncluded: line.setOptions?.materialIncluded ?? null,
+  },
+})
+
+const areBundleExpansionSnapshotsEqual = (
+  left: BundleExpansionSnapshot | null,
+  right: BundleExpansionSnapshot | null,
+): boolean => {
+  if (!left || !right) return left === right
+  return left.productId === right.productId
+    && left.modelCode === right.modelCode
+    && left.modelName === right.modelName
+    && left.productType === right.productType
+    && left.quantity === right.quantity
+    && left.unitPrice === right.unitPrice
+    && left.specification === right.specification
+    && left.setOptions.remoteOption === right.setOptions.remoteOption
+    && left.setOptions.remoteExcluded === right.setOptions.remoteExcluded
+    && left.setOptions.panelOption === right.setOptions.panelOption
+    && left.setOptions.panelShape360 === right.setOptions.panelShape360
+    && left.setOptions.materialIncluded === right.setOptions.materialIncluded
+}
+
 /**
  * dnd-kit useSortable 을 적용한 LineRow wrapper — SlipFormPage 내부 전용.
  *
@@ -602,6 +685,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // 이 카운터를 늘려 문구 끝에 보이지 않는 폭 없는 공백을 붙임으로써 DOM 텍스트 자체를
   // 실제로 바꾼다(시각적으로는 무영향 — 이 span 은 이미 스크린리더 전용으로 숨겨져 있다).
   const expansionSeqRef = useRef(0)
+  /** 세트 전개 요청의 행별 최신성. 사용자 입력이 오면 이전 응답은 적용하지 않는다. */
+  const bundleExpansionGenerationRef = useRef(new Map<string, number>())
+  /** 빠른 1차 전개 뒤에도 옵션 입력을 유지할 구성품 행별 임시 세트 컨텍스트. */
+  const [expandedBundleOptions, setExpandedBundleOptions] = useState<Record<string, ExpandedBundleOptionContext>>({})
+  const expandedBundleOptionsRef = useRef(expandedBundleOptions)
+  expandedBundleOptionsRef.current = expandedBundleOptions
   // link-dispatch-slice 신규 — 기사명 + 기사 휴대폰 (LinkDispatchListPage 자동 그룹의 키)
   const [driverName, setDriverName] = useState('')
   const [driverPhone, setDriverPhone] = useState('')
@@ -706,14 +795,63 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   /** 사용자 셀 변경 공통 경로 — 제품 선택과 수량/금액/규격 입력이 같은 증식 규칙을 쓴다. */
   const updateLineFromUser = (id: string, updater: (line: LineDraft) => LineDraft) => {
     const before = linesRef.current.find((line) => line.id === id)
+    bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
     setLines((current) => current.map((line) => (
       line.id === id ? updater(line) : line
     )))
     if (!before) return
-    maybeExpandLastLine(id, before, updater(before))
+    const after = updater(before)
+    const contextEntry = Object.entries(expandedBundleOptionsRef.current)
+      .find(([, context]) => context.componentLineIds?.includes(before.id) || false)
+    const optionContext = contextEntry?.[1]
+    const contextOwnerId = contextEntry?.[0] ?? ''
+    if (optionContext && contextOwnerId) {
+      const override = optionContext.userOverrides?.[before.id] ?? {}
+      setExpandedBundleOptions((current) => ({
+        ...current,
+        [contextOwnerId]: {
+          ...optionContext,
+          specification: after.specification,
+          quantity: after.quantity,
+          unitPrice: after.unitPrice,
+          userOverrides: {
+            ...(optionContext.userOverrides ?? {}),
+            [before.id]: {
+              ...override,
+              ...(before.unitPrice !== after.unitPrice ? { unitPrice: after.unitPrice } : {}),
+              ...(before.quantity !== after.quantity ? { quantity: after.quantity } : {}),
+              ...(before.specification !== after.specification ? { specification: after.specification } : {}),
+            },
+          },
+        },
+      }))
+    }
+    maybeExpandLastLine(id, before, after)
   }
 
   const removeLine = (id: string) => {
+    const removedLine = linesRef.current.find((line) => line.id === id)
+    const liveIds = new Set(linesRef.current.filter((line) => line.id !== id).map((line) => line.id))
+    const nextContexts: Record<string, ExpandedBundleOptionContext> = {}
+    Object.entries(expandedBundleOptionsRef.current).forEach(([key, context]) => {
+      const remainingComponentIds = (context.componentLineIds ?? []).filter((lineId) => liveIds.has(lineId))
+      if (remainingComponentIds.length === 0) return
+      const owner = liveIds.has(key) ? key : remainingComponentIds[0]!
+      const deletedComponent = removedLine && context.componentLineIds?.includes(id)
+        ? bundleComponentKey(removedLine)
+        : null
+      nextContexts[owner] = {
+        ...context,
+        componentLineIds: remainingComponentIds,
+        excludedComponentKeys: deletedComponent
+          ? [...new Set([...(context.excludedComponentKeys ?? []), deletedComponent])]
+          : context.excludedComponentKeys,
+        userOverrides: Object.fromEntries(
+          Object.entries(context.userOverrides ?? {}).filter(([lineId]) => liveIds.has(lineId)),
+        ),
+      }
+    })
+    expandedBundleOptionsRef.current = nextContexts
     setLines((ls) => removeLinePreservingMinimum(
       ls,
       id,
@@ -727,12 +865,369 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       next.delete(id)
       return next
     })
+    setExpandedBundleOptions((current) => {
+      return nextContexts
+    })
     // #902 R2: 안내는 이제 이력(touchedLineIds)이 아니라 현재 내용의 순수 함수라(H1),
     // 행 삭제 시 별도로 지워줄 이력이 없다 — 배열에서 빠지는 즉시 안내도 함께 사라진다.
   }
 
+  /** 품목명 재입력처럼 세트가 해제되는 사용자 행동은 해당 행의 전개만 무효화한다. */
+  const invalidateBundleExpansionForLine = (id: string) => {
+    bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
+    setExpandedBundleOptions((current) => {
+      if (!current[id]) return current
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+  }
+
   const updateLine = (id: string, patch: Partial<LineDraft>) =>
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)))
+
+  /** 서버 저장과 같은 BundleExpander 결과로 선택 행을 구성품 행들로 교체한다. */
+  const replaceWithExpandedBundleLines = (
+    source: LineDraft,
+    expanded: Awaited<ReturnType<typeof expandBundleLine>>,
+    parentSpecification: string,
+    discountConfig: SlipDiscountConfig | null = partnerDcConfig,
+    parentContextOverrides: { unitPrice?: string } = {},
+  ) => {
+    const existingContext = expandedBundleOptionsRef.current[source.id]
+      ?? Object.values(expandedBundleOptionsRef.current).find((candidate) =>
+        candidate.componentLineIds?.includes(source.id))
+    const context = existingContext ?? (source.productType === 'BUNDLE' && source.productId
+      ? {
+          parentProductId: source.productId,
+          parentModelCode: source.modelCode ?? '',
+          modelName: source.modelName,
+          specification: parentSpecification,
+          quantity: source.quantity,
+          unitPrice: source.unitPrice,
+          parentCatalogUnitPrice: source.catalogUnitPrice ?? null,
+          parentCategoryKey: source.categoryKey ?? null,
+          parentFixedDiscountRate: source.fixedDiscountRate ?? null,
+          parentHasVariableDiscount: source.hasVariableDiscount ?? null,
+          discountInfo: source.discountInfo ?? null,
+          setOptions: source.setOptions ?? emptyBundleSetOptions(),
+          expansionPending: false,
+        }
+      : null)
+    const previousComponentLineIds = new Set([
+      source.id,
+      ...(existingContext?.componentLineIds ?? []),
+    ])
+    const parentProductId = context?.parentProductId ?? source.productId
+    const parentModelCode = context?.parentModelCode ?? source.modelCode
+    const parentUnitPrice = parentContextOverrides.unitPrice ?? context?.unitPrice ?? source.unitPrice
+    const bundleDiscountResult = calculateBundleParentDiscount({
+      listPrice: Number(context?.parentCatalogUnitPrice ?? source.catalogUnitPrice ?? source.unitPrice),
+      modelCode: parentModelCode,
+      categoryKey: context?.parentCategoryKey ?? source.categoryKey,
+      fixedDiscountRate: context?.parentFixedDiscountRate ?? source.fixedDiscountRate,
+      hasVariableDiscount: context?.parentHasVariableDiscount ?? source.hasVariableDiscount,
+    }, discountConfig)
+    // 재가격 시 새 거래처의 계산 결과만 근거로 남긴다. 이전 거래처의
+    // discountInfo를 fallback 하면 금액은 원복돼도 근거만 잔류한다(I2/I3/I4).
+    const bundleDiscountInfo = bundleDiscountResult.source !== 'NONE'
+      ? bundleDiscountResult.info
+      : null
+    const previousComponentLines = (context?.componentLineIds ?? [source.id])
+      .map((lineId) => linesRef.current.find((line) => line.id === lineId))
+      .filter((line): line is LineDraft => line != null)
+    const usedPreviousLineIds = new Set<string>()
+    const componentLines = expanded
+      .filter((component) => component.productId
+        && !context?.excludedComponentKeys?.includes(bundleComponentKey(component)))
+      .map((component) => {
+        const previous = previousComponentLines.find((line) =>
+          !usedPreviousLineIds.has(line.id)
+          && line.productId === component.productId
+          && (component.modelCode == null || line.modelCode === component.modelCode))
+          ?? previousComponentLines.find((line) => !usedPreviousLineIds.has(line.id))
+        if (previous) usedPreviousLineIds.add(previous.id)
+        const override = previous && context?.userOverrides?.[previous.id]
+        const quantity = String(Math.max(1, Math.round(Number(component.quantity))))
+        const catalogUnitPrice = String(component.unitPrice ?? '0')
+        // 서버는 부모 세트 단가를 구성행에 이미 배분한다. 구성품 modelCode로
+        // 정액DC를 다시 계산하면 플래그 구성품 수만큼 정액이 중복 차감된다.
+        const unitPrice = override?.unitPrice ?? catalogUnitPrice
+        const effectiveQuantity = override?.quantity ?? quantity
+        const effectiveSpecification = override?.specification ?? component.specification ?? parentSpecification
+        const effectivePriceSource = override?.unitPrice != null ? 'USER' : 'CATALOG'
+        const isKeepParent = component.componentKind === null && source.productType === 'BUNDLE'
+        const productType = isKeepParent
+          ? 'BUNDLE'
+          : 'SINGLE'
+        const base = emptyLine()
+        return {
+          ...recalculateLineVat(asVatLine({
+            ...base,
+            productId: component.productId,
+            modelName: component.modelName ?? '',
+            productName: component.name ?? '',
+            specification: effectiveSpecification,
+            quantity: effectiveQuantity,
+            unitPrice,
+            productType,
+            modelCode: component.modelCode ?? null,
+            priceSource: effectivePriceSource,
+            catalogUnitPrice,
+            discountInfo: bundleDiscountInfo,
+            ...(isKeepParent ? {} : {
+              parentSetModel: parentModelCode ?? null,
+              setHead: Boolean(component.setHead),
+              bundleParentProductId: parentProductId,
+              bundleParentUnitPrice: parentUnitPrice,
+            }),
+            setOptions: context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions(),
+          }), 'PRICE'),
+          productId: component.productId,
+          modelName: component.modelName ?? '',
+          productName: component.name ?? '',
+          specification: effectiveSpecification,
+          quantity: effectiveQuantity,
+          unitPrice,
+          productType,
+          modelCode: component.modelCode ?? null,
+          priceSource: effectivePriceSource,
+          catalogUnitPrice,
+          discountInfo: bundleDiscountInfo,
+          ...(isKeepParent ? {} : {
+            parentSetModel: parentModelCode ?? null,
+            setHead: Boolean(component.setHead),
+            bundleParentProductId: parentProductId,
+            bundleParentUnitPrice: parentUnitPrice,
+          }),
+          setOptions: context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions(),
+          lookupError: null,
+          lookupLoading: false,
+        } satisfies LineDraft
+      })
+    setLines((current) => {
+      const index = current.findIndex((line) => line.id === source.id)
+      if (index < 0) return current
+      const remaining = current.filter((line) => !previousComponentLineIds.has(line.id))
+      const insertionIndex = current
+        .slice(0, index)
+        .filter((line) => !previousComponentLineIds.has(line.id))
+        .length
+      const replacement = componentLines.length > 0
+        ? componentLines
+        : [{ ...emptyLine(), lookupError: '세트 구성품을 찾을 수 없습니다. 관리자에게 문의해 주세요.' }]
+      const next = [
+        ...remaining.slice(0, insertionIndex),
+        ...replacement,
+        ...remaining.slice(insertionIndex),
+      ]
+      return ensureTrailingBlankRow(next, emptyLine, (line) => Boolean(line.productId && Number(line.quantity) > 0))
+    })
+    setExpandedBundleOptions((current) => {
+      // 다른 세트의 응답이 근접 도착할 때 linesRef 는 아직 이전 배열일 수 있다.
+      // 현재 화면 ID로 전체 맵을 필터링하면 그 세트의 컨텍스트까지 지워진다.
+      // 이번 원본 계보에 속한 컨텍스트만 제거하고, 나머지는 그대로 보존한다.
+      const next = { ...current }
+      Object.entries(current).forEach(([key, candidate]) => {
+        if (key === source.id
+          || candidate === existingContext
+          || candidate.componentLineIds?.some((lineId) => previousComponentLineIds.has(lineId))) {
+          delete next[key]
+        }
+      })
+      const firstComponentLine = componentLines[0]
+      if (context && firstComponentLine && componentLines.length > 0) {
+        // 전개 결과의 productId는 행 간에 재사용될 수 있으므로 옵션 컨텍스트의
+        // 소유권은 항상 새로 만든 구성품 행 ID로 연결한다.
+        const retainedContext = {
+          ...context,
+          unitPrice: parentContextOverrides.unitPrice ?? context.unitPrice,
+          discountInfo: bundleDiscountInfo,
+          expansionPending: false,
+          componentLineIds: componentLines.map((line) => line.id),
+          // 서버 응답과 병합한 사용자 입력은 새 구성행 ID에 이미 반영됐다.
+          userOverrides: {},
+        }
+        expandedBundleOptionsRef.current = {
+          ...expandedBundleOptionsRef.current,
+          [firstComponentLine.id]: retainedContext,
+        }
+        next[firstComponentLine.id] = retainedContext
+      }
+      return next
+    })
+    setSelectedIds((selected) => {
+      const next = new Set(selected)
+      next.delete(source.id)
+      return next
+    })
+  }
+
+  const expandSelectedBundle = async (
+    source: LineDraft,
+    selected: LineDraft,
+    discountConfig: SlipDiscountConfig | null = partnerDcConfig,
+    parentContextOverrides: { unitPrice?: string } = {},
+  ): Promise<void> => {
+    // 전개 응답 전에도 거래처 전환이 이 부모를 재전개 대상으로 볼 수 있어야 한다.
+    // 이 등록이 늦으면 pending 첫 전개 중 partner switch가 bundleContexts에서 누락되어
+    // 새 거래처 요청이 생략되고, 이전 거래처 응답이 화면에 남는다.
+    if (selected.productType === 'BUNDLE' && selected.productId) {
+      const existingEntry = Object.entries(expandedBundleOptionsRef.current)
+        .find(([key, context]) => key === source.id || context.componentLineIds?.includes(source.id))
+      const ownerId = existingEntry?.[0] ?? source.id
+      const existingContext = existingEntry?.[1]
+      const pendingContext: ExpandedBundleOptionContext = {
+        ...(existingContext ?? {
+          parentProductId: selected.productId,
+          parentModelCode: selected.modelCode ?? '',
+          modelName: selected.modelName,
+          specification: selected.specification,
+          quantity: selected.quantity,
+          unitPrice: selected.unitPrice,
+          parentCatalogUnitPrice: selected.catalogUnitPrice ?? null,
+          parentCategoryKey: selected.categoryKey ?? null,
+          parentFixedDiscountRate: selected.fixedDiscountRate ?? null,
+          parentHasVariableDiscount: selected.hasVariableDiscount ?? null,
+          discountInfo: selected.discountInfo ?? null,
+          setOptions: selected.setOptions ?? emptyBundleSetOptions(),
+          expansionPending: true,
+        }),
+        unitPrice: parentContextOverrides.unitPrice ?? selected.unitPrice,
+        expansionPending: true,
+      }
+      expandedBundleOptionsRef.current = {
+        ...expandedBundleOptionsRef.current,
+        [ownerId]: pendingContext,
+      }
+      setExpandedBundleOptions((current) => ({
+        ...current,
+        [ownerId]: pendingContext,
+      }))
+      if (ownerId === source.id) {
+        linesRef.current = linesRef.current.map((line) => line.id === source.id
+          ? recalculateLineVat(asVatLine({ ...line, unitPrice: pendingContext.unitPrice }), 'PRICE')
+          : line)
+        setLines((current) => current.map((line) => line.id === source.id
+          ? recalculateLineVat(asVatLine({ ...line, unitPrice: pendingContext.unitPrice }), 'PRICE')
+          : line))
+      }
+    }
+    const generation = bundleExpansionGenerationRef.current.get(source.id) ?? 0
+    const requestSnapshot = createBundleExpansionSnapshot(selected)
+    const retryLatestBundleGeneration = async () => {
+      const latest = linesRef.current.find((line) => line.id === source.id)
+      const currentGeneration = bundleExpansionGenerationRef.current.get(source.id) ?? 0
+      const context = expandedBundleOptionsRef.current[latest?.id ?? source.id]
+      const latestBundle = latest?.productType === 'BUNDLE'
+        ? latest
+        : context
+          ? {
+              ...latest!,
+              productId: context.parentProductId,
+              modelCode: context.parentModelCode,
+              modelName: context.modelName,
+              specification: context.specification,
+              quantity: context.quantity,
+              unitPrice: context.unitPrice,
+              productType: 'BUNDLE' as const,
+              setOptions: context.setOptions,
+            }
+          : null
+      const latestSnapshot = latestBundle ? createBundleExpansionSnapshot(latestBundle) : null
+      if (areBundleExpansionSnapshotsEqual(requestSnapshot, latestSnapshot) && currentGeneration === generation) return false
+      if (!latestBundle) return false
+      await expandSelectedBundle(source, latestBundle, discountConfig)
+      return true
+    }
+    const restorePreviousExpansion = (
+      latest: LineDraft | undefined,
+      context: ExpandedBundleOptionContext | undefined,
+    ): boolean => {
+      if (!latest || latest.productType === 'BUNDLE' || !context
+        || context.parentProductId !== selected.productId) return false
+      // 재전개 실패는 이미 저장 가능한 이전 구성품을 빈 행으로 바꾸지 않는다.
+      // latest.setOptions는 실패한 요청 직전의 마지막 성공 옵션이다.
+      const previousOptions = latest.setOptions ?? emptyBundleSetOptions()
+      setLines((current) => current.map((line) => line.id === latest.id
+        ? { ...line, setOptions: previousOptions, lookupError: null, lookupLoading: false }
+        : line))
+      setExpandedBundleOptions((current) => {
+        const currentContext = current[latest.id]
+        if (!currentContext) return current
+        return {
+          ...current,
+          [latest.id]: { ...currentContext, setOptions: previousOptions, expansionPending: false },
+        }
+      })
+      setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 이전 구성을 유지합니다.')
+      return true
+    }
+    try {
+      const expanded = await expandBundleLine({
+        parentModelCode: selected.modelCode ?? '',
+        quantity: Number(selected.quantity),
+        unitPrice: selected.unitPrice || '0',
+        specification: selected.specification.trim() || undefined,
+      })
+      const latest = linesRef.current.find((line) => line.id === source.id)
+      if (await retryLatestBundleGeneration()) {
+        return
+      }
+      const context = expandedBundleOptionsRef.current[latest?.id ?? source.id]
+      const isCurrentBundle = latest
+        && (latest.productType === 'BUNDLE'
+          ? latest.productId === selected.productId
+          : context?.parentProductId === selected.productId)
+      const currentSnapshot = latest && isCurrentBundle
+        ? createBundleExpansionSnapshot(latest.productType === 'BUNDLE'
+          ? latest
+          : {
+              ...latest,
+              productId: context!.parentProductId,
+              modelCode: context!.parentModelCode,
+              modelName: context!.modelName,
+              productType: 'BUNDLE',
+              quantity: context!.quantity,
+              unitPrice: context!.unitPrice,
+              specification: context!.specification,
+              setOptions: context!.setOptions,
+            })
+        : null
+      if (!isCurrentBundle || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
+      if (expanded.filter((component) => component.productId).length === 0
+        && restorePreviousExpansion(latest, context)) return
+      replaceWithExpandedBundleLines(source, expanded, selected.specification, discountConfig, parentContextOverrides)
+    } catch {
+      const latest = linesRef.current.find((line) => line.id === source.id)
+      if (await retryLatestBundleGeneration()) return
+      const context = expandedBundleOptionsRef.current[latest?.id ?? source.id]
+      const isCurrentBundle = latest
+        && (latest.productType === 'BUNDLE'
+          ? latest.productId === selected.productId
+          : context?.parentProductId === selected.productId)
+      const currentSnapshot = latest && isCurrentBundle
+        ? createBundleExpansionSnapshot(latest.productType === 'BUNDLE'
+          ? latest
+          : {
+              ...latest,
+              productId: context!.parentProductId,
+              modelCode: context!.parentModelCode,
+              modelName: context!.modelName,
+              productType: 'BUNDLE',
+              quantity: context!.quantity,
+              unitPrice: context!.unitPrice,
+              specification: context!.specification,
+              setOptions: context!.setOptions,
+            })
+        : null
+      if (!isCurrentBundle
+        || !areBundleExpansionSnapshotsEqual(requestSnapshot, currentSnapshot)) return
+      if (restorePreviousExpansion(latest, context)) return
+      replaceWithExpandedBundleLines(source, [], latest.specification, discountConfig, parentContextOverrides)
+      setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
+    }
+  }
 
   const updatePrice = (id: string, unitPrice: string) =>
     updateLineFromUser(id, (line) => {
@@ -766,11 +1261,23 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   ) => updateLineFromUser(id, (line) => editSlipLineAmount(asVatLine(line), authority, value))
 
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
+    bundleExpansionGenerationRef.current.set(line.id, (bundleExpansionGenerationRef.current.get(line.id) ?? 0) + 1)
+    setExpandedBundleOptions((current) => {
+      const liveIds = new Set(linesRef.current.filter((candidate) => candidate.id !== line.id).map((candidate) => candidate.id))
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([key]) => liveIds.has(key)),
+      )
+      return next
+    })
     setPriceLookupAnnouncement('')
     const lineNumber = Math.max(1, lines.findIndex((candidate) => candidate.id === line.id) + 1)
     const productId = product?.id ?? null
+    const isBundleProduct = product?.productType === 'BUNDLE'
+    const catalogUnitPrice = isBundleProduct
+      ? product?.deliveryPrice ?? product?.sellingPrice
+      : product?.sellingPrice
     const fallbackUnitPrice =
-      product?.sellingPrice != null ? String(product.sellingPrice) : line.unitPrice
+      catalogUnitPrice != null ? String(catalogUnitPrice) : line.unitPrice
     // 자동채움 판정은 견적과 공용 헬퍼(shouldAutoFillPrice) — 비대칭 재발 구조 차단(R4-F1).
     const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
     const partnerId = selectedPartner?.id
@@ -780,13 +1287,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       : product?.categoryKey === 'commercialMulti'
         ? 'COMMERCIAL_MULTI'
         : 'OTHER'
-    const calculateWithConfig = (config: PartnerDcConfig | null) => product?.sellingPrice == null
+    const calculateWithConfig = (config: PartnerDcConfig | null) => catalogUnitPrice == null
       ? null
       : calculateSlipDiscount({
-        listPrice: Number(product.sellingPrice),
-        fixedDiscountRate: product.fixedDiscountRate,
+        listPrice: Number(catalogUnitPrice),
+        modelCode: product?.modelCode,
+        fixedDiscountRate: product?.fixedDiscountRate,
         category,
-        hasVariableDiscount: product.hasVariableDiscount,
+        hasVariableDiscount: product?.hasVariableDiscount,
       }, config)
     // 품목 UUID/정가는 DC 조회와 독립적으로 먼저 확정한다.
     const dcResult = shouldAutoFill && partnerCode && partnerDcConfig
@@ -803,7 +1311,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       productName: product?.productName ?? '',
       unitPrice: nextUnitPrice,
       priceSource: shouldAutoFill ? 'CATALOG' : line.priceSource,
-      catalogUnitPrice: product?.sellingPrice != null ? String(product.sellingPrice) : line.catalogUnitPrice ?? null,
+      catalogUnitPrice: catalogUnitPrice != null ? String(catalogUnitPrice) : line.catalogUnitPrice ?? null,
       categoryKey: product?.categoryKey ?? null,
       fixedDiscountRate: product?.fixedDiscountRate ?? null,
       hasVariableDiscount: product?.hasVariableDiscount ?? null,
@@ -816,6 +1324,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       lookupLoading: Boolean(partnerId && productId && shouldAutoFill && !dcResult),
     }
     updateLine(line.id, nextLine)
+    if (nextLine.productType === 'BUNDLE' && (!partnerId || !productId || !shouldAutoFill)) {
+      await expandSelectedBundle(nextLine, nextLine, shouldAutoFill ? partnerDcConfig : null)
+      return
+    }
     // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
     // 실제로 다를 때만, 그리고 마지막 행일 때만 빈 행을 증식한다.
     maybeExpandLastLine(line.id, line, nextLine)
@@ -826,10 +1338,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return
     }
     let resolvedDcResult = dcResult
+    let resolvedDiscountConfig: PartnerDcConfig | null = partnerDcConfig
     if (!resolvedDcResult && partnerCode) {
       try {
         const config = partnerDcConfig ?? await withPriceLookupTimeout(getPartnerDcConfig(partnerCode))
         if (selectedPartnerIdRef.current !== partnerId) return
+        resolvedDiscountConfig = config
         if (!partnerDcConfig) setPartnerDcConfig(config)
         resolvedDcResult = calculateWithConfig(config)
         if (resolvedDcResult && resolvedDcResult.source !== 'NONE') {
@@ -881,9 +1395,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         ? String(resolvedDcResult?.unitPrice ?? fallbackUnitPrice)
         : String(remembered)
       const usesRememberedPrice = !hasAuthoritativeDiscount && remembered != null
+      const latestBeforePriceApply = linesRef.current.find((candidate) => candidate.id === line.id)
       const applied = canStillApply()
-      setLines((currentLines) =>
-        currentLines.map((current) => {
+      const latestBundle = latestBeforePriceApply
+        && latestBeforePriceApply.productId === productId
+        && latestBeforePriceApply.productType === 'BUNDLE'
+        ? latestBeforePriceApply
+        : null
+      const bundleToExpand = latestBundle && latestBundle.priceSource === 'USER'
+        ? latestBundle
+        : latestBundle && { ...latestBundle, unitPrice: resolvedUnitPrice }
+      const resolvedLines: LineDraft[] = linesRef.current.map((current): LineDraft => {
           if (current.id !== line.id) return current
           if (current.productId !== productId) return current
           if (selectedPartnerIdRef.current !== partnerId) return current
@@ -897,8 +1419,18 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             discountInfo: hasAuthoritativeDiscount ? resolvedDcResult?.info ?? null : null,
             lookupLoading: false,
           }
-        }),
-      )
+        })
+      // 바로 이어지는 세트 전개도 방금 확정한 가격을 현재 스냅샷으로 본다.
+      linesRef.current = resolvedLines
+      setLines(resolvedLines)
+      if (bundleToExpand) {
+        await expandSelectedBundle(
+          { ...line, ...bundleToExpand },
+          { ...bundleToExpand, lookupLoading: false },
+          resolvedDiscountConfig,
+        )
+        return
+      }
       if (applied) {
         setPriceLookupAnnouncement(
           `라인 ${lineNumber} ${remembered == null ? (resolvedDcResult?.info ?? '판매가 적용') : '거래처 최근단가'} 적용`,
@@ -907,15 +1439,28 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     } catch {
       // 가격기억 조회 실패는 품목 선택 자체를 막지 않는다. miss/오류 모두 판매가(catalog) fallback 유지.
       const applied = canStillApply()
+      const latestBundle = linesRef.current.find((candidate) =>
+        candidate.id === line.id
+        && candidate.productId === productId
+        && candidate.productType === 'BUNDLE',
+      )
       setLines((currentLines) =>
         currentLines.map((current) =>
           current.id === line.id
             && current.productId === productId
             && selectedPartnerIdRef.current === partnerId
             ? { ...current, lookupLoading: false }
-            : current,
+          : current,
         ),
       )
+      if (latestBundle) {
+        await expandSelectedBundle(
+          { ...line, ...latestBundle },
+          { ...latestBundle, lookupLoading: false },
+          resolvedDiscountConfig,
+        )
+        return
+      }
       if (applied) setPriceLookupAnnouncement(`라인 ${lineNumber} ${resolvedDcResult?.info ?? '판매가 적용'}`)
     }
   }
@@ -931,8 +1476,27 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   ) => {
     // R6-M5: 재조회 시작 시 stale 단건 안내를 클리어(미클리어 시 배너 비활성 폴백이 aria-live 거짓 고지).
     setPriceLookupAnnouncement('')
+    const bundleContexts = Object.entries(expandedBundleOptionsRef.current)
+      .map(([lineId, context]) => ({
+        lineId,
+        context,
+        source: linesRef.current.find((line) => line.id === lineId
+          || context.componentLineIds?.includes(line.id)),
+      }))
+      .filter((entry): entry is {
+        lineId: string
+        context: ExpandedBundleOptionContext
+        source: LineDraft
+      } => entry.source != null)
+    const expandedBundleComponentLineIds = new Set(
+      bundleContexts.flatMap(({ lineId, context }) => context.componentLineIds?.length
+        ? context.componentLineIds
+        : [lineId]),
+    )
     const candidates: PartnerRepriceCandidate[] = linesRef.current
-      .filter((line) => line.productId && isAutoPriceSource(line.priceSource))
+      .filter((line) => line.productId
+        && isAutoPriceSource(line.priceSource)
+        && !expandedBundleComponentLineIds.has(line.id))
       .map((line) => ({
         key: line.id,
         productId: line.productId!,
@@ -943,6 +1507,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           ? undefined
           : {
             fixedDiscountRate: line.fixedDiscountRate,
+            modelCode: line.modelCode,
             category: line.categoryKey === 'homemulti'
               ? 'HOMEMULTI'
               : line.categoryKey === 'commercialMulti'
@@ -951,7 +1516,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             hasVariableDiscount: line.hasVariableDiscount,
           },
       }))
-    if (candidates.length === 0) {
+    if (candidates.length === 0 && bundleContexts.length === 0) {
       // 새 거래처에 재조회 대상이 없어도 이전 거래처 bulk 응답은 무효화한다.
       partnerReprice.invalidate(partnerId)
       // 직전 거래처의 bulk 조회가 남긴 busy 표시는 새 거래처에 후보가 없어도 정리한다.
@@ -970,6 +1535,39 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // DC 응답을 기다리는 동안 거래처가 다시 바뀌었으면 이 run 자체를 시작하지 않는다.
     // 같은 거래처가 A→B→A로 재선택된 경우도 이전 요청 세대로부터 격리한다.
     if (selectedPartnerIdRef.current !== partnerId || dcRequestSeqRef.current !== requestSeq) return
+    await Promise.all(bundleContexts.map(async ({ lineId, context, source }) => {
+      if (context.parentCatalogUnitPrice == null) return
+      const parentDiscount = calculateBundleParentDiscount({
+        listPrice: Number(context.parentCatalogUnitPrice),
+        modelCode: context.parentModelCode,
+        categoryKey: context.parentCategoryKey,
+        fixedDiscountRate: context.parentFixedDiscountRate,
+        hasVariableDiscount: context.parentHasVariableDiscount,
+      }, discountConfig)
+      const parentUnitPrice = String(parentDiscount.unitPrice)
+      setExpandedBundleOptions((current) => current[lineId]
+        ? {
+            ...current,
+            [lineId]: {
+              ...current[lineId],
+              unitPrice: parentUnitPrice,
+              discountInfo: parentDiscount.info ?? null,
+              expansionPending: true,
+            },
+          }
+        : current)
+      await expandSelectedBundle(source, {
+        ...source,
+        productId: context.parentProductId,
+        modelCode: context.parentModelCode,
+        modelName: context.modelName,
+        specification: context.specification,
+        quantity: context.quantity,
+        unitPrice: parentUnitPrice,
+        productType: 'BUNDLE',
+        setOptions: context.setOptions,
+      }, discountConfig, { unitPrice: parentUnitPrice })
+    }))
     const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates, discountConfig)
     if (!partnerRepriceSessionIsCurrent(
       requestSeq,
@@ -1003,12 +1601,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       }),
     )
   }
-
-  const updateSetOption = (id: string, patch: Partial<BundleSetOptions>) =>
-    updateLineFromUser(id, (line) => ({
-      ...line,
-      setOptions: { ...(line.setOptions ?? emptyBundleSetOptions()), ...patch },
-    }))
 
   const toggleSelect = (id: string, selected: boolean) => {
     setSelectedIds((prev) => {
@@ -1190,6 +1782,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const mutation = useMutation({
     mutationFn: () => {
+      const latestLines = linesRef.current
       const payload: Parameters<typeof createSlip>[0] = {
         slipType: mode,
         slipDate: today,
@@ -1217,7 +1810,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         unloadDate: isOutbound && isScheduledTag(tag)
           ? (sameDay ? today : (unloadDate || undefined))
           : undefined,
-        lines: lines
+        lines: latestLines
           .filter((l) => l.productId && Number(l.quantity) > 0)
           .map<SlipLineInput>((l) => ({
             productId: l.productId!,
@@ -1226,7 +1819,18 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             specification: l.specification.trim() || undefined,
             quantity: Number(l.quantity),
             unitPrice: l.unitPrice || '0',
-            setOptions: toApiBundleSetOptions(l.productType, l.setOptions),
+            setOptions: toApiBundleSetOptions(
+              l.parentSetModel ? 'BUNDLE' : l.productType,
+              expandedBundleOptionsRef.current[l.id]?.setOptions ?? l.setOptions,
+            ),
+            ...(l.parentSetModel
+              ? {
+                  parentSetModel: l.parentSetModel,
+                  setHead: Boolean(l.setHead),
+                  bundleParentProductId: l.bundleParentProductId,
+                  bundleParentUnitPrice: l.bundleParentUnitPrice,
+                }
+              : {}),
             // 단가 부가세포함 — BE 가 라인 단위로 공급가액/부가세 분리(eCount 방식)
             priceVatInclusive: true,
             // VAT 열을 실제 편집한 라인만 권위 3값을 명시 전송한다. 미편집 라인은
@@ -1268,13 +1872,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // 거래처 변경 최근단가 재조회/가격기억 조회가 in-flight 인 동안 저장하면 이전 거래처
   // 단가가 새 거래처(partnerId)로 전송되어 가격기억이 교차 오염된다 — 저장 차단(R4-F4).
   const priceResolutionBusy = partnerReprice.isPending || lines.some((l) => l.lookupLoading)
+  const bundleExpansionPending = lines.some((line) => expandedBundleOptions[line.id]?.expansionPending)
   const hasUnresolvedCatalogPrice = lines.some((line) => line.lookupError && !line.unitPrice.trim())
   // R4-D4: 마커 카피 분기/해제 기준 — 가격기억 조회가 실제 가능한 상태(UUID 보유 거래처 선택)와 일치.
   const partnerSelected = Boolean(selectedPartner?.id)
   // R4-D9: 배너 live region 은 상시 마운트 — 내용과 함께 조건부 마운트하면 일부 SR 이 미낭독.
   const priceRefreshNoticeActive = lines.some((line) => line.priceRefreshChanged)
   const canSubmit =
-    !!requiredWh && validLineCount > 0 && !mutation.isPending && !priceResolutionBusy && !hasUnresolvedCatalogPrice
+    !!requiredWh && validLineCount > 0 && !mutation.isPending && !priceResolutionBusy
+    && !bundleExpansionPending && !hasUnresolvedCatalogPrice
 
   // ── Header 체크박스 상태 ────────────────────────────────
 
@@ -1292,18 +1898,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // #902 R2 H1: 안내는 이제 순수하게 "현재 내용"의 함수다(lineIncompleteReason) — 이력을
     // 남기지 않으므로, 입력을 원복하면 삭제 없이도 안내가 자동으로 사라진다(D1).
     const reason = lineIncompleteReason(line)
-    const isBundle = line.productType === 'BUNDLE'
     return (
       <>
-        {isBundle ? (
-          <BundleOptionRow
-            line={{
-              modelName: line.modelName,
-              setOptions: line.setOptions ?? emptyBundleSetOptions(),
-            }}
-            index={index}
-            onChange={(patch) => updateSetOption(line.id, patch)}
-          />
+        {line.lookupError ? (
+          <div className="mobile-line-error" role="alert">{line.lookupError}</div>
         ) : null}
         {reason ? <IncompleteLineNotice lineNumber={index + 1} reason={reason} /> : null}
       </>
@@ -1761,6 +2359,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       onChange={(p) => void applyProductSelection(line, p)}
                       onInputCommitChange={(committed) => {
                         if (committed) return
+                        invalidateBundleExpansionForLine(line.id)
                         updateLine(line.id, {
                           productId: null,
                           productName: '',
@@ -1839,6 +2438,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                           onChange={(p) => void applyProductSelection(line, p)}
                           onInputCommitChange={(committed) => {
                             if (committed) return
+                            invalidateBundleExpansionForLine(line.id)
                             updateLine(line.id, {
                               productId: null,
                               productName: '',
@@ -1931,6 +2531,19 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             }
           >
             {priceResolutionBusy ? '최근단가 확인 중…' : null}
+          </span>
+          <span
+            role="status"
+            aria-live="polite"
+            aria-label={bundleExpansionPending ? '세트 구성품 반영 중' : undefined}
+            data-testid="slip-form-bundle-expansion-busy"
+            style={
+              bundleExpansionPending
+                ? { fontSize: 12, color: 'var(--ink-secondary, #5C6773)', alignSelf: 'center' }
+                : undefined
+            }
+          >
+            {bundleExpansionPending ? '세트 구성품 반영 중… 저장할 수 없습니다.' : null}
           </span>
           <Button variant="ghost" onClick={() => navigate(listPath)}>
             취소

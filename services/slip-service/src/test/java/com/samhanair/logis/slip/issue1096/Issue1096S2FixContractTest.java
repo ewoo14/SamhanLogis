@@ -34,7 +34,7 @@ class Issue1096S2FixContractTest {
     @Test
     void redB_cleanupPreservesCanonicalLinesAndRestoresOrFailsLoudly() throws Exception {
         String migration = read("services/slip-service/src/main/resources/db/migration/V117__soft_delete_test_seed_documents.sql");
-        String orderMigration = read("services/partner-order-service/src/main/resources/db/migration/V16__soft_delete_test_seed_orders.sql");
+        String orderMigration = read("services/partner-order-service/src/main/resources/db/migration/V18__soft_delete_test_seed_orders.sql");
         String estimateRestore = read("services/slip-service/src/main/java/com/samhanair/logis/slip/estimate/service/EstimateService.java");
         String orderRestore = read("services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/service/PartnerOrderDeleteService.java");
 

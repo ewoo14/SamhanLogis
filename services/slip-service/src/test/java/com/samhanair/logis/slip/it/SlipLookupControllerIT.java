@@ -66,7 +66,9 @@ class SlipLookupControllerIT extends AbstractPostgresIT {
         UUID categoryId = UUID.randomUUID();
         Mockito.when(productClient.lookupByModel("AJ040RXH4BC1")).thenReturn(
                 new ProductSummary(productId, "벽걸이 무풍에어컨", "AJ040RXH4BC1",
-                        categoryId, new BigDecimal("1500000.00"), "ACTIVE"));
+                        "AJ040RXH4BC1", categoryId, new BigDecimal("1500000.00"), "ACTIVE",
+                        false, "AJ040RXH4BC1", "SINGLE", "home", null,
+                        "220V / 4HP"));
 
         mockMvc.perform(get("/slips/lookup-product")
                         .param("modelName", "AJ040RXH4BC1")
@@ -74,7 +76,8 @@ class SlipLookupControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.modelName").value("AJ040RXH4BC1"))
-                .andExpect(jsonPath("$.data.name").value("벽걸이 무풍에어컨"));
+                .andExpect(jsonPath("$.data.name").value("벽걸이 무풍에어컨"))
+                .andExpect(jsonPath("$.data.specification").value("220V / 4HP"));
     }
 
     @Test

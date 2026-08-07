@@ -39,6 +39,10 @@ param(
     [string]$AwsRegion = "ap-northeast-2",
     [string]$AlbDnsName = "",
     [string]$InstanceId = "",
+    [string]$SlipReadinessUrl = "",
+    [string]$WarehouseAliasCsv = "",
+    [string]$WarehouseAdminUrl = "",
+    [string]$WarehouseAdminUserId = "",
     [switch]$VerifyRdsDatabases,
     [switch]$DryRun
 )
@@ -326,6 +330,28 @@ function Invoke-DnsCutover {
 function Invoke-HealthCheck {
     Write-Phase11Log "INFO" "=== Health Check 시작 ==="
 
+    $failedChecks = [System.Collections.Generic.List[string]]::new()
+
+    # 권위 alias 준비는 DB 직접 쓰기가 아니라 지원되는 관리자 import 경로로만 수행한다.
+    # CSV를 주면 이 단계에서 import하고, 주지 않으면 이미 관리자가 import한 결과를
+    # slip-service readiness가 검증한다. DEV_SUBSTITUTE 로컬 경로에는 이 함수가 호출되지 않는다.
+    if ($WarehouseAliasCsv) {
+        if (-not (Test-Path -LiteralPath $WarehouseAliasCsv -PathType Leaf)) {
+            $failedChecks.Add("권위 alias CSV 없음: $WarehouseAliasCsv")
+        } elseif (-not $WarehouseAdminUrl -or -not $WarehouseAdminUserId) {
+            $failedChecks.Add("권위 alias import에 WarehouseAdminUrl/WarehouseAdminUserId 필요")
+        } else {
+            Write-Phase11Log "INFO" "권위 alias 준비: POST $WarehouseAdminUrl/admin/warehouses/imports/ecount"
+            $importResponse = & curl.exe -fsS -X POST `
+                -H "X-User-Id: $WarehouseAdminUserId" `
+                -F "file=@$WarehouseAliasCsv" `
+                "$WarehouseAdminUrl/admin/warehouses/imports/ecount"
+            if ($LASTEXITCODE -ne 0) {
+                $failedChecks.Add("권위 alias 관리자 import 실패")
+            }
+        }
+    }
+
     # 아로로지스 분리 (spec 2026-05-14, plan DO6):
     #   - api.samhan-air.com         : Samhan Public 17 service 통합 (api-gateway:8080)
     #   - api.arologis.samhan-air.com: 아로로지스 단독 (arologis-service:8097, gateway 우회)
@@ -341,10 +367,14 @@ function Invoke-HealthCheck {
     if ($AlbDnsName) {
         Write-Phase11Log "INFO" "ALB DNS HTTPS 임시 검증: https://$AlbDnsName/actuator/health (인증서 hostname mismatch 때문에 curl.exe -k 사용)"
         try {
-            curl.exe -k -fs "https://$AlbDnsName/actuator/health" | Out-Null
+            $albResponse = & curl.exe -k -fs "https://$AlbDnsName/actuator/health"
+            if ($LASTEXITCODE -ne 0) {
+                throw "curl exit code $LASTEXITCODE"
+            }
             Write-Phase11Log "OK" "PASS: https://$AlbDnsName/actuator/health"
         } catch {
             Write-Phase11Log "WARN" "FAIL: https://$AlbDnsName/actuator/health — $($_.Exception.Message)"
+            $failedChecks.Add("ALB health")
         }
     }
 
@@ -356,10 +386,29 @@ function Invoke-HealthCheck {
                 Write-Phase11Log "OK" "PASS: $url (HTTP $($response.StatusCode))"
             } else {
                 Write-Phase11Log "WARN" "FAIL: $url (HTTP $($response.StatusCode))"
+                $failedChecks.Add($url)
             }
         } catch {
             Write-Phase11Log "WARN" "FAIL: $url — $($_.Exception.Message)"
+            $failedChecks.Add($url)
         }
+    }
+
+    $slipReadiness = if ($SlipReadinessUrl) { $SlipReadinessUrl } else {
+        "http://127.0.0.1:8086/actuator/health/readiness"
+    }
+    Write-Phase11Log "INFO" "slip-service readiness: $slipReadiness"
+    try {
+        $response = Invoke-WebRequest -Uri $slipReadiness -TimeoutSec 10 -UseBasicParsing
+        if ($response.StatusCode -ne 200) {
+            Write-Phase11Log "WARN" "FAIL: slip-service readiness (HTTP $($response.StatusCode))"
+            $failedChecks.Add("slip-service readiness")
+        } else {
+            Write-Phase11Log "OK" "PASS: slip-service readiness (HTTP $($response.StatusCode))"
+        }
+    } catch {
+        Write-Phase11Log "WARN" "FAIL: slip-service readiness — $($_.Exception.Message)"
+        $failedChecks.Add("slip-service readiness")
     }
 
     Write-Phase11Log "INFO" "17 service 전체 포트 검증은 EC2 SSM Session Manager 내부 localhost curl 로 수행합니다."
@@ -371,6 +420,11 @@ function Invoke-HealthCheck {
 
     if ($VerifyRdsDatabases) {
         Test-RdsDatabasesExist
+    }
+
+    if ($failedChecks.Count -gt 0) {
+        Write-Phase11Log "ERROR" "배포 실패 — 비정상 health/readiness 또는 alias 준비 실패: $($failedChecks -join ', ')"
+        exit 1
     }
 }
 

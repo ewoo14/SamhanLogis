@@ -11,7 +11,7 @@
 | 항목 | 현황 |
 |---|---|
 | 세트 마커 | `Product.productType = BUNDLE` 기성 — 품목관리 화면 미표시 |
-| 전표 자동 전개 | **기성** (#439) — SlipFormPage BUNDLE → BundleOptionRow 옵션 행 + `POST /products/internal/expand` (BundleExpander 옵션 선별·6:4 재배분·setHead) |
+| 전표 자동 전개 | **기성** (#439) — SlipFormPage BUNDLE → `POST /products/internal/expand` 자동 전개 (BundleExpander 구성품·6:4 재배분·setHead); R17에서 과거 `BundleOptionRow` 옵션 행은 제거 |
 | 구성품 편집 | **부재** — BundleComponent 는 시트 sync/시더 적재 전용, CRUD API/화면 없음 (web 레이어 참조는 EstimateCatalogInternalController 벌크 read 뿐) |
 | 표시 순서 | displayOrder 는 sync 적재 전용 — 화면 직접 조정 수단 없음. @dnd-kit/sortable 의존성 기성 (desktop) |
 | 출처 뱃지 | #460 에서 추가한 '시트자동/수동' 뱃지·'시트 자동 복귀' 버튼 — 시드 전용 정책으로 무의미화 |

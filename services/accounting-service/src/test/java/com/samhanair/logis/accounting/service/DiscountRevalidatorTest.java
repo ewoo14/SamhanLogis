@@ -299,7 +299,7 @@ class DiscountRevalidatorTest {
     @DisplayName("옵션 정액 6종은 레거시 세트코드별로 각각 선택되고 미보유 거래처는 기존 결과를 유지한다")
     void allSingleSetOptionDiscountsAndNoOptionParity() {
         List<String> tokens = List.of(
-                "AC123456P", "AC123454P", "AC123451D", "AP230123", "AP123456D1H", "AP123456F");
+                "AC123456P", "AC123454P", "AC123451D", "AP230123P", "AP123456D1H", "AP123456F");
         List<BigDecimal> amounts = List.of(
                 new BigDecimal("1000"), new BigDecimal("2000"), new BigDecimal("3000"),
                 new BigDecimal("4000"), new BigDecimal("5000"), new BigDecimal("6000"));

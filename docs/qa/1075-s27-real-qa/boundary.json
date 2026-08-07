@@ -1,0 +1,39 @@
+{
+  "out": [
+    {
+      "status": 200,
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:15:51.978023315Z\"}"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:15:52.921499822Z\"}"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/update",
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:15:52.922406001Z\"}"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:15:53.301126144Z\"}"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:15:56.044269912Z\"}"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/update",
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:15:56.053537028Z\"}"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8080/api/v1/slips/estimates/49621ebb-4b3e-459b-b5fe-d27299109776/collab/coedit/awareness",
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-05T21:15:56.423674225Z\"}"
+    }
+  ]
+}

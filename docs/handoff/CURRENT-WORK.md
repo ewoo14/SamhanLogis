@@ -1,5 +1,116 @@
 ﻿# 현재 작업 핸드오프 노트
 
+## 2026-08-07 집PC 세션 — **머지 2건 완료** · 세션 재시작 지점
+
+> **재시작 시 이 절만 읽으면 된다.** 아래 절들은 이력이다.
+
+### 0. 한 줄 결론
+
+**GitHub Actions 장애가 복구돼 밤새 막혔던 것이 풀렸고, 머지 2건을 끝냈다.**
+남은 5 PR 은 **전부 CI green(BE 샤드 12/12)** 이고 병목은 이제 **라이브QA** 다.
+
+```text
+✅ #1088  머지 257c8f9f7 · 이슈 #1013 close
+✅ #1077  머지 424bf88ef · 이슈 #1069 close   ← 11라운드 금액 결함
+
+#1066  ①✅SOL R10 결함0  ②42/42(R10 커밋분 재실행 필요)  ③미실시
+#1097  ①✅  ②42/42  ③만 남음
+#1083  ①✅  ②43/43  ③만 남음 — slip-service 재빌드 필요
+#1082  ①✅  ②38/38  ③만 남음 — #1097 머지 후 (V16→V17)
+#1078  ①✅  ②49/49(병합 전 SHA)  main 병합 충돌 미해소
+열린 이슈 33
+```
+
+### 1. 🚨 재시작 후 첫 할 일 — `#1078` 병합 충돌
+
+병합은 **abort 해 뒀다**(세션 중단으로 미완). 판단표는 `f5e1932db` 에 커밋돼 있으니
+**재분석하지 말고 재사용**한다.
+
+```text
+워크트리   .claude/worktrees/t1075  (브랜치 feat/1075-estimate-product-candidate-modal)
+재개       git merge --no-commit --no-ff origin/main
+보고서     docs/dev-reports/2026-08-07-1075-main-merge-conflict-resolution.md
+```
+
+충돌 6파일은 전부 **"양쪽 병렬 보존"** 으로 결론났고 판단이 갈린 곳은 없다.
+
+🚨 **지정 충돌 밖의 의미 충돌이 진짜 막힌 지점이다.**
+main 이 `routes/components/BundleOptionRow.tsx` 를 삭제했는데 `EstimateFormPage.tsx` 가
+계속 import·렌더해서 Vite 해석이 실패한다.
+
+**PM 실측 판정: 복원하지 않는다.** main 이 `EstimateFormPage` 사용부까지 −27/+1 로 이미
+걷어냈다 — import · `updateSetOption` · 모바일카드/데스크톱 렌더 2곳.
+
+⚠️ 그중 이 한 줄은 단순 삭제가 아니라 **`#1077` 의 결함 수정**이라 반드시 살려야 한다:
+
+```diff
+-  setOptions: emptyBundleSetOptions(),
++  setOptions: line.setOptions ?? emptyBundleSetOptions(),
+```
+
+편집 모드에서 저장된 옵션을 빈 값으로 덮지 않게 한 것이다. 사라지면 금액이 틀어진다.
+
+### 2. 라이브QA 순서 — 데이터를 바꾸는 것을 뒤로
+
+```text
+#1083(무해) → #1078 → #1097(V117 이 시더문서 대량 soft-delete) → #1082
+```
+
+🔑 `#1097` 을 먼저 돌리면 이후 트랙 QA 가 표본을 잃어 **"결함 0" 이 아니라 "판정 불가"** 가 된다.
+🔑 `#1083` 은 slip-service main 소스 19개(창고 매핑 클라이언트·검증 서비스)가 바뀌었는데
+   배포본은 `#1077` QA 용이다 — **재빌드 후 QA**. 빌드는 BelowNormal 로.
+
+### 3. 🚨 게이트 ② 를 셀 때 — 두 PR 에서 같은 구멍이 났다
+
+`workflow_dispatch` 는 **지정한 워크플로우 하나만** 돈다.
+**PR close→reopen 이 전체 재발화 수단**이다(`arologis-ci.yml` 은 `workflow_dispatch` 가 없다).
+
+```text
+#1077  ci.yml 만 23잡 green → QA E2E·mock gate·Detox 없음 → qa-e2e 발주 30잡
+       → 그래도 arologis 빌드 없음(shared/common·design-system 을 건드렸는데)
+       → close/reopen → 78잡. 아로로지스 7잡 전부 success 로 확인
+#1097  GitGuardian 1개뿐(BE샤드 0/12) → close/reopen → 42잡
+```
+
+🔑 판별 = **직전 머지 PR 의 잡 목록과 `comm -23` 대조** · **BE 샤드 12/12 를 셀 것**
+🔑 변경 경로는 `gh pr diff --name-only` 가 **0을 낼 수 있다** — `git merge-base` + `git diff` 로 재라
+
+### 4. 개발책임자 결정 (기록 완료)
+
+```text
+#1066 D3   후속 전이는 결재선 개인·정적 권한자 **둘 다 가능**
+#1066      CONFIRMED 를 허용 상태에 추가 (확정 후에도 조회 가능)
+#1097      혼합 문서 전체 삭제 · QA797 은 삭제상태 + 복원차단
+#1090      레거시 모델코드 파싱이 정본
+```
+
+### 5. 결정 대기
+
+```text
+#1092  4문 (담당 정의 · '복구' 의미 · 이력 포함 여부 · 기존 2,017건 소급 분류)
+#1083  D2① 최초기동 alias 준비 위치 · D2② 입력형식
+```
+
+### 6. 환경
+
+```text
+Docker      18컨테이너 healthy · compose 는 slip-port-override 포함 3개 파일
+slip 직접    :18086 (influxd 가 8086 선점)
+계정        dev_manager/dev_p05_pass! · kimgicheol·kimeunji/samhan!2026 · 아로로지스 admin/admin1234
+QA 수단      clients/desktop **안에서** node <script>.mjs · chromium.launch({headless:true})
+typecheck   첫 단계는 design-system/dist 신선도 가드 — 타입 오류가 아니다
+배포본       QA 전에 **값을 내는 서비스**를 지목하고 fix 식별자를 grep (0건이면 중단·보고)
+프로세스     라운드 종료 후 회수 필수 — 워크트리를 지워도 402분 생존한 사례 있음
+            죽이기 전 **실행파일 경로**로 판별 (커맨드라인 매칭은 자기 셸까지 죽인다)
+```
+
+### 7. QA 가 바꾼 공유 데이터
+
+```text
+2026/08/07-3   INSPECTING → COMPLETED (kimgicheol 검수, 정상 경로)
+```
+
+
 ## 2026-08-06 회사PC 세션 (**종료** · 집PC 인계) — 머지 0건 · 라운드 27건 · 개발책임자 결정 11건
 
 > **다음 세션(집PC)은 이 절만 읽으면 된다.** 아래 절들은 이력이다.
@@ -1329,7 +1440,7 @@ Index.html:407·415·424           날짜별 패널 구조         → #1059 R30
 - **좁힌 브리핑에서 Playwright fallback 안내를 잘라내** 라운드가 `No browser is available` 로 멈췄다. QA 브리핑에는 **항상** 그 절을 넣을 것.
 - **틀린 전제로 개발책임자께 두 번 판단을 요청**했다(고아 분개 29건 — 실제로는 참조 전표 전부 실재, `source_ref_id` 가 v3 UUID). **지우기 전에 반드시 실측.**
 - **모호한 측정을 PASS 로 읽었다.** `snapshot 12 → 12` 는 *"조회가 저장 안 함"* 과 *"저장 경로가 없음"* 을 구분하지 못한다. **같은 수치가 정반대 두 상황에서 나오는지** 먼저 물을 것.
-- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 사용자 게임이 죽었다(여유 13.5GB). **집PC 는 개발 전용이 아니다.**
+- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 PC 가 고갈됐다(여유 13.5GB). **집PC 는 개발 전용이 아니다.**
 
 ---
 
@@ -1451,7 +1562,7 @@ main     .gradle-user-t1008b/ · docs/dev-reports/2026-08-03-874-live-qa.md
 - **계열 전수 sweep 을 지시하지 않아** `#1057` R21 이 한 칸만 고쳤고 QA 한 사이클을 더 썼다(R22 가 전 상태 대조표로 정리).
 - **좁힌 브리핑에서 Playwright fallback 안내를 잘라내** 라운드가 `No browser is available` 로 멈췄다. QA 브리핑에는 **항상** 이 절을 넣을 것.
 - **틀린 전제로 개발책임자께 두 번 판단 요청**(고아 분개 29건). 지우기 전에 반드시 실측.
-- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 사용자 게임이 죽었다(여유 13.5GB). 집PC 는 개발 전용이 아니다.
+- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 PC 가 고갈됐다(여유 13.5GB). 집PC 는 개발 전용이 아니다.
 
 ### 4. SOL 이 PM 수치를 세 번 정정했다
 
@@ -1564,7 +1675,7 @@ R6 라이브QA  진행 중
 - **`git add -- clients` 가 미추적 QA 하네스를 삼켰다** (`874-riusage-real-qa.spec.ts`). CI 가 H-2 가드로 잡음. 메모리에 이미 있는 계열인데 경로를 안 좁혔다. **커밋 전 `git status --porcelain` 을 눈으로 대조하고 파일을 지목할 것.**
 - **계열 전수 sweep 을 지시하지 않아** R21 이 한 칸만 고쳤고 QA 한 사이클을 더 썼다.
 - **틀린 전제로 개발책임자께 두 번 판단을 요청**했다 — "참조 전표 없는 분개 29건" 은 실제로 29건 전부 참조 전표가 실재했다(v3 UUID 라 조인만 안 됨). 삭제 직전에 확인해서 막았다. **지우기 전에 반드시 실측.**
-- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 사용자 게임이 죽었다. 여유 13.5GB 까지 떨어졌다. **집PC 는 개발 전용이 아니다.**
+- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 PC 가 고갈됐다. 여유 13.5GB 까지 떨어졌다. **집PC 는 개발 전용이 아니다.**
 
 ### 6. 환경 메모 (집PC)
 
@@ -2165,6 +2276,15 @@ S30 라이브QA 에서 모델명을 지우고 blur 한 뒤 **저장 버튼을 �
 🔑 브리핑에 항상 넣을 것 — **"제 전제가 틀렸다면 고치지 말고 중단·보고하십시오"** 와 **"셋째 가능성이 있으면 그것을 내십시오"**. 갈래를 제시하면 검증자가 **주어진 칸에 답을 욱여넣는다.**
 
 그리고 **설계 승인 요청은 승인하지 않는다.** 이 세션에서 구현자가 두 번 요청했고, 승인 대신 **조건과 되물을 질문**을 돌려줬더니 더 나은 답이 나왔다(`#1078` 은 화면 우회 대신 **계약 자체**를 고쳤다).
+
+## 2026-08-06 Codex S31 Update — #1075 병합·개번·B 규명
+
+- `origin/main`을 `--no-commit`으로 병합했다. 텍스트 충돌은 없었고, incoming diff에는 `clients/`·`services/` 코드가 없었다.
+- `V113__add_estimate_specification_source.sql`을 `V116__add_estimate_specification_source.sql`로 이동했다. 코드·설정·테스트의 V113 참조는 0건이며 과거 handoff/QA/memory/dev-report 기록은 보존했다.
+- B는 (b) 실제 결함으로 규명했다. 견적 유일 품목 해제 후 `buildBody()`의 `valid.length === 0` 가드가 `null`을 반환해 `updateMutation.mutate()`와 PUT을 막는다. 백엔드의 빈 `lines` 전체 삭제 계약과 모순된다.
+- `EstimateFormPage.coedit.test.tsx`에 S31 RED를 추가했고 46 pass / 1 fail로 재현했다. 실패 원문: `expected "spy" to be called 1 times, but got 0 times`.
+- `npm run typecheck` exit 0, `:slip-service:test --tests "*Estimate*"` exit 0. B 수정, Docker 재배포, commit, push는 하지 않았다.
+- 상세 보고서: `docs/dev-reports/2026-08-06-1075-s31-merge-renumber-b-diagnosis.md`
 
 ## 6. 🚨 이 세션의 가장 비싼 교훈
 

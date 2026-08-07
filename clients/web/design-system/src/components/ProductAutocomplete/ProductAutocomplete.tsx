@@ -27,6 +27,8 @@ export interface ProductOption {
   productName: string
   /** 출고 단가 (선택 사항). */
   sellingPrice?: number
+  /** 세트 전개 base로 사용하는 납품 단가 (선택 사항). */
+  deliveryPrice?: number
   /** 품목코드 (선택) — 세트 전개 시 부모 modelCode. */
   modelCode?: string
   /** 품목 유형 (선택) — "SINGLE" | "BUNDLE". BUNDLE 이면 세트 옵션 노출. */
@@ -47,6 +49,8 @@ export interface ProductAutocompleteProps {
   onChange: (product: ProductOption | null) => void
   /** 선택된 품목을 다시 편집하면 false를 알린다. 저장 전 품목코드 확정 상태 해제에 사용한다. */
   onInputCommitChange?: (committed: boolean) => void
+  /** blur 시점의 현재 입력 draft를 소비자에게 전달한다. */
+  onInputBlur?: (draft: string) => void
   /**
    * 비동기 품목 검색 함수 (호출자 주입).
    * `q` 를 받아 `ProductOption[]` 을 resolve. 실패 시 reject.

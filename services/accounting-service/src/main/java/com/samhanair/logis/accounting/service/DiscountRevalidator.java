@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
+import com.samhanair.logis.common.discount.LegacyModelFlags;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.regex.Pattern;
@@ -387,27 +388,13 @@ public class DiscountRevalidator {
             if (code.startsWith("AR") && code.endsWith("S") || code.startsWith("AF") && code.endsWith("S")) {
                 return null;
             }
-            if (code.startsWith("AC") && code.length() >= 9) {
-                if (code.charAt(7) == '6' && code.charAt(8) == 'P') return discount360Amount;
-                if (code.charAt(7) == '4' && (code.charAt(8) == 'P' || code.charAt(8) == 'D')) {
-                    return discount4WayAmount;
-                }
-                if (code.charAt(7) == '1' && (code.charAt(8) == 'P' || code.charAt(8) == 'D')) {
-                    return discount1WayAmount;
-                }
-                if (code.charAt(8) == 'F') return discountFirstGradeAmount;
-            }
-            if (code.startsWith("AP")) {
-                if (code.startsWith("AP230") || code.startsWith("AP290")
-                        || code.length() >= 9 && code.charAt(8) == 'P'
-                        || code.length() >= 11 && code.charAt(8) == 'D' && code.charAt(10) == 'C') {
-                    return discountStandAmount;
-                }
-                if (code.length() >= 11 && code.charAt(8) == 'D' && code.charAt(10) == 'H') {
-                    return discountDeluxeAmount;
-                }
-                if (code.length() >= 9 && code.charAt(8) == 'F') return discountFirstGradeAmount;
-            }
+            LegacyModelFlags flags = LegacyModelFlags.from(code);
+            if (flags.is360()) return discount360Amount;
+            if (flags.is4Way()) return discount4WayAmount;
+            if (flags.is1Way()) return discount1WayAmount;
+            if (flags.isStand()) return discountStandAmount;
+            if (flags.isDeluxe()) return discountDeluxeAmount;
+            if (flags.isFirstGrade()) return discountFirstGradeAmount;
             return null;
         }
     }

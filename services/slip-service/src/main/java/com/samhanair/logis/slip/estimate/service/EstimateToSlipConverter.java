@@ -2,15 +2,23 @@ package com.samhanair.logis.slip.estimate.service;
 
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
+import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +29,7 @@ import org.springframework.stereotype.Service;
  * <ul>
  *   <li>EstimateStatus.ACCEPTED → 본 converter 호출 → Slip(OUTBOUND DRAFT) 자동 발행</li>
  *   <li>견적의 partnerId / partnerName / memo 를 Slip 으로 그대로 snapshot</li>
- *   <li>견적의 estimate_lines (lineNo 순) → slip_lines 1:1 매핑</li>
+ *   <li>이미 구성품으로 전개된 견적의 estimate_lines (lineNo 순) → slip_lines 1:1 매핑</li>
  *   <li>Slip.assignPublishSource(ESTIMATE, estimateNo) — 발행 출처 추적 (Phase 6 M5 패턴 일관)</li>
  *   <li>Slip 채번 = SlipNumberService (slip 채번 시퀀스 사용)</li>
  *   <li>sourceWarehouseId 는 placeholder 창고 UUID 로 생성 — 영업이 SlipForm 수정 시 정확한 창고로 교체</li>
@@ -39,6 +47,8 @@ public class EstimateToSlipConverter {
     private final OutboundCutoffGuard cutoffGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
+    /** 레거시/비공식 견적이 BUNDLE 부모를 전표로 우회시키지 않도록 변환 경계에서 재검증한다. */
+    private final ProductClient productClient;
 
     /**
      * 견적 → Slip(OUTBOUND DRAFT) 변환.
@@ -50,6 +60,7 @@ public class EstimateToSlipConverter {
      * @return 영속화된 Slip(OUTBOUND DRAFT)
      */
     public Slip convert(Estimate estimate) {
+        rejectBundleParents(estimate);
         LocalDate slipDate = LocalDate.now(clock);
         String slipNo = slipNumberService.next(slipDate, com.samhanair.logis.slip.domain.SlipType.OUTBOUND);
         int seqNo = slipNumberService.extractSeqNo(slipNo);
@@ -101,7 +112,10 @@ public class EstimateToSlipConverter {
                             line.getProductId(), line.getProductName(), line.getModelName(),
                             line.getSpecification(), line.getQuantity(), line.getUnitPrice(),
                             line.getNote());
-            slipLine.assignBundleComponent(line.getParentSetModel(), line.isSetHead());
+            if (line.getParentSetModel() != null && !line.getParentSetModel().isBlank()) {
+                slipLine.assignBundleComponent(line.getParentSetModel(), line.isSetHead(),
+                        line.getBundleSetOptions());
+            }
             slip.addLine(slipLine);
         }
 
@@ -113,6 +127,26 @@ public class EstimateToSlipConverter {
         slip.applyDeliverySchedule(slip.getDeliveryTag(), null);
 
         return slipRepository.save(slip);
+    }
+
+    private void rejectBundleParents(Estimate estimate) {
+        List<UUID> productIds = estimate.getLines().stream()
+                .map(EstimateLine::getProductId)
+                .distinct()
+                .toList();
+        Map<UUID, com.samhanair.logis.slip.client.ProductSummary> summaries = new HashMap<>();
+        for (var summary : productClient.lookup(productIds)) {
+            summaries.put(summary.id(), summary);
+        }
+        boolean bundleParent = estimate.getLines().stream()
+                .anyMatch(line -> {
+                    var summary = summaries.get(line.getProductId());
+                    return BundleModePolicy.shouldExpand(summary);
+                });
+        if (bundleParent) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "세트 품목은 구성품으로 전개된 견적만 전표로 변환할 수 있습니다");
+        }
     }
 
     private String buildSlipMemo(Estimate estimate) {

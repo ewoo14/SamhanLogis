@@ -10,6 +10,7 @@ import com.samhanair.logis.notification.client.AligoAddressBookClient;
 import com.samhanair.logis.notification.client.AligoAddressBookClient.AligoContact;
 import com.samhanair.logis.notification.client.AligoAddressBookClient.UploadResult;
 import com.samhanair.logis.notification.client.AligoCsvSourceClient;
+import com.samhanair.logis.notification.dto.AligoAddressBookDeliveryStatus;
 import com.samhanair.logis.notification.dto.AligoAddressBookSyncResponse;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,6 +78,7 @@ class AligoAddressBookSyncServiceTest {
         assertThat(response.updated()).isZero();
         assertThat(response.skipped()).isZero();
         assertThat(response.failed()).isEmpty();
+        assertThat(response.deliveryStatus()).isEqualTo(AligoAddressBookDeliveryStatus.DELIVERED);
 
         // chunk 호출 횟수 + 각 chunk size 검증
         @SuppressWarnings("unchecked")
@@ -103,6 +105,7 @@ class AligoAddressBookSyncServiceTest {
         // 최종 success 으로 added=50, failed empty
         assertThat(response.added()).isEqualTo(50);
         assertThat(response.failed()).isEmpty();
+        assertThat(response.deliveryStatus()).isEqualTo(AligoAddressBookDeliveryStatus.DELIVERED);
         // uploadChunk 3회 호출 (429 2번 + 성공 1번)
         verify(aligoClient, times(3)).uploadChunk(anyList());
     }
@@ -131,7 +134,8 @@ class AligoAddressBookSyncServiceTest {
         when(csvSourceClient.fetchContacts()).thenReturn(generateContacts(60));
         when(aligoClient.uploadChunk(anyList()))
                 .thenReturn(UploadResult.success(50))
-                .thenReturn(new UploadResult(0, 0, 0, 500, "internal-server-error"));
+                .thenReturn(new UploadResult(0, 0, 0, 500, "internal-server-error",
+                        AligoAddressBookDeliveryStatus.NOT_DELIVERED));
 
         AligoAddressBookSyncService service = newServiceWithoutSleep();
         AligoAddressBookSyncResponse response = service.sync();
@@ -140,6 +144,7 @@ class AligoAddressBookSyncServiceTest {
         assertThat(response.failed()).hasSize(1);
         assertThat(response.failed().get(0)).contains("chunk#2");
         assertThat(response.failed().get(0)).contains("HTTP 500");
+        assertThat(response.deliveryStatus()).isEqualTo(AligoAddressBookDeliveryStatus.PARTIALLY_DELIVERED);
         // sample memo (chunk 의 첫 contact 의 memo) 가 포함되어야 함 — 51번째 = P-2026-0051
         assertThat(response.failed().get(0)).contains("P-2026-0051");
     }
@@ -156,25 +161,28 @@ class AligoAddressBookSyncServiceTest {
         assertThat(response.updated()).isZero();
         assertThat(response.skipped()).isZero();
         assertThat(response.failed()).isEmpty();
+        assertThat(response.deliveryStatus()).isEqualTo(AligoAddressBookDeliveryStatus.NOT_DELIVERED);
         verify(aligoClient, times(0)).uploadChunk(anyList());
     }
 
     @Test
-    void sync_mockClient_dryRunResponse_isPassedThrough() {
-        // mock dryRun 응답 (added=size, updated=0, skipped=0, http=200) 가 그대로 누적되는지 검증.
+    void sync_mockClient_notDeliveredResponse_hasNoPositiveCounts() {
+        // mock dryRun 응답의 입력 size 가 added 로 오염되지 않고 외부 미전달로 보존되는지 검증.
         when(csvSourceClient.fetchContacts()).thenReturn(generateContacts(7));
         when(aligoClient.uploadChunk(anyList())).thenAnswer(inv -> {
             List<?> chunk = inv.getArgument(0);
-            return UploadResult.success(chunk.size());
+            return new UploadResult(chunk.size(), 0, 0, 200, "dry-run-not-delivered",
+                    AligoAddressBookDeliveryStatus.NOT_DELIVERED);
         });
 
         AligoAddressBookSyncService service = newServiceWithoutSleep();
         AligoAddressBookSyncResponse response = service.sync();
 
-        assertThat(response.added()).isEqualTo(7);
+        assertThat(response.added()).isZero();
         assertThat(response.updated()).isZero();
         assertThat(response.skipped()).isZero();
         assertThat(response.failed()).isEmpty();
+        assertThat(response.deliveryStatus()).isEqualTo(AligoAddressBookDeliveryStatus.NOT_DELIVERED);
         // 7 ≤ 50 → 1 chunk 만 호출
         verify(aligoClient, times(1)).uploadChunk(anyList());
     }

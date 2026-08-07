@@ -121,6 +121,14 @@ export interface LineDraft {
   discountInfo?: string | null
   /** 세트 전개 옵션 (선택) — BUNDLE 라인에 한해 채움. */
   setOptions?: BundleSetOptions
+  /** EXPAND 저장 계보 — 부모 세트 modelCode. */
+  parentSetModel?: string | null
+  /** EXPAND 저장 계보 — 첫 구성품 여부. */
+  setHead?: boolean
+  /** EXPAND 저장 가격기억의 원 부모 productId. 화면에는 표시하지 않는다. */
+  bundleParentProductId?: string | null
+  /** EXPAND 저장 가격기억의 원 부모 입력단가. 화면에는 표시하지 않는다. */
+  bundleParentUnitPrice?: string | null
 }
 
 export interface LineRowProps {

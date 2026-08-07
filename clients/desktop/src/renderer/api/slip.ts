@@ -20,6 +20,7 @@ import {
 import { withLineIdContract } from './lineIdContract'
 import type { SlipStatus } from '@samhan/design-system'
 import type { DeliveryTagCode } from '@samhan/design-system'
+import { isSinglePanelOption } from '../utils/bundleOptionDomain'
 
 /** 본 슬라이스 범위 — 출고/입고 2종. */
 export type SlipType = 'OUTBOUND' | 'INBOUND'
@@ -95,6 +96,8 @@ export interface SlipLineDetail {
    * 일반 단품 라인 = null.
    */
   parentSetModel?: string | null
+  /** 저장 후 재조회되는 EXPAND 선택 옵션 문맥. */
+  setOptions?: BundleSetOptions | null
 }
 
 /**
@@ -118,6 +121,8 @@ export interface SlipDetail extends SlipSummary {
   lines: SlipLineDetail[]
   partnerCode?: string | null
   inspectionStatus?: 'READY' | 'NOT_READY' | null
+  /** 서버가 현재 로그인 사용자에게 계산해 준 OUTBOUND INSPECT capability. */
+  canInspect?: boolean
   /**
    * 기사명 — link-dispatch-slice 신규 (Designer plan §7).
    * DRAFT/SAVED 단계만 편집 가능 (BE 가드와 동일).
@@ -254,7 +259,7 @@ export interface BundleSetOptions {
   remoteOption?: string | null
   /** 실외기 제외 여부 — true 면 실외기 구성품 전개 제외. */
   remoteExcluded?: boolean | null
-  /** 판넬 선택 modelCode — 1종 택1. */
+  /** 판넬 선택 — '' | 판넬제외 | 블랙판넬 | 승강판넬 | 공청판넬 중 1종. */
   panelOption?: string | null
   /**
    * 판넬 360 형상값 — BE `BundleExpander` 가 패널 variant 와 **정확 일치**로 매칭.
@@ -279,7 +284,7 @@ export function emptyBundleSetOptions(): BundleSetOptions {
 /**
  * 라인 setOptions 를 API 전송용으로 정규화.
  * - `productType !== "BUNDLE"` → `undefined` (BE 전개 생략).
- * - 빈 문자열 modelCode/형상 → `null` (BE 기본값 사용).
+ * - 빈 문자열/서버 도메인 밖의 판넬 옵션/형상 → `null` (BE 기본값 사용).
  * 견적/전표 양 화면 공용 (중복 제거 + panelShape360 String 계약 단일점 보장).
  */
 export function toApiBundleSetOptions(
@@ -290,13 +295,40 @@ export function toApiBundleSetOptions(
   const o = opts ?? emptyBundleSetOptions()
   const trimOrNull = (v: string | null | undefined): string | null =>
     v && v.trim() ? v.trim() : null
+  const panelOption = trimOrNull(o.panelOption)
   return {
     remoteOption: trimOrNull(o.remoteOption),
     remoteExcluded: Boolean(o.remoteExcluded),
-    panelOption: trimOrNull(o.panelOption),
+    panelOption: isSinglePanelOption(panelOption) ? panelOption : null,
     panelShape360: trimOrNull(o.panelShape360),
     materialIncluded: Boolean(o.materialIncluded),
   }
+}
+
+export interface ExpandedSlipLine {
+  productId: string | null
+  modelCode?: string | null
+  modelName?: string | null
+  name?: string | null
+  quantity: number
+  unitPrice: number | string
+  /** 서버가 null을 명시하면 KEEP 부모(BUNDLE)이며, 구성품은 componentKind를 가진다. */
+  componentKind?: string | null
+  /** EXPAND 구성품 계보의 첫 행 여부 — 서버 BundleExpander 응답을 그대로 보존한다. */
+  setHead?: boolean
+  specification?: string | null
+}
+
+/** 저장 경로와 동일한 product-service BundleExpander 결과를 입력 행으로 사용한다. */
+export async function expandBundleLine(input: {
+  parentModelCode: string
+  quantity: number
+  unitPrice: string
+  specification?: string
+  setOptions?: BundleSetOptions
+}): Promise<ExpandedSlipLine[]> {
+  const res = await apiClient.post<ApiEnvelope<ExpandedSlipLine[]>>('/slips/expand-line', input)
+  return res.data.data
 }
 
 /** 라인 input — BE `CreateSlipRequest.SlipLineRequest`. */
@@ -316,6 +348,14 @@ export interface SlipLineInput {
   note?: string
   /** 세트 전개 옵션 — BUNDLE 품목 라인에 한해 전달(BE BundleExpander). */
   setOptions?: BundleSetOptions
+  /** 화면에서 전개된 구성품의 부모 세트 modelCode. */
+  parentSetModel?: string | null
+  /** 화면에서 전개된 세트의 첫 구성품 여부. */
+  setHead?: boolean
+  /** 화면 전개 세트의 원 부모 productId — 가격기억 기준. */
+  bundleParentProductId?: string | null
+  /** 화면 전개 세트의 원 부모 입력단가 — 가격기억 기준. */
+  bundleParentUnitPrice?: string | null
   /**
    * 단가 부가세포함 여부 — true 면 `unitPrice` 가 VAT 포함 단가이며 BE 가 라인 단위로
    * 공급가액/부가세를 분리(eCount 방식). 2026-06-09 단가 부가세포함 전환.
@@ -432,6 +472,8 @@ export interface ProductLookupResult {
   modelCode?: string
   /** 품목 유형 — "SINGLE" | "BUNDLE". BUNDLE 이면 세트 옵션 노출. */
   productType?: string
+  /** 카탈로그 자동 규격 — 견적 라인 확정 시 저장되는 값. */
+  specification?: string | null
 }
 
 interface ProductLookupWireResult {
@@ -441,6 +483,7 @@ interface ProductLookupWireResult {
   sellingPrice: string | number | null
   modelCode?: string | null
   productType?: string | null
+  specification?: string | null
 }
 
 /** 거래처+품목 최근 수동단가 기억 응답 — 단가는 VAT 포함 입력 단가. */
@@ -797,6 +840,7 @@ export async function lookupProductByModelName(
     sellingPrice: String(data.sellingPrice ?? '0'),
     modelCode: data.modelCode ?? undefined,
     productType: data.productType ?? undefined,
+    specification: data.specification ?? undefined,
   }
 }
 

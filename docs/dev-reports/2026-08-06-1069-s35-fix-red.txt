@@ -1,0 +1,17 @@
+S35 RED 원문 — PR #1077 / 이슈 #1069
+
+실행 명령:
+npx vitest run src/renderer/routes/SlipFormPage.test.tsx
+
+수정 전 결과:
+FAIL src/renderer/routes/SlipFormPage.test.tsx (85 tests | 1 failed)
+실패 테스트:
+EXPAND 세트 선택은 구성품 계보와 옵션 문맥을 저장 payload에도 보낸다
+
+핵심 실패:
+- Expected payload: setHead=true, parentSetModel=SET-1, bundleParentProductId=eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee
+- Received payload: productId=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa, quantity=2, unitPrice=6000, setOptions={commissioningHours:0, indoorUnits:1, installationHours:0, outdoorUnits:1}
+- 수신 payload에 setHead·parentSetModel·bundleParentProductId가 없었다.
+
+판정:
+F2 저장 계보 소실을 실제 payload 단정으로 재현한 RED. 구현 후 동일 테스트는 85/85 GREEN.

@@ -74,4 +74,32 @@ class DiscountPriceCalculatorTest {
         assertThat(calculation.discountInfo()).contains("전역DC 48%");
         assertThat(calculation.discountInfo()).doesNotContain("-");
     }
+
+    @Test
+    void requestLineCarriesLegacySingleSetFlags() {
+        Map<String, Object> item = DiscountPriceClient.toRequestLine(
+                new SlipDiscountCalculator.Line("AC123456P", "OTHER",
+                        new BigDecimal("1000000"), null, 1));
+
+        assertThat(item).containsEntry("is360", true);
+        assertThat(item).containsEntry("is4Way", false);
+        assertThat(item).containsEntry("is1Way", false);
+        assertThat(item).containsEntry("isStand", false);
+        assertThat(item).containsEntry("isDeluxe", false);
+        assertThat(item).containsEntry("isFirstGrade", false);
+    }
+
+    @Test
+    void requestLineDoesNotFlagNonAcApModel() {
+        Map<String, Object> item = DiscountPriceClient.toRequestLine(
+                new SlipDiscountCalculator.Line("ZZ123456P", "OTHER",
+                        new BigDecimal("1000000"), null, 1));
+
+        assertThat(item).containsEntry("is360", false);
+        assertThat(item).containsEntry("is4Way", false);
+        assertThat(item).containsEntry("is1Way", false);
+        assertThat(item).containsEntry("isStand", false);
+        assertThat(item).containsEntry("isDeluxe", false);
+        assertThat(item).containsEntry("isFirstGrade", false);
+    }
 }

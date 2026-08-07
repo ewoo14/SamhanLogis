@@ -22,7 +22,9 @@ public record ProductSummary(
         String modelCode,
         String productType,
         String categoryKey,
-        BigDecimal fixedDiscountRate) {
+        String bundleMode,
+        BigDecimal fixedDiscountRate,
+        String specification) {
 
     /**
      * 기존 테스트/호출자 호환 생성자 — serialManaged 미제공 시 batch 품목(false)으로 간주한다.
@@ -36,7 +38,7 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status) {
-        this(id, name, modelName, null, categoryId, sellingPrice, status, false, null, null, null, null);
+        this(id, name, modelName, null, categoryId, sellingPrice, status, false, null, null, null, null, null, null);
     }
 
     /**
@@ -52,7 +54,7 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status, boolean serialManaged) {
-        this(id, name, modelName, null, categoryId, sellingPrice, status, serialManaged, null, null, null, null);
+        this(id, name, modelName, null, categoryId, sellingPrice, status, serialManaged, null, null, null, null, null, null);
     }
 
     /**
@@ -68,7 +70,7 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, String productCode,
                           UUID categoryId, BigDecimal sellingPrice, String status) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, null, null, null, null);
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, null, null, null, null, null, null);
     }
 
     /**
@@ -76,7 +78,7 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, String productCode,
                           UUID categoryId, BigDecimal sellingPrice, String status, boolean serialManaged) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, null, null, null, null);
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, null, null, null, null, null, null);
     }
 
     /** categoryKey 추가 전 정규 생성자 호환용. */
@@ -84,15 +86,34 @@ public record ProductSummary(
                           UUID categoryId, BigDecimal sellingPrice, String status,
                           boolean serialManaged, String modelCode, String productType) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status,
-                serialManaged, modelCode, productType, null, null);
+                serialManaged, modelCode, productType, null, null, null, null);
     }
 
-    /** fixedDiscountRate 추가 전 canonical 생성자 호환용. */
+    /** categoryKey 까지만 포함한 기존 정규 생성자 호환용. */
     public ProductSummary(UUID id, String name, String modelName, String productCode,
                           UUID categoryId, BigDecimal sellingPrice, String status,
                           boolean serialManaged, String modelCode, String productType,
                           String categoryKey) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status,
-                serialManaged, modelCode, productType, categoryKey, null);
+                serialManaged, modelCode, productType, categoryKey, null, null, null);
+    }
+
+    /** bundleMode 추가 전 규격 출처 생성자 호환용. */
+    public ProductSummary(UUID id, String name, String modelName, String productCode,
+                          UUID categoryId, BigDecimal sellingPrice, String status,
+                          boolean serialManaged, String modelCode, String productType,
+                          String categoryKey, BigDecimal fixedDiscountRate, String specification) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status,
+                serialManaged, modelCode, productType, categoryKey, null,
+                fixedDiscountRate, specification);
+    }
+
+    /** bundleMode 를 포함하는 product-service 내부 조회 응답용 생성자. */
+    public ProductSummary(UUID id, String name, String modelName, String productCode,
+                          UUID categoryId, BigDecimal sellingPrice, String status,
+                          boolean serialManaged, String modelCode, String productType,
+                          String categoryKey, String bundleMode) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status,
+                serialManaged, modelCode, productType, categoryKey, bundleMode, null, null);
     }
 }

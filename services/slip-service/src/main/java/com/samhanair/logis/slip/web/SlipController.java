@@ -107,6 +107,8 @@ public class SlipController {
     private static final String INBOUND_INSPECTION_PAGE_CODE = "inbound.inspection";
 
     private static final String CALLER_HEADER = "X-User-Id";
+    /** 게이트웨이가 JWT의 시스템 마스터 claim에서 주입하는 단일 우회 헤더. */
+    private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
     /**
      * 버전이력 actorName 표시용 헤더 ([[uuid-no-user-visibility]]). gateway 가 주입하는 표시명을
      * 그대로 service 로 위임하고, UUID 비공개 가드(UUID 형태면 null)는 service 가 책임진다.
@@ -272,10 +274,14 @@ public class SlipController {
             @PathVariable UUID id,
             @RequestHeader(value = "X-User-Role", required = false) String role,
             @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
-            @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster) {
-        SlipDetailResponse response = slipService.getOne(id);
+            @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        SlipDetailResponse response = slipService.getOne(id, userId);
         SlipPurchaseAccessGuard.guardInboundPurchaseRead(response.slipType(), role, userGroups, isSystemMaster);
-        SlipSalesAccessGuard.guardOutboundSalesRead(response.slipType(), role, userGroups, isSystemMaster);
+        boolean approvalLineAllowed = !SlipSalesAccessGuard.canReadOutboundSales(role, userGroups, isSystemMaster)
+                && response.canInspect();
+        SlipSalesAccessGuard.guardOutboundSalesRead(response.slipType(), response.status(), role, userGroups,
+                isSystemMaster, approvalLineAllowed);
         return ApiResponse.ok(response);
     }
 
@@ -517,11 +523,16 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치")
     })
     @PostMapping("/{id}/inspect")
-    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> inspect(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        SlipType slipType = slipService.getOne(id).slipType();
+        SlipDetailResponse current = slipService.getOne(id);
+        SlipType slipType = current.slipType();
+        boolean approvalLineMember = slipService.isOutboundInspectApprovalMember(
+                slipType, current.status(), callerHeader);
+        if (!approvalLineMember) {
+            requireAccountPermission(callerHeader, "slip.transfer.process", PermissionAction.UPDATE);
+        }
         if (SlipType.INBOUND.equals(slipType)) {
             requireAccountPermission(callerHeader, INBOUND_INSPECTION_PAGE_CODE, PermissionAction.UPDATE);
         }
@@ -543,16 +554,22 @@ public class SlipController {
     /** COMPLETED → SHIPPING (출고전표 한정). */
     @Operation(summary = "배송 시작", description = "COMPLETED → SHIPPING (OUTBOUND only)")
     @PostMapping("/{id}/ship")
-    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    public ApiResponse<SlipDetailResponse> ship(@PathVariable UUID id) {
+    public ApiResponse<SlipDetailResponse> ship(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        checkOutboundPostInspectionPermission(callerHeader, isSystemMaster, id, "slip.transfer.process");
         return ApiResponse.ok(slipService.ship(id));
     }
 
     /** SHIPPING → DELIVERED (출고전표 한정). */
     @Operation(summary = "배송 완료", description = "SHIPPING → DELIVERED (OUTBOUND only)")
     @PostMapping("/{id}/deliver")
-    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    public ApiResponse<SlipDetailResponse> deliver(@PathVariable UUID id) {
+    public ApiResponse<SlipDetailResponse> deliver(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        checkOutboundPostInspectionPermission(callerHeader, isSystemMaster, id, "slip.transfer.process");
         return ApiResponse.ok(slipService.deliver(id));
     }
 
@@ -561,9 +578,14 @@ public class SlipController {
     @PostMapping("/{id}/confirm")
     public ApiResponse<SlipDetailResponse> confirm(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
-                SALES_SLIP_CONFIRM_PAGE_CODE, PermissionAction.UPDATE);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        if (SlipType.OUTBOUND.equals(resolveSlipType(id))) {
+            checkOutboundPostInspectionPermission(callerHeader, isSystemMaster, id, SALES_SLIP_CONFIRM_PAGE_CODE);
+        } else {
+            checkSlipMutationPermission(callerHeader, SlipType.INBOUND,
+                    SALES_SLIP_CONFIRM_PAGE_CODE, PermissionAction.UPDATE);
+        }
         return ApiResponse.ok(slipService.confirm(id, callerOrSystem(callerHeader)));
     }
 
@@ -801,6 +823,22 @@ public class SlipController {
             return;
         }
         requireAccountPermission(callerHeader, outboundPageCode, outboundAction);
+    }
+
+    /** OUTBOUND 후속 전이는 기존 정적 권한자 또는 검수 결재선 개인에게 허용한다. */
+    private void checkOutboundPostInspectionPermission(
+            String callerHeader, String isSystemMaster, UUID id, String pageCode) {
+        SlipDetailResponse current = slipService.getOne(id);
+        boolean approvalLineMember = current.slipType() == SlipType.OUTBOUND
+                && slipService.isOutboundInspectApprovalMember(
+                        current.slipType(), current.status(), callerHeader);
+        if (!approvalLineMember && !isSystemMaster(isSystemMaster)) {
+            requireAccountPermission(callerHeader, pageCode, PermissionAction.UPDATE);
+        }
+    }
+
+    private boolean isSystemMaster(String isSystemMaster) {
+        return "true".equalsIgnoreCase(isSystemMaster == null ? "" : isSystemMaster.trim());
     }
 
     /**

@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 
 /**
  * 전표 full-snapshot 직렬화 DTO (권한 재편 Phase 2.1).
@@ -162,7 +163,8 @@ public record SlipSnapshot(
             Boolean setHead,
             String parentSetModel,
             String unitPriceDomain,
-            String categoryKey) {
+            String categoryKey,
+            BundleSetOptions bundleSetOptions) {
 
         /** 단가 권위 도메인까지 담던 기존 스냅샷 생성자 호환 오버로드. */
         public Line(UUID productId, String productName, String modelName, String specification,
@@ -171,7 +173,7 @@ public record SlipSnapshot(
                     Boolean setHead, String parentSetModel, String unitPriceDomain) {
             this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
                     note, unitPriceWithVat, vatAmount, supplyAmount, setHead, parentSetModel,
-                    unitPriceDomain, null);
+                    unitPriceDomain, null, null);
         }
 
         /**
@@ -185,7 +187,17 @@ public record SlipSnapshot(
                     BigDecimal unitPriceWithVat, BigDecimal vatAmount, BigDecimal supplyAmount,
                     Boolean setHead, String parentSetModel) {
             this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
-                    note, unitPriceWithVat, vatAmount, supplyAmount, setHead, parentSetModel, null, null);
+                    note, unitPriceWithVat, vatAmount, supplyAmount, setHead, parentSetModel, null, null, null);
+        }
+
+        /** 세트 선택 옵션이 없는 구 스냅샷 생성자 하위호환 오버로드. */
+        public Line(UUID productId, String productName, String modelName, String specification,
+                    int quantity, BigDecimal unitPrice, BigDecimal lineTotal, String note,
+                    BigDecimal unitPriceWithVat, BigDecimal vatAmount, BigDecimal supplyAmount,
+                    Boolean setHead, String parentSetModel, String unitPriceDomain, String categoryKey) {
+            this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
+                    note, unitPriceWithVat, vatAmount, supplyAmount, setHead, parentSetModel,
+                    unitPriceDomain, categoryKey, null);
         }
 
         /**
@@ -195,7 +207,7 @@ public record SlipSnapshot(
                     int quantity, BigDecimal unitPrice, BigDecimal lineTotal, String note,
                     BigDecimal unitPriceWithVat, BigDecimal vatAmount, BigDecimal supplyAmount) {
             this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
-                    note, unitPriceWithVat, vatAmount, supplyAmount, null, null, null, null);
+                    note, unitPriceWithVat, vatAmount, supplyAmount, null, null, null, null, null);
         }
     }
 }

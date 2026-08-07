@@ -12,6 +12,7 @@ public record EstimateLineResponse(
         String productName,
         String modelName,
         String specification,
+        String specificationSource,
         int quantity,
         BigDecimal unitPrice,
         BigDecimal supplyAmount,
@@ -23,7 +24,8 @@ public record EstimateLineResponse(
         /** 세트 전개 첫 구성품 여부 — payload 전용 계보 필드, 화면에 UUID와 함께 표시하지 않는다. */
         boolean setHead,
         /** 세트 구성품 부모 modelCode — payload 전용 계보 필드, 일반 라인은 null. */
-        String parentSetModel) {
+        String parentSetModel,
+        BundleSetOptions setOptions) {
 
     public static EstimateLineResponse from(EstimateLine line) {
         return new EstimateLineResponse(
@@ -33,6 +35,7 @@ public record EstimateLineResponse(
                 line.getProductName(),
                 line.getModelName(),
                 line.getSpecification(),
+                line.getSpecificationSource(),
                 line.getQuantity(),
                 line.getUnitPrice(),
                 line.getSupplyAmount(),
@@ -41,6 +44,7 @@ public record EstimateLineResponse(
                 line.getNote(),
                 line.getUnitPriceWithVat(),
                 line.isSetHead(),
-                line.getParentSetModel());
+                line.getParentSetModel(),
+                line.getBundleSetOptions());
     }
 }

@@ -1,0 +1,101 @@
+[
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/slips/lookup-product?modelName=AR09TXEAAWKNEU-04",
+    "request": "",
+    "response": {
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"name\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"productCode\":\"AR09TXEAAWKNEU-04\",\"categoryId\":\"00000000-0000-0000-0000-000000001004\",\"sellingPrice\":1080000.0,\"status\":\"ACTIVE\",\"serialManaged\":true,\"modelCode\":\"AR09TXEAAWKNEU-04\",\"productType\":\"SINGLE\",\"categoryKey\":\"homemulti\",\"fixedDiscountRate\":null,\"specification\":\"9평형 / R32 / 인버터 / 윈드프리\"},\"timestamp\":\"2026-08-05T21:58:05.219721667Z\"}"
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:8080/slips/estimates",
+    "request": "{\"estimateDate\":\"2026-08-06\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"validUntil\":\"2026-09-05\",\"lines\":[{\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"9평형 / R32 / 인버터 / 윈드프리\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":\"1080000\",\"priceVatInclusive\":true}]}",
+    "response": {
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"99f498db-1dea-49a6-a3a7-8fa1e5ac273f\",\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"seqNo\":12,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"f0b7af8e-f4cb-4eec-a052-4f2c1b66be4f\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"9평형 / R32 / 인버터 / 윈드프리\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:12.114782410Z\"}"
+    }
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/slips/estimates/99f498db-1dea-49a6-a3a7-8fa1e5ac273f",
+    "request": "",
+    "response": {
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"99f498db-1dea-49a6-a3a7-8fa1e5ac273f\",\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"seqNo\":12,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"f0b7af8e-f4cb-4eec-a052-4f2c1b66be4f\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"9평형 / R32 / 인버터 / 윈드프리\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:12.189102514Z\"}"
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:8080/slips/estimates",
+    "request": "{\"estimateDate\":\"2026-08-06\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"validUntil\":\"2026-09-05\",\"lines\":[{\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":\"1080000\",\"priceVatInclusive\":true}]}",
+    "response": {
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"d69d1b2c-02c7-4dfb-a6a1-aa2d92f77290\",\"estimateNo\":\"2026/08/06-13\",\"estimateDate\":\"2026-08-06\",\"seqNo\":13,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"555a197d-d39a-4bf8-bf59-61c6a27ecfa1\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:16.797748256Z\"}"
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://localhost:8080/slips/estimates",
+    "request": "{\"estimateDate\":\"2026-08-06\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"validUntil\":\"2026-09-05\",\"lines\":[{\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":\"1080000\",\"priceVatInclusive\":true}]}",
+    "response": {
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"7c039489-9353-49fd-8bc3-aa08d96e028e\",\"estimateNo\":\"2026/08/06-14\",\"estimateDate\":\"2026-08-06\",\"seqNo\":14,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"bb45ec19-7ea6-4a89-93df-0efa12ae433e\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:16.819478785Z\"}"
+    }
+  },
+  {
+    "method": "PUT",
+    "url": "http://localhost:8080/slips/estimates/99f498db-1dea-49a6-a3a7-8fa1e5ac273f",
+    "request": "{\"estimateDate\":\"2026-08-06\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"validUntil\":\"2026-09-05\",\"lines\":[{\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"사용자 입력 규격 S29\",\"specificationSource\":\"USER\",\"quantity\":1,\"unitPrice\":\"1080000\",\"priceVatInclusive\":true,\"lineId\":\"f0b7af8e-f4cb-4eec-a052-4f2c1b66be4f\"}],\"lineIdContract\":true}",
+    "response": {
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"99f498db-1dea-49a6-a3a7-8fa1e5ac273f\",\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"seqNo\":12,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"a945abd6-4a26-4899-8400-a137c1116bfd\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"사용자 입력 규격 S29\",\"specificationSource\":\"USER\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:16.841184352Z\"}"
+    }
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/slips/estimates/99f498db-1dea-49a6-a3a7-8fa1e5ac273f",
+    "request": "",
+    "response": {
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"99f498db-1dea-49a6-a3a7-8fa1e5ac273f\",\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"seqNo\":12,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"a945abd6-4a26-4899-8400-a137c1116bfd\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"사용자 입력 규격 S29\",\"specificationSource\":\"USER\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:16.849413023Z\"}"
+    }
+  },
+  {
+    "method": "PUT",
+    "url": "http://localhost:8080/slips/estimates/99f498db-1dea-49a6-a3a7-8fa1e5ac273f",
+    "request": "{\"estimateDate\":\"2026-08-06\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"validUntil\":\"2026-09-05\",\"lines\":[{\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"사용자 입력 규격 S29\",\"specificationSource\":\"USER\",\"quantity\":1,\"unitPrice\":\"1080000\",\"priceVatInclusive\":true,\"lineId\":\"a945abd6-4a26-4899-8400-a137c1116bfd\"}],\"lineIdContract\":true,\"memo\":\"S29 헤더만 변경\"}",
+    "response": {
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"99f498db-1dea-49a6-a3a7-8fa1e5ac273f\",\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"seqNo\":12,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":\"S29 헤더만 변경\",\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":1,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"360aeac6-f2ad-4f01-bf1e-5213bfe61330\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"사용자 입력 규격 S29\",\"specificationSource\":\"USER\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:16.867537458Z\"}"
+    }
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/slips/estimates/99f498db-1dea-49a6-a3a7-8fa1e5ac273f/revisions",
+    "request": "",
+    "response": {
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"revisionNo\":3,\"revisionType\":\"EDIT\",\"sourceRevisionNo\":null,\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"actorName\":\"[DEV-SEED] 개발마스터\",\"createdAt\":\"2026-08-06T06:58:16.863172\",\"changeSummary\":{\"headerChanged\":1,\"lineAdded\":0,\"lineRemoved\":0,\"lineModified\":0}},{\"revisionNo\":2,\"revisionType\":\"EDIT\",\"sourceRevisionNo\":null,\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"actorName\":\"[DEV-SEED] 개발마스터\",\"createdAt\":\"2026-08-06T06:58:16.83796\",\"changeSummary\":{\"headerChanged\":0,\"lineAdded\":0,\"lineRemoved\":0,\"lineModified\":1}},{\"revisionNo\":1,\"revisionType\":\"CREATE\",\"sourceRevisionNo\":null,\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"actorName\":\"[DEV-SEED] 개발마스터\",\"createdAt\":\"2026-08-06T06:58:12.109919\",\"changeSummary\":{\"headerChanged\":0,\"lineAdded\":1,\"lineRemoved\":0,\"lineModified\":0}}],\"timestamp\":\"2026-08-05T21:58:16.878477698Z\"}"
+    }
+  },
+  {
+    "method": "PUT",
+    "url": "http://localhost:8080/slips/estimates/99f498db-1dea-49a6-a3a7-8fa1e5ac273f",
+    "request": "{\"estimateDate\":\"2026-08-06\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"validUntil\":\"2026-09-05\",\"lines\":[{\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"9평형 / R32 / 인버터 / 윈드프리\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":\"1080000\",\"priceVatInclusive\":true,\"lineId\":\"360aeac6-f2ad-4f01-bf1e-5213bfe61330\"}],\"lineIdContract\":true}",
+    "response": {
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"99f498db-1dea-49a6-a3a7-8fa1e5ac273f\",\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"seqNo\":12,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":\"S29 헤더만 변경\",\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":1,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"30aefcc9-1d75-475b-b56e-19ced59a247f\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"9평형 / R32 / 인버터 / 윈드프리\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:16.897457814Z\"}"
+    }
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/slips/estimates/99f498db-1dea-49a6-a3a7-8fa1e5ac273f",
+    "request": "",
+    "response": {
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"99f498db-1dea-49a6-a3a7-8fa1e5ac273f\",\"estimateNo\":\"2026/08/06-12\",\"estimateDate\":\"2026-08-06\",\"seqNo\":12,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"9008cfd0-b540-4f64-a81e-37a6c67a112e\",\"partnerName\":\"개인-강남에어컨설치팀장\",\"partnerBusinessNo\":\"01023627199\",\"partnerAddress\":null,\"validUntil\":\"2026-09-05\",\"totalSupply\":981818.00,\"totalVat\":98182.00,\"totalAmount\":1080000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":\"S29 헤더만 변경\",\"requesterId\":\"a0000000-0000-0000-0000-000000000001\",\"version\":1,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"30aefcc9-1d75-475b-b56e-19ced59a247f\",\"lineNo\":1,\"productId\":\"d7f488a5-6259-379c-8035-ed551e75a102\",\"productName\":\"삼성 윈드프리 9평형\",\"modelName\":\"AR09TXEAAWKNEU-04\",\"specification\":\"9평형 / R32 / 인버터 / 윈드프리\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":981818.00,\"supplyAmount\":981818.00,\"vatAmount\":98182.00,\"lineTotal\":1080000.00,\"note\":null,\"unitPriceWithVat\":1080000.00,\"setHead\":false,\"parentSetModel\":null}]},\"timestamp\":\"2026-08-05T21:58:16.905377036Z\"}"
+    }
+  }
+]

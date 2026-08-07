@@ -40,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class EstimateRevisionService {
+    private static final String LEGACY_CATALOG_MARKER = "\u2060";
 
     private static final Logger log = LoggerFactory.getLogger(EstimateRevisionService.class);
 
@@ -277,7 +278,10 @@ public class EstimateRevisionService {
      *       식별자 전부). 라인 리스트는 헤더 카운트에서 제외.</li>
      *   <li><b>라인</b>: productId 기준 매칭 — cur 에만 있으면 added, prev 에만 있으면 removed,
      *       양쪽 존재하나 라인 필드(quantity, unitPrice, supplyAmount, vatAmount, lineTotal,
-     *       productName, modelName, specification, note) 중 하나라도 다르면 modified.</li>
+     *       productName, modelName, specification, note) 중 하나라도 다르면 modified.
+     *       구 revision/DB의 source 누락(null)이 현재 저장 과정에서 정규화된 경우에는 표시 규격이
+     *       같다면 provenance만으로 modified로 세지 않으며, 양쪽 source가 명시된 CATALOG↔USER
+     *       전환은 실제 사용자 의미 변경으로 계속 modified로 센다.</li>
      * </ul>
      *
      * <p>productId 가 null 인 라인은 매칭 키가 없어 added/removed 로만 집계된다 (modified 미판정).
@@ -400,8 +404,46 @@ public class EstimateRevisionService {
         }
         return !Objects.equals(a.productName(), b.productName())
                 || !Objects.equals(a.modelName(), b.modelName())
-                || !Objects.equals(a.specification(), b.specification())
+                || specificationDiffers(a, b)
+                || specificationSourceDiffers(a.specification(), a.specificationSource(), b.specificationSource())
                 || !Objects.equals(a.note(), b.note());
+    }
+
+    /**
+     * 구 snapshot의 source 누락과 현재 hydrate 정규화를 실제 source 전환과 구분한다.
+     * 구 marker는 hydrate 시 제거되므로, 기대 source가 CATALOG인 경우에만 표시값을
+     * canonicalize한다. 그 밖의 source 조합은 실제 provenance 전환으로 취급한다.
+     */
+    private boolean specificationDiffers(EstimateSnapshot.Line previous, EstimateSnapshot.Line current) {
+        if (Objects.equals(previous.specification(), current.specification())) {
+            return false;
+        }
+        if (previous.specificationSource() == null
+                && "CATALOG".equals(current.specificationSource())
+                && previous.specification() != null
+                && previous.specification().startsWith(LEGACY_CATALOG_MARKER)) {
+            return !Objects.equals(previous.specification().substring(LEGACY_CATALOG_MARKER.length()),
+                    current.specification());
+        }
+        return true;
+    }
+
+    private boolean specificationSourceDiffers(String previousSpecification,
+                                               String previousSource,
+                                               String currentSource) {
+        if (Objects.equals(previousSource, currentSource)) {
+            return false;
+        }
+        if (previousSource == null && currentSource != null) {
+            String expectedLegacySource = previousSpecification != null
+                    && previousSpecification.startsWith(LEGACY_CATALOG_MARKER)
+                    ? "CATALOG"
+                    : previousSpecification != null && !previousSpecification.isBlank()
+                    ? "USER"
+                    : null;
+            return !Objects.equals(expectedLegacySource, currentSource);
+        }
+        return true;
     }
 
     /**

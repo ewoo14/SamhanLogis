@@ -102,6 +102,10 @@ public record CreateSlipRequest(
             @NotNull @DecimalMin("0.00") BigDecimal unitPrice,
             @Size(max = 200) String note,
             com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+            @Size(max = 100) String parentSetModel,
+            Boolean setHead,
+            UUID bundleParentProductId,
+            BigDecimal bundleParentUnitPrice,
             /**
              * 단가 부가세포함 여부 — true 면 {@code unitPrice} 가 VAT 포함 단가(사용자 입력)이며
              * BE 가 라인 단위로 공급가액/부가세를 분리(eCount 방식, {@link com.samhanair.logis.slip.domain.SlipLine#createFromVatInclusive}).
@@ -120,14 +124,14 @@ public record CreateSlipRequest(
                                String specification, Integer quantity, BigDecimal unitPrice, String note,
                                com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions) {
             this(productId, productName, modelName, specification, quantity, unitPrice, note, setOptions,
-                    null, null, null, null);
+                    null, null, null, null, null, null, null, null);
         }
 
         /** 호환 생성자 — setOptions/priceVatInclusive 미제공(기존 7-arg 호출자/테스트). */
         public SlipLineRequest(UUID productId, String productName, String modelName,
                                String specification, Integer quantity, BigDecimal unitPrice, String note) {
             this(productId, productName, modelName, specification, quantity, unitPrice, note, null,
-                    null, null, null, null);
+                    null, null, null, null, null, null, null, null);
         }
 
         /** 호환 생성자 — 기존 priceVatInclusive 호출자. 권위 금액 필드는 모두 생략한다. */
@@ -136,13 +140,25 @@ public record CreateSlipRequest(
                                com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
                                Boolean priceVatInclusive) {
             this(productId, productName, modelName, specification, quantity, unitPrice, note, setOptions,
-                    priceVatInclusive, null, null, null);
+                    null, null, null, null, priceVatInclusive, null, null, null);
+        }
+
+        /** 호환 생성자 — 기존 권위 금액 12-arg 호출자. */
+        public SlipLineRequest(UUID productId, String productName, String modelName,
+                               String specification, Integer quantity, BigDecimal unitPrice, String note,
+                               com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+                               Boolean priceVatInclusive, BigDecimal supplyAmount, BigDecimal vatAmount,
+                               BigDecimal lineTotalWithVat) {
+            this(productId, productName, modelName, specification, quantity, unitPrice, note, setOptions,
+                    null, null, null, null, priceVatInclusive, supplyAmount, vatAmount, lineTotalWithVat);
         }
 
         /** 권위 금액을 포함한 명시적 생성자. */
         public SlipLineRequest(UUID productId, String productName, String modelName,
                                String specification, Integer quantity, BigDecimal unitPrice, String note,
                                com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+                               String parentSetModel, Boolean setHead, UUID bundleParentProductId,
+                               BigDecimal bundleParentUnitPrice,
                                Boolean priceVatInclusive, BigDecimal supplyAmount, BigDecimal vatAmount,
                                BigDecimal lineTotalWithVat) {
             this.productId = productId;
@@ -153,6 +169,10 @@ public record CreateSlipRequest(
             this.unitPrice = unitPrice;
             this.note = note;
             this.setOptions = setOptions;
+            this.parentSetModel = parentSetModel;
+            this.setHead = setHead;
+            this.bundleParentProductId = bundleParentProductId;
+            this.bundleParentUnitPrice = bundleParentUnitPrice;
             this.priceVatInclusive = priceVatInclusive;
             this.supplyAmount = supplyAmount;
             this.vatAmount = vatAmount;

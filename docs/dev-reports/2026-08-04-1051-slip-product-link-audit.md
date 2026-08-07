@@ -1825,7 +1825,7 @@ docs\handoff\CURRENT-WORK.md-343----
 docs\handoff\CURRENT-WORK.md-344-
 docs\handoff\CURRENT-WORK.md-345-## 2026-08-03 집PC 야간 세션 — **머지 1건** · 라이브QA 가 CI green PR 을 세 번 되돌림
 --
-docs\handoff\CURRENT-WORK.md-422-- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 사용자 게임이 죽었다. 여유 13.5GB 까지 떨어졌다. **집PC 는 개발 전용이 아니다.**
+docs\handoff\CURRENT-WORK.md-422-- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 PC 가 고갈됐다. 여유 13.5GB 까지 떨어졌다. **집PC 는 개발 전용이 아니다.**
 docs\handoff\CURRENT-WORK.md-423-
 docs\handoff\CURRENT-WORK.md-424-### 6. 환경 메모 (집PC)
 docs\handoff\CURRENT-WORK.md-425-

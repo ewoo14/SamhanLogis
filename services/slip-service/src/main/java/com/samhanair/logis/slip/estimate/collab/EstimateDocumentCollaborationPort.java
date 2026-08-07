@@ -48,7 +48,7 @@ public class EstimateDocumentCollaborationPort implements DocumentCollaborationP
     private static final Set<String> CORE_LINE_FIELDS = Set.of(
             "productId", "productName", "modelName", "specification", "quantity", "unitPrice",
             "unitPriceWithVat", "supplyAmount", "vatAmount", "lineTotal", "setHead",
-            "parentSetModel");
+            "parentSetModel", "specificationSource");
 
     private final EstimateRepository estimateRepository;
     private final EstimateRevisionService revisionService;
@@ -306,6 +306,8 @@ public class EstimateDocumentCollaborationPort implements DocumentCollaborationP
         snapshot.put("lineKey", lineKey);
         snapshot.put("productName", line.getProductName());
         snapshot.put("modelName", line.getModelName());
+        snapshot.put("specification", line.getSpecification());
+        snapshot.put("specificationSource", line.getSpecificationSource());
         snapshot.put("quantity", line.getQuantity());
         snapshot.put("unitPrice", line.getUnitPrice());
         snapshot.put("note", line.getNote());

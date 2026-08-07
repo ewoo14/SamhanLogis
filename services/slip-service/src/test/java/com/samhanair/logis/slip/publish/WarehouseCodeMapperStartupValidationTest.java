@@ -12,7 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/** 외부 창고 조회 없이 설정값 자체만으로 기동 검증하는지 확인한다. */
+/** 운영 매핑은 기동을 막지 않고, 명시된 정책에서만 발행 경로를 허용하는지 확인한다. */
 class WarehouseCodeMapperStartupValidationTest {
 
     @Test
@@ -28,26 +28,29 @@ class WarehouseCodeMapperStartupValidationTest {
     }
 
     @Test
-    void 미치환_placeholder는_UUID를_노출하지_않고_기동_실패한다() {
-        assertStartupFailure("${WAREHOUSE_UUID_HQ}");
+    void 미치환_placeholder는_UUID를_노출하지_않고_기동을_막지_않는다() {
+        assertThatCode(() -> mapperWith("00003", "${WAREHOUSE_UUID_ECOUNT_00003}").logEffectiveMap())
+                .doesNotThrowAnyException();
     }
 
     @ParameterizedTest
     @MethodSource("invalidValues")
-    void UUID가_아닌_값과_빈_값과_공백은_UUID를_노출하지_않고_기동_실패한다(String value) {
-        assertStartupFailure(value);
+    void UUID가_아닌_값과_빈_값과_공백은_UUID를_노출하지_않고_기동을_막지_않는다(String value) {
+        assertThatCode(() -> mapperWith("00003", value).logEffectiveMap())
+                .doesNotThrowAnyException();
     }
 
     @Test
-    void 형식이_맞는_UUID는_실재하지_않아도_외부_호출_없이_기동한다() {
+    void 형식이_맞는_UUID는_실재성_검증_전에도_외부_호출_없이_기동한다() {
         WarehouseCodeMapper mapper = mapperWith("00003", "00000000-0000-0000-0000-000000000099");
 
         assertThatCode(mapper::logEffectiveMap).doesNotThrowAnyException();
     }
 
     @Test
-    void 축약형_UUID는_정규_문자열_형식이_아니므로_기동_실패한다() {
-        assertStartupFailure("1-1-1-1-1");
+    void 축약형_UUID는_정규_문자열_형식이_아니어도_기동을_막지_않는다() {
+        assertThatCode(() -> mapperWith("00003", "1-1-1-1-1").logEffectiveMap())
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -62,14 +65,6 @@ class WarehouseCodeMapperStartupValidationTest {
                 Arguments.of("not-a-uuid"),
                 Arguments.of(""),
                 Arguments.of("   "));
-    }
-
-    private static void assertStartupFailure(String value) {
-        WarehouseCodeMapper mapper = mapperWith("00003", value);
-
-        assertThatThrownBy(mapper::logEffectiveMap)
-                .hasMessageContaining("00003")
-                .hasMessageNotContaining("00000000-0000-0000-0000-000000000099");
     }
 
     private static WarehouseCodeMapper mapperWith(String code, String value) {

@@ -4,8 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -29,11 +33,13 @@ class EstimateToSlipConverterAuthoritativeAmountsTest {
     private final SlipRepository slipRepository = mock(SlipRepository.class);
     private final SlipNumberService slipNumberService = mock(SlipNumberService.class);
     private final OutboundCutoffGuard cutoffGuard = mock(OutboundCutoffGuard.class);
+    private final ProductClient productClient = mock(ProductClient.class);
     private final EstimateToSlipConverter converter = new EstimateToSlipConverter(
             slipRepository,
             slipNumberService,
             cutoffGuard,
-            Clock.fixed(Instant.parse("2026-07-22T00:00:00Z"), ZoneId.of("Asia/Seoul")));
+            Clock.fixed(Instant.parse("2026-07-22T00:00:00Z"), ZoneId.of("Asia/Seoul")),
+            productClient);
 
     @Test
     @DisplayName("권위 견적 라인의 공급가액·부가세·합계를 재반올림하지 않는다")
@@ -67,6 +73,24 @@ class EstimateToSlipConverterAuthoritativeAmountsTest {
         assertThat(line.getUnitPrice()).isEqualByComparingTo("1000.50");
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("1100.55");
         assertThat(line.getLineTotal()).isEqualByComparingTo("1000.50");
+    }
+
+    @Test
+    @DisplayName("레거시 BUNDLE 견적도 부모 라인으로 전표 변환하지 않고 안내 오류를 반환한다")
+    void rejectsBundleParentBeforeCreatingSlip() {
+        UUID parentId = UUID.randomUUID();
+        Estimate estimate = estimate();
+        estimate.addLine(EstimateLine.create(
+                estimate, 1, parentId, "세트", "SET-1", null, 1,
+                new BigDecimal("1000"), null));
+        when(productClient.lookup(java.util.List.of(parentId))).thenReturn(java.util.List.of(
+                new ProductSummary(parentId, "세트", "SET-1", "SET-1", null,
+                        BigDecimal.TEN, "ACTIVE", false, "SET-1", "BUNDLE")));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> converter.convert(estimate))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("세트 품목은 구성품으로 전개된 견적만 전표로 변환할 수 있습니다");
+        verifyNoInteractions(slipRepository);
     }
 
     private Slip convert(Estimate estimate) {

@@ -565,11 +565,9 @@ const routes = [
       {
         path: '/sales/:id',
         element: (
-          <PermissionGuard pageCode="sales.slip.list" action="view">
-            <SlipReadGuard mode="OUTBOUND">
-              <SlipDetailPage mode="OUTBOUND" />
-            </SlipReadGuard>
-          </PermissionGuard>
+          <SlipReadGuard mode="OUTBOUND" allowApprovalLineCandidate>
+            <SlipDetailPage mode="OUTBOUND" />
+          </SlipReadGuard>
         ),
       },
       // SP-08-6-4 — 거래명세서 (A4 portrait, legacy GAS 동등). 정적 suffix 먼저 매칭.

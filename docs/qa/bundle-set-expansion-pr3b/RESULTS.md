@@ -78,7 +78,7 @@
 - **D**: `panelShape360='사각'` 전송 시 패널이 `PC6NUNK1NW`→`PC6NUDK1NW`(사각 variant)로 **실제 교체** → 사이클1에서 고친 **boolean→String 교정이 실서버 전개에 정확히 반영됨을 증명**. (만약 구 boolean `"true"` 였다면 variant 불일치로 교체 안 됨.)
 - 시나리오 6(Playwright)이 FE→요청본문 정확 전송을 증명하고, 본 §3 이 그 본문을 실서버가 honor 함을 증명 → **end-to-end 계약 폐곡선**.
 
-> 참고: `panelOption` 을 modelCode 로 준 케이스(E)는 BE 가 패널 **라벨** 매칭이라 inconclusive(입력 형식 문제, BE 결함 아님). FE picker 의 panelOption 자유입력은 라벨/기본 의미로 동작 — 후속 dropdown 개선 시 라벨 목록 제공 예정.
+> 참고(역사적 R1/R2 기록): `panelOption` 을 modelCode 로 준 케이스(E)는 BE 가 패널 **라벨** 매칭이라 inconclusive(입력 형식 문제, BE 결함 아님). 당시 FE picker 의 `panelOption` 자유입력은 라벨/기본 의미로 동작했다. R3부터는 서버 도메인 값(`''`, `판넬제외`, `블랙판넬`, `승강판넬`, `공청판넬`)만 받는 `<select>`로 계약이 변경되었으며, 현재 스펙은 이 선택값의 controlled value round-trip을 검증한다.
 
 ## 사이클 1 (Claude TM 5-agent) 반영 fix
 

@@ -334,7 +334,7 @@ const ACTION_LABEL: Record<SlipTransitionAction, string> = {
   send: '전송',
   accept: '수락',
   process: '처리 시작',
-  inspect: '처리 완료', // Slice A: INSPECTING → COMPLETED
+  inspect: '처리 완료',
   complete: '처리 완료',
   ship: '배송 시작',
   deliver: '배송 완료',
@@ -343,13 +343,20 @@ const ACTION_LABEL: Record<SlipTransitionAction, string> = {
   cancel: '취소',
 }
 
-function transitionActionLabel(
+export function labelForAction(action: SlipTransitionAction, mode: SlipType): string {
+  if (action === 'complete') return mode === 'OUTBOUND' ? '출고 완료' : '입고 완료'
+  return ACTION_LABEL[action]
+}
+
+export function transitionActionLabel(
   status: SlipDetail['status'],
   action: SlipTransitionAction,
+  mode: SlipType,
 ): string {
-  return status === 'PROCESSING' && action === 'complete'
-    ? '재고 반영 후 검수 대기'
-    : ACTION_LABEL[action]
+  if (status === 'PROCESSING' && action === 'complete') {
+    return `재고 반영 후 검수 대기 (${labelForAction(action, mode)})`
+  }
+  return labelForAction(action, mode)
 }
 
 const INSPECTION_STATUS_LABEL: Record<string, string> = {
@@ -1275,14 +1282,44 @@ export function slipActionPermissionRequirements(
   }
 }
 
+type CanAccess = (pageCode: PageCode, action?: PermissionLookupAction) => boolean
+
 /** 전이 실행·활성화 공통 권한 판정. 모든 서버 요구 권한을 만족해야 true다. */
 export function canAccessSlipAction(
   action: SlipTransitionAction,
   mode: SlipType,
-  canAccess: (pageCode: PageCode, action?: PermissionLookupAction) => boolean,
+  canAccess: CanAccess,
+  canInspect = false,
 ): boolean {
+  // OUTBOUND 검수 결재선 capability는 inspect부터 후속 전이(confirm 포함)까지의
+  // 전표별 자격이다. 서버의 checkOutboundPostInspectionPermission과 같은 표면을 쓴다.
+  const approvalLineActions: SlipTransitionAction[] = ['inspect', 'ship', 'deliver', 'confirm']
+  if (mode === 'OUTBOUND' && approvalLineActions.includes(action) && canInspect) return true
+  if (action === 'inspect' && mode === 'OUTBOUND') return false
+
   return slipActionPermissionRequirements(action, mode)
-    .every(({ pageCode, action: permissionAction }) => canAccess(pageCode, permissionAction))
+    .every(({ pageCode, action: permissionAction }) => {
+      if (canAccess(pageCode, permissionAction)) return true
+      return false
+    })
+}
+
+/** inspect capability를 포함한 실제 전이 실행 가드. 모든 실행 표면이 공유한다. */
+export function canTransitionSlipAction(
+  action: SlipTransitionAction,
+  mode: SlipType,
+  canAccess: CanAccess,
+  canInspect = false,
+): boolean {
+  return canAccessSlipAction(action, mode, canAccess, canInspect)
+}
+
+/** 상세 조회 실패를 사용자에게 노출할 메시지로 변환한다. 403은 일반 로드 실패와 구분한다. */
+export function slipDetailErrorMessage(error: unknown): string {
+  const status = (error as { response?: { status?: number } } | null)?.response?.status
+  return status === 403
+    ? '이 전표를 조회할 권한이 없습니다. 담당 관리자에게 접근 권한을 요청하세요.'
+    : '전표를 불러오지 못했습니다.'
 }
 
 /** DRAFT/SAVED 직접수정 진입 권한 — 전표 유형에 맞는 edit UPDATE만 본다. */
@@ -2284,7 +2321,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="error-banner" role="alert">
-        전표를 불러오지 못했습니다.
+        <strong>{slipDetailErrorMessage(detailQuery.error)}</strong>
+        {slipDetailErrorMessage(detailQuery.error).includes('조회할 권한') ? (
+          <button type="button" onClick={() => navigate(listPath)}>
+            목록으로 돌아가기
+          </button>
+        ) : null}
       </div>
     )
   }
@@ -2431,7 +2473,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       alert(PARTNER_REQUIRED_SEND_MESSAGE)
       return
     }
-    if (!canAccessSlipAction(action, mode, canAccess)) {
+    if (!canTransitionSlipAction(action, mode, canAccess, slip.canInspect === true)) {
       alert('해당 전표 상태를 변경할 권한이 없습니다.')
       return
     }
@@ -2557,6 +2599,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   /** 하단 "완료" — 다음 정상 단계 transition 실행. */
   const handleAdvanceStage = () => {
     if (!nextPrimaryAction) return
+    if (!canTransitionSlipAction(nextPrimaryAction, mode, canAccess, slip.canInspect === true)) {
+      alert('해당 전표 상태를 변경할 권한이 없습니다.')
+      return
+    }
     if (shouldBlockPartnerlessSend(slip, nextPrimaryAction)) {
       alert(PARTNER_REQUIRED_SEND_MESSAGE)
       return
@@ -2605,11 +2651,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   )
   const mobilePrimaryAction = nextPrimaryAction
     ? {
-        label: transitionActionLabel(slip.status, nextPrimaryAction),
+        label: transitionActionLabel(slip.status, nextPrimaryAction, mode),
         onClick: () => handleTransition(nextPrimaryAction),
         disabled:
           transitionMutation.isPending
-          || !canAccessSlipAction(nextPrimaryAction, mode, canAccess),
+          || !canTransitionSlipAction(nextPrimaryAction, mode, canAccess, slip.canInspect === true),
       }
     : null
   const handleMobilePrint = () => {
@@ -4890,18 +4936,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           variant="primary"
           disabled={
             !nextPrimaryAction
-            || !canAccessSlipAction(nextPrimaryAction, mode, canAccess)
+            || !canTransitionSlipAction(nextPrimaryAction, mode, canAccess, slip.canInspect === true)
             || transitionMutation.isPending
           }
           onClick={handleAdvanceStage}
           title={
             nextPrimaryAction
-              ? `다음 단계: ${transitionActionLabel(slip.status, nextPrimaryAction)}`
+              ? `다음 단계: ${transitionActionLabel(slip.status, nextPrimaryAction, mode)}`
               : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
           }
         >
           {nextPrimaryAction
-            ? `완료 (${transitionActionLabel(slip.status, nextPrimaryAction)})`
+            ? `완료 (${transitionActionLabel(slip.status, nextPrimaryAction, mode)})`
             : '완료'}
         </Button>
       </div>

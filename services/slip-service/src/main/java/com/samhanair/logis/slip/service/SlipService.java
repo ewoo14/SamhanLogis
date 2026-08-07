@@ -151,14 +151,20 @@ public class SlipService {
                                       String reqName, String reqModel, String specification, int quantity,
                                       java.math.BigDecimal unitPrice, String note,
                                       com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+                                      String parentSetModel, Boolean setHead, UUID bundleParentProductId,
+                                      java.math.BigDecimal bundleParentUnitPrice,
                                       boolean priceVatInclusive, java.math.BigDecimal supplyAmount,
                                       java.math.BigDecimal vatAmount, java.math.BigDecimal lineTotalWithVat,
                                       String actor,
                                       List<PartnerProductPriceMemoryCommand> priceMemoryCommands) {
         boolean authoritative = AuthoritativeAmountValidator.isComplete(
                 supplyAmount, vatAmount, lineTotalWithVat);
-        boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
-                && summary.modelCode() != null && !summary.modelCode().isBlank();
+        boolean bundle = BundleModePolicy.shouldExpand(summary);
+        if (bundle && (summary.modelCode() == null || summary.modelCode().isBlank())) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
+                    "세트 구성품 전개에 필요한 모델코드가 없습니다.");
+        }
         if (bundle && authoritative) {
             throw new com.samhanair.logis.common.exception.BusinessException(
                     com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
@@ -168,16 +174,27 @@ public class SlipService {
             String productName = reqName != null ? reqName : (summary != null ? summary.name() : null);
             String modelName = reqModel != null ? reqModel : (summary != null ? summary.modelName() : null);
             // 단가 부가세포함 전환: priceVatInclusive 면 라인 단위로 공급가액/부가세 분리.
-            slip.addLine(authoritative
+            SlipLine plainLine = authoritative
                     ? SlipLine.createFromAuthoritativeAmounts(slip, productId, productName, modelName,
                             specification, quantity, unitPrice, supplyAmount, vatAmount, lineTotalWithVat, note, null)
                     : priceVatInclusive
                     ? SlipLine.createFromVatInclusive(slip, productId, productName, modelName,
                             specification, quantity, unitPrice, note, null)
                     : SlipLine.create(slip, productId, productName, modelName,
-                            specification, quantity, unitPrice, note));
-            collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), productId, unitPrice,
-                    priceVatInclusive, PartnerProductPriceMemory.SOURCE_LINE_SAVE, actor);
+                            specification, quantity, unitPrice, note);
+            if (parentSetModel != null && !parentSetModel.isBlank()) {
+                plainLine.assignBundleComponent(parentSetModel, Boolean.TRUE.equals(setHead), setOptions);
+                if (Boolean.TRUE.equals(setHead) && bundleParentProductId != null
+                        && bundleParentUnitPrice != null) {
+                    collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), bundleParentProductId,
+                            bundleParentUnitPrice, priceVatInclusive,
+                            PartnerProductPriceMemory.SOURCE_BUNDLE_SET, actor);
+                }
+            } else {
+                collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), productId, unitPrice,
+                        priceVatInclusive, PartnerProductPriceMemory.SOURCE_LINE_SAVE, actor);
+            }
+            slip.addLine(plainLine);
             return;
         }
         collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), productId, unitPrice,
@@ -208,7 +225,7 @@ public class SlipService {
                             compSpec, q, compUnit, note, null)
                     : SlipLine.create(slip, el.productId(), el.name(), el.modelName(),
                             compSpec, q, compUnit, note);
-            line.assignBundleComponent(summary.modelCode(), el.setHead());
+            line.assignBundleComponent(summary.modelCode(), el.setHead(), setOptions);
             slip.addLine(line);
             added++;
         }
@@ -285,6 +302,8 @@ public class SlipService {
             addSlipLinesExpanded(slip, lineReq.productId(), byId.get(lineReq.productId()),
                     lineReq.productName(), lineReq.modelName(), lineReq.specification(),
                     lineReq.quantity(), calculatedPrices.get(lineIndex), lineReq.note(), lineReq.setOptions(),
+                    lineReq.parentSetModel(), lineReq.setHead(), lineReq.bundleParentProductId(),
+                    lineReq.bundleParentUnitPrice(),
                     Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
                     lineReq.vatAmount(), lineReq.lineTotalWithVat(), requesterId, priceMemoryCommands);
         }
@@ -823,6 +842,7 @@ public class SlipService {
         applyMutation(() -> addSlipLinesExpanded(slip, req.productId(), summary,
                 req.productName(), req.modelName(), req.specification(),
                 req.quantity(), req.unitPrice(), req.note(), req.setOptions(),
+                null, null, null, null,
                 Boolean.TRUE.equals(req.priceVatInclusive()), req.supplyAmount(), req.vatAmount(),
                 req.lineTotalWithVat(), callerId, priceMemoryCommands));
         // 권한 재편 Phase 2.1 — 라인 추가도 헤더+라인 전체 버전이력에 잡히도록 EDIT 스냅샷 캡처
@@ -977,12 +997,61 @@ public class SlipService {
         if (gate == null || !isRealUser(actorUserId)) {
             return;
         }
-        UUID userId = UUID.fromString(actorUserId);
-        ApprovalLineAuthorizeResult result = approvalLineAuthorizeClient.authorize(
-                gate.documentType(), gate.actionKey(), userId);
+        ApprovalLineAuthorizeResult result = authorizeSlipApprovalLine(actorUserId, gate);
+        if (result == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "결재라인 인가 응답이 비어 있습니다");
+        }
         if (result.configured() && !result.allowed()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, gate.forbiddenMessage());
         }
+    }
+
+    /**
+     * OUTBOUND 검수 결재선이 단건 조회를 허용하는지 판정한다.
+     *
+     * <p>결재선은 문서유형·액션 단위 전역 설정이므로 전표별 매칭을 시도하지 않는다.
+     * 대신 검수 액션이 유효한 {@link SlipStatus#INSPECTING} 상태에서만 결과를 사용한다.
+     * 결재선 조회 실패나 빈 결과는 허용으로 변환하지 않고 {@code false}로 반환하여
+     * 호출부의 기존 역할/그룹/system-master 가드가 최종 판정하게 한다.
+     *
+     * @param slipType 전표 유형
+     * @param status 전표 상태
+     * @param actorUserId 현재 계정 UUID 문자열
+     * @return 검수 결재선에 포함된 실사용자이면 true
+     */
+    public boolean isOutboundInspectApprovalMember(
+            SlipType slipType, SlipStatus status, String actorUserId) {
+        if (slipType != SlipType.OUTBOUND
+                || !isOutboundInspectionApprovalStage(status)
+                || !isRealUser(actorUserId)) {
+            return false;
+        }
+        SlipApprovalGate gate = approvalGateForInspect(slipType);
+        try {
+            ApprovalLineAuthorizeResult result = authorizeSlipApprovalLine(actorUserId, gate);
+            return result != null && result.configured() && result.allowed();
+        } catch (BusinessException ex) {
+            log.warn("출고 검수 결재선 조회 실패 — 상세 조회 권한을 허용하지 않습니다: {}", ex.getMessage());
+            return false;
+        }
+    }
+
+    /** 검수 결재선 개인이 검수 완료 후 배송 후속 전이도 이어갈 수 있는 상태 범위. */
+    private boolean isOutboundInspectionApprovalStage(SlipStatus status) {
+        return status == SlipStatus.INSPECTING
+                || status == SlipStatus.COMPLETED
+                || status == SlipStatus.SHIPPING
+                || status == SlipStatus.DELIVERED
+                || status == SlipStatus.CONFIRMED;
+    }
+
+    /** 검수 실행과 단건 조회가 동일한 결재선 client 판정을 사용하도록 한다. */
+    private ApprovalLineAuthorizeResult authorizeSlipApprovalLine(
+            String actorUserId, SlipApprovalGate gate) {
+        UUID userId = UUID.fromString(actorUserId);
+        return approvalLineAuthorizeClient.authorize(
+                gate.documentType(), gate.actionKey(), userId);
     }
 
     private SlipApprovalGate approvalGateForAccept(SlipType slipType) {
@@ -1381,6 +1450,12 @@ public class SlipService {
      */
     @Transactional(readOnly = true)
     public SlipDetailResponse getOne(UUID id) {
+        return getOne(id, null);
+    }
+
+    /** 단건 조회 요청자에 대한 서버 계산 inspect capability를 포함한다. */
+    @Transactional(readOnly = true)
+    public SlipDetailResponse getOne(UUID id, String actorUserId) {
         Slip slip = loadOrThrow(id);
         boolean outbound = slip.getSlipType() == SlipType.OUTBOUND;
         String ownerFullName = resolveOwnerFullName(slip.getCreatedBy());
@@ -1390,8 +1465,9 @@ public class SlipService {
         String dispatcherFullName = outbound ? resolveUserFullName(slip.getDispatcherUserId()) : null;
         String acceptedByFullName = outbound ? null : resolveUserFullName(slip.getAcceptedBy());
         String inspectorFullName = resolveUserFullName(slip.getInspectorUserId());
+        boolean canInspect = isOutboundInspectApprovalMember(slip.getSlipType(), slip.getStatus(), actorUserId);
         return SlipDetailResponse.from(slip, ownerFullName, dispatcherFullName,
-                inspectorFullName, acceptedByFullName);
+                inspectorFullName, acceptedByFullName, canInspect);
     }
 
     /**

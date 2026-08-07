@@ -156,6 +156,27 @@ class SlipServiceTest {
     }
 
     @Test
+    void create_bundleWithoutModelCode_isRejectedBeforeParentLinePersistence() {
+        when(productClient.lookup(any())).thenReturn(List.of(new ProductSummary(
+                productId, "세트", "세트", "BUNDLE-001", UUID.randomUUID(),
+                new BigDecimal("1000.00"), "ACTIVE", false, null, "BUNDLE", null)));
+
+        CreateSlipRequest req = new CreateSlipRequest(
+                SlipType.OUTBOUND, LocalDate.of(2026, 5, 4),
+                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, "세트 부모 차단",
+                null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                null,
+                List.of(new CreateSlipRequest.SlipLineRequest(productId, "세트", "세트", null,
+                        1, new BigDecimal("100.00"), null)));
+
+        assertThatThrownBy(() -> service.create(req, "user-1", "홍길동"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("세트 구성품 전개에 필요한 모델코드가 없습니다.");
+    }
+
+    @Test
     void create_authoritativeAmounts_preservesRequestedUnitPriceInResponse() {
         when(slipNumberService.next(any(LocalDate.class), eq(SlipType.OUTBOUND))).thenReturn("2026/05/04-2");
         when(slipNumberService.extractSeqNo("2026/05/04-2")).thenReturn(2);

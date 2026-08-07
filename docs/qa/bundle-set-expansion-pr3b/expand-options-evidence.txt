@@ -1,3 +1,9 @@
+# Historical R1/R2 evidence
+#
+# E의 panelOption modelCode payload는 R3에서 서버 도메인 라벨 select 계약으로
+# 변경되기 전의 실측 입력이다. 아래 수치와 구성품 결과는 보존하며, 현재 UI/API
+# 계약은 '', 판넬제외, 블랙판넬, 승강판넬, 공청판넬만 허용한다.
+
 ### A. baseline(옵션없음)  code=OK
   AC060CN6PBH1  INDOOR   qty=1.0 won=548975 head=True
   AC060CXAPBH1  OUTDOOR  qty=1.0 won=823050 head=False

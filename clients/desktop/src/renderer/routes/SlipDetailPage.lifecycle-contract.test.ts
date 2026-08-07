@@ -13,9 +13,11 @@ import {
   isCollabEditStatus,
   isDirectEditStatus,
   slipActionPermissionRequirements,
+  transitionActionLabel,
   transitionConflictEditPolicy,
   transitionDestinationStatus,
 } from './SlipDetailPage'
+import type { SlipTransitionAction } from './SlipDetailPage'
 
 const sourcePath = path.resolve(__dirname, 'SlipDetailPage.tsx')
 const collaborationPanelSourcePath = path.resolve(
@@ -46,10 +48,10 @@ describe('SlipDetailPage lifecycle contract', () => {
   })
 
   it('PROCESSING primary action explains inventory application before inspection', () => {
-    const source = fs.readFileSync(sourcePath, 'utf8')
-
-    expect(source).toContain("? '재고 반영 후 검수 대기'")
-    expect(source).not.toContain("? '검수 시작'")
+    expect(transitionActionLabel('PROCESSING', 'complete', 'OUTBOUND'))
+      .toBe('재고 반영 후 검수 대기 (출고 완료)')
+    expect(transitionActionLabel('PROCESSING', 'complete', 'INBOUND'))
+      .toBe('재고 반영 후 검수 대기 (입고 완료)')
   })
 
   it('does not replace the backend INBOUND-only inspection permission guard', () => {
@@ -288,6 +290,9 @@ describe('SlipDetailPage lifecycle contract', () => {
     const denied = () => false
 
     expect(canAccessSlipAction('inspect', 'INBOUND', managerInbound)).toBe(false)
+    expect(canAccessSlipAction('inspect', 'INBOUND', managerInbound, true)).toBe(false)
+    expect(canAccessSlipAction('inspect', 'OUTBOUND', denied, true)).toBe(true)
+    expect(canAccessSlipAction('save', 'INBOUND', managerInbound, true)).toBe(false)
     expect(canAccessSlipAction('save', 'INBOUND', warehouseInbound)).toBe(true)
     expect(canAccessSlipAction('send', 'INBOUND', warehouseInbound)).toBe(true)
     expect(canAccessSlipAction('cancel', 'INBOUND', warehouseInbound)).toBe(true)
@@ -298,7 +303,10 @@ describe('SlipDetailPage lifecycle contract', () => {
       'save', 'send', 'accept', 'process', 'complete', 'inspect',
       'ship', 'deliver', 'confirm', 'cancel',
     ] as const) {
-      expect(canAccessSlipAction(action, 'OUTBOUND', managerOutbound), action).toBe(true)
+      expect(
+        canAccessSlipAction(action, 'OUTBOUND', managerOutbound, action === 'inspect'),
+        action,
+      ).toBe(true)
     }
   })
 
@@ -319,11 +327,7 @@ describe('SlipDetailPage lifecycle contract', () => {
     }
     const canAccessFor = (role: string) => (pageCode: string, action = 'view') =>
       permissionsByRole[role].has(`${pageCode}:${action}`)
-    const actions = [
-      'save', 'send', 'accept', 'process', 'complete', 'inspect',
-      'ship', 'deliver', 'confirm', 'reject', 'cancel',
-    ] as const
-    const actionsByMode: Record<'INBOUND' | 'OUTBOUND', readonly typeof actions[number][]> = {
+    const actionsByMode: Record<'INBOUND' | 'OUTBOUND', readonly SlipTransitionAction[]> = {
       INBOUND: [
         'save', 'send', 'accept', 'process', 'complete', 'inspect',
         'confirm', 'reject', 'cancel',
@@ -336,7 +340,7 @@ describe('SlipDetailPage lifecycle contract', () => {
     const expected: Record<string, Record<'INBOUND' | 'OUTBOUND', string[]>> = {
       MANAGER: {
         INBOUND: ['save', 'send', 'accept', 'process', 'complete', 'confirm', 'reject', 'cancel'],
-        OUTBOUND: [...actions],
+        OUTBOUND: ['save', 'send', 'accept', 'process', 'complete', 'ship', 'deliver', 'confirm', 'reject', 'cancel'],
       },
       SALES: {
         INBOUND: [],
@@ -344,7 +348,7 @@ describe('SlipDetailPage lifecycle contract', () => {
       },
       WAREHOUSE: {
         INBOUND: ['save', 'send', 'accept', 'process', 'complete', 'inspect', 'confirm', 'cancel'],
-        OUTBOUND: ['accept', 'process', 'complete', 'inspect', 'ship', 'deliver'],
+        OUTBOUND: ['accept', 'process', 'complete', 'ship', 'deliver'],
       },
       ACCOUNTANT: {
         INBOUND: [],

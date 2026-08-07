@@ -453,6 +453,38 @@ describe('createDocCoeditProvider', () => {
     right.destroy()
   })
 
+  it('two coedit consumers converge on specification value and provenance clear', async () => {
+    const base = new Y.Doc()
+    base.getArray<Y.Map<unknown>>('items').push([new Y.Map<unknown>()])
+    const baseUpdate = encodeBase64Update(Y.encodeStateAsUpdate(base))
+    const options = {
+      documentId: 'estimate-spec-provenance',
+      basePath: '/slips/estimate-spec-provenance',
+      headerTextFields: new Set<string>(),
+      initialUpdates: async () => ({ updates: [baseUpdate] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    }
+    const left = await createDocCoeditProvider(options)
+    const right = await createDocCoeditProvider(options)
+
+    left.setItemValue(0, 'specification', '4HP')
+    left.setItemValue(0, 'specificationSource', 'CATALOG')
+    right.applyRemoteUpdate(encodeBase64Update(Y.encodeStateAsUpdate(left.doc)))
+    expect(right.getItemValue(0, 'specification')).toBe('4HP')
+    expect(right.getItemValue(0, 'specificationSource')).toBe('CATALOG')
+
+    right.setItemValue(0, 'specification', '')
+    right.setItemValue(0, 'specificationSource', '')
+    left.applyRemoteUpdate(encodeBase64Update(Y.encodeStateAsUpdate(right.doc)))
+    expect(left.getItemValue(0, 'specification')).toBe('')
+    expect(left.getItemValue(0, 'specificationSource')).toBe('')
+
+    left.destroy()
+    right.destroy()
+  })
+
   it('awareness cursor를 fieldPath 단위로 필터링하고 내부 식별자는 반환하지 않는다', async () => {
     const remoteDoc = new Y.Doc()
     const remoteAwareness = new Awareness(remoteDoc)

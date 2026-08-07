@@ -376,10 +376,11 @@ services:
       <<: *spring-prod
       SERVER_PORT: "8086"
       DB_NAME: slip_db
-      WAREHOUSE_UUID_HQ: ${WAREHOUSE_UUID_HQ}
-      WAREHOUSE_UUID_HUBAL: ${WAREHOUSE_UUID_HUBAL}
-      WAREHOUSE_UUID_ANSEONG: ${WAREHOUSE_UUID_ANSEONG}
-      WAREHOUSE_UUID_CHANGWON: ${WAREHOUSE_UUID_CHANGWON}
+      WAREHOUSE_MAPPING_MODE: ${WAREHOUSE_MAPPING_MODE:-}
+      WAREHOUSE_UUID_ECOUNT_00003: ${WAREHOUSE_UUID_ECOUNT_00003:-}
+      WAREHOUSE_UUID_ECOUNT_2: ${WAREHOUSE_UUID_ECOUNT_2:-}
+      WAREHOUSE_UUID_ECOUNT_14: ${WAREHOUSE_UUID_ECOUNT_14:-}
+      WAREHOUSE_UUID_ECOUNT_1: ${WAREHOUSE_UUID_ECOUNT_1:-}
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
@@ -423,7 +424,9 @@ services:
     depends_on:
       <<: *app-depends
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8086/actuator/health || exit 1"]
+      # readiness에는 inventory 권위 alias 검증 결과가 포함된다.
+      # alias 0행/부분 누락/조회 실패 시 Docker가 healthy를 선언하지 않는다.
+      test: ["CMD-SHELL", "curl -fs http://localhost:8086/actuator/health/readiness || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 20

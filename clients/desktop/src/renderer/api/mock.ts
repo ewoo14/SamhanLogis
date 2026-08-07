@@ -15,6 +15,7 @@
  */
 import type { AxiosRequestConfig } from 'axios'
 import { vatFromSupply } from '../utils/vatRounding'
+import { isSinglePanelOption } from '../utils/bundleOptionDomain'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import {
   DISPATCH_TONNAGE_LABEL,
@@ -1745,6 +1746,103 @@ let MOCK_BUNDLE_COMPONENTS: Record<string, Array<{
   ],
 }
 
+type MockBundleExpansionMode = 'KEEP' | 'EXPAND' | 'NULL'
+
+function mockBundleExpansionMode(url: string): MockBundleExpansionMode {
+  const urlMode = new URL(url.startsWith('http') ? url : `http://mock${url}`).searchParams.get('mockBundleMode')
+  const locationMode = mockLocationParams().get('mockBundleMode')
+  const mode = urlMode ?? locationMode
+  return mode === 'EXPAND' || mode === 'NULL' ? mode : 'KEEP'
+}
+
+/**
+ * 전표 입력 mock의 세트 전개 계약.
+ *
+ * KEEP/EXPAND/NULL은 외부 서버 응답이 아니라 명시적인 mock fixture 선택이다.
+ * NULL은 bundle_mode IS NULL일 때 서버가 EXPAND 기본값으로 정규화하는 경로를 고정한다.
+ */
+function mockBundleExpansionResponse(config: AxiosRequestConfig): unknown | null {
+  const method = (config.method ?? 'get').toUpperCase()
+  const url = config.url ?? ''
+  if (method !== 'POST' || !url.includes('/slips/expand-line')) return null
+
+  const body = parseMockBody(config)
+  const parentModelCode = String(body['parentModelCode'] ?? '').trim().toUpperCase()
+  if (parentModelCode !== 'SET-HM2WAY') {
+    return mockError(404, 'NOT_FOUND', '세트 품목을 찾을 수 없습니다.')
+  }
+  const quantity = Math.max(1, Number(body['quantity'] ?? 1))
+  const specification = typeof body['specification'] === 'string' && body['specification'].trim()
+    ? body['specification'].trim()
+    : null
+  const mode = mockBundleExpansionMode(url)
+
+  if (mode === 'KEEP') {
+    const parent = MOCK_PRODUCTS_BY_MODEL[parentModelCode]!
+    return envelope([{
+      productId: parent.productId,
+      modelCode: parent.modelCode ?? parent.modelName,
+      modelName: parent.modelName,
+      name: parent.productName,
+      quantity,
+      unitPrice: String(body['unitPrice'] ?? parent.sellingPrice),
+      componentKind: null,
+      setHead: false,
+      specification,
+    }])
+  }
+
+  const options = (body['setOptions'] ?? {}) as Record<string, unknown>
+  const remoteExcluded = options['remoteExcluded'] === true
+  const materialIncluded = options['materialIncluded'] === true
+  const rawPanelOption = typeof options['panelOption'] === 'string'
+    ? options['panelOption'].trim()
+    : ''
+  const selectedPanel = isSinglePanelOption(rawPanelOption) ? rawPanelOption : ''
+  const selectedPanelVariant = selectedPanel === '블랙판넬'
+    ? '블랙'
+    : selectedPanel === '승강판넬'
+      ? '승강'
+      : selectedPanel === '공청판넬'
+        ? '공청'
+        : ''
+  const rows = (MOCK_BUNDLE_COMPONENTS[parentModelCode] ?? []).filter((component) => {
+    if (component.componentKind === 'OUTDOOR' && remoteExcluded) return false
+    if (component.componentKind === 'MATERIAL' && !materialIncluded) return false
+    if (component.componentKind === 'PANEL') {
+      if (selectedPanel === '판넬제외') return false
+      if (selectedPanelVariant && component.componentVariant !== selectedPanelVariant) return false
+      if (!selectedPanel && component.isDefault === false) return false
+    }
+    if (component.componentKind === 'REMOTE') {
+      const selectedRemote = typeof options['remoteOption'] === 'string'
+        ? options['remoteOption'].trim().toUpperCase()
+        : ''
+      if (selectedRemote && component.componentProductCode !== selectedRemote) return false
+      if (!selectedRemote && component.isDefault === false) return false
+    }
+    return true
+  })
+  const requestedUnitPrice = Number(body['unitPrice'] ?? 0)
+  const unitPrice = Number.isFinite(requestedUnitPrice) && requestedUnitPrice > 0
+    ? Math.round(requestedUnitPrice / Math.max(rows.length, 1))
+    : 0
+  return envelope(rows.map((component, index) => {
+    const product = MOCK_PRODUCTS_BY_MODEL[component.componentProductCode]
+    return {
+      productId: product?.productId ?? `mock-${component.componentProductCode.toLowerCase()}`,
+      modelCode: component.componentProductCode,
+      modelName: product?.modelName ?? component.componentProductCode,
+      name: product?.productName ?? component.componentName,
+      quantity: component.qtyMode === 'FOLLOW_SET' ? component.defaultQty * quantity : component.defaultQty,
+      unitPrice: String(unitPrice),
+      componentKind: component.componentKind,
+      setHead: index === 0,
+      specification: component.specText ?? specification,
+    }
+  }))
+}
+
 let mockProductSpecsByModel: Record<string, Array<{
   id: string
   specKey: string
@@ -3426,6 +3524,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       : MOCK_BRANCH_PIPE_ROWS
     return branchRows
   }
+
+  const bundleExpansion = mockBundleExpansionResponse(config)
+  if (bundleExpansion !== null) return bundleExpansion
 
   // GET /slips/lookup-product?modelName=...
   if (method === 'GET' && url.includes('/slips/lookup-product')) {
@@ -17007,7 +17108,7 @@ const MOCK_ESTIMATE_DETAIL_LINES = [
     productId: 'p-aj040',
     productName: '시스템에어컨 4Way 4HP',
     modelName: 'AJ040RXH4BC1',
-    specification: '4HP',
+    specification: '\u20604HP',
     quantity: 2,
     unitPrice: '1850000',
     supplyAmount: '3700000',

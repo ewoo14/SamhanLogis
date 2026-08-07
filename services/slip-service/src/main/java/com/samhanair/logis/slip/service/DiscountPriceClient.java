@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.discount.LegacyModelFlags;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -55,7 +56,7 @@ public class DiscountPriceClient {
             Map<String, Object> body = new HashMap<>();
             body.put("partnerCode", partnerCode);
             body.put("callerService", "slip-service");
-            body.put("lines", lines.stream().map(this::toRequestLine).toList());
+            body.put("lines", lines.stream().map(DiscountPriceClient::toRequestLine).toList());
             ApiResponse<PriceResult> response = restClient.post()
                     .uri("/internal/price-calculations")
                     .header(TOKEN_HEADER, token)
@@ -83,7 +84,7 @@ public class DiscountPriceClient {
         }
     }
 
-    private Map<String, Object> toRequestLine(SlipDiscountCalculator.Line line) {
+    static Map<String, Object> toRequestLine(SlipDiscountCalculator.Line line) {
         Map<String, Object> item = new HashMap<>();
         item.put("lineId", line.lineId());
         item.put("modelCode", line.modelCode());
@@ -93,6 +94,13 @@ public class DiscountPriceClient {
         item.put("fixedDiscountRate", line.fixedDiscountRate());
         // 수기 출고전표의 고정DC 미설정 품목은 거래처 전역DC 적용 대상이다.
         item.put("hasVariableDiscount", line.hasVariableDiscount());
+        LegacyModelFlags flags = LegacyModelFlags.from(line.modelCode());
+        item.put("is360", flags.is360());
+        item.put("is4Way", flags.is4Way());
+        item.put("is1Way", flags.is1Way());
+        item.put("isStand", flags.isStand());
+        item.put("isDeluxe", flags.isDeluxe());
+        item.put("isFirstGrade", flags.isFirstGrade());
         return item;
     }
 

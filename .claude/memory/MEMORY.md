@@ -59,7 +59,11 @@
 
 - [🚨🚨 **업무 의미는 추론하지 말고 확인받는다** (2026-08-06 개발책임자 · 한 세션에 5회 오류)](feedback_business_meaning_needs_confirmation_not_inference.md) — 개발책임자: *"전제가 여러 번 틀렸다면 나한테 확인을 받아야 하는 것 아닌가? 함부로 추측한 것은 추후 설계를 다시 변경해야할 수 있어."* ▶**측정 가능한 사실**(행 수·배포 시각·CI·grep)은 PM 이 재고, ▶**업무 의미**(이 컴럼이 무슨 뜻인가·이게 결함인가·무엇이 권위 정본인가)는 ①레거시 원문 직독 ②명시적 계약(Javadoc·계약테스트) ③개발책임자 확인 셋 중 하나로만 확정. 🔑실측 5건이 전부 "데이터·코드에서 업무 의미를 추론" 한 것이었다(13행전개·500은제품결함·자격=할인·v3=구형시드·RegionalService). ⚠️**후보를 권위로 승격**하거나 *"이 방향이 맞는지도 당신이 판단하십시오"* 로 헤지하는 것은 확인이 아니다 · 이미 설계에 박힌 추측은 **소급해서 올린다**
 
+- [🚨 **검증자 실측이 정본이다 — PM 수치를 STOP 기준으로 걸지 마라** (2026-08-07 #1083 R9 두 번 중단)](feedback_verifier_measurement_is_authoritative.md) — 브리핑에 *"표본이 제 수치와 다르면 중단"* 을 걸었더니 SOL 이 **두 번 멈췄고 두 번 다 SOL 이 옳았다**(①PM 이 컨테이너 생성시각을 이미지 생성시각이라 라벨 ②PM 이 `head -20` 으로 잘린 `GROUP BY` 를 눈으로 합산 — 실제 `HQ-001 896`인데 `871`, `00003` 3건 누락). 🔑**STOP 은 "PM 과 다르다"가 아니라 "판정이 불가능하다"에 걸어라** — 표본 0·자릿수 차이·배포본에 fix 없음·mock 호출·unhealthy 만. 수 건 차이는 **적고 진행**. 🔑브리핑에 *"당신이 잰 값이 제 값보다 우선합니다"* 를 넣을 것 · 집계는 SQL 에 시켜라(잘라서 더하지 마라) · 공유 DB 라 수치는 라운드 중에도 움직인다
+
 - [🚨 **종료코드 함정 둘 — 파이프 뒤 `$?` 는 tail 것 · 이 환경 `npm run` 은 성공해도 127**](feedback_exit_code_measurement_traps.md) — 2026-08-06 PM 자가 적발: 한 세션에 **네 번** `typecheck exit 0` 을 커밋·PR 에 적었는데 그 값을 재 적이 없다(`| tail` 뒤 `$?` = tail 종료코드). ▶근거 순서 = ①**CI**(권위) ②**로그 내용**(`error TS` 여부 · 네 단계가 모두 출력됐는지) ③종료코드는 파이프 없이 또는 `${PIPESTATUS[0]}`. 🔑 은 강한 단정이라 재지 않은 값을 적으면 **증거 무결성 위반** — SOL 이 gradle `UP-TO-DATE` 로 같은 계열을 이미 잡았다
+
+- [🚨 **QA 라운드 프로세스가 안 죽고 쌓인다** (2026-08-07 실측)](feedback_qa_processes_leak_and_starve_machine.md) — 라운드 종료 후에도 **chrome 31 · headless-shell 19 · Electron 4(새벽3:05분) · node_repl 78 · Gradle 데몬 = 약 14GB** 생존. 피해가 **창 탈취 + 자원 고갈 두 갈래**라 하나만 고치면 안 된다. 상시=①**Playwright headless 기본**(headless 캡처도 실 앱·실 서버라 가짜데이터 위반 아님) ②Electron QA 는 창이 뜨니 PC 사용 중이면 먼저 확인 ③**라운드 끝 회수**(끝나도 안 죽는다 — 4시간 생존) ④내 프로세스 BelowNormal ⑤묵은 Gradle 데몬 정리. 🚫죽이기 전 커맨드라인으로 내 것 확정
 
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md) — git commit·PR·Issue+대면 보고/대화/설명 한국어(prefix·trailer만 예외)
@@ -82,6 +86,10 @@
 - [Issue 자동 close](feedback_issue_close_after_pr.md) — PR에 `연관 Issue: #N`, 머지/close 후 즉시 close
 - [GitGuardian PM 자동 처리](feedback_gitguardian_false_positive.md) — PM 자동 판정 후 머지
 - [Monitor 자동 사용](feedback_monitor_no_permission.md) — CI watch 허락없이 즉시
+
+- [🚨 CI 실패 스텝이 `Set up job` 이면 GitHub 장애다 — 코드 원인 아님 (2026-08-07 새벽)](feedback_ci_setup_job_failure_is_github_outage.md) — 액션 다운로드 단계에서 죽어 **우리 코드가 실행조차 안 된다**. 판별=`gh api .../actions/jobs/<id> --jq '.steps[]|select(.conclusion=="failure")|.name'`. 실패가 모바일·노션가드·회계·Detox 처럼 **서로 무관한 영역에 흩뿌려지면** 코드 회귀가 아니다(실측: docs 전용 커밋인데 7잡 red, 직전 SHA 는 43/43 green). 🚫이 상태의 red 로 fix 라운드 열지 말 것 · 자동 재실행 루프를 백그라운드로 돌리면 사람 손 없이 회복
+
+- [🚨 **"배포본 나이를 재라" 는 백엔드 전용이 아니다 — 클라이언트 번들도 배포본** (2026-08-07 한 세션 2회)](feedback_client_bundle_is_also_a_deployment.md) — ①"백엔드 무변경" 을 slip-service 로 판정했는데 값을 내는 건 **product-service**(이틀 낡음) ②`_electron.launch({args:['.']})` 는 소스가 아니라 **`out/` 번들**을 실행(fix 이전 코드). 둘 다 QA 는 정직했고 PM 이 틀렸다. 🔑**직전 라운드 PASS 가 갑자기 FAIL 이면 코드보다 실행 대상을 먼저 의심** · 판별은 시각이 아니라 **fix 가 도입한 식별자를 grep**(`grep -rl calculateBundleParentDiscount out/renderer/`) · 브리핑에 "0건이면 중단·보고" 를 넣으면 라운드를 통째로 아낀다
 
 # 개발환경/빌드 함정
 - [🚨🚨 **마이그레이션 번호는 셋을 다 세라** — 하루 한 트랙에서 세 방식으로 다 틀렸다 (2026-08-05 #1057)](feedback_migration_number_three_counts.md) — ①slip `V62`=**비어 있던 낮은 슬롯**(DB 는 105 라 적용 안 되고 **부팅 차단**) ②notification `V109`=**PM 이 slip 기준을 그대로 지시**(그 서비스 최고는 V7 → 앞으로의 V8·V9 영구 차단) ③accounting `V96`=**열린 PR #1061 과 충돌**(둘 다 머지되면 서비스 전체 기동 불가). 🔑**CI 는 셋 다 통과한다** — 빈 DB 에 순서대로 적용하므로. 세 번 다 PM 이 `git status` 에서 `migration` 을 눈으로 찾아 잡았다. 착수 전 **그 서비스 최고 · 그 DB 적용 최고 · 열린 PR 예약분** 셋을 세어 브리핑에 숫자로 줄 것. **다른 서비스에 마이그레이션이 생겼다면 범위 이탈 신호**

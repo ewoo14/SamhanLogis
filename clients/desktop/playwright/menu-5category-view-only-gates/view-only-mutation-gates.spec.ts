@@ -305,12 +305,61 @@ test.describe('menu-5category view-only mutation gates', () => {
 
     await expect(page.locator('[data-testid="admin-aligo-sync-btn"]')).toBeDisabled()
     await expect(page.locator('[data-testid="admin-aligo-csv-btn"]')).not.toBeDisabled()
+    await expect(page.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeVisible()
+    await expect(page.getByText(/상단의 "주소록 동기화 실행" 버튼을 눌러 sync 를 시작하세요/)).toHaveCount(0)
   })
 
   test('알리고 주소록 update 보유: 동기화 버튼이 활성화된다', async ({ page }) => {
     await gotoWithPerm(page, '/admin/aligo-address-book', 'aligo.address-book', true)
 
     await expect(page.locator('[data-testid="admin-aligo-sync-btn"]')).not.toBeDisabled()
+    await expect(page.getByText(/상단의 "주소록 동기화 실행" 버튼을 눌러 sync 를 시작하세요/)).toBeVisible()
+    await expect(page.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toHaveCount(0)
+  })
+
+  test('알리고 주소록 500 뒤 stale focus로 UPDATE가 회수되면 재시도 안내가 권한 안내로 바뀐다', async ({ page }) => {
+    let syncCalls = 0
+    await page.route('**/admin/notification/aligo/address-book/sync', async route => {
+      if (route.request().method() !== 'POST') {
+        await route.continue()
+        return
+      }
+      syncCalls += 1
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'mock server error',
+          data: null,
+          timestamp: new Date().toISOString(),
+        }),
+      })
+    })
+
+    await gotoWithPerm(page, '/admin/aligo-address-book', 'aligo.address-book', true)
+    await expect(page.locator('[data-testid="admin-aligo-sync-btn"]')).not.toBeDisabled()
+    await page.locator('[data-testid="admin-aligo-sync-btn"]').click()
+    await expect(page.getByText(/동기화 중 오류가 발생했습니다\. 잠시 후 다시 시도해 주세요/)).toBeVisible()
+    await expect(page.locator('[data-testid="admin-aligo-sync-btn"]')).not.toBeDisabled()
+
+    // usePermissions 의 30초 stale 경계를 실제로 지나 window focus 재조회를 유도한다.
+    await page.waitForTimeout(30_500)
+    const revokedUrl = withMockPerms(
+      `${BASE_URL}/#/admin/aligo-address-book?mockRole=MANAGER`,
+      [{ pageCode: 'aligo.address-book', view: true, edit: false }],
+    )
+    await page.evaluate((url) => {
+      const next = new URL(url)
+      window.history.replaceState(null, '', `${next.pathname}${next.search}${next.hash}`)
+      window.dispatchEvent(new Event('focus'))
+    }, revokedUrl)
+
+    await expect(page.locator('[data-testid="admin-aligo-sync-btn"]')).toBeDisabled()
+    await expect(page.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeVisible()
+    await expect(page.getByText(/잠시 후 다시 시도해 주세요/)).toHaveCount(0)
+    expect(syncCalls).toBe(1)
   })
 
   test('배차 SMS view-only: 미리보기 버튼이 비활성화된다', async ({ page }) => {

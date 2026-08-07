@@ -1307,6 +1307,12 @@ body.history-snapshot-open .mobile-drawer-side {
 </head>
 <body class="no-active">
   <script>
+    // RPC 성공 콜백으로 전달된 서버 결과도 전표 발행 성공 계약을 다시 확인한다.
+    function isSlipPublishSuccess(res) {
+      return Boolean(res && typeof res === 'object' && res.ok === true && String(res.slipNo || '').trim());
+    }
+  </script>
+  <script>
     // html 의 data-theme cascade 가 body 까지 적용됨. 본 스크립트는 toggle helper 만 등록.
     (function() {
       window.toggleTheme = function() {
@@ -10580,6 +10586,13 @@ function fixFootersForMobile(isMobile){
     // 서버 함수 호출
     google.script.run
       .withSuccessHandler(function(res) {
+        if (!isSlipPublishSuccess(res)) {
+          if(icon) icon.textContent = '⚠️';
+          var errorMsg = (res && typeof res === 'object' && res.error) ? res.error : '전표 생성 실패';
+          if(txt) txt.textContent = '전표 생성 실패:\n' + errorMsg;
+          if(btns) btns.style.display = 'block';
+          return;
+        }
         if(icon) icon.textContent = '✅';
         var msg = (typeof res === 'object' && res.slipNo) ? res.slipNo : res;
         if(txt) txt.textContent = '전표 생성 완료!\n(' + msg + ')';
@@ -15904,6 +15917,14 @@ function submitOrderCard() {
     // 서버호출
     google.script.run
       .withSuccessHandler((res) => {
+        if (!isSlipPublishSuccess(res)) {
+          if(icon) icon.textContent = '⚠️';
+          const errorMsg = (res && typeof res === 'object' && res.error) ? res.error : '전표 생성 실패';
+          if(txt) txt.textContent = '전표 생성 실패:\n' + errorMsg;
+          if(btns) btns.style.display = 'block';
+          window.isSubmitting = false;
+          return;
+        }
         if(icon) icon.textContent = '✅';
         const slipNo = (res && res.slipNo) ? res.slipNo : (typeof res==='object'?'':res);
         const msg = slipNo ? ('완료! 전표번호: ' + slipNo) : '전표 생성 오류';
