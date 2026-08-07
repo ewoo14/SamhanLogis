@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -19,6 +20,7 @@ import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
+import com.samhanair.logis.partnerorder.client.ProductSummary;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
@@ -34,6 +36,7 @@ import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -112,6 +115,10 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
                 .thenReturn(true);
+        lenient().when(productClient.lookupByModelCodes(any())).thenReturn(List.of(
+                new ProductSummary(UUID.fromString("00000000-0000-0000-0000-000000000909"),
+                        "벽걸이 실내기", "AR09B9150HZ", null, new BigDecimal("310000"),
+                        "ACTIVE", "AR09B9150HZ", "SINGLE", "singleSets")));
     }
 
     @Test
@@ -166,6 +173,35 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(order.getId()))
                 .extracting("fieldName")
                 .contains("납기", "요청사항", "주문 라인");
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void price_line_get_put_round_trip_preserves_price_authority_and_recalculates_quantity() throws Exception {
+        PartnerOrder order = saveOrder("2026/08/07-1051-price", false);
+
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[0].authority").value("PRICE"))
+                .andExpect(jsonPath("$.data.lines[0].quantity").value(2))
+                .andExpect(jsonPath("$.data.lines[0].lineTotal").value(240000));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(priceLineUpdateJson(currentModifiedAt(order.getId()), 3,
+                                "120000", "PRICE 수량 변경")))
+                .andExpect(status().isOk());
+
+        PartnerOrderLine line = lineRepository.findAllByPartnerOrder_Id(order.getId())
+                .stream().findFirst().orElseThrow();
+        assertThat(line.getAmountAuthority()).isEqualTo(PartnerOrderLine.AmountAuthority.PRICE);
+        assertThat(line.getQuantity()).isEqualTo(3);
+        assertThat(line.getPriceVat()).isEqualByComparingTo("120000");
+        assertThat(line.getLineTotal()).isEqualByComparingTo("360000");
     }
 
     @Test
@@ -325,6 +361,230 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         assertThat(lineRepository.findAllByPartnerOrder_Id(orderId)).hasSize(2);
     }
 
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void memo_only_update_preserves_existing_product_ids() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-11", false);
+        UUID before = order.getLines().get(0).getProductId();
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLineUpdateJson(currentModifiedAt(order.getId()),
+                                "AJ040RXH4BC1", "실외기", "homemulti", "memo 변경")))
+                .andExpect(status().isOk());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement()
+                .extracting(PartnerOrderLine::getProductId)
+                .isEqualTo(before);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void get_put_round_trip_with_legacy_line_total_without_authority_succeeds() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-15", false);
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(legacyLineTotalUpdateJson(currentModifiedAt(order.getId()),
+                                "120000", null, null, null, "memo 왕복")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memo").value("memo 왕복"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"MANAGER"})
+    void manager_can_save_get_put_round_trip_with_legacy_line_total() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-18", false);
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(legacyLineTotalUpdateJson(currentModifiedAt(order.getId()),
+                                "240000", null, null, null, "MANAGER memo 왕복")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memo").value("MANAGER memo 왕복"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void all_three_amounts_without_authority_are_rejected() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-16", false);
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLineAmountUpdateJson(currentModifiedAt(order.getId()),
+                                "100000", "10000", "110000", null, "잘못된 금액 요청")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PARTNER_ORDER_UPDATE_INVALID_LINE"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void stored_supply_vat_round_trip_allows_memo_change_without_authority() throws Exception {
+        PartnerOrder order = saveAmountOrder("2026/08/07-1");
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(storedAmountUpdateJson(currentModifiedAt(order.getId()), "220000", "memo 왕복")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memo").value("memo 왕복"))
+                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(200000))
+                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(20000))
+                .andExpect(jsonPath("$.data.lines[0].lineTotal").value(220000))
+                .andExpect(jsonPath("$.data.lines[0].authority").value("VAT"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void stored_supply_vat_change_without_authority_is_rejected() throws Exception {
+        PartnerOrder order = saveAmountOrder("2026/08/07-2");
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(storedAmountUpdateJson(currentModifiedAt(order.getId()), "220001", "금액 조작")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PARTNER_ORDER_UPDATE_INVALID_LINE"));
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement().extracting(PartnerOrderLine::getLineTotal)
+                .isEqualTo(new BigDecimal("220000.00"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void existing_line_memo_update_does_not_call_product_service_when_unavailable() throws Exception {
+        PartnerOrder order = saveOrder("2026/08/07-3", false);
+        when(productClient.lookupByModelCodes(any())).thenThrow(new RuntimeException("product-service unavailable"));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(existingLineMemoUpdateJson(currentModifiedAt(order.getId()),
+                                order.getLines().get(0), "기존 라인 메모")))
+                .andExpect(status().isOk());
+
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void new_line_still_fails_explicitly_when_product_service_is_unavailable() throws Exception {
+        PartnerOrder order = saveOrder("2026/08/07-4", false);
+        when(productClient.lookupByModelCodes(any())).thenThrow(new RuntimeException("product-service unavailable"));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(twoLineUpdateJson(currentModifiedAt(order.getId()), "NEW-UNAVAILABLE", "신규 품목", "homemulti")))
+                .andExpect(status().is5xxServerError());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement().extracting(PartnerOrderLine::getModelName)
+                .isEqualTo("AJ040RXH4BC1");
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void orphan_existing_line_is_relinked_to_catalog_product_id() throws Exception {
+        PartnerOrder order = PartnerOrder.create(
+                "P-SP0842", "1010101010", "2026/05/17-17", "IT-SP0842-2026/05/17-17", BigDecimal.ZERO);
+        UUID orphanId = UUID.fromString("77fabff4-6917-3846-ad8c-3616eba3a219");
+        UUID catalogId = UUID.fromString("80bd3fac-6f65-3c05-8ec5-b1ac8d684b44");
+        order.addLine(PartnerOrderLine.create(orphanId, "AR05TXEAAWKNEU-11", "삼성 윈드프리 5평형",
+                "homemulti", 1, new BigDecimal("600000"), "orphan"));
+        order = orderRepository.saveAndFlush(order);
+        when(productClient.lookupByModelCodes(any())).thenReturn(List.of(
+                new ProductSummary(catalogId, "삼성 윈드프리 5평형", "AR05TXEAAWKNEU-11", null,
+                        new BigDecimal("600000"), "ACTIVE", "AR05TXEAAWKNEU-11", "SINGLE", "homemulti")));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLineAmountUpdateJson(currentModifiedAt(order.getId()),
+                                null, null, "600000", null, "orphan 복구")))
+                .andExpect(status().isOk());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement()
+                .extracting(PartnerOrderLine::getProductId)
+                .isEqualTo(catalogId);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void product_replacement_uses_catalog_product_id() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-12", false);
+        UUID catalogId = UUID.fromString("00000000-0000-0000-0000-000000000912");
+        when(productClient.lookupByModelCodes(any())).thenReturn(List.of(
+                new ProductSummary(catalogId, "새 품목", "NEW-MODEL", null,
+                        new BigDecimal("300000"), "ACTIVE", "NEW-MODEL", "SINGLE", "homemulti")));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLineUpdateJson(currentModifiedAt(order.getId()),
+                                "NEW-MODEL", "새 품목", "homemulti", "교체")))
+                .andExpect(status().isOk());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .singleElement()
+                .extracting(PartnerOrderLine::getProductId)
+                .isEqualTo(catalogId);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void added_line_uses_catalog_product_id() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-13", false);
+        UUID catalogId = UUID.fromString("00000000-0000-0000-0000-000000000913");
+        when(productClient.lookupByModelCodes(any())).thenReturn(List.of(
+                new ProductSummary(catalogId, "추가 품목", "ADDED-MODEL", null,
+                        new BigDecimal("300000"), "ACTIVE", "ADDED-MODEL", "SINGLE", "homemulti")));
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(twoLineUpdateJson(currentModifiedAt(order.getId()),
+                                "ADDED-MODEL", "추가 품목", "homemulti")))
+                .andExpect(status().isOk());
+
+        assertThat(lineRepository.findAllByPartnerOrder_Id(order.getId()))
+                .extracting(PartnerOrderLine::getProductId)
+                .contains(catalogId);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void unknown_catalog_product_is_reported_without_synthetic_id() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-14", false);
+        when(productClient.lookupByModelCodes(any())).thenReturn(List.of());
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(singleLineUpdateJson(currentModifiedAt(order.getId()),
+                                "UNKNOWN-MODEL", "없는 품목", "homemulti", "실패 원인")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PARTNER_ORDER_UPDATE_INVALID_LINE"));
+    }
+
     private PartnerOrder saveOrder(String orderNo, boolean deleted) {
         PartnerOrder order = PartnerOrder.create(
                 "P-SP0842",
@@ -334,7 +594,7 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                 BigDecimal.ZERO);
         order.markSlipPublished("S-" + orderNo.replace("/", "").replace("-", ""));
         order.addLine(PartnerOrderLine.create(
-                stableProductId("AJ040RXH4BC1"),
+                fixtureProductId("AJ040RXH4BC1"),
                 "AJ040RXH4BC1",
                 "실외기",
                 "homemulti",
@@ -344,6 +604,17 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         if (deleted) {
             order.markDeleted("it");
         }
+        return orderRepository.saveAndFlush(order);
+    }
+
+    private PartnerOrder saveAmountOrder(String orderNo) {
+        PartnerOrder order = PartnerOrder.create(
+                "P-SP0842", "1010101010", orderNo, "IT-SP0842-" + orderNo, BigDecimal.ZERO);
+        order.addLine(PartnerOrderLine.createFromAuthoritativeAmounts(
+                fixtureProductId("AR-EH05"), "AR-EH05", "금액 품목", "homemulti", 2,
+                new BigDecimal("110000.00"), new BigDecimal("200000.00"),
+                new BigDecimal("20000.00"), new BigDecimal("220000.00"),
+                PartnerOrderLine.AmountAuthority.VAT, "금액 라인"));
         return orderRepository.saveAndFlush(order);
     }
 
@@ -396,7 +667,113 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                 """.formatted(updatedAt, quantity);
     }
 
-    private UUID stableProductId(String modelCode) {
+    private String singleLineUpdateJson(String updatedAt, String modelCode, String productName,
+                                         String categoryKey, String memo) {
+        return """
+                {
+                  "updatedAt": "%s",
+                  "partnerCode": "P-SP0842",
+                  "bizCode": "1010101010",
+                  "memo": "%s",
+                  "lines": [{
+                    "modelCode": "%s", "productName": "%s", "categoryKey": "%s",
+                    "quantity": 2, "deliveryPrice": 125000, "remark": "현장 납품"
+                  }]
+                }
+                """.formatted(updatedAt, memo, modelCode, productName, categoryKey);
+    }
+
+    private String priceLineUpdateJson(String updatedAt, int quantity, String deliveryPrice,
+                                       String memo) {
+        return """
+                {
+                  "updatedAt": "%s", "partnerCode": "P-SP0842", "bizCode": "1010101010",
+                  "memo": "%s", "lines": [{
+                    "modelCode": "AJ040RXH4BC1", "productName": "실외기",
+                    "categoryKey": "homemulti", "quantity": %d, "deliveryPrice": %s,
+                    "remark": "현장 납품"
+                  }]
+                }
+                """.formatted(updatedAt, memo, quantity, deliveryPrice);
+    }
+
+    private String twoLineUpdateJson(String updatedAt, String addedModelCode, String addedProductName,
+                                     String addedCategoryKey) {
+        return """
+                {
+                  "updatedAt": "%s",
+                  "partnerCode": "P-SP0842",
+                  "bizCode": "1010101010",
+                  "memo": "라인 추가",
+                  "lines": [
+                    {"modelCode":"AJ040RXH4BC1","productName":"실외기","categoryKey":"homemulti","quantity":2,"deliveryPrice":125000,"remark":"현장 납품"},
+                    {"modelCode":"%s","productName":"%s","categoryKey":"%s","quantity":1,"deliveryPrice":300000,"remark":"추가"}
+                  ]
+                }
+                """.formatted(updatedAt, addedModelCode, addedProductName, addedCategoryKey);
+    }
+
+    private String singleLineAmountUpdateJson(String updatedAt, String supplyAmount, String vatAmount,
+                                               String lineTotal, String authority, String memo) {
+        String amounts = (supplyAmount == null ? "" : "\n\"supplyAmount\": " + supplyAmount + ",")
+                + (vatAmount == null ? "" : "\n\"vatAmount\": " + vatAmount + ",")
+                + (lineTotal == null ? "" : "\n\"lineTotal\": " + lineTotal + ",")
+                + (authority == null ? "" : "\n\"authority\": \"" + authority + "\",");
+        return """
+                {
+                  "updatedAt": "%s", "partnerCode": "P-SP0842", "bizCode": "1010101010",
+                  "memo": "%s", "lines": [{
+                    "modelCode": "AR05TXEAAWKNEU-11", "productName": "삼성 윈드프리 5평형",
+                    "categoryKey": "homemulti", "quantity": 1, "deliveryPrice": 600000,%s
+                    "remark": "orphan"
+                  }]
+                }
+                """.formatted(updatedAt, memo, amounts);
+    }
+
+    private String legacyLineTotalUpdateJson(String updatedAt, String lineTotal, String vatAmount,
+                                             String unusedSupplyAmount, String unusedAuthority, String memo) {
+        return """
+                {
+                  "updatedAt": "%s", "partnerCode": "P-SP0842", "bizCode": "1010101010",
+                  "memo": "%s", "lines": [{
+                    "modelCode": "AJ040RXH4BC1", "productName": "실외기",
+                    "categoryKey": "homemulti", "quantity": 2, "deliveryPrice": 120000,
+                    "lineTotal": %s, "remark": "현장 납품"
+                  }]
+                }
+                """.formatted(updatedAt, memo, lineTotal);
+    }
+
+    private String storedAmountUpdateJson(String updatedAt, String lineTotal, String memo) {
+        return """
+                {
+                  "updatedAt": "%s", "partnerCode": "P-SP0842", "bizCode": "1010101010",
+                  "memo": "%s", "lines": [{
+                    "modelCode": "AR-EH05", "productName": "금액 품목",
+                    "categoryKey": "homemulti", "quantity": 2, "deliveryPrice": 110000,
+                    "supplyAmount": 200000, "vatAmount": 20000, "lineTotal": %s,
+                    "remark": "금액 라인"
+                  }]
+                }
+                """.formatted(updatedAt, memo, lineTotal);
+    }
+
+    private String existingLineMemoUpdateJson(String updatedAt, PartnerOrderLine line, String memo) {
+        return """
+                {
+                  "updatedAt": "%s", "partnerCode": "P-SP0842", "bizCode": "1010101010",
+                  "memo": "%s", "lines": [{
+                    "modelCode": "%s", "productName": "%s",
+                    "categoryKey": "%s", "quantity": %d, "deliveryPrice": %s,
+                    "remark": "기존 라인 메모"
+                  }]
+                }
+                """.formatted(updatedAt, memo, line.getModelName(), line.getProductName(),
+                        line.getCategoryKey(), line.getQuantity(), line.getPriceVat());
+    }
+
+    private UUID fixtureProductId(String modelCode) {
         return UUID.nameUUIDFromBytes(("sp-08-4-2:" + modelCode).getBytes(StandardCharsets.UTF_8));
     }
 }

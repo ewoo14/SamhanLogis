@@ -138,8 +138,8 @@ public class PartnerOrderQueryService {
      *
      * <p>fail-soft — product-service 조회 실패(회로 차단/네트워크/포맷 오류) 시 빈 맵을 반환하여
      * 모든 라인 {@code productType=null} 로 둔다(상세 조회 가용성 우선, 기존 동작 동일). 카탈로그
-     * 조회는 {@code productClient} 회로 차단기 fail-soft 정책과 일관한다. direct PUT 라인은
-     * synthetic productId 를 저장할 수 있으므로 productId 가 아니라 라인 modelCode snapshot 을 사용한다.
+     * 조회는 {@code productClient} 회로 차단기 fail-soft 정책과 일관한다. 주문 라인의
+     * productId 보유 여부와 무관하게 라인 modelCode snapshot 을 사용한다.
      *
      * @param order 주문 엔티티
      * @return modelCode → productType("SINGLE"/"BUNDLE") 매핑 (조회 실패 시 빈 맵)

@@ -61,8 +61,8 @@ public record PartnerOrderDetailResponse(
      *
      * <p>{@code productTypeByModelCode} 는 {@code modelCode → "SINGLE"/"BUNDLE"} 매핑이며,
      * product-service 조회 실패(fail-soft) 시 빈 맵이 전달되어 모든 라인 {@code productType=null} 로
-     * 둔다(기존 동작 동일). direct PUT 라인은 synthetic productId 를 저장할 수 있으므로 modelCode
-     * snapshot 을 기준으로 매칭한다. FE 재고조회 모달(2.6d)은 {@code productType="BUNDLE"} 라인을
+     * 둔다(기존 동작 동일). productId 와 무관하게 modelCode snapshot 을 기준으로 매칭한다.
+     * FE 재고조회 모달(2.6d)은 {@code productType="BUNDLE"} 라인을
      * 재고조회 대상에서 제외한다.
      *
      * @param order 주문 엔티티
@@ -129,6 +129,7 @@ public record PartnerOrderDetailResponse(
      * @param supplyAmount 공급가액 S. legacy 주문은 null.
      * @param vatAmount 부가세 V. legacy 주문은 null.
      * @param lineTotal VAT 포함 라인 합계 T (=subtotal).
+     * @param authority 저장된 금액 권위. GET에서 S/V 존재만으로 권위를 추측하지 않는다.
      * @param remark 라인 비고.
      * @param convertedQuantity 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0.
      * @param bundleMode 번들 처리 방식. 현재 저장 컬럼이 없어 {@code null}.
@@ -150,6 +151,7 @@ public record PartnerOrderDetailResponse(
             BigDecimal supplyAmount,
             BigDecimal vatAmount,
             BigDecimal lineTotal,
+            String authority,
             String remark,
             int convertedQuantity,
             String bundleMode,
@@ -183,6 +185,7 @@ public record PartnerOrderDetailResponse(
                     line.getSupplyAmount(),
                     line.getVatAmount(),
                     line.getLineTotal(),
+                    line.getAmountAuthority() == null ? null : line.getAmountAuthority().name(),
                     line.getRemark(),
                     line.getConvertedQuantity(),
                     null,

@@ -147,8 +147,7 @@ public class ProductClient {
     /**
      * modelCode 리스트의 카탈로그 정보를 일괄 조회.
      *
-     * <p>거래처 주문 direct PUT 라인은 실제 product UUID 대신 synthetic stableProductId 를 저장할 수 있어
-     * 주문 상세 productType enrich 는 productId 가 아니라 라인 modelCode snapshot 을 기준으로 수행한다.
+     * <p>주문 상세 productType enrich 는 productId 가 아니라 라인 modelCode snapshot 을 기준으로 수행한다.
      *
      * @param modelCodes 1~100건
      * @return ProductSummary 리스트 (입력 순서와 무관)

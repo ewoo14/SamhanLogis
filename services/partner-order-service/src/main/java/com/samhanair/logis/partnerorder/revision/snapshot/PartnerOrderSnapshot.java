@@ -116,14 +116,15 @@ import java.util.UUID;
             BigDecimal subtotal,
             String remark,
             BigDecimal supplyAmount,
-            BigDecimal vatAmount) {
+            BigDecimal vatAmount,
+            PartnerOrderLine.AmountAuthority authority) {
 
         /** 신규 금액 컬럼이 없던 legacy snapshot의 8개 인자 계약을 보존한다. */
         public LineSnapshot(UUID productId, String modelName, String productName,
                             String categoryKey, int quantity, BigDecimal priceVat,
                             BigDecimal subtotal, String remark) {
             this(productId, modelName, productName, categoryKey, quantity, priceVat, subtotal,
-                    remark, null, null);
+                    remark, null, null, null);
         }
 
         /**
@@ -143,7 +144,8 @@ import java.util.UUID;
                     line.getSubtotal(),
                     line.getRemark(),
                     line.getSupplyAmount(),
-                    line.getVatAmount());
+                    line.getVatAmount(),
+                    line.getAmountAuthority());
         }
     }
 
