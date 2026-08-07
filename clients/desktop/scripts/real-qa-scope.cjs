@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { randomUUID } = require('node:crypto')
 const { pathToFileURL } = require('node:url')
-const { spawnSyncWithFileOutput } = require('../../../scripts/capture-child-output.cjs')
+const { spawnSyncWithFileOutput, summarizeOutputFile } = require('../../../scripts/capture-child-output.cjs')
 
 const REAL_QA_ROOT = 'clients/desktop/playwright'
 const REAL_QA_SUFFIX = '-real-qa.spec.ts'
@@ -39,17 +39,20 @@ function listTrackedRealQaFiles({ repoRoot }) {
     windowsHide: true,
   })
 
-  if (result.error || result.status !== 0) {
-    const detail = result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`
-    throw new Error(`[real-QA 추적 집합 판정 실패] git ls-files --cached 를 실행하지 못했습니다: ${detail}`)
-  }
+  try {
+    if (result.error || result.status !== 0) {
+      const stderr = summarizeOutputFile(result.stderrPath, { limit: 1 }).records[0]?.trim()
+      const detail = result.error?.message ?? stderr ?? `exit ${result.status}`
+      throw new Error(`[real-QA 추적 집합 판정 실패] git ls-files --cached 를 실행하지 못했습니다: ${detail}`)
+    }
 
-  return result.stdout
-    .split('\u0000')
-    .filter((entry) => entry.length > 0)
-    .map(normalizeRepoPath)
-    .filter((file) => file.endsWith(REAL_QA_SUFFIX))
-    .sort()
+    return summarizeOutputFile(result.stdoutPath, { delimiter: '\u0000', limit: Infinity }).records
+      .map(normalizeRepoPath)
+      .filter((file) => file.endsWith(REAL_QA_SUFFIX))
+      .sort()
+  } finally {
+    result.cleanup()
+  }
 }
 
 // 🚨 [SONNET5 재수렴 결함1 fix] `.gitignore`(88-95행)가 개발책임자 요청(2026-07-05)으로 로컬
@@ -67,17 +70,20 @@ function listGitignoredUntrackedRealQaFiles({ repoRoot }) {
     { cwd: repoRoot, windowsHide: true },
   )
 
-  if (result.error || result.status !== 0) {
-    const detail = result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`
-    throw new Error(`[real-QA 무시 파일 판정 실패] git ls-files --others --ignored 를 실행하지 못했습니다: ${detail}`)
-  }
+  try {
+    if (result.error || result.status !== 0) {
+      const stderr = summarizeOutputFile(result.stderrPath, { limit: 1 }).records[0]?.trim()
+      const detail = result.error?.message ?? stderr ?? `exit ${result.status}`
+      throw new Error(`[real-QA 무시 파일 판정 실패] git ls-files --others --ignored 를 실행하지 못했습니다: ${detail}`)
+    }
 
-  return result.stdout
-    .split('\u0000')
-    .filter((entry) => entry.length > 0)
-    .map(normalizeRepoPath)
-    .filter((file) => file.endsWith(REAL_QA_SUFFIX))
-    .sort()
+    return summarizeOutputFile(result.stdoutPath, { delimiter: '\u0000', limit: Infinity }).records
+      .map(normalizeRepoPath)
+      .filter((file) => file.endsWith(REAL_QA_SUFFIX))
+      .sort()
+  } finally {
+    result.cleanup()
+  }
 }
 
 function compareRealQaScope({ diskFiles, trackedFiles, gitignoredFiles = [] }) {

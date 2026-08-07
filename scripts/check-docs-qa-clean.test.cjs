@@ -6,7 +6,7 @@ const { spawnSync } = require('node:child_process')
 const test = require('node:test')
 
 const { formatResidueReport, parseStatusOutput } = require('./check-docs-qa-clean.cjs')
-const { spawnSyncWithFileOutput } = require('./capture-child-output.cjs')
+const { spawnSyncWithFileOutput, summarizeOutputFile } = require('./capture-child-output.cjs')
 
 function createEmptyIndex() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-qa-result-'))
@@ -70,10 +70,34 @@ test('대규모 오염도 목록 일부와 정확한 총 건수를 보존한다'
       { cwd: path.resolve(__dirname, '..'), env: { ...process.env, GIT_INDEX_FILE: index } },
     )
     assert.equal(expected.status, 0, expected.stderr)
-    const expectedCount = parseStatusOutput(expected.stdout).length
+    const expectedCount = summarizeOutputFile(expected.stdoutPath, { limit: 0 }).totalCount
+    expected.cleanup()
     const reportedCount = Number(result.stderr.match(/총 (\d+)건/)?.[1])
     assert.equal(reportedCount, expectedCount)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('공통 캡처기는 대규모 출력 전체를 메모리에 올리지 않고 앞 레코드와 정확한 총 건수만 제공한다', () => {
+  const recordCount = 20_000
+  const result = spawnSyncWithFileOutput(
+    process.execPath,
+    ['-e', `for (let i = 0; i < ${recordCount}; i += 1) process.stdout.write('record-' + i + '\\n')`],
+  )
+
+  try {
+    assert.equal(result.status, 0)
+    assert.equal(typeof result.stdoutPath, 'string')
+    assert.equal(typeof result.cleanup, 'function')
+    assert.equal('stdout' in result, false)
+
+    const summary = summarizeOutputFile(result.stdoutPath, { limit: 200 })
+    assert.equal(summary.totalCount, recordCount)
+    assert.deepEqual(summary.records.slice(0, 3), ['record-0', 'record-1', 'record-2'])
+    assert.equal(summary.records.at(-1), 'record-199')
+    assert.equal(summary.truncated, true)
+  } finally {
+    result.cleanup()
   }
 })
