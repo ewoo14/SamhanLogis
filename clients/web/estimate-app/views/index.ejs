@@ -3522,6 +3522,11 @@ function openSpecModalByItem(item, scope){
   logAction('조회', '장비스펙');
 }
 
+// 특수행 단가는 저장·계산 부호를 유지하고 입력 칸에는 절댓값으로 표시한다.
+function formatSpecialPriceForDisplay(currentPrice, formatter) {
+  return currentPrice ? formatter(Math.abs(currentPrice)) : '';
+}
+
 // 홈멀티 스펙
 function renderHomeSpec_(catL, item, s){
   if(catL==='판넬'){
@@ -5899,7 +5904,7 @@ function renderHome(){
         
         const inp = document.createElement('input');
         inp.type = 'text'; inp.className = 'price-input'; inp.inputMode = 'numeric';
-        inp.value = currentPrice ? fmt(Math.abs(currentPrice)) : '';
+            inp.value = formatSpecialPriceForDisplay(currentPrice, fmt);
         inp.placeholder = '0';
         inp.style.width = '100%'; inp.style.textAlign='right';
         inp.style.border='1px solid #d1d5db'; inp.style.borderRadius='4px'; inp.style.padding='4px';
@@ -6378,7 +6383,7 @@ function renderSingle(){
 
        const inp = document.createElement('input');
        inp.type = 'text'; inp.className = 'price-input'; inp.inputMode = 'numeric';
-       inp.value = currentPrice ? fmt(currentPrice) : '';
+       inp.value = formatSpecialPriceForDisplay(currentPrice, fmt);
        inp.placeholder = '0';
        inp.style.width = '100%'; inp.style.textAlign='right'; 
        inp.style.border='1px solid #d1d5db'; inp.style.borderRadius='4px'; inp.style.padding='4px';
@@ -6909,7 +6914,7 @@ function renderComm(){
 
        const inp = document.createElement('input');
        inp.type = 'text'; inp.className = 'price-input'; inp.inputMode = 'numeric';
-       inp.value = currentPrice ? fmt(currentPrice) : '';
+       inp.value = formatSpecialPriceForDisplay(currentPrice, fmt);
        inp.placeholder = '0';
        inp.style.width = '100%'; inp.style.textAlign = 'right';
        inp.style.border = '1px solid #d1d5db'; inp.style.borderRadius = '4px'; 
@@ -7489,7 +7494,7 @@ function renderOld(){
        inp.type = 'text'; 
        inp.className = 'price-input'; 
        inp.inputMode = 'numeric';
-       inp.value = currentPrice ? fmt(currentPrice) : '';
+       inp.value = formatSpecialPriceForDisplay(currentPrice, fmt);
        inp.placeholder = '0';
        
        // makePriceInput과 동일한 스타일 적용
