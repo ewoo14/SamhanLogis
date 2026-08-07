@@ -1519,6 +1519,21 @@ describe('SlipFormPage outbound date contract', () => {
       unloadDate: nextUnloadValue,
     }))
   })
+
+  it('preserves a user-edited N when M changes and exposes an M/N validation error', async () => {
+    renderPage()
+
+    fireEvent.change(screen.getByTestId('delivery-tag-selector'), { target: { value: 'REGION' } })
+    const outboundDate = screen.getByTestId('slip-form-outbound-date') as HTMLInputElement
+    const unloadDate = screen.getByTestId('slip-form-unload-date') as HTMLInputElement
+    fireEvent.change(unloadDate, { target: { value: '2026-08-14' } })
+
+    fireEvent.change(outboundDate, { target: { value: '2026-08-09' } })
+
+    expect(unloadDate.value).toBe('2026-08-14')
+    expect(screen.getByTestId('slip-form-unload-date-error').textContent)
+      .toContain('출고일(M)과 하차일(N)을 확인')
+  })
 })
 
 describe('SlipFormPage 이카운트식 라인 입력 — 제거된 세트 옵션 picker 레거시 테스트', () => {

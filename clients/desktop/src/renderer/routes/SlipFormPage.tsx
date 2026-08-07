@@ -83,7 +83,7 @@ import {
   isScheduledTag,
   scheduleLabel,
 } from '../utils/deliverySchedule'
-import { toLocalDateISO } from '../utils/dateUtils'
+import { toKstDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
   appendBlankRowIfLastChanged,
@@ -670,9 +670,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [partnerName, setPartnerName] = useState('')
   const [memo, setMemo] = useState('')
   const [tag, setTag] = useState<DeliveryTagOption['code'] | null>(null)
-  const [slipDate, setSlipDate] = useState<string>(() => toLocalDateISO())
+  const [slipDate, setSlipDate] = useState<string>(() => toKstDateISO())
   // 배송일정(M상N하) 에픽 — 지방/야적 선택 시 하차일(N)·당착 토글
   const [unloadDate, setUnloadDate] = useState<string>('')
+  const [unloadDateManuallyEdited, setUnloadDateManuallyEdited] = useState(false)
   const [sameDay, setSameDay] = useState(false) // 당착 체크박스 (지방 한정)
 
   // 이카운트식 연속 입력을 위해 처음부터 빈 행 5개를 준비한다.
@@ -742,7 +743,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   })
 
   // KST 로컬 날짜 기준 (UTC 기준 toISOString().slice(0,10) 은 오전 0~8:59 에 하루 전 날짜를 반환함)
-  const today = useMemo(() => toLocalDateISO(), [])
+  const today = useMemo(() => toKstDateISO(), [])
 
   // dnd-kit 마우스 + 키보드 sensor (Designer ux-flow.md § 1.2 + § 2.2 인용)
   const sensors = useSensors(
@@ -1879,9 +1880,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const partnerSelected = Boolean(selectedPartner?.id)
   // R4-D9: 배너 live region 은 상시 마운트 — 내용과 함께 조건부 마운트하면 일부 SR 이 미낭독.
   const priceRefreshNoticeActive = lines.some((line) => line.priceRefreshChanged)
+  const unloadDateConflict = isOutbound && isScheduledTag(tag) && !sameDay
+    && unloadDateManuallyEdited
+    && unloadDate !== (computeUnloadDate(slipDate, tag) ?? '')
   const canSubmit =
     !!requiredWh && validLineCount > 0 && !mutation.isPending && !priceResolutionBusy
-    && !bundleExpansionPending && !hasUnresolvedCatalogPrice
+    && !bundleExpansionPending && !hasUnresolvedCatalogPrice && !unloadDateConflict
 
   // ── Header 체크박스 상태 ────────────────────────────────
 
@@ -1973,6 +1977,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               value={tag}
               onChange={(code) => {
                 setTag(code)
+                setUnloadDateManuallyEdited(false)
                 // 배송일정 자동 채움 — 지방/야적 선택 시 하차일(N) 기본 계산
                 if (isScheduledTag(code)) {
                   const computed = computeUnloadDate(slipDate, code)
@@ -2001,7 +2006,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                   onChange={(event) => {
                     const nextSlipDate = event.target.value
                     setSlipDate(nextSlipDate)
-                    if (isScheduledTag(tag) && !sameDay) {
+                    if (isScheduledTag(tag) && !sameDay && !unloadDateManuallyEdited) {
                       setUnloadDate(computeUnloadDate(nextSlipDate, tag) ?? '')
                     }
                   }}
@@ -2233,12 +2238,24 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                 type="date"
                 value={sameDay ? slipDate : unloadDate}
                 onChange={(e) => {
-                  if (!sameDay) setUnloadDate(e.target.value)
+                  if (!sameDay) {
+                    setUnloadDate(e.target.value)
+                    setUnloadDateManuallyEdited(true)
+                  }
                 }}
                 disabled={sameDay}
                 aria-label="하차일"
                 data-testid="slip-form-unload-date"
               />
+              {unloadDateConflict ? (
+                <div
+                  role="alert"
+                  data-testid="slip-form-unload-date-error"
+                  style={{ color: 'var(--color-danger-600)', fontSize: 12, marginTop: 4 }}
+                >
+                  출고일(M)과 하차일(N)을 확인하세요. M 변경 후 N은 자동 일정과 맞아야 합니다.
+                </div>
+              ) : null}
             </div>
 
             {/* 당착 체크박스 — 지방 한정 */}
@@ -2261,6 +2278,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       checked={sameDay}
                       onChange={(e) => {
                         setSameDay(e.target.checked)
+                        setUnloadDateManuallyEdited(false)
                         if (!e.target.checked) {
                           // 당착 해제 시 기본 계산값 복원
                           setUnloadDate(computeUnloadDate(slipDate, tag) ?? '')

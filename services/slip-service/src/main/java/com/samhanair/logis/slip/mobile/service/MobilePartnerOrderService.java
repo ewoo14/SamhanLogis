@@ -132,7 +132,7 @@ public class MobilePartnerOrderService {
         // [게이트③] 모바일 주문 출고전표 생성 마감 게이트 — createOutbound 직후.
         // deliveryTag null(현장 발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
         // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦이 잡는다.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoffForCreation(slip.getDeliveryTag(), slip.getSlipDate());
 
         if (partnerId != null) {
             partnerInternalClient.resolveBusinessNumber(partnerId)

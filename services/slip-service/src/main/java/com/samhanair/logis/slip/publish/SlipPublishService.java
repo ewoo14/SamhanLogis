@@ -151,7 +151,7 @@ public class SlipPublishService {
         slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트④] 견적 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoffForCreation(slip.getDeliveryTag(), slip.getSlipDate());
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }
@@ -235,7 +235,7 @@ public class SlipPublishService {
         slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트⑤] 주문 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoffForCreation(slip.getDeliveryTag(), slip.getSlipDate());
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }
@@ -334,7 +334,7 @@ public class SlipPublishService {
         slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트⑥] 주문 병합 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoffForCreation(slip.getDeliveryTag(), slip.getSlipDate());
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }

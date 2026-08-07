@@ -36,29 +36,29 @@ export function computeUnloadDate(
 ): string | null {
   if (!slipDateISO || !isScheduledTag(tag)) return null
 
-  // 날짜 파싱 — 로컬 Date (KST 기준, ISO 문자열을 직접 파싱)
+  // UTC 달력 산술 — 실행 환경의 기본 타임존에 영향을 받지 않도록 Date의 로컬 API를 쓰지 않는다.
   const parts = slipDateISO.split('-')
   const year = Number(parts[0])
   const month = Number(parts[1])
   const day = Number(parts[2])
-  const slipDate = new Date(year, month - 1, day)
-  const slipDow = slipDate.getDay() // 0=일 … 6=토
+  const slipDate = new Date(Date.UTC(year, month - 1, day))
+  const slipDow = slipDate.getUTCDay() // 0=일 … 6=토
 
   // N = M + 1
-  const n = new Date(year, month - 1, day + 1)
-  const nDow = n.getDay()
+  const n = new Date(Date.UTC(year, month - 1, day + 1))
+  const nDow = n.getUTCDay()
 
   // N이 일요일이면 → 월요일. 단 (야적 && M=토) → 일요일 유지
   if (nDow === 0) {
     if (!(tag === 'STACK' && slipDow === 6)) {
-      n.setDate(n.getDate() + 1)
+      n.setUTCDate(n.getUTCDate() + 1)
     }
   }
 
   // "YYYY-MM-DD" 포맷 반환
-  const ny = n.getFullYear()
-  const nm = String(n.getMonth() + 1).padStart(2, '0')
-  const nd = String(n.getDate()).padStart(2, '0')
+  const ny = n.getUTCFullYear()
+  const nm = String(n.getUTCMonth() + 1).padStart(2, '0')
+  const nd = String(n.getUTCDate()).padStart(2, '0')
   return `${ny}-${nm}-${nd}`
 }
 

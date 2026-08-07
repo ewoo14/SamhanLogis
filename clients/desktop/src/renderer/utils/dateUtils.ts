@@ -21,6 +21,12 @@ export function toLocalDateISO(d: Date = new Date()): string {
   return `${y}-${m}-${day}`
 }
 
+/** 한국 업무일 기준 YYYY-MM-DD. 실행 환경의 기본 타임존과 무관하다. */
+export function toKstDateISO(d: Date = new Date()): string {
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
+}
+
 /** YYYY-MM-DD 오늘 날짜 (클라이언트 local 기준). */
 export function today(): string {
   return toLocalDateISO()

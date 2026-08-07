@@ -276,7 +276,7 @@ public class SlipService {
                     req.deliveryTag(), req.memo(), requesterId);
             // [게이트①] 출고전표 수동 생성 마감 게이트 — createOutbound 직후, save 직전.
             // 태그 null(미지정) 이면 assertWithinCutoff 내부에서 즉시 통과(opt-in).
-            cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+            cutoffGuard.assertWithinCutoffForCreation(slip.getDeliveryTag(), slip.getSlipDate());
         } else {
             slip = Slip.createInbound(slipNo, slipDate, seqNo,
                     req.destinationWarehouseId(),
