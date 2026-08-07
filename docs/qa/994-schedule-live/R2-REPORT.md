@@ -26,7 +26,7 @@
 
 ## 계정과 권한
 
-모든 계정은 실제 `POST /auth/login`으로 로그인했다. 개발 전용 공통 비밀번호 `dev_p05_pass!`를 사용했으며, 비밀번호와 JWT access token은 보고서에 기록하지 않았다.
+모든 계정은 실제 `POST /auth/login`으로 로그인했다. 개발 전용 공통 비밀번호 `${QA_DEV_DEFAULT_PASSWORD}`를 사용했으며, 비밀번호와 JWT access token은 보고서에 기록하지 않았다.
 
 | 용도 | loginId | userId | role / 그룹 | 실효 권한 |
 |---|---|---|---|---|

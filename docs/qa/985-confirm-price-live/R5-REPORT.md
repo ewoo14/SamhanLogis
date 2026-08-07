@@ -32,7 +32,7 @@ response: HTTP 200
 response status: PASSWORD_RESET_PENDING
 ```
 
-관리자 인증은 mock OFF 상태에서 실 `dev_master` / PIN `dev_p05_pass!` 로그인과 `window.samhanAuth` `addInitScript` 브리지를 사용했다. 관리자 승인 API를 직접 호출하지 않았다.
+관리자 인증은 mock OFF 상태에서 실 `dev_master` / PIN `${QA_DEV_DEFAULT_PASSWORD}` 로그인과 `window.samhanAuth` `addInitScript` 브리지를 사용했다. 관리자 승인 API를 직접 호출하지 않았다.
 
 ## 2. 화면 단가 추출값
 

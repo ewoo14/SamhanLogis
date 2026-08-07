@@ -9,7 +9,7 @@
 - started: `2026-08-05T16:49:51.260586535Z` (KST `2026-08-06 01:49:51`)
 - 기동 로그: `Started SlipServiceApplication in 9.245 seconds`
 - QA renderer: `http://localhost:5311`, `VITE_API_BASE_URL=http://localhost:8080`, mock OFF
-- 계정: `dev_manager / dev_p05_pass!`
+- 계정: `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`
 - 대상: 거래처 `4348703365 주식회사 엠엠시스템에어(고영현)`, 출고창고 `2 · 상일창고 S18`
 
 ## 1. 판정 요약

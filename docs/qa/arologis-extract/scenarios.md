@@ -18,7 +18,7 @@
 
 | 페르소나 | ROLE | 도메인 | 본 슬라이스 검증 관점 |
 |---|---|---|---|
-| **IT 관리자 (아로로지스)** | `AROLOGIS_MASTER` | desktop 로그인 / Driver CRUD | admin/admin1234 시드 로그인, phoneNumber 사전 등록 |
+| **IT 관리자 (아로로지스)** | `AROLOGIS_MASTER` | desktop 로그인 / Driver CRUD | admin/${QA_AROLOGIS_ADMIN_PASSWORD} 시드 로그인, phoneNumber 사전 등록 |
 | **배차 담당자 (아로로지스)** | `AROLOGIS_MANAGER` | 배차 등록 / 자동매칭 | 입고 + 등록 → 자동매칭 결과 SLIP 연결 |
 | **배송 기사 (아로로지스)** | `AROLOGIS_DRIVER` | mobile 본인 번호 로그인 | passwordless, 미등록 401, 전자서명 회수 |
 | **DevOps** | (system) | Docker / Eureka / Route53 / Nginx | 같은 network 등록, 단독 down 0 영향, host-header 라우팅 |
@@ -27,7 +27,7 @@
 
 각 시나리오는 4 요소 명시:
 
-1. **선행 조건** — Flyway V9 dev seed (AdminUser `admin`/`admin1234`, Driver `DRV-001`/`01012345678`)
+1. **선행 조건** — Flyway V9 dev seed (AdminUser `admin`/`${QA_AROLOGIS_ADMIN_PASSWORD}`, Driver `DRV-001`/`01012345678`)
 2. **동작** — UI 클릭 / API 호출 / docker / aws CLI 의 구체 step
 3. **기대 결과** — UI assertion + DB/Eureka/HTTP assertion (psql SQL / `curl /actuator/health` / `dig`)
 4. **회귀 차단 effect** — fail 시 production 어떤 증상이 재현 가능한가
@@ -64,14 +64,14 @@ UUID (`auth_user.id`, `driver.id`, `dispatch.id`) 가 화면/JSON response paylo
 ### 선행 조건
 
 - `services:arologis-service` 가 포트 8097 에서 동작 (`docker-compose -f docker-compose.arologis.yml up -d`)
-- Flyway V7/V8/V9 적용 완료 — `auth_user` 에 `admin`/bcrypt(`admin1234`)/`AROLOGIS_MASTER` 시드 존재
+- Flyway V7/V8/V9 적용 완료 — `auth_user` 에 `admin`/bcrypt(`${QA_AROLOGIS_ADMIN_PASSWORD}`)/`AROLOGIS_MASTER` 시드 존재
 - `clients/arologis-desktop` Electron 패키지 또는 dev 모드 (`npm run dev`) 가동
 - shared:fixture seed 로 거래처 `P-001` (배달주식회사) + 차량 `12가1234` (1톤) + 입고 슬립 `SLIP-2026-0001` 존재
 
 ### Step-by-step
 
 1. arologis-desktop 실행 → Login 화면 진입
-2. `loginId` 입력란에 `admin`, `password` 입력란에 `admin1234` 입력
+2. `loginId` 입력란에 `admin`, `password` 입력란에 `${QA_AROLOGIS_ADMIN_PASSWORD}` 입력
 3. **로그인** 버튼 클릭
 4. 메뉴 트리에서 **배차 → 신규 배차 등록** 선택
 5. 일자 `2026-05-15`, 시간대 `NIGHT`, 차량 `12가1234`, 거래처 `P-001` 입력 후 **저장**

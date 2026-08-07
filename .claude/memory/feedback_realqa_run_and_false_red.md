@@ -41,7 +41,7 @@ Protocol error (Page.navigate): Cannot navigate to invalid URL
 real-qa config(`clients/desktop/playwright.real-qa.config.ts`)엔 **webServer 없음** → 렌더러 dev 를 **수동 기동** 후 실행.
 1. 렌더러(web, mock OFF): `cd clients/desktop && VITE_API_BASE_URL=http://localhost:8080 npx vite src/renderer --host 127.0.0.1 --port 5175` (백그라운드). **VITE_API_BASE_URL 필수** — 없으면 axios baseURL 미설정으로 API 미도달. VITE_MOCK_MODE 미설정=mock off. ⚠️ **이 명령은 2026-07-26 현재 `virtual:pwa-register` 로 실패한다** — 위 표의 3종 중 하나를 `--config` 로 명시할 것.
 2. 실행: `cd clients/desktop && AUDIT_BASE_URL=http://127.0.0.1:5175 node_modules/.bin/playwright test --config=playwright.real-qa.config.ts <spec> --reporter=line --timeout=90000` ([[playwright-local-version-skew]] — node_modules/.bin 직접).
-3. 로그인: spec 이 `POST :8080/auth/login {dev_master, dev_p05_pass!}` → `window.samhanAuth` stub `addInitScript` 주입(client.ts interceptor 가 토큰 사용). 스크린샷 `docs/qa/<slug>/*.png`.
+3. 로그인: spec 이 `POST :8080/auth/login {dev_master, 자격은 infrastructure/.env.local}` → `window.samhanAuth` stub `addInitScript` 주입(client.ts interceptor 가 토큰 사용). 스크린샷 `docs/qa/<slug>/*.png`.
 
 ## 🪤 real-qa 스펙 false-RED 함정
 구성품/행 코드 추출 시 `row.innerText().trim().split(/\s+/)[0]` 는 **행 선두의 design-system DragHandle 글리프 `⠿`** 를 잡음(모델코드 아님) → 모든 행 코드가 `⠿` 동일 → 이동/순서 단언이 **항상 실패**(기능 정상인데 스펙이 false-RED). → 모델코드 span 직접 추출.

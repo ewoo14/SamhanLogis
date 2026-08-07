@@ -7,7 +7,7 @@
 - 포트 확인: `5199`, `5200`, `5202`, `5203` 사용 중. `5204` 미사용. 이번 QA 브라우저 접속 오리진은 `http://localhost:5200`.
 - 실제 API 호출 오리진: `http://localhost:8080`.
 - Mock: OFF (`VITE_MOCK_MODE` 미설정), API base는 `http://localhost:8080`.
-- 계정: `dev_manager / dev_p05_pass!` — UI 로그인 `POST /auth/login` 200 확인.
+- 계정: `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}` — UI 로그인 `POST /auth/login` 200 확인.
 - 부수 호출: `/app/version` 및 `/app/notices/active`는 503이었으나 로그인·재고이동·견적 대상 API는 정상 응답하여 대상 QA를 계속했다.
 - 컨테이너: 재빌드·재배포·중지하지 않음. `docker ps` 기준 모두 `Up`/healthy.
 

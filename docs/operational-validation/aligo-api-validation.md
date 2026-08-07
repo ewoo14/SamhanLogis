@@ -85,7 +85,7 @@ start-local-full.ps1 부팅 후:
 
 ```powershell
 # JWT 발급 (kimmiseon)
-$loginBody = '{"loginId":"kimmiseon","password":"samhan!2026"}'
+$loginBody = '{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}'
 $loginResp = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" `
     -Method POST -ContentType "application/json" -Body $loginBody
 $token = $loginResp.data.accessToken

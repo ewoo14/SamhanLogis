@@ -19,7 +19,7 @@ gateway `slip-service-v1` route(`Path=/api/v1/slips/**`, **StripPrefix=2**)가 `
 ## 1. 실 MASTER 로그인
 
 ```
-POST http://127.0.0.1:8080/api/auth/login {"loginId":"dev_master","password":"dev_p05_pass!"} → token (MASTER)
+POST http://127.0.0.1:8080/api/auth/login {"loginId":"dev_master","password":"${QA_DEV_DEFAULT_PASSWORD}"} → token (MASTER)
 ```
 
 ## 2. 복구 API GET — gateway 통과 200 (수정 후)

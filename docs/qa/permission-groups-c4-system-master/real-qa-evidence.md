@@ -32,7 +32,7 @@ Flyway 마이그레이션 (auth_db):
 명령:
 ```
 POST http://localhost:8080/api/auth/login
-{"loginId":"dev_master","password":"dev_p05_pass!"}
+{"loginId":"dev_master","password":"${QA_DEV_DEFAULT_PASSWORD}"}
 ```
 
 응답 (HTTP 200):
@@ -155,7 +155,7 @@ DB 증거 (비-MASTER 계정 전수):
 ```
 
 비-MASTER JWT 직접 발급 시도 한계: dev_ 시드 계정 비밀번호(V5 seed hash `$2a$12$6cxHjNrguvlnEE...`)가
-`dev_p05_pass!`와 bcrypt 미매칭(python3 bcrypt.checkpw = False). 비밀번호 변경 이력 추정.
+`${QA_DEV_DEFAULT_PASSWORD}`와 bcrypt 미매칭(python3 bcrypt.checkpw = False). 비밀번호 변경 이력 추정.
 DB 쿼리(existsByAccountIdAndSystemMasterTrue) + 직접 헤더 주입으로 동등 증명 대체.
 
 ---

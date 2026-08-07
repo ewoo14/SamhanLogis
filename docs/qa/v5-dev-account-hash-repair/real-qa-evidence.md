@@ -94,7 +94,7 @@ Container samhan-auth-service Started
 
 ## 4. 실 로그인 테스트 (게이트웨이 경유 http://localhost:8080)
 
-### 정상 로그인 계정 — "dev_p05_pass!" 200 확인
+### 정상 로그인 계정 — "${QA_DEV_DEFAULT_PASSWORD}" 200 확인
 
 | 계정 | HTTP 상태 | 비고 |
 |---|---|---|

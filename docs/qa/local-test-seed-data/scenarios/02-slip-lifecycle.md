@@ -34,7 +34,7 @@
 ```sh
 SALES_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimgicheol","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"kimgicheol","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 SALES_USER_ID=$(curl -sS http://localhost:8080/api/auth/me -H "Authorization: Bearer $SALES_TOKEN" | jq -r '.data.userId')
 ```
 
@@ -158,7 +158,7 @@ curl -X POST http://localhost:8080/api/slips/$SLIP_ID/send \
 # 본 시나리오에서는 MASTER 토큰 사용 (시드에 WAREHOUSE role 미존재)
 MASTER_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimmiseon","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 MASTER_USER_ID=$(curl -sS http://localhost:8080/api/auth/me -H "Authorization: Bearer $MASTER_TOKEN" | jq -r '.data.userId')
 
 curl -X POST http://localhost:8080/api/slips/$SLIP_ID/accept \
@@ -299,7 +299,7 @@ docker exec -it samhan-postgres psql -U samhan -d slip_db \
 ```sh
 ACC_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"leeseongmi","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"leeseongmi","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 ACC_USER_ID=$(curl -sS http://localhost:8080/api/auth/me -H "Authorization: Bearer $ACC_TOKEN" | jq -r '.data.userId')
 
 curl -X POST http://localhost:8080/api/slips/$SLIP_ID/confirm \

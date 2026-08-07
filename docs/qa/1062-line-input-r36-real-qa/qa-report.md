@@ -8,7 +8,7 @@
 - 실제 브라우저 오리진: `http://localhost:5204`
 - 네트워크로 확인한 실제 API 호출 오리진: `http://localhost:8080` (`VITE_API_BASE_URL`)
 - mock: OFF
-- 사용 계정: 분개 `dev_accountant / dev_p05_pass!`, 판매전표 `dev_manager / dev_p05_pass!`
+- 사용 계정: 분개 `dev_accountant / ${QA_DEV_DEFAULT_PASSWORD}`, 판매전표 `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`
 - 컨테이너 상태: 모두 `running`
   - `samhan-api-gateway`: created `2026-08-04T22:34:18Z`, started `2026-08-05T10:02:11Z`
   - `samhan-accounting-service`: created `2026-08-04T14:14:35Z`, started `2026-08-05T10:02:11Z`

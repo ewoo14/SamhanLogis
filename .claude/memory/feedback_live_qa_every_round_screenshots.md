@@ -14,7 +14,7 @@ metadata:
 
 **Why**: E2 #699 에서 라이브 QA 를 매 라운드가 아닌 종료 직전 1회, 그것도 SSE 텍스트 캡처(스샷 없음)로 처리 → 개발책임자 "라이브 QA를 리뷰 라운드마다 요청했었음" 지적. QA 차원이 정적 코드리뷰로 형해화되면 실 UI 결함(깜빡임·stale·충돌)을 놓침.
 
-**How to apply**: 매 Opus·Codex 리뷰 라운드에서 QA agent(또는 PM)가 (a) Docker 실서버 재빌드·기동(코드 반영, launch 후 `docker compose up -d --build <svc>` [[project_local_stack_qa_gotchas]]) (b) 실 게이트웨이 :8080·dev_master(`dev_p05_pass!` DEV-SEED)·mock OFF 로그인 (c) 해당 기능 실 화면 **단계별 스크린샷** 캡처(2세션 라이브 반영 등) docs/qa/<slice>/ (d) 라운드 게시에 인라인. Docker/GUI 불가 요소만 정직 명시(P2)+대안. [[feedback_qa_docker_real_test]] [[feedback_overnight_live_capture]] [[feedback_no_fake_data_ever]]
+**How to apply**: 매 Opus·Codex 리뷰 라운드에서 QA agent(또는 PM)가 (a) Docker 실서버 재빌드·기동(코드 반영, launch 후 `docker compose up -d --build <svc>` [[project_local_stack_qa_gotchas]]) (b) 실 게이트웨이 :8080·dev_master(자격은 `infrastructure/.env.local`)·mock OFF 로그인 (c) 해당 기능 실 화면 **단계별 스크린샷** 캡처(2세션 라이브 반영 등) docs/qa/<slice>/ (d) 라운드 게시에 인라인. Docker/GUI 불가 요소만 정직 명시(P2)+대안. [[feedback_qa_docker_real_test]] [[feedback_overnight_live_capture]] [[feedback_no_fake_data_ever]]
 
 **2026-07-03 정제(개발책임자 워크플로우 감사)**: '매 라운드' 원칙 유지하되 **실 캡처 대상 = 실 GUI 변경이 있는 라운드**. BE/mock-only 변경·review-only(재검) 라운드·실데이터 불가(예 대상 seed 0건) 라운드는 **정직 disposition**(직전 캡처 참조+사유 명기·해당 변경이 GUI 미영향임을 근거화, 가짜/합성 캡처 금지) 허용. 즉 GUI 변경 라운드는 반드시 실 캡처, 비-GUI/데이터불가 라운드는 정직 보고. (오버나이트 6머지 세션 감사서 확정 — #700 D/F/G·E1-b-2 매입[INBOUND seed 0]·각 재검 라운드가 이 정합.)
 

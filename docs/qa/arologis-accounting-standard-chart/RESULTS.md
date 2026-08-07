@@ -33,7 +33,7 @@
 전 항목 PASS, 캡처불가 0, FAIL 0.
 
 ## 실 HTTP 방법 비고
-- 인증: 실 `POST /auth/admin/login` (admin/admin1234, V9 시드 마스터) → JWT. arologis-service `ArologisJwtFilter` 가 JWT claim role 로 X-User-Id/X-User-Role 주입 → `@RequirePermission` 동적 권한이 auth-service `role_page_permissions` 조회로 enforce. 게이트웨이 우회 직접 :8097 호출 정상(CORS localhost:* 허용).
+- 인증: 실 `POST /auth/admin/login` (admin/${QA_AROLOGIS_ADMIN_PASSWORD}, V9 시드 마스터) → JWT. arologis-service `ArologisJwtFilter` 가 JWT claim role 로 X-User-Id/X-User-Role 주입 → `@RequirePermission` 동적 권한이 auth-service `role_page_permissions` 조회로 enforce. 게이트웨이 우회 직접 :8097 호출 정상(CORS localhost:* 허용).
 - 격리 테스트용 비마스터 계정은 **실 HR API**(`POST /admin/arologis/hr/employees`)로 ACCOUNTANT(qa_acct, 회계팀) / MANAGER(qa_mgr, 행정팀) 프로비저닝(임시 PW 발급) 후 실 로그인 → 실 토큰. (dev 스택 잔존 QA 계정.)
 
 ## 실화면 방법 비고

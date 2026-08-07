@@ -7,7 +7,7 @@
 - mock: OFF (`VITE_USE_MOCK=false`)
 - API base URL: `VITE_API_BASE_URL=http://localhost:8080`
 - 실제 호출 오리진: `http://localhost:8080` (로그인 `POST /auth/login` 200, 거래처 검색 `GET /admin/partners/search?...` 200, 품목 조회 `GET /slips/lookup-product?...` 200)
-- 계정: `dev_manager / dev_p05_pass!`
+- 계정: `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`
 - 컨테이너 상태: 서비스 재빌드·재배포·중지 없이 기존 컨테이너를 사용함. `created=/started=` (Docker inspect UTC):
   - `samhan-api-gateway created=2026-08-04T22:34:18.879154069Z started=2026-08-05T10:02:11.280446347Z`
   - `samhan-auth-service created=2026-08-03T14:34:20.226032107Z started=2026-08-05T10:02:11.261460747Z`

@@ -60,7 +60,7 @@ SP-08-7에서 Notion runtime 의존 zero 가드를 도입했다. 본 슬라이�
 | 6 | Google Sheet ID 직접 대입 | `GOOGLE_SHEETS_SHEET_ID\s*=\s*1[A-Za-z0-9_-]{43}` | docs 영역 환경변수 직접 대입 형태만 탐지 |
 
 **허용 패턴**: 변수명 참조 (`NOTION_TOKEN`, `${BOOTSTRAP_SHEET_ID:...}`) 및
-OrgChartSeeder seed 비밀번호 (`samhan!2026`) 는 금지 패턴에 해당하지 않는다.
+OrgChartSeeder seed 비밀번호 (`${QA_MASTER_PASSWORD}`) 는 금지 패턴에 해당하지 않는다.
 `GOOGLE_SHEETS_SHEET_ID` 환경변수 default 값으로 삽입된 Sheet ID는 ENV 오버라이드 가능하여 허용.
 
 ---
@@ -148,7 +148,7 @@ credential-plaintext-guard:
 
 ### tools/operational-validation/ 판정
 
-`run-smoke-tests.ps1`, `import-notion-csv.ps1` 내 `samhan!2026`는 OrgChartSeeder dev-only 시드 비밀번호의 파라미터 기본값으로, 실 운영 비밀번호가 아니다. GitGuardian 탐지 이력 없음. 화이트리스트 처리.
+`run-smoke-tests.ps1`, `import-notion-csv.ps1` 내 `${QA_MASTER_PASSWORD}`는 OrgChartSeeder dev-only 시드 비밀번호의 파라미터 기본값으로, 실 운영 비밀번호가 아니다. GitGuardian 탐지 이력 없음. 화이트리스트 처리.
 
 **결론**: **실제 위반 0건** — 현재 GitGuardian 통과 상태와 일치.
 
@@ -195,7 +195,7 @@ credential-plaintext-guard:
 
 | 번호 | 항목 | 우선순위 | 담당 |
 |------|------|----------|------|
-| 1 | `samhan!2026` dev seed 비밀번호 — Phase 11 AWS 이전 전 운영 비밀번호 교체 절차 문서화 | P1 | DevOps |
+| 1 | `${QA_MASTER_PASSWORD}` dev seed 비밀번호 — Phase 11 AWS 이전 전 운영 비밀번호 교체 절차 문서화 | P1 | DevOps |
 | 2 | 사업자등록번호 평문 가드 강화 — 실 거래처 번호가 Flyway seed에 포함될 경우 `XXX-XX-XXXXX` placeholder 정책 수립 | P2 | BE |
 | 3 | Google Sheet ID rotation 정책 — 시트 공유 설정 변경 시 `BOOTSTRAP_SHEET_ID` ENV 업데이트 절차 | P2 | DevOps |
 | 4 | `check-credential-plaintext.sh` + `check-notion-zero.sh` 통합 고려 — SP-08 종료 후 단일 `check-secrets.sh`로 병합 가능 | P3 | DevOps |

@@ -63,7 +63,7 @@
 |---|---|---|---|---|---|
 | 1단계 — 주소 접속 | `http://localhost:8080` / `https://app.samhan-air.com` | gateway port 8080 ✅ / 도메인 = `project_domain_strategy.md` 일치 ✅ | — | — | 정상 |
 | 2단계 — ID 입력 | "kimmiseon" 예시 | `OrgChartSeeder` 시드 = `kimmiseon` ✅ | — | — | 정상 |
-| 3단계 — 비밀번호 | 초기 `samhan!2026` | **확인 필요** — `OrgChartSeeder` 시드 비밀번호 명시 / Stage 1 검증 시 코드 확인 필수 | E | 🟠 | **검증 필요** — 실 시드 비밀번호와 매뉴얼 일치 검증 (`OrgChartSeeder` 또는 `JournalSeeder` 의 `passwordEncoder.encode("samhan!2026")` 호출 확인) |
+| 3단계 — 비밀번호 | 초기 `${QA_MASTER_PASSWORD}` | **확인 필요** — `OrgChartSeeder` 시드 비밀번호 명시 / Stage 1 검증 시 코드 확인 필수 | E | 🟠 | **검증 필요** — 실 시드 비밀번호와 매뉴얼 일치 검증 (`OrgChartSeeder` 또는 `JournalSeeder` 의 `passwordEncoder.encode("${QA_MASTER_PASSWORD}")` 호출 확인) |
 | 4-2 — 첫 로그인 비밀번호 변경 | "비밀번호 변경 화면이 자동 표시" | **❌ 미구현** — `auth-service` AuthController 에 `/auth/password/change` endpoint 없음. force-change-on-first-login flag 없음 | F | 🔴 | **매뉴얼 정정 필요** — "현재는 IT 관리자에게 변경 요청" 으로 수정 또는 backend 신규 PR 필요 |
 | 4-3 — 5회 실패 잠금 | "5회 연속 실패 시 계정 잠김" | **❌ 미구현** — `Account` 도메인에 `failed_login_attempts` / `locked_at` 컬럼 없음. SecurityConfig 에 lockout policy 없음 | F | 🔴 | **매뉴얼 정정 필요** — 미구현 명시 또는 backend PR |
 | 5단계 — 로그아웃 | "30분 자동 로그아웃" | JWT 8h TTL 발급 (`backend-feature-inventory.md` §3.1) — **30분 자동 로그아웃 미구현** | F | 🟠 | **매뉴얼 정정 필요** — 8시간으로 정정 또는 frontend idle timer 신규 |
@@ -242,5 +242,5 @@ grep -rn "@PreAuthorize" services/*/src/main/java/.../web
 cat clients/desktop/src/renderer/routes/index.tsx | grep "<Route"
 
 # 4. 시드 비밀번호
-grep -rn "samhan!2026\|passwordEncoder.encode" services/user-service/src/main/java
+grep -rn "${QA_MASTER_PASSWORD}\|passwordEncoder.encode" services/user-service/src/main/java
 ```

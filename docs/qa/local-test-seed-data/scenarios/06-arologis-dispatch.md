@@ -49,7 +49,7 @@ docker exec -it samhan-postgres psql -U samhan -d arologis_db \
 ```sh
 MASTER_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimmiseon","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 MASTER_USER_ID=$(curl -sS http://localhost:8080/api/auth/me -H "Authorization: Bearer $MASTER_TOKEN" | jq -r '.data.userId')
 ```
 

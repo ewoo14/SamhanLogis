@@ -190,7 +190,7 @@ api-gateway 우회 직접 호출이므로 arologis-service 자체 `JwtFilter` �
 |---|---|
 | `V7__add_arologis_auth_user.sql` | `auth_user` 테이블 + partial unique on `(login_id) WHERE is_deleted=false` |
 | `V8__add_arologis_refresh_token.sql` | `auth_refresh_token` + index on `(user_id, expires_at)` |
-| `V9__seed_arologis_master.sql` | dev seed — 초기 MASTER 계정 1개 (`admin/admin1234` BCrypt) — prod 는 manual |
+| `V9__seed_arologis_master.sql` | dev seed — 초기 MASTER 계정 1개 (`admin/${QA_AROLOGIS_ADMIN_PASSWORD}` BCrypt) — prod 는 manual |
 
 ---
 
@@ -412,7 +412,7 @@ Samhan Public 의 release 와 **완전 독립** — 한 쪽 배포가 다른 쪽
 
 | # | 시나리오 | 캡처 |
 |---|---|---|
-| 1 | arologis-desktop 로그인 (admin/admin1234) → 배차 등록 → 자동매칭 | 1장 |
+| 1 | arologis-desktop 로그인 (admin/${QA_AROLOGIS_ADMIN_PASSWORD}) → 배차 등록 → 자동매칭 | 1장 |
 | 2 | arologis-desktop 의 Driver CRUD — phoneNumber 사전 등록 | 1장 |
 | 3 | arologis-mobile 본인 번호 로그인 → dispatch 목록 → 전자서명 | 1장 |
 | 4 | 같은 Eureka 에 14 + 1 service 등록 확인 (`/actuator/services`) | 1장 |

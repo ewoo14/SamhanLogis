@@ -9,7 +9,7 @@
 - 실제 API 호출 오리진: **미관측**. 인앱 브라우저가 제공되지 않아 화면을 열고 네트워크 요청을 발생시키지 못함.
 - mock: OFF 설정으로 렌더러 기동.
 - 컨테이너: Docker inspect로 대상 컨테이너의 `created`/`started`를 확인했다. `samhan-product-service`는 created `2026-08-05 19:17:39 +0900`, started `2026-08-05 19:17:43 +0900`; 나머지는 created 시각이 각 이미지별로 존재하고 started는 `2026-08-05 19:02:11 +0900` 전후이며 모두 `running`/`healthy`였다. 재빌드·재배포·중지 없음.
-- 사용 계정: 분개 예정 `dev_accountant / dev_p05_pass!`; 판매전표·견적 예정 `dev_manager / dev_p05_pass!`.
+- 사용 계정: 분개 예정 `dev_accountant / ${QA_DEV_DEFAULT_PASSWORD}`; 판매전표·견적 예정 `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`.
 - 브라우저 상태: 사용 가능한 브라우저 0개로 확인되어 실제 UI QA 불가.
 
 ## 판정 요약

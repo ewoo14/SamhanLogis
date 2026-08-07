@@ -4,7 +4,7 @@
 
 ## 환경
 - Postgres 16(arologis_db + auth_db) · auth-service:8181(V50 HR grant) · arologis-service:8197(V14 HR, Flyway v14 적용) · 렌더러 정적서빙(:5190, VITE_AROLOGIS_API_BASE→8197) + arologisAuth IPC 브리지 스텁.
-- 로그인 = `admin/admin1234`(V9 master seed, JWT role=AROLOGIS_MASTER).
+- 로그인 = `admin/${QA_AROLOGIS_ADMIN_PASSWORD}`(V9 master seed, JWT role=AROLOGIS_MASTER).
 
 ## ✅ 실 HTTP end-to-end
 - 로그인 → JWT 발급(role=AROLOGIS_MASTER).

@@ -4,7 +4,7 @@
 
 `samhan-slip-service Up (healthy)` — 생성 `2026-08-05T17:08:04Z`, 시작 `2026-08-05T17:08:07Z`.
 
-재빌드·재배포·중지 없이 검증했다. 렌더러는 `localhost:5311`, `VITE_API_BASE_URL=http://localhost:8080`, mock OFF로 실행했고 `dev_manager / dev_p05_pass!`로 로그인했다.
+재빌드·재배포·중지 없이 검증했다. 렌더러는 `localhost:5311`, `VITE_API_BASE_URL=http://localhost:8080`, mock OFF로 실행했고 `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`로 로그인했다.
 
 ## 판정 요약
 

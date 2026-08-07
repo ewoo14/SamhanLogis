@@ -13,7 +13,7 @@ PR #343 dev-report "QA(머지 전 의무)" 체크박스가 로컬 구-시드 드
 ## 1. 실 MASTER 로그인 (실 게이트웨이)
 
 ```
-POST http://127.0.0.1:8080/api/auth/login  {"loginId":"dev_master","password":"dev_p05_pass!"}
+POST http://127.0.0.1:8080/api/auth/login  {"loginId":"dev_master","password":"${QA_DEV_DEFAULT_PASSWORD}"}
 → {"success":true,"code":"OK","data":{"token":"eyJ...","role":"MASTER"}}
 ```
 

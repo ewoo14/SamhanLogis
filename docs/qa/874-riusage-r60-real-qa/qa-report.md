@@ -36,12 +36,12 @@
 
 ## ① 협업 수정 → 올바른 수신자 알림
 
-1. `dev_manager / dev_p05_pass!`로 로그인했다.
+1. `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`로 로그인했다.
 2. 판매전표 `2026/08/05-9`에서 협업 수정을 열었다.
 3. 메모를 `R60 LIVE QA COLLAB EDIT 2026-08-05 23:55`로 변경하고 수정 사유를 입력했다.
 4. 화면의 `수정완료되었습니다.`를 확인했다.
 5. 네트워크에서 `POST /api/v1/slips/5cdffe64-b7f5-43f1-b176-0e6e6c9d311c/collab/edits` 응답 `201`을 확인했다.
-6. 새 브라우저 컨텍스트에서 `dev_master / dev_p05_pass!`로 로그인해 알림센터와 알림 벨에서 다음 1건을 확인했다.
+6. 새 브라우저 컨텍스트에서 `dev_master / ${QA_DEV_DEFAULT_PASSWORD}`로 로그인해 알림센터와 알림 벨에서 다음 1건을 확인했다.
 
 ```text
 [전표 수정] 2026/08/05-9

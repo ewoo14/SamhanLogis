@@ -1,4 +1,4 @@
-﻿# 현재 작업 핸드오프 노트
+# 현재 작업 핸드오프 노트
 
 ## 2026-08-07 집PC 세션 — **머지 2건 완료** · 세션 재시작 지점
 
@@ -96,7 +96,7 @@ main 이 `routes/components/BundleOptionRow.tsx` 를 삭제했는데 `EstimateFo
 ```text
 Docker      18컨테이너 healthy · compose 는 slip-port-override 포함 3개 파일
 slip 직접    :18086 (influxd 가 8086 선점)
-계정        dev_manager/dev_p05_pass! · kimgicheol·kimeunji/samhan!2026 · 아로로지스 admin/admin1234
+계정        dev_manager/${QA_DEV_DEFAULT_PASSWORD} · kimgicheol·kimeunji/${QA_MASTER_PASSWORD} · 아로로지스 admin/${QA_AROLOGIS_ADMIN_PASSWORD}
 QA 수단      clients/desktop **안에서** node <script>.mjs · chromium.launch({headless:true})
 typecheck   첫 단계는 design-system/dist 신선도 가드 — 타입 오류가 아니다
 배포본       QA 전에 **값을 내는 서비스**를 지목하고 fix 식별자를 grep (0건이면 중단·보고)
@@ -376,7 +376,7 @@ open 이슈   6건(07-07) → 30건(08-06)   31일 만에 5배
   api-gateway         2026-08-05T02:50:37Z    ← main
 
 flyway   slip_db 115
-계정     dev_manager · dev_master · dev_accountant · dev_dispatch  모두 dev_p05_pass!
+계정     dev_manager · dev_master · dev_accountant · dev_dispatch  모두 ${QA_DEV_DEFAULT_PASSWORD}
 로그인   POST /api/v1/auth/login  body {"loginId":"…","password":"…"}
          🔑 렌더러 실제 호출은 **/auth/login** (게이트웨이 prefix 차이 — R5 에서 PM 이 틀렸다)
 
@@ -476,7 +476,7 @@ DC 조회 키  partnerCode (UUID 아님). dc_configs 240건 중 238건이 partne
 ### 5. 환경 메모 (집PC 실측 · 회사PC 에서 재측정)
 
 ```text
-계정        dev_manager · dev_master · dev_accountant · dev_dispatch  모두 dev_p05_pass!
+계정        dev_manager · dev_master · dev_accountant · dev_dispatch  모두 ${QA_DEV_DEFAULT_PASSWORD}
 분개 저장   accounting.journals can_edit = ACCOUNTANT/MASTER 만 (MANAGER 는 조회만)
 컷오프      hr.slip-cutoff 화면에서 변경 가능 · REGION 12:00 · STACK 14:00 (QA 후 복원 필수)
 창고        HQ-001 · CS-001 · VH-001 · VR-001 · QA-1039-SANGIL · QA-1039-CHOWOL
@@ -569,8 +569,8 @@ SELECT MAX(version::numeric) FROM flyway_schema_history WHERE success;   -- 각 
 flyway   slip_db 105 · accounting_db 95 · auth_db 94 · arologis_db 25
          product_db 30 · inventory_db 21 · partner_db 13
 배포본   slip/auth/arologis 2026-08-05T02:50:44Z · api-gateway 02:50:37Z  (전부 #1045 코드)
-계정     dev_manager · dev_master · dev_accountant · dev_dispatch  모두 dev_p05_pass!
-         아로로지스 admin / admin1234 (자체 인증 · API 127.0.0.1:8097)
+계정     dev_manager · dev_master · dev_accountant · dev_dispatch  모두 ${QA_DEV_DEFAULT_PASSWORD}
+         아로로지스 admin / ${QA_AROLOGIS_ADMIN_PASSWORD} (자체 인증 · API 127.0.0.1:8097)
 ```
 
 ---
@@ -1028,8 +1028,8 @@ S10(권한) 다음에 구현한다.
   원장 확정상태  32전표 / 93라인 / VAT포함 355,861,000원
 
 계정
-  삼한        dev_manager · dev_master · dev_accountant  모두 dev_p05_pass!
-  아로로지스   admin / admin1234  (자체 인증 · API 127.0.0.1:8097 · 삼한 계정 안 통함)
+  삼한        dev_manager · dev_master · dev_accountant  모두 ${QA_DEV_DEFAULT_PASSWORD}
+  아로로지스   admin / ${QA_AROLOGIS_ADMIN_PASSWORD}  (자체 인증 · API 127.0.0.1:8097 · 삼한 계정 안 통함)
 
 함정
   slip-service 는 docker-compose.slip-port-override.yml 을 함께 줘야 기동 (호스트가 8086 선점)

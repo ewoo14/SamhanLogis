@@ -35,15 +35,15 @@ V45 seed hr role management page| 2026-06-06 00:34:38 | success
 
 ### 2-1. 문제 상황
 
-V5 시드 해시(`$2a$12$6cxHjNrguvlnEE...`)가 실제 bcrypt 검증에서 불일치 (`bcrypt.checkpw(b"dev_p05_pass!", stored) = False`). 또한 `password_change_required=TRUE` 상태.
+V5 시드 해시(`$2a$12$6cxHjNrguvlnEE...`)가 실제 bcrypt 검증에서 불일치 (`bcrypt.checkpw(b"${QA_DEV_DEFAULT_PASSWORD}", stored) = False`). 또한 `password_change_required=TRUE` 상태.
 
 ### 2-2. 복구 실행
 
 ```sql
 -- 신규 bcrypt 해시 생성 (Python bcrypt cost=12)
--- 대상 비밀번호: dev_p05_pass!
+-- 대상 비밀번호: ${QA_DEV_DEFAULT_PASSWORD}
 -- 신규 해시: $2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y
--- 검증: bcrypt.checkpw(b"dev_p05_pass!", b"$2b$12$g9/...") = True
+-- 검증: bcrypt.checkpw(b"${QA_DEV_DEFAULT_PASSWORD}", b"$2b$12$g9/...") = True
 
 UPDATE accounts 
 SET password_hash = '$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y',
@@ -536,7 +536,7 @@ dev_inventory → 재고원 (is_system_master=false)
 |-----------|------|------|
 | auth-service/api-gateway/inventory-service 재배포 | **성공** | 2026-06-06 00:34 KST |
 | 비-MASTER 계정 비밀번호 복구 (5건) | **성공** | psql UPDATE 5 |
-| 전 역할(6개) 로그인 200 | **성공** | dev_p05_pass! |
+| 전 역할(6개) 로그인 200 | **성공** | ${QA_DEV_DEFAULT_PASSWORD} |
 | MASTER JWT isSystemMaster:true 클레임 | **확인** | C4 |
 | 비-MASTER JWT isSystemMaster 없음 | **확인** | C4 |
 | JWT groups 클레임 | **미포함** (발견 사항) | C5-1 코드 구현 완료, JWT 발급 단계 버그 |
@@ -591,7 +591,7 @@ docker compose ... up -d auth-service api-gateway
 
 ```
 POST http://localhost:8080/api/auth/login
-{"loginId":"dev_master","password":"dev_p05_pass!"}
+{"loginId":"dev_master","password":"${QA_DEV_DEFAULT_PASSWORD}"}
 
 HTTP 200 OK
 ```

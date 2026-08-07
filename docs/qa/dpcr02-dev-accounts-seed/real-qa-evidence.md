@@ -30,7 +30,7 @@
 
 | T | 테스트 항목 | 기대 | 실측 HTTP | 결과 | 비고 |
 |---|---|---|---|---|---|
-| Q1 | dev_driver 로그인 ("dev_p05_pass!") | 200 + role=DRIVER | **200** role=DRIVER userId=b0...000a | **PASS** | V48 검증 해시($2b$12$g9/...) 평문 일치 — V5 잠복 결함 비전파 실증 |
+| Q1 | dev_driver 로그인 ("${QA_DEV_DEFAULT_PASSWORD}") | 200 + role=DRIVER | **200** role=DRIVER userId=b0...000a | **PASS** | V48 검증 해시($2b$12$g9/...) 평문 일치 — V5 잠복 결함 비전파 실증 |
 | Q2 | dev_driver GET /api/v1/products | 403 | **403** FORBIDDEN | **PASS** | #420 T2 psql 임시 revoke 우회 → 정식 계정 상시화 실증 |
 | Q3 | dev_driver GET /api/products/categories | 403 | **403** FORBIDDEN | **PASS** | #420 T7b psql 임시 revoke 우회 → 정식 계정 상시화 실증 |
 | Q4 | dev_staff 로그인 (200 + role=STAFF) + GET /api/v1/products (403) | 200 + 403 | **200** role=STAFF / **403** FORBIDDEN | **PASS** | STAFF 그룹(108) products.list can_view=false 확인 |
@@ -44,7 +44,7 @@
 
 ```
 POST http://localhost:8080/auth/login
-Body: {"loginId":"dev_driver","password":"dev_p05_pass!"}
+Body: {"loginId":"dev_driver","password":"${QA_DEV_DEFAULT_PASSWORD}"}
 
 HTTP 200:
 {
@@ -101,7 +101,7 @@ Response:
 ```
 로그인:
 POST http://localhost:8080/auth/login
-Body: {"loginId":"dev_staff","password":"dev_p05_pass!"}
+Body: {"loginId":"dev_staff","password":"${QA_DEV_DEFAULT_PASSWORD}"}
 HTTP 200, role=STAFF, userId=b0000000-0000-0000-0000-00000000000b
 groups: [{"id":"00000000-0000-0000-0000-000000000108","name":"사원"}]
 
@@ -114,7 +114,7 @@ HTTP 403 — [SP-PO-1] 동적 권한 deny — page=products.list action=VIEW rol
 
 ```
 POST http://localhost:8080/auth/login
-Body: {"loginId":"dev_dispatch","password":"dev_p05_pass!"}
+Body: {"loginId":"dev_dispatch","password":"${QA_DEV_DEFAULT_PASSWORD}"}
 
 HTTP 200:
 {
@@ -154,7 +154,7 @@ ORDER BY a.login_id;
 ```
 로그인:
 POST http://localhost:8080/auth/login
-Body: {"loginId":"dev_master","password":"dev_p05_pass!"}
+Body: {"loginId":"dev_master","password":"${QA_DEV_DEFAULT_PASSWORD}"}
 HTTP 200, role=MASTER, isSystemMaster=true
 
 제품 조회:
@@ -177,5 +177,5 @@ V48 seed 추가 후 기존 마스터 계정 인증/인가 회귀 없음.
 
 ### 관찰 사항 (결함 아님)
 
-- Q1/Q7: V5 dev_master 해시($2a$12$)와 V48 해시($2b$12$)가 공존하나 양쪽 모두 "dev_p05_pass!" 평문 일치 확인됨 (V5 결함은 기존 계정 일부에만 적용된 old-style bcrypt — Spring Security BCryptPasswordEncoder 정상 검증).
+- Q1/Q7: V5 dev_master 해시($2a$12$)와 V48 해시($2b$12$)가 공존하나 양쪽 모두 "${QA_DEV_DEFAULT_PASSWORD}" 평문 일치 확인됨 (V5 결함은 기존 계정 일부에만 적용된 old-style bcrypt — Spring Security BCryptPasswordEncoder 정상 검증).
 - 403 메시지 role=UNKNOWN: DynamicPermissionClient 가 account_page_permissions 조회 후 role 표기를 UNKNOWN 으로 반환하는 현상 — 이미 #420 QA 시 동일 확인, 인가 deny 자체는 정상 작동.

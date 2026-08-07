@@ -7,7 +7,7 @@
 - 렌더러: `http://127.0.0.1:5201/` — 5199·5200을 피한 빈 포트, `--strictPort`로 기동
 - 실제 네트워크 호출 오리진: `http://localhost:8080` (`/auth/login`, `/inventory/warehouses`, `/slips/lookup-product` 등 응답 확인)
 - mock: OFF
-- 계정: `dev_manager / dev_p05_pass!`
+- 계정: `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`
 - `product-service`: created=`2026-08-05T10:17:39.747773714Z`, started=`2026-08-05T10:17:43.342187543Z`. 서비스는 재빌드·재배포·중지하지 않음.
 - 실제 화면 검증: 로컬 렌더러와 실 API를 연결한 Chromium 화면. 합성/fixture 화면 아님.
 

@@ -4,7 +4,7 @@
 플랫폼     : Windows 11 Pro 10.0.26200
 게이트웨이 : http://localhost:8080  samhan-api-gateway  Up 6 hours (healthy)
 DB         : samhan-postgres  Up 6 hours (healthy)  PostgreSQL 16-alpine
-인증       : DEV-SEED 계정 (V5 Flyway BCrypt "dev_p05_pass!") / JWT Bearer
+인증       : DEV-SEED 계정 (자격 참조: infrastructure/.env.local:QA_DEV_DEFAULT_PASSWORD) / JWT Bearer
 
 --- 검증 계정 (로그인 5개 모두 HTTP 200 OK) ---
 dev_master     그룹=마스터   is_system_master=true   userId=a0000000-0000-0000-0000-000000000001

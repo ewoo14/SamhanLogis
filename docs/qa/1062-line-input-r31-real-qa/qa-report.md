@@ -12,7 +12,7 @@
   - `POST 200 http://localhost:8080/auth/login`
   - `GET 200 http://localhost:8080/api/products?q=AJ040RXH4BC1&size=20&usageScope=PARTNER_ORDER`
   - `GET 200 http://localhost:8080/api/products?q=AJ&size=20&usageScope=PARTNER_ORDER`
-- 사용 계정: `dev_manager / dev_p05_pass!` (권한 부족으로 `dev_master`로 올리지 않음)
+- 사용 계정: `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}` (권한 부족으로 `dev_master`로 올리지 않음)
 
 ### Docker created / started
 

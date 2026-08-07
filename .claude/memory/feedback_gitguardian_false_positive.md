@@ -9,7 +9,7 @@ originSessionId: 8176df80-8c4b-4d57-8bfc-6fd47fd94b6b
 **Why**: 사용자 명시 (2026-05-11) — "깃가디언도 PM이 false positive 자동처리". 20+ 슬라이스 일괄 진행 효율화 결정 (feedback_user_merge_authority.md 와 동일 맥락). 매 PR 마다 사용자 dashboard 작업은 노이즈.
 
 **자동 false positive 판정 기준** (PM 점검):
-1. dev-only test placeholder (samhan_dev_pw / samhan!2026 / dev-internal-token-change-me 등 main 에 이미 존재)
+1. dev-only test placeholder (공통 시드 비밀번호 계열 / dev-internal-token-change-me 등 main 에 이미 존재; 실제 값은 `infrastructure/.env.local`에서 읽고 저장소에는 두지 않음)
 2. mock 인증번호 / 토큰 (예: '123456', 'mock-token-12345')
 3. application.yml 환경변수 default placeholder (CHANGE_ME / dev-* 등)
 4. 매뉴얼 / 디자인 가이드 안의 비밀번호 정책 안내 텍스트 (영문+숫자+특수문자 등)

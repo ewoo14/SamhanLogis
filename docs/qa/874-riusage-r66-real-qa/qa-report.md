@@ -19,7 +19,7 @@ docker inspect -f '{{.Created}} {{.State.StartedAt}}' samhan-slip-service
 
 - 렌더러: `localhost:5299`, `--host localhost --port 5299 --strictPort`
 - API: `VITE_API_BASE_URL=http://localhost:8080`, mock OFF
-- 계정: `dev_manager / dev_p05_pass!`
+- 계정: `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`
 - 거래처: `4348703365 주식회사 엠엠시스템에어(고영현)` — `homeMultiDc=48%`, `commercialMultiDc=49%`
 - 대조 거래처: `000011111111 한울냉열시스템` — DC 조회 결과 0건
 - 출고창고: `2 / 상일창고 S18`

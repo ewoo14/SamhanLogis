@@ -4,7 +4,7 @@
 
 ## 환경
 - auth-service:8181(auth_db, V53 적용) · arologis-service:8197(arologis_db, **V16 적용**) · 렌더러 정적서빙 :5190(VITE_AROLOGIS_API_BASE→8197) + arologisAuth IPC 브리지 스텁.
-- 로그인 = `admin/admin1234`(V9 master, JWT role=AROLOGIS_MASTER).
+- 로그인 = `admin/${QA_AROLOGIS_ADMIN_PASSWORD}`(V9 master, JWT role=AROLOGIS_MASTER).
 
 ## 🚨 실 QA 가 적발한 결함 (정적 dual review 미검출)
 - **auth_admin_user role CHECK 제약 회귀**: AROLOGIS_ACCOUNTANT 직원 생성 시 `auth_admin_user_role_check` 위반 **HTTP 500**. enum 확장만으로 부족 — V7/V14 의 CHECK 제약이 구 2롤만 허용. → **arologis V16** 으로 3개 제약(auth_admin_user.role + role_change_history new_role/previous_role) 6롤 재정의 + 가드 IT 추가. **실 Postgres INSERT 가 정적 분석보다 강함 실증.**

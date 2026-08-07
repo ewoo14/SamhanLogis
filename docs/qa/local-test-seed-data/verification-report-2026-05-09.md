@@ -121,7 +121,7 @@ docker exec -it samhan-postgres psql -U samhan -d slip_db        -c "SELECT coun
 ```sh
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimmiseon","password":"samhan!2026"}'
+  -d '{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}'
 ```
 
 ### 3-2. 로그인 response (실측)

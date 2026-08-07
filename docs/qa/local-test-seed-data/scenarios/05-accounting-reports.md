@@ -31,7 +31,7 @@
 ```sh
 ACC_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"leeseongmi","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"leeseongmi","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 ACC_USER_ID=$(curl -sS http://localhost:8080/api/auth/me -H "Authorization: Bearer $ACC_TOKEN" | jq -r '.data.userId')
 ```
 
@@ -347,7 +347,7 @@ docker exec -it samhan-postgres psql -U samhan -d accounting_db \
 ```sh
 MGR_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"janyeonggu","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"janyeonggu","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 
 curl -i -X POST http://localhost:8080/api/accounting/journals \
   -H "Authorization: Bearer $MGR_TOKEN" \

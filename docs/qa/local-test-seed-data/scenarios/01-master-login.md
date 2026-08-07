@@ -13,7 +13,7 @@
 |---|---|---|
 | API Gateway base URL | `http://localhost:8080/api` | 모든 backend route prefix |
 | CEO 계정 loginId | `kimmiseon` | OrgChartSeeder.java:51 (대표 김미선) |
-| CEO 기본 password | `samhan!2026` | DEFAULT_PASSWORD (OrgChartSeeder.java:27) |
+| CEO 기본 password | `${QA_MASTER_PASSWORD}` | DEFAULT_PASSWORD (OrgChartSeeder.java:27) |
 | CEO Role | `MASTER` | 모든 endpoint 접근 가능 |
 | CEO 부서 | `EXEC` (대표실) | DEPT_EXEC UUID `00000000-0000-0000-0000-000000000001` |
 
@@ -78,7 +78,7 @@ curl -s http://localhost:8761/eureka/apps -H "Accept: application/json" | jq '.a
 ```sh
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimmiseon","password":"samhan!2026"}'
+  -d '{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}'
 ```
 
 **기대 status**: `200 OK`
@@ -271,12 +271,12 @@ CEO 외 영업 1명 + 회계 1명 sample 로그인.
 # 영업1팀 이사 오병승
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"obyeongseung","password":"samhan!2026"}'
+  -d '{"loginId":"obyeongseung","password":"${QA_MASTER_PASSWORD}"}'
 
 # 회계팀 이성미
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"leeseongmi","password":"samhan!2026"}'
+  -d '{"loginId":"leeseongmi","password":"${QA_MASTER_PASSWORD}"}'
 ```
 
 **기대값**: 양쪽 모두 200 OK + role 일치 (`SALES` / `ACCOUNTANT`).
@@ -331,7 +331,7 @@ Accept: */*
 Content-Type: application/json
 Content-Length: 53
 
-{"loginId":"kimmiseon","password":"samhan!2026"}
+{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}
 ```
 
 **Response (HTTP/1.1 200 OK)**:
@@ -412,7 +412,7 @@ Vary: Access-Control-Request-Headers
 docker stop samhan-postgres
 curl -i http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimmiseon","password":"samhan!2026"}'
+  -d '{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}'
 ```
 
 **기대 status**: `500` 또는 `503`
@@ -446,7 +446,7 @@ for i in 1 2 3 4 5; do
   curl -w "%{time_total}\n" -o /dev/null -s \
     -X POST http://localhost:8080/api/auth/login \
     -H "Content-Type: application/json" \
-    -d '{"loginId":"kimmiseon","password":"samhan!2026"}'
+    -d '{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}'
 done | awk '{sum+=$1; cnt++} END {print "avg:", sum/cnt, "sec"}'
 ```
 
@@ -692,9 +692,9 @@ docker exec -it samhan-postgres psql -U samhan -d auth_db \
   -c "SELECT count(DISTINCT password_hash) FROM accounts WHERE NOT is_deleted;"
 ```
 
-**기대값**: `16` (BCrypt salt 가 매번 다르므로 같은 'samhan!2026' 도 16건 모두 다른 hash).
+**기대값**: `16` (BCrypt salt 가 매번 다르므로 같은 '${QA_MASTER_PASSWORD}' 도 16건 모두 다른 hash).
 
-> hash 는 다르지만 모두 'samhan!2026' 으로 검증 통과 — STEP 8 로 sample 검증.
+> hash 는 다르지만 모두 '${QA_MASTER_PASSWORD}' 으로 검증 통과 — STEP 8 로 sample 검증.
 
 ---
 
@@ -720,7 +720,7 @@ docker exec -it samhan-postgres psql -U samhan -d auth_db \
 ```sh
 SALES_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimgicheol","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"kimgicheol","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 
 curl -i -X POST http://localhost:8080/api/users/employees \
   -H "Authorization: Bearer $SALES_TOKEN" \
@@ -766,7 +766,7 @@ curl -i http://localhost:8080/api/users/employees -H "Authorization: Bearer $JWT
 
 ```powershell
 # 잘못된 패턴 — UTF-16 LE BOM 발생
-$body = @{loginId="kimmiseon"; password="samhan!2026"} | ConvertTo-Json
+$body = @{loginId="kimmiseon"; password="${QA_MASTER_PASSWORD}"} | ConvertTo-Json
 $body | Set-Content -Path "body.json"   # ! WRONG — UTF-16 LE BOM 기본값
 
 # 올바른 패턴
@@ -787,7 +787,7 @@ $body | Out-File -FilePath "body.json" -Encoding utf8 -NoNewline
 | 항목 | dev (현 상태) | production 요구사항 | gap 해결 슬라이스 |
 |---|---|---|---|
 | BCrypt cost | 10 | 12+ | (Phase 11 cutover 시) |
-| 16명 default password | `samhan!2026` | 첫 로그인 시 강제 변경 | (groupware-service onboarding) |
+| 16명 default password | `${QA_MASTER_PASSWORD}` | 첫 로그인 시 강제 변경 | (groupware-service onboarding) |
 | JWT 만료 | 1시간 | 30분 + refresh 1주 | (auth-service hardening) |
 | HTTPS | HTTP only | HTTPS + HSTS 1년 | (nginx + Let's Encrypt) |
 | CORS | dev 허용 | 도메인 whitelist | (api-gateway config) |

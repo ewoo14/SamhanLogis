@@ -4,7 +4,7 @@
 대상 HEAD: `d61093969` (main 병합 완료본)  
 렌더러: `http://localhost:5205`  
 API: `VITE_API_BASE_URL=http://localhost:8080`, mock OFF  
-계정: `dev_manager / dev_p05_pass!`, `dev_master / dev_p05_pass!`, 권한 검증 `dev_accountant`
+계정: `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`, `dev_master / ${QA_DEV_DEFAULT_PASSWORD}`, 권한 검증 `dev_accountant`
 
 ## 배포 증적
 

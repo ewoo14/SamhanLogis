@@ -56,6 +56,18 @@ notepad .env
 - `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` — 로컬 MinIO 자격 증명
 - (기타 외부 API 키는 dev 단계에서 mock 토글로 미설정 가능)
 
+#### 라이브 QA 자격 파일 (S1 / 이슈 #1101)
+
+라이브 QA용 개발 계정 자격은 저장소 밖의 `infrastructure/.env.local`에서 읽는다. 이 파일은 `.gitignore` 대상이며, 양 PC에서 최초 1회 직접 만든다.
+
+```powershell
+Copy-Item infrastructure/env-templates/qa-credentials.env infrastructure/.env.local
+# infrastructure/.env.local 에 실제 QA 값 입력
+notepad infrastructure/.env.local
+```
+
+문서와 브리핑에 값이 필요할 때는 `infrastructure/.env.local`의 해당 `QA_*_PASSWORD` 키를 직접 읽는다. `infrastructure/env-templates/qa-credentials.env`에는 키 이름만 커밋한다.
+
 accounting-service 전용 (`infrastructure/env-templates/accounting-service.env` 복사 후):
 - `ETAX_SUBMIT_METHOD` — `DRY_RUN` (기본값 유지, Phase 11 sandbox 전환 시 `NTS` 로 변경)
 - `NTS_API_KEY` — **빈 값 유지** (Phase 11 sandbox 키 발급 후 실값 설정. placeholder 사용 금지 — `ETaxClientImpl` 이 NTS 모드에서 blank/placeholder 값을 명시 거부함)

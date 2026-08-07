@@ -9,7 +9,7 @@ PR #420 QA Docker 에서 products.list VIEW=FALSE 역할(기사/사원)의 dev �
 - auth-service 최신 = V47. V5 dev 계정 9종 — DRIVER/STAFF/DISPATCH 부재.
 - DRIVER(빌트인 107)/STAFF(108): V32 에서 products.list can_view=FALSE → V43 group_page_permissions 전파 — **403 실증 적합 확정**.
 - V46 에서 accounts.role DROP → 신규 INSERT 는 role 컬럼 없이 (V5 패턴과 차이).
-- ~~V5 bcrypt 해시 일관(결함 미존재)~~ → **정정 (CI 적발)**: V5 해시는 평문 "dev_p05_pass!" 와 실제 불일치 (#411 QA `bcrypt.checkpw=False` 실증) — V48 은 #411 검증 해시(`$2b$12$g9/...`) 사용. password_change_required 는 V5=TRUE 정책이나 V48 dev 계정은 FALSE.
+- ~~V5 bcrypt 해시 일관(결함 미존재)~~ → **정정 (CI 적발)**: V5 해시는 평문 "${QA_DEV_DEFAULT_PASSWORD}" 와 실제 불일치 (#411 QA `bcrypt.checkpw=False` 실증) — V48 은 #411 검증 해시(`$2b$12$g9/...`) 사용. password_change_required 는 V5=TRUE 정책이나 V48 dev 계정은 FALSE.
 - 계정-그룹 배속 = account_groups (V44 패턴) + account_page_permissions materialize (V47 패턴).
 
 ## 3. 작업 범위

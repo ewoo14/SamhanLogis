@@ -369,7 +369,7 @@ EstimateLine.createFromAuthoritativeAmounts(...)   // 견적 대응
 
 ## 8. 라이브QA 시나리오 (실서버 실제 실행 — 🚫 정적검사 대체 금지)
 
-전제: 실 Docker 스택 `up -d --build slip-service` + 게이트웨이 `:8080` + 데스크톱 실 GUI + `dev_master` / `dev_p05_pass!` + **mock OFF**. 매 라운드 **스크린샷 다수**(SendUserFile + PR SHA-pinned 인라인 둘 다).
+전제: 실 Docker 스택 `up -d --build slip-service` + 게이트웨이 `:8080` + 데스크톱 실 GUI + `dev_master` / `${QA_DEV_DEFAULT_PASSWORD}` + **mock OFF**. 매 라운드 **스크린샷 다수**(SendUserFile + PR SHA-pinned 인라인 둘 다).
 🚨 공유 라이브 DB 쓰기 — **전용 throwaway 거래처/품목**만 사용([[feedback_qa_live_shared_data_readonly]]).
 
 | 단계 | 조작 | 캡처/단언 |

@@ -15,7 +15,7 @@
 4. S5 링크 조건은 `isError`를 곧바로 권한 없음과 같은 `false`로 취급하므로 `수신 배차 그룹` 링크가 0개가 된다.
 5. 사용자가 `/dispatches/received-groups`로 진입하더라도 같은 query를 쓰는 `PermissionGuard`가 `/`로 보낸다. `/`는 다시 `/dispatches`로 이동하므로 사용자는 수동 배차로 돌아온다.
 6. 화면에는 권한 조회 실패, 재시도, 재인증 필요 안내가 없다. 같은 세션 안의 메뉴 이동이나 창 포커스로는 다시 조회하지 않는다.
-7. 실제 R4에서는 로그아웃 후 같은 `admin / admin1234`로 재로그인해야 permissions 200이 되었고 링크 1개가 나타났다.
+7. 실제 R4에서는 로그아웃 후 같은 `admin / ${QA_AROLOGIS_ADMIN_PASSWORD}`로 재로그인해야 permissions 200이 되었고 링크 1개가 나타났다.
 
 즉, **영구 차단은 아니다.** 실제 복구 경로는 로그아웃→재로그인이고, 네트워크 단절 뒤 재연결도 query 기본 동작상 재조회 계기가 될 수 있다. 그러나 R4에서 실측된 HTTP 403처럼 네트워크 재연결이 없는 실패는 `retry: 1` 종료 뒤 현재 화면에서 복구되지 않는다. 403은 axios의 401 토큰 갱신 경로에도 들어가지 않는다. 허가된 사용자가 원인을 알 수 없는 채 신규 진입점에서 차단되고 재로그인을 스스로 추론해야 하므로 실 사용자 도달 결함이다.
 
@@ -24,7 +24,7 @@
 R4 원문:
 
 ```text
-참고로 최초 Electron의 기존 저장 세션에서는 `GET /admin/arologis/permissions/my`가 403이어서 메뉴가 숨겨졌다. GUI에서 로그아웃 후 `admin / admin1234`로 재로그인하자 로그인 200 및 permissions 200이 되었고 `수신 배차 그룹` 메뉴가 표시됐다.
+참고로 최초 Electron의 기존 저장 세션에서는 `GET /admin/arologis/permissions/my`가 403이어서 메뉴가 숨겨졌다. GUI에서 로그아웃 후 `admin / ${QA_AROLOGIS_ADMIN_PASSWORD}`로 재로그인하자 로그인 200 및 permissions 200이 되었고 `수신 배차 그룹` 메뉴가 표시됐다.
 ```
 
 실 화면 대조:

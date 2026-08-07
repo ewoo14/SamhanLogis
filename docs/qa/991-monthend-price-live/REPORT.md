@@ -9,7 +9,7 @@
 ## ① 진입 방법
 
 - 렌더러: `vite.renderer.dev.config.ts`, mock OFF, `VITE_APP_VERSION=2026/07/29-1`, `127.0.0.1:5203`
-- 정상 로그인: 저장소 QA 선례에 문서화된 `dev_master` / `dev_p05_pass!`로 UI에서 1회 시도했으나 로그인 화면에 남아 실패했습니다. 같은 계정에 추가 실패를 만들지 않기 위해 재시도하지 않았습니다.
+- 정상 로그인: 저장소 QA 선례에 문서화된 `dev_master` / `${QA_DEV_DEFAULT_PASSWORD}`로 UI에서 1회 시도했으나 로그인 화면에 남아 실패했습니다. 같은 계정에 추가 실패를 만들지 않기 위해 재시도하지 않았습니다.
 - 실제 진입 방식: **`bridge-injection`** — `POST /auth/login` 200으로 발급된 동일 실계정 토큰을 `page.addInitScript` 인증 브리지로 주입했습니다.
 - 주입 내용: `window.samhanAuth.getToken()`이 토큰과 `role=MASTER`, `displayName=[DEV-SEED] 개발마스터`를 반환하도록 했고, `setToken/clearToken`은 no-op으로 두었습니다.
 - 위 브리지는 QA 하네스이며 제품의 로그인 동작 검증 결과가 아닙니다.

@@ -38,7 +38,7 @@
 ## QA (Docker 실서버)
 
 - [docs/qa/product-usage-toggle-pr-b/RESULTS.md](../qa/product-usage-toggle-pr-b/RESULTS.md) — 1차(fd8c9917): T1/T2/T4/T6/T7 PASS, T3 SKIP(컨테이너 SA key 미마운트 — 보존 가드는 IT 커버), T5 PARTIAL. 보충(cb099ab3): T4R catalog 실경로 IN-확장 / T8 q 검색 / T5R 견적 카탈로그 / T9R 페이징 결정성.
-- GitGuardian "2 secrets" = 실QA 스펙 dev_p05_pass! 2회 — **PM FP 판정** (V5 dev seed, ignored-matches 기등재).
+- GitGuardian "2 secrets" = 실QA 스펙 ${QA_DEV_DEFAULT_PASSWORD} 2회 — **PM FP 판정** (V5 dev seed, ignored-matches 기등재).
 
 ## 회고 메모
 

@@ -977,7 +977,7 @@ set +a
 5. **마스터 로그인 검증** (CEO 김미선 — JWT 발급)
 
    ```powershell
-   $body = '{"loginId":"kimmiseon","password":"samhan!2026"}'
+   $body = '{"loginId":"kimmiseon","password":"' + $env:QA_MASTER_PASSWORD + '"}' # 자격은 infrastructure/.env.local:QA_MASTER_PASSWORD
    Invoke-RestMethod -Uri http://localhost:8080/api/auth/login -Method POST `
                      -ContentType 'application/json' -Body $body
    ```

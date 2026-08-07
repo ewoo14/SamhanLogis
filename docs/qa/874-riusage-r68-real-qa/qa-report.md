@@ -18,7 +18,7 @@ Gradle `:services:slip-service:bootJar` 성공, slip-service 이미지 빌드 �
 ## 실행 조건
 
 - HEAD: `d242f3769`
-- 계정: `dev_manager / dev_p05_pass!`
+- 계정: `dev_manager / ${QA_DEV_DEFAULT_PASSWORD}`
 - mock: OFF
 - renderer: `http://localhost:5299`, `VITE_API_BASE_URL=http://localhost:8080`
 - 거래처: `4348703365 주식회사 엠엠시스템에어(고영현)`

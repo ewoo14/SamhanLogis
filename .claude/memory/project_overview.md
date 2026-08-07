@@ -37,7 +37,7 @@ originSessionId: 78cac99d-5dee-47ca-8254-3834a088f393
 - `:services:user-service` (port 8083, user_db) — Department(5) + Employee(16) 도메인, REST API 9종, Flyway V1+V2, OrgChartSeeder, AuthClient (RestClient + Spring Cloud LoadBalancer)
 - Auth Service 확장 — `/auth/internal/accounts` 4종 endpoint (POST/PATCH role/PATCH display-name/PATCH disable/DELETE), `Account.createWithId(...)`, `InternalTokenFilter` (X-Internal-Token shared secret)
 - Boundary 5결정: Employee.id == Account.id (synthesized UUID), Auth가 role/credentials 권위, User가 fullName/HR 권위, 동기 REST + 보상 트랜잭션, batch lookup endpoint 단독 노출
-- Q1=A (시드 비밀번호 `samhan!2026` 하드코딩, 로컬 dev 한정), Q2=B (displayName 동기화 endpoint 추가) — 개발책임자 결재 사항
+- Q1=A (시드 비밀번호는 `infrastructure/.env.local`에서 읽는 로컬 dev 전용 자격), Q2=B (displayName 동기화 endpoint 추가) — 개발책임자 결재 사항
 - Testcontainers IT 도입 (postgres:16-alpine), Docker 미가동 시 skip
 - 의도적 plan 변경: `position` 컬럼 → `job_title` (PG reserved word 회피, Java 필드명 보존)
 

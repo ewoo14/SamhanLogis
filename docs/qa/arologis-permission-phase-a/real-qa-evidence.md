@@ -6,7 +6,7 @@
 - Postgres 16 (auth_db + arologis_db, 본 세션에서 main HEAD 마이그레이션까지 전진 적용 — auth V52, arologis V15).
 - **auth-service:8181** (현 main HEAD 빌드, V52 arologis.admin.permissions 시드 포함) · **arologis-service:8197** (V15 HR/회계 포함, `SAMHAN_AUTH_SERVICE_URL=:8181`, X-Internal-Token 공유).
 - 렌더러 정적서빙 :5190 (`VITE_AROLOGIS_API_BASE=:8197` 빌드 베이크) + `window.arologisAuth` IPC 브리지 스텁(Playwright addInitScript).
-- 로그인 = `admin/admin1234` (V9 master seed, JWT role=AROLOGIS_MASTER).
+- 로그인 = `admin/${QA_AROLOGIS_ADMIN_PASSWORD}` (V9 master seed, JWT role=AROLOGIS_MASTER).
 
 ## ✅ 실 HTTP end-to-end (arologis → auth round-trip)
 - **로그인** `POST :8197/auth/admin/login` → accessToken(role=AROLOGIS_MASTER) 발급.

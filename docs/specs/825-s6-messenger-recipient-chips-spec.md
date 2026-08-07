@@ -318,7 +318,7 @@ services/groupware-service/src/main/resources/db/migration/V14__add_messages_bat
 
 ## 8. 라이브QA 시나리오 (실서버 실제 실행 · 정적검사 대체 금지)
 
-전제: Docker 실스택 `:8080`, **mock OFF**, 데스크톱 실 GUI, 계정 `dev_master` / `dev_p05_pass!`. 매 리뷰 라운드마다 **단계별 GUI 스크린샷 다수** 캡처 → `docs/qa/825-s6-messenger-chip-real-qa/` 커밋 + **full SHA raw URL 인라인**(PR) + `SendUserFile`(사용자 채팅) **둘 다**.
+전제: Docker 실스택 `:8080`, **mock OFF**, 데스크톱 실 GUI, 계정 `dev_master` / `${QA_DEV_DEFAULT_PASSWORD}`. 매 리뷰 라운드마다 **단계별 GUI 스크린샷 다수** 캡처 → `docs/qa/825-s6-messenger-chip-real-qa/` 커밋 + **full SHA raw URL 인라인**(PR) + `SendUserFile`(사용자 채팅) **둘 다**.
 
 | # | 사용자 경로 | 기대 |
 |---|---|---|

@@ -25,7 +25,7 @@ log ""
 
 # 1) 로그인
 TOKEN=$(curl -s -X POST "$GW/api/v1/auth/login" -H "Content-Type: application/json" \
-  -d '{"loginId":"dev_master","password":"dev_p05_pass!"}' | grep -oP '"token":"\K[^"]+')
+  -d '{"loginId":"dev_master","password":"'"${QA_DEV_DEFAULT_PASSWORD}"'"}' | grep -oP '"token":"\K[^"]+')
 if [ -z "${TOKEN:-}" ]; then log "로그인 실패 — 토큰 없음"; exit 1; fi
 AUTH="Authorization: Bearer $TOKEN"
 log "## 1) 로그인 OK (dev_master=MASTER, JWT 발급)"

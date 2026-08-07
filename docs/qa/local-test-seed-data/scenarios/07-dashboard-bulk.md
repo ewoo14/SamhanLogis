@@ -27,7 +27,7 @@
 ```sh
 MASTER_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimmiseon","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"kimmiseon","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 
 docker exec -it samhan-postgres psql -U samhan -d dashboard_db \
   -c "SELECT category, count(*) FROM kpi_snapshots WHERE NOT is_deleted GROUP BY category ORDER BY category;"
@@ -283,7 +283,7 @@ docker exec -it samhan-redis redis-cli KEYS "dashboard:kpi:*"
 ```sh
 SALES_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"kimgicheol","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"kimgicheol","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 
 curl -i "http://localhost:8080/api/admin/dashboard/kpi?from=2026-04-10&to=2026-05-09" \
   -H "Authorization: Bearer $SALES_TOKEN" -H "X-User-Role: SALES"
@@ -296,7 +296,7 @@ curl -i "http://localhost:8080/api/admin/dashboard/kpi?from=2026-04-10&to=2026-0
 ```sh
 ACC_TOKEN=$(curl -sS -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"loginId":"leeseongmi","password":"samhan!2026"}' | jq -r '.data.accessToken')
+  -d '{"loginId":"leeseongmi","password":"${QA_MASTER_PASSWORD}"}' | jq -r '.data.accessToken')
 
 curl -i -X POST http://localhost:8080/api/admin/dashboard/refresh \
   -H "Authorization: Bearer $ACC_TOKEN" -H "X-User-Role: ACCOUNTANT"

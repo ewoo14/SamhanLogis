@@ -134,7 +134,7 @@ Notion CSV 중 단톡방리스트/발송금지리스트는 **사업자명 텍스
 
 | 증상 | 원인 | 해결 |
 | ---- | ---- | ---- |
-| HTTP 401 | JWT 발급 실패 | kimmiseon 비밀번호 `samhan!2026` 확인, auth-service UP 확인 |
+| HTTP 401 | JWT 발급 실패 | kimmiseon 비밀번호 `${QA_MASTER_PASSWORD}` 확인, auth-service UP 확인 |
 | HTTP 403 | 토큰 role MASTER/MANAGER 아님 | `kimmiseon` 가 MASTER 인지 OrgChartSeeder 확인 |
 | HTTP 400 (CSV 파싱) | UTF-8 BOM 누락 / 구분자 차이 | Notion export 원본 그대로 사용 (수동 가공 금지) |
 | HTTP 400 (필드 누락) | CSV 헤더 변경 | service ImportService 의 expected header 와 비교 |
@@ -158,7 +158,7 @@ Notion CSV 중 단톡방리스트/발송금지리스트는 **사업자명 텍스
 
 - 본 항목 = **production 부팅 직후 1 회 DB 이관** 의무 (실 데이터 cutover)
 - production EC2 에서도 동일 endpoint 호출 가능 — `start-local-full.ps1` 대신 systemd unit 부팅 후 `import-notion-csv.ps1` 의 PowerShell 명령을 bash + curl 로 변환 (Phase 11 cutover 슬라이스 별도)
-- 주의 — production 에서는 `kimmiseon` 비밀번호 cutover 직후 변경 후 import 작업 진행 (기본 비밀번호 `samhan!2026` 노출 위험)
+- 주의 — production 에서는 `kimmiseon` 비밀번호 cutover 직후 변경 후 import 작업 진행 (기본 비밀번호 `${QA_MASTER_PASSWORD}` 노출 위험)
 
 ---
 

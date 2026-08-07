@@ -929,12 +929,12 @@ git commit -m "refactor(arologis-extract): UserClient 제거 + shared:user-clien
 ```sql
 -- V9__seed_arologis_master.sql
 -- Dev seed only — prod 환경에서는 후속 migration 으로 password reset 의무.
--- password = 'admin1234' BCrypt strength 10
+-- password = '${QA_AROLOGIS_ADMIN_PASSWORD}' BCrypt strength 10
 INSERT INTO auth_admin_user (id, login_id, password_hash, name, role, created_at, created_by, updated_at, updated_by, is_deleted)
 VALUES (
     gen_random_uuid(),
     'admin',
-    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',  -- 'admin1234'
+    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',  -- '${QA_AROLOGIS_ADMIN_PASSWORD}'
     '아로로지스 관리자',
     'AROLOGIS_MASTER',
     now(),
@@ -949,7 +949,7 @@ ON CONFLICT DO NOTHING;
 - [ ] **B11.2 — commit**
 
 ```bash
-git commit -m "feat(arologis-extract): V9 dev seed — 초기 MASTER 계정 (admin/admin1234)"
+git commit -m "feat(arologis-extract): V9 dev seed — 초기 MASTER 계정 (admin/${QA_AROLOGIS_ADMIN_PASSWORD})"
 ```
 
 ---

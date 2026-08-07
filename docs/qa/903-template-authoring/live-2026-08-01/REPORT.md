@@ -41,7 +41,7 @@ docker inspect -f '{{.Created}}' infrastructure-groupware-service
 - `docker exec samhan-postgres psql -U samhan -d groupware_db -c "SELECT ..."`
   - 시작 baseline: `document_templates=330`, `document_template_revisions=369`
   - mode 누락: templates `330`, revisions `369`
-- 실제 인증: `POST http://localhost:8080/auth/login` with `dev_master / dev_p05_pass!` → `200`, role `MASTER`
+- 실제 인증: `POST http://localhost:8080/auth/login` with `dev_master / ${QA_DEV_DEFAULT_PASSWORD}` → `200`, role `MASTER`
 - 기존 양식 목록: `GET /admin/groupware/document-templates` → `200`, live 목록 반환
 - 기존 양식 열기: `GET /admin/groupware/document-templates/31b97122-3a59-467c-901f-4bc375aaa811` 및 실제 renderer 편집기 → 정상 로드. 화면에 HEADER/BODY/FOOTER, TITLE/APPROVAL_GRID/CONTENT_PARAGRAPHS/CLOSING, 라이브 미리보기 표시.
 - 기존 저장 JSON: DB `md5(document::text)=fa14f86f51363123148940512234afd9`, revision `1`; 화면 조회 후 동일 hash. API 응답의 `document.mode`는 누락(런타임 WORD 해석).

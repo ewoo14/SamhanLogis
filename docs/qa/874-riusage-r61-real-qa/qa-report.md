@@ -18,7 +18,7 @@
 - 기준 HEAD: `80f7e9dc7`
 - 브라우저: 내장 브라우저 미사용. `clients/desktop`에서 `import { chromium } from '@playwright/test'` Node 드라이버 사용
 - 렌더러: `VITE_API_BASE_URL=http://localhost:8080`, `VITE_MOCK_MODE=false`, `--host localhost --port 5217 --strictPort`
-- 계정: `dev_master / dev_p05_pass!`
+- 계정: `dev_master / ${QA_DEV_DEFAULT_PASSWORD}`
 - 직접 DB SQL 쓰기: 없음
 - 일마감 실행: 하지 않음. `POST /accounting/daily-closings`는 DB 쓰기이므로 가드레일상 금지
 - UI 저장: 거래처 DC 설정 화면의 PATCH 1건만 수행

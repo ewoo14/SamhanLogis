@@ -574,7 +574,7 @@ ssh staging-ec2 'bash -s' < docs/qa/arologis-extract/rollback-dry-run.md
 - 기존 IT 48 + 단위 98 = 146 PASS (revert 전 baseline 복귀)
 
 ### 후속 조치
-- arologis 운영자 (admin/admin1234 시드) 재가입 안내
+- arologis 운영자 (admin/${QA_AROLOGIS_ADMIN_PASSWORD} 시드) 재가입 안내
 - dispatch/vehicle/stop/driver 데이터 보존 확인
 - Phase 10 재계획 (분리 시점 재결정)
 ```

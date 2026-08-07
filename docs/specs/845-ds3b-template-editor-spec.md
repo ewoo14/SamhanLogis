@@ -247,7 +247,7 @@ DocElementV2 =
 
 ## 8. 라이브QA 시나리오 (실서버 실제 실행 — 정적검사 대체 금지)
 
-전제: Docker 로컬 스택 `up -d --build`(jar 만 빌드하면 이미지 stale — [[project_local_stack_qa_gotchas]]), 데스크톱 `:8080`, mock OFF, 계정 `dev_master`/`dev_p05_pass!`. **매 리뷰 라운드마다 GUI 스크린샷 다수**([[feedback_live_qa_every_round_screenshots]]) + SendUserFile + PR SHA-pinned 인라인.
+전제: Docker 로컬 스택 `up -d --build`(jar 만 빌드하면 이미지 stale — [[project_local_stack_qa_gotchas]]), 데스크톱 `:8080`, mock OFF, 계정 `dev_master`/`${QA_DEV_DEFAULT_PASSWORD}`. **매 리뷰 라운드마다 GUI 스크린샷 다수**([[feedback_live_qa_every_round_screenshots]]) + SendUserFile + PR SHA-pinned 인라인.
 
 | # | 사용자 경로 | 기대 |
 |---|---|---|

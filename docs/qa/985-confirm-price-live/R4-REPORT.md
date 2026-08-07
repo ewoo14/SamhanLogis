@@ -56,7 +56,7 @@ body: 1068689215
 - 목록 API: `GET /api/v1/partner-approvals`
 - 상태 변경 API: `PATCH /api/v1/partner-approvals/{partnerCode}/status`
 - 실행 환경: 포트 `5205`, `vite.renderer.dev.config.ts`, `VITE_MOCK_MODE=0`, `VITE_APP_VERSION=2026/07/30-1`
-- 인증 브리지: 사용 준비만 했으며, `dev_master` / `dev_p05_pass!`를 이용한 승인 조작은 **수행하지 않음**
+- 인증 브리지: 사용 준비만 했으며, `dev_master` / `${QA_DEV_DEFAULT_PASSWORD}`를 이용한 승인 조작은 **수행하지 않음**
 
 승인요청이 서버에서 생성되지 않은 상태에서 관리자 화면 상태를 임의로 바꾸는 것은 실 온보딩 경로 우회이므로 진행하지 않았다. 관리자 승인 방식은 따라서 **미수행(API 직접 호출도 하지 않음)**이다.
 

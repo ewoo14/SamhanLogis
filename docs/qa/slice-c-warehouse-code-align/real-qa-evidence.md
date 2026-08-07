@@ -112,7 +112,7 @@ WHERE po.order_no = '2026/04/15-1';
 
 ```
 POST http://localhost:8080/api/v1/auth/login
-{ "loginId": "dev_master", "password": "dev_p05_pass!" }
+{ "loginId": "dev_master", "password": "${QA_DEV_DEFAULT_PASSWORD}" }
 
 → HTTP 200, role: MASTER
   token: eyJhbGciOiJIUzI1NiJ9...
