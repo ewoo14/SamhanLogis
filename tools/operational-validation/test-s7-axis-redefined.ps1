@@ -99,8 +99,12 @@ try {
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $guard -Root $mutationRoot *> $null
+    $mutationExitCode = $LASTEXITCODE
     $ErrorActionPreference = $previousErrorActionPreference
-    Assert-True ($LASTEXITCODE -ne 0) 'port literal guard did not fail on mutation'
+    Assert-True ($mutationExitCode -ne 0) 'port literal guard did not fail on mutation'
+    # The child guard must be red for RED-A③, but that expected red must not
+    # become this regression script's process exit code after the assertion.
+    $global:LASTEXITCODE = 0
 } finally {
     Remove-Item -LiteralPath $mutationRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
