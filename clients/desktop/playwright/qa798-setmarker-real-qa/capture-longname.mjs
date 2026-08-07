@@ -6,7 +6,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 // 캡처 후 원본 이름으로 즉시 revert 예정(별도 _tmp-revert-set.sql).
 import { chromium } from '@playwright/test';
 
-const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-part3-marker');
+const OUT = resolveQaShotsDir(process.env.QA_OUT || '../../docs/qa/e782-part3-marker');
 const URL = process.env.QA_URL || 'http://localhost:5198/';
 const SET_MODEL = 'QA797-SET-01';
 const LONG_NAME = '삼성 상업용 냉난방 인버터 스탠드형 20마력 멀티 실외기 초고효율 세트 모델';

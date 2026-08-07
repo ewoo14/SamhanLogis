@@ -1,6 +1,6 @@
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 import { chromium } from '@playwright/test';
-const OUT = resolveQaShotsDir('C:/dev/Samhan-Public/docs/qa/e782-part3-marker');
+const OUT = resolveQaShotsDir('../../docs/qa/e782-part3-marker');
 const URL = 'http://localhost:5198/';
 const SET_MODEL = 'QA797-SET-01';
 async function login(page) {

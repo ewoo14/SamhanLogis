@@ -64,7 +64,7 @@ const G3_ROOTS: GuardRootSpec[] = [
 ]
 
 function walkG3Sources(): string[] {
-  return discoveredEvidenceWriters()
+  return discoveredEvidenceWriters().filter((file) => JS_CAPTURE_EXT.test(file))
   /* legacy registry walker retained below only as dead code during this transition. */
   const out: string[] = []
   for (const spec of G3_ROOTS) {
@@ -148,7 +148,10 @@ function walkForEvidenceDiscovery(dir: string, out: string[] = []): string[] {
   return out
 }
 
+let discoveredEvidenceWritersCache: string[] | undefined
+
 function discoveredEvidenceWriters(): string[] {
+  if (discoveredEvidenceWritersCache) return discoveredEvidenceWritersCache
   const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
   const evidenceSplit = /['"]docs['"]\s*,\s*['"](?:qa|manual)['"]/
   const found: string[] = []
@@ -178,7 +181,8 @@ function discoveredEvidenceWriters(): string[] {
     })
     if (writesEvidence || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)) found.push(file)
   }
-  return [...new Set(found)]
+  discoveredEvidenceWritersCache = [...new Set(found)]
+  return discoveredEvidenceWritersCache
 }
 
 function rel(p: string): string {
@@ -1056,6 +1060,12 @@ describe('하네스 거짓 green 가드', () => {
       violations,
       `이 체크아웃 하나에만 유효한 절대경로 하드코딩 발견 — 워크트리에서 실행하면 메인 체크아웃을 오염시킨다:\n${violations.join('\n')}`,
     ).toEqual([])
+  })
+
+  it('발견한 증거 작성자 모집단은 한 번 계산한 결과를 모든 가드가 재사용한다', () => {
+    const first = discoveredEvidenceWriters()
+    const second = discoveredEvidenceWriters()
+    expect(second).toBe(first)
   })
 
   /**
