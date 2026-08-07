@@ -239,7 +239,7 @@ export function CashReceiptListPage() {
         ),
       },
     ],
-    [],
+    [returnTo.pathname, returnTo.search],
   )
 
   // 권한 게이트는 라우트의 PermissionGuard(accounting.cash-receipts view)가 담당 —
