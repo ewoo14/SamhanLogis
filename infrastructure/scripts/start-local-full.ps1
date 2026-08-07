@@ -406,6 +406,8 @@ foreach ($svc in $services) {
 
 $startupResults = @()
 $abortRemaining = $false
+$eurekaPort = ($services | Where-Object { $_.name -eq 'eureka-server' }).port
+$gatewayPort = ($services | Where-Object { $_.name -eq 'api-gateway' }).port
 
 if (-not $SkipServices) {
     Write-Host ''
@@ -558,12 +560,12 @@ Write-Host ''
 Write-Host '[6/6] 사용 가이드' -ForegroundColor Yellow
 Write-Host ''
 Write-Host ' 마스터 로그인 (CEO 김미선):' -ForegroundColor Cyan
-Write-Host '   POST http://localhost:8080/api/auth/login'
+Write-Host "   POST http://localhost:$gatewayPort/api/auth/login"
 Write-Host '   body: {"loginId":"kimmiseon","password":"<see services/user-service/.../OrgChartSeeder.java>"}'
 Write-Host ''
 Write-Host ' 모니터링:' -ForegroundColor Cyan
-Write-Host '   Eureka       → http://localhost:8761'
-Write-Host '   API Gateway  → http://localhost:8080'
+Write-Host "   Eureka       → http://localhost:$eurekaPort"
+Write-Host "   API Gateway  → http://localhost:$gatewayPort"
 Write-Host '   Prometheus   → http://localhost:9090'
 Write-Host '   Grafana      → http://localhost:3100  (admin / samhan_dev_pw)'
 Write-Host '   RabbitMQ UI  → http://localhost:15672 (samhan / samhan_dev_pw)'
