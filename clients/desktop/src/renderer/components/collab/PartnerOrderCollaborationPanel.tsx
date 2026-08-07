@@ -23,6 +23,7 @@ import { usePresence } from '../../hooks/usePresence'
 import { PartnerOrderPresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
 import { PartnerOrderVersionHistoryPanel } from '../audit/PartnerOrderVersionHistoryPanel'
+import { AuthorityCommitDeduper } from './authorityCommitDeduper'
 
 export interface PartnerOrderCollabEditableLine {
   /** BE PartnerOrderDocumentCollaborationPort lineKey 와 동일한 1-based 활성 라인 index. */
@@ -135,7 +136,7 @@ export function PartnerOrderCollaborationPanel({
   const [activeRevisionNo, setActiveRevisionNo] = useState<number | null>(null)
   const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
   const [activeRevisionIsLatest, setActiveRevisionIsLatest] = useState(false)
-  const authorityCommitIdsRef = useRef<Set<string>>(new Set())
+  const authorityCommitIdsRef = useRef(new AuthorityCommitDeduper())
   const editDraftInitializedRef = useRef(false)
   const presenceEntries = usePresence({ entityId: orderId, client: PartnerOrderPresenceClient, enabled: !!orderId })
 
@@ -185,8 +186,7 @@ export function PartnerOrderCollaborationPanel({
     const ctrl = PartnerOrderCollabRealtimeClient.subscribe(orderId, (evt) => {
       if (evt.event === PARTNER_ORDER_AUTHORITY_EVENT) {
         const commitId = authorityCommitId(evt.data)
-        if (!commitId || authorityCommitIdsRef.current.has(commitId)) return
-        authorityCommitIdsRef.current.add(commitId)
+        if (!commitId || !authorityCommitIdsRef.current.consume(commitId)) return
 
         // 서버가 권위 데이터를 재조회하게 한다. snapshot/Y.Doc에는 쓰지 않아
         // 다른 세션의 미저장 draft와 CRDT 구조를 보존한다.

@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -304,8 +305,18 @@ public class PartnerOrderRevisionService {
                 .toList();
         order.replaceLines(newLines);
 
-        // 영속화 (낙관적 락 충돌은 호출자가 처리)
-        PartnerOrder saved = orderRepository.saveAndFlush(order);
+        // 영속화 — 동시 복원 충돌은 업무 409로 변환해 사용자에게 원인을 전달한다.
+        PartnerOrder saved;
+        try {
+            saved = orderRepository.saveAndFlush(order);
+        } catch (OptimisticLockingFailureException ex) {
+            log.warn("[PartnerOrderRevisionService] 동시 복원 충돌 — orderId={}, targetRevisionNo={}",
+                    orderId, targetRevisionNo);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "동시에 복원된 주문입니다. 다른 사용자의 복원이 먼저 완료되어 다시 조회해 주세요.",
+                    ex);
+        }
 
         // 7. 복원 결과를 RESTORE revision 으로 캡처
         capture(saved, PartnerOrderRevisionType.RESTORE, targetRevisionNo,

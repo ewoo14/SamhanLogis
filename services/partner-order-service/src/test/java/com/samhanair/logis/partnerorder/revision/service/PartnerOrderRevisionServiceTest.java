@@ -36,6 +36,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -360,6 +361,34 @@ class PartnerOrderRevisionServiceTest {
             // [P1-6] restoreHeader 는 status 를 변경하지 않으므로 복원 후에도 CONFIRMED 유지
             assertThat(result.order().getStatus()).isEqualTo(PartnerOrderStatus.CONFIRMED);
             verify(authorityEventPublisher).publish(orderId, "RESTORE", 2);
+        }
+
+        @Test
+        @DisplayName("동시 복원 낙관적 잠금 충돌은 500 대신 409로 이유를 전달한다")
+        void restore_optimisticLockConflict_returns409() throws Exception {
+            UUID orderId = UUID.randomUUID();
+            PartnerOrder order = draftOrder(orderId);
+            PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(
+                    orderId, 1, objectMapper.writeValueAsString(new PartnerOrderSnapshot(
+                            order.getOrderNo(), "ORIG-PC", "ORIG-BIZ", PartnerOrderStatus.DRAFT,
+                            null, null, BigDecimal.ZERO, null, null, null, "메모", null, 0,
+                            List.of(PartnerOrderSnapshot.LineSnapshot.from(
+                                    PartnerOrderLine.create(UUID.randomUUID(), "MODEL", "상품", "cat",
+                                            1, BigDecimal.ZERO, null))))));
+
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
+                    .thenReturn(Optional.of(targetRevision));
+            when(orderRepository.saveAndFlush(any()))
+                    .thenThrow(new ObjectOptimisticLockingFailureException(PartnerOrder.class, orderId));
+
+            assertThatThrownBy(() -> service.restore(orderId, 1, UUID.randomUUID(), "복원자", null))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(ex -> {
+                        ResponseStatusException response = (ResponseStatusException) ex;
+                        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                        assertThat(response.getReason()).contains("동시에 복원된");
+                    });
         }
 
         @Test
