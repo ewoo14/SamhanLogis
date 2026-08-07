@@ -64,7 +64,7 @@ const G3_ROOTS: GuardRootSpec[] = [
 ]
 
 function walkG3Sources(): string[] {
-  return derivedEvidenceWriters()
+  return discoveredEvidenceWriters()
   /* legacy registry walker retained below only as dead code during this transition. */
   const out: string[] = []
   for (const spec of G3_ROOTS) {
@@ -117,6 +117,68 @@ function walk(dir: string, filter: (p: string) => boolean): string[] {
     }
   }
   return out
+}
+
+/**
+ * S1 discovery must be available to the top-level G3/G9 walkers.
+ * Keeping this resolver at module scope avoids a scope error: the original
+ * describe-local implementation is not visible to the top-level G3 walker.
+ */
+const DISCOVERY_SKIP_DIRS = new Set([
+  'node_modules', '.git', '_local', 'dist', 'build', 'out', 'bin', 'coverage',
+  'playwright-report', 'test-results', '.gradle', '.next', '.turbo', 'target',
+  'venv', '.venv', '__pycache__', 'worktrees',
+])
+
+function walkForEvidenceDiscovery(dir: string, out: string[] = []): string[] {
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (!DISCOVERY_SKIP_DIRS.has(entry.name)) walkForEvidenceDiscovery(full, out)
+    } else {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+function discoveredEvidenceWriters(): string[] {
+  const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
+  const evidenceSplit = /['"]docs['"]\s*,\s*['"](?:qa|manual)['"]/
+  const found: string[] = []
+  for (const file of walkForEvidenceDiscovery(REPO_ROOT)) {
+    if (path.resolve(file) === SELF) continue
+    let raw: string
+    try {
+      raw = fs.readFileSync(file, 'utf-8')
+    } catch {
+      continue
+    }
+    const inEvidenceTree =
+      file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
+      file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
+    if (!evidenceLiteral.test(raw) && !evidenceSplit.test(raw) && !inEvidenceTree) continue
+    const src = stripComments(raw)
+    const decls = collectDeclarations(src)
+    const targets = collectWriteTargetIdentifiers(src, decls)
+    const writesEvidence = decls.some((decl) =>
+      targets.has(decl.name) &&
+      (evidenceLiteral.test(decl.body) || evidenceSplit.test(decl.body) ||
+        (inEvidenceTree && decl.body.includes('__dirname'))),
+    ) || [...src.matchAll(WRITE_CALL)].some((match) => {
+      const open = (match.index ?? 0) + match[0].length - 1
+      const args = balancedArgs(src, open)
+      return evidenceLiteral.test(extractLiterals(args)) || evidenceSplit.test(args)
+    })
+    if (writesEvidence || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)) found.push(file)
+  }
+  return [...new Set(found)]
 }
 
 function rel(p: string): string {
@@ -1692,7 +1754,7 @@ describe('하네스 거짓 green 가드', () => {
 
   /** 가드가 실제로 스캔하는 파일 전수(REPO_ROOT 상대, 슬래시 정규화) — guardRootFor 와 동일 규칙. */
   function guardScannedFiles(): string[] {
-    return derivedEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
+    return discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
     /* legacy registry walker retained below only as dead code during this transition. */
     const out = new Set<string>()
     for (const spec of GUARD_ROOTS) {

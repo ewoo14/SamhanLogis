@@ -41,6 +41,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'docs/**'
+      - 'services/arologis-service/**'
       - 'docs/qa/**.js'
       - 'docs/qa/**/*.js'
       - 'docs/qa/**.cjs'
@@ -57,6 +59,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'docs/**'
+      - 'services/arologis-service/**'
       - 'docs/qa/**.js'
       - 'docs/qa/**/*.js'
       - 'docs/qa/**.cjs'
