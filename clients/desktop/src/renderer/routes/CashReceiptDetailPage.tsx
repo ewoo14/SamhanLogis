@@ -49,6 +49,9 @@ export function CashReceiptDetailPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const returnTo = getReturnTo(location.state, { pathname: '/accounting/admin/cash-receipts', search: '' })
+  const returnEntryKey = location.state && typeof location.state === 'object'
+    ? (location.state as { returnEntryKey?: unknown }).returnEntryKey
+    : undefined
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [topError, setTopError] = useState('')
@@ -144,7 +147,13 @@ export function CashReceiptDetailPage() {
             </div>
           </div>
           <div className="detail-action-bar">
-            <Button type="button" variant="ghost" onClick={() => navigate(returnTo)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => typeof returnEntryKey === 'string' && returnEntryKey.length > 0
+                ? navigate(-1)
+                : navigate(returnTo, { replace: true })}
+            >
               목록
             </Button>
             {canEdit ? (

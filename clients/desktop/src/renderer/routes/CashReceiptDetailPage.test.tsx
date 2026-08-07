@@ -86,7 +86,20 @@ afterEach(() => {
 })
 
 describe('CashReceiptDetailPage', () => {
-  it('상세 목록 CTA는 returnTo path+search를 우선해 복귀한다', async () => {
+  it('상세 목록 CTA는 원래 history entry를 되감는다', async () => {
+    renderPage(receipt(), {
+      pathname: '/accounting/admin/cash-receipts/receipt-1',
+      state: {
+        returnTo: { pathname: '/accounting/admin/cash-receipts', search: '?kind=DEPOSIT_REPORT&page=2' },
+        returnEntryKey: 'source-entry',
+      },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: '목록' }))
+    expect(mocks.navigate).toHaveBeenCalledWith(-1)
+  })
+
+  it('상세 직접 진입은 canonical fallback을 replace한다', async () => {
     renderPage(receipt(), {
       pathname: '/accounting/admin/cash-receipts/receipt-1',
       state: { returnTo: { pathname: '/accounting/admin/cash-receipts', search: '?kind=DEPOSIT_REPORT&page=2' } },
@@ -96,7 +109,7 @@ describe('CashReceiptDetailPage', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({
       pathname: '/accounting/admin/cash-receipts',
       search: '?kind=DEPOSIT_REPORT&page=2',
-    })
+    }, { replace: true })
   })
 
   it('상세 필드와 S4a kind 라벨을 렌더하고 DRAFT 액션을 활성화한다', async () => {

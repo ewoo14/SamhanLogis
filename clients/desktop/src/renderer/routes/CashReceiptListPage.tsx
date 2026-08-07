@@ -102,11 +102,11 @@ export function CashReceiptListPage() {
   }, [applied])
 
   useEffect(() => {
-    const anchor = getScrollAnchor(returnTo)
+    const anchor = getScrollAnchor(location.key)
     if (anchor == null) return
     const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
     return () => window.cancelAnimationFrame(frame)
-  }, [returnTo.pathname, returnTo.search])
+  }, [location.key])
 
   const queryOptions = useMemo(
     () => listCashReceiptQueryOptions(applied, page, PAGE_SIZE),
@@ -179,8 +179,8 @@ export function CashReceiptListPage() {
         render: (row) => isSkeletonRow(row) ? <SkeletonCell width={120} /> : (
           <Link
             to={`/accounting/admin/cash-receipts/${row.id}`}
-            state={{ returnTo }}
-            onClick={() => saveScrollAnchor(returnTo)}
+            state={{ returnTo, returnEntryKey: location.key }}
+            onClick={() => saveScrollAnchor(location.key)}
             aria-label={`${row.slipNo} 상세 보기`}
             style={{ fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}
             data-testid={`cash-receipt-slip-${row.slipNo}`}
@@ -239,7 +239,7 @@ export function CashReceiptListPage() {
         ),
       },
     ],
-    [returnTo.pathname, returnTo.search],
+    [location.key, returnTo.pathname, returnTo.search],
   )
 
   // 권한 게이트는 라우트의 PermissionGuard(accounting.cash-receipts view)가 담당 —
