@@ -195,6 +195,8 @@ export interface LineRowProps {
    * - 미지정(기본 `true`) 시 기존 동작 유지 (backward compatible).
    */
   partnerSelected?: boolean
+  /** 단건 최근단가 조회 Promise가 살아 있는 동안 확정 단가 표시를 숨긴다. */
+  priceLookupPending?: boolean
   /**
    * 이 행이 저장 대상에서 제외될 예정(#902 R2 D7·H6, #902 R3 H6′로 정정) — 호출자의 저장
    * 판정(예: `productId && quantity > 0`)과 같은 조건이어야 한다.
@@ -283,6 +285,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     // 유지).
     vatEditable = true,
     excludedFromSave = false,
+    priceLookupPending = false,
   },
   ref,
 ) {
@@ -331,17 +334,26 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     && !(Number(line.quantity) > 0)
   const amountDisplay = (value: string | undefined, fallback: number): string =>
     suppressComputedAmounts ? '0' : Number(value ?? fallback).toLocaleString()
-  const priceDisplay = line.unitPrice ? Number(line.unitPrice).toLocaleString() : '0'
+  // `unitPrice=''` is intentionally not used for pending state: this component's
+  // normal fallback below turns falsy values into "0". Pending masks the
+  // controlled input display here while preserving the draft value in state.
+  const priceDisplay = priceLookupPending
+    ? ''
+    : line.unitPrice ? Number(line.unitPrice).toLocaleString() : '0'
   // D-R4-1: 자동채움 값의 실체는 제품 등록 화면의 '판매가'(sellingPrice) — '정가' 라벨은
   // 기존 용어체계에서 출고가(releasePrice) 계열 별칭이라 오도되므로 사용 금지.
   // D-R4-4: 거래처 미선택(partnerSelected=false) 시 REMEMBERED 마커는 해제(단가값은 호출자가 유지),
   // CATALOG 설명은 거래처를 단정하지 않는 카피로 분기.
-  const priceStatus = line.priceSource === 'REMEMBERED'
+  const priceStatus = priceLookupPending
+    ? null
+    : line.priceSource === 'REMEMBERED'
     ? (partnerSelected ? '거래처 최근단가' : null)
     : line.priceSource === 'CATALOG'
       ? '판매가'
       : null
-  const priceStatusDescription = line.priceSource === 'REMEMBERED'
+  const priceStatusDescription = priceLookupPending
+    ? null
+    : line.priceSource === 'REMEMBERED'
     ? (partnerSelected
         ? `이 거래처에 마지막으로 저장된 단가${line.priceMemoryUpdatedAt ? ` · ${line.priceMemoryUpdatedAt.slice(0, 10)} 저장` : ''}`
         : null)
@@ -351,8 +363,8 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
           : '판매가를 적용했습니다')
       : null
   const priceDescribedBy = [
-    priceStatusDescription ? priceStatusId : null,
-    line.priceRefreshChanged ? priceChangedStatusId : null,
+    priceLookupPending ? null : priceStatusDescription ? priceStatusId : null,
+    priceLookupPending ? null : line.priceRefreshChanged ? priceChangedStatusId : null,
   ]
     .filter((id): id is string => id !== null)
     .join(' ') || undefined
@@ -444,7 +456,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
               {line.lookupLoading ? '조회중...' : '모델명 조회 후 자동입력'}
             </span>
           )}
-          {line.priceRefreshChanged ? (
+          {line.priceRefreshChanged && !priceLookupPending ? (
             <span id={priceChangedStatusId} className={styles['priceChangedStatus']}>
               <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
                 <path d="M3 2v7m0 0L1.5 7.5M3 9l1.5-1.5M9 10V3m0 0L7.5 4.5M9 3l1.5 1.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />

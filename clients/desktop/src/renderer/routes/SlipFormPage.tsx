@@ -273,6 +273,7 @@ function SlipMobileLineCard(props: {
   canDelete: boolean
   /** 거래처 선택 여부 (R4-D4) — 미선택 시 CATALOG 카피 분기 + REMEMBERED 마커 해제(D-R4-4). */
   partnerSelected: boolean
+  /** 단건 최근단가 조회 Promise 수명 — bulk refresh의 lookupLoading과 분리한다. */
   priceLookupPending?: boolean
   onSelect: (selected: boolean) => void
   onSpecificationChange: (value: string) => void
@@ -300,15 +301,14 @@ function SlipMobileLineCard(props: {
   const priceChangedStatusId = `slip-mobile-price-changed-${props.line.id}`
   // D-R4-1: 자동채움 실체 = 제품 등록 화면 '판매가'(sellingPrice) — '정가' 라벨 금지(출고가 별칭 오도).
   // D-R4-4: 거래처 해제 시 단가값은 유지하고 마커(저장일 포함)만 해제 — LineRow(데스크탑)와 동일 분기.
-  const priceLookupPending = Boolean(props.priceLookupPending)
-  const priceStatus = priceLookupPending
+  const priceStatus = props.priceLookupPending
     ? null
     : props.line.priceSource === 'REMEMBERED'
     ? (props.partnerSelected ? '거래처 최근단가' : null)
     : props.line.priceSource === 'CATALOG'
       ? '판매가'
       : null
-  const priceStatusDescription = priceLookupPending
+  const priceStatusDescription = props.priceLookupPending
     ? null
     : props.line.priceSource === 'REMEMBERED'
     ? (props.partnerSelected
@@ -408,7 +408,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={priceLookupPending ? '' : props.line.unitPrice}
+          value={props.priceLookupPending ? '' : props.line.unitPrice}
           onChange={(e) => {
             const numeric = parseEditableAmountInput(e.target.value)
             if (numeric !== null) props.onUnitPriceChange(numeric)
@@ -585,7 +585,7 @@ function SortableLineRow(props: {
   canDelete: boolean
   /** 거래처 선택 여부 (R4-D4) — LineRow 마커 카피 분기/해제에 전달. */
   partnerSelected: boolean
-  priceLookupPending?: boolean
+  priceLookupPending: boolean
   onSelect: (s: boolean) => void
   onModelNameChange: (v: string) => void
   onModelNameBlur: (v: string) => void
@@ -621,11 +621,6 @@ function SortableLineRow(props: {
     transition,
   }
 
-  const priceLookupPending = Boolean(props.priceLookupPending)
-  const lineForEditor = priceLookupPending
-    ? { ...props.line, unitPrice: '', priceSource: null, priceMemoryUpdatedAt: null }
-    : props.line
-
   // setNodeRef/transform 을 wrapper 에 부착 → LineRow + footer(옵션 picker) 동시 이동.
   return (
     <div ref={setNodeRef} style={style}>
@@ -635,10 +630,11 @@ function SortableLineRow(props: {
         vatEditable={props.vatEditable}
         excludedFromSave={props.excludedFromSave}
         lineNumber={props.lineNumber}
-        line={lineForEditor}
+        line={props.line}
         selected={props.selected}
         canDelete={props.canDelete}
         partnerSelected={props.partnerSelected}
+        priceLookupPending={props.priceLookupPending}
         onSelect={props.onSelect}
         onModelNameChange={props.onModelNameChange}
         onModelNameBlur={props.onModelNameBlur}
@@ -699,6 +695,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const expansionSeqRef = useRef(0)
   /** 세트 전개 요청의 행별 최신성. 사용자 입력이 오면 이전 응답은 적용하지 않는다. */
   const bundleExpansionGenerationRef = useRef(new Map<string, number>())
+  const bundleExpansionSequenceRef = useRef(0)
+  const bumpBundleExpansionGeneration = (id: string) => {
+    const generation = ++bundleExpansionSequenceRef.current
+    bundleExpansionGenerationRef.current.set(id, generation)
+    return generation
+  }
   /** 빠른 1차 전개 뒤에도 옵션 입력을 유지할 구성품 행별 임시 세트 컨텍스트. */
   const [expandedBundleOptions, setExpandedBundleOptions] = useState<Record<string, ExpandedBundleOptionContext>>({})
   const expandedBundleOptionsRef = useRef(expandedBundleOptions)
@@ -714,6 +716,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // 단건 최근단가 조회의 실제 Promise 수명 — 거래처 bulk refresh의 line flag와 분리한다.
   const [priceLookupPendingIds, setPriceLookupPendingIds] = useState<Set<string>>(new Set())
   const priceLookupGenerationRef = useRef(new Map<string, number>())
+  const priceLookupSequenceRef = useRef(0)
   const selectedPartnerIdRef = useRef<string | null>(null)
   const dcRequestSeqRef = useRef(0)
   selectedPartnerIdRef.current = selectedPartner?.id ?? null
@@ -727,7 +730,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const partnerReprice = usePartnerPriceRefresh()
 
   const beginPriceLookup = (lineId: string): number => {
-    const generation = (priceLookupGenerationRef.current.get(lineId) ?? 0) + 1
+    const generation = ++priceLookupSequenceRef.current
     priceLookupGenerationRef.current.set(lineId, generation)
     setPriceLookupPendingIds((current) => new Set(current).add(lineId))
     return generation
@@ -735,6 +738,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const endPriceLookup = (lineId: string, generation: number) => {
     if (priceLookupGenerationRef.current.get(lineId) !== generation) return
+    priceLookupGenerationRef.current.delete(lineId)
     setPriceLookupPendingIds((current) => {
       if (!current.has(lineId)) return current
       const next = new Set(current)
@@ -744,7 +748,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const cancelPriceLookup = (lineId: string) => {
-    priceLookupGenerationRef.current.set(lineId, (priceLookupGenerationRef.current.get(lineId) ?? 0) + 1)
+    priceLookupGenerationRef.current.delete(lineId)
     setPriceLookupPendingIds((current) => {
       if (!current.has(lineId)) return current
       const next = new Set(current)
@@ -754,9 +758,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const cancelAllPriceLookups = () => {
-    for (const lineId of priceLookupGenerationRef.current.keys()) {
-      priceLookupGenerationRef.current.set(lineId, (priceLookupGenerationRef.current.get(lineId) ?? 0) + 1)
-    }
+    priceLookupGenerationRef.current.clear()
     setPriceLookupPendingIds(new Set())
   }
 
@@ -844,7 +846,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   /** 사용자 셀 변경 공통 경로 — 제품 선택과 수량/금액/규격 입력이 같은 증식 규칙을 쓴다. */
   const updateLineFromUser = (id: string, updater: (line: LineDraft) => LineDraft) => {
     const before = linesRef.current.find((line) => line.id === id)
-    bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
+    bumpBundleExpansionGeneration(id)
+    bundleExpansionGenerationRef.current.delete(id)
     setLines((current) => current.map((line) => (
       line.id === id ? updater(line) : line
     )))
@@ -880,6 +883,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const removeLine = (id: string) => {
     const removedLine = linesRef.current.find((line) => line.id === id)
+    cancelPriceLookup(id)
+    bumpBundleExpansionGeneration(id)
+    bundleExpansionGenerationRef.current.delete(id)
     const liveIds = new Set(linesRef.current.filter((line) => line.id !== id).map((line) => line.id))
     const nextContexts: Record<string, ExpandedBundleOptionContext> = {}
     Object.entries(expandedBundleOptionsRef.current).forEach(([key, context]) => {
@@ -923,7 +929,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   /** 품목명 재입력처럼 세트가 해제되는 사용자 행동은 해당 행의 전개만 무효화한다. */
   const invalidateBundleExpansionForLine = (id: string) => {
-    bundleExpansionGenerationRef.current.set(id, (bundleExpansionGenerationRef.current.get(id) ?? 0) + 1)
+    bumpBundleExpansionGeneration(id)
+    bundleExpansionGenerationRef.current.delete(id)
     setExpandedBundleOptions((current) => {
       if (!current[id]) return current
       const next = { ...current }
@@ -1162,7 +1169,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           : line))
       }
     }
-    const generation = bundleExpansionGenerationRef.current.get(source.id) ?? 0
+    const generation = bumpBundleExpansionGeneration(source.id)
     const requestSnapshot = createBundleExpansionSnapshot(selected)
     const retryLatestBundleGeneration = async () => {
       const latest = linesRef.current.find((line) => line.id === source.id)
@@ -1275,6 +1282,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       if (restorePreviousExpansion(latest, context)) return
       replaceWithExpandedBundleLines(source, [], latest.specification, discountConfig, parentContextOverrides)
       setLineExpansionAnnouncement('세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
+    } finally {
+      if (bundleExpansionGenerationRef.current.get(source.id) === generation) {
+        bundleExpansionGenerationRef.current.delete(source.id)
+      }
     }
   }
 
@@ -1311,7 +1322,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   ) => updateLineFromUser(id, (line) => editSlipLineAmount(asVatLine(line), authority, value))
 
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
-    bundleExpansionGenerationRef.current.set(line.id, (bundleExpansionGenerationRef.current.get(line.id) ?? 0) + 1)
+    cancelPriceLookup(line.id)
+    bumpBundleExpansionGeneration(line.id)
+    bundleExpansionGenerationRef.current.delete(line.id)
     setExpandedBundleOptions((current) => {
       const liveIds = new Set(linesRef.current.filter((candidate) => candidate.id !== line.id).map((candidate) => candidate.id))
       const next = Object.fromEntries(
@@ -1332,6 +1345,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
     const partnerId = selectedPartner?.id
     const partnerCode = selectedPartner?.partnerCode
+    const priceLookupGeneration = partnerId && productId && shouldAutoFill
+      ? beginPriceLookup(line.id)
+      : null
     const category = product?.categoryKey === 'homemulti'
       ? 'HOMEMULTI'
       : product?.categoryKey === 'commercialMulti'
@@ -1350,7 +1366,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const dcResult = shouldAutoFill && partnerCode && partnerDcConfig
       ? calculateWithConfig(partnerDcConfig)
       : null
-    if (!(partnerId && productId && shouldAutoFill)) cancelPriceLookup(line.id)
     const nextUnitPrice = shouldAutoFill
       ? String(dcResult?.unitPrice ?? fallbackUnitPrice)
       : line.unitPrice
@@ -1394,6 +1409,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       try {
         const config = partnerDcConfig ?? await withPriceLookupTimeout(getPartnerDcConfig(partnerCode))
         if (selectedPartnerIdRef.current !== partnerId) {
+          if (priceLookupGeneration != null) endPriceLookup(line.id, priceLookupGeneration)
           return
         }
         resolvedDiscountConfig = config
@@ -1431,7 +1447,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
      * <p>write guard(아래 setLines 내부)는 그대로 둔다 — 이 판정은 낭독 여부만 좁히며,
      * 어긋나더라도 "안내 누락"(무해)이지 "잘못된 write"가 되지 않는 방향으로만 틀린다.
      */
-    const priceLookupGeneration = beginPriceLookup(line.id)
     const canStillApply = () => {
       const current = linesRef.current.find((candidate) => candidate.id === line.id)
       if (!current) return false
@@ -1576,11 +1591,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     if (candidates.length === 0 && bundleContexts.length === 0) {
       // 새 거래처에 재조회 대상이 없어도 이전 거래처 bulk 응답은 무효화한다.
       partnerReprice.invalidate(partnerId)
-      // 거래처 선택 직후 품목이 선택되면 이 함수의 후보 스냅샷은 0건이어도
-      // 같은 라인에서 단건 가격 조회가 이미 시작될 수 있다. 여기서 모든 라인의
-      // busy 표시를 지우면 그 실제 단건 조회를 덮어써 카탈로그 단가/출처가 먼저
-      // 노출된다. 거래처 핸들러가 stale busy를 이미 정리하고, bulk 후보가 있으면
-      // 아래 run 완료 경로가 직접 false로 내리므로 이 경로에서는 라인을 건드리지 않는다.
+      // 직전 거래처의 bulk 조회가 남긴 busy 표시는 새 거래처에 후보가 없어도 정리한다.
+      setLines((current) => current.map((line) => ({ ...line, lookupLoading: false })))
       return
     }
     const candidateIds = new Set(candidates.map((candidate) => candidate.key))
@@ -1932,7 +1944,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const requiredWh = isOutbound ? sourceWh : destWh
   // 거래처 변경 최근단가 재조회/가격기억 조회가 in-flight 인 동안 저장하면 이전 거래처
   // 단가가 새 거래처(partnerId)로 전송되어 가격기억이 교차 오염된다 — 저장 차단(R4-F4).
-  const priceResolutionBusy = partnerReprice.isPending || lines.some((l) => l.lookupLoading)
+  const priceResolutionBusy = partnerReprice.isPending
+    || priceLookupPendingIds.size > 0
+    || lines.some((l) => l.lookupLoading)
   const bundleExpansionPending = lines.some((line) => expandedBundleOptions[line.id]?.expansionPending)
   const hasUnresolvedCatalogPrice = lines.some((line) => line.lookupError && !line.unitPrice.trim())
   // R4-D4: 마커 카피 분기/해제 기준 — 가격기억 조회가 실제 가능한 상태(UUID 보유 거래처 선택)와 일치.

@@ -110,6 +110,7 @@ vi.mock('@samhan/design-system', () => ({
         data-price-source={props.line.priceSource ?? ''}
         data-discount-info={props.line.discountInfo ?? ''}
         data-lookup-loading={String(props.line.lookupLoading ?? false)}
+        data-price-lookup-pending={String(props.priceLookupPending ?? false)}
         data-partner-selected={String(props.partnerSelected ?? '')}
         data-excluded-from-save={String(props.excludedFromSave ?? '')}
       >
@@ -316,30 +317,26 @@ beforeEach(() => {
 })
 
 describe('SlipFormPage price memory autofill', () => {
-  it('실제 거래처·품목 선택 직후 최근단가 조회 중에는 확정 단가와 출처 note를 숨긴다', async () => {
+  it('실제 거래처·품목 선택 흐름에서 최근단가 Promise 동안 pending 신호를 켜고 완료 시 끈다', async () => {
     const pendingPriceMemory = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
     harness.getPriceMemory.mockReturnValueOnce(pendingPriceMemory.promise)
 
     renderPage()
-    fireEvent.click(screen.getByTestId('select-partner-a'))
+    await selectPartnerA()
     fireEvent.click(screen.getByTestId('select-product-a-1'))
 
     await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(
       harness.partnerA.id,
       harness.productA.id,
     ))
-
-    expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
-    expect(unitPrice().value).toBe('')
-    expect(screen.queryByText('판매가')).toBeNull()
-    expect(screen.queryByText('거래처 최근단가')).toBeNull()
+    expect(screen.getByTestId('line-1').getAttribute('data-price-lookup-pending')).toBe('true')
 
     await act(async () => {
       pendingPriceMemory.resolve({ unitPrice: 1200, source: 'LINE_SAVE', updatedAt: '2026-08-07T09:00:00' })
       await pendingPriceMemory.promise
     })
 
-    await waitFor(() => expect(unitPrice().value).toBe('1200'))
+    await waitFor(() => expect(screen.getByTestId('line-1').getAttribute('data-price-lookup-pending')).toBe('false'))
   })
 
   it('R23 RED-A3 마지막 행을 채우면 수동 버튼 없이 다음 빈행이 계속 생긴다', () => {

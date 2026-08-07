@@ -25,6 +25,7 @@ function renderRow(
   priceRefreshChanged = false,
   partnerSelected?: boolean,
   selected = false,
+  priceLookupPending = false,
 ) {
   return render(
     <div role="table">
@@ -40,6 +41,7 @@ function renderRow(
         onUnitPriceChange={vi.fn()}
         onDelete={vi.fn()}
         dragHandleProps={{}}
+        priceLookupPending={priceLookupPending}
         {...(partnerSelected === undefined ? {} : { partnerSelected })}
       />
     </div>,
@@ -47,6 +49,17 @@ function renderRow(
 }
 
 describe('LineRow price source marker', () => {
+  it('pending 단가는 실제 input에 0이나 이전 확정값 대신 빈 표시를 렌더하고 note를 숨긴다', () => {
+    renderRow('REMEMBERED', true, undefined, false, true)
+
+    const input = screen.getByLabelText('라인 1 단가') as HTMLInputElement
+    expect(input.value).toBe('')
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(screen.queryByText('판매가')).toBeNull()
+    expect(screen.queryByText('거래처 최근단가')).toBeNull()
+    expect(input.getAttribute('aria-describedby')).toBeNull()
+  })
+
   it('REMEMBERED renders the real marker, saved-at meaning, and input description link', () => {
     const { container } = renderRow('REMEMBERED', true)
 
