@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * PR #909 SONNET5 라운드2 — 인쇄 관점 계열 전수 sweep.
  *
@@ -23,7 +24,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5200'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOT_DIR = resolveQaShotsDir(process.env['AUDIT_SHOT_DIR']
   ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-sonnet-round2-2026-07-24'))
 const MARKER = 'LUNA909R6'

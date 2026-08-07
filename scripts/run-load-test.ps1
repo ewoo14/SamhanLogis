@@ -8,6 +8,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$qaCredentialLoader = Join-Path $PSScriptRoot "lib\qa-credentials.ps1"
+. (Resolve-Path -LiteralPath $qaCredentialLoader)
 
 function Write-Step {
     param([string]$Message)
@@ -150,7 +152,7 @@ Write-Step "게이트웨이 health 확인"
 Assert-HttpOk -Uri "http://localhost:8080/actuator/health" -Name "api-gateway"
 
 Write-Step "대표 부하 계정 로그인 확인"
-$password = $env:QA_DEV_DEFAULT_PASSWORD
+$password = Resolve-QaCredential -Key 'QA_DEV_DEFAULT_PASSWORD' -CompatibilityAliases @('DEV_PASSWORD')
 if ([string]::IsNullOrWhiteSpace($password)) {
     throw 'QA_DEV_DEFAULT_PASSWORD 환경변수를 설정해야 합니다.'
 }
@@ -178,6 +180,7 @@ $dockerArgs = @(
     "-v", "$mountPath`:/scripts",
     "-e", "STAGE_PROFILE=$Profile",
     "-e", "SOAK_DURATION=$SoakDuration",
+    "-e", "LOADTEST_PASSWORD=$password",
     "-e", "BASE_URL=http://api-gateway:8080",
     "grafana/k6",
     "run",
@@ -194,6 +197,7 @@ if ($Profile -eq "stress") {
         "-e", "STAGE_PROFILE=$Profile",
         "-e", "THINK_MIN=0.5",
         "-e", "THINK_MAX=1",
+        "-e", "LOADTEST_PASSWORD=$password",
         "-e", "BASE_URL=http://api-gateway:8080",
         "grafana/k6",
         "run",
@@ -217,6 +221,7 @@ if ($Profile -eq "soak" -and $Detach.IsPresent) {
         "-v", "$mountPath`:/scripts",
         "-e", "STAGE_PROFILE=$Profile",
         "-e", "SOAK_DURATION=$SoakDuration",
+        "-e", "LOADTEST_PASSWORD=$password",
         "-e", "BASE_URL=http://api-gateway:8080",
         "grafana/k6",
         "run",

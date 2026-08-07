@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * cycle-3 view-only 변경 게이트 — 실서버(mock OFF) QA 캡처 (PR #462).
@@ -21,7 +22,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5178'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/menu-5category-view-only-gates'))
 fs.mkdirSync(SHOTS, { recursive: true })
 

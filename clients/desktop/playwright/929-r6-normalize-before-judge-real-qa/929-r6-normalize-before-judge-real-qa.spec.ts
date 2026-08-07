@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { join } from 'node:path'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
@@ -76,7 +77,7 @@ const CONTROL_WITH_LETTERS = [`P${STX}X`, `${STX}${ABSENT}`, `${ABSENT}${STX}`]
 
 type LoginResult = { token: string; userId: string; role: string; displayName: string }
 
-async function realLogin(page: Page, loginId = 'dev_master', password = (process.env.DEV_PASSWORD ?? '')): Promise<LoginResult> {
+async function realLogin(page: Page, loginId = 'dev_master', password = (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'))): Promise<LoginResult> {
   const response = await page.request.post(`${API_BASE}/api/auth/login`, { data: { loginId, password } })
   expect(response.ok(), `실 로그인 HTTP ${response.status()}`).toBeTruthy()
   const body = (await response.json()) as { data?: Partial<LoginResult> }

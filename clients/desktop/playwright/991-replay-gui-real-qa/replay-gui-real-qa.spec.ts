@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #991 라이브 QA — 출고전표 전환을 실 화면에서 수행하고, 같은 주문을 다시
@@ -14,7 +15,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5931'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const ORDER_ID = process.env['ORDER_ID'] ?? '5d78eaa1-226c-49ea-a2ac-1b52bccef571'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/991-replay-gui'))
 fs.mkdirSync(SHOTS, { recursive: true })

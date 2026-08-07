@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-3a R3 라이브 QA — 결재 재인쇄 "승인 당시 레이아웃 pin" 실서버 검증 (R2 fix 반영본).
@@ -35,7 +36,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5311'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 
 /** 🚨 전용 throwaway 결재유형 — 공유 실 docType 의 양식 활성상태를 절대 건드리지 않는다. */
 const QA_CODE = 'QA_DS3A_R3'

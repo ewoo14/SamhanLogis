@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * PR #925 (#920) 라이브QA — CODEF 가져오기 범위 낙관적 잠금 · U-gate.
  *
@@ -21,7 +22,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5253'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 // K5 라이브 재검증 전용 하위폴더 — docs/qa/** 기존 커밋 파일(01~04*, r3-*, r4-verify/*,
 // rA-closing/*, rB-bound-revert/*) 절대 미접촉(덮어쓰기 금지 컨벤션). 이 상수 자신도
 // 재실행 시 자기 자신의 기존 커밋 증거를 덮어쓸 수 있어 resolveQaShotsDir 로 감싼다

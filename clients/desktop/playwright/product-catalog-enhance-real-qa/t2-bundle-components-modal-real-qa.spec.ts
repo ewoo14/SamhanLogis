@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #461 #16 T2 — 구성품 편집 모달 FE 경유 Docker 실서버 QA.
@@ -9,7 +10,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  *
  * 대상 BUNDLE: AC110CS6PBH1SY (13 구성품, product_db 실데이터)
  * 실서버: http://localhost:8080 (api-gateway), http://localhost:5175 (renderer vite dev, mock OFF)
- * 인증: dev_master / DEV_PASSWORD 환경변수 (MASTER, products.admin UPDATE)
+ * 인증: dev_master / QA_DEV_DEFAULT_PASSWORD 환경변수 (MASTER, products.admin UPDATE)
  *
  * 절차:
  *   1. (별도 백업 스크립트가 .claude/tmp/t2-orig.json 에 원본 13구성품 저장)
@@ -91,7 +92,7 @@ async function searchBundle(page: Page): Promise<void> {
 }
 
 test('T2: 구성품 편집 모달 — 13구성품 GET 렌더 + 수량 편집 PUT + 영속(FE 왕복)', async ({ page }) => {
-  const token = await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
+  const token = await loginAndInstallStub(page, 'dev_master', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
 
   // ── 2~3. 검색 → 구성품 버튼 → 모달 13구성품 GET 렌더 ───────────────
   await searchBundle(page)
@@ -173,7 +174,7 @@ test('T2: 구성품 편집 모달 — 13구성품 GET 렌더 + 수량 편집 PUT
 // ---------------------------------------------------------------------------
 
 test('T2-전개: 편집된 구성품이 출고전표 세트 전개 라인 수량에 반영', async ({ page }) => {
-  const token = await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
+  const token = await loginAndInstallStub(page, 'dev_master', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
   const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
   // 0) 현재 첫 구성품(INDOOR, displayOrder=1) defaultQty 확인 — 편집 결과(=2)를 기대값으로 삼는다.

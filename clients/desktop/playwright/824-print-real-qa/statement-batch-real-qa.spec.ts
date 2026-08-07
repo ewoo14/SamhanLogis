@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /** #824 R2 #6 — 거래명세서 일괄 인쇄가 실제 조회를 출력하는가 (dev_accountant) */
 import { expect, test } from '@playwright/test'
@@ -6,7 +7,7 @@ import { join } from 'node:path'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5192'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '824-print-live-qa-2026-07-23'))
 
 test.use({ viewport: { width: 1400, height: 1600 } })

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * PR #591 슬4 — 타배송사 인쇄 배차의뢰서(PRINT/BOTH) 라이브 실서버 QA 캡처. 에픽 마지막 슬라이스.
  *
@@ -50,13 +51,13 @@ async function capture(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, `${name}.png`), fullPage: false })
 }
 
-const DEV_PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const QA_DEV_DEFAULT_PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 
 function fetchRealToken(loginId: string): Promise<string> {
   return new Promise((resolve, reject) => {
     void import('http').then((httpMod) => {
       const http = httpMod.default
-      const body = JSON.stringify({ loginId, password: DEV_PASSWORD })
+      const body = JSON.stringify({ loginId, password: QA_DEV_DEFAULT_PASSWORD })
       const req = http.request(
         {
           hostname: '127.0.0.1',

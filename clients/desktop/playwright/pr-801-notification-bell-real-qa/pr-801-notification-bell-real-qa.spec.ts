@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #801 — 알림 게이트웨이 role 헤더 상수 리팩터(notification-service, 백엔드 동작 무변경) 라이브 QA.
@@ -23,7 +24,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/pr-801'))
 fs.mkdirSync(SHOTS, { recursive: true })
 

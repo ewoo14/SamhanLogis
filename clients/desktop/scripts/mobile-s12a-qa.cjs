@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /* 모바일 슬12a 라이브 QA — raw table→DataTable 카드화 4화면 검증.
  * mobile 390px: 카드 렌더·넓은 TABLE 클립 사라짐·행클릭 상세진입. desktop 1280px: 컬럼 테이블 무회귀.
  * 실 :5175 + gateway :8080, dev_master. 가짜 금지.
@@ -22,7 +23,7 @@ async function login(page) {
   await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
+  await page.fill('[data-testid=login-password-input]', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   await page.waitForTimeout(700)

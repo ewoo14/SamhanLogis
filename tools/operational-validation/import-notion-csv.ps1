@@ -58,12 +58,17 @@
 param(
     [string] $GatewayUrl       = 'http://localhost:8080',
     [string] $LoginId          = 'kimmiseon',
-    [string] $Password         = $env:QA_MASTER_PASSWORD,
+    [string] $Password         = '',
     [string] $NotionExportRoot = '',
     [switch] $ContinueOnError
 )
 
 $ErrorActionPreference = 'Stop'
+$qaCredentialLoader = Join-Path $PSScriptRoot '..\..\scripts\lib\qa-credentials.ps1'
+. (Resolve-Path -LiteralPath $qaCredentialLoader)
+if ([string]::IsNullOrWhiteSpace($Password)) {
+    $Password = Resolve-QaCredential -Key 'QA_MASTER_PASSWORD' -CompatibilityAliases @('QA_PASSWORD', 'QA_MASTER_PW')
+}
 if ([string]::IsNullOrWhiteSpace($Password)) {
     throw 'QA_MASTER_PASSWORD 환경변수를 설정하거나 -Password를 지정해야 합니다.'
 }

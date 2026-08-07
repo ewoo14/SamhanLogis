@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 슬4a — 그룹웨어 결재라인 BE 엔드포인트 라이브 실 응답 캡처(스크린샷).
@@ -19,7 +20,7 @@ fs.mkdirSync(DIR, { recursive: true })
 async function token(): Promise<string> {
   const http = await import('http')
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') })
+    const body = JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) })
     const req = http.default.request({ hostname: '127.0.0.1', port: 8080, path: '/api/v1/auth/login', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, (res) => { let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => { try { resolve(JSON.parse(d).data.token) } catch (e) { reject(new Error(d)) } }) })
     req.on('error', reject); req.write(body); req.end()
   })

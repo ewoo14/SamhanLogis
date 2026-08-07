@@ -47,7 +47,10 @@ export const options = {
 };
 
 const BASE_URL = (__ENV.BASE_URL || 'http://api-gateway:8080').replace(/\/$/, '');
-const PASSWORD = __ENV.LOADTEST_PASSWORD || (process.env.DEV_PASSWORD ?? '');
+const PASSWORD = (__ENV.LOADTEST_PASSWORD || '').trim();
+if (!PASSWORD) {
+  throw new Error('k6 자격이 없습니다: LOADTEST_PASSWORD 환경변수를 설정하십시오.');
+}
 const THINK_MIN = Number(__ENV.THINK_MIN || (PROFILE === 'stress' ? 0.5 : 1));
 const THINK_MAX = Number(__ENV.THINK_MAX || (PROFILE === 'stress' ? 1 : 5));
 const WRITE_RATIO = Number(__ENV.WRITE_RATIO || 0.2);

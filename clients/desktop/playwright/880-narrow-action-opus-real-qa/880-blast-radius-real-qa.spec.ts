@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #880 blast-radius 확인 — 변경하지 않은 다른 DataTable 소비처가 좁은 폭에서 정상인지.
@@ -9,7 +10,7 @@ import { join } from 'node:path'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5310'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '880-opus-review-2026-07-24'))
 
 test('SalesOrderApprovalsPage(미변경) 768px 정상 렌더 — 무영향 확인', async ({ page }) => {

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { chromium } from '@playwright/test'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,8 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const OUT = resolveQaShotsDir(path.resolve(__dirname, '..', '..', '..', '..', 'docs', 'qa', '1001-partner-ledger-real-qa'))
 
 const APP = 'http://127.0.0.1:5175'
-const password = process.env.QA_PASSWORD
-if (!password) throw new Error('QA_PASSWORD 환경변수가 필요합니다.')
+const password = resolveQaCredential('QA_MASTER_PASSWORD')
+if (!password) throw new Error('QA_MASTER_PASSWORD 환경변수가 필요합니다.')
 const browser = await chromium.launch({
   headless: false,
   executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',

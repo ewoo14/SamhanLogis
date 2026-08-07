@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #924 (#831) 라이브QA — partner lookup UNAVAILABLE 시 실 사용자 화면 거동.
@@ -26,7 +27,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5250'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const PHASE = process.env['QA_PHASE'] ?? 'up'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/924-lookup-unavailable'))
 fs.mkdirSync(SHOTS, { recursive: true })

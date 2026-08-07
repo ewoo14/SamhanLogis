@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
@@ -9,8 +10,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const desktopRoot = path.resolve(here, '../..')
 const shots = resolveQaShotsDir(path.resolve(here, '..', '..', '..', '..', 'docs', 'qa', '1001-partner-ledger-real-qa'))
 const electronPath = path.join(desktopRoot, 'node_modules/electron/dist/electron.exe')
-const qaPassword = process.env.QA_PASSWORD
-if (!qaPassword) throw new Error('QA_PASSWORD 환경변수가 필요합니다.')
+const qaPassword = resolveQaCredential('QA_MASTER_PASSWORD')
+if (!qaPassword) throw new Error('QA_MASTER_PASSWORD 환경변수가 필요합니다.')
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'samhan-1001-electron-'))
 
 const app = await electron.launch({

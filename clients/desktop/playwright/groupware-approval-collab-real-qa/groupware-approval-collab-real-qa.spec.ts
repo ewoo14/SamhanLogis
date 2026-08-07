@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * §7 슬라이스6 그룹웨어 결재(ApprovalLine) 협업 "수정완료 1-인" — 실 서버 QA 스크린샷 캡처.
@@ -40,7 +41,7 @@ async function capture(page: Page, name: string): Promise<void> {
 async function fetchRealToken(): Promise<string> {
   const http = await import('http')
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') })
+    const body = JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) })
     const req = http.default.request(
       { hostname: '127.0.0.1', port: 8080, path: '/api/v1/auth/login', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },

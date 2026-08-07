@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 미리보기 표준화 슬라이스2 — 그룹웨어 결재문서 인쇄 미리보기 실 QA 캡처.
@@ -80,7 +81,7 @@ function finalDecidedAtForQa(steps: ApprovalStepView[]): string | undefined {
 
 async function fetchRealToken(): Promise<string> {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') })
+    const body = JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) })
     const req = http.request(
       {
         hostname: '127.0.0.1', port: 8080,

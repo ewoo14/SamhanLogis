@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { expect, test, type Page } from '@playwright/test'
 import { join } from 'node:path'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
@@ -12,7 +13,7 @@ type LoginResult = {
   displayName: string
 }
 
-async function realLogin(page: Page, loginId = 'dev_master', password = (process.env.DEV_PASSWORD ?? '')): Promise<LoginResult> {
+async function realLogin(page: Page, loginId = 'dev_master', password = (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'))): Promise<LoginResult> {
   const response = await page.request.post(`${API_BASE}/auth/login`, {
     data: { loginId, password },
   })

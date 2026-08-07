@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-3b 라이브 GUI QA — L10(ACTIVE 편집 차단) · L12(인쇄 미디어 no-print)
@@ -11,7 +12,7 @@ import { join } from 'node:path'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5190'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '845-ds3b-live-qa-2026-07-22'))
 const TEMPLATE_NAME = 'PM 라이브QA L10L12 양식'
 

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /** PR #1004(#1002) 라이브QA — 입금보고서 분할 행 · 자동 빈행 실캡처. */
 import { expect, test } from '@playwright/test'
@@ -12,7 +13,7 @@ fs.mkdirSync(SHOTS, { recursive: true })
 
 test('#1002 입금보고서 — 분할 행과 자동 빈행', async ({ page }) => {
   const res = await page.request.post(`${API_BASE}/auth/login`, {
-    data: { loginId: 'dev_master', password: process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '') },
+    data: { loginId: 'dev_master', password: resolveQaCredential('QA_DEV_DEFAULT_PASSWORD') },
   })
   expect(res.ok(), `로그인 실패 ${res.status()}`).toBeTruthy()
   const d = (await res.json()).data ?? {}

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * #937 재수렴 6차 라이브QA — 저장 시점 단가 도메인 기록(A안) (mock OFF, 실 게이트웨이 :8080 → 실 Postgres).
  *
@@ -33,7 +34,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:6140'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const ACCOUNT = process.env['QA_ACCOUNT'] ?? 'dev_manager'
 /** D-1R6 — 단가 100,000(VAT포함) 입력 후 공급가액·부가세를 "부가세 별도"로 정정한 전표. */
 const D1R6_SLIP = process.env['QA_D1R6_SLIP'] ?? ''

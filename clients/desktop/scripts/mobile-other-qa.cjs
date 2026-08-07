@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /* 잔여 모바일 화면 점검(리스트/폼/대시보드) — 클린 기준 평가용 캡처. */
 const { chromium } = require('playwright')
 const fs = require('fs')
@@ -23,7 +24,7 @@ async function launch() { try { return await chromium.launch({ headless: true })
   await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
+  await page.fill('[data-testid=login-password-input]', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   let failed = false

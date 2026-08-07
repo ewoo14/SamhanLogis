@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * collab presence 4문서 롤아웃 — 실 서버 2세션 QA 스크린샷 캡처.
@@ -22,7 +23,7 @@ import { test, type Page, type Route, type BrowserContext } from '@playwright/te
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const GW = 'http://127.0.0.1:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
 const SHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/collab-presence-rollout'))

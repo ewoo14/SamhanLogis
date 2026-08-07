@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { resolveQaCredential } = require('./lib/qa-credentials.cjs')
 
 const fs = require('node:fs')
 const os = require('node:os')
@@ -12,7 +13,7 @@ if (process.env.VERIFY_REAL_QA !== '1') {
 }
 
 const apiBase = process.env.API_BASE || 'http://localhost:8080'
-const password = process.env.DEV_PASSWORD || (process.env.DEV_PASSWORD ?? '')
+const password = process.env.QA_DEV_DEFAULT_PASSWORD || (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'))
 const runId = `${process.pid}-${Date.now()}-${randomUUID()}`
 const workerPath = path.resolve(__dirname, '../clients/desktop/scripts/ds4-real-qa-cleanup-worker.cjs')
 const spawnHelperPath = path.resolve(__dirname, '../clients/desktop/scripts/ds4-real-qa-spawn-worker.cjs')

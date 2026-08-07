@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * Phase 2 확장 — 세금계산서 발행번호 0제거 실 QA 캡처.
@@ -52,7 +53,7 @@ function hashUrl(p: string): string {
 
 async function fetchRealToken(): Promise<string> {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') })
+    const body = JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) })
     const req = http.request(
       {
         hostname: '127.0.0.1', port: 8080,

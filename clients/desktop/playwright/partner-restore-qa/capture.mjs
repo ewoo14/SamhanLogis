@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * 거래처(Partner) RESTORE 버전이력 실사용 QA 캡처 — PR #320.
  *
@@ -38,9 +39,9 @@ const PARTNER_PORT = 8095
 const MASTER_ID = 'a0000000-0000-0000-0000-000000000001'
 // 로그인 자격은 환경변수로 주입(시드 dev master). 평문 자격 하드코딩 금지(GitGuardian).
 const LOGIN_ID = process.env.QA_MASTER_ID || 'dev_master'
-const LOGIN_PW = process.env.QA_MASTER_PW
+const LOGIN_PW = resolveQaCredential('QA_MASTER_PASSWORD')
 if (!LOGIN_PW) {
-  console.error('QA_MASTER_PW 환경변수를 설정하세요 (seed dev master 비밀번호). 예: $env:QA_MASTER_PW=...')
+  console.error('QA_MASTER_PASSWORD 환경변수를 설정하세요 (seed dev master 비밀번호). 예: $env:QA_MASTER_PASSWORD=...')
   process.exit(2)
 }
 

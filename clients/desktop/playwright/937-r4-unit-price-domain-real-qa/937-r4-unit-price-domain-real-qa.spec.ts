@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * #937 재수렴 4차 라이브QA — 두 단가 컬럼의 세금 도메인 (mock OFF, 실 게이트웨이 :8080 → 실 Postgres).
  *
@@ -30,7 +31,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5901'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const ACCOUNT = 'dev_manager'
 const SALES_SLIP = process.env['QA_SALES_SLIP'] ?? ''
 const PURCHASE_SLIP = process.env['QA_PURCHASE_SLIP'] ?? ''

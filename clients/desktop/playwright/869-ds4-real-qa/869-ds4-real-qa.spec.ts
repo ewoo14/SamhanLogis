@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-4 — 반복 detail 밴드 · 이미지/로고 실서버 라이브 GUI QA (PM 직접 수행)
@@ -27,7 +28,7 @@ import {
 // [[feedback_defect_family_sweep_fix]] — ds4-body-layer-regression-real-qa.spec.ts 에서 먼저 발견).
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5291'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '869-ds4-live-qa-2026-07-23'))
 
 test.use({ viewport: { width: 1600, height: 1100 } })

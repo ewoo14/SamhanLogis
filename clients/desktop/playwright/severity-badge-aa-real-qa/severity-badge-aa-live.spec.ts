@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #795 — NotificationHistoryPage SeverityBadge(INFO/WARNING/CRITICAL) AA 대비 개선
@@ -29,7 +30,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5193'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const NOTIFICATION_DIRECT_BASE = process.env['NOTIFICATION_DIRECT_BASE'] ?? 'http://localhost:8093'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const PHASE = process.env['QA_PHASE'] ?? 'after'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/severity-badge-aa'))
 fs.mkdirSync(SHOTS, { recursive: true })

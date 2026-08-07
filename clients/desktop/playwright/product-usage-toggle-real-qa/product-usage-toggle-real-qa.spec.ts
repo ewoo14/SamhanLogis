@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR-B 품목 노출 수동 토글 — 실서버 QA 스펙
@@ -31,7 +32,7 @@ async function loginAndGetToken(): Promise<string> {
   const resp = await fetch(`${GATEWAY}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+    body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
   })
   const data = await resp.json() as { data: { token: string } }
   return data.data.token
@@ -116,7 +117,7 @@ test('T6: view-only (WAREHOUSE) — 토글 비활성 + readonly 배너', async (
   const wResp = await fetch(`${GATEWAY}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ loginId: 'dev_warehouse', password: (process.env.DEV_PASSWORD ?? '') }),
+    body: JSON.stringify({ loginId: 'dev_warehouse', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
   })
   const wData = await wResp.json() as { data: { token: string } }
   const whToken = wData.data.token

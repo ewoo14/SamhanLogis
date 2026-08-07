@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #803(#785) — arologis-desktop DispatchDetailPage 렌더 크래시 fix 라이브 QA.
@@ -35,7 +36,7 @@ test('PR #803 — DispatchDetailPage 크래시 없이 degrade 렌더 실 GUI 캡
 
   // 실 로그인 (arologis admin)
   const res = await page.request.post(`${API_BASE}/auth/admin/login`, {
-    data: { loginId: 'admin', password: process.env.QA_AROLOGIS_ADMIN_PASSWORD ?? '' },
+    data: { loginId: 'admin', password: resolveQaCredential('QA_AROLOGIS_ADMIN_PASSWORD') },
   })
   expect(res.ok(), `arologis 로그인 실패: HTTP ${res.status()}`).toBeTruthy()
   const d = await res.json()

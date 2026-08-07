@@ -1,11 +1,12 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 품목관리 고도화 (PR #461) Docker 실서버 QA Playwright spec.
  *
  * 대상: spec §3 T1/T3/T5/T7 UI 캡처
  * 실서버: http://localhost:8080 (api-gateway), http://localhost:5175 (FE dev)
- * 인증: dev_master / DEV_PASSWORD 환경변수 (MASTER role, products.admin UPDATE)
- *       dev_warehouse / DEV_PASSWORD 환경변수 (WAREHOUSE role, products.admin 없음)
+ * 인증: dev_master / QA_DEV_DEFAULT_PASSWORD 환경변수 (MASTER role, products.admin UPDATE)
+ *       dev_warehouse / QA_DEV_DEFAULT_PASSWORD 환경변수 (WAREHOUSE role, products.admin 없음)
  *
  * 실행:
  *   cd C:\dev\Samhan-Public\clients\desktop
@@ -95,7 +96,7 @@ test.beforeAll(async () => {
   const ctx = await request.newContext()
   try {
     const loginRes = await ctx.post(`${API_BASE}/auth/login`, {
-      data: { loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') },
+      data: { loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) },
     })
     if (!loginRes.ok()) {
       setupSkipReason = `로그인 실패: HTTP ${loginRes.status()} (Docker 스택 미기동?)`
@@ -183,7 +184,7 @@ test.beforeAll(async () => {
 test('T1: 품목관리 — BUNDLE 세트 뱃지 + 구성품 수 + 조회 전용 배너', async ({ page }) => {
   // [#22] 전제 데이터(TEST-BUNDLE-SET-01) 셋업 실패 시 정직하게 skip (가짜 통과 금지).
   test.skip(!setupReady, `전제 데이터 셋업 미완료: ${setupSkipReason}`)
-  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
+  await loginAndInstallStub(page, 'dev_master', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
 
   await page.goto(`${BASE_URL}/#/products/catalog`)
   await page.waitForSelector('[data-testid="product-catalog-table"]', { timeout: 30000 })
@@ -204,7 +205,7 @@ test('T1: 품목관리 — BUNDLE 세트 뱃지 + 구성품 수 + 조회 전용 
 // ---------------------------------------------------------------------------
 
 test('T3: 기본 홈멀티 탭 — 드래그 활성 확인', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
+  await loginAndInstallStub(page, 'dev_master', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
 
   await page.goto(`${BASE_URL}/#/products/estimate-items`)
   await page.waitForSelector('[data-testid="estimate-items-table"]', { timeout: 30000 })
@@ -222,7 +223,7 @@ test('T3: 기본 홈멀티 탭 — 드래그 활성 확인', async ({ page }) =>
 // ---------------------------------------------------------------------------
 
 test('T5: warehouse 역할 — 품목관리 접근 결과 캡처', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_warehouse', (process.env.DEV_PASSWORD ?? ''))
+  await loginAndInstallStub(page, 'dev_warehouse', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
 
   await page.goto(`${BASE_URL}/#/products/estimate-items`)
   await page.waitForTimeout(5000)
@@ -274,7 +275,7 @@ test('T7: SSE 실시간 — A에서 토글 변경 후 B 화면 갱신 확인', a
   const loginCtx = await browser.newContext()
   const tmpPage = await loginCtx.newPage()
   const loginRes = await tmpPage.request.post(`${API_BASE}/auth/login`, {
-    data: { loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') },
+    data: { loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) },
   })
   const loginBody = await loginRes.json()
   const masterToken: string = loginBody.data?.token ?? ''

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * #937 fix 라운드 라이브QA — 1차 적대검증(OPUS) 발견 1·2·3 근본수정 검증.
  *
@@ -23,7 +24,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5207'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const ACCOUNT = 'dev_manager'
 
 // 재수렴 4차(#937): 다른 두 #937 real-qa 스펙과 같이 QA_SHOTS_DIR 를 존중한다 —

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * print-detail-real-qa.spec.ts
@@ -56,7 +57,7 @@ async function injectAuthStub(page: Page): Promise<void> {
     const resp = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     })
     const json = (await resp.json()) as { success: boolean; data?: { token?: string } }
     if (json.success && json.data?.token) realToken = json.data.token

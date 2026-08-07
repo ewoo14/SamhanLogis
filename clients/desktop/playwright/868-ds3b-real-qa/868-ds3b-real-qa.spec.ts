@@ -1,15 +1,16 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * #845 DS-3b 실서버 라이브 QA 하네스.
  *
  * `*-real-qa.spec.ts` 규칙으로 mock CI에서 제외된다. 개발책임자가
- * AUDIT_BASE_URL/API_BASE/DEV_PASSWORD를 지정한 실 게이트웨이에서만 실행한다.
+ * AUDIT_BASE_URL/API_BASE/QA_DEV_DEFAULT_PASSWORD를 지정한 실 게이트웨이에서만 실행한다.
  * 고정된 throwaway docType을 매 실행 전 정리하고 종료 시 soft-delete한다.
  */
 import { expect, test } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5188'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const DOC_TYPE = 'GROUPWARE_QA_DS3B_EDITOR'
 
 const V2_DOCUMENT = {

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * PR #926 (#902) 라이브QA — 금액 열 편집 정책 (개발책임자 결정 2026-07-25).
  *
@@ -24,7 +25,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5252'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 // 기본값은 커밋된 docs/qa/902-slip-line-ecount/ 가 아니라 그 밑 _local/ (gitignore 대상) —
 // 재실행이 커밋된 증거를 덮어쓰지 않는다. QA_SHOTS_DIR 로 의도적 승격만 opt-in.
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/902-slip-line-ecount'))

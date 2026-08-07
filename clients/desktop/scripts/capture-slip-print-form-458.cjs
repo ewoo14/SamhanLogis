@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /**
  * PR #458 출고전표·거래명세서 원본 양식 1:1 — 실 연동 헤드리스 캡처.
  *
@@ -6,7 +7,7 @@
  *   - Backend gateway: http://localhost:8080 (실 JWT, 실 DB)
  *
  * 실행:
- *   QA_LOGIN_PW=<V5 DEV 시드 비번> node clients/desktop/scripts/capture-slip-print-form-458.cjs
+ *   QA_DEV_DEFAULT_PASSWORD=<V5 DEV 시드 비번> node clients/desktop/scripts/capture-slip-print-form-458.cjs
  *
  * 산출물: docs/qa/slip-shipout-print-form/screenshots/
  *   10-dispatch-real.png        출고전표 (실전표, 원본 양식 4열 월/일|품목명|규격|수량)
@@ -63,7 +64,7 @@ function jsonReq(method, urlPath, body, token) {
 async function loginReal() {
   const json = await jsonReq('POST', '/auth/login', {
     loginId: process.env.QA_LOGIN_ID || 'dev_master',
-    password: process.env.QA_LOGIN_PW || '',
+    password: resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'),
   })
   if (!json.success) throw new Error('login failed: ' + JSON.stringify(json))
   return json.data.token

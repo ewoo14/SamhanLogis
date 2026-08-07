@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * task5 배차 전표확인 = 판매전표 미리보기 — 실서버 GUI QA.
@@ -15,7 +16,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? ''
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/task5-dispatch-slip-preview'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
@@ -33,7 +34,7 @@ interface LoginResult { token: string; role: string; userId: string; displayName
 async function realLogin(page: Page, loginId: string): Promise<LoginResult> {
   expect(
     PASSWORD,
-    'DEV_PASSWORD 환경변수를 설정해야 실서버 QA 로그인을 수행할 수 있습니다.',
+    'QA_DEV_DEFAULT_PASSWORD 환경변수를 설정해야 실서버 QA 로그인을 수행할 수 있습니다.',
   ).toBeTruthy()
   const res = await page.request.post(`${API_BASE}/auth/login`, { data: { loginId, password: PASSWORD } })
   expect(res.ok(), `로그인 실패(${loginId}): HTTP ${res.status()}`).toBeTruthy()

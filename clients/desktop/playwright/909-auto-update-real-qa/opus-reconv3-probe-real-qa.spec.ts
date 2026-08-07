@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #909 OPUS 재수렴 라운드 3 (적대 probe) — 닫기 무효화 fix(fe83eb911) 를 실제로 조작해
@@ -21,7 +22,7 @@ import { join } from 'node:path'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5260'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const MARKER = 'OPUS909R7'
 const SHOT_DIR = resolveQaShotsDir(process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-opus-reconv3-2026-07-24'))
 const RAW_ERROR = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'

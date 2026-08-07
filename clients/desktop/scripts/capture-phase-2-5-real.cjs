@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /**
  * Phase 2.5 주문 보류(ON_HOLD) + 상태 필터 — 실 연동 헤드리스 캡처 스크립트.
  *
@@ -38,10 +39,10 @@ const SCREENSHOT_DIR = resolveQaShotsDir(path.join(__dirname, '../../../docs/qa/
 // ──────────────────────────────────────────────────────────────────────────
 function loginReal() {
   return new Promise((resolve, reject) => {
-    // 자격은 환경변수로 주입 (평문 커밋 금지 — GitGuardian). QA_LOGIN_ID/QA_LOGIN_PW.
+    // 자격은 환경변수로 주입 (평문 커밋 금지 — GitGuardian). QA_LOGIN_ID/QA_DEV_DEFAULT_PASSWORD.
     const body = JSON.stringify({
       loginId: process.env.QA_LOGIN_ID || 'dev_master',
-      password: process.env.QA_LOGIN_PW || '',
+      password: resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'),
     })
     const req = http.request(
       `${GATEWAY}/auth/login`,

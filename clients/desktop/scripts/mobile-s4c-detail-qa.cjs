@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /* 모바일 슬4c 상세 페이지 반응형 라이브 QA — Playwright(real :5175 + gateway :8080).
  * 가짜 금지 [[feedback_no_fake_data_ever]]. 실 로그인·실 상세 페이지.
  * 검증: .detail-grid/.audit-detail-meta 등 computed grid-template-columns 트랙수(mobile=1),
@@ -31,7 +32,7 @@ async function login(page) {
   await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
+  await page.fill('[data-testid=login-password-input]', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   await page.waitForTimeout(800)

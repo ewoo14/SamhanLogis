@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /* 모바일 잔여 백로그 라이브 검수 — Playwright (real :5175 web + :8080 gateway, mock OFF).
  * 가짜 금지 [[feedback_no_fake_data_ever]]. 실 로그인(dev_master)·실 데이터·실 화면.
  * 목적: (A) 병합 완료분 모바일 기능 동작 확인(드로어 클릭/네비/리스트→상세)
@@ -19,7 +20,7 @@ async function login(page) {
   await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
+  await page.fill('[data-testid=login-password-input]', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   await page.waitForTimeout(800)

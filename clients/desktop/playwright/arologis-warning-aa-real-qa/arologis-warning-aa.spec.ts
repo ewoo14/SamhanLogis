@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #784 — warning 색 토큰 AA sweep — arologis-desktop 실서버 GUI QA.
@@ -31,7 +32,7 @@ function b64urlDecode(seg: string): string {
 test('arologis warning AA — DispatchDetail 실 GUI 캡처', async ({ page }) => {
   // 실 로그인 (arologis admin)
   const res = await page.request.post(`${API_BASE}/auth/admin/login`, {
-    data: { loginId: 'admin', password: process.env.QA_AROLOGIS_ADMIN_PASSWORD ?? '' },
+    data: { loginId: 'admin', password: resolveQaCredential('QA_AROLOGIS_ADMIN_PASSWORD') },
   })
   expect(res.ok(), `arologis 로그인 실패: HTTP ${res.status()}`).toBeTruthy()
   const d = await res.json()

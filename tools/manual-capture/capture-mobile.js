@@ -23,6 +23,7 @@ const { chromium } = require('playwright');
 const path = require('node:path');
 const fs = require('node:fs');
 const { addAnnotations } = require('./annotate');
+const { resolveQaCredential } = require('../../scripts/lib/qa-credentials.cjs');
 
 const CONFIG_PATH = path.resolve(__dirname, 'capture.config.json');
 const OUT_DIR = path.resolve(__dirname, 'output');
@@ -55,8 +56,7 @@ async function performLogin(page, baseUrl, creds) {
   const submitSelector = '[data-testid="mobile-login-submit"], button[type="submit"]';
   try {
     await page.fill(idSelector, creds.loginId);
-    const password = creds.password ?? process.env[creds.passwordEnv];
-    if (!password) throw new Error(`환경변수 ${creds.passwordEnv}가 필요합니다.`);
+    const password = creds.password ?? resolveQaCredential(creds.passwordEnv);
     await page.fill(pwSelector, password);
     await page.click(submitSelector);
     await page.waitForTimeout(2000);

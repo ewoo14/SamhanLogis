@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #877 — CODEF 저장 시 type 필터 밖 카테고리 무음 유실 fix — OPUS 4.8 적대검증 라이브 QA.
@@ -24,7 +25,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5360'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const LOGIN_ID = process.env['DEV_LOGIN'] ?? 'dev_master'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const CONNECTED = 'connected-main'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/877-opus-review-2026-07-24'))
 fs.mkdirSync(SHOTS, { recursive: true })

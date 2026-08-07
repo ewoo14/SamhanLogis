@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 
 /**
  * R1-1/R1-2 안전망 — cleanup worker(wmic/detached 어느 쪽이든)가 어떤 이유로도 자기 run 을
@@ -39,7 +40,7 @@ async function login(apiBase, password) {
 async function main() {
   const apiBase = arg('--api-base', process.env.API_BASE || 'http://localhost:8080')
   const graceMs = Number(arg('--grace-ms', String(DEFAULT_STALE_GRACE_MS)))
-  const password = arg('--password', process.env.DEV_PASSWORD || (process.env.DEV_PASSWORD ?? ''))
+  const password = arg('--password', process.env.QA_DEV_DEFAULT_PASSWORD || (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
 
   const authHeaders = await login(apiBase, password)
   const templateResult = await reapStaleDs4Templates({ apiBase, authHeaders, graceMs })

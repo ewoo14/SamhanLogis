@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /* 첫 카드 타깃 캡처(요소 스크린샷) — fullPage 과대 회피. */
 const { chromium } = require('playwright')
 // 이 파일은 라우트 인자를 `path` 로 부르므로 node:path 는 다른 이름으로 불러온다.
@@ -13,7 +14,7 @@ const QA = resolveQaShotsDir(nodePath.resolve(__dirname, '../../../docs/qa/mobil
   await page.goto('http://localhost:5175/#/login', { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
+  await page.fill('[data-testid=login-password-input]', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   // 이 하네스(:5175, vite.renderer.dev.config.ts)는 HashRouter — 해시 없는 goto 는 조용히

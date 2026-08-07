@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * #937 재수렴 7차 라이브QA — 버전이력 합계의 세금 도메인 (mock OFF, 실 게이트웨이 :8080 → 실 Postgres).
  *
@@ -31,7 +32,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:6240'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const ACCOUNT = process.env['QA_ACCOUNT'] ?? 'dev_manager'
 /** R7-1 — 단가(VAT포함) 100,000 × 2 로 생성한 throwaway 전표. */
 const FIX7_SLIP = process.env['QA_FIX7_SLIP'] ?? ''

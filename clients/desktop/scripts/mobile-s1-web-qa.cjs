@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /* 모바일 슬1 웹 쿠키 인증 라이브 QA — Playwright 직접 구동 (real server :5175 + gateway :8080).
  * 가짜 금지 [[feedback_no_fake_data_ever]]. 실 로그인/실 쿠키/실 화면 캡처 + 진단.
  */
@@ -61,7 +62,7 @@ async function launch() {
 
   // 2) 로그인 수행
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
+  await page.fill('[data-testid=login-password-input]', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
   await page.click('[data-testid=login-submit-button]')
   log('2. submitted login')
 

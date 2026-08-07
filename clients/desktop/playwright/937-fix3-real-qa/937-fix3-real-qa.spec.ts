@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * #937 재수렴 3차 fix3 확증 — U1(하이드레이션 unitPrice 세금 도메인)·U2(실질 VAT 불일치
  * 경고·2-peer)·U3(origin/main 대비 과세표준 회귀 0) 라이브 실증 (mock OFF, 실 게이트웨이
@@ -28,7 +29,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5765'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const ACCOUNT = 'dev_manager'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/937-fix3'))
 fs.mkdirSync(SHOTS, { recursive: true })

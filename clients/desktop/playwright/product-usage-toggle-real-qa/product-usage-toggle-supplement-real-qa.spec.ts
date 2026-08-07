@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR-B 보충 QA (cb099ab3) — T8 q 검색 UI + T9R 페이징 결정성
@@ -35,7 +36,7 @@ async function loginAndGetToken(): Promise<string> {
   const resp = await fetch(`${GATEWAY}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+    body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
   })
   const data = (await resp.json()) as { data: { token: string } }
   return data.data.token

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -6,7 +7,7 @@ import { expect, test, type APIRequestContext, type Browser, type Page } from '@
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5490'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'))
 const CONNECTED = 'connected-main'
 const SHOTS = resolveQaShotsDir(path.resolve('../../docs/qa/877-sol-r3'))
 fs.mkdirSync(SHOTS, { recursive: true })

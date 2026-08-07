@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 /**
  * 전 기능 Docker 실 QA — 데스크톱 화면 일괄 캡처 (2026-05-30).
@@ -25,8 +26,8 @@ const ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'DOWNLOAD', 'P
 const matrix = Object.fromEntries(CODES.map((c) => [c, ACTIONS]))
 
 const LOGIN_ID = process.env.QA_MASTER_ID || 'dev_master'
-const PW = process.env.QA_MASTER_PW
-if (!PW) { console.error('QA_MASTER_PW 환경변수 필요'); process.exit(2) }
+const PW = resolveQaCredential('QA_MASTER_PASSWORD')
+if (!PW) { console.error('QA_MASTER_PASSWORD 환경변수 필요'); process.exit(2) }
 
 const SHIM = `(()=>{const K='__qa_auth';const r=()=>{try{return JSON.parse(localStorage.getItem(K)||'null')}catch{return null}};window.samhanAuth={getToken:async()=>r(),setToken:async a=>localStorage.setItem(K,JSON.stringify(a)),clearToken:async()=>localStorage.removeItem(K)};window.samhanLegacy={getEstimateUrl:async()=>'',openExternal:async()=>{}};})();`
 

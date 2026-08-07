@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * supplier-profile-bank-stamp-real-qa.spec.ts
@@ -151,7 +152,7 @@ async function injectAuthStub(
     const resp = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     })
     const json = (await resp.json()) as { success: boolean; data?: { token?: string } }
     if (json.success && json.data?.token) realToken = json.data.token
@@ -251,7 +252,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_FOR_EDIT = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     }).then(r => r.json() as Promise<{ success: boolean; data?: { token?: string } }>)
     let primaryBizNo = '2148720659' // V14 seed 기본값
     if (TOKEN_FOR_EDIT.success && TOKEN_FOR_EDIT.data?.token) {
@@ -349,7 +350,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const LOGIN_RESP = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     })
     const loginJson = (await LOGIN_RESP.json()) as { success: boolean; data?: { token?: string } }
 
@@ -441,7 +442,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_RESP = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     })
     const tokenJson = (await TOKEN_RESP.json()) as { success: boolean; data?: { token?: string } }
     let slipId = 'test-slip-id'
@@ -493,7 +494,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_RESP = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     })
     const tokenJson = (await TOKEN_RESP.json()) as { success: boolean; data?: { token?: string } }
 
@@ -562,7 +563,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_RESP2 = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     })
     const tokenJson2 = (await TOKEN_RESP2.json()) as { success: boolean; data?: { token?: string } }
     if (tokenJson2.success && tokenJson2.data?.token) {
@@ -613,7 +614,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
       const loginResp = await fetch(`${GATEWAY_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginId: 'dev_sales', password: (process.env.DEV_PASSWORD ?? '') }),
+        body: JSON.stringify({ loginId: 'dev_sales', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
       })
       const loginJson = (await loginResp.json()) as { success: boolean; data?: { token?: string } }
       if (loginJson.success && loginJson.data?.token) salesToken = loginJson.data.token
@@ -700,7 +701,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_T6 = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     }).then(r => r.json() as Promise<{ success: boolean; data?: { token?: string } }>)
     let primaryBizNo6 = '2148720659'
     if (TOKEN_T6.success && TOKEN_T6.data?.token) {
@@ -744,7 +745,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_RESP = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     })
     const tokenJson = (await TOKEN_RESP.json()) as { success: boolean; data?: { token?: string } }
     let slipId = 'fallback-slip-id'
@@ -824,7 +825,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_T7 = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     }).then(r => r.json() as Promise<{ success: boolean; data?: { token?: string } }>)
     let primaryBizNo7 = '2148720659'
     if (TOKEN_T7.success && TOKEN_T7.data?.token) {
@@ -871,7 +872,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_T7b = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     }).then(r => r.json() as Promise<{ success: boolean; data?: { token?: string } }>)
     const REAL_SLIP_ID = '45d2db99-79c0-4c7d-a391-0d038fb27017'
     let slipId7 = REAL_SLIP_ID
@@ -959,7 +960,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const TOKEN_T8 = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     }).then(r => r.json() as Promise<{ success: boolean; data?: { token?: string } }>)
     let primaryBizNo8 = '2148720659'
     if (TOKEN_T8.success && TOKEN_T8.data?.token) {
@@ -1083,7 +1084,7 @@ test.describe('PR #459 supplier-profile-bank-stamp 실서버 QA', () => {
     const loginResp = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_sales', password: (process.env.DEV_PASSWORD ?? '') }),
+      body: JSON.stringify({ loginId: 'dev_sales', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }),
     })
     const loginJson = (await loginResp.json()) as { success: boolean; data?: { token?: string } }
 

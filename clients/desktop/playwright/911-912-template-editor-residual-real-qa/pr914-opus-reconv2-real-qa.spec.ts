@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #914 OPUS 재수렴(2차) 적대검증 라이브 QA — 실서버 5195 / API 8080.
@@ -14,7 +15,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const MARKER = 'OPUSRECONV2-914-20260724'
 const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '914-opus-reconv2-2026-07-24'))
 /** #848 라운드 잔재(실 데이터, schemaVersion=1, ACTIVE) — 읽기 전용으로만 연다. */

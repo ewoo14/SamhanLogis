@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #784 — warning 색 토큰 AA 회귀 sweep — 실서버 GUI QA (mock OFF).
@@ -17,7 +18,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5191'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const PHASE = process.env['QA_PHASE'] ?? 'after'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/warning-token-aa-e784'))
 fs.mkdirSync(SHOTS, { recursive: true })

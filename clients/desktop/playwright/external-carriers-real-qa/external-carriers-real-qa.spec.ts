@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * PR #591 슬2 — 외부기사/배송사 마스터(external_carrier) 라이브 실서버 QA 캡처.
  *
@@ -43,13 +44,13 @@ async function capture(page: Page, name: string): Promise<void> {
 
 // 로컬 dev 테스트 계정(V5 P0-5 seed) 비밀번호. 기존 real-qa 스펙 컨벤션과 동일하게
 // 환경변수 우선 + 폴백. 실 운영 크레덴셜 아님(공개 dev seed 계정).
-const DEV_PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const QA_DEV_DEFAULT_PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 
 function fetchRealToken(loginId: string): Promise<string> {
   return new Promise((resolve, reject) => {
     void import('http').then((httpMod) => {
       const http = httpMod.default
-      const body = JSON.stringify({ loginId, password: DEV_PASSWORD })
+      const body = JSON.stringify({ loginId, password: QA_DEV_DEFAULT_PASSWORD })
       const req = http.request(
         {
           hostname: '127.0.0.1',

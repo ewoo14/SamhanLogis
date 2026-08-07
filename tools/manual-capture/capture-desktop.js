@@ -24,6 +24,7 @@ const { chromium } = require('playwright');
 const path = require('node:path');
 const fs = require('node:fs');
 const { addAnnotations } = require('./annotate');
+const { resolveQaCredential } = require('../../scripts/lib/qa-credentials.cjs');
 
 const CONFIG_PATH = path.resolve(__dirname, 'capture.config.json');
 const OUT_DIR = path.resolve(__dirname, 'output');
@@ -56,8 +57,7 @@ async function performLogin(page, baseUrl, creds) {
   const submitSelector = '[data-testid="login-submit-button"], button[type="submit"]';
 
   await page.fill(idSelector, creds.loginId);
-    const password = creds.password ?? process.env[creds.passwordEnv];
-    if (!password) throw new Error(`환경변수 ${creds.passwordEnv}가 필요합니다.`);
+    const password = creds.password ?? resolveQaCredential(creds.passwordEnv);
     await page.fill(pwSelector, password);
 
   // PR #111 회고 fix — mutation response + navigation 둘 다 대기.

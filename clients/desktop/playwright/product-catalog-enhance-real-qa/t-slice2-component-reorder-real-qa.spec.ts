@@ -1,10 +1,11 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 에픽 #18 슬2 — 세트 구성품 종류 그룹/기본 고정/같은 종류 안 순서 변경 실서버 QA.
  *
  * 대상 BUNDLE: AC100CS6PHH1SY (PANEL 비기본 다수, product_db 실데이터)
  * 실서버: http://localhost:8080 (api-gateway), AUDIT_BASE_URL=http://127.0.0.1:5175 (renderer vite dev, mock OFF)
- * 인증: dev_master / DEV_PASSWORD 환경변수 (MASTER, products.admin UPDATE)
+ * 인증: dev_master / QA_DEV_DEFAULT_PASSWORD 환경변수 (MASTER, products.admin UPDATE)
  *
  * 절차:
  *   1. dev_master 로그인 -> /products/estimate-items -> AC100CS6PHH1SY 검색
@@ -166,7 +167,7 @@ async function mouseDragHandleToRow(page: Page, handle: Locator, targetRow: Loca
 }
 
 test('슬2 구성품 reorder: 종류 그룹/기본 고정 + 같은 PANEL 그룹 내 순서 저장 영속', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
+  await loginAndInstallStub(page, 'dev_master', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
 
   await searchBundle(page)
   await openComponentsModal(page)

@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../scripts/lib/qa-credentials.cjs'
 /**
  * QA 실서버 실화면 캡처 — 수식 빌더 F1 고정DC% 인라인 자동저장 (PR #499, 개발책임자 정정)
  *
@@ -28,7 +29,7 @@ const results = []
 const record = (s, p, n) => { results.push({ scene: s, pass: p, note: n }); console.log(`[qa] ${p ? 'PASS' : 'FAIL'} — ${s}${n ? ' :: ' + n : ''}`) }
 
 async function freshToken() {
-  const res = await fetch(`${GATEWAY}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }) })
+  const res = await fetch(`${GATEWAY}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) }) })
   const json = await res.json()
   if (!json?.data?.token) throw new Error('login failed')
   return json.data

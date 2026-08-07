@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * #937 R-3 확증 — 전표 상세(수정) 거래처 변경 재조회의 VAT 도메인이 필드 실제 계산과
  * 일치하는가 (mock OFF, 실 게이트웨이 :8080 → 실 Postgres).
@@ -34,7 +35,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5611'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const ACCOUNT = 'dev_manager'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/937-r3-vat-domain'))
 fs.mkdirSync(SHOTS, { recursive: true })

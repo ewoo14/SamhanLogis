@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 전표 인쇄 미리보기 실 서버 QA 캡처.
@@ -58,7 +59,7 @@ async function capture(page: Page, name: string): Promise<void> {
 async function fetchRealToken(): Promise<string> {
   const http = await import('http')
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') })
+    const body = JSON.stringify({ loginId: 'dev_master', password: (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')) })
     const req = http.default.request(
       {
         hostname: '127.0.0.1', port: 8080,

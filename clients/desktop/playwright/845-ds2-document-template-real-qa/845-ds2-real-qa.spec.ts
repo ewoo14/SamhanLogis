@@ -1,3 +1,4 @@
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-2 라이브 QA — 결재문서 렌더러 DB 활성 레이아웃 연결 "출력 무변경" 실증.
@@ -22,7 +23,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5188'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
+const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const APPROVAL_ID = process.env['APPROVAL_ID'] ?? '77554976-81f7-4756-bb94-303f65d32e8f'
 const DOC_TYPE = 'GROUPWARE_EXPENSE_REPORT'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/845-ds2-document-template'))

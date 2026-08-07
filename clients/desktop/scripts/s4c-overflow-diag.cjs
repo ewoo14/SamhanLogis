@@ -1,3 +1,4 @@
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 /* 슬4c 가로 overflow 재검증 — 상세 페이지 mobile(390)에서 우측 넘침 요소가
  * scroll 컨테이너 안(OK·스크롤가능)인지 app-main 클리핑(BAD·접근불가)인지 분류. */
 const { chromium } = require('playwright')
@@ -20,7 +21,7 @@ async function launch() { try { return await chromium.launch({ headless: true })
   await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
+  await page.fill('[data-testid=login-password-input]', (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   for (const r of ROUTES) {
