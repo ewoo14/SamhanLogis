@@ -316,6 +316,32 @@ beforeEach(() => {
 })
 
 describe('SlipFormPage price memory autofill', () => {
+  it('실제 거래처·품목 선택 직후 최근단가 조회 중에는 확정 단가와 출처 note를 숨긴다', async () => {
+    const pendingPriceMemory = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
+    harness.getPriceMemory.mockReturnValueOnce(pendingPriceMemory.promise)
+
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-partner-a'))
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(
+      harness.partnerA.id,
+      harness.productA.id,
+    ))
+
+    expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
+    expect(unitPrice().value).toBe('')
+    expect(screen.queryByText('판매가')).toBeNull()
+    expect(screen.queryByText('거래처 최근단가')).toBeNull()
+
+    await act(async () => {
+      pendingPriceMemory.resolve({ unitPrice: 1200, source: 'LINE_SAVE', updatedAt: '2026-08-07T09:00:00' })
+      await pendingPriceMemory.promise
+    })
+
+    await waitFor(() => expect(unitPrice().value).toBe('1200'))
+  })
+
   it('R23 RED-A3 마지막 행을 채우면 수동 버튼 없이 다음 빈행이 계속 생긴다', () => {
     renderPage()
 
@@ -460,7 +486,7 @@ describe('SlipFormPage price memory autofill', () => {
       await pendingPreviousPartnerBulk.promise
     })
 
-    expect(unitPrice().value).toBe('')
+    expect(unitPrice().value).toBe(harness.productA.sellingPrice)
     expect(screen.getByTestId('line-1').getAttribute('data-discount-info')).toBe('')
     expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
     expect(screen.getByTestId('slip-price-refresh-banner').textContent).toBe('')
@@ -1112,7 +1138,7 @@ describe('SlipFormPage price memory autofill', () => {
     await selectPartnerA()
     fireEvent.click(screen.getByTestId('select-product-a-1'))
 
-    expect(unitPrice().value).toBe('')
+    expect(unitPrice().value).toBe('1000')
     await act(async () => {
       pendingDc.resolve({
         partnerCode: 'P-A',
@@ -1156,7 +1182,7 @@ describe('SlipFormPage price memory autofill', () => {
     fireEvent.click(screen.getByTestId('select-product-a-1'))
 
     await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
-    expect(unitPrice().value).toBe('')
+    expect(unitPrice().value).toBe(harness.productA.sellingPrice)
   })
 
   it('uses the global discount result instead of a remembered list price', async () => {
@@ -2189,82 +2215,6 @@ function describedByIds(input: HTMLElement): string[] {
 }
 
 describe('SlipFormPage 모바일 라인 카드 aria-describedby (MED-1)', () => {
-  it('S3 RED-A: 단건 최근단가 조회 중 카탈로그 단가를 모바일 입력에 노출하지 않는다', async () => {
-    const pending = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
-    harness.getPriceMemory.mockReturnValueOnce(pending.promise)
-
-    renderMobilePage()
-    await selectPartnerA()
-    fireEvent.click(screen.getByTestId('select-product-a-1'))
-    await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(
-      harness.partnerA.id,
-      harness.productA.id,
-    ))
-
-    expect(mobileUnitPrice().value).not.toBe('1000')
-
-    await act(async () => {
-      pending.resolve({ unitPrice: 100000, source: 'LINE_SAVE', updatedAt: '2026-08-07T09:00:00' })
-      await pending.promise
-    })
-    await waitFor(() => expect(mobileUnitPrice().value).toBe('100000'))
-    expect(screen.getByRole('note').textContent).toBe('거래처 최근단가')
-  })
-
-  it('S3 RED-B: 거래처 변경 조회 중 이전 단가를 새 거래처 입력에 노출하지 않고 늦은 응답을 격리한다', async () => {
-    const partnerAMemory = deferred<{ unitPrice: number; source: string; updatedAt: string } | null>()
-    const partnerBMemories = deferred<{
-      hits: Array<{ productId: string; unitPrice: number; source: string; updatedAt: string }>
-      failedProductIds: string[]
-    }>()
-    harness.getPriceMemory.mockReturnValueOnce(partnerAMemory.promise)
-    harness.getPriceMemories.mockReturnValueOnce(partnerBMemories.promise)
-
-    renderMobilePage()
-    await selectPartnerA()
-    fireEvent.click(screen.getByTestId('select-product-a-1'))
-    await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(
-      harness.partnerA.id,
-      harness.productA.id,
-    ))
-    await act(async () => {
-      partnerAMemory.resolve({ unitPrice: 100000, source: 'LINE_SAVE', updatedAt: '2026-08-07T09:00:00' })
-      await partnerAMemory.promise
-    })
-    await waitFor(() => expect(mobileUnitPrice().value).toBe('100000'))
-
-    await selectPartnerB()
-    await waitFor(() => expect(harness.getPriceMemories).toHaveBeenCalledWith(
-      harness.partnerB.id,
-      [harness.productA.id],
-    ))
-    expect(mobileUnitPrice().value).not.toBe('1000')
-    expect(mobileUnitPrice().value).not.toBe('100000')
-
-    await act(async () => {
-      partnerBMemories.resolve({ hits: [{
-        productId: harness.productA.id,
-        unitPrice: 200000,
-        source: 'LINE_SAVE',
-        updatedAt: '2026-08-07T10:00:00',
-      }], failedProductIds: [] })
-      await partnerBMemories.promise
-    })
-    await waitFor(() => expect(mobileUnitPrice().value).toBe('200000'))
-    expect(screen.getByRole('note').textContent).toBe('거래처 최근단가')
-    expect(screen.getByText('단가 변경')).toBeTruthy()
-    const ids = describedByIds(mobileUnitPrice())
-    const note = screen.getByRole('note')
-    const changed = screen.getByText('단가 변경')
-    expect(ids).toEqual([note.id, changed.id])
-
-    await act(async () => {
-      partnerAMemory.resolve({ unitPrice: 100000, source: 'LINE_SAVE', updatedAt: '2026-08-07T09:00:00' })
-      await partnerAMemory.promise
-    })
-    expect(mobileUnitPrice().value).toBe('200000')
-  })
-
   it('모바일 뷰에서 데스크톱 LineRow 테이블이 아니라 라인 카드를 렌더한다', () => {
     renderMobilePage()
     // 모바일 분기 진입 확인 — 데스크톱 분기 전용 mock LineTableHeader 는 렌더되지 않는다.
