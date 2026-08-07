@@ -7,9 +7,14 @@ import {
   type ChangeEvent,
   type FocusEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react'
 import styles from './WarehouseAutocomplete.module.css'
 import { FormField } from '../FormField/FormField'
+import {
+  SearchResultSelectionModal,
+  type SearchResultSelectionMode,
+} from '../SearchResultSelectionModal'
 
 /**
  * 창고 분류 enum (BE `WarehouseType` 와 1:1 대응).
@@ -58,6 +63,12 @@ export interface WarehouseAutocompleteProps {
   error?: string
   /** 필수 표시 (라벨 옆 별표). */
   required?: boolean
+  /** 지정하면 2건 이상 후보를 공용 선택 모달로 표시한다. 기존 dropdown이 기본값이다. */
+  resultSelectionMode?: SearchResultSelectionMode
+  /** 결과 선택 모달 제목. */
+  resultSelectionTitle?: ReactNode
+  /** 지정하면 후보 1건을 모달 없이 즉시 확정한다. */
+  autoSelectSingleResult?: boolean
 }
 
 /**
@@ -128,6 +139,9 @@ export const WarehouseAutocomplete = forwardRef<
     disabled = false,
     error,
     required = false,
+    resultSelectionMode,
+    resultSelectionTitle = '창고 검색 결과',
+    autoSelectSingleResult = false,
   },
   ref,
 ) {
@@ -158,6 +172,8 @@ export const WarehouseAutocomplete = forwardRef<
   const [draft, setDraft] = useState<string>('')
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState<number>(-1)
+  const [selectionCandidates, setSelectionCandidates] = useState<Warehouse[]>([])
+  const [selectionOpen, setSelectionOpen] = useState(false)
   const blurTimer = useRef<number | undefined>(undefined)
 
   const candidates = useMemo(
@@ -209,9 +225,21 @@ export const WarehouseAutocomplete = forwardRef<
   }
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setDraft(e.target.value)
+    const nextDraft = e.target.value
+    setDraft(nextDraft)
     setActiveIndex(-1)
     if (!open) setOpen(true)
+
+    if (resultSelectionMode && nextDraft.trim()) {
+      const nextCandidates = searchWarehouses(visibleWarehouses, nextDraft)
+      if (autoSelectSingleResult && nextCandidates.length === 1) {
+        pick(nextCandidates[0]!)
+      } else if (nextCandidates.length > 1) {
+        setSelectionCandidates(nextCandidates)
+        setSelectionOpen(true)
+        setOpen(false)
+      }
+    }
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -246,6 +274,13 @@ export const WarehouseAutocomplete = forwardRef<
     setOpen(false)
   }
 
+  const closeSelection = () => {
+    setSelectionOpen(false)
+    setSelectionCandidates([])
+    setDraft(selectedLabel)
+    setOpen(false)
+  }
+
   // 표시값 — 포커스 중에는 draft, 그 외엔 selectedLabel
   const displayValue = open ? draft : selectedLabel
 
@@ -255,6 +290,7 @@ export const WarehouseAutocomplete = forwardRef<
       error={error}
       required={required}
       render={({ id, ariaDescribedBy, invalid, required: req }) => (
+        <>
         <div className={styles['wrapper']}>
           <div
             className={[
@@ -333,6 +369,31 @@ export const WarehouseAutocomplete = forwardRef<
             </div>
           ) : null}
         </div>
+        <SearchResultSelectionModal
+          open={selectionOpen}
+          mode={resultSelectionMode ?? 'single'}
+          title={resultSelectionTitle}
+          options={selectionCandidates}
+          getKey={(warehouse) => warehouse.id}
+          getLabel={(warehouse) => warehouse.code}
+          renderOption={(warehouse) => (
+            <span>
+              <span className={styles['optionCode']}>{warehouse.code}</span>
+              <span className={styles['optionName']}>{warehouse.name}</span>
+            </span>
+          )}
+          columns={[
+            { key: 'code', label: '창고 코드', render: (warehouse: Warehouse) => warehouse.code },
+            { key: 'name', label: '창고명', render: (warehouse: Warehouse) => warehouse.name },
+          ]}
+          onConfirm={(items) => {
+            if (items[0]) pick(items[0])
+            setSelectionOpen(false)
+            setSelectionCandidates([])
+          }}
+          onCancel={closeSelection}
+        />
+        </>
       )}
     />
   )

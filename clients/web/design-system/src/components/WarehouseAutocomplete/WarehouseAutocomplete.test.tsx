@@ -34,6 +34,29 @@ function renderWarehouse(onChange = vi.fn()) {
 }
 
 describe('WarehouseAutocomplete opaque option DOM contract', () => {
+  it('opt-in contract: two candidates open the shared modal and cancel leaves selection unchanged', () => {
+    const onChange = vi.fn()
+    render(
+      <WarehouseAutocomplete
+        warehouses={warehouses}
+        value={null}
+        onChange={onChange}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '취소' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('option id와 combobox IDREF는 opaque index ID이고 도메인 id/code를 노출하지 않는다', () => {
     const { input } = renderWarehouse()
     const listbox = screen.getByRole('listbox', { name: '창고 목록' })

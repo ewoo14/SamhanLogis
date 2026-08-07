@@ -9,6 +9,33 @@ interface Option {
 }
 
 describe('MultiSelectAutocomplete', () => {
+  it('opt-in contract: one candidate becomes a chip without opening a modal', async () => {
+    const onAdd = vi.fn()
+    const option = { id: 'U-001', name: '김하나' }
+
+    render(
+      <MultiSelectAutocomplete<Option, Option>
+        selected={[]}
+        onAdd={onAdd}
+        onRemove={vi.fn()}
+        search={vi.fn().mockResolvedValue([option])}
+        getOptionKey={(item) => item.id}
+        getSelectedKey={(item) => item.id}
+        getInputLabel={(item) => item.name}
+        renderOption={(item) => <span>{item.name}</span>}
+        listboxLabel="담당자 목록"
+        ariaLabel="담당자"
+        resultSelectionMode="multiple"
+        autoSelectSingleResult
+        getChipProps={(item) => ({ label: '사원', value: item.name })}
+        debounceMs={0}
+      />,
+    )
+
+    fireEvent.change(screen.getByRole('combobox', { name: '담당자' }), { target: { value: '김' } })
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith(option))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
   it('이미 선택한 key를 검색 결과에서 제외하고 후보 선택을 add delta로 전달한다', async () => {
     const selected: Option = { id: 'u-1', name: '김민수' }
     const next: Option = { id: 'u-2', name: '이서윤' }
