@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-const { spawnSync } = require('node:child_process')
 const path = require('node:path')
+const { spawnSyncWithFileOutput } = require('./capture-child-output.cjs')
 
 const REPO_ROOT = path.resolve(__dirname, '..')
+const MAX_REPORTED_RESIDUE = 200
 
 function parseStatusOutput(output) {
   return output
@@ -15,18 +16,24 @@ function parseStatusOutput(output) {
 function formatResidueReport(residue) {
   if (residue.length === 0) return ''
 
+  const visibleResidue = residue.slice(0, MAX_REPORTED_RESIDUE)
+  const omittedCount = residue.length - visibleResidue.length
+
   return [
     '[docs/qa 결과 검사] 실패: tracked 변경 + non-ignored untracked 잔재 0 계약 위반',
     '[docs/qa 결과 검사] 더럽혀진 항목:',
-    ...residue.map(line => `  ${line}`),
+    ...visibleResidue.map(line => `  ${line}`),
+    omittedCount > 0
+      ? `  ... 외 ${omittedCount}건 (총 ${residue.length}건)`
+      : `  총 ${residue.length}건`,
   ].join('\n')
 }
 
 function main() {
-  const result = spawnSync(
+  const result = spawnSyncWithFileOutput(
     'git',
     ['-C', REPO_ROOT, 'status', '--porcelain=v1', '--untracked-files=all', '--', 'docs/qa'],
-    { encoding: 'utf8' },
+    {},
   )
 
   if (result.error || result.status !== 0) {
