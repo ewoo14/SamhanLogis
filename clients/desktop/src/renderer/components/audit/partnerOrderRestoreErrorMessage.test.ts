@@ -43,20 +43,6 @@ describe('partnerOrderRestoreErrorMessage', () => {
     expect(partnerOrderRestoreErrorMessage(error)).not.toContain('다시 시도')
   })
 
-  it('401 인증 오류는 재로그인을 안내한다', () => {
-    const error = new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', undefined, undefined, {
-      status: 401,
-      statusText: 'Unauthorized',
-      headers: {},
-      config: {},
-      data: { message: '인증 토큰 내부 상세' },
-    })
-
-    expect(partnerOrderRestoreErrorMessage(error)).toBe(
-      '로그인이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.',
-    )
-  })
-
   it('404 자원 부재는 최신 상태 확인을 안내한다', () => {
     const error = new AxiosError('Not found', 'ERR_BAD_REQUEST', undefined, undefined, {
       status: 404,

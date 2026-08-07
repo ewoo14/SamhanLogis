@@ -97,9 +97,8 @@ export function partnerOrderRestoreErrorMessage(error: unknown): string {
   const fallback = '주문 복원에 실패했습니다. 다시 시도해 주세요.'
   if (!isAxiosError(error)) return fallback
 
+  // 401은 공통 apiClient 인터셉터가 먼저 세션 정리·로그인 이동 처리하므로 이 함수에 도달하지 않는다.
   switch (error.response?.status) {
-    case 401:
-      return '로그인이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.'
     case 403:
       return '주문 복원 권한이 없습니다. MASTER, MANAGER 또는 SALES 권한이 있는 담당자에게 요청해 주세요.'
     case 404:

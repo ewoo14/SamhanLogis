@@ -1,0 +1,343 @@
+{
+  "environment": {
+    "head": "0a80591aec729f1a9c70c84466d79fe725787128",
+    "frontendWorktree": "C:/dev/Samhan-Public/.claude/worktrees/t1110",
+    "composeWorktreeObserved": "C:/dev/Samhan-Public/.claude/worktrees/t1113",
+    "frontend": "http://127.0.0.1:5176",
+    "gateway": "http://127.0.0.1:8080",
+    "partnerOrderDirect": "http://127.0.0.1:18088",
+    "mockMode": false,
+    "browser": "Chromium 147.0.7727.15 headless"
+  },
+  "scenarios": {
+    "400": {
+      "trigger": "GUI 복원 요청의 revision 경로만 숫자 변환 불가 값으로 바꿔 실제 gateway 호출",
+      "triggerKind": "live-request-url-fault-injection-no-fulfill",
+      "triggered": true,
+      "responseStatus": 400,
+      "serverMessagePresent": true,
+      "screen": {
+        "message": "주문 복원에 실패했습니다. 다시 시도해 주세요.",
+        "toastVisible": true,
+        "url": "http://127.0.0.1:5176/#/sales/partner-orders/2026-06-08-1980?mockRole=MASTER"
+      },
+      "network": [
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/not-a-number/restore",
+          "status": 400
+        }
+      ]
+    },
+    "401": {
+      "trigger": "버전 이력을 연 뒤 요청 토큰을 만료·무효 토큰으로 전환",
+      "triggered": true,
+      "responseStatus": 401,
+      "revisionNo": 32,
+      "screen": {
+        "message": "",
+        "toastVisible": false,
+        "url": "http://127.0.0.1:5176/#/login"
+      },
+      "network": [
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/32/restore",
+          "status": 401
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+          "status": 401
+        }
+      ]
+    },
+    "403": {
+      "trigger": "MASTER 화면 캐시 유지 중 실제 요청 토큰을 DISPATCH로 전환",
+      "triggered": true,
+      "responseStatus": 403,
+      "revisionNo": 32,
+      "screen": {
+        "message": "주문 복원 권한이 없습니다. MASTER, MANAGER 또는 SALES 권한이 있는 담당자에게 요청해 주세요.",
+        "toastVisible": true,
+        "url": "http://127.0.0.1:5176/#/sales/partner-orders/2026-06-08-1980?mockRole=MASTER"
+      },
+      "network": [
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/32/restore",
+          "status": 403
+        }
+      ]
+    },
+    "404": {
+      "trigger": "GUI 복원 요청의 revision 경로만 비존재 999999로 바꿔 실제 gateway 호출",
+      "triggerKind": "live-request-url-fault-injection-no-fulfill",
+      "triggered": true,
+      "responseStatus": 404,
+      "requestedRevisionNo": 999999,
+      "screen": {
+        "message": "복원할 주문 또는 버전을 찾을 수 없습니다. 최신 주문 정보를 확인해 주세요.",
+        "toastVisible": true,
+        "url": "http://127.0.0.1:5176/#/sales/partner-orders/2026-06-08-1980?mockRole=MASTER"
+      },
+      "network": [
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/999999/restore",
+          "status": 404
+        }
+      ]
+    },
+    "409": {
+      "trigger": "SELECT FOR UPDATE로 동일 주문 row를 잠근 동안 GUI 복원",
+      "triggered": true,
+      "responseStatus": 409,
+      "revisionNo": 32,
+      "serverMessage": "동시에 복원된 주문입니다. 다른 사용자의 복원이 먼저 완료되어 다시 조회해 주세요.",
+      "screen": {
+        "message": "동시에 복원된 주문입니다. 다른 사용자의 복원이 먼저 완료되어 다시 조회해 주세요.",
+        "toastVisible": true,
+        "url": "http://127.0.0.1:5176/#/sales/partner-orders/2026-06-08-1980?mockRole=MASTER"
+      },
+      "exactServerMessagePreserved": true,
+      "network": [
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/32/restore",
+          "status": 409
+        }
+      ]
+    },
+    "5xx": {
+      "trigger": "기존 스택 중지·의존성 훼손·가짜 응답 없이 안전하게 만들 수 있는 조건 없음",
+      "triggered": false,
+      "judgment": "판정 불가"
+    }
+  }
+}
