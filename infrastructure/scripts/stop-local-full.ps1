@@ -34,6 +34,8 @@ $ErrorActionPreference = 'Continue'
 
 $ProjectRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 $InfraDir    = Join-Path $ProjectRoot 'infrastructure'
+$portResolver = Join-Path $ProjectRoot 'scripts\lib\local-stack-port.ps1'
+. (Resolve-Path -LiteralPath $portResolver)
 
 Write-Host ''
 Write-Host '==============================================================' -ForegroundColor Cyan
@@ -45,21 +47,13 @@ Write-Host ''
 # 1. 14 service graceful shutdown
 # -----------------------------------------------------------------------------
 $services = @(
-    @{ name = 'api-gateway';           port = 8080 },
-    @{ name = 'dashboard-service';     port = 8094 },
-    @{ name = 'notification-service';  port = 8093 },
-    @{ name = 'groupware-service';     port = 8092 },
-    @{ name = 'arologis-service';      port = 8097 },
-    @{ name = 'partner-order-service'; port = 8088 },
-    @{ name = 'slip-service';          port = 8086 },
-    @{ name = 'accounting-service';    port = 8087 },
-    @{ name = 'inventory-service';     port = 8085 },
-    @{ name = 'partner-service';       port = 8095 },
-    @{ name = 'product-service';       port = 8084 },
-    @{ name = 'user-service';          port = 8083 },
-    @{ name = 'auth-service';          port = 8081 },
-    @{ name = 'eureka-server';         port = 8761 }
-)
+    'api-gateway', 'dashboard-service', 'notification-service', 'groupware-service',
+    'arologis-service', 'partner-order-service', 'slip-service', 'accounting-service',
+    'inventory-service', 'partner-service', 'product-service', 'user-service',
+    'auth-service', 'eureka-server'
+) | ForEach-Object {
+    @{ name = $_; port = Get-LocalStackPort -Service $_ }
+}
 
 Write-Host '[1/2] 14 service graceful shutdown' -ForegroundColor Yellow
 foreach ($svc in $services) {

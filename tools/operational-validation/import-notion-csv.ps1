@@ -19,7 +19,7 @@
         4) 종합 합격/불합격 판정
 
 .PARAMETER GatewayUrl
-    API Gateway base URL (default http://localhost:8080). 로그인은 gateway 경유.
+    API Gateway base URL. 로그인은 gateway 경유.
     DB 이관 endpoint 호출은 start-local-full.ps1 의 SAMHAN_*_PORT override 와 +100
     fallback 을 따라 service port 직접 호출한다.
 
@@ -56,7 +56,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $GatewayUrl       = 'http://localhost:8080',
+    [string] $GatewayUrl       = '',
     [string] $LoginId          = 'kimmiseon',
     [string] $Password         = '',
     [string] $NotionExportRoot = '',
@@ -78,6 +78,7 @@ if ([string]::IsNullOrWhiteSpace($Password)) {
 # 0. 경로 + 설정
 # -----------------------------------------------------------------------------
 $ProjectRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
+. (Resolve-Path -LiteralPath (Join-Path $ProjectRoot 'scripts\lib\local-stack-port.ps1'))
 if (-not $NotionExportRoot) {
     $NotionExportRoot = Join-Path $ProjectRoot 'tools\legacy-gas\_notion-export'
 }
@@ -99,47 +100,18 @@ function Test-ImportHealthPort {
 
 function Resolve-ImportGatewayUrl {
     param([string] $CurrentGatewayUrl)
-    $envValue = [Environment]::GetEnvironmentVariable('SAMHAN_API_GATEWAY_PORT')
-    if ($envValue -and $envValue -match '^\d+$') {
-        return "http://localhost:$envValue"
-    }
-    if ($CurrentGatewayUrl -ne 'http://localhost:8080') {
+    if (-not [string]::IsNullOrWhiteSpace($CurrentGatewayUrl)) {
         return $CurrentGatewayUrl
     }
-    if (Test-ImportHealthPort -Port 8080) {
-        return $CurrentGatewayUrl
-    }
-    if (Test-ImportHealthPort -Port 8180) {
-        return 'http://localhost:8180'
-    }
-    return $CurrentGatewayUrl
+    return "http://localhost:$(Get-LocalStackPort -Service 'api-gateway')"
 }
 
 # service port override 반영 — start-local-full.ps1 의 SAMHAN_*_PORT 와 정합.
-function Resolve-ImportServicePort {
-    param(
-        [string] $EnvName,
-        [int] $DefaultPort
-    )
-    $envValue = [Environment]::GetEnvironmentVariable($EnvName)
-    if ($envValue -and $envValue -match '^\d+$') {
-        return [int] $envValue
-    }
-    if (Test-ImportHealthPort -Port $DefaultPort) {
-        return [int] $DefaultPort
-    }
-    $fallback = [int] $DefaultPort + 100
-    if (Test-ImportHealthPort -Port $fallback) {
-        return $fallback
-    }
-    return $DefaultPort
-}
-
 $GatewayUrl       = Resolve-ImportGatewayUrl -CurrentGatewayUrl $GatewayUrl
-$arologisPort     = Resolve-ImportServicePort -EnvName 'SAMHAN_AROLOGIS_PORT' -DefaultPort 8097
-$dcConfigPort     = Resolve-ImportServicePort -EnvName 'SAMHAN_DC_CONFIG_PORT' -DefaultPort 8089
-$notificationPort = Resolve-ImportServicePort -EnvName 'SAMHAN_NOTIFICATION_PORT' -DefaultPort 8093
-$partnerPort      = Resolve-ImportServicePort -EnvName 'SAMHAN_PARTNER_PORT' -DefaultPort 8095
+$arologisPort     = Get-LocalStackPort -Service 'arologis-service'
+$dcConfigPort     = Get-LocalStackPort -Service 'dc-config-service'
+$notificationPort = Get-LocalStackPort -Service 'notification-service'
+$partnerPort      = Get-LocalStackPort -Service 'partner-service'
 
 Write-Host ''
 Write-Host '==============================================================' -ForegroundColor Cyan
@@ -258,7 +230,7 @@ try {
     Write-Host "   FAIL — 로그인 실패: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "   확인 사항:" -ForegroundColor Yellow
     Write-Host "     1) start-local-full.ps1 가 부팅 완료되었는지" -ForegroundColor DarkGray
-    Write-Host "     2) auth-service (8081) + api-gateway (8080) UP 인지" -ForegroundColor DarkGray
+    Write-Host "     2) auth-service + api-gateway UP 인지" -ForegroundColor DarkGray
     Write-Host '     3) kimmiseon 비밀번호가 QA_MASTER_PASSWORD 값인지 (OrgChartSeeder)' -ForegroundColor DarkGray
     throw
 }

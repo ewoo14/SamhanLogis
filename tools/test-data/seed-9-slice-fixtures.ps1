@@ -29,7 +29,7 @@
         - DB 직접 INSERT 시에도 ON CONFLICT DO NOTHING.
 
 .PARAMETER ApiBase
-    14 backend gateway base URL (기본 http://localhost:8080).
+    14 backend gateway base URL (기본값은 local-stack resolver).
 
 .PARAMETER PsqlOnly
     REST API seed endpoint 미가동 시 직접 psql 만으로 적재 (CI / 검증 모드).
@@ -41,7 +41,7 @@
     .\tools\test-data\seed-9-slice-fixtures.ps1
 
 .EXAMPLE
-    .\tools\test-data\seed-9-slice-fixtures.ps1 -ApiBase http://localhost:8080 -SkipValidation
+.\tools\test-data\seed-9-slice-fixtures.ps1 -SkipValidation
 
 .NOTES
     - Windows PowerShell 5.1 / PowerShell 7+ 호환 (?? null-coalescing 미사용)
@@ -54,12 +54,17 @@
 
 [CmdletBinding()]
 param(
-    [string] $ApiBase = 'http://localhost:8080',
+    [string] $ApiBase = '',
     [switch] $PsqlOnly,
     [switch] $SkipValidation
 )
 
 $ErrorActionPreference = 'Stop'
+$portResolver = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'scripts\lib\local-stack-port.ps1'
+. (Resolve-Path -LiteralPath $portResolver)
+if ([string]::IsNullOrWhiteSpace($ApiBase)) {
+    $ApiBase = "http://localhost:$(Get-LocalStackPort -Service 'api-gateway')"
+}
 
 # -----------------------------------------------------------------------------
 # 0. 공통 helper

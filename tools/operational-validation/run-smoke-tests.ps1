@@ -20,7 +20,7 @@
         4) 종합 합격/불합격 판정
 
 .PARAMETER GatewayUrl
-    API Gateway base URL (default http://localhost:8080). 기본값 사용 시 health 검증에서 탐지한
+    API Gateway base URL. 기본값 사용 시 resolver port를 사용한다.
     api-gateway 실제 포트로 보정한다. 일부 admin endpoint 는 service port 직접 호출
     (Authorization + X-User-Id + X-User-Groups + X-Is-System-Master 헤더 동시 전달).
 
@@ -50,7 +50,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $GatewayUrl   = 'http://localhost:8080',
+    [string] $GatewayUrl   = '',
     [string] $LoginId      = 'kimmiseon',
     [string] $Password     = '',
     [switch] $SkipDcConfig
@@ -65,6 +65,9 @@ $smokeScriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
 $qaCredentialLoader = Join-Path $smokeScriptRoot '..\..\scripts\lib\qa-credentials.ps1'
 . (Resolve-Path -LiteralPath $qaCredentialLoader)
 . (Resolve-Path -LiteralPath (Join-Path $smokeScriptRoot 'smoke-test-helpers.ps1'))
+. (Resolve-Path -LiteralPath (Join-Path $smokeScriptRoot '..\..\scripts\lib\local-stack-port.ps1'))
+$gatewayPort = Get-LocalStackPort -Service 'api-gateway'
+if ([string]::IsNullOrWhiteSpace($GatewayUrl)) { $GatewayUrl = "http://localhost:$gatewayPort" }
 if ([string]::IsNullOrWhiteSpace($Password)) {
     $Password = Resolve-QaCredential -Key 'QA_MASTER_PASSWORD' -CompatibilityAliases @('QA_PASSWORD', 'QA_MASTER_PW')
 }
@@ -72,7 +75,7 @@ $requiredPassword = $Password
 if ([string]::IsNullOrWhiteSpace($requiredPassword)) {
     throw 'QA_MASTER_PASSWORD 환경변수를 설정하거나 -Password를 지정해야 합니다.'
 }
-$defaultGatewayUrl = 'http://localhost:8080'
+$defaultGatewayUrl = $GatewayUrl
 
 # -----------------------------------------------------------------------------
 # 0. 설정
@@ -87,24 +90,13 @@ Write-Host ''
 
 # 14 service 정의 (start-local-full.ps1 와 일치). 일부 개발 PC 는 8086/8088 등을 로컬 도구가
 # 이미 점유하여 start-local-full.ps1 가 +100 포트로 우회한다. health 검증 전 실제 포트를 탐지한다.
-$services = @(
-    @{ name = 'eureka-server';         port = 8761; env = 'SAMHAN_EUREKA_PORT' },
-    @{ name = 'auth-service';          port = 8081; env = 'SAMHAN_AUTH_PORT' },
-    @{ name = 'user-service';          port = 8083; env = 'SAMHAN_USER_PORT' },
-    @{ name = 'product-service';       port = 8084; env = 'SAMHAN_PRODUCT_PORT' },
-    @{ name = 'partner-service';       port = 8095; env = 'SAMHAN_PARTNER_PORT' },
-    @{ name = 'inventory-service';     port = 8085; env = 'SAMHAN_INVENTORY_PORT' },
-    @{ name = 'accounting-service';    port = 8087; env = 'SAMHAN_ACCOUNTING_PORT' },
-    @{ name = 'slip-service';          port = 8086; env = 'SAMHAN_SLIP_PORT' },
-    @{ name = 'partner-order-service'; port = 8088; env = 'SAMHAN_PARTNER_ORDER_PORT' },
-    @{ name = 'arologis-service';      port = 8097; env = 'SAMHAN_AROLOGIS_PORT' },
-    @{ name = 'groupware-service';     port = 8092; env = 'SAMHAN_GROUPWARE_PORT' },
-    @{ name = 'notification-service';  port = 8093; env = 'SAMHAN_NOTIFICATION_PORT' },
-    @{ name = 'dashboard-service';     port = 8094; env = 'SAMHAN_DASHBOARD_PORT' },
-    @{ name = 'api-gateway';           port = 8080; env = 'SAMHAN_API_GATEWAY_PORT' }
-)
+$services = @('eureka-server', 'auth-service', 'user-service', 'product-service', 'partner-service',
+    'inventory-service', 'accounting-service', 'slip-service', 'partner-order-service', 'arologis-service',
+    'groupware-service', 'notification-service', 'dashboard-service', 'api-gateway') | ForEach-Object {
+    @{ name = $_; port = Get-LocalStackPort -Service $_ }
+}
 if (-not $SkipDcConfig) {
-    $services += @{ name = 'dc-config-service'; port = 8089; env = 'SAMHAN_DC_CONFIG_PORT' }
+    $services += @{ name = 'dc-config-service'; port = Get-LocalStackPort -Service 'dc-config-service' }
 }
 
 function Test-HealthPort {
