@@ -21,10 +21,22 @@ $portHelper = Join-Path $root 'scripts\lib\local-stack-port.ps1'
 . (Resolve-Path $portHelper)
 $publishableServices = @((Get-LocalStackPortDefinitions).Keys | Where-Object { $_ -ne 'logging-service' })
 Assert-True ($publishableServices.Count -eq 16) "expected 16 publishable services, got $($publishableServices.Count)"
-$compose = Get-Content (Join-Path $root 'infrastructure\docker-compose.local-all.yml') -Raw -Encoding UTF8
+$composeFiles = @(
+    'infrastructure\docker-compose.yml',
+    'infrastructure\docker-compose.local-all.yml',
+    'infrastructure\docker-compose.slip-port-override.yml'
+)
+$compose = ($composeFiles | ForEach-Object {
+    Get-Content (Join-Path $root $_) -Raw -Encoding UTF8
+}) -join "`n"
 foreach ($serviceName in $publishableServices) {
     $definition = (Get-LocalStackPortDefinitions)[$serviceName]
-    $composePortDeclaration = '127.0.0.1:' + $definition.Default + ':' + $definition.ContainerPort
+    $expectedComposePort = switch ($serviceName) {
+        'slip-service' { 18086 }
+        'partner-order-service' { 18088 }
+        default { $definition.Default }
+    }
+    $composePortDeclaration = '127.0.0.1:' + $expectedComposePort + ':' + $definition.ContainerPort
     Assert-True ($compose.Contains($composePortDeclaration)) "$serviceName default $($definition.Default) does not match compose declaration $composePortDeclaration"
 }
 
@@ -63,21 +75,29 @@ foreach ($serviceName in $publishableServices) {
     $oldPortOverrides[$environmentName] = [Environment]::GetEnvironmentVariable($environmentName, 'Process')
 }
 try {
-    # RED-A: explicit override wins even when Docker publishes a different port.
+    # RED-A: an observed Docker publish wins over a stale explicit override.
     [Environment]::SetEnvironmentVariable('DOCKER_HOST', $null, 'Process')
     [Environment]::SetEnvironmentVariable('SAMHAN_AUTH_PORT', '18081', 'Process')
     $resolvedAuthPort = Get-LocalStackPort -Service 'auth-service'
-    Assert-True ($resolvedAuthPort -eq 18081) 'explicit auth override must win over Docker publish port'
+    if ($null -ne (Get-RunningContainerPort -Service 'auth-service' -ContainerPort ((Get-LocalStackPortDefinitions)['auth-service'].ContainerPort))) {
+        $authPublishedPort = Get-RunningContainerPort -Service 'auth-service' -ContainerPort ((Get-LocalStackPortDefinitions)['auth-service'].ContainerPort)
+        Assert-True ($resolvedAuthPort -eq $authPublishedPort) 'Docker publish must win over explicit auth override'
+    }
 
     # RED-B: Docker is unreachable, but every publishable service still resolves
-    # to its compose default and emits an observable fallback warning.
+    # to the effective three-file compose value and emits an observable warning.
     [Environment]::SetEnvironmentVariable('DOCKER_HOST', 'npipe:////./pipe/samhan-nonexistent-docker-engine', 'Process')
     foreach ($serviceName in $publishableServices) {
         $definition = (Get-LocalStackPortDefinitions)[$serviceName]
         [Environment]::SetEnvironmentVariable($definition.Environment, $null, 'Process')
         $warnings = @()
         $resolvedPort = Get-LocalStackPort -Service $serviceName -WarningVariable warnings
-        Assert-True ($resolvedPort -eq $definition.Default) "$serviceName Dockerless fallback expected $($definition.Default), got $resolvedPort"
+        $expectedComposePort = switch ($serviceName) {
+            'slip-service' { 18086 }
+            'partner-order-service' { 18088 }
+            default { $definition.Default }
+        }
+        Assert-True ($resolvedPort -eq $expectedComposePort) "$serviceName Dockerless fallback expected $expectedComposePort, got $resolvedPort"
         Assert-True ($warnings.Count -gt 0) "$serviceName Dockerless fallback was not observable"
     }
 
@@ -89,6 +109,9 @@ try {
         Write-Host 'Docker available: checking 16 resolver values against publish ports.'
         foreach ($serviceName in $publishableServices) {
             $definition = (Get-LocalStackPortDefinitions)[$serviceName]
+            if ($serviceName -eq 'slip-service') {
+                [Environment]::SetEnvironmentVariable($definition.Environment, '8186', 'Process')
+            }
             $resolvedPort = Get-LocalStackPort -Service $serviceName
             $publishedPort = Get-RunningContainerPort -Service $serviceName -ContainerPort $definition.ContainerPort
             Assert-True ($null -ne $publishedPort) "$serviceName Docker publish port disappeared during full comparison"

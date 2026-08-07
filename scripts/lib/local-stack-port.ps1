@@ -20,6 +20,12 @@ $script:LocalStackPortDefinitions = [ordered]@{
     'arologis-service'      = @{ Environment = 'SAMHAN_AROLOGIS_PORT';      Default = 8097; ContainerPort = 8097 }
 }
 
+$script:LocalStackComposeFiles = @(
+    (Join-Path $PSScriptRoot '..\..\infrastructure\docker-compose.yml'),
+    (Join-Path $PSScriptRoot '..\..\infrastructure\docker-compose.local-all.yml'),
+    (Join-Path $PSScriptRoot '..\..\infrastructure\docker-compose.slip-port-override.yml')
+)
+
 function Get-RunningContainerPort {
     param([string]$Service, [int]$ContainerPort)
 
@@ -56,6 +62,30 @@ function Get-RunningContainerPort {
     return $null
 }
 
+function Get-EffectiveComposePort {
+    param([string]$Service, [int]$ContainerPort)
+
+    $effectivePort = $null
+    foreach ($composeFile in $script:LocalStackComposeFiles) {
+        if (-not (Test-Path -LiteralPath $composeFile)) { continue }
+        $compose = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $composeFile), [Text.Encoding]::UTF8)
+        $serviceMatches = [regex]::Matches($compose, '(?ms)^  ' + [regex]::Escape($Service) + ':\r?\n(?<body>.*?)(?=^  \S|\z)')
+        foreach ($serviceMatch in $serviceMatches) {
+            $portsMatch = [regex]::Match($serviceMatch.Groups['body'].Value, '(?ms)^    ports:\s*(?:!override\s*)?\r?\n(?<ports>(?:^      - .*\r?\n?)+)')
+            if (-not $portsMatch.Success) { continue }
+
+            foreach ($portLine in ($portsMatch.Groups['ports'].Value -split "`r?`n")) {
+                $portMatch = [regex]::Match($portLine, '127\.0\.0\.1:(?<published>[0-9]+):' + [regex]::Escape([string]$ContainerPort) + '(?:["''\s]|$)')
+                if ($portMatch.Success) {
+                    $effectivePort = [int]$portMatch.Groups['published'].Value
+                    break
+                }
+            }
+        }
+    }
+    return $effectivePort
+}
+
 function Get-LocalStackPort {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Service)
@@ -65,6 +95,11 @@ function Get-LocalStackPort {
     }
 
     $definition = $script:LocalStackPortDefinitions[$Service]
+    $runningPort = Get-RunningContainerPort -Service $Service -ContainerPort $definition.ContainerPort
+    if ($null -ne $runningPort) {
+        return $runningPort
+    }
+
     $override = [Environment]::GetEnvironmentVariable($definition.Environment)
     if (-not [string]::IsNullOrWhiteSpace($override)) {
         if ($override -notmatch '^[0-9]+$' -or [int]$override -lt 1 -or [int]$override -gt 65535) {
@@ -73,11 +108,13 @@ function Get-LocalStackPort {
         return [int]$override
     }
 
-    $runningPort = Get-RunningContainerPort -Service $Service -ContainerPort $definition.ContainerPort
-    if ($null -ne $runningPort) {
-        return $runningPort
+    $composePort = Get-EffectiveComposePort -Service $Service -ContainerPort $definition.ContainerPort
+    if ($null -ne $composePort) {
+        Write-Warning "Docker publish port unavailable for '$Service'; using effective compose port $composePort."
+        return $composePort
     }
-    Write-Warning "Docker publish port unavailable for '$Service'; using static default $($definition.Default)."
+
+    Write-Warning "Docker publish port and compose declaration unavailable for '$Service'; using static default $($definition.Default)."
     return [int]$definition.Default
 }
 
