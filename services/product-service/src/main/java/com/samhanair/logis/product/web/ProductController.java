@@ -177,7 +177,9 @@ public class ProductController {
     @RequirePermission(page = "products.admin", action = PermissionAction.DELETE)
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+                       @RequestParam(value = "confirmBundleChildrenDeletion", required = false) Boolean confirmBundleChildrenDeletion,
+                       @RequestParam(value = "expectedBundleComponentSetToken", required = false) String expectedBundleComponentSetToken,
                        @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productService.delete(id, callerHeader);
+        productService.delete(id, callerHeader, confirmBundleChildrenDeletion, expectedBundleComponentSetToken);
     }
 }

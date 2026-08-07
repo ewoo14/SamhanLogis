@@ -1,0 +1,370 @@
+{
+  "startedAt": "2026-08-07T12:57:40.154Z",
+  "executablePath": "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "/auth/password/policy",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "url": "/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/catalog-realtime",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?q=S3-1111-GUARD-20260807-S3&page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products/categories",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products?q=S3-1111-GUARD-20260807-S3&size=20",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products/by-model/S3-1111-GUARD-20260807-S3",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?q=S3-1111-GUARD-20260807-S3&page=0&size=20",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/S3-1111-GUARD-20260807-S3/components",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "url": "/api/v1/products/S3-1111-GUARD-20260807-S3/components",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/S3-1111-GUARD-20260807-S3/components",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "url": "/api/v1/products/S3-1111-GUARD-20260807-S3/components",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/S3-1111-GUARD-20260807-S3/components",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "url": "/api/v1/products/S3-1111-GUARD-20260807-S3/components",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/S3-1111-GUARD-20260807-S3/components",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/catalog-realtime",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?category=HOME_MULTI&page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?category=SINGLE_SET&page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?q=AC060CS6PBH1SY&category=SINGLE_SET&page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/catalog-realtime",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?q=AC060CS6PBH1SY&page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products?q=AC060CS6PBH1SY&size=20",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products/categories",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products/by-model/AC060CS6PBH1SY",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?q=AC060CS6PBH1SY&page=0&size=20",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/AC060CS6PBH1SY/components",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/catalog-realtime",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?q=S3-1111-GUARD-20260807-S3&page=0&size=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products?q=S3-1111-GUARD-20260807-S3&size=20",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products/categories",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/products/by-model/S3-1111-GUARD-20260807-S3",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?q=S3-1111-GUARD-20260807-S3&page=0&size=20",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/S3-1111-GUARD-20260807-S3/components",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/password/policy",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "url": "/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products/catalog-realtime",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "/api/v1/products?page=0&size=50",
+      "status": 200
+    }
+  ],
+  "scenarios": {
+    "loginAdmin": true,
+    "zeroCreated": {
+      "modelCode": "S3-1111-ZERO-20260807-S3",
+      "completedInPriorAttempt": true
+    },
+    "zeroBeforeDelete": {
+      "componentRows": 0,
+      "completedInPriorAttempt": true
+    },
+    "zeroDelete": {
+      "status": 204,
+      "noConfirmationToken": true,
+      "completedInPriorAttempt": true
+    },
+  "guardCreated": {
+      "modelCode": "S3-1111-GUARD-20260807-S3"
+    },
+    "componentsAdd": {
+      "draftRows": 12,
+      "status": 200
+    },
+    "componentsUpdate": {
+      "quantity": "2.5",
+      "status": 200
+    },
+    "componentsDelete": {
+      "remainingDraftRows": 11,
+      "status": 200
+    },
+    "estimateEntryAbsent": {
+      "componentsModalText": false,
+      "componentsModalTestIds": []
+    },
+    "estimateSearchAndDelivery": {
+      "setVisible": true,
+      "deliveryPriceFromLiveApi": 1660000,
+      "responseStatus": 200,
+      "responseRows": 1,
+      "responseModels": [
+        "AC060CS6PBH1SY"
+      ],
+      "listErrorVisible": false
+    },
+    "existingManySet": {
+      "rows": 13,
+      "editable": true
+    },
+    "guardSetToGeneral": {
+      "dialog": "이 세트의 구성품 11건이 삭제됩니다. 계속 저장하시겠습니까?",
+      "stayedOnEdit": true
+    },
+    "guardSetToMaterial": {
+      "dialog": "이 세트의 구성품 11건이 삭제됩니다. 계속 저장하시겠습니까?",
+      "stayedOnEdit": true
+    },
+    "guardDelete": {
+      "status": 204,
+      "body": ""
+    },
+    "permissionViewOnly": {
+      "readonlyBanner": true,
+      "createButtonCount": 0,
+      "editButtonCount": 0,
+      "bodyHasNoPermission": true
+    }
+  },
+  "errors": [],
+  "finishedAt": "2026-08-07T12:57:52.507Z"
+}

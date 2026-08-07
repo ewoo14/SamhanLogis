@@ -19,6 +19,7 @@ import {
 } from '@samhan/design-system'
 import {
   createProduct,
+  deleteProduct,
   getProductByModelName,
   listBundleComponents,
   listProductCategories,
@@ -142,6 +143,7 @@ export function ProductFormPage() {
   const setPageTitle = usePageTitleStore((state) => state.setPageTitle)
   const { canAccess } = usePermissions()
   const canEdit = canAccess('products.admin', 'update')
+  const canDelete = canAccess('products.admin', 'delete')
 
   const [values, setValues] = useState<ProductFormValues>(() => initialProductFormValues())
   const [errors, setErrors] = useState<ProductFormErrors>({})
@@ -327,6 +329,22 @@ export function ProductFormPage() {
     },
   })
 
+  const deleteMutation = useMutation<void, unknown, { confirmed: boolean }>({
+    mutationFn: async ({ confirmed }) => {
+      const id = editSeedQuery.data?.detail.id ?? editSeedQuery.data?.summary.id
+      if (!id) throw new Error('삭제할 품목을 찾을 수 없습니다.')
+      await deleteProduct(id, confirmed ? {
+        confirmBundleChildrenDeletion: true,
+        expectedBundleComponentSetToken: bundleComponentSetToken,
+      } : undefined)
+    },
+    onSuccess: () => {
+      invalidateProducts()
+      navigate('/products/catalog')
+    },
+    onError: (err) => setFormError(errorMsg(err)),
+  })
+
   const handleSave = () => {
     const needsConfirmation = requiresBundleChildrenConfirmation && bundleComponentCount > 0
     if (needsConfirmation && !window.confirm(
@@ -335,6 +353,16 @@ export function ProductFormPage() {
       return
     }
     saveMutation.mutate(needsConfirmation)
+  }
+
+  const handleDelete = () => {
+    const needsConfirmation = bundleComponentCount > 0
+    if (needsConfirmation && !window.confirm(
+      `이 품목을 삭제하면 구성품 ${bundleComponentCount}건도 함께 삭제됩니다. 계속하시겠습니까?`,
+    )) {
+      return
+    }
+    deleteMutation.mutate({ confirmed: needsConfirmation })
   }
 
   const patchValues = (patch: Partial<ProductFormValues>) => {
@@ -422,7 +450,7 @@ export function ProductFormPage() {
   }
 
   const isLoading = categoriesQuery.isLoading || editSeedQuery.isLoading
-  const isSaving = saveMutation.isPending
+  const isSaving = saveMutation.isPending || deleteMutation.isPending
 
   if (isLoading) {
     return (
@@ -465,6 +493,17 @@ export function ProductFormPage() {
           >
             저장
           </Button>
+          {mode === 'edit' && canDelete ? (
+            <Button
+              variant="danger"
+              onClick={handleDelete}
+              loading={deleteMutation.isPending}
+              disabled={isSaving}
+              data-testid="product-form-delete-button"
+            >
+              품목 삭제
+            </Button>
+          ) : null}
         </div>
       </div>
 

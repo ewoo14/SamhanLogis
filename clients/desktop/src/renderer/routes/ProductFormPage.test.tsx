@@ -12,6 +12,7 @@ import type {
 
 const mocks = vi.hoisted(() => ({
   createProduct: vi.fn(),
+  deleteProduct: vi.fn(),
   getProductByModelName: vi.fn(),
   listProductCategories: vi.fn(),
   listProducts: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock('../api/productCatalogApi', async (importOriginal) => {
   return {
     ...actual,
     createProduct: mocks.createProduct,
+    deleteProduct: mocks.deleteProduct,
     getProductByModelName: mocks.getProductByModelName,
     listProductCategories: mocks.listProductCategories,
     listProducts: mocks.listProducts,
@@ -64,6 +66,10 @@ vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
   return { ...actual, useNavigate: () => mocks.navigate }
 })
+
+vi.mock('../hooks/usePermissions', () => ({
+  usePermissions: () => ({ canAccess: () => true, isLoading: false, isError: false }),
+}))
 
 import { ProductFormPage } from './ProductFormPage'
 import { flushZeroDelayTasks } from '../test-utils/flush'
@@ -134,6 +140,7 @@ function renderPage(path = '/products/new') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.listProductCategories.mockResolvedValue(categories)
   mocks.listSpecKeyTemplates.mockResolvedValue([])
+  mocks.listBundleComponents.mockResolvedValue([])
   return {
     client,
     ...render(
@@ -204,6 +211,30 @@ describe('ProductFormPage', () => {
         expectedBundleComponentSetToken: 'set-token-1108',
       }),
     )
+  })
+
+  it('구성품이 있는 품목 삭제 전에 확인하고 동일한 집합 토큰을 전송한다', async () => {
+    const seed = seedFor('SET-DELETE-1111')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    seed.detail.productCategory = 'SINGLE_SET'
+    seed.detail.bundleMode = 'EXPAND'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(catalogPageWithComponentCount('SET-DELETE-1111', 3, 'delete-token-1111'))
+    mocks.deleteProduct.mockResolvedValue(undefined)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    renderPage('/products/SET-DELETE-1111/edit')
+    await screen.findByTestId('product-form-model-name')
+    fireEvent.click(screen.getByTestId('product-form-delete-button'))
+
+    await waitFor(() => expect(mocks.deleteProduct).toHaveBeenCalledTimes(1))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('3'))
+    expect(mocks.deleteProduct).toHaveBeenCalledWith(seed.detail.id, {
+      confirmBundleChildrenDeletion: true,
+      expectedBundleComponentSetToken: 'delete-token-1111',
+    })
   })
 
   it('세트 기초품목 상세에서 구성품 편집 영역을 제공한다', async () => {
