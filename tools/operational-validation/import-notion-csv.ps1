@@ -9,7 +9,7 @@
     Samhan Public DB CRUD 화면/API 에서 수행한다.
 
     동작 순서:
-        1) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (userId / role)
+        1) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (sub / groups / isSystemMaster)
         2) 4 CSV 를 multipart/form-data 로 admin endpoint 호출 (SAMHAN_*_PORT override 반영)
             - REGION : POST arologis-service/admin/arologis/regions/import
             - DC     : POST dc-config-service/api/v1/dc-config/admin/import
@@ -203,7 +203,7 @@ function Get-CsvDataRowCount {
 }
 
 # -----------------------------------------------------------------------------
-# 0-1. JWT base64url payload 디코드 (X-User-Id / X-User-Role 추출 헬퍼)
+# 0-1. JWT base64url payload 디코드 (identity claim 추출 헬퍼)
 # -----------------------------------------------------------------------------
 function Get-JwtClaims {
     param([string] $Token)
@@ -230,7 +230,9 @@ $loginUrl  = "$GatewayUrl/api/auth/login"
 $loginBody = @{ loginId = $LoginId; password = $Password } | ConvertTo-Json -Compress
 $token     = $null
 $userId    = $null
-$roleName  = $null
+$groups    = ''
+$isSystemMaster = $false
+$departmentName = ''
 try {
     $loginResp = Invoke-RestMethod -Uri $loginUrl -Method POST `
         -ContentType 'application/json' -Body $loginBody -TimeoutSec 10
@@ -244,11 +246,13 @@ try {
     }
     $claims   = Get-JwtClaims -Token $token
     $userId   = $claims.sub
-    $roleName = $claims.role
-    if (-not $userId -or -not $roleName) {
-        throw "JWT claims 부재 (sub / role) — claims=$($claims | ConvertTo-Json -Compress)"
+    $groups   = [string]$claims.groups
+    $isSystemMaster = ($claims.isSystemMaster -eq $true)
+    $departmentName = [string]$claims.departmentName
+    if (-not $userId) {
+        throw "JWT claims 부재 (sub) — claims=$($claims | ConvertTo-Json -Compress)"
     }
-    Write-Host "   OK — JWT 발급 (length=$($token.Length), sub=$userId, role=$roleName)" -ForegroundColor Green
+    Write-Host "   OK — JWT 발급 (length=$($token.Length), sub=$userId, groups=$groups, isSystemMaster=$isSystemMaster)" -ForegroundColor Green
 } catch {
     Write-Host "   FAIL — 로그인 실패: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "   확인 사항:" -ForegroundColor Yellow
@@ -307,12 +311,16 @@ foreach ($imp in $imports) {
 
     # multipart/form-data 호출 — DB 이관 endpoint.
     # PowerShell 5.1 호환 — Invoke-WebRequest -Form 미지원 → 수동 multipart body 구성
-    # gateway 미경유 → JWT (Authorization) + X-User-Id + X-User-Role 동시 전달.
-    # downstream HeaderAuthenticationFilter 가 X-User-* 신뢰 → @PreAuthorize 통과.
+    # gateway 미경유 → JWT (Authorization) + 서명 토큰에서 파생한 identity headers 전달.
+    # downstream HeaderAuthenticationFilter 가 X-User-Id/X-User-Groups 를 신뢰 → @PreAuthorize 통과.
     $url = $imp.url
     $headers = @{
         'X-User-Id'     = $userId
-        'X-User-Role'   = $roleName
+        'X-User-Groups' = $groups
+        'X-Is-System-Master' = [string]$isSystemMaster
+    }
+    if (-not [string]::IsNullOrWhiteSpace($departmentName)) {
+        $headers['X-User-Department'] = [Uri]::EscapeDataString($departmentName)
     }
     if (-not $imp.omitAuthorization) {
         $headers['Authorization'] = "Bearer $token"

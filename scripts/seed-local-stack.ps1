@@ -32,6 +32,19 @@ function Invoke-Json {
     Invoke-RestMethod @args
 }
 
+function Get-JwtClaims {
+    param([Parameter(Mandatory = $true)][string]$Token)
+    $parts = $Token -split '\.'
+    if ($parts.Length -lt 2) { throw "JWT 형식 오류" }
+    $payload = $parts[1].Replace('-', '+').Replace('_', '/')
+    switch ($payload.Length % 4) {
+        2 { $payload += '==' }
+        3 { $payload += '=' }
+    }
+    $bytes = [Convert]::FromBase64String($payload)
+    return ([Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json)
+}
+
 function Wait-Http {
     param([string]$Name, [string]$Url)
     $deadline = (Get-Date).AddSeconds(180)
@@ -59,11 +72,16 @@ $masterLogin = Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/login" -Body @{
     password = $seedLoginPw
 }
 $token = $masterLogin.data.token
-$masterUserId = $masterLogin.data.userId
+$claims = Get-JwtClaims -Token $token
+$masterUserId = $claims.sub
 $headers = @{
     Authorization = "Bearer $token"
     "X-User-Id" = $masterUserId
-    "X-User-Role" = "MASTER"
+    "X-User-Groups" = [string]$claims.groups
+    "X-Is-System-Master" = [string]($claims.isSystemMaster -eq $true)
+}
+if (-not [string]::IsNullOrWhiteSpace([string]$claims.departmentName)) {
+    $headers["X-User-Department"] = [Uri]::EscapeDataString([string]$claims.departmentName)
 }
 
 $users = @(

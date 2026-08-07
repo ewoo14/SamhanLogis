@@ -8,7 +8,7 @@
 
     동작 순서:
         1) 14 service /actuator/health 200 검증 (+ dc-config-service 선택)
-        2) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (sub/role)
+        2) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (sub/groups/isSystemMaster)
         3) 8 endpoint smoke test (gateway 경유 + service port 직접 혼합):
             - GET /api/v1/auth/me                          (auth-service via gateway, controller /auth/me)
             - GET /api/v1/products?page=0&size=10          (product-service via gateway, controller /products)
@@ -22,7 +22,7 @@
 .PARAMETER GatewayUrl
     API Gateway base URL (default http://localhost:8080). 기본값 사용 시 health 검증에서 탐지한
     api-gateway 실제 포트로 보정한다. 일부 admin endpoint 는 service port 직접 호출
-    (Authorization + X-User-Id + X-User-Role 헤더 동시 전달).
+    (Authorization + X-User-Id + X-User-Groups + X-Is-System-Master 헤더 동시 전달).
 
 .PARAMETER LoginId
     JWT 발급용 loginId (default kimmiseon).
@@ -129,7 +129,7 @@ function Resolve-ServicePort {
 }
 
 # -----------------------------------------------------------------------------
-# 0-1. JWT base64url payload 디코드 (X-User-Id / X-User-Role 추출 헬퍼)
+# 0-1. JWT base64url payload 디코드 (identity claim 추출 헬퍼)
 # -----------------------------------------------------------------------------
 function Get-JwtClaims {
     param([string] $Token)
@@ -210,7 +210,9 @@ $loginUrl  = "$GatewayUrl/api/auth/login"
 $loginBody = @{ loginId = $LoginId; password = $Password } | ConvertTo-Json -Compress
 $token     = $null
 $userId    = $null
-$roleName  = $null
+$groups    = ''
+$isSystemMaster = $false
+$departmentName = ''
 try {
     $loginResp = Invoke-RestMethod -Uri $loginUrl -Method POST `
         -ContentType 'application/json' -Body $loginBody -TimeoutSec 10
@@ -224,11 +226,13 @@ try {
     }
     $claims   = Get-JwtClaims -Token $token
     $userId   = $claims.sub
-    $roleName = $claims.role
-    if (-not $userId -or -not $roleName) {
-        throw "JWT claims 부재 (sub / role)"
+    $groups   = [string]$claims.groups
+    $isSystemMaster = ($claims.isSystemMaster -eq $true)
+    $departmentName = [string]$claims.departmentName
+    if (-not $userId) {
+        throw "JWT claims 부재 (sub)"
     }
-    Write-Host "   OK — JWT 발급 (length=$($token.Length), sub=$userId, role=$roleName)" -ForegroundColor Green
+    Write-Host "   OK — JWT 발급 (length=$($token.Length), sub=$userId, groups=$groups, isSystemMaster=$isSystemMaster)" -ForegroundColor Green
 } catch {
     Write-Host "   FAIL — 로그인 실패: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host '   smoke test step 3 생략 (token 부재).' -ForegroundColor Yellow
@@ -249,7 +253,7 @@ Write-Host '[3/3] 주요 endpoint smoke test (gateway 경유 + service port 직�
 $today    = (Get-Date).ToString('yyyy-MM-dd')
 $kpiQuery = "from=$today&to=$today"
 
-# transport = 'gateway' (Authorization 만) | 'direct' (Authorization + X-User-Id + X-User-Role)
+# transport = 'gateway' (Authorization 만) | 'direct' (Authorization + identity headers)
 # direct 는 gateway 대신 health 검증에서 탐지한 service port 로 호출한다.
 $smokeEndpoints = @(
     @{ name = 'auth-service /auth/me';                transport = 'direct';  url = "http://localhost:$($servicePortByName['auth-service'])/auth/me" },
@@ -269,7 +273,11 @@ foreach ($ep in $smokeEndpoints) {
     $headers = @{ Authorization = "Bearer $token" }
     if ($ep.transport -eq 'direct') {
         $headers['X-User-Id']   = $userId
-        $headers['X-User-Role'] = $roleName
+        $headers['X-User-Groups'] = $groups
+        $headers['X-Is-System-Master'] = [string]$isSystemMaster
+        if (-not [string]::IsNullOrWhiteSpace($departmentName)) {
+            $headers['X-User-Department'] = [Uri]::EscapeDataString($departmentName)
+        }
     }
 
     $status   = 'EXCEPTION'
