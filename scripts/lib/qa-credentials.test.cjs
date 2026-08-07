@@ -6,18 +6,63 @@ const test = require('node:test')
 
 const { resolveQaCredential } = require('./qa-credentials.cjs')
 
-const CREDENTIAL_CONSUMER_FILES = [
-  '../../clients/desktop/playwright/dispatch-collab-real-qa/dispatch-collab-codex-round.spec.ts',
-  '../../clients/desktop/playwright/dispatch-collab-real-qa/dispatch-collab-real-qa.spec.ts',
-  '../../clients/desktop/playwright/dispatch-collab-real-qa/kst-verification.spec.ts',
-  '../../clients/desktop/playwright/manual/e3-s1-cash-receipt-permission-qa.spec.ts',
-  '../../clients/desktop/playwright/cash-receipt-coedit-real-qa/cash-receipt-coedit-real-qa.spec.ts',
-  '../../clients/desktop/scripts/ds4-real-qa-cleanup-worker.cjs',
-  '../../clients/desktop/scripts/ds4-real-qa-reap.cjs',
-  '../../scripts/verify-ds4-real-qa-cleanup.cjs',
-]
+const SCAN_ROOTS = ['clients/desktop', 'docs/qa', 'scripts']
+const EXECUTABLE_EXTENSIONS = new Set(['.cjs', '.js', '.mjs', '.ts', '.tsx', '.ps1', '.sh', '.py'])
+const QA_CREDENTIAL_KEY = /(?:^|_)(?:QA|DEV|LOADTEST|SAMHAN_DS4|AROLOGIS)(?:_[A-Z0-9]+)*_(?:PASSWORD|PW)$/
+const ENV_ACCESS = /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[['"]([A-Z][A-Z0-9_]*)['"]\])/g
+const POWERSHELL_ENV_ACCESS = /\$env:([A-Z][A-Z0-9_]*)/g
+const SHELL_ENV_ACCESS = /\$\{([A-Z][A-Z0-9_]*)\}/g
 
-const LEGACY_KEY = ['DEV', 'PASSWORD'].join('_')
+function walkExecutableFiles(directory) {
+  const files = []
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === '.git') continue
+    const entryPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) files.push(...walkExecutableFiles(entryPath))
+    else if (EXECUTABLE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(entryPath)
+  }
+  return files
+}
+
+function credentialKeysIn(source, filePath = '') {
+  const matches = [...source.matchAll(ENV_ACCESS)]
+    .flatMap((match) => match.slice(1).filter(Boolean))
+  if (path.extname(filePath).toLowerCase() === '.ps1') {
+    matches.push(...[...source.matchAll(POWERSHELL_ENV_ACCESS)].map((match) => match[1]))
+  }
+  if (path.extname(filePath).toLowerCase() === '.sh') {
+    const assigned = new Set([...source.matchAll(/^\s*([A-Z][A-Z0-9_]*)\s*=/gm)].map((match) => match[1]))
+    matches.push(...[...source.matchAll(SHELL_ENV_ACCESS)]
+      .map((match) => match[1])
+      .filter((key) => !assigned.has(key)))
+  }
+  return matches.filter((key) => QA_CREDENTIAL_KEY.test(key))
+}
+
+function discoverCredentialConsumers(repoRoot = path.resolve(__dirname, '..', '..')) {
+  return SCAN_ROOTS
+    .flatMap((relativeRoot) => walkExecutableFiles(path.join(repoRoot, relativeRoot)))
+    .filter((filePath) => filePath !== __filename && filePath !== path.join(repoRoot, 'scripts/lib/qa-credentials.cjs'))
+    .map((filePath) => ({
+      filePath,
+      source: fs.readFileSync(filePath, 'utf8'),
+    }))
+    .filter(({ filePath, source }) => source.includes('resolveQaCredential')
+      || source.includes('Resolve-QaCredential')
+      || credentialKeysIn(source, filePath).length > 0)
+}
+
+function relativeToRepo(filePath) {
+  return path.relative(path.resolve(__dirname, '..', '..'), filePath)
+}
+
+function directCredentialAccessPattern(keys, filePath) {
+  const alternatives = keys.map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  const extension = path.extname(filePath).toLowerCase()
+  const shell = extension === '.sh' ? `|\\$\\{(?:${alternatives})\\}` : ''
+  const powershell = extension === '.ps1' ? `|\\$env:(?:${alternatives})` : ''
+  return new RegExp(`(?:process\\.env(?:\\.(?:${alternatives})|\\[['"](?:${alternatives})['"]\\])${shell}${powershell})`)
+}
 
 function withEnvFile(contents) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'samhan-qa-credentials-'))
@@ -73,15 +118,37 @@ test('DEV_PASSWORD는 표준 키를 위한 호환 입력으로만 허용한다',
   }
 })
 
-test('실행 자격 소비자는 표준 로더를 경유하고 옛 키를 직접 읽지 않는다', () => {
-  for (const relativePath of CREDENTIAL_CONSUMER_FILES) {
-    const filePath = path.resolve(__dirname, relativePath)
-    const source = fs.readFileSync(filePath, 'utf8')
-    assert.match(source, /resolveQaCredential\(['"]QA_DEV_DEFAULT_PASSWORD['"]\)/, relativePath)
-    assert.doesNotMatch(
-      source,
-      new RegExp(`process\\.env(?:\\.(?:${LEGACY_KEY}|DEV_SEED_PASSWORD|SAMHAN_DS4_QA_PASSWORD|QA_DEV_DEFAULT_PASSWORD)|\\[['"](?:${LEGACY_KEY}|DEV_SEED_PASSWORD|SAMHAN_DS4_QA_PASSWORD|QA_DEV_DEFAULT_PASSWORD)['"]\\])`),
-      relativePath,
-    )
+test('실행 자격 소비자는 발견 기반으로 표준 로더를 경유하고 옛 키를 직접 읽지 않는다', () => {
+  const consumers = discoverCredentialConsumers()
+  assert.ok(consumers.length > 0, '자격 소비자를 한 건 이상 발견해야 합니다.')
+  for (const { filePath, source } of consumers) {
+    const relativePath = relativeToRepo(filePath)
+    assert.match(source, /(?:resolveQaCredential\(['"][A-Z][A-Z0-9_]*['"]\)|Resolve-QaCredential)/, relativePath)
+    const credentialAccess = credentialKeysIn(source, filePath)
+      .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+    if (credentialAccess) {
+      assert.doesNotMatch(
+        source,
+        directCredentialAccessPattern(credentialKeysIn(source, filePath), filePath),
+        relativePath,
+      )
+    }
+  }
+})
+
+test('새 파일은 등록 없이 발견되고 자격 불필요 파일은 소비자로 분류하지 않는다', () => {
+  const directory = fs.mkdtempSync(path.join(path.resolve(__dirname, '..', '..', 'docs', 'qa'), 's10-discovery-'))
+  const consumerPath = path.join(directory, 'unregistered-consumer.mjs')
+  const unrelatedPath = path.join(directory, 'unrelated-script.mjs')
+  fs.writeFileSync(consumerPath, "const password = process.env.DEV_PASSWORD\n", 'utf8')
+  fs.writeFileSync(unrelatedPath, "const password = 'test-fixture-value'\n", 'utf8')
+  try {
+    const discovered = discoverCredentialConsumers().map(({ filePath }) => filePath)
+    assert.ok(discovered.includes(consumerPath), '등록하지 않은 새 소비자를 발견해야 합니다.')
+    assert.doesNotMatch(fs.readFileSync(unrelatedPath, 'utf8'), /resolveQaCredential/)
+    assert.ok(!discovered.includes(unrelatedPath), '자격 불필요 파일은 소비자로 분류하지 않아야 합니다.')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
   }
 })

@@ -3,6 +3,7 @@ set -uo pipefail
 GW=http://127.0.0.1:8080
 SCR="C:/Users/user/AppData/Local/Temp/claude/C--dev-Samhan-Public/041c1826-13c2-4f84-96a4-45004098b316/scratchpad"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+QA_DEV_DEFAULT_PASSWORD="$(node -e "const { resolveQaCredential } = require(process.argv[1]); process.stdout.write(resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'))" "$SCRIPT_DIR/../../../scripts/lib/qa-credentials.cjs")"
 source "$SCRIPT_DIR/../../../scripts/lib/qa-shots-dir.sh"
 # _local 격리(2026-07-27 하네스 흡수 H2 — 기존 하드코딩 절대경로가 커밋된 backend-real-qa.md 를
 # 직접 가리켰다. resolve_qa_shots_dir 가 mkdir -p 도 겸한다).

@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
 import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.cjs'
+import { resolveQaCredential } from '../../../scripts/lib/qa-credentials.cjs'
 
 const BASE_URL = 'http://127.0.0.1:5175'
 const API_BASE = 'http://localhost:8080'
@@ -21,7 +22,7 @@ test('배차 보드 → task 모달 협업 메모 섹션 캡처', async ({ page 
   const loginIdInput = page.locator('input[name="loginId"], input[type="text"]').first()
   const passwordInput = page.locator('input[name="password"], input[type="password"]').first()
   await loginIdInput.fill('kimmiseon')
-  await passwordInput.fill(process.env.QA_MASTER_PASSWORD ?? '<infrastructure/.env.local:QA_MASTER_PASSWORD>')
+  await passwordInput.fill(resolveQaCredential('QA_MASTER_PASSWORD'))
   await page.keyboard.press('Enter')
   await page.waitForURL(url => !url.includes('/login'), { timeout: 15000 }).catch(() => {})
   await page.waitForTimeout(2000)
