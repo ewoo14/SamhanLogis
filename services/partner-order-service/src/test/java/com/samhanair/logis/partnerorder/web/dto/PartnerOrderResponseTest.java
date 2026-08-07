@@ -45,7 +45,7 @@ class PartnerOrderResponseTest {
     }
 
     @Test
-    void draftSummary_usesCreatedAtWhenConfirmedAtIsAbsent() {
+    void draftSummary_keepsSentAtEmptyAndExposesCreatedAtSeparately() {
         PartnerOrder order = PartnerOrder.createFromConfirm(
                 "P-DRAFT", "123-45-67890", "PO-DRAFT", "idem-draft", BigDecimal.TEN);
         LocalDateTime createdAt = LocalDateTime.of(2026, 8, 7, 19, 35, 2);
@@ -53,8 +53,10 @@ class PartnerOrderResponseTest {
 
         assertThat(order.getConfirmedAt()).isNull();
         assertThat(order.getCreatedAt()).isEqualTo(createdAt);
-        assertThat(PartnerOrderSummaryResponse.from(order).submittedAt())
-                .isEqualTo(createdAt);
+        PartnerOrderSummaryResponse summary = PartnerOrderSummaryResponse.from(order);
+
+        assertThat(summary.submittedAt()).isNull();
+        assertThat(summary.createdAt()).isEqualTo(createdAt);
     }
 
     @Test

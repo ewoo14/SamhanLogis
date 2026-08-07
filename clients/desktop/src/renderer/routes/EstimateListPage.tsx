@@ -78,13 +78,21 @@ const fmtKrw = (raw: string): string => {
 
 async function fetchAllPages<T>(
   fetchPage: (page: number) => Promise<{ content: T[]; totalPages: number }>,
-): Promise<T[]> {
+): Promise<{ items: T[]; incomplete: boolean }> {
   const firstPage = await fetchPage(0)
-  if (firstPage.totalPages <= 1) return firstPage.content
-  const remainingPages = await Promise.all(
+  if (firstPage.totalPages <= 1) return { items: firstPage.content, incomplete: false }
+  const remainingPages = await Promise.allSettled(
     Array.from({ length: firstPage.totalPages - 1 }, (_, index) => fetchPage(index + 1)),
   )
-  return [firstPage.content, ...remainingPages.map((page) => page.content)].flat()
+  return {
+    items: [
+      firstPage.content,
+      ...remainingPages
+        .filter((result): result is PromiseFulfilledResult<{ content: T[]; totalPages: number }> => result.status === 'fulfilled')
+        .map((result) => result.value.content),
+    ].flat(),
+    incomplete: remainingPages.some((result) => result.status === 'rejected'),
+  }
 }
 
 export function EstimateListPage() {
@@ -143,11 +151,13 @@ export function EstimateListPage() {
       ])
 
       return {
-        estimates: estimateResult.status === 'fulfilled' ? estimateResult.value : [],
-        orders: orderResult.status === 'fulfilled' ? orderResult.value : [],
+        estimates: estimateResult.status === 'fulfilled' ? estimateResult.value.items : [],
+        orders: orderResult.status === 'fulfilled' ? orderResult.value.items : [],
         errors: [
-          ...(estimateResult.status === 'rejected' ? ['종합견적서'] : []),
-          ...(orderResult.status === 'rejected' ? ['주문서'] : []),
+          ...(estimateResult.status === 'rejected' || (estimateResult.status === 'fulfilled' && estimateResult.value.incomplete)
+            ? ['종합견적서'] : []),
+          ...(orderResult.status === 'rejected' || (orderResult.status === 'fulfilled' && orderResult.value.incomplete)
+            ? ['주문서'] : []),
         ],
       }
     },

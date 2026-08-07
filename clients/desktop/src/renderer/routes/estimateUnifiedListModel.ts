@@ -14,6 +14,7 @@ export interface UnifiedEstimateListRow {
   amount: string
   writer: string | null
   writtenAt: string | null
+  sortAt: string | null
   status: string
   isDeleted: boolean
   navigationPath: string | null
@@ -25,7 +26,7 @@ type EstimateListSource = Pick<
 >
 type OrderListSource = Pick<
   PartnerOrderSummary,
-  'orderNumber' | 'partnerCode' | 'partnerName' | 'submittedAt' | 'status' | 'totalAmount' | 'isDeleted'
+  'orderNumber' | 'partnerCode' | 'partnerName' | 'submittedAt' | 'createdAt' | 'status' | 'totalAmount' | 'isDeleted'
 >
 
 const estimateStatusLabel: Record<EstimateSummary['status'], string> = {
@@ -73,6 +74,7 @@ export function mergeEstimateAndOrderRows(
     // requesterId는 작성자 user-id UUID이며 사용자명 계약이 없으므로 화면에 노출하지 않는다.
     writer: null,
     writtenAt: row.estimateDate,
+    sortAt: row.estimateDate,
     status: estimateStatusLabel[row.status],
     isDeleted: row.isDeleted === true,
     navigationPath: row.isDeleted ? null : `/sales/estimates/${encodeURIComponent(row.id)}`,
@@ -88,14 +90,15 @@ export function mergeEstimateAndOrderRows(
     amount: String(row.totalAmount),
     // 주문서 목록 응답은 createdBy/작성자명을 제공하지 않는다. UUID를 추론하거나 표시하지 않는다.
     writer: null,
-    writtenAt: row.submittedAt,
+    writtenAt: row.createdAt ?? null,
+    sortAt: row.submittedAt ?? row.createdAt ?? null,
     status: orderStatusLabel[row.status],
     isDeleted: row.isDeleted === true,
     navigationPath: row.isDeleted ? null : `/sales/partner-orders/${encodeURIComponent(row.orderNumber)}`,
   }))
 
   return [...estimateRows, ...orderRows].sort((a, b) => {
-    const dateOrder = asTimestamp(b.writtenAt) - asTimestamp(a.writtenAt)
+    const dateOrder = asTimestamp(b.sortAt) - asTimestamp(a.sortAt)
     if (dateOrder !== 0) return dateOrder
     return a.id.localeCompare(b.id)
   })

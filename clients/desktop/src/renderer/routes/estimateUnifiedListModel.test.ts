@@ -19,6 +19,7 @@ describe('통합 견적서 목록 모델', () => {
         partnerCode: 'P-1',
         partnerName: '주문 거래처',
         submittedAt: '2026-08-08T09:00:00',
+        createdAt: '2026-08-01T09:00:00',
         status: 'DRAFT',
         totalAmount: 220000,
         isDeleted: false,
@@ -34,6 +35,7 @@ describe('통합 견적서 목록 모델', () => {
         partnerCode: 'P-1',
         amount: '220000',
         writer: null,
+        writtenAt: '2026-08-01T09:00:00',
       }),
       expect.objectContaining<Partial<UnifiedEstimateListRow>>({
         source: 'estimate',
@@ -62,6 +64,7 @@ describe('통합 견적서 목록 모델', () => {
         partnerCode: `P-${index}`,
         partnerName: '거래처',
         submittedAt: '2026-08-01T00:00:00',
+        createdAt: '2026-08-01T00:00:00',
         status: 'DRAFT' as const,
         totalAmount: 100,
         isDeleted: false,
@@ -71,5 +74,23 @@ describe('통합 견적서 목록 모델', () => {
     expect(result).toHaveLength(47)
     expect(result.filter((row) => row.source === 'estimate')).toHaveLength(43)
     expect(result.filter((row) => row.source === 'order')).toHaveLength(4)
+  })
+
+  it('주문서의 발송일과 작성일을 분리해 통합 목록에는 작성일을 표시한다', () => {
+    const result = mergeEstimateAndOrderRows(
+      [],
+      [{
+        orderNumber: 'DRAFT-1',
+        partnerCode: 'P-1',
+        partnerName: '초안 거래처',
+        submittedAt: null,
+        createdAt: '2026-08-08T10:00:00',
+        status: 'DRAFT',
+        totalAmount: 100,
+        isDeleted: false,
+      } as never],
+    )
+
+    expect(result[0].writtenAt).toBe('2026-08-08T10:00:00')
   })
 })

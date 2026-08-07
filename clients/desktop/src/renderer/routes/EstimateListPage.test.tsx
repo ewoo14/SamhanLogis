@@ -333,4 +333,23 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     await waitFor(() => expect(within(table).getAllByText('종합견적서')).toHaveLength(1))
     expect((await screen.findByTestId('estimate-unified-list-error')).textContent).toContain('주문서')
   })
+
+  it('통합 보기에서 후속 페이지가 실패해도 먼저 받은 페이지와 불완전 표시를 보존한다', async () => {
+    listEstimatesMock.mockImplementation(async (options) => {
+      if (options.size === 10000 && options.page === 1) {
+        throw new Error('estimate page 2 unavailable')
+      }
+      if (options.size === 10000) {
+        return { ...pageOf([estimateRow({ id: 'estimate-page-1', estimateNo: '2026/08/08-9001' })]), totalPages: 2 }
+      }
+      return pageOf([estimateRow()])
+    })
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
+
+    const table = await screen.findByTestId('estimate-unified-list-table')
+    await waitFor(() => expect(within(table).getByText('2026/08/08-9001')).toBeTruthy())
+    expect((await screen.findByTestId('estimate-unified-list-error')).textContent).toContain('종합견적서')
+  })
 })
