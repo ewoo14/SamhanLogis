@@ -4,7 +4,7 @@
  * 댓글과 수정완료 이력을 한 화면에 모아 보여준다. UUID 는 API key/path 에만 쓰고,
  * 화면에는 작성자/수정자 실명과 주문번호/라인번호/내용만 표시한다.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
@@ -105,6 +105,15 @@ function isCollabEvent(eventName: string): boolean {
     || eventName === 'message'
 }
 
+const PARTNER_ORDER_AUTHORITY_EVENT = 'partner-order:authority'
+
+/** 서버 권위 사건에서 소비 멱등 키만 추출한다. 문서/snapshot은 의도적으로 읽지 않는다. */
+function authorityCommitId(data: unknown): string | null {
+  if (!data || typeof data !== 'object' || !('commitId' in data)) return null
+  const commitId = (data as { commitId?: unknown }).commitId
+  return typeof commitId === 'string' && commitId.trim().length > 0 ? commitId.trim() : null
+}
+
 export function PartnerOrderCollaborationPanel({
   orderId,
   status,
@@ -126,6 +135,8 @@ export function PartnerOrderCollaborationPanel({
   const [activeRevisionNo, setActiveRevisionNo] = useState<number | null>(null)
   const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
   const [activeRevisionIsLatest, setActiveRevisionIsLatest] = useState(false)
+  const authorityCommitIdsRef = useRef<Set<string>>(new Set())
+  const editDraftInitializedRef = useRef(false)
   const presenceEntries = usePresence({ entityId: orderId, client: PartnerOrderPresenceClient, enabled: !!orderId })
 
   const commentQueryKey = useMemo(() => ['partnerOrderCollabComments', orderId] as const, [orderId])
@@ -151,7 +162,11 @@ export function PartnerOrderCollaborationPanel({
   })
 
   useEffect(() => {
-    if (!editMode) return
+    if (!editMode) {
+      editDraftInitializedRef.current = false
+      return
+    }
+    if (editDraftInitializedRef.current) return
     const nextLineRemarks: Record<number, string> = {}
     for (const line of lines) {
       nextLineRemarks[line.lineKey] = valueForEdit(line.remark)
@@ -162,11 +177,24 @@ export function PartnerOrderCollaborationPanel({
     setEditReason('')
     setEditNotice(null)
     setCommitError(null)
+    editDraftInitializedRef.current = true
   }, [currentValues.dueDate, currentValues.memo, editMode, lines])
 
   useEffect(() => {
     if (!orderId) return
     const ctrl = PartnerOrderCollabRealtimeClient.subscribe(orderId, (evt) => {
+      if (evt.event === PARTNER_ORDER_AUTHORITY_EVENT) {
+        const commitId = authorityCommitId(evt.data)
+        if (!commitId || authorityCommitIdsRef.current.has(commitId)) return
+        authorityCommitIdsRef.current.add(commitId)
+
+        // 서버가 권위 데이터를 재조회하게 한다. snapshot/Y.Doc에는 쓰지 않아
+        // 다른 세션의 미저장 draft와 CRDT 구조를 보존한다.
+        void queryClient.invalidateQueries({ queryKey: orderQueryKey })
+        void queryClient.invalidateQueries({ queryKey: ['partner-order-revisions', orderId] })
+        void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+        return
+      }
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
       void queryClient.invalidateQueries({ queryKey: orderQueryKey })
