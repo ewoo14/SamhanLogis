@@ -1,0 +1,893 @@
+{
+  "head": "7d95a1917d340410c08129a32d4c902787fbd87c",
+  "browser": {
+    "headless": true,
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    }
+  },
+  "network": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=50",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 50,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=50",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 50,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=10000",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 52,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/api/v1/partner-orders?page=0&size=10000",
+      "status": 200,
+      "totalElements": 4,
+      "contentCount": 4,
+      "samples": [
+        {
+          "orderNumber": "2026/08/07-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-07T19:35:02.280728"
+        },
+        {
+          "orderNumber": "2026/07/30-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-07-30T01:12:23.867626"
+        },
+        {
+          "orderNumber": "2026/06/08-1982",
+          "status": "DRAFT",
+          "submittedAt": "2026-06-08T02:09:16.873267"
+        },
+        {
+          "orderNumber": "2026/06/08-1980",
+          "status": "DRAFT",
+          "submittedAt": "2026-06-08T02:09:05.396744"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=50&startDate=2026-08-07",
+      "status": 200,
+      "totalElements": 20,
+      "contentCount": 20,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=10000&startDate=2026-08-07",
+      "status": 200,
+      "totalElements": 20,
+      "contentCount": 20,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/api/v1/partner-orders?page=0&size=10000&dateFrom=2026-08-07",
+      "status": 200,
+      "totalElements": 1,
+      "contentCount": 1,
+      "samples": [
+        {
+          "orderNumber": "2026/08/07-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-07T19:35:02.280728"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=10000&startDate=2026-08-07&endDate=2026-08-07",
+      "status": 200,
+      "totalElements": 20,
+      "contentCount": 20,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=50&startDate=2026-08-07&endDate=2026-08-07",
+      "status": 200,
+      "totalElements": 20,
+      "contentCount": 20,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/api/v1/partner-orders?page=0&size=10000&dateFrom=2026-08-07&dateTo=2026-08-07",
+      "status": 200,
+      "totalElements": 1,
+      "contentCount": 1,
+      "samples": [
+        {
+          "orderNumber": "2026/08/07-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-07T19:35:02.280728"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=50&endDate=2026-08-07",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 50,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=10000&endDate=2026-08-07",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 52,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/api/v1/partner-orders?page=0&size=10000&dateTo=2026-08-07",
+      "status": 200,
+      "totalElements": 4,
+      "contentCount": 4,
+      "samples": [
+        {
+          "orderNumber": "2026/08/07-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-07T19:35:02.280728"
+        },
+        {
+          "orderNumber": "2026/07/30-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-07-30T01:12:23.867626"
+        },
+        {
+          "orderNumber": "2026/06/08-1982",
+          "status": "DRAFT",
+          "submittedAt": "2026-06-08T02:09:16.873267"
+        },
+        {
+          "orderNumber": "2026/06/08-1980",
+          "status": "DRAFT",
+          "submittedAt": "2026-06-08T02:09:05.396744"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=10000",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 52,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=50",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 50,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/api/v1/partner-orders?page=0&size=10000",
+      "status": 200,
+      "totalElements": 4,
+      "contentCount": 4,
+      "samples": [
+        {
+          "orderNumber": "2026/08/07-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-07T19:35:02.280728"
+        },
+        {
+          "orderNumber": "2026/07/30-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-07-30T01:12:23.867626"
+        },
+        {
+          "orderNumber": "2026/06/08-1982",
+          "status": "DRAFT",
+          "submittedAt": "2026-06-08T02:09:16.873267"
+        },
+        {
+          "orderNumber": "2026/06/08-1980",
+          "status": "DRAFT",
+          "submittedAt": "2026-06-08T02:09:05.396744"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=50&includeDeleted=true",
+      "status": 200,
+      "totalElements": 2045,
+      "contentCount": 50,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/api/v1/partner-orders?page=0&size=10000&includeDeleted=true",
+      "status": 200,
+      "totalElements": 2025,
+      "contentCount": 2025,
+      "samples": [
+        {
+          "orderNumber": "2026/08/07-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-07T19:35:02.280728"
+        },
+        {
+          "orderNumber": "2026/08/01-3",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-01T01:03:48.550672"
+        },
+        {
+          "orderNumber": "2026/08/01-2",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-01T01:03:48.477913"
+        },
+        {
+          "orderNumber": "2026/08/01-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-08-01T01:03:33.06047"
+        },
+        {
+          "orderNumber": "2026/07/30-1",
+          "status": "DRAFT",
+          "submittedAt": "2026-07-30T01:12:23.867626"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=10000&includeDeleted=true",
+      "status": 200,
+      "totalElements": 2045,
+      "contentCount": 2045,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=1&size=50&includeDeleted=true",
+      "status": 200,
+      "totalElements": 2045,
+      "contentCount": 50,
+      "samples": [
+        {
+          "estimateNo": "2026/07/16-6",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-07-16"
+        },
+        {
+          "estimateNo": "2026/07/16-1",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-07-16"
+        },
+        {
+          "estimateNo": "2026/08/07-3",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/06-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-06"
+        },
+        {
+          "estimateNo": "2026/08/06-16",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-06"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=1&size=50",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 2,
+      "samples": [
+        {
+          "estimateNo": "2026/07/16-6",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-07-16"
+        },
+        {
+          "estimateNo": "2026/07/16-1",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-07-16"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=50",
+      "status": 200,
+      "totalElements": 52,
+      "contentCount": 50,
+      "samples": [
+        {
+          "estimateNo": "2026/08/07-21",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-20",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-19",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-18",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        },
+        {
+          "estimateNo": "2026/08/07-17",
+          "status": "QUOTE_DRAFT",
+          "estimateDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips/estimates?page=0&size=10000",
+      "status": 200,
+      "scenario": "partial-failure"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/api/v1/partner-orders?page=0&size=10000",
+      "status": 503,
+      "scenario": "partial-failure-injected"
+    }
+  ],
+  "checks": {
+    "login": {
+      "account": "dev_master",
+      "password": "<redacted>",
+      "passed": true
+    },
+    "baseline": {
+      "visibleRows": 50,
+      "firstDocument": "2026/08/07-21"
+    },
+    "unified": {
+      "api": {
+        "estimates": 52,
+        "orders": 4
+      },
+      "displayed": {
+        "total": 56,
+        "estimates": 52,
+        "orders": 4
+      },
+      "headers": [
+        "구분",
+        "문서번호",
+        "거래처 코드",
+        "거래처",
+        "작성자",
+        "작성일",
+        "합계",
+        "상태"
+      ],
+      "orderWrittenDateDisplayed": 4,
+      "orderWrittenDateTotal": 4,
+      "sourceTransitions": 4,
+      "sourceSequence": [
+        "주문서:2026/08/07-1:2026-08-07T19:35:02.280728",
+        "종합견적서:2026/08/07-16:2026-08-07",
+        "종합견적서:2026/08/07-20:2026-08-07",
+        "종합견적서:2026/08/07-8:2026-08-07",
+        "종합견적서:2026/08/07-15:2026-08-07",
+        "종합견적서:2026/08/07-10:2026-08-07",
+        "종합견적서:2026/08/07-14:2026-08-07",
+        "종합견적서:2026/08/07-1:2026-08-07",
+        "종합견적서:2026/08/07-21:2026-08-07",
+        "종합견적서:2026/08/07-7:2026-08-07",
+        "종합견적서:2026/08/07-5:2026-08-07",
+        "종합견적서:2026/08/07-13:2026-08-07",
+        "종합견적서:2026/08/07-18:2026-08-07",
+        "종합견적서:2026/08/07-9:2026-08-07",
+        "종합견적서:2026/08/07-19:2026-08-07",
+        "종합견적서:2026/08/07-2:2026-08-07",
+        "종합견적서:2026/08/07-17:2026-08-07",
+        "종합견적서:2026/08/07-12:2026-08-07",
+        "종합견적서:2026/08/07-4:2026-08-07",
+        "종합견적서:2026/08/07-11:2026-08-07",
+        "종합견적서:2026/08/07-6:2026-08-07",
+        "종합견적서:2026/08/06-1:2026-08-06",
+        "종합견적서:2026/08/06-2:2026-08-06",
+        "종합견적서:2026/08/05-1:2026-08-05",
+        "주문서:2026/07/30-1:2026-07-30T01:12:23.867626",
+        "종합견적서:2026/07/17-4:2026-07-17",
+        "종합견적서:2026/07/17-3:2026-07-17",
+        "종합견적서:2026/07/17-19:2026-07-17",
+        "종합견적서:2026/07/17-10:2026-07-17",
+        "종합견적서:2026/07/17-9:2026-07-17",
+        "종합견적서:2026/07/17-14:2026-07-17",
+        "종합견적서:2026/07/17-18:2026-07-17",
+        "종합견적서:2026/07/17-7:2026-07-17",
+        "종합견적서:2026/07/17-17:2026-07-17",
+        "종합견적서:2026/07/17-16:2026-07-17",
+        "종합견적서:2026/07/16-39:2026-07-16",
+        "종합견적서:2026/07/16-24:2026-07-16",
+        "종합견적서:2026/07/16-21:2026-07-16",
+        "종합견적서:2026/07/16-37:2026-07-16",
+        "종합견적서:2026/07/16-46:2026-07-16",
+        "종합견적서:2026/07/16-26:2026-07-16",
+        "종합견적서:2026/07/16-1:2026-07-16",
+        "종합견적서:2026/07/16-27:2026-07-16",
+        "종합견적서:2026/07/16-43:2026-07-16",
+        "종합견적서:2026/07/16-15:2026-07-16",
+        "종합견적서:2026/07/16-28:2026-07-16",
+        "종합견적서:2026/07/16-6:2026-07-16",
+        "종합견적서:2026/07/16-19:2026-07-16",
+        "종합견적서:2026/07/16-11:2026-07-16",
+        "종합견적서:2026/07/16-34:2026-07-16",
+        "종합견적서:2026/07/16-45:2026-07-16",
+        "종합견적서:2026/07/16-33:2026-07-16",
+        "종합견적서:2026/07/16-40:2026-07-16",
+        "종합견적서:2026/07/16-31:2026-07-16",
+        "주문서:2026/06/08-1982:2026-06-08T02:09:16.873267",
+        "주문서:2026/06/08-1980:2026-06-08T02:09:05.396744"
+      ],
+      "descendingViolations": 0,
+      "displayMismatches": [],
+      "exactDashCells": 0,
+      "managerForbiddenTermCount": 0,
+      "visibleUuidCount": 0
+    },
+    "periodFilter": {
+      "date": "2026-08-07",
+      "trigger": {
+        "estimates": 20,
+        "orders": 1
+      },
+      "displayed": 21
+    },
+    "partnerFilter": {
+      "keyword": "부산냉난방테크",
+      "triggerCount": 13,
+      "displayed": 13,
+      "mismatches": 0
+    },
+    "deletedFirstPage": {
+      "triggerDeletedRows": 0,
+      "badges": 0,
+      "strikethrough": "",
+      "clickUrlUnchanged": true,
+      "total": 2045,
+      "deletedTotal": 1993,
+      "restoreAvailableTotal": 4,
+      "restoreUnavailableTotal": 1989
+    },
+    "restore": {
+      "triggerDeletedRowsOnPage": 48,
+      "triggerRestoreAvailableOnPage": 4,
+      "triggerRestoreUnavailableOnPage": 44,
+      "visibleRestoreButtons": 4,
+      "deletedBadgesOnPage": 48,
+      "deletedStrikethrough": "line-through",
+      "deletedRowClickUrlUnchanged": true,
+      "urlUnchanged": true,
+      "banner": "이미 사용 중인 견적번호로 활성 견적이 존재하여 복원할 수 없습니다",
+      "bannerColor": "rgb(153, 27, 27)"
+    },
+    "pageReset": {
+      "triggerPageBefore": "2",
+      "pageIndicator": "1 / 2",
+      "firstDocumentMatchesBaseline": true
+    },
+    "newEstimate": {
+      "triggerCount": 1,
+      "route": "/sales/estimates/new"
+    },
+    "activeDetail": {
+      "triggerCount": 50,
+      "routeMatched": true,
+      "visibleUuidCount": 0
+    },
+    "partialFailure": {
+      "triggerFailedOrders": 4,
+      "triggerSurvivingEstimates": 52,
+      "displayedRows": 52,
+      "displayedOrders": 0,
+      "displayedEstimates": 52,
+      "banner": "주문서 목록을 불러오지 못했습니다. 가능한 데이터만 표시합니다."
+    }
+  },
+  "errors": [
+    "console: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "console: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "console: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)",
+    "console: Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s /sales/order-approvals \n    at nav\n    at SalesSubNav\n    at div\n    at EstimateListPage (http://127.0.0.1:5196/routes/EstimateListPage.tsx:81:20)\n    at PermissionGuard (http://127.0.0.1:5196/components/PermissionGuard.tsx:23:3)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at Outlet (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4537:26)\n    at main\n    at div\n    at AppLayout (http://127.0.0.1:5196/components/AppLayout.tsx:298:16)\n    at AuthGuard (http://127.0.0.1:5196/components/AuthGuard.tsx:21:29)\n    at RenderedRoute (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4131:5)\n    at RenderErrorBoundary (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4091:5)\n    at DataRoutes (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5282:5)\n    at Router (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:4544:15)\n    at RouterProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/react-router-dom.js?v=df34389d:5096:5)\n    at AppRouter\n    at BiometricLockGate (http://127.0.0.1:5196/components/common/BiometricLockGate.tsx:26:3)\n    at AppVersionGate (http://127.0.0.1:5196/components/common/AppVersionGate.tsx:173:34)\n    at QueryClientProvider (http://127.0.0.1:5196/@fs/C:/dev/Samhan-Public/.claude/worktrees/t1092/clients/desktop/node_modules/.vite/deps/@tanstack_react-query.js?v=df34389d:3235:3)\n    at App (http://127.0.0.1:5196/App.tsx:38:21)"
+  ]
+}
