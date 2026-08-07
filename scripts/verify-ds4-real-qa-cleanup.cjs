@@ -12,7 +12,7 @@ if (process.env.VERIFY_REAL_QA !== '1') {
 }
 
 const apiBase = process.env.API_BASE || 'http://localhost:8080'
-const password = process.env.DEV_PASSWORD || 'dev_p05_pass!'
+const password = process.env.DEV_PASSWORD || (process.env.DEV_PASSWORD ?? '')
 const runId = `${process.pid}-${Date.now()}-${randomUUID()}`
 const workerPath = path.resolve(__dirname, '../clients/desktop/scripts/ds4-real-qa-cleanup-worker.cjs')
 const spawnHelperPath = path.resolve(__dirname, '../clients/desktop/scripts/ds4-real-qa-spawn-worker.cjs')

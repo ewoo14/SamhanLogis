@@ -31,7 +31,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5411'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 
 /** 실 groupware_db 의 기존 APPROVED 결재(문서번호/제목이 실데이터). */
 const APPROVAL_ID = process.env['APPROVAL_ID'] ?? '4d7a6c77-0b5f-4f4b-a1fe-5a01d8f732af'

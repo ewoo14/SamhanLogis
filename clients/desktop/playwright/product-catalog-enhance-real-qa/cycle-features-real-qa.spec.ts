@@ -14,7 +14,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  *   4. usage 노출 토글   — 품목관리 노출 토글 1컷 (cycle-usage-toggle.png, mutation 시 원복)
  *
  * 실서버: http://localhost:8080 (api-gateway), http://localhost:5175 (renderer vite dev, mock OFF)
- * 인증: dev_master / dev_p05_pass! (MASTER, products.admin UPDATE)
+ * 인증: dev_master / DEV_PASSWORD 환경변수 (MASTER, products.admin UPDATE)
  * 실 BUNDLE: AC110CS6PBH1SY (13 구성품, category=SINGLE_SET, usage=BOTH)
  *
  * 실행:
@@ -113,7 +113,7 @@ async function fetchAllInCategory(page: Page, token: string, category: string): 
 // ===========================================================================
 
 test('1. 세트 컬럼 — 견적품목관리 BUNDLE 행에 세트 뱃지 + 구성품 수 표시', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
 
   await page.goto(`${BASE_URL}/#/products/estimate-items`)
   await page.waitForSelector('[data-testid="estimate-items-table"]', { timeout: 30000 })
@@ -144,7 +144,7 @@ test('1. 세트 컬럼 — 견적품목관리 BUNDLE 행에 세트 뱃지 + 구�
 // ===========================================================================
 
 test('2. 표시순서 드래그 저장 — 행 순서 변경 → 순서 저장 PUT 200 → 원복', async ({ page }) => {
-  const token = await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  const token = await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
 
   // ── 0. 저장 전 전체 카테고리 순서 백업 (modelCode→displayOrder) ────────
   const backupRows = await fetchAllInCategory(page, token, SET_CATEGORY)
@@ -254,7 +254,7 @@ test('2. 표시순서 드래그 저장 — 행 순서 변경 → 순서 저장 P
 // ===========================================================================
 
 test('3. 세트재고 가드 — 출고전표 BUNDLE 라인 재고조회 시 세트 전용 안내 표시', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
 
   // 1) /sales/new (OUTBOUND) 진입 (창고 선택 불필요 — 재고조회 버튼은 라인 선택만 요구)
   await page.goto(`${BASE_URL}/#/sales/new`)
@@ -303,7 +303,7 @@ test('3. 세트재고 가드 — 출고전표 BUNDLE 라인 재고조회 시 세
 // ===========================================================================
 
 test('4. usage 노출 토글 — 노출 설정 토글 변경 PATCH 200 → 원복', async ({ page }) => {
-  const token = await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  const token = await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
   const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
   await page.goto(`${BASE_URL}/#/products/estimate-items`)

@@ -2,12 +2,12 @@
 -- V5 P0-5 개발 계정 9건의 비밀번호 해시 결함을 교정한다.
 --
 -- 결함 출처:
---   PR #411 QA 에서 V5 공통 해시가 문서된 평문 "dev_p05_pass!" 와 불일치함을
+--   PR #411 QA 에서 V5 공통 해시가 문서된 QA_DEV_DEFAULT_PASSWORD 와 불일치함을
 --   bcrypt.checkpw=False 로 실증했다.
 --   근거: docs/qa/permission-groups-phase-c-fullstack/real-qa-evidence.md:38
 --
 -- 교체 해시 검증 근거:
---   PR #421 V48 개발 계정에서 아래 BCrypt 해시로 "dev_p05_pass!" 실로그인 200 을 실증했다.
+--   PR #421 V48 개발 계정에서 아래 BCrypt 해시로 QA_DEV_DEFAULT_PASSWORD 실로그인 200 을 실증했다.
 --
 -- [DEV-SEED] 식별자 — production 절대 미적용 (Flyway location 분리 필요 시 별도 조치).
 --

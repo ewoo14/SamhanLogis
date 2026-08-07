@@ -54,7 +54,7 @@ function hashUrl(p: string): string {
 
 async function fetchRealToken(): Promise<string> {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: 'dev_p05_pass!' })
+    const body = JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') })
     const req = http.request(
       {
         hostname: '127.0.0.1', port: 8080,

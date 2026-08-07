@@ -27,7 +27,15 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 class AuthFlywayV49SeedIT extends AbstractPostgresIT {
 
-    private static final String DEV_ACCOUNT_PASSWORD = "dev_p05_pass!";
+    private static final String DEV_ACCOUNT_PASSWORD = requireDevPassword();
+
+    private static String requireDevPassword() {
+        String password = System.getenv("QA_DEV_DEFAULT_PASSWORD");
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException("QA_DEV_DEFAULT_PASSWORD 환경변수가 필요합니다.");
+        }
+        return password;
+    }
     private static final String REPAIRED_PASSWORD_HASH =
             "$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y";
     private static final String LEGACY_DEFECT_PASSWORD_HASH =
@@ -69,7 +77,7 @@ class AuthFlywayV49SeedIT extends AbstractPostgresIT {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    @DisplayName("V49는 V5 정상 활성 개발 계정 7건의 dev_p05_pass! 로그인을 복구한다")
+    @DisplayName("V49는 V5 정상 활성 개발 계정 7건의 QA_DEV_DEFAULT_PASSWORD 로그인을 복구한다")
     void activeDevAccountsCanLoginWithRepairedV5PasswordHash() throws Exception {
         // dev_locked=잠금, dev_disabled=is_deleted seed 이므로 로그인 성공 단언 대상에서 제외한다.
         for (DevAccount account : DEV_ACCOUNTS) {
@@ -81,7 +89,7 @@ class AuthFlywayV49SeedIT extends AbstractPostgresIT {
     @DisplayName("V49는 V5 개발 계정 9건의 해시를 교정하고 V5 정책 플래그를 보존한다")
     void repairedHashAndPasswordPolicyArePersistedForAllV5DevAccounts() {
         assertThat(passwordHashCount(REPAIRED_PASSWORD_HASH))
-                .as("V5 고정 UUID 9건 전체가 dev_p05_pass! 검증 해시로 교정되어야 한다")
+                .as("V5 고정 UUID 9건 전체가 QA_DEV_DEFAULT_PASSWORD 검증 해시로 교정되어야 한다")
                 .isEqualTo(9L);
         assertThat(passwordHashCount(LEGACY_DEFECT_PASSWORD_HASH))
                 .as("V5 고정 UUID 9건에 기존 결함 해시가 잔존하면 안 된다")

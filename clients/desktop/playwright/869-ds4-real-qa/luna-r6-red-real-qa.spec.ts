@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5291'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 
 async function installAuth(page: import('@playwright/test').Page): Promise<void> {
   const login = await page.request.post(`${API_BASE}/api/auth/login`, { data: { loginId: 'dev_master', password: PASSWORD } })

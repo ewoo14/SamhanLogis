@@ -56,7 +56,9 @@ async function performLogin(page, baseUrl, creds) {
   const submitSelector = '[data-testid="login-submit-button"], button[type="submit"]';
 
   await page.fill(idSelector, creds.loginId);
-  await page.fill(pwSelector, creds.password);
+    const password = creds.password ?? process.env[creds.passwordEnv];
+    if (!password) throw new Error(`환경변수 ${creds.passwordEnv}가 필요합니다.`);
+    await page.fill(pwSelector, password);
 
   // PR #111 회고 fix — mutation response + navigation 둘 다 대기.
   // 1) /auth/login 응답 (gateway 경유, status 200) 대기

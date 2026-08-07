@@ -23,7 +23,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5207'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const ACCOUNT = 'dev_manager'
 
 // 재수렴 4차(#937): 다른 두 #937 real-qa 스펙과 같이 QA_SHOTS_DIR 를 존중한다 —

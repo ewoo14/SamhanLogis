@@ -29,7 +29,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5199'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const TARGET_DATE = process.env['S5_QA_DATE'] ?? '2026-05-03'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/773-s5-purchase-render-modelname'))
 fs.mkdirSync(SHOTS, { recursive: true })

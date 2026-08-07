@@ -22,7 +22,7 @@ import { test, type Page, type Route, type BrowserContext } from '@playwright/te
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const GW = 'http://127.0.0.1:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
 const SHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/collab-presence-rollout'))

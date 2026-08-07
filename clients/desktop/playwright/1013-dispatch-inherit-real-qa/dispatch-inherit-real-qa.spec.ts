@@ -10,7 +10,7 @@ fs.mkdirSync(SHOTS, { recursive: true })
 async function login(page: import('@playwright/test').Page, loginId = 'dev_master'): Promise<void> {
   await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' })
   await page.locator('input').nth(0).fill(loginId)
-  await page.locator('input').nth(1).fill(process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!')
+  await page.locator('input').nth(1).fill(process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? ''))
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   await page.waitForURL(/#\/$/, { timeout: 15000 })
 }
@@ -49,7 +49,7 @@ test('로그인 후 실제 메뉴 탐색', async ({ page }) => {
   })
   await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' })
   await page.locator('input').nth(0).fill('dev_master')
-  await page.locator('input').nth(1).fill(process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!')
+  await page.locator('input').nth(1).fill(process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? ''))
   console.log('[LOGIN BUTTON DISABLED]', await page.getByRole('button', { name: '로그인', exact: true }).isDisabled())
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   await page.waitForTimeout(4000)
@@ -63,7 +63,7 @@ test('로그인 후 실제 메뉴 탐색', async ({ page }) => {
 test('시나리오 1 — 배차안내문자 화면 진입', async ({ page }) => {
   await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' })
   await page.locator('input').nth(0).fill('dev_master')
-  await page.locator('input').nth(1).fill(process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!')
+  await page.locator('input').nth(1).fill(process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? ''))
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   await page.waitForURL(/#\/$/, { timeout: 15000 })
   await page.getByRole('button', { name: '배차', exact: true }).click()

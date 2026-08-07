@@ -21,7 +21,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5199'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const LOGIN_ID = process.env['LOGIN_ID'] ?? 'dev_master'
 const ORDER_NO = process.env['ORDER_NO'] ?? '2026/06/08-1983'
 const ORDER_PATH = ORDER_NO.replace(/\//g, '-') // 2026-06-08-1983

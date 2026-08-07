@@ -6,7 +6,7 @@ import { CURRENT_VERSION } from './current-version'
 
 const specDir = path.dirname(fileURLToPath(import.meta.url))
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 // CURRENT_VERSION은 ./current-version에서 import — order-app 빌드에 주입되는 버전(playwright.config.ts)과
 // 반드시 같은 값이어야 하므로(R3-1 fix) 이 스펙 안에서 별도 리터럴로 다시 선언하지 않는다.
 const THROWAWAY_VERSION = '2026/07/26-92801'

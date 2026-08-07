@@ -30,7 +30,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5931'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const ROUND = process.env['QA_ROUND'] ?? 'unknown-round'
 const SLIP_ID = process.env['SLIP_ID'] ?? '4b0124ad-c1dc-4f3b-b8f6-b71cf84357da'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/25-x-is-system-master'))

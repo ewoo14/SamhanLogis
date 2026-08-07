@@ -17,7 +17,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  *   3. multi-category-home-multi-list  — 카테고리=HOME_MULTI 필터 목록(다중노출 품목이 1번 순서로 등장)
  *
  * 실서버: http://localhost:8080 (api-gateway), http://localhost:5175 (renderer vite dev, mock OFF)
- * 인증: dev_master / dev_p05_pass! (MASTER, products.admin UPDATE)
+ * 인증: dev_master / DEV_PASSWORD 환경변수 (MASTER, products.admin UPDATE)
  *
  * 실행:
  *   cd clients/desktop
@@ -81,7 +81,7 @@ async function loginAndInstallStub(page: Page, loginId: string, password: string
 test('M:N — AJ060MXHNBC1 단일 품목이 HOME_MULTI + SINGLE_SET 2개 카테고리에 동시 노출(Badge 2 + TagChip 2)', async ({
   page,
 }) => {
-  const token = await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  const token = await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
 
   // (전제 확인) 실 API 가 estimateCategories 2건을 반환하는지 검증 — 실데이터 보장.
   const apiRes = await page.request.get(`${API_BASE}/api/v1/products`, {
@@ -176,7 +176,7 @@ test('M:N — AJ060MXHNBC1 단일 품목이 HOME_MULTI + SINGLE_SET 2개 카테�
 test('카테고리 탭 — HOME_MULTI 목록에서 다중노출 품목 AJ060MXHNBC1 이 표시순서대로 등장', async ({
   page,
 }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
 
   await page.goto(`${BASE_URL}/#/products/estimate-items`)
   await page.waitForSelector('[data-testid="estimate-items-table"]', { timeout: 30000 })

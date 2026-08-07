@@ -129,7 +129,7 @@ function assertCentered(g: Geom, scenario: string) {
 
 test('빈 상태 마스코트 기하 측정 — scrollLeft=0(최초 진입)', async ({ page, request }) => {
   const res = await request.post(`${API_BASE}/auth/login`, {
-    data: { loginId: 'dev_master', password: 'dev_p05_pass!' },
+    data: { loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') },
   })
   const d = (await res.json()).data
   await page.addInitScript((a) => {

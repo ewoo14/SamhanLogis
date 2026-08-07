@@ -43,7 +43,7 @@ async function capture(page: Page, name: string): Promise<void> {
 
 // 로컬 dev 테스트 계정(V5 P0-5 seed) 비밀번호. 기존 real-qa 스펙 컨벤션과 동일하게
 // 환경변수 우선 + 폴백. 실 운영 크레덴셜 아님(공개 dev seed 계정).
-const DEV_PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const DEV_PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 
 function fetchRealToken(loginId: string): Promise<string> {
   return new Promise((resolve, reject) => {

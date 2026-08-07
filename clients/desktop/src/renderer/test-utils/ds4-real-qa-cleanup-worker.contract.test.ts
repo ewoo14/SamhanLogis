@@ -51,7 +51,7 @@ function spawnWorker(opts: {
   stopFile: string
   noticeIntervalMs: number
 }): ChildProcess {
-  const passwordB64 = Buffer.from('dev_p05_pass!', 'utf8').toString('base64')
+  const passwordB64 = Buffer.from((process.env.DEV_PASSWORD ?? ''), 'utf8').toString('base64')
   return spawn(process.execPath, [
     WORKER_PATH,
     '--api-base', opts.apiBase,

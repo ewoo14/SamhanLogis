@@ -12,7 +12,7 @@ type LoginResult = {
   displayName: string
 }
 
-async function realLogin(page: Page, loginId = 'dev_master', password = 'dev_p05_pass!'): Promise<LoginResult> {
+async function realLogin(page: Page, loginId = 'dev_master', password = (process.env.DEV_PASSWORD ?? '')): Promise<LoginResult> {
   const response = await page.request.post(`${API_BASE}/auth/login`, {
     data: { loginId, password },
   })

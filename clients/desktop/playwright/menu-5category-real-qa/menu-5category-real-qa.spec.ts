@@ -10,7 +10,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  *   - api-gateway: http://localhost:8080 (실 권한 API)
  *   - FE renderer dev: http://localhost:5175 (mock OFF — VITE_API_BASE_URL=http://localhost:8080)
  *
- * 인증(실 dev 계정, 비밀번호 dev_p05_pass!):
+ * 인증(실 dev 계정, 비밀번호 DEV_PASSWORD 환경변수):
  *   - dev_master     = MASTER     (7그룹 전부)
  *   - dev_sales      = SALES
  *   - dev_accountant = ACCOUNTANT
@@ -40,7 +40,7 @@ const _dirname =
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 
 const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/menu-5category'))
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })

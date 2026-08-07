@@ -3,7 +3,7 @@
 --
 -- [DEV-SEED] 식별자 — production 절대 미적용 (Flyway location 분리 필요 시 별도 조치).
 --
--- 비밀번호 BCrypt 해시: "dev_p05_pass!"
+-- 비밀번호 BCrypt 해시: QA_DEV_DEFAULT_PASSWORD
 --   → $2a$12$6cxHjNrguvlnEE.4s4jrAOuGNGGmHPc4Gg8/MuMBHYh/B.Q4sU/xu
 --
 -- UUID 배정 규칙 (결정적):
@@ -19,7 +19,7 @@
 --
 -- password_change_required = TRUE — 첫 로그인 시 비밀번호 변경 의무 (P0-5 신규 등록 정책).
 --
--- GitGuardian 주의: 평문 "dev_p05_pass!" 는 DEV-ONLY 시드 전용. BCrypt hash 만 저장.
+-- GitGuardian 주의: QA_DEV_DEFAULT_PASSWORD 는 DEV-ONLY 시드 전용. BCrypt hash 만 저장.
 
 INSERT INTO accounts (
     id, login_id, password_hash, display_name, role, enabled,

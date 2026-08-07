@@ -18,7 +18,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5931'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const ORDER_ID = process.env['ORDER_ID'] ?? '016d6997-d6d0-497e-9672-0223ee2493b2'
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/25-x-is-system-master'))
 fs.mkdirSync(SHOTS, { recursive: true })

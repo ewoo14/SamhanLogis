@@ -7,7 +7,7 @@
 --
 -- [DEV-SEED] 식별자 — production 절대 미적용 (Flyway location 분리 필요 시 별도 조치).
 --
--- 계정 비밀번호 BCrypt 해시: "dev_p05_pass!"
+-- 계정 비밀번호 BCrypt 해시: QA_DEV_DEFAULT_PASSWORD
 --   V5 해시는 평문 불일치 잠복 결함 — 본 해시는 #411 QA 검증분(checkpw=true).
 -- password_change_required = FALSE:
 --   계획서 §3 기준, 실QA 계정은 최초 로그인 비밀번호 변경 화면 없이 즉시 토큰 발급되어야 한다.

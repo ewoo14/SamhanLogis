@@ -33,7 +33,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:6001'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const ACCOUNT = process.env['QA_ACCOUNT'] ?? 'dev_manager'
 /** D-1 — 부가세만 편집해 단가 항등식이 깨진 정당 상태(두 단가 컬럼이 다르다). */
 const D1_SLIP = process.env['QA_D1_SLIP'] ?? ''

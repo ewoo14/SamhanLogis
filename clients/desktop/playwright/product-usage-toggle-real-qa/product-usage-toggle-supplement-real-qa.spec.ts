@@ -35,7 +35,7 @@ async function loginAndGetToken(): Promise<string> {
   const resp = await fetch(`${GATEWAY}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ loginId: 'dev_master', password: 'dev_p05_pass!' }),
+    body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
   })
   const data = (await resp.json()) as { data: { token: string } }
   return data.data.token

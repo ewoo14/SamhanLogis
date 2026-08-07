@@ -61,7 +61,7 @@ async function launch() {
 
   // 2) 로그인 수행
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
+  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
   await page.click('[data-testid=login-submit-button]')
   log('2. submitted login')
 

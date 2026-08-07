@@ -5,7 +5,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  * 대상: 품목 등록 폼 사양 섹션 — 품목별 사양 드롭다운(estimate_category 필터) + valueType 입력
  *       (NUMBER 숫자+단위 / DIMENSION 3분할 WxHxD / TEXT) + 순서변경(위/아래) + 중복제외.
  * 실서버: http://localhost:8080 (api-gateway, 실 product-service V17), FE http://localhost:5173.
- * 인증: dev_master / dev_p05_pass! (MASTER, products.list VIEW).
+ * 인증: dev_master / DEV_PASSWORD 환경변수 (MASTER, products.list VIEW).
  *
  * 실행: cd C:\dev\Samhan-Public\clients\desktop
  *   set AUDIT_BASE_URL=http://localhost:5173 && node_modules\.bin\playwright test \
@@ -44,7 +44,7 @@ async function loginAndInstallStub(page: Page, loginId: string, password: string
 }
 
 test('사양 인지형 입력 — 품목별 드롭다운·valueType·순서·중복', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
   await page.goto(`${BASE_URL}/#/products/new`)
   await page.waitForSelector('[data-testid="product-form-model-name"]', { timeout: 30000 })
 
@@ -102,7 +102,7 @@ test('사양 인지형 입력 — 품목별 드롭다운·valueType·순서·중
 })
 
 test('시드 제품 편집 — 기존 적재 사양 그대로 조회', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
   // 시드 적재 사양 13개 보유 상업 제품
   await page.goto(`${BASE_URL}/#/products/AM100AXVHJH1/edit`)
   await page.waitForSelector('[data-testid="product-form-spec-0-key"]', { timeout: 30000 })
@@ -136,7 +136,7 @@ test('시드 제품 편집 — 기존 적재 사양 그대로 조회', async ({ 
 })
 
 test('판넬 제품 편집 — 타공사이즈/전산볼트간격 로드 및 구 오라벨 제거', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
   // HOME_MULTI 판넬: 구 오라벨(냉방능력/냉방소비전력) 대신 판넬 전용 사양 키가 로드되어야 한다.
   await page.goto(`${BASE_URL}/#/products/PC1BWCK3N/edit`)
   await page.waitForSelector('[data-testid="product-form-spec-0-key"]', { timeout: 30000 })
@@ -161,7 +161,7 @@ test('판넬 제품 편집 — 타공사이즈/전산볼트간격 로드 및 구
 })
 
 test('RANGE — 싱글세트 능력 최소/정격/최대 3칸 입력 + / 결합', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
   await page.goto(`${BASE_URL}/#/products/new`)
   await page.waitForSelector('[data-testid="product-form-model-name"]', { timeout: 30000 })
 

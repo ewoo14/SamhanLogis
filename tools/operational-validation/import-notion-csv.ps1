@@ -27,7 +27,7 @@
     JWT 발급용 loginId (default kimmiseon).
 
 .PARAMETER Password
-    JWT 발급용 password (default samhan!2026 — OrgChartSeeder seed).
+    JWT 발급용 password (QA_MASTER_PASSWORD 환경변수).
 
 .PARAMETER NotionExportRoot
     Notion CSV export 디렉토리 (default ProjectRoot\tools\legacy-gas\_notion-export).
@@ -44,7 +44,7 @@
 .NOTES
     - Windows PowerShell 5.1 / PowerShell 7+ 호환
     - UTF-8 (BOM 있음, PowerShell 5.1 한글 호환) 으로 저장 — feedback_powershell_utf8_writes 준수
-    - secret hardcode 금지 — kimmiseon 비밀번호는 OrgChartSeeder seed (dev only)
+    - secret hardcode 금지 — kimmiseon 비밀번호는 QA_MASTER_PASSWORD 환경변수에서 읽는다.
     - Endpoint path 는 controller @RequestMapping 실측 기준. service port 직접 호출 + JWT 헤더 위임.
     - start-local-full.ps1 가 default port 충돌을 SAMHAN_*_PORT 로 우회하면 본 스크립트도 같은 값을 사용.
     - 사전 의존 — start-local-full.ps1 부팅 + 4 service UP
@@ -58,12 +58,15 @@
 param(
     [string] $GatewayUrl       = 'http://localhost:8080',
     [string] $LoginId          = 'kimmiseon',
-    [string] $Password         = 'samhan!2026',
+    [string] $Password         = $env:QA_MASTER_PASSWORD,
     [string] $NotionExportRoot = '',
     [switch] $ContinueOnError
 )
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($Password)) {
+    throw 'QA_MASTER_PASSWORD 환경변수를 설정하거나 -Password를 지정해야 합니다.'
+}
 
 # -----------------------------------------------------------------------------
 # 0. 경로 + 설정
@@ -246,7 +249,7 @@ try {
     Write-Host "   확인 사항:" -ForegroundColor Yellow
     Write-Host "     1) start-local-full.ps1 가 부팅 완료되었는지" -ForegroundColor DarkGray
     Write-Host "     2) auth-service (8081) + api-gateway (8080) UP 인지" -ForegroundColor DarkGray
-    Write-Host "     3) kimmiseon 비밀번호 = samhan!2026 인지 (OrgChartSeeder)" -ForegroundColor DarkGray
+    Write-Host '     3) kimmiseon 비밀번호가 QA_MASTER_PASSWORD 값인지 (OrgChartSeeder)' -ForegroundColor DarkGray
     throw
 }
 

@@ -68,3 +68,69 @@ CREDENTIAL_GUARD_SCOPE=s1 bash scripts/check-credential-plaintext.sh
 ```
 
 검사 범위는 추적된 `docs/`와 `.claude/memory/`이며, 걸린 건수는 0건이다. 따라서 오차단 대상도 0건이고, 정상 문서를 차단하지 않았다. `README.md`는 별도로 `git grep` 0건을 확인했다.
+
+## S2 — tools 실행 스크립트 및 저장소 전체 잔여 표면
+
+### 처리 원칙
+
+S1 이후 CI가 잡은 `tools/operational-validation/`의 4건을 포함해 저장소 전체를
+세 개발 QA 비밀번호 패턴으로 재검사했다(실제 검색 명령은 작업 로그에서 실행했고,
+이 보고서에는 값 자체를 재기록하지 않는다).
+실제 값은 `infrastructure/.env.local`에서만 공급하고, 추적 파일에는 아래 환경변수
+이름 또는 기존 QA 러너의 `DEV_PASSWORD` 참조만 남겼다. `.gitguardian.yaml:22-34`는
+탐지 allowlist 정의이므로 변경하지 않았다.
+
+| 잔여 표면(처리 전 파일:줄) | 건수 | 처리 방식 |
+|---|---:|---|
+| `tools/operational-validation/run-smoke-tests.ps1:31,55` | 2 | `QA_MASTER_PASSWORD` 환경변수 필수 입력으로 변경. `-Password` 직접 지정 경로도 유지. |
+| `tools/operational-validation/import-notion-csv.ps1:30,61,249` | 3 | `QA_MASTER_PASSWORD` 환경변수 필수 입력으로 변경하고 안내 문구를 키 이름으로 치환. |
+| `clients/**` (Playwright·desktop scripts·QA formula·renderer test) | 203개 파일 / 244건 | 기존 `DEV_PASSWORD` 환경변수 경로로 치환하고, 아로로지스 admin 로그인은 `QA_AROLOGIS_ADMIN_PASSWORD`를 사용. |
+| `perf/k6/mixed-load.js` | 1건 | k6 런타임에 맞춰 `__ENV.LOADTEST_PASSWORD || __ENV.DEV_PASSWORD`로 변경. |
+| `scripts/run-load-test.ps1` | 1건 | `QA_DEV_DEFAULT_PASSWORD` 필수 환경변수로 변경. |
+| `scripts/verify-ds4-real-qa-cleanup.cjs` 및 `clients/desktop/scripts/ds4-real-qa-reap.cjs` | 2건 | 기존 `DEV_PASSWORD` 입력 경로 유지, 하드코드 fallback 제거. |
+| `tools/manual-capture/capture.config.json` 및 캡처 러너 2개 | 2건 | JSON의 password를 `passwordEnv: QA_MASTER_PASSWORD`로 바꾸고 러너가 런타임에 읽도록 변경. |
+| `services/*` seed/test/README | 10개 파일 / 25건 | OrgChartSeeder는 `QA_MASTER_PASSWORD`, 아로로지스 hash test는 `QA_AROLOGIS_ADMIN_PASSWORD`, auth IT는 `QA_DEV_DEFAULT_PASSWORD`; 문서·SQL 주석도 키 이름으로 치환. 단위 테스트의 비밀번호 전달 검증은 비자격 테스트 문자열로 변경. |
+| `scripts/check-credential-plaintext.sh` | 1건 | 탐지 패턴을 hex 조합으로 구성해 가드 소스 자체에 평문을 저장하지 않도록 변경. |
+
+전수 결과는 `.gitguardian.yaml`의 지정 줄만 남았고, 그 밖의 평문은 0건이다.
+
+### RED 결과
+
+| 불변식 | 결과 | 증거 |
+|---|---|---|
+| RED-A | PASS | `git grep` 결과가 `.gitguardian.yaml:22-35`만 출력. 해당 파일은 요청대로 미변경. |
+| RED-B | PASS (정적) | PowerShell 3개 스크립트 구문 파싱 PASS; `-Password` 직접 지정 또는 `QA_MASTER_PASSWORD` 환경변수 경로가 존재. 수동 캡처도 `passwordEnv` 런타임 해석 경로를 확인. |
+| RED-C | PASS (범위 축소) | `CREDENTIAL_GUARD_SCOPE=s2 bash scripts/check-credential-plaintext.sh`가 저장소 전체 DEV QA 패턴을 검사해 PASS. 정상 파일 오차단 0건. |
+
+### 가드 실행 원문
+
+요청한 전체 명령은 실제로 실행했으나 Windows Git Bash의 기존 전체 recursive scan이
+334초 제한에 도달해 exit 124로 종료됐다. 성공했다고 보고하지 않는다.
+
+```text
+$ bash scripts/check-credential-plaintext.sh
+command timed out after 334027 milliseconds
+exit code: 124
+```
+
+전체 가드의 병목을 우회하지 않고 S2 불변식만 좁혀 실제 가드를 실행한 원문은 다음과 같다.
+
+```text
+$ CREDENTIAL_GUARD_SCOPE=s2 bash scripts/check-credential-plaintext.sh
+============================================================
+ SP-08-8 자격 평문 비공개 가드 — 검사 시작
+============================================================
+ [PASS] S2 저장소 전체 개발 QA 평문 없음 (allowlist 정의 제외)
+```
+
+추가 확인:
+
+```text
+run-smoke-tests.ps1 parse PASS
+import-notion-csv.ps1 parse PASS
+run-load-test.ps1 parse PASS
+```
+
+### 새로 만든 파일
+
+없음. 기존 S1 보고서에 S2 절만 추가했다.

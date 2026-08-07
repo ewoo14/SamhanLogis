@@ -19,12 +19,12 @@
     "kimmiseon": {
       "comment": "MASTER 권한 — 김미선 대표. service 가 seed 한 계정 (start-local-full.ps1).",
       "loginId": "kimmiseon",
-      "password": "samhan!2026"
+      "passwordEnv": "QA_MASTER_PASSWORD"
     },
     "salesUser": {
       "comment": "SALES 권한 — 영업원. 매뉴얼 영업 흐름용.",
       "loginId": "salesuser",
-      "password": "samhan!2026"
+      "passwordEnv": "QA_MASTER_PASSWORD"
     }
   },
   "screens": [

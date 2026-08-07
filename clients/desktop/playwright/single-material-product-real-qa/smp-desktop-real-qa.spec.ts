@@ -11,7 +11,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  *                                     '기본'(isDefault) 체크박스 + componentKind per row
  *   04-component-autocomplete.png   — 구성품 모달 ProductAutocomplete 검색 → 제안 목록
  *
- * 인증: dev_master / dev_p05_pass! (MASTER, products.admin UPDATE/CREATE)
+ * 인증: dev_master / DEV_PASSWORD 환경변수 (MASTER, products.admin UPDATE/CREATE)
  * 실 BUNDLE: AC110CS6PBH1SY (13 구성품)
  *
  * 실행:
@@ -74,7 +74,7 @@ async function loginAndInstallStub(page: Page, loginId: string, password: string
 // A1. MATERIAL(자재) 품목 목록 — V18 28자재 시드
 // ─────────────────────────────────────────────────────────────────────────────
 test('A1: 자재=실 카탈로그 품목 — 실모델코드(PC1BWCK3NW) 노출, MAT-해시 회귀 가드', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
   await page.goto(`${BASE_URL}/#/products/catalog`)
   await page.waitForSelector('[data-testid="product-catalog-table"]', { timeout: 30000 })
 
@@ -101,7 +101,7 @@ test('A1: 자재=실 카탈로그 품목 — 실모델코드(PC1BWCK3NW) 노출,
 // A2. 품목 등록 종류(kind) 셀렉트 — 단일/세트 2가지만 노출
 // ─────────────────────────────────────────────────────────────────────────────
 test('A2: 품목 등록 — 종류는 단일/세트만 노출하고 제품 쪽 구성 분류는 숨긴다', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
   await page.goto(`${BASE_URL}/#/products/new`)
   // 품목 종류 radiogroup 노출까지 대기
   await page.getByRole('radiogroup', { name: '품목 종류' }).waitFor({ state: 'visible', timeout: 30000 })
@@ -119,7 +119,7 @@ test('A2: 품목 등록 — 종류는 단일/세트만 노출하고 제품 쪽 �
 // A3 + A4. 세트 구성품 모달 — '기본'(isDefault) 체크박스 + componentKind + 자동완성
 // ─────────────────────────────────────────────────────────────────────────────
 test('A3/A4: BUNDLE 구성품 모달 — 기본 토글+종류 + ProductAutocomplete 검색', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
   await page.goto(`${BASE_URL}/#/products/estimate-items`)
   await page.waitForSelector('[data-testid="estimate-items-table"]', { timeout: 30000 })
   const categoryTab = page.locator(`[data-testid="estimate-items-category-tab-${SET_CATEGORY}"]`)

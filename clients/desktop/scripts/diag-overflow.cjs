@@ -6,7 +6,7 @@ const P = process.argv[2] || '/accounting/bank-transactions'
   await page.goto('http://localhost:5175/#/login', { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
+  await page.fill('[data-testid=login-password-input]', (process.env.DEV_PASSWORD ?? ''))
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   // 이 하네스(:5175, vite.renderer.dev.config.ts)는 HashRouter — 해시 없는 goto 는 조용히

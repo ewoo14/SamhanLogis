@@ -30,7 +30,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5901'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const ACCOUNT = 'dev_manager'
 const SALES_SLIP = process.env['QA_SALES_SLIP'] ?? ''
 const PURCHASE_SLIP = process.env['QA_PURCHASE_SLIP'] ?? ''

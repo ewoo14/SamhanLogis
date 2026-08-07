@@ -27,7 +27,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5253'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 // 새 전용 하위폴더 — docs/qa/** 기존 파일(01~04, r3-*, r4-verify/*, rA-closing/*) 절대 미접촉.
 // resolveQaShotsDir 로 감싸 재실행이 이 전용 폴더 자신의 기존 증거도 덮어쓰지 않게 한다
 // (2026-07-26 하네스 재수렴 라운드 G2).

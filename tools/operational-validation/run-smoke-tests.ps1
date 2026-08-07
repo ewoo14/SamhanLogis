@@ -28,7 +28,7 @@
     JWT 발급용 loginId (default kimmiseon).
 
 .PARAMETER Password
-    JWT 발급용 password (default samhan!2026 — OrgChartSeeder seed).
+    JWT 발급용 password (QA_MASTER_PASSWORD 환경변수).
 
 .PARAMETER SkipDcConfig
     dc-config-service (port 8089) 헬스 검증 생략. default $false (검증).
@@ -42,7 +42,7 @@
 .NOTES
     - Windows PowerShell 5.1 / PowerShell 7+ 호환
     - UTF-8 (BOM 있음, PowerShell 5.1 한글 호환) 으로 저장 — feedback_powershell_utf8_writes 준수
-    - secret hardcode 금지 — kimmiseon 비밀번호는 OrgChartSeeder seed (dev only)
+    - secret hardcode 금지 — kimmiseon 비밀번호는 QA_MASTER_PASSWORD 환경변수에서 읽는다.
     - Endpoint path 는 controller @RequestMapping 실측 + gateway routing (PR #122 BE 리뷰 정합 fix).
       gateway 라우팅하지 않는 direct endpoint 는 health 검증에서 탐지한 service port 재사용.
     - 사전 의존 — start-local-full.ps1 부팅 + 14 service UP
@@ -52,11 +52,15 @@
 param(
     [string] $GatewayUrl   = 'http://localhost:8080',
     [string] $LoginId      = 'kimmiseon',
-    [string] $Password     = 'samhan!2026',
+    [string] $Password     = $env:QA_MASTER_PASSWORD,
     [switch] $SkipDcConfig
 )
 
 $ErrorActionPreference = 'Stop'
+$requiredPassword = $Password
+if ([string]::IsNullOrWhiteSpace($requiredPassword)) {
+    throw 'QA_MASTER_PASSWORD 환경변수를 설정하거나 -Password를 지정해야 합니다.'
+}
 $defaultGatewayUrl = 'http://localhost:8080'
 
 # -----------------------------------------------------------------------------

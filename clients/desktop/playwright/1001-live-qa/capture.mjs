@@ -12,7 +12,7 @@ const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext({ viewport: { width: 1600, height: 1100 } })
 const page = await context.newPage()
 const login = await page.request.post(`${GATEWAY}/api/auth/login`, {
-  data: { loginId: process.env.QA_LOGIN_ID ?? 'dev_master', password: process.env.DEV_PASSWORD ?? 'dev_p05_pass!' },
+  data: { loginId: process.env.QA_LOGIN_ID ?? 'dev_master', password: process.env.DEV_PASSWORD ?? (process.env.DEV_PASSWORD ?? '') },
 })
 if (!login.ok()) throw new Error(`login failed: ${login.status()}`)
 const loginData = (await login.json()).data ?? {}

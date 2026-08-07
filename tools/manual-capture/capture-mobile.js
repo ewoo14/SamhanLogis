@@ -55,7 +55,9 @@ async function performLogin(page, baseUrl, creds) {
   const submitSelector = '[data-testid="mobile-login-submit"], button[type="submit"]';
   try {
     await page.fill(idSelector, creds.loginId);
-    await page.fill(pwSelector, creds.password);
+    const password = creds.password ?? process.env[creds.passwordEnv];
+    if (!password) throw new Error(`환경변수 ${creds.passwordEnv}가 필요합니다.`);
+    await page.fill(pwSelector, password);
     await page.click(submitSelector);
     await page.waitForTimeout(2000);
   } catch (e) {

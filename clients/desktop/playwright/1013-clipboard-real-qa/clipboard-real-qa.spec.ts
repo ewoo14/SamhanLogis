@@ -13,7 +13,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5932'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/1013-clipboard'))
 fs.mkdirSync(SHOTS, { recursive: true })
 

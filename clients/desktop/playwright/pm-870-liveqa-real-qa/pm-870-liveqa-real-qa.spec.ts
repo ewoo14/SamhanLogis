@@ -21,7 +21,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5522'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const SHOTS = resolveQaShotsDir(path.resolve(process.env['AUDIT_SHOT_DIR'] ?? '../../docs/qa/pm-870-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 

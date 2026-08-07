@@ -38,7 +38,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5218'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const ACCOUNT = 'dev_manager'
 // r2/·r4/·r4-postfix/·r5/·r5-postfix/·r6/·r6-postfix/·r8/·r8-postfix/·r8-postfix2/ 는
 // 이력 보존 — 불가침. R9 fix 재검증 캡처는 신규 r9-postfix/ 에만 기록한다.

@@ -31,7 +31,7 @@ function b64urlDecode(seg: string): string {
 test('arologis warning AA — DispatchDetail 실 GUI 캡처', async ({ page }) => {
   // 실 로그인 (arologis admin)
   const res = await page.request.post(`${API_BASE}/auth/admin/login`, {
-    data: { loginId: 'admin', password: 'admin1234' },
+    data: { loginId: 'admin', password: process.env.QA_AROLOGIS_ADMIN_PASSWORD ?? '' },
   })
   expect(res.ok(), `arologis 로그인 실패: HTTP ${res.status()}`).toBeTruthy()
   const d = await res.json()

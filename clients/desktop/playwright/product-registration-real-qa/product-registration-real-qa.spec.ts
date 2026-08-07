@@ -4,7 +4,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  *
  * 대상: 신규 품목 등록 폼 — 종류 2구분(단일/세트) + 상품/비상품.
  * 실서버: http://localhost:8080 (api-gateway), http://localhost:5175 (FE dev)
- * 인증: dev_master / dev_p05_pass! (MASTER role, products.admin CREATE)
+ * 인증: dev_master / DEV_PASSWORD 환경변수 (MASTER role, products.admin CREATE)
  *
  * 실행:
  *   cd C:\dev\Samhan-Public\clients\desktop
@@ -52,7 +52,7 @@ async function loginAndInstallStub(page: Page, loginId: string, password: string
 }
 
 test('품목 등록 폼 — 종류 2구분·상품/비상품', async ({ page }) => {
-  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+  await loginAndInstallStub(page, 'dev_master', (process.env.DEV_PASSWORD ?? ''))
 
   await page.goto(`${BASE_URL}/#/products/new`)
   await page.waitForSelector('[data-testid="product-form-model-name"]', { timeout: 30000 })

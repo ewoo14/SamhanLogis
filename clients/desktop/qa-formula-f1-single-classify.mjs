@@ -21,7 +21,7 @@ const results = []
 const record = (s, p, n) => { results.push({ scene: s, pass: p, note: n }); console.log(`[qa] ${p ? 'PASS' : 'FAIL'} — ${s}${n ? ' :: ' + n : ''}`) }
 
 async function freshToken() {
-  const res = await fetch(`${GATEWAY}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loginId: 'dev_master', password: 'dev_p05_pass!' }) })
+  const res = await fetch(`${GATEWAY}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }) })
   const json = await res.json()
   if (!json?.data?.token) throw new Error('login failed')
   return json.data

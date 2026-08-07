@@ -23,7 +23,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5200'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const SHOT_DIR = resolveQaShotsDir(process.env['AUDIT_SHOT_DIR']
   ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-sonnet-round2-2026-07-24'))
 const MARKER = 'LUNA909R6'

@@ -33,7 +33,15 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 class AuthFlywayV48SeedIT extends AbstractPostgresIT {
 
-    private static final String DEV_ACCOUNT_PASSWORD = "dev_p05_pass!";
+    private static final String DEV_ACCOUNT_PASSWORD = requireDevPassword();
+
+    private static String requireDevPassword() {
+        String password = System.getenv("QA_DEV_DEFAULT_PASSWORD");
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException("QA_DEV_DEFAULT_PASSWORD 환경변수가 필요합니다.");
+        }
+        return password;
+    }
     private static final List<DevAccount> DEV_ACCOUNTS = List.of(
             new DevAccount("dev_driver", "DRIVER", "DRIVER 그룹(107)",
                     UUID.fromString("b0000000-0000-0000-0000-00000000000a")),

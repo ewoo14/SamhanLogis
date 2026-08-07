@@ -38,7 +38,7 @@ import { join } from 'node:path'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5291'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '908-r2-r6-r7-detail-2026-07-23'))
 
 /** 24mm @96dpi = 90.71px — 좌표 요소(FIELD/TEXT/IMAGE)와 DETAIL 이 공유해야 하는 세로 기준(H7). */

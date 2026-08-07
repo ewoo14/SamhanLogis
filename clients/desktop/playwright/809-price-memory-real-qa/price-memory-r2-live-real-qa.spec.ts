@@ -139,7 +139,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5211'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const ACCOUNT = 'dev_manager'
 // R9 캡처는 신규 r9-postfix/ 에만 기록한다. r2/·r4/·r4-postfix/·r5/·r5-postfix/
 // r6/·r6-postfix/·r8/·r8-postfix/·r8-postfix2/ 는 전부 불가침(덮어쓰기 금지).

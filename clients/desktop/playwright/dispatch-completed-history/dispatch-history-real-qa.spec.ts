@@ -16,7 +16,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5178'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/dispatch-completed-history'))
 const TASK_CODE_PATTERN = /\b\d{4}\/\d{2}\/\d{2}-\d+\b/
 const SLIP_NO_PATTERN = /\b\d{4}\/\d{2}\/\d{2}-\d+\b/g

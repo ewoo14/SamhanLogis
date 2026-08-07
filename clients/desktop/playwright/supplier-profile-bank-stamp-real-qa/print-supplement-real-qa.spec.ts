@@ -61,7 +61,7 @@ async function injectAuthStub(page: Page, userId: string, userName: string, role
     const resp = await fetch(`${GATEWAY_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loginId: 'dev_master', password: 'dev_p05_pass!' }),
+      body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
     })
     const json = (await resp.json()) as { success: boolean; data?: { token?: string } }
     if (json.success && json.data?.token) realToken = json.data.token

@@ -25,7 +25,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5252'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 // 기본값은 커밋된 docs/qa/902-slip-line-ecount/ 가 아니라 그 밑 _local/ (gitignore 대상) —
 // 이 스펙을 다음 라운드에 다시 돌려도 오늘 캡처한 확정 증거(08~12번)를 덮어쓰지 않는다.
 // 오늘처럼 "이 캡처를 PR 확정 증거로 승격한다"는 의도적 결정은 QA_SHOTS_DIR 환경변수로

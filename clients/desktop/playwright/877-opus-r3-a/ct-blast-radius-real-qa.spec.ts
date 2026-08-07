@@ -28,7 +28,7 @@ async function installAuth(page: Page) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ loginId: 'dev_master', password: 'dev_p05_pass!' }),
+    body: JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') }),
   })
   const d = (await res.json()).data
   await page.addInitScript((a) => {

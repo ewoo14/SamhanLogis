@@ -13,7 +13,7 @@ fs.mkdirSync(SHOTS, { recursive: true })
 
 test('#1017 정정된 전표 상세 — 화면 금액', async ({ page }) => {
   const res = await page.request.post(`${API_BASE}/auth/login`, {
-    data: { loginId: 'dev_manager', password: process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!' },
+    data: { loginId: 'dev_manager', password: process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '') },
   })
   expect(res.ok(), `로그인 실패 ${res.status()}`).toBeTruthy()
   const d = (await res.json()).data ?? {}

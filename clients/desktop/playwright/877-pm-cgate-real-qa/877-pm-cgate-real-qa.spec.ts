@@ -31,7 +31,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5420'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = 'dev_p05_pass!'
+const PASSWORD = (process.env.DEV_PASSWORD ?? '')
 const CONNECTED = 'connected-main'
 const FROM = '2019-05-01'
 const TO = '2019-05-03'

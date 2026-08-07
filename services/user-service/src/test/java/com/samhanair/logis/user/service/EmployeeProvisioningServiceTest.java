@@ -65,7 +65,7 @@ class EmployeeProvisioningServiceTest {
 
     private CreateEmployeeRequest createRequest() {
         return new CreateEmployeeRequest(
-                "obyeongseung", "samhan!2026", "오병승", "이사",
+                "obyeongseung", "test-provisioning-password", "오병승", "이사",
                 Role.SALES, departmentId, true, LocalDate.of(2026, 1, 1), null, null);
     }
 
@@ -78,7 +78,7 @@ class EmployeeProvisioningServiceTest {
 
         ArgumentCaptor<UUID> authIdCaptor = ArgumentCaptor.forClass(UUID.class);
         verify(authClient).createAccount(authIdCaptor.capture(), eq("obyeongseung"),
-                eq("samhan!2026"), eq("오병승"), eq(Role.SALES));
+                eq("test-provisioning-password"), eq("오병승"), eq(Role.SALES));
 
         ArgumentCaptor<Employee> employeeCaptor = ArgumentCaptor.forClass(Employee.class);
         verify(employeeRepository).save(employeeCaptor.capture());
@@ -137,7 +137,7 @@ class EmployeeProvisioningServiceTest {
         UUID badDept = UUID.randomUUID();
         when(departmentRepository.findById(badDept)).thenReturn(Optional.empty());
 
-        var req = new CreateEmployeeRequest("x", "samhan!2026", "X", "사원",
+        var req = new CreateEmployeeRequest("x", "test-provisioning-password", "X", "사원",
                 Role.SALES, badDept, false, LocalDate.now(), null, null);
 
         assertThatThrownBy(() -> service.create(req, callerId))

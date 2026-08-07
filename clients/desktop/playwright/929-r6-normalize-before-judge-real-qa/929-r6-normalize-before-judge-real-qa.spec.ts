@@ -76,7 +76,7 @@ const CONTROL_WITH_LETTERS = [`P${STX}X`, `${STX}${ABSENT}`, `${ABSENT}${STX}`]
 
 type LoginResult = { token: string; userId: string; role: string; displayName: string }
 
-async function realLogin(page: Page, loginId = 'dev_master', password = 'dev_p05_pass!'): Promise<LoginResult> {
+async function realLogin(page: Page, loginId = 'dev_master', password = (process.env.DEV_PASSWORD ?? '')): Promise<LoginResult> {
   const response = await page.request.post(`${API_BASE}/api/auth/login`, { data: { loginId, password } })
   expect(response.ok(), `실 로그인 HTTP ${response.status()}`).toBeTruthy()
   const body = (await response.json()) as { data?: Partial<LoginResult> }

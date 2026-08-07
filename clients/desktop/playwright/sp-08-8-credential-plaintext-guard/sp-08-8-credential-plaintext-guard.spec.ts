@@ -328,7 +328,7 @@ test.describe('SP-08-8 자격 평문 비공개 가드 — QA 정적 RED Gate', (
   /**
    * T5: tools/operational-validation/ 스크립트에 평문 실값 자격 증명이 없음을 확인한다.
    *
-   * 허용 패턴: $Password = 'samhan!2026' 같은 OrgChartSeeder seed 비밀번호는
+   * 허용 패턴: $Password = $env:QA_MASTER_PASSWORD 같은 OrgChartSeeder seed 비밀번호는
    *            AWS key / OpenAI key / Notion token / JWT 실값에 해당하지 않으므로 패턴 미포함.
    * 회귀 방지 근거: run-smoke-tests.ps1 / import-notion-csv.ps1 에
    *                 AWS credential 또는 Notion integration token 실값 삽입 차단.

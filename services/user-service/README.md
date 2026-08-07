@@ -41,7 +41,7 @@ All ingress is via the API Gateway, which strips `/api/users` to `/users` and fo
 
 The `OrgChartSeeder` provisions the 16 real employees of Samhan Logis on first boot when
 `app.user.seed-org=true`. Each account is created with the **default password
-`samhan!2026`** (Q1 — 개발책임자 확정). Employees must change the password on first login.
+`QA_MASTER_PASSWORD`** (Q1 — 개발책임자 확정). Employees must change the password on first login.
 
 ## Internal service-to-service token
 

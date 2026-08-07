@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Seeds the 16 real Samhan Logis employees on first boot when {@code app.user.seed-org=true}.
- * Uses the canonical default password {@code samhan!2026} (CEO-confirmed Q1) — employees
+ * Uses the canonical default password from {@code QA_MASTER_PASSWORD} (CEO-confirmed Q1) — employees
  * change it on first login. Idempotent: skips any loginId that already exists.
  */
 @Component
@@ -24,7 +24,15 @@ public class OrgChartSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(OrgChartSeeder.class);
 
-    private static final String DEFAULT_PASSWORD = "samhan!2026";
+    private static final String DEFAULT_PASSWORD = requirePassword();
+
+    private static String requirePassword() {
+        String password = System.getenv("QA_MASTER_PASSWORD");
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException("QA_MASTER_PASSWORD 환경변수가 필요합니다.");
+        }
+        return password;
+    }
     /*
      * post-W5 종합 fix (BE-3, D-P9-21) — Employee.DEFAULT_HIRE_DATE 인용 (DRY 정합).
      * 기존 별도 LocalDate.of(2026,1,1) 상수 중복 제거 — Employee domain 의 의도 주석을 단일 출처로.

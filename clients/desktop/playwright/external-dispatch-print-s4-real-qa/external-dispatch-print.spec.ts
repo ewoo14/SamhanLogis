@@ -50,7 +50,7 @@ async function capture(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, `${name}.png`), fullPage: false })
 }
 
-const DEV_PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const DEV_PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 
 function fetchRealToken(loginId: string): Promise<string> {
   return new Promise((resolve, reject) => {

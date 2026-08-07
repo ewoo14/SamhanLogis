@@ -13,7 +13,7 @@ import { join } from 'node:path'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5200'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const MARKER = 'LUNA909R6'
 const SHOT_DIR = resolveQaShotsDir(process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-luna-round-2026-07-23'))
 const RAW_ERROR = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'

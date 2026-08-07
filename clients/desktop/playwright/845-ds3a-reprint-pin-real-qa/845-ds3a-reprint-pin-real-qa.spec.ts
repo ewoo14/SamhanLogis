@@ -27,7 +27,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5297'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
+const PASSWORD = process.env['DEV_PASSWORD'] ?? (process.env.DEV_PASSWORD ?? '')
 const DOC_TYPE = 'GROUPWARE_QA_DS3A_PIN'
 const INPUT_TEMPLATE_ID = '6c584820-f8c2-45d6-9b70-4bd0722919c7' // [QA] DS-3a pin 검증 유형 (사전 생성)
 const SEED_UNPINNED_APPROVAL = '09d31223-2acf-46c3-8e09-254fc0cebffb' // 2026/05/13-15 월말 재고 실사 (V12 이전 승인)
