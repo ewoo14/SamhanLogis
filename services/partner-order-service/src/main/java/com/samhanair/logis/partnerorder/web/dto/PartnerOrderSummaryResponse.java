@@ -57,7 +57,8 @@ public record PartnerOrderSummaryResponse(
                 order.getOrderNo(),
                 order.getPartnerCode(),
                 null,
-                order.getConfirmedAt(),
+                // 목록의 작성일은 조회/정렬 기준과 동일하게 confirmedAt 우선, DRAFT는 createdAt fallback.
+                effectiveWrittenAt(order),
                 order.getStatus().name(),
                 order.getSlipPublishStatus().name(),
                 order.getTotalAmount(),
@@ -70,6 +71,17 @@ public record PartnerOrderSummaryResponse(
                         ? "기존 주문은 거래처 정체성을 확인할 수 없어 병합할 수 없습니다."
                                 + " 단건 전표 발행은 계속할 수 있습니다."
                         : null);
+    }
+
+    /**
+     * 주문 목록의 표시 작성일.
+     *
+     * <p>CONFIRMED 계열은 확인 시각을, 아직 확인되지 않은 DRAFT/ON_HOLD 주문은
+     * 필수 audit 시각인 생성 시각을 사용한다. PartnerOrderQueryService의 기간 필터·정렬
+     * {@code COALESCE(confirmedAt, createdAt)}와 같은 의미를 유지한다.
+     */
+    private static LocalDateTime effectiveWrittenAt(PartnerOrder order) {
+        return order.getConfirmedAt() != null ? order.getConfirmedAt() : order.getCreatedAt();
     }
 
     private static String resolveActorName(String actorName) {
