@@ -56,6 +56,28 @@ function loadFunction(name, overrides = {}) {
   return context;
 }
 
+function loadArrow(name, overrides = {}) {
+  const marker = new RegExp(`const\\s+${name}\\s*=`);
+  const match = marker.exec(source);
+  const start = match ? match.index : -1;
+  if (start < 0) throw new Error(`${name} not found`);
+  const end = source.indexOf(';', start);
+  if (end < 0) throw new Error(`${name} expression not closed`);
+  const context = {
+    window: {},
+    Number,
+    Math,
+    String,
+    Array,
+    Map,
+    Set,
+    ...overrides,
+  };
+  vm.createContext(context);
+  vm.runInContext(`__value = ${source.slice(start + match[0].length, end)}`, context);
+  return context.__value;
+}
+
 function input(value) {
   return {
     value,
@@ -242,5 +264,43 @@ describe('#875 S3 특수행 계승', () => {
     context.syncHomeUIFromState();
 
     expect(subtotal.textContent).toBe('-500');
+  });
+
+  test('RED-S10-A: 네 탭 합계는 화면 단가 권위를 사용한다', () => {
+    const homeTotal = loadArrow('sumHome', {
+      HOMEMULTI: [{ model: '운임' }],
+      homeQty: new Map([['운임', 1]]),
+      homeUnitPrice: () => 0,
+      getRealHomePrice: () => 1000,
+    })();
+    const singleTotal = loadArrow('sumSingles', {
+      SINGLE_SETS: [{ id: '절삭' }],
+      singleQty: new Map([['절삭', 1]]),
+      calcSetUnitPrice: () => 0,
+      getRealSinglePrice: () => -500,
+    })();
+    const commTotal = loadArrow('sumComm', {
+      commQty: new Map([['운임', 1]]),
+      commUnitPrice: () => 0,
+      getRealCommPrice: () => 1000,
+    })();
+    const oldTotal = loadFunction('sumOld', {
+      OLD_PRODUCTS: [{ model: '절삭', name: '절삭' }],
+      oldQty: new Map([['절삭', 1]]),
+      oldCustomPrices: new Map([['절삭', -500]]),
+      getOldDiscountPercent: () => 0,
+    }).sumOld();
+
+    expect(homeTotal).toBe(1000);
+    expect(singleTotal).toBe(-500);
+    expect(commTotal).toBe(1000);
+    expect(oldTotal).toBe(-500);
+  });
+
+  test('RED-S10-B: 상업 모바일 푸터의 숫자 셀은 합계 라벨을 중복하지 않는다', () => {
+    const start = source.indexOf('function fixFootersForMobile');
+    const end = source.indexOf('// 전표생성 버튼', start);
+    const fixFootersSource = source.slice(start, end);
+    expect(fixFootersSource).not.toContain('cells[2].innerHTML = `<strong>합계 <span id="commTotalInline">${totalText}</span></strong>`');
   });
 });

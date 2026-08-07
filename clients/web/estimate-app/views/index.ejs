@@ -4657,11 +4657,11 @@ if (origStyleColor) {
 
 /* 합계/포맷 */
 const sumBy=pred=>HOMEMULTI.reduce((t,r)=>t+((pred(r?.name||'')?(homeQty.get(r.model)||0):0)),0);
-const sumHome=()=>Array.from(homeQty.entries()).reduce((s,[m,q])=>s+(homeUnitPrice(m)||0)*(q||0),0);
-const sumSingles=()=>SINGLE_SETS.reduce((s,x)=>s+(calcSetUnitPrice(x)*(singleQty.get(x.id)||0)),0);
+const sumHome=()=>Array.from(homeQty.entries()).reduce((s,[m,q])=>s+(getRealHomePrice(m)||0)*(q||0),0);
+const sumSingles=()=>SINGLE_SETS.reduce((s,x)=>s+((getRealSinglePrice(x.id)||0)*(singleQty.get(x.id)||0)),0);
 const sumComm = () =>
   Array.from(commQty.entries())
-    .reduce((s, [m, q]) => s + (commUnitPrice(m) || 0) * (q || 0), 0);
+    .reduce((s, [m, q]) => s + (getRealCommPrice(m) || 0) * (q || 0), 0);
 
 // 상업멀티
 function syncCommTotals(){
@@ -10533,11 +10533,12 @@ function fixFootersForMobile(isMobile){
       cells[0].colSpan = 6;
       cells[1].style.display = 'none';
       const totalText = document.getElementById('commTotal')?.textContent || '0';
-      cells[2].innerHTML = `<strong>합계 <span id="commTotalInline">${totalText}</span></strong>`;
+      cells[2].innerHTML = `<strong id="commTotal">${totalText}</strong>`;
     } else {
       cells[0].colSpan = 6;
       cells[1].style.display = '';
-      cells[2].innerHTML = `<strong>합계</strong>`;
+      const totalText = document.getElementById('commTotal')?.textContent || '0';
+      cells[2].innerHTML = `<strong id="commTotal">${totalText}</strong>`;
     }
   }
 
