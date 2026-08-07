@@ -10,7 +10,7 @@
  *   <li>partner — 거래처명 부분 매칭 (client-side filter)</li>
  * </ul>
  *
- * <p>컬럼: 견적번호 / 거래처 코드 / 거래처 / 유효기간 / 합계 / 상태.
+ * <p>컬럼: 견적번호 / 거래처 코드 / 거래처 / 작성일 / 유효기간 / 합계 / 상태.
  * UUID 비공개 가드 — id 컬럼 미포함, 사용자 노출은 estimateNo + partnerName 만.
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
@@ -354,20 +354,34 @@ export function EstimateListPage() {
       header: '거래처 코드',
       width: '140px',
       mobilePriority: 'hidden',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.partnerCode ?? '—'}</span>,
+      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.partnerCode ?? ''}</span>,
     },
     {
       key: 'partnerName',
       header: '거래처',
       mobilePriority: 'secondary',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.partnerName ?? '—'}</span>,
+      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.partnerName ?? ''}</span>,
+    },
+    {
+      key: 'writer',
+      header: '작성자',
+      width: '120px',
+      mobilePriority: 'secondary',
+      render: (row) => (
+        <span
+          data-testid={`estimate-unified-row-${row.id}-writer`}
+          style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}
+        >
+          {row.writer ?? ''}
+        </span>
+      ),
     },
     {
       key: 'writtenAt',
       header: '작성일',
       width: '160px',
       mobilePriority: 'hidden',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.writtenAt ?? '—'}</span>,
+      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.writtenAt ?? ''}</span>,
     },
     {
       key: 'amount',

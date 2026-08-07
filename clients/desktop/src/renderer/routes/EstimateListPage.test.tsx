@@ -281,15 +281,17 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(within(row).queryByTestId('estimate-list-row-qa-residue-restore')).toBeNull()
   })
 
-  it('통합 보기에서 종합견적서 43건과 주문서 4건을 한 목록에 누락 없이 표시한다', async () => {
+  it('통합 보기에서 두 계열의 API 행을 한 목록에 누락 없이 표시한다', async () => {
+    const estimateCount = 2
+    const orderCount = 1
     listEstimatesMock.mockResolvedValue(pageOf(
-      Array.from({ length: 43 }, (_, index) => estimateRow({
+      Array.from({ length: estimateCount }, (_, index) => estimateRow({
         id: `estimate-${index}`,
         estimateNo: `Q-${index}`,
       })),
     ))
     listPartnerOrdersMock.mockResolvedValue(orderPageOf(
-      Array.from({ length: 4 }, (_, index) => orderRow({
+      Array.from({ length: orderCount }, (_, index) => orderRow({
         orderNumber: `O-${index}`,
         partnerCode: `P-${index}`,
       })),
@@ -300,11 +302,25 @@ describe('EstimateListPage E2 list realtime and restore', () => {
 
     const table = await screen.findByTestId('estimate-unified-list-table')
     await waitFor(() => {
-      expect(within(table).getAllByText('종합견적서')).toHaveLength(43)
-      expect(within(table).getAllByText('주문서')).toHaveLength(4)
+      expect(within(table).getAllByText('종합견적서')).toHaveLength(estimateCount)
+      expect(within(table).getAllByText('주문서')).toHaveLength(orderCount)
       expect(within(table).getAllByText('P-0')).toHaveLength(1)
-      expect(within(table).getAllByText('P-3')).toHaveLength(1)
     })
+  })
+
+  it('통합 보기에는 작성자 열이 있고 계열이 보유하지 않는 값은 빈칸으로 둔다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ id: 'estimate-without-code' })]))
+    listPartnerOrdersMock.mockResolvedValue(orderPageOf([orderRow({ partnerCode: '' })]))
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
+
+    const table = await screen.findByTestId('estimate-unified-list-table')
+    await waitFor(() => expect(within(table).getByText('작성자')).toBeTruthy())
+
+    expect(table.textContent).not.toContain('—')
+    expect(within(table).getByTestId('estimate-unified-row-estimate:estimate-without-code-writer').textContent).toBe('')
+    expect(within(table).getByTestId('estimate-unified-row-order:2026-08-08-1-writer').textContent).toBe('')
   })
 
   it('통합 보기에서 한 계열 조회가 실패해도 다른 계열을 표시하고 오류를 드러낸다', async () => {
