@@ -23,6 +23,7 @@ import { SalesSubNav } from '../components/sales/SalesSubNav'
 import { usePermissions } from '../hooks/usePermissions'
 import { usePageTitleStore } from '../stores/pageTitle'
 import styles from '../components/sales/sales.module.css'
+import { SINGLE_PANEL_OPTIONS } from '../utils/bundleOptionDomain'
 
 /** 카테고리 한국어 라벨 — BE `PriceChangeSchedule.CATEGORY_KEYS` 순서와 동일. */
 const PRICE_SCHEDULE_CATEGORY_LABELS: Record<PriceChangeScheduleCategory, string> = {
@@ -58,7 +59,6 @@ const RATE_FIELDS: Array<{ key: keyof EstimateConfig; label: string; help: strin
 
 const HOME_PANEL_OPTIONS = ['', '판넬제외', '공청판넬', '인피니트 25년형', '인피니트 공청+동작감지 AI']
 const SINGLE_REMOTE_OPTIONS = ['', '유선리모컨', '컬러유선리모컨']
-const SINGLE_PANEL_OPTIONS = ['', '판넬제외', '블랙판넬', '승강판넬', '공청판넬']
 const SINGLE_PANEL_SHAPE_OPTIONS = ['원형', '사각']
 const SINGLE_MATERIAL_OPTIONS = ['포함', '별도']
 

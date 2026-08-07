@@ -1,0 +1,28 @@
+[S31 RED 원문 — 수정 전 HEAD 9cecf2d0b]
+
+명령:
+$env:CI='1'; $env:VITE_API_BASE_URL='http://127.0.0.1:1'
+npx playwright test playwright/bundle-set-options/bundle-set-options.spec.ts --project=chromium --workers=1 --retries=0 --reporter=line
+
+실행 결과:
+Running 9 tests using 1 worker
+
+시나리오 2, 3, 4, 5, 6, 8, 9 실패
+시나리오 1, 7 통과
+
+대표 실패 원문:
+Error: expect(locator).toHaveValue(expected) failed
+Locator: getByRole('combobox', { name: /라인 1 품목/ })
+Expected pattern: /SET-HM2WAY/
+Received string: ""
+
+Call log:
+- input id=":rl:" value="SET"
+- 이후 input id=":r1l:" value=""
+- SlipFormPage 전개 실패 catch 뒤 빈 행 재마운트
+
+최종 집계:
+7 failed
+2 passed (48.4s)
+
+비고: 기본 5173 포트에 이미 서버가 있어 Playwright config 직접 기동은 포트 충돌로 테스트 전 중단됐다. 기존 서버를 종료하지 않고 별도 5174 mock 서버를 기동하여 위와 동일한 격리 조건(VITE_API_BASE_URL=127.0.0.1:1)으로 재현했다.

@@ -131,6 +131,14 @@ function extractShippingFieldValue(
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 
+const BUNDLE_CONVERSION_MESSAGE = '세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.'
+
+function safeConversionMessage(value: unknown): string | null {
+  return typeof value === 'string' && value.includes('세트 품목') && value.includes('구성품으로 전개')
+    ? BUNDLE_CONVERSION_MESSAGE
+    : null
+}
+
 const MERGE_SELECTABLE_STATUS: ReadonlySet<PartnerOrderSummary['status']> = new Set(['DRAFT', 'ON_HOLD'])
 const MERGE_CANDIDATE_PAGE_SIZE = 50
 
@@ -494,6 +502,7 @@ export function MergeConvertDialog({
       if (axios.isAxiosError(error)) {
         const respData = error.response?.data as Record<string, unknown> | undefined
         const beMessage = respData?.['message'] as string | undefined
+        const safeBeMessage = safeConversionMessage(beMessage)
         if (error.response?.status === 409) {
           // 다른 사용자의 부분전환으로 잔여수량이 바뀐 경우, 5분 캐시를 기다리지 않고
           // 각 주문 상세를 즉시 재조회해 입력 상한과 표를 실제 상태로 회복한다.
@@ -513,16 +522,14 @@ export function MergeConvertDialog({
             )
             return
           }
-          setErrorMessage(
-            beMessage ?? '병합 전환에 실패했습니다. 재고 부족이거나 전환 불가 상태를 확인해 주세요.',
-          )
+          setErrorMessage(safeBeMessage ?? '병합 전환에 실패했습니다. 재고 부족이거나 전환 불가 상태를 확인해 주세요.')
           return
         }
         if (error.response?.status === 403) {
           setErrorMessage('병합 전환 권한이 없습니다. 관리자에게 문의해 주세요.')
           return
         }
-        setErrorMessage(beMessage ?? '병합 발행에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+        setErrorMessage(safeBeMessage ?? '병합 발행에 실패했습니다. 잠시 후 다시 시도해 주세요.')
         return
       }
       setErrorMessage('병합 발행에 실패했습니다. 잠시 후 다시 시도해 주세요.')

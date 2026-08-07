@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getPartnerOrder: vi.fn(),
   updatePartnerOrder: vi.fn(),
   createDocCoeditProvider: vi.fn(),
+  convertPartnerOrderToSlip: vi.fn(),
   // #854 R5 LOW-3 — 기본은 데스크톱(false). 모바일 branch 커버 테스트에서만 true 로 override.
   useIsMobile: vi.fn(() => false),
 }))
@@ -50,7 +51,15 @@ vi.mock('@samhan/design-system', () => ({
   Select: ({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) => (
     <select {...props}>{children}</select>
   ),
-  WarehouseAutocomplete: () => <div data-testid="warehouse-autocomplete" />,
+  WarehouseAutocomplete: ({ onChange }: { onChange?: (id: string, warehouse: { id: string; code: string; name: string }) => void }) => (
+    <button
+      type="button"
+      data-testid="warehouse-autocomplete"
+      onClick={() => onChange?.('warehouse-1', { id: 'warehouse-1', code: 'WH-1', name: '창고 1' })}
+    >
+      창고 선택
+    </button>
+  ),
 }))
 
 vi.mock('../components/collab/CollaborativeSlipInput', () => ({
@@ -85,7 +94,7 @@ vi.mock('../api/sales', async () => {
     ...actual,
     getPartnerOrder: mocks.getPartnerOrder,
     updatePartnerOrder: mocks.updatePartnerOrder,
-    convertPartnerOrderToSlip: vi.fn(),
+    convertPartnerOrderToSlip: mocks.convertPartnerOrderToSlip,
     deletePartnerOrder: vi.fn(),
     holdPartnerOrder: vi.fn(),
     releasePartnerOrder: vi.fn(),
@@ -226,6 +235,29 @@ afterEach(() => {
   // vi.clearAllMocks() 는 mock.calls 만 비우고 mockReturnValue 로 지정한 구현은 유지한다
   // (mockReset 이 아님) — 모바일 override 테스트가 이후 테스트로 새어나가지 않게 명시 복원.
   mocks.useIsMobile.mockReturnValue(false)
+})
+
+describe('SalesPartnerOrderDetailPage 판매전표 전환 오류 안내', () => {
+  it('BUNDLE 전환 400의 구성품 전개 안내를 단건 alert에 표시한다', async () => {
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder({
+      lines: [{ ...makeOrder().lines[0], productType: 'BUNDLE' }],
+    }))
+    mocks.convertPartnerOrderToSlip.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 400, data: { message: '세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.' } },
+    })
+
+    renderPage()
+    await screen.findByText('PO/2099-1')
+    fireEvent.click(screen.getByRole('button', { name: '판매전표 전환' }))
+    fireEvent.click(screen.getByTestId('warehouse-autocomplete'))
+    fireEvent.change(await screen.findByLabelText('제품 1 전환수량'), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: '판매전표로 전환' }))
+
+    const alert = await screen.findByTestId('partner-order-convert-modal-error')
+    expect(alert.getAttribute('role')).toBe('alert')
+    expect(alert.textContent).toContain('구성품으로 전개해 주세요.')
+  })
 })
 
 describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배선', () => {

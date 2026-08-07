@@ -136,6 +136,28 @@ class MobilePartnerOrderServiceTest {
         verifyNoInteractions(priceMemoryService);
     }
 
+    @Test
+    void mobilePartnerOrder_rejectsBundleBeforeCreatingSlipLine() {
+        UUID sourceWarehouseId = UUID.randomUUID();
+        when(partnerInternalClient.verifyPartnerCode("P-001"))
+                .thenReturn(PartnerInternalClient.PartnerVerifyResult.found(Optional.of(partnerId)));
+        when(productClient.lookup(List.of(productId))).thenReturn(List.of(
+              new ProductSummary(productId, "세트", "SET", null, UUID.randomUUID(),
+                      new BigDecimal("10000"), "ACTIVE", false, "SET-1", "BUNDLE", null)));
+
+        MobilePartnerOrderRequest request = new MobilePartnerOrderRequest(
+                "P-001", LocalDate.of(2026, 7, 11), sourceWarehouseId, "서울시 중구",
+                "010-0000-0000", "세트 주문", List.of(
+                new MobilePartnerOrderRequest.MobileOrderLineRequest(
+                        productId, "세트", "SET", "EA", 1, new BigDecimal("10000"), null)));
+
+        assertThatThrownBy(() -> service.createOrder(request, "sales-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        verify(slipRepository, never()).save(any(Slip.class));
+    }
+
     @ParameterizedTest(name = "inventory {0} 장애에도 모바일 전표를 발행한다")
     @MethodSource("inventoryFailures")
     void mobileOrder_inventoryFailure_stillCreatesWithUnknownCode(

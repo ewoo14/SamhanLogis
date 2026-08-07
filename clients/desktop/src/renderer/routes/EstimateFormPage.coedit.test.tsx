@@ -223,10 +223,6 @@ vi.mock('./components/LineLookupReferenceModal', () => ({
   LineLookupReferenceModal: () => <div data-testid="line-lookup-reference-modal" />,
 }))
 
-vi.mock('./components/BundleOptionRow', () => ({
-  BundleOptionRow: () => <div data-testid="bundle-option-row" />,
-}))
-
 vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: () => false }))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }))
 vi.mock('../hooks/usePermissions', () => ({

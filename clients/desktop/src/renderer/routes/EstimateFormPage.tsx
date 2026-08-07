@@ -78,7 +78,6 @@ import {
 } from '../realtime/coeditLineIds'
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
-import { BundleOptionRow } from './components/BundleOptionRow'
 import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
@@ -301,7 +300,7 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           lookupLoading: false,
           // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음.
           productType: null,
-          setOptions: emptyBundleSetOptions(),
+          setOptions: line.setOptions ?? emptyBundleSetOptions(),
         }
       })
     : [emptyLine()]
@@ -1343,15 +1342,6 @@ export function EstimateFormPage() {
       }
     }
   }
-  const updateSetOption = (index: number, patch: Partial<BundleSetOptions>) => {
-    setLines((prev) => {
-      const next = prev.map((l, i) =>
-        i === index ? { ...l, setOptions: { ...l.setOptions, ...patch } } : l,
-      )
-      linesRef.current = next
-      return next
-    })
-  }
   const removeLine = (index: number) => {
     setLines((prev) => {
       const target = prev[index]
@@ -2100,50 +2090,10 @@ export function EstimateFormPage() {
                 lineVat={lineVat}
                 hasPartner={hasPartner}
                 vatEditable={!isReadOnly && !isBundle && !coeditActive}
-              onUpdate={(patch, fromUser) => updateLine(i, patch, fromUser)}
-              onLookup={() => handleModelLookup(i)}
-              onRemove={() => removeLine(i)}
-              modelCell={
-                <ProductAutocomplete
-                  value={line.productId && line.modelName ? {
-                    id: line.productId,
-                    modelName: line.modelName,
-                    productName: line.productName,
-                    productType: line.productType ?? undefined,
-                    sellingPrice: line.catalogUnitPrice == null ? undefined : Number(line.catalogUnitPrice),
-                    specification: line.specification,
-                  } : null}
-                  onChange={(product) => handleProductSelection(i, product)}
-                  onInputCommitChange={(committed) => {
-                    if (committed) return
-                    if (!isCoeditLineValueEditable(line)) return
-                    handleProductSelection(i, null)
-                  }}
-                  onInputBlur={(draft) => {
-                    if (!isCoeditLineValueEditable(line) || !draft.trim()) return
-                    updateLine(i, { modelName: draft.trim(), productId: null, productName: '' }, true)
-                    window.setTimeout(() => void handleModelLookup(i), 0)
-                  }}
-                  searchProducts={searchEstimateProducts}
-                  label=""
-                  ariaLabel={`라인 ${i + 1} 모델명`}
-                  placeholder="모델명 또는 품목명"
-                  resultSelectionMode="single"
-                  autoSelectSingleResult
-                  debounceMs={250}
-                  disabled={Boolean(isReadOnly) || estimateFormCoeditPending || !isCoeditLineValueEditable(line)}
-                  error={line.lookupError ?? undefined}
-                />
-              }
-            >
-                {isBundle ? (
-                  <BundleOptionRow
-                    line={line}
-                    index={i}
-                    disabled={Boolean(isReadOnly) || coeditActive}
-                    onChange={(patch) => updateSetOption(i, patch)}
-                  />
-                ) : null}
+                onUpdate={(patch, fromUser) => updateLine(i, patch, fromUser)}
+                onLookup={() => handleModelLookup(i)}
+                onRemove={() => removeLine(i)}
+              >
               </EstimateMobileLineCard>
             )
           }
@@ -2399,14 +2349,6 @@ export function EstimateFormPage() {
                 ×
               </button>
             </div>
-            {isBundle ? (
-              <BundleOptionRow
-                line={line}
-                index={i}
-                disabled={Boolean(isReadOnly) || coeditActive}
-                onChange={(patch) => updateSetOption(i, patch)}
-              />
-            ) : null}
            </div>
           )
         })}

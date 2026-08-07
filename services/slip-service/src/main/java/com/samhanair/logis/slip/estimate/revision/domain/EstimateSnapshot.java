@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 
 /**
  * 견적 full-snapshot 직렬화 DTO (권한 재편 Phase 2.2).
@@ -90,7 +91,8 @@ public record EstimateSnapshot(
             BigDecimal unitPriceWithVat,
             Boolean setHead,
             String parentSetModel,
-            String specificationSource) {
+            String specificationSource,
+            BundleSetOptions bundleSetOptions) {
 
         /**
          * 세트 계보/VAT 포함 단가 없는 구 시그니처 호환 생성자 — 기존 호출처(테스트 포함)와
@@ -100,7 +102,7 @@ public record EstimateSnapshot(
                     int quantity, BigDecimal unitPrice, BigDecimal supplyAmount,
                     BigDecimal vatAmount, BigDecimal lineTotal, String note) {
             this(productId, productName, modelName, specification, quantity, unitPrice,
-                    supplyAmount, vatAmount, lineTotal, note, null, null, null, null);
+                    supplyAmount, vatAmount, lineTotal, note, null, null, null, null, null);
         }
 
         /**
@@ -111,18 +113,29 @@ public record EstimateSnapshot(
                     int quantity, BigDecimal unitPrice, BigDecimal supplyAmount,
                     BigDecimal vatAmount, BigDecimal lineTotal, String note,
                     Boolean setHead, String parentSetModel) {
-            this(productId, productName, modelName, specification, quantity, unitPrice,
-                    supplyAmount, vatAmount, lineTotal, note, null, setHead, parentSetModel, null);
+                    this(productId, productName, modelName, specification, quantity, unitPrice,
+                     supplyAmount, vatAmount, lineTotal, note, null, setHead, parentSetModel, null, null);
         }
 
-        /** provenance 없는 VAT/세트 계보 호환 생성자 — 구 호출처는 source=null. */
+        /** BUNDLE 옵션이 없던 구 스냅샷 생성자 하위호환 오버로드. */
         public Line(UUID productId, String productName, String modelName, String specification,
                     int quantity, BigDecimal unitPrice, BigDecimal supplyAmount,
                     BigDecimal vatAmount, BigDecimal lineTotal, String note,
                     BigDecimal unitPriceWithVat, Boolean setHead, String parentSetModel) {
             this(productId, productName, modelName, specification, quantity, unitPrice,
-                    supplyAmount, vatAmount, lineTotal, note, unitPriceWithVat,
-                    setHead, parentSetModel, null);
+                    supplyAmount, vatAmount, lineTotal, note, unitPriceWithVat, setHead,
+                    parentSetModel, null, null);
+        }
+
+        /** bundle 옵션 추가 전 규격 provenance 생성자 호환용. */
+        public Line(UUID productId, String productName, String modelName, String specification,
+                    int quantity, BigDecimal unitPrice, BigDecimal supplyAmount,
+                    BigDecimal vatAmount, BigDecimal lineTotal, String note,
+                    BigDecimal unitPriceWithVat, Boolean setHead, String parentSetModel,
+                    String specificationSource) {
+            this(productId, productName, modelName, specification, quantity, unitPrice,
+                    supplyAmount, vatAmount, lineTotal, note, unitPriceWithVat, setHead,
+                    parentSetModel, specificationSource, null);
         }
     }
 }

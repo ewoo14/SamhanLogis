@@ -4,6 +4,7 @@ import com.samhanair.logis.notification.client.AligoAddressBookClient;
 import com.samhanair.logis.notification.client.AligoAddressBookClient.AligoContact;
 import com.samhanair.logis.notification.client.AligoAddressBookClient.UploadResult;
 import com.samhanair.logis.notification.client.AligoCsvSourceClient;
+import com.samhanair.logis.notification.dto.AligoAddressBookDeliveryStatus;
 import com.samhanair.logis.notification.dto.AligoAddressBookSyncResponse;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,8 +30,8 @@ import org.springframework.stereotype.Service;
  * </ol>
  *
  * <h2>TODO — 실 알리고 API spec 후 보강</h2>
- * <p>현 시점 {@link AligoAddressBookClient} 구현체는 mock dryRun. 실 spec 확정 후 RestClient 기반
- * 구현체 교체 시 본 service 자체는 변경 없음 (계약 안정).
+ * <p>현 시점 {@link AligoAddressBookClient} 구현체는 외부 미전달 mock. 실 spec 확정 후 RestClient 기반
+ * 구현체로 교체되면 client 결과의 {@code deliveryStatus} 가 자동으로 응답에 반영된다.
  */
 @Slf4j
 @Service
@@ -58,13 +59,15 @@ public class AligoAddressBookSyncService {
         List<AligoContact> contacts = csvSourceClient.fetchContacts();
         if (contacts.isEmpty()) {
             log.warn("AligoAddressBookSync — partner-service CSV fetch 결과 비어있음 (token 미설정 또는 활성 거래처 0건)");
-            return new AligoAddressBookSyncResponse(0, 0, 0, List.of());
+            return new AligoAddressBookSyncResponse(0, 0, 0, List.of(),
+                    AligoAddressBookDeliveryStatus.NOT_DELIVERED);
         }
 
         int added = 0;
         int updated = 0;
         int skipped = 0;
         List<String> failed = new ArrayList<>();
+        AligoAddressBookDeliveryStatus deliveryStatus = null;
 
         int chunkIndex = 0;
         for (int from = 0; from < contacts.size(); from += CHUNK_SIZE) {
@@ -74,25 +77,36 @@ public class AligoAddressBookSyncService {
 
             UploadResult result = uploadWithBackoff(chunk, chunkIndex);
             if (result == null) {
+                deliveryStatus = AligoAddressBookDeliveryStatus.combine(
+                        deliveryStatus, AligoAddressBookDeliveryStatus.NOT_DELIVERED);
                 String sample = chunk.get(0).memo();
                 failed.add("chunk#" + chunkIndex + " [first=" + sample + "] FAILED 429 retries exhausted");
                 log.warn("AligoAddressBookSync — chunk#{} 최종 실패 (429 backoff 소진)", chunkIndex);
                 continue;
             }
             if (result.httpStatus() >= 400 && !result.isRateLimited()) {
+                deliveryStatus = AligoAddressBookDeliveryStatus.combine(
+                        deliveryStatus, AligoAddressBookDeliveryStatus.NOT_DELIVERED);
                 String sample = chunk.get(0).memo();
                 failed.add("chunk#" + chunkIndex + " [first=" + sample + "] HTTP " + result.httpStatus());
                 log.warn("AligoAddressBookSync — chunk#{} HTTP {} (실패)", chunkIndex, result.httpStatus());
                 continue;
             }
-            added += result.added();
-            updated += result.updated();
-            skipped += result.skipped();
+            deliveryStatus = AligoAddressBookDeliveryStatus.combine(deliveryStatus, result.deliveryStatus());
+            if (result.isExternallyDelivered()) {
+                added += result.added();
+                updated += result.updated();
+                skipped += result.skipped();
+            } else {
+                log.warn("AligoAddressBookSync — chunk#{} 외부 미전달 결과는 성공/신규 건수로 계수하지 않음",
+                        chunkIndex);
+            }
         }
 
         log.info("AligoAddressBookSync 완료 — totalContacts={} chunks={} added={} updated={} skipped={} failed={}",
                 contacts.size(), chunkIndex, added, updated, skipped, failed.size());
-        return new AligoAddressBookSyncResponse(added, updated, skipped, failed);
+        return new AligoAddressBookSyncResponse(added, updated, skipped, failed,
+                deliveryStatus == null ? AligoAddressBookDeliveryStatus.NOT_DELIVERED : deliveryStatus);
     }
 
     /**

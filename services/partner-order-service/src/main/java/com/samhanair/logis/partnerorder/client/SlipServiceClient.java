@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.util.StreamUtils;
 
 /**
  * M5 slip-service (8086) RPC client — confirm 흐름의 핵심. {@code POST /from-partner-order} 를
@@ -56,6 +58,8 @@ public class SlipServiceClient {
     // PermissionAspect MASTER bypass 는 X-Is-System-Master:true 단독 판정이므로 함께 전송한다.
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
     private static final String SLIP_SERVICE_BASE = "http://slip-service";
+    private static final String BUNDLE_CONVERSION_MESSAGE =
+            "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
@@ -140,7 +144,7 @@ public class SlipServiceClient {
                             && s.value() != 409
                             && s.value() != 429, (req, res) -> {
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
-                                "slip-service 4xx: " + res.getStatusCode());
+                                safeClientErrorMessage(res));
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,
@@ -222,7 +226,7 @@ public class SlipServiceClient {
                             && s.value() != 409
                             && s.value() != 429, (req, res) -> {
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
-                                "slip-service 4xx: " + res.getStatusCode());
+                                safeClientErrorMessage(res));
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,
@@ -256,6 +260,19 @@ public class SlipServiceClient {
         }
         Object direct = body.get("slipNo");
         return direct == null ? null : direct.toString();
+    }
+
+    /** 다운스트림 4xx 중 사용자 조치가 확정된 BUNDLE 안내만 경계를 넘어 전달한다. */
+    private String safeClientErrorMessage(org.springframework.http.client.ClientHttpResponse response) {
+        try {
+            String body = StreamUtils.copyToString(response.getBody(), StandardCharsets.UTF_8);
+            if (body.contains(BUNDLE_CONVERSION_MESSAGE)) {
+                return BUNDLE_CONVERSION_MESSAGE;
+            }
+        } catch (java.io.IOException ex) {
+            log.debug("slip-service 4xx 응답 본문을 읽지 못함: {}", ex.getMessage());
+        }
+        return "slip-service 4xx 오류";
     }
 
     private String requireToken() {

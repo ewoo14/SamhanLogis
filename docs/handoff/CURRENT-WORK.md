@@ -1,5 +1,423 @@
 ﻿# 현재 작업 핸드오프 노트
 
+## 2026-08-07 집PC 세션 — **머지 2건 완료** · 세션 재시작 지점
+
+> **재시작 시 이 절만 읽으면 된다.** 아래 절들은 이력이다.
+
+### 0. 한 줄 결론
+
+**GitHub Actions 장애가 복구돼 밤새 막혔던 것이 풀렸고, 머지 2건을 끝냈다.**
+남은 5 PR 은 **전부 CI green(BE 샤드 12/12)** 이고 병목은 이제 **라이브QA** 다.
+
+```text
+✅ #1088  머지 257c8f9f7 · 이슈 #1013 close
+✅ #1077  머지 424bf88ef · 이슈 #1069 close   ← 11라운드 금액 결함
+
+#1066  ①✅SOL R10 결함0  ②42/42(R10 커밋분 재실행 필요)  ③미실시
+#1097  ①✅  ②42/42  ③만 남음
+#1083  ①✅  ②43/43  ③만 남음 — slip-service 재빌드 필요
+#1082  ①✅  ②38/38  ③만 남음 — #1097 머지 후 (V16→V17)
+#1078  ①✅  ②49/49(병합 전 SHA)  main 병합 충돌 미해소
+열린 이슈 33
+```
+
+### 1. 🚨 재시작 후 첫 할 일 — `#1078` 병합 충돌
+
+병합은 **abort 해 뒀다**(세션 중단으로 미완). 판단표는 `f5e1932db` 에 커밋돼 있으니
+**재분석하지 말고 재사용**한다.
+
+```text
+워크트리   .claude/worktrees/t1075  (브랜치 feat/1075-estimate-product-candidate-modal)
+재개       git merge --no-commit --no-ff origin/main
+보고서     docs/dev-reports/2026-08-07-1075-main-merge-conflict-resolution.md
+```
+
+충돌 6파일은 전부 **"양쪽 병렬 보존"** 으로 결론났고 판단이 갈린 곳은 없다.
+
+🚨 **지정 충돌 밖의 의미 충돌이 진짜 막힌 지점이다.**
+main 이 `routes/components/BundleOptionRow.tsx` 를 삭제했는데 `EstimateFormPage.tsx` 가
+계속 import·렌더해서 Vite 해석이 실패한다.
+
+**PM 실측 판정: 복원하지 않는다.** main 이 `EstimateFormPage` 사용부까지 −27/+1 로 이미
+걷어냈다 — import · `updateSetOption` · 모바일카드/데스크톱 렌더 2곳.
+
+⚠️ 그중 이 한 줄은 단순 삭제가 아니라 **`#1077` 의 결함 수정**이라 반드시 살려야 한다:
+
+```diff
+-  setOptions: emptyBundleSetOptions(),
++  setOptions: line.setOptions ?? emptyBundleSetOptions(),
+```
+
+편집 모드에서 저장된 옵션을 빈 값으로 덮지 않게 한 것이다. 사라지면 금액이 틀어진다.
+
+### 2. 라이브QA 순서 — 데이터를 바꾸는 것을 뒤로
+
+```text
+#1083(무해) → #1078 → #1097(V117 이 시더문서 대량 soft-delete) → #1082
+```
+
+🔑 `#1097` 을 먼저 돌리면 이후 트랙 QA 가 표본을 잃어 **"결함 0" 이 아니라 "판정 불가"** 가 된다.
+🔑 `#1083` 은 slip-service main 소스 19개(창고 매핑 클라이언트·검증 서비스)가 바뀌었는데
+   배포본은 `#1077` QA 용이다 — **재빌드 후 QA**. 빌드는 BelowNormal 로.
+
+### 3. 🚨 게이트 ② 를 셀 때 — 두 PR 에서 같은 구멍이 났다
+
+`workflow_dispatch` 는 **지정한 워크플로우 하나만** 돈다.
+**PR close→reopen 이 전체 재발화 수단**이다(`arologis-ci.yml` 은 `workflow_dispatch` 가 없다).
+
+```text
+#1077  ci.yml 만 23잡 green → QA E2E·mock gate·Detox 없음 → qa-e2e 발주 30잡
+       → 그래도 arologis 빌드 없음(shared/common·design-system 을 건드렸는데)
+       → close/reopen → 78잡. 아로로지스 7잡 전부 success 로 확인
+#1097  GitGuardian 1개뿐(BE샤드 0/12) → close/reopen → 42잡
+```
+
+🔑 판별 = **직전 머지 PR 의 잡 목록과 `comm -23` 대조** · **BE 샤드 12/12 를 셀 것**
+🔑 변경 경로는 `gh pr diff --name-only` 가 **0을 낼 수 있다** — `git merge-base` + `git diff` 로 재라
+
+### 4. 개발책임자 결정 (기록 완료)
+
+```text
+#1066 D3   후속 전이는 결재선 개인·정적 권한자 **둘 다 가능**
+#1066      CONFIRMED 를 허용 상태에 추가 (확정 후에도 조회 가능)
+#1097      혼합 문서 전체 삭제 · QA797 은 삭제상태 + 복원차단
+#1090      레거시 모델코드 파싱이 정본
+```
+
+### 5. 결정 대기
+
+```text
+#1092  4문 (담당 정의 · '복구' 의미 · 이력 포함 여부 · 기존 2,017건 소급 분류)
+#1083  D2① 최초기동 alias 준비 위치 · D2② 입력형식
+```
+
+### 6. 환경
+
+```text
+Docker      18컨테이너 healthy · compose 는 slip-port-override 포함 3개 파일
+slip 직접    :18086 (influxd 가 8086 선점)
+계정        dev_manager/dev_p05_pass! · kimgicheol·kimeunji/samhan!2026 · 아로로지스 admin/admin1234
+QA 수단      clients/desktop **안에서** node <script>.mjs · chromium.launch({headless:true})
+typecheck   첫 단계는 design-system/dist 신선도 가드 — 타입 오류가 아니다
+배포본       QA 전에 **값을 내는 서비스**를 지목하고 fix 식별자를 grep (0건이면 중단·보고)
+프로세스     라운드 종료 후 회수 필수 — 워크트리를 지워도 402분 생존한 사례 있음
+            죽이기 전 **실행파일 경로**로 판별 (커맨드라인 매칭은 자기 셸까지 죽인다)
+```
+
+### 7. QA 가 바꾼 공유 데이터
+
+```text
+2026/08/07-3   INSPECTING → COMPLETED (kimgicheol 검수, 정상 경로)
+```
+
+
+## 2026-08-06 회사PC 세션 (**종료** · 집PC 인계) — 머지 0건 · 라운드 27건 · 개발책임자 결정 11건
+
+> **다음 세션(집PC)은 이 절만 읽으면 된다.** 아래 절들은 이력이다.
+
+### 0. 한 줄 결론
+
+머지는 없다. 대신 **개발책임자 결정 11건을 받아 이슈에 박았고**, `#1077` 이 마지막 게이트에서 **금액 결함**을 하나 더 냈다(정액 이중 적용). 그리고 **PM 전제가 여섯 번 틀렸고 여섯 번 다 검증자가 걸러 냈다** — 그 규칙을 메모리에 새로 두 개 박았다.
+
+```text
+#1077  R10 라이브QA FAIL — 정액이 API·화면에서 두 번 적용 (60,000 ≠ 30,000)
+#1083  SOL BLOCKING — readiness 를 Spring Boot 가 덮어써 "배포 성공인데 전표 발행 실패"
+#1037  SOL 도달 결함 0 · 머지 권고 → 라이브QA 만 남음
+#1078  ①② 통과 · 라이브QA 만 남음 (V116 개번 완료)
+#1066  ①② 통과 · 라이브QA 만 남음 (#1077 머지 후 배포)
+```
+
+---
+
+## 1. 🚨 집PC 에서 먼저
+
+```powershell
+git pull
+.\scripts\sync-claude-memory.ps1
+```
+
+⚠️ **회사PC 실측 수치를 집PC 에 그대로 쓰지 말 것.** 오늘도 이 계열로 한 번 틀렸다(R9 표본이 `usage_scope='NONE'` 이라 화면에서 조회 자체가 안 됐다).
+
+### 세션 종료로 **잃은 것** — 다시 돌려야 한다
+
+세션이 끝나면 codex·워크플로우가 함께 죽는다. 종료 시점에 돌던 것:
+
+```text
+🔴 워크플로우 A  버전이력 → 버튼·모달 사양      17:30 시작 · 에이전트 8
+🔴 워크플로우 B  정액 분류 축 정리              17:20 시작 · 에이전트 7
+✅ codex        #1083 R4 readiness fix         **중단 직전 완성돼 커밋했다** (fcdc43caa · 테스트 GREEN)
+```
+
+부분 회수 가능성: 워크플로우는 완료된 에이전트 결과가 `journal.jsonl` 에 남는다.
+```text
+C:\Users\ewoo2\.claude\projects\D--dev-Samhan-Public\<세션>\subagents\workflows\
+  wf_0841b3bb-d75\journal.jsonl   (버전이력)
+  wf_b688e392-b4f\journal.jsonl   (분류 축)
+```
+⚠️ **집PC 는 세션 경로가 달라 이 파일에 접근 못 한다.** 회사PC 에서 다시 돌리거나, 집PC 에서 새로 돌려야 한다.
+
+---
+
+## 2. 트랙별 상태와 다음 한 수
+
+| PR | 이슈 | ① 도달결함 0 | ② CI | ③ 라이브QA | 다음 한 수 |
+|---|---|---|---|---|---|
+| `#1077` | `#1069` 세트전개 | 🔴 **R10 FAIL** | 49/49 (`baed4ab3a`) | R7 7/7 PASS · **R10 FAIL** | **정액 이중 적용 fix** |
+| `#1078` | `#1075` 견적규격 | ✅ S25+S32 | ✅ **49/49** | ⏸ 미실시 | 배포 → QA (`#1077` 다음) |
+| `#1066` | `#1065` 검수결재 | ✅ R7 | ✅ **42/42** | ⏸ 미실시 | `#1077` 머지 후 배포 → QA |
+| `#1037` | `#1016` 알리고 | ✅ **SOL 머지 권고** | ✅ **42/42** | ⏸ 미실시 | notification-service 배포됨 → **QA 바로 가능** |
+| `#1083` | `#1052` 창고UUID | ✅ **R4 로 해소** (fcdc43caa) | 재측정 필요 | ⏸ | CI green 확인 → SOL 재검증 |
+| `#1088` | `#1013` 배차잔여 | 정찰 완료 | — | — | 제거 순서 1~2 착수 |
+| `#1082` | `#1051` 연결끊김 | 판정 완료 | — | — | ③④ 표본이 집PC 에만 있다 |
+| `#1056` | `#875` 실시트 | S1·S2 완료 | — | — | `#1078` 머지 후 S3 |
+
+---
+
+## 3. 🚨 `#1077` — 마지막 게이트에서 나온 금액 결함
+
+R7 이 세트 전개 7/7 PASS 를 냈고, R8 이 **정액 할인 미적용**(개발책임자 지적)을 고쳤다. 그 R8 을 R10 이 검증하다 **새 결함**을 찾았다.
+
+```text
+기준가       2,752,200
+API 합계     2,722,200   ← expand-line 이 -30,000
+화면/상세     2,692,200   ← 화면이 다시 -30,000
+기대         2,722,200 (정액 30,000 한 번)
+```
+
+🔑 **PM 이 예상한 두 갈래가 둘 다 아니었다.** 브리핑에 *"제 해석에 맞추지 말고 관측을 적으십시오"* 를 넣은 것이 이 판정을 만들었다.
+
+```text
+PM 예상 (가) 율·정액 이중 적용 → 45% 곱셈은 관측되지 않음
+PM 예상 (나) R8 이 안 듣는다   → 듣는다. 두 번 들을 뿐
+실제        정액·정액 이중 — 셋째 결함
+```
+
+### fix 좌표
+
+```text
+API 쪽   POST /slips/expand-line 응답이 이미 -30,000 을 실내기·실외기에 배분해 돌려준다
+화면 쪽  그 응답을 받고 실내기에서 다시 -30,000 을 뺀다
+⟹ **어느 한 쪽만 적용해야 한다.** 어느 쪽이 옳은지는 레거시가 정본:
+   종합견적서/index.html:4763-4765 는 세트 base price 에 한 번 적용하고 그 결과를 배분한다
+```
+
+### ⚠️ 함께 남은 것
+
+```text
+· R10 이 저장 재시도로 DRAFT 2건(2026/08/06-4 · -5)을 남겼다. 삭제 안 함
+· 첫 저장 클릭이 별도 전표를 만든 것 자체가 **저장 멱등성 의심** — 별도 확인 필요
+· fix 3라운드 상한: R3·R4·R6·R8 을 썼다. 상한 초과 상태이므로
+  개발책임자 지시("상한에 부딪히더라도 계속 진행 · PM 자율")에 따라 계속한다
+```
+
+---
+
+## 4. 🚨 `#1083` — "배포는 성공인데 전표 발행이 실패"
+
+SOL 이 프레임워크 소스까지 인용해 재현했다. **근거가 확실하니 그대로 고치면 된다.**
+
+```java
+// 우리 코드가 REFUSING_TRAFFIC 을 발행하지만
+// Spring Boot 3.3.5 EventPublishingRunListener#ready 가 그 뒤에 덮는다
+context.publishEvent(new ApplicationReadyEvent(...));
+AvailabilityChangeEvent.publish(context, ReadinessState.ACCEPTING_TRAFFIC);
+```
+```text
+SOL 재현   VALIDATOR_LISTENER=REFUSING_TRAFFIC
+           AFTER_EVENT_PUBLISHING_RUN_LISTENER_READY=ACCEPTING_TRAFFIC, HEALTH=UP
+도달 경로   POST /api/v1/slips/from-estimate → WarehouseCodeMapper.resolve() → INTERNAL_ERROR
+지속        다음 재검증까지 최대 약 300초
+```
+
+**지시서가 이미 커밋돼 있다** — `docs/dev-reports/2026-08-06-1052-r3-fix-directive.md` (`e60c4de85`). 그대로 LUNA 에 넘기면 된다.
+
+🚨 반대급부: **기동을 막지 않는다**는 성질이 깨지면 안 된다. `#1035` 가 그 자리에서 세 번 죽었다.
+
+---
+
+## 5. ✅ 개발책임자 결정 11건 — 전부 이슈에 기록 완료
+
+| 이슈 | 결정 |
+|---|---|
+| `#1084` | **보존** — 코드가 처리하게 (dev 시드 reset 안 함) |
+| `#1085` | **회수 메커니즘까지** — 개별 정리에 그치지 않는다 |
+| `#1087` | **주문 시더 끄고 60행 정리** — 실 카탈로그에 합성 안 섞음 |
+| `#1074` | **차단은 맞다 · 익일 이후 생성 유도** (C안 = 하차일 기준 폐기) |
+| `#1089` | **전부 기본만** — 비-SINGLE_SET 포함, 네 화면 |
+| `#1068` ② | 전잔·후잔 = `#1061` 이 확정한 **기초 포함 잔액** |
+| `#1068` ③ | **SALES 도 미수잔액 볼 수 있어야** (범위는 전표 화면 한정) |
+| `#1086` | 권위 원본 = **이카운트 원본 데이터** (relink 는 여전히 금지) |
+| `#1072` | **전 목록 먼저 확정** — PM 이 대조표 만들어 올릴 것 |
+| `#999` | 시리얼키 = **창고 방식**(`WH-`+6자 · 0/1/O/I/L 제외) 접두사만 다르게 |
+| `#894` | 쪽지·채팅 **통합** (기존 messages 확장) |
+
+### 새로 등록한 이슈
+
+```text
+#1084 #1085 #1086 #1087   #1051 D2 가 나눈 갈래 + 회사PC 실측분
+#1089                     삼한 퍼블릭 세트 전개는 기본 구성품만 (레거시 GAS 는 현행 유지)
+PR #1088                  #1013 잔여 — 아로로지스 수신 표시 전용 정찰
+```
+
+### PM 이 준비해서 다시 올릴 것
+
+```text
+#1068 ①  전표구분 = 출고구분의 정칭인가 별개 축인가 — **이카운트 원본 대조 필요**
+#1072    정본 계정 전 목록 — 8코드 화이트리스트 + 실 데이터 분포 + 이카운트 대조표
+#999     소급 발급 규칙 · 품질 미기록 기본값
+#894     첨부 용량·보존기간 · 허용 확장자
+```
+
+---
+
+## 6. 🆕 개발책임자 지시 2건 — 조사 중이었다 (워크플로우 유실)
+
+### ① 버전이력 → 버튼·모달
+
+> *"전표와 문서 내 버전이력의 경우 바로 노출하지 않고 '버전이력'이라는 버튼을 통해 모달로 보여주는 것으로 변경. 한꺼번에 있으므로 가독성이 떨어짐. **시간 순에 따라 내림차순.**"*
+
+🔴 표면 전수 조사가 미완이다. 다시 돌려야 한다.
+⚠️ `#1078` 의 QA 잔여 항목에 **"F 버전 이력 복원"** 이 있다 — 같은 표면이니 충돌 확인 필요.
+
+### ② 정액 할인 판별을 **모델명 → 품목 분류** 기준으로
+
+> *"기존 레거시 GAS 코드는 모델명을 기준으로 할인액 카테고리를 특정했는데 그렇게 되면 추후에 모델명 체계가 바뀔때 서버를 바꿔야하는 단점이 있음. 하여 품목별로 분류가 들어가 있으니 이를 기준으로 **견적품목 메뉴에서 편집이 가능하도록** 바뀌게 하기를 원함."*
+
+**PM 실측 — 그 목적의 컬럼이 이미 있다**
+
+```java
+// Product.java:146-150
+// "DOMAIN-EXTENSIONS §1 + getModelFlags 7 prefix 정규식 — 6-bit bitset
+//  (is360/is4way/is1way/isStand/isDeluxe/isGrade1). 0/1 char 6 자리 문자열."
+@Column(name = "discount_flags", nullable = false, length = 20)
+private String discountFlags = "000000";
+// :639  changeDiscountFlags(String flagsBits)   ← 갱신 메서드도 있다
+```
+```text
+실 데이터   '000000' 3,053건 · '100000' 8건
+소비처      slip-service · dc-config-service 에서 grep 0건
+⟹ 설계는 있고 배선이 없다
+다른 축     product_estimate_exposure.estimate_category
+            HOME_MULTI · SINGLE_SET · COMMERCIAL_MULTI · LEGACY · OTHER (5종, 6종과 다른 축)
+```
+
+📌 개발책임자 결정: **분류 축을 먼저 정리해 올릴 것.** 그 조사가 미완이다.
+
+🚨 조사에서 반드시 확인할 것 — **시트 sync 가 사람이 편집한 값을 덮어쓰는가.**
+견적품목 메뉴에서 편집해도 다음 sync 에 날아가면 이 설계가 성립하지 않는다.
+선례: `variableDiscountManualOverride`(V19) 가 같은 문제를 이미 푼 방식이다.
+
+---
+
+## 7. 🚩 PM 이 만든 낭비 — 반복하지 말 것
+
+**전제가 여섯 번 틀렸고 여섯 번 다 검증자가 걸러 냈다.** 규칙 두 개를 새로 박았다.
+
+| PM 이 브리핑에 넣은 전제 | 실제 |
+|---|---|
+| 세트 `bundle_component` 13행 = **13행 전개** | 계열별 **선택지** · `is_default` 로 **4행이 정답** |
+| 전역DC `500` = **제품 결함** | **8일 낡은 배포본** (소스엔 매핑 존재) |
+| `has_variable_discount=true` → **할인된다** | 원칙적 자격일 뿐 · `singleSets` 엔 적용 율이 없다 |
+| UUID `v3` = **구형 dev 시드** 표식 | `nameUUIDFromBytes`(MD5) 결과 — 시드 세대와 무관 |
+| `RegionalService` 의 **17개 시도 방식이 틀렸다** | 선별은 이미 `deliveryTag` · 시도는 **표시 그룹 키** |
+| R9 표본 `AC060CN6PBH1` | `usage_scope='NONE'` — **화면에서 조회 자체가 안 된다** |
+
+→ [`feedback_business_meaning_needs_confirmation_not_inference`](../../.claude/memory/feedback_business_meaning_needs_confirmation_not_inference.md)
+**측정 가능한 사실은 PM 이 재고, 업무 의미는 ①레거시 원문 직독 ②명시적 계약 ③개발책임자 확인 셋 중 하나로만 확정한다.**
+
+### 그리고 증거 방법도 틀렸다
+
+```bash
+npm run typecheck 2>&1 | tail -6; echo "TYPECHECK_EXIT=$?"   # ← $? 는 tail 것. 항상 0
+```
+이 세션에서 보고한 `typecheck exit 0` **네 번이 전부 `tail` 의 종료코드**였다. 게다가 이 환경의 `npm run` 은 성공해도 **127** 을 낸다(`node -e "process.exit(0)"`→0 · `npm --version`→0 · `npm run typecheck:real-qa`→127, 로그는 2 pass 0 fail).
+
+→ [`feedback_exit_code_measurement_traps`](../../.claude/memory/feedback_exit_code_measurement_traps.md)
+**근거 순서 = ①CI ②로그 내용(`error TS` 유무·네 단계 완주) ③종료코드는 파이프 없이 또는 `${PIPESTATUS[0]}`**
+
+### 그 밖
+
+- **TODO 와 보고가 어긋났다.** *"일곱 트랙 전부 진행 중"* 이라 썼는데 실제로는 2개만 돌고 있었고, `#1037` 은 *"이어서 발주하겠다"* 고 해놓고 안 했다. → [`feedback_todo_per_track_updated_each_stage`](../../.claude/memory/feedback_todo_per_track_updated_each_stage.md) §7 추가
+- **`approval-policy: "never"` 를 빠뜨렸다.** 메모리에 명시 의무인데 인덱스 줄에 `sandbox` 만 적혀 있어 놓쳤다. 승인 프롬프트로 라이브QA 발주 하나를 산출물 0건으로 버렸다.
+- **레거시를 안 읽고 "운임·절삭은 제품이 아닌 행" 이라 단정**해 차단 라운드를 발주했다. 개발책임자 정정으로 되돌렸다(테스트 67줄 폐기). → [`feedback_freight_cutting_amount_first_entry`](../../.claude/memory/feedback_freight_cutting_amount_first_entry.md)
+
+---
+
+## 8. 📊 전체 이슈 일정 추정 (에이전트 9개 실측 · 워크플로우 산출)
+
+```text
+통제 가능 26건   낙관 27일(09-02) / **현실 48일(09-23)** / 비관 97일(11-11)
+외부 의존 4건    #935 코드서명 · #922 바로빌 · #901 LLM 정책 · #883 AWS 이관 → 날짜 산출 불가
+백엔드 임계경로  11~21일 (#1077→#1071→#1068→#1089 · #1072→#1086) — 직렬이라 병렬로 못 줄인다
+```
+
+🚨 **"전체 이슈 해결일" 은 지금 조건에선 존재하지 않는다.**
+```text
+open 이슈   6건(07-07) → 30건(08-06)   31일 만에 5배
+순증률      31일 +0.77/일 · 최근 14일 −0.21/일 · 최근 7일 +1.29/일   ← 부호가 뒤집힌다
+유입의 25%  진행 중인 작업이 낳은 것 (제목만 본 하한)
+```
+30건을 48일에 소진하려면 순감 **−0.63/일이 48일 연속**이어야 하는데 최고 기록이 **−0.21/일**이다.
+
+**AWS 실측** — `*.tfstate` 0건(한 번도 apply 안 됨) · 저장소 시크릿 1개 · `deploy-order-app.yml:65` 가 토큰 없으면 **배포를 skip 하고 초록으로 끝난다.** 30건 중 **25건 일정엔 무영향**이나 **5건의 종료를 붙잡아 최종 날짜를 우리가 못 정한다.**
+
+**CODEF → 바로빌** — 219파일이지만 **`accounting-service` 단일 서비스에 격리**(83 중 81). 다른 서비스에서 `bank_transaction` 참조 0건.
+
+---
+
+## 9. 환경 메모 — ⚠️ 회사PC 실측 (집PC 에서 재측정)
+
+```text
+배포본
+  slip-service        2026-08-06T07:22:26Z   ← #1077 R8 코드
+  notification-service 2026-08-06T07:36:20Z   ← #1037 S7 코드 (QA 준비됨)
+  product / partner-order  2026-08-06T00:05Z  ← #1077 4ef966266
+  dc-config-service   2026-08-06 재빌드분     ← main (07-29 낡은 것이 R2 에서 500 을 냈다)
+  api-gateway         2026-08-05T02:50:37Z    ← main
+
+flyway   slip_db 115
+계정     dev_manager · dev_master · dev_accountant · dev_dispatch  모두 dev_p05_pass!
+로그인   POST /api/v1/auth/login  body {"loginId":"…","password":"…"}
+         🔑 렌더러 실제 호출은 **/auth/login** (게이트웨이 prefix 차이 — R5 에서 PM 이 틀렸다)
+
+QA 표본 (정액 축)
+  거래처 1060818309 랜드유통(최경호)  home 45% · 360/4way/1way/stand/firstGrade 각 30,000
+  거래처 1012555999 동영 온라인점-송아름  정액 전부 없음 (반대급부 대조군)
+  품목   AC072CS6PBH1SY  BUNDLE · is360 · BOTH · 2,752,200
+         AC110CAMDBH1SY  BUNDLE · 판별 없음 · BOTH · 3,360,500 (대조군)
+  🚨 usage_scope 는 NONE(2,287) / BOTH(774) 뿐 — **BOTH 만 판매전표 화면에서 조회된다**
+
+DC 조회 키  partnerCode (UUID 아님). dc_configs 240건 중 238건이 partner_db 와 연결
+정액 보유   259 중 50건
+```
+
+### QA 가 만든 전표 (다음 세션 집계에서 제외)
+
+```text
+2026/08/06-1 · -2 · -3   R1·R7 세트 전개
+2026/08/06-4 · -5        R10 (저장 재시도로 2건 — 멱등성 의심 별건)
+전부 OUTBOUND DRAFT · 삭제하지 않음
+```
+
+---
+
+## 10. 오늘 규모
+
+```text
+라운드      27건 (fix 9 · SOL 적대검증 4 · 라이브QA 5 · 정찰·조사 5 · 머지해소 1 · 기타)
+커밋        브랜치 20+ · main 5 (메모리 4 · 핸드오프 1)
+게시        PR/이슈 코멘트 30+ (실행=게시 1:1 유지)
+캡처        60+ 장 (#1077 R1·R2 23 · R5 10 · R7 15 · R9 7 · R10 15)
+이슈        5건 등록 (#1084~#1087 · #1089) · PR 1건 개설 (#1088)
+결정        개발책임자 11건 접수·기록
+메모리      신규 3건 (업무의미 확인 · 종료코드 함정 · 운임절삭) + 갱신 2건
+워크플로우  3건 (일정 추정 완료 · 버전이력·분류축 미완)
+머지        0건
+```
+
+---
+
+
 ## 2026-08-05~06 집PC 야간 세션 (**종료** · 회사PC 인계) — **머지 6건** · 5트랙 병렬
 
 > **다음 세션은 이 절만 읽으면 된다.** 세션이 아직 진행 중이라 아래 수치는 갱신될 수 있다.
@@ -1022,7 +1440,7 @@ Index.html:407·415·424           날짜별 패널 구조         → #1059 R30
 - **좁힌 브리핑에서 Playwright fallback 안내를 잘라내** 라운드가 `No browser is available` 로 멈췄다. QA 브리핑에는 **항상** 그 절을 넣을 것.
 - **틀린 전제로 개발책임자께 두 번 판단을 요청**했다(고아 분개 29건 — 실제로는 참조 전표 전부 실재, `source_ref_id` 가 v3 UUID). **지우기 전에 반드시 실측.**
 - **모호한 측정을 PASS 로 읽었다.** `snapshot 12 → 12` 는 *"조회가 저장 안 함"* 과 *"저장 경로가 없음"* 을 구분하지 못한다. **같은 수치가 정반대 두 상황에서 나오는지** 먼저 물을 것.
-- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 사용자 게임이 죽었다(여유 13.5GB). **집PC 는 개발 전용이 아니다.**
+- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 PC 가 고갈됐다(여유 13.5GB). **집PC 는 개발 전용이 아니다.**
 
 ---
 
@@ -1144,7 +1562,7 @@ main     .gradle-user-t1008b/ · docs/dev-reports/2026-08-03-874-live-qa.md
 - **계열 전수 sweep 을 지시하지 않아** `#1057` R21 이 한 칸만 고쳤고 QA 한 사이클을 더 썼다(R22 가 전 상태 대조표로 정리).
 - **좁힌 브리핑에서 Playwright fallback 안내를 잘라내** 라운드가 `No browser is available` 로 멈췄다. QA 브리핑에는 **항상** 이 절을 넣을 것.
 - **틀린 전제로 개발책임자께 두 번 판단 요청**(고아 분개 29건). 지우기 전에 반드시 실측.
-- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 사용자 게임이 죽었다(여유 13.5GB). 집PC 는 개발 전용이 아니다.
+- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 PC 가 고갈됐다(여유 13.5GB). 집PC 는 개발 전용이 아니다.
 
 ### 4. SOL 이 PM 수치를 세 번 정정했다
 
@@ -1257,7 +1675,7 @@ R6 라이브QA  진행 중
 - **`git add -- clients` 가 미추적 QA 하네스를 삼켰다** (`874-riusage-real-qa.spec.ts`). CI 가 H-2 가드로 잡음. 메모리에 이미 있는 계열인데 경로를 안 좁혔다. **커밋 전 `git status --porcelain` 을 눈으로 대조하고 파일을 지목할 것.**
 - **계열 전수 sweep 을 지시하지 않아** R21 이 한 칸만 고쳤고 QA 한 사이클을 더 썼다.
 - **틀린 전제로 개발책임자께 두 번 판단을 요청**했다 — "참조 전표 없는 분개 29건" 은 실제로 29건 전부 참조 전표가 실재했다(v3 UUID 라 조인만 안 됨). 삭제 직전에 확인해서 막았다. **지우기 전에 반드시 실측.**
-- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 사용자 게임이 죽었다. 여유 13.5GB 까지 떨어졌다. **집PC 는 개발 전용이 아니다.**
+- **집PC 자원**: Docker 21개 + gradle + Playwright + codex 4개를 동시에 돌려 PC 가 고갈됐다. 여유 13.5GB 까지 떨어졌다. **집PC 는 개발 전용이 아니다.**
 
 ### 6. 환경 메모 (집PC)
 

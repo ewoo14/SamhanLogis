@@ -89,6 +89,8 @@ export interface EstimateLine {
   setHead: boolean
   /** 세트 구성품 부모 modelCode — 일반 라인은 null. 소비 정책은 {@link EstimateLine#setHead} 참조. */
   parentSetModel: string | null
+  /** 화면에서 선택한 BUNDLE 옵션 문맥. 일반/SINGLE/legacy 라인은 null. */
+  setOptions?: BundleSetOptions | null
 }
 
 /** 견적서 헤더 (요약) — 페이지 조회용. BE {@code EstimateResponse}. */
@@ -145,6 +147,7 @@ function normalizeEstimateDetail(estimate: EstimateDetail): EstimateDetail {
     ...normalizeEstimateSummary(estimate),
     lines: estimate.lines.map((line) => ({
       ...line,
+      setOptions: line.setOptions ?? null,
       unitPrice: String(line.unitPrice),
       unitPriceWithVat: line.unitPriceWithVat == null ? null : String(line.unitPriceWithVat),
       supplyAmount: String(line.supplyAmount),

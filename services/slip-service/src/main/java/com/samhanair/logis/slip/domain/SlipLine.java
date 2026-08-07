@@ -4,6 +4,7 @@ import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -22,6 +23,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 전표 라인 — productId/이름 snapshot + 수량 + 단가 + lineTotal(=수량×단가) 자동 계산.
@@ -142,6 +145,11 @@ public class SlipLine extends BaseEntity {
     /** 세트 구성품일 때 부모 세트 modelCode(PR-3, V34). 일반 라인 = null. */
     @Column(name = "parent_set_model", length = 64)
     private String parentSetModel;
+
+    /** 화면에서 선택한 세트 옵션 문맥. 구성품 재조회와 복사·revision 복원에 사용한다. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "bundle_set_options", columnDefinition = "jsonb")
+    private BundleSetOptions bundleSetOptions;
 
     private SlipLine(Slip slip, UUID productId, String productName, String modelName,
                      String specification, int quantity, BigDecimal unitPrice, String note,
@@ -390,6 +398,13 @@ public class SlipLine extends BaseEntity {
         this.setHead = setHead;
     }
 
+    /** 세트 계보와 함께 화면 선택 옵션 문맥을 보존한다. */
+    public void assignBundleComponent(String parentSetModel, boolean setHead,
+                                      BundleSetOptions bundleSetOptions) {
+        assignBundleComponent(parentSetModel, setHead);
+        this.bundleSetOptions = bundleSetOptions;
+    }
+
     /**
      * 전표 복사용 라인 사본 생성 — 원본 라인의 금액 권위값과 세트 계보를 그대로 승계한다 (R6-H2).
      *
@@ -426,6 +441,7 @@ public class SlipLine extends BaseEntity {
         }
         line.parentSetModel = source.parentSetModel;
         line.setHead = source.setHead;
+        line.bundleSetOptions = source.bundleSetOptions;
         return line;
     }
 

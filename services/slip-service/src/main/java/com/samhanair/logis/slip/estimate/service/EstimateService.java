@@ -22,6 +22,7 @@ import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.realtime.EstimateListRealtime;
 import com.samhanair.logis.slip.service.BundleLineageResolver;
+import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.service.LineIdContractGate;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
@@ -90,8 +91,11 @@ public class EstimateService {
                                  List<PendingPlainLine> pendingPlainLines) {
         boolean authoritative = AuthoritativeAmountValidator.isComplete(
                 supplyAmount, vatAmount, lineTotalWithVat);
-        boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
-                && summary.modelCode() != null && !summary.modelCode().isBlank();
+        boolean bundle = BundleModePolicy.shouldExpand(summary);
+        if (bundle && (summary.modelCode() == null || summary.modelCode().isBlank())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "세트 품목의 구성품 전개 정보가 없어 견적을 저장할 수 없습니다");
+        }
         if (bundle && authoritative) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "세트 구성품의 공급가액·부가세는 개별 편집할 수 없습니다");
@@ -149,7 +153,7 @@ public class EstimateService {
                     ? (el.specification() != null && !el.specification().isBlank()
                         ? "CATALOG" : specificationSource)
                     : null);
-            line.assignBundleComponent(summary.modelCode(), el.setHead());
+            line.assignBundleComponent(summary.modelCode(), el.setHead(), setOptions);
             estimate.addLine(line);
             added++;
         }
@@ -370,6 +374,7 @@ public class EstimateService {
         String actorName = resolveActorName(callerName, callerId);
         applyMutation(() -> estimateRevisionService.restore(estimate, revisionNo,
                 parseActorId(callerId), actorName, null));
+        rejectBundleParents(estimate);
         // 라인 전량 교체(clear + 신규 라인 add) 영속화
         estimateRepository.save(estimate);
         return EstimateDetailResponse.from(estimate);
@@ -507,6 +512,25 @@ public class EstimateService {
         return estimateRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "견적서를 찾을 수 없습니다"));
+    }
+
+    /** 구/수동 revision 스냅샷이 BUNDLE 부모를 estimate_lines 에 되살리지 않도록 복원 경계를 검증한다. */
+    private void rejectBundleParents(Estimate estimate) {
+        List<UUID> productIds = estimate.getLines().stream()
+                .map(EstimateLine::getProductId)
+                .distinct()
+                .toList();
+        Map<UUID, ProductSummary> summaries = new HashMap<>();
+        for (ProductSummary summary : productClient.lookup(productIds)) {
+            summaries.put(summary.id(), summary);
+        }
+        if (estimate.getLines().stream().anyMatch(line -> {
+            ProductSummary summary = summaries.get(line.getProductId());
+            return BundleModePolicy.shouldExpand(summary);
+        })) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "세트 품목은 구성품으로 전개된 견적만 복원할 수 있습니다");
+        }
     }
 
     private String callerOrSystem(String callerId) {

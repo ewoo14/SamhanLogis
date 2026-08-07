@@ -12,7 +12,7 @@
  *
  * <p>legacy GAS 9번 ("알리고 자동 업로드") 1단계 자동화. 운영자가 알리고 콘솔에 직접
  * 업로드하던 SF벤더 그룹 CSV 를 partner-service 에서 자동 생성 (Part A) + native API sync
- * (Part B, 현 단계 mock dryRun — 알리고 실 spec 후 격상).
+ * (Part B, 현 단계 외부 미전달 mock — 알리고 실 spec 후 실 전달 상태로 전환).
  *
  * <h2>권한</h2>
  * <p>FE 진입은 {@code aligo.address-book} VIEW, sync 호출은 BE {@code @RequirePermission}
@@ -31,16 +31,23 @@ import { apiClient, type ApiEnvelope } from './client'
 /**
  * 알리고 주소록 sync 응답 — BE {@code AligoAddressBookSyncResponse} 와 1:1.
  *
- * @property added 신규 추가 contact 수
- * @property updated 기존 갱신 contact 수 (현 stub 은 0, 실 spec 후 채움)
+ * @property added 실제 외부 전달 후 알리고가 신규 추가한 contact 수
+ * @property updated 실제 외부 전달 후 알리고가 갱신한 contact 수
  * @property skipped 알리고 측 중복 / 잘못된 형식으로 skip 된 수
  * @property failed 실패 chunk 메시지 리스트 (sample memo + HTTP status 포함)
+ * @property deliveryStatus 외부 알리고 전달 상태
  */
+export type AligoAddressBookDeliveryStatus =
+  | 'NOT_DELIVERED'
+  | 'PARTIALLY_DELIVERED'
+  | 'DELIVERED'
+
 export interface AligoAddressBookSyncResponse {
   added: number
   updated: number
   skipped: number
   failed: string[]
+  deliveryStatus: AligoAddressBookDeliveryStatus
 }
 
 // ---------------------------------------------------------------------------
@@ -71,11 +78,11 @@ export async function exportAligoCsv(): Promise<Blob> {
 /**
  * 알리고 주소록 sync 실행.
  *
- * <p>현 단계 BE 구현 = mock dryRun (MockAligoAddressBookClient). 알리고 실 API spec
- * 사용자 결정 후 RestClient 구현체 교체 — 호출 계약은 본 wrapper 안정.
+ * <p>현 단계 BE 구현 = 외부 미전달 mock (MockAligoAddressBookClient). 알리고 실 API spec
+ * 사용자 결정 후 RestClient 구현체 교체 — {@code deliveryStatus} 가 자동으로 실 전달 상태가 된다.
  *
- * <p>TODO(PR-F2): 알리고 실 API spec 후 dryRun=false 활성. 현 시점은 BE 가 항상
- * dryRun 으로 동작하므로 group 파라미터는 미사용 (BE controller 가 받지 않음).
+ * <p>현 시점은 BE 가 항상 외부 미전달 mock 으로 동작하므로 group 파라미터는 미사용
+ * (BE controller 가 받지 않음).
  * 후속 슬라이스에서 group 필터 BE 추가 시 본 wrapper 시그니처 확장.
  *
  * @return 4 카테고리 누적 결과 ({@link AligoAddressBookSyncResponse})

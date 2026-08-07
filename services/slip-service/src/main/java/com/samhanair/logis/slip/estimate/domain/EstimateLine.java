@@ -4,6 +4,7 @@ import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -12,6 +13,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.UUID;
@@ -140,6 +143,11 @@ public class EstimateLine extends BaseEntity {
     @Column(name = "parent_set_model", length = 64)
     private String parentSetModel;
 
+    /** 화면에서 선택한 BUNDLE 옵션 문맥. 기존 행은 null이며 추측 backfill 하지 않는다. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "bundle_set_options", columnDefinition = "jsonb")
+    private BundleSetOptions bundleSetOptions;
+
     private EstimateLine(Estimate estimate, int lineNo, UUID productId, String productName,
                          String modelName, String specification, int quantity,
                          BigDecimal unitPrice, String note) {
@@ -250,8 +258,15 @@ public class EstimateLine extends BaseEntity {
 
     /** 세트 전개 구성품 표시 — 전개된 세트의 구성품 라인에만 부여(parentSetModel + 첫 라인 setHead). */
     public void assignBundleComponent(String parentSetModel, boolean setHead) {
+        assignBundleComponent(parentSetModel, setHead, null);
+    }
+
+    /** 세트 계보와 화면 선택 옵션 문맥을 함께 보존한다. */
+    public void assignBundleComponent(String parentSetModel, boolean setHead,
+                                      BundleSetOptions bundleSetOptions) {
         this.parentSetModel = parentSetModel;
         this.setHead = setHead;
+        this.bundleSetOptions = bundleSetOptions;
     }
 
     /** 수량 변경 — supply/vat/lineTotal 재계산. */

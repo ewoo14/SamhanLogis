@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
@@ -10,6 +11,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
@@ -156,9 +158,38 @@ class BundleExpanderIT extends AbstractPostgresIT {
         flush();
 
         var opts = new BundleExpander.ExpandOptions("", false, "블랙판넬", "원형", false, null);
+        var defaultLines = expander.expand("OPT_SET", BigDecimal.ONE);
         var lines = expander.expand("OPT_SET", BigDecimal.ONE, opts);
+        assertThat(unit(defaultLines, "PNL_W")).isEqualByComparingTo("50000");
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
                 .containsExactly("PNL_B"); // 블랙 판넬만(화이트 제외, 자재 제외)
+        assertThat(unit(lines, "PNL_B")).isEqualByComparingTo("60000");
+    }
+
+    @Test
+    void 기본옵션은_판넬과_리모컨을_포함한_4행이고_판넬제외는_나머지를_유지한다() {
+        Category cat = categoryRepository.save(Category.create("OPT-DEFAULT-ROWS", "test", null, 130));
+        Product parent = bundleSet("OPT_DEFAULT_ROWS", "가정용 에어컨 무풍", cat, new BigDecimal("500000"));
+        product("ROW_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        product("ROW_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("200000"));
+        product("ROW_PANEL", "기본 판넬", cat, ProductCategory.SINGLE_PART, new BigDecimal("50000"));
+        product("ROW_REMOTE", "기본 유선리모컨", cat, ProductCategory.SINGLE_PART, new BigDecimal("20000"));
+        comp(parent, "ROW_IN", BundleComponent.ComponentKind.INDOOR, null, true, 1);
+        comp(parent, "ROW_OUT", BundleComponent.ComponentKind.OUTDOOR, null, true, 2);
+        comp(parent, "ROW_PANEL", BundleComponent.ComponentKind.PANEL, "기본", true, 3);
+        comp(parent, "ROW_REMOTE", BundleComponent.ComponentKind.REMOTE, "기본", true, 4);
+        flush();
+
+        var defaults = expander.expand("OPT_DEFAULT_ROWS", BigDecimal.ONE);
+        var withoutPanel = expander.expand("OPT_DEFAULT_ROWS", BigDecimal.ONE,
+                new BundleExpander.ExpandOptions("", false, "판넬제외", "원형", false, null));
+
+        assertThat(defaults).hasSize(4)
+                .extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("ROW_IN", "ROW_OUT", "ROW_PANEL", "ROW_REMOTE");
+        assertThat(withoutPanel).hasSize(3)
+                .extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("ROW_IN", "ROW_OUT", "ROW_REMOTE");
     }
 
     @Test
@@ -382,6 +413,21 @@ class BundleExpanderIT extends AbstractPostgresIT {
         assertThat(lines).hasSize(2);
         assertThat(unit(lines, "CM_A")).isEqualByComparingTo("4000000"); // 개별단가 유지(재배분 X)
         assertThat(unit(lines, "CM_B")).isEqualByComparingTo("1500000");
+    }
+
+    @Test
+    void 싱글세트_실외기없는_구성은_원단가를_조용히_유지하지_않고_거부한다() {
+        Category cat = categoryRepository.save(Category.create("MISSING-OUTDOOR", "test", null, 16));
+        Product parent = bundleSet("MISSING_OUTDOOR_SET", "1way 냉난방", cat, new BigDecimal("500000"));
+        product("MISSING_OUTDOOR_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        comp(parent, "MISSING_OUTDOOR_IN", BundleComponent.ComponentKind.INDOOR);
+        flush();
+
+        assertThatThrownBy(() -> expander.expand("MISSING_OUTDOOR_SET", BigDecimal.ONE,
+                new BundleExpander.ExpandOptions("", false, "", "원형", false,
+                        new BigDecimal("450000"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("실내/실외 본체");
     }
 
     @Test

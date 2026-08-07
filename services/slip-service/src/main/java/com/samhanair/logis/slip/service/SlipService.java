@@ -151,14 +151,20 @@ public class SlipService {
                                       String reqName, String reqModel, String specification, int quantity,
                                       java.math.BigDecimal unitPrice, String note,
                                       com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+                                      String parentSetModel, Boolean setHead, UUID bundleParentProductId,
+                                      java.math.BigDecimal bundleParentUnitPrice,
                                       boolean priceVatInclusive, java.math.BigDecimal supplyAmount,
                                       java.math.BigDecimal vatAmount, java.math.BigDecimal lineTotalWithVat,
                                       String actor,
                                       List<PartnerProductPriceMemoryCommand> priceMemoryCommands) {
         boolean authoritative = AuthoritativeAmountValidator.isComplete(
                 supplyAmount, vatAmount, lineTotalWithVat);
-        boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
-                && summary.modelCode() != null && !summary.modelCode().isBlank();
+        boolean bundle = BundleModePolicy.shouldExpand(summary);
+        if (bundle && (summary.modelCode() == null || summary.modelCode().isBlank())) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
+                    "세트 구성품 전개에 필요한 모델코드가 없습니다.");
+        }
         if (bundle && authoritative) {
             throw new com.samhanair.logis.common.exception.BusinessException(
                     com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
@@ -168,16 +174,27 @@ public class SlipService {
             String productName = reqName != null ? reqName : (summary != null ? summary.name() : null);
             String modelName = reqModel != null ? reqModel : (summary != null ? summary.modelName() : null);
             // 단가 부가세포함 전환: priceVatInclusive 면 라인 단위로 공급가액/부가세 분리.
-            slip.addLine(authoritative
+            SlipLine plainLine = authoritative
                     ? SlipLine.createFromAuthoritativeAmounts(slip, productId, productName, modelName,
                             specification, quantity, unitPrice, supplyAmount, vatAmount, lineTotalWithVat, note, null)
                     : priceVatInclusive
                     ? SlipLine.createFromVatInclusive(slip, productId, productName, modelName,
                             specification, quantity, unitPrice, note, null)
                     : SlipLine.create(slip, productId, productName, modelName,
-                            specification, quantity, unitPrice, note));
-            collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), productId, unitPrice,
-                    priceVatInclusive, PartnerProductPriceMemory.SOURCE_LINE_SAVE, actor);
+                            specification, quantity, unitPrice, note);
+            if (parentSetModel != null && !parentSetModel.isBlank()) {
+                plainLine.assignBundleComponent(parentSetModel, Boolean.TRUE.equals(setHead), setOptions);
+                if (Boolean.TRUE.equals(setHead) && bundleParentProductId != null
+                        && bundleParentUnitPrice != null) {
+                    collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), bundleParentProductId,
+                            bundleParentUnitPrice, priceVatInclusive,
+                            PartnerProductPriceMemory.SOURCE_BUNDLE_SET, actor);
+                }
+            } else {
+                collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), productId, unitPrice,
+                        priceVatInclusive, PartnerProductPriceMemory.SOURCE_LINE_SAVE, actor);
+            }
+            slip.addLine(plainLine);
             return;
         }
         collectPriceMemory(priceMemoryCommands, slip.getPartnerId(), productId, unitPrice,
@@ -208,7 +225,7 @@ public class SlipService {
                             compSpec, q, compUnit, note, null)
                     : SlipLine.create(slip, el.productId(), el.name(), el.modelName(),
                             compSpec, q, compUnit, note);
-            line.assignBundleComponent(summary.modelCode(), el.setHead());
+            line.assignBundleComponent(summary.modelCode(), el.setHead(), setOptions);
             slip.addLine(line);
             added++;
         }
@@ -285,6 +302,8 @@ public class SlipService {
             addSlipLinesExpanded(slip, lineReq.productId(), byId.get(lineReq.productId()),
                     lineReq.productName(), lineReq.modelName(), lineReq.specification(),
                     lineReq.quantity(), calculatedPrices.get(lineIndex), lineReq.note(), lineReq.setOptions(),
+                    lineReq.parentSetModel(), lineReq.setHead(), lineReq.bundleParentProductId(),
+                    lineReq.bundleParentUnitPrice(),
                     Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
                     lineReq.vatAmount(), lineReq.lineTotalWithVat(), requesterId, priceMemoryCommands);
         }
@@ -823,6 +842,7 @@ public class SlipService {
         applyMutation(() -> addSlipLinesExpanded(slip, req.productId(), summary,
                 req.productName(), req.modelName(), req.specification(),
                 req.quantity(), req.unitPrice(), req.note(), req.setOptions(),
+                null, null, null, null,
                 Boolean.TRUE.equals(req.priceVatInclusive()), req.supplyAmount(), req.vatAmount(),
                 req.lineTotalWithVat(), callerId, priceMemoryCommands));
         // 권한 재편 Phase 2.1 — 라인 추가도 헤더+라인 전체 버전이력에 잡히도록 EDIT 스냅샷 캡처

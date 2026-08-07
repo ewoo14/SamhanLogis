@@ -16,7 +16,7 @@ import { AppVersionGate } from './components/common/AppVersionGate'
  * 단일 QueryClient — 5분 staleTime + 1회 retry.
  * 권한/토큰 변경 시 `queryClient.clear()` 로 초기화 가능.
  */
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,

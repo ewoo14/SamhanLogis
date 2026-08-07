@@ -18,6 +18,7 @@ import com.samhanair.logis.slip.repository.SlipPublishAuditRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
+import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -769,6 +770,13 @@ public class SlipPublishService {
         ResolvedLines resolved = new ResolvedLines();
         for (PublishLineRequest l : lines) {
             ProductSummary summary = productClient.lookupByModel(l.productCode());
+            // 견적/거래처 주문 단건/주문 병합 발행은 모두 이 resolver를 공유한다.
+            // BUNDLE 부모를 평면 SlipLine 으로 만들면 구성품 계보와 가격 배분 없이
+            // 부모 productId가 slip_lines에 영속되므로, 전표 라인 저장 전에 명시적으로 거부한다.
+            if (BundleModePolicy.shouldExpand(summary)) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
+            }
             int qty = parseQty(l.qty());
             BigDecimal unitPrice = l.unitPriceVat() != null
                     ? l.unitPriceVat().abs()

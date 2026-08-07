@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service;
 
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +48,8 @@ public final class BundleLineageResolver {
             for (SlipLine line : lines) {
                 if (line != null && line.getId() != null) {
                     lineages.put(line.getId(), new BundleLineage(
-                            line.getProductId(), line.getParentSetModel(), line.isSetHead()));
+                            line.getProductId(), line.getParentSetModel(), line.isSetHead(),
+                            line.getBundleSetOptions()));
                 }
             }
         }
@@ -61,7 +63,8 @@ public final class BundleLineageResolver {
             for (EstimateLine line : lines) {
                 if (line != null && line.getId() != null) {
                     lineages.put(line.getId(), new BundleLineage(
-                            line.getProductId(), line.getParentSetModel(), line.isSetHead()));
+                            line.getProductId(), line.getParentSetModel(), line.isSetHead(),
+                            line.getBundleSetOptions()));
                 }
             }
         }
@@ -149,7 +152,7 @@ public final class BundleLineageResolver {
         }
         BundleLineage lineage = lineagesById.get(lineId);
         if (lineage != null && lineage.inheritableBy(line.getProductId())) {
-            line.assignBundleComponent(lineage.parentSetModel(), lineage.setHead());
+            line.assignBundleComponent(lineage.parentSetModel(), lineage.setHead(), lineage.bundleSetOptions());
         }
     }
 
@@ -159,7 +162,7 @@ public final class BundleLineageResolver {
         }
         BundleLineage lineage = lineagesById.get(lineId);
         if (lineage != null && lineage.inheritableBy(line.getProductId())) {
-            line.assignBundleComponent(lineage.parentSetModel(), lineage.setHead());
+            line.assignBundleComponent(lineage.parentSetModel(), lineage.setHead(), lineage.bundleSetOptions());
         }
     }
 
@@ -174,7 +177,8 @@ public final class BundleLineageResolver {
      *
      * @param productId 캡처 시점의 품목 UUID — 승계 대상 라인이 같은 품목인지 검증하는 기준
      */
-    private record BundleLineage(UUID productId, String parentSetModel, boolean setHead) {
+    private record BundleLineage(UUID productId, String parentSetModel, boolean setHead,
+                                 BundleSetOptions bundleSetOptions) {
 
         private boolean isBundleComponent() {
             return parentSetModel != null && !parentSetModel.isBlank();

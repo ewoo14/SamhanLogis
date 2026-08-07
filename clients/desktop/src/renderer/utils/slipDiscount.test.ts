@@ -49,4 +49,84 @@ describe('slip discount', () => {
       { homeMultiDc: '48%', commercialMultiDc: '49%' },
     )).toMatchObject({ unitPrice: 561600, source: 'GLOBAL', rate: 48 })
   })
+
+  it.each([
+    ['AC123456P', '360', 30000],
+    ['AC123454P', '4way-P', 40000],
+    ['AC123454D', '4way-D', 40000],
+    ['AC123451P', '1way-P', 50000],
+    ['AC123451D', '1way-D', 50000],
+    ['AP123456D1C', 'stand-D+C', 60000],
+    ['AP123456P', 'stand-P', 60000],
+    ['AP123456D1H', 'deluxe-D+H', 70000],
+    ['AP230123P', 'AP230 stand exception', 60000],
+    ['AP290123P', 'AP290 stand exception', 60000],
+    ['AC123456F', 'AC grade1', 80000],
+    ['AP123456F', 'AP grade1', 80000],
+  ])('레거시 %s (%s) 분기만큼 싱글 정액을 차감한다', (modelCode, _branch, amount) => {
+    expect(calculateSlipDiscount(
+      {
+        listPrice: 1000000,
+        modelCode,
+        fixedDiscountRate: null,
+        category: 'OTHER',
+        hasVariableDiscount: false,
+      },
+      {
+        homeMultiDc: null,
+        commercialMultiDc: null,
+        threeSixty: '30,000',
+        fourWay: '40,000',
+        oneWay: '50,000',
+        stand: '60,000',
+        deluxe: '70,000',
+        firstGrade: '80,000',
+      },
+    ).unitPrice).toBe(1000000 - amount)
+  })
+
+  it.each(['AC123456P', 'AP123456D1H'])('홈멀티/상업멀티 율 기반 품목에는 싱글 정액을 이중 적용하지 않는다: %s', (modelCode) => {
+    expect(calculateSlipDiscount(
+      {
+        listPrice: 1000000,
+        modelCode,
+        fixedDiscountRate: null,
+        category: 'HOMEMULTI',
+        hasVariableDiscount: true,
+      },
+      {
+        homeMultiDc: '48%',
+        commercialMultiDc: '49%',
+        threeSixty: '30000',
+        stand: '60000',
+        deluxe: '70000',
+      },
+    ).unitPrice).toBe(520000)
+  })
+
+  it.each(['AC12345', 'ZZ123456P', '', null])('짧거나 AC/AP가 아닌 모델코드는 정액을 적용하지 않는다: %s', (modelCode) => {
+    expect(calculateSlipDiscount(
+      {
+        listPrice: 1000000,
+        modelCode,
+        fixedDiscountRate: null,
+        category: 'OTHER',
+        hasVariableDiscount: false,
+      },
+      { homeMultiDc: null, commercialMultiDc: null, stand: '60000' },
+    )).toMatchObject({ unitPrice: 1000000, source: 'NONE', rate: 0 })
+  })
+
+  it('싱글 정액이 없는 거래처는 종전 정가를 유지한다', () => {
+    expect(calculateSlipDiscount(
+      {
+        listPrice: 1000000,
+        modelCode: 'AC123456P',
+        fixedDiscountRate: null,
+        category: 'OTHER',
+        hasVariableDiscount: false,
+      },
+      { homeMultiDc: null, commercialMultiDc: null, threeSixty: null, fourWay: null, oneWay: null, stand: null, deluxe: null, firstGrade: null },
+    )).toMatchObject({ unitPrice: 1000000, source: 'NONE', rate: 0 })
+  })
 })

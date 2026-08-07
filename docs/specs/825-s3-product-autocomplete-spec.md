@@ -41,7 +41,7 @@
 - **이미표준화(QA-only)**: SlipFormPage·EstimateItemsCatalogPage(foundation 자동상속).
 - **(a) 즉시전환(후속)**: TransferFormPage(:223/238·co-edit 아님·onBlur lookup productId — D-S3-05).
 - **(c) 문서작성/필수화(후속)**: SlipDetailPage(매출 :1994/2003·매입 :2256/2265)·EstimateFormPage(:1716/1731·mobile :402/420)·SalesPartnerOrderDetailPage(:1446/1456 modelCode). 전부 co-edit/필수화.
-- **(b) 정당 free-text**: ProductFormPage(마스터 생성)·ProductCatalogPage(목록필터)·EstimateItemsCatalogPage(:1689)·InventoryAuditDetailPage(바코드)·**BundleOptionRow(BUNDLE 전개 modelCode 계약·품목 master 자유입력 아님·`slip.ts:232`)**·SalesPartnerOrderListPage(통합검색)·**TaxInvoiceFormPage itemName(mobile :137·desktop :663-668)**·**ArologisManualDispatchPage 품목메모(:671·771-785·BE schema 부재)**·재고표 열 필터.
+- **(b) 정당 free-text**: ProductFormPage(마스터 생성)·ProductCatalogPage(목록필터)·EstimateItemsCatalogPage(:1689)·InventoryAuditDetailPage(바코드)·**BUNDLE 자동 전개 modelCode 입력 계약(`slip.ts:232`, picker 제거 후에도 품목 master 자유입력 아님)**·SalesPartnerOrderListPage(통합검색)·**TaxInvoiceFormPage itemName(mobile :137·desktop :663-668)**·**ArologisManualDispatchPage 품목메모(:671·771-785·BE schema 부재)**·재고표 열 필터.
 
 ## 4. 기존 결정 교차검증
 | 규칙 | 준수 |

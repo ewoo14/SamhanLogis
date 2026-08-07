@@ -1,5 +1,7 @@
 package com.samhanair.logis.product.service;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Product;
@@ -18,6 +20,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * BUNDLE(세트) → 구성품 전개 엔진 — legacy 종합견적서 index.html explodeSetParts/explodeCommSets_/
@@ -36,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class BundleExpander {
+
+    private static final Logger log = LoggerFactory.getLogger(BundleExpander.class);
 
     private final ProductRepository productRepository;
     private final BundleComponentRepository componentRepository;
@@ -119,7 +125,7 @@ public class BundleExpander {
         boolean isSingleSet = parent.getProductCategory() == ProductCategory.SINGLE_SET;
         List<Part> picked = isSingleSet ? pickedFilter(parts, opts) : parts;
         if (isSingleSet) {
-            redistribute(picked, parent, setUnit);
+            redistribute(picked, parent, setUnit, opts.setUnitOverride() != null);
         }
 
         List<ExpandedLine> result = new ArrayList<>(picked.size());
@@ -289,7 +295,7 @@ public class BundleExpander {
     }
 
     // ── 싱글세트 재배분 — legacy explodeSetParts 후반부 + splitIndoorOutdoorToK ──────
-    private void redistribute(List<Part> picked, Product parent, BigDecimal setUnit) {
+    private void redistribute(List<Part> picked, Product parent, BigDecimal setUnit, boolean explicitUnitOverride) {
         boolean household = isHousehold(parent.getName(), parent.getModelCode(), parent.getSpecText());
 
         List<Part> indoor = new ArrayList<>();
@@ -310,7 +316,11 @@ public class BundleExpander {
             }
         }
         if (indoor.isEmpty() || outdoor.isEmpty()) {
-            return; // 한쪽 본체 없으면 재배분 안 함(부품 원단가 유지)
+            if (!explicitUnitOverride) {
+                return; // 레거시 override 없는 호출은 기존 원단가 동작을 보존한다.
+            }
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "싱글세트 구성품에 실내/실외 본체가 모두 필요합니다: " + parent.getModelCode());
         }
 
         int ratioIn = household ? 6 : 4;

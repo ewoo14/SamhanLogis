@@ -10,7 +10,8 @@
  * 응답 shape:
  * - `ApiEnvelope<Page<ProductSummaryResponse>>` (검색) / `ApiEnvelope<ProductSummaryResponse[]>` (lookup)
  * - `ProductSummaryResponse`: `{ id: UUID, name: string, modelName: string,
- *     productCode: string|null, categoryId: UUID, sellingPrice: BigDecimal, status: string }`
+ *     productCode: string|null, categoryId: UUID, sellingPrice: BigDecimal,
+ *     deliveryPrice: BigDecimal, status: string }`
  *
  * UUID 비공개 가드: `id` 는 내부 사용 전용 — 화면 표시 금지.
  * 표시 식별자는 `modelName` / `name` (productName).
@@ -28,8 +29,9 @@ interface ProductSummaryResponse {
   name: string
   modelName: string
   productCode: string | null
-    sellingPrice: string | null
-    specification?: string | null
+  sellingPrice: string | null
+  deliveryPrice?: string | number | null
+  specification?: string | null
   /** 품목코드 — BE ProductSummaryResponse 신규 (세트 전개 부모 식별). */
   modelCode?: string | null
   /** 품목 유형 — "SINGLE" | "BUNDLE". BE ProductSummaryResponse 신규. */
@@ -81,6 +83,10 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
     sellingPrice:
       p.sellingPrice != null
         ? Number(p.sellingPrice)
+        : undefined,
+    deliveryPrice:
+      p.deliveryPrice != null
+        ? Number(p.deliveryPrice)
         : undefined,
     modelCode: p.modelCode ?? undefined,
       productType: p.productType ?? undefined,

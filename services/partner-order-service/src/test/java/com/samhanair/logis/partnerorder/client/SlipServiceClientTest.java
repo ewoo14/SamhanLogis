@@ -203,6 +203,36 @@ class SlipServiceClientTest {
     }
 
     @Test
+    void publishFromPartnerOrder_400의_업무안내를_원문으로_보존한다() {
+        String message = "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
+        server.expect(requestTo(FROM_PARTNER_ORDER))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .body("{\"message\":\"" + message + "\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.publishFromPartnerOrder(payload(), "PO-CONF-P1-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(message);
+        server.verify();
+    }
+
+    @Test
+    void publishFromOrdersMerge_400의_업무안내를_원문으로_보존한다() {
+        String message = "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
+        server.expect(requestTo(FROM_ORDERS_MERGE))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .body("{\"message\":\"" + message + "\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.publishFromOrdersMerge(mergePayload(), "PO-MRG-20260623-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(message);
+        server.verify();
+    }
+
+    @Test
     void publishFromPartnerOrder_408은_재시도_대상인_INTERNAL_ERROR() {
         // #854 R4 HIGH-B: spec D-854-06 은 408 을 transient(재시도)로 명시. 종전 매핑은 일괄 4xx 분기로
         // 흘려 INVALID_INPUT(outbox 에서 영구실패 분류)을 만들었다.

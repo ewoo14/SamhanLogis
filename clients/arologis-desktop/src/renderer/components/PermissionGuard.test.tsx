@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { PermissionGuard } from './PermissionGuard'
 import { usePermissions } from '../hooks/usePermissions'
@@ -24,6 +25,7 @@ describe('PermissionGuard', () => {
       permissions: [],
       isLoading: false,
       isError: false,
+      refetch: vi.fn(),
     })
 
     renderGuard()
@@ -42,12 +44,34 @@ describe('PermissionGuard', () => {
       permissions: [{ pageCode: 'arologis.admin.permissions', actions: ['view'] }],
       isLoading: false,
       isError: false,
+      refetch: vi.fn(),
     })
 
     renderGuard({ requireMaster: true })
 
     expect(screen.queryByTestId('home-page')).not.toBeNull()
     expect(screen.queryByTestId('secure-page')).toBeNull()
+  })
+
+  it('권한 조회 실패는 홈으로 보내지 않고 실패 안내와 재시도를 제공한다', async () => {
+    const refetch = vi.fn()
+    mockedUsePermissions.mockReturnValue({
+      canAccess: () => false,
+      permissions: undefined,
+      isLoading: false,
+      isError: true,
+      refetch,
+    })
+
+    const user = userEvent.setup()
+    renderGuard()
+
+    expect(screen.getByRole('alert').textContent).toContain('권한을 확인하지 못했습니다')
+    expect(screen.queryByTestId('home-page')).toBeNull()
+    expect(screen.queryByTestId('secure-page')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: '권한 다시 확인' }))
+    expect(refetch).toHaveBeenCalledOnce()
   })
 })
 
