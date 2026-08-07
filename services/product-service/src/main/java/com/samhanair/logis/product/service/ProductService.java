@@ -584,12 +584,7 @@ public class ProductService {
         quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
         if (product.getProductType() == ProductType.BUNDLE) {
-            // 구성품 replace-all도 같은 부모 행을 잠그므로, 잠금 획득 후 집합을 읽어
-            // 확인 토큰과 삭제 시점 토큰 사이에 변경이 끼어들 수 없게 한다.
-            java.util.Optional<Product> locked = productRepository.findByIdForUpdate(id);
-            if (locked != null && locked.isPresent()) {
-                product = locked.get();
-            }
+            product = productRepository.findByIdForUpdate(id).orElse(product);
         }
         assertBundleChildrenDeletionConfirmed(product, req);
 
@@ -1226,12 +1221,12 @@ public class ProductService {
         if (!removesChildren) {
             return;
         }
-        List<com.samhanair.logis.product.domain.BundleComponent> components =
-                bundleComponentRepository.findByBundleProductId(product.getId());
+        List<BundleComponent> components = bundleComponentRepository.findByBundleProductId(product.getId());
         long componentCount = components.size();
-        boolean hasConsentAttempt = Boolean.TRUE.equals(req.confirmBundleChildrenDeletion())
+        boolean consentAttempt = Boolean.TRUE.equals(req.confirmBundleChildrenDeletion())
                 || req.expectedBundleComponentSetToken() != null;
-        if ((componentCount > 0 || hasConsentAttempt) && (!Boolean.TRUE.equals(req.confirmBundleChildrenDeletion())
+        if ((componentCount > 0 || consentAttempt)
+                && (!Boolean.TRUE.equals(req.confirmBundleChildrenDeletion())
                 || req.expectedBundleComponentSetToken() == null
                 || !req.expectedBundleComponentSetToken().equals(BundleComponentConsentToken.from(components)))) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,

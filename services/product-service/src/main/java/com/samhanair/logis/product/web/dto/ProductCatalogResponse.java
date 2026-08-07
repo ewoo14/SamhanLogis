@@ -122,22 +122,14 @@ public record ProductCatalogResponse(
      * @param count 활성 구성품 수
      * @return componentCount 가 갱신된 새 카탈로그 응답
      */
-    public ProductCatalogResponse withComponentCount(int count) {
+    public ProductCatalogResponse withComponentCount(int count, String token) {
         return new ProductCatalogResponse(
                 modelCode, name, usageScope, estimateCategory,
                 productCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
                 releasePrice, deliveryPrice, fixedDiscountRate,
                 hasVariableDiscount, variableDiscountManual, legacyDiscountFlag, discountFlags,
-                productType, count, componentSetToken
+                productType, count, token
         );
-    }
-
-    public ProductCatalogResponse withComponentSetToken(String token) {
-        return new ProductCatalogResponse(
-                modelCode, name, usageScope, estimateCategory, productCategory, catL, catM, catS,
-                usageScopeManual, displayOrder, estimateCategories, releasePrice, deliveryPrice,
-                fixedDiscountRate, hasVariableDiscount, variableDiscountManual, legacyDiscountFlag,
-                discountFlags, productType, componentCount, token);
     }
 
     private static List<EstimateCategoryExposureView> exposureViews(List<ProductEstimateExposure> exposures) {

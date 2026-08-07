@@ -7,6 +7,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.product.domain.BundleMode;
+import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.domain.BundleComponentConsentToken;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductType;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import static org.mockito.Mockito.verify;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +41,7 @@ import org.springframework.test.util.ReflectionTestUtils;
  * ProductCatalogController §1b componentCount 벌크 주입 단위 테스트 (2026-06-11).
  *
  * <p>listProducts 가 BUNDLE 품목의 componentCount 를 N+1 없이 벌크로 채우는지 검증한다.
- * BundleComponentRepository.countMapByBundleProductIds 1회 호출로 전 BUNDLE 의 count 가 채워져야 한다.
+ * 구성품 목록 1회 조회로 전 BUNDLE 의 count와 consent token을 같은 관측에서 파생해야 한다.
  */
 @ExtendWith(MockitoExtension.class)
 class ProductCatalogControllerComponentCountTest {
@@ -111,9 +114,10 @@ class ProductCatalogControllerComponentCountTest {
         // 이전 stub 은 lenient 로 유지하여 이후 변경 테스트에서 필요 시 참조 가능.
         lenient().when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
-        // 벌크 count = 구성품 3개
-        when(bundleComponentRepository.countMapByBundleProductIds(anyCollection()))
-                .thenReturn(Map.of(bundleId, 3L));
+        List<BundleComponent> components = List.of(
+                component(bundleId, "CHILD-1"), component(bundleId, "CHILD-2"), component(bundleId, "CHILD-3"));
+        when(bundleComponentRepository.findActiveByBundleProductIdIn(anyCollection()))
+                .thenReturn(components);
         when(exposureRepository.findByProductIdInAndIsDeletedFalse(anyCollection()))
                 .thenReturn(List.of());
 
@@ -131,6 +135,10 @@ class ProductCatalogControllerComponentCountTest {
 
         assertThat(bundleResp.productType()).isEqualTo(ProductType.BUNDLE);
         assertThat(bundleResp.componentCount()).isEqualTo(3);
+        assertThat(bundleResp.componentSetToken()).isEqualTo(BundleComponentConsentToken.from(components));
+        verify(bundleComponentRepository).findActiveByBundleProductIdIn(anyCollection());
+        org.mockito.Mockito.verify(bundleComponentRepository, org.mockito.Mockito.never())
+                .countMapByBundleProductIds(anyCollection());
         assertThat(singleResp.productType()).isEqualTo(ProductType.SINGLE);
         assertThat(singleResp.componentCount()).isEqualTo(0);
     }
@@ -150,7 +158,15 @@ class ProductCatalogControllerComponentCountTest {
 
         // then — SINGLE 만 있으면 bundleComponentRepository 호출 없음
         org.mockito.Mockito.verify(bundleComponentRepository, org.mockito.Mockito.never())
-                .countMapByBundleProductIds(anyCollection());
+                .findActiveByBundleProductIdIn(anyCollection());
         assertThat(result.getContent().get(0).componentCount()).isEqualTo(0);
+    }
+
+    private BundleComponent component(UUID parentId, String code) {
+        BundleComponent component = BundleComponent.seed(parentId, code, BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.ACCESSORY,
+                null, false, null);
+        ReflectionTestUtils.setField(component, "id", UUID.nameUUIDFromBytes(code.getBytes()));
+        return component;
     }
 }

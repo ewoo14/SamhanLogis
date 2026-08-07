@@ -460,8 +460,7 @@ class ProductServiceTest {
         product.changeModelCode("SET-001");
         product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        List<BundleComponent> children = children(productId, 3);
-        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children);
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children(productId, 3));
 
         assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
                 null, null, null, null,
@@ -531,72 +530,51 @@ class ProductServiceTest {
     }
 
     @Test
-    void update_rejectsSameCountWhenTheConsentedComponentSetWasReplaced() {
+    void update_rejectsComponentIncreaseAfterConsent() {
+        assertConsentSetChangedIsRejected(children(productId, 2), children(productId, 3));
+    }
+
+    @Test
+    void update_rejectsComponentDecreaseAfterConsent() {
+        assertConsentSetChangedIsRejected(children(productId, 3), children(productId, 2));
+    }
+
+    @Test
+    void update_rejectsSameCountComponentReplacementAfterConsent() {
+        List<BundleComponent> originallyShown = children(productId, 2);
+        List<BundleComponent> replacement = List.of(
+                component(productId, "REPLACED-0"), component(productId, "REPLACED-1"));
+        assertConsentSetChangedIsRejected(originallyShown, replacement);
+    }
+
+    @Test
+    void update_rejectsConcurrentComponentDeletionAfterConsent() {
+        assertConsentSetChangedIsRejected(children(productId, 2), List.of());
+    }
+
+    private void assertConsentSetChangedIsRejected(List<BundleComponent> consented,
+                                                   List<BundleComponent> current) {
         product.changeModelCode("SET-001");
         product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        List<BundleComponent> current = children(productId, 2);
         when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(current);
 
         assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
-                null, null, null, null,
-                ProductItemKind.GENERAL, null, null, null, null,
-                null, null, null, null, null, null, null, true, "stale-set-token")))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("집합이 변경");
-        verify(bundleComponentService, never()).removeBundleChildren(productId, "system");
-    }
-
-    @Test
-    void update_rejectsWhenTheConsentedComponentsWereDeletedBeforeSave() {
-        product.changeModelCode("SET-001");
-        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
-        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        List<BundleComponent> originallyShown = children(productId, 2);
-        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(List.of());
-
-        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
-                null, null, null, null,
-                ProductItemKind.GENERAL, null, null, null, null,
+                null, null, null, null, ProductItemKind.GENERAL, null, null, null, null,
                 null, null, null, null, null, null, null, true,
-                BundleComponentConsentToken.from(originallyShown))))
+                BundleComponentConsentToken.from(consented))))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("집합이 변경");
         verify(bundleComponentService, never()).removeBundleChildren(productId, "system");
     }
 
-    @Test
-    void update_rejectsBothComponentCountIncreaseAndDecreaseAfterConfirmation() {
-        product.changeModelCode("SET-001");
-        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
-        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        List<BundleComponent> originallyShown = children(productId, 2);
-        List<BundleComponent> increased = children(productId, 3);
-        List<BundleComponent> decreased = children(productId, 1);
-        when(bundleComponentRepository.findByBundleProductId(productId))
-                .thenReturn(increased, decreased);
-        String consentedToken = BundleComponentConsentToken.from(originallyShown);
-
-        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
-                null, null, null, null, ProductItemKind.GENERAL, null, null, null, null,
-                null, null, null, null, null, null, null, true, consentedToken)))
-                .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
-                null, null, null, null, ProductItemKind.GENERAL, null, null, null, null,
-                null, null, null, null, null, null, null, true, consentedToken)))
-                .isInstanceOf(BusinessException.class);
-        verify(bundleComponentService, never()).removeBundleChildren(productId, "system");
-    }
-
-    private List<BundleComponent> children(UUID parentId, int count) {
-        return IntStream.range(0, count).mapToObj(i -> {
-            BundleComponent child = BundleComponent.seed(parentId, "CHILD-" + i,
-                    BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
-                    BundleComponent.ComponentKind.ACCESSORY, null, false, null);
-            ReflectionTestUtils.setField(child, "id", UUID.nameUUIDFromBytes(
-                    (parentId + ":" + i).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-            return child;
-        }).toList();
+    private BundleComponent component(UUID parentId, String code) {
+        BundleComponent component = BundleComponent.seed(parentId, code, BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.ACCESSORY,
+                null, false, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(component, "id", UUID.nameUUIDFromBytes(
+                (parentId + ":" + code).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        return component;
     }
 
     @Test
@@ -1242,5 +1220,16 @@ class ProductServiceTest {
     @Test
     void escapeLikeWildcards_noSpecialChars_unchanged() {
         assertThat(ProductService.escapeLikeWildcards("AJ040RXH4BC1")).isEqualTo("AJ040RXH4BC1");
+    }
+
+    private List<BundleComponent> children(UUID parentId, int count) {
+        return IntStream.range(0, count).mapToObj(i -> {
+            BundleComponent child = BundleComponent.seed(parentId, "CHILD-" + i,
+                    BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                    BundleComponent.ComponentKind.ACCESSORY, null, false, null);
+            org.springframework.test.util.ReflectionTestUtils.setField(child, "id", UUID.nameUUIDFromBytes(
+                    (parentId + ":" + i).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            return child;
+        }).toList();
     }
 }

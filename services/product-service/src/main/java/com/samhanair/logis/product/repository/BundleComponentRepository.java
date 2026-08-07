@@ -42,6 +42,7 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
             """)
     List<BundleComponent> findByBundleProductId(UUID bundleProductId);
 
+    /** 카탈로그 동의 발급용 단일 관측 — 목록에서 건수와 집합 토큰을 함께 파생한다. */
     @Query("""
             SELECT bc FROM BundleComponent bc
             WHERE bc.bundleProductId IN :ids

@@ -387,6 +387,7 @@ public class BundleComponentService {
                                                   BundleComponent.ComponentKind componentKind) {
         quantitySyncRuleService.lockGraphMutation();
         Product parent = validateRegisteredComponent(parentSetModelCode, componentProductCode);
+        parent = productRepository.findByIdForUpdate(parent.getId()).orElse(parent);
         String parentModelCode = parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName();
 
         boolean duplicate = bundleComponentRepository.findByBundleProductId(parent.getId()).stream()
@@ -435,6 +436,7 @@ public class BundleComponentService {
                                                           String actor) {
         quantitySyncRuleService.lockGraphMutation();
         Product parent = validateRegisteredComponent(parentSetModelCode, componentProductCode);
+        parent = productRepository.findByIdForUpdate(parent.getId()).orElse(parent);
         // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — addRegisteredComponent()와 같은
         // 가드. PATCH 경로가 부모 링크를 이 parent 하나로 맞추므로, 그 결과 구성품 집합
         // (다른 부모 링크는 soft-delete되므로 이 parent 기준 집합만 본다)이 이 BUNDLE을
@@ -520,6 +522,7 @@ public class BundleComponentService {
         if (bundleProductId == null) {
             return;
         }
+        productRepository.findByIdForUpdate(bundleProductId);
         String deleteActor = actor == null || actor.isBlank() ? "system" : actor;
         List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(bundleProductId);
         for (BundleComponent child : existing) {
