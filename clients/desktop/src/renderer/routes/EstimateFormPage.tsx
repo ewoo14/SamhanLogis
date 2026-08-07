@@ -78,7 +78,6 @@ import {
 } from '../realtime/coeditLineIds'
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
-import { BundleOptionRow } from './components/BundleOptionRow'
 import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
@@ -2095,14 +2094,6 @@ export function EstimateFormPage() {
                 onLookup={() => handleModelLookup(i)}
                 onRemove={() => removeLine(i)}
               >
-                {isBundle ? (
-                  <BundleOptionRow
-                    line={line}
-                    index={i}
-                    disabled={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
-                    onChange={(patch) => updateLine(i, { setOptions: { ...line.setOptions, ...patch } }, true)}
-                  />
-                ) : null}
               </EstimateMobileLineCard>
             )
           }
@@ -2358,14 +2349,6 @@ export function EstimateFormPage() {
                 ×
               </button>
             </div>
-            {isBundle ? (
-              <BundleOptionRow
-                line={line}
-                index={i}
-                disabled={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
-                onChange={(patch) => updateLine(i, { setOptions: { ...line.setOptions, ...patch } }, true)}
-              />
-            ) : null}
            </div>
           )
         })}

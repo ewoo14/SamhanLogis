@@ -189,9 +189,6 @@ test.describe('R17 세트(BUNDLE) 자동 전개', () => {
     await modelInput.fill('SET-HM2WAY')
     await modelInput.blur()
 
-    // 모델명 blur lookup → productType BUNDLE → 옵션 행 노출
-    await expect(page.getByTestId('bundle-options-0')).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByTestId('bundle-options-0-panel-360')).toBeVisible()
     // onBlur lookup → productType BUNDLE → 자동 전개 구성행 표시
     await expect(modelInput).toHaveValue('SET-HM2WAY', { timeout: 5_000 })
   })
