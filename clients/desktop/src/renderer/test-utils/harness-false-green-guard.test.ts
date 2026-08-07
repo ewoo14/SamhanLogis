@@ -102,41 +102,62 @@ function walkForEvidenceDiscovery(dir: string, out: string[] = []): string[] {
   return out
 }
 
-let discoveredEvidenceWritersCache: string[] | undefined
+type EvidenceWriterCacheEntry = {
+  mtimeMs: number
+  size: number
+  isEvidenceWriter: boolean
+}
 
-function discoveredEvidenceWriters(): string[] {
-  if (discoveredEvidenceWritersCache) return discoveredEvidenceWritersCache
+let discoveredEvidenceWritersCache = new Map<string, EvidenceWriterCacheEntry>()
+
+function isEvidenceWriter(file: string): boolean {
   const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
   const evidenceSplit = /['"]docs['"]\s*,\s*['"](?:qa|manual)['"]/
-  const found: string[] = []
+  let raw: string
+  try {
+    raw = fs.readFileSync(file, 'utf-8')
+  } catch {
+    return false
+  }
+  const inEvidenceTree =
+    file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
+    file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
+  if (!evidenceLiteral.test(raw) && !evidenceSplit.test(raw) && !inEvidenceTree) return false
+  const src = stripComments(raw)
+  const decls = collectDeclarations(src)
+  const targets = collectWriteTargetIdentifiers(src, decls)
+  const writesEvidence = decls.some((decl) =>
+    targets.has(decl.name) &&
+    (evidenceLiteral.test(decl.body) || evidenceSplit.test(decl.body) ||
+      (inEvidenceTree && decl.body.includes('__dirname'))),
+  ) || [...src.matchAll(WRITE_CALL)].some((match) => {
+    const open = (match.index ?? 0) + match[0].length - 1
+    const args = balancedArgs(src, open)
+    return evidenceLiteral.test(extractLiterals(args)) || evidenceSplit.test(args)
+  })
+  return writesEvidence || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)
+}
+
+function discoveredEvidenceWriters(): string[] {
+  const next = new Map<string, EvidenceWriterCacheEntry>()
   for (const file of walkForEvidenceDiscovery(REPO_ROOT)) {
-    if (path.resolve(file) === SELF) continue
-    let raw: string
+    let canonical: string
+    let stat: fs.Stats
     try {
-      raw = fs.readFileSync(file, 'utf-8')
+      canonical = fs.realpathSync.native(file)
+      stat = fs.statSync(canonical)
     } catch {
       continue
     }
-    const inEvidenceTree =
-      file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
-      file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
-    if (!evidenceLiteral.test(raw) && !evidenceSplit.test(raw) && !inEvidenceTree) continue
-    const src = stripComments(raw)
-    const decls = collectDeclarations(src)
-    const targets = collectWriteTargetIdentifiers(src, decls)
-    const writesEvidence = decls.some((decl) =>
-      targets.has(decl.name) &&
-      (evidenceLiteral.test(decl.body) || evidenceSplit.test(decl.body) ||
-        (inEvidenceTree && decl.body.includes('__dirname'))),
-    ) || [...src.matchAll(WRITE_CALL)].some((match) => {
-      const open = (match.index ?? 0) + match[0].length - 1
-      const args = balancedArgs(src, open)
-      return evidenceLiteral.test(extractLiterals(args)) || evidenceSplit.test(args)
-    })
-    if (writesEvidence || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)) found.push(file)
+    if (canonical === path.resolve(SELF)) continue
+    const previous = discoveredEvidenceWritersCache.get(canonical)
+    const isWriter = previous && previous.mtimeMs === stat.mtimeMs && previous.size === stat.size
+      ? previous.isEvidenceWriter
+      : isEvidenceWriter(canonical)
+    next.set(canonical, { mtimeMs: stat.mtimeMs, size: stat.size, isEvidenceWriter: isWriter })
   }
-  discoveredEvidenceWritersCache = [...new Set(found)]
-  return discoveredEvidenceWritersCache
+  discoveredEvidenceWritersCache = next
+  return [...next.entries()].filter(([, entry]) => entry.isEvidenceWriter).map(([file]) => file)
 }
 
 function rel(p: string): string {
@@ -1020,6 +1041,64 @@ describe('하네스 거짓 green 가드', () => {
     const first = discoveredEvidenceWriters()
     const second = discoveredEvidenceWriters()
     expect(second).toBe(first)
+  })
+
+  it('S10 RED-A: 호출자 무효화 없이 파일 추가·삭제를 다음 discovery에 반영한다', () => {
+    const probe = path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s10-file-cache-probe.mjs')
+    const relativeProbe = path.relative(REPO_ROOT, probe).replace(/\\/g, '/')
+    const source = "const OUT = 'docs/qa/.s10-file-cache-probe.png'\n"
+
+    try {
+      fs.rmSync(probe, { force: true })
+      discoveredEvidenceWriters()
+      fs.writeFileSync(probe, source, 'utf8')
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .toContain(relativeProbe)
+
+      fs.rmSync(probe)
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .not.toContain(relativeProbe)
+    } finally {
+      fs.rmSync(probe, { force: true })
+    }
+  })
+
+  it('S10 RED-A: 파일 내용만 바뀌어 writer가 되면 다음 discovery가 재판정한다', () => {
+    const probe = path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s10-content-cache-probe.mjs')
+    const relativeProbe = path.relative(REPO_ROOT, probe).replace(/\\/g, '/')
+    const nonWriter = 'const VALUE = 1\n'
+    const writer = "const OUT = 'docs/qa/.s10-content-cache-probe.png'\n"
+
+    try {
+      fs.writeFileSync(probe, nonWriter, 'utf8')
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .not.toContain(relativeProbe)
+      fs.writeFileSync(probe, writer, 'utf8')
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .toContain(relativeProbe)
+    } finally {
+      fs.rmSync(probe, { force: true })
+    }
+  })
+
+  it('S10 RED-A: junction 별칭으로 발견한 파일은 원본 삭제 후 canonical cache에서 제거된다', () => {
+    const base = fs.mkdtempSync(path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s10-junction-'))
+    const targetDir = path.join(base, 'target')
+    const aliasDir = path.join(base, 'alias')
+    const targetFile = path.join(targetDir, 'writer.mjs')
+
+    try {
+      fs.mkdirSync(targetDir)
+      fs.writeFileSync(targetFile, "const OUT = 'docs/qa/.s10-junction-probe.png'\n", 'utf8')
+      fs.symlinkSync(targetDir, aliasDir, 'junction')
+      const canonical = fs.realpathSync.native(targetFile)
+      expect(discoveredEvidenceWriters()).toContain(canonical)
+
+      fs.rmSync(targetFile)
+      expect(discoveredEvidenceWriters()).not.toContain(canonical)
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true })
+    }
   })
 
   /**
