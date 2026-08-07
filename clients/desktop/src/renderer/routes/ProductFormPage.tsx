@@ -6,8 +6,8 @@ import {
   type CSSProperties,
 } from 'react'
 import {
-  useMutation,
   useQuery,
+  useMutation,
   useQueryClient,
 } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -20,11 +20,16 @@ import {
 import {
   createProduct,
   getProductByModelName,
+  listBundleComponents,
   listProductCategories,
   listProducts,
   listSpecKeyTemplates,
   searchProductSummaries,
   updateProduct,
+  updateBundleComponents,
+  type BundleComponentInput,
+  type BundleComponentItem,
+  type ComponentKind,
   type BundleMode,
   type EstimateCategory,
   type ProductFormItemKind,
@@ -36,6 +41,7 @@ import {
   type SpecKeyValueType,
 } from '../api/productCatalogApi'
 import { usePageTitleStore } from '../stores/pageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 import {
   buildCreateProductRequest,
   buildUpdateProductRequest,
@@ -134,6 +140,8 @@ export function ProductFormPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const setPageTitle = usePageTitleStore((state) => state.setPageTitle)
+  const { canAccess } = usePermissions()
+  const canEdit = canAccess('products.admin', 'update')
 
   const [values, setValues] = useState<ProductFormValues>(() => initialProductFormValues())
   const [errors, setErrors] = useState<ProductFormErrors>({})
@@ -547,6 +555,10 @@ export function ProductFormPage() {
         </div>
       </section>
 
+      {mode === 'edit' && editSeedQuery.data?.summary.productType === 'BUNDLE' ? (
+        <BundleComponentsEditor modelCode={modelCode ?? ''} canEdit={canEdit} />
+      ) : null}
+
       {values.itemKind === 'SET' ? (
         <section style={sectionStyle}>
           <h4 style={sectionTitleStyle}>세트 설정</h4>
@@ -807,6 +819,113 @@ export function ProductFormPage() {
         />
       </section>
     </div>
+  )
+}
+
+type BundleComponentDraft = BundleComponentItem & { localId: string }
+
+const COMPONENT_KINDS: Array<{ value: ComponentKind; label: string }> = [
+  { value: 'INDOOR', label: '실내기' },
+  { value: 'OUTDOOR', label: '실외기' },
+  { value: 'PANEL', label: '판넬' },
+  { value: 'REMOTE', label: '리모컨' },
+  { value: 'MATERIAL', label: '자재' },
+  { value: 'ACCESSORY', label: '부속' },
+  { value: 'FOOT', label: '받침대' },
+]
+
+const helpTextStyle: CSSProperties = {
+  margin: 0,
+  color: 'var(--color-neutral-500, #6B7280)',
+  fontSize: 12,
+}
+
+function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; canEdit: boolean }) {
+  const queryClient = useQueryClient()
+  const [drafts, setDrafts] = useState<BundleComponentDraft[]>([])
+  const [newCode, setNewCode] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const query = useQuery({
+    queryKey: ['bundle-components', modelCode],
+    queryFn: () => listBundleComponents(modelCode),
+    enabled: modelCode.length > 0,
+  })
+
+  useEffect(() => {
+    if (query.data) setDrafts(query.data.map((item, index) => ({ ...item, localId: `existing-${item.componentProductCode}-${index}` })))
+  }, [query.data])
+
+  const save = useMutation({
+    mutationFn: (items: BundleComponentInput[]) => updateBundleComponents(modelCode, items),
+    onSuccess: (items) => {
+      setDrafts(items.map((item, index) => ({ ...item, localId: `saved-${item.componentProductCode}-${index}` })))
+      setError(null)
+      void queryClient.invalidateQueries({ queryKey: ['bundle-components', modelCode] })
+    },
+    onError: (err: unknown) => setError(errorMsg(err)),
+  })
+
+  const updateDraft = (index: number, patch: Partial<BundleComponentDraft>) => {
+    setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
+  }
+
+  const add = () => {
+    const code = newCode.trim()
+    if (!code || drafts.some((item) => item.componentProductCode === code)) return
+    setDrafts((current) => [...current, {
+      localId: `new-${code}`,
+      componentProductCode: code,
+      componentName: code,
+      defaultQty: 1,
+      qtyMode: 'FOLLOW_SET',
+      componentKind: 'ACCESSORY',
+      componentVariant: null,
+      isDefault: false,
+      specText: null,
+      displayOrder: current.length + 1,
+    }])
+    setNewCode('')
+  }
+
+  const remove = (index: number) => setDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))
+  const saveDrafts = () => save.mutate(drafts.map((item) => ({
+    componentProductCode: item.componentProductCode,
+    defaultQty: item.defaultQty,
+    qtyMode: item.qtyMode,
+    componentKind: item.componentKind,
+    componentVariant: item.componentVariant,
+    isDefault: item.isDefault,
+    specText: item.specText,
+  })))
+
+  return (
+    <section style={sectionStyle} data-testid="product-form-components-editor">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <h4 style={sectionTitleStyle}>세트 구성품</h4>
+          <p style={helpTextStyle}>기초품목에서 구성품을 추가·수정·삭제합니다.</p>
+        </div>
+        {canEdit ? <Button variant="primary" onClick={saveDrafts} loading={save.isPending} disabled={save.isPending} data-testid="product-form-components-save">구성품 저장</Button> : null}
+      </div>
+      {error ? <div role="alert" style={errorBannerStyle}>{error}</div> : null}
+      {query.isLoading ? <p>구성품을 불러오는 중입니다.</p> : null}
+      {drafts.map((item, index) => (
+        <div key={item.localId} data-testid={`product-form-component-row-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 130px auto', gap: 8, alignItems: 'end' }}>
+          <Input label={item.componentName ? `${item.componentName} · 모델코드` : '모델코드'} value={item.componentProductCode} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentProductCode: event.target.value })} />
+          <Input label="수량" type="number" min="0.01" value={String(item.defaultQty)} disabled={!canEdit} onChange={(event) => updateDraft(index, { defaultQty: Number(event.target.value) || 1 })} />
+          <Select label="종류" value={item.componentKind} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentKind: event.target.value as ComponentKind })}>
+            {COMPONENT_KINDS.map((kind) => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
+          </Select>
+          {canEdit ? <Button variant="secondary" onClick={() => remove(index)} data-testid={`product-form-component-delete-${index}`}>삭제</Button> : null}
+        </div>
+      ))}
+      {canEdit ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
+          <Input label="새 구성품 모델코드" value={newCode} onChange={(event) => setNewCode(event.target.value)} data-testid="product-form-component-add-code" />
+          <Button variant="secondary" onClick={add}>추가</Button>
+        </div>
+      ) : null}
+    </section>
   )
 }
 

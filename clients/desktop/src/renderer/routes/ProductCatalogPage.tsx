@@ -2,7 +2,7 @@
  * 기초품목 관리 페이지 (`/products/catalog`) — 물리 SKU master 등록/수정 전용 화면.
  *
  * 견적/주문 노출, 견적 카테고리, 표시순서 관리는 `EstimateItemsCatalogPage` 로 분리한다.
- * 세트 구성품 편집은 `EstimateItemsCatalogPage` 에서 관리한다.
+ * 세트 구성품 편집은 세트 기초품목 상세(`ProductFormPage`)에서 관리한다.
  */
 import {
   useCallback,
@@ -222,7 +222,7 @@ export function ProductCatalogPage() {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
           <h3 style={{ margin: 0 }}>기초품목 관리</h3>
           <span style={subtitleStyle}>
-            물리 SKU master 등록/수정을 관리합니다. 견적/주문 노출·순서·세트 구성품은 '견적품목 관리'에서 설정합니다.
+            물리 SKU master 등록/수정을 관리합니다. 세트 구성품은 세트 기초품목 상세에서 설정합니다.
           </span>
         </div>
         {canCreate ? (

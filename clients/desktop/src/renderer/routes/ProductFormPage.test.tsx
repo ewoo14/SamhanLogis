@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   listSpecKeyTemplates: vi.fn(),
   searchProductSummaries: vi.fn(),
   updateProduct: vi.fn(),
+  listBundleComponents: vi.fn(),
+  updateBundleComponents: vi.fn(),
   navigate: vi.fn(),
 }))
 
@@ -53,6 +55,8 @@ vi.mock('../api/productCatalogApi', async (importOriginal) => {
     listSpecKeyTemplates: mocks.listSpecKeyTemplates,
     searchProductSummaries: mocks.searchProductSummaries,
     updateProduct: mocks.updateProduct,
+    listBundleComponents: mocks.listBundleComponents,
+    updateBundleComponents: mocks.updateBundleComponents,
   }
 })
 
@@ -200,6 +204,33 @@ describe('ProductFormPage', () => {
         expectedBundleComponentSetToken: 'set-token-1108',
       }),
     )
+  })
+
+  it('세트 기초품목 상세에서 구성품 편집 영역을 제공한다', async () => {
+    const seed = seedFor('SET-2000')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    mocks.listBundleComponents.mockResolvedValue([
+      {
+        id: 'component-1',
+        componentProductCode: 'IDU-001',
+        componentName: '실내기',
+        defaultQty: 1,
+        qtyMode: 'FOLLOW_SET',
+        componentKind: 'INDOOR',
+        componentVariant: null,
+        isDefault: true,
+        specText: null,
+        displayOrder: 1,
+      },
+    ])
+
+    renderPage('/products/SET-2000/edit')
+
+    expect(await screen.findByTestId('product-form-components-editor')).not.toBeNull()
   })
 
   it('편집 모드는 기존 품목을 hydrate하고 PATCH 저장을 호출한다', async () => {

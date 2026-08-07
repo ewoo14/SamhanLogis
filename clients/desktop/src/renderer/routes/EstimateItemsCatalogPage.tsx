@@ -1146,10 +1146,6 @@ export function EstimateItemsCatalogPage() {
   const [orderDirty, setOrderDirty] = useState(false)
   const [orderSaving, setOrderSaving] = useState(false)
   const [orderError, setOrderError] = useState<string | null>(null)
-  const [componentsModalTarget, setComponentsModalTarget] = useState<{
-    modelCode: string
-    productName: string | null
-  } | null>(null)
   const [classificationModalTarget, setClassificationModalTarget] = useState<ProductCatalogRow | null>(null)
 
   const hasCommittedSearch = committedSearch.trim().length > 0
@@ -1618,25 +1614,6 @@ export function EstimateItemsCatalogPage() {
           <span style={{ color: 'var(--color-neutral-400)' }}>—</span>
         ),
     },
-    {
-      key: '_components' as const,
-      header: '구성품',
-      width: '90px',
-      mobilePriority: 'hidden',
-      render: (row) =>
-        row.productType === 'BUNDLE' ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              setComponentsModalTarget({ modelCode: row.modelCode, productName: row.name ?? null })
-            }
-            data-testid={`estimate-items-components-button-${row.modelCode}`}
-          >
-            구성품
-          </Button>
-        ) : null,
-    },
   ]
 
   return (
@@ -1912,17 +1889,6 @@ export function EstimateItemsCatalogPage() {
             </div>
           ) : null}
         </div>
-      ) : null}
-
-      {componentsModalTarget ? (
-        <ComponentsModal
-          open={true}
-          modelCode={componentsModalTarget.modelCode}
-          productName={componentsModalTarget.productName}
-          canEdit={canEdit}
-          onClose={() => setComponentsModalTarget(null)}
-          onSaved={() => setComponentsModalTarget(null)}
-        />
       ) : null}
 
       {classificationModalTarget ? (
