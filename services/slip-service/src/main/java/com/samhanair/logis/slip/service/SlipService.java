@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.domain.CompensationPhase;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -139,6 +140,8 @@ public class SlipService {
     private final PartnerProductPriceMemoryService priceMemoryService;
     /** 출고전표 배송태그별 마감 시각 게이트 — 생성 6경로 + editHeader 2경로. */
     private final OutboundCutoffGuard cutoffGuard;
+    /** 신규 전표의 (종류, 전표일) 날짜 마감 게이트. 배송태그 시각 게이트와 분리한다. */
+    private final SlipClosedDateGuard closedDateGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
     private final DispatchGroupSlipReferenceGuard dispatchGroupSlipReferenceGuard;
@@ -264,6 +267,7 @@ public class SlipService {
 
         // 2. 채번 (slipDate null 이면 today)
         LocalDate slipDate = req.slipDate() == null ? LocalDate.now(clock) : req.slipDate();
+        closedDateGuard.assertCreatable(req.slipType(), slipDate, requesterId);
         String slipNo = slipNumberService.next(slipDate, req.slipType());
         int seqNo = slipNumberService.extractSeqNo(slipNo);
 

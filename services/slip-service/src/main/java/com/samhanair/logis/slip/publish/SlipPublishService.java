@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -105,6 +106,7 @@ public class SlipPublishService {
     private final EntityManager entityManager;
     /** 출고전표 마감 게이트 — 발행 3경로(게이트④⑤⑥). */
     private final OutboundCutoffGuard cutoffGuard;
+    private final SlipClosedDateGuard closedDateGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
 
@@ -135,6 +137,7 @@ public class SlipPublishService {
         // 2. 헤더 매핑 — PR-G1: memo prepend 폐기, 사용자 자유 입력만 보존
         UUID warehouseId = warehouseCodeMapper.resolve(req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
+        closedDateGuard.assertCreatable(SlipType.OUTBOUND, slipDate, requesterId);
         String memo = preserveFreeMemo(req.memo());
         String requester = pickRequester(req.employeeCode(), requesterId);
 
@@ -220,6 +223,7 @@ public class SlipPublishService {
 
         UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
+        closedDateGuard.assertCreatable(SlipType.OUTBOUND, slipDate, requesterId);
         // PR-G1: memo prepend 폐기 — orderApprovedAt 만 사용자 자유 입력 memo 와 결합 보존 (snapshot 컬럼 없음)
         String memo = mergePartnerOrderApprovalIntoMemo(req.memo(), req.orderApprovedAt());
         String requester = pickRequester(req.employeeCode(), requesterId);
@@ -322,6 +326,7 @@ public class SlipPublishService {
 
         UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
+        closedDateGuard.assertCreatable(SlipType.OUTBOUND, slipDate, requesterId);
         String memo = preserveFreeMemo(req.memo());
         String requester = pickRequester(req.employeeCode(), requesterId);
 

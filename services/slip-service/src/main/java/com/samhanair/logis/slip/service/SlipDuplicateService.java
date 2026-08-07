@@ -13,6 +13,7 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -61,6 +62,7 @@ public class SlipDuplicateService {
     private final PartnerProductPriceMemoryService priceMemoryService;
     /** 출고전표 복사도 신규 생성과 동일하게 당일 마감 게이트를 적용한다. */
     private final OutboundCutoffGuard cutoffGuard;
+    private final SlipClosedDateGuard closedDateGuard;
     /** KST 기준 오늘 — 복사본 전표일자/컷오프 게이트와 동일 Clock. */
     private final Clock clock;
 
@@ -85,6 +87,7 @@ public class SlipDuplicateService {
 
         // 1. 채번 — 복사본은 오늘 일자의 신규 전표
         LocalDate slipDate = LocalDate.now(clock);
+        closedDateGuard.assertCreatable(source.getSlipType(), slipDate, requesterId);
         String slipNo = slipNumberService.next(slipDate, source.getSlipType());
         int seqNo = slipNumberService.extractSeqNo(slipNo);
 

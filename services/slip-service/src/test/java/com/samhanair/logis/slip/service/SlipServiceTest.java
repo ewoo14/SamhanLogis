@@ -81,6 +81,7 @@ class SlipServiceTest {
      * 단위 테스트에서는 mock 격리(lenient, 기본 통과).
      */
     @Mock private com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard cutoffGuard;
+    @Mock private com.samhanair.logis.slip.service.closing.SlipClosedDateGuard closedDateGuard;
     /** 결재선 결재자 게이트 — 단위 테스트 격리. */
     @Mock private com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     /** user-service 내부 클라이언트 — 단위 테스트 격리 (ownerFullName resolve). */
@@ -153,6 +154,26 @@ class SlipServiceTest {
         assertThat(res.lines()).hasSize(1);
         assertThat(res.lines().get(0).lineTotal()).isEqualByComparingTo(new BigDecimal("200.00"));
         verify(productClient).lookup(any());
+    }
+
+    @Test
+    void create_checksClosedDateGuardForOutbound() {
+        when(slipNumberService.next(any(LocalDate.class), eq(SlipType.OUTBOUND))).thenReturn("2026/05/04-3");
+        when(slipNumberService.extractSeqNo("2026/05/04-3")).thenReturn(3);
+        when(slipRepository.save(any(Slip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CreateSlipRequest req = new CreateSlipRequest(
+                SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), sourceWh, destWh, partnerId, "삼한공조",
+                DeliveryTag.DAY, "마감 게이트", null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                null,
+                List.of(new CreateSlipRequest.SlipLineRequest(productId, "에어컨", "M-1", null,
+                        1, new BigDecimal("100.00"), null)));
+
+        service.create(req, "user-1", "홍길동");
+
+        verify(closedDateGuard).assertCreatable(SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), "user-1");
     }
 
     @Test

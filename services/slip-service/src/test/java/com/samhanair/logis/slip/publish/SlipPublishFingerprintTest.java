@@ -62,7 +62,7 @@ class SlipPublishFingerprintTest {
     void 단건_배송주소가_다르면_멱등지문도_달라야_한다() throws Exception {
         SlipPublishService service = new SlipPublishService(
                 null, null, null, null, null, null, null, null,
-                new ObjectMapper(), null, null, Clock.systemUTC());
+                new ObjectMapper(), null, null, null, Clock.systemUTC());
         Method method = SlipPublishService.class.getDeclaredMethod(
                 "computeFingerprint", PublishFromPartnerOrderRequest.class);
         method.setAccessible(true);
@@ -148,7 +148,7 @@ class SlipPublishFingerprintTest {
     private static SlipPublishService service(ProductClient productClient) {
         return new SlipPublishService(
                 null, null, null, null, productClient, null, null, null,
-                new ObjectMapper(), null, null, Clock.systemUTC());
+                new ObjectMapper(), null, null, null, Clock.systemUTC());
     }
 
     private static String fingerprint(Method method, SlipPublishService service, Object request)

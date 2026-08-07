@@ -13,6 +13,7 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -45,6 +46,7 @@ public class EstimateToSlipConverter {
     private final SlipNumberService slipNumberService;
     /** 출고전표 마감 게이트 — 견적 변환 생성 경로(게이트②). */
     private final OutboundCutoffGuard cutoffGuard;
+    private final SlipClosedDateGuard closedDateGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
     /** 레거시/비공식 견적이 BUNDLE 부모를 전표로 우회시키지 않도록 변환 경계에서 재검증한다. */
@@ -62,6 +64,8 @@ public class EstimateToSlipConverter {
     public Slip convert(Estimate estimate) {
         rejectBundleParents(estimate);
         LocalDate slipDate = LocalDate.now(clock);
+        closedDateGuard.assertCreatable(com.samhanair.logis.slip.domain.SlipType.OUTBOUND,
+                slipDate, estimate.getRequesterId());
         String slipNo = slipNumberService.next(slipDate, com.samhanair.logis.slip.domain.SlipType.OUTBOUND);
         int seqNo = slipNumberService.extractSeqNo(slipNo);
 

@@ -17,6 +17,7 @@ import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -33,11 +34,13 @@ class EstimateToSlipConverterAuthoritativeAmountsTest {
     private final SlipRepository slipRepository = mock(SlipRepository.class);
     private final SlipNumberService slipNumberService = mock(SlipNumberService.class);
     private final OutboundCutoffGuard cutoffGuard = mock(OutboundCutoffGuard.class);
+    private final SlipClosedDateGuard closedDateGuard = mock(SlipClosedDateGuard.class);
     private final ProductClient productClient = mock(ProductClient.class);
     private final EstimateToSlipConverter converter = new EstimateToSlipConverter(
             slipRepository,
             slipNumberService,
             cutoffGuard,
+            closedDateGuard,
             Clock.fixed(Instant.parse("2026-07-22T00:00:00Z"), ZoneId.of("Asia/Seoul")),
             productClient);
 
