@@ -104,44 +104,6 @@ function walkForEvidenceDiscovery(dir: string, out: string[] = []): string[] {
 
 let discoveredEvidenceWritersCache: string[] | undefined
 
-/** 변경된 파일만 캐시에 반영한다 — 무효화 신호가 없는 정상 경로는 전수 스캔 1회다. */
-function invalidateEvidenceWriterDiscovery(changedFiles: readonly string[]): void {
-  if (!discoveredEvidenceWritersCache) return
-  const changed = new Set(changedFiles.map((file) => path.resolve(file)))
-  const retained = discoveredEvidenceWritersCache.filter((file) => !changed.has(path.resolve(file)))
-  const added = changedFiles
-    .map((file) => path.resolve(file))
-    .filter((file) => fs.existsSync(file) && isEvidenceWriter(file))
-  discoveredEvidenceWritersCache = [...new Set([...retained, ...added])]
-}
-
-function isEvidenceWriter(file: string): boolean {
-  let raw: string
-  try {
-    raw = fs.readFileSync(file, 'utf-8')
-  } catch {
-    return false
-  }
-  const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
-  const evidenceSplit = /['"]docs['"]\s*,\s*['"](?:qa|manual)['"]/
-  const inEvidenceTree =
-    file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
-    file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
-  if (!evidenceLiteral.test(raw) && !evidenceSplit.test(raw) && !inEvidenceTree) return false
-  const src = stripComments(raw)
-  const decls = collectDeclarations(src)
-  const targets = collectWriteTargetIdentifiers(src, decls)
-  return decls.some((decl) =>
-    targets.has(decl.name) &&
-    (evidenceLiteral.test(decl.body) || evidenceSplit.test(decl.body) ||
-      (inEvidenceTree && decl.body.includes('__dirname'))),
-  ) || [...src.matchAll(WRITE_CALL)].some((match) => {
-    const open = (match.index ?? 0) + match[0].length - 1
-    const args = balancedArgs(src, open)
-    return evidenceLiteral.test(extractLiterals(args)) || evidenceSplit.test(args)
-  }) || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)
-}
-
 function discoveredEvidenceWriters(): string[] {
   if (discoveredEvidenceWritersCache) return discoveredEvidenceWritersCache
   const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
@@ -149,7 +111,29 @@ function discoveredEvidenceWriters(): string[] {
   const found: string[] = []
   for (const file of walkForEvidenceDiscovery(REPO_ROOT)) {
     if (path.resolve(file) === SELF) continue
-    if (isEvidenceWriter(file)) found.push(file)
+    let raw: string
+    try {
+      raw = fs.readFileSync(file, 'utf-8')
+    } catch {
+      continue
+    }
+    const inEvidenceTree =
+      file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
+      file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
+    if (!evidenceLiteral.test(raw) && !evidenceSplit.test(raw) && !inEvidenceTree) continue
+    const src = stripComments(raw)
+    const decls = collectDeclarations(src)
+    const targets = collectWriteTargetIdentifiers(src, decls)
+    const writesEvidence = decls.some((decl) =>
+      targets.has(decl.name) &&
+      (evidenceLiteral.test(decl.body) || evidenceSplit.test(decl.body) ||
+        (inEvidenceTree && decl.body.includes('__dirname'))),
+    ) || [...src.matchAll(WRITE_CALL)].some((match) => {
+      const open = (match.index ?? 0) + match[0].length - 1
+      const args = balancedArgs(src, open)
+      return evidenceLiteral.test(extractLiterals(args)) || evidenceSplit.test(args)
+    })
+    if (writesEvidence || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)) found.push(file)
   }
   discoveredEvidenceWritersCache = [...new Set(found)]
   return discoveredEvidenceWritersCache
@@ -1036,31 +1020,6 @@ describe('하네스 거짓 green 가드', () => {
     const first = discoveredEvidenceWriters()
     const second = discoveredEvidenceWriters()
     expect(second).toBe(first)
-  })
-
-  it('같은 프로세스의 파일 생성·삭제 후 discovery 캐시를 무효화하면 양쪽 변화를 본다', () => {
-    const probe = path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s7-cache-invalidation-probe.mjs')
-    const relativeProbe = path.relative(REPO_ROOT, probe).replace(/\\/g, '/')
-    const source = "const OUT = 'docs/qa/.s7-cache-invalidation-probe.png'\nfs.writeFileSync(OUT, 'probe')\n"
-
-    try {
-      fs.rmSync(probe, { force: true })
-      discoveredEvidenceWriters()
-
-      fs.writeFileSync(probe, source, 'utf8')
-      invalidateEvidenceWriterDiscovery([probe])
-      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
-        .toContain(relativeProbe)
-      expect(walkG3Sources()).toContain(probe)
-
-      fs.rmSync(probe)
-      invalidateEvidenceWriterDiscovery([probe])
-      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
-        .not.toContain(relativeProbe)
-    } finally {
-      fs.rmSync(probe, { force: true })
-      invalidateEvidenceWriterDiscovery([probe])
-    }
   })
 
   /**
