@@ -346,6 +346,11 @@ type LocalAutoPriceWrite = Pick<
   'unitPrice' | 'priceSource' | 'priceMemoryUpdatedAt' | 'priceRefreshChanged' | 'partnerRefreshEligible' | 'lookupError'
 >
 
+type LocalSpecificationWrite = {
+  previousSpecification: string
+  specification: string
+}
+
 /**
  * coedit Y.Doc → 견적 폼 라인.
  *
@@ -359,6 +364,7 @@ function coeditLinesToDraftLines(
   current: DraftLine[],
   knownServerLineIds: ReadonlySet<string>,
   localAutoPriceWrites?: Map<string, LocalAutoPriceWrite>,
+  localSpecificationWrites?: Map<string, LocalSpecificationWrite>,
 ): DraftLine[] {
   return provider.items.toArray().map((_, index) => {
     const previous = current[index]
@@ -370,8 +376,19 @@ function coeditLinesToDraftLines(
       previous && unitPrice !== previous.unitPrice && !isExpectedAutoWrite,
     )
     const specification = provider.getItemValue(index, 'specification')
+    const expectedSpecificationWrite = previous
+      ? localSpecificationWrites?.get(previous.uid)
+      : undefined
+    const isExpectedSpecificationWrite = expectedSpecificationWrite?.specification === specification
+    const isStaleSpecificationSnapshot = Boolean(
+      expectedSpecificationWrite
+      && specification === expectedSpecificationWrite.previousSpecification,
+    )
+    if (expectedSpecificationWrite && (isExpectedSpecificationWrite || !isStaleSpecificationSnapshot)) {
+      localSpecificationWrites?.delete(previous?.uid ?? '')
+    }
     const isRemoteSpecificationChange = Boolean(
-      previous && specification !== previous.specification,
+      previous && specification !== previous.specification && !isStaleSpecificationSnapshot,
     )
     const providerSpecificationSource = provider.getItemValue(index, 'specificationSource')
     const specificationSource = providerSpecificationSource === 'CATALOG' || providerSpecificationSource === 'USER'
@@ -385,7 +402,9 @@ function coeditLinesToDraftLines(
       productId: provider.getItemValue(index, 'productId') || null,
       modelName: provider.getItemValue(index, 'modelName'),
       productName: provider.getItemValue(index, 'productName'),
-      specification,
+      specification: isStaleSpecificationSnapshot
+        ? previous?.specification ?? specification
+        : specification,
       specificationSource,
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice,
@@ -760,6 +779,7 @@ export function EstimateFormPage() {
   const modelLookupRequestRef = useRef(new Map<string, number>())
   const selectedProductRef = useRef(new Map<string, ProductOption>())
   const localAutoPriceWritesRef = useRef(new Map<string, LocalAutoPriceWrite>())
+  const localSpecificationWritesRef = useRef(new Map<string, LocalSpecificationWrite>())
   const linesRef = useRef(lines)
   linesRef.current = lines
   const markExplicitLineDeletion = (line: DraftLine) => {
@@ -929,6 +949,7 @@ export function EstimateFormPage() {
           linesRef.current,
           knownServerLineIds,
           localAutoPriceWritesRef.current,
+          localSpecificationWritesRef.current,
         ),
         emptyLine,
         (line) => Boolean(line.productId),
@@ -1147,6 +1168,15 @@ export function EstimateFormPage() {
   }
 
   const updateLine = (index: number, patch: Partial<DraftLine>, fromUser = false) => {
+    if (fromUser && patch.specification !== undefined && estimateFormCoeditProvider) {
+      const line = linesRef.current[index]
+      if (line) {
+        localSpecificationWritesRef.current.set(line.uid, {
+          previousSpecification: estimateFormCoeditProvider.getItemValue(index, 'specification'),
+          specification: patch.specification,
+        })
+      }
+    }
     const normalizedPatch = fromUser
       && patch.specification !== undefined
       && patch.specificationSource === undefined
@@ -1514,6 +1544,10 @@ export function EstimateFormPage() {
         isBundleComponent: false,
         lookupError: null,
         lookupLoading: false,
+      }
+      if (hasCatalogSpecification) {
+        // 품목 lookup의 catalog 규격은 사용자 입력의 stale snapshot이 아니라 새 권위값이다.
+        localSpecificationWritesRef.current.delete(line.uid)
       }
       const nextLines = linesRef.current.map((candidate) =>
         candidate.uid === line.uid ? nextLine : candidate,

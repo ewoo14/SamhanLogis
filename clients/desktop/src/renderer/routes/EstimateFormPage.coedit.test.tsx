@@ -599,6 +599,55 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(provider.getItemValue(0, 'unitPrice')).toBe('12345')
   })
 
+  it('S36 RED-A: 사용자 규격 입력 뒤 stale coedit snapshot이 오면 입력값을 되돌리지 않는다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    const specification = await screen.findByLabelText('라인 1 규격')
+    fireEvent.change(specification, { target: { value: 'R13 USER SPEC 2' } })
+
+    expect((specification as HTMLInputElement).value).toBe('R13 USER SPEC 2')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    provider.__setRows([{
+      modelName: 'MODEL-1',
+      productName: '제품 1',
+      specification: '스펙 1',
+      specificationSource: 'CATALOG',
+      quantity: '2',
+      unitPrice: '10000',
+      productId: 'product-1',
+    }])
+    expect(provider.getItemValue(0, 'specification')).toBe('스펙 1')
+    act(() => provider.__emit())
+
+    expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe('R13 USER SPEC 2')
+
+    provider.__setRows([{
+      modelName: 'MODEL-1',
+      productName: '제품 1',
+      specification: 'REMOTE USER SPEC',
+      specificationSource: 'USER',
+      quantity: '2',
+      unitPrice: '10000',
+      productId: 'product-1',
+    }])
+    act(() => provider.__emit())
+    await waitFor(() => expect((screen.getByTestId('estimate-coedit-items-0-specification') as HTMLInputElement).value)
+      .toBe('REMOTE USER SPEC'))
+
+    mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(mocks.updateEstimate.mock.calls[0][1].lines[0]).toEqual(expect.objectContaining({
+      specification: 'REMOTE USER SPEC',
+      specificationSource: 'USER',
+    }))
+  })
+
   it('S16 RED-A: preserves user specification across save and reopen before product clear', async () => {
     const provider = makeProvider()
     const initial = makeEstimate()
