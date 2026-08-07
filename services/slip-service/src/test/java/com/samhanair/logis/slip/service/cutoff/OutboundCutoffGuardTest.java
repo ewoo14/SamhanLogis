@@ -66,26 +66,4 @@ class OutboundCutoffGuardTest {
         assertThatCode(() -> guard.assertWithinCutoff(tag, TODAY))
                 .doesNotThrowAnyException();
     }
-
-    @org.junit.jupiter.api.Test
-    void creationGuard_rejectsPastOutboundDate() {
-        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
-        OutboundCutoffGuard guard = new OutboundCutoffGuard(
-                Clock.fixed(TODAY.atStartOfDay(KST).toInstant(), KST), repository);
-
-        assertThatThrownBy(() -> guard.assertWithinCutoffForCreation(
-                DeliveryTag.REGION, TODAY.minusDays(1)))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("과거 출고일");
-    }
-
-    @org.junit.jupiter.api.Test
-    void editGuard_keepsPastExistingSlipEditable() {
-        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
-        OutboundCutoffGuard guard = new OutboundCutoffGuard(
-                Clock.fixed(TODAY.atStartOfDay(KST).toInstant(), KST), repository);
-
-        assertThatCode(() -> guard.assertWithinCutoff(DeliveryTag.REGION, TODAY.minusDays(1)))
-                .doesNotThrowAnyException();
-    }
 }

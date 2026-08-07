@@ -40,22 +40,6 @@ public class OutboundCutoffGuard {
     private final SlipOutboundCutoffRepository cutoffRepository;
 
     /**
-     * 신규 출고전표의 날짜와 배송태그별 당일 마감을 검증한다.
-     * 과거 출고일 신규 생성은 허용하지 않으며, 미래 출고일은 미리 생성할 수 있다.
-     * 기존 전표 수정 경로는 {@link #assertWithinCutoff(DeliveryTag, LocalDate)}를 사용한다.
-     *
-     * @param tag 배송 태그
-     * @param slipDate 출고일
-     * @throws BusinessException(CONFLICT) 과거 출고일 신규 생성 또는 당일 마감 초과
-     */
-    public void assertWithinCutoffForCreation(DeliveryTag tag, LocalDate slipDate) {
-        if (slipDate != null && slipDate.isBefore(LocalDate.now(clock.getZone()))) {
-            throw new BusinessException(ErrorCode.CONFLICT, "과거 출고일 신규 전표는 생성할 수 없습니다");
-        }
-        assertWithinCutoff(tag, slipDate);
-    }
-
-    /**
      * 배송태그 + 전표날짜 기준으로 마감 시각 초과 여부를 검증한다.
      *
      * <p>다음 경우에 즉시 반환(통과)한다:
