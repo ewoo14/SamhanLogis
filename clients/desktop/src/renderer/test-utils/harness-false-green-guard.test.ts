@@ -31,56 +31,13 @@ const DESKTOP_SCRIPTS = path.resolve(REPO_ROOT, 'clients/desktop/scripts')
  * clients/desktop/playwright · af1ee384f clients/**\/scripts+scripts/ · 6c49d39ad
  * tools/manual-capture+docs/qa). 각 walker 는 "스캔 대상이 잡혔다(count > N)" 만 단언해서
  * **루트가 통째로 빠져도 조용히 GREEN** 이었다. 그래서 루트를 문자열 목록이 아니라
- * **명세 배열**로 바꾸고(아래 GUARD_ROOTS), 모든 walker 와 커버리지 검사(G8c)가 같은
+ * 파일 내용에서 도출되는 발견 결과를 모든 walker 와 커버리지 검사(G8c)가 공유하게 한다.
  * 진실원을 읽게 한다 — 루트 하나를 빼면 G8c 가 즉시 RED 다(M9 뮤테이션 참조).
  */
-interface GuardRootSpec {
-  /** REPO_ROOT 기준 상대 디렉토리. */
-  readonly dir: string
-  /** true 면 하위 디렉토리까지(walk 가 node_modules/_local 은 자동 skip). */
-  readonly recursive: boolean
-  /** 이 루트에서 스캔할 확장자. */
-  readonly exts: RegExp
-  /** 이 루트를 실제로 검사하는 테스트 이름(커버리지 보고용). */
-  readonly label: string
-}
-
 const JS_CAPTURE_EXT = /\.(?:cjs|mjs|js)$/
-
-/** G3 — clients/** 와 루트 scripts/ 의 캡처 목적지도 커밋 증거를 덮어쓰면 안 된다. */
-const G3_ROOTS: GuardRootSpec[] = [
-  // 루트 산개 스크립트(qa-formula-f1-*.mjs) — 비재귀
-  // H1(2026-07-27 하네스 흡수) — tools/manual-capture/*.js 가 docs/manual/screenshots 로
-  // 직접 쓰던 12파일. 평탄 디렉토리(node_modules/output 서브폴더는 walkG3Sources 가
-  // 디렉토리라 자동 skip)라 G3 와 동일한 비재귀 스캔으로 충분하다 — 새 워커 불필요.
-  // 🚨 X1(2026-07-27 재수렴 4차) — `qa/playwright` 는 `clients/desktop/playwright` 와 이름만
-  // 비슷한 **별도 최상위 트리**다(자체 package.json·playwright.config.ts, CI 는 qa-e2e.yml 에서
-  // working-directory: qa/playwright 로 돌린다). 44d718491 커밋 메시지의 "qa/** 는 DOCS_QA_ROOT
-  // 스코프상 물리적으로 도달 불가" 는 **가드가 거기 못 간다**는 뜻이었지 **거기 스크립트가 커밋
-  // 증거에 못 간다**는 뜻이 아니었다 — 실제로는 정반대였다. scripts/generate-*.mjs 9개가
-  // `path.join(repoRoot, 'docs/qa/<slug>/screenshots')` 로 tracked PNG 68장을 직접 덮어썼다.
-  // 이 트리는 재귀 + `.ts` 포함으로 잡는다(tests/·utils/ 에도 쓰기 호출이 있다).
-  // Evidence writers are discovered from file contents below; no target registry is maintained.
-]
 
 function walkG3Sources(): string[] {
   return discoveredEvidenceWriters().filter((file) => JS_CAPTURE_EXT.test(file))
-  /* legacy registry walker retained below only as dead code during this transition. */
-  const out: string[] = []
-  for (const spec of G3_ROOTS) {
-    const root = path.resolve(REPO_ROOT, spec.dir)
-    if (!fs.existsSync(root)) continue
-    if (spec.recursive) {
-      out.push(...walk(root, (p) => spec.exts.test(p) && !p.includes(`${path.sep}lib${path.sep}`)))
-      continue
-    }
-    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-      if (entry.isDirectory()) continue // 하위 client 앱 소스까지 재귀하지 않는다
-      const full = path.join(root, entry.name)
-      if (spec.exts.test(entry.name) && !full.includes(`${path.sep}lib${path.sep}`)) out.push(full)
-    }
-  }
-  return out
 }
 
 /**
@@ -90,15 +47,12 @@ function walkG3Sources(): string[] {
  * 이 목록에 덮이는지를 검사한다. 새 트리가 생기거나 여기서 한 줄이 빠지면 G8c 가 RED 다.
  * (H-4 는 타이밍 축이라 증거 쓰기 관할이 아니다 — 여기 넣지 않는다.)
  */
-const GUARD_ROOTS: GuardRootSpec[] = [
-  // S11: the credential guard is itself an evidence-bearing test and must not sit outside this guard's jurisdiction.
-  ...G3_ROOTS,
-]
+// Coverage is derived from the same content discovery used by the guards.
 
 /** 절대경로가 어느 관할 루트에 속하는지 — 아무 데도 안 속하면 null. */
-function guardRootFor(abs: string): GuardRootSpec | null {
+function guardRootFor(abs: string): boolean {
   // G8c validates the discovered writer itself; no path, root, or extension registry is consulted.
-  return fs.existsSync(abs) ? { dir: path.relative(REPO_ROOT, path.dirname(abs)), recursive: true, exts: /.*/, label: 'discovered' } : null
+  return discoveredEvidenceWriters().includes(abs)
 }
 
 /** 자기 자신은 패턴 문자열을 담고 있으므로 스캔 대상에서 제외한다. */
@@ -271,7 +225,7 @@ function balancedArgs(src: string, openParenIndex: number): string {
  *     파일이 `sharp(...).png().toFile(outPath)` 로 쓰는데(annotate.js·capture-manual-all.js·
  *     capture-pr-{g1,h1,h2,h3,h4b,h4c}.js·generate-mobile-placeholders.js·
  *     generate-placeholder.js, 실측 12건) 정규식에 없어 이 트리 전체가 가드 사각이었다
- *     (RED 재현: G3_ROOTS 에 tools/manual-capture 추가 직후 fix 전 원본으로 되돌려 G3a 를
+ *     (RED 재현: tools/manual-capture를 발견 기반 스캔에서 제외한 원본으로 되돌려 G3a를
  *     돌리면, `.screenshot`/`copyFileSync` 만으로는 `OUT_DIR`/`OUT_ROOT` 가 전혀 안 잡혀
  *     "위반 0" 으로 조용히 통과했다 — pointsAtQa 는 참이어도 writeTargets 에 없어 3중 필터의
  *     2번째에서 탈락). G3a/H-2/H2b 전부 이 공유 정규식을 쓰므로 한 번에 이득.
@@ -1120,15 +1074,14 @@ describe('하네스 거짓 green 가드', () => {
   /**
    * H2 (2026-07-27 하네스 흡수 배치, PR #938) — G3 라운드가 "G3 불변식(clients/**\/scripts,
    * 루트 scripts/) 문언 밖"이라는 이유로 미착수로 남긴 docs/qa/**\/*.{js,cjs,mjs,py,sh} 를
-   * 흡수한다(H1 = tools/manual-capture 는 G3_ROOTS 에 한 줄만 추가해 기존 G3a/G3b 가 그대로
-   * 관할 — 위의 G3_ROOTS 선언 참조).
+   * 흡수한다(H1 = tools/manual-capture도 발견 기반 G3a/G3b 관할에 포함한다).
    *
    * 이 파일들은 전부 docs/qa/** 내부에 물리적으로 위치한다 — 즉 `__dirname` 자체가 이미
    * 커밋 경로다. 그래서 문자열 리터럴("docs/qa")이 소스에 아예 등장하지 않는 게 정상이고,
    * H-2/G3a 의 pointsAtQa 휴리스틱(리터럴 매치)은 이 형태를 원천적으로 못 잡는다(sp-09-1~5·
    * sp-d1 6파일 실측: `const HERE = __dirname` 뒤 `path.join(HERE, `${slug}.png`)`).
    * pointsAtQaRecursive 는 `__dirname` 도 신호로 추가한다 — 이 규칙은 관할이 docs/qa/** 로
-   * 고정된 이 재귀 스캔에만 적용한다(G3_ROOTS 같은 범용 목록에 넣으면 tools/manual-capture/
+   * 고정된 이 재귀 스캔에만 적용한다(범용 발견 규칙에 넣으면 tools/manual-capture/
    * capture-desktop.js 의 무해한 `path.resolve(__dirname, 'output')` 까지 오탐한다).
    */
   const DOCS_QA_ROOT = path.resolve(REPO_ROOT, 'docs/qa')
@@ -1398,61 +1351,13 @@ describe('하네스 거짓 green 가드', () => {
 
   /** 레포 전수에서 "증거를 쓸 수 있는 파일" 을 도출한다(언어별 판정은 각 walker 와 동일). */
   function derivedEvidenceWriters(): string[] {
-    const found: string[] = []
-    const sourceFiles = walkRepo(REPO_ROOT, () => true)
-    for (const file of sourceFiles) {
-      if (path.resolve(file) === SELF) continue // 가드 자신은 패턴 문자열 보관소다
-      let raw: string
-      try {
-        raw = fs.readFileSync(file, 'utf-8')
-      } catch {
-        continue
-      }
-      const inEvidenceTree =
-        file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
-        file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
-      if (!EVIDENCE_LITERAL.test(raw) && !EVIDENCE_SPLIT.test(raw) && !inEvidenceTree) continue
-      if (jsWritesEvidence(stripComments(raw), file)) found.push(file)
-      else if (/\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)) found.push(file)
-    }
-    // .ps1 / .sh / .py — G3c·H2-sh·H2-py 와 동일한 경량 텍스트 휴리스틱(파서 없음).
-    return [...new Set(found)]
-    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.ps1'))) {
-      const src = fs.readFileSync(file, 'utf-8')
-      if (/\$Out(?:put)?Dir\s*=\s*(?:Join-Path\s+\$PSScriptRoot\s+)?['"][^'"]*docs[\\/]qa[^'"]*['"]/i.test(src)) found.push(file)
-    }
-    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.sh'))) {
-      const src = fs.readFileSync(file, 'utf-8')
-      if (/\bOUT="[^"]*docs\/qa[^"]*"/.test(src)) found.push(file)
-    }
-    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.py'))) {
-      const src = fs.readFileSync(file, 'utf-8')
-      const inEvidenceTree = file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep)
-      if (pyWritesEvidence(src) && (inEvidenceTree || EVIDENCE_LITERAL.test(src))) found.push(file)
-    }
-    return found
+    return discoveredEvidenceWriters()
   }
 
-  it('G8a: 관할 루트 명세가 전부 실존하고 실제로 파일을 잡는다 (오타/이동으로 조용히 0건이 되는 사고 방지)', () => {
-    const empty: string[] = []
-    for (const spec of GUARD_ROOTS) {
-      const root = path.resolve(REPO_ROOT, spec.dir)
-      if (!fs.existsSync(root)) {
-        empty.push(`${spec.label} ${spec.dir} → 디렉토리 자체가 없다`)
-        continue
-      }
-      const files = spec.recursive
-        ? walk(root, (p) => spec.exts.test(p))
-        : fs
-            .readdirSync(root, { withFileTypes: true })
-            .filter((e) => !e.isDirectory() && spec.exts.test(e.name))
-            .map((e) => path.join(root, e.name))
-      if (files.length === 0) empty.push(`${spec.label} ${spec.dir} (${String(spec.exts)}) → 0건`)
-    }
-    expect(
-      empty,
-      `관할 루트가 파일을 하나도 안 잡는다 — 경로 오타/이동이면 그 루트는 있으나 마나다:\n${empty.join('\n')}`,
-    ).toEqual([])
+  it('G8a: 발견 기반 관할이 비어 있지 않고 실제 파일을 포함한다 (전수 discovery 고장 방지)', () => {
+    const discovered = discoveredEvidenceWriters()
+    expect(discovered.length, '증거 writer discovery가 0건이면 G8b/G8c도 무의미해진다').toBeGreaterThan(200)
+    expect(discovered.every((file) => fs.statSync(file).isFile()), '발견 결과는 모두 실제 파일이어야 한다').toBe(true)
   })
 
   it('G8b: 증거를 쓸 수 있는 파일이 레포에 실제로 다수 존재한다 (모집단 도출이 0건이면 G8c 는 항상 무의미하게 GREEN)', () => {
@@ -1464,12 +1369,12 @@ describe('하네스 거짓 green 가드', () => {
 
   it('G8c: 증거를 쓸 수 있는 레포 전 파일이 가드 관할 안에 있다 (루트 집합 누락 = RED)', () => {
     const uncovered = derivedEvidenceWriters()
-      .filter((f) => guardRootFor(f) === null)
+      .filter((f) => !guardRootFor(f))
       .map((f) => path.relative(REPO_ROOT, f).replace(/\\/g, '/'))
       .sort()
     expect(
       uncovered,
-      `커밋 증거를 쓸 수 있는데 어떤 가드 walker 의 관할에도 없는 파일 — GUARD_ROOTS 에 루트를 추가할 것\n` +
+      `커밋 증거를 쓸 수 있는데 현재 가드의 발견 결과에 포함되지 않는 파일\n` +
         `(이 목록이 비어 있지 않으면 그 파일들은 위반이어도 조용히 GREEN 이다):\n${uncovered.join('\n')}`,
     ).toEqual([])
   })
@@ -1765,23 +1670,6 @@ describe('하네스 거짓 green 가드', () => {
   /** 가드가 실제로 스캔하는 파일 전수(REPO_ROOT 상대, 슬래시 정규화) — guardRootFor 와 동일 규칙. */
   function guardScannedFiles(): string[] {
     return discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
-    /* legacy registry walker retained below only as dead code during this transition. */
-    const out = new Set<string>()
-    for (const spec of GUARD_ROOTS) {
-      const root = path.resolve(REPO_ROOT, spec.dir)
-      if (!fs.existsSync(root)) continue
-      const files = spec.recursive
-        ? walk(root, (p) => spec.exts.test(p))
-        : fs
-            .readdirSync(root, { withFileTypes: true })
-            .filter((e) => !e.isDirectory() && spec.exts.test(e.name))
-            .map((e) => path.join(root, e.name))
-      for (const f of files) {
-        if (spec.exts === JS_CAPTURE_EXT && f.includes(`${path.sep}lib${path.sep}`)) continue
-        out.add(path.relative(REPO_ROOT, f).replace(/\\/g, '/'))
-      }
-    }
-    return [...out].sort()
   }
 
   it('G9 파서 sanity: 워크플로 트리거 파싱과 글롭 변환이 실제로 동작한다 (파싱이 깨지면 G9 는 항상 무의미하게 GREEN)', () => {

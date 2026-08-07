@@ -635,10 +635,18 @@ jobs:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
 
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: 자격 평문 비공개 정적 검사 (shell guard)
         run: |
           chmod +x scripts/check-credential-plaintext.sh
           bash scripts/check-credential-plaintext.sh
+
+      - name: 자격 소비자 discovery 계약 테스트
+        run: node --test scripts/lib/qa-credentials.test.cjs
 
       # Playwright spec hard gate 는 후속 슬라이스 — 본 PR 에서는 shell guard 단독
       # (SP-08-7 notion-zero-guard 패턴 일관). spec testDir 외부 testMatch 이슈 (No tests found)
