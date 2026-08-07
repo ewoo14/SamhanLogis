@@ -1,4 +1,5 @@
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 /**
  * KST(Asia/Seoul) 전역 표준화 — 실서버 검증 캡처.
  *
@@ -30,7 +31,7 @@ async function capture(page: Page, name: string): Promise<void> {
 async function fetchRealToken(): Promise<string> {
   const http = await import('http')
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: (process.env.DEV_PASSWORD ?? '') })
+    const body = JSON.stringify({ loginId: 'dev_master', password: resolveQaCredential('QA_DEV_DEFAULT_PASSWORD') })
     const req = http.default.request(
       { hostname: '127.0.0.1', port: 8080, path: '/api/v1/auth/login', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },

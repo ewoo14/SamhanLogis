@@ -40,7 +40,7 @@ async function login(apiBase, password) {
 async function main() {
   const apiBase = arg('--api-base', process.env.API_BASE || 'http://localhost:8080')
   const graceMs = Number(arg('--grace-ms', String(DEFAULT_STALE_GRACE_MS)))
-  const password = arg('--password', process.env.QA_DEV_DEFAULT_PASSWORD || (resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')))
+  const password = arg('--password') ?? resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 
   const authHeaders = await login(apiBase, password)
   const templateResult = await reapStaleDs4Templates({ apiBase, authHeaders, graceMs })

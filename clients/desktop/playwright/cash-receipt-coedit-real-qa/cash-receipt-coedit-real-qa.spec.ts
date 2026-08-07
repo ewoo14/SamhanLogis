@@ -19,6 +19,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
 import { test, type Page } from '@playwright/test'
+import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5177'
 const GW_URL = 'http://127.0.0.1:8080'
@@ -38,7 +39,7 @@ async function capture(page: Page, name: string): Promise<void> {
 async function fetchRealToken(): Promise<string> {
   const http = await import('http')
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: process.env['DEV_SEED_PASSWORD'] ?? '' })
+    const body = JSON.stringify({ loginId: 'dev_master', password: resolveQaCredential('QA_DEV_DEFAULT_PASSWORD') })
     const req = http.default.request(
       { hostname: '127.0.0.1', port: 8080, path: '/api/v1/auth/login', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },

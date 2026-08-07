@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require('node:fs')
+const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
 const { isOwnerAlive, parseDs4RunRecord } = require('./ds4-real-qa-stale.cjs')
 const { appendNotice } = require('./ds4-real-qa-reap-core.cjs')
 
@@ -16,7 +17,7 @@ const stopFile = value('--stop-file')
 const passwordB64 = value('--password-b64')
 const password = passwordB64
   ? Buffer.from(passwordB64, 'base64').toString('utf8')
-  : process.env.SAMHAN_DS4_QA_PASSWORD
+  : resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const pollMs = 500
 // 🚨 R1-2 fix: 예전에는 이 값이 "이 시간이 지나면 owner 생존과 무관하게 강제 삭제"하는 TTL
 // 이었다 — owner 가 실제로 살아있는 --timeout=0/PWDEBUG=1/--debug 수동 세션에서도 발동해

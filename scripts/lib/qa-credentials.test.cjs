@@ -6,6 +6,19 @@ const test = require('node:test')
 
 const { resolveQaCredential } = require('./qa-credentials.cjs')
 
+const CREDENTIAL_CONSUMER_FILES = [
+  '../../clients/desktop/playwright/dispatch-collab-real-qa/dispatch-collab-codex-round.spec.ts',
+  '../../clients/desktop/playwright/dispatch-collab-real-qa/dispatch-collab-real-qa.spec.ts',
+  '../../clients/desktop/playwright/dispatch-collab-real-qa/kst-verification.spec.ts',
+  '../../clients/desktop/playwright/manual/e3-s1-cash-receipt-permission-qa.spec.ts',
+  '../../clients/desktop/playwright/cash-receipt-coedit-real-qa/cash-receipt-coedit-real-qa.spec.ts',
+  '../../clients/desktop/scripts/ds4-real-qa-cleanup-worker.cjs',
+  '../../clients/desktop/scripts/ds4-real-qa-reap.cjs',
+  '../../scripts/verify-ds4-real-qa-cleanup.cjs',
+]
+
+const LEGACY_KEY = ['DEV', 'PASSWORD'].join('_')
+
 function withEnvFile(contents) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'samhan-qa-credentials-'))
   const envFilePath = path.join(directory, '.env.local')
@@ -57,5 +70,18 @@ test('DEV_PASSWORD는 표준 키를 위한 호환 입력으로만 허용한다',
     }), 'compat-value')
   } finally {
     fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('실행 자격 소비자는 표준 로더를 경유하고 옛 키를 직접 읽지 않는다', () => {
+  for (const relativePath of CREDENTIAL_CONSUMER_FILES) {
+    const filePath = path.resolve(__dirname, relativePath)
+    const source = fs.readFileSync(filePath, 'utf8')
+    assert.match(source, /resolveQaCredential\(['"]QA_DEV_DEFAULT_PASSWORD['"]\)/, relativePath)
+    assert.doesNotMatch(
+      source,
+      new RegExp(`process\\.env(?:\\.(?:${LEGACY_KEY}|DEV_SEED_PASSWORD|SAMHAN_DS4_QA_PASSWORD|QA_DEV_DEFAULT_PASSWORD)|\\[['"](?:${LEGACY_KEY}|DEV_SEED_PASSWORD|SAMHAN_DS4_QA_PASSWORD|QA_DEV_DEFAULT_PASSWORD)['"]\\])`),
+      relativePath,
+    )
   }
 })
