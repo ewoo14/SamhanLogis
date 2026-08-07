@@ -37,10 +37,31 @@ const DESKTOP_SCRIPTS = path.resolve(REPO_ROOT, 'clients/desktop/scripts')
  * 파일 내용에서 도출되는 발견 결과를 모든 walker 와 커버리지 검사(G8c)가 공유하게 한다.
  * 진실원을 읽게 한다 — 루트 하나를 빼면 G8c 가 즉시 RED 다(M9 뮤테이션 참조).
  */
-const JS_CAPTURE_EXT = /\.(?:cjs|mjs|js|ts|tsx|ejs)$/i
-const TEXT_CAPTURE_EXT = /\.(?:ps1|py|sh)$/i
+const JS_CAPTURE_EXT = /\.(?:cjs|cts|mjs|js|ts|tsx|ejs)$/i
+const TEXT_CAPTURE_EXT = /\.(?:bat|ps1|py|sh)$/i
 /** git ls-files 조사 결과 중 코드로서 evidence writer가 될 수 있는 확장자 전수. */
-const DISCOVERY_SOURCE_EXT = /\.(?:cjs|mjs|js|ts|tsx|ejs|ps1|py|sh)$/i
+const DISCOVERY_SOURCE_EXT = /\.(?:bat|cjs|cts|mjs|js|ts|tsx|ejs|ps1|py|sh)$/i
+
+const EVIDENCE_SOURCE_EXTENSIONS = new Set([
+  '.bat', '.cjs', '.cts', '.ejs', '.js', '.mjs', '.ps1', '.py', '.sh', '.ts', '.tsx',
+])
+const EVIDENCE_EXTENSION_EXCLUSIONS = new Map([
+  ['<none>', 'extensionless repository metadata or launcher files'],
+  ['.conf', 'runtime configuration'], ['.css', 'stylesheet'], ['.csv', 'data asset'],
+  ['.dev-seed', 'development seed data'], ['.dockerfile', 'container definition'],
+  ['.docx', 'document asset'], ['.env', 'environment configuration'], ['.example', 'configuration template'],
+  ['.gif', 'image asset'], ['.gitattributes', 'Git metadata'], ['.gitignore', 'Git metadata'],
+  ['.gitkeep', 'directory marker'], ['.gradle', 'Gradle metadata'], ['.html', 'web document'],
+  ['.http', 'HTTP request fixture'], ['.imports', 'tool metadata'], ['.jar', 'binary dependency'],
+  ['.java', 'JVM source is outside this evidence-writer guard'], ['.jpg', 'image asset'],
+  ['.json', 'data/configuration'], ['.jsonl', 'data fixture'], ['.log', 'captured log'],
+  ['.md', 'documentation'], ['.otf', 'font asset'], ['.pdf', 'document asset'], ['.png', 'image asset'],
+  ['.pro', 'Android project metadata'], ['.properties', 'configuration'],
+  ['.sql', 'database fixture/migration'], ['.svg', 'vector asset'], ['.template', 'configuration template'],
+  ['.tf', 'Terraform configuration'], ['.txt', 'text fixture'], ['.webmanifest', 'web metadata'],
+  ['.webp', 'image asset'], ['.xlsx', 'spreadsheet asset'], ['.xml', 'data/configuration'],
+  ['.yaml', 'workflow/configuration'], ['.yml', 'workflow/configuration'],
+])
 
 function walkG3Sources(): string[] {
   return discoveredEvidenceWriters().filter((file) => JS_CAPTURE_EXT.test(file) || TEXT_CAPTURE_EXT.test(file))
@@ -53,10 +74,34 @@ function walkG3Sources(): string[] {
  */
 function hasUnisolatedTextEvidenceWrite(file: string, raw: string): boolean {
   if (raw.includes('_local') || raw.includes('QA_SHOTS_DIR') || /resolve[-_]?qa[-_]?shots[-_]?dir/i.test(raw)) return false
-  if (/\.py$/i.test(file)) return /\.save\(|savefig\(/.test(raw) && /docs[\\/]qa|docs[\\/]manual/.test(raw)
+  if (/\.py$/i.test(file)) return hasPythonEvidenceWrite(raw)
+  if (/\.bat$/i.test(file)) return hasBatchEvidenceWrite(raw)
   if (/\.ps1$/i.test(file)) return /\$Out(?:put)?Dir\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/i.test(raw)
   if (/\.sh$/i.test(file)) return /\bOUT\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/.test(raw)
   return false
+}
+
+function hasPythonEvidenceWrite(raw: string): boolean {
+  if (!/docs[\\/]qa|docs[\\/]manual/.test(raw)) return false
+  return /\.save\s*\(|savefig\s*\(/.test(raw) ||
+    (/\bopen\s*\(/.test(raw) && /\.write\s*\(/.test(raw)) ||
+    /\.write_(?:text|bytes)\s*\(/.test(raw) ||
+    /\b(?:cv2|imageio)\.imwrite\s*\(/.test(raw)
+}
+
+function hasBatchEvidenceWrite(raw: string): boolean {
+  return /docs[\\/]qa|docs[\\/]manual/i.test(raw) &&
+    /(?:>>?|\bcopy\b|\bxcopy\b|\btype\b)[^\r\n]*docs[\\/]?(?:qa|manual)/i.test(raw)
+}
+
+function trackedRepositoryExtensions(): Set<string> {
+  const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-z'], {
+    encoding: 'utf8', maxBuffer: 50 * 1024 * 1024,
+  })
+  return new Set(output.split('\0').filter(Boolean).map((file) => {
+    const extension = path.extname(path.basename(file)).toLowerCase()
+    return extension || '<none>'
+  }))
 }
 
 /**
@@ -207,19 +252,21 @@ type EvidenceWriterCacheEntry = {
 
 let discoveredEvidenceWritersCache = new Map<string, EvidenceWriterCacheEntry>()
 let discoveredEvidenceWritersResult: string[] | undefined
+let readEvidenceSource = (file: string): string => fs.readFileSync(file, 'utf-8')
 
 function isEvidenceWriter(file: string, rawOverride?: string): boolean {
   const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
   const evidenceSplit = /['"]docs['"]\s*,\s*['"](?:qa|manual)['"]/
   let raw: string
   try {
-    raw = rawOverride ?? fs.readFileSync(file, 'utf-8')
+    raw = rawOverride ?? readEvidenceSource(file)
   } catch {
     return false
   }
   const inEvidenceTree =
     file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
     file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
+  if (/\.(?:bat|py)$/i.test(file) && (hasBatchEvidenceWrite(raw) || hasPythonEvidenceWrite(raw))) return true
   if (!evidenceLiteral.test(raw) && !evidenceSplit.test(raw) && !inEvidenceTree) return false
   const src = stripComments(raw)
   const decls = collectDeclarations(src)
@@ -243,9 +290,9 @@ function discoveredEvidenceWriters(): string[] {
     let raw: string
     try {
       canonical = fs.realpathSync.native(file)
-      raw = fs.readFileSync(canonical, 'utf-8')
+      raw = readEvidenceSource(canonical)
     } catch {
-      continue
+      throw new Error(`unable to read evidence candidate: ${file}`, { cause: undefined })
     }
     if (!isWithinRepo(canonical)) continue
     if (canonical === path.resolve(SELF)) continue
@@ -1186,6 +1233,53 @@ describe('하네스 거짓 green 가드', () => {
     const first = discoveredEvidenceWriters()
     const second = discoveredEvidenceWriters()
     expect(second).toBe(first)
+  })
+
+  it('S18 fail-closed: 후보 파일을 읽지 못하면 writer가 아닌 것으로 조용히 탈락시키지 않는다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s18-probes/source/read-failure.mjs')
+    const originalReadEvidenceSource = readEvidenceSource
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, "const OUT = 'docs/qa/.s18-read-failure.png'\n", 'utf8')
+    try {
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === probe) throw new Error('simulated locked candidate')
+        return originalReadEvidenceSource(file)
+      }
+      expect(() => discoveredEvidenceWriters()).toThrow(/unable to read evidence candidate/i)
+    } finally {
+      readEvidenceSource = originalReadEvidenceSource
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s18-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S18 extension census: git ls-files의 모든 확장자는 관할 또는 이유 있는 명시적 제외에 속한다', () => {
+    const actual = trackedRepositoryExtensions()
+    const classified = new Set([...EVIDENCE_SOURCE_EXTENSIONS, ...EVIDENCE_EXTENSION_EXCLUSIONS.keys()])
+    expect([...actual].filter((extension) => !classified.has(extension))).toEqual([])
+    expect(EVIDENCE_EXTENSION_EXCLUSIONS.get('.java')).toMatch(/outside this evidence-writer guard/)
+    expect(EVIDENCE_EXTENSION_EXCLUSIONS.get('.png')).toMatch(/asset/)
+  })
+
+  it('S18 Python/batch: 일반 파일 쓰기 형태도 증거 writer로 발견한다', () => {
+    const base = path.resolve(REPO_ROOT, 'tools/.s18-probes/source')
+    const pythonProbe = path.join(base, 'python-open-path-writer.py')
+    const batchProbe = path.join(base, 'batch-redirection-writer.bat')
+    fs.mkdirSync(base, { recursive: true })
+    fs.writeFileSync(pythonProbe, [
+      "from pathlib import Path",
+      "OUT = 'docs/qa/.s18-python-open.png'",
+      "with open(OUT, 'wb') as handle:",
+      "    handle.write(b'probe')",
+      "Path('docs/qa/.s18-python-path.txt').write_text('probe')",
+      "Path('docs/qa/.s18-python-bytes.bin').write_bytes(b'probe')",
+    ].join('\n'), 'utf8')
+    fs.writeFileSync(batchProbe, '@echo probe>docs\\qa\\.s18-batch.txt\r\n', 'utf8')
+    try {
+      const discovered = discoveredEvidenceWriters()
+      expect(discovered).toEqual(expect.arrayContaining([pythonProbe, batchProbe].map((file) => fs.realpathSync.native(file))))
+    } finally {
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s18-probes'), { recursive: true, force: true })
+    }
   })
 
   it('S10 RED-A: 호출자 무효화 없이 파일 추가·삭제를 다음 discovery에 반영한다', () => {
