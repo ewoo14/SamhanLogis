@@ -339,6 +339,11 @@ public class BundleComponentService {
             saved.add(bundleComponentRepository.save(bc));
         }
 
+        // 구성품 수기 편집 사실을 부모 세트에 영속화한다. 이후 시트 sync 는
+        // 이 부모만 건너뛰고 다른(미편집) 세트는 계속 갱신한다.
+        parent.markBundleComponentsManual();
+        productRepository.save(parent);
+
         // 구성품 명칭 벌크 조회 (D-PCE-03 패턴 동일: modelCode → modelName 2차 fallback)
         List<String> codes = saved.stream().map(BundleComponent::getComponentProductCode).toList();
         Map<String, String> nameByCode = new HashMap<>();

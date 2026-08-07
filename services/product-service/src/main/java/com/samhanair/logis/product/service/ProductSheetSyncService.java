@@ -361,6 +361,13 @@ public class ProductSheetSyncService {
                 lockedParents.add(parent.getId());
             }
 
+            // 수기 편집 세트는 시트 sync 가 구성품 집합을 덮어쓰지 않는다.
+            // seenByParent 에 넣지 않아 soft-delete 단계도 함께 건너뛴다.
+            if (parent.isBundleComponentsManual()) {
+                result.preservedManual++;
+                continue;
+            }
+
             String kindRaw = cKind >= 0 ? safeGet(cells, cKind).trim() : "";
             String variant = cVariant >= 0 ? safeGet(cells, cVariant).trim() : "";
             String spec = cSpec >= 0 ? safeGet(cells, cSpec).trim() : "";
@@ -1114,6 +1121,8 @@ public class ProductSheetSyncService {
 
     /** 구성품 tab sync 결과. */
     public static class ComponentSyncResult {
+        /** 수기 편집 보호로 건너뛴 구성품 행 수. */
+        public int preservedManual = 0;
         public int linked = 0;
         public int bundlesMarked = 0;
         public int softDeleted = 0;

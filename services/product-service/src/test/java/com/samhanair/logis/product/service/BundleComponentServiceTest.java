@@ -333,6 +333,7 @@ class BundleComponentServiceTest {
         assertThat(result.get(0).componentProductCode()).isEqualTo("IDU-001");
         assertThat(result.get(0).defaultQty()).isEqualByComparingTo(BigDecimal.valueOf(2));
         assertThat(result.get(0).displayOrder()).isEqualTo(1);
+        assertThat(bundleProduct.isBundleComponentsManual()).isTrue();
     }
 
     @Test

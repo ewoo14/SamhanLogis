@@ -5,7 +5,6 @@ import {
   applyClassificationSettingsSuccessEffects,
   applyFixedDiscountPatchSuccessEffects,
   applyUsagePatchSuccessEffects,
-  ComponentSpecBadge,
   VariableDiscountCell,
   type EstimateItemsCatalogSuccessEffects,
 } from './EstimateItemsCatalogPage'
@@ -90,24 +89,5 @@ describe('VariableDiscountCell', () => {
     expect(visibleText).not.toContain('변동DC')
     expect(markup).toContain('aria-label="변동DC"')
     expect(markup).toContain('title="변동DC: 전역할인율 영향 없이 기초 납품가 그대로 표시"')
-  })
-})
-
-describe('ComponentsModal specText display', () => {
-  it('구성품 행에 BE specText 를 읽기 전용 규격으로 표시한다', () => {
-    const markup = renderToStaticMarkup(
-      createElement(ComponentSpecBadge, { specText: '10HP', index: 0 }),
-    )
-
-    expect(markup).toContain('data-testid="components-modal-spec-0"')
-    expect(markup).toContain('규격 10HP')
-  })
-
-  it('specText 가 비어 있으면 규격 라벨을 렌더하지 않는다', () => {
-    const markup = renderToStaticMarkup(
-      createElement(ComponentSpecBadge, { specText: '   ', index: 0 }),
-    )
-
-    expect(markup).toBe('')
   })
 })
