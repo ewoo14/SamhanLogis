@@ -299,12 +299,16 @@ function SlipMobileLineCard(props: {
   const priceChangedStatusId = `slip-mobile-price-changed-${props.line.id}`
   // D-R4-1: 자동채움 실체 = 제품 등록 화면 '판매가'(sellingPrice) — '정가' 라벨 금지(출고가 별칭 오도).
   // D-R4-4: 거래처 해제 시 단가값은 유지하고 마커(저장일 포함)만 해제 — LineRow(데스크탑)와 동일 분기.
-  const priceStatus = props.line.priceSource === 'REMEMBERED'
+  const priceStatus = props.line.lookupLoading
+    ? null
+    : props.line.priceSource === 'REMEMBERED'
     ? (props.partnerSelected ? '거래처 최근단가' : null)
     : props.line.priceSource === 'CATALOG'
       ? '판매가'
       : null
-  const priceStatusDescription = props.line.priceSource === 'REMEMBERED'
+  const priceStatusDescription = props.line.lookupLoading
+    ? null
+    : props.line.priceSource === 'REMEMBERED'
     ? (props.partnerSelected
         ? `이 거래처에 마지막으로 저장된 단가${props.line.priceMemoryUpdatedAt ? ` · ${props.line.priceMemoryUpdatedAt.slice(0, 10)} 저장` : ''}`
         : null)
@@ -402,7 +406,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={props.line.unitPrice}
+          value={props.line.lookupLoading ? '' : props.line.unitPrice}
           onChange={(e) => {
             const numeric = parseEditableAmountInput(e.target.value)
             if (numeric !== null) props.onUnitPriceChange(numeric)
@@ -613,6 +617,9 @@ function SortableLineRow(props: {
     transform: CSS.Transform.toString(transform),
     transition,
   }
+  const lineForEditor = props.line.lookupLoading
+    ? { ...props.line, unitPrice: '' }
+    : props.line
 
   // setNodeRef/transform 을 wrapper 에 부착 → LineRow + footer(옵션 picker) 동시 이동.
   return (
@@ -623,7 +630,7 @@ function SortableLineRow(props: {
         vatEditable={props.vatEditable}
         excludedFromSave={props.excludedFromSave}
         lineNumber={props.lineNumber}
-        line={props.line}
+        line={lineForEditor}
         selected={props.selected}
         canDelete={props.canDelete}
         partnerSelected={props.partnerSelected}
