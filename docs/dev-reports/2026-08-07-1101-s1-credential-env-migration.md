@@ -134,3 +134,53 @@ run-load-test.ps1 parse PASS
 ### 새로 만든 파일
 
 없음. 기존 S1 보고서에 S2 절만 추가했다.
+
+## S3 — S2가 깬 테스트 복구 (2026-08-07)
+
+### 원인 분류
+
+| 분류 | 판정 | 근거 및 조치 |
+|---|---|---|
+| 문서 | 안전 | S2는 문서·메모리의 평문을 환경변수 키/마스킹으로 바꿨고, 동작 경로가 없다. 유지했다. |
+| 테스트 | 깨짐 | `BcryptHashGenTest`와 `AuthFlywayV48SeedIT`/`V49SeedIT`가 CI에 주입되지 않는 환경변수를 정적 초기화에서 요구했다. seed의 승인 해시는 계속 검증하고, 로그인 단언은 `test-fixture-password`와 테스트 DB 임시 해시로 분리했다. |
+| 시더 | 의도 유지 | `OrgChartSeeder`는 `QA_MASTER_PASSWORD`를 읽고 없으면 fail-fast 한다. 운영 시드의 자격 주입 계약이므로 테스트 fixture로 바꾸지 않았다. |
+| 설정/스크립트 | 의도 유지 | `infrastructure/env-templates/qa-credentials.env`는 키만 둔 상태이며, Desktop QA 스크립트는 `DEV_PASSWORD` 런타임 경로를 사용한다. 가드 자체와 `.gitguardian.yaml`은 변경하지 않았다. |
+
+### 지우지 말았어야 할 것 판정
+
+테스트 전체를 가드에서 제외하는 셋째 갈래는 채택하지 않았다. 이번 두 auth 테스트는 임의 입력 예시가 아니라 Flyway seed 해시·로그인·권한 계약을 검증한다. 테스트를 가드에서 제외하면 평문을 다시 허용하고 회귀를 숨기게 된다. 따라서 실제 개발 비밀번호는 복원하지 않고, 해시 불변식은 해시 자체로 검증하며, 로그인 경로는 실제 값과 다른 테스트 전용 fixture로 재현했다. `EmployeeProvisioningServiceTest`의 `test-provisioning-password`도 같은 이유로 정상적인 테스트 입력이다.
+
+### S3 RED 결과
+
+| 불변식 | 결과 | 실행 |
+|---|---|---|
+| RED-A | PASS | `./gradlew :services:arologis-service:test` 및 `./gradlew :shared:common:test :services:auth-service:test :services:api-gateway:test` 성공. `clients/desktop`의 `npm run typecheck`, lint, build, build:web, build:capacitor도 성공. |
+| RED-B | PASS | `git grep -n -E 'dev_p05_pass!|samhan!2026|admin1234' HEAD -- . ':!.gitguardian.yaml'` 결과 0건. 가드 allowlist 파일은 변경하지 않았다. |
+| RED-C | PASS | `CREDENTIAL_GUARD_SCOPE=s1 bash scripts/check-credential-plaintext.sh`와 `CREDENTIAL_GUARD_SCOPE=s2 bash scripts/check-credential-plaintext.sh` 모두 PASS. 정상 파일 오차단은 없었다. 전체 recursive 가드는 기존 Windows Git Bash 병목으로 exit 124였고 성공으로 세지 않았다. |
+
+### 실행 원문
+
+```text
+$ ./gradlew :services:arologis-service:test --no-daemon --console=plain
+BUILD SUCCESSFUL in 1m 37s
+
+$ ./gradlew :shared:common:test :services:auth-service:test :services:api-gateway:test --no-daemon --console=plain
+BUILD SUCCESSFUL in 9s
+
+$ Set-Location clients/desktop; npm run typecheck
+✔ real-QA 추적 집합 ... tests 50, pass 50, fail 0
+exit code 0
+
+$ CREDENTIAL_GUARD_SCOPE=s1 bash scripts/check-credential-plaintext.sh
+ [PASS] S1 docs/memory 개발 QA 평문 없음
+
+$ CREDENTIAL_GUARD_SCOPE=s2 bash scripts/check-credential-plaintext.sh
+ [PASS] S2 저장소 전체 개발 QA 평문 없음 (allowlist 정의 제외)
+
+$ git grep -n -E 'dev_p05_pass!|samhan!2026|admin1234' HEAD -- . ':!.gitguardian.yaml'
+[PASS] forbidden credential grep: 0 matches
+```
+
+### 새로 만든 파일
+
+없음. S3는 기존 S1 보고서에 절을 추가했고, 커밋하지 않았다.

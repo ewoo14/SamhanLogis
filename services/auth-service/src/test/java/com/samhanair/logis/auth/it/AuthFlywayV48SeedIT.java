@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.auth.AuthServiceApplication;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -33,15 +35,9 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 class AuthFlywayV48SeedIT extends AbstractPostgresIT {
 
-    private static final String DEV_ACCOUNT_PASSWORD = requireDevPassword();
-
-    private static String requireDevPassword() {
-        String password = System.getenv("QA_DEV_DEFAULT_PASSWORD");
-        if (password == null || password.isBlank()) {
-            throw new IllegalStateException("QA_DEV_DEFAULT_PASSWORD 환경변수가 필요합니다.");
-        }
-        return password;
-    }
+    private static final String TEST_FIXTURE_PASSWORD = "test-fixture-password";
+    private static final String V48_SEED_HASH =
+            "$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y";
     private static final List<DevAccount> DEV_ACCOUNTS = List.of(
             new DevAccount("dev_driver", "DRIVER", "DRIVER 그룹(107)",
                     UUID.fromString("b0000000-0000-0000-0000-00000000000a")),
@@ -62,9 +58,43 @@ class AuthFlywayV48SeedIT extends AbstractPostgresIT {
     @Test
     @DisplayName("V48 DRIVER/STAFF/DISPATCH 개발 계정은 로그인 가능하고 products.list VIEW 권한은 없다")
     void devAccountsCanLoginAndProductsListViewIsDenied() throws Exception {
+        assertSeedHashIsPreserved();
+        replacePasswordsWithTestFixture();
         for (DevAccount account : DEV_ACCOUNTS) {
             assertCanLoginAndProductsListViewDenied(account);
         }
+    }
+
+    private void assertSeedHashIsPreserved() {
+        assertThat(passwordHashCount()).isEqualTo(DEV_ACCOUNTS.size());
+    }
+
+    private void replacePasswordsWithTestFixture() {
+        String fixtureHash = new BCryptPasswordEncoder(12).encode(TEST_FIXTURE_PASSWORD);
+        jdbcTemplate.update("UPDATE accounts SET password_hash = ? WHERE id IN (?::uuid, ?::uuid, ?::uuid)",
+                fixtureHash,
+                DEV_ACCOUNTS.get(0).accountId().toString(),
+                DEV_ACCOUNTS.get(1).accountId().toString(),
+                DEV_ACCOUNTS.get(2).accountId().toString());
+    }
+
+    @AfterEach
+    void restoreSeedPasswords() {
+        jdbcTemplate.update("UPDATE accounts SET password_hash = ? WHERE id IN (?::uuid, ?::uuid, ?::uuid)",
+                V48_SEED_HASH,
+                DEV_ACCOUNTS.get(0).accountId().toString(),
+                DEV_ACCOUNTS.get(1).accountId().toString(),
+                DEV_ACCOUNTS.get(2).accountId().toString());
+    }
+
+    private Long passwordHashCount() {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM accounts WHERE id IN (?::uuid, ?::uuid, ?::uuid) AND password_hash = ?",
+                Long.class,
+                DEV_ACCOUNTS.get(0).accountId().toString(),
+                DEV_ACCOUNTS.get(1).accountId().toString(),
+                DEV_ACCOUNTS.get(2).accountId().toString(),
+                V48_SEED_HASH);
     }
 
     private void assertCanLoginAndProductsListViewDenied(DevAccount account) throws Exception {
@@ -75,7 +105,7 @@ class AuthFlywayV48SeedIT extends AbstractPostgresIT {
                                   "loginId": "%s",
                                   "password": "%s"
                                 }
-                                """.formatted(account.loginId(), DEV_ACCOUNT_PASSWORD)))
+                                """.formatted(account.loginId(), TEST_FIXTURE_PASSWORD)))
                 .andExpect(status().isOk())
                 .andReturn();
 

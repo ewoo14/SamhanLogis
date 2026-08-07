@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.auth.AuthServiceApplication;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -27,15 +29,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 class AuthFlywayV49SeedIT extends AbstractPostgresIT {
 
-    private static final String DEV_ACCOUNT_PASSWORD = requireDevPassword();
-
-    private static String requireDevPassword() {
-        String password = System.getenv("QA_DEV_DEFAULT_PASSWORD");
-        if (password == null || password.isBlank()) {
-            throw new IllegalStateException("QA_DEV_DEFAULT_PASSWORD 환경변수가 필요합니다.");
-        }
-        return password;
-    }
+    private static final String TEST_FIXTURE_PASSWORD = "test-fixture-password";
     private static final String REPAIRED_PASSWORD_HASH =
             "$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y";
     private static final String LEGACY_DEFECT_PASSWORD_HASH =
@@ -80,9 +74,43 @@ class AuthFlywayV49SeedIT extends AbstractPostgresIT {
     @DisplayName("V49는 V5 정상 활성 개발 계정 7건의 QA_DEV_DEFAULT_PASSWORD 로그인을 복구한다")
     void activeDevAccountsCanLoginWithRepairedV5PasswordHash() throws Exception {
         // dev_locked=잠금, dev_disabled=is_deleted seed 이므로 로그인 성공 단언 대상에서 제외한다.
+        assertThat(passwordHashCount(REPAIRED_PASSWORD_HASH)).isEqualTo(9L);
+        replacePasswordsWithTestFixture();
         for (DevAccount account : DEV_ACCOUNTS) {
             assertCanLogin(account);
         }
+    }
+
+    private void replacePasswordsWithTestFixture() {
+        String fixtureHash = new BCryptPasswordEncoder(12).encode(TEST_FIXTURE_PASSWORD);
+        jdbcTemplate.update(
+                "UPDATE accounts SET password_hash = ? WHERE id IN (?::uuid,?::uuid,?::uuid,?::uuid,?::uuid,?::uuid,?::uuid,?::uuid,?::uuid)",
+                fixtureHash,
+                V5_PASSWORD_POLICIES.get(0).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(1).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(2).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(3).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(4).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(5).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(6).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(7).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(8).accountId().toString());
+    }
+
+    @AfterEach
+    void restoreSeedPasswords() {
+        jdbcTemplate.update(
+                "UPDATE accounts SET password_hash = ? WHERE id IN (?::uuid,?::uuid,?::uuid,?::uuid,?::uuid,?::uuid,?::uuid,?::uuid,?::uuid)",
+                REPAIRED_PASSWORD_HASH,
+                V5_PASSWORD_POLICIES.get(0).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(1).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(2).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(3).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(4).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(5).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(6).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(7).accountId().toString(),
+                V5_PASSWORD_POLICIES.get(8).accountId().toString());
     }
 
     @Test
@@ -110,7 +138,7 @@ class AuthFlywayV49SeedIT extends AbstractPostgresIT {
                                   "loginId": "%s",
                                   "password": "%s"
                                 }
-                                """.formatted(account.loginId(), DEV_ACCOUNT_PASSWORD)))
+                                """.formatted(account.loginId(), TEST_FIXTURE_PASSWORD)))
                 .andExpect(status().isOk())
                 .andReturn();
 
