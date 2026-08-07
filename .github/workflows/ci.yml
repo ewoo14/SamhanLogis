@@ -646,7 +646,7 @@ jobs:
 
   local-stack-port-guard:
     name: Local Stack Port Resolver Guard (#1113)
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -657,7 +657,7 @@ jobs:
         run: ./scripts/check-local-stack-port-literals.ps1 -Root $PWD
 
       - name: Execute resolver and Measure-Object regressions
-        shell: pwsh
+        shell: powershell
         run: ./tools/operational-validation/test-s7-axis-redefined.ps1
 
   config-audit-guard:
