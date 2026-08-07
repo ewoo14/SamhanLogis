@@ -65,12 +65,12 @@ function receipt(overrides: Partial<CashReceiptRow> = {}): CashReceiptRow {
   }
 }
 
-function renderPage(row: CashReceiptRow) {
+function renderPage(row: CashReceiptRow, initialEntry: string | { pathname: string; state?: unknown } = '/accounting/admin/cash-receipts/receipt-1') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.getCashReceipt.mockResolvedValue(row)
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/accounting/admin/cash-receipts/receipt-1']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/accounting/admin/cash-receipts/:id" element={<CashReceiptDetailPage />} />
         </Routes>
@@ -86,6 +86,19 @@ afterEach(() => {
 })
 
 describe('CashReceiptDetailPage', () => {
+  it('상세 목록 CTA는 returnTo path+search를 우선해 복귀한다', async () => {
+    renderPage(receipt(), {
+      pathname: '/accounting/admin/cash-receipts/receipt-1',
+      state: { returnTo: { pathname: '/accounting/admin/cash-receipts', search: '?kind=DEPOSIT_REPORT&page=2' } },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: '목록' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      pathname: '/accounting/admin/cash-receipts',
+      search: '?kind=DEPOSIT_REPORT&page=2',
+    })
+  })
+
   it('상세 필드와 S4a kind 라벨을 렌더하고 DRAFT 액션을 활성화한다', async () => {
     renderPage(receipt())
 

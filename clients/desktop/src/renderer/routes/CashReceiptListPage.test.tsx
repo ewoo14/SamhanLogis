@@ -18,11 +18,11 @@ vi.mock('../api/accounting', async (importOriginal) => {
 
 import { CashReceiptListPage } from './CashReceiptListPage'
 
-function renderPage() {
+function renderPage(initialEntry = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <CashReceiptListPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -46,6 +46,17 @@ afterEach(() => {
 })
 
 describe('CashReceiptListPage', () => {
+  it('URL query의 필터와 page를 목록 정본으로 복원한다', async () => {
+    listCashReceiptsMock.mockResolvedValue({
+      content: [sampleRow], totalElements: 101, totalPages: 3, number: 2, size: 50, first: false, last: true,
+    })
+    renderPage('/accounting/admin/cash-receipts?partnerName=%EC%82%BC%ED%95%9C%EA%B3%B5%EC%A1%B0&kind=DEPOSIT_REPORT&page=2')
+
+    expect(await screen.findByTestId('cash-receipt-filter-partner-name')).toHaveValue('삼한공조')
+    expect(screen.getByTestId('cash-receipt-filter-kind')).toHaveValue('DEPOSIT_REPORT')
+    await waitFor(() => expect(listCashReceiptsMock).toHaveBeenCalledWith(expect.objectContaining({ page: 2 })))
+  })
+
   it('전표번호는 상세 링크로 렌더한다', async () => {
     listCashReceiptsMock.mockResolvedValue({
       content: [sampleRow], totalElements: 1, totalPages: 1, number: 0, size: 50, first: true, last: true,
@@ -54,6 +65,7 @@ describe('CashReceiptListPage', () => {
 
     const slip = await screen.findByTestId('cash-receipt-slip-2026/05/19-3')
     expect(slip.textContent).toBe('2026/05/19-3')
+    expect(slip).toHaveAttribute('aria-label', '2026/05/19-3 상세 보기')
     expect(slip.closest('a')?.getAttribute('href')).toBe('/accounting/admin/cash-receipts/00000000-0000-0000-0000-000000000001')
   })
 

@@ -51,4 +51,32 @@ test.describe('입금보고서 목록 (E3 S4a)', () => {
     await expect(table).not.toContainText('삼한공조')
     await shot(page, '02-filter-bank-linked.png')
   })
+
+  test('RED-A: 필터·페이지·스크롤을 상세 왕복 뒤 복원한다', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/accounting/admin/cash-receipts?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
+    await page.getByTestId('cash-receipt-filter-kind').selectOption('DEPOSIT_REPORT')
+    await page.getByRole('button', { name: '검색' }).click()
+    await expect(page.getByTestId('cash-receipt-filter-kind')).toHaveValue('DEPOSIT_REPORT')
+
+    await page.getByTestId('cash-receipt-list-table').evaluate((table) => {
+      table.insertAdjacentHTML('beforeend', '<div style="height: 2400px" data-testid="red-a-spacer"></div>')
+    })
+    await page.evaluate(() => window.scrollTo(0, 900))
+    const before = await page.evaluate(() => window.scrollY)
+    await page.getByTestId('cash-receipt-slip-2026/05/19-3').click()
+    await expect(page).toHaveURL(/\/accounting\/admin\/cash-receipts\/00000000-0000-4000-8000-/)
+    await page.getByRole('button', { name: '목록' }).click()
+    await expect(page).toHaveURL(/\/accounting\/admin\/cash-receipts\?/)
+    await expect(page.getByTestId('cash-receipt-filter-kind')).toHaveValue('DEPOSIT_REPORT')
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(before - 2)
+  })
+
+  test('RED-B: 번호 링크는 기존 목록 행 동작과 접근성 계약을 보존한다', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/accounting/admin/cash-receipts?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
+    const slip = page.getByTestId('cash-receipt-slip-2026/05/19-3')
+    await expect(slip).toHaveAttribute('aria-label', '2026/05/19-3 상세 보기')
+    await expect(page.getByRole('button', { name: '새로고침' })).toBeVisible()
+    await expect(page.getByText('전표번호')).toBeVisible()
+    await expect(page.getByText('삭제')).toHaveCount(0)
+  })
 })

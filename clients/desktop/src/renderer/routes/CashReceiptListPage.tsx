@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Input, Select, type DataTableColumn } from '@samhan/design-system'
 import { FilterChipBar, type FilterChip } from '../components/FilterChipBar'
@@ -28,6 +28,7 @@ import {
   inputStyle,
   pageRootStyle,
 } from './accounting/admin/Mig14AdminShared'
+import { getScrollAnchor, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 
 const PAGE_CODE = 'accounting.cash-receipts'
 
@@ -83,9 +84,29 @@ export function CashReceiptListPage() {
 
   const { canAccess } = usePermissions()
   const canView = canAccess(PAGE_CODE, 'view')
-  const [page, setPage] = useState(0)
-  const [filters, setFilters] = useState<CashReceiptFilterState>(INITIAL_FILTERS)
-  const [applied, setApplied] = useState<CashReceiptFilterState>(INITIAL_FILTERS)
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+  const applied = useMemo<CashReceiptFilterState>(() => ({
+    partnerName: searchParams.get('partnerName') ?? '',
+    slipNo: searchParams.get('slipNo') ?? '',
+    kind: searchParams.get('kind') ?? '',
+    from: searchParams.get('from') ?? '',
+    to: searchParams.get('to') ?? '',
+  }), [searchParams])
+  const page = Math.max(0, Number(searchParams.get('page') ?? 0) || 0)
+  const [filters, setFilters] = useState<CashReceiptFilterState>(applied)
+
+  useEffect(() => {
+    setFilters(applied)
+  }, [applied])
+
+  useEffect(() => {
+    const anchor = getScrollAnchor(returnTo)
+    if (anchor == null) return
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [returnTo.pathname, returnTo.search])
 
   const queryOptions = useMemo(
     () => listCashReceiptQueryOptions(applied, page, PAGE_SIZE),
@@ -99,26 +120,35 @@ export function CashReceiptListPage() {
   })
 
   const applyFilters = () => {
-    setPage(0)
-    setApplied({
+    const next: CashReceiptFilterState = {
       partnerName: filters.partnerName.trim(),
       slipNo: filters.slipNo.trim(),
       kind: filters.kind,
       from: filters.from,
       to: filters.to,
-    })
+    }
+    updateListSearch(next, 0)
   }
 
   const resetFilters = () => {
-    setPage(0)
     setFilters(INITIAL_FILTERS)
-    setApplied(INITIAL_FILTERS)
+    updateListSearch(INITIAL_FILTERS, 0)
   }
 
   const removeFilter = (key: keyof CashReceiptFilterState) => {
-    setPage(0)
     setFilters((prev) => ({ ...prev, [key]: '' }))
-    setApplied((prev) => ({ ...prev, [key]: '' }))
+    updateListSearch({ ...applied, [key]: '' }, 0)
+  }
+
+  const updateListSearch = (next: CashReceiptFilterState, nextPage: number) => {
+    const params = new URLSearchParams(searchParams)
+    for (const [key, value] of Object.entries(next)) {
+      if (value) params.set(key, value)
+      else params.delete(key)
+    }
+    if (nextPage > 0) params.set('page', String(nextPage))
+    else params.delete('page')
+    setSearchParams(params)
   }
 
   const activeFilters: FilterChip[] = [
@@ -149,6 +179,9 @@ export function CashReceiptListPage() {
         render: (row) => isSkeletonRow(row) ? <SkeletonCell width={120} /> : (
           <Link
             to={`/accounting/admin/cash-receipts/${row.id}`}
+            state={{ returnTo }}
+            onClick={() => saveScrollAnchor(returnTo)}
+            aria-label={`${row.slipNo} 상세 보기`}
             style={{ fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}
             data-testid={`cash-receipt-slip-${row.slipNo}`}
           >
@@ -307,7 +340,7 @@ export function CashReceiptListPage() {
             emptyMessage="조건에 맞는 입금 자료가 없습니다."
             page={page}
             pageData={query.data}
-            onPageChange={setPage}
+            onPageChange={(nextPage) => updateListSearch(applied, nextPage)}
             testId="cash-receipt-list-table"
             pageSize={PAGE_SIZE}
           />

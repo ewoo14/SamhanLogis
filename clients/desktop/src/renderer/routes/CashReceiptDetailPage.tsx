@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Spinner } from '@samhan/design-system'
 import {
@@ -16,6 +16,7 @@ import {
   formatCashReceiptAmount,
   formatCashReceiptDate,
 } from './CashReceiptListPage.model'
+import { getReturnTo } from '../utils/returnContract'
 
 const PAGE_CODE = 'accounting.cash-receipts'
 
@@ -46,6 +47,8 @@ export function CashReceiptDetailPage() {
   const params = useParams<{ id: string }>()
   const receiptId = params['id']!
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = getReturnTo(location.state, { pathname: '/accounting/admin/cash-receipts', search: '' })
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [topError, setTopError] = useState('')
@@ -141,7 +144,7 @@ export function CashReceiptDetailPage() {
             </div>
           </div>
           <div className="detail-action-bar">
-            <Button type="button" variant="ghost" onClick={() => navigate('/accounting/admin/cash-receipts')}>
+            <Button type="button" variant="ghost" onClick={() => navigate(returnTo)}>
               목록
             </Button>
             {canEdit ? (
