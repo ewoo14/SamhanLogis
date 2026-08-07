@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const { execFileSync } = require('node:child_process')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
@@ -12,6 +13,15 @@ const jwtConsumers = [...scripts, path.join(root, 'scripts', 'seed-local-stack.p
 
 function readScript(filePath) {
   return fs.readFileSync(filePath, 'utf8')
+}
+
+function invokePowerShell(script) {
+  return execFileSync('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy', 'Bypass',
+    '-Command', script,
+  ], { encoding: 'utf8' }).trim()
 }
 
 test('운영검증 JWT 소비처는 role claim을 요구하지 않고 명시적 identity claim을 전달한다', () => {
@@ -37,4 +47,42 @@ test('운영검증 PowerShell은 표준 QA 자격 로더를 사용한다', () =>
     assert.match(source, /qa-credentials\.ps1/)
     assert.match(source, /Resolve-QaCredential/)
   }
+})
+
+test('smoke 판정은 업무 404와 경로 404를 구분하고 0/1/다건 실패를 정확히 센다', () => {
+  const helper = path.join(root, 'tools', 'operational-validation', 'smoke-test-helpers.ps1')
+  const command = `
+. '${helper}'
+$cases = @(
+  (Get-SmokeVerdict -Status '404' -Body '{"code":"NOT_FOUND"}'),
+  (Get-SmokeVerdict -Status '404' -Body '{"message":"no route"}'),
+  (Get-SmokeVerdict -Status '200' -Body '')
+)
+$counts = @(
+  (Get-SmokeFailureCount -Results @()),
+  (Get-SmokeFailureCount -Results @([pscustomobject]@{ Verdict = 'FAIL' })),
+  (Get-SmokeFailureCount -Results @(
+    [pscustomobject]@{ Verdict = 'FAIL' },
+    [pscustomobject]@{ Verdict = 'PATH_404' },
+    [pscustomobject]@{ Verdict = 'OK' }
+  ))
+)
+[pscustomobject]@{ Cases = $cases; Counts = $counts } | ConvertTo-Json -Compress
+`
+  const result = JSON.parse(invokePowerShell(command))
+  assert.deepEqual(result.Cases, ['BUSINESS_404', 'PATH_404', 'OK'])
+  assert.deepEqual(result.Counts, [0, 1, 2])
+})
+
+test('seed 포트 해석은 실제 SAMHAN_*_PORT override를 사용한다', () => {
+  const helper = path.join(root, 'scripts', 'lib', 'local-stack-port.ps1')
+  const command = `
+. '${helper}'
+[pscustomobject]@{
+  Default = Resolve-LocalStackPort -EnvironmentValue '' -DefaultPort 8086
+  Override = Resolve-LocalStackPort -EnvironmentValue '8186' -DefaultPort 8086
+} | ConvertTo-Json -Compress
+`
+  const result = JSON.parse(invokePowerShell(command))
+  assert.deepEqual(result, { Default: 8086, Override: 8186 })
 })

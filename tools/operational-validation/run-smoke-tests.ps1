@@ -57,8 +57,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$qaCredentialLoader = Join-Path $PSScriptRoot '..\..\scripts\lib\qa-credentials.ps1'
+$smokeScriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Join-Path (Get-Location) 'tools\operational-validation'
+} else {
+    $PSScriptRoot
+}
+$qaCredentialLoader = Join-Path $smokeScriptRoot '..\..\scripts\lib\qa-credentials.ps1'
 . (Resolve-Path -LiteralPath $qaCredentialLoader)
+. (Resolve-Path -LiteralPath (Join-Path $smokeScriptRoot 'smoke-test-helpers.ps1'))
 if ([string]::IsNullOrWhiteSpace($Password)) {
     $Password = Resolve-QaCredential -Key 'QA_MASTER_PASSWORD' -CompatibilityAliases @('QA_PASSWORD', 'QA_MASTER_PW')
 }
@@ -298,8 +304,15 @@ foreach ($ep in $smokeEndpoints) {
         if ($_.Exception.Response) {
             try { $status = "$([int]$_.Exception.Response.StatusCode)" } catch { }
         }
-        # 일부 endpoint 가 path 구조 차이로 404 — service alive 인지 확인 필요
-        if ($status -eq '404') { $verdict = 'PATH_404' }
+        $responseBody = ''
+        if ($_.Exception.Response) {
+            try {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $responseBody = $reader.ReadToEnd()
+                $reader.Dispose()
+            } catch { }
+        }
+        $verdict = Get-SmokeVerdict -Status $status -Body $responseBody
         if ($msg.Length -gt 50) { $note = $msg.Substring(0, 50) + '...' } else { $note = $msg }
     }
     $smokeResults += [pscustomobject]@{
@@ -315,7 +328,7 @@ $smokeResults | Format-Table -AutoSize
 # -----------------------------------------------------------------------------
 # 4. 종합
 # -----------------------------------------------------------------------------
-$smokeFail = ($smokeResults | Where-Object { $_.Verdict -ne 'OK' }).Count
+$smokeFail = Get-SmokeFailureCount -Results @($smokeResults)
 
 Write-Host ''
 Write-Host '==============================================================' -ForegroundColor Cyan

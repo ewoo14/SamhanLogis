@@ -6,6 +6,20 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$seedScriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Join-Path (Get-Location) 'scripts'
+} else {
+    $PSScriptRoot
+}
+. (Resolve-Path -LiteralPath (Join-Path $seedScriptRoot 'lib\local-stack-port.ps1'))
+
+$gatewayPort = Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_API_GATEWAY_PORT -DefaultPort 8080
+$authPort = Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_AUTH_PORT -DefaultPort 8081
+$accountingPort = Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_ACCOUNTING_PORT -DefaultPort 8087
+if ($GatewayUrl -eq "http://localhost:8080") { $GatewayUrl = "http://localhost:$gatewayPort" }
+if ($AuthBaseUrl -eq "http://localhost:8080/api/auth") { $AuthBaseUrl = "$GatewayUrl/api/auth" }
+if ($AccountingBaseUrl -eq "http://localhost:8087") { $AccountingBaseUrl = "http://localhost:$accountingPort" }
+$authServiceBaseUrl = "http://localhost:$authPort"
 
 # PowerShell 5.1 (cp949) 환경에서 한글 console 출력 보존 — [feedback_powershell_utf8_writes]
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -100,7 +114,7 @@ foreach ($user in $users) {
             displayName = $user.displayName
             role = $user.role
         }
-        Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/register" -Headers $headers -Body $body | Out-Null
+        Invoke-Json -Method "POST" -Uri "$authServiceBaseUrl/auth/register" -Headers $headers -Body $body | Out-Null
         Write-Host "[seed] created $($user.loginId) ROLE_$($user.role)"
     } catch {
         $message = $_.Exception.Message
@@ -113,22 +127,24 @@ foreach ($user in $users) {
 }
 
 $serviceHealth = @(
-    "http://localhost:8081/actuator/health",
-    "http://localhost:8083/actuator/health",
-    "http://localhost:8084/actuator/health",
-    "http://localhost:8085/actuator/health",
-    "http://localhost:8086/actuator/health",
-    "http://localhost:8087/actuator/health",
-    "http://localhost:8088/actuator/health",
-    "http://localhost:8089/actuator/health",
-    "http://localhost:8091/actuator/health",
-    "http://localhost:8092/actuator/health",
-    "http://localhost:8093/actuator/health",
-    "http://localhost:8094/actuator/health",
-    "http://localhost:8095/actuator/health",
-    "http://localhost:8097/actuator/health"
+    @{ Name = 'auth-service'; DefaultPort = 8081; Env = 'SAMHAN_AUTH_PORT' },
+    @{ Name = 'user-service'; DefaultPort = 8083; Env = 'SAMHAN_USER_PORT' },
+    @{ Name = 'product-service'; DefaultPort = 8084; Env = 'SAMHAN_PRODUCT_PORT' },
+    @{ Name = 'inventory-service'; DefaultPort = 8085; Env = 'SAMHAN_INVENTORY_PORT' },
+    @{ Name = 'slip-service'; DefaultPort = 8086; Env = 'SAMHAN_SLIP_PORT' },
+    @{ Name = 'accounting-service'; DefaultPort = 8087; Env = 'SAMHAN_ACCOUNTING_PORT' },
+    @{ Name = 'partner-order-service'; DefaultPort = 8088; Env = 'SAMHAN_PARTNER_ORDER_PORT' },
+    @{ Name = 'partner-auth-service'; DefaultPort = 8091; Env = 'SAMHAN_PARTNER_AUTH_PORT' },
+    @{ Name = 'dc-config-service'; DefaultPort = 8089; Env = 'SAMHAN_DC_CONFIG_PORT' },
+    @{ Name = 'groupware-service'; DefaultPort = 8092; Env = 'SAMHAN_GROUPWARE_PORT' },
+    @{ Name = 'notification-service'; DefaultPort = 8093; Env = 'SAMHAN_NOTIFICATION_PORT' },
+    @{ Name = 'dashboard-service'; DefaultPort = 8094; Env = 'SAMHAN_DASHBOARD_PORT' },
+    @{ Name = 'partner-service'; DefaultPort = 8095; Env = 'SAMHAN_PARTNER_PORT' },
+    @{ Name = 'arologis-service'; DefaultPort = 8097; Env = 'SAMHAN_AROLOGIS_PORT' }
 )
-foreach ($url in $serviceHealth) {
+foreach ($service in $serviceHealth) {
+    $port = Resolve-LocalStackPort -EnvironmentValue ([Environment]::GetEnvironmentVariable($service.Env)) -DefaultPort $service.DefaultPort
+    $url = "http://localhost:$port/actuator/health"
     Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10 | Out-Null
 }
 Write-Host "[seed] 14 service actuator health OK — Flyway startup completed"
