@@ -34,11 +34,17 @@
 .PARAMETER SkipPortCheck
     Pre-flight port 점유 검사 생략 (외부 의존 서비스 사전 가동 인지 시).
 
+.PARAMETER RunSeed
+    표준 toggle를 덮어 product/inventory seed를 명시적으로 실행한다.
+
 .EXAMPLE
     .\infrastructure\scripts\start-local-full.ps1
 
 .EXAMPLE
     .\infrastructure\scripts\start-local-full.ps1 -SkipDocker
+
+.EXAMPLE
+    .\infrastructure\scripts\start-local-full.ps1 -RunSeed
 
 .NOTES
     - Windows PowerShell 5.1 / PowerShell 7+ 호환 (?? null-coalescing 미사용)
@@ -56,7 +62,8 @@ param(
     [switch] $SkipDocker,
     [switch] $SkipServices,
     [int]    $ServiceTimeoutSec = 300,
-    [switch] $SkipPortCheck
+    [switch] $SkipPortCheck,
+    [switch] $RunSeed
 )
 
 $ErrorActionPreference = 'Stop'
@@ -297,6 +304,11 @@ Get-Content $EnvSeedFile | ForEach-Object {
     $loaded++
 }
 Write-Host "   $loaded 개 환경변수 로드 완료" -ForegroundColor Green
+
+if ($RunSeed) {
+    $env:SAMHAN_SEED_TEST_DATA = 'true'
+    Write-Host '   -RunSeed 지정 — product/inventory seed를 실행합니다.' -ForegroundColor Yellow
+}
 
 # DB 연결 자격증명 (env 파일에 없는 표준 default)
 if (-not $env:DB_HOST)     { $env:DB_HOST     = 'localhost' }

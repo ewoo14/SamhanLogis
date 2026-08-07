@@ -10,9 +10,19 @@ test('standard seed entry points wire the common toggle to both services', () =>
   const template = read('infrastructure/env-templates/.env.dev-seed');
   const compose = read('infrastructure/docker-compose.local-all.yml');
 
-  assert.match(template, /^SAMHAN_SEED_TEST_DATA=true\s*$/m);
+  assert.match(template, /^SAMHAN_SEED_TEST_DATA=false\s*$/m);
   assert.match(compose, /product-service:[\s\S]*?SAMHAN_SEED_TEST_DATA:\s*\$\{SAMHAN_SEED_TEST_DATA:-false\}/);
   assert.match(compose, /inventory-service:[\s\S]*?SAMHAN_SEED_TEST_DATA:\s*\$\{SAMHAN_SEED_TEST_DATA:-false\}/);
+});
+
+test('explicit seed execution remains available through the shared toggle', () => {
+  const compose = read('infrastructure/docker-compose.local-all.yml');
+  const startScript = read('infrastructure/scripts/start-local-full.ps1');
+
+  assert.match(compose, /product-service:[\s\S]*?SAMHAN_SEED_TEST_DATA:\s*\$\{SAMHAN_SEED_TEST_DATA:-false\}/);
+  assert.match(compose, /inventory-service:[\s\S]*?SAMHAN_SEED_TEST_DATA:\s*\$\{SAMHAN_SEED_TEST_DATA:-false\}/);
+  assert.match(startScript, /\[switch\]\s*\$RunSeed/);
+  assert.match(startScript, /if \(\$RunSeed\)[\s\S]*?SAMHAN_SEED_TEST_DATA\s*=\s*'true'/);
 });
 
 test('inventory seed fail-fast does not promise impossible recovery', () => {
