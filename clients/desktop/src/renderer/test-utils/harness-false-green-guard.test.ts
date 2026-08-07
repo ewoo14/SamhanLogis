@@ -100,14 +100,17 @@ function hasBatchEvidenceWrite(raw: string): boolean {
 
 /**
  * Python/Batch are intentionally only lightweight lexical scans, not parsers.
- * Comments and quoted documentation are removed/masked before writer matching;
- * this cannot resolve dynamically composed destinations (for example
- * `Path('docs') / 'qa'` or a Batch `%OUT%` destination).
+ * Comments and quoted documentation are removed/masked before writer matching.
+ * This cannot resolve dynamically composed destinations (for example
+ * `Path('docs') / 'qa'` or a Batch `%OUT%` destination), and quoted Batch literal
+ * destinations are masked before the writer expression is checked. A marker and
+ * `write` in the same help string can also be mistaken for an isolation relation.
  */
 function stripTextComments(src: string, language: 'python' | 'batch'): string {
   if (language === 'batch') {
     return src.split(/\r?\n/).map((line) => /^\s*(?:@?rem\b|::)/i.test(line) ? '' : line).join('\n')
   }
+  src = stripPythonTripleQuotedStrings(src)
   let out = ''
   let quote = ''
   let escaped = false
@@ -126,6 +129,47 @@ function stripTextComments(src: string, language: 'python' | 'batch'): string {
     }
     if (c === '#' ) { comment = true; continue }
     if (c === '"' || c === "'") quote = c
+    out += c
+  }
+  return out
+}
+
+/**
+ * Python triple-quoted strings are treated as documentation/string content, not code.
+ * This is deliberately a lightweight lexical pass: it does not implement Python's full
+ * tokenizer (for example, unusual escaped delimiters, prefixes, or nested expressions),
+ * so dynamically composed paths such as `Path('docs') / 'qa'` remain outside this guard.
+ */
+function stripPythonTripleQuotedStrings(src: string): string {
+  let out = ''
+  let mode: 'code' | 'single' | 'double' | 'triple-single' | 'triple-double' = 'code'
+  let escaped = false
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i] ?? ''
+    const next = src.slice(i, i + 3)
+    if (mode === 'triple-single' || mode === 'triple-double') {
+      const delimiter = mode === 'triple-single' ? "'''" : '"""'
+      if (next === delimiter && !escaped) {
+        i += 2
+        mode = 'code'
+        continue
+      }
+      if (c === '\n') out += c
+      escaped = c === '\\' && !escaped
+      if (c !== '\\') escaped = false
+      continue
+    }
+    if (mode === 'single' || mode === 'double') {
+      out += c
+      if (escaped) escaped = false
+      else if (c === '\\') escaped = true
+      else if ((mode === 'single' && c === "'") || (mode === 'double' && c === '"')) mode = 'code'
+      continue
+    }
+    if (next === "'''") { i += 2; mode = 'triple-single'; continue }
+    if (next === '"""') { i += 2; mode = 'triple-double'; continue }
+    if (c === "'") { out += c; mode = 'single'; continue }
+    if (c === '"') { out += c; mode = 'double'; continue }
     out += c
   }
   return out
@@ -337,7 +381,8 @@ function isEvidenceWriter(file: string, rawOverride?: string): boolean {
     file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
   if (/\.(?:bat|py)$/i.test(file) && (hasBatchEvidenceWrite(raw) || hasPythonEvidenceWrite(raw))) return true
   if (!evidenceLiteral.test(raw) && !evidenceSplit.test(raw) && !inEvidenceTree) return false
-  const src = stripComments(raw)
+  const normalizedTextSource = /\.py$/i.test(file) ? stripTextComments(raw, 'python') : raw
+  const src = stripComments(normalizedTextSource)
   const decls = collectDeclarations(src)
   const targets = collectWriteTargetIdentifiers(src, decls)
   const writesEvidence = decls.some((decl) =>
@@ -349,7 +394,7 @@ function isEvidenceWriter(file: string, rawOverride?: string): boolean {
     const args = balancedArgs(src, open)
     return evidenceLiteral.test(extractLiterals(args)) || evidenceSplit.test(args)
   })
-  return writesEvidence || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)
+  return writesEvidence || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(normalizedTextSource)
 }
 
 function discoveredEvidenceWriters(): string[] {
@@ -376,6 +421,15 @@ function discoveredEvidenceWriters(): string[] {
       ? previous.isEvidenceWriter
       : isEvidenceWriter(canonical, raw)
     next.set(canonical, { contentHash, isEvidenceWriter: isWriter })
+  }
+  if (unreadEvidenceCandidates.length > 0) {
+    const listed = unreadEvidenceCandidates
+      .map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
+      .sort()
+    console.warn(
+      `[하네스 증거 writer] 읽지 못한 untracked 후보를 skip했습니다 — 사람 검토 필요:\n` +
+      listed.map((file) => `- ${file}`).join('\n'),
+    )
   }
   // Compare each discovered file directly by canonical key. Rebuilding the entire
   // cache entries array inside every() made an unchanged discovery O(n²).
@@ -1324,6 +1378,50 @@ describe('하네스 거짓 green 가드', () => {
     } finally {
       readEvidenceSource = originalReadEvidenceSource
       fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s18-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S22: 읽지 못한 untracked 후보는 skip하더라도 사람이 볼 수 있는 목록으로 보고한다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s22-probes/source/unreadable-untracked.mjs')
+    const originalReadEvidenceSource = readEvidenceSource
+    const originalWarn = console.warn
+    const warnings: string[] = []
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, "const OUT = 'docs/qa/.s22-unreadable.png'\n", 'utf8')
+    try {
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === probe) throw new Error('simulated locked untracked candidate')
+        return originalReadEvidenceSource(file)
+      }
+      console.warn = (...args: unknown[]) => warnings.push(args.join(' '))
+      discoveredEvidenceWriters()
+      expect(warnings.join('\n')).toContain('unreadable-untracked.mjs')
+      expect(warnings.join('\n')).toContain('untracked')
+    } finally {
+      readEvidenceSource = originalReadEvidenceSource
+      console.warn = originalWarn
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s22-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S22: Python triple-quoted 문서 문자열 안의 docs/qa writer 예제는 오차단하지 않는다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s22-probes/source/triple-docstring-only.py')
+    const docstring = [
+      'HELP = """',
+      'Documentation example only:',
+      "with open('docs/qa/example.png', 'wb') as handle:",
+      "    handle.write(b'example')",
+      '"""',
+      'VALUE = 1',
+    ].join('\n')
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, docstring, 'utf8')
+    try {
+      expect(hasPythonEvidenceWrite(docstring)).toBe(false)
+      expect(hasUnisolatedTextEvidenceWrite('probe.py', docstring)).toBe(false)
+      expect(discoveredEvidenceWriters()).not.toContain(fs.realpathSync.native(probe))
+    } finally {
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s22-probes'), { recursive: true, force: true })
     }
   })
 
