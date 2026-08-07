@@ -2242,6 +2242,10 @@ describe('SlipFormPage 모바일 라인 카드 aria-describedby (MED-1)', () => 
     await waitFor(() => expect(mobileUnitPrice().value).toBe('100000'))
 
     await selectPartnerB()
+    await waitFor(() => expect(harness.getPriceMemories).toHaveBeenCalledWith(
+      harness.partnerB.id,
+      [harness.productA.id],
+    ))
     await waitFor(() => expect(mobileUnitPrice().value).toBe('200000'))
     await waitFor(() => expect(screen.getByText('단가 변경')).toBeTruthy())
 
