@@ -284,6 +284,12 @@ function SummaryTotals({ summary }: SummaryTotalsProps) {
         tone="warning"
       />
       <TotalChip label="총 skip" value={summary.totalSkipped} tone="neutral" />
+      <TotalChip label="수동 보존" value={summary.totalPreservedManual} tone="neutral" />
+      <TotalChip
+        label="탭 결과"
+        value={`${summary.successfulTabs}/${summary.totalTabs} 성공`}
+        tone={summary.failedTabs > 0 ? 'warning' : 'success'}
+      />
       <TotalChip
         label="소요"
         value={`${summary.durationMs}ms`}

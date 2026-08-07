@@ -15,6 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 /**
  * ProductAdminController 단위 테스트 — PR-D Part 1.
@@ -61,21 +63,55 @@ class ProductAdminControllerTest {
         when(lookupSyncService.syncAll()).thenReturn(lookupSummary);
 
         // when
-        ApiResponse<ProductSheetSyncService.SyncSummary> response = controller.triggerSync();
+        ResponseEntity<ApiResponse<ProductSheetSyncService.SyncSummary>> response = controller.triggerSync();
 
         // then — cache invalidate + syncAll 호출 순서 + 응답 페이로드
         verify(sheetsClient).invalidateCache();
         verify(syncService).syncAll();
         verify(lookupSyncService).syncAll();
-        assertThat(response.getData().totalInserted).isEqualTo(7);
-        assertThat(response.getData().totalUpdated).isEqualTo(2);
-        assertThat(response.getData().totalSoftDeleted).isEqualTo(1);
-        assertThat(response.getData().byTab).containsKey("lookup:싱글 자재가격");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getData().totalInserted).isEqualTo(7);
+        assertThat(response.getBody().getData().totalUpdated).isEqualTo(2);
+        assertThat(response.getBody().getData().totalSoftDeleted).isEqualTo(1);
+        assertThat(response.getBody().getData().byTab).containsKey("lookup:싱글 자재가격");
 
         // lastSnapshot 도 trigger 후 갱신 — GET /sync/last 가 즉시 시각 + summary 노출
         ApiResponse<ProductAdminController.LastSyncSnapshot> last = controller.lastSync();
         assertThat(last.getData().lastSyncAt()).isNotNull();
         assertThat(last.getData().summary()).isSameAs(summary);
+    }
+
+    @Test
+    void triggerSync_부분실패는_207과_성공실패_탭수를_반환한다() {
+        ProductSheetSyncService.SyncSummary summary = new ProductSheetSyncService.SyncSummary();
+        summary.totalTabs = 11;
+        summary.successfulTabs = 6;
+        summary.failedTabs = 5;
+        when(syncService.syncAll()).thenReturn(summary);
+        when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
+
+        ResponseEntity<ApiResponse<ProductSheetSyncService.SyncSummary>> response = controller.triggerSync();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.MULTI_STATUS);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getData().failedTabs).isEqualTo(5);
+    }
+
+    @Test
+    void triggerSync_전탭실패는_502로_성공보고하지_않는다() {
+        ProductSheetSyncService.SyncSummary summary = new ProductSheetSyncService.SyncSummary();
+        summary.totalTabs = 11;
+        summary.failedTabs = 11;
+        when(syncService.syncAll()).thenReturn(summary);
+        when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
+
+        ResponseEntity<ApiResponse<ProductSheetSyncService.SyncSummary>> response = controller.triggerSync();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().isSuccess()).isFalse();
     }
 
     @Test

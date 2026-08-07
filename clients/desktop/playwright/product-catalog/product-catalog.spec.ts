@@ -91,60 +91,13 @@ async function selectEstimateItemsCategoryTab(page: Page, category: string): Pro
   await expect(tab).toHaveAttribute('aria-selected', 'true')
 }
 
-const BUNDLE_COMPONENT_CODES = [
-  'AJ040RXH4BC1',
-  'AJ100NCDKH',
-  'PNL-BASIC',
-  'PNL-BLACK',
-  'PNL-LIFT',
-  'PNL-CLEAN',
-  'MWR-WE10N',
-  'MWR-WE13N',
-  'MWR-SH11N',
-]
-const BUNDLE_MODAL_TITLE_PATTERN =
-  /구성품 편집\s*—\s*SET-HM2WAY\s*·\s*가정용 멀티 2in1 세트/
-
-async function openSetComponentsModal(page: Page): Promise<void> {
-  await gotoEstimateItemsCatalog(page, 'MASTER')
-  await loadEstimateItemsTable(page)
-  await selectEstimateItemsCategoryTab(page, 'SINGLE_SET')
-  const componentsBtn = page.getByTestId('estimate-items-components-button-SET-HM2WAY')
-  await expect(componentsBtn).toBeVisible({ timeout: 5_000 })
-  await componentsBtn.click()
-  await expect(page.getByTestId('components-modal')).toBeVisible({ timeout: 5_000 })
-  await expect(page.getByRole('dialog', { name: BUNDLE_MODAL_TITLE_PATTERN })).toBeVisible()
-  await expect(page.locator('[data-testid^="components-modal-component-row-"]')).toHaveCount(9, {
-    timeout: 5_000,
+async function openSetComponentsEditor(page: Page): Promise<void> {
+  await page.goto(`${BASE_URL}/#/products/SET-HM2WAY/edit`, { waitUntil: 'domcontentloaded' })
+  await expect(page.getByTestId('product-form-model-name')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('product-form-components-editor')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('[data-testid^="product-form-component-row-"]')).toHaveCount(9, {
+    timeout: 10_000,
   })
-}
-
-async function componentCodes(page: Page): Promise<string[]> {
-  const rows = page.locator('[data-testid^="components-modal-component-row-"]')
-  const count = await rows.count()
-  const result: string[] = []
-  for (let i = 0; i < count; i += 1) {
-    const text = (await rows.nth(i).textContent()) ?? ''
-    const code = BUNDLE_COMPONENT_CODES.find((candidate) => text.includes(candidate))
-    if (code) result.push(code)
-  }
-  return result
-}
-
-async function keyboardMoveComponent(
-  page: Page,
-  fromIndex: number,
-  direction: 'ArrowUp' | 'ArrowDown',
-  steps = 1,
-): Promise<void> {
-  await page.getByTestId(`components-modal-drag-handle-${fromIndex}`).focus()
-  await page.keyboard.press('Space')
-  await page.waitForTimeout(150)
-  for (let i = 0; i < steps; i += 1) {
-    await page.keyboard.press(direction)
-    await page.waitForTimeout(150)
-  }
-  await page.keyboard.press('Space')
 }
 
 async function dragRowByMouse(page: Page, fromIndex: number, toIndex: number): Promise<void> {
@@ -310,152 +263,45 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
   })
 
   // ---------------------------------------------------------------------------
-  // Scenario 4: 구성품 모달 왕복 — 추가·수량·저장 (명시 단언 강화 — P2 vacuous pass 수정)
+  // Scenario 4: 견적품목에는 구성 버튼과 구성품 모달이 없다.
   // ---------------------------------------------------------------------------
 
-  test('시나리오 4: 견적품목 구성품 모달 왕복 — 구성품 추가·수량 변경·저장·componentCount 갱신', async ({ page }) => {
+  test('시나리오 4: 견적품목에는 구성 버튼과 구성품 모달이 없다', async ({ page }) => {
     await installAuth(page)
     await gotoEstimateItemsCatalog(page, 'MASTER')
     await loadEstimateItemsTable(page)
 
-    // 1. 구성품 버튼 존재 단언
     await selectEstimateItemsCategoryTab(page, 'SINGLE_SET')
-    const componentsBtn = page.getByTestId('estimate-items-components-button-SET-HM2WAY')
-    await expect(componentsBtn).toBeVisible({ timeout: 5_000 })
-
-    // 2. 모달 열기
-    await componentsBtn.click()
-    const modal = page.getByTestId('components-modal')
-    await expect(modal).toBeVisible({ timeout: 5_000 })
-    await expect(page.getByRole('dialog', { name: BUNDLE_MODAL_TITLE_PATTERN })).toBeVisible()
-
-    // 3. 기존 구성품 row-0 존재 단언 (mock 시드 9개)
-    const firstRow = page.getByTestId('components-modal-component-row-0')
-    await expect(firstRow).toBeVisible({ timeout: 5_000 })
-
-    // 4. 첫 번째 구성품 모델코드 텍스트 단언 (BE 필드명 componentProductCode 기반 — P1-A 검증)
-    const firstRowText = await firstRow.textContent()
-    expect(firstRowText).toContain('AJ040RXH4BC1')
-
-    // 5. 수량 변경 (3으로)
-    const quantityInput = page.getByTestId('components-modal-quantity-0')
-    await expect(quantityInput).toBeVisible()
-    await quantityInput.fill('3')
-
-    // 6. 저장 버튼 클릭
-    const saveBtn = page.getByTestId('components-modal-save-button')
-    await expect(saveBtn).toBeVisible()
-    await saveBtn.click()
-
-    // 7. 모달 닫힘 단언
-    await expect(modal).not.toBeVisible({ timeout: 5_000 })
-
-    // 8. 세트 뱃지 여전히 표시 단언 (componentCount 갱신)
-    const setBadge = page.getByTestId('estimate-items-set-badge-SET-HM2WAY')
-    await expect(setBadge).toBeVisible({ timeout: 5_000 })
-    const badgeText = await setBadge.textContent()
-    // 저장 후 componentCount = 9 (수량 변경만, 행 개수 유지)
-    expect(badgeText).toMatch(/세트\s*·\s*9/)
+    await expect(page.locator('[data-testid^="estimate-items-components-button-"]')).toHaveCount(0)
+    await expect(page.getByTestId('components-modal')).toHaveCount(0)
   })
 
   // ---------------------------------------------------------------------------
   // Scenario 4b: 구성품 모달 — 새 품목 추가 실제 수행 (P2 vacuous pass 수정)
   // ---------------------------------------------------------------------------
 
-  test('시나리오 4b: 견적품목 구성품 모달 — 품목 검색 후 추가 실제 수행·행 개수 증가 단언', async ({ page }) => {
+  test('시나리오 4b: 기초품목 세트 상세에서 구성품 편집을 제공한다', async ({ page }) => {
     await installAuth(page)
-    await gotoEstimateItemsCatalog(page, 'MASTER')
-    await loadEstimateItemsTable(page)
+    await openSetComponentsEditor(page)
 
-    await selectEstimateItemsCategoryTab(page, 'SINGLE_SET')
-    const componentsBtn = page.getByTestId('estimate-items-components-button-SET-HM2WAY')
-    await expect(componentsBtn).toBeVisible({ timeout: 5_000 })
-    await componentsBtn.click()
-
-    const modal = page.getByTestId('components-modal')
-    await expect(modal).toBeVisible({ timeout: 5_000 })
-
-    // 기존 행 수 확인 (mock 시드 3개)
-    const rowsBefore = modal.locator('[data-testid^="components-modal-component-row-"]')
-    const countBefore = await rowsBefore.count()
-    expect(countBefore).toBeGreaterThan(0)
-
-    // 품목 검색 — AJ052RXH5BC1 (mock 에 존재하는 단품).
-    // R29: 후보 1건은 listbox option 클릭 없이 ProductAutocomplete가 즉시 확정한다.
-    const searchInput = modal.getByPlaceholder('모델명 또는 품목명 입력')
-    await searchInput.click()
-    await searchInput.fill('AJ052')
-    await expect(searchInput).toHaveValue('AJ052RXH5BC1', { timeout: 5_000 })
-    // 선택 후 추가 버튼(modelCode 별 testid) 활성 → 클릭
-    const addBtn = page.getByTestId('components-modal-add-AJ052RXH5BC1')
-    await expect(addBtn).toBeVisible({ timeout: 5_000 })
-    await addBtn.click()
-
-    // 행 수 증가 단언
-    const rowsAfter = modal.locator('[data-testid^="components-modal-component-row-"]')
-    await expect(rowsAfter).toHaveCount(countBefore + 1, { timeout: 3_000 })
-
-    // 저장 후 모달 닫힘
-    const saveBtn = page.getByTestId('components-modal-save-button')
-    await saveBtn.click()
-    await expect(modal).not.toBeVisible({ timeout: 5_000 })
+    const editor = page.getByTestId('product-form-components-editor')
+    await expect(editor.getByTestId('product-form-component-row-0')).toBeVisible()
+    const addCode = editor.getByTestId('product-form-component-add-code')
+    await addCode.fill('AJ052RXH5BC1')
+    await editor.getByRole('button', { name: '추가' }).click()
+    await expect(editor.locator('[data-testid^="product-form-component-row-"]')).toHaveCount(10)
+    await editor.getByTestId('product-form-components-save').click()
+    await expect(editor.getByTestId('product-form-component-row-9')).toBeVisible()
   })
 
-  test('시나리오 4c: 구성품 드래그 정렬 — 종류 내 재정렬 저장·기본 고정·종류 경계 거부', async ({ page }) => {
+  test('시나리오 4c: 기초품목 세트 상세에 구성품 행과 저장 경로가 있다', async ({ page }) => {
     await installAuth(page)
-    await openSetComponentsModal(page)
+    await openSetComponentsEditor(page)
 
-    await expect(page.getByTestId('components-modal-kind-group-INDOOR')).toBeVisible()
-    await expect(page.getByTestId('components-modal-kind-group-OUTDOOR')).toBeVisible()
-    await expect(page.getByTestId('components-modal-kind-group-PANEL')).toBeVisible()
-    await expect(page.getByTestId('components-modal-kind-group-REMOTE')).toBeVisible()
+    await expect(page.getByTestId('product-form-components-editor')).toBeVisible()
 
-    const initial = await componentCodes(page)
-    expect(initial).toEqual([
-      'AJ040RXH4BC1',
-      'AJ100NCDKH',
-      'PNL-BASIC',
-      'PNL-BLACK',
-      'PNL-LIFT',
-      'PNL-CLEAN',
-      'MWR-WE10N',
-      'MWR-WE13N',
-      'MWR-SH11N',
-    ])
-
-    await expect(page.getByTestId('components-modal-drag-handle-2')).toBeDisabled()
-
-    await keyboardMoveComponent(page, 3, 'ArrowDown', 4)
-    await expect.poll(() => componentCodes(page), { timeout: 3_000 }).toEqual(initial)
-
-    await keyboardMoveComponent(page, 4, 'ArrowUp')
-    await expect.poll(() => componentCodes(page), { timeout: 3_000 }).toEqual([
-      'AJ040RXH4BC1',
-      'AJ100NCDKH',
-      'PNL-BASIC',
-      'PNL-LIFT',
-      'PNL-BLACK',
-      'PNL-CLEAN',
-      'MWR-WE10N',
-      'MWR-WE13N',
-      'MWR-SH11N',
-    ])
-
-    await page.getByTestId('components-modal-save-button').click()
-    await expect(page.getByTestId('components-modal')).not.toBeVisible({ timeout: 5_000 })
-
-    await openSetComponentsModal(page)
-    await expect.poll(() => componentCodes(page), { timeout: 5_000 }).toEqual([
-      'AJ040RXH4BC1',
-      'AJ100NCDKH',
-      'PNL-BASIC',
-      'PNL-LIFT',
-      'PNL-BLACK',
-      'PNL-CLEAN',
-      'MWR-WE10N',
-      'MWR-WE13N',
-      'MWR-SH11N',
-    ])
+    await expect(page.locator('[data-testid^="product-form-component-row-"]')).toHaveCount(9)
+    await expect(page.getByTestId('product-form-components-save')).toBeVisible()
   })
 
   // ---------------------------------------------------------------------------

@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,13 +65,24 @@ public class ProductAdminController {
     })
     @PostMapping("/sync")
     @RequirePermission(page = "products.sync", action = PermissionAction.CREATE)
-    public ApiResponse<ProductSheetSyncService.SyncSummary> triggerSync() {
+    public ResponseEntity<ApiResponse<ProductSheetSyncService.SyncSummary>> triggerSync() {
         sheetsClient.invalidateCache();
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
         ProductLookupSheetSyncService.SyncSummary lookupSummary = lookupSyncService.syncAll();
         mergeLookupSummary(summary, lookupSummary);
         lastSnapshot.set(new LastSyncSnapshot(Instant.now(), summary));
-        return ApiResponse.ok(summary);
+        HttpStatus status = summary.failedTabs == 0
+                ? HttpStatus.OK
+                : summary.successfulTabs == 0
+                        ? HttpStatus.BAD_GATEWAY
+                        : HttpStatus.MULTI_STATUS;
+        ApiResponse<ProductSheetSyncService.SyncSummary> response = summary.failedTabs == 0
+                ? ApiResponse.ok(summary)
+                : ApiResponse.fail(
+                        summary.successfulTabs == 0 ? "SYNC_FAILED" : "SYNC_PARTIAL_FAILURE",
+                        summary.successfulTabs == 0 ? "시트 sync 전체 실패" : "시트 sync 일부 실패",
+                        summary);
+        return ResponseEntity.status(status).body(response);
     }
 
     /**
@@ -131,6 +144,9 @@ public class ProductAdminController {
         summary.totalUpdated += lookupSummary.totalUpdated;
         summary.totalSoftDeleted += lookupSummary.totalSoftDeleted;
         summary.totalSkipped += lookupSummary.totalSkipped;
+        summary.totalTabs += lookupSummary.totalTabs;
+        summary.failedTabs += lookupSummary.failedTabs;
+        summary.successfulTabs += lookupSummary.successfulTabs;
         summary.durationMs += lookupSummary.durationMs;
     }
 }

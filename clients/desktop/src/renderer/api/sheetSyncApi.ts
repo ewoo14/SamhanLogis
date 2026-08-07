@@ -43,6 +43,10 @@ export interface SyncSummary {
   totalUpdated: number
   totalSoftDeleted: number
   totalSkipped: number
+  totalPreservedManual: number
+  totalTabs: number
+  successfulTabs: number
+  failedTabs: number
   durationMs: number
   error?: string | null
 }

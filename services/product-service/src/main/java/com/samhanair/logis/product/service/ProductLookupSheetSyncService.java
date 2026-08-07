@@ -304,6 +304,7 @@ public class ProductLookupSheetSyncService {
 
     /** 탭 실행 wrapper — 실패를 summary 에 기록하고 다음 탭으로 진행한다. */
     private void runTab(SyncSummary summary, String tabName, TabSyncCallable callable) {
+        summary.totalTabs++;
         try {
             TabSyncResult result = callable.sync();
             summary.byTab.put(tabName, result);
@@ -312,12 +313,14 @@ public class ProductLookupSheetSyncService {
             summary.totalUnchanged += result.unchanged;
             summary.totalSoftDeleted += result.softDeleted;
             summary.totalSkipped += result.skipped;
+            summary.successfulTabs++;
         } catch (Exception e) {
             invalidateHashCacheForTab(tabName);
             log.error("[ProductLookupSheetSync] tab '{}' sync 실패: {}", tabName, e.getMessage(), e);
             TabSyncResult result = new TabSyncResult();
             result.error = e.getMessage();
             summary.byTab.put(tabName, result);
+            summary.failedTabs++;
         }
     }
 
@@ -504,6 +507,9 @@ public class ProductLookupSheetSyncService {
         public int totalUnchanged = 0;
         public int totalSoftDeleted = 0;
         public int totalSkipped = 0;
+        public int totalTabs = 0;
+        public int failedTabs = 0;
+        public int successfulTabs = 0;
         public long durationMs = 0;
     }
 }
