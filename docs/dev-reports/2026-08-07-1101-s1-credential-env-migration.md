@@ -155,7 +155,7 @@ run-load-test.ps1 parse PASS
 | 불변식 | 결과 | 실행 |
 |---|---|---|
 | RED-A | PASS | `./gradlew :services:arologis-service:test` 및 `./gradlew :shared:common:test :services:auth-service:test :services:api-gateway:test` 성공. `clients/desktop`의 `npm run typecheck`, lint, build, build:web, build:capacitor도 성공. |
-| RED-B | PASS | `git grep -n -E 'dev_p05_pass!|samhan!2026|admin1234' HEAD -- . ':!.gitguardian.yaml'` 결과 0건. 가드 allowlist 파일은 변경하지 않았다. |
+| RED-B | PASS | 금지된 개발 QA 자격 문자열 3종을 `.gitguardian.yaml` 제외하고 검색한 결과 0건. 가드 allowlist 파일은 변경하지 않았다. |
 | RED-C | PASS | `CREDENTIAL_GUARD_SCOPE=s1 bash scripts/check-credential-plaintext.sh`와 `CREDENTIAL_GUARD_SCOPE=s2 bash scripts/check-credential-plaintext.sh` 모두 PASS. 정상 파일 오차단은 없었다. 전체 recursive 가드는 기존 Windows Git Bash 병목으로 exit 124였고 성공으로 세지 않았다. |
 
 ### 실행 원문
@@ -177,10 +177,53 @@ $ CREDENTIAL_GUARD_SCOPE=s1 bash scripts/check-credential-plaintext.sh
 $ CREDENTIAL_GUARD_SCOPE=s2 bash scripts/check-credential-plaintext.sh
  [PASS] S2 저장소 전체 개발 QA 평문 없음 (allowlist 정의 제외)
 
-$ git grep -n -E 'dev_p05_pass!|samhan!2026|admin1234' HEAD -- . ':!.gitguardian.yaml'
+$ git grep -n -E '<금지된 개발 QA 자격 문자열 3종>' HEAD -- . ':!.gitguardian.yaml'
 [PASS] forbidden credential grep: 0 matches
 ```
 
 ### 새로 만든 파일
 
 없음. S3는 기존 S1 보고서에 절을 추가했고, 커밋하지 않았다.
+
+## S4 — cleanup-worker 계약 테스트 회귀 복구 (2026-08-07)
+
+### 원인 및 판정
+
+S2가 `clients/desktop/src/renderer/test-utils/ds4-real-qa-cleanup-worker.contract.test.ts`의
+worker 인자를 하드코드 값에서 `(process.env.DEV_PASSWORD ?? '')`로 바꿨다. CI에는
+`DEV_PASSWORD`가 주입되지 않아 `--password-b64`가 빈 문자열이 되었고, worker는
+owner PID를 확인하기 전에 필수 입력 검증에서 exit code 2로 종료했다. 그래서 owner가
+죽어도 polling loop의 `isOwnerAlive()`와 cleanup 로그인 호출에 도달하지 않아 5초 후
+`getLoginCalls() === 0`으로 실패했다. 이는 owner 식별값 변경이나 플래키가 아니라,
+테스트 worker를 시작하지 못하게 만든 입력 계약 회귀다.
+
+이 파일의 원래 하드코드 값은 실제 QA 자격이 아니라 fake HTTP 서버가 어떤 값이든
+받아들이는 계약 테스트 fixture였다. 따라서 셋째 갈래를 채택한다: 실제 자격을 되살리지
+않고, worker의 non-empty 입력 가드만 만족하는 `worker-contract-fixture`를 테스트 전용
+sentinel로 사용한다. 운영 worker, owner 판정, `toBeGreaterThan(0)` 단언, timeout은
+변경하지 않았다. 가드에서 테스트 파일을 제외하지도 않았다.
+
+### RED 결과
+
+| 불변식 | 결과 | 증거 |
+|---|---|---|
+| RED-A | PASS | 지정 계약 테스트 1파일, 2 tests passed; 생존 owner는 로그인 0회, 사망 owner는 cleanup 로그인 1회 이상. |
+| RED-B | PASS | `toBeGreaterThan(0)`와 5초 polling timeout을 유지했다. 수정 전에는 동일 명령이 1 failed/1 passed, 5,027ms로 실패했다. |
+| RED-C | PASS | 금지된 개발 QA 자격 문자열 3종 검색 결과 0건(`.gitguardian.yaml` 제외). allowlist는 미변경. |
+| RED-D | PASS | `npx tsc -p tsconfig.web.json --noEmit` exit code 0; `git diff --check` exit code 0. |
+
+### 실행 명령
+
+```text
+$ cd clients/desktop
+$ npx vitest run src/renderer/test-utils/ds4-real-qa-cleanup-worker.contract.test.ts
+Test Files 1 passed (1)
+Tests 2 passed (2)
+
+$ npx tsc -p tsconfig.web.json --noEmit
+exit code 0
+```
+
+### 새로 만든 파일
+
+없음. 기존 계약 테스트와 이 누적 개발 보고서만 수정했다.

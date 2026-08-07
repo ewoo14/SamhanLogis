@@ -51,7 +51,9 @@ function spawnWorker(opts: {
   stopFile: string
   noticeIntervalMs: number
 }): ChildProcess {
-  const passwordB64 = Buffer.from((process.env.DEV_PASSWORD ?? ''), 'utf8').toString('base64')
+  // The fake server accepts any password; this non-secret fixture only satisfies
+  // the worker's required-input guard so the owner lifecycle can be exercised.
+  const passwordB64 = Buffer.from('worker-contract-fixture', 'utf8').toString('base64')
   return spawn(process.execPath, [
     WORKER_PATH,
     '--api-base', opts.apiBase,
