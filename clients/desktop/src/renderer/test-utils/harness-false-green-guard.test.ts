@@ -110,43 +110,20 @@ function stripTextComments(src: string, language: 'python' | 'batch'): string {
   if (language === 'batch') {
     return src.split(/\r?\n/).map((line) => /^\s*(?:@?rem\b|::)/i.test(line) ? '' : line).join('\n')
   }
-  src = stripPythonTripleQuotedStrings(src)
-  let out = ''
-  let quote = ''
-  let escaped = false
-  let comment = false
-  for (const c of src) {
-    if (comment) {
-      if (c === '\n') { comment = false; out += c }
-      continue
-    }
-    if (quote) {
-      out += c
-      if (escaped) escaped = false
-      else if (c === '\\') escaped = true
-      else if (c === quote) quote = ''
-      continue
-    }
-    if (c === '#' ) { comment = true; continue }
-    if (c === '"' || c === "'") quote = c
-    out += c
-  }
-  return out
+  return stripPythonCommentsAndTripleQuotedStrings(src)
 }
 
-/**
- * Python triple-quoted strings are treated as documentation/string content, not code.
- * This is deliberately a lightweight lexical pass: it does not implement Python's full
- * tokenizer (for example, unusual escaped delimiters, prefixes, or nested expressions),
- * so dynamically composed paths such as `Path('docs') / 'qa'` remain outside this guard.
- */
-function stripPythonTripleQuotedStrings(src: string): string {
+function stripPythonCommentsAndTripleQuotedStrings(src: string): string {
   let out = ''
-  let mode: 'code' | 'single' | 'double' | 'triple-single' | 'triple-double' = 'code'
+  let mode: 'code' | 'comment' | 'single' | 'double' | 'triple-single' | 'triple-double' = 'code'
   let escaped = false
   for (let i = 0; i < src.length; i++) {
     const c = src[i] ?? ''
     const next = src.slice(i, i + 3)
+    if (mode === 'comment') {
+      if (c === '\n') { mode = 'code'; out += c }
+      continue
+    }
     if (mode === 'triple-single' || mode === 'triple-double') {
       const delimiter = mode === 'triple-single' ? "'''" : '"""'
       if (next === delimiter && !escaped) {
@@ -166,6 +143,7 @@ function stripPythonTripleQuotedStrings(src: string): string {
       else if ((mode === 'single' && c === "'") || (mode === 'double' && c === '"')) mode = 'code'
       continue
     }
+    if (c === '#') { mode = 'comment'; continue }
     if (next === "'''") { i += 2; mode = 'triple-single'; continue }
     if (next === '"""') { i += 2; mode = 'triple-double'; continue }
     if (c === "'") { out += c; mode = 'single'; continue }
@@ -175,6 +153,12 @@ function stripPythonTripleQuotedStrings(src: string): string {
   return out
 }
 
+/**
+ * Python triple-quoted strings are treated as documentation/string content, not code.
+ * This is deliberately a lightweight lexical pass: it does not implement Python's full
+ * tokenizer (for example, unusual escaped delimiters, prefixes, or nested expressions),
+ * so dynamically composed paths such as `Path('docs') / 'qa'` remain outside this guard.
+ */
 function maskStringLiterals(src: string): string {
   return src.replace(/(['"])(?:\\.|(?!\1)[^\\\r\n])*\1/g, (literal) => literal.replace(/[^\r\n]/g, ' '))
 }
@@ -304,12 +288,16 @@ function directoryContainsTrackedFile(dir: string): boolean {
       // `git ls-files -co --exclude-standard` is exactly the required population:
       // tracked files plus non-ignored untracked files. Ignored generated output
       // is deliberately absent and must not be rediscovered by a content fallback.
-      const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-co', '--exclude-standard', '-z'], { encoding: 'utf8' })
+      const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-co', '--exclude-standard', '-z'], {
+        encoding: 'utf8',
+        maxBuffer: 50 * 1024 * 1024,
+      })
       trackedRepoFiles = new Set(output.split('\0').filter(Boolean).map((file) => path.normalize(file)))
       trackedRepoFilesAvailable = true
-    } catch {
-      trackedRepoFiles = new Set()
+    } catch (error) {
+      trackedRepoFiles = undefined
       trackedRepoFilesAvailable = false
+      throw new Error('unable to enumerate tracked evidence files with git ls-files', { cause: error })
     }
   }
   if (!trackedRepoFilesAvailable) return false
@@ -354,6 +342,7 @@ let discoveredEvidenceWritersCache = new Map<string, EvidenceWriterCacheEntry>()
 let discoveredEvidenceWritersResult: string[] | undefined
 let readEvidenceSource = (file: string): string => fs.readFileSync(file, 'utf-8')
 let unreadEvidenceCandidates: string[] = []
+const warnedUnreadEvidenceCandidates = new Set<string>()
 
 let trackedEvidenceFiles: Set<string> | undefined
 function isTrackedEvidenceFile(file: string): boolean {
@@ -415,6 +404,7 @@ function discoveredEvidenceWriters(): string[] {
     }
     if (!isWithinRepo(canonical)) continue
     if (canonical === path.resolve(SELF)) continue
+    warnedUnreadEvidenceCandidates.delete(canonical)
     const contentHash = createHash('sha256').update(raw, 'utf8').digest('hex')
     const previous = discoveredEvidenceWritersCache.get(canonical)
     const isWriter = previous?.contentHash === contentHash
@@ -423,13 +413,17 @@ function discoveredEvidenceWriters(): string[] {
     next.set(canonical, { contentHash, isEvidenceWriter: isWriter })
   }
   if (unreadEvidenceCandidates.length > 0) {
-    const listed = unreadEvidenceCandidates
+    const newUnread = unreadEvidenceCandidates.filter((file) => !warnedUnreadEvidenceCandidates.has(path.resolve(file)))
+    const listed = newUnread
       .map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
       .sort()
-    console.warn(
-      `[하네스 증거 writer] 읽지 못한 untracked 후보를 skip했습니다 — 사람 검토 필요:\n` +
-      listed.map((file) => `- ${file}`).join('\n'),
-    )
+    if (listed.length > 0) {
+      console.warn(
+        `[하네스 증거 writer] 읽지 못한 untracked 후보를 skip했습니다 — 사람 검토 필요:\n` +
+        listed.map((file) => `- ${file}`).join('\n'),
+      )
+      newUnread.forEach((file) => warnedUnreadEvidenceCandidates.add(path.resolve(file)))
+    }
   }
   // Compare each discovered file directly by canonical key. Rebuilding the entire
   // cache entries array inside every() made an unchanged discovery O(n²).
@@ -1404,6 +1398,30 @@ describe('하네스 거짓 green 가드', () => {
     }
   })
 
+  it('S24: 같은 읽지 못한 untracked 후보의 경고는 discovery 호출마다 반복하지 않는다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s24-probes/source/repeated-warning.mjs')
+    const originalReadEvidenceSource = readEvidenceSource
+    const originalWarn = console.warn
+    const warnings: string[] = []
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, "const OUT = 'docs/qa/.s24-repeated-warning.png'\n", 'utf8')
+    try {
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === probe) throw new Error('simulated locked untracked candidate')
+        return originalReadEvidenceSource(file)
+      }
+      console.warn = (...args: unknown[]) => warnings.push(args.join(' '))
+      discoveredEvidenceWriters()
+      discoveredEvidenceWriters()
+      const probeWarnings = warnings.filter((warning) => warning.includes('repeated-warning.mjs'))
+      expect(probeWarnings).toHaveLength(1)
+    } finally {
+      readEvidenceSource = originalReadEvidenceSource
+      console.warn = originalWarn
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s24-probes'), { recursive: true, force: true })
+    }
+  })
+
   it('S22: Python triple-quoted 문서 문자열 안의 docs/qa writer 예제는 오차단하지 않는다', () => {
     const probe = path.resolve(REPO_ROOT, 'tools/.s22-probes/source/triple-docstring-only.py')
     const docstring = [
@@ -1422,6 +1440,38 @@ describe('하네스 거짓 green 가드', () => {
       expect(discoveredEvidenceWriters()).not.toContain(fs.realpathSync.native(probe))
     } finally {
       fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s22-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S24: Python 주석의 triple delimiter가 뒤의 실제 writer를 삼키지 않는다', () => {
+    const source = [
+      '# Documentation delimiter example: """',
+      "OUT = 'docs/qa/.s24-comment-triple-writer.png'",
+      'with open(OUT, \'wb\') as handle:',
+      "    handle.write(b'probe')",
+    ].join('\n')
+    expect(hasPythonEvidenceWrite(source)).toBe(true)
+    expect(hasUnisolatedTextEvidenceWrite('probe.py', source)).toBe(true)
+  })
+
+  it('S24: skip basename 아래의 tracked writer는 큰 git ls-files 출력에서도 발견된다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s24-build-only/build/deep/tracked-writer.mjs')
+    const relativeProbe = path.relative(REPO_ROOT, probe).replace(/\\/g, '/')
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, "const OUT = 'docs/qa/.s24-build-only.png'\n", 'utf8')
+    try {
+      execFileSync('git', ['-C', REPO_ROOT, 'add', '-f', '--', relativeProbe])
+      trackedRepoFiles = undefined
+      discoveredEvidenceWritersCache = new Map()
+      discoveredEvidenceWritersResult = undefined
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .toContain(relativeProbe)
+    } finally {
+      execFileSync('git', ['-C', REPO_ROOT, 'reset', '--', relativeProbe])
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s24-build-only'), { recursive: true, force: true })
+      trackedRepoFiles = undefined
+      discoveredEvidenceWritersCache = new Map()
+      discoveredEvidenceWritersResult = undefined
     }
   })
 
