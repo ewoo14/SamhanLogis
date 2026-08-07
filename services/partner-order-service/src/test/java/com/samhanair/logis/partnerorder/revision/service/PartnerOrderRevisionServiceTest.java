@@ -23,7 +23,6 @@ import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevision
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import com.samhanair.logis.partnerorder.revision.snapshot.PartnerOrderSnapshot;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -276,63 +275,6 @@ class PartnerOrderRevisionServiceTest {
         }
     }
 
-    @Nested
-    @DisplayName("restore() — 동시 target 중복 방지")
-    class ConcurrentRestore {
-
-        @Test
-        @DisplayName("잠금 대기 중 같은 target RESTORE가 먼저 커밋되면 409로 거절한다")
-        void restore_sameTargetStartedBeforeExistingRestore_returnsConflict() {
-            UUID orderId = UUID.randomUUID();
-            PartnerOrder order = draftOrder(orderId);
-            PartnerOrderRevision target = mockRevisionWithSnapshot(orderId, 1, snapshotWithUnknownFields());
-            PartnerOrderRevision existingRestore = mockRevision(orderId, 2);
-            ReflectionTestUtils.setField(existingRestore, "revisionType", PartnerOrderRevisionType.RESTORE);
-            ReflectionTestUtils.setField(existingRestore, "sourceRevisionNo", 1);
-            ReflectionTestUtils.setField(existingRestore, "createdAt", LocalDateTime.now().plusSeconds(1));
-
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
-            when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
-                    .thenReturn(Optional.of(target));
-            when(revisionRepository.findTopByPartnerOrderIdOrderByRevisionNoDesc(orderId))
-                    .thenReturn(Optional.of(existingRestore));
-
-            assertThatThrownBy(() -> service.restore(orderId, 1, UUID.randomUUID(), "홍길동", null))
-                    .isInstanceOf(ResponseStatusException.class)
-                    .satisfies(error -> {
-                        ResponseStatusException ex = (ResponseStatusException) error;
-                        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-                        assertThat(ex.getReason()).contains("다른 사용자의 복원이 먼저 완료");
-                    });
-
-            verify(revisionRepository, org.mockito.Mockito.never()).saveAndFlush(any());
-        }
-
-        @Test
-        @DisplayName("기존 RESTORE가 요청 시작 전에 끝난 순차 복원은 차단하지 않는다")
-        void restore_sameTargetStartedAfterExistingRestore_isAllowed() {
-            UUID orderId = UUID.randomUUID();
-            PartnerOrder order = draftOrder(orderId);
-            PartnerOrderRevision target = mockRevisionWithSnapshot(orderId, 1, snapshotWithUnknownFields());
-            PartnerOrderRevision existingRestore = mockRevision(orderId, 2);
-            ReflectionTestUtils.setField(existingRestore, "revisionType", PartnerOrderRevisionType.RESTORE);
-            ReflectionTestUtils.setField(existingRestore, "sourceRevisionNo", 1);
-            ReflectionTestUtils.setField(existingRestore, "createdAt", LocalDateTime.now().minusSeconds(1));
-
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
-            when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
-                    .thenReturn(Optional.of(target));
-            when(revisionRepository.findTopByPartnerOrderIdOrderByRevisionNoDesc(orderId))
-                    .thenReturn(Optional.of(existingRestore));
-            when(orderRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
-            when(revisionRepository.findMaxRevisionNo(orderId)).thenReturn(2);
-            when(revisionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-            assertThat(service.restore(orderId, 1, UUID.randomUUID(), "홍길동", null))
-                    .isNotNull();
-        }
-    }
-
     // ── restore ──────────────────────────────────────────────────────────────
 
     @Nested
@@ -361,7 +303,7 @@ class PartnerOrderRevisionServiceTest {
             String snapshotJson = objectMapper.writeValueAsString(snapshot);
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -402,7 +344,7 @@ class PartnerOrderRevisionServiceTest {
             String snapshotJson = objectMapper.writeValueAsString(snapshot);
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -434,7 +376,7 @@ class PartnerOrderRevisionServiceTest {
                                     PartnerOrderLine.create(UUID.randomUUID(), "MODEL", "상품", "cat",
                                             1, BigDecimal.ZERO, null))))));
 
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any()))
@@ -456,7 +398,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = confirmingOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(mockRevision(orderId, 1)));
 
@@ -474,7 +416,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = canceledOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(mockRevision(orderId, 1)));
 
@@ -489,7 +431,7 @@ class PartnerOrderRevisionServiceTest {
         @DisplayName("orderId 미존재 → 404 NOT_FOUND")
         void restore_orderNotFound_throws404() {
             UUID orderId = UUID.randomUUID();
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.empty());
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.restore(orderId, 1, UUID.randomUUID(), "복원자", null))
                     .isInstanceOf(ResponseStatusException.class)
@@ -503,7 +445,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = draftOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 99))
                     .thenReturn(Optional.empty());
 
@@ -537,7 +479,7 @@ class PartnerOrderRevisionServiceTest {
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
             // findByIdIncludingDeleted — soft-deleted 주문 반환
-            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
