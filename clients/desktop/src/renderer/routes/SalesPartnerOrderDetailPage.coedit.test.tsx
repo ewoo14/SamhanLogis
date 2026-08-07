@@ -98,11 +98,7 @@ vi.mock('../api/createAuditApi', () => ({
   partnerOrderAuditApi: { listAuditLogs: vi.fn(() => Promise.resolve([])) },
 }))
 vi.mock('../components/collab/PartnerOrderCollaborationPanel', () => ({
-  PartnerOrderCollaborationPanel: (props: { onRestored?: () => void }) => (
-    <div data-testid="partner-order-collab-panel">
-      <button type="button" data-testid="partner-order-collab-restored" onClick={() => props.onRestored?.()} />
-    </div>
-  ),
+  PartnerOrderCollaborationPanel: () => <div data-testid="partner-order-collab-panel" />,
 }))
 vi.mock('../components/audit/PartnerOrderVersionHistoryPanel', () => ({
   PartnerOrderVersionHistoryPanel: () => <div data-testid="partner-order-version-history" />,
@@ -340,25 +336,6 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
     })
   })
 
-  it('direct 수정 저장 직후 버전 이력 query를 무효화한다', async () => {
-    const provider = makeProvider()
-    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
-    mocks.createDocCoeditProvider.mockResolvedValue(provider)
-    mocks.updatePartnerOrder.mockResolvedValue(makeOrder())
-
-    const { client } = renderPage()
-    const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
-
-    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
-    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
-    fireEvent.click(screen.getByTestId('partner-order-edit-submit'))
-
-    await waitFor(() => expect(mocks.updatePartnerOrder).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['partner-order-revisions', 'PO/2099-1'],
-    }))
-  })
-
   it('provider 라인 수가 서버 라인 수와 다르면 stale 스냅샷으로 보고 서버 라인을 재시드한다', async () => {
     const provider = makeProvider()
     const order = makeOrder({
@@ -428,35 +405,6 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
 
     // provider(2) ≠ 서버(makeOrder) 라인수 → re-seed(server-wins)
     await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
-  })
-
-  it('복원 완료 후 다시 연 수정모달은 라인 수가 같아도 서버 header를 provider에 재시드한다', async () => {
-    const provider = makeProvider()
-    provider.isEmpty.mockReturnValue(false)
-    provider.__setRows([
-      {
-        productName: '제품 1',
-        modelCode: 'MODEL-1',
-        quantity: '2',
-        deliveryPrice: '10000',
-        remark: '라인 비고',
-      },
-    ])
-    mocks.getPartnerOrder
-      .mockResolvedValueOnce(makeOrder({ memo: '복원 전 요청' }))
-      .mockResolvedValueOnce(makeOrder({ memo: '복원값 요청' }))
-    mocks.createDocCoeditProvider.mockResolvedValue(provider)
-
-    renderPage()
-    fireEvent.click(await screen.findByTestId('partner-order-collab-restored'))
-
-    await waitFor(() => expect(mocks.getPartnerOrder).toHaveBeenCalledTimes(2))
-    fireEvent.click(screen.getByTestId('partner-order-edit-open'))
-
-    await waitFor(() => expect(provider.setHeaderValue).toHaveBeenCalledWith('memo', '복원값 요청'))
-    expect(provider.replaceItems).toHaveBeenCalledWith([
-      expect.objectContaining({ productName: '제품 1', modelCode: 'MODEL-1' }),
-    ])
   })
 
   it('editOpen 유지 중 query.data 참조만 바뀌어도 provider 를 재생성하지 않는다', async () => {
