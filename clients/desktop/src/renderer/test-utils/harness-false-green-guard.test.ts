@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,10 +37,26 @@ const DESKTOP_SCRIPTS = path.resolve(REPO_ROOT, 'clients/desktop/scripts')
  * 파일 내용에서 도출되는 발견 결과를 모든 walker 와 커버리지 검사(G8c)가 공유하게 한다.
  * 진실원을 읽게 한다 — 루트 하나를 빼면 G8c 가 즉시 RED 다(M9 뮤테이션 참조).
  */
-const JS_CAPTURE_EXT = /\.(?:cjs|mjs|js|ts)$/
+const JS_CAPTURE_EXT = /\.(?:cjs|mjs|js|ts|tsx|ejs)$/i
+const TEXT_CAPTURE_EXT = /\.(?:ps1|py|sh)$/i
+/** git ls-files 조사 결과 중 코드로서 evidence writer가 될 수 있는 확장자 전수. */
+const DISCOVERY_SOURCE_EXT = /\.(?:cjs|mjs|js|ts|tsx|ejs|ps1|py|sh)$/i
 
 function walkG3Sources(): string[] {
-  return discoveredEvidenceWriters().filter((file) => JS_CAPTURE_EXT.test(file))
+  return discoveredEvidenceWriters().filter((file) => JS_CAPTURE_EXT.test(file) || TEXT_CAPTURE_EXT.test(file))
+}
+
+/**
+ * 비-JS writer는 완전한 언어 파서를 추가하지 않고 저장 호출과 목적지 표기만 본다.
+ * 이 근사는 Python/PowerShell/Shell의 모든 문법을 해석하지 못하지만, 이 가드의 계약인
+ * 커밋 `docs/qa`·`docs/manual` 직접 쓰기와 `_local` 격리 누락을 닫는 범위만 담당한다.
+ */
+function hasUnisolatedTextEvidenceWrite(file: string, raw: string): boolean {
+  if (raw.includes('_local') || raw.includes('QA_SHOTS_DIR') || /resolve[-_]?qa[-_]?shots[-_]?dir/i.test(raw)) return false
+  if (/\.py$/i.test(file)) return /\.save\(|savefig\(/.test(raw) && /docs[\\/]qa|docs[\\/]manual/.test(raw)
+  if (/\.ps1$/i.test(file)) return /\$Out(?:put)?Dir\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/i.test(raw)
+  if (/\.sh$/i.test(file)) return /\bOUT\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/.test(raw)
+  return false
 }
 
 /**
@@ -82,6 +99,7 @@ function walk(dir: string, filter: (p: string) => boolean): string[] {
  */
 const DISCOVERY_SKIP_DIRS = new Set([
   'node_modules', '.git', '_local', 'dist', 'coverage',
+  'build', 'out', 'bin', 'target',
   'playwright-report', 'test-results', '.gradle', '.next', '.turbo',
   'venv', '.venv', '__pycache__', 'worktrees',
 ])
@@ -121,7 +139,7 @@ function walkForEvidenceDiscovery(
       if (!DISCOVERY_SKIP_DIRS.has(entry.name) || directoryContainsTrackedFile(full)) {
         walkForEvidenceDiscovery(full, out, visitedDirectories)
       }
-    } else {
+    } else if (DISCOVERY_SOURCE_EXT.test(entry.name)) {
       out.push(full)
     }
   }
@@ -134,17 +152,22 @@ function isWithinRepo(candidate: string): boolean {
 }
 
 let trackedRepoFiles: Set<string> | undefined
+let trackedRepoFilesAvailable = false
 function directoryContainsTrackedFile(dir: string): boolean {
   if (!trackedRepoFiles) {
     try {
-      // Tracked files are the primary source signal; non-ignored untracked source
-      // probes are included too, while ignored generated output remains skipped.
+      // `git ls-files -co --exclude-standard` is exactly the required population:
+      // tracked files plus non-ignored untracked files. Ignored generated output
+      // is deliberately absent and must not be rediscovered by a content fallback.
       const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-co', '--exclude-standard', '-z'], { encoding: 'utf8' })
       trackedRepoFiles = new Set(output.split('\0').filter(Boolean).map((file) => path.normalize(file)))
+      trackedRepoFilesAvailable = true
     } catch {
       trackedRepoFiles = new Set()
+      trackedRepoFilesAvailable = false
     }
   }
+  if (!trackedRepoFilesAvailable) return false
   const canonicalDir = fs.realpathSync.native(dir)
   if (!isWithinRepo(canonicalDir)) return false
   const relativeDir = path.relative(CANONICAL_REPO_ROOT, canonicalDir).replace(/\\/g, '/')
@@ -152,12 +175,7 @@ function directoryContainsTrackedFile(dir: string): boolean {
   for (const tracked of trackedRepoFiles) {
     if (tracked.replace(/\\/g, '/').startsWith(prefix)) return true
   }
-  if ([...trackedRepoFiles].some((tracked) => {
-    const normalized = tracked.replace(/\\/g, '/')
-    return normalized.startsWith(prefix) && /\.(?:cjs|mjs|js|ts|ps1|py|sh)$/.test(normalized)
-  })) return true
-  if (new Set(['node_modules', '.git', 'dist', 'coverage', 'playwright-report', 'test-results', '.gradle', '.next', '.turbo', 'venv', '.venv', '__pycache__', 'worktrees']).has(path.basename(canonicalDir))) return false
-  return directoryContainsSourceWriter(canonicalDir, new Set())
+  return false
 }
 
 function directoryContainsSourceWriter(dir: string, visited: Set<string>): boolean {
@@ -183,9 +201,7 @@ function directoryContainsSourceWriter(dir: string, visited: Set<string>): boole
 }
 
 type EvidenceWriterCacheEntry = {
-  mtimeMs: number
-  size: number
-  ctimeMs: number
+  contentHash: string
   isEvidenceWriter: boolean
 }
 
@@ -224,24 +240,21 @@ function discoveredEvidenceWriters(): string[] {
   const next = new Map<string, EvidenceWriterCacheEntry>()
   for (const file of walkForEvidenceDiscovery(REPO_ROOT)) {
     let canonical: string
-    let stat: fs.Stats
+    let raw: string
     try {
       canonical = fs.realpathSync.native(file)
-      stat = fs.statSync(canonical)
+      raw = fs.readFileSync(canonical, 'utf-8')
     } catch {
       continue
     }
     if (!isWithinRepo(canonical)) continue
     if (canonical === path.resolve(SELF)) continue
+    const contentHash = createHash('sha256').update(raw, 'utf8').digest('hex')
     const previous = discoveredEvidenceWritersCache.get(canonical)
-    const isUnchanged = previous && previous.mtimeMs === stat.mtimeMs && previous.size === stat.size && previous.ctimeMs === stat.ctimeMs
-    let isWriter: boolean
-    if (isUnchanged) {
-      isWriter = previous.isEvidenceWriter
-    } else {
-      isWriter = isEvidenceWriter(canonical)
-    }
-    next.set(canonical, { mtimeMs: stat.mtimeMs, size: stat.size, ctimeMs: stat.ctimeMs, isEvidenceWriter: isWriter })
+    const isWriter = previous?.contentHash === contentHash
+      ? previous.isEvidenceWriter
+      : isEvidenceWriter(canonical, raw)
+    next.set(canonical, { contentHash, isEvidenceWriter: isWriter })
   }
   // Compare each discovered file directly by canonical key. Rebuilding the entire
   // cache entries array inside every() made an unchanged discovery O(n²).
@@ -249,9 +262,7 @@ function discoveredEvidenceWriters(): string[] {
     [...next.entries()].every(([file, entry]) => {
       const previous = discoveredEvidenceWritersCache.get(file)
       return previous !== undefined &&
-        previous.mtimeMs === entry.mtimeMs &&
-        previous.size === entry.size &&
-        previous.ctimeMs === entry.ctimeMs &&
+        previous.contentHash === entry.contentHash &&
         previous.isEvidenceWriter === entry.isEvidenceWriter
     })
   if (unchanged && discoveredEvidenceWritersResult) return discoveredEvidenceWritersResult
@@ -1087,19 +1098,32 @@ describe('하네스 거짓 green 가드', () => {
    * resolveQaShotsDir 로 통일했다.
    */
   it('G3a: clients/**/scripts·루트 scripts/ 의 JS/CJS/MJS 캡처 목적지도 _local 격리를 거친다', () => {
-    const probeRoot = path.resolve(REPO_ROOT, 'tools/s14-probes/build/deep')
+    const probeRoot = path.resolve(REPO_ROOT, 'tools/s14-probes/source/deep')
     const tsProbe = path.join(probeRoot, 'ts-writer.ts')
     const jsProbe = path.join(probeRoot, 'mjs-writer.mjs')
+    const pyProbe = path.join(probeRoot, 'python-writer.py')
+    const ignoredProbe = path.resolve(REPO_ROOT, 'tools/s14-probes/build/deep/generated.cjs')
     fs.mkdirSync(probeRoot, { recursive: true })
     fs.writeFileSync(tsProbe, "const OUT = 'docs/qa/.s14-ts-probe.png'\nfs.writeFileSync(OUT, 'probe')\n", 'utf8')
     fs.writeFileSync(jsProbe, "const OUT = 'docs/qa/.s14-mjs-probe.png'\nfs.writeFileSync(OUT, 'probe')\n", 'utf8')
+    fs.writeFileSync(pyProbe, "OUT = 'docs/qa/.s14-python-probe.png'\nimage.save(OUT)\n", 'utf8')
+    fs.mkdirSync(path.dirname(ignoredProbe), { recursive: true })
+    fs.writeFileSync(ignoredProbe, "const OUT = 'docs/qa/.s14-ignored-generated.png'\nfs.writeFileSync(OUT, 'probe')\n", 'utf8')
     try {
-    expect(walkForEvidenceDiscovery(REPO_ROOT)).toContain(tsProbe)
-    const files = walkG3Sources()
-    expect(files).toEqual(expect.arrayContaining([tsProbe, jsProbe].map((file) => fs.realpathSync.native(file))))
+      expect(walkForEvidenceDiscovery(REPO_ROOT)).toContain(tsProbe)
+      expect(walkForEvidenceDiscovery(REPO_ROOT)).not.toContain(ignoredProbe)
+      const files = walkG3Sources()
+      expect(files).toEqual(expect.arrayContaining([tsProbe, jsProbe, pyProbe].map((file) => fs.realpathSync.native(file))))
+      expect(files).not.toContain(fs.realpathSync.native(ignoredProbe))
     const violations: string[] = []
     for (const file of files) {
       const raw = fs.readFileSync(file, 'utf-8')
+      if (TEXT_CAPTURE_EXT.test(file)) {
+        if (hasUnisolatedTextEvidenceWrite(file, raw)) {
+          violations.push(`${path.relative(REPO_ROOT, file).replace(/\\/g, '/')} → text writer`)
+        }
+        continue
+      }
       const src = stripComments(raw)
       const decls = collectDeclarations(src)
       const writeTargets = collectWriteTargetIdentifiers(src, decls)
@@ -1126,10 +1150,14 @@ describe('하네스 거짓 green 가드', () => {
         violations.push(`${name} → ${v}`)
       }
     }
-    const probeNames = ['tools/s14-probes/build/deep/ts-writer.ts', 'tools/s14-probes/build/deep/mjs-writer.mjs']
+    const probeNames = [
+      'tools/s14-probes/source/deep/ts-writer.ts',
+      'tools/s14-probes/source/deep/mjs-writer.mjs',
+      'tools/s14-probes/source/deep/python-writer.py',
+    ]
     expect(violations.map((value) => value.split(' → ')[0])).toEqual(expect.arrayContaining(probeNames))
     expect(
-      violations.filter((value) => !probeNames.includes(value.split(' → ')[0])),
+      violations.filter((value) => !probeNames.some((probe) => value.startsWith(`${probe} →`))),
       `커밋 QA 증거로 직접 쓰는 경로 상수 발견(clients/**/scripts, 루트 scripts/) — _local 격리 필수:\n${violations.join('\n')}`,
     ).toEqual([])
     } finally {
@@ -1198,6 +1226,9 @@ describe('하네스 거짓 green 가드', () => {
       fs.utimesSync(probe, fixedTime, fixedTime)
       expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
         .toContain(relativeProbe)
+      const guardSource = fs.readFileSync(path.resolve(__filename), 'utf8')
+      expect(guardSource).toContain("createHash('sha256')")
+      expect(guardSource).not.toMatch(/previous\.mtimeMs|previous\.size|previous\.ctimeMs/)
     } finally {
       fs.rmSync(probe, { force: true })
     }
