@@ -336,6 +336,25 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
     })
   })
 
+  it('direct 수정 저장 직후 버전 이력 query를 무효화한다', async () => {
+    const provider = makeProvider()
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updatePartnerOrder.mockResolvedValue(makeOrder())
+
+    const { client } = renderPage()
+    const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
+
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId('partner-order-edit-submit'))
+
+    await waitFor(() => expect(mocks.updatePartnerOrder).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['partner-order-revisions', 'PO/2099-1'],
+    }))
+  })
+
   it('provider 라인 수가 서버 라인 수와 다르면 stale 스냅샷으로 보고 서버 라인을 재시드한다', async () => {
     const provider = makeProvider()
     const order = makeOrder({

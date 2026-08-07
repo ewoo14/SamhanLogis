@@ -236,6 +236,7 @@ export function SalesPartnerOrderDetailPage() {
       setEditOpen(false)
       // PUT 응답은 product-service enrich 필드(productType 등)가 빠질 수 있어 상세 GET 재조회로 보정한다.
       await queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
+      await queryClient.invalidateQueries({ queryKey: ['partner-order-revisions', orderId] })
     },
     onError: (error) => {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
@@ -252,6 +253,7 @@ export function SalesPartnerOrderDetailPage() {
       setDeleteErrorMessage(null)
       setDeleteOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+      await queryClient.invalidateQueries({ queryKey: ['partner-order-revisions', orderId] })
       navigate('/sales/partner-orders')
     },
     onError: (error) => {

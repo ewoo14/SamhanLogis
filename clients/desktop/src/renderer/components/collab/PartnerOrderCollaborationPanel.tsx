@@ -171,6 +171,7 @@ export function PartnerOrderCollaborationPanel({
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
       void queryClient.invalidateQueries({ queryKey: orderQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['partner-order-revisions', orderId] })
     })
     return () => ctrl.abort()
   }, [commentQueryKey, orderId, orderQueryKey, queryClient])
@@ -243,6 +244,7 @@ export function PartnerOrderCollaborationPanel({
       // setQueryData 금지 — commit 응답은 서버 enrich 필드가 일부 빠질 수 있어 권위 있는 재조회에 위임.
       void queryClient.invalidateQueries({ queryKey: orderQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['partner-order-revisions', orderId] })
       onCommitted?.()
     },
     onError: (error: unknown) => {
