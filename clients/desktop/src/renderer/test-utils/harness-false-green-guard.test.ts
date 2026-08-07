@@ -50,9 +50,9 @@ function walkG3Sources(): string[] {
 // Coverage is derived from the same content discovery used by the guards.
 
 /** 절대경로가 어느 관할 루트에 속하는지 — 아무 데도 안 속하면 null. */
-function guardRootFor(abs: string): boolean {
+function guardRootFor(abs: string, discovered: string[] = discoveredEvidenceWriters()): boolean {
   // G8c validates the discovered writer itself; no path, root, or extension registry is consulted.
-  return discoveredEvidenceWriters().includes(abs)
+  return discovered.includes(abs)
 }
 
 /** 자기 자신은 패턴 문자열을 담고 있으므로 스캔 대상에서 제외한다. */
@@ -84,7 +84,20 @@ const DISCOVERY_SKIP_DIRS = new Set([
   'venv', '.venv', '__pycache__', 'worktrees',
 ])
 
-function walkForEvidenceDiscovery(dir: string, out: string[] = []): string[] {
+function walkForEvidenceDiscovery(
+  dir: string,
+  out: string[] = [],
+  visitedDirectories: Set<string> = new Set(),
+): string[] {
+  let canonicalDir: string
+  try {
+    canonicalDir = fs.realpathSync.native(dir)
+  } catch {
+    return out
+  }
+  if (visitedDirectories.has(canonicalDir)) return out
+  visitedDirectories.add(canonicalDir)
+
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -93,8 +106,18 @@ function walkForEvidenceDiscovery(dir: string, out: string[] = []): string[] {
   }
   for (const entry of entries) {
     const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (!DISCOVERY_SKIP_DIRS.has(entry.name)) walkForEvidenceDiscovery(full, out)
+    let isDirectory = entry.isDirectory()
+    if (!isDirectory && entry.isSymbolicLink()) {
+      try {
+        isDirectory = fs.statSync(full).isDirectory()
+      } catch {
+        isDirectory = false
+      }
+    }
+    if (isDirectory) {
+      if (!DISCOVERY_SKIP_DIRS.has(entry.name)) {
+        walkForEvidenceDiscovery(full, out, visitedDirectories)
+      }
     } else {
       out.push(full)
     }
@@ -109,6 +132,7 @@ type EvidenceWriterCacheEntry = {
 }
 
 let discoveredEvidenceWritersCache = new Map<string, EvidenceWriterCacheEntry>()
+let discoveredEvidenceWritersResult: string[] | undefined
 
 function isEvidenceWriter(file: string): boolean {
   const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
@@ -156,8 +180,23 @@ function discoveredEvidenceWriters(): string[] {
       : isEvidenceWriter(canonical)
     next.set(canonical, { mtimeMs: stat.mtimeMs, size: stat.size, isEvidenceWriter: isWriter })
   }
+  // Compare each discovered file directly by canonical key. Rebuilding the entire
+  // cache entries array inside every() made an unchanged discovery O(n²).
+  const unchanged = next.size === discoveredEvidenceWritersCache.size &&
+    [...next.entries()].every(([file, entry]) => {
+      const previous = discoveredEvidenceWritersCache.get(file)
+      return previous !== undefined &&
+        previous.mtimeMs === entry.mtimeMs &&
+        previous.size === entry.size &&
+        previous.isEvidenceWriter === entry.isEvidenceWriter
+    })
+  if (unchanged && discoveredEvidenceWritersResult) return discoveredEvidenceWritersResult
+
   discoveredEvidenceWritersCache = next
-  return [...next.entries()].filter(([, entry]) => entry.isEvidenceWriter).map(([file]) => file)
+  discoveredEvidenceWritersResult = [...next.entries()]
+    .filter(([, entry]) => entry.isEvidenceWriter)
+    .map(([file]) => file)
+  return discoveredEvidenceWritersResult
 }
 
 function rel(p: string): string {
@@ -1447,8 +1486,9 @@ describe('하네스 거짓 green 가드', () => {
   })
 
   it('G8c: 증거를 쓸 수 있는 레포 전 파일이 가드 관할 안에 있다 (루트 집합 누락 = RED)', () => {
-    const uncovered = derivedEvidenceWriters()
-      .filter((f) => !guardRootFor(f))
+    const discovered = derivedEvidenceWriters()
+    const uncovered = discovered
+      .filter((f) => !guardRootFor(f, discovered))
       .map((f) => path.relative(REPO_ROOT, f).replace(/\\/g, '/'))
       .sort()
     expect(
