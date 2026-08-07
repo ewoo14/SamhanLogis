@@ -71,6 +71,9 @@ function walkG3Sources(): string[] {
  * 비-JS writer는 완전한 언어 파서를 추가하지 않고 저장 호출과 목적지 표기만 본다.
  * 이 근사는 Python/PowerShell/Shell의 모든 문법을 해석하지 못하지만, 이 가드의 계약인
  * 커밋 `docs/qa`·`docs/manual` 직접 쓰기와 `_local` 격리 누락을 닫는 범위만 담당한다.
+ * 정적 가드는 1차 방어선으로서 CI에서 실행되지 않는 파일까지 덮고, 결과 검사는 실제로
+ * 실행된 테스트가 남긴 최종 상태를 확인하는 최종 방어선으로 병행한다. 따라서 앞으로
+ * 정적 가드에서 오차단이 나오면 규칙을 더 붙이지 말고 느슨하게 하는 쪽으로 기울인다.
  */
 function hasUnisolatedTextEvidenceWrite(file: string, raw: string): boolean {
   const isolated = hasRelatedIsolationMarker(raw, /\.py$/i.test(file) ? 'python' : 'batch')
@@ -105,6 +108,12 @@ function hasBatchEvidenceWrite(raw: string): boolean {
  * `Path('docs') / 'qa'` or a Batch `%OUT%` destination), and quoted Batch literal
  * destinations are masked before the writer expression is checked. A marker and
  * `write` in the same help string can also be mistaken for an isolation relation.
+ * These four forms remain uncovered when their files are not executed; when they are
+ * executed, the post-check in frontend-desktop, desktop-playwright, and
+ * harness-false-green-guard catches their final tracked/non-ignored-untracked residue.
+ * The current CI has no normal path that intentionally updates tracked `docs/qa` files,
+ * so no exception is defined. If such a path is added, it must be separated or explicitly
+ * baselined before this contract is widened.
  */
 function stripTextComments(src: string, language: 'python' | 'batch'): string {
   if (language === 'batch') {

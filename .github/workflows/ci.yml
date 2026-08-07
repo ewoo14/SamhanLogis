@@ -796,6 +796,13 @@ jobs:
       - name: "#910 버전 빌드·QA·문서 계약 테스트"
         run: npm run test:round-910-contract
 
+      # 정적 가드는 미실행 파일까지 덮는 1차 방어선이고, 이 결과 검사는 실제로
+      # 실행된 테스트가 남긴 최종 오염을 확인하는 최종 방어선이다.
+      - name: "docs/qa 결과 검사 (tracked 변경 + non-ignored untracked 잔재 0)"
+        if: always()
+        working-directory: clients/desktop
+        run: node ../../scripts/check-docs-qa-clean.cjs
+
   frontend-order-app:
     name: Frontend Order-App (typecheck + test + build)
     runs-on: ubuntu-latest

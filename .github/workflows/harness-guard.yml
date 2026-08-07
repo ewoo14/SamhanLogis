@@ -114,3 +114,10 @@ jobs:
       - name: 하네스 거짓 green 가드 실행
         working-directory: clients/desktop
         run: npx vitest run src/renderer/test-utils/harness-false-green-guard.test.ts
+
+      # 정적 가드는 미실행 파일까지 덮는 1차 방어선이고, 이 결과 검사는 실제로
+      # 실행된 하네스 가드가 남긴 최종 오염을 확인하는 최종 방어선이다.
+      - name: "docs/qa 결과 검사 (tracked 변경 + non-ignored untracked 잔재 0)"
+        if: always()
+        working-directory: clients/desktop
+        run: node ../../scripts/check-docs-qa-clean.cjs

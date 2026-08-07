@@ -112,6 +112,12 @@ jobs:
         if: always()
         working-directory: clients/desktop
         run: node scripts/assert-playwright-ran.mjs
+      # 정적 가드는 미실행 파일까지 덮는 1차 방어선이고, 이 결과 검사는 실제로
+      # 실행된 Playwright가 남긴 최종 오염을 확인하는 최종 방어선이다.
+      - name: "docs/qa 결과 검사 (tracked 변경 + non-ignored untracked 잔재 0)"
+        if: always()
+        working-directory: clients/desktop
+        run: node ../../scripts/check-docs-qa-clean.cjs
       - name: 리포트 업로드
         if: always()
         uses: actions/upload-artifact@v4
