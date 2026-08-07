@@ -17,7 +17,7 @@
  *
  * <p>slip 동형 — {@link ./SlipVersionHistoryPanel} 미러.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Modal, Spinner } from '@samhan/design-system'
 import {
@@ -138,6 +138,10 @@ export function EstimateVersionHistoryPanel({
   const revisions: EstimateRevision[] = Array.isArray(revisionsQuery.data)
     ? revisionsQuery.data
     : []
+
+  useEffect(() => {
+    if (activeRevisionNo !== null || activeFieldPath) setHistoryOpen(true)
+  }, [activeFieldPath, activeRevisionNo])
 
   return (
     <Card

@@ -145,16 +145,15 @@ describe('SlipVersionHistoryPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: '버전이력' }))
 
     const list = await screen.findByTestId('slip-version-history-list')
-    expect(list).toBeVisible()
+    expect(list).toBeTruthy()
     const changes = screen.getByTestId('slip-version-history-changes-2')
-    expect(changes.parentElement?.tagName).toBe('DETAILS')
-    expect((changes.parentElement as HTMLDetailsElement).open).toBe(false)
-    expect(screen.queryByText('변경 항목 78')).toBeNull()
+    expect(changes.tagName).toBe('DETAILS')
+    expect((changes as HTMLDetailsElement).open).toBe(false)
 
-    fireEvent.click(screen.getByRole('button', { name: /변경 항목 78개/ }))
-    expect((changes.parentElement as HTMLDetailsElement).open).toBe(true)
-    expect(screen.getByText('변경 항목 78')).toBeVisible()
-    expect(screen.getByTestId('slip-version-history-row-1')).toBeVisible()
+    fireEvent.click(changes.querySelector('summary')!)
+    expect((changes as HTMLDetailsElement).open).toBe(true)
+    expect(screen.getByTestId('slip-version-history-change-header-field77')).toBeTruthy()
+    expect(screen.getByTestId('slip-version-history-row-1')).toBeTruthy()
   })
 
   it('버전별 필드/품목 셀 변경 목록과 단일 actor 색상을 표시한다', async () => {

@@ -22,7 +22,7 @@
  *
  * <p>{@link ./PartnerVersionHistoryPanel} 미러 (partner-service → partner-order-service 이식).
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Modal, Spinner } from '@samhan/design-system'
 import {
@@ -202,6 +202,10 @@ export function PartnerOrderVersionHistoryPanel({
   const revisions: PartnerOrderRevision[] = Array.isArray(revisionsQuery.data)
     ? revisionsQuery.data
     : []
+
+  useEffect(() => {
+    if (activeRevisionNo !== null || activeFieldPath) setHistoryOpen(true)
+  }, [activeFieldPath, activeRevisionNo])
 
   return (
     <Card

@@ -10,7 +10,7 @@
  * <p>slipId 는 prop/path 전용 — 화면 노출 X. 표시 텍스트는 actorName / slipNo 만 사용한다
  * ([[uuid-no-user-visibility]]).
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Modal, Spinner } from '@samhan/design-system'
 import {
@@ -197,6 +197,7 @@ export function SlipVersionHistoryPanel({
 }: SlipVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [expandedRevisionNos, setExpandedRevisionNos] = useState<Set<number>>(() => new Set())
   /** 복원 confirm modal 대상 revision (null = 미오픈). */
   const [restoreTarget, setRestoreTarget] = useState<SlipRevision | null>(null)
   /** 복원 성공/실패 toast. */
@@ -239,6 +240,30 @@ export function SlipVersionHistoryPanel({
       .map((path) => normalizeFieldPath(path))
       .filter((path) => path.length > 0),
   )
+
+  const hasActiveHistoryTarget = activeRevisionNo !== null || normalizedActiveFieldPaths.size > 0
+
+  useEffect(() => {
+    if (hasActiveHistoryTarget) setHistoryOpen(true)
+  }, [activeRevisionNo, hasActiveHistoryTarget, normalizedActiveFieldPaths])
+
+  useEffect(() => {
+    if (!hasActiveHistoryTarget || revisions.length === 0) return
+    const matchingRevisionNos = revisions
+      .filter((revision) => {
+        if (activeRevisionNo === revision.revisionNo) return true
+        return revision.fieldChanges?.some((change) => (
+          normalizedActiveFieldPaths.has(normalizeFieldPath(change.fieldPath))
+        )) ?? false
+      })
+      .map((revision) => revision.revisionNo)
+    if (matchingRevisionNos.length === 0) return
+    setExpandedRevisionNos((previous) => {
+      const next = new Set(previous)
+      matchingRevisionNos.forEach((revisionNo) => next.add(revisionNo))
+      return next.size === previous.size ? previous : next
+    })
+  }, [activeRevisionNo, hasActiveHistoryTarget, normalizedActiveFieldPaths, revisions])
 
   return (
     <Card
@@ -399,6 +424,16 @@ export function SlipVersionHistoryPanel({
                   {fieldChanges.length > 0 ? (
                     <details
                       data-testid={`slip-version-history-changes-${rev.revisionNo}`}
+                      open={expandedRevisionNos.has(rev.revisionNo)}
+                      onToggle={(event) => {
+                        const open = event.currentTarget.open
+                        setExpandedRevisionNos((previous) => {
+                          const next = new Set(previous)
+                          if (open) next.add(rev.revisionNo)
+                          else next.delete(rev.revisionNo)
+                          return next
+                        })
+                      }}
                       style={{
                         marginTop: 4,
                       }}

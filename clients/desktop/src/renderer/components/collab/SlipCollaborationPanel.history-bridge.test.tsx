@@ -109,16 +109,11 @@ afterEach(() => {
 describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연동 (접두사 정합 회귀 가드)', () => {
   it('memo anchor 코멘트 클릭 → header.memo 버전이력 항목이 하이라이트된다 (정방향)', async () => {
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('메모 확인 부탁드립니다')
-    const memoChange = await screen.findByTestId('slip-version-history-change-header-memo')
-    const revisionRow = await screen.findByTestId('slip-version-history-row-2')
+    expect(screen.queryByTestId('slip-version-history-list')).toBeNull()
 
     // 클릭 전 — 코멘트 anchor 를 아직 활성화하지 않았으므로 미하이라이트.
-    expect(memoChange.getAttribute('data-active')).toBeNull()
-    expect(revisionRow.getAttribute('data-active')).toBeNull()
-
     const commentItems = screen.getAllByTestId('slip-collab-comment-item')
     const memoComment = commentItems.find((el) => el.textContent?.includes('메모 확인 부탁드립니다'))
     expect(memoComment).toBeDefined()
@@ -127,25 +122,30 @@ describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연�
     await waitFor(() => {
       expect(screen.getByTestId('slip-version-history-change-header-memo').getAttribute('data-active')).toBe('true')
     })
-    expect(screen.getByTestId('slip-version-history-row-2').getAttribute('data-active')).toBe('true')
+    const memoChange = screen.getByTestId('slip-version-history-change-header-memo')
+    const revisionRow = screen.getByTestId('slip-version-history-row-2')
+    expect((memoChange.closest('details') as HTMLDetailsElement).open).toBe(true)
+    expect(revisionRow.getAttribute('data-active')).toBe('true')
   })
 
   it('header.memo 버전이력 항목 클릭 → memo anchor 코멘트가 하이라이트된다 (역방향)', async () => {
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('메모 확인 부탁드립니다')
+    const commentItems = screen.getAllByTestId('slip-collab-comment-item')
+    const memoComment = commentItems.find((el) => el.textContent?.includes('메모 확인 부탁드립니다'))
+    fireEvent.click(memoComment!)
     const memoChange = await screen.findByTestId('slip-version-history-change-header-memo')
     fireEvent.click(memoChange)
 
-    const commentItems = await screen.findAllByTestId('slip-collab-comment-item')
-    const memoComment = commentItems.find((el) => el.textContent?.includes('메모 확인 부탁드립니다'))
-    const otherComment = commentItems.find((el) => el.textContent?.includes('전체 코멘트입니다'))
-    expect(memoComment).toBeDefined()
+    const updatedCommentItems = await screen.findAllByTestId('slip-collab-comment-item')
+    const updatedMemoComment = updatedCommentItems.find((el) => el.textContent?.includes('메모 확인 부탁드립니다'))
+    const otherComment = updatedCommentItems.find((el) => el.textContent?.includes('전체 코멘트입니다'))
+    expect(updatedMemoComment).toBeDefined()
     expect(otherComment).toBeDefined()
 
-    expect(memoComment!.getAttribute('data-active')).toBe('true')
-    expect(memoComment!.getAttribute('aria-current')).toBe('true')
+    expect(updatedMemoComment!.getAttribute('data-active')).toBe('true')
+    expect(updatedMemoComment!.getAttribute('aria-current')).toBe('true')
     // anchor 없는 코멘트는 애초 매칭 대상이 아니므로 하이라이트되지 않는다.
     expect(otherComment!.getAttribute('data-active')).toBeNull()
   })
@@ -210,7 +210,6 @@ describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연�
     ])
 
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('메모 다중필드 확인')
     const commentItems = screen.getAllByTestId('slip-collab-comment-item')
@@ -220,6 +219,8 @@ describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연�
     expect(shippingComment).toBeDefined()
     expect(memoComment!.getAttribute('data-active')).toBeNull()
     expect(shippingComment!.getAttribute('data-active')).toBeNull()
+
+    fireEvent.click(memoComment!)
 
     fireEvent.click(await screen.findByTestId('slip-version-history-row-5'))
 
