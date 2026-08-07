@@ -83,6 +83,7 @@ function Write-Ok {
 
 function Write-Warn {
     param([string] $Message)
+    $script:SeedFailureCount++
     Write-Host "    [WARN] $Message" -ForegroundColor Yellow
 }
 
@@ -90,6 +91,8 @@ function Write-Skip {
     param([string] $Message)
     Write-Host "    [SKIP] $Message" -ForegroundColor DarkYellow
 }
+
+$script:SeedFailureCount = 0
 
 function Test-BackendUp {
     param([string] $BaseUrl)
@@ -409,6 +412,15 @@ else {
 # -----------------------------------------------------------------------------
 # 11. 완료
 # -----------------------------------------------------------------------------
+
+if ($script:SeedFailureCount -gt 0) {
+    Write-Host ''
+    Write-Host '==============================================================' -ForegroundColor Red
+    Write-Host " 9 슬라이스 fixture seed 실패 ($($script:SeedFailureCount)건)" -ForegroundColor Red
+    Write-Host '==============================================================' -ForegroundColor Red
+    Write-Error "9 슬라이스 fixture seed 실패: $($script:SeedFailureCount)건의 WARN이 발생했습니다."
+    exit 1
+}
 
 Write-Host ''
 Write-Host '==============================================================' -ForegroundColor Cyan

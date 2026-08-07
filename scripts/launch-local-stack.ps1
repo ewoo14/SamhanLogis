@@ -138,6 +138,10 @@ Invoke-AtRoot {
     Write-Host "[local-stack] docker compose up -d"
     $composeArgs = if ($Rebuild) { @('up', '-d', '--build') } else { @('up', '-d') }
     docker compose @ComposeFiles @composeArgs
+    $composeExitCode = $LASTEXITCODE
+    if ($composeExitCode -ne 0) {
+        throw "[local-stack] docker compose up 실패 (exit $composeExitCode)"
+    }
 }
 
 Wait-Postgres

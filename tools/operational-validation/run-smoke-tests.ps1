@@ -112,17 +112,6 @@ function Test-HealthPort {
 
 function Resolve-ServicePort {
     param($Service)
-    $envValue = [Environment]::GetEnvironmentVariable($Service.env)
-    if ($envValue -and $envValue -match '^\d+$') {
-        return [int] $envValue
-    }
-    if (Test-HealthPort -Port $Service.port) {
-        return [int] $Service.port
-    }
-    $fallback = [int] $Service.port + 100
-    if (Test-HealthPort -Port $fallback) {
-        return $fallback
-    }
     return [int] $Service.port
 }
 

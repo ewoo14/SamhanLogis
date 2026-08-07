@@ -370,21 +370,6 @@ foreach ($svc in $services) {
     $svc.port = Get-LocalStackPort -Service $svc.name
 }
 
-# 사용자 환경변수 SAMHAN_<SVC>_PORT override 반영 — application.yml chained-default 와 정합.
-# 예: setx SAMHAN_SLIP_PORT 8186 (InfluxDB 점유 우회) → 본 스크립트가 health check 도 8186 으로 폴링.
-foreach ($svc in $services) {
-    $override = [Environment]::GetEnvironmentVariable($svc.envVar)
-    if ($override) {
-        $portInt = 0
-        if ([int]::TryParse($override, [ref]$portInt) -and $portInt -gt 0) {
-            if ($portInt -ne $svc.port) {
-                Write-Host "   [override] $($svc.name) port $($svc.port) → $portInt ($($svc.envVar) 환경변수)" -ForegroundColor DarkCyan
-                $svc.port = $portInt
-            }
-        }
-    }
-}
-
 $startupResults = @()
 $abortRemaining = $false
 $eurekaPort = ($services | Where-Object { $_.name -eq 'eureka-server' }).port
@@ -484,6 +469,7 @@ foreach ($svc in $services) {
     }
 }
 $healthSummary | Format-Table -AutoSize
+$failedHealth = @($healthSummary | Where-Object { $_.Status -ne 'UP' })
 
 # -----------------------------------------------------------------------------
 # 5. 시드 row count psql 검증
@@ -560,15 +546,19 @@ Write-Host '   .\infrastructure\scripts\stop-local-full.ps1'
 Write-Host ''
 
 # 필수 service fail 시 종합 안내
-$failedRequired = $startupResults | Where-Object { $_.Required -and $_.Status -ne 'UP' }
-if ($failedRequired) {
+$failedRequired = @($startupResults | Where-Object { $_.Required -and $_.Status -ne 'UP' })
+if ($failedRequired -or $failedHealth.Count -gt 0) {
     Write-Host '==============================================================' -ForegroundColor Red
     Write-Host ' 경고 — 필수 service 기동 실패' -ForegroundColor Red
     Write-Host '==============================================================' -ForegroundColor Red
     foreach ($f in $failedRequired) {
         Write-Host "   $($f.Service) (port $($f.Port)): $($f.Status) — log: $($f.Log)" -ForegroundColor Red
     }
+    foreach ($f in $failedHealth) {
+        Write-Host "   health DOWN: $($f.Service) (port $($f.Port))" -ForegroundColor Red
+    }
     Write-Host ''
+    exit 1
 } else {
     Write-Host '==============================================================' -ForegroundColor Cyan
     Write-Host ' 완료' -ForegroundColor Green

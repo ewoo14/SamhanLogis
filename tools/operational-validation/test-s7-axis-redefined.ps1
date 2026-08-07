@@ -48,14 +48,28 @@ foreach ($case in @(
 $oldSlipPort = [Environment]::GetEnvironmentVariable('SAMHAN_SLIP_PORT')
 try {
     [Environment]::SetEnvironmentVariable('SAMHAN_SLIP_PORT', $null, 'Process')
-    Assert-True ((Get-LocalStackPort -Service 'slip-service') -eq 8086) 'slip default port must be 8086'
+    $resolvedSlipPort = Get-LocalStackPort -Service 'slip-service'
+    $slipContainerPort = (Get-LocalStackPortDefinitions)['slip-service'].ContainerPort
+    $publishedSlipPort = docker port samhan-slip-service ("$slipContainerPort/tcp") 2>$null
+    if ($LASTEXITCODE -eq 0 -and $publishedSlipPort) {
+        Assert-True ($resolvedSlipPort -eq [int]([regex]::Match(($publishedSlipPort | Select-Object -First 1).ToString(), ':(\d+)\s*$').Groups[1].Value)) 'slip resolver must match Docker publish port'
+    } else {
+        Assert-True ($resolvedSlipPort -eq 8086) 'slip default port must be 8086'
+    }
 } finally {
     [Environment]::SetEnvironmentVariable('SAMHAN_SLIP_PORT', $oldSlipPort, 'Process')
 }
 $oldAuthPort = [Environment]::GetEnvironmentVariable('SAMHAN_AUTH_PORT')
 try {
     [Environment]::SetEnvironmentVariable('SAMHAN_AUTH_PORT', '18081', 'Process')
-    Assert-True ((Get-LocalStackPort -Service 'auth-service') -eq 18081) 'auth override was not resolved'
+    $resolvedAuthPort = Get-LocalStackPort -Service 'auth-service'
+    $authContainerPort = (Get-LocalStackPortDefinitions)['auth-service'].ContainerPort
+    $publishedAuthPort = docker port samhan-auth-service ("$authContainerPort/tcp") 2>$null
+    if ($LASTEXITCODE -eq 0 -and $publishedAuthPort) {
+        Assert-True ($resolvedAuthPort -eq [int]([regex]::Match(($publishedAuthPort | Select-Object -First 1).ToString(), ':(\d+)\s*$').Groups[1].Value)) 'auth resolver must match Docker publish port'
+    } else {
+        Assert-True ($resolvedAuthPort -eq 18081) 'auth override was not resolved'
+    }
 } finally {
     [Environment]::SetEnvironmentVariable('SAMHAN_AUTH_PORT', $oldAuthPort, 'Process')
 }
