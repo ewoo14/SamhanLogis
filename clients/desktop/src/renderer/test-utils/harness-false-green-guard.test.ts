@@ -73,25 +73,81 @@ function walkG3Sources(): string[] {
  * 커밋 `docs/qa`·`docs/manual` 직접 쓰기와 `_local` 격리 누락을 닫는 범위만 담당한다.
  */
 function hasUnisolatedTextEvidenceWrite(file: string, raw: string): boolean {
-  if (raw.includes('_local') || raw.includes('QA_SHOTS_DIR') || /resolve[-_]?qa[-_]?shots[-_]?dir/i.test(raw)) return false
-  if (/\.py$/i.test(file)) return hasPythonEvidenceWrite(raw)
-  if (/\.bat$/i.test(file)) return hasBatchEvidenceWrite(raw)
-  if (/\.ps1$/i.test(file)) return /\$Out(?:put)?Dir\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/i.test(raw)
-  if (/\.sh$/i.test(file)) return /\bOUT\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/.test(raw)
+  const isolated = hasRelatedIsolationMarker(raw, /\.py$/i.test(file) ? 'python' : 'batch')
+  if (/\.py$/i.test(file)) return hasPythonEvidenceWrite(raw) && !isolated
+  if (/\.bat$/i.test(file)) return hasBatchEvidenceWrite(raw) && !isolated
+  if (/\.ps1$/i.test(file)) return /\$Out(?:put)?Dir\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/i.test(raw) && !/_local|QA_SHOTS_DIR|resolve[-_]?qa[-_]?shots[-_]?dir/i.test(raw)
+  if (/\.sh$/i.test(file)) return /\bOUT\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/.test(raw) && !/_local|QA_SHOTS_DIR|resolve[-_]?qa[-_]?shots[-_]?dir/i.test(raw)
   return false
 }
 
 function hasPythonEvidenceWrite(raw: string): boolean {
-  if (!/docs[\\/]qa|docs[\\/]manual/.test(raw)) return false
-  return /\.save\s*\(|savefig\s*\(/.test(raw) ||
-    (/\bopen\s*\(/.test(raw) && /\.write\s*\(/.test(raw)) ||
-    /\.write_(?:text|bytes)\s*\(/.test(raw) ||
-    /\b(?:cv2|imageio)\.imwrite\s*\(/.test(raw)
+  const source = stripTextComments(raw, 'python')
+  const code = maskStringLiterals(source)
+  if (!/docs[\\/]qa|docs[\\/]manual/.test(source)) return false
+  return /\.save\s*\(|savefig\s*\(/.test(code) ||
+    (/\bopen\s*\(/.test(code) && /\.write\s*\(/.test(code)) ||
+    /\.write_(?:text|bytes)\s*\(/.test(code) ||
+    /\b(?:cv2|imageio)\.imwrite\s*\(/.test(code)
 }
 
 function hasBatchEvidenceWrite(raw: string): boolean {
-  return /docs[\\/]qa|docs[\\/]manual/i.test(raw) &&
-    /(?:>>?|\bcopy\b|\bxcopy\b|\btype\b)[^\r\n]*docs[\\/]?(?:qa|manual)/i.test(raw)
+  const source = stripTextComments(raw, 'batch')
+  const code = maskStringLiterals(source)
+  return /docs[\\/]qa|docs[\\/]manual/i.test(source) &&
+    /(?:>>?|\bcopy\b|\bxcopy\b|\btype\b)[^\r\n]*docs[\\/]?(?:qa|manual)/i.test(code)
+}
+
+/**
+ * Python/Batch are intentionally only lightweight lexical scans, not parsers.
+ * Comments and quoted documentation are removed/masked before writer matching;
+ * this cannot resolve dynamically composed destinations (for example
+ * `Path('docs') / 'qa'` or a Batch `%OUT%` destination).
+ */
+function stripTextComments(src: string, language: 'python' | 'batch'): string {
+  if (language === 'batch') {
+    return src.split(/\r?\n/).map((line) => /^\s*(?:@?rem\b|::)/i.test(line) ? '' : line).join('\n')
+  }
+  let out = ''
+  let quote = ''
+  let escaped = false
+  let comment = false
+  for (const c of src) {
+    if (comment) {
+      if (c === '\n') { comment = false; out += c }
+      continue
+    }
+    if (quote) {
+      out += c
+      if (escaped) escaped = false
+      else if (c === '\\') escaped = true
+      else if (c === quote) quote = ''
+      continue
+    }
+    if (c === '#' ) { comment = true; continue }
+    if (c === '"' || c === "'") quote = c
+    out += c
+  }
+  return out
+}
+
+function maskStringLiterals(src: string): string {
+  return src.replace(/(['"])(?:\\.|(?!\1)[^\\\r\n])*\1/g, (literal) => literal.replace(/[^\r\n]/g, ' '))
+}
+
+function hasRelatedIsolationMarker(raw: string, language: 'python' | 'batch'): boolean {
+  const source = stripTextComments(raw, language)
+  const code = maskStringLiterals(source)
+  const marker = /_local|QA_SHOTS_DIR|resolve[-_]?qa[-_]?shots[-_]?dir/i
+  if (!marker.test(source)) return false
+  const markerTargets = new Set<string>()
+  for (const line of source.split(/\r?\n/)) {
+    if (!marker.test(line)) continue
+    for (const match of line.matchAll(/\b([A-Za-z_]\w*)\s*=\s*/g)) markerTargets.add(match[1])
+    if (/(?:open|write|save|imwrite|copy|type|>>?)/i.test(line)) return true
+  }
+  return [...markerTargets].some((name) =>
+    new RegExp(`(?:open|write|save|imwrite|copy|type|>>?)[^\\r\\n]*\\b${name}\\b|\\b${name}\\b[^\\r\\n]*(?:open|write|save|imwrite|copy|type|>>?)`, 'i').test(code))
 }
 
 function trackedRepositoryExtensions(): Set<string> {
@@ -253,6 +309,19 @@ type EvidenceWriterCacheEntry = {
 let discoveredEvidenceWritersCache = new Map<string, EvidenceWriterCacheEntry>()
 let discoveredEvidenceWritersResult: string[] | undefined
 let readEvidenceSource = (file: string): string => fs.readFileSync(file, 'utf-8')
+let unreadEvidenceCandidates: string[] = []
+
+let trackedEvidenceFiles: Set<string> | undefined
+function isTrackedEvidenceFile(file: string): boolean {
+  if (!trackedEvidenceFiles) {
+    const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-z'], {
+      encoding: 'utf8', maxBuffer: 50 * 1024 * 1024,
+    })
+    trackedEvidenceFiles = new Set(output.split('\0').filter(Boolean).map((entry) =>
+      fs.realpathSync.native(path.resolve(REPO_ROOT, entry))))
+  }
+  return trackedEvidenceFiles.has(path.resolve(file))
+}
 
 function isEvidenceWriter(file: string, rawOverride?: string): boolean {
   const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
@@ -285,6 +354,7 @@ function isEvidenceWriter(file: string, rawOverride?: string): boolean {
 
 function discoveredEvidenceWriters(): string[] {
   const next = new Map<string, EvidenceWriterCacheEntry>()
+  unreadEvidenceCandidates = []
   for (const file of walkForEvidenceDiscovery(REPO_ROOT)) {
     let canonical: string
     let raw: string
@@ -292,7 +362,11 @@ function discoveredEvidenceWriters(): string[] {
       canonical = fs.realpathSync.native(file)
       raw = readEvidenceSource(canonical)
     } catch {
-      throw new Error(`unable to read evidence candidate: ${file}`, { cause: undefined })
+      if (isTrackedEvidenceFile(file)) {
+        throw new Error(`unable to read tracked evidence source: ${file}`, { cause: undefined })
+      }
+      unreadEvidenceCandidates.push(file)
+      continue
     }
     if (!isWithinRepo(canonical)) continue
     if (canonical === path.resolve(SELF)) continue
@@ -1245,7 +1319,8 @@ describe('하네스 거짓 green 가드', () => {
         if (path.resolve(file) === probe) throw new Error('simulated locked candidate')
         return originalReadEvidenceSource(file)
       }
-      expect(() => discoveredEvidenceWriters()).toThrow(/unable to read evidence candidate/i)
+      discoveredEvidenceWriters()
+      expect(unreadEvidenceCandidates).toContain(probe)
     } finally {
       readEvidenceSource = originalReadEvidenceSource
       fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s18-probes'), { recursive: true, force: true })
@@ -1253,6 +1328,34 @@ describe('하네스 거짓 green 가드', () => {
   })
 
   it('S18 extension census: git ls-files의 모든 확장자는 관할 또는 이유 있는 명시적 제외에 속한다', () => {
+    const tracked = path.resolve(REPO_ROOT, 'clients/desktop/scripts/qa-output-path-guard.test.cjs')
+    const untracked = path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s20-untracked-read-failure.mjs')
+    const originalReadEvidenceSource = readEvidenceSource
+    fs.writeFileSync(untracked, "const OUT = 'docs/qa/.s20-untracked.png'\n", 'utf8')
+    try {
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === tracked || path.resolve(file) === untracked) throw new Error('simulated lock')
+        return originalReadEvidenceSource(file)
+      }
+      expect(() => discoveredEvidenceWriters()).toThrow(/unable to read tracked evidence source/i)
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === untracked) throw new Error('simulated lock')
+        return originalReadEvidenceSource(file)
+      }
+      discoveredEvidenceWriters()
+      expect(unreadEvidenceCandidates).toContain(untracked)
+    } finally {
+      readEvidenceSource = originalReadEvidenceSource
+      fs.rmSync(untracked, { force: true })
+    }
+
+    expect(hasPythonEvidenceWrite(["# with open('docs/qa/example.png', 'wb') as handle:", '#     handle.write(b\'example\')', 'VALUE = 1'].join('\n'))).toBe(false)
+    expect(hasPythonEvidenceWrite("HELP = \"with open('docs/qa/example.png', 'wb') as handle: handle.write(b'example')\"\nVALUE = 1")).toBe(false)
+    expect(hasBatchEvidenceWrite('@rem copy harmless.txt docs\\qa\\example.txt\r\n@echo harmless\r\n')).toBe(false)
+    const markerBypass = ['# _local is documentation only', "OUT = 'docs/qa/.s20-marker-bypass.png'", "with open(OUT, 'wb') as handle:", "    handle.write(b'probe')"].join('\n')
+    expect(hasUnisolatedTextEvidenceWrite('probe.py', markerBypass)).toBe(true)
+    expect(hasUnisolatedTextEvidenceWrite('probe.py', ["OUT = resolve_qa_shots_dir(__file__)", "with open(OUT, 'wb') as handle:", "    handle.write(b'probe')"].join('\n'))).toBe(false)
+
     const actual = trackedRepositoryExtensions()
     const classified = new Set([...EVIDENCE_SOURCE_EXTENSIONS, ...EVIDENCE_EXTENSION_EXCLUSIONS.keys()])
     expect([...actual].filter((extension) => !classified.has(extension))).toEqual([])
