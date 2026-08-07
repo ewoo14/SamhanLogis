@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -203,7 +204,7 @@ class SlipPermissionControllerIT {
                         com.samhanair.logis.slip.domain.SlipStatus.DRAFT,
                         com.samhanair.logis.slip.domain.SlipSourceType.ESTIMATE,
                         "EST-001", null, false)));
-        lenient().when(estimateService.list(any(), any(), any(), any(), any()))
+        lenient().when(estimateService.list(any(), any(), any(), any(), anyBoolean(), any()))
                 .thenReturn(new PageImpl<>(List.of()));
         lenient().when(estimateService.getOne(any(UUID.class))).thenReturn(null);
         lenient().when(slipExcelExportService.export(any(), any(), any(), any(), any()))

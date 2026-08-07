@@ -517,9 +517,10 @@ public class EstimateService {
      */
     @Transactional(readOnly = true)
     public Page<EstimateResponse> list(EstimateStatus status, UUID partnerId,
-                                       LocalDate startDate, LocalDate endDate, Pageable pageable) {
+                                       LocalDate startDate, LocalDate endDate, boolean includeDeleted,
+                                       Pageable pageable) {
         return estimateRepository.searchIncludingDeleted(
-                        status == null ? null : status.name(), partnerId, startDate, endDate, pageable)
+                        status == null ? null : status.name(), partnerId, startDate, endDate, includeDeleted, pageable)
                 .map(estimate -> EstimateResponse.from(estimate, isRestoreAvailable(estimate)));
     }
 

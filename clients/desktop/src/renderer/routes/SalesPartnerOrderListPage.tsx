@@ -94,6 +94,7 @@ export function SalesPartnerOrderListPage() {
   const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('DRAFT')
   const [slipPublishStatusFilter, setSlipPublishStatusFilter] = useState<'' | 'FAILED' | 'PENDING_RETRY'>('')
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [includeDeleted, setIncludeDeleted] = useState(false)
 
   /** Phase 2.6b D2: 병합 전환 모달 open/close. */
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
@@ -159,7 +160,6 @@ export function SalesPartnerOrderListPage() {
     queryKey: ['partner-orders', 'slip-publish-failed-count'],
     queryFn: () => listPartnerOrders(0, 1, {
       slipPublishStatus: 'FAILED',
-      includeDeleted: true,
     }),
     staleTime: 30_000,
     retry: 1,
@@ -168,7 +168,7 @@ export function SalesPartnerOrderListPage() {
   const query = useQuery({
     queryKey: [
       'partner-orders', dateFrom, dateTo, partnerId, statusFilter,
-      slipPublishStatusFilter, searchKeyword, 0,
+      slipPublishStatusFilter, searchKeyword, includeDeleted, 0,
     ],
     queryFn: () => listPartnerOrders(0, 50, {
       dateFrom: dateFrom || undefined,
@@ -177,9 +177,7 @@ export function SalesPartnerOrderListPage() {
       status: statusFilter || undefined,
       slipPublishStatus: slipPublishStatusFilter || undefined,
       searchKeyword: searchKeyword.trim() || undefined,
-      // 내부 관리자 목록 전용 opt-in — E2 취소선/복원 표시용 삭제행 포함(#757 R2 HIGH:
-      // BE 기본값은 활성만이며 파트너 호출은 값과 무관하게 활성 행만 반환).
-      includeDeleted: true,
+      ...(includeDeleted ? { includeDeleted: true } : {}),
     }),
     retry: 1,
   })
@@ -461,6 +459,15 @@ export function SalesPartnerOrderListPage() {
               data-testid="partner-order-list-date-from"
               inputSize="sm"
             />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={includeDeleted}
+                onChange={(e) => setIncludeDeleted(e.target.checked)}
+                data-testid="partner-order-list-include-deleted"
+              />
+              삭제 문서 포함
+            </label>
             <Input
               type="date"
               value={dateTo}

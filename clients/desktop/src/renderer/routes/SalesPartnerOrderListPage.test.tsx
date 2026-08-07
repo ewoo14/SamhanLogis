@@ -126,6 +126,17 @@ describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
     })
   })
 
+  it('기본 목록은 삭제행을 제외하고 토글을 켰을 때만 삭제행을 조회한다', async () => {
+    renderPage()
+
+    await screen.findByTestId('partner-order-table')
+    const listCalls = () => mocks.listPartnerOrders.mock.calls.filter(([, , filters]) => filters?.status === 'DRAFT')
+    expect(listCalls().at(-1)?.[2]).not.toHaveProperty('includeDeleted', true)
+
+    fireEvent.click(screen.getByTestId('partner-order-list-include-deleted'))
+    await waitFor(() => expect(listCalls().at(-1)?.[2]).toHaveProperty('includeDeleted', true))
+  })
+
   it('FAILED_PERMANENT·PENDING_RETRY만 배지를 표시하고 정상 상태는 표시하지 않는다', async () => {
     renderPage()
 

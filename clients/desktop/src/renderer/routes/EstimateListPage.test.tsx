@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EstimateListPage } from './EstimateListPage'
 import {
   listEstimates,
@@ -44,6 +44,8 @@ vi.mock('../api/estimateApi', async () => {
 const listEstimatesMock = vi.mocked(listEstimates)
 const restoreEstimateMock = vi.mocked(restoreEstimate)
 const useCollectionRealtimeMock = vi.mocked(useCollectionRealtime)
+
+afterEach(cleanup)
 
 function estimateRow(overrides: Partial<EstimateSummary> = {}): EstimateSummary {
   return {
@@ -120,6 +122,17 @@ describe('EstimateListPage E2 list realtime and restore', () => {
       'list',
       [['estimates', 'list']],
     )
+  })
+
+  it('기본 목록은 삭제행을 제외하고 토글을 켰을 때만 삭제행을 조회한다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow()]))
+    renderPage()
+
+    await screen.findByTestId('estimate-list-include-deleted')
+    expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.not.objectContaining({ includeDeleted: true }))
+
+    fireEvent.click(screen.getByTestId('estimate-list-include-deleted'))
+    await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ includeDeleted: true })))
   })
 
   it('삭제행은 모든 데이터 열에 취소선 처리하고 삭제 배지는 견적번호 취소선 span 바깥 형제로 렌더하며 행 클릭을 막는다', async () => {

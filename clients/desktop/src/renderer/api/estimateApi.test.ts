@@ -8,7 +8,7 @@ const apiClientMock = vi.hoisted(() => ({
 
 vi.mock('./client', () => ({ apiClient: apiClientMock }))
 
-import { getEstimate } from './estimateApi'
+import { getEstimate, listEstimates } from './estimateApi'
 
 describe('estimate API money normalization', () => {
   beforeEach(() => vi.resetAllMocks())
@@ -46,6 +46,24 @@ describe('estimate API money normalization', () => {
         vatAmount: '1000',
         lineTotal: '11000',
       }],
+    })
+  })
+})
+
+describe('estimate API soft-delete population', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  it('sends includeDeleted only for an explicit deleted-document view', async () => {
+    apiClientMock.get.mockResolvedValue({ data: { data: { content: [], totalElements: 0 } } })
+
+    await listEstimates({ page: 0, size: 50 })
+    expect(apiClientMock.get).toHaveBeenLastCalledWith('/slips/estimates', {
+      params: { page: 0, size: 50 },
+    })
+
+    await listEstimates({ page: 0, size: 50, includeDeleted: true })
+    expect(apiClientMock.get).toHaveBeenLastCalledWith('/slips/estimates', {
+      params: { page: 0, size: 50, includeDeleted: 'true' },
     })
   })
 })

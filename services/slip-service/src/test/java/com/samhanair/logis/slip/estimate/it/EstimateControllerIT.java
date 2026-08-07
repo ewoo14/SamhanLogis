@@ -315,7 +315,8 @@ class EstimateControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(get("/slips/estimates")
                         .header("X-User-Id", SALES_ACCOUNT_ID)
-                        .param("size", "50"))
+                        .param("size", "50")
+                        .param("includeDeleted", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].id").value(id))
                 .andExpect(jsonPath("$.data.content[0].isDeleted").value(true))
@@ -484,7 +485,8 @@ class EstimateControllerIT extends AbstractPostgresIT {
         // 3) 목록 includeDeleted 노출 — 삭제행이면서 CONVERTED 상태/convertedSlipId 를 그대로 보존.
         mockMvc.perform(get("/slips/estimates")
                         .header("X-User-Id", SALES_ACCOUNT_ID)
-                        .param("size", "50"))
+                        .param("size", "50")
+                        .param("includeDeleted", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].id").value(id))
                 .andExpect(jsonPath("$.data.content[0].isDeleted").value(true))

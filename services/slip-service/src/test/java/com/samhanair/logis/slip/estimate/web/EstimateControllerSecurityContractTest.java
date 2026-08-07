@@ -26,6 +26,7 @@ class EstimateControllerSecurityContractTest {
                 UUID.class,
                 LocalDate.class,
                 LocalDate.class,
+                boolean.class,
                 int.class,
                 int.class,
                 String.class,

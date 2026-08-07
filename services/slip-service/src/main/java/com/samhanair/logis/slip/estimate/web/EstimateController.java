@@ -85,13 +85,14 @@ public class EstimateController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);
         Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, pageable));
+        return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, includeDeleted, pageable));
     }
 
     /** 견적서 단건 상세 조회. */

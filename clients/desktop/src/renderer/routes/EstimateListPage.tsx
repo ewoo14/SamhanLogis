@@ -83,12 +83,13 @@ export function EstimateListPage() {
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
   const [partnerKeyword, setPartnerKeyword] = useState<string>('')
+  const [includeDeleted, setIncludeDeleted] = useState(false)
   const [restoreError, setRestoreError] = useState<string | null>(null)
 
   useCollectionRealtime(EstimateListRealtimeClient, 'list', ESTIMATE_LIST_REALTIME_KEYS)
 
   const query = useQuery({
-    queryKey: ['estimates', 'list', statusFilter, startDate, endDate],
+    queryKey: ['estimates', 'list', statusFilter, startDate, endDate, includeDeleted],
     queryFn: () =>
       listEstimates({
         page: 0,
@@ -96,6 +97,7 @@ export function EstimateListPage() {
         ...(statusFilter ? { status: statusFilter } : {}),
         ...(startDate ? { startDate } : {}),
         ...(endDate ? { endDate } : {}),
+        ...(includeDeleted ? { includeDeleted: true } : {}),
       }),
   })
 
@@ -383,6 +385,15 @@ export function EstimateListPage() {
             fullWidth={false}
             data-testid="estimate-list-filter-partner"
           />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={includeDeleted}
+              onChange={(e) => setIncludeDeleted(e.target.checked)}
+              data-testid="estimate-list-include-deleted"
+            />
+            삭제 문서 포함
+          </label>
         </div>
 
         {restoreError ? (

@@ -162,6 +162,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
 
   // DeliveryTag 필터 상태
   const [deliveryTagFilter, setDeliveryTagFilter] = useState<DeliveryTagCode | null>(null)
+  const [includeDeleted, setIncludeDeleted] = useState(false)
 
   // P1-6: Excel export
   const { downloading, download, error: downloadError } = useExcelDownload()
@@ -173,9 +174,9 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   useCollectionRealtime(SlipListRealtimeClient, 'list', SLIP_LIST_REALTIME_KEYS)
 
   const query = useQuery({
-    queryKey: ['slips', 'list', mode, deliveryTagFilter],
+    queryKey: ['slips', 'list', mode, deliveryTagFilter, includeDeleted],
     queryFn: () =>
-      listSlips({ slipType: mode, deliveryTag: deliveryTagFilter, includeDeleted: mode === 'OUTBOUND', page: 0, size: 20 }),
+      listSlips({ slipType: mode, deliveryTag: deliveryTagFilter, includeDeleted: isOutbound && includeDeleted, page: 0, size: 20 }),
     // PR-H4c FE-B: 30초 polling — 멀티 워크스테이션 동기화 안전망
     refetchInterval: 30_000,
   })
@@ -378,7 +379,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
                     exportSlips({
                       slipType: mode,
                       ...(deliveryTagFilter ? { deliveryTag: deliveryTagFilter } : {}),
-                      includeDeleted: isOutbound,
+              includeDeleted: isOutbound && includeDeleted,
                     }),
                   makeExportFilename(isOutbound ? '판매전표목록' : '입고전표목록'),
                 )
@@ -435,6 +436,17 @@ export function SlipListPage({ mode }: SlipListPageProps) {
           >
             초기화
           </Button>
+        ) : null}
+        {isOutbound ? (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={includeDeleted}
+              onChange={(e) => setIncludeDeleted(e.target.checked)}
+              data-testid="slip-list-include-deleted"
+            />
+            삭제 문서 포함
+          </label>
         ) : null}
       </div>
 

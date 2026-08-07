@@ -62,7 +62,8 @@ public interface EstimateRepository extends JpaRepository<Estimate, UUID> {
     @Query(value = """
             SELECT *
               FROM estimates e
-             WHERE (CAST(:status AS varchar) IS NULL OR e.status = CAST(:status AS varchar))
+             WHERE (:includeDeleted = TRUE OR e.is_deleted = FALSE)
+               AND (CAST(:status AS varchar) IS NULL OR e.status = CAST(:status AS varchar))
                AND (CAST(:partnerId AS uuid) IS NULL OR e.partner_id = CAST(:partnerId AS uuid))
                AND (CAST(:startDate AS date) IS NULL OR e.estimate_date >= CAST(:startDate AS date))
                AND (CAST(:endDate AS date) IS NULL OR e.estimate_date <= CAST(:endDate AS date))
@@ -71,7 +72,8 @@ public interface EstimateRepository extends JpaRepository<Estimate, UUID> {
             countQuery = """
             SELECT COUNT(*)
               FROM estimates e
-             WHERE (CAST(:status AS varchar) IS NULL OR e.status = CAST(:status AS varchar))
+             WHERE (:includeDeleted = TRUE OR e.is_deleted = FALSE)
+               AND (CAST(:status AS varchar) IS NULL OR e.status = CAST(:status AS varchar))
                AND (CAST(:partnerId AS uuid) IS NULL OR e.partner_id = CAST(:partnerId AS uuid))
                AND (CAST(:startDate AS date) IS NULL OR e.estimate_date >= CAST(:startDate AS date))
                AND (CAST(:endDate AS date) IS NULL OR e.estimate_date <= CAST(:endDate AS date))
@@ -81,6 +83,7 @@ public interface EstimateRepository extends JpaRepository<Estimate, UUID> {
                                           @Param("partnerId") UUID partnerId,
                                           @Param("startDate") LocalDate startDate,
                                           @Param("endDate") LocalDate endDate,
+                                          @Param("includeDeleted") boolean includeDeleted,
                                           Pageable pageable);
 
     /** 상태별 페이지. */

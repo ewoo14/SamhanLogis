@@ -10,7 +10,7 @@ const apiClientMock = vi.hoisted(() => ({
 
 vi.mock('./client', () => ({ apiClient: apiClientMock }))
 
-import { duplicateSlip, expandBundleLine, getPriceMemories, toApiBundleSetOptions } from './slip'
+import { duplicateSlip, expandBundleLine, getPriceMemories, listSlips, toApiBundleSetOptions } from './slip'
 
 describe('slip price contract', () => {
   beforeEach(() => {
@@ -157,5 +157,23 @@ describe('slip bundle expansion contract', () => {
     expect(toApiBundleSetOptions('BUNDLE', { panelOption: 'PC6NUCK1NW' })).toEqual(expect.objectContaining({
       panelOption: null,
     }))
+  })
+})
+
+describe('slip list soft-delete population', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  it('keeps deleted slips out by default and includes them only when explicitly requested', async () => {
+    apiClientMock.get.mockResolvedValue({ data: { data: { content: [], totalElements: 0 } } })
+
+    await listSlips({ slipType: 'OUTBOUND', page: 0, size: 20 })
+    expect(apiClientMock.get).toHaveBeenLastCalledWith('/slips', {
+      params: { page: 0, size: 20, slipType: 'OUTBOUND' },
+    })
+
+    await listSlips({ slipType: 'OUTBOUND', includeDeleted: true, page: 0, size: 20 })
+    expect(apiClientMock.get).toHaveBeenLastCalledWith('/slips', {
+      params: { page: 0, size: 20, slipType: 'OUTBOUND', includeDeleted: 'true' },
+    })
   })
 })
