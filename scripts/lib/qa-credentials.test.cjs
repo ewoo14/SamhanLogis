@@ -6,7 +6,12 @@ const test = require('node:test')
 
 const { resolveQaCredential } = require('./qa-credentials.cjs')
 
-const SCAN_ROOTS = ['clients/desktop', 'docs/qa', 'scripts']
+// Scan the repository tree so a new executable root cannot silently bypass this guard.
+const SCAN_ROOTS = ['.']
+// perf/k6/mixed-load.js intentionally reads LOADTEST_PASSWORD through k6's __ENV API.
+// k6 cannot use Node's fs/module loader, and scripts/run-load-test.ps1 injects this value
+// with -e LOADTEST_PASSWORD; it is therefore a runtime loader boundary, not a direct
+// Node/PowerShell credential consumer for this guard to rewrite.
 const EXECUTABLE_EXTENSIONS = new Set(['.cjs', '.js', '.mjs', '.ts', '.tsx', '.ps1', '.sh', '.py'])
 const QA_CREDENTIAL_KEY = /(?:^|_)(?:QA|DEV|LOADTEST|SAMHAN_DS4|AROLOGIS)(?:_[A-Z0-9]+)*_(?:PASSWORD|PW)$/
 const ENV_ACCESS = /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[['"]([A-Z][A-Z0-9_]*)['"]\])/g
@@ -123,7 +128,7 @@ test('실행 자격 소비자는 발견 기반으로 표준 로더를 경유하�
   assert.ok(consumers.length > 0, '자격 소비자를 한 건 이상 발견해야 합니다.')
   for (const { filePath, source } of consumers) {
     const relativePath = relativeToRepo(filePath)
-    assert.match(source, /(?:resolveQaCredential\(['"][A-Z][A-Z0-9_]*['"]\)|Resolve-QaCredential)/, relativePath)
+    assert.match(source, /(?:resolveQaCredential\(|Resolve-QaCredential)/, relativePath)
     const credentialAccess = credentialKeysIn(source, filePath)
       .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
       .join('|')

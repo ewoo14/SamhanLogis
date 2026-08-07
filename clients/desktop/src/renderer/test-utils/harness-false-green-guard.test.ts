@@ -98,6 +98,9 @@ function walkG3Sources(): string[] {
  */
 const GUARD_ROOTS: GuardRootSpec[] = [
   { dir: 'clients/desktop/playwright', recursive: true, exts: /\.(?:ts|tsx|js|mjs|cjs)$/, label: 'H-2' },
+  // S11: the credential guard is itself an evidence-bearing test and must not sit outside this guard's jurisdiction.
+  { dir: 'clients/desktop/src/renderer/test-utils', recursive: true, exts: /\.(?:ts|tsx)$/, label: 'G8c-self' },
+  { dir: 'scripts/lib', recursive: true, exts: /\.(?:js|cjs|mjs|ts|tsx)$/, label: 'G8c-scripts-lib' },
   { dir: 'docs/qa', recursive: true, exts: /\.(?:js|cjs|mjs|ts)$/, label: 'H2b' },
   { dir: 'docs/qa', recursive: true, exts: /\.py$/, label: 'H2-py' },
   { dir: 'docs/qa', recursive: true, exts: /\.sh$/, label: 'H2-sh' },
