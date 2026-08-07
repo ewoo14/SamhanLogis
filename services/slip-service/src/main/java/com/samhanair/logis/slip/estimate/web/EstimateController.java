@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.estimate.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.service.EstimateService;
@@ -10,6 +11,7 @@ import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateResponse;
 import com.samhanair.logis.slip.estimate.web.dto.UpdateEstimateRequest;
+import com.samhanair.logis.slip.estimate.web.dto.ChangeEstimateOwnerRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -93,6 +96,22 @@ public class EstimateController {
         estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, includeDeleted, pageable));
+    }
+
+    /** 웹 표면 자기 담당 목록 — 직원/거래처의 현재 담당 견적만 반환한다. */
+    @GetMapping("/assigned")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<Page<EstimateResponse>> assignedList(
+            @RequestParam(required = false) EstimateStatus status,
+            @RequestParam(required = false) UUID partnerId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "false") boolean includeDeleted,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(estimateService.listAssigned(callerHeader, status, partnerId,
+                startDate, endDate, includeDeleted, PageRequest.of(page, size)));
     }
 
     /** 견적서 단건 상세 조회. */
@@ -202,6 +221,24 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> restore(
             @PathVariable UUID id) {
         return ApiResponse.ok(estimateService.restore(id));
+    }
+
+    /** 웹 표면 자기 담당 삭제 견적 복원. */
+    @PostMapping("/assigned/{id}/restore")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.RESTORE)
+    public ApiResponse<EstimateDetailResponse> assignedRestore(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(estimateService.restoreAssigned(id, callerHeader));
+    }
+
+    /** 견적서 계열 담당 변경. 주문서 계열은 이 endpoint의 계약 대상이 아니다. */
+    @PatchMapping("/{id}/owner")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
+    public ApiResponse<EstimateDetailResponse> changeOwner(
+            @PathVariable UUID id,
+            @Valid @RequestBody ChangeEstimateOwnerRequest request) {
+        return ApiResponse.ok(estimateService.changeOwner(id, request.requesterId(), request.documentType()));
     }
 
     private UUID parseAccountId(String header) {
