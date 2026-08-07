@@ -33,16 +33,14 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -108,6 +106,7 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
     @Autowired private PartnerOrderAuditLogRepository auditLogRepository;
     @Autowired private SlipPublishOutboxRepository outboxRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private DataSource dataSource;
 
     // ── 외부 client MockBean ────────────────────────────────────────────────────
 
@@ -1019,10 +1018,10 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
         assertThat(sorted.get(2).getSourceRevisionNo()).isEqualTo(1);
     }
 
-    @RepeatedTest(13)
+    @Test
     @WithMockUser(roles = {"SALES"})
-    @DisplayName("RED-A: 같은 target 동시 복원은 200·409 한 쌍과 RESTORE revision 1건")
-    void concurrentRestore_sameTarget_returnsOneSuccessAndOneConflict() throws Exception {
+    @DisplayName("RED-A: 잠긴 target 복원은 409, 잠금 해제 후 복원은 200과 RESTORE revision 1건")
+    void lockedRestore_returnsConflict_thenUnlockedRestoreSucceeds() throws Exception {
         UUID estimateId = UUID.randomUUID();
         when(estimateClient.findById(estimateId)).thenReturn(Optional.of(estimateSnapshot(estimateId)));
         MvcResult createResult = mockMvc.perform(
@@ -1034,21 +1033,27 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
                 .andReturn();
         UUID orderId = UUID.fromString(extractOrderId(createResult));
 
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<Integer> first = executor.submit(() -> restoreStatus(orderId));
-            Future<Integer> second = executor.submit(() -> restoreStatus(orderId));
-            List<Integer> statuses = List.of(first.get(), second.get()).stream().sorted().toList();
+        try (Connection lockConnection = dataSource.getConnection()) {
+            lockConnection.setAutoCommit(false);
+            try (PreparedStatement lock = lockConnection.prepareStatement(
+                    "SELECT * FROM partner_orders WHERE id = ? FOR UPDATE")) {
+                lock.setObject(1, orderId);
+                try (var result = lock.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                }
 
-            assertThat(statuses).containsExactly(200, 409);
+                // 별도 커넥션의 미커밋 row lock을 직접 보유하므로 NOWAIT 계약을 타이밍 없이 검증한다.
+                assertThat(restoreStatus(orderId)).isEqualTo(409);
+            }
+
+            lockConnection.rollback();
+
+            // 잠금 해제 뒤에는 사용자가 다시 누른 순차 복원이 정상 성공해야 한다.
+            assertThat(restoreStatus(orderId)).isEqualTo(200);
             assertThat(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId).stream()
                     .filter(revision -> revision.getRevisionType() ==
                             com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType.RESTORE))
                     .hasSize(1);
-        } catch (ExecutionException ex) {
-            throw new AssertionError("동시 복원 요청이 예외로 종료됨", ex.getCause());
-        } finally {
-            executor.shutdownNow();
         }
     }
 
