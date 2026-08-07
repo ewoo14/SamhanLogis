@@ -115,6 +115,10 @@ export interface EstimateSummary {
   acceptedAt: string | null
   convertedAt: string | null
   requesterId: string | null
+  /** 담당자 표시명 — UUID를 화면에 표시하지 않기 위한 서버 제공 label. */
+  requesterName?: string | null
+  /** 불변 작성 기록 표시명 — 담당 변경과 별개의 감사 정보. */
+  createdByName?: string | null
   version: number
   isDeleted: boolean
   deletedAt: string | null
