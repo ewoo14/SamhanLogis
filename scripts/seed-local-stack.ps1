@@ -12,6 +12,7 @@ $seedScriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     $PSScriptRoot
 }
 . (Resolve-Path -LiteralPath (Join-Path $seedScriptRoot 'lib\local-stack-port.ps1'))
+. (Resolve-Path -LiteralPath (Join-Path $seedScriptRoot 'lib\qa-credentials.ps1'))
 
 $gatewayPort = Get-LocalStackPort -Service 'api-gateway'
 $authPort = Get-LocalStackPort -Service 'auth-service'
@@ -20,6 +21,10 @@ if ([string]::IsNullOrWhiteSpace($GatewayUrl)) { $GatewayUrl = "http://localhost
 if ([string]::IsNullOrWhiteSpace($AuthBaseUrl)) { $AuthBaseUrl = "$GatewayUrl/api/auth" }
 if ([string]::IsNullOrWhiteSpace($AccountingBaseUrl)) { $AccountingBaseUrl = "http://localhost:$accountingPort" }
 $authServiceBaseUrl = "http://localhost:$authPort"
+
+# 자격은 표준 환경변수 또는 infrastructure/.env.local에서 읽는다. 누락 시 빈 값을 전송하지 않고 즉시 실패한다.
+$seedLoginId = if ($env:SEED_LOGIN_ID) { $env:SEED_LOGIN_ID } else { "dev_master" }
+$seedLoginPw = Resolve-QaCredential -Key 'QA_DEV_DEFAULT_PASSWORD' -CompatibilityAliases @('SEED_LOGIN_PW')
 
 # PowerShell 5.1 (cp949) 환경에서 한글 console 출력 보존 — [feedback_powershell_utf8_writes]
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -78,9 +83,6 @@ Wait-Http "gateway" "$GatewayUrl/actuator/health"
 Wait-Http "auth-service" "$authServiceBaseUrl/actuator/health"
 Wait-Http "accounting-service" "$AccountingBaseUrl/actuator/health"
 
-# 자격은 환경변수로 주입 (평문 커밋 금지 — GitGuardian). 미설정 시 V5 시드 DEV 값.
-$seedLoginId = if ($env:SEED_LOGIN_ID) { $env:SEED_LOGIN_ID } else { "dev_master" }
-$seedLoginPw = if ($env:SEED_LOGIN_PW) { $env:SEED_LOGIN_PW } else { "" }
 $masterLogin = Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/login" -Body @{
     loginId = $seedLoginId
     password = $seedLoginPw

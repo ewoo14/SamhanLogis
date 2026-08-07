@@ -192,14 +192,6 @@ function request(session, method, path, body, endpoint, extraHeaders, retry401) 
     throw new Error(`지원하지 않는 method=${method}`);
   }
 
-  if (res.status === 401 && retry401 !== false) {
-    const refreshed = login(session.loginId);
-    session.token = refreshed.token;
-    session.userId = refreshed.userId;
-    session.roleCode = refreshed.role;
-    return request(session, method, path, body, endpoint, extraHeaders, false);
-  }
-
   recordStatus(res, endpoint);
   const parsed = parseJson(res);
   check(res, {
@@ -461,11 +453,12 @@ function writeFlow(session, data) {
     return;
   }
   const n = Math.random();
-  if (WRITE_MODE === 'partner-order' || n < 0.34) {
-    createPartnerOrder(session, data);
-    return;
+  // partner-order mutation은 PARTNER JWT가 필요한 API다. 직원 JWT로 호출하지 않는다.
+  // 별도 partner actor가 없는 직원 부하에서는 estimate/slip 쓰기만 수행한다.
+  if (WRITE_MODE === 'partner-order') {
+    throw new Error('WRITE_MODE=partner-order는 partner actor 전용 하네스에서만 지원됩니다.');
   }
-  if (WRITE_MODE === 'estimate' || n < 0.67) {
+  if (WRITE_MODE === 'estimate' || n < 0.5) {
     createEstimate(session, data);
     return;
   }
