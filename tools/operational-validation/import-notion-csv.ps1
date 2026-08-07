@@ -66,7 +66,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $qaCredentialLoader = Join-Path $PSScriptRoot '..\..\scripts\lib\qa-credentials.ps1'
 . (Resolve-Path -LiteralPath $qaCredentialLoader)
-. (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'smoke-test-helpers.ps1'))
 if ([string]::IsNullOrWhiteSpace($Password)) {
     $Password = Resolve-QaCredential -Key 'QA_MASTER_PASSWORD' -CompatibilityAliases @('QA_PASSWORD', 'QA_MASTER_PW')
 }
@@ -440,8 +439,8 @@ Write-Host ''
 Write-Host '[3/3] 종합 결과' -ForegroundColor Yellow
 $results | Format-Table -AutoSize
 
-$okCount   = @($results | Where-Object { $_.Verdict -eq 'OK' }).Count
-$failCount = Get-SmokeFailureCount -Results @($results)
+$okCount   = ($results | Where-Object { $_.Verdict -eq 'OK' }).Count
+$failCount = ($results | Where-Object { $_.Verdict -ne 'OK' }).Count
 
 Write-Host ''
 if ($failCount -eq 0) {

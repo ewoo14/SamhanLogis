@@ -8,9 +8,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-. (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'lib\local-stack-port.ps1'))
-$gatewayPort = Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_API_GATEWAY_PORT -DefaultPort 8080
-$gatewayBaseUrl = "http://localhost:$gatewayPort"
 $qaCredentialLoader = Join-Path $PSScriptRoot "lib\qa-credentials.ps1"
 . (Resolve-Path -LiteralPath $qaCredentialLoader)
 
@@ -45,7 +42,7 @@ function Assert-Login {
     } | ConvertTo-Json -Compress
 
     try {
-        $response = Invoke-WebRequest -UseBasicParsing -Uri "$gatewayBaseUrl/auth/login" `
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:8080/auth/login" `
             -Method Post -ContentType "application/json" -Body $body -TimeoutSec 10
         if ($response.StatusCode -ne 200) {
             throw "HTTP $($response.StatusCode)"
@@ -152,7 +149,7 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 New-Item -ItemType Directory -Force -Path $rawDir | Out-Null
 
 Write-Step "게이트웨이 health 확인"
-Assert-HttpOk -Uri "$gatewayBaseUrl/actuator/health" -Name "api-gateway"
+Assert-HttpOk -Uri "http://localhost:8080/actuator/health" -Name "api-gateway"
 
 Write-Step "대표 부하 계정 로그인 확인"
 $password = Resolve-QaCredential -Key 'QA_DEV_DEFAULT_PASSWORD' -CompatibilityAliases @('DEV_PASSWORD')

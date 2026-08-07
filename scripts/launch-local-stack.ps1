@@ -7,11 +7,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-. (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'lib\local-stack-port.ps1'))
-$eurekaPort = Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_EUREKA_PORT -DefaultPort 8761
-$gatewayPort = Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_API_GATEWAY_PORT -DefaultPort 8080
-$authPort = Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_AUTH_PORT -DefaultPort 8081
-$dashboardPort = Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_DASHBOARD_PORT -DefaultPort 8094
 
 # PowerShell 5.1 (cp949) 환경에서 한글 console 출력 보존 — [feedback_powershell_utf8_writes]
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -140,10 +135,10 @@ Invoke-AtRoot {
 }
 
 Wait-Postgres
-Wait-Http "eureka" "http://localhost:$eurekaPort/actuator/health" 180
-Wait-Http "gateway" "http://localhost:$gatewayPort/actuator/health" 180
-Wait-Http "auth" "http://localhost:$authPort/actuator/health" 180
-Wait-Http "dashboard" "http://localhost:$dashboardPort/actuator/health" 180
+Wait-Http "eureka" "http://localhost:8761/actuator/health" 180
+Wait-Http "gateway" "http://localhost:8080/actuator/health" 180
+Wait-Http "auth" "http://localhost:8081/actuator/health" 180
+Wait-Http "dashboard" "http://localhost:8094/actuator/health" 180
 
 if (-not $SkipClients) {
     if ($TunnelExpo) {
@@ -161,8 +156,8 @@ if (-not $SkipClients) {
 
 Write-Host ""
 Write-Host "SamhanLogis local stack URLs"
-Write-Host "  API Gateway       http://localhost:$gatewayPort"
-Write-Host "  Eureka            http://localhost:$eurekaPort"
+Write-Host "  API Gateway       http://localhost:8080"
+Write-Host "  Eureka            http://localhost:8761"
 Write-Host "  Grafana           http://localhost:3000  (admin / samhan_dev_pw)"
 Write-Host "  Prometheus        http://localhost:9090"
 Write-Host "  MinIO Console     http://localhost:9001  (samhan / samhan_dev_pw)"
@@ -170,7 +165,7 @@ Write-Host "  Desktop           Electron 자동 실행, Vite renderer http://loc
 Write-Host "  Estimate Web      http://localhost:5183"
 Write-Host "  Order Web         http://localhost:5180"
 Write-Host "  Design System     http://localhost:5176"
-Write-Host "  Arologis Desktop  Electron 자동 실행, API http://localhost:$((Resolve-LocalStackPort -EnvironmentValue $env:SAMHAN_AROLOGIS_PORT -DefaultPort 8097))"
+Write-Host "  Arologis Desktop  Electron 자동 실행, API http://localhost:8097"
 Write-Host "  Mobile QR         Expo 터미널 로그: $LogDir"
 Write-Host ""
 Write-Host "Seed 실행: .\scripts\seed-local-stack.ps1"

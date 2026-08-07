@@ -9,9 +9,9 @@ $dbUser = 'probe_user'
 $dbPassword = 'probe_password'
 $probeDatabase = 'quantity_sync_probe'
 $migrationDirectory = (Resolve-Path 'services/product-service/src/main/resources/db/migration').Path
-$migrationFiles = @(Get-ChildItem $migrationDirectory -Filter 'V*.sql' | Sort-Object {
+$migrationFiles = Get-ChildItem $migrationDirectory -Filter 'V*.sql' | Sort-Object {
     [int]([regex]::Match($_.BaseName, '^V([0-9]+)').Groups[1].Value)
-})
+}
 $started = $false
 
 try {

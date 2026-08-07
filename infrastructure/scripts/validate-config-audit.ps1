@@ -104,9 +104,8 @@ function Get-UrlRecords {
     # SlipDispatchTaskClient 무포트(#745 라운드1) 재발을 향후 자동 검출하기 위한 커버리지 확장.
     # samhan.<svc>-service.url property key 는 이미 kebab-case 실 서비스명이라 별도 변환 불필요.
     $javaPattern = "@Value\(`"\$\{samhan\.(?<svc>[a-z0-9-]+-service)\.url:.*?http://[^`"'\s]+:(?<port>\d+)"
-    $javaFiles = @(Get-ChildItem (Join-Path $Root "services") -Recurse -Filter "*.java" -File |
+    $javaFiles = Get-ChildItem (Join-Path $Root "services") -Recurse -Filter "*.java" -File |
         Where-Object { $_.FullName -match "[\\/]src[\\/]main[\\/]java[\\/]" }
-    )
     if ($javaFiles.Count -gt 0) {
         foreach ($m in ($javaFiles | Select-String -Pattern $javaPattern -Encoding UTF8)) {
             $svc = $m.Matches[0].Groups["svc"].Value
@@ -190,10 +189,10 @@ function Test-ComposeServiceHasLine {
 $composePorts = Read-ComposePorts
 $rows = foreach ($record in Get-UrlRecords) {
     $actual = $composePorts[$record.Service]
-    $expected = if ($null -eq $actual -or @($actual).Count -eq 0) { $null } else { ($actual | Select-Object -Unique) -join "," }
-    $status = if ($null -eq $actual -or @($actual).Count -eq 0) {
+    $expected = if ($null -eq $actual -or $actual.Count -eq 0) { $null } else { ($actual | Select-Object -Unique) -join "," }
+    $status = if ($null -eq $actual -or $actual.Count -eq 0) {
         "NO_COMPOSE_PORT"
-    } elseif (@($actual).Count -ne 1) {
+    } elseif ($actual.Count -ne 1) {
         "AMBIGUOUS_COMPOSE_PORT"
     } elseif ($actual.Contains($record.ConfiguredPort)) {
         "OK"
