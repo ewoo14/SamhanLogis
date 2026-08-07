@@ -158,10 +158,10 @@ $expectedFiles = @(
     '03-partner-own-order-print-success.png',
     '04-partner-other-order-print-403.png'
 )
-$missingOrEmpty = $expectedFiles | Where-Object {
+$missingOrEmpty = @($expectedFiles | Where-Object {
     $candidate = Join-Path $out $_
     -not (Test-Path -LiteralPath $candidate) -or (Get-Item -LiteralPath $candidate).Length -eq 0
-}
+})
 if ($missingOrEmpty.Count -gt 0) {
     throw "[SP-08-4-4 QA 스크린샷 생성 실패] 누락/빈 파일: $($missingOrEmpty -join ', ') (출력 디렉터리: $out)"
 }

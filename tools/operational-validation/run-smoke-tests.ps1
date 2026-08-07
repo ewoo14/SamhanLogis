@@ -194,7 +194,7 @@ foreach ($svc in $services) {
 }
 $healthResults | Format-Table -AutoSize
 
-$downCount = ($healthResults | Where-Object { $_.Status -ne 'UP' }).Count
+$downCount = @($healthResults | Where-Object { $_.Status -ne 'UP' }).Count
 if ($downCount -gt 0) {
     Write-Host "   $downCount service DOWN — smoke test 진행하지만 endpoint fail 가능" -ForegroundColor Yellow
 } else {

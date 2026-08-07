@@ -75,7 +75,7 @@ function Wait-Http {
 }
 
 Wait-Http "gateway" "$GatewayUrl/actuator/health"
-Wait-Http "auth-service" "http://localhost:8081/actuator/health"
+Wait-Http "auth-service" "$authServiceBaseUrl/actuator/health"
 Wait-Http "accounting-service" "$AccountingBaseUrl/actuator/health"
 
 # 자격은 환경변수로 주입 (평문 커밋 금지 — GitGuardian). 미설정 시 V5 시드 DEV 값.
