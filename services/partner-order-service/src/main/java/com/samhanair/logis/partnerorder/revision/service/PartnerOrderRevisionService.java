@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -222,10 +223,19 @@ public class PartnerOrderRevisionService {
                                              String actorColor) {
         // 1. 주문 로드 — soft-deleted 주문도 복원 대상이므로 @SQLRestriction 우회 조회 사용
         //    (설계서 §3.3a: 삭제된 주문도 복원 가능)
-        PartnerOrder order = orderRepository.findByIdIncludingDeleted(orderId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "주문을 찾을 수 없습니다"));
+        PartnerOrder order;
+        try {
+            order = orderRepository.findByIdIncludingDeletedForUpdate(orderId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "주문을 찾을 수 없습니다"));
+        } catch (PessimisticLockingFailureException ex) {
+            log.warn("[PartnerOrderRevisionService] 복원 대상 주문 락 경합 — orderId={}", orderId);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "동시에 복원된 주문입니다. 다른 사용자의 복원이 먼저 완료되어 다시 조회해 주세요.",
+                    ex);
+        }
 
         // 2. 대상 revision 로드
         PartnerOrderRevision target = revisionRepository

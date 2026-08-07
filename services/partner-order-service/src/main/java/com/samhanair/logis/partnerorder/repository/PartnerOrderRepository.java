@@ -43,6 +43,10 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
     @Query(value = "SELECT * FROM partner_orders WHERE id = :id", nativeQuery = true)
     Optional<PartnerOrder> findByIdIncludingDeleted(@Param("id") UUID id);
 
+    /** 복원 전체를 주문 row 단위로 직렬화한다 (삭제 주문 포함). 락 경합은 즉시 409로 전환한다. */
+    @Query(value = "SELECT * FROM partner_orders WHERE id = :id FOR UPDATE NOWAIT", nativeQuery = true)
+    Optional<PartnerOrder> findByIdIncludingDeletedForUpdate(@Param("id") UUID id);
+
     @Query(value = "SELECT * FROM partner_orders WHERE order_no = :orderNo", nativeQuery = true)
     Optional<PartnerOrder> findByOrderNoIncludingDeleted(@Param("orderNo") String orderNo);
 

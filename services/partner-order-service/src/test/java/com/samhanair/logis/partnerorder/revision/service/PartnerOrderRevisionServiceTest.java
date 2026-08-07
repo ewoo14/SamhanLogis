@@ -26,6 +26,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.lang.reflect.Method;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -59,6 +62,19 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @ExtendWith(MockitoExtension.class)
 class PartnerOrderRevisionServiceTest {
+
+    @Test
+    @DisplayName("복원 조회는 native FOR UPDATE NOWAIT를 직접 사용하고 @Lock은 사용하지 않는다")
+    void restoreRepositoryQuery_usesDatabaseLockWithoutSpringDataLockAnnotation() throws Exception {
+        Method method = PartnerOrderRepository.class.getMethod(
+                "findByIdIncludingDeletedForUpdate", UUID.class);
+        Query query = method.getAnnotation(Query.class);
+
+        assertThat(query).isNotNull();
+        assertThat(query.nativeQuery()).isTrue();
+        assertThat(query.value()).containsIgnoringCase("FOR UPDATE NOWAIT");
+        assertThat(method.getAnnotation(Lock.class)).isNull();
+    }
 
     @Mock
     private PartnerOrderRevisionRepository revisionRepository;
@@ -303,7 +319,7 @@ class PartnerOrderRevisionServiceTest {
             String snapshotJson = objectMapper.writeValueAsString(snapshot);
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -344,7 +360,7 @@ class PartnerOrderRevisionServiceTest {
             String snapshotJson = objectMapper.writeValueAsString(snapshot);
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -376,7 +392,7 @@ class PartnerOrderRevisionServiceTest {
                                     PartnerOrderLine.create(UUID.randomUUID(), "MODEL", "상품", "cat",
                                             1, BigDecimal.ZERO, null))))));
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any()))
@@ -398,7 +414,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = confirmingOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(mockRevision(orderId, 1)));
 
@@ -416,7 +432,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = canceledOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(mockRevision(orderId, 1)));
 
@@ -431,7 +447,7 @@ class PartnerOrderRevisionServiceTest {
         @DisplayName("orderId 미존재 → 404 NOT_FOUND")
         void restore_orderNotFound_throws404() {
             UUID orderId = UUID.randomUUID();
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.empty());
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.restore(orderId, 1, UUID.randomUUID(), "복원자", null))
                     .isInstanceOf(ResponseStatusException.class)
@@ -445,7 +461,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = draftOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 99))
                     .thenReturn(Optional.empty());
 
@@ -479,7 +495,7 @@ class PartnerOrderRevisionServiceTest {
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
             // findByIdIncludingDeleted — soft-deleted 주문 반환
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));

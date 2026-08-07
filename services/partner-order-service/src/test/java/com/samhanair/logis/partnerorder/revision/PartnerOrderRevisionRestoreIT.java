@@ -36,8 +36,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -1012,6 +1017,71 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
         assertThat(sorted.get(1).getRevisionType().name()).isEqualTo("EDIT");
         assertThat(sorted.get(2).getRevisionType().name()).isEqualTo("RESTORE");
         assertThat(sorted.get(2).getSourceRevisionNo()).isEqualTo(1);
+    }
+
+    @RepeatedTest(13)
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("RED-A: 같은 target 동시 복원은 200·409 한 쌍과 RESTORE revision 1건")
+    void concurrentRestore_sameTarget_returnsOneSuccessAndOneConflict() throws Exception {
+        UUID estimateId = UUID.randomUUID();
+        when(estimateClient.findById(estimateId)).thenReturn(Optional.of(estimateSnapshot(estimateId)));
+        MvcResult createResult = mockMvc.perform(
+                        post("/api/v1/partner-orders/from-estimate/{id}", estimateId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID orderId = UUID.fromString(extractOrderId(createResult));
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> first = executor.submit(() -> restoreStatus(orderId));
+            Future<Integer> second = executor.submit(() -> restoreStatus(orderId));
+            List<Integer> statuses = List.of(first.get(), second.get()).stream().sorted().toList();
+
+            assertThat(statuses).containsExactly(200, 409);
+            assertThat(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId).stream()
+                    .filter(revision -> revision.getRevisionType() ==
+                            com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType.RESTORE))
+                    .hasSize(1);
+        } catch (ExecutionException ex) {
+            throw new AssertionError("동시 복원 요청이 예외로 종료됨", ex.getCause());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private int restoreStatus(UUID orderId) throws Exception {
+        return mockMvc.perform(
+                        post("/api/v1/partner-orders/{id}/revisions/{no}/restore", orderId, 1)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "복원담당자"))
+                .andReturn().getResponse().getStatus();
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("RED-B: 순차 복원 두 번은 각각 200이고 RESTORE revision 2건")
+    void sequentialRestore_sameTarget_isAllowed() throws Exception {
+        UUID estimateId = UUID.randomUUID();
+        when(estimateClient.findById(estimateId)).thenReturn(Optional.of(estimateSnapshot(estimateId)));
+        MvcResult createResult = mockMvc.perform(
+                        post("/api/v1/partner-orders/from-estimate/{id}", estimateId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID orderId = UUID.fromString(extractOrderId(createResult));
+
+        assertThat(restoreStatus(orderId)).isEqualTo(200);
+        assertThat(restoreStatus(orderId)).isEqualTo(200);
+        assertThat(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId).stream()
+                .filter(revision -> revision.getRevisionType() ==
+                        com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType.RESTORE))
+                .hasSize(2);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
