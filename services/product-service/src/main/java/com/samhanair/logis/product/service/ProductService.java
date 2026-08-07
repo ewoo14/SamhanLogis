@@ -582,6 +582,7 @@ public class ProductService {
     public ProductResponse update(UUID id, UpdateProductRequest req) {
         quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
+        assertBundleChildrenDeletionConfirmed(product, req);
 
         if (req.name() != null && !Objects.equals(req.name(), product.getName())) {
             assertNameAvailable(req.name(), product.getId());
@@ -1196,6 +1197,31 @@ public class ProductService {
         product.changePrices(req.releasePrice(), req.deliveryPrice());
         applyMaterialDefaults(product);
         return forceUsageNone || product.getProductCategory() == ProductCategory.MATERIAL;
+    }
+
+    /**
+     * 구성품을 일괄 soft-delete 하는 품목 전환은 화면 확인 여부와 무관하게 서버에서 재검증한다.
+     *
+     * <p>PATCH 직접 호출·배치·다른 클라이언트가 확인 필드를 생략하면 구성품이 있는 경우 중단된다.
+     * 구성품이 없는 전환은 기존 의도적 전환을 그대로 허용한다.
+     */
+    private void assertBundleChildrenDeletionConfirmed(Product product, UpdateProductRequest req) {
+        if (product.getProductType() != ProductType.BUNDLE) {
+            return;
+        }
+        ProductCategory resultingCategory = req.productCategory() == null
+                ? product.getProductCategory()
+                : req.productCategory();
+        boolean resultingNonBundle = req.itemKind() != null && req.itemKind() != ProductItemKind.SET;
+        boolean removesChildren = resultingNonBundle || resultingCategory == ProductCategory.MATERIAL;
+        if (!removesChildren) {
+            return;
+        }
+        long componentCount = bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(product.getId());
+        if (componentCount > 0 && !Boolean.TRUE.equals(req.confirmBundleChildrenDeletion())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "구성품 " + componentCount + "건이 삭제됩니다. 명시적 확인 후 다시 저장하십시오.");
+        }
     }
 
     private void applyMaterialDefaults(Product product) {

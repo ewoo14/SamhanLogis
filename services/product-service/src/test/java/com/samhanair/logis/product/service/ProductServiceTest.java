@@ -455,6 +455,76 @@ class ProductServiceTest {
     }
 
     @Test
+    void update_setToGeneral_requiresExplicitConfirmationWhenChildrenExist() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(productId)).thenReturn(3L);
+
+        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                ProductItemKind.GENERAL, null, null, null, null,
+                null, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("3")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+
+        verify(bundleComponentService, never()).removeBundleChildren(productId, "system");
+        assertThat(product.getProductType()).isEqualTo(ProductType.BUNDLE);
+    }
+
+    @Test
+    void update_setToGeneral_removesChildrenAfterExplicitConfirmation() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(productId)).thenReturn(3L);
+
+        service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                ProductItemKind.GENERAL, null, null, null, null,
+                null, null, null, null, null, null, null, true));
+
+        verify(bundleComponentService).removeBundleChildren(productId, "system");
+        assertThat(product.getProductType()).isEqualTo(ProductType.SINGLE);
+    }
+
+    @Test
+    void update_materialTransition_requiresExplicitConfirmationWhenBundleChildrenExist() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(productId)).thenReturn(2L);
+
+        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                ProductItemKind.SET, ProductCategory.MATERIAL, BundleMode.EXPAND, null, null,
+                null, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("2");
+
+        verify(bundleComponentService, never()).removeBundleChildren(productId, "system");
+    }
+
+    @Test
+    void update_materialTransition_removesChildrenAfterExplicitConfirmation() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(productId)).thenReturn(2L);
+
+        service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                ProductItemKind.SET, ProductCategory.MATERIAL, BundleMode.EXPAND, null, null,
+                null, null, null, null, null, null, null, true));
+
+        verify(bundleComponentService).removeBundleChildren(productId, "system");
+        assertThat(product.getProductType()).isEqualTo(ProductType.SINGLE);
+        assertThat(product.getProductCategory()).isEqualTo(ProductCategory.MATERIAL);
+    }
+
+    @Test
     void update_componentSavedAsGeneral_preservesParentComponentLinks() {
         product.changeModelCode("IDU-001");
         Product parent = Product.seedFromSheet("세트 부모", "SET-001", category,

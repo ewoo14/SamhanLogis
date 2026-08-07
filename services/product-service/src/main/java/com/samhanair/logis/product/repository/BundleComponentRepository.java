@@ -18,6 +18,8 @@ import org.springframework.data.repository.query.Param;
  */
 public interface BundleComponentRepository extends JpaRepository<BundleComponent, UUID> {
 
+    long countByBundleProductIdAndIsDeletedFalse(UUID bundleProductId);
+
     /**
      * 구성품 목록 조회 — display_order ASC NULLS LAST 정렬 + 결정적 타이브레이커 (#4).
      *

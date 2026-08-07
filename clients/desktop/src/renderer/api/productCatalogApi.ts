@@ -318,6 +318,8 @@ export interface CreateProductRequest {
   usageScope?: UsageScope | null
   estimateCategories?: EstimateCategory[] | null
   specs: ProductSpecInput[]
+  /** BUNDLE 구성품 soft-delete 확인. 생략/false면 서버가 위험 전환을 차단한다. */
+  confirmBundleChildrenDeletion?: boolean
 }
 
 /** `PATCH /api/v1/products/{id}` 요청 body — 폼에서는 단일/세트만 수정한다 */

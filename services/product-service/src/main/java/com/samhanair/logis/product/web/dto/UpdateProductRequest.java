@@ -30,11 +30,26 @@ public record UpdateProductRequest(
         ProductGoodsType goodsType,
         UsageScope usageScope,
         List<EstimateCategory> estimateCategories,
-        @Valid List<ProductSpecRequest> specs) {
+        @Valid List<ProductSpecRequest> specs,
+        Boolean confirmBundleChildrenDeletion) {
+
+    /** 기존 서버/테스트 호출 호환용 — 구성품 삭제 확인은 생략하면 false로 처리한다. */
+    public UpdateProductRequest(String name, String modelName, UUID categoryId, String description,
+                                ProductItemKind itemKind, ProductCategory productCategory,
+                                BundleMode bundleMode, String parentSetModelCode,
+                                BundleComponent.ComponentKind componentKind, String unit,
+                                BigDecimal releasePrice, BigDecimal deliveryPrice,
+                                ProductGoodsType goodsType, UsageScope usageScope,
+                                List<EstimateCategory> estimateCategories,
+                                @Valid List<ProductSpecRequest> specs) {
+        this(name, modelName, categoryId, description, itemKind, productCategory, bundleMode,
+                parentSetModelCode, componentKind, unit, releasePrice, deliveryPrice, goodsType,
+                usageScope, estimateCategories, specs, null);
+    }
 
     public UpdateProductRequest(String name, String modelName, UUID categoryId, String description) {
         this(name, modelName, categoryId, description, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     public UpdateProductRequest(String name, String modelName, UUID categoryId, String description,
@@ -45,7 +60,7 @@ public record UpdateProductRequest(
                                 ProductGoodsType goodsType) {
         this(name, modelName, categoryId, description, itemKind, productCategory, bundleMode,
                 parentSetModelCode, componentKind, unit, releasePrice, deliveryPrice, goodsType,
-                null, null, null);
+                null, null, null, null);
     }
 
     public UpdateProductRequest(String name, String modelName, UUID categoryId, String description,
@@ -57,6 +72,6 @@ public record UpdateProductRequest(
                                 List<ProductSpecRequest> specs) {
         this(name, modelName, categoryId, description, itemKind, productCategory, bundleMode,
                 parentSetModelCode, componentKind, unit, releasePrice, deliveryPrice, goodsType,
-                null, null, specs);
+                null, null, specs, null);
     }
 }

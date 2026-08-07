@@ -72,6 +72,18 @@ function emptyPage() {
   return { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20, first: true, last: true }
 }
 
+function catalogPageWithComponentCount(modelCode: string, componentCount: number) {
+  return {
+    content: [{ modelCode, componentCount }],
+    totalElements: 1,
+    totalPages: 1,
+    number: 0,
+    size: 20,
+    first: true,
+    last: true,
+  }
+}
+
 function seedFor(modelCode: string): {
   summary: ProductSummaryResponse
   detail: ProductDetailResponse
@@ -139,6 +151,56 @@ afterEach(() => {
 })
 
 describe('ProductFormPage', () => {
+  it('shows the component count and does not save when set-to-single confirmation is cancelled', async () => {
+    const seed = seedFor('SET-1108')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    seed.detail.productCategory = 'SINGLE_SET'
+    seed.detail.bundleMode = 'EXPAND'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(catalogPageWithComponentCount('SET-1108', 4))
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    renderPage('/products/SET-1108/edit')
+    await screen.findByTestId('product-form-model-name')
+    fireEvent.click(screen.getByLabelText('단일'))
+    fireEvent.click(screen.getByTestId('product-form-save-button'))
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('4'))
+    expect(mocks.updateProduct).not.toHaveBeenCalled()
+  })
+
+  it('saves a material transition with an explicit confirmation flag', async () => {
+    const seed = seedFor('SET-1108-MATERIAL')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    seed.detail.productCategory = 'SINGLE_SET'
+    seed.detail.bundleMode = 'EXPAND'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(catalogPageWithComponentCount('SET-1108-MATERIAL', 2))
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mocks.updateProduct.mockResolvedValue(seed.detail)
+
+    renderPage('/products/SET-1108-MATERIAL/edit')
+    await screen.findByTestId('product-form-model-name')
+    fireEvent.change(screen.getByTestId('product-form-product-category'), {
+      target: { value: 'MATERIAL' },
+    })
+    fireEvent.click(screen.getByTestId('product-form-save-button'))
+
+    await waitFor(() => expect(mocks.updateProduct).toHaveBeenCalledTimes(1))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('2'))
+    expect(mocks.updateProduct).toHaveBeenCalledWith(
+      seed.detail.id,
+      expect.objectContaining({
+        productCategory: 'MATERIAL',
+        confirmBundleChildrenDeletion: true,
+      }),
+    )
+  })
+
   it('편집 모드는 기존 품목을 hydrate하고 PATCH 저장을 호출한다', async () => {
     const seed = seedFor('AC-2000')
     mocks.searchProductSummaries.mockResolvedValue([seed.summary])
