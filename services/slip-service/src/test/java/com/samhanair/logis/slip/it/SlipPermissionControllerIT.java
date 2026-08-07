@@ -56,6 +56,7 @@ import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.service.SlipRestoreService;
 import com.samhanair.logis.slip.web.SlipAllocationSourceController;
 import com.samhanair.logis.slip.web.SlipController;
+import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.SlipCleanupSaveHistoryController;
 import com.samhanair.logis.slip.web.SlipLookupController;
 import com.samhanair.logis.slip.web.SlipPublishController;
@@ -155,6 +156,21 @@ class SlipPermissionControllerIT {
     @MockBean private EstimatePermissionGuard estimatePermissionGuard;
     @MockBean private SlipRestoreService slipRestoreService;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
+    @Test
+    void outboundPostInspection_systemMaster_bypassesDynamicPermission() throws Exception {
+        SlipDetailResponse current = org.mockito.Mockito.mock(SlipDetailResponse.class);
+        when(current.slipType()).thenReturn(com.samhanair.logis.slip.domain.SlipType.OUTBOUND);
+        when(current.status()).thenReturn(com.samhanair.logis.slip.domain.SlipStatus.COMPLETED);
+        when(slipService.getOne(ID)).thenReturn(current);
+        when(slipService.ship(ID)).thenReturn(current);
+        when(dynamicPermissionClient.check(eq(ID), eq("slip.transfer.process"), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+
+        mockMvc.perform(withActor(post("/slips/{id}/ship", ID), "STAFF")
+                        .header("X-Is-System-Master", "true"))
+                .andExpect(status().isOk());
+    }
 
     @BeforeEach
     void setUp() {

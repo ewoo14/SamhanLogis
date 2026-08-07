@@ -1291,19 +1291,16 @@ export function canAccessSlipAction(
   canAccess: CanAccess,
   canInspect = false,
 ): boolean {
-  // OUTBOUND inspect는 서버가 반환한 전표별 결재선 capability가 최종 자격이다.
-  // 정적 transfer 권한만으로는 결재선 밖 사용자의 버튼을 열지 않는다.
-  if (action === 'inspect' && mode === 'OUTBOUND' && !canInspect) return false
+  // OUTBOUND 검수 결재선 capability는 inspect부터 후속 전이(confirm 포함)까지의
+  // 전표별 자격이다. 서버의 checkOutboundPostInspectionPermission과 같은 표면을 쓴다.
+  const approvalLineActions: SlipTransitionAction[] = ['inspect', 'ship', 'deliver', 'confirm']
+  if (mode === 'OUTBOUND' && approvalLineActions.includes(action) && canInspect) return true
+  if (action === 'inspect' && mode === 'OUTBOUND') return false
 
   return slipActionPermissionRequirements(action, mode)
     .every(({ pageCode, action: permissionAction }) => {
       if (canAccess(pageCode, permissionAction)) return true
-      // 서버 capability는 OUTBOUND inspect의 단일 transfer UPDATE만 보완한다.
-      // INBOUND inspect의 다중 요구와 inspect 이외 액션은 모두 정적 권한을 요구한다.
-      return action === 'inspect'
-        && mode === 'OUTBOUND'
-        && pageCode === 'slip.transfer.process'
-        && canInspect
+      return false
     })
 }
 

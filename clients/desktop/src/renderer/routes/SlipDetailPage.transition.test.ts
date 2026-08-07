@@ -19,6 +19,14 @@ describe('출고 검수 전이 액션 계약', () => {
     expect(canTransitionSlipAction('inspect', 'OUTBOUND', canAccess, true)).toBe(true)
   })
 
+  it('정적 권한이 없는 결재선 개인은 후속 OUTBOUND 전이 버튼도 활성화된다', () => {
+    const canAccess = () => false
+
+    expect(canTransitionSlipAction('ship', 'OUTBOUND', canAccess, true)).toBe(true)
+    expect(canTransitionSlipAction('deliver', 'OUTBOUND', canAccess, true)).toBe(true)
+    expect(canTransitionSlipAction('confirm', 'OUTBOUND', canAccess, true)).toBe(true)
+  })
+
   it('결재선 밖 계정은 inspect 버튼이 비활성이고 전이를 호출할 수 없다', () => {
     const canAccess = () => false
 

@@ -1022,7 +1022,8 @@ public class SlipService {
         return status == SlipStatus.INSPECTING
                 || status == SlipStatus.COMPLETED
                 || status == SlipStatus.SHIPPING
-                || status == SlipStatus.DELIVERED;
+                || status == SlipStatus.DELIVERED
+                || status == SlipStatus.CONFIRMED;
     }
 
     /** 검수 실행과 단건 조회가 동일한 결재선 client 판정을 사용하도록 한다. */

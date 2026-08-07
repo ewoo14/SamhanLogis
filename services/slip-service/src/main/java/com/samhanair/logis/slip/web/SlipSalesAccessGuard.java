@@ -91,7 +91,8 @@ final class SlipSalesAccessGuard {
         return status == SlipStatus.INSPECTING
                 || status == SlipStatus.COMPLETED
                 || status == SlipStatus.SHIPPING
-                || status == SlipStatus.DELIVERED;
+                || status == SlipStatus.DELIVERED
+                || status == SlipStatus.CONFIRMED;
     }
 
     /**

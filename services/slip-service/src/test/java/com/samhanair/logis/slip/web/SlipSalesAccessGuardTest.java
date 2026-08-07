@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.domain.SlipStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -68,6 +69,13 @@ class SlipSalesAccessGuardTest {
                 SlipSalesAccessGuard.guardOutboundSalesRead(SlipType.OUTBOUND, "WAREHOUSE"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("SALES / MANAGER / MASTER");
+    }
+
+    @Test
+    @DisplayName("R10: 결재선 개인은 CONFIRMED 상태에서도 OUTBOUND 상세를 조회한다")
+    void guard_outboundApprovalLineMember_confirmed_passes() {
+        SlipSalesAccessGuard.guardOutboundSalesRead(
+                SlipType.OUTBOUND, SlipStatus.CONFIRMED, null, null, null, true);
     }
 
     // -----------------------------------------------------------------------
