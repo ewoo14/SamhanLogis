@@ -19,6 +19,14 @@ $helperPath = Join-Path $root 'tools\operational-validation\smoke-test-helpers.p
 . (Resolve-Path $helperPath)
 $portHelper = Join-Path $root 'scripts\lib\local-stack-port.ps1'
 . (Resolve-Path $portHelper)
+$publishableServices = @((Get-LocalStackPortDefinitions).Keys | Where-Object { $_ -ne 'logging-service' })
+Assert-True ($publishableServices.Count -eq 16) "expected 16 publishable services, got $($publishableServices.Count)"
+$compose = Get-Content (Join-Path $root 'infrastructure\docker-compose.local-all.yml') -Raw -Encoding UTF8
+foreach ($serviceName in $publishableServices) {
+    $definition = (Get-LocalStackPortDefinitions)[$serviceName]
+    $composePortDeclaration = '127.0.0.1:' + $definition.Default + ':' + $definition.ContainerPort
+    Assert-True ($compose.Contains($composePortDeclaration)) "$serviceName default $($definition.Default) does not match compose declaration $composePortDeclaration"
+}
 
 # RED-A①: pipeline 결과는 0/1/다건을 배열화하고, helper의 Count는 실제 건수를 낸다.
 foreach ($case in @(
@@ -45,33 +53,55 @@ foreach ($case in @(
     Assert-True ($measurement.Count -eq $case.Expected) "Measure-Object expected $($case.Expected), got $($measurement.Count)"
 }
 
-$oldSlipPort = [Environment]::GetEnvironmentVariable('SAMHAN_SLIP_PORT')
-try {
-    [Environment]::SetEnvironmentVariable('SAMHAN_SLIP_PORT', $null, 'Process')
-    $resolvedSlipPort = Get-LocalStackPort -Service 'slip-service'
-    $slipContainerPort = (Get-LocalStackPortDefinitions)['slip-service'].ContainerPort
-    $publishedSlipPort = docker port samhan-slip-service ("$slipContainerPort/tcp") 2>$null
-    if ($LASTEXITCODE -eq 0 -and $publishedSlipPort) {
-        Assert-True ($resolvedSlipPort -eq [int]([regex]::Match(($publishedSlipPort | Select-Object -First 1).ToString(), ':(\d+)\s*$').Groups[1].Value)) 'slip resolver must match Docker publish port'
-    } else {
-        Assert-True ($resolvedSlipPort -eq 8086) 'slip default port must be 8086'
-    }
-} finally {
-    [Environment]::SetEnvironmentVariable('SAMHAN_SLIP_PORT', $oldSlipPort, 'Process')
+$s7Source = Get-Content $PSCommandPath -Raw -Encoding UTF8
+Assert-True ($s7Source -notmatch '(?m)^\s*\$published\w*\s*=\s*docker\s+port\b') 'S7 must not invoke docker port directly'
+
+$oldDockerHost = [Environment]::GetEnvironmentVariable('DOCKER_HOST', 'Process')
+$oldPortOverrides = @{}
+foreach ($serviceName in $publishableServices) {
+    $environmentName = (Get-LocalStackPortDefinitions)[$serviceName].Environment
+    $oldPortOverrides[$environmentName] = [Environment]::GetEnvironmentVariable($environmentName, 'Process')
 }
-$oldAuthPort = [Environment]::GetEnvironmentVariable('SAMHAN_AUTH_PORT')
 try {
+    # RED-A: explicit override wins even when Docker publishes a different port.
+    [Environment]::SetEnvironmentVariable('DOCKER_HOST', $null, 'Process')
     [Environment]::SetEnvironmentVariable('SAMHAN_AUTH_PORT', '18081', 'Process')
     $resolvedAuthPort = Get-LocalStackPort -Service 'auth-service'
-    $authContainerPort = (Get-LocalStackPortDefinitions)['auth-service'].ContainerPort
-    $publishedAuthPort = docker port samhan-auth-service ("$authContainerPort/tcp") 2>$null
-    if ($LASTEXITCODE -eq 0 -and $publishedAuthPort) {
-        Assert-True ($resolvedAuthPort -eq [int]([regex]::Match(($publishedAuthPort | Select-Object -First 1).ToString(), ':(\d+)\s*$').Groups[1].Value)) 'auth resolver must match Docker publish port'
+    Assert-True ($resolvedAuthPort -eq 18081) 'explicit auth override must win over Docker publish port'
+
+    # RED-B: Docker is unreachable, but every publishable service still resolves
+    # to its compose default and emits an observable fallback warning.
+    [Environment]::SetEnvironmentVariable('DOCKER_HOST', 'npipe:////./pipe/samhan-nonexistent-docker-engine', 'Process')
+    foreach ($serviceName in $publishableServices) {
+        $definition = (Get-LocalStackPortDefinitions)[$serviceName]
+        [Environment]::SetEnvironmentVariable($definition.Environment, $null, 'Process')
+        $warnings = @()
+        $resolvedPort = Get-LocalStackPort -Service $serviceName -WarningVariable warnings
+        Assert-True ($resolvedPort -eq $definition.Default) "$serviceName Dockerless fallback expected $($definition.Default), got $resolvedPort"
+        Assert-True ($warnings.Count -gt 0) "$serviceName Dockerless fallback was not observable"
+    }
+
+    # RED-A: when Docker is reachable, compare all 16 resolver values with the
+    # actual publish ports obtained through the resolver's safe Docker probe.
+    [Environment]::SetEnvironmentVariable('DOCKER_HOST', $null, 'Process')
+    $liveSlipPort = Get-RunningContainerPort -Service 'slip-service' -ContainerPort ((Get-LocalStackPortDefinitions)['slip-service'].ContainerPort)
+    if ($null -ne $liveSlipPort) {
+        Write-Host 'Docker available: checking 16 resolver values against publish ports.'
+        foreach ($serviceName in $publishableServices) {
+            $definition = (Get-LocalStackPortDefinitions)[$serviceName]
+            $resolvedPort = Get-LocalStackPort -Service $serviceName
+            $publishedPort = Get-RunningContainerPort -Service $serviceName -ContainerPort $definition.ContainerPort
+            Assert-True ($null -ne $publishedPort) "$serviceName Docker publish port disappeared during full comparison"
+            Assert-True ($resolvedPort -eq $publishedPort) "$serviceName resolver $resolvedPort does not match Docker publish $publishedPort"
+        }
     } else {
-        Assert-True ($resolvedAuthPort -eq 18081) 'auth override was not resolved'
+        Write-Host 'Docker unavailable: live 16-service publish comparison was not run; Dockerless default/override and literal-guard checks still ran.'
     }
 } finally {
-    [Environment]::SetEnvironmentVariable('SAMHAN_AUTH_PORT', $oldAuthPort, 'Process')
+    [Environment]::SetEnvironmentVariable('DOCKER_HOST', $oldDockerHost, 'Process')
+    foreach ($environmentName in $oldPortOverrides.Keys) {
+        [Environment]::SetEnvironmentVariable($environmentName, $oldPortOverrides[$environmentName], 'Process')
+    }
 }
 $unknownThrew = $false
 try { Get-LocalStackPort -Service 'not-a-service' | Out-Null } catch { $unknownThrew = $true }

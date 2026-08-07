@@ -23,21 +23,35 @@ $script:LocalStackPortDefinitions = [ordered]@{
 function Get-RunningContainerPort {
     param([string]$Service, [int]$ContainerPort)
 
-    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { return $null }
+    $dockerCommand = Get-Command docker -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $dockerCommand) { return $null }
     $containerName = if ($script:LocalStackPortDefinitions[$Service].ContainerName) { $script:LocalStackPortDefinitions[$Service].ContainerName } else { "samhan-$Service" }
-    $previousErrorActionPreference = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
+
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = $dockerCommand.Source
+    $processInfo.Arguments = 'port "' + $containerName + '" "' + $ContainerPort + '/tcp"'
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    $processInfo.RedirectStandardOutput = $true
+    $processInfo.RedirectStandardError = $true
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $processInfo
     try {
-        $published = docker port $containerName "$ContainerPort/tcp" 2>$null
-        $dockerExitCode = $LASTEXITCODE
+        if (-not $process.Start()) { return $null }
+        if (-not $process.WaitForExit(2000)) {
+            try { $process.Kill() } catch { }
+            return $null
+        }
+        $published = $process.StandardOutput.ReadToEnd()
+        $dockerExitCode = $process.ExitCode
     } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
+        $process.Dispose()
     }
-    if ($dockerExitCode -ne 0 -or [string]::IsNullOrWhiteSpace(($published | Out-String))) {
+    if ($dockerExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($published)) {
         return $null
     }
 
-    $match = [regex]::Match(($published | Select-Object -First 1).ToString(), ':(?<port>[0-9]+)\s*$')
+    $match = [regex]::Match($published, ':(?<port>[0-9]+)\s*$')
     if ($match.Success) { return [int]$match.Groups['port'].Value }
     return $null
 }
@@ -51,10 +65,6 @@ function Get-LocalStackPort {
     }
 
     $definition = $script:LocalStackPortDefinitions[$Service]
-    $runningPort = Get-RunningContainerPort -Service $Service -ContainerPort $definition.ContainerPort
-    if ($null -ne $runningPort) {
-        return $runningPort
-    }
     $override = [Environment]::GetEnvironmentVariable($definition.Environment)
     if (-not [string]::IsNullOrWhiteSpace($override)) {
         if ($override -notmatch '^[0-9]+$' -or [int]$override -lt 1 -or [int]$override -gt 65535) {
@@ -62,6 +72,12 @@ function Get-LocalStackPort {
         }
         return [int]$override
     }
+
+    $runningPort = Get-RunningContainerPort -Service $Service -ContainerPort $definition.ContainerPort
+    if ($null -ne $runningPort) {
+        return $runningPort
+    }
+    Write-Warning "Docker publish port unavailable for '$Service'; using static default $($definition.Default)."
     return [int]$definition.Default
 }
 

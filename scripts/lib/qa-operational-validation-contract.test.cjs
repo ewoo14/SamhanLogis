@@ -78,10 +78,19 @@ test('seed 포트 해석은 실제 SAMHAN_*_PORT override를 사용한다', () =
   const helper = path.join(root, 'scripts', 'lib', 'local-stack-port.ps1')
   const command = `
 . '${helper}'
-[pscustomobject]@{
-  Default = Resolve-LocalStackPort -EnvironmentValue '' -DefaultPort 8086
-  Override = Resolve-LocalStackPort -EnvironmentValue '8186' -DefaultPort 8086
-} | ConvertTo-Json -Compress
+$oldDockerHost = [Environment]::GetEnvironmentVariable('DOCKER_HOST', 'Process')
+$oldSlipPort = [Environment]::GetEnvironmentVariable('SAMHAN_SLIP_PORT', 'Process')
+try {
+  [Environment]::SetEnvironmentVariable('DOCKER_HOST', 'npipe:////./pipe/samhan-nonexistent-docker-engine', 'Process')
+  [Environment]::SetEnvironmentVariable('SAMHAN_SLIP_PORT', $null, 'Process')
+  $default = Get-LocalStackPort -Service 'slip-service' -WarningAction SilentlyContinue
+  [Environment]::SetEnvironmentVariable('SAMHAN_SLIP_PORT', '8186', 'Process')
+  $override = Get-LocalStackPort -Service 'slip-service'
+  [pscustomobject]@{ Default = $default; Override = $override } | ConvertTo-Json -Compress
+} finally {
+  [Environment]::SetEnvironmentVariable('DOCKER_HOST', $oldDockerHost, 'Process')
+  [Environment]::SetEnvironmentVariable('SAMHAN_SLIP_PORT', $oldSlipPort, 'Process')
+}
 `
   const result = JSON.parse(invokePowerShell(command))
   assert.deepEqual(result, { Default: 8086, Override: 8186 })
