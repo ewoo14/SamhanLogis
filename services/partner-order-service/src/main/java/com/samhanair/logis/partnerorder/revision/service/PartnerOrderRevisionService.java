@@ -18,6 +18,7 @@ import com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionDet
 import com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionResponse;
 import com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionResponse.ChangeSummary;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -220,9 +221,11 @@ public class PartnerOrderRevisionService {
                                              UUID actorId,
                                              String actorName,
                                              String actorColor) {
+        // 잠금 대기 중인 요청을 순차 복원과 구분하기 위한 트랜잭션 시작 시각.
+        LocalDateTime restoreStartedAt = LocalDateTime.now();
         // 1. 주문 로드 — soft-deleted 주문도 복원 대상이므로 @SQLRestriction 우회 조회 사용
         //    (설계서 §3.3a: 삭제된 주문도 복원 가능)
-        PartnerOrder order = orderRepository.findByIdIncludingDeleted(orderId)
+        PartnerOrder order = orderRepository.findByIdIncludingDeletedForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "주문을 찾을 수 없습니다"));
@@ -233,6 +236,20 @@ public class PartnerOrderRevisionService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "복원 대상 버전을 찾을 수 없습니다 (버전 " + targetRevisionNo + ")"));
+
+        // 같은 target을 향한 요청이 잠금 대기 중이었다면, 잠금 획득 후 이미 생성된
+        // RESTORE revision을 확인해 중복 revision을 만들지 않는다. 첫 복원 커밋 이후
+        // 시작한 순차 복원은 기존 계약대로 허용한다.
+        revisionRepository.findTopByPartnerOrderIdOrderByRevisionNoDesc(orderId)
+                .filter(latest -> latest.getRevisionType() == PartnerOrderRevisionType.RESTORE)
+                .filter(latest -> Objects.equals(latest.getSourceRevisionNo(), targetRevisionNo))
+                .filter(latest -> latest.getCreatedAt() != null
+                        && latest.getCreatedAt().isAfter(restoreStartedAt))
+                .ifPresent(latest -> {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "동시에 복원된 주문입니다. 다른 사용자의 복원이 먼저 완료되어 다시 조회해 주세요.");
+                });
 
         // 3. 복원 가드 (CONFIRMING · CANCELED 만 거부 — soft-deleted 여부 무관, status 기준 검사)
         order.requireRestorable();

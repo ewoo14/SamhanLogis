@@ -24,6 +24,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { Badge, Button, Card, Modal, Spinner } from '@samhan/design-system'
 import {
   listPartnerOrderRevisions,
@@ -84,6 +85,14 @@ const REVISION_TYPE_META: Record<
  */
 function isRestorableStatus(status: PartnerOrderStatus): boolean {
   return status !== 'CONFIRMING' && status !== 'CANCELED'
+}
+
+/** 409 업무 충돌에 한해서만 서버 메시지를 표시하고, 그 외 오류는 일반 문구로 감춘다. */
+export function partnerOrderRestoreErrorMessage(error: unknown): string {
+  const fallback = '주문 복원에 실패했습니다. 다시 시도해 주세요.'
+  if (!isAxiosError(error) || error.response?.status !== 409) return fallback
+  const message = (error.response.data as { message?: unknown } | undefined)?.message
+  return typeof message === 'string' && message.trim() ? message.trim() : fallback
 }
 
 /** UUID 형태 문자열 판별 — actorName 에 계정 UUID 가 섞여 들어와도 화면 노출을 차단(방어). */
@@ -193,9 +202,9 @@ export function PartnerOrderVersionHistoryPanel({
         })
       }
     },
-    onError: () => {
+    onError: (error) => {
       setRestoreTarget(null)
-      setToast({ kind: 'danger', text: '주문 복원에 실패했습니다. 다시 시도해 주세요.' })
+      setToast({ kind: 'danger', text: partnerOrderRestoreErrorMessage(error) })
     },
   })
 
