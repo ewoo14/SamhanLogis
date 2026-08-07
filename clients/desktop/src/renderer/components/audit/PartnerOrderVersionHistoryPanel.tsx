@@ -87,12 +87,30 @@ function isRestorableStatus(status: PartnerOrderStatus): boolean {
   return status !== 'CONFIRMING' && status !== 'CANCELED'
 }
 
-/** 409 업무 충돌에 한해서만 서버 메시지를 표시하고, 그 외 오류는 일반 문구로 감춘다. */
+/**
+ * 복원 endpoint 상태 코드별 사용자 안내.
+ *
+ * <p>업무 충돌(409)만 서버 메시지를 표시하고, 권한/인증/자원 부재는 사용자가
+ * 취할 조치를 안내한다. 그 외 상태 코드는 내부 사정이 새지 않도록 일반 문구로 감춘다.
+ */
 export function partnerOrderRestoreErrorMessage(error: unknown): string {
   const fallback = '주문 복원에 실패했습니다. 다시 시도해 주세요.'
-  if (!isAxiosError(error) || error.response?.status !== 409) return fallback
-  const message = (error.response.data as { message?: unknown } | undefined)?.message
-  return typeof message === 'string' && message.trim() ? message.trim() : fallback
+  if (!isAxiosError(error)) return fallback
+
+  switch (error.response?.status) {
+    case 401:
+      return '로그인이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.'
+    case 403:
+      return '주문 복원 권한이 없습니다. MASTER, MANAGER 또는 SALES 권한이 있는 담당자에게 요청해 주세요.'
+    case 404:
+      return '복원할 주문 또는 버전을 찾을 수 없습니다. 최신 주문 정보를 확인해 주세요.'
+    case 409: {
+      const message = (error.response.data as { message?: unknown } | undefined)?.message
+      return typeof message === 'string' && message.trim() ? message.trim() : fallback
+    }
+    default:
+      return fallback
+  }
 }
 
 /** UUID 형태 문자열 판별 — actorName 에 계정 UUID 가 섞여 들어와도 화면 노출을 차단(방어). */

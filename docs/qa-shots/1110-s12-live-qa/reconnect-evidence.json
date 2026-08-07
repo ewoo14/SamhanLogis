@@ -1,0 +1,70 @@
+{
+  "triggerCount": 1,
+  "saveStatus": 201,
+  "beforeValue": "S12-오프라인중-권위저장-1786123316862",
+  "expectedValue": "S12-오프라인중-권위저장-1786123339300",
+  "afterReconnectValue": "S12-오프라인중-권위저장-1786123339300",
+  "converged": true,
+  "reconnectNetwork": [
+    {
+      "page": "reconnect-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+      "status": 200
+    },
+    {
+      "page": "reconnect-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    }
+  ]
+}

@@ -26,4 +26,60 @@ describe('partnerOrderRestoreErrorMessage', () => {
 
     expect(partnerOrderRestoreErrorMessage(error)).toBe('주문 복원에 실패했습니다. 다시 시도해 주세요.')
   })
+
+  it('403 권한 오류는 권한 문제와 요청 대상을 안내한다', () => {
+    const error = new AxiosError('Forbidden', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: {},
+      config: {},
+      data: { message: '내부 권한 판정 상세' },
+    })
+
+    expect(partnerOrderRestoreErrorMessage(error)).toBe(
+      '주문 복원 권한이 없습니다. MASTER, MANAGER 또는 SALES 권한이 있는 담당자에게 요청해 주세요.',
+    )
+    expect(partnerOrderRestoreErrorMessage(error)).not.toContain('내부 권한 판정 상세')
+    expect(partnerOrderRestoreErrorMessage(error)).not.toContain('다시 시도')
+  })
+
+  it('401 인증 오류는 재로그인을 안내한다', () => {
+    const error = new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      config: {},
+      data: { message: '인증 토큰 내부 상세' },
+    })
+
+    expect(partnerOrderRestoreErrorMessage(error)).toBe(
+      '로그인이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.',
+    )
+  })
+
+  it('404 자원 부재는 최신 상태 확인을 안내한다', () => {
+    const error = new AxiosError('Not found', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config: {},
+      data: { message: '주문 내부 식별자 상세' },
+    })
+
+    expect(partnerOrderRestoreErrorMessage(error)).toBe(
+      '복원할 주문 또는 버전을 찾을 수 없습니다. 최신 주문 정보를 확인해 주세요.',
+    )
+  })
+
+  it.each([400, 422])('%s 입력 오류는 내부 원문 없이 일반 문구를 유지한다', (status) => {
+    const error = new AxiosError('Request error', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status,
+      statusText: 'Request Error',
+      headers: {},
+      config: {},
+      data: { message: '내부 입력 검증 상세' },
+    })
+
+    expect(partnerOrderRestoreErrorMessage(error)).toBe('주문 복원에 실패했습니다. 다시 시도해 주세요.')
+  })
 })
