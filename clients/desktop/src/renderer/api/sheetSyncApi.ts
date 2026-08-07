@@ -31,6 +31,15 @@ export interface TabSyncResult {
   error?: string | null
 }
 
+export interface ComponentSyncResult {
+  preservedManual?: number
+  linked?: number
+  bundlesMarked?: number
+  softDeleted?: number
+  skipped?: number
+  error?: string | null
+}
+
 /**
  * 전체 sync 집계 — BE `ProductSheetSyncService.SyncSummary` 와 1:1.
  *
@@ -39,6 +48,7 @@ export interface TabSyncResult {
  */
 export interface SyncSummary {
   byTab: Record<string, TabSyncResult>
+  byComponentTab?: Record<string, ComponentSyncResult>
   totalInserted: number
   totalUpdated: number
   totalSoftDeleted: number
