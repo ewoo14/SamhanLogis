@@ -79,7 +79,9 @@ test.describe('§7 주문 협업 패널', () => {
     // 최신(rev3) 행이 버전이력 통합의 회귀 가드.
     const versionHistory = panel.getByTestId('partner-order-version-history-panel')
     await expect(versionHistory).toBeVisible()
-    await expect(versionHistory.getByTestId('partner-order-version-history-row-3')).toBeVisible()
+    await page.getByTestId('partner-order-version-history-open').click()
+    await expect(page.getByTestId('partner-order-version-history-row-3')).toBeVisible()
+    await page.getByRole('dialog', { name: '버전 이력' }).getByRole('button', { name: '닫기' }).click()
 
     await page.getByTestId('partner-order-collab-edit-open').click()
 
@@ -95,9 +97,10 @@ test.describe('§7 주문 협업 패널', () => {
     await expect(panel.getByTestId('partner-order-collab-edit-item')).toHaveCount(0)
     await expect(panel.getByLabel('수정 이력')).toHaveCount(0)
     await expect(versionHistory).toBeVisible()
+    await page.getByTestId('partner-order-version-history-open').click()
 
     // 버전이력 항목 선택은 공유 highlight 상태를 반영한다.
-    const revisionRow = versionHistory.getByTestId('partner-order-version-history-row-3')
+    const revisionRow = page.getByTestId('partner-order-version-history-row-3')
     await revisionRow.click()
     await expect(revisionRow).toHaveAttribute('data-active', 'true')
   })

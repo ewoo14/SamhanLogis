@@ -75,6 +75,7 @@ test.describe('#836 거래처 4탭 ACCOUNTANT/SALES mock parity', () => {
       if (role === 'MANAGER') {
         await page.getByRole('tab', { name: '버전 이력' }).click()
         await expect(page.getByTestId('partner-version-history-panel')).toBeVisible()
+        await page.getByTestId('partner-version-history-open').click()
         await expect(page.getByTestId('partner-version-history-restore-button-1')).toHaveCount(0)
       }
     })

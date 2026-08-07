@@ -124,7 +124,9 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(panel.getByTestId('slip-collab-edit-item')).toHaveCount(0)
     const versionHistory = panel.getByTestId('slip-version-history-panel')
     await expect(versionHistory).toBeVisible()
-    await expect(versionHistory.getByTestId('slip-version-history-row-2')).toBeVisible()
+    await page.getByTestId('slip-version-history-open').click()
+    await expect(page.getByTestId('slip-version-history-row-2')).toBeVisible()
+    await page.getByRole('dialog', { name: '버전 이력' }).getByRole('button', { name: '닫기' }).click()
     await expect(page.getByTestId('slip-detail-edit-request-button')).toHaveCount(0)
     await expect(page.getByTestId('slip-detail-delete-request-button')).toBeVisible()
 
@@ -142,9 +144,10 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(panel.getByTestId('slip-collab-edit-item')).toHaveCount(0)
     await expect(panel.getByLabel('수정 이력')).toHaveCount(0)
     await expect(versionHistory).toBeVisible()
+    await page.getByTestId('slip-version-history-open').click()
 
     // 4) 버전이력 항목 선택은 공유 highlight 상태를 반영한다.
-    const revisionRow = versionHistory.getByTestId('slip-version-history-row-2')
+    const revisionRow = page.getByTestId('slip-version-history-row-2')
     await revisionRow.click()
     await expect(revisionRow).toHaveAttribute('data-active', 'true')
   })
@@ -224,18 +227,17 @@ test.describe('§7 입출고전표 협업 패널', () => {
     const commentItem = panel.getByTestId('slip-collab-comment-item')
       .filter({ hasText: '메모 반영 확인 부탁드립니다' })
     await expect(commentItem).toBeVisible()
-
     const versionHistory = panel.getByTestId('slip-version-history-panel')
-    const memoChange = versionHistory.getByTestId('slip-version-history-change-header-memo')
-    const revisionRow = versionHistory.getByTestId('slip-version-history-row-2')
-    await expect(memoChange).toBeVisible()
+    await expect(page.getByTestId('slip-version-history-list')).toHaveCount(0)
+    const memoChange = page.getByTestId('slip-version-history-change-header-memo')
+    const revisionRow = page.getByTestId('slip-version-history-row-2')
 
-    // 클릭 전 — 아직 activeFieldPath 를 공유하지 않았으므로 미하이라이트.
+    // 클릭 전 — 기본 화면에는 이력 목록이 없고 코멘트도 미하이라이트.
     await expect(commentItem).not.toHaveAttribute('data-active', 'true')
-    await expect(memoChange).not.toHaveAttribute('data-active', 'true')
 
     // 1) 정방향 — 코멘트(anchor=memo) 클릭 → header.memo 버전이력 항목 + revision 행 하이라이트.
     await commentItem.click()
+    await expect(memoChange).toBeVisible()
     await expect(memoChange).toHaveAttribute('data-active', 'true')
     await expect(revisionRow).toHaveAttribute('data-active', 'true')
 

@@ -85,6 +85,8 @@ async function openVersionHistoryTab(page: Page, partnerCode: string) {
   await expect(versionTab).toBeVisible()
   await versionTab.click()
   await expect(page.getByTestId('partner-version-history-panel')).toBeVisible()
+  await expect(page.getByTestId('partner-version-history-list')).toHaveCount(0)
+  await page.getByTestId('partner-version-history-open').click()
 }
 
 test.describe('Phase 2.3 거래처 버전이력 + 복원', () => {

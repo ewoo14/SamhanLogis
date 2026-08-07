@@ -107,6 +107,7 @@ test.describe('§7 슬라이스3 견적 협업 Codex 라운드 실 QA — 회귀
     // #31 이력 일원화 이후 changeSet diff 목록은 제거되고 EstimateVersionHistoryPanel
     // (버전이력 row-level highlight) 로 일원화된다.
     await page.getByTestId('estimate-version-history-panel').scrollIntoViewIfNeeded().catch(() => {})
+    await page.getByTestId('estimate-version-history-open').click()
     await page.waitForTimeout(400)
     await capture(page, 'diff-accumulated')
 

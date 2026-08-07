@@ -359,6 +359,7 @@ test.describe('Phase 2.4 실 QA — 거래처 주문 버전이력 + 복원 (실 
     const historyPanel = page.getByTestId('partner-order-version-history-panel')
     const panelCount = await historyPanel.count()
     if (panelCount > 0) {
+      await page.getByTestId('partner-order-version-history-open').click()
       await capture(page, 'version-history-panel-real')
       const panelText = await historyPanel.innerText()
       console.log('[REVISION PANEL TEXT]', panelText)
@@ -405,6 +406,8 @@ test.describe('Phase 2.4 실 QA — 거래처 주문 버전이력 + 복원 (실 
       await capture(page, 'restore-no-revisions-state')
       return
     }
+
+    await page.getByTestId('partner-order-version-history-open').click()
 
     // 복원 버튼 확인
     const restoreBtn = page.getByTestId('partner-order-version-history-restore-button-1')
@@ -463,6 +466,7 @@ test.describe('Phase 2.4 실 QA — 거래처 주문 버전이력 + 복원 (실 
     const historyPanel = page.getByTestId('partner-order-version-history-panel')
     const panelVisible = await historyPanel.isVisible().catch(() => false)
     if (panelVisible) {
+      await page.getByTestId('partner-order-version-history-open').click()
       await capture(page, 'confirmed-order-version-history')
     }
   })

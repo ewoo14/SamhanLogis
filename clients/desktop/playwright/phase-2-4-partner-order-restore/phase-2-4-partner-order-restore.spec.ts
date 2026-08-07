@@ -99,6 +99,7 @@ async function gotoDetailAndWaitForPanel(page: Page, orderId: string): Promise<v
   await expect(page.getByTestId('partner-order-version-history-panel')).toBeVisible({
     timeout: 15_000,
   })
+  await page.getByTestId('partner-order-version-history-open').click()
 }
 
 // ============================================================
@@ -170,7 +171,7 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     // 주의: DS Modal 컴포넌트(Modal.tsx)는 ModalProps 에 data-testid 를 포함하지 않으므로
     // Modal 컨테이너는 role="dialog" 로 찾는다. confirm 버튼은 footer Button 에
     // data-testid 가 직접 부여되어 있으므로 getByTestId 사용 가능.
-    const restoreModal = page.getByRole('dialog')
+    const restoreModal = page.getByRole('dialog', { name: '주문 복원' })
     await expect(restoreModal).toBeVisible()
     await expect(restoreModal).toContainText('버전 1')
 
@@ -212,7 +213,7 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     await restoreBtn1.click()
 
     // DS Modal 은 data-testid 미전달 → role="dialog" 로 오픈 확인 후 confirm 클릭.
-    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('dialog', { name: '주문 복원' })).toBeVisible()
     const confirmBtn = page.getByTestId('partner-order-version-history-restore-confirm')
     await expect(confirmBtn).toBeVisible()
     await confirmBtn.click()
@@ -288,7 +289,7 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     ).toBe(false)
 
     // actorName '오병승' 은 정상 노출 (UUID 아님 → 마스킹 없음)
-    await expect(panel).toContainText('오병승')
+    await expect(page.getByRole('dialog', { name: '버전 이력' })).toContainText('오병승')
   })
 
   // ──────────────────────────────────────────────────────────
@@ -329,7 +330,7 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     await expect(restoreBtn1).toBeEnabled()
     await restoreBtn1.click()
 
-    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('dialog', { name: '주문 복원' })).toBeVisible()
     const confirmBtn = page.getByTestId('partner-order-version-history-restore-confirm')
     await expect(confirmBtn).toBeVisible()
     await confirmBtn.click()
@@ -350,7 +351,7 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     await expect(restoreBtn1).toBeEnabled()
     await restoreBtn1.click()
 
-    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('dialog', { name: '주문 복원' })).toBeVisible()
     const confirmBtn2 = page.getByTestId('partner-order-version-history-restore-confirm')
     await confirmBtn2.click()
 

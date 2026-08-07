@@ -72,6 +72,8 @@ test.describe('S2b 전표 버전이력 필드 변경 로그 + 복원', () => {
 
     // 1) 패널 + 목록 렌더 대기.
     await expect(page.getByTestId('slip-version-history-panel')).toBeVisible()
+    await expect(page.getByTestId('slip-version-history-list')).toHaveCount(0)
+    await page.getByTestId('slip-version-history-open').click()
     await expect(page.getByTestId('slip-version-history-list')).toBeVisible()
 
     // 2) 목록 2건 — rev2(수정 / 필드 변경 2건) + rev1(생성).
@@ -86,6 +88,9 @@ test.describe('S2b 전표 버전이력 필드 변경 로그 + 복원', () => {
     await expect(row2).toContainText('긴급 출고 / 2세션 수정')
     await expect(row2).toContainText('품목 1행 수량')
     await expect(row2).toContainText('3')
+    await page.getByTestId('slip-version-history-changes-2').evaluate((element) => {
+      (element as HTMLDetailsElement).open = true
+    })
     await expect(page.getByTestId('slip-version-history-change-header-memo')).toBeVisible()
     await expect(page.getByTestId('slip-version-history-change-lines-0-quantity')).toBeVisible()
     // rev1 — '생성' 배지.

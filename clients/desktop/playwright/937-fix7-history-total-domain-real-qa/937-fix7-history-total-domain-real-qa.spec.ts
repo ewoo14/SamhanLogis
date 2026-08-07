@@ -102,6 +102,7 @@ function readonlyCells(page: Page) {
 async function openDetail(page: Page, slipId: string): Promise<void> {
   await page.goto(`${BASE_URL}/sales/${slipId}`)
   await page.getByTestId('sales-slip-edit-button').waitFor({ state: 'visible', timeout: 40000 })
+  await page.getByTestId('slip-version-history-open').click()
   await page.getByTestId('slip-version-history-list').first().waitFor({ state: 'visible', timeout: 40000 })
   await page.waitForTimeout(1200)
 }
@@ -240,6 +241,7 @@ test.describe('#937 재수렴 7차 — 버전이력 합계 세금 도메인 라�
     console.log(`[FIX7-R7-2] 리비전별 (supply/vat/upwv) = ${snapshots}`)
 
     await page.goto(`${BASE_URL}/sales/${LEGACY_REAL_SLIP}`)
+    await page.getByTestId('slip-version-history-open').click()
     await page.getByTestId('slip-version-history-list').first().waitFor({ state: 'visible', timeout: 40000 })
     await page.waitForTimeout(1500)
     await capture(page, 'r72-01-legacy-real-slip-history', true)

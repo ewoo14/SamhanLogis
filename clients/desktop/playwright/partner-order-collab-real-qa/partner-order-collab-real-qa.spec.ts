@@ -119,6 +119,7 @@ test.describe('§7 슬라이스2 주문 협업 실 QA — 수정완료 1-인 모
     // #31 이력 일원화 이후 changeSet diff 목록은 제거되고 PartnerOrderVersionHistoryPanel
     // (버전이력 row-level highlight) 로 일원화된다.
     await page.getByTestId('partner-order-version-history-panel').scrollIntoViewIfNeeded().catch(() => {})
+    await page.getByTestId('partner-order-version-history-open').click()
     await page.waitForTimeout(400)
     await capture(page, 'diff-history')
 

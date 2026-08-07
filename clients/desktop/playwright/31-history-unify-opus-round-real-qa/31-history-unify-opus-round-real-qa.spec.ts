@@ -116,7 +116,8 @@ test('PR #747(#31) Opus 라운드 fix — 복원 일원화 + 모바일 카드화
 
   const versionHistoryPanel = page.getByTestId('slip-version-history-panel')
   await expect(versionHistoryPanel).toBeVisible()
-  await expect(versionHistoryPanel.locator('h4')).toHaveText('버전 이력')
+  await expect(versionHistoryPanel.getByTestId('slip-version-history-open')).toBeVisible()
+  await versionHistoryPanel.getByTestId('slip-version-history-open').click()
 
   const restoreBtn2 = page.getByTestId('slip-version-history-restore-button-2')
   const restoreBtn1 = page.getByTestId('slip-version-history-restore-button-1')
@@ -130,6 +131,7 @@ test('PR #747(#31) Opus 라운드 fix — 복원 일원화 + 모바일 카드화
   })
   await page.waitForTimeout(300)
   await capturePage(page, 'desktop-02-unified-panel-restore')
+  await page.getByRole('dialog', { name: '버전 이력' }).getByRole('button', { name: '닫기' }).click()
 
   // ============================================================
   // 코멘트 1건 등록(데스크톱) — 이후 모바일 전환 시 동일 DOM 이 mobile-section-body 로
@@ -187,7 +189,8 @@ test('PR #747(#31) Opus 라운드 fix — 복원 일원화 + 모바일 카드화
   // 통합 패널 내부에 버전이력이 실제로 포함되는지 — mobile-section-body 스코프 내부 확인.
   const mobileVersionHistoryPanel = commentAccordion.locator('[data-testid="slip-version-history-panel"]')
   await expect(mobileVersionHistoryPanel, '모바일 "코멘트" 카드 내부에 버전이력 패널 통합').toBeVisible()
-  const mobileRestoreBtn2 = commentAccordion.getByTestId('slip-version-history-restore-button-2')
+  await mobileVersionHistoryPanel.getByTestId('slip-version-history-open').click()
+  const mobileRestoreBtn2 = page.getByTestId('slip-version-history-restore-button-2')
   await expect(mobileRestoreBtn2).toBeVisible()
   await mobileVersionHistoryPanel.scrollIntoViewIfNeeded()
   await page.waitForTimeout(300)
@@ -203,7 +206,7 @@ test('PR #747(#31) Opus 라운드 fix — 복원 일원화 + 모바일 카드화
   console.log(`[MEASURE] "이 시점으로 복원"(rev#2) boundingBox = ${JSON.stringify(restoreBox2)}`)
   expect(restoreBox2?.height ?? 0, '이 시점으로 복원 버튼 높이 ≥ 44px').toBeGreaterThanOrEqual(44)
 
-  const mobileRestoreBtn1 = commentAccordion.getByTestId('slip-version-history-restore-button-1')
+  const mobileRestoreBtn1 = page.getByTestId('slip-version-history-restore-button-1')
   await mobileRestoreBtn1.scrollIntoViewIfNeeded()
   const restoreBox1 = await mobileRestoreBtn1.boundingBox()
   console.log(`[MEASURE] "이 시점으로 복원"(rev#1) boundingBox = ${JSON.stringify(restoreBox1)}`)

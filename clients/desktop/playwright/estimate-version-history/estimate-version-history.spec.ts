@@ -72,6 +72,8 @@ test.describe('Phase 2.2 견적서 버전이력 + 복원', () => {
 
     // 1) 패널 + 목록 렌더 대기.
     await expect(page.getByTestId('estimate-version-history-panel')).toBeVisible()
+    await expect(page.getByTestId('estimate-version-history-list')).toHaveCount(0)
+    await page.getByTestId('estimate-version-history-open').click()
     await expect(page.getByTestId('estimate-version-history-list')).toBeVisible()
 
     // 2) 목록 2건 — rev2(수정 / 라인 +1) + rev1(생성).
@@ -108,6 +110,8 @@ test.describe('Phase 2.2 견적서 버전이력 + 복원', () => {
 
     // 패널 + 목록 렌더 (revisions fixture 는 동일 2건).
     await expect(page.getByTestId('estimate-version-history-panel')).toBeVisible()
+    await expect(page.getByTestId('estimate-version-history-list')).toHaveCount(0)
+    await page.getByTestId('estimate-version-history-open').click()
     await expect(page.getByTestId('estimate-version-history-list')).toBeVisible()
 
     // 편집 불가 안내 문구 노출.

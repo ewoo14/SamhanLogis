@@ -79,6 +79,8 @@ test.describe('SP-08-4-2 주문 수정 direct PUT 계약', () => {
     expect(revisionApi).toContain('/revisions')
     // 버전이력 패널이 actor(actorName)·time(createdAt)·변경요약(changeSummary)을 렌더한다.
     expect(versionHistoryPanel).toContain('partner-order-version-history-panel')
+    expect(versionHistoryPanel).toContain('partner-order-version-history-open')
+    expect(versionHistoryPanel).toContain('historyOpen')
     expect(versionHistoryPanel).toContain('rev.actorName')
     expect(versionHistoryPanel).toContain('formatLocalDateTime(rev.createdAt)')
     expect(versionHistoryPanel).toContain('formatChangeSummary(rev)')
