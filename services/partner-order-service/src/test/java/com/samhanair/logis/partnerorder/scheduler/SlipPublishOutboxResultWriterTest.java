@@ -17,6 +17,7 @@ import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -51,6 +52,8 @@ class SlipPublishOutboxResultWriterTest {
     private final PartnerOrderHistoryRepository historyRepository = mock(PartnerOrderHistoryRepository.class);
     private final OutboxProperties outboxProperties = new OutboxProperties();
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final PartnerOrderAuthorityEventPublisher authorityEventPublisher =
+            mock(PartnerOrderAuthorityEventPublisher.class);
 
     @Test
     @DisplayName("HIGH-1a: 4개 reason 전부 생성자 시점에 값 0으로 사전 등록된다(지연 등록이면 첫 이벤트가 1로 탄생)")
@@ -99,6 +102,26 @@ class SlipPublishOutboxResultWriterTest {
                 .doesNotThrowAnyException();
 
         verify(outboxRepository).save(argThat(saved -> saved.getStatus() == OutboxStatus.COMMITTED));
+    }
+
+    @Test
+    void commitSuccess_publishes_one_authority_event_for_existing_order() {
+        UUID outboxId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        SlipPublishOutbox row = processingFixture(outboxId);
+        ReflectionTestUtils.setField(row, "partnerOrderId", orderId);
+        com.samhanair.logis.partnerorder.domain.PartnerOrder order =
+                com.samhanair.logis.partnerorder.domain.PartnerOrder.createFromConfirm(
+                        "P001", "1234567890", "2026/08/07-OUTBOX-1", "idem-" + orderId,
+                        java.math.BigDecimal.ZERO);
+        ReflectionTestUtils.setField(order, "id", orderId);
+        when(outboxRepository.findWithLockById(outboxId)).thenReturn(Optional.of(row));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        SlipPublishOutboxResultWriter writer = newWriter(new SimpleMeterRegistry());
+
+        writer.commitSuccess(outboxId, PublishResult.published("SLIP-OUTBOX-1"));
+
+        verify(authorityEventPublisher).publish(orderId, "OUTBOX_COMMITTED", null);
     }
 
     @Test
@@ -172,7 +195,7 @@ class SlipPublishOutboxResultWriterTest {
     private SlipPublishOutboxResultWriter newWriter(MeterRegistry meterRegistry) {
         return new SlipPublishOutboxResultWriter(
                 outboxRepository, orderRepository, historyRepository, outboxProperties, objectMapper,
-                meterRegistry);
+                meterRegistry, authorityEventPublisher);
     }
 
     /** claim(native SQL)으로만 도달 가능한 PROCESSING 상태를 리플렉션으로 재현한 fixture. */

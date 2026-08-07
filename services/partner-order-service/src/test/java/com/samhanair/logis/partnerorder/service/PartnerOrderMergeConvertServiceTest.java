@@ -22,6 +22,7 @@ import com.samhanair.logis.partnerorder.client.SlipServiceClient.PublishResult;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import com.samhanair.logis.partnerorder.web.dto.MergeConvertResultResponse;
 import com.samhanair.logis.partnerorder.web.dto.MergeConvertToSlipRequest;
 import java.lang.reflect.Field;
@@ -63,6 +64,7 @@ class PartnerOrderMergeConvertServiceTest {
     @Mock private SlipServiceClient slipServiceClient;
     @Mock private InventoryClient inventoryClient;
     @Mock private PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
+    @Mock private PartnerOrderAuthorityEventPublisher authorityEventPublisher;
 
     @InjectMocks private PartnerOrderMergeConvertService service;
 
@@ -300,6 +302,8 @@ class PartnerOrderMergeConvertServiceTest {
 
         // publishFromOrdersMerge 1회 호출 단언
         verify(slipServiceClient, times(1)).publishFromOrdersMerge(any(), anyString());
+        verify(authorityEventPublisher, times(1)).publish(eq(orderAId), eq("CONVERT"), eq(null));
+        verify(authorityEventPublisher, times(1)).publish(eq(orderBId), eq("CONVERT"), eq(null));
         // reserve 2회 (각 라인 1번씩)
         verify(inventoryClient, times(2)).reserve(any(), any(), anyInt(), anyString(), any());
     }

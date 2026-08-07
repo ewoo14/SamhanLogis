@@ -20,6 +20,7 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import com.samhanair.logis.partnerorder.revision.snapshot.PartnerOrderSnapshot;
 import java.math.BigDecimal;
 import java.util.List;
@@ -67,6 +68,9 @@ class PartnerOrderRevisionServiceTest {
     @Mock
     private PartnerOrderLineRepository lineRepository;
 
+    @Mock
+    private PartnerOrderAuthorityEventPublisher authorityEventPublisher;
+
     private ObjectMapper objectMapper;
     private PartnerOrderRevisionService service;
 
@@ -75,7 +79,8 @@ class PartnerOrderRevisionServiceTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        service = new PartnerOrderRevisionService(revisionRepository, orderRepository, lineRepository, objectMapper);
+        service = new PartnerOrderRevisionService(revisionRepository, orderRepository, lineRepository, objectMapper,
+                null, authorityEventPublisher);
 
         // restore() 내부 lineRepository.findAllIncludingDeletedByPartnerOrderId() 기본 lenient stub
         // (단위 테스트에서 실 DB 조회 불가 — 빈 리스트 반환으로 사이드이펙트 없음)
@@ -161,6 +166,8 @@ class PartnerOrderRevisionServiceTest {
             // then
             assertThat(rev1.getRevisionNo()).isEqualTo(1);
             assertThat(rev2.getRevisionNo()).isEqualTo(2);
+            verify(authorityEventPublisher).publish(orderId, "CREATE", 1);
+            verify(authorityEventPublisher).publish(orderId, "EDIT", 2);
         }
     }
 
@@ -313,6 +320,7 @@ class PartnerOrderRevisionServiceTest {
             assertThat(result.order().getMemo()).isEqualTo("원본메모");
             // DRAFT 복원은 slipResyncRequired=false
             assertThat(result.slipResyncRequired()).isFalse();
+            verify(authorityEventPublisher).publish(orderId, "RESTORE", 2);
         }
 
         @Test
@@ -351,6 +359,7 @@ class PartnerOrderRevisionServiceTest {
             assertThat(result.slipResyncRequired()).isTrue();
             // [P1-6] restoreHeader 는 status 를 변경하지 않으므로 복원 후에도 CONFIRMED 유지
             assertThat(result.order().getStatus()).isEqualTo(PartnerOrderStatus.CONFIRMED);
+            verify(authorityEventPublisher).publish(orderId, "RESTORE", 2);
         }
 
         @Test
