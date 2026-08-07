@@ -59,6 +59,8 @@ export interface PartnerOrderVersionHistoryPanelProps {
   activeFieldPath?: string | null
   /** 버전 행 선택 시 협업 패널에 공유한다. */
   onRevisionSelect?: (revisionNo: number, fieldPaths?: string[], meta?: { isLatest?: boolean }) => void
+  /** 복원 성공을 상위 편집 화면에 알린다. */
+  onRestored?: () => void | Promise<void>
 }
 
 /**
@@ -147,6 +149,7 @@ export function PartnerOrderVersionHistoryPanel({
   activeRevisionNo = null,
   activeFieldPath = null,
   onRevisionSelect,
+  onRestored,
 }: PartnerOrderVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
 
@@ -191,6 +194,7 @@ export function PartnerOrderVersionHistoryPanel({
           text: `버전 ${revisionNo} 시점으로 주문을 복원했습니다.`,
         })
       }
+      void onRestored?.()
     },
     onError: () => {
       setRestoreTarget(null)

@@ -227,6 +227,7 @@ export function SalesPartnerOrderDetailPage() {
   const orderDataRef = useRef<PartnerOrderDetail | null>(null)
   orderDataRef.current = query.data ?? null
   const editSessionOrderRef = useRef<PartnerOrderDetail | null>(null)
+  const forceServerReseedRef = useRef(false)
 
   const updateMutation = useMutation({
     mutationFn: (request: PartnerOrderUpdateRequest) => updatePartnerOrder(orderId, request),
@@ -460,8 +461,9 @@ export function SalesPartnerOrderDetailPage() {
       // re-seed: provider>server(서버 라인 제거됨)=categoryKey 오염·제거라인 재저장 차단,
       // provider<server(서버 라인 추가됨)=라인 유실 차단. 동시 셀편집은 라인수 동일이라 보존됨.
       // 동시 라인추가(트랙A 라인 CRDT) 도입 시 lineId 기반 reconcile 로 대체 예정.
-      if (nextProvider.isEmpty() || providerLineCount !== serverLineCount) {
+      if (forceServerReseedRef.current || nextProvider.isEmpty() || providerLineCount !== serverLineCount) {
         seedPartnerOrderCoeditProvider(nextProvider, latestOrderData)
+        forceServerReseedRef.current = false
       }
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
@@ -502,6 +504,22 @@ export function SalesPartnerOrderDetailPage() {
         reloadSuccessTimerRef.current = null
       }, 3000)
     }
+  }, [orderFormCoeditProvider, refetch, syncFormFromData])
+
+  const handleOrderRestored = useCallback(async () => {
+    const result = await refetch()
+    if (!result.data) {
+      forceServerReseedRef.current = true
+      return
+    }
+    editSessionOrderRef.current = result.data
+    if (orderFormCoeditProvider) {
+      seedPartnerOrderCoeditProvider(orderFormCoeditProvider, result.data)
+      forceServerReseedRef.current = false
+    } else {
+      forceServerReseedRef.current = true
+    }
+    syncFormFromData(result.data)
   }, [orderFormCoeditProvider, refetch, syncFormFromData])
 
   const handlePrint = useCallback(async () => {
@@ -1373,6 +1391,7 @@ export function SalesPartnerOrderDetailPage() {
                       void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
                       void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
                     }}
+                    onRestored={handleOrderRestored}
                   />
                 </MobileCollapsible>
               ) : null
@@ -1388,6 +1407,7 @@ export function SalesPartnerOrderDetailPage() {
                     void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
                     void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
                   }}
+                  onRestored={handleOrderRestored}
                 />
               ) : null
             )}

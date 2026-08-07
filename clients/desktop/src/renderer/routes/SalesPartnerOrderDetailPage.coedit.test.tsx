@@ -98,7 +98,11 @@ vi.mock('../api/createAuditApi', () => ({
   partnerOrderAuditApi: { listAuditLogs: vi.fn(() => Promise.resolve([])) },
 }))
 vi.mock('../components/collab/PartnerOrderCollaborationPanel', () => ({
-  PartnerOrderCollaborationPanel: () => <div data-testid="partner-order-collab-panel" />,
+  PartnerOrderCollaborationPanel: (props: { onRestored?: () => void }) => (
+    <div data-testid="partner-order-collab-panel">
+      <button type="button" data-testid="partner-order-collab-restored" onClick={() => props.onRestored?.()} />
+    </div>
+  ),
 }))
 vi.mock('../components/audit/PartnerOrderVersionHistoryPanel', () => ({
   PartnerOrderVersionHistoryPanel: () => <div data-testid="partner-order-version-history" />,
@@ -424,6 +428,35 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
 
     // provider(2) ≠ 서버(makeOrder) 라인수 → re-seed(server-wins)
     await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+  })
+
+  it('복원 완료 후 다시 연 수정모달은 라인 수가 같아도 서버 header를 provider에 재시드한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.__setRows([
+      {
+        productName: '제품 1',
+        modelCode: 'MODEL-1',
+        quantity: '2',
+        deliveryPrice: '10000',
+        remark: '라인 비고',
+      },
+    ])
+    mocks.getPartnerOrder
+      .mockResolvedValueOnce(makeOrder({ memo: '복원 전 요청' }))
+      .mockResolvedValueOnce(makeOrder({ memo: '복원값 요청' }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-collab-restored'))
+
+    await waitFor(() => expect(mocks.getPartnerOrder).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByTestId('partner-order-edit-open'))
+
+    await waitFor(() => expect(provider.setHeaderValue).toHaveBeenCalledWith('memo', '복원값 요청'))
+    expect(provider.replaceItems).toHaveBeenCalledWith([
+      expect.objectContaining({ productName: '제품 1', modelCode: 'MODEL-1' }),
+    ])
   })
 
   it('editOpen 유지 중 query.data 참조만 바뀌어도 provider 를 재생성하지 않는다', async () => {
