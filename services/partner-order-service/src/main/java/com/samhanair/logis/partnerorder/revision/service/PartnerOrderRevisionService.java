@@ -9,6 +9,7 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderLineRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
@@ -72,12 +73,22 @@ public class PartnerOrderRevisionService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper snapshotObjectMapper;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
+    private final PartnerOrderAuthorityEventPublisher authorityEventPublisher;
 
     public PartnerOrderRevisionService(PartnerOrderRevisionRepository revisionRepository,
                                        PartnerOrderRepository orderRepository,
                                        PartnerOrderLineRepository lineRepository,
                                        ObjectMapper objectMapper) {
-        this(revisionRepository, orderRepository, lineRepository, objectMapper, null);
+        this(revisionRepository, orderRepository, lineRepository, objectMapper, null, null);
+    }
+
+    public PartnerOrderRevisionService(PartnerOrderRevisionRepository revisionRepository,
+                                       PartnerOrderRepository orderRepository,
+                                       PartnerOrderLineRepository lineRepository,
+                                       ObjectMapper objectMapper,
+                                       PartnerOrderBoardChangePublisher boardChangePublisher) {
+        this(revisionRepository, orderRepository, lineRepository, objectMapper,
+                boardChangePublisher, null);
     }
 
     @Autowired
@@ -85,12 +96,14 @@ public class PartnerOrderRevisionService {
                                        PartnerOrderRepository orderRepository,
                                        PartnerOrderLineRepository lineRepository,
                                        ObjectMapper objectMapper,
-                                       PartnerOrderBoardChangePublisher boardChangePublisher) {
+                                       PartnerOrderBoardChangePublisher boardChangePublisher,
+                                       PartnerOrderAuthorityEventPublisher authorityEventPublisher) {
         this.revisionRepository = revisionRepository;
         this.orderRepository = orderRepository;
         this.lineRepository = lineRepository;
         this.objectMapper = objectMapper;
         this.boardChangePublisher = boardChangePublisher;
+        this.authorityEventPublisher = authorityEventPublisher;
         this.snapshotObjectMapper = objectMapper.copy()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
@@ -136,19 +149,29 @@ public class PartnerOrderRevisionService {
         String safeActorName = displayNameOrNull(actorId, actorName);
 
         try {
-            return saveWithNextRevisionNo(order, type, sourceRevisionNo,
+            PartnerOrderRevision saved = saveWithNextRevisionNo(order, type, sourceRevisionNo,
                     snapshotJson, actorId, safeActorName, actorColor);
+            publishAuthority(order, type, saved.getRevisionNo());
+            return saved;
         } catch (DataIntegrityViolationException firstConflict) {
             log.warn("[PartnerOrderRevisionService] revision_no 채번 충돌 1차 재시도 — orderId={}",
                     order.getId());
             try {
-                return saveWithNextRevisionNo(order, type, sourceRevisionNo,
+                PartnerOrderRevision saved = saveWithNextRevisionNo(order, type, sourceRevisionNo,
                         snapshotJson, actorId, safeActorName, actorColor);
+                publishAuthority(order, type, saved.getRevisionNo());
+                return saved;
             } catch (DataIntegrityViolationException retryConflict) {
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
                         "동시 수정 충돌로 버전 캡처에 실패했습니다. 잠시 후 다시 시도해 주세요.");
             }
+        }
+    }
+
+    private void publishAuthority(PartnerOrder order, PartnerOrderRevisionType type, int revisionNo) {
+        if (authorityEventPublisher != null) {
+            authorityEventPublisher.publish(order.getId(), type.name(), revisionNo);
         }
     }
 

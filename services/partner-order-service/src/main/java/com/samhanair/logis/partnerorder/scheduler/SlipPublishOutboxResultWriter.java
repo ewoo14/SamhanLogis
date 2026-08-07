@@ -12,6 +12,7 @@ import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
@@ -76,6 +77,7 @@ public class SlipPublishOutboxResultWriter {
     private final PartnerOrderHistoryRepository historyRepository;
     private final OutboxProperties outboxProperties;
     private final ObjectMapper objectMapper;
+    private final PartnerOrderAuthorityEventPublisher authorityEventPublisher;
     private final Map<String, Counter> terminalCounters;
 
     /**
@@ -106,11 +108,25 @@ public class SlipPublishOutboxResultWriter {
             OutboxProperties outboxProperties,
             ObjectMapper objectMapper,
             MeterRegistry meterRegistry) {
+        this(outboxRepository, orderRepository, historyRepository, outboxProperties, objectMapper,
+                meterRegistry, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SlipPublishOutboxResultWriter(
+            SlipPublishOutboxRepository outboxRepository,
+            PartnerOrderRepository orderRepository,
+            PartnerOrderHistoryRepository historyRepository,
+            OutboxProperties outboxProperties,
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry,
+            PartnerOrderAuthorityEventPublisher authorityEventPublisher) {
         this.outboxRepository = outboxRepository;
         this.orderRepository = orderRepository;
         this.historyRepository = historyRepository;
         this.outboxProperties = outboxProperties;
         this.objectMapper = objectMapper;
+        this.authorityEventPublisher = authorityEventPublisher;
         Map<String, Counter> counters = new LinkedHashMap<>();
         for (String reason : TERMINAL_REASONS) {
             counters.put(reason, Counter.builder(TERMINAL_METRIC_NAME)
@@ -141,6 +157,9 @@ public class SlipPublishOutboxResultWriter {
                             "slipNo", result.slipNo(),
                             "viaOutbox", true,
                             "attempts", row.getAttemptCount()))));
+            if (authorityEventPublisher != null) {
+                authorityEventPublisher.publish(order.getId(), "OUTBOX_COMMITTED", null);
+            }
             log.info("Outbox COMMITTED: orderId={}, slipNo={}, attempts={}",
                     row.getPartnerOrderId(), result.slipNo(), row.getAttemptCount());
         // 주문 부재(soft-delete/정합 사고) 시 outbox 만 COMMITTED 되고 주문·이력은 미갱신 — 무음 발산
@@ -280,6 +299,9 @@ public class SlipPublishOutboxResultWriter {
                             "errorCode", errorCode == null ? "" : errorCode.name(),
                             "attempts", row.getAttemptCount(),
                             "error", error == null ? "" : error))));
+            if (authorityEventPublisher != null) {
+                authorityEventPublisher.publish(order.getId(), "OUTBOX_FAILED_PERMANENT", null);
+            }
         }, () -> log.error("Outbox FAILED_PERMANENT but order missing — 주문 미갱신: outboxId={},"
                 + " orderId={} (수동 정합 확인 필요)", row.getId(), row.getPartnerOrderId()));
     }
