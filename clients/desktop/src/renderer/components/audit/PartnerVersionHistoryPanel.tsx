@@ -100,6 +100,7 @@ export function PartnerVersionHistoryPanel({
   status,
 }: PartnerVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
+  const [historyOpen, setHistoryOpen] = useState(false)
   const { canAccess } = usePermissions()
   /** 복원 confirm modal 대상 revision (null = 미오픈). */
   const [restoreTarget, setRestoreTarget] = useState<PartnerRevision | null>(null)
@@ -113,7 +114,7 @@ export function PartnerVersionHistoryPanel({
   const revisionsQuery = useQuery({
     queryKey: ['partnerRevisions', partnerCode],
     queryFn: () => listRevisions(partnerCode),
-    enabled: !!partnerCode,
+    enabled: !!partnerCode && historyOpen,
   })
 
   const restoreMutation = useMutation({
@@ -145,7 +146,14 @@ export function PartnerVersionHistoryPanel({
       style={{ marginTop: 24 }}
       data-testid="partner-version-history-panel"
     >
-      <h4 style={{ marginTop: 0 }}>버전 이력</h4>
+      <Button
+        variant="secondary"
+        type="button"
+        data-testid="partner-version-history-open"
+        onClick={() => setHistoryOpen(true)}
+      >
+        버전이력
+      </Button>
 
       {/* 거래종료 상태 안내 — 거래종료된 거래처는 복원 불가 */}
       {!restorable ? (
@@ -208,6 +216,12 @@ export function PartnerVersionHistoryPanel({
         </div>
       ) : null}
 
+      <Modal
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title="버전 이력"
+        size="xl"
+      >
       {revisionsQuery.isLoading ? (
         <div
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}
@@ -295,6 +309,8 @@ export function PartnerVersionHistoryPanel({
           })}
         </ul>
       )}
+
+      </Modal>
 
       {/* 복원 confirm modal — DS Modal */}
       <Modal

@@ -97,6 +97,7 @@ afterEach(() => {
 describe('EstimateCollaborationPanel + EstimateVersionHistoryPanel row bridge', () => {
   it('highlights all anchored comments only when the latest revision row is selected', async () => {
     renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('Estimate memo anchor')
     const items = screen.getAllByTestId('estimate-collab-comment-item')
@@ -130,6 +131,7 @@ describe('EstimateCollaborationPanel + EstimateVersionHistoryPanel row bridge', 
 
   it('shows field-label badges only for anchored comments', async () => {
     renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('Estimate memo anchor')
     const anchorSelect = screen.getByTestId('estimate-collab-comment-anchor-select')

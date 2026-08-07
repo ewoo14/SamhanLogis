@@ -109,6 +109,7 @@ afterEach(() => {
 describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연동 (접두사 정합 회귀 가드)', () => {
   it('memo anchor 코멘트 클릭 → header.memo 버전이력 항목이 하이라이트된다 (정방향)', async () => {
     renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('메모 확인 부탁드립니다')
     const memoChange = await screen.findByTestId('slip-version-history-change-header-memo')
@@ -131,6 +132,7 @@ describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연�
 
   it('header.memo 버전이력 항목 클릭 → memo anchor 코멘트가 하이라이트된다 (역방향)', async () => {
     renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('메모 확인 부탁드립니다')
     const memoChange = await screen.findByTestId('slip-version-history-change-header-memo')
@@ -208,6 +210,7 @@ describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연�
     ])
 
     renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('메모 다중필드 확인')
     const commentItems = screen.getAllByTestId('slip-collab-comment-item')

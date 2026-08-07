@@ -102,6 +102,7 @@ export function EstimateVersionHistoryPanel({
   onRevisionSelect,
 }: EstimateVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
+  const [historyOpen, setHistoryOpen] = useState(false)
   /** 복원 confirm modal 대상 revision (null = 미오픈). */
   const [restoreTarget, setRestoreTarget] = useState<EstimateRevision | null>(null)
   /** 복원 성공/실패 toast. */
@@ -113,7 +114,7 @@ export function EstimateVersionHistoryPanel({
   const revisionsQuery = useQuery({
     queryKey: ['estimateRevisions', estimateId],
     queryFn: () => listRevisions(estimateId),
-    enabled: !!estimateId,
+    enabled: !!estimateId && historyOpen,
   })
 
   const restoreMutation = useMutation({
@@ -145,7 +146,14 @@ export function EstimateVersionHistoryPanel({
       style={{ marginTop: 24 }}
       data-testid="estimate-version-history-panel"
     >
-      <h4 style={{ marginTop: 0 }}>버전 이력</h4>
+      <Button
+        variant="secondary"
+        type="button"
+        data-testid="estimate-version-history-open"
+        onClick={() => setHistoryOpen(true)}
+      >
+        버전이력
+      </Button>
 
       {/* 편집 불가 상태 안내 — 수주/변환/거절 완료 견적은 복원 불가 */}
       {!restorable ? (
@@ -208,6 +216,12 @@ export function EstimateVersionHistoryPanel({
         </div>
       ) : null}
 
+      <Modal
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title="버전 이력"
+        size="xl"
+      >
       {revisionsQuery.isLoading ? (
         <div
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}
@@ -314,6 +328,8 @@ export function EstimateVersionHistoryPanel({
           })}
         </ul>
       )}
+
+      </Modal>
 
       {/* 복원 confirm modal — DS Modal */}
       <Modal

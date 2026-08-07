@@ -97,6 +97,7 @@ afterEach(() => {
 describe('PartnerOrderCollaborationPanel + PartnerOrderVersionHistoryPanel row bridge', () => {
   it('highlights all anchored comments only when the latest revision row is selected', async () => {
     renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('Partner order memo anchor')
     const items = screen.getAllByTestId('partner-order-collab-comment-item')
@@ -130,6 +131,7 @@ describe('PartnerOrderCollaborationPanel + PartnerOrderVersionHistoryPanel row b
 
   it('shows field-label badges only for anchored comments', async () => {
     renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
     await screen.findByText('Partner order memo anchor')
     const anchorSelect = screen.getByTestId('partner-order-collab-comment-anchor-select')
