@@ -89,7 +89,19 @@ vi.mock('@samhan/design-system', () => ({
     )
   },
   Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-  DeliveryTagSelector: () => <div data-testid="delivery-tag-selector" />,
+  DeliveryTagSelector: ({ value, onChange, options = [] }: any) => (
+    <select
+      data-testid="delivery-tag-selector"
+      aria-label="출고구분"
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value || null)}
+    >
+      <option value="">선택</option>
+      {options.map((option: any) => (
+        <option key={option.code} value={option.code}>{option.displayName}</option>
+      ))}
+    </select>
+  ),
   FormField: ({ label, render }: { label: string; render: (args: { id: string }) => React.ReactNode }) => (
     <label>
       <span>{label}</span>
@@ -1457,6 +1469,55 @@ describe('SlipFormPage price memory autofill', () => {
     expect(savedLines.reduce((sum: number, line: { unitPrice: string; quantity: number }) => sum + Number(line.unitPrice) * line.quantity, 0))
       .toBe(1590000)
     console.log(`[R30-TRACE] ${trace.join(' | ')}`)
+  })
+})
+
+describe('SlipFormPage outbound date contract', () => {
+  it('keeps today as the minimum outbound date for every active cutoff tag', () => {
+    renderPage()
+
+    const selector = screen.getByTestId('delivery-tag-selector')
+    const outboundDate = screen.getByTestId('slip-form-outbound-date') as HTMLInputElement
+    const today = outboundDate.value
+
+    for (const tag of ['DAY', 'LOGEN', 'REGION', 'STACK', 'GYEONGDONG_PARCEL', 'GYEONGDONG_FREIGHT']) {
+      fireEvent.change(selector, { target: { value: tag } })
+      expect(outboundDate.min).toBe(today)
+      expect(outboundDate.disabled).toBe(false)
+    }
+  })
+
+  it('allows next-day outbound creation and recalculates REGION unload date from M', async () => {
+    renderPage()
+
+    fireEvent.change(screen.getByTestId('delivery-tag-selector'), { target: { value: 'REGION' } })
+
+    const outboundDate = screen.getByTestId('slip-form-outbound-date') as HTMLInputElement
+    const today = outboundDate.value
+    const addDays = (date: string, days: number) => {
+      const [year, month, day] = date.split('-').map(Number)
+      const result = new Date(Date.UTC(year, month - 1, day + days))
+      return result.toISOString().slice(0, 10)
+    }
+    const nextDayValue = addDays(today, 1)
+    const nextUnloadValue = addDays(nextDayValue, 1)
+
+    expect(outboundDate.disabled).toBe(false)
+    expect(outboundDate.min).toBe(today)
+    fireEvent.change(outboundDate, { target: { value: nextDayValue } })
+
+    await waitFor(() => expect((screen.getByTestId('slip-form-unload-date') as HTMLInputElement).value)
+      .toBe(nextUnloadValue))
+
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({
+      slipDate: nextDayValue,
+      unloadDate: nextUnloadValue,
+    }))
   })
 })
 
