@@ -44,6 +44,14 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
 
     @Query("""
             SELECT bc FROM BundleComponent bc
+            WHERE bc.bundleProductId IN :ids
+              AND bc.isDeleted = false
+            ORDER BY bc.bundleProductId, bc.displayOrder ASC NULLS LAST, bc.createdAt ASC, bc.id ASC
+            """)
+    List<BundleComponent> findActiveByBundleProductIdIn(@Param("ids") Collection<UUID> ids);
+
+    @Query("""
+            SELECT bc FROM BundleComponent bc
             WHERE bc.componentProductCode = :componentProductCode
               AND bc.isDeleted = false
             ORDER BY bc.createdAt ASC, bc.id ASC

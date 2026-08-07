@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.domain.BundleComponentConsentToken;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
@@ -459,7 +460,8 @@ class ProductServiceTest {
         product.changeModelCode("SET-001");
         product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(productId)).thenReturn(3L);
+        List<BundleComponent> children = children(productId, 3);
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children);
 
         assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
                 null, null, null, null,
@@ -479,12 +481,14 @@ class ProductServiceTest {
         product.changeModelCode("SET-001");
         product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(productId)).thenReturn(3L);
+        List<BundleComponent> children = children(productId, 3);
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children);
 
         service.update(productId, new UpdateProductRequest(
                 null, null, null, null,
                 ProductItemKind.GENERAL, null, null, null, null,
-                null, null, null, null, null, null, null, true));
+                null, null, null, null, null, null, null, true,
+                BundleComponentConsentToken.from(children)));
 
         verify(bundleComponentService).removeBundleChildren(productId, "system");
         assertThat(product.getProductType()).isEqualTo(ProductType.SINGLE);
@@ -495,7 +499,7 @@ class ProductServiceTest {
         product.changeModelCode("SET-001");
         product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(productId)).thenReturn(2L);
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children(productId, 2));
 
         assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
                 null, null, null, null,
@@ -512,16 +516,87 @@ class ProductServiceTest {
         product.changeModelCode("SET-001");
         product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(productId)).thenReturn(2L);
+        List<BundleComponent> children = children(productId, 2);
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children);
 
         service.update(productId, new UpdateProductRequest(
                 null, null, null, null,
                 ProductItemKind.SET, ProductCategory.MATERIAL, BundleMode.EXPAND, null, null,
-                null, null, null, null, null, null, null, true));
+                null, null, null, null, null, null, null, true,
+                BundleComponentConsentToken.from(children)));
 
         verify(bundleComponentService).removeBundleChildren(productId, "system");
         assertThat(product.getProductType()).isEqualTo(ProductType.SINGLE);
         assertThat(product.getProductCategory()).isEqualTo(ProductCategory.MATERIAL);
+    }
+
+    @Test
+    void update_rejectsSameCountWhenTheConsentedComponentSetWasReplaced() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        List<BundleComponent> current = children(productId, 2);
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(current);
+
+        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                ProductItemKind.GENERAL, null, null, null, null,
+                null, null, null, null, null, null, null, true, "stale-set-token")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("집합이 변경");
+        verify(bundleComponentService, never()).removeBundleChildren(productId, "system");
+    }
+
+    @Test
+    void update_rejectsWhenTheConsentedComponentsWereDeletedBeforeSave() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        List<BundleComponent> originallyShown = children(productId, 2);
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                ProductItemKind.GENERAL, null, null, null, null,
+                null, null, null, null, null, null, null, true,
+                BundleComponentConsentToken.from(originallyShown))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("집합이 변경");
+        verify(bundleComponentService, never()).removeBundleChildren(productId, "system");
+    }
+
+    @Test
+    void update_rejectsBothComponentCountIncreaseAndDecreaseAfterConfirmation() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        List<BundleComponent> originallyShown = children(productId, 2);
+        List<BundleComponent> increased = children(productId, 3);
+        List<BundleComponent> decreased = children(productId, 1);
+        when(bundleComponentRepository.findByBundleProductId(productId))
+                .thenReturn(increased, decreased);
+        String consentedToken = BundleComponentConsentToken.from(originallyShown);
+
+        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
+                null, null, null, null, ProductItemKind.GENERAL, null, null, null, null,
+                null, null, null, null, null, null, null, true, consentedToken)))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.update(productId, new UpdateProductRequest(
+                null, null, null, null, ProductItemKind.GENERAL, null, null, null, null,
+                null, null, null, null, null, null, null, true, consentedToken)))
+                .isInstanceOf(BusinessException.class);
+        verify(bundleComponentService, never()).removeBundleChildren(productId, "system");
+    }
+
+    private List<BundleComponent> children(UUID parentId, int count) {
+        return IntStream.range(0, count).mapToObj(i -> {
+            BundleComponent child = BundleComponent.seed(parentId, "CHILD-" + i,
+                    BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                    BundleComponent.ComponentKind.ACCESSORY, null, false, null);
+            ReflectionTestUtils.setField(child, "id", UUID.nameUUIDFromBytes(
+                    (parentId + ":" + i).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            return child;
+        }).toList();
     }
 
     @Test

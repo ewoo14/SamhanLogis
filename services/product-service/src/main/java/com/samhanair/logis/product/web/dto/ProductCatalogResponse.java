@@ -58,7 +58,8 @@ public record ProductCatalogResponse(
         boolean legacyDiscountFlag,
         String discountFlags,
         ProductType productType,
-        int componentCount
+        int componentCount,
+        String componentSetToken
 ) {
     /**
      * {@link Product} → 카탈로그 응답 변환 (componentCount=0 기본).
@@ -107,7 +108,8 @@ public record ProductCatalogResponse(
                 Boolean.TRUE.equals(p.getLegacyDiscountFlag()),
                 p.getDiscountFlags(),
                 p.getProductType(),
-                0
+                0,
+                null
         );
     }
 
@@ -126,8 +128,16 @@ public record ProductCatalogResponse(
                 productCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
                 releasePrice, deliveryPrice, fixedDiscountRate,
                 hasVariableDiscount, variableDiscountManual, legacyDiscountFlag, discountFlags,
-                productType, count
+                productType, count, componentSetToken
         );
+    }
+
+    public ProductCatalogResponse withComponentSetToken(String token) {
+        return new ProductCatalogResponse(
+                modelCode, name, usageScope, estimateCategory, productCategory, catL, catM, catS,
+                usageScopeManual, displayOrder, estimateCategories, releasePrice, deliveryPrice,
+                fixedDiscountRate, hasVariableDiscount, variableDiscountManual, legacyDiscountFlag,
+                discountFlags, productType, componentCount, token);
     }
 
     private static List<EstimateCategoryExposureView> exposureViews(List<ProductEstimateExposure> exposures) {

@@ -191,6 +191,7 @@ export function ProductFormPage() {
   })
 
   const bundleComponentCount = editSeedQuery.data?.catalog?.componentCount ?? 0
+  const bundleComponentSetToken = editSeedQuery.data?.catalog?.componentSetToken
   const requiresBundleChildrenConfirmation = mode === 'edit'
     && editSeedQuery.data?.summary.productType === 'BUNDLE'
     && (values.itemKind !== 'SET' || values.productCategory === 'MATERIAL')
@@ -299,7 +300,10 @@ export function ProductFormPage() {
       if (!id) throw new Error('수정할 품목을 찾을 수 없습니다.')
       return updateProduct(id, {
         ...buildUpdateProductRequest(values),
-        ...(confirmBundleChildrenDeletion ? { confirmBundleChildrenDeletion: true } : {}),
+        ...(confirmBundleChildrenDeletion ? {
+          confirmBundleChildrenDeletion: true,
+          expectedBundleComponentSetToken: bundleComponentSetToken,
+        } : {}),
       })
     },
     onSuccess: () => {
@@ -309,6 +313,9 @@ export function ProductFormPage() {
     },
     onError: (err) => {
       setFormError(errorMsg(err))
+      if (requiresBundleChildrenConfirmation) {
+        void editSeedQuery.refetch()
+      }
     },
   })
 

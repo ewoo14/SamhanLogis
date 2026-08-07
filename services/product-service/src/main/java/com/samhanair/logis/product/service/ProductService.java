@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.domain.BundleComponentConsentToken;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Classification;
@@ -582,6 +583,14 @@ public class ProductService {
     public ProductResponse update(UUID id, UpdateProductRequest req) {
         quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
+        if (product.getProductType() == ProductType.BUNDLE) {
+            // 구성품 replace-all도 같은 부모 행을 잠그므로, 잠금 획득 후 집합을 읽어
+            // 확인 토큰과 삭제 시점 토큰 사이에 변경이 끼어들 수 없게 한다.
+            java.util.Optional<Product> locked = productRepository.findByIdForUpdate(id);
+            if (locked != null && locked.isPresent()) {
+                product = locked.get();
+            }
+        }
         assertBundleChildrenDeletionConfirmed(product, req);
 
         if (req.name() != null && !Objects.equals(req.name(), product.getName())) {
@@ -1217,10 +1226,17 @@ public class ProductService {
         if (!removesChildren) {
             return;
         }
-        long componentCount = bundleComponentRepository.countByBundleProductIdAndIsDeletedFalse(product.getId());
-        if (componentCount > 0 && !Boolean.TRUE.equals(req.confirmBundleChildrenDeletion())) {
+        List<com.samhanair.logis.product.domain.BundleComponent> components =
+                bundleComponentRepository.findByBundleProductId(product.getId());
+        long componentCount = components.size();
+        boolean hasConsentAttempt = Boolean.TRUE.equals(req.confirmBundleChildrenDeletion())
+                || req.expectedBundleComponentSetToken() != null;
+        if ((componentCount > 0 || hasConsentAttempt) && (!Boolean.TRUE.equals(req.confirmBundleChildrenDeletion())
+                || req.expectedBundleComponentSetToken() == null
+                || !req.expectedBundleComponentSetToken().equals(BundleComponentConsentToken.from(components)))) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "구성품 " + componentCount + "건이 삭제됩니다. 명시적 확인 후 다시 저장하십시오.");
+                    "구성품 집합이 변경되었습니다. 현재 구성품 " + componentCount
+                            + "건을 확인한 뒤 다시 저장하십시오.");
         }
     }
 

@@ -72,9 +72,9 @@ function emptyPage() {
   return { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20, first: true, last: true }
 }
 
-function catalogPageWithComponentCount(modelCode: string, componentCount: number) {
+function catalogPageWithComponentCount(modelCode: string, componentCount: number, componentSetToken = 'set-token-1108') {
   return {
-    content: [{ modelCode, componentCount }],
+    content: [{ modelCode, componentCount, componentSetToken }],
     totalElements: 1,
     totalPages: 1,
     number: 0,
@@ -197,6 +197,7 @@ describe('ProductFormPage', () => {
       expect.objectContaining({
         productCategory: 'MATERIAL',
         confirmBundleChildrenDeletion: true,
+        expectedBundleComponentSetToken: 'set-token-1108',
       }),
     )
   })

@@ -31,7 +31,8 @@ public record UpdateProductRequest(
         UsageScope usageScope,
         List<EstimateCategory> estimateCategories,
         @Valid List<ProductSpecRequest> specs,
-        Boolean confirmBundleChildrenDeletion) {
+        Boolean confirmBundleChildrenDeletion,
+        String expectedBundleComponentSetToken) {
 
     /** 기존 서버/테스트 호출 호환용 — 구성품 삭제 확인은 생략하면 false로 처리한다. */
     public UpdateProductRequest(String name, String modelName, UUID categoryId, String description,
@@ -44,12 +45,12 @@ public record UpdateProductRequest(
                                 @Valid List<ProductSpecRequest> specs) {
         this(name, modelName, categoryId, description, itemKind, productCategory, bundleMode,
                 parentSetModelCode, componentKind, unit, releasePrice, deliveryPrice, goodsType,
-                usageScope, estimateCategories, specs, null);
+                usageScope, estimateCategories, specs, null, null);
     }
 
     public UpdateProductRequest(String name, String modelName, UUID categoryId, String description) {
         this(name, modelName, categoryId, description, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     public UpdateProductRequest(String name, String modelName, UUID categoryId, String description,
@@ -60,7 +61,7 @@ public record UpdateProductRequest(
                                 ProductGoodsType goodsType) {
         this(name, modelName, categoryId, description, itemKind, productCategory, bundleMode,
                 parentSetModelCode, componentKind, unit, releasePrice, deliveryPrice, goodsType,
-                null, null, null, null);
+                null, null, null, null, null);
     }
 
     public UpdateProductRequest(String name, String modelName, UUID categoryId, String description,
@@ -72,6 +73,21 @@ public record UpdateProductRequest(
                                 List<ProductSpecRequest> specs) {
         this(name, modelName, categoryId, description, itemKind, productCategory, bundleMode,
                 parentSetModelCode, componentKind, unit, releasePrice, deliveryPrice, goodsType,
-                null, null, specs, null);
+                null, null, specs, null, null);
+    }
+
+    /** 기존 17인자 호출 호환용 — 집합 토큰은 생략하면 null로 처리한다. */
+    public UpdateProductRequest(String name, String modelName, UUID categoryId, String description,
+                                ProductItemKind itemKind, ProductCategory productCategory,
+                                BundleMode bundleMode, String parentSetModelCode,
+                                BundleComponent.ComponentKind componentKind, String unit,
+                                BigDecimal releasePrice, BigDecimal deliveryPrice,
+                                ProductGoodsType goodsType, UsageScope usageScope,
+                                List<EstimateCategory> estimateCategories,
+                                @Valid List<ProductSpecRequest> specs,
+                                Boolean confirmBundleChildrenDeletion) {
+        this(name, modelName, categoryId, description, itemKind, productCategory, bundleMode,
+                parentSetModelCode, componentKind, unit, releasePrice, deliveryPrice, goodsType,
+                usageScope, estimateCategories, specs, confirmBundleChildrenDeletion, null);
     }
 }

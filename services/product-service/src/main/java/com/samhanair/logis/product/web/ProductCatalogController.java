@@ -7,6 +7,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.BundleComponentConsentToken;
 import com.samhanair.logis.product.domain.SpecKeyTemplate;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.realtime.ProductCatalogChangePublisher;
@@ -179,6 +180,12 @@ public class ProductCatalogController {
         Map<UUID, Long> countMap = bundleIds.isEmpty()
                 ? Map.of()
                 : bundleComponentRepository.countMapByBundleProductIds(bundleIds);
+        Map<UUID, String> tokenMap = bundleIds.isEmpty()
+                ? Map.of()
+                : bundleComponentRepository.findActiveByBundleProductIdIn(bundleIds).stream()
+                        .collect(Collectors.groupingBy(
+                                com.samhanair.logis.product.domain.BundleComponent::getBundleProductId,
+                                Collectors.collectingAndThen(Collectors.toList(), BundleComponentConsentToken::from)));
 
         Map<UUID, List<ProductEstimateExposure>> exposuresByProductId = products.isEmpty()
                 ? Map.of()
@@ -196,7 +203,8 @@ public class ProductCatalogController {
                         return r;
                     }
                     long cnt = countMap.getOrDefault(p.getId(), 0L);
-                    return r.withComponentCount((int) cnt);
+                    return r.withComponentCount((int) cnt)
+                            .withComponentSetToken(tokenMap.get(p.getId()));
                 })
                 .toList();
 
