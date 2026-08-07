@@ -119,6 +119,18 @@ export function CashReceiptListPage() {
     enabled: canView,
   })
 
+  useEffect(() => {
+    if (!query.data || page === 0) return
+    const lastPage = Math.max(0, (query.data.totalPages ?? 0) - 1)
+    if (page <= lastPage) return
+    const params = new URLSearchParams(searchParams)
+    if (lastPage === 0) params.delete('page')
+    else params.set('page', String(lastPage))
+    // 삭제로 현재 page가 비었을 때만 마지막 유효 page로 이동한다.
+    // 필터와 그 밖의 URL 상태는 그대로 두어 mutation 복귀 identity를 보존한다.
+    setSearchParams(params, { replace: true })
+  }, [page, query.data, searchParams, setSearchParams])
+
   const applyFilters = () => {
     const next: CashReceiptFilterState = {
       partnerName: filters.partnerName.trim(),

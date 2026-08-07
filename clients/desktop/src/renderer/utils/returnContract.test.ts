@@ -22,13 +22,13 @@ describe('return contract', () => {
     expect(getReturnTo(null, { pathname: '/fallback', search: '' })).toEqual({ pathname: '/fallback', search: '' })
   })
 
-  it('목록 returnTo별 scroll anchor를 session store에서 저장·조회한다', () => {
+  it('RED-B D2: 목록 anchor는 1회 소비 후 사라진다', () => {
     saveScrollAnchor('entry-a', 812)
     expect(getScrollAnchor('entry-a')).toBe(812)
     expect(getScrollAnchor('entry-a')).toBeNull()
   })
 
-  it('같은 URL이어도 history entry별 anchor를 분리한다', () => {
+  it('RED-B D1: 같은 URL이어도 history entry별 anchor를 분리한다', () => {
     saveScrollAnchor('entry-a', 520)
     saveScrollAnchor('entry-b', 1040)
 
@@ -36,7 +36,7 @@ describe('return contract', () => {
     expect(getScrollAnchor('entry-b')).toBe(1040)
   })
 
-  it('오래된 anchor와 상한을 넘긴 anchor를 정리한다', () => {
+  it('RED-B D3: anchor TTL 24시간과 상한 50을 지킨다', () => {
     vi.useFakeTimers()
     const now = new Date('2026-08-07T00:00:00Z')
     vi.setSystemTime(now)

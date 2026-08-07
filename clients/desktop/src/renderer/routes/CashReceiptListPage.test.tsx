@@ -88,4 +88,15 @@ describe('CashReceiptListPage', () => {
     await waitFor(() => expect(listCashReceiptsMock).toHaveBeenCalled())
     expect(screen.queryByRole('button', { name: '신규 작성' })).toBeNull()
   })
+
+  it('삭제로 현재 page가 비면 필터를 유지한 채 마지막 유효 page로 clamp한다', async () => {
+    listCashReceiptsMock
+      .mockResolvedValueOnce({ content: [], totalElements: 51, totalPages: 2, number: 2, size: 50, first: false, last: true })
+      .mockResolvedValueOnce({ content: [sampleRow], totalElements: 50, totalPages: 2, number: 1, size: 50, first: false, last: true })
+    renderPage('/accounting/admin/cash-receipts?kind=DEPOSIT_REPORT&page=2')
+
+    await waitFor(() => expect(listCashReceiptsMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(listCashReceiptsMock).toHaveBeenCalledTimes(2))
+    expect(listCashReceiptsMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, kind: 'DEPOSIT_REPORT' }))
+  })
 })

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AccountCodeSelect,
@@ -21,6 +21,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { CollaborativeSlipInput } from '../components/collab/CollaborativeSlipInput'
 import { createDocCoeditProvider, type DocCoeditProvider } from '../realtime/createCoeditProvider'
+import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
 import {
   buildCashReceiptRequest,
   cashReceiptFormStateFromRow,
@@ -64,11 +65,17 @@ function stateFromCashReceiptCoeditProvider(provider: DocCoeditProvider): CashRe
 
 export function CashReceiptFormPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const params = useParams<{ id?: string }>()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const receiptId = params['id']
   const isEdit = Boolean(receiptId)
+  const returnTo = getReturnTo(location.state, { pathname: '/accounting/admin/cash-receipts', search: '' })
+  const returnEntryKey = location.state && typeof location.state === 'object'
+    ? (location.state as ReturnNavigationState).returnEntryKey
+    : undefined
+  const hasReturnEntry = typeof returnEntryKey === 'string' && returnEntryKey.length > 0
 
   usePageTitle(isEdit ? '입금보고서 편집' : '입금보고서 조회')
 
@@ -116,10 +123,20 @@ export function CashReceiptFormPage() {
         ? updateCashReceipt(receiptId, body)
         : createCashReceipt(body)
     },
-    onSuccess: (saved) => {
-      queryClient.invalidateQueries({ queryKey: ['accounting', 'cash-receipts'] })
-      queryClient.invalidateQueries({ queryKey: ['accounting', 'cash-receipt', saved.id] })
-      navigate(`/accounting/admin/cash-receipts/${saved.id}`, { replace: true })
+    onSuccess: async (saved) => {
+      // 저장 응답을 단건 캐시에 먼저 반영하고, inactive 목록 query도 재조회한다.
+      // invalidate만 하면 편집 중 목록은 inactive라서 낡은 행을 그대로 들고 복귀할 수 있다.
+      queryClient.setQueryData(['accounting', 'cash-receipt', saved.id], saved)
+      await queryClient.refetchQueries({ queryKey: ['accounting', 'cash-receipts'], type: 'all' })
+      if (isEdit && hasReturnEntry) {
+        // 목록 → 상세 → 편집의 두 push를 한 번에 되감아 원래 entry의 key/scroll을 보존한다.
+        navigate(-2)
+        return
+      }
+      navigate(`/accounting/admin/cash-receipts/${saved.id}`, {
+        replace: true,
+        ...(isEdit ? { state: { returnTo } } : {}),
+      })
     },
     onError: (err: Error) => setTopError(`저장 실패: ${err.message}`),
   })

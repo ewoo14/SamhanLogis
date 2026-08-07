@@ -112,6 +112,22 @@ describe('CashReceiptDetailPage', () => {
     }, { replace: true })
   })
 
+  it('편집 진입에도 원래 목록의 복귀 identity를 전달한다', async () => {
+    renderPage(receipt(), {
+      pathname: '/accounting/admin/cash-receipts/receipt-1',
+      state: {
+        returnTo: { pathname: '/accounting/admin/cash-receipts', search: '?kind=DEPOSIT_REPORT&page=2' },
+        returnEntryKey: 'source-entry',
+      },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: '편집' }))
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      '/accounting/admin/cash-receipts/receipt-1/edit',
+      { state: { returnTo: { pathname: '/accounting/admin/cash-receipts', search: '?kind=DEPOSIT_REPORT&page=2' }, returnEntryKey: 'source-entry' } },
+    )
+  })
+
   it('상세 필드와 S4a kind 라벨을 렌더하고 DRAFT 액션을 활성화한다', async () => {
     renderPage(receipt())
 
@@ -210,5 +226,23 @@ describe('CashReceiptDetailPage', () => {
     renderPage(receipt())
     fireEvent.click(await screen.findByRole('button', { name: '삭제' }))
     await waitFor(() => expect(mocks.deleteCashReceipt).toHaveBeenCalledWith('receipt-1'))
+  })
+
+  it('삭제 성공은 canonical 무필터 목록이 아니라 원래 history entry로 복귀한다', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mocks.deleteCashReceipt.mockResolvedValue(undefined)
+
+    renderPage(receipt(), {
+      pathname: '/accounting/admin/cash-receipts/receipt-1',
+      state: {
+        returnTo: { pathname: '/accounting/admin/cash-receipts', search: '?kind=DEPOSIT_REPORT&page=2' },
+        returnEntryKey: 'source-entry',
+      },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: '삭제' }))
+    await waitFor(() => expect(mocks.deleteCashReceipt).toHaveBeenCalledWith('receipt-1'))
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith(-1))
+    expect(mocks.navigate).not.toHaveBeenCalledWith('/accounting/admin/cash-receipts', { replace: true })
   })
 })

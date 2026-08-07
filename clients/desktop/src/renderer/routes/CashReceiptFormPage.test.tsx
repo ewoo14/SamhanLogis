@@ -118,7 +118,7 @@ const accounts = [
   { code: '103', name: '당좌예금', category: '100' },
 ]
 
-function renderPage(path = '/accounting/admin/cash-receipts/new') {
+function renderPage(path: string | { pathname: string; state?: unknown } = '/accounting/admin/cash-receipts/new') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.listAccounts.mockResolvedValue(accounts)
   return {
@@ -208,7 +208,13 @@ describe('CashReceiptFormPage', () => {
       creditAccountCode: '110',
     })
     mocks.updateCashReceipt.mockResolvedValue({ id: 'receipt-1', slipNo: '2026/07/05-1' })
-    renderPage('/accounting/admin/cash-receipts/receipt-1/edit')
+    renderPage({
+      pathname: '/accounting/admin/cash-receipts/receipt-1/edit',
+      state: {
+        returnTo: { pathname: '/accounting/admin/cash-receipts', search: '?kind=DEPOSIT_REPORT&page=2' },
+        returnEntryKey: 'source-entry',
+      },
+    })
 
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '편집거래처'))
     fireEvent.change(screen.getByLabelText('입금 행 1 금액'), { target: { value: '880000' } })
@@ -223,6 +229,40 @@ describe('CashReceiptFormPage', () => {
       debitAccountCode: '103',
       creditAccountCode: '110',
     })))
+  })
+
+  it('편집 저장은 목록 쿼리를 갱신한 뒤 원래 목록 history entry로 복귀한다', async () => {
+    const saved = {
+      id: 'receipt-1',
+      slipNo: '2026/07/05-1',
+      partnerCode: 'P-EDIT',
+      bizNo: '222-22-22222',
+      partnerName: '편집거래처',
+      amount: '880000',
+      transactionDate: '2026-07-04',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '갱신 적요',
+      debitAccountCode: '103',
+      creditAccountCode: '110',
+    }
+    mocks.getCashReceipt.mockResolvedValue({ ...saved, amount: '760000', memo: '초기 적요' })
+    mocks.updateCashReceipt.mockResolvedValue(saved)
+    renderPage({
+      pathname: '/accounting/admin/cash-receipts/receipt-1/edit',
+      state: {
+        returnTo: { pathname: '/accounting/admin/cash-receipts', search: '?kind=DEPOSIT_REPORT&page=2' },
+        returnEntryKey: 'source-entry',
+      },
+    })
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '편집거래처'))
+    fireEvent.change(screen.getByLabelText('입금 행 1 금액'), { target: { value: '880000' } })
+    fireEvent.change(screen.getByLabelText('금액'), { target: { value: '880000' } })
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => expect(mocks.updateCashReceipt).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith(-2))
   })
 
   it('CONFIRMED 편집 모드는 편집 가능하고 역분개 재게시 경고를 표시하며 coedit provider 를 생성하지 않는다', async () => {
