@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>활성 조건 (이중 가드):
  * <ul>
  *   <li>{@link Profile @Profile("dev")} — local/dev 프로파일 한정</li>
- *   <li>{@link ConditionalOnProperty}({@code app.inventory.seed-test-data=true}) — toggle 명시적 ON</li>
+ *   <li>{@link ConditionalOnProperty}({@code app.seed-test-data=true}) — product/inventory 공통 toggle</li>
  * </ul>
  *
  * <p>대상 품목: serial-managed 에어컨 계열 샘플 4종 (벽걸이/스탠드/시스템에어컨/천장형 각 1개).
@@ -40,7 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @Profile("dev")
-@ConditionalOnProperty(value = "app.inventory.seed-test-data", havingValue = "true")
+@ConditionalOnProperty(value = "app.seed-test-data", havingValue = "true")
 @Order(11)
 public class StockInstanceSeeder implements CommandLineRunner {
 

@@ -48,11 +48,10 @@ app:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 우선, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화)
       token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+  seed-test-data: ${SAMHAN_SEED_TEST_DATA:false}
   inventory:
     # feature/local-test-setup Stage 2 — StockBalance 200건 시드 (100 product × 2 warehouse).
     # dev profile + true 시에만 활성. CI/prod 기본 OFF (idempotent — 안전 재실행).
-    # W10-5 회고 — env 변수 prefix 통일 (SAMHAN_INVENTORY_SEED_TEST_DATA 우선, INVENTORY_SEED_TEST_DATA legacy fallback).
-    seed-test-data: ${SAMHAN_INVENTORY_SEED_TEST_DATA:${INVENTORY_SEED_TEST_DATA:false}}
     # P1 검수 사진 첨부 — MinIO bucket `samhan-attachments` (단일 bucket 통합 전략, setup-minio-buckets.ps1 동기화).
     # default false → NoopInspectionAttachmentStorage fallback (CI / 단위 테스트 안전).
     # DevOps 가 별도 dispatch 로 bucket 생성 후 활성화.
