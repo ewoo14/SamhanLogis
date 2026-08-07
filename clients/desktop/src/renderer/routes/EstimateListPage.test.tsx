@@ -135,6 +135,30 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ includeDeleted: true })))
   })
 
+  it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {
+    listEstimatesMock.mockImplementation(async (options) => ({
+      ...pageOf([estimateRow({ id: options.includeDeleted ? `deleted-${options.page}` : `active-${options.page}` })]),
+      totalElements: options.includeDeleted ? 101 : 1,
+      totalPages: options.includeDeleted ? 3 : 1,
+      number: options.page ?? 0,
+      size: options.size ?? 50,
+      first: (options.page ?? 0) === 0,
+      last: (options.page ?? 0) === (options.includeDeleted ? 2 : 0),
+    }))
+
+    renderPage()
+    const toggle = await screen.findByTestId('estimate-list-include-deleted')
+    fireEvent.click(toggle)
+    fireEvent.click((await screen.findAllByTestId('estimate-list-next-page')).at(-1)!)
+
+    await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, includeDeleted: true })))
+    fireEvent.click((await screen.findAllByTestId('estimate-list-next-page')).at(-1)!)
+    await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, includeDeleted: true })))
+    fireEvent.click(toggle)
+    await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 0 })))
+    expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.not.objectContaining({ includeDeleted: true }))
+  })
+
   it('삭제행은 모든 데이터 열에 취소선 처리하고 삭제 배지는 견적번호 취소선 span 바깥 형제로 렌더하며 행 클릭을 막는다', async () => {
     listEstimatesMock.mockResolvedValue(pageOf([
       estimateRow({

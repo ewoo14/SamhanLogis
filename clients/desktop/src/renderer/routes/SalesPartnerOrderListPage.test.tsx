@@ -137,6 +137,29 @@ describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
     await waitFor(() => expect(listCalls().at(-1)?.[2]).toHaveProperty('includeDeleted', true))
   })
 
+  it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {
+    mocks.listPartnerOrders.mockImplementation(async (page, size, filters) => ({
+      content: [row({ orderNumber: `${filters?.includeDeleted ? 'deleted' : 'active'}-${page}` })],
+      totalElements: filters?.includeDeleted ? 101 : 1,
+      totalPages: filters?.includeDeleted ? 3 : 1,
+      number: page,
+      size,
+      first: page === 0,
+      last: page === (filters?.includeDeleted ? 2 : 0),
+    }))
+
+    renderPage()
+    const toggle = await screen.findByTestId('partner-order-list-include-deleted')
+    fireEvent.click(toggle)
+    fireEvent.click(await screen.findByTestId('partner-order-list-next-page'))
+
+    await waitFor(() => expect(mocks.listPartnerOrders).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ includeDeleted: true })))
+    fireEvent.click(await screen.findByTestId('partner-order-list-next-page'))
+    await waitFor(() => expect(mocks.listPartnerOrders).toHaveBeenLastCalledWith(2, 50, expect.objectContaining({ includeDeleted: true })))
+    fireEvent.click(toggle)
+    await waitFor(() => expect(mocks.listPartnerOrders).toHaveBeenLastCalledWith(0, 50, expect.not.objectContaining({ includeDeleted: true })))
+  })
+
   it('FAILED_PERMANENT·PENDING_RETRY만 배지를 표시하고 정상 상태는 표시하지 않는다', async () => {
     renderPage()
 

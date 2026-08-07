@@ -13,7 +13,7 @@
  * <p>컬럼: 견적번호 / 거래처 코드 / 거래처 / 유효기간 / 합계 / 상태.
  * UUID 비공개 가드 — id 컬럼 미포함, 사용자 노출은 estimateNo + partnerName 만.
  */
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
@@ -84,15 +84,20 @@ export function EstimateListPage() {
   const [endDate, setEndDate] = useState<string>('')
   const [partnerKeyword, setPartnerKeyword] = useState<string>('')
   const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [page, setPage] = useState(0)
   const [restoreError, setRestoreError] = useState<string | null>(null)
 
   useCollectionRealtime(EstimateListRealtimeClient, 'list', ESTIMATE_LIST_REALTIME_KEYS)
 
+  useEffect(() => {
+    setPage(0)
+  }, [statusFilter, startDate, endDate, partnerKeyword, includeDeleted])
+
   const query = useQuery({
-    queryKey: ['estimates', 'list', statusFilter, startDate, endDate, includeDeleted],
+    queryKey: ['estimates', 'list', statusFilter, startDate, endDate, partnerKeyword, includeDeleted, page],
     queryFn: () =>
       listEstimates({
-        page: 0,
+        page,
         size: 50,
         ...(statusFilter ? { status: statusFilter } : {}),
         ...(startDate ? { startDate } : {}),
@@ -298,6 +303,7 @@ export function EstimateListPage() {
           거래처가 직접 작성하는 종합견적서는 상단 우측{' '}
           <em>「웹 종합견적서 ↗」</em> 외부 웹앱을 사용합니다.
         </div>
+
         <div
           style={{
             display: 'flex',
@@ -423,6 +429,30 @@ export function EstimateListPage() {
             emptyMessage="등록된 견적서가 없습니다."
           />
         </div>
+
+        {query.data && query.data.totalPages > 1 ? (
+          <div data-testid="estimate-list-pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 16 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="estimate-list-previous-page"
+              disabled={page === 0 || query.isFetching}
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+            >
+              이전
+            </Button>
+            <span data-testid="estimate-list-page-indicator">{page + 1} / {query.data.totalPages}</span>
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="estimate-list-next-page"
+              disabled={page + 1 >= query.data.totalPages || query.isFetching}
+              onClick={() => setPage((current) => Math.min(query.data!.totalPages - 1, current + 1))}
+            >
+              다음
+            </Button>
+          </div>
+        ) : null}
 
         {query.isError ? (
           <div

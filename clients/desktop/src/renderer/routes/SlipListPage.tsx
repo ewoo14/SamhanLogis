@@ -55,7 +55,7 @@
  *   <li>data-testid: slip-list-excel-export</li>
  * </ul>
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
@@ -163,6 +163,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   // DeliveryTag 필터 상태
   const [deliveryTagFilter, setDeliveryTagFilter] = useState<DeliveryTagCode | null>(null)
   const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [page, setPage] = useState(0)
 
   // P1-6: Excel export
   const { downloading, download, error: downloadError } = useExcelDownload()
@@ -173,10 +174,14 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   // E2: 판매전표 목록 삭제/복원/수정 이벤트 수신 시 coarse key 무효화.
   useCollectionRealtime(SlipListRealtimeClient, 'list', SLIP_LIST_REALTIME_KEYS)
 
+  useEffect(() => {
+    setPage(0)
+  }, [mode, deliveryTagFilter, includeDeleted])
+
   const query = useQuery({
-    queryKey: ['slips', 'list', mode, deliveryTagFilter, includeDeleted],
+    queryKey: ['slips', 'list', mode, deliveryTagFilter, includeDeleted, page],
     queryFn: () =>
-      listSlips({ slipType: mode, deliveryTag: deliveryTagFilter, includeDeleted: isOutbound && includeDeleted, page: 0, size: 20 }),
+      listSlips({ slipType: mode, deliveryTag: deliveryTagFilter, includeDeleted: isOutbound && includeDeleted, page, size: 20 }),
     // PR-H4c FE-B: 30초 polling — 멀티 워크스테이션 동기화 안전망
     refetchInterval: 30_000,
   })
@@ -475,6 +480,30 @@ export function SlipListPage({ mode }: SlipListPageProps) {
         }}
         emptyMessage="등록된 전표가 없습니다."
       />
+
+      {query.data && query.data.totalPages > 1 ? (
+        <div data-testid="slip-list-pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 16 }}>
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="slip-list-previous-page"
+            disabled={page === 0 || query.isFetching}
+            onClick={() => setPage((current) => Math.max(0, current - 1))}
+          >
+            이전
+          </Button>
+          <span data-testid="slip-list-page-indicator">{page + 1} / {query.data.totalPages}</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="slip-list-next-page"
+            disabled={page + 1 >= query.data.totalPages || query.isFetching}
+            onClick={() => setPage((current) => Math.min(query.data!.totalPages - 1, current + 1))}
+          >
+            다음
+          </Button>
+        </div>
+      ) : null}
 
       {query.isError ? (
         <div className="error-banner" role="alert" style={{ marginTop: 16 }}>
