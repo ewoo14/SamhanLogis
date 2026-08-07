@@ -50,7 +50,9 @@ public class ProductSeedIntegrityValidator {
 
     private static String missingMessage(List<String> missingModels) {
         return "재고 seed 중단: 활성 product " + missingModels.size() + "개가 없습니다. 누락 모델="
-                + missingModels + ". product-service를 먼저 공통 seed toggle로 기동하고 product seed 완료 후 "
-                + "재고 seed를 재시도하십시오. 기존 stock_balances는 변경하지 않았습니다.";
+                + missingModels + ". 현재 deterministic product PK가 soft-deleted 행으로 남아 있을 수 있어 "
+                + "product-service 재기동 또는 공통 seed toggle 재실행만으로는 자동 복구할 수 없습니다. "
+                + "soft-delete 행 처리 정책이 결정·적용될 때까지 재고 seed를 재시도하지 마십시오. "
+                + "기존 stock_balances는 변경하지 않았습니다.";
     }
 }

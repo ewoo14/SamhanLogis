@@ -119,16 +119,22 @@ if (-not $KeepDocker) {
     #   회귀 가드 차원에서 명시적으로 scope 화 + 2>&1 redirect 미사용 (memory feedback 일관).
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
+    $downExitCode = 0
     try {
         if ($RemoveVolumes) {
             Write-Host '   -RemoveVolumes 옵션 — volume 일체 삭제 (postgres/redis/rabbitmq/es/minio)' -ForegroundColor Red
             docker compose -f docker-compose.yml down -v
+            $downExitCode = $LASTEXITCODE
         } else {
             docker compose -f docker-compose.yml down
+            $downExitCode = $LASTEXITCODE
         }
     } finally {
         $ErrorActionPreference = $prevEAP
         Pop-Location
+    }
+    if ($downExitCode -ne 0) {
+        throw "docker compose down 실패 (exit $downExitCode)"
     }
 } else {
     Write-Host '[2/2] docker compose down 단계 생략 (-KeepDocker)' -ForegroundColor DarkGray

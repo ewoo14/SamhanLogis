@@ -133,6 +133,10 @@ Invoke-AtRoot {
             :services:partner-service:bootJar `
             :services:arologis-service:bootJar `
             @gradleOpts
+        $buildExitCode = $LASTEXITCODE
+        if ($buildExitCode -ne 0) {
+            throw "[local-stack] bootJar build 실패 (exit $buildExitCode)"
+        }
     }
 
     Write-Host "[local-stack] docker compose up -d"
