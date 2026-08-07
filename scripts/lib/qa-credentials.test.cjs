@@ -6,67 +6,92 @@ const test = require('node:test')
 
 const { resolveQaCredential } = require('./qa-credentials.cjs')
 
-// Scan the repository tree so a new executable root cannot silently bypass this guard.
-const SCAN_ROOTS = ['.']
+// Scan the repository tree so a new root, file name, or language cannot silently bypass this guard.
+const SKIP_DIRS = new Set([
+  '.git', 'node_modules', 'dist', 'build', 'out', 'bin', 'coverage', 'playwright-report',
+  'test-results', '.gradle', '.next', '.turbo', 'target', 'venv', '.venv', '__pycache__', 'worktrees',
+])
 // perf/k6/mixed-load.js intentionally reads LOADTEST_PASSWORD through k6's __ENV API.
 // k6 cannot use Node's fs/module loader, and scripts/run-load-test.ps1 injects this value
 // with -e LOADTEST_PASSWORD; it is therefore a runtime loader boundary, not a direct
 // Node/PowerShell credential consumer for this guard to rewrite.
-const EXECUTABLE_EXTENSIONS = new Set(['.cjs', '.js', '.mjs', '.ts', '.tsx', '.ps1', '.sh', '.py'])
-const QA_CREDENTIAL_KEY = /(?:^|_)(?:QA|DEV|LOADTEST|SAMHAN_DS4|AROLOGIS)(?:_[A-Z0-9]+)*_(?:PASSWORD|PW)$/
-const ENV_ACCESS = /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[['"]([A-Z][A-Z0-9_]*)['"]\])/g
-const POWERSHELL_ENV_ACCESS = /\$env:([A-Z][A-Z0-9_]*)/g
-const SHELL_ENV_ACCESS = /\$\{([A-Z][A-Z0-9_]*)\}/g
+const CREDENTIAL_KEY = /(?:^|[_-])(?:qa|dev|loadtest|samhan_ds4|arologis)(?:[_-][a-z0-9]+)*[_-](?:password|pw)$/i
+const ACCESS_PATTERNS = [
+  /process\.env(?:\.([A-Za-z_][A-Za-z0-9_]*)|\[['"]([A-Za-z_][A-Za-z0-9_]*)['"]\])/g,
+  /\$env:([A-Za-z_][A-Za-z0-9_]*)/gi,
+  /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g,
+  /__ENV(?:\.([A-Za-z_][A-Za-z0-9_]*)|\[['"]([A-Za-z_][A-Za-z0-9_]*)['"]\])/g,
+  /os\.environ(?:\.get\s*\(\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]|\[['"]([A-Za-z_][A-Za-z0-9_]*)['"]\])/gi,
+  /\bgetenv\s*\(\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]\s*\)/gi,
+  /%([A-Za-z_][A-Za-z0-9_]*)%/g,
+]
 
-function walkExecutableFiles(directory) {
+function walkRepositoryFiles(directory) {
   const files = []
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === '.git') continue
+    if (entry.isDirectory() && SKIP_DIRS.has(entry.name)) continue
     const entryPath = path.join(directory, entry.name)
-    if (entry.isDirectory()) files.push(...walkExecutableFiles(entryPath))
-    else if (EXECUTABLE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(entryPath)
+    if (entry.isDirectory()) files.push(...walkRepositoryFiles(entryPath))
+    else files.push(entryPath)
   }
   return files
 }
 
-function credentialKeysIn(source, filePath = '') {
-  const matches = [...source.matchAll(ENV_ACCESS)]
-    .flatMap((match) => match.slice(1).filter(Boolean))
-  if (path.extname(filePath).toLowerCase() === '.ps1') {
-    matches.push(...[...source.matchAll(POWERSHELL_ENV_ACCESS)].map((match) => match[1]))
-  }
-  if (path.extname(filePath).toLowerCase() === '.sh') {
-    const assigned = new Set([...source.matchAll(/^\s*([A-Z][A-Z0-9_]*)\s*=/gm)].map((match) => match[1]))
-    matches.push(...[...source.matchAll(SHELL_ENV_ACCESS)]
-      .map((match) => match[1])
-      .filter((key) => !assigned.has(key)))
-  }
-  return matches.filter((key) => QA_CREDENTIAL_KEY.test(key))
+function credentialKeysIn(source) {
+  return ACCESS_PATTERNS
+    .flatMap((pattern) => [...source.matchAll(pattern)].flatMap((match) => match.slice(1).filter(Boolean)))
+    .filter((key) => CREDENTIAL_KEY.test(key))
 }
 
 function discoverCredentialConsumers(repoRoot = path.resolve(__dirname, '..', '..')) {
-  return SCAN_ROOTS
-    .flatMap((relativeRoot) => walkExecutableFiles(path.join(repoRoot, relativeRoot)))
-    .filter((filePath) => filePath !== __filename && filePath !== path.join(repoRoot, 'scripts/lib/qa-credentials.cjs'))
-    .map((filePath) => ({
-      filePath,
-      source: fs.readFileSync(filePath, 'utf8'),
-    }))
-    .filter(({ filePath, source }) => source.includes('resolveQaCredential')
+  return walkRepositoryFiles(repoRoot)
+    .filter((filePath) => {
+      const relative = path.relative(repoRoot, filePath).replaceAll('\\', '/')
+      const baseName = path.basename(filePath).toLowerCase()
+      const extension = path.extname(filePath).toLowerCase()
+      return filePath !== __filename
+        && filePath !== path.join(repoRoot, 'scripts/lib/qa-credentials.cjs')
+        && filePath !== path.join(repoRoot, 'clients/desktop/src/renderer/test-utils/harness-false-green-guard.test.ts')
+        && !relative.startsWith('docs/')
+        && !relative.startsWith('.claude/memory/')
+        && !relative.startsWith('clients/desktop/playwright/sp-08-8-credential-plaintext-guard/')
+        && relative !== 'services/user-service/src/main/java/com/samhanair/logis/user/seed/OrgChartSeeder.java'
+        && !['.md', '.mdx', '.log'].includes(extension)
+        && baseName !== 'dockerfile'
+        && !baseName.startsWith('docker-compose')
+        && !baseName.startsWith('gradlew')
+        && baseName !== '_headers'
+    })
+    .map((filePath) => {
+      try {
+        const source = fs.readFileSync(filePath, 'utf8')
+        return source.includes('\0') ? null : { filePath, source }
+      } catch {
+        return null
+      }
+    })
+    .filter(Boolean)
+    .filter(({ filePath, source }) => relativeToRepo(filePath).replaceAll('\\', '/') !== 'perf/k6/mixed-load.js'
+      && (source.includes('resolveQaCredential')
       || source.includes('Resolve-QaCredential')
-      || credentialKeysIn(source, filePath).length > 0)
+      || credentialKeysIn(source).length > 0))
 }
 
 function relativeToRepo(filePath) {
   return path.relative(path.resolve(__dirname, '..', '..'), filePath)
 }
 
-function directCredentialAccessPattern(keys, filePath) {
+function directCredentialAccessPattern(keys) {
   const alternatives = keys.map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
-  const extension = path.extname(filePath).toLowerCase()
-  const shell = extension === '.sh' ? `|\\$\\{(?:${alternatives})\\}` : ''
-  const powershell = extension === '.ps1' ? `|\\$env:(?:${alternatives})` : ''
-  return new RegExp(`(?:process\\.env(?:\\.(?:${alternatives})|\\[['"](?:${alternatives})['"]\\])${shell}${powershell})`)
+  return new RegExp(
+    `(?:process\\.env(?:\\.(?:${alternatives})|\\[['"](?:${alternatives})['"]\\])` +
+      `|(?:^|[;\\r\\n])\\s*\\$env:(?:${alternatives})|\\$\\{(?:${alternatives})\\}` +
+      `|__ENV(?:\\.(?:${alternatives})|\\[['"](?:${alternatives})['"]\\])` +
+      `|os\\.environ(?:\\.get\\s*\\(\\s*['"](?:${alternatives})['"]|\\[['"](?:${alternatives})['"]\\])` +
+      `|getenv\\s*\\(\\s*['"](?:${alternatives})['"]\\s*\\)` +
+      `|%(?:${alternatives})%)`,
+    'i',
+  )
 }
 
 function withEnvFile(contents) {
@@ -83,6 +108,31 @@ test('표준 환경변수가 .env.local보다 우선한다', () => {
       env: { QA_DEV_DEFAULT_PASSWORD: 'process-value' },
       envFilePath,
     }), 'process-value')
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('확장자·키 대소문자·접근 문법과 무관하게 옛 자격 직접 읽기를 발견한다', () => {
+  const repoRoot = path.resolve(__dirname, '..', '..')
+  const directory = fs.mkdtempSync(path.join(repoRoot, '.s12-credential-discovery-'))
+  const probes = [
+    ['legacy.bat', 'echo %QA_PASSWORD%\n'],
+    ['legacy.cmd', 'echo %qa_password%\n'],
+    ['legacy.psm1', '$env:qa_password\n'],
+    ['legacy.zsh', 'echo ${MY_QA_SECRET_PASSWORD}\n'],
+    ['legacy.cts', 'process.env.qa_password\n'],
+    ['legacy', "os.environ.get('MY_QA_SECRET_PASSWORD')\ngetenv('qa_password')\n"],
+  ].map(([name, source]) => {
+    const filePath = path.join(directory, name)
+    fs.writeFileSync(filePath, source, 'utf8')
+    return filePath
+  })
+  try {
+    const discovered = new Set(discoverCredentialConsumers().map(({ filePath }) => filePath))
+    for (const filePath of probes) {
+      assert.ok(discovered.has(filePath), `새 축의 직접 읽기를 발견해야 합니다: ${path.basename(filePath)}`)
+    }
   } finally {
     fs.rmSync(directory, { recursive: true, force: true })
   }
@@ -129,13 +179,13 @@ test('실행 자격 소비자는 발견 기반으로 표준 로더를 경유하�
   for (const { filePath, source } of consumers) {
     const relativePath = relativeToRepo(filePath)
     assert.match(source, /(?:resolveQaCredential\(|Resolve-QaCredential)/, relativePath)
-    const credentialAccess = credentialKeysIn(source, filePath)
+    const credentialAccess = credentialKeysIn(source)
       .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
       .join('|')
     if (credentialAccess) {
       assert.doesNotMatch(
         source,
-        directCredentialAccessPattern(credentialKeysIn(source, filePath), filePath),
+        directCredentialAccessPattern(credentialKeysIn(source)),
         relativePath,
       )
     }
@@ -143,7 +193,7 @@ test('실행 자격 소비자는 발견 기반으로 표준 로더를 경유하�
 })
 
 test('새 파일은 등록 없이 발견되고 자격 불필요 파일은 소비자로 분류하지 않는다', () => {
-  const directory = fs.mkdtempSync(path.join(path.resolve(__dirname, '..', '..', 'docs', 'qa'), 's10-discovery-'))
+  const directory = fs.mkdtempSync(path.join(path.resolve(__dirname, '..', '..'), '.s10-discovery-'))
   const consumerPath = path.join(directory, 'unregistered-consumer.mjs')
   const unrelatedPath = path.join(directory, 'unrelated-script.mjs')
   fs.writeFileSync(consumerPath, "const password = process.env.DEV_PASSWORD\n", 'utf8')

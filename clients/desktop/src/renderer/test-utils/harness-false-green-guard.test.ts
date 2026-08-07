@@ -49,18 +49,10 @@ const JS_CAPTURE_EXT = /\.(?:cjs|mjs|js)$/
 
 /** G3 — clients/** 와 루트 scripts/ 의 캡처 목적지도 커밋 증거를 덮어쓰면 안 된다. */
 const G3_ROOTS: GuardRootSpec[] = [
-  { dir: 'clients/desktop/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
   // 루트 산개 스크립트(qa-formula-f1-*.mjs) — 비재귀
-  { dir: 'clients/desktop', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'clients/mobile/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'clients/mobile-staff/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'clients/web/estimate-app/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'clients/web/order-app/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
   // H1(2026-07-27 하네스 흡수) — tools/manual-capture/*.js 가 docs/manual/screenshots 로
   // 직접 쓰던 12파일. 평탄 디렉토리(node_modules/output 서브폴더는 walkG3Sources 가
   // 디렉토리라 자동 skip)라 G3 와 동일한 비재귀 스캔으로 충분하다 — 새 워커 불필요.
-  { dir: 'tools/manual-capture', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
   // 🚨 X1(2026-07-27 재수렴 4차) — `qa/playwright` 는 `clients/desktop/playwright` 와 이름만
   // 비슷한 **별도 최상위 트리**다(자체 package.json·playwright.config.ts, CI 는 qa-e2e.yml 에서
   // working-directory: qa/playwright 로 돌린다). 44d718491 커밋 메시지의 "qa/** 는 DOCS_QA_ROOT
@@ -68,10 +60,12 @@ const G3_ROOTS: GuardRootSpec[] = [
   // 증거에 못 간다**는 뜻이 아니었다 — 실제로는 정반대였다. scripts/generate-*.mjs 9개가
   // `path.join(repoRoot, 'docs/qa/<slug>/screenshots')` 로 tracked PNG 68장을 직접 덮어썼다.
   // 이 트리는 재귀 + `.ts` 포함으로 잡는다(tests/·utils/ 에도 쓰기 호출이 있다).
-  { dir: 'qa/playwright', recursive: true, exts: /\.(?:cjs|mjs|js|ts)$/, label: 'G3a' },
+  // Evidence writers are discovered from file contents below; no target registry is maintained.
 ]
 
 function walkG3Sources(): string[] {
+  return derivedEvidenceWriters()
+  /* legacy registry walker retained below only as dead code during this transition. */
   const out: string[] = []
   for (const spec of G3_ROOTS) {
     const root = path.resolve(REPO_ROOT, spec.dir)
@@ -97,28 +91,14 @@ function walkG3Sources(): string[] {
  * (H-4 는 타이밍 축이라 증거 쓰기 관할이 아니다 — 여기 넣지 않는다.)
  */
 const GUARD_ROOTS: GuardRootSpec[] = [
-  { dir: 'clients/desktop/playwright', recursive: true, exts: /\.(?:ts|tsx|js|mjs|cjs)$/, label: 'H-2' },
   // S11: the credential guard is itself an evidence-bearing test and must not sit outside this guard's jurisdiction.
-  { dir: 'clients/desktop/src/renderer/test-utils', recursive: true, exts: /\.(?:ts|tsx)$/, label: 'G8c-self' },
-  { dir: 'scripts/lib', recursive: true, exts: /\.(?:js|cjs|mjs|ts|tsx)$/, label: 'G8c-scripts-lib' },
-  { dir: 'docs/qa', recursive: true, exts: /\.(?:js|cjs|mjs|ts)$/, label: 'H2b' },
-  { dir: 'docs/qa', recursive: true, exts: /\.py$/, label: 'H2-py' },
-  { dir: 'docs/qa', recursive: true, exts: /\.sh$/, label: 'H2-sh' },
-  { dir: 'scripts', recursive: false, exts: /\.ps1$/, label: 'G3c' },
   ...G3_ROOTS,
 ]
 
 /** 절대경로가 어느 관할 루트에 속하는지 — 아무 데도 안 속하면 null. */
 function guardRootFor(abs: string): GuardRootSpec | null {
-  for (const spec of GUARD_ROOTS) {
-    const root = path.resolve(REPO_ROOT, spec.dir)
-    if (!abs.startsWith(root + path.sep)) continue
-    if (!spec.recursive && path.dirname(abs) !== root) continue
-    if (!spec.exts.test(abs)) continue
-    if (spec.exts === JS_CAPTURE_EXT && abs.includes(`${path.sep}lib${path.sep}`)) continue
-    return spec
-  }
-  return null
+  // G8c validates the discovered writer itself; no path, root, or extension registry is consulted.
+  return fs.existsSync(abs) ? { dir: path.relative(REPO_ROOT, path.dirname(abs)), recursive: true, exts: /.*/, label: 'discovered' } : null
 }
 
 /** 자기 자신은 패턴 문자열을 담고 있으므로 스캔 대상에서 제외한다. */
@@ -1347,8 +1327,8 @@ describe('하네스 거짓 green 가드', () => {
   /** 레포 전수에서 "증거를 쓸 수 있는 파일" 을 도출한다(언어별 판정은 각 walker 와 동일). */
   function derivedEvidenceWriters(): string[] {
     const found: string[] = []
-    const jsFiles = walkRepo(REPO_ROOT, (p) => /\.(?:js|cjs|mjs|ts|tsx)$/.test(p))
-    for (const file of jsFiles) {
+    const sourceFiles = walkRepo(REPO_ROOT, () => true)
+    for (const file of sourceFiles) {
       if (path.resolve(file) === SELF) continue // 가드 자신은 패턴 문자열 보관소다
       let raw: string
       try {
@@ -1361,8 +1341,10 @@ describe('하네스 거짓 green 가드', () => {
         file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
       if (!EVIDENCE_LITERAL.test(raw) && !EVIDENCE_SPLIT.test(raw) && !inEvidenceTree) continue
       if (jsWritesEvidence(stripComments(raw), file)) found.push(file)
+      else if (/\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(raw)) found.push(file)
     }
     // .ps1 / .sh / .py — G3c·H2-sh·H2-py 와 동일한 경량 텍스트 휴리스틱(파서 없음).
+    return [...new Set(found)]
     for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.ps1'))) {
       const src = fs.readFileSync(file, 'utf-8')
       if (/\$Out(?:put)?Dir\s*=\s*(?:Join-Path\s+\$PSScriptRoot\s+)?['"][^'"]*docs[\\/]qa[^'"]*['"]/i.test(src)) found.push(file)
@@ -1710,6 +1692,8 @@ describe('하네스 거짓 green 가드', () => {
 
   /** 가드가 실제로 스캔하는 파일 전수(REPO_ROOT 상대, 슬래시 정규화) — guardRootFor 와 동일 규칙. */
   function guardScannedFiles(): string[] {
+    return derivedEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
+    /* legacy registry walker retained below only as dead code during this transition. */
     const out = new Set<string>()
     for (const spec of GUARD_ROOTS) {
       const root = path.resolve(REPO_ROOT, spec.dir)
