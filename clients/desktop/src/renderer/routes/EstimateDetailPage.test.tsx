@@ -50,7 +50,7 @@ const searchApprovalLineUsersMock = vi.mocked(searchApprovalLineUsers)
 
 const estimate = {
   id: 'estimate-1',
-  estimateNo: 'Q-2026-001',
+  estimateNo: '2026/08/08-1',
   estimateDate: '2026-08-08',
   seqNo: 1,
   status: 'QUOTE_DRAFT' as const,
