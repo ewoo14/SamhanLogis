@@ -724,6 +724,22 @@ class SlipServiceTest {
     }
 
     @Test
+    void inspect_onClosedDate_isRejectedBeforeMutation() {
+        Slip slip = preparedOutbound(SlipStatus.INSPECTING, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        BusinessException closed = new BusinessException(ErrorCode.CONFLICT, "마감된 날짜입니다");
+        org.mockito.Mockito.doThrow(closed).when(closedDateGuard)
+                .assertAllowed(eq(SlipType.OUTBOUND), eq(LocalDate.of(2026, 5, 4)), eq("inspector-1"));
+
+        assertThatThrownBy(() -> service.inspect(slipId, "inspector-1"))
+                .isSameAs(closed);
+
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
+        verify(closedDateGuard).assertAllowed(SlipType.OUTBOUND,
+                LocalDate.of(2026, 5, 4), "inspector-1");
+    }
+
+    @Test
     void send_inbound_capturesRedlineAnchorFromMaxStoredRevision() {
         Slip slip = preparedInbound(SlipStatus.SAVED);
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
