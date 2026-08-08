@@ -323,7 +323,7 @@ public class SlipSeeder implements CommandLineRunner {
      * <p>비-CONFIRMED 단계 슬립은 type 별로 균등 배분. SHIPPING/DELIVERED 는 OUTBOUND 한정.
      * REJECTED 는 SENT/ACCEPTED/INSPECTING 단계에서 reject() 호출 — 본 시드는 ACCEPTED 단계에서 reject.
      */
-    private List<SlipSpec> buildSpecs() {
+    private static List<SlipSpec> buildSpecs() {
         List<SlipSpec> specs = new ArrayList<>(100);
         int idx = 0;
 
@@ -384,7 +384,7 @@ public class SlipSeeder implements CommandLineRunner {
         return specs;
     }
 
-    private int appendN(List<SlipSpec> specs, int idx, int count,
+    private static int appendN(List<SlipSpec> specs, int idx, int count,
                         SlipType type, DeliveryTag tag, SlipStatus status) {
         for (int i = 0; i < count; i++) {
             specs.add(new SlipSpec(idx, type, tag, status));
@@ -519,6 +519,18 @@ public class SlipSeeder implements CommandLineRunner {
         LocalDate base = LocalDate.of(2026, 1, 1);
         int dayOffset = idx % 129;
         return base.plusDays(dayOffset);
+    }
+
+    /**
+     * SlipSeeder가 실제로 CONFIRMED 상태로 만드는 전표들의 날짜를 반환한다.
+     * Lock 시드는 별도 날짜 상수를 복제하지 않고 이 동일한 seed 계획에서 범위를 파생한다.
+     */
+    static List<LocalDate> confirmedSeedDates() {
+        return buildSpecs().stream()
+                .filter(spec -> spec.targetStatus() == SlipStatus.CONFIRMED)
+                .map(SlipSpec::idx)
+                .map(SlipSeeder::computeSlipDate)
+                .toList();
     }
 
     /** "yyyy/MM/dd-N" 포맷. SlipNumberSequence 미경유 — 시드 결정적 채번. */

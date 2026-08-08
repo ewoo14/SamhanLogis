@@ -4,6 +4,7 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,8 +49,12 @@ public class SlipLockSeeder implements CommandLineRunner {
      * 마감 기간 — 2026년 1월 전체 (SlipSeeder 의 날짜 분포 2026-01-01 ~ 2026-01-31 포함).
      * CONFIRMED 슬립이 해당 기간에 5~10건 존재함을 기대 (SlipSeeder 분포 기준).
      */
-    private static final LocalDate LOCK_START = LocalDate.of(2026, 1, 1);
-    private static final LocalDate LOCK_END   = LocalDate.of(2026, 1, 31);
+    private static final LocalDate LOCK_START = SlipSeeder.confirmedSeedDates().stream()
+            .min(Comparator.naturalOrder())
+            .orElseThrow();
+    private static final LocalDate LOCK_END = SlipSeeder.confirmedSeedDates().stream()
+            .max(Comparator.naturalOrder())
+            .orElseThrow();
 
     private final SlipRepository slipRepository;
     private final SeedDependencyState dependencyState;

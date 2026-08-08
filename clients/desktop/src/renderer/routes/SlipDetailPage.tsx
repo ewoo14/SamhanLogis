@@ -113,7 +113,8 @@ import {
   type PartnerRepriceCandidate,
   type PartnerRepriceOutcome,
 } from '../utils/usePartnerPriceRefresh'
-import { lookupProducts } from '../api/productApi'
+import { lookupProductPresence, lookupProducts } from '../api/productApi'
+import { findMissingProductIds } from '../utils/productLinkWarning'
 import {
   editSlipLineAmount,
   hasVatWarning,
@@ -1581,6 +1582,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     queryFn: () => getSlip(id),
     enabled: !!id,
   })
+  const productPresenceQuery = useQuery({
+    queryKey: ['slip-product-presence', id, detailQuery.data?.updatedAt],
+    queryFn: () => lookupProductPresence(detailQuery.data?.lines.map((line) => line.productId) ?? []),
+    enabled: !!detailQuery.data,
+  })
+  const deletedProductWarningIds = productPresenceQuery.data
+    ? findMissingProductIds(
+      detailQuery.data?.lines.map((line) => line.productId) ?? [],
+      productPresenceQuery.data.foundProductIds,
+      productPresenceQuery.data.unresolvedProductIds,
+    )
+    : []
   const { refetch: refetchDetail } = detailQuery
   // presence(보는 사람) — detailQuery 성공(조회권한+존재) 이후에만 join.
   // enabled 가 !!id 뿐이면 로딩/에러(404/403) 상태에서도 join+heartbeat 유지되어
@@ -4116,6 +4129,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           className="warning-banner"
         >
           현재 단계({slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 물리 종결 전 단계에서만 권한자 수정 또는 삭제 요청이 가능합니다.
+        </div>
+      ) : null}
+
+      {deletedProductWarningIds.length > 0 ? (
+        <div role="alert" className="warning-banner" data-testid="slip-detail-deleted-product-banner">
+          이 전표는 삭제된 품목을 포함합니다. 저장된 품목명은 유지됩니다.
         </div>
       ) : null}
 
