@@ -143,6 +143,8 @@ export type PageCode =
   | 'slip.mobile-sales'
   | 'slip.publish.from-estimate'
   | 'slip.publish.from-partner-order'
+  // internal endpoint로 이관되어 일반 카탈로그에는 숨기되, 기존 보유 grant 회수에는 사용한다.
+  | 'slip.period-lock'
   | 'slip.closed-date-exception'
   | 'slip.closed-date-admin'
   | 'inbound.inspection'
