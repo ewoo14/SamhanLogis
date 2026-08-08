@@ -18621,6 +18621,10 @@ const SP_D1_PAGES = [
   'accounting.tax-invoice.inbound.manage',
   'accounting.sales-slip.list',
   'accounting.purchase-slip.list',
+  // V37 정본: 회계전표 회계분개 권한은 MASTER/ACCOUNTANT 전용(1111).
+  // accounting.*.list 는 별도 소비처가 있으므로 유지한다.
+  'accounting.sales-slip.accounting',
+  'accounting.purchase-slip.accounting',
   'accounting.daily-closing',
   'accounting.daily-closing.run',
   'accounting.daily-closing.unlock',
@@ -18633,6 +18637,10 @@ const SP_D1_PAGES = [
   'dispatch.external-carriers',
   'admin.permissions',
   'admin.permission-groups',
+  // V29/V30/V27: 라우트·메뉴 소비처가 있는 기존 seed page-code.
+  'system.permission-admin',
+  'messenger.send',
+  'ecount.mig.ops-dashboard',
   'admin.approval-line-config',
   'admin.app-release',
   'dev.popup-notice',
@@ -18829,6 +18837,10 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.partner-ledger',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
+    // V30: MANAGER messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
+    // V27: MANAGER ecount.mig.ops-dashboard VIEW/CREATE/UPDATE/DELETE.
+    'ecount.mig.ops-dashboard',
     // SP-D4 22개 — MANAGER: 대부분 view 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
@@ -18885,6 +18897,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
     'sales.slip.list',
+    'messenger.send',
     // SP-D4 — SALES: 견적/주문/거래처/상품 view
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
@@ -18898,6 +18911,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
     // C5-2c: V36 seed 기반 SALES VIEW 추가
     'sales.slip.cancel',
+    // V30: SALES messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
     // §7 협업 — V36: SALES view+edit
     'slip.comments', 'slip.audit-overlay',
   ],
@@ -18907,6 +18922,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.cancel',
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
+    // V37: MASTER/ACCOUNTANT 만 VIEW/CREATE/UPDATE/DELETE(1111).
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run', 'accounting.general-ledger',
     'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
@@ -18915,6 +18932,10 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.partner-ledger',
     // V37 supplier-profiles — ACCOUNTANT: view only
     'accounting.supplier-profiles',
+    // V30: ACCOUNTANT messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
+    // V27: ACCOUNTANT ecount.mig.ops-dashboard VIEW only.
+    'ecount.mig.ops-dashboard',
     // SP-D4 — ACCOUNTANT: 견적/주문 이력/재고/거래처/상품 view 만
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.history',
     'inventory.stock', 'inventory.list', 'inventory.detail', 'inventory.transfer',
@@ -19010,6 +19031,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
+    'messenger.send',
     // SP-D1 — MANAGER: edit 미허용 (view 전용)
     // SP-D4 — MANAGER: 대부분 edit 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
@@ -19075,6 +19097,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
     // C5-2c: V36 seed 기반 SALES EDIT 추가
     'sales.slip.cancel',
+    // V30: SALES messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
     // §7 협업 — V36: SALES can_edit=TRUE
     'slip.comments', 'slip.audit-overlay',
   ],
@@ -19085,6 +19109,10 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
+    // V37: MASTER/ACCOUNTANT 만 VIEW/CREATE/UPDATE/DELETE(1111).
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
+    // V30: ACCOUNTANT messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
     'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close',
     'accounting.statement-batch',
@@ -19098,6 +19126,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   ],
   WAREHOUSE: [
     'inbound.inspection',
+    'messenger.send',
     // SP-D4 — WAREHOUSE: 재고/창고 edit
     'inventory.warehouse', 'inventory.stock',
     'inventory.stock-transfer', 'inventory.dps',
@@ -19113,6 +19142,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   ],
   INVENTORY: [
     'inbound.inspection',
+    'messenger.send',
     // SP-D4 — INVENTORY: 재고/창고 edit
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps',
@@ -19126,6 +19156,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
+    'messenger.send',
     // DEV-1/2/3 — 개발 그룹 버전 관리 + 팝업공지 + 로그.
     'admin.app-release', 'dev.popup-notice', 'dev.activity-log',
   ],

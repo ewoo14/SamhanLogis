@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 const workspace = resolve(__dirname, '../../..')
 const routes = readFileSync(resolve(workspace, 'src/renderer/routes/index.tsx'), 'utf8')
 const layout = readFileSync(resolve(workspace, 'src/renderer/components/AppLayout.tsx'), 'utf8')
+const mock = readFileSync(resolve(workspace, 'src/renderer/api/mock.ts'), 'utf8')
 const taxInvoiceController = readFileSync(
   resolve(workspace, '../../services/accounting-service/src/main/java/com/samhanair/logis/accounting/web/TaxInvoiceInboundController.java'),
   'utf8',
@@ -41,5 +42,36 @@ describe('accounting slip permission contract', () => {
     expect(routes).not.toContain('pageCode="accounting.tax-invoice.inbound" action="view"')
     expect(layout).not.toContain("dynamicCanAccess('accounting.tax-invoice.inbound', 'view')")
     expect(taxInvoiceController).toContain('page = "accounting.tax-invoice.inbound.manage"')
+  })
+
+  it('RED-A: MASTER/ACCOUNTANT mock matrix grants both accounting slip accounting codes', () => {
+    expect(mock).toContain("'accounting.sales-slip.accounting'")
+    expect(mock).toContain("'accounting.purchase-slip.accounting'")
+    expect(mock).toContain("'ecount.mig.ops-dashboard'")
+    expect(mock).toContain("'messenger.send'")
+    expect(mock).toContain("'system.permission-admin'")
+    expect(mock).toContain("'accounting.sales-slip.list'")
+    expect(mock).toContain("'accounting.purchase-slip.list'")
+
+    const accountantBlock = mock.match(/ACCOUNTANT: \[(.*?)\n  \],\n  WAREHOUSE:/s)?.[1] ?? ''
+
+    expect(accountantBlock).toContain('accounting.sales-slip.accounting')
+    expect(accountantBlock).toContain('accounting.purchase-slip.accounting')
+    expect(accountantBlock).toContain('ecount.mig.ops-dashboard')
+    expect(accountantBlock).toContain('messenger.send')
+  })
+
+  it('RED-B: MANAGER/SALES mock matrix keeps both accounting slip accounting codes denied', () => {
+    const managerBlock = mock.match(/MANAGER: \[(.*?)\n  \],\n  DISPATCH:/s)?.[1] ?? ''
+    const salesBlock = mock.match(/SALES: \[(.*?)\n  \],\n  ACCOUNTANT:/s)?.[1] ?? ''
+
+    expect(managerBlock).not.toContain('accounting.sales-slip.accounting')
+    expect(managerBlock).not.toContain('accounting.purchase-slip.accounting')
+    expect(managerBlock).toContain('ecount.mig.ops-dashboard')
+    expect(managerBlock).toContain('messenger.send')
+    expect(salesBlock).not.toContain('accounting.sales-slip.accounting')
+    expect(salesBlock).not.toContain('accounting.purchase-slip.accounting')
+    expect(salesBlock).toContain('messenger.send')
+    expect(salesBlock).not.toContain('ecount.mig.ops-dashboard')
   })
 })
