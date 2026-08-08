@@ -15,8 +15,7 @@ import {
 } from '../../api/salesAccountingSlipApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { today } from '../../utils/dateUtils'
-import { fmtKrw } from '../../utils/currencyUtils'
-import { splitVatInclusive } from '../../utils/vatRounding'
+import { formatVatAmount, splitVatInclusiveFromQtyUnitPrice } from '../../utils/vatRounding'
 
 const inputStyle: CSSProperties = {
   height: 32,
@@ -44,8 +43,15 @@ export function SalesAccountingSlipFormPage() {
   )
   const sourcePartner = useMemo(() => resolveAllocationPartner(selectedRows), [selectedRows])
   const vatInclusiveTotal = selectedRows.reduce((sum, row) => sum + row.allocatedAmount, 0)
-  const { supply: totalSupply, vat: totalVat, total: totalAmount } = splitVatInclusive(
-    vatInclusiveTotal,
+  const allocatedQty = selectedRows.reduce((sum, row) => sum + row.allocatedQty, 0)
+  const first = selectedRows[0] ?? allocations[0]
+  const submittedQty = allocatedQty || first?.sourceQty || 0
+  const submittedUnitPrice = allocatedQty > 0
+    ? Math.round(vatInclusiveTotal / allocatedQty)
+    : (first ? first.sourceAmount / first.sourceQty : 0)
+  const { supply: totalSupply, vat: totalVat, total: totalAmount } = splitVatInclusiveFromQtyUnitPrice(
+    String(submittedQty),
+    String(submittedUnitPrice),
     taxType === 'TAXABLE',
   )
 
@@ -56,9 +62,7 @@ export function SalesAccountingSlipFormPage() {
 
   const handleSubmit = () => {
     if (sourcePartner.status !== 'valid') return
-    const first = selectedRows[0] ?? allocations[0]
     if (!first) return
-    const qty = selectedRows.reduce((sum, row) => sum + row.allocatedQty, 0)
     const request: CreateSalesAccountingSlipRequest = {
       slipDate,
       partnerId: sourcePartner.partner.partnerId,
@@ -70,8 +74,8 @@ export function SalesAccountingSlipFormPage() {
         {
           productCode: first.productCode,
           productName: first.productName,
-          qty: String(qty || first.sourceQty),
-          unitPrice: String(qty > 0 ? Math.round(vatInclusiveTotal / qty) : first.sourceAmount / first.sourceQty),
+          qty: String(submittedQty),
+          unitPrice: String(submittedUnitPrice),
           allocations: selectedRows.map((row) => ({
             sourceSlipId: row.sourceSlipId,
             sourceSlipNo: row.sourceSlipNo,
@@ -146,9 +150,9 @@ export function SalesAccountingSlipFormPage() {
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div>
-            <div>공급가 {fmtKrw(String(totalSupply))}</div>
-            <div>부가세 {fmtKrw(String(totalVat))}</div>
-            <strong>합계 {fmtKrw(String(totalAmount))}</strong>
+            <div>공급가 {formatVatAmount(totalSupply)}</div>
+            <div>부가세 {formatVatAmount(totalVat)}</div>
+            <strong>합계 {formatVatAmount(totalAmount)}</strong>
           </div>
           <Button
             variant="primary"

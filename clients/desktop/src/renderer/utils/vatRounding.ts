@@ -26,8 +26,32 @@ export function splitVatInclusive(
   totalAmount: number,
   taxable: boolean,
 ): { supply: number; vat: number; total: number } {
-  const total = Number.isFinite(totalAmount) ? Math.trunc(totalAmount) : 0
+  const totalCents = toCents(totalAmount)
+  const total = Number(totalCents) / 100
   if (!taxable) return { supply: total, vat: 0, total }
-  const supply = Number(supplyFromVatInclusive(BigInt(total)))
-  return { supply, vat: total - supply, total }
+  const supply = Number(totalCents / 110n)
+  const vat = Number(totalCents - BigInt(supply) * 100n) / 100
+  return { supply, vat, total }
+}
+
+/** 서버 VatCalculator의 qty × unitPrice 입력을 같은 scale 2로 preview한다. */
+export function splitVatInclusiveFromQtyUnitPrice(
+  qty: string,
+  unitPrice: string,
+  taxable: boolean,
+): { supply: number; vat: number; total: number } {
+  const quantity = Number(qty)
+  const price = Number(unitPrice)
+  if (!Number.isFinite(quantity) || !Number.isFinite(price)) return splitVatInclusive(0, taxable)
+  return splitVatInclusive(Number((quantity * price).toFixed(2)), taxable)
+}
+
+/** 서버 BigDecimal 금액의 소수 둘째 자리까지 보존하는 회계전표 표시 포맷. */
+export function formatVatAmount(amount: number): string {
+  return amount.toLocaleString('ko-KR', { maximumFractionDigits: 2, minimumFractionDigits: 0 })
+}
+
+function toCents(amount: number): bigint {
+  if (!Number.isFinite(amount)) return 0n
+  return BigInt(Math.round(amount * 100))
 }

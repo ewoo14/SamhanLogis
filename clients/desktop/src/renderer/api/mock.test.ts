@@ -1307,6 +1307,41 @@ describe('mock business document number contract', () => {
       .toBe(Number(response.totalAmount))
   })
 
+  it.each([
+    ['sales', createSalesSlipDraft, 'OUTBOUND'],
+    ['purchase', createPurchaseSlipDraft, 'INBOUND'],
+  ] as const)('%s mock draft preserves server fractional-won lineTotal', async (_kind, createDraft, sourceType) => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+    const source = MOCK_SOURCE_SLIPS.find((row) => row.slipType === sourceType)!
+    const response = await createDraft({
+      slipDate: '2026-05-20',
+      partnerId: source.partnerId!,
+      partnerCode: source.partnerCode!,
+      partnerName: source.partnerName!,
+      taxType: 'TAXABLE',
+      lines: [{
+        productCode: 'SKU-A',
+        productName: '품목 A',
+        qty: '0.08',
+        unitPrice: '434788',
+        allocations: [{
+          sourceSlipId: source.slipId,
+          sourceSlipNo: source.slipNo,
+          sourceLineId: source.lines[0]!.lineId,
+          sourceLineNo: 1,
+          allocatedQty: '0.08',
+          allocatedAmount: '34783',
+        }],
+      }],
+    } as never)
+
+    expect({
+      supply: response.totalSupplyAmount,
+      vat: response.totalVatAmount,
+      total: response.totalAmount,
+    }).toEqual({ supply: '31620', vat: '3163.04', total: '34783.04' })
+  })
+
   it('ledger and statement mock endpoints use BE document number format', () => {
     const ledgers = mockRequest({
       method: 'GET',
