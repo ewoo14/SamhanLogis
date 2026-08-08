@@ -1177,7 +1177,7 @@ const routes = [
       {
         path: '/accounting/sales-slips',
         element: (
-          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
+          <PermissionGuard pageCode="accounting.sales-slip.accounting" action="view">
             <SalesAccountingSlipPage />
           </PermissionGuard>
         ),
@@ -1185,7 +1185,7 @@ const routes = [
       {
         path: '/accounting/sales-slips/new',
         element: (
-          <PermissionGuard pageCode="accounting.sales-slip.list" action="edit">
+          <PermissionGuard pageCode="accounting.sales-slip.accounting" action="create">
             <SalesAccountingSlipFormPage />
           </PermissionGuard>
         ),
@@ -1193,7 +1193,7 @@ const routes = [
       {
         path: '/accounting/purchase-slips',
         element: (
-          <PermissionGuard pageCode="accounting.purchase-slip.list" action="view">
+          <PermissionGuard pageCode="accounting.purchase-slip.accounting" action="view">
             <PurchaseAccountingSlipPage />
           </PermissionGuard>
         ),
@@ -1201,7 +1201,7 @@ const routes = [
       {
         path: '/accounting/purchase-slips/new',
         element: (
-          <PermissionGuard pageCode="accounting.purchase-slip.list" action="edit">
+          <PermissionGuard pageCode="accounting.purchase-slip.accounting" action="create">
             <PurchaseAccountingSlipFormPage />
           </PermissionGuard>
         ),
