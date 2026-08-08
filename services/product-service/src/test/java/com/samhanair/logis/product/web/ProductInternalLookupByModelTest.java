@@ -19,11 +19,13 @@ import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -56,6 +58,11 @@ class ProductInternalLookupByModelTest {
     private ProductRepository productRepository;
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
 
     @BeforeEach
     void setUp() {
