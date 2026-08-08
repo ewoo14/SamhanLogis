@@ -274,7 +274,7 @@ resolve_qa_shots_dir() {
     else
       within_status=$?
     fi
-    if [ "$within_status" -eq 0 ] && ! _qa_has_explicit_overwrite_intent; then
+    if [ "$protect" -eq 1 ] && [ "$within_status" -eq 0 ] && ! _qa_has_explicit_overwrite_intent; then
       printf '%s\n' "[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: $dir. 명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오." >&2
       return 1
     fi

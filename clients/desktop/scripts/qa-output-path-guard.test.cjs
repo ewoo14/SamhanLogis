@@ -187,6 +187,105 @@ test('S5 행위 울타리 — 커밋 캡처가 있는 docs 루트는 보호 또�
 })
 test.after(resetEnvironment)
 
+test('S7 RED-B — 여섯 resolver는 동일 입력에서 protect/regenerate 판정을 모두 일치시킨다', async () => {
+  assert.ok(POWERSHELL_EXE, 'PowerShell 인터프리터가 없어 .ps1 행위를 검증할 수 없습니다')
+  assert.ok(GITBASH_EXE, 'cygpath를 제공하는 Git Bash 인터프리터가 없어 .sh 행위를 검증할 수 없습니다')
+  assert.ok(PYTHON_EXE, 'Python 인터프리터가 없어 .py 행위를 검증할 수 없습니다')
+
+  const runProcess = (name, args, env = {}) => {
+    const childEnv = { ...process.env }
+    for (const [key, value] of Object.entries(env)) {
+      if (value === undefined) delete childEnv[key]
+      else childEnv[key] = value
+    }
+    if (!Object.prototype.hasOwnProperty.call(env, 'QA_SHOTS_DIR')) delete childEnv.QA_SHOTS_DIR
+    try {
+      execFileSync(name, args, { cwd: repoRoot, encoding: 'utf8', env: childEnv })
+      return 'ALLOW'
+    } catch (error) {
+      const output = `${error.stdout ?? ''}${error.stderr ?? ''}`
+      assert.match(output, /QA_ALLOW_OVERWRITE=1/, `${name} 판정이 가드 오류가 아닌 이유로 실패했습니다: ${output}`)
+      return 'BLOCK'
+    }
+  }
+
+  const runPowerShell = (committedDir, targetDir, mode) => runProcess(POWERSHELL_EXE, [
+    '-NoProfile', '-Command',
+    `. '${path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1')}' ; ` +
+      `Resolve-QaShotsDir -CommittedDir '${committedDir}' -RequestedDir '${targetDir ?? ''}' -ProtectionMode ${mode} | Out-Null`,
+  ], targetDir === undefined ? {} : { QA_SHOTS_DIR: targetDir })
+
+  const runBash = (committedDir, targetDir, mode) => {
+    const libPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')
+    return runProcess(GITBASH_EXE, ['-lc',
+      `source '${libPath}'; resolve_qa_shots_dir "$COMMITTED_DIR" ${mode}`,
+    ], {
+      ...(targetDir === undefined ? {} : { QA_SHOTS_DIR: targetDir.replaceAll('\\', '/') }),
+      COMMITTED_DIR: committedDir.replaceAll('\\', '/'),
+    })
+  }
+
+  const runPython = (committedDir, targetDir, protect) => runProcess(PYTHON_EXE, ['-c', [
+    'import os, sys',
+    `sys.path.insert(0, ${JSON.stringify(path.join(repoRoot, 'scripts', 'lib'))})`,
+    'from qa_shots_dir import resolve_qa_shots_dir',
+    `resolve_qa_shots_dir(${JSON.stringify(committedDir)}, protect=${protect ? 'True' : 'False'})`,
+  ].join('\n'),], targetDir === undefined ? {} : { QA_SHOTS_DIR: targetDir })
+
+  const nodeResolvers = [
+    ['cjs', async (committedDir, targetDir, protect) => {
+      process.env.QA_SHOTS_DIR = targetDir ?? ''
+      return resolveQaShotsDir(committedDir, { protect })
+    }],
+    ['mjs', async (committedDir, targetDir, protect) => {
+      process.env.QA_SHOTS_DIR = targetDir ?? ''
+      return (await import(pathToFileURL(path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.mjs')).href)).resolveQaShotsDir(committedDir, { protect })
+    }],
+    ['ts', async (committedDir, targetDir, protect) => {
+      process.env.QA_SHOTS_DIR = targetDir ?? ''
+      return loadTypeScriptResolver()(committedDir, { protect })
+    }],
+  ]
+  const processResolvers = [
+    ['ps1', (committedDir, targetDir, protect) => runPowerShell(committedDir, targetDir, protect ? 'Protect' : 'Regenerate')],
+    ['sh', (committedDir, targetDir, protect) => runBash(committedDir, targetDir, protect ? 'protect' : 'regenerate')],
+    ['py', (committedDir, targetDir, protect) => runPython(committedDir, targetDir, protect)],
+  ]
+  const qaCases = [
+    ['docs/qa', path.join(repoRoot, 'docs', 'qa'), path.join(repoRoot, 'docs', 'qa')],
+    ['docs/qa-shots', path.join(repoRoot, 'docs', 'qa-shots'), path.join(repoRoot, 'docs', 'qa-shots')],
+    ['docs/dev-reports', path.join(repoRoot, 'docs', 'dev-reports'), path.join(repoRoot, 'docs', 'dev-reports')],
+    ['manual regenerate', path.join(repoRoot, 'docs', 'manual', 'screenshots'), path.join(repoRoot, 'docs', 'manual', 'screenshots')],
+    ['repo outside', path.join(repoRoot, 'docs', 'manual', 'screenshots'), path.join(tempRoot, 's7-outside')],
+  ]
+  const rows = []
+  const runNodeCase = async (name, resolver, committedDir, targetDir, protect) => {
+    const expectedPath = targetDir ?? path.join(committedDir, '_local')
+    let verdict = 'ALLOW'
+    try {
+      const actual = await resolver(committedDir, targetDir, protect)
+      assert.equal(actual, expectedPath, `${name}가 예상 경로가 아닌 곳을 반환했습니다`)
+    } catch (error) {
+      assert.match(String(error), /QA_ALLOW_OVERWRITE=1/)
+      verdict = 'BLOCK'
+    }
+    return verdict
+  }
+  for (const [label, committedDir, targetDir] of qaCases) {
+    const protect = label !== 'manual regenerate'
+    for (const [name, resolver] of nodeResolvers) rows.push([name, label, await runNodeCase(name, resolver, committedDir, targetDir, protect)])
+    for (const [name, resolver] of processResolvers) rows.push([name, label, resolver(committedDir, targetDir, protect)])
+    const expectedVerdict = label === 'docs/qa' || label === 'docs/qa-shots' || label === 'docs/dev-reports' ? 'BLOCK' : 'ALLOW'
+    assert.deepEqual(rows.slice(-6).map(([, , verdict]) => verdict), Array(6).fill(expectedVerdict), `${label} 6종 판정 불일치`)
+  }
+  for (const [label, committedDir] of [['default', path.join(repoRoot, 'docs', 'manual', 'screenshots')]]) {
+    for (const [name, resolver] of nodeResolvers) rows.push([name, label, (await runNodeCase(name, resolver, committedDir, undefined, true)) === 'ALLOW' ? 'ALLOW' : 'BLOCK'])
+    for (const [name, resolver] of processResolvers) rows.push([name, label, resolver(committedDir, undefined, true)])
+  }
+  assert.deepEqual(rows.slice(-6).map(([, , verdict]) => verdict), Array(6).fill('ALLOW'), 'default 6종 판정 불일치')
+  console.log(`[S7 six-impl parity] ${rows.map(([name, label, verdict]) => `${name}/${label}=${verdict}`).join(' ')}`)
+})
+
 test('resolver 기본 출력(QA_SHOTS_DIR 미지정)은 <committedDir>/_local 이다', () => {
   const committedDir = path.join(tempRoot, 'committed')
   assert.equal(resolveQaShotsDir(committedDir), path.join(committedDir, '_local'))
