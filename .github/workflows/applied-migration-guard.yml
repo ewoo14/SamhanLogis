@@ -1,0 +1,40 @@
+name: Applied Flyway Migration Guard
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/db/migration/V*.sql'
+      - 'scripts/check-applied-migrations.ps1'
+      - 'scripts/check-applied-migrations.test.ps1'
+      - '.github/workflows/applied-migration-guard.yml'
+  push:
+    branches: [main]
+    paths:
+      - '**/db/migration/V*.sql'
+      - 'scripts/check-applied-migrations.ps1'
+      - 'scripts/check-applied-migrations.test.ps1'
+      - '.github/workflows/applied-migration-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  applied-migration-guard:
+    name: 적용된 Flyway 마이그레이션 불변 가드
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 체크아웃 (origin/main 비교를 위해 전체 이력)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 가드 시나리오 테스트 (RED-A/RED-B)
+        shell: pwsh
+        run: ./scripts/check-applied-migrations.test.ps1
+
+      - name: 적용된 마이그레이션 변경 검사
+        shell: pwsh
+        run: ./scripts/check-applied-migrations.ps1 -BaseRef origin/main
