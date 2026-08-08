@@ -178,10 +178,6 @@ export const WarehouseAutocomplete = forwardRef<
   // 검색 모달 취소로 input 포커스가 복원될 때 사용자의 draft를 보존한다.
   const preserveDraftOnNextFocusRef = useRef(false)
   const lastTypedDraftRef = useRef<string | null>(null)
-  const canReopenSelectionRef = useRef(false)
-  // 확정값과 포커스 복원 뒤의 검색 draft를 구분한다. 확정 직후 빈 draft로
-  // 복원된 Enter는 기존 dropdown 첫 후보를 다시 pick하면 안 된다.
-  const hasConfirmedSelectionRef = useRef(false)
 
   const candidates = useMemo(
     () => searchWarehouses(visibleWarehouses, draft),
@@ -236,7 +232,6 @@ export const WarehouseAutocomplete = forwardRef<
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
-    hasConfirmedSelectionRef.current = false
     lastTypedDraftRef.current = nextDraft
     setDraft(nextDraft)
     setActiveIndex(-1)
@@ -256,29 +251,6 @@ export const WarehouseAutocomplete = forwardRef<
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
-
-    if (
-      e.key === 'Enter' &&
-      resultSelectionMode &&
-      canReopenSelectionRef.current &&
-      draft.trim()
-    ) {
-      e.preventDefault()
-      const nextCandidates = searchWarehouses(visibleWarehouses, draft)
-      if (autoSelectSingleResult && nextCandidates.length === 1) {
-        pick(nextCandidates[0]!)
-      } else if (nextCandidates.length > 1) {
-        setSelectionCandidates(nextCandidates)
-        setSelectionOpen(true)
-        setOpen(false)
-      }
-      return
-    }
-
-    if (e.key === 'Enter' && hasConfirmedSelectionRef.current && !draft.trim()) {
-      e.preventDefault()
-      return
-    }
 
     if (!open) return
 
@@ -304,8 +276,6 @@ export const WarehouseAutocomplete = forwardRef<
   }
 
   const pick = (w: Warehouse) => {
-    canReopenSelectionRef.current = false
-    hasConfirmedSelectionRef.current = true
     onChange(w.id, w)
     setDraft(`${w.code} · ${w.name}`)
     setActiveIndex(-1)
@@ -318,7 +288,6 @@ export const WarehouseAutocomplete = forwardRef<
       blurTimer.current = undefined
     }
     preserveDraftOnNextFocusRef.current = true
-    canReopenSelectionRef.current = true
     setSelectionOpen(false)
     setSelectionCandidates([])
     setDraft(lastTypedDraftRef.current ?? '')
