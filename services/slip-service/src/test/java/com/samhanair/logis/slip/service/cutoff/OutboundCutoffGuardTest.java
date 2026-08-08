@@ -75,6 +75,36 @@ class OutboundCutoffGuardTest {
     }
 
     @org.junit.jupiter.api.Test
+    void threeArgumentGuard_beforeCutoff_allowsToday() {
+        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
+        SlipClosedDateGuard closedDateGuard = Mockito.mock(SlipClosedDateGuard.class);
+        when(repository.findByDeliveryTagAndActiveTrue(DeliveryTag.REGION))
+                .thenReturn(Optional.of(SlipOutboundCutoff.create(DeliveryTag.REGION, LocalTime.NOON)));
+        Instant beforeCutoff = TODAY.atTime(11, 0).atZone(KST).toInstant();
+        OutboundCutoffGuard guard = new OutboundCutoffGuard(
+                Clock.fixed(beforeCutoff, KST), repository, closedDateGuard);
+
+        assertThatCode(() -> guard.assertWithinCutoff(
+                DeliveryTag.REGION, TODAY, SlipType.OUTBOUND, "requester"))
+                .doesNotThrowAnyException();
+    }
+
+    @org.junit.jupiter.api.Test
+    void threeArgumentGuard_nullClosedDateGuard_afterCutoff_stillBlocksToday() {
+        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
+        when(repository.findByDeliveryTagAndActiveTrue(DeliveryTag.REGION))
+                .thenReturn(Optional.of(SlipOutboundCutoff.create(DeliveryTag.REGION, LocalTime.NOON)));
+        Instant afterCutoff = TODAY.atTime(13, 0).atZone(KST).toInstant();
+        OutboundCutoffGuard guard = new OutboundCutoffGuard(
+                Clock.fixed(afterCutoff, KST), repository, null);
+
+        assertThatThrownBy(() -> guard.assertWithinCutoff(
+                DeliveryTag.REGION, TODAY, SlipType.OUTBOUND, "requester"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("당일 마감");
+    }
+
+    @org.junit.jupiter.api.Test
     void cutoffFailure_keepsLegacyNextDayMessageWhenNextDayPassesBothGates() {
         SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
         SlipClosedDateGuard closedDateGuard = Mockito.mock(SlipClosedDateGuard.class);

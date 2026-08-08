@@ -88,7 +88,7 @@ public class OutboundCutoffGuard {
             return;
         }
         // 오늘(KST) 전표가 아니면 통과 (미래 출고 미리 생성 허용)
-        if (!slipDate.equals(LocalDate.now(clock.getZone()))) {
+        if (!slipDate.equals(LocalDate.now(clock))) {
             return;
         }
         // 해당 태그의 활성 마감시각이 없으면 통과 (opt-in)
@@ -133,6 +133,6 @@ public class OutboundCutoffGuard {
 
     private boolean passesCutoffFor(LocalDate candidate) {
         // 현재 컷오프 정책은 오늘 날짜에만 적용된다. 미래 후보는 #1074 계약상 통과한다.
-        return !candidate.equals(LocalDate.now(clock.getZone()));
+        return !candidate.equals(LocalDate.now(clock));
     }
 }
