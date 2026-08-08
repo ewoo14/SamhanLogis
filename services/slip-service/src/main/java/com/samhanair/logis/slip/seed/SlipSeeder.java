@@ -5,6 +5,8 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import jakarta.persistence.EntityManager;
@@ -67,8 +69,6 @@ public class SlipSeeder implements CommandLineRunner {
 
     /** Stage 1 partner 결정성 UUID prefix — partnerCode 가변. */
     private static final String PARTNER_UUID_PREFIX = "samhan-seed:partner:";
-    /** Stage 1 product 결정성 UUID prefix — modelName 가변. */
-    private static final String PRODUCT_UUID_PREFIX = "samhan-seed:product:";
 
     /** V2 시드 본사창고 UUID — slip 의 출고/입고 창고. */
     private static final UUID HQ_WAREHOUSE_ID =
@@ -201,19 +201,24 @@ public class SlipSeeder implements CommandLineRunner {
 
     private final SlipRepository slipRepository;
     private final SlipClosedDateGuard closedDateGuard;
+    private final ProductClient productClient;
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    public SlipSeeder(SlipRepository slipRepository, SlipClosedDateGuard closedDateGuard) {
+    public SlipSeeder(SlipRepository slipRepository, SlipClosedDateGuard closedDateGuard,
+                      ProductClient productClient) {
         this.slipRepository = slipRepository;
         this.closedDateGuard = closedDateGuard;
+        this.productClient = productClient;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
         log.info("[SlipSeeder] Stage 2 시드 시작 — 100 slip + ~300 line + 11 status 분포");
+
+        Map<UUID, ProductSummary> seedProducts = loadSeedProducts();
 
         List<SlipSpec> specs = buildSpecs();
         if (specs.size() != 100) {
@@ -237,7 +242,7 @@ public class SlipSeeder implements CommandLineRunner {
 
             try {
                 closedDateGuard.assertAllowed(spec.type(), slipDate, EMPLOYEE_UUIDS.get(spec.idx() % EMPLOYEE_UUIDS.size()));
-                Slip slip = buildAndTransition(spec, slipNo, slipDate, seqNo);
+                Slip slip = buildAndTransition(spec, slipNo, slipDate, seqNo, seedProducts);
                 slipRepository.save(slip);
                 created++;
             } catch (RuntimeException ex) {
@@ -248,6 +253,32 @@ public class SlipSeeder implements CommandLineRunner {
         }
         log.info("[SlipSeeder] 완료 — 신규 {}건, skip {}건 (총 {}건)",
                 created, skipped, created + skipped);
+    }
+
+    /**
+     * 전표 시드를 저장하기 전에 product-service의 활성 master 100건을 벌크 확인한다.
+     * product_db와 slip_db가 분리되어 있으므로 DB FK 대신 이 선행 조건을 사용한다.
+     */
+    private Map<UUID, ProductSummary> loadSeedProducts() {
+        List<UUID> expectedIds = new ArrayList<>(HvacSeedProductCatalog.size());
+        for (int seq = 1; seq <= HvacSeedProductCatalog.size(); seq++) {
+            expectedIds.add(HvacSeedProductCatalog.deterministicProductId(
+                    HvacSeedProductCatalog.byOneBasedSeq(seq).modelName()));
+        }
+
+        List<ProductSummary> summaries = productClient.lookup(expectedIds);
+        Map<UUID, ProductSummary> byId = new HashMap<>();
+        for (ProductSummary summary : summaries) {
+            if (summary != null && summary.id() != null && "ACTIVE".equals(summary.status())) {
+                byId.put(summary.id(), summary);
+            }
+        }
+        if (byId.size() != expectedIds.size() || !byId.keySet().containsAll(expectedIds)) {
+            throw new IllegalStateException("활성 product " + expectedIds.size()
+                    + "개가 모두 준비되지 않아 SlipSeeder를 중단합니다."
+                    + " product-service seed를 먼저 완료하십시오.");
+        }
+        return byId;
     }
 
     /**
@@ -332,7 +363,8 @@ public class SlipSeeder implements CommandLineRunner {
      * 도메인 메서드만 사용 (createOutbound/createInbound, save, send, accept, process, inspect,
      * complete, ship, deliver, confirm, reject).
      */
-    private Slip buildAndTransition(SlipSpec spec, String slipNo, LocalDate slipDate, int seqNo) {
+    private Slip buildAndTransition(SlipSpec spec, String slipNo, LocalDate slipDate, int seqNo,
+                                    Map<UUID, ProductSummary> seedProducts) {
         int partnerSeq = (spec.idx() % PARTNER_COUNT) + 1;
         String partnerCode = String.format(PARTNER_CODE_PATTERN, partnerSeq);
         UUID partnerId = deterministicUuid(PARTNER_UUID_PREFIX + partnerCode);
@@ -367,9 +399,13 @@ public class SlipSeeder implements CommandLineRunner {
         for (int li = 0; li < lineCount; li++) {
             // 출처: product-service HvacProductSeeder, 4 seeder 동일 유지 (inventory/slip/partner-order)
             int productSeq = ((spec.idx() * 7 + li * 3) % PRODUCT_MODEL_NAMES.length) + 1;
-            String modelName = PRODUCT_MODEL_NAMES[productSeq - 1];
-            UUID productId = deterministicUuid(PRODUCT_UUID_PREFIX + modelName);
-            String productName = "테스트제품-" + modelName;
+            HvacSeedProductCatalog.ProductSeed productSeed =
+                    HvacSeedProductCatalog.byOneBasedSeq(productSeq);
+            String modelName = productSeed.modelName();
+            UUID productId = HvacSeedProductCatalog.deterministicProductId(modelName);
+            ProductSummary product = seedProducts.get(productId);
+            String productName = product.name();
+            modelName = product.modelName();
             String specification = sampleSpecification(productSeq);
             int quantity = ((spec.idx() + li) % 10) + 1;  // 1~10
             BigDecimal unitPrice = computeUnitPrice(productSeq);

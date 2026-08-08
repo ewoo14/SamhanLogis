@@ -1291,7 +1291,9 @@ const MOCK_TRANSFERS = [
  * PR-3b: `productType` 추가 — "BUNDLE" 이면 세트 옵션 picker 노출.
  * `modelCode` 미지정 시 modelName 을 그대로 사용 (BE ProductSummary 기본값).
  */
-const MOCK_PRODUCT_AJ040_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040'
+// 주문전환 fixture도 product-service dev seed의 실제 master UUID를 사용한다.
+// samhan-seed:product:AR07TXEAAWKNEU-03 (DB 간 참조가 필요한 경로의 synthetic UUID 금지)
+const MOCK_PRODUCT_AJ040_ID = '2e40fa30-10b2-3a9b-a99c-570ac92287ad'
 const MOCK_PRODUCT_MWR10_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb010'
 
 const MOCK_PRODUCTS_BY_MODEL: Record<
@@ -12378,7 +12380,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       poId === 'ord-partially-converted'
         ? [
             {
-              productId: 'p-aj040',
+              productId: MOCK_PRODUCT_AJ040_ID,
               lineId: 'line-po-001',
               modelCode: 'AJ040RXH4BC1',
               productName: '실외기',
@@ -12410,7 +12412,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           ]
         : [
             {
-              productId: 'p-aj040',
+              productId: MOCK_PRODUCT_AJ040_ID,
               lineId: 'line-po-001',
               modelCode: 'AJ040RXH4BC1',
               productName: '실외기',
