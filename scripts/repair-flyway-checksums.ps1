@@ -3,6 +3,7 @@ param(
     [string] $EnvFile,
     [string] $Service,
     [string] $RepoPath,
+    [string] $MigrationRoot,
     [string] $PostgresContainer = 'samhan-postgres',
     [string] $Network = 'samhan-net',
     [string] $FlywayImage = 'flyway/flyway:10.10.0',
@@ -21,6 +22,49 @@ function Redact-Text([string] $Text) {
 }
 
 function Redact-Arguments([string[]] $Arguments) { return @($Arguments | ForEach-Object { Redact-Text ([string] $_) }) }
+
+function Get-GitOutput([string[]] $Arguments) {
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $output = & git -C $repoRoot @Arguments 2>$null } finally { $ErrorActionPreference = $previousErrorAction }
+    if ($LASTEXITCODE -ne 0) { return $null }
+    return ([string]($output -join [Environment]::NewLine)).Trim()
+}
+
+function Get-RepositoryRelativePath([string] $Path) {
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $root = $migrationRoot.TrimEnd('\') + '\'
+    if (-not $fullPath.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { return $null }
+    return $fullPath.Substring($root.Length).Replace('\', '/')
+}
+
+function Get-MigrationBaselineIssues([string] $Location, [string[]] $Versions) {
+    $issues = @()
+    foreach ($version in $Versions) {
+        $files = @(Get-ChildItem -LiteralPath $Location -Filter "V${version}__*.sql" -File -ErrorAction SilentlyContinue)
+        if ($files.Count -eq 0) {
+            $issues += "V${version}: 작업 트리 파일 없음 또는 저장소 대응 파일 없음 ($Location)"
+            continue
+        }
+        foreach ($file in $files) {
+            $relative = Get-RepositoryRelativePath $file.FullName
+            if (-not $relative) {
+                $issues += "$($file.FullName): 작업 트리 파일이 저장소 기준 경로 밖입니다"
+                continue
+            }
+            $committedBlob = Get-GitOutput @('rev-parse', "HEAD:$relative")
+            $workingBlob = Get-GitOutput @('hash-object', '--', $file.FullName)
+            if (-not $committedBlob) {
+                $issues += "${relative}: 커밋 원본 없음 (untracked 또는 현재 HEAD에 없음)"
+            } elseif (-not $workingBlob) {
+                $issues += "${relative}: 작업 트리 파일을 읽을 수 없음"
+            } elseif ($committedBlob -ne $workingBlob) {
+                $issues += "${relative}: 작업 트리 내용이 현재 HEAD 커밋 원본과 불일치 (HEAD=$committedBlob, working-tree=$workingBlob)"
+            }
+        }
+    }
+    return $issues
+}
 
 function Read-DotEnv([string] $Path) {
     $values = @{}
@@ -45,6 +89,7 @@ function Invoke-Docker([string[]] $Arguments, [switch] $AllowFailure) {
 }
 
 $repoRoot = if ($RepoPath) { (Resolve-Path -LiteralPath $RepoPath).Path } else { Split-Path -Parent $PSScriptRoot }
+$migrationRoot = if ($MigrationRoot) { (Resolve-Path -LiteralPath $MigrationRoot).Path } else { $repoRoot }
 $infraRoot = Join-Path $repoRoot 'infrastructure'
 $composeWorkDir = $null
 if (-not $EnvFile) {
@@ -102,7 +147,8 @@ $databaseByService = @{
 $targetDefinitions = @()
 $discoveryIssues = @()
 foreach ($serviceDirectory in (Get-ChildItem -LiteralPath (Join-Path $repoRoot 'services') -Directory)) {
-    $location = Join-Path $serviceDirectory.FullName 'src/main/resources/db/migration'
+    $relativeService = $serviceDirectory.Name
+    $location = Join-Path (Join-Path $migrationRoot 'services') "$relativeService/src/main/resources/db/migration"
     if (-not $databaseByService.ContainsKey($serviceDirectory.Name)) {
         if (Test-Path -LiteralPath $location -PathType Container) {
             $discoveryIssues += [pscustomobject]@{
@@ -121,7 +167,11 @@ foreach ($serviceDirectory in (Get-ChildItem -LiteralPath (Join-Path $repoRoot '
         }
         continue
     }
-    $targetDefinitions += ,@($serviceDirectory.Name, $databaseByService[$serviceDirectory.Name], $location)
+    $targetDefinitions += [pscustomobject]@{
+        Name = $serviceDirectory.Name
+        Database = $databaseByService[$serviceDirectory.Name]
+        Location = $location
+    }
 }
 $relevantDiscoveryIssues = @($discoveryIssues | Where-Object { -not $Service -or $_.Name -eq $Service })
 foreach ($issue in $relevantDiscoveryIssues) {
@@ -133,9 +183,7 @@ if ($relevantDiscoveryIssues.Count -gt 0) {
     }
     throw "Service discovery failed; resolve the omitted service(s) before running Flyway repair.`n$($issueSummary -join [Environment]::NewLine)"
 }
-$targets = @($targetDefinitions | Where-Object { -not $Service -or $_[0] -eq $Service } | ForEach-Object {
-    [pscustomobject]@{ Name = $_[0]; Database = $_[1]; Location = $_[2] }
-})
+$targets = @($targetDefinitions | Where-Object { -not $Service -or $_.Name -eq $Service })
 if ($targets.Count -eq 0) { throw "Unknown service target: $Service" }
 
 foreach ($target in $targets) {
@@ -166,10 +214,18 @@ foreach ($target in $targets) {
         if ($unexpectedLines.Count -gt 0 -or ($validate.ExitCode -ne 0 -and $mismatchLines.Count -eq 0)) { throw "$($target.Name) validate failed for a reason other than a checksum mismatch:`n$validateText" }
         $displayVersions = if ($versions.Count) { $versions -join ', ' } else { '(none)' }
         Write-Output "$($target.Name): checksum mismatch versions = $displayVersions"
-        if ($versions.Count -gt 0 -and $PSCmdlet.ShouldProcess($target.Name, 'Flyway repair (checksum metadata only)')) {
-            $repair = Invoke-Docker ($common + @('repair'))
-            Write-Output "$($target.Name): repair completed"
-            $repair.Output | Where-Object { $_ -match 'Successfully repaired|Repair of' } | ForEach-Object { Write-Output $_ }
+        if ($versions.Count -gt 0) {
+            $baselineIssues = @(Get-MigrationBaselineIssues $target.Location $versions)
+            if ($baselineIssues.Count -gt 0) {
+                Write-Output "$($target.Name): repair 거부 — git baseline 검증 실패"
+                $baselineIssues | ForEach-Object { Write-Output "  $_" }
+                throw "Flyway repair refused because the migration file is not identical to the current HEAD commit.`n$($baselineIssues -join [Environment]::NewLine)"
+            }
+            if ($PSCmdlet.ShouldProcess($target.Name, 'Flyway repair (checksum metadata only)')) {
+                $repair = Invoke-Docker ($common + @('repair'))
+                Write-Output "$($target.Name): repair completed"
+                $repair.Output | Where-Object { $_ -match 'Successfully repaired|Repair of' } | ForEach-Object { Write-Output $_ }
+            }
         }
     } finally {
         if (Test-Path -LiteralPath $credentialFile) { Remove-Item -LiteralPath $credentialFile -Force -Confirm:$false -WhatIf:$false }
