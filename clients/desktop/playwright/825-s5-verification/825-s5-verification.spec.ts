@@ -1,13 +1,11 @@
 /** PR #1120 / #825 S5 — 공용 검색결과 선택 모달 최종 도달성 검증. */
-import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
-const SHOTS = path.resolve(process.cwd(), '../../docs/qa-shots/825-s5-verify')
+const SHOTS = resolveQaShotsDir(path.resolve(process.cwd(), '../../docs/qa-shots/825-s5-verify'))
 const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
-
-fs.mkdirSync(SHOTS, { recursive: true })
 
 function permissionQuery(pageCodes: string[]): string {
   return Buffer.from(JSON.stringify(pageCodes.map((pageCode) => ({
