@@ -39,6 +39,8 @@ import {
   copyFromAccount,
   fetchAccountMatrix,
   fetchAccounts,
+  fetchPermissionMatrix,
+  updatePermissionBatch,
   updateAccountMatrix,
   type AccountPermissionMatrix,
   type AccountPermissionUpdate,
@@ -860,6 +862,11 @@ export function PermissionMatrixPage() {
     enabled: selectedAccountId.length > 0,
   })
 
+  const roleMatrixQuery = useQuery({
+    queryKey: ['admin', 'permission-role-matrix'],
+    queryFn: fetchPermissionMatrix,
+  })
+
   const selectedAccount = accountsQuery.data?.find((account) => account.id === selectedAccountId)
   const serverState = useMemo(() => accountMatrixToState(matrixQuery.data), [matrixQuery.data])
   const currentState = editState ?? serverState
@@ -917,6 +924,18 @@ export function PermissionMatrixPage() {
       setToast({ type: 'success', message: `다른 계정 권한을 복사했습니다. (${result.changedCount}건)` })
     },
     onError: () => setToast({ type: 'error', message: '계정 권한 복사 중 오류가 발생했습니다.' }),
+  })
+
+  const revokeRoleMutation = useMutation({
+    mutationFn: (roleCode: RbacRole) => updatePermissionBatch([
+      { roleCode, pageCode: 'slip.period-lock', action: 'view', allowed: false },
+      { roleCode, pageCode: 'slip.period-lock', action: 'update', allowed: false },
+    ]),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'permission-role-matrix'] })
+      setToast({ type: 'success', message: '역할의 slip.period-lock 권한을 회수했습니다.' })
+    },
+    onError: () => setToast({ type: 'error', message: '역할 권한 회수 중 오류가 발생했습니다.' }),
   })
 
   const setPageActions = useCallback((
@@ -1175,6 +1194,31 @@ export function PermissionMatrixPage() {
               {page} 보유 권한 전체 회수
             </Button>
           ))}
+        </section>
+      )}
+
+      {!roleMatrixQuery.isLoading && !roleMatrixQuery.isError && (
+        <section
+          aria-label="비노출 역할 권한 회수"
+          style={{ marginBottom: 12, padding: 12, border: '1px solid var(--color-warning-300)', borderRadius: 8 }}
+        >
+          <strong>비노출 역할 권한 회수</strong>
+          <p style={{ margin: '6px 0 10px', color: 'var(--color-neutral-600)', fontSize: 12 }}>
+            일반 권한 카탈로그에는 표시하지 않지만, 기존 보유 역할 권한은 여기서 회수할 수 있습니다.
+          </p>
+          {(roleMatrixQuery.data?.cells ?? [])
+            .filter((cell) => cell.pageCode === 'slip.period-lock' && (cell.view || cell.edit))
+            .map((cell) => (
+              <Button
+                key={cell.roleCode}
+                variant="ghost"
+                onClick={() => revokeRoleMutation.mutate(cell.roleCode)}
+                disabled={revokeRoleMutation.isPending}
+                data-testid={`perm-matrix-revoke-role-${cell.roleCode.toLowerCase()}`}
+              >
+                {ROLE_LABEL[cell.roleCode] ?? cell.roleCode} 역할 권한 전체 회수
+              </Button>
+            ))}
         </section>
       )}
 

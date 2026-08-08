@@ -43,9 +43,10 @@ public class SlipUpdateController {
             @PathVariable UUID id,
             @Valid @RequestBody SlipUpdateRequest request,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = HttpHeaderConstants.CALLER_NAME_HEADER, required = false) String callerName) {
+            @RequestHeader(value = HttpHeaderConstants.CALLER_NAME_HEADER, required = false) String callerName,
+            @RequestHeader(value = "X-User-Role", required = false) String callerRole) {
         return ApiResponse.ok(updateService.update(id, request, parseActorId(callerId),
-                resolveName(callerId, callerName)));
+                resolveName(callerId, callerName), callerRole));
     }
 
     /**

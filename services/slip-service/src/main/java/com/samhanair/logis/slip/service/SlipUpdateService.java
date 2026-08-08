@@ -71,12 +71,20 @@ public class SlipUpdateService {
     @Transactional
     public SlipDetailResponse update(UUID id, SlipUpdateRequest request,
                                      UUID actorId, String actorName) {
+        return update(id, request, actorId, actorName, null);
+    }
+
+    /** direct PUT 호출자의 역할을 마감일 guard까지 전달한다. */
+    @Transactional
+    public SlipDetailResponse update(UUID id, SlipUpdateRequest request,
+                                     UUID actorId, String actorName, String actorRole) {
         // [D-R8-9] 계약 마커 검증은 조회보다 먼저다 — 구 클라이언트에게는 전표의 존재 여부(404)나
         // 낙관적 잠금(409)보다 "앱을 업데이트하라"가 유일하게 조치 가능한 정보이며, 어떤 상태도
         // 읽기 전에 거부하는 편이 게이트의 의도(쓰기 차단)를 가장 좁게 표현한다.
         requireLineIdContract(request);
         Slip slip = load(id);
-        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), actorId == null ? null : actorId.toString());
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(),
+                actorId == null ? null : actorId.toString(), actorRole);
         verifyVersion(slip, request.updatedAt());
         // validateLines 는 BusinessException(SLIP_UPDATE_INVALID_LINE) 을 던지므로 try 외부에서 처리
         validateLines(request.lines());

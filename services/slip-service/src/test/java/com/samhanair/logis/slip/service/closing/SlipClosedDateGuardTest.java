@@ -77,6 +77,15 @@ class SlipClosedDateGuardTest {
     }
 
     @Test
+    void masterRole_canCreateOnClosedDateEvenWhenPermissionClientDenies() {
+        SlipClosedDateGuard guard = guard(false, TODAY);
+        when(dateRuleRepository.findBySlipTypeAndClosingDateAndIsDeletedFalse(SlipType.OUTBOUND, CLOSED_DATE))
+                .thenReturn(Optional.of(SlipClosingDateRule.manualClosed(SlipType.OUTBOUND, CLOSED_DATE)));
+        guard.assertCreatable(SlipType.OUTBOUND, CLOSED_DATE, ACCOUNT_ID.toString(), "MASTER");
+        verify(permissionClient, never()).check(any(), any(), any());
+    }
+
+    @Test
     void openException_reopensDateBelowEnabledBaseline() {
         SlipClosedDateGuard guard = guard(true, TODAY);
         when(dateRuleRepository.findBySlipTypeAndClosingDateAndIsDeletedFalse(SlipType.OUTBOUND, CLOSED_DATE))

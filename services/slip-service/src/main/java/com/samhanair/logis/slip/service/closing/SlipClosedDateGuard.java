@@ -25,9 +25,18 @@ public class SlipClosedDateGuard {
         assertAllowed(slipType, slipDate, requesterId);
     }
 
+    /** HTTP direct-update 경계에서 전달된 MASTER 역할은 마감 예외 권한의 시스템 bypass다. */
+    public void assertCreatable(SlipType slipType, LocalDate slipDate, String requesterId, String requesterRole) {
+        assertAllowed(slipType, slipDate, requesterId, requesterRole);
+    }
+
     /** 복원·수정·상태 전이도 신규 생성과 동일한 마감일 예외 권한을 사용한다. */
     public void assertAllowed(SlipType slipType, LocalDate slipDate, String requesterId) {
-        if (isCreatable(slipType, slipDate, requesterId)) {
+        assertAllowed(slipType, slipDate, requesterId, null);
+    }
+
+    public void assertAllowed(SlipType slipType, LocalDate slipDate, String requesterId, String requesterRole) {
+        if (isCreatable(slipType, slipDate, requesterId, requesterRole)) {
             return;
         }
         throw new SlipClosedDateException();
@@ -35,7 +44,15 @@ public class SlipClosedDateGuard {
 
     /** 날짜 마감과 예외 권한을 함께 판정한다. 대체 출고일 탐색에서도 같은 정책을 재사용한다. */
     public boolean isCreatable(SlipType slipType, LocalDate slipDate, String requesterId) {
+        return isCreatable(slipType, slipDate, requesterId, null);
+    }
+
+    public boolean isCreatable(
+            SlipType slipType, LocalDate slipDate, String requesterId, String requesterRole) {
         if (!isClosed(slipType, slipDate)) {
+            return true;
+        }
+        if ("MASTER".equalsIgnoreCase(requesterRole)) {
             return true;
         }
         UUID accountId = parseUuid(requesterId);
