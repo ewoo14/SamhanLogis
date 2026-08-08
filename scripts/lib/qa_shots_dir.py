@@ -140,6 +140,17 @@ def _is_within_physical(parent_dir: str, candidate_dir: str) -> bool:
         ) from error
 
 
+def _derive_qa_evidence_root(committed_dir: str) -> str | None:
+    current = os.path.abspath(committed_dir)
+    while True:
+        if re.fullmatch(r'qa(?:-.+)?', os.path.basename(current), re.IGNORECASE) and os.path.basename(os.path.dirname(current)).lower() == 'docs':
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
 def resolve_qa_shots_dir(committed_dir: str) -> str:
     """committed_dir 은 기존 커밋 캡처가 있는(또는 있을) 절대경로.
 
@@ -152,8 +163,8 @@ def resolve_qa_shots_dir(committed_dir: str) -> str:
     else:
         directory = os.path.join(committed, '_local')
 
-    qa_evidence_axis = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'docs'))
-    if override.strip() and _is_within_physical(qa_evidence_axis, directory) and not _has_explicit_overwrite_intent():
+    qa_evidence_root = _derive_qa_evidence_root(committed)
+    if override.strip() and qa_evidence_root and _is_within_physical(qa_evidence_root, directory) and not _has_explicit_overwrite_intent():
         raise RuntimeError(
             f'[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: {directory}. '
             '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.'

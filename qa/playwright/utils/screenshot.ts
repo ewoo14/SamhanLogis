@@ -8,9 +8,18 @@ import { fileURLToPath } from 'node:url';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : dirname(fileURLToPath(import.meta.url));
 
-/** 개별 증거 루트를 열거하지 않고 모든 docs 하위 증거 루트를 보호하는 축. */
-/** 개별 증거 루트를 열거하지 않고 모든 docs 하위 증거 루트를 보호하는 축. */
-const QA_EVIDENCE_AXIS = resolve(_dirname, '../../../docs');
+/** committedDir 에서 docs 바로 아래의 qa* 증거 루트를 파생한다(열거하지 않음). */
+function deriveQaEvidenceRoot(committedDir: string): string | undefined {
+  let current = resolve(committedDir);
+  while (true) {
+    if (/^qa(?:-.+)?$/i.test(parse(current).base) && parse(dirname(current)).base.toLowerCase() === 'docs') {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+}
 
 function hasExplicitOverwriteIntent(): boolean {
   return ['1', 'true', 'yes'].includes(
@@ -154,7 +163,8 @@ function resolveQaShotsDir(committedDir: string): string {
   const dir =
     trimmed ? resolve(trimmed) : join(resolve(committedDir), '_local');
 
-  if (trimmed && isWithinPhysical(QA_EVIDENCE_AXIS, dir) && !hasExplicitOverwriteIntent()) {
+  const evidenceRoot = deriveQaEvidenceRoot(committedDir);
+  if (trimmed && evidenceRoot && isWithinPhysical(evidenceRoot, dir) && !hasExplicitOverwriteIntent()) {
     throw new Error(
       `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${dir}. ` +
         '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',

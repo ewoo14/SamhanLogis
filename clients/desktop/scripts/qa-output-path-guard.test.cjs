@@ -170,7 +170,27 @@ test('D-3 [E] 새 커밋 QA 증거 루트도 모집단 축에 따라 자동 차�
   process.env.QA_SHOTS_DIR = path.join(docsQaShotsRoot, 'new-root-fixture')
 
   assert.throws(
-    () => resolveQaShotsDir(MY_FIXTURE_COMMITTED_DIR),
+    () => resolveQaShotsDir(path.join(docsQaShotsRoot, 'new-root-fixture')),
+    error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+  )
+})
+
+test('S3 RED-A 비-QA 매뉴얼 3개 경로는 committedDir 이 증거 루트가 아니므로 통과한다', () => {
+  for (const committedDir of [
+    path.join(repoRoot, 'docs', 'manual', 'screenshots'),
+    path.join(repoRoot, 'docs', 'manual', 'screenshots'),
+    path.join(repoRoot, 'docs', 'manual', 'screenshots', '04-모바일'),
+  ]) {
+    process.env.QA_SHOTS_DIR = committedDir
+    assert.equal(resolveQaShotsDir(committedDir), committedDir)
+  }
+})
+
+test('S3 RED-B docs/qa-shots 는 호출자의 증거 루트로 보호된다', () => {
+  process.env.QA_SHOTS_DIR = path.join(repoRoot, 'docs', 'qa-shots', 'new-root-fixture')
+
+  assert.throws(
+    () => resolveQaShotsDir(path.join(repoRoot, 'docs', 'qa-shots', 'new-root-fixture')),
     error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
   )
 })
@@ -627,12 +647,12 @@ test('N-1 (2026-07-28 재수렴, D-A 회귀 가드) — UTF-16 resolver 사본�
 
 test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소스는 구조 마커로, .mjs 는 실행으로 대조', async () => {
   // .ts 는 이 CommonJS 테스트에서 직접 require/import 할 수 없다(ts-node 미설치) — 소스 텍스트로
-  // 핵심 계약 마커(기본값 _local·QA_EVIDENCE_AXIS 기반 가드·QA_ALLOW_OVERWRITE 탈출구)를 확인한다.
+  // 핵심 계약 마커(기본값 _local·호출자 파생 증거 루트·QA_ALLOW_OVERWRITE 탈출구)를 확인한다.
   // 실제 런타임 동작은 clients/desktop 전체 Playwright mock 스위트 실행(.ts 를 실제로 실행)과
   // 아래 .mjs 실행 비교로 이중 확인한다.
   const tsSource = fs.readFileSync(tsHelperPath, 'utf8')
   assert.match(tsSource, /path\.join\(committed,\s*'_local'\)/, '.ts 기본값이 _local 이 아님 (D-2 회귀)')
-  assert.match(tsSource, /QA_EVIDENCE_AXIS/, '.ts 에 QA 증거 축 가드가 없음 (D-3 미이관)')
+  assert.match(tsSource, /deriveQaEvidenceRoot/, '.ts 에 호출자 파생 QA 증거 축 가드가 없음 (D-3 미이관)')
   assert.match(tsSource, /QA_ALLOW_OVERWRITE/, '.ts 에 명시 허용 탈출구가 없음')
   assert.match(tsSource, /export function resolveQaShotsDir/, '.ts 가 resolveQaShotsDir 를 export 하지 않음 (H-2 가드 대상)')
   assert.doesNotMatch(
@@ -642,13 +662,13 @@ test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소�
   )
 
   const mjsSource = fs.readFileSync(mjsHelperPath, 'utf8')
-  assert.match(mjsSource, /QA_EVIDENCE_AXIS/, '.mjs 에 QA 증거 축 가드가 없음 (D-3 미이관)')
+  assert.match(mjsSource, /deriveQaEvidenceRoot/, '.mjs 에 호출자 파생 QA 증거 축 가드가 없음 (D-3 미이관)')
 
   const qaPlaywrightSource = fs.readFileSync(qaPlaywrightHelperPath, 'utf8')
-  assert.match(qaPlaywrightSource, /QA_EVIDENCE_AXIS/, 'qa/playwright resolver에 QA 증거 축 가드가 없음')
+  assert.match(qaPlaywrightSource, /deriveQaEvidenceRoot/, 'qa/playwright resolver에 호출자 파생 QA 증거 축 가드가 없음')
 
   const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
-  const committedDir = path.join(tempRoot, 'ts-mjs-parity')
+  const committedDir = MY_FIXTURE_COMMITTED_DIR
 
   // 기본값 parity
   assert.equal(mjsResolve(committedDir), resolveQaShotsDir(committedDir))
@@ -660,6 +680,24 @@ test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소�
   // QA_ALLOW_OVERWRITE parity
   process.env.QA_ALLOW_OVERWRITE = '1'
   assert.equal(mjsResolve(committedDir), resolveQaShotsDir(committedDir))
+})
+
+test('S3 반열거 울타리 — 모든 resolver는 호출자 파생 축을 가져야 하며 docs 전역 축을 되살리면 RED가 된다', () => {
+  const resolverPaths = [
+    rootMjsHelperPath,
+    tsHelperPath,
+    mjsHelperPath,
+    path.join(repoRoot, 'clients', 'desktop', 'src', 'main', 'capture.ts'),
+    qaPlaywrightHelperPath,
+    path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.cjs'),
+    path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.mjs'),
+    path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1'),
+    path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh'),
+    path.join(repoRoot, 'scripts', 'lib', 'qa_shots_dir.py'),
+  ]
+  const source = resolverPaths.map(readSourceText).join('\n')
+  assert.doesNotMatch(source, /QA_EVIDENCE_AXIS|qaEvidenceAxis|qa_evidence_axis/, 'docs 전역 축 열거가 되살아났습니다')
+  assert.match(source, /deriveQaEvidenceRoot|Get-QaEvidenceRoot|_derive_qa_evidence_root|_qa_evidence_root/, '호출자 파생 축이 사라졌습니다')
 })
 
 // ============================================================================
