@@ -18589,7 +18589,7 @@ const MOCK_BATCH_ROWS = generateMockBatchRows(250)
  */
 const SP_D1_ROLES = [
   'MANAGER', 'DISPATCH', 'SALES', 'ACCOUNTANT', 'WAREHOUSE', 'INVENTORY',
-  'DEVELOPER', 'PARTNER',
+  'DEVELOPER', 'PARTNER', 'DRIVER', 'STAFF',
 ] as const
 
 /**
@@ -18743,6 +18743,7 @@ const SP_D1_PAGES = [
  * seed 정합(예: V41 convert = create-only). 비-MASTER `/permissions/my` mock 도출에 적용.
  */
 const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
+  'inbound.inspection': ['CREATE', 'UPDATE', 'DELETE'],
   // V87: 입금자명 매핑은 VIEW + CREATE/UPDATE/DELETE만 허용한다.
   'accounting.deposit-mapping': ['CREATE', 'UPDATE', 'DELETE'],
   // V37: accounting.daily-closing.run 은 실행 CREATE endpoint 전용.
@@ -19408,8 +19409,8 @@ const _mockPermissionGroupMatrices: Record<string, Record<string, MockActionMatr
   [BUILTIN_GROUP_ID_ACCOUNTANT]: Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('ACCOUNTANT', page)])) as Record<string, MockActionMatrix>,
   [BUILTIN_GROUP_ID_INVENTORY]:  Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('INVENTORY',  page)])) as Record<string, MockActionMatrix>,
   [BUILTIN_GROUP_ID_DISPATCH]:   Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DISPATCH',   page)])) as Record<string, MockActionMatrix>,
-  [BUILTIN_GROUP_ID_DRIVER]: {},
-  [BUILTIN_GROUP_ID_STAFF]: {},
+  [BUILTIN_GROUP_ID_DRIVER]:   Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DRIVER',   page)])) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_STAFF]:    Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('STAFF',    page)])) as Record<string, MockActionMatrix>,
   [BUILTIN_GROUP_ID_DEVELOPER]:  Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DEVELOPER',  page)])) as Record<string, MockActionMatrix>,
   'mock-group-custom-sales':      Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('SALES',      page)])) as Record<string, MockActionMatrix>,
   'mock-group-custom-dispatch':   Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DISPATCH',   page)])) as Record<string, MockActionMatrix>,
