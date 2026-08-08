@@ -1,4 +1,4 @@
-function Resolve-QaCredential {
+﻿function Resolve-QaCredential {
     param(
         [Parameter(Mandatory = $true)][string] $Key,
         [string[]] $CompatibilityAliases = @()

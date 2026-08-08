@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet("smoke", "baseline", "peak", "stress", "soak", "verify-relogin")]
     [string]$Profile = "smoke",
 
@@ -8,6 +8,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$portResolver = Join-Path $PSScriptRoot "lib\local-stack-port.ps1"
+. (Resolve-Path -LiteralPath $portResolver)
+$gatewayPort = Get-LocalStackPort -Service 'api-gateway'
 $qaCredentialLoader = Join-Path $PSScriptRoot "lib\qa-credentials.ps1"
 . (Resolve-Path -LiteralPath $qaCredentialLoader)
 
@@ -42,7 +45,7 @@ function Assert-Login {
     } | ConvertTo-Json -Compress
 
     try {
-        $response = Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:8080/auth/login" `
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:$gatewayPort/auth/login" `
             -Method Post -ContentType "application/json" -Body $body -TimeoutSec 10
         if ($response.StatusCode -ne 200) {
             throw "HTTP $($response.StatusCode)"
@@ -149,7 +152,7 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 New-Item -ItemType Directory -Force -Path $rawDir | Out-Null
 
 Write-Step "게이트웨이 health 확인"
-Assert-HttpOk -Uri "http://localhost:8080/actuator/health" -Name "api-gateway"
+Assert-HttpOk -Uri "http://localhost:$gatewayPort/actuator/health" -Name "api-gateway"
 
 Write-Step "대표 부하 계정 로그인 확인"
 $password = Resolve-QaCredential -Key 'QA_DEV_DEFAULT_PASSWORD' -CompatibilityAliases @('DEV_PASSWORD')
@@ -181,7 +184,7 @@ $dockerArgs = @(
     "-e", "STAGE_PROFILE=$Profile",
     "-e", "SOAK_DURATION=$SoakDuration",
     "-e", "LOADTEST_PASSWORD=$password",
-    "-e", "BASE_URL=http://api-gateway:8080",
+    "-e", "BASE_URL=http://api-gateway:$gatewayPort",
     "grafana/k6",
     "run",
     "--summary-export", "/scripts/out/$summaryName",
@@ -198,7 +201,7 @@ if ($Profile -eq "stress") {
         "-e", "THINK_MIN=0.5",
         "-e", "THINK_MAX=1",
         "-e", "LOADTEST_PASSWORD=$password",
-        "-e", "BASE_URL=http://api-gateway:8080",
+        "-e", "BASE_URL=http://api-gateway:$gatewayPort",
         "grafana/k6",
         "run",
         "--summary-export", "/scripts/out/$summaryName",
@@ -222,7 +225,7 @@ if ($Profile -eq "soak" -and $Detach.IsPresent) {
         "-e", "STAGE_PROFILE=$Profile",
         "-e", "SOAK_DURATION=$SoakDuration",
         "-e", "LOADTEST_PASSWORD=$password",
-        "-e", "BASE_URL=http://api-gateway:8080",
+        "-e", "BASE_URL=http://api-gateway:$gatewayPort",
         "grafana/k6",
         "run",
         "--summary-export", "/scripts/out/$summaryName",

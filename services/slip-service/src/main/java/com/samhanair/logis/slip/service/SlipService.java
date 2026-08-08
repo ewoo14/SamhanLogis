@@ -1504,7 +1504,7 @@ public class SlipService {
      */
     @Transactional(readOnly = true)
     public List<SlipSearchResult> searchBySlipNo(String q, int limit) {
-        String normalized = q == null ? "" : q.trim();
+        String normalized = q == null ? "" : escapeLikeLiteral(q.trim());
         if (normalized.isEmpty()) {
             return List.of();
         }
@@ -1526,7 +1526,7 @@ public class SlipService {
      */
     @Transactional(readOnly = true)
     public List<SlipSearchResult> searchBySlipNo(String q, int limit, Collection<SlipType> slipTypes) {
-        String normalized = q == null ? "" : q.trim();
+        String normalized = q == null ? "" : escapeLikeLiteral(q.trim());
         if (normalized.isEmpty() || slipTypes == null || slipTypes.isEmpty()) {
             return List.of();
         }
@@ -1627,7 +1627,7 @@ public class SlipService {
                 from,
                 to,
                 normalizeListFilter(partnerCode),
-                normalizeListFilter(driverPhone),
+                escapeLikeNullable(driverPhone),
                 deliveryTagNames,
                 deliveryTags == null || deliveryTags.isEmpty(),
                 nativePageable).map(SlipResponse::from);
@@ -1639,6 +1639,15 @@ public class SlipService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String escapeLikeNullable(String value) {
+        String normalized = normalizeListFilter(value);
+        return normalized == null ? null : escapeLikeLiteral(normalized);
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**
@@ -1693,7 +1702,7 @@ public class SlipService {
                 predicates.add(cb.equal(root.get("partnerCode"), partnerCode.trim()));
             }
             if (driverPhone != null && !driverPhone.isBlank()) {
-                predicates.add(cb.like(root.get("driverPhone"), "%" + driverPhone.trim() + "%"));
+                predicates.add(cb.like(root.get("driverPhone"), "%" + escapeLikeLiteral(driverPhone.trim()) + "%", '\\'));
             }
             if (regionGroup != null && !regionGroup.isBlank()) {
                 predicates.add(cb.equal(root.get("classifiedRegionGroup"), regionGroup.trim()));

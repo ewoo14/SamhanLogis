@@ -152,6 +152,17 @@ class ApprovalLineApproverServiceTest {
         assertThat(query.getValue()).isEqualTo("홍");
     }
 
+    @Test
+    void searchUsers_는_LIKE_와일드카드를_리터럴로_전달한다() {
+        when(accountRepository.searchActiveByDisplayName(any(), any(Pageable.class))).thenReturn(List.of());
+
+        service.searchUsers(" %_\\ ", 20);
+
+        ArgumentCaptor<String> query = ArgumentCaptor.forClass(String.class);
+        verify(accountRepository).searchActiveByDisplayName(query.capture(), any(Pageable.class));
+        assertThat(query.getValue()).isEqualTo("\\%\\_\\\\");
+    }
+
     static ApprovalLineConfig role(UUID id, StepType type) {
         try {
             var ctor = ApprovalLineConfig.class.getDeclaredConstructor();
