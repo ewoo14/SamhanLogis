@@ -522,6 +522,13 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             java.time.LocalDate startDate, java.time.LocalDate endDate,
             SlipStatus status);
 
+    /**
+     * 시더가 만든 특정 전표번호 집합만 마감 lock 대상으로 조회한다.
+     * 날짜는 시더 산물 식별자가 아니므로 범위 조건에 사용하지 않는다.
+     */
+    List<Slip> findAllBySlipTypeAndSlipNoInAndCreatedByAndStatusAndLockFlagFalseAndIsDeletedFalse(
+            SlipType slipType, Collection<String> slipNos, String createdBy, SlipStatus status);
+
     // ---- PR-E1 BE-A5/A6 — 다음날자 이미지 / 정리 리스트 ----
 
     /**

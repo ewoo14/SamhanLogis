@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -531,6 +533,29 @@ public class SlipSeeder implements CommandLineRunner {
                 .map(SlipSpec::idx)
                 .map(SlipSeeder::computeSlipDate)
                 .toList();
+    }
+
+    /**
+     * SlipLockSeeder가 날짜 구간이 아닌 시더 산물 집합만 선택하도록 실제 채번 결과를 반환한다.
+     *
+     * <p>시더 본체와 동일하게 spec 순서로 날짜·전표유형별 순번을 계산하므로, 날짜 사이에
+     * 생성된 실 업무 전표나 시더 후속 상태 변경 전표가 잠금 대상에 섞이지 않는다.
+     *
+     * @return 전표 유형별 CONFIRMED 시더 전표번호 집합
+     */
+    static Map<SlipType, List<String>> confirmedSeedSlipNosByType() {
+        Map<SequenceKey, Integer> seqByDateType = new HashMap<>();
+        Map<SlipType, List<String>> result = new EnumMap<>(SlipType.class);
+        for (SlipSpec spec : buildSpecs()) {
+            LocalDate slipDate = computeSlipDate(spec.idx());
+            int seqNo = seqByDateType.merge(new SequenceKey(slipDate, spec.type()), 1, Integer::sum);
+            if (spec.targetStatus() == SlipStatus.CONFIRMED) {
+                result.computeIfAbsent(spec.type(), ignored -> new ArrayList<>())
+                        .add(formatSlipNo(slipDate, seqNo));
+            }
+        }
+        result.replaceAll((type, slipNos) -> Collections.unmodifiableList(slipNos));
+        return Collections.unmodifiableMap(result);
     }
 
     /** "yyyy/MM/dd-N" 포맷. SlipNumberSequence 미경유 — 시드 결정적 채번. */
