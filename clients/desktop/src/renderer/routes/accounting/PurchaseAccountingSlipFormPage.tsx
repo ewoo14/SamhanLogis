@@ -15,7 +15,8 @@ import {
 import type { SalesTaxType } from '../../api/salesAccountingSlipApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { today } from '../../utils/dateUtils'
-import { formatVatAmount, splitVatInclusiveFromQtyUnitPrice } from '../../utils/vatRounding'
+import { splitVatInclusiveFromQtyUnitPrice } from '../../utils/vatRounding'
+import { fmtKrw } from '../../utils/currencyUtils'
 
 const inputStyle: CSSProperties = {
   height: 32,
@@ -150,9 +151,9 @@ export function PurchaseAccountingSlipFormPage() {
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div>
-            <div>공급가 {formatVatAmount(totalSupply)}</div>
-            <div>부가세 {formatVatAmount(totalVat)}</div>
-            <strong>합계 {formatVatAmount(totalAmount)}</strong>
+            <div>공급가 {fmtKrw(String(totalSupply))}</div>
+            <div>부가세 {fmtKrw(String(totalVat))}</div>
+            <strong>합계 {fmtKrw(String(totalAmount))}</strong>
           </div>
           <Button
             variant="primary"
