@@ -106,7 +106,8 @@ public class StockInstanceController {
                         request.inboundType(),
                         request.inboundSlipNo(),
                         request.unitCost(),
-                        request.receivedAt())
+                        request.receivedAt(),
+                        request.sourceContext())
                 .stream()
                 .map(StockInstanceResponse::from)
                 .toList();
@@ -155,7 +156,8 @@ public class StockInstanceController {
                         request.outboundSlipNo(),
                         request.productCode(),
                         request.partnerCode(),
-                        request.outboundAt())
+                        request.outboundAt(),
+                        request.sourceContext())
                 .stream()
                 .map(StockInstanceResponse::from)
                 .toList();

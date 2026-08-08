@@ -6,6 +6,7 @@ import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
+import com.samhanair.logis.inventory.domain.SourceOperationOutcome;
 import com.samhanair.logis.inventory.repository.StockInstanceRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -47,6 +48,8 @@ public class StockInstanceService {
 
     private final StockInstanceRepository repo;
     private final ProductClient productClient;
+
+    private final SourceOperationJournalWriter sourceJournalWriter;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -106,8 +109,18 @@ public class StockInstanceService {
     public List<StockInstance> inboundBatch(UUID productId, String productCode, UUID warehouseId,
                                             int quantity, String inboundType, String inboundSlipNo,
                                             BigDecimal unitCost, LocalDateTime receivedAt) {
+        return inboundBatch(productId, productCode, warehouseId, quantity, inboundType, inboundSlipNo,
+                unitCost, receivedAt, null);
+    }
+
+    @Transactional
+    public List<StockInstance> inboundBatch(UUID productId, String productCode, UUID warehouseId,
+                                            int quantity, String inboundType, String inboundSlipNo,
+                                            BigDecimal unitCost, LocalDateTime receivedAt,
+                                            com.samhanair.logis.inventory.web.dto.SourceOperationContext sourceContext) {
         ProductSummary product = productClient.requireExists(productId);
         if (isInventoryExcluded(product)) {
+            recordSource(sourceContext, product, SourceOperationOutcome.NO_OP_EXCLUDED, List.of(), List.of());
             return List.of(); // 비상품/세트 SKU — 시리얼 인스턴스 미생성 no-op skip
         }
         if (!product.serialManaged()) {
@@ -119,6 +132,7 @@ public class StockInstanceService {
         long existingCount = repo.countByInboundSlipAndProduct(inboundSlipNo, productId);
         List<StockInstance> existing = repo.findByInboundSlipAndProduct(inboundSlipNo, productId);
         if (existingCount >= quantity) {
+            recordSource(sourceContext, product, SourceOperationOutcome.NO_OP_EXISTING, List.of(), List.of());
             return existing;
         }
         int deficit = quantity - Math.toIntExact(existingCount);
@@ -133,6 +147,8 @@ public class StockInstanceService {
         List<StockInstance> result = new ArrayList<>(existing.size() + saved.size());
         result.addAll(existing);
         result.addAll(saved);
+        recordSource(sourceContext, product, SourceOperationOutcome.APPLIED, List.of(),
+                saved.stream().map(StockInstance::getId).filter(java.util.Objects::nonNull).toList());
         return result;
     }
 
@@ -192,6 +208,13 @@ public class StockInstanceService {
     @Transactional
     public List<StockInstance> shipBatch(String outboundSlipNo, String productCode,
                                          String partnerCode, LocalDateTime outboundAt) {
+        return shipBatch(outboundSlipNo, productCode, partnerCode, outboundAt, null);
+    }
+
+    @Transactional
+    public List<StockInstance> shipBatch(String outboundSlipNo, String productCode,
+                                         String partnerCode, LocalDateTime outboundAt,
+                                         com.samhanair.logis.inventory.web.dto.SourceOperationContext sourceContext) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
         List<StockInstance> reserved = product == null
                 ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
@@ -200,10 +223,19 @@ public class StockInstanceService {
         for (StockInstance instance : reserved) {
             instance.ship(partnerCode, outboundSlipNo, outboundAt);
         }
+        recordSource(sourceContext, product,
+                reserved.isEmpty() ? SourceOperationOutcome.NO_OP_EXISTING : SourceOperationOutcome.APPLIED,
+                List.of(), List.of());
         return product == null
                 ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
                         outboundSlipNo, productCode, StockInstanceStatus.SHIPPED)
                 : findBySlipAndStatus(outboundSlipNo, product, productCode, StockInstanceStatus.SHIPPED);
+    }
+
+    private void recordSource(com.samhanair.logis.inventory.web.dto.SourceOperationContext context,
+                              ProductSummary product, SourceOperationOutcome outcome,
+                              List<UUID> createdLotIds, List<UUID> createdInstanceIds) {
+        sourceJournalWriter.record(context, product, outcome, createdLotIds, createdInstanceIds);
     }
 
     /**

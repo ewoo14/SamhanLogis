@@ -19,5 +19,8 @@ public record ShipBatchInstanceRequest(
         String partnerCode,
 
         /** 출고일시 — null 이면 도메인에서 서버 기준 now() 사용 */
-        LocalDateTime outboundAt) {
+        LocalDateTime outboundAt,
+
+        /** source journal 연결 정보(기존 호출은 생략 가능) */
+        SourceOperationContext sourceContext) {
 }

@@ -57,6 +57,7 @@ class StockServiceTest {
     @Mock private StockMovementRepository stockMovementRepository;
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private ProductClient productClient;
+    @Mock private SourceOperationJournalWriter sourceJournalWriter;
 
     @InjectMocks
     private StockService service;
@@ -101,6 +102,7 @@ class StockServiceTest {
         assertThat(response.quantity()).isEqualTo(50);
         assertThat(response.warehouseCode()).isEqualTo("HQ-001");
         verify(stockMovementRepository).save(any(StockMovement.class));
+        verify(sourceJournalWriter).record(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -120,6 +122,7 @@ class StockServiceTest {
         verify(stockBalanceRepository, never()).findByProductIdAndWarehouse_IdAndIsDeletedFalse(
                 productId, warehouseId);
         verify(stockMovementRepository, never()).save(any(StockMovement.class));
+        verify(sourceJournalWriter).record(any(), any(), any(), any(), any());
     }
 
     @Test

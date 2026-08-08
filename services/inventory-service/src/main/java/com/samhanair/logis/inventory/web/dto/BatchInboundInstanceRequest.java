@@ -41,5 +41,8 @@ public record BatchInboundInstanceRequest(
         BigDecimal unitCost,
 
         /** 입고일시 — null 이면 서버 기준 now() 사용 */
-        LocalDateTime receivedAt) {
+        LocalDateTime receivedAt,
+
+        /** source journal 연결 정보(기존 호출은 생략 가능) */
+        SourceOperationContext sourceContext) {
 }
