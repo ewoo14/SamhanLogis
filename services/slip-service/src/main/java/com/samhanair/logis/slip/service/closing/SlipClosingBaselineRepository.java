@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SlipClosingBaselineRepository extends JpaRepository<SlipClosingBaseline, UUID> {
     Optional<SlipClosingBaseline> findBySlipTypeAndIsDeletedFalse(SlipType slipType);
+
+    java.util.List<SlipClosingBaseline> findAllByIsDeletedFalseOrderBySlipTypeAsc();
 }

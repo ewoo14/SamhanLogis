@@ -188,6 +188,8 @@ public enum PageCode {
     SALES_SLIP_CREATE("sales.slip.create", "매출 전표 생성"),
     /** 마감된 전표일 예외 생성 권한 — 기본 MASTER/MANAGER, 권한 설정에서 동적 조절. */
     SLIP_CLOSED_DATE_EXCEPTION("slip.closed-date-exception", "마감 전표일 예외 생성"),
+    /** 전표 종류별 마감 기준선 관리자 API. */
+    SLIP_CLOSED_DATE_ADMIN("slip.closed-date-admin", "전표 마감 기준선 관리"),
 
     /** 매출 전표 수정/저장/전송 API — SP-D6-6. */
     SALES_SLIP_EDIT("sales.slip.edit", "매출 전표 수정"),

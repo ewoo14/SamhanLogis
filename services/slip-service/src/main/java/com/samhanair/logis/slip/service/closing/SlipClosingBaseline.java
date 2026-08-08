@@ -47,4 +47,9 @@ public class SlipClosingBaseline extends BaseEntity {
     public static SlipClosingBaseline active(SlipType slipType, LocalDate baselineDate, boolean enabled) {
         return new SlipClosingBaseline(slipType, baselineDate, enabled);
     }
+
+    public void configure(LocalDate baselineDate) {
+        this.baselineDate = baselineDate;
+        this.enabled = true;
+    }
 }
