@@ -99,12 +99,40 @@ $databaseByService = @{
     'slip-service' = 'slip_db'
     'user-service' = 'user_db'
 }
-$targetDefinitions = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'services') -Directory | ForEach-Object {
-    $location = Join-Path $_.FullName 'src/main/resources/db/migration'
-    if ($databaseByService.ContainsKey($_.Name) -and (Test-Path -LiteralPath $location -PathType Container)) {
-        ,@($_.Name, $databaseByService[$_.Name], $location)
+$targetDefinitions = @()
+$discoveryIssues = @()
+foreach ($serviceDirectory in (Get-ChildItem -LiteralPath (Join-Path $repoRoot 'services') -Directory)) {
+    $location = Join-Path $serviceDirectory.FullName 'src/main/resources/db/migration'
+    if (-not $databaseByService.ContainsKey($serviceDirectory.Name)) {
+        if (Test-Path -LiteralPath $location -PathType Container) {
+            $discoveryIssues += [pscustomobject]@{
+                Name = $serviceDirectory.Name
+                Reason = 'no database mapping'
+                Location = $location
+            }
+        }
+        continue
     }
-})
+    if (-not (Test-Path -LiteralPath $location -PathType Container)) {
+        $discoveryIssues += [pscustomobject]@{
+            Name = $serviceDirectory.Name
+            Reason = 'migration directory not found'
+            Location = $location
+        }
+        continue
+    }
+    $targetDefinitions += ,@($serviceDirectory.Name, $databaseByService[$serviceDirectory.Name], $location)
+}
+$relevantDiscoveryIssues = @($discoveryIssues | Where-Object { -not $Service -or $_.Name -eq $Service })
+foreach ($issue in $relevantDiscoveryIssues) {
+    Write-Output "Service omitted from Flyway repair targets: $($issue.Name) ($($issue.Reason)): $($issue.Location)"
+}
+if ($relevantDiscoveryIssues.Count -gt 0) {
+    $issueSummary = $relevantDiscoveryIssues | ForEach-Object {
+        "$($_.Name) ($($_.Reason)): $($_.Location)"
+    }
+    throw "Service discovery failed; resolve the omitted service(s) before running Flyway repair.`n$($issueSummary -join [Environment]::NewLine)"
+}
 $targets = @($targetDefinitions | Where-Object { -not $Service -or $_[0] -eq $Service } | ForEach-Object {
     [pscustomobject]@{ Name = $_[0]; Database = $_[1]; Location = $_[2] }
 })

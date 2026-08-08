@@ -10,6 +10,13 @@ $fakeDocker = Join-Path $fakeBin 'docker.cmd'
 $dockerArgsLog = Join-Path $fixtureRoot 'docker-args.log'
 $modeFile = Join-Path $fixtureRoot 'mode.txt'
 $secret = 'test-' + [guid]::NewGuid().ToString('N')
+$normalFixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("flyway-repair-normal-test-" + [guid]::NewGuid().ToString('N'))
+$normalServices = @(
+    'accounting-service', 'arologis-service', 'auth-service', 'dashboard-service',
+    'dc-config-service', 'groupware-service', 'inventory-service', 'notification-service',
+    'partner-auth-service', 'partner-order-service', 'partner-service', 'product-service',
+    'slip-service', 'user-service'
+)
 
 try {
     New-Item -ItemType Directory -Path $fakeBin -Force | Out-Null
@@ -17,8 +24,14 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/auth-service/src/main/resources/db/migration') -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/arologis-service/src/main/resources/db/migration') -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/new-service/src/main/resources/db/migration') -Force | Out-Null
-    New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/no-migration-service/src/main/resources') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/dashboard-service/src/main/resources') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $normalFixtureRoot 'infrastructure') -Force | Out-Null
+    foreach ($normalService in $normalServices) {
+        New-Item -ItemType Directory -Path (Join-Path $normalFixtureRoot "services/$normalService/src/main/resources/db/migration") -Force | Out-Null
+    }
+    New-Item -ItemType Directory -Path (Join-Path $normalFixtureRoot 'services/api-gateway') -Force | Out-Null
     Set-Content -LiteralPath (Join-Path $fixtureRoot 'infrastructure/.env') -Value "POSTGRES_USER=samhan`nPOSTGRES_PASSWORD=$secret`n" -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $normalFixtureRoot 'infrastructure/.env') -Value "POSTGRES_USER=samhan`nPOSTGRES_PASSWORD=$secret`n" -Encoding UTF8
     $composeJsonPath = ((Join-Path $fixtureRoot 'infrastructure') -replace '\\', '/')
     Set-Content -LiteralPath $fakeDocker -Value @"
 @echo off
@@ -88,7 +101,7 @@ exit /b 1
         $envFileArg = [regex]::Match($args, '--env-file\s+([^\s]+)').Groups[1].Value
         if ($envFileArg -and (Test-Path -LiteralPath $envFileArg)) { throw "temporary credential file was not removed after failure: $envFileArg" }
 
-        Remove-Item -LiteralPath $dockerArgsLog -Force
+        if (Test-Path -LiteralPath $dockerArgsLog) { Remove-Item -LiteralPath $dockerArgsLog -Force }
         Set-Content -LiteralPath $modeFile -Value 'checksum-mismatch' -NoNewline -Encoding ASCII
         $preview = @(& $script -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service 'auth-service' -PostgresContainer 'unused' -WhatIf 2>&1)
         $LASTEXITCODE = 0
@@ -143,16 +156,25 @@ exit /b 1
         if ($source -match '\$\(_\.Name -replace') { throw 'legacy service-derived database calculation remains' }
 
         Remove-Item -LiteralPath $dockerArgsLog -Force
-        Set-Content -LiteralPath $modeFile -Value 'repair-success' -NoNewline -Encoding ASCII
-        try { $newService = @(& $script -RepoPath $fixtureRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service new-service -PostgresContainer 'unused' -DockerCommand $fakeDocker -WhatIf 2>&1) } catch { $newService = @($_) }
-        $newServiceText = $newService -join "`n"
-        if ($newServiceText -notmatch 'Unknown service target|new-service') { throw "unmapped service was not rejected fail-closed: $newServiceText" }
-        try {
-            $noMigration = @(& $script -RepoPath $fixtureRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service no-migration-service -PostgresContainer 'unused' -DockerCommand $fakeDocker -WhatIf 2>&1)
-        } catch {
-            $noMigration = @($_)
-        }
-        if (($noMigration -join "`n") -notmatch 'Unknown service target') { throw "service without migrations was not excluded: $($noMigration -join "`n")" }
+        Set-Content -LiteralPath $modeFile -Value 'checksum-mismatch' -NoNewline -Encoding ASCII
+        try { $omissionGuard = @(& $script -RepoPath $fixtureRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -PostgresContainer 'unused' -DockerCommand $fakeDocker -WhatIf 2>&1) } catch { $omissionGuard = @($_) }
+        $omissionText = $omissionGuard -join "`n"
+        $omissionFailure = @()
+        if ($omissionText -notmatch 'new-service.*(?:unmapped|no database mapping)|(?:unmapped|no database mapping).*new-service') { $omissionFailure += "unmapped service omission was not diagnosed: $omissionText" }
+        if ($omissionText -notmatch 'dashboard-service.*migration|migration.*dashboard-service') { $omissionFailure += "missing migration directory omission was not diagnosed: $omissionText" }
+        Write-Output "RED-A raw output:`n$omissionText"
+
+        try { $explicitUnmapped = @(& $script -RepoPath $fixtureRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service new-service -PostgresContainer 'unused' -DockerCommand $fakeDocker -WhatIf 2>&1) } catch { $explicitUnmapped = @($_) }
+        if (($explicitUnmapped -join "`n") -notmatch 'new-service.*no database mapping') { throw "explicit unmapped service was not diagnosed: $($explicitUnmapped -join "`n")" }
+        try { $explicitMissing = @(& $script -RepoPath $fixtureRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service dashboard-service -PostgresContainer 'unused' -DockerCommand $fakeDocker -WhatIf 2>&1) } catch { $explicitMissing = @($_) }
+        if (($explicitMissing -join "`n") -notmatch 'dashboard-service.*migration directory not found') { throw "explicit missing migration directory was not diagnosed: $($explicitMissing -join "`n")" }
+
+        if (Test-Path -LiteralPath $dockerArgsLog) { Remove-Item -LiteralPath $dockerArgsLog -Force }
+        $normalRun = @(& $script -RepoPath $normalFixtureRoot -EnvFile (Join-Path $normalFixtureRoot 'infrastructure/.env') -PostgresContainer 'unused' -DockerCommand $fakeDocker -WhatIf 2>&1)
+        if ($LASTEXITCODE -ne 0) { throw "14-service normal execution failed with exit code $LASTEXITCODE`: $($normalRun -join "`n")" }
+        if (($normalRun -join "`n") -notmatch 'accounting-service|user-service') { throw "14-service normal execution did not process expected targets: $($normalRun -join "`n")" }
+        Write-Output "RED-B raw output:`n$($normalRun -join "`n")"
+        if ($omissionFailure.Count -gt 0) { throw ($omissionFailure -join "`n") }
 
         $source = Get-Content -LiteralPath $script -Raw -Encoding UTF8
         if ($source -notmatch "common \+ @\('repair'\)") { throw 'repair command path was removed' }
@@ -164,4 +186,5 @@ exit /b 1
     }
 } finally {
     if (Test-Path -LiteralPath $fixtureRoot) { Remove-Item -LiteralPath $fixtureRoot -Recurse -Force }
+    if (Test-Path -LiteralPath $normalFixtureRoot) { Remove-Item -LiteralPath $normalFixtureRoot -Recurse -Force }
 }
