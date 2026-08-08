@@ -1,0 +1,6 @@
+457116d968bbd55e8d2267f7ceb4c1ed36fd7892f851d16dc0b5884cb2a6afd4  golden/01-catalog-and-categories.json
+c8f85e9320722c75f4800ef914cd1b86856cbf32e6ba512acb1f0e475615da97  golden/02-set-expansion.json
+04406c58181addd354ccdf17a4db3dc05bc7813eb9122a657a65aa99e89460e3  golden/03-options-features-defaults.json
+313de591afddc779799a8460fc92f832d8f33da22099c4d83360eeeaa3086db9  golden/04-quantity-derived.json
+f8309be614b67f0b13df07b0d87b4017cfaf0b8441c069713afad07edc9d47e8  golden/05-price-scenarios.json
+b09c30363fea710439a08c6ca25f3bedde20bba1781f079657ca7f8135938fd9  golden/06-toggle-off-on.json

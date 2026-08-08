@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.OptimisticLockException;
@@ -126,5 +127,17 @@ class GlobalExceptionHandlerTest {
                 .doesNotContain("to")
                 .doesNotContain("not-a-date")
                 .doesNotContain("LocalDate");
+    }
+
+    @Test
+    void handleBusiness_preservesCombinedGateGuidanceIn409Response() {
+        String message = "REGION 당일 마감(12:00) 초과 — 익일 출고로 생성하세요";
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleBusiness(
+                new BusinessException(ErrorCode.CONFLICT, message));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage()).isEqualTo(message);
     }
 }

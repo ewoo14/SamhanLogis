@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.domain.CompensationPhase;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -139,6 +140,8 @@ public class SlipService {
     private final PartnerProductPriceMemoryService priceMemoryService;
     /** 출고전표 배송태그별 마감 시각 게이트 — 생성 6경로 + editHeader 2경로. */
     private final OutboundCutoffGuard cutoffGuard;
+    /** 신규 전표의 (종류, 전표일) 날짜 마감 게이트. 배송태그 시각 게이트와 분리한다. */
+    private final SlipClosedDateGuard closedDateGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
     private final DispatchGroupSlipReferenceGuard dispatchGroupSlipReferenceGuard;
@@ -264,6 +267,7 @@ public class SlipService {
 
         // 2. 채번 (slipDate null 이면 today)
         LocalDate slipDate = req.slipDate() == null ? LocalDate.now(clock) : req.slipDate();
+        closedDateGuard.assertCreatable(req.slipType(), slipDate, requesterId);
         String slipNo = slipNumberService.next(slipDate, req.slipType());
         int seqNo = slipNumberService.extractSeqNo(slipNo);
 
@@ -276,7 +280,8 @@ public class SlipService {
                     req.deliveryTag(), req.memo(), requesterId);
             // [게이트①] 출고전표 수동 생성 마감 게이트 — createOutbound 직후, save 직전.
             // 태그 null(미지정) 이면 assertWithinCutoff 내부에서 즉시 통과(opt-in).
-            cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+            cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate(),
+                    req.slipType(), requesterId);
         } else {
             slip = Slip.createInbound(slipNo, slipDate, seqNo,
                     req.destinationWarehouseId(),
@@ -389,6 +394,7 @@ public class SlipService {
     public SlipDetailResponse editHeader(UUID id, EditHeaderRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // [게이트⑦] 배송태그 확정(신규/변경) 마감 게이트 — applyMutation 직전.
         // 태그 미변경(memo/driver만 수정) 또는 null 보존 경우는 게이트 미적용.
         DeliveryTag incomingTag = req.deliveryTag();
@@ -439,6 +445,7 @@ public class SlipService {
     public SlipDetailResponse editDriver(UUID id, UpdateSlipDriverRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(() -> slip.editHeader(null, null, null, null,
                 req.driverName(), req.driverPhone()));
         // 권한 재편 Phase 2.1 — 기사 정보 변경(driverName/driverPhone 은 toSnapshot 필드)도 버전이력에
@@ -469,6 +476,7 @@ public class SlipService {
     public SlipDetailResponse updateSlip(UUID id, UpdateSlipRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // [게이트⑧] 배치 헤더 수정 — 배송태그 신규/변경 시 마감 게이트 적용.
         // 태그 미변경(memo/driver/partnerName 등만 수정) 또는 null 보존 경우는 게이트 미적용.
         DeliveryTag incomingTagBatch = req.deliveryTag();
@@ -546,6 +554,7 @@ public class SlipService {
     public SlipDetailResponse applyOverlayPatch(UUID id, String fieldName, String newValue,
                                                 String callerId, String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // PR-H3 — 사용자 명시 잠금 정책 가드 (status 별 분기, APPROVED 1회 소진)
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
         String oldValue = slip.readOverlayField(fieldName);
@@ -602,6 +611,7 @@ public class SlipService {
         // 편집 화면이 아니라 실제 저장 구간만 행 잠금으로 직렬화한다. 잠금 획득 후 최신
         // 필드값을 baseline 과 비교하므로 서로 다른 필드는 JPA @Version 충돌 없이 병합된다.
         Slip slip = loadOrThrowForCollabUpdate(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // 협업 수락 전용 가드 — 물리 종결(배송중/배송완료/취소/반려) 만 차단, APPROVED 소진 불요
         guardCollabModifiable(slip);
         // 전역 revision 잠금이 아니라 필드별 baseline 을 검증한다. 따라서 같은 필드의 stale
@@ -651,6 +661,7 @@ public class SlipService {
      */
     public void softDelete(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
         dispatchGroupSlipReferenceGuard.assertDeletable(id);
         applyMutation(() -> slip.markDeleted(callerId == null ? "system" : callerId));
@@ -684,6 +695,7 @@ public class SlipService {
     public SlipDetailResponse restoreToRevision(UUID slipId, int revisionNo,
                                                 String callerId, String callerName) {
         Slip slip = loadOrThrow(slipId);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // status 별 마감 정책 가드 (applyOverlayPatch/softDelete 와 동일 정책)
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
         // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
@@ -834,6 +846,7 @@ public class SlipService {
     public SlipDetailResponse addLine(UUID id, AddLineRequest req, String callerId,
                                       String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         slip.requireEditable();
         ProductSummary summary = productClient.requireExists(req.productId());
         // 에픽 후속 #2 — 기존 전표 라인추가도 create 경로와 동일 전개 엔진 사용.
@@ -865,6 +878,7 @@ public class SlipService {
      */
     public void removeLine(UUID id, UUID lineId, String callerId, String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         slip.requireEditable();
         SlipLine line = slip.getLines().stream()
                 .filter(l -> l.getId() != null && l.getId().equals(lineId))
@@ -880,13 +894,19 @@ public class SlipService {
     /** 작성중 → 저장완료. */
     public SlipDetailResponse save(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::save);
         return SlipDetailResponse.from(slip);
     }
 
     /** 저장완료 → 전송완료. */
     public SlipDetailResponse send(UUID id) {
+        return send(id, null);
+    }
+
+    public SlipDetailResponse send(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(() -> {
             slip.send();
             if (slip.getSlipType() != SlipType.OUTBOUND) {
@@ -904,6 +924,7 @@ public class SlipService {
      */
     public SlipDetailResponse accept(UUID id, String acceptorUserId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), acceptorUserId);
         enforceSlipApprovalLine(slip, acceptorUserId, approvalGateForAccept(slip.getSlipType()));
         applyMutation(() -> slip.accept(acceptorUserId));
         if (slip.getSlipType() == SlipType.OUTBOUND) {
@@ -944,7 +965,12 @@ public class SlipService {
 
     /** 수락 → 처리중. */
     public SlipDetailResponse process(UUID id) {
+        return process(id, null);
+    }
+
+    public SlipDetailResponse process(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::process);
         return SlipDetailResponse.from(slip);
     }
@@ -965,6 +991,7 @@ public class SlipService {
     public SlipDetailResponse inspect(UUID id, String inspectorUserId) {
         Slip slip = loadOrThrow(id);
         enforceSlipApprovalLine(slip, inspectorUserId, approvalGateForInspect(slip.getSlipType()));
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), inspectorUserId);
         applyMutation(() -> {
             slip.inspect(inspectorUserId);
             if (slip.getSlipType() == SlipType.OUTBOUND) {
@@ -1107,7 +1134,12 @@ public class SlipService {
      * @throws BusinessException(INTERNAL_ERROR) inventory-service 호출 실패
      */
     public SlipDetailResponse complete(UUID id) {
+        return complete(id, null);
+    }
+
+    public SlipDetailResponse complete(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::complete);
         if (slip.getSlipType() == SlipType.OUTBOUND) {
             Map<UUID, ProductSummary> productsById = loadProductsByLine(slip);
@@ -1341,14 +1373,24 @@ public class SlipService {
 
     /** 처리완료 → 배송중 (OUTBOUND 한정). */
     public SlipDetailResponse ship(UUID id) {
+        return ship(id, null);
+    }
+
+    public SlipDetailResponse ship(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::ship);
         return SlipDetailResponse.from(slip);
     }
 
     /** 배송중 → 배송완료 (OUTBOUND 한정). */
     public SlipDetailResponse deliver(UUID id) {
+        return deliver(id, null);
+    }
+
+    public SlipDetailResponse deliver(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::deliver);
         return SlipDetailResponse.from(slip);
     }
@@ -1356,6 +1398,7 @@ public class SlipService {
     /** 확정 — 출고는 DELIVERED→CONFIRMED, 입고는 COMPLETED→CONFIRMED. */
     public SlipDetailResponse confirm(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::confirm);
         return SlipDetailResponse.from(slip);
     }
@@ -1374,6 +1417,7 @@ public class SlipService {
      */
     public SlipDetailResponse reject(UUID id, String callerId, String callerName, String reasonText) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         SlipStatus previous = slip.getStatus();
         // 권한 재편 Phase 2.1 — 반려 사유 prepend 로 memo(toSnapshot 필드) 변경 여부 감지용 사전 snapshot
         String oldMemo = slip.getMemo();
@@ -1416,6 +1460,7 @@ public class SlipService {
      */
     public SlipDetailResponse cancel(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         SlipStatus previous = slip.getStatus();
         applyMutation(slip::cancel);
         if (previous == SlipStatus.ACCEPTED && slip.getSlipType() == SlipType.OUTBOUND) {

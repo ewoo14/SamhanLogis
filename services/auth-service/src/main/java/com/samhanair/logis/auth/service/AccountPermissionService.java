@@ -6,11 +6,13 @@ import com.samhanair.logis.auth.domain.AccountPagePermission;
 import com.samhanair.logis.auth.domain.AccountPermissionOverride;
 import com.samhanair.logis.auth.domain.GroupPagePermission;
 import com.samhanair.logis.auth.domain.PageCode;
+import com.samhanair.logis.auth.domain.PermissionGroup;
 import com.samhanair.logis.auth.domain.RolePagePermissionTemplate;
 import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountPagePermissionRepository;
 import com.samhanair.logis.auth.repository.AccountPermissionOverrideRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
+import com.samhanair.logis.auth.repository.PermissionGroupRepository;
 import com.samhanair.logis.auth.repository.RolePagePermissionTemplateRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -19,6 +21,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +43,7 @@ public class AccountPermissionService {
     private final AccountRepository accountRepository;
     /** C5-5: listAccounts role 파생을 위한 그룹 배속 저장소. */
     private final AccountGroupRepository accountGroupRepository;
+    private final PermissionGroupRepository permissionGroupRepository;
     private final EffectivePermissionMaterializer materializer;
 
     /**
@@ -55,9 +59,24 @@ public class AccountPermissionService {
         if (accountId == null || pageCode == null || pageCode.isBlank() || action == null) {
             return false;
         }
+        if (isSystemMaster(accountId)) {
+            return true;
+        }
         return accountPermissionRepository.findByAccountIdAndPageCode(accountId, pageCode)
                 .map(permission -> permission.allows(action))
                 .orElse(false);
+    }
+
+    /**
+     * MASTER 는 materializer 가 캐시 행을 만들지 않는 시스템 그룹 bypass 계정이다.
+     * 내부 권한 조회도 같은 의미를 사용해야 seed 의 MASTER 선언과 enforcement 가 어긋나지 않는다.
+     */
+    private boolean isSystemMaster(UUID accountId) {
+        return accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(accountId).stream()
+                .map(AccountGroup::getGroupId)
+                .map(permissionGroupRepository::findByIdAndIsDeletedFalse)
+                .flatMap(Optional::stream)
+                .anyMatch(PermissionGroup::isSystemMaster);
     }
 
     /**
