@@ -19,6 +19,7 @@ import com.samhanair.logis.product.domain.Classification;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.ProductLineage;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
@@ -39,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +49,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.transaction.annotation.Propagation;
@@ -90,6 +94,12 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Autowired
     private PriceHistoryRepository priceHistoryRepository;
@@ -228,6 +238,36 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(thirdHomeTab.nameDrift).isEqualTo(1);
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("NAME_DRIFT_MODEL").orElseThrow()
                 .getName()).isEqualTo("DB authoritative name");
+    }
+
+    @Test
+    void sync_동일한_값이어도_ECOUNT_승격은_updated로_판정하고_시트_정본을_적용한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "구분", "단위", "출고가", "비고", "납품가", "세트", "구성품특징", "규격"),
+                row("시트 정본 이름", "", "ECOUNT_PROMOTION_MODEL", "", "EA", "1,000,000", "", "900,000", "", "", "")
+        ));
+
+        syncService.syncAll();
+        Product inserted = productRepository.findByModelCodeAndIsDeletedFalse("ECOUNT_PROMOTION_MODEL")
+                .orElseThrow();
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET lineage = 'ECOUNT', product_category = NULL, usage_scope = 'NONE'
+                 WHERE id = ?
+                """, inserted.getId());
+        entityManager.clear();
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        ProductSheetSyncService.TabSyncResult componentTab = summary.byTab.get("싱글 구성품");
+        assertThat(componentTab.updated).isEqualTo(1);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("ECOUNT_PROMOTION_MODEL")).get()
+                .satisfies(product -> {
+                    assertThat(product.getLineage()).isEqualTo(ProductLineage.SHEET);
+                    assertThat(product.getProductCategory()).isEqualTo(ProductCategory.SINGLE_PART);
+                    assertThat(product.getName()).isEqualTo("시트 정본 이름");
+                });
     }
 
     /**

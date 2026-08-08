@@ -35,6 +35,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.hibernate.engine.spi.EntityEntry;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -59,9 +63,9 @@ import org.springframework.transaction.annotation.Transactional;
  *     <li>구형 → OLD, BOTH</li>
  * </ul>
  *
- * <p><b>변경 감지</b> — 시트 row 와 현재 DB Product 상태를 직접 비교해 변경 시에만 update 한다.
- * 신규 row = insert. DB 에 있으나 시트에 없는 row = soft delete (deletedAt 설정).
- * 시트 재현 시 복구.
+ * <p><b>변경 감지</b> — 기존 row 에 writer를 적용한 뒤 Hibernate 영속 메타데이터의 dirty 판정으로
+ * 실제 Product 변경 여부를 계산한다. 신규 row = insert. DB 에 있으나 시트에 없는 row = soft delete
+ * (deletedAt 설정). 시트 재현 시 복구.
  *
  * <p><b>트랜잭션</b>: 시트 1 tab 씩 별도 트랜잭션 — 1 tab 실패가 전체 sync 무효화 방지.
  * row 단위 실패는 catch + log + skip (sync continuity 우선).
@@ -168,6 +172,9 @@ public class ProductSheetSyncService {
     private final QuantitySyncRuleService quantitySyncRuleService;
     private final EcountAliasReservationService ecountAliasReservationService;
     private final ProductSheetSyncService self;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public ProductSheetSyncService(GoogleSheetsClient sheetsClient,
                                    ProductRepository productRepository,
@@ -1290,10 +1297,9 @@ public class ProductSheetSyncService {
                             mapping.tabName, modelCode);
                 }
             }
-            if (existing.isPresent() && !isProductRowUnchanged(existing.get(), mapping, name, cells,
-                    releasePrice, deliveryPrice, hasVariableDiscount, materialKey,
-                    legacyDiscount, fixedRate, discountFlags, classifications)) {
+            if (existing.isPresent()) {
                 Product p = existing.get();
+                ProductMutationSnapshot before = ProductMutationSnapshot.capture(entityManager, p);
                 p.changePrices(releasePrice, deliveryPrice);
                 // ECOUNT-first 행은 최초 생성 시 productCategory/usageScope가 비어 있다.
                 // 시트에 같은 modelCode가 등장한 순간 시트를 정본으로 채택하고, 아래의
@@ -1358,19 +1364,9 @@ public class ProductSheetSyncService {
                 upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                 productId = p.getId();
                 productForExposure = p;
-                result.updated++;
-            } else if (existing.isPresent()) {
-                Product p = existing.get();
-                if (p.getProductCategory() == mapping.productCategory && applyAttributes(p, name, modelCode)) {
-                    productRepository.save(p);
-                    productId = p.getId();
-                    productForExposure = p;
-                    upsertPriceHistory(productId, PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
+                if (before.changed()) {
                     result.updated++;
                 } else {
-                    productId = p.getId();
-                    productForExposure = p;
-                    upsertPriceHistory(productId, PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                     result.unchanged++;
                 }
             }
@@ -1453,62 +1449,42 @@ public class ProductSheetSyncService {
     }
 
     /**
-     * 시트가 관리하는 현재 Product 상태를 DB 엔티티와 직접 비교한다.
-     * JVM 상태를 기억하지 않으므로 커밋되지 않은 row가 다음 실행에서 unchanged가 될 수 없다.
+     * 기존 Product writer를 모두 적용한 뒤 Hibernate 영속 메타데이터로 실제 dirty 여부를 묻는다.
+     *
+     * <p>속성 목록을 이 서비스가 복제하지 않는다. Hibernate가 {@code Product}의 JPA 매핑에서
+     * property 배열을 만들고 dirty 비교를 수행하므로, writer에 새 영속 필드를 추가해도 판정기가
+     * 별도 목록을 놓쳐 양방향 차집합을 만들 수 없다. 이 스냅샷은 현재 트랜잭션의 DB 로딩 상태를
+     * 복사하므로 롤백된 변경은 다음 실행에서 다시 원래 DB 값과 비교된다.
      */
-    private boolean isProductRowUnchanged(Product product,
-                                           SheetTabMapping mapping,
-                                           String name,
-                                           List<String> cells,
-                                           BigDecimal releasePrice,
-                                           BigDecimal deliveryPrice,
-                                           boolean hasVariableDiscount,
-                                           MaterialKey materialKey,
-                                           boolean legacyDiscount,
-                                           BigDecimal fixedRate,
-                                           String discountFlags,
-                                           ClassificationSet classifications) {
-        if (!sameDecimal(product.getReleasePrice(), releasePrice)
-                || !sameDecimal(product.getDeliveryPrice(), deliveryPrice)
-                || !attributesMatch(product, name, product.getModelCode())
-                || (mapping.productCategory == ProductCategory.SINGLE_SET
-                        && sheetPyongSize(cells) != null
-                        && !sameDecimal(product.getPyongSize(), sheetPyongSize(cells)))) {
-            return false;
-        }
-        if (!product.isUsageScopeManual() && product.getUsageScope() != mapping.usageScope) {
-            return false;
-        }
-        if (!product.isVariableDiscountManual()
-                && (!Objects.equals(product.getHasVariableDiscount(), hasVariableDiscount)
-                        || !Objects.equals(product.getSetMaterialKey(), materialKey)
-                        || !Objects.equals(product.getLegacyDiscountFlag(), legacyDiscount)
-                        || !Objects.equals(product.getDiscountFlags(), discountFlags))) {
-            return false;
-        }
-        if (!product.isFixedDiscountManual() && !sameDecimal(product.getFixedDiscountRate(), fixedRate)) {
-            return false;
-        }
-        if (!product.isClassificationManual()
-                && (!sameClassification(product.getCatL(), classifications.catL())
-                        || !sameClassification(product.getCatM(), classifications.catM())
-                        || !sameClassification(product.getCatS(), classifications.catS()))) {
-            return false;
-        }
-        return true;
-    }
+    private static final class ProductMutationSnapshot {
+        private final EntityEntry entry;
+        private final SessionImplementor session;
+        private final Object[] loadedState;
+        private final Product product;
 
-    private boolean attributesMatch(Product product, String name, String modelCode) {
-        return Objects.equals(product.getPanelType(), attributeClassifier.classifyPanelType(name, modelCode))
-                && Objects.equals(product.getRemoteType(), attributeClassifier.classifyRemoteType(name));
-    }
+        private ProductMutationSnapshot(EntityEntry entry, SessionImplementor session,
+                                        Object[] loadedState, Product product) {
+            this.entry = entry;
+            this.session = session;
+            this.loadedState = loadedState;
+            this.product = product;
+        }
 
-    private static boolean sameDecimal(BigDecimal left, BigDecimal right) {
-        return left == null ? right == null : right != null && left.compareTo(right) == 0;
-    }
+        private static ProductMutationSnapshot capture(EntityManager entityManager, Product product) {
+            SessionImplementor session = entityManager.unwrap(SessionImplementor.class);
+            EntityEntry entry = session.getPersistenceContext().getEntry(product);
+            if (entry == null || entry.getLoadedState() == null) {
+                throw new IllegalStateException("Product must be a managed existing entity: " + product.getId());
+            }
+            return new ProductMutationSnapshot(entry, session, entry.getLoadedState().clone(), product);
+        }
 
-    private static boolean sameClassification(Classification left, Classification right) {
-        return left == null ? right == null : right != null && Objects.equals(left.getId(), right.getId());
+        private boolean changed() {
+            Object[] currentState = entry.getPersister().getPropertyValues(product);
+            int[] dirtyProperties = entry.getPersister().findDirty(
+                    currentState, loadedState, product, session);
+            return dirtyProperties != null && dirtyProperties.length > 0;
+        }
     }
 
     private boolean applyAttributes(Product product, String name, String modelCode) {
