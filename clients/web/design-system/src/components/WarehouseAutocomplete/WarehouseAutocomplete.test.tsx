@@ -35,7 +35,143 @@ function renderWarehouse(onChange = vi.fn()) {
   return { input, onChange }
 }
 
+function dispatchInput(input: HTMLInputElement, value: string, inputType: string) {
+  if (inputType === 'insertFromPaste') fireEvent.paste(input)
+  if (inputType === 'insertCompositionText') fireEvent.compositionStart(input)
+  if (inputType === 'insertReplacementText') {
+    // jsdom has no beforeinput helper; mark the replacement intent through the
+    // same pre-input user-intent boundary used by the browser paste path.
+    fireEvent.paste(input)
+  }
+  fireEvent.change(input, { target: { value } })
+}
+
 describe('WarehouseAutocomplete opaque option DOM contract', () => {
+  it('allows intentional keyboard input after auto-confirmation has settled', async () => {
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={warehouses}
+          value={value}
+          onChange={(next) => setValue(next)}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+
+    render(<ControlledWarehouse />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'H' } })
+    await waitFor(() => expect(input.value).toContain('HQ-001'))
+    await new Promise((resolve) => window.setTimeout(resolve, 120))
+    fireEvent.change(input, { target: { value: `${input.value}Q` } })
+
+    expect(input.value).toContain('Q')
+  })
+
+  it('allows paste replacement immediately after auto-confirmation', async () => {
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={warehouses}
+          value={value}
+          onChange={(next) => setValue(next)}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+
+    render(<ControlledWarehouse />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'H' } })
+    await waitFor(() => expect(input.value).toContain('HQ-001'))
+    dispatchInput(input, 'HQ-001 · 본사 창고VH', 'insertFromPaste')
+
+    expect(input.value).toContain('VH')
+  })
+
+  it('allows IME composition input immediately after auto-confirmation', async () => {
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={warehouses}
+          value={value}
+          onChange={(next) => setValue(next)}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+
+    render(<ControlledWarehouse />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'H' } })
+    await waitFor(() => expect(input.value).toContain('HQ-001'))
+    fireEvent.compositionStart(input)
+    dispatchInput(input, 'HQ-001 · 본사 창고창', 'insertCompositionText')
+
+    expect(input.value).toContain('창')
+  })
+
+  it('allows autocomplete replacement immediately after auto-confirmation', async () => {
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={warehouses}
+          value={value}
+          onChange={(next) => setValue(next)}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+
+    render(<ControlledWarehouse />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'H' } })
+    await waitFor(() => expect(input.value).toContain('HQ-001'))
+    dispatchInput(input, 'HQ-001 · 본사 창고VH', 'insertReplacementText')
+
+    expect(input.value).toContain('VH')
+  })
+
+  it('preserves backdrop-cancelled draft after the blur timer settles', async () => {
+    render(
+      <WarehouseAutocomplete
+        warehouses={warehouses}
+        value={null}
+        onChange={vi.fn()}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창' } })
+    fireEvent.mouseDown(screen.getByTestId('ds-modal-backdrop'))
+    fireEvent.focus(input)
+    input.blur()
+    await new Promise((resolve) => window.setTimeout(resolve, 300))
+
+    expect(input.value).toBe('창')
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('backdrop 취소 뒤 후속 blur가 보존된 draft를 덮어쓰지 않는다', async () => {
     render(
       <WarehouseAutocomplete
