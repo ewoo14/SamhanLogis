@@ -187,11 +187,16 @@ test('S5 행위 울타리 — 커밋 캡처가 있는 docs 루트는 보호 또�
 })
 test.after(resetEnvironment)
 
-test('S7 RED-B — 여섯 resolver는 동일 입력에서 protect/regenerate 판정을 모두 일치시킨다', async () => {
-  assert.ok(POWERSHELL_EXE, 'PowerShell 인터프리터가 없어 .ps1 행위를 검증할 수 없습니다')
-  assert.ok(GITBASH_EXE, 'cygpath를 제공하는 Git Bash 인터프리터가 없어 .sh 행위를 검증할 수 없습니다')
-  assert.ok(PYTHON_EXE, 'Python 인터프리터가 없어 .py 행위를 검증할 수 없습니다')
+test('S9 — Linux bash는 cygpath가 없어도 .sh resolver 후보가 된다', () => {
+  const executable = findGitBashExecutable({
+    platform: 'linux',
+    candidates: ['mock-linux-bash'],
+    probe: () => true,
+  })
+  assert.equal(executable, 'mock-linux-bash', 'cygpath 부재를 이유로 Linux bash 후보를 제외했습니다')
+})
 
+test('S7 RED-B — 여섯 resolver는 동일 입력에서 protect/regenerate 판정을 모두 일치시킨다', async () => {
   const runProcess = (name, args, env = {}) => {
     const childEnv = { ...process.env }
     for (const [key, value] of Object.entries(env)) {
@@ -247,10 +252,21 @@ test('S7 RED-B — 여섯 resolver는 동일 입력에서 protect/regenerate 판
     }],
   ]
   const processResolvers = [
-    ['ps1', (committedDir, targetDir, protect) => runPowerShell(committedDir, targetDir, protect ? 'Protect' : 'Regenerate')],
-    ['sh', (committedDir, targetDir, protect) => runBash(committedDir, targetDir, protect ? 'protect' : 'regenerate')],
-    ['py', (committedDir, targetDir, protect) => runPython(committedDir, targetDir, protect)],
+    ['ps1', POWERSHELL_EXE, POWERSHELL_SKIP_REASON, (committedDir, targetDir, protect) => runPowerShell(committedDir, targetDir, protect ? 'Protect' : 'Regenerate')],
+    ['sh', GITBASH_EXE, GITBASH_SKIP_REASON, (committedDir, targetDir, protect) => runBash(committedDir, targetDir, protect ? 'protect' : 'regenerate')],
+    ['py', PYTHON_EXE, PYTHON_EXE ? false : '이 환경에 python/python3 실행파일이 없습니다', (committedDir, targetDir, protect) => runPython(committedDir, targetDir, protect)],
   ]
+  const availableResolvers = [
+    ...nodeResolvers.map(([name, resolver]) => [name, resolver]),
+    ...processResolvers.filter(([, executable]) => executable).map(([name, , , resolver]) => [name, resolver]),
+  ]
+  const unavailableResolvers = processResolvers
+    .filter(([, executable]) => !executable)
+    .map(([name, , reason]) => `${name}: ${reason}`)
+  assert.ok(availableResolvers.length >= nodeResolvers.length, '실행 가능한 resolver가 하나도 남지 않았습니다')
+  if (unavailableResolvers.length > 0) {
+    console.log(`[S7 resolver skip] ${unavailableResolvers.join(' | ')}`)
+  }
   const qaCases = [
     ['docs/qa', path.join(repoRoot, 'docs', 'qa'), path.join(repoRoot, 'docs', 'qa')],
     ['docs/qa-shots', path.join(repoRoot, 'docs', 'qa-shots'), path.join(repoRoot, 'docs', 'qa-shots')],
@@ -273,16 +289,22 @@ test('S7 RED-B — 여섯 resolver는 동일 입력에서 protect/regenerate 판
   }
   for (const [label, committedDir, targetDir] of qaCases) {
     const protect = label !== 'manual regenerate'
-    for (const [name, resolver] of nodeResolvers) rows.push([name, label, await runNodeCase(name, resolver, committedDir, targetDir, protect)])
-    for (const [name, resolver] of processResolvers) rows.push([name, label, resolver(committedDir, targetDir, protect)])
+    for (const [name, resolver] of availableResolvers) {
+      rows.push([name, label, name === 'cjs' || name === 'mjs' || name === 'ts'
+        ? await runNodeCase(name, resolver, committedDir, targetDir, protect)
+        : resolver(committedDir, targetDir, protect)])
+    }
     const expectedVerdict = label === 'docs/qa' || label === 'docs/qa-shots' || label === 'docs/dev-reports' ? 'BLOCK' : 'ALLOW'
-    assert.deepEqual(rows.slice(-6).map(([, , verdict]) => verdict), Array(6).fill(expectedVerdict), `${label} 6종 판정 불일치`)
+    assert.deepEqual(rows.slice(-availableResolvers.length).map(([, , verdict]) => verdict), Array(availableResolvers.length).fill(expectedVerdict), `${label} 실행 가능한 resolver 판정 불일치`)
   }
   for (const [label, committedDir] of [['default', path.join(repoRoot, 'docs', 'manual', 'screenshots')]]) {
-    for (const [name, resolver] of nodeResolvers) rows.push([name, label, (await runNodeCase(name, resolver, committedDir, undefined, true)) === 'ALLOW' ? 'ALLOW' : 'BLOCK'])
-    for (const [name, resolver] of processResolvers) rows.push([name, label, resolver(committedDir, undefined, true)])
+    for (const [name, resolver] of availableResolvers) {
+      rows.push([name, label, name === 'cjs' || name === 'mjs' || name === 'ts'
+        ? (await runNodeCase(name, resolver, committedDir, undefined, true))
+        : resolver(committedDir, undefined, true)])
+    }
   }
-  assert.deepEqual(rows.slice(-6).map(([, , verdict]) => verdict), Array(6).fill('ALLOW'), 'default 6종 판정 불일치')
+  assert.deepEqual(rows.slice(-availableResolvers.length).map(([, , verdict]) => verdict), Array(availableResolvers.length).fill('ALLOW'), 'default 실행 가능한 resolver 판정 불일치')
   console.log(`[S7 six-impl parity] ${rows.map(([name, label, verdict]) => `${name}/${label}=${verdict}`).join(' ')}`)
 })
 
@@ -1681,11 +1703,17 @@ test(
   },
 )
 
-function findGitBashExecutable() {
-  const candidates = ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe', 'bash']
-  for (const candidate of candidates) {
+function findGitBashExecutable({ platform = isWindowsPlatform(), candidates, probe } = {}) {
+  const candidateList = candidates ?? (platform
+    ? ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe', 'bash']
+    : ['bash'])
+  for (const candidate of candidateList) {
     try {
-      execFileSync(candidate, ['-c', 'command -v cygpath'], { stdio: 'ignore' })
+      if (probe) {
+        if (probe(candidate, platform)) return candidate
+        continue
+      }
+      execFileSync(candidate, ['-c', platform ? 'command -v cygpath' : 'exit 0'], { stdio: 'ignore' })
       return candidate
     } catch {
       continue
@@ -1695,11 +1723,13 @@ function findGitBashExecutable() {
 }
 
 const GITBASH_EXE = findGitBashExecutable()
-const GITBASH_SKIP_REASON = !isWindowsPlatform()
-  ? 'UNC admin-share 는 Windows 전용 개념입니다(resolver 도 cygpath 존재를 환경 신호로 분기)'
-  : GITBASH_EXE
-    ? false
-    : '이 환경에 cygpath 를 가진 bash(Git-Bash/MSYS) 실행파일이 없습니다'
+const GITBASH_SKIP_REASON = GITBASH_EXE
+  ? (!isWindowsPlatform()
+    ? 'UNC admin-share 는 Windows 전용 개념입니다(.sh resolver의 순수 POSIX 동작은 S7에서 검증)'
+    : false)
+  : isWindowsPlatform()
+    ? '이 환경에 cygpath 를 가진 bash(Git-Bash/MSYS) 실행파일이 없습니다'
+    : '이 환경에 bash 실행파일이 없습니다(.sh resolver를 실행할 수 없습니다)'
 
 test(
   'T-9 (2026-07-28 R4 재수렴 결함3) — qa-shots-dir.sh 도 자기 자신을 가리키는 UNC admin-share 표기를 차단한다',
