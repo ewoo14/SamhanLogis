@@ -38,6 +38,7 @@ import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductVariableDiscountRequest;
+import com.samhanair.logis.product.web.dto.UpdateProductGoodsTypeRequest;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -726,6 +727,15 @@ public class ProductService {
     public Product updateVariableDiscountAndReturn(String modelCode, UpdateProductVariableDiscountRequest req) {
         Product product = loadByModelCodeOrThrow(modelCode);
         product.markVariableDiscountManual(req.hasVariableDiscount());
+        return product;
+    }
+
+    /** 견적품목 메뉴에서 상품/비상품 선언을 변경한다. */
+    public Product updateGoodsTypeAndReturn(String modelCode,
+                                            UpdateProductGoodsTypeRequest req) {
+        Product product = loadByModelCodeOrThrow(modelCode);
+        product.changeGoodsType(req.goodsType());
+        product.changeInventoryQtyMgmt(req.goodsType() == ProductGoodsType.GOODS);
         return product;
     }
 

@@ -39,6 +39,7 @@ interface ProductSummaryResponse {
   categoryKey?: string | null
   fixedDiscountRate?: number | null
   hasVariableDiscount?: boolean | null
+  goodsType?: 'GOODS' | 'NON_GOODS' | null
 }
 
 /**
@@ -94,6 +95,7 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
       categoryKey: p.categoryKey ?? undefined,
       fixedDiscountRate: p.fixedDiscountRate ?? null,
       hasVariableDiscount: p.hasVariableDiscount ?? null,
+      goodsType: p.goodsType ?? undefined,
   }
 }
 

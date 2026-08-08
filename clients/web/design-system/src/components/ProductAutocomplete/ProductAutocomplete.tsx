@@ -40,6 +40,8 @@ export interface ProductOption {
   fixedDiscountRate?: number | null
   /** 변동DC 적용 자격 — 물리 카테고리 fallback과 별개인 BE 원천 플래그. */
   hasVariableDiscount?: boolean | null
+  /** 품목 마스터 선언 상품/비상품 — 이름으로 추론하지 않는다. */
+  goodsType?: 'GOODS' | 'NON_GOODS'
 }
 
 export interface ProductAutocompleteProps {

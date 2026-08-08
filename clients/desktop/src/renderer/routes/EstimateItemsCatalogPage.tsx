@@ -58,6 +58,8 @@ import {
   updateProductClassificationSettings,
   updateProductFixedDiscount,
   updateProductVariableDiscount,
+  updateProductGoodsType,
+  type ProductGoodsType,
   type EstimateCategory,
   type ProductCatalogRow,
   type UsageScope,
@@ -278,6 +280,32 @@ export function VariableDiscountCell({
         />
       </label>
     </span>
+  )
+}
+
+function GoodsTypeCell({
+  row,
+  canEdit,
+  patchLoading,
+  onPatch,
+}: {
+  row: ProductCatalogRow
+  canEdit: boolean
+  patchLoading: boolean
+  onPatch: (modelCode: string, goodsType: ProductGoodsType) => void
+}) {
+  return (
+    <Select
+      value={row.goodsType ?? 'GOODS'}
+      disabled={!canEdit || patchLoading}
+      onChange={(event) => onPatch(row.modelCode, event.target.value as ProductGoodsType)}
+      data-testid={`estimate-items-goods-type-${row.modelCode}`}
+      aria-label="상품/비상품"
+      selectSize="sm"
+    >
+      <option value="GOODS">상품</option>
+      <option value="NON_GOODS">비상품</option>
+    </Select>
   )
 }
 
@@ -796,6 +824,21 @@ export function EstimateItemsCatalogPage() {
     },
   })
 
+  const goodsTypeMutation = useMutation({
+    mutationFn: ({ modelCode, goodsType }: { modelCode: string; goodsType: ProductGoodsType }) =>
+      updateProductGoodsType(modelCode, goodsType),
+    onSuccess: () => {
+      setMutationError(null)
+      setPatchingCode(null)
+      void queryClient.invalidateQueries({ queryKey: ['estimate-items-catalog'] })
+      void queryClient.invalidateQueries({ queryKey: ['product-catalog'] })
+    },
+    onError: (err) => {
+      setMutationError(errorMsg(err))
+      setPatchingCode(null)
+    },
+  })
+
   const fixedDiscountMutation = useMutation({
     mutationFn: ({
       modelCode,
@@ -905,6 +948,15 @@ export function EstimateItemsCatalogPage() {
       variableDiscountMutation.mutate({ modelCode, hasVariableDiscount })
     },
     [variableDiscountMutation],
+  )
+
+  const handleGoodsTypePatch = useCallback(
+    (modelCode: string, goodsType: ProductGoodsType) => {
+      setPatchingCode(modelCode)
+      setMutationError(null)
+      goodsTypeMutation.mutate({ modelCode, goodsType })
+    },
+    [goodsTypeMutation],
   )
 
   const handleFixedDiscountPatch = useCallback(
@@ -1079,6 +1131,20 @@ export function EstimateItemsCatalogPage() {
           canEdit={canEdit}
           onPatch={handlePatch}
           patchLoading={patchingCode === row.modelCode}
+        />
+      ),
+    },
+    {
+      key: 'goodsType',
+      header: '상품/비상품',
+      width: '120px',
+      mobilePriority: 'secondary',
+      render: (row) => (
+        <GoodsTypeCell
+          row={row}
+          canEdit={canEdit}
+          patchLoading={patchingCode === row.modelCode}
+          onPatch={handleGoodsTypePatch}
         />
       ),
     },

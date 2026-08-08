@@ -78,6 +78,7 @@ import {
 } from '../realtime/coeditLineIds'
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
+import { quantityAfterDeliveryPriceInput } from './estimateLineModel'
 import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
@@ -130,6 +131,7 @@ interface DraftLine {
   lookupLoading: boolean
   /** 품목 유형 — "SINGLE" | "BUNDLE". BUNDLE 일 때만 세트 옵션 노출. */
   productType: string | null
+  goodsType: 'GOODS' | 'NON_GOODS' | null
   /** 세트 전개 옵션 — BUNDLE 라인에 한해 채움 (BE BundleSetOptions). */
   setOptions: BundleSetOptions
 }
@@ -162,6 +164,7 @@ const emptyLine = (): DraftLine => ({
   lookupError: null,
   lookupLoading: false,
   productType: null,
+  goodsType: null,
   setOptions: emptyBundleSetOptions(),
 })
 
@@ -300,6 +303,7 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           lookupLoading: false,
           // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음.
           productType: null,
+          goodsType: null,
           setOptions: line.setOptions ?? emptyBundleSetOptions(),
         }
       })
@@ -408,6 +412,7 @@ function coeditLinesToDraftLines(
       specificationSource,
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice,
+      goodsType: previous?.goodsType ?? null,
       supplyAmount: previous?.supplyAmount ?? '0',
       vatAmount: previous?.vatAmount ?? '0',
       lineTotal: previous?.lineTotal ?? '0',
@@ -1221,9 +1226,11 @@ export function EstimateFormPage() {
   const updatePrice = (index: number, unitPrice: string) => {
     const current = linesRef.current[index]
     if (!current) return
+    const quantity = quantityAfterDeliveryPriceInput(current.goodsType, current.quantity, unitPrice)
     updateLine(index, {
-      ...recalculateLineVat(asVatLine({ ...current, unitPrice }), 'PRICE'),
+      ...recalculateLineVat(asVatLine({ ...current, unitPrice, quantity }), 'PRICE'),
       unitPrice,
+      quantity,
       priceSource: 'USER',
       priceMemoryUpdatedAt: null,
       priceRefreshChanged: false,
@@ -1445,6 +1452,7 @@ export function EstimateFormPage() {
         specification: 'specification' in rawResult ? rawResult.specification : null,
         sellingPrice: String(rawResult.sellingPrice ?? ''),
         productType: rawResult.productType,
+        goodsType: rawResult.goodsType,
       }
       const currentAfterProductLookup = linesRef.current.find((current) => current.uid === line.uid)
       if (!currentAfterProductLookup || !isProductBindCurrent(currentAfterProductLookup)) {
@@ -1535,6 +1543,7 @@ export function EstimateFormPage() {
         specification: nextSpecification,
         specificationSource: nextSpecificationSource,
         productType: result.productType ?? 'SINGLE',
+        goodsType: result.goodsType ?? current.goodsType,
         catalogUnitPrice: result.sellingPrice,
         unitPrice: applyPrice ? nextUnitPrice : current.unitPrice,
         priceSource: applyPrice ? nextPriceSource : current.priceSource,
@@ -1613,6 +1622,7 @@ export function EstimateFormPage() {
         modelName: '',
         productName: '',
         productType: null,
+        goodsType: null,
         catalogUnitPrice: null,
         ...(hadAutoSpecification
           ? { specification: '', specificationSource: null }

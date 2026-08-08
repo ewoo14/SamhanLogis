@@ -1480,6 +1480,7 @@ type MockProductCatalogRow = {
   displayOrder: number | null
   releasePrice: number
   deliveryPrice: number
+  goodsType?: 'GOODS' | 'NON_GOODS'
   fixedDiscountRate: number | null
   hasVariableDiscount: boolean
   variableDiscountManual: boolean
@@ -1613,6 +1614,7 @@ let MOCK_PRODUCT_CATALOG_ROWS: MockProductCatalogRow[] = [
       displayOrder: null,
       releasePrice: Number(p.sellingPrice),
       deliveryPrice: Number(p.sellingPrice),
+      goodsType: p.goods === false ? 'NON_GOODS' : 'GOODS',
       fixedDiscountRate: index % 2 === 0 ? 0 : 10,
       hasVariableDiscount: false,
       variableDiscountManual: false,
@@ -3177,6 +3179,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // PATCH /api/v1/products/{modelCode}/goods-type — 견적품목 상품/비상품 선언
+  const productGoodsTypeMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/goods-type(?:\?.*)?$/)
+  if (method === 'PATCH' && productGoodsTypeMatch) {
+    const denied = mockRequirePermission('products.admin', 'update')
+    if (denied) return denied
+    ensureMockProductCatalogRowsSeeded()
+    const modelCode = decodeURIComponent(productGoodsTypeMatch[1]!)
+    const body = parseMockBody(config)
+    const goodsType = String(body['goodsType'] ?? '')
+    if (goodsType !== 'GOODS' && goodsType !== 'NON_GOODS') {
+      return mockError(400, 'INVALID_INPUT', 'goodsType 은 GOODS 또는 NON_GOODS 이어야 합니다')
+    }
+    const row = MOCK_PRODUCT_CATALOG_ROWS.find((candidate) => candidate.modelCode === modelCode)
+    if (!row) return mockError(404, 'NOT_FOUND', '제품을 찾을 수 없습니다')
+    MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((candidate) =>
+      candidate.modelCode === modelCode ? { ...candidate, goodsType: goodsType as 'GOODS' | 'NON_GOODS' } : candidate)
+    const entry = Object.values(MOCK_PRODUCTS_BY_MODEL).find((candidate) => (candidate.modelCode ?? candidate.modelName) === modelCode)
+    if (entry) entry.goods = goodsType === 'GOODS'
+    return { ...row, goodsType }
+  }
+
   const productSpecReorderMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/specs\/reorder(?:\?.*)?$/)
   if (method === 'PATCH' && productSpecReorderMatch) {
     const denied = mockRequirePermission('products.admin', 'update')
@@ -3443,6 +3466,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           sellingPrice: p.sellingPrice,
           status: 'ACTIVE',
           goods: p.goods ?? true,
+          goodsType: p.goods === false ? 'NON_GOODS' : 'GOODS',
           modelCode: p.modelCode ?? p.modelName,
           productType: p.productType ?? 'SINGLE',
         })),
@@ -3483,6 +3507,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         sellingPrice: p.sellingPrice,
         status: 'ACTIVE',
         goods: p.goods ?? true,
+        goodsType: p.goods === false ? 'NON_GOODS' : 'GOODS',
         modelCode: p.modelCode ?? p.modelName,
         productType: p.productType ?? 'SINGLE',
       })).slice(0, size),
