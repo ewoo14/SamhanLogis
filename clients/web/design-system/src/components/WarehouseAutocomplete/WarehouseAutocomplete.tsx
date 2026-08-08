@@ -197,7 +197,7 @@ export const WarehouseAutocomplete = forwardRef<
     // 모달 취소 직후 한 번만 사용자의 검색 draft를 복원한다.
     setDraft(preserveDraft ? (lastTypedDraftRef.current ?? '') : '')
     setActiveIndex(-1)
-    setOpen(true)
+    setOpen(!preserveDraft)
   }
 
   const handleBlur = (_e: FocusEvent<HTMLInputElement>) => {
@@ -400,7 +400,13 @@ export const WarehouseAutocomplete = forwardRef<
             { key: 'name', label: '창고명', render: (warehouse: Warehouse) => warehouse.name },
           ]}
           onConfirm={(items) => {
-            if (items[0]) pick(items[0])
+            if (items[0]) {
+              pick(items[0])
+              // 확정 모달 close cleanup의 input focus 복원은 새 검색이 아니다.
+              // 선택 레이블을 보존해 복원 focus가 표시값을 비우거나 dropdown을 재개방하지 않게 한다.
+              lastTypedDraftRef.current = `${items[0].code} · ${items[0].name}`
+              preserveDraftOnNextFocusRef.current = true
+            }
             setSelectionOpen(false)
             setSelectionCandidates([])
           }}

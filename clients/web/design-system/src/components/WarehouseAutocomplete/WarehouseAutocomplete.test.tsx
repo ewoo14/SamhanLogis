@@ -137,6 +137,37 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     expect(input.getAttribute('aria-expanded')).toBe('false')
   })
 
+  it('브라우저가 모달 확정 후 input에 포커스를 복원해도 확정 표시값을 덮어쓰지 않는다', async () => {
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={warehouses}
+          value={value}
+          onChange={(next) => setValue(next)}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+
+    render(<ControlledWarehouse />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'HQ-001' }))
+    fireEvent.click(screen.getByRole('button', { name: '선택 확정' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.focus(input)
+
+    await waitFor(() => {
+      expect(input.value).toBe('HQ-001 · 본사 창고')
+      expect(input.getAttribute('aria-expanded')).toBe('false')
+    })
+  })
+
   it('검색 모달 바깥 클릭은 취소와 같이 draft를 보존한다', () => {
     render(
       <WarehouseAutocomplete
