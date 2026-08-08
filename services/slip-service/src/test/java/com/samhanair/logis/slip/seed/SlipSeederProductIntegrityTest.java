@@ -1,6 +1,5 @@
 package com.samhanair.logis.slip.seed;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
@@ -34,14 +33,12 @@ class SlipSeederProductIntegrityTest {
     private ProductClient productClient;
 
     @Test
-    void missingSeedProductStopsBeforeAnySlipIsSaved() {
+    void missingSeedProductSkipsSeedingWithoutStoppingServiceStartup() {
         when(productClient.lookup(anyList())).thenReturn(List.of());
 
         SlipSeeder seeder = new SlipSeeder(slipRepository, closedDateGuard, productClient);
 
-        assertThatThrownBy(seeder::run)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("활성 product");
+        seeder.run();
 
         verify(productClient).lookup(org.mockito.ArgumentMatchers.argThat(ids -> ids.size() == 100));
         verify(slipRepository, never()).save(org.mockito.ArgumentMatchers.any());
@@ -67,6 +64,26 @@ class SlipSeederProductIntegrityTest {
         verify(slipRepository, times(100)).save(captor.capture());
         assertThat(captor.getAllValues()).allSatisfy(slip ->
                 assertThat(slip.getLines()).isNotEmpty());
+    }
+
+    @Test
+    void discontinuedSeedProductStillAllowsAllHundredSlips() {
+        when(slipRepository.findBySlipTypeAndSlipNoIncludingDeleted(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Optional.empty());
+        List<ProductSummary> products = java.util.stream.IntStream.rangeClosed(1, HvacSeedProductCatalog.size())
+                .mapToObj(seq -> {
+                    String model = HvacSeedProductCatalog.byOneBasedSeq(seq).modelName();
+                    UUID id = HvacSeedProductCatalog.deterministicProductId(model);
+                    String status = seq % 25 == 0 ? "DISCONTINUED" : "ACTIVE";
+                    return new ProductSummary(id, "제품-" + model, model, "CODE-" + model,
+                            null, null, status);
+                }).toList();
+        when(productClient.lookup(anyList())).thenReturn(products);
+
+        new SlipSeeder(slipRepository, closedDateGuard, productClient).run();
+
+        verify(slipRepository, times(100)).save(org.mockito.ArgumentMatchers.any());
     }
 
 }

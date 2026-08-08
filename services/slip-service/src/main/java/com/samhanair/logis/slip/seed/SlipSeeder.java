@@ -27,6 +27,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 /**
  * feature/local-test-setup Stage 2 — Slip 100건 + SlipLine ~300건 시드.
@@ -216,6 +218,18 @@ public class SlipSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        try {
+            seed(args);
+        } catch (RuntimeException ex) {
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            }
+            log.error("[SlipSeeder] 시딩을 건너뜁니다 — 서비스 기동은 계속합니다. 원인: {}",
+                    ex.getMessage(), ex);
+        }
+    }
+
+    private void seed(String... args) {
         log.info("[SlipSeeder] Stage 2 시드 시작 — 100 slip + ~300 line + 11 status 분포");
 
         Map<UUID, ProductSummary> seedProducts = loadSeedProducts();
@@ -256,7 +270,7 @@ public class SlipSeeder implements CommandLineRunner {
     }
 
     /**
-     * 전표 시드를 저장하기 전에 product-service의 활성 master 100건을 벌크 확인한다.
+     * 전표 시드를 저장하기 전에 product-service의 master 100건을 벌크 확인한다.
      * product_db와 slip_db가 분리되어 있으므로 DB FK 대신 이 선행 조건을 사용한다.
      */
     private Map<UUID, ProductSummary> loadSeedProducts() {
@@ -269,12 +283,12 @@ public class SlipSeeder implements CommandLineRunner {
         List<ProductSummary> summaries = productClient.lookup(expectedIds);
         Map<UUID, ProductSummary> byId = new HashMap<>();
         for (ProductSummary summary : summaries) {
-            if (summary != null && summary.id() != null && "ACTIVE".equals(summary.status())) {
+            if (summary != null && summary.id() != null) {
                 byId.put(summary.id(), summary);
             }
         }
         if (byId.size() != expectedIds.size() || !byId.keySet().containsAll(expectedIds)) {
-            throw new IllegalStateException("활성 product " + expectedIds.size()
+            throw new IllegalStateException("존재하는 product " + expectedIds.size()
                     + "개가 모두 준비되지 않아 SlipSeeder를 중단합니다."
                     + " product-service seed를 먼저 완료하십시오.");
         }

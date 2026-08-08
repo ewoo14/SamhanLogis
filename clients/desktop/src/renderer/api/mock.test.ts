@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosRequestConfig } from 'axios'
-import { getMockResponse, MOCK_AUTH, mockPartnerByCode, resolveMockCodefRefs } from './mock'
+import { getMockResponse, MOCK_AUTH, MOCK_PRODUCT_AJ040_ID, mockPartnerByCode, resolveMockCodefRefs } from './mock'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
@@ -347,7 +347,7 @@ describe('mock price memory contract', () => {
       const denied = mockRequest({
         method: 'POST',
         url: '/api/products/lookup',
-        data: { ids: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040'] },
+        data: { ids: [MOCK_PRODUCT_AJ040_ID] },
       }) as { __mockStatus: number; body: { code: string } }
 
       expect(denied.__mockStatus).toBe(403)
@@ -365,7 +365,7 @@ describe('mock price memory contract', () => {
     }) as MockEnvelope<Record<string, unknown>>
 
     expect(response.data).toMatchObject({
-      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040',
+      id: MOCK_PRODUCT_AJ040_ID,
       name: '시스템에어컨 4Way 4HP',
       modelName: 'AJ040RXH4BC1',
     })
@@ -376,7 +376,7 @@ describe('mock price memory contract', () => {
   it('single/bulk price memory handlers preserve hit-only partial response semantics', () => {
     const partnerA = '11111111-1111-4111-8111-111111111111'
     const partnerB = '22222222-2222-4222-8222-222222222222'
-    const productA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040'
+    const productA = MOCK_PRODUCT_AJ040_ID
     const productB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb010'
     const single = mockRequest({
       method: 'GET',
@@ -411,7 +411,7 @@ describe('mock price memory contract', () => {
   })
 
   it.each([
-    ['single missing partnerId', { method: 'GET', url: '/slips/price-memory', params: { productId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040' } }],
+    ['single missing partnerId', { method: 'GET', url: '/slips/price-memory', params: { productId: MOCK_PRODUCT_AJ040_ID } }],
     ['single invalid product UUID', { method: 'GET', url: '/slips/price-memory', params: { partnerId: '11111111-1111-4111-8111-111111111111', productId: 'not-uuid' } }],
     ['bulk empty products', { method: 'POST', url: '/slips/price-memory/bulk', data: { partnerId: '11111111-1111-4111-8111-111111111111', productIds: [] } }],
     ['bulk over 100 products', { method: 'POST', url: '/slips/price-memory/bulk', data: { partnerId: '11111111-1111-4111-8111-111111111111', productIds: Array.from({ length: 101 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`) } }],
@@ -427,7 +427,7 @@ describe('mock price memory contract', () => {
     // 폼이 조용히 CATALOG 폴백하는 mock 회귀(false-green)를 낳았다. 거래처 검색 경로
     // (엘에이시스템에어 id)로 기억행이 도달하는지까지 함께 가드한다.
     const adminPartnerId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
-    const productA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040'
+    const productA = MOCK_PRODUCT_AJ040_ID
 
     const single = mockRequest({
       method: 'GET',
@@ -459,7 +459,7 @@ describe('mock price memory contract', () => {
   // GET 이 실 wire 보다 엄격해진다. 라이브 실측: `partnerId=1-1-1-1-1` → 실 API 204 / mock 400.
   it('mock UUID validation matches each binding path: GET lenient (UUID.fromString) vs POST strict (Jackson)', () => {
     const shorthand = '1-1-1-1-1'
-    const productA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040'
+    const productA = MOCK_PRODUCT_AJ040_ID
 
     // GET `@RequestParam UUID` → Spring 이 UUID.fromString 호출 = 관대. 축약형을
     // 00000001-0001-0001-0001-000000000001 로 받아들이므로 400 이 아니라 **204(miss)** 여야 한다.

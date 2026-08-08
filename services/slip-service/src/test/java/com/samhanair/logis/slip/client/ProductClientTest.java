@@ -109,6 +109,37 @@ class ProductClientTest {
     }
 
     @Test
+    void lookup_404_meansProductDoesNotExist() {
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThatThrownBy(() -> client.lookup(List.of(UUID.randomUUID())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND);
+                    assertThat(be.getMessage()).contains("제품");
+                });
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 408, 429})
+    void lookup_verificationFailure4xx_isNotClassifiedAsMissingProduct(int status) {
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
+
+        assertThatThrownBy(() -> client.lookup(List.of(UUID.randomUUID())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_ERROR);
+                    assertThat(be.getMessage()).contains("조회");
+                });
+        server.verify();
+    }
+
+    @Test
     void lookupByModel_trimsWhitespaceBeforeSending() {
         String body = """
                 {"success":true,"code":"OK","message":"성공","data":{

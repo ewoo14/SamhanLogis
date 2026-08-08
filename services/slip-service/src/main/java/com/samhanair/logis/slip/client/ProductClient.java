@@ -7,6 +7,8 @@ import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -15,13 +17,15 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 /**
  * Internal-token-authenticated client to {@code product-service}'s
  * {@code /products/internal/lookup} batch endpoint. slip-service 가 라인의 productId 를
  * 받을 때마다 이 클라이언트로 존재 여부를 검증한다.
  *
- * <p>4xx → BusinessException(INVALID_INPUT, "존재하지 않는 제품 ID")<br>
+ * <p>404 → BusinessException(NOT_FOUND, "제품이 존재하지 않습니다")<br>
+ * 401/403/408/429 등 조회 불가 4xx → BusinessException(INTERNAL_ERROR, "product-service 조회 검증 불가")<br>
  * 5xx / connection refused → BusinessException(INTERNAL_ERROR, "product-service 호출 실패")<br>
  * 1건이라도 응답에 없으면 BusinessException(NOT_FOUND).
  */
@@ -45,14 +49,31 @@ public class ProductClient {
         this.objectMapper = objectMapper;
     }
 
+    /** 운영 DI 경로 — product-service 호출에 연결/읽기 시간 상한을 적용한다. */
+    @org.springframework.beans.factory.annotation.Autowired
+    public ProductClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
+                         InternalAuthProperties internalAuthProperties,
+                         ObjectMapper objectMapper,
+                         @Value("${samhan.product-client.connect-timeout-ms:2000}") int connectTimeoutMs,
+                         @Value("${samhan.product-client.read-timeout-ms:3000}") int readTimeoutMs) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofMillis(connectTimeoutMs));
+        requestFactory.setReadTimeout(Duration.ofMillis(readTimeoutMs));
+        this.restClient = builder.requestFactory(requestFactory).baseUrl(PRODUCT_SERVICE_BASE).build();
+        this.internalAuthProperties = internalAuthProperties;
+        this.objectMapper = objectMapper;
+    }
+
     /**
      * product-service 의 {@code POST /products/internal/lookup} 을 호출해 productId 리스트의
      * 존재 여부를 일괄 검증한다. X-Internal-Token 헤더로 인증.
      *
      * @param productIds 조회할 제품 UUID 리스트 (1 ~ {@value #LOOKUP_BATCH_MAX} 건)
      * @return 입력 순서와 무관한 ProductSummary 리스트
-     * @throws BusinessException(INVALID_INPUT) productIds null/empty 또는 batch 한도 초과,
-     *         혹은 product-service 가 4xx 반환 (존재하지 않는 ID 포함)
+     * @throws BusinessException(INVALID_INPUT) productIds null/empty 또는 batch 한도 초과
+     * @throws BusinessException(NOT_FOUND) product-service 가 404 반환
+     * @throws BusinessException(INTERNAL_ERROR) product-service 가 조회 불가 4xx/5xx 반환,
+     *         연결 실패, timeout, envelope 포맷 오류
      * @throws BusinessException(NOT_FOUND) 응답 항목 수 &lt; 요청 수
      * @throws BusinessException(INTERNAL_ERROR) product-service 5xx, 연결 실패, envelope 포맷 오류,
      *         혹은 internal token 미설정
@@ -79,8 +100,14 @@ public class ProductClient {
                     .body(body)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        throw new BusinessException(ErrorCode.INVALID_INPUT,
-                                "존재하지 않는 제품 ID");
+                        int status = res.getStatusCode().value();
+                        if (status == 404) {
+                            throw new BusinessException(ErrorCode.NOT_FOUND,
+                                    "제품이 존재하지 않습니다");
+                        }
+                        log.warn("ProductClient.lookup — product-service 조회 검증 불가 — status={}", status);
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 조회를 검증할 수 없습니다: " + res.getStatusCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,
