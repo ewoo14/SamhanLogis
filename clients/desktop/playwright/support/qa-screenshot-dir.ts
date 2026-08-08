@@ -46,11 +46,11 @@ import { fileURLToPath } from 'url'
 const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 
-/** committedDir 에서 docs 바로 아래의 qa* 증거 루트를 파생한다(열거하지 않음). */
+/** 보호 선언이 켜진 호출자의 docs 하위 증거 경계를 찾는다. */
 function deriveQaEvidenceRoot(committedDir: string): string | undefined {
   let current = path.resolve(committedDir)
   while (true) {
-    if (/^qa(?:-.+)?$/i.test(path.basename(current)) && path.basename(path.dirname(current)).toLowerCase() === 'docs') {
+    if (path.basename(path.dirname(current)).toLowerCase() === 'docs') {
       return current
     }
     const parent = path.dirname(current)
@@ -178,14 +178,15 @@ function isWithinPhysical(parentDir: string, candidateDir: string): boolean {
   )
 }
 
-export function resolveQaShotsDir(committedDir: string): string {
+export function resolveQaShotsDir(committedDir: string, options: { protect?: boolean } = {}): string {
   const committed = path.resolve(committedDir)
   const override = process.env['QA_SHOTS_DIR']
   const trimmed = override && override.trim().length > 0 ? override.trim() : undefined
   const dir = trimmed ? path.resolve(trimmed) : path.join(committed, '_local')
 
-  const evidenceRoot = deriveQaEvidenceRoot(committed)
-  if (trimmed && evidenceRoot && isWithinPhysical(evidenceRoot, dir) && !hasExplicitOverwriteIntent()) {
+  const protect = options.protect !== false
+  const evidenceRoot = protect ? deriveQaEvidenceRoot(committed) : undefined
+  if (trimmed && protect && evidenceRoot && isWithinPhysical(evidenceRoot, dir) && !hasExplicitOverwriteIntent()) {
     throw new Error(
       `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${dir}. ` +
         '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',

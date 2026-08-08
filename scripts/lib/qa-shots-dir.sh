@@ -235,7 +235,7 @@ _qa_evidence_root() {
     leaf="${current##*/}"
     parent="${current%/*}"
     parent_leaf="${parent##*/}"
-    if [[ "$leaf" =~ ^qa(-.*)?$ ]] && [ "$(printf '%s' "$parent_leaf" | tr '[:upper:]' '[:lower:]')" = "docs" ]; then
+    if [ "$(printf '%s' "$parent_leaf" | tr '[:upper:]' '[:lower:]')" = "docs" ]; then
       printf '%s' "$current"
       return 0
     fi
@@ -246,6 +246,9 @@ _qa_evidence_root() {
 
 resolve_qa_shots_dir() {
   local committed_dir="$1"
+  local protection_mode="${2:-protect}"
+  local protect=1
+  [ "$protection_mode" = "regenerate" ] && protect=0
   local dir
   if [ -n "${QA_SHOTS_DIR:-}" ]; then
     if ! dir="$(_qa_physical_path "$QA_SHOTS_DIR")"; then

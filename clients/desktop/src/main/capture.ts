@@ -156,7 +156,7 @@ function isWithinPhysical(parentDir: string, candidateDir: string): boolean {
 function deriveQaEvidenceRoot(committedDir: string): string | undefined {
   let current = resolve(committedDir)
   while (true) {
-    if (/^qa(?:-.+)?$/i.test(basename(current)) && basename(dirname(current)).toLowerCase() === 'docs') {
+    if (basename(dirname(current)).toLowerCase() === 'docs') {
       return current
     }
     const parent = dirname(current)

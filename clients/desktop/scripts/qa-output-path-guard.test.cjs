@@ -69,6 +69,7 @@ const desktopRoot = path.resolve(__dirname, '..')
 const repoRoot = path.resolve(desktopRoot, '../..')
 const docsQaRoot = path.join(repoRoot, 'docs', 'qa')
 const docsQaShotsRoot = path.join(repoRoot, 'docs', 'qa-shots')
+const docsDevReportsRoot = path.join(repoRoot, 'docs', 'dev-reports')
 const tsHelperPath = path.join(desktopRoot, 'playwright', 'support', 'qa-screenshot-dir.ts')
 const mjsHelperPath = path.join(desktopRoot, 'playwright', 'support', 'qa-screenshot-dir.mjs')
 const rootMjsHelperPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.mjs')
@@ -84,9 +85,20 @@ const tempRoot = path.join(os.tmpdir(), 'samhan-863-qa-output-path-guard')
  */
 const OTHER_SLUG_COMMITTED_DIR = path.join(docsQaRoot, '809-partner-product-price-memory')
 const MY_FIXTURE_COMMITTED_DIR = path.join(docsQaRoot, '__863-r1-guard-fixture__')
+const DEV_REPORT_COMMITTED_DIR = path.join(docsDevReportsRoot, '__1116-s5-guard-fixture__')
 
 function isWindowsPlatform() {
   return process.platform === 'win32'
+}
+
+function discoverCommittedCaptureRoots() {
+  const tracked = execFileSync('git', ['ls-files', '-z', '--', 'docs/**/*.png', 'docs/**/*.jpg', 'docs/**/*.jpeg'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  })
+    .split('\0')
+    .filter(Boolean)
+  return [...new Set(tracked.map(file => file.split('/').slice(0, 2).join('/')))].sort()
 }
 
 /**
@@ -123,6 +135,56 @@ function resetEnvironment() {
 }
 
 test.afterEach(resetEnvironment)
+
+test('S5 RED-B docs/dev-reports도 호출자의 보호 선언 기본값으로 차단된다', () => {
+  process.env.QA_SHOTS_DIR = DEV_REPORT_COMMITTED_DIR
+  assert.throws(
+    () => resolveQaShotsDir(DEV_REPORT_COMMITTED_DIR),
+    error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+    'docs/dev-reports 커밋 증거 루트가 보호되지 않습니다',
+  )
+})
+
+test('S5 행위 울타리 — 커밋 캡처가 있는 docs 루트는 보호 또는 재생성 선언으로 분류된다', async () => {
+  const roots = discoverCommittedCaptureRoots()
+  assert.ok(roots.length > 0, '커밋된 docs 캡처 루트를 찾지 못했습니다')
+
+  const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(rootMjsHelperPath).href)
+  const resolvers = [
+    ['cjs', resolveQaShotsDir],
+    ['mjs', mjsResolve],
+    ['ts', loadTypeScriptResolver()],
+  ]
+  const regeneratingSources = []
+  for (const file of [
+    path.join(repoRoot, 'tools', 'manual-capture', 'sync-screenshots.js'),
+    path.join(repoRoot, 'tools', 'manual-capture', 'generate-mobile-placeholders.js'),
+    path.join(repoRoot, 'tools', 'manual-capture', 'capture-manual-all.js'),
+  ]) {
+    if (fs.readFileSync(file, 'utf8').includes('protect: false')) regeneratingSources.push(file)
+  }
+  assert.equal(regeneratingSources.length, 3, '재생성 호출자 3곳 모두 보호 해제를 선언해야 합니다')
+
+  const unclassified = []
+  for (const root of roots) {
+    const committedDir = path.join(repoRoot, root)
+    let protectedByDefault = true
+    for (const [name, resolver] of resolvers) {
+      process.env.QA_SHOTS_DIR = committedDir
+      try {
+        resolver(committedDir)
+        protectedByDefault = false
+        unclassified.push(`${root}:${name}`)
+      } catch (error) {
+        assert.match(String(error?.message ?? error), /QA_ALLOW_OVERWRITE=1/)
+      }
+    }
+    if (!protectedByDefault && !regeneratingSources.some(file => fs.readFileSync(file, 'utf8').includes(root))) {
+      unclassified.push(root)
+    }
+  }
+  assert.deepEqual(unclassified, [], `캡처 루트가 보호/재생성 어느 쪽에도 분류되지 않았습니다: ${unclassified.join(', ')}`)
+})
 test.after(resetEnvironment)
 
 test('resolver 기본 출력(QA_SHOTS_DIR 미지정)은 <committedDir>/_local 이다', () => {
@@ -175,14 +237,14 @@ test('D-3 [E] 새 커밋 QA 증거 루트도 모집단 축에 따라 자동 차�
   )
 })
 
-test('S3 RED-A 비-QA 매뉴얼 3개 경로는 committedDir 이 증거 루트가 아니므로 통과한다', () => {
+test('S5 RED-A 매뉴얼 재생성 호출자 선언은 보호를 해제하고 통과한다', () => {
   for (const committedDir of [
     path.join(repoRoot, 'docs', 'manual', 'screenshots'),
     path.join(repoRoot, 'docs', 'manual', 'screenshots'),
     path.join(repoRoot, 'docs', 'manual', 'screenshots', '04-모바일'),
   ]) {
     process.env.QA_SHOTS_DIR = committedDir
-    assert.equal(resolveQaShotsDir(committedDir), committedDir)
+    assert.equal(resolveQaShotsDir(committedDir, { protect: false }), committedDir)
   }
 })
 
