@@ -95,8 +95,6 @@ const searchWarehouses = (warehouses: Warehouse[], query: string): Warehouse[] =
   return [...byCode, ...byName]
 }
 
-const STALE_INPUT_GUARD_WINDOW_MS = 100
-
 /**
  * WarehouseAutocomplete — 창고 검색 가능 자동완성 (typeahead).
  *
@@ -180,10 +178,6 @@ export const WarehouseAutocomplete = forwardRef<
   // 검색 모달 취소로 input 포커스가 복원될 때 사용자의 draft를 보존한다.
   const preserveDraftOnNextFocusRef = useRef(false)
   const lastTypedDraftRef = useRef<string | null>(null)
-  const draftRef = useRef('')
-  const staleInputGuardRef = useRef(false)
-  const staleInputGuardTimerRef = useRef<number | undefined>(undefined)
-  const userInputIntentRef = useRef(false)
 
   const candidates = useMemo(
     () => searchWarehouses(visibleWarehouses, draft),
@@ -198,11 +192,9 @@ export const WarehouseAutocomplete = forwardRef<
       blurTimer.current = undefined
     }
     const preserveDraft = preserveDraftOnNextFocusRef.current
-    preserveDraftOnNextFocusRef.current = false
     // F-2: 일반 포커스 시 draft 를 빈 문자열로 초기화 → 전체 후보 노출.
     // 모달 취소 직후 한 번만 사용자의 검색 draft를 복원한다.
     const nextDraft = preserveDraft ? (lastTypedDraftRef.current ?? '') : ''
-    draftRef.current = nextDraft
     setDraft(nextDraft)
     setActiveIndex(-1)
     setOpen(!preserveDraft)
@@ -214,20 +206,18 @@ export const WarehouseAutocomplete = forwardRef<
       setOpen(false)
       setActiveIndex(-1)
       // blur 시 매칭 검사 — 입력값을 코드/이름으로 매칭
-      const currentDraft = draftRef.current
+      const currentDraft = lastTypedDraftRef.current ?? ''
       const trimmed = currentDraft.trim()
       if (!trimmed) {
         // F-1: 빈 입력 blur 시 onChange 호출 금지 (게이트 우회 차단).
         //   - 기존 선택값이 있으면 draft 를 selectedLabel 로 복원 (이전 선택 유지).
         //   - 선택값이 없으면 draft 비운 상태 유지, 부모 상태 null 유지.
         if (selectedWarehouse) {
-          draftRef.current = selectedLabel
           setDraft(selectedLabel)
         } else if (lastTypedDraftRef.current !== null) {
           // 검색 모달 backdrop 취소 뒤 복원 focus가 소비된 marker를 거쳐
           // 같은 pointer 동작의 후속 blur를 만들 수 있다. 이 경우 선택값이
           // 없다는 이유로 보존된 사용자 draft를 빈 문자열로 덮어쓰지 않는다.
-          draftRef.current = lastTypedDraftRef.current
           setDraft(lastTypedDraftRef.current)
         }
         return
@@ -241,39 +231,15 @@ export const WarehouseAutocomplete = forwardRef<
         if (exact.id !== value) onChange(exact.id, exact)
       } else {
         // 매칭 실패 — 기존 값 복원 (free-text 입력 차단)
-        draftRef.current = selectedLabel
-        setDraft(selectedLabel)
+        if (!preserveDraftOnNextFocusRef.current) setDraft(selectedLabel)
       }
     }, 120)
   }
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
-    const inputType = (e.nativeEvent as InputEvent).inputType
-    const isUserReplacement =
-      userInputIntentRef.current ||
-      inputType === 'insertFromPaste' ||
-      inputType === 'insertCompositionText' ||
-      inputType === 'insertReplacementText'
-    // 단건 자동확정 직후 브라우저가 이미 확정 라벨을 입력값으로 삼아
-    // 이어진 키를 다시 change로 전달할 수 있다. 그 suffix는 사용자가
-    // 새 검색을 시작한 것이 아니므로 표시값과 내부 선택을 분리하지 않는다.
-    if (
-      staleInputGuardRef.current &&
-      selectedWarehouse &&
-      nextDraft.startsWith(selectedLabel) &&
-      nextDraft !== selectedLabel &&
-      !isUserReplacement
-    ) {
-      staleInputGuardRef.current = false
-      draftRef.current = selectedLabel
-      setDraft(selectedLabel)
-      return
-    }
-    staleInputGuardRef.current = false
-    userInputIntentRef.current = false
+    preserveDraftOnNextFocusRef.current = false
     lastTypedDraftRef.current = nextDraft
-    draftRef.current = nextDraft
     setDraft(nextDraft)
     setActiveIndex(-1)
     if (!open) setOpen(true)
@@ -282,14 +248,6 @@ export const WarehouseAutocomplete = forwardRef<
       const nextCandidates = searchWarehouses(visibleWarehouses, nextDraft)
       if (autoSelectSingleResult && nextCandidates.length === 1) {
         pick(nextCandidates[0]!)
-        staleInputGuardRef.current = true
-        if (staleInputGuardTimerRef.current !== undefined) {
-          window.clearTimeout(staleInputGuardTimerRef.current)
-        }
-        staleInputGuardTimerRef.current = window.setTimeout(() => {
-          staleInputGuardRef.current = false
-          staleInputGuardTimerRef.current = undefined
-        }, STALE_INPUT_GUARD_WINDOW_MS)
       } else if (nextCandidates.length > 1) {
         setSelectionCandidates(nextCandidates)
         setSelectionOpen(true)
@@ -307,8 +265,7 @@ export const WarehouseAutocomplete = forwardRef<
       e.stopPropagation()
       setOpen(false)
       setActiveIndex(-1)
-      draftRef.current = selectedLabel
-      setDraft(selectedLabel)
+    setDraft(selectedLabel)
       return
     }
     if (candidates.length === 0) return
@@ -329,7 +286,6 @@ export const WarehouseAutocomplete = forwardRef<
   const pick = (w: Warehouse) => {
     onChange(w.id, w)
     const nextLabel = `${w.code} · ${w.name}`
-    draftRef.current = nextLabel
     lastTypedDraftRef.current = nextLabel
     setDraft(nextLabel)
     setActiveIndex(-1)
@@ -345,7 +301,6 @@ export const WarehouseAutocomplete = forwardRef<
     setSelectionOpen(false)
     setSelectionCandidates([])
     const nextDraft = lastTypedDraftRef.current ?? ''
-    draftRef.current = nextDraft
     setDraft(nextDraft)
     setOpen(false)
   }
@@ -378,26 +333,6 @@ export const WarehouseAutocomplete = forwardRef<
               className={styles['input']}
               value={displayValue}
               onChange={handleChange}
-              onPaste={() => {
-                userInputIntentRef.current = true
-              }}
-              onCompositionStart={() => {
-                userInputIntentRef.current = true
-              }}
-              onBeforeInput={(e) => {
-                const inputType = (e.nativeEvent as InputEvent).inputType
-                if (inputType === 'insertReplacementText') userInputIntentRef.current = true
-              }}
-              onInput={(e) => {
-                const inputType = (e.nativeEvent as InputEvent).inputType
-                if (
-                  inputType === 'insertFromPaste' ||
-                  inputType === 'insertCompositionText' ||
-                  inputType === 'insertReplacementText'
-                ) {
-                  userInputIntentRef.current = true
-                }
-              }}
               onFocus={handleFocus}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
@@ -481,7 +416,6 @@ export const WarehouseAutocomplete = forwardRef<
               // 확정 모달 close cleanup의 input focus 복원은 새 검색이 아니다.
               // 선택 레이블을 보존해 복원 focus가 표시값을 비우거나 dropdown을 재개방하지 않게 한다.
               lastTypedDraftRef.current = `${items[0].code} · ${items[0].name}`
-              draftRef.current = lastTypedDraftRef.current
               preserveDraftOnNextFocusRef.current = true
             }
             setSelectionOpen(false)

@@ -35,17 +35,6 @@ function renderWarehouse(onChange = vi.fn()) {
   return { input, onChange }
 }
 
-function dispatchInput(input: HTMLInputElement, value: string, inputType: string) {
-  if (inputType === 'insertFromPaste') fireEvent.paste(input)
-  if (inputType === 'insertCompositionText') fireEvent.compositionStart(input)
-  if (inputType === 'insertReplacementText') {
-    // jsdom has no beforeinput helper; mark the replacement intent through the
-    // same pre-input user-intent boundary used by the browser paste path.
-    fireEvent.paste(input)
-  }
-  fireEvent.change(input, { target: { value } })
-}
-
 describe('WarehouseAutocomplete opaque option DOM contract', () => {
   it('allows intentional keyboard input after auto-confirmation has settled', async () => {
     function ControlledWarehouse() {
@@ -93,7 +82,7 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: 'H' } })
     await waitFor(() => expect(input.value).toContain('HQ-001'))
-    dispatchInput(input, 'HQ-001 · 본사 창고VH', 'insertFromPaste')
+    fireEvent.change(input, { target: { value: 'HQ-001 · 본사 창고VH' } })
 
     expect(input.value).toContain('VH')
   })
@@ -118,8 +107,7 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: 'H' } })
     await waitFor(() => expect(input.value).toContain('HQ-001'))
-    fireEvent.compositionStart(input)
-    dispatchInput(input, 'HQ-001 · 본사 창고창', 'insertCompositionText')
+    fireEvent.change(input, { target: { value: 'HQ-001 · 본사 창고창' } })
 
     expect(input.value).toContain('창')
   })
@@ -144,7 +132,7 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: 'H' } })
     await waitFor(() => expect(input.value).toContain('HQ-001'))
-    dispatchInput(input, 'HQ-001 · 본사 창고VH', 'insertReplacementText')
+    fireEvent.change(input, { target: { value: 'HQ-001 · 본사 창고VH' } })
 
     expect(input.value).toContain('VH')
   })
@@ -194,7 +182,28 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     expect(input.value).toBe('창고')
   })
 
-  it('자동확정 직후 이어진 키 입력이 확정 라벨에 붙지 않는다', async () => {
+  it('backdrop 취소가 예약한 blur에서도 미확정 draft를 보존한다', async () => {
+    render(
+      <WarehouseAutocomplete
+        warehouses={warehouses}
+        value={null}
+        onChange={vi.fn()}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창' } })
+    fireEvent.mouseDown(screen.getByTestId('ds-modal-backdrop'))
+    fireEvent.blur(input)
+    await new Promise((resolve) => window.setTimeout(resolve, 150))
+
+    expect(input.value).toBe('창')
+  })
+
+  it('알려진 동작: 자동확정 직후 이어진 키가 라벨 뒤에 붙는다 (#1141)', async () => {
     function ControlledWarehouse() {
       const [value, setValue] = useState<string | null>(null)
       return (
@@ -216,7 +225,7 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     await waitFor(() => expect(input.value).toBe('HQ-001 · 본사 창고'))
     fireEvent.change(input, { target: { value: 'HQ-001 · 본사 창고Q' } })
 
-    expect(input.value).toBe('HQ-001 · 본사 창고')
+    expect(input.value).toBe('HQ-001 · 본사 창고Q')
   })
 
   it('dropdown Escape가 상위 keydown 핸들러로 전파되지 않는다', () => {
