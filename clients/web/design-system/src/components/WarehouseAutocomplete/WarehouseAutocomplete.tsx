@@ -175,6 +175,9 @@ export const WarehouseAutocomplete = forwardRef<
   const [selectionCandidates, setSelectionCandidates] = useState<Warehouse[]>([])
   const [selectionOpen, setSelectionOpen] = useState(false)
   const blurTimer = useRef<number | undefined>(undefined)
+  // 검색 모달 취소로 input 포커스가 복원될 때 사용자의 draft를 보존한다.
+  const preserveDraftOnNextFocusRef = useRef(false)
+  const lastTypedDraftRef = useRef<string | null>(null)
 
   const candidates = useMemo(
     () => searchWarehouses(visibleWarehouses, draft),
@@ -188,8 +191,11 @@ export const WarehouseAutocomplete = forwardRef<
       window.clearTimeout(blurTimer.current)
       blurTimer.current = undefined
     }
-    // F-2: 포커스 시 draft 를 빈 문자열로 초기화 → 전체 후보 노출 (selectedLabel 검색 마찰 제거)
-    setDraft('')
+    const preserveDraft = preserveDraftOnNextFocusRef.current
+    preserveDraftOnNextFocusRef.current = false
+    // F-2: 일반 포커스 시 draft 를 빈 문자열로 초기화 → 전체 후보 노출.
+    // 모달 취소 직후 한 번만 사용자의 검색 draft를 복원한다.
+    setDraft(preserveDraft ? (lastTypedDraftRef.current ?? '') : '')
     setActiveIndex(-1)
     setOpen(true)
   }
@@ -226,6 +232,7 @@ export const WarehouseAutocomplete = forwardRef<
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
+    lastTypedDraftRef.current = nextDraft
     setDraft(nextDraft)
     setActiveIndex(-1)
     if (!open) setOpen(true)
@@ -275,14 +282,19 @@ export const WarehouseAutocomplete = forwardRef<
   }
 
   const closeSelection = () => {
+    if (blurTimer.current !== undefined) {
+      window.clearTimeout(blurTimer.current)
+      blurTimer.current = undefined
+    }
+    preserveDraftOnNextFocusRef.current = true
     setSelectionOpen(false)
     setSelectionCandidates([])
-    setDraft(selectedLabel)
+    setDraft(lastTypedDraftRef.current ?? '')
     setOpen(false)
   }
 
   // 표시값 — 포커스 중에는 draft, 그 외엔 selectedLabel
-  const displayValue = open ? draft : selectedLabel
+  const displayValue = open || preserveDraftOnNextFocusRef.current ? draft : selectedLabel
 
   return (
     <FormField

@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { Modal } from '../Modal'
 import { SearchResultSelectionModal } from './SearchResultSelectionModal'
 
 type Option = { id: string; modelCode: string; name: string }
@@ -10,6 +12,35 @@ const options: Option[] = [
 ]
 
 describe('SearchResultSelectionModal', () => {
+  it('중첩 모달에서 Escape 한 번은 가장 안쪽 모달 하나만 닫는다', () => {
+    function NestedModals() {
+      const [outerOpen, setOuterOpen] = useState(true)
+      const [innerOpen, setInnerOpen] = useState(true)
+      return (
+        <>
+          <Modal open={outerOpen} onClose={() => setOuterOpen(false)} title="바깥 모달">
+            <Modal open={innerOpen} onClose={() => setInnerOpen(false)} title="안쪽 모달">
+              <button type="button">안쪽 내용</button>
+            </Modal>
+          </Modal>
+          <output data-testid="outer-state">{String(outerOpen)}</output>
+          <output data-testid="inner-state">{String(innerOpen)}</output>
+        </>
+      )
+    }
+
+    render(<NestedModals />)
+    const innerContent = screen.getByRole('button', { name: '안쪽 내용' })
+    innerContent.focus()
+    fireEvent.keyDown(innerContent, { key: 'Escape' })
+
+    expect(screen.getByTestId('inner-state').textContent).toBe('false')
+    expect(screen.getByTestId('outer-state').textContent).toBe('true')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByTestId('outer-state').textContent).toBe('false')
+  })
+
   it('단수 모드에서는 한 후보만 확정한다', () => {
     const onConfirm = vi.fn()
     render(

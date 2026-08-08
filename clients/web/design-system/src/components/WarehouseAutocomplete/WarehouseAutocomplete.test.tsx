@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { WarehouseAutocomplete, type Warehouse } from './WarehouseAutocomplete'
 
@@ -55,6 +56,76 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     fireEvent.click(screen.getByRole('button', { name: '취소' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('검색 모달 취소 뒤 원래 입력 draft를 보존해 이어서 좁힐 수 있다', () => {
+    render(
+      <WarehouseAutocomplete
+        warehouses={warehouses}
+        value={null}
+        onChange={vi.fn()}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+    fireEvent.click(screen.getByRole('button', { name: '취소' }))
+
+    expect((input as HTMLInputElement).value).toBe('창고')
+  })
+
+  it('검색 모달에서 선택 확정하면 입력값을 선택값으로 교체한다', () => {
+    const onChange = vi.fn()
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={warehouses}
+          value={value}
+          onChange={(next, warehouse) => {
+            setValue(next)
+            onChange(next, warehouse)
+          }}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+    render(
+      <ControlledWarehouse />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'HQ-001' }))
+    fireEvent.click(screen.getByRole('button', { name: '선택 확정' }))
+
+    expect(onChange).toHaveBeenCalledWith(warehouses[0]!.id, warehouses[0])
+    expect(input.value).toBe('HQ-001 · 본사 창고')
+  })
+
+  it('검색 모달 바깥 클릭은 취소와 같이 draft를 보존한다', () => {
+    render(
+      <WarehouseAutocomplete
+        warehouses={warehouses}
+        value={null}
+        onChange={vi.fn()}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+    fireEvent.mouseDown(screen.getByTestId('ds-modal-backdrop'))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(input.value).toBe('창고')
   })
 
   it('option id와 combobox IDREF는 opaque index ID이고 도메인 id/code를 노출하지 않는다', () => {
