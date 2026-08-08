@@ -1,7 +1,10 @@
 package com.samhanair.logis.product.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
@@ -56,6 +60,9 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private MaterialPriceRepository materialPriceRepository;
+
+    @SpyBean
+    private MaterialPriceRepository materialPriceRepositorySpy;
 
     @Autowired
     private OduRecommendationLookupRepository oduRepository;
@@ -272,6 +279,121 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT is_deleted FROM material_price WHERE id = ?", Boolean.class, d3Id))
                 .isFalse();
+    }
+
+    /**
+     * 자재 탭 저장 실패로 트랜잭션이 롤백되면, 먼저 처리된 행의 hash도 캐시에 남지 않아야 한다.
+     *
+     * <p>첫 행 저장은 성공시키고 둘째 행 저장에서 실제 런타임 예외를 주입한다. 그러면 첫 행의
+     * DB 변경은 롤백되어야 하며, 다음 성공 sync에서는 첫 행도 {@code unchanged}가 아니라
+     * {@code updated}로 다시 처리되어야 한다.
+     */
+    @Test
+    void syncMaterialPricesTab_저장실패_롤백시_앞서갱신한_hash도_재처리된다() throws Exception {
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 자재가격!A1:D"))
+                .thenReturn(materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "40,000", "", ""),
+                        row("컬러유선리모컨", "75,000", "", "")
+                ));
+        syncService.syncMaterialPricesTab();
+        entityManager.clear();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 자재가격!A1:D"))
+                .thenReturn(materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "45,000", "", ""),
+                        row("컬러유선리모컨", "80,000", "", "")
+                ));
+        doAnswer(invocation -> {
+            MaterialPrice row = invocation.getArgument(0);
+            if ("컬러유선리모컨".equals(row.getName())) {
+                throw new IllegalStateException("injected material price save failure");
+            }
+            return row;
+        }).when(materialPriceRepositorySpy).save(any(MaterialPrice.class));
+
+        assertThatThrownBy(() -> syncService.syncMaterialPricesTab())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("injected material price save failure");
+        entityManager.clear();
+
+        assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
+                .isEqualByComparingTo(new BigDecimal("40000"));
+
+        assertThatThrownBy(() -> syncService.syncMaterialPricesTab())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("injected material price save failure");
+        entityManager.clear();
+        assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
+                .isEqualByComparingTo(new BigDecimal("40000"));
+
+        doAnswer(invocation -> invocation.getArgument(0))
+                .when(materialPriceRepositorySpy).save(any(MaterialPrice.class));
+        ProductLookupSheetSyncService.TabSyncResult retry = syncService.syncMaterialPricesTab();
+        entityManager.clear();
+
+        assertThat(retry.updated).isEqualTo(2);
+        assertThat(retry.unchanged).isZero();
+        assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
+                .isEqualByComparingTo(new BigDecimal("45000"));
+    }
+
+    /** 한 탭의 rollback은 다른 두 탭의 commit된 hash를 무효화하지 않는다. */
+    @Test
+    void syncAll_한탭_롤백시_나머지두탭_hash는_커밋된다() throws Exception {
+        stubLookupSheets(
+                materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "40,000", "", ""),
+                        row("컬러유선리모컨", "75,000", "", "")
+                ),
+                oduRows(
+                        row("멀티 냉난방", "", "홈멀티", "", ""),
+                        row("실내기", "마력", "실내기", "실내기", "마력"),
+                        row("5.5", "4HP", "", "", "")
+                ),
+                branchRows(row("전체 분기관 개수", "수동추가"), row("1509", "0"))
+        );
+        syncService.syncAll();
+
+        stubLookupSheets(
+                materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "45,000", "", ""),
+                        row("컬러유선리모컨", "80,000", "", "")
+                ),
+                oduRows(
+                        row("멀티 냉난방", "", "홈멀티", "", ""),
+                        row("실내기", "마력", "실내기", "실내기", "마력"),
+                        row("5.5", "4HP", "", "", "")
+                ),
+                branchRows(row("전체 분기관 개수", "수동추가"), row("1509", "0"))
+        );
+        doAnswer(invocation -> {
+            MaterialPrice row = invocation.getArgument(0);
+            if ("컬러유선리모컨".equals(row.getName())) {
+                throw new IllegalStateException("injected material price save failure");
+            }
+            return row;
+        }).when(materialPriceRepositorySpy).save(any(MaterialPrice.class));
+
+        ProductLookupSheetSyncService.SyncSummary failed = syncService.syncAll();
+
+        assertThat(failed.failedTabs).isEqualTo(1);
+        assertThat(failed.successfulTabs).isEqualTo(2);
+        assertThat(failed.byTab.get("싱글 자재가격").error)
+                .isEqualTo("injected material price save failure");
+        assertThat(failed.byTab.get("추천실외기").unchanged).isEqualTo(1);
+        assertThat(failed.byTab.get("분기계산").unchanged).isEqualTo(1);
+
+        doAnswer(invocation -> invocation.getArgument(0))
+                .when(materialPriceRepositorySpy).save(any(MaterialPrice.class));
+        ProductLookupSheetSyncService.SyncSummary retry = syncService.syncAll();
+
+        assertThat(retry.byTab.get("싱글 자재가격").updated).isEqualTo(2);
+        assertThat(retry.byTab.get("추천실외기").unchanged).isEqualTo(1);
+        assertThat(retry.byTab.get("분기계산").unchanged).isEqualTo(1);
     }
 
     /**

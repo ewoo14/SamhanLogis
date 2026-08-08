@@ -29,6 +29,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * RC9 lookup 3종 구글 시트 → DB 동기화 서비스.
@@ -165,12 +167,12 @@ public class ProductLookupSheetSyncService {
                         })
                         .orElseGet(() -> MaterialPrice.seed(materialKey, name, price, optionLabel, computedFormula));
                 materialPriceRepository.save(row);
-                lastKnownRowHash.put(cacheKey, rowHash);
+                putHash(cacheKey, rowHash);
                 result.inserted++;
-            } else if (!Objects.equals(lastKnownRowHash.get(cacheKey), rowHash)) {
+            } else if (!Objects.equals(getHash(cacheKey), rowHash)) {
                 active.get().updateFromSheet(name, price, optionLabel, computedFormula);
                 materialPriceRepository.save(active.get());
-                lastKnownRowHash.put(cacheKey, rowHash);
+                putHash(cacheKey, rowHash);
                 result.updated++;
             } else {
                 result.unchanged++;
@@ -228,12 +230,12 @@ public class ProductLookupSheetSyncService {
                         .orElseGet(() -> OduRecommendationLookup.seed(sheetRow.recommendationType(),
                                 sheetRow.indoorCapacity(), sheetRow.indoorCount(), sheetRow.outdoorHp()));
                 oduRepository.save(row);
-                lastKnownRowHash.put(cacheKey, rowHash);
+                putHash(cacheKey, rowHash);
                 result.inserted++;
-            } else if (!Objects.equals(lastKnownRowHash.get(cacheKey), rowHash)) {
+            } else if (!Objects.equals(getHash(cacheKey), rowHash)) {
                 active.get().updateFromSheet(sheetRow.indoorCapacity(), sheetRow.indoorCount(), sheetRow.outdoorHp());
                 oduRepository.save(active.get());
-                lastKnownRowHash.put(cacheKey, rowHash);
+                putHash(cacheKey, rowHash);
                 result.updated++;
             } else {
                 result.unchanged++;
@@ -280,12 +282,12 @@ public class ProductLookupSheetSyncService {
                         })
                         .orElseGet(() -> BranchPipeLookup.seed(branchCode, null, null));
                 branchRepository.save(row);
-                lastKnownRowHash.put(cacheKey, rowHash);
+                putHash(cacheKey, rowHash);
                 result.inserted++;
-            } else if (!Objects.equals(lastKnownRowHash.get(cacheKey), rowHash)) {
+            } else if (!Objects.equals(getHash(cacheKey), rowHash)) {
                 active.get().updateFromSheet(null, null);
                 branchRepository.save(active.get());
-                lastKnownRowHash.put(cacheKey, rowHash);
+                putHash(cacheKey, rowHash);
                 result.updated++;
             } else {
                 result.unchanged++;
@@ -315,7 +317,6 @@ public class ProductLookupSheetSyncService {
             summary.totalSkipped += result.skipped;
             summary.successfulTabs++;
         } catch (Exception e) {
-            invalidateHashCacheForTab(tabName);
             log.error("[ProductLookupSheetSync] tab '{}' sync 실패: {}", tabName, e.getMessage(), e);
             TabSyncResult result = new TabSyncResult();
             result.error = e.getMessage();
@@ -330,7 +331,7 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(row.getMaterialKey())) {
                 row.markDeleted(SYSTEM_ACTOR);
                 materialPriceRepository.save(row);
-                lastKnownRowHash.remove("material:" + row.getMaterialKey());
+                removeHash("material:" + row.getMaterialKey());
                 result.softDeleted++;
             }
         }
@@ -344,7 +345,7 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(key)) {
                 row.markDeleted(SYSTEM_ACTOR);
                 oduRepository.save(row);
-                lastKnownRowHash.remove("odu:" + key);
+                removeHash("odu:" + key);
                 result.softDeleted++;
             }
         }
@@ -357,7 +358,7 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(row.getBranchCode())) {
                 row.markDeleted(SYSTEM_ACTOR);
                 branchRepository.save(row);
-                lastKnownRowHash.remove("branch:" + row.getBranchCode());
+                removeHash("branch:" + row.getBranchCode());
                 result.softDeleted++;
             }
         }
@@ -448,18 +449,98 @@ public class ProductLookupSheetSyncService {
         return value == null ? null : value.stripTrailingZeros().toPlainString();
     }
 
-    /** 탭 트랜잭션 실패 시 rollback 된 rowHash 캐시를 제거한다. */
-    private void invalidateHashCacheForTab(String tabName) {
-        String prefix = switch (tabName) {
-            case MATERIAL_TAB -> "material:";
-            case ODU_TAB -> "odu:";
-            case BRANCH_TAB -> "branch:";
-            default -> null;
-        };
-        if (prefix == null) {
+    /** 트랜잭션 안에서는 rowHash 변경을 스테이징하고 commit 후에만 공유 캐시에 반영한다. */
+    private void putHash(String cacheKey, String rowHash) {
+        HashCacheTransactionState state = hashCacheTransactionState();
+        if (state == null) {
+            lastKnownRowHash.put(cacheKey, rowHash);
             return;
         }
-        lastKnownRowHash.keySet().removeIf(key -> key.startsWith(prefix));
+        state.put(cacheKey, rowHash);
+    }
+
+    /** 트랜잭션 안에서 앞서 같은 키에 예약한 변경을 포함해 rowHash를 읽는다. */
+    private String getHash(String cacheKey) {
+        HashCacheTransactionState state = currentHashCacheTransactionState();
+        if (state != null && state.hasMutation(cacheKey)) {
+            return state.value(cacheKey);
+        }
+        return lastKnownRowHash.get(cacheKey);
+    }
+
+    /** soft-delete도 commit 후에만 공유 캐시에서 제거한다. */
+    private void removeHash(String cacheKey) {
+        HashCacheTransactionState state = hashCacheTransactionState();
+        if (state == null) {
+            lastKnownRowHash.remove(cacheKey);
+            return;
+        }
+        state.remove(cacheKey);
+    }
+
+    /** 현재 트랜잭션에 rowHash 변경 버퍼를 등록하거나, 트랜잭션이 없으면 null을 반환한다. */
+    private HashCacheTransactionState hashCacheTransactionState() {
+        HashCacheTransactionState state = currentHashCacheTransactionState();
+        if (state != null) {
+            return state;
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return null;
+        }
+
+        state = new HashCacheTransactionState();
+        TransactionSynchronizationManager.bindResource(this, state);
+        HashCacheTransactionState registeredState = state;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                try {
+                    if (status == STATUS_COMMITTED) {
+                        registeredState.applyTo(lastKnownRowHash);
+                    }
+                } finally {
+                    TransactionSynchronizationManager.unbindResourceIfPossible(
+                            ProductLookupSheetSyncService.this);
+                }
+            }
+        });
+        return state;
+    }
+
+    private HashCacheTransactionState currentHashCacheTransactionState() {
+        if (!TransactionSynchronizationManager.hasResource(this)) {
+            return null;
+        }
+        return (HashCacheTransactionState) TransactionSynchronizationManager.getResource(this);
+    }
+
+    /** 한 탭 트랜잭션의 hash put/remove를 원자적으로 commit 반영하기 위한 상태 버퍼. */
+    private static final class HashCacheTransactionState {
+        private final Map<String, String> puts = new HashMap<>();
+        private final Set<String> removals = new HashSet<>();
+
+        void put(String key, String value) {
+            removals.remove(key);
+            puts.put(key, value);
+        }
+
+        void remove(String key) {
+            puts.remove(key);
+            removals.add(key);
+        }
+
+        boolean hasMutation(String key) {
+            return puts.containsKey(key) || removals.contains(key);
+        }
+
+        String value(String key) {
+            return puts.get(key);
+        }
+
+        void applyTo(Map<String, String> target) {
+            removals.forEach(target::remove);
+            puts.forEach(target::put);
+        }
     }
 
     /** 탭 결과 error 문자열에 row 단위 사유를 누적한다. */
