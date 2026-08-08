@@ -9,7 +9,7 @@ import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** 신규 전표의 (종류, 전표일) 마감 여부를 저장 직전에 판정한다. */
+/** 전표가 (종류, 전표일) 마감 정책을 통과하는지 모든 활성화 경로에서 판정한다. */
 @Service
 @RequiredArgsConstructor
 public class SlipClosedDateGuard {
@@ -22,6 +22,11 @@ public class SlipClosedDateGuard {
     private final Clock clock;
 
     public void assertCreatable(SlipType slipType, LocalDate slipDate, String requesterId) {
+        assertAllowed(slipType, slipDate, requesterId);
+    }
+
+    /** 복원·수정·상태 전이도 신규 생성과 동일한 마감일 예외 권한을 사용한다. */
+    public void assertAllowed(SlipType slipType, LocalDate slipDate, String requesterId) {
         if (isCreatable(slipType, slipDate, requesterId)) {
             return;
         }

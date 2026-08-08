@@ -177,6 +177,21 @@ class SlipServiceTest {
     }
 
     @Test
+    void process_checksClosedDateGuardBeforeStatusMutation() {
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(slip.getSlipType()).thenReturn(SlipType.OUTBOUND);
+        when(slip.getSlipDate()).thenReturn(LocalDate.of(2026, 5, 4));
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.CONFLICT, "마감된 날짜입니다"))
+                .when(closedDateGuard).assertAllowed(SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), "user-1");
+
+        assertThatThrownBy(() -> service.process(slipId, "user-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("마감된 날짜입니다");
+        verify(slip, never()).process();
+    }
+
+    @Test
     void create_bundleWithoutModelCode_isRejectedBeforeParentLinePersistence() {
         when(productClient.lookup(any())).thenReturn(List.of(new ProductSummary(
                 productId, "세트", "세트", "BUNDLE-001", UUID.randomUUID(),

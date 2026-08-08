@@ -689,6 +689,7 @@ public class SlipService {
     public SlipDetailResponse restoreToRevision(UUID slipId, int revisionNo,
                                                 String callerId, String callerName) {
         Slip slip = loadOrThrow(slipId);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // status 별 마감 정책 가드 (applyOverlayPatch/softDelete 와 동일 정책)
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
         // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
@@ -885,13 +886,19 @@ public class SlipService {
     /** 작성중 → 저장완료. */
     public SlipDetailResponse save(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::save);
         return SlipDetailResponse.from(slip);
     }
 
     /** 저장완료 → 전송완료. */
     public SlipDetailResponse send(UUID id) {
+        return send(id, null);
+    }
+
+    public SlipDetailResponse send(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(() -> {
             slip.send();
             if (slip.getSlipType() != SlipType.OUTBOUND) {
@@ -909,6 +916,7 @@ public class SlipService {
      */
     public SlipDetailResponse accept(UUID id, String acceptorUserId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), acceptorUserId);
         enforceSlipApprovalLine(slip, acceptorUserId, approvalGateForAccept(slip.getSlipType()));
         applyMutation(() -> slip.accept(acceptorUserId));
         if (slip.getSlipType() == SlipType.OUTBOUND) {
@@ -949,7 +957,12 @@ public class SlipService {
 
     /** 수락 → 처리중. */
     public SlipDetailResponse process(UUID id) {
+        return process(id, null);
+    }
+
+    public SlipDetailResponse process(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::process);
         return SlipDetailResponse.from(slip);
     }
@@ -1112,7 +1125,12 @@ public class SlipService {
      * @throws BusinessException(INTERNAL_ERROR) inventory-service 호출 실패
      */
     public SlipDetailResponse complete(UUID id) {
+        return complete(id, null);
+    }
+
+    public SlipDetailResponse complete(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::complete);
         if (slip.getSlipType() == SlipType.OUTBOUND) {
             Map<UUID, ProductSummary> productsById = loadProductsByLine(slip);
@@ -1346,14 +1364,24 @@ public class SlipService {
 
     /** 처리완료 → 배송중 (OUTBOUND 한정). */
     public SlipDetailResponse ship(UUID id) {
+        return ship(id, null);
+    }
+
+    public SlipDetailResponse ship(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::ship);
         return SlipDetailResponse.from(slip);
     }
 
     /** 배송중 → 배송완료 (OUTBOUND 한정). */
     public SlipDetailResponse deliver(UUID id) {
+        return deliver(id, null);
+    }
+
+    public SlipDetailResponse deliver(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::deliver);
         return SlipDetailResponse.from(slip);
     }
@@ -1361,6 +1389,7 @@ public class SlipService {
     /** 확정 — 출고는 DELIVERED→CONFIRMED, 입고는 COMPLETED→CONFIRMED. */
     public SlipDetailResponse confirm(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(slip::confirm);
         return SlipDetailResponse.from(slip);
     }
@@ -1379,6 +1408,7 @@ public class SlipService {
      */
     public SlipDetailResponse reject(UUID id, String callerId, String callerName, String reasonText) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         SlipStatus previous = slip.getStatus();
         // 권한 재편 Phase 2.1 — 반려 사유 prepend 로 memo(toSnapshot 필드) 변경 여부 감지용 사전 snapshot
         String oldMemo = slip.getMemo();
@@ -1421,6 +1451,7 @@ public class SlipService {
      */
     public SlipDetailResponse cancel(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         SlipStatus previous = slip.getStatus();
         applyMutation(slip::cancel);
         if (previous == SlipStatus.ACCEPTED && slip.getSlipType() == SlipType.OUTBOUND) {
