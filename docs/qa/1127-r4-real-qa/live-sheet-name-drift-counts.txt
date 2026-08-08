@@ -1,0 +1,22 @@
+Google Sheets API v4 readonly + product_db readonly SQL CTE
+measured_at_kst=2026-08-09 08:12:58.420 +09:00
+google_sheets_http=200
+ranges=6
+sheet_valid_occurrences=3120
+sheet_distinct_models=1121
+db_missing_occurrences=2
+name_drift_occurrences=1012
+name_drift_distinct_models=492
+name_equal_occurrences=2106
+ecount_name_drift_occurrences=0
+
+Per-tab remeasurement at 2026-08-09 08:15:43.947 +09:00
+TAB|VALID|DB_MISSING|NAME_DRIFT_OCCURRENCES|NAME_DRIFT_DISTINCT
+COMMERCIAL|418|0|48|48
+COMMERCIAL_PART|516|0|399|248
+HOME|123|1|4|4
+OLD|40|0|1|1
+SINGLE_PART|1735|1|558|251
+SINGLE_SET|288|0|2|2
+
+The summary counter increments per tab occurrence. 1012 is the prospective trigger count at measurement time; 492 is the global distinct product count.
