@@ -43,6 +43,28 @@ try {
     Invoke-Git $fixtureRoot @('cat-file', '-e', 'main^{commit}') | Out-Null
     $workflow = Get-Content -LiteralPath (Join-Path $repoRoot '.github/workflows/applied-migration-guard.yml') -Raw -Encoding UTF8
     if ($workflow -notmatch 'github\.event\.before|BeforeRef') { throw 'push workflow does not pass the event previous SHA to the guard' }
+    if ($workflow -notmatch 'scripts/repair-flyway-checksums\.ps1' -or $workflow -notmatch 'scripts/repair-flyway-checksums\.test\.ps1') { throw 'repair-only changes do not trigger the workflow' }
+
+    # RED: a recoverable previous push SHA must be fetched before fail-closed judgment.
+    $remoteRoot = Join-Path $fixtureRoot 'remote.git'
+    $sourceRoot = Join-Path $fixtureRoot 'source'
+    $shallowRoot = Join-Path $fixtureRoot 'shallow'
+    New-Item -ItemType Directory -Path $sourceRoot -Force | Out-Null
+    Invoke-Git $sourceRoot @('init', '-b', 'main') | Out-Null
+    Invoke-Git $sourceRoot @('config', 'user.email', 'test@example.invalid') | Out-Null
+    Invoke-Git $sourceRoot @('config', 'user.name', 'Flyway Guard Test') | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $sourceRoot 'services/auth-service/src/main/resources/db/migration') -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'services/auth-service/src/main/resources/db/migration/V1__initial.sql') -Value 'CREATE TABLE remote_fixture (id integer);' -Encoding UTF8
+    Invoke-Git $sourceRoot @('add', '.') | Out-Null
+    Invoke-Git $sourceRoot @('commit', '-m', 'remote base') | Out-Null
+    $recoverableBefore = ((Invoke-Git $sourceRoot @('rev-parse', 'HEAD') | Out-String).Trim())
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'README.md') -Value 'remote head' -Encoding UTF8
+    Invoke-Git $sourceRoot @('add', '.') | Out-Null
+    Invoke-Git $sourceRoot @('commit', '-m', 'remote head') | Out-Null
+    Invoke-Git $sourceRoot @('clone', '--bare', $sourceRoot, $remoteRoot) | Out-Null
+    Invoke-Git $fixtureRoot @('clone', '--depth', '1', '--branch', 'main', ('file:///' + ($remoteRoot -replace '\\', '/')), $shallowRoot) | Out-Null
+    $fetched = Assert-ExitCode 'recoverable missing previous SHA' { & $guard -RepoPath $shallowRoot -BaseRef 'origin/main' -BeforeRef $recoverableBefore } 0
+    if (($fetched -join "`n") -notmatch 'PASS') { throw "recoverable previous SHA was not fetched: $($fetched -join "`n")" }
 
     # RED: an unavailable push base must fail closed and tell the developer how to recover.
     $missingBefore = Assert-ExitCode 'force-push missing previous SHA' { & $guard -RepoPath $fixtureRoot -BaseRef 'origin/main' -BeforeRef ('f' * 40) } 1

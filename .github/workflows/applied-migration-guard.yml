@@ -7,6 +7,8 @@ on:
       - '**/db/migration/V*.sql'
       - 'scripts/check-applied-migrations.ps1'
       - 'scripts/check-applied-migrations.test.ps1'
+      - 'scripts/repair-flyway-checksums.ps1'
+      - 'scripts/repair-flyway-checksums.test.ps1'
       - '.github/workflows/applied-migration-guard.yml'
   push:
     branches: [main]
@@ -14,6 +16,8 @@ on:
       - '**/db/migration/V*.sql'
       - 'scripts/check-applied-migrations.ps1'
       - 'scripts/check-applied-migrations.test.ps1'
+      - 'scripts/repair-flyway-checksums.ps1'
+      - 'scripts/repair-flyway-checksums.test.ps1'
       - '.github/workflows/applied-migration-guard.yml'
   workflow_dispatch:
 

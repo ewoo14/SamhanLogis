@@ -25,6 +25,31 @@ function Invoke-Git([string[]] $Arguments) {
     return @($output)
 }
 
+function Try-Fetch-ComparisonRef([string] $Ref) {
+    $remote = if ($Ref -match '^([^/]+)/') { $Matches[1] } else { 'origin' }
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = 'git'
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $quotedRepo = '"' + $RepoPath.Replace('"', '\"') + '"'
+    $fetchRef = if ($Ref -match '^[^/]+/(.+)$') { $Matches[1] } else { $Ref }
+    $psi.Arguments = "-C $quotedRepo fetch --no-tags --depth=1 $remote $fetchRef"
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $psi
+    try {
+        [void] $process.Start()
+        if (-not $process.WaitForExit(20000)) {
+            try { $process.Kill() } catch { }
+            return $false
+        }
+        return $process.ExitCode -eq 0
+    } finally {
+        $process.Dispose()
+    }
+}
+
 function Is-AppliedMigration([string] $Path) {
     return $Path -match '(?i)(^|/)db/migration/V[^/]*\.sql$'
 }
@@ -50,6 +75,18 @@ if (-not $isEmptyTreeComparison) {
         $refExists = $true
     } catch {
         $refExists = $false
+    }
+}
+
+if (-not $refExists) {
+    if (-not $isEmptyTreeComparison) {
+        [void] (Try-Fetch-ComparisonRef $comparisonRef)
+        try {
+            Invoke-Git @('rev-parse', '--verify', "$comparisonRef^{commit}") | Out-Null
+            $refExists = $true
+        } catch {
+            $refExists = $false
+        }
     }
 }
 

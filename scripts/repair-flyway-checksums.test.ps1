@@ -15,6 +15,8 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'infrastructure') -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/auth-service/src/main/resources/db/migration') -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/arologis-service/src/main/resources/db/migration') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/new-service/src/main/resources/db/migration') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/no-migration-service/src/main/resources') -Force | Out-Null
     Set-Content -LiteralPath (Join-Path $fixtureRoot 'infrastructure/.env') -Value "POSTGRES_USER=samhan`nPOSTGRES_PASSWORD=$secret`n" -Encoding UTF8
     Set-Content -LiteralPath $fakeDocker -Value @"
 @echo off
@@ -24,10 +26,17 @@ if "%FAKE_DOCKER_MODE%"=="inspect-env" if not errorlevel 1 (
   echo $(Join-Path $fixtureRoot 'infrastructure')
   exit /b 0
 )
+if "%FAKE_DOCKER_MODE%"=="inspect-missing" echo Error: No such object: samhan-auth-service 1>&2
 if "%FAKE_DOCKER_MODE%"=="inspect-missing" echo %* | findstr /b /c:"inspect " >nul
 if "%FAKE_DOCKER_MODE%"=="inspect-missing" if not errorlevel 1 (
-  echo $(Join-Path $fixtureRoot 'missing-compose')
-  exit /b 0
+  exit /b 1
+)
+if "%FAKE_DOCKER_MODE%"=="checksum-mismatch-multiline" (
+  echo ERROR: Validate failed: Migrations have failed validation 1>&2
+  echo Migration checksum mismatch for migration version 1 1>&2
+  echo - Applied to database : 123 1>&2
+  echo - Resolved locally    : 456 1>&2
+  exit /b 1
 )
 if "%FAKE_DOCKER_MODE%"=="auth-failure" (
   echo fake Flyway validate failed: authentication rejected 1>&2
@@ -107,6 +116,24 @@ exit /b 1
 
 
         Remove-Item -LiteralPath $dockerArgsLog -Force
+        $env:FAKE_DOCKER_MODE = 'checksum-mismatch-multiline'
+        $multiline = @(& $script -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -PostgresContainer 'unused' 2>&1)
+        $multilineText = $multiline -join "`n"
+        if ($multilineText -notmatch 'repair completed|Successfully repaired') { throw "checksum-only multiline output did not repair: $multilineText" }
+
+        Remove-Item -LiteralPath $dockerArgsLog -Force
+        $env:FAKE_DOCKER_MODE = 'repair-success'
+        $newService = @(& $script -RepoPath $fixtureRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service new-service -PostgresContainer 'unused' -WhatIf 2>&1)
+        $newServiceText = $newService -join "`n"
+        if ($newServiceText -match 'ValidateSet|does not belong|Cannot validate') { throw "new service was rejected by a fixed service list: $newServiceText" }
+        if ($newServiceText -notmatch 'new-service') { throw "new service did not reach repair target selection: $newServiceText" }
+        try {
+            $noMigration = @(& $script -RepoPath $fixtureRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service no-migration-service -PostgresContainer 'unused' -WhatIf 2>&1)
+        } catch {
+            $noMigration = @($_)
+        }
+        if (($noMigration -join "`n") -notmatch 'Unknown service target') { throw "service without migrations was not excluded: $($noMigration -join "`n")" }
+
         $env:FAKE_DOCKER_MODE = 'repair-success'
         $repair = @(& $script -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -PostgresContainer 'unused' 2>&1)
         $LASTEXITCODE = 0

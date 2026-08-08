@@ -1,8 +1,8 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [string] $EnvFile,
-    [ValidateSet('accounting-service','arologis-service','auth-service','dashboard-service','dc-config-service','groupware-service','inventory-service','notification-service','partner-auth-service','partner-order-service','partner-service','product-service','slip-service','user-service')]
     [string] $Service,
+    [string] $RepoPath,
     [string] $PostgresContainer = 'samhan-postgres',
     [string] $Network = 'samhan-net',
     [string] $FlywayImage = 'flyway/flyway:10.10.0'
@@ -43,10 +43,16 @@ function Invoke-Docker([string[]] $Arguments, [switch] $AllowFailure) {
     return [pscustomobject]@{ ExitCode = $exitCode; Output = $redactedOutput }
 }
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
+$repoRoot = if ($RepoPath) { (Resolve-Path -LiteralPath $RepoPath).Path } else { Split-Path -Parent $PSScriptRoot }
 $infraRoot = Join-Path $repoRoot 'infrastructure'
 $composeWorkDir = $null
-if (-not $EnvFile) { $composeWorkDir = (Invoke-Docker @('inspect', 'samhan-auth-service', '--format', '{{index .Config.Labels "com.docker.compose.project.working_dir"}}') -AllowFailure).Output | Select-Object -First 1 }
+if (-not $EnvFile) {
+    $composeInspect = Invoke-Docker @('inspect', 'samhan-auth-service', '--format', '{{index .Config.Labels "com.docker.compose.project.working_dir"}}') -AllowFailure
+    if ($composeInspect.ExitCode -eq 0) {
+        $composeCandidate = $composeInspect.Output | Where-Object { [string] $_ -match '^(?:[A-Za-z]:[\\/]|/)' } | Select-Object -First 1
+        if ($composeCandidate) { $composeWorkDir = [string] $composeCandidate }
+    }
+}
 $candidateEnvFiles = @()
 if ($EnvFile) { $candidateEnvFiles += (Resolve-Path -LiteralPath $EnvFile).Path }
 if ($composeWorkDir) { $candidateEnvFiles += (Join-Path $composeWorkDir '.env'); $candidateEnvFiles += (Join-Path $composeWorkDir '.env.local') }
@@ -67,15 +73,14 @@ if (-not $dbPassword) {
 if (-not $dbPassword) { throw 'Database password was not provided by the environment file or running Postgres container.' }
 $script:RedactionValues = @($dbPassword)
 
-$targetDefinitions = @(
-    @('accounting-service','accounting_db'), @('arologis-service','arologis_db'), @('auth-service','auth_db'),
-    @('dashboard-service','dashboard_db'), @('dc-config-service','dc_config_db'), @('groupware-service','groupware_db'),
-    @('inventory-service','inventory_db'), @('notification-service','notification_db'), @('partner-auth-service','partner_auth_db'),
-    @('partner-order-service','partner_order_db'), @('partner-service','partner_db'), @('product-service','product_db'),
-    @('slip-service','slip_db'), @('user-service','user_db')
-)
+$targetDefinitions = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'services') -Directory | ForEach-Object {
+    $location = Join-Path $_.FullName 'src/main/resources/db/migration'
+    if (Test-Path -LiteralPath $location -PathType Container) {
+        ,@($_.Name, (($_.Name -replace '-', '_') + '_db'), $location)
+    }
+})
 $targets = @($targetDefinitions | Where-Object { -not $Service -or $_[0] -eq $Service } | ForEach-Object {
-    [pscustomobject]@{ Name = $_[0]; Database = $_[1]; Location = (Join-Path $repoRoot "services/$($_[0])/src/main/resources/db/migration") }
+    [pscustomobject]@{ Name = $_[0]; Database = $_[1]; Location = $_[2] }
 })
 if ($targets.Count -eq 0) { throw "Unknown service target: $Service" }
 
@@ -91,9 +96,14 @@ foreach ($target in $targets) {
         $mismatchLines = @($validate.Output | Where-Object { $_ -match 'Migration checksum mismatch for migration version' })
         $versions = @($mismatchLines | ForEach-Object { if ($_ -match 'version\s+([0-9.]+)') { $Matches[1] } })
         $validateText = $validate.Output -join [Environment]::NewLine
-        $hasNonChecksumError = $validateText -match '(?im)(failed|detected|error|authentication|exception|unable|rejected)'
-        $nonEmptyOutputCount = @($validate.Output | Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) }).Count
-        if ($hasNonChecksumError -or $nonEmptyOutputCount -gt $mismatchLines.Count) { throw "$($target.Name) validate failed for a reason other than a checksum mismatch:`n$validateText" }
+        $unexpectedLines = @($validate.Output | Where-Object {
+            $line = [string] $_
+            if ([string]::IsNullOrWhiteSpace($line)) { return $false }
+            return $line -notmatch '(?i)^\s*(?:ERROR:\s*)?Validate failed:.*$' -and
+                $line -notmatch '(?i)^\s*Migration checksum mismatch for migration version\s+[0-9.]+' -and
+                $line -notmatch '(?i)^\s*-\s*(Applied to database|Resolved locally)\s*:'
+        })
+        if ($unexpectedLines.Count -gt 0 -or ($validate.ExitCode -ne 0 -and $mismatchLines.Count -eq 0)) { throw "$($target.Name) validate failed for a reason other than a checksum mismatch:`n$validateText" }
         $displayVersions = if ($versions.Count) { $versions -join ', ' } else { '(none)' }
         Write-Output "$($target.Name): checksum mismatch versions = $displayVersions"
         if ($versions.Count -gt 0 -and $PSCmdlet.ShouldProcess($target.Name, 'Flyway repair (checksum metadata only)')) {
