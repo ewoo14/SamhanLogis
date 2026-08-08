@@ -4,6 +4,11 @@ import {
   isScheduledTag,
   scheduleLabel,
 } from './deliverySchedule'
+import { toKstDateISO } from './dateUtils'
+
+test('KST 날짜는 실행 환경 타임존과 무관하게 한국 업무일을 반환한다', () => {
+  expect(toKstDateISO(new Date('2026-08-07T20:30:00.000Z'))).toBe('2026-08-08')
+})
 
 // ── isScheduledTag ──────────────────────────────────────────────────────────
 

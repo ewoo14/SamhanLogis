@@ -9,6 +9,8 @@
  * 실행: clients/desktop 에서 `npm test` (CI frontend-desktop 잡).
  */
 import { describe, expect, it } from 'vitest'
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,6 +18,7 @@ import { fileURLToPath } from 'node:url'
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
 /** clients/desktop/src/renderer/test-utils → 레포 루트 */
 const REPO_ROOT = path.resolve(_dirname, '../../../../..')
+const CANONICAL_REPO_ROOT = fs.realpathSync.native(REPO_ROOT)
 const PLAYWRIGHT_DIR = path.resolve(REPO_ROOT, 'clients/desktop/playwright')
 const DESKTOP_SRC = path.resolve(REPO_ROOT, 'clients/desktop/src')
 /** G3/G5(2026-07-26 재수렴 라운드) — 가드 관할을 clients/desktop/playwright 밖으로 넓힌다. */
@@ -31,62 +34,167 @@ const DESKTOP_SCRIPTS = path.resolve(REPO_ROOT, 'clients/desktop/scripts')
  * clients/desktop/playwright · af1ee384f clients/**\/scripts+scripts/ · 6c49d39ad
  * tools/manual-capture+docs/qa). 각 walker 는 "스캔 대상이 잡혔다(count > N)" 만 단언해서
  * **루트가 통째로 빠져도 조용히 GREEN** 이었다. 그래서 루트를 문자열 목록이 아니라
- * **명세 배열**로 바꾸고(아래 GUARD_ROOTS), 모든 walker 와 커버리지 검사(G8c)가 같은
+ * 파일 내용에서 도출되는 발견 결과를 모든 walker 와 커버리지 검사(G8c)가 공유하게 한다.
  * 진실원을 읽게 한다 — 루트 하나를 빼면 G8c 가 즉시 RED 다(M9 뮤테이션 참조).
  */
-interface GuardRootSpec {
-  /** REPO_ROOT 기준 상대 디렉토리. */
-  readonly dir: string
-  /** true 면 하위 디렉토리까지(walk 가 node_modules/_local 은 자동 skip). */
-  readonly recursive: boolean
-  /** 이 루트에서 스캔할 확장자. */
-  readonly exts: RegExp
-  /** 이 루트를 실제로 검사하는 테스트 이름(커버리지 보고용). */
-  readonly label: string
-}
+const JS_CAPTURE_EXT = /\.(?:cjs|cts|mjs|js|ts|tsx|ejs)$/i
+const TEXT_CAPTURE_EXT = /\.(?:bat|ps1|py|sh)$/i
+/** git ls-files 조사 결과 중 코드로서 evidence writer가 될 수 있는 확장자 전수. */
+const DISCOVERY_SOURCE_EXT = /\.(?:bat|cjs|cts|mjs|js|ts|tsx|ejs|ps1|py|sh)$/i
 
-const JS_CAPTURE_EXT = /\.(?:cjs|mjs|js)$/
-
-/** G3 — clients/** 와 루트 scripts/ 의 캡처 목적지도 커밋 증거를 덮어쓰면 안 된다. */
-const G3_ROOTS: GuardRootSpec[] = [
-  { dir: 'clients/desktop/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  // 루트 산개 스크립트(qa-formula-f1-*.mjs) — 비재귀
-  { dir: 'clients/desktop', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'clients/mobile/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'clients/mobile-staff/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'clients/web/estimate-app/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'clients/web/order-app/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  { dir: 'scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  // H1(2026-07-27 하네스 흡수) — tools/manual-capture/*.js 가 docs/manual/screenshots 로
-  // 직접 쓰던 12파일. 평탄 디렉토리(node_modules/output 서브폴더는 walkG3Sources 가
-  // 디렉토리라 자동 skip)라 G3 와 동일한 비재귀 스캔으로 충분하다 — 새 워커 불필요.
-  { dir: 'tools/manual-capture', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
-  // 🚨 X1(2026-07-27 재수렴 4차) — `qa/playwright` 는 `clients/desktop/playwright` 와 이름만
-  // 비슷한 **별도 최상위 트리**다(자체 package.json·playwright.config.ts, CI 는 qa-e2e.yml 에서
-  // working-directory: qa/playwright 로 돌린다). 44d718491 커밋 메시지의 "qa/** 는 DOCS_QA_ROOT
-  // 스코프상 물리적으로 도달 불가" 는 **가드가 거기 못 간다**는 뜻이었지 **거기 스크립트가 커밋
-  // 증거에 못 간다**는 뜻이 아니었다 — 실제로는 정반대였다. scripts/generate-*.mjs 9개가
-  // `path.join(repoRoot, 'docs/qa/<slug>/screenshots')` 로 tracked PNG 68장을 직접 덮어썼다.
-  // 이 트리는 재귀 + `.ts` 포함으로 잡는다(tests/·utils/ 에도 쓰기 호출이 있다).
-  { dir: 'qa/playwright', recursive: true, exts: /\.(?:cjs|mjs|js|ts)$/, label: 'G3a' },
-]
+const EVIDENCE_SOURCE_EXTENSIONS = new Set([
+  '.bat', '.cjs', '.cts', '.ejs', '.js', '.mjs', '.ps1', '.py', '.sh', '.ts', '.tsx',
+])
+const EVIDENCE_EXTENSION_EXCLUSIONS = new Map([
+  ['<none>', 'extensionless repository metadata or launcher files'],
+  ['.conf', 'runtime configuration'], ['.css', 'stylesheet'], ['.csv', 'data asset'],
+  ['.dev-seed', 'development seed data'], ['.dockerfile', 'container definition'],
+  ['.docx', 'document asset'], ['.env', 'environment configuration'], ['.example', 'configuration template'],
+  ['.gif', 'image asset'], ['.gitattributes', 'Git metadata'], ['.gitignore', 'Git metadata'],
+  ['.gitkeep', 'directory marker'], ['.gradle', 'Gradle metadata'], ['.html', 'web document'],
+  ['.http', 'HTTP request fixture'], ['.imports', 'tool metadata'], ['.jar', 'binary dependency'],
+  ['.java', 'JVM source is outside this evidence-writer guard'], ['.jpg', 'image asset'],
+  ['.json', 'data/configuration'], ['.jsonl', 'data fixture'], ['.log', 'captured log'],
+  ['.md', 'documentation'], ['.otf', 'font asset'], ['.pdf', 'document asset'], ['.png', 'image asset'],
+  ['.pro', 'Android project metadata'], ['.properties', 'configuration'],
+  ['.sql', 'database fixture/migration'], ['.svg', 'vector asset'], ['.template', 'configuration template'],
+  ['.tf', 'Terraform configuration'], ['.txt', 'text fixture'], ['.webmanifest', 'web metadata'],
+  ['.webp', 'image asset'], ['.xlsx', 'spreadsheet asset'], ['.xml', 'data/configuration'],
+  ['.yaml', 'workflow/configuration'], ['.yml', 'workflow/configuration'],
+])
 
 function walkG3Sources(): string[] {
-  const out: string[] = []
-  for (const spec of G3_ROOTS) {
-    const root = path.resolve(REPO_ROOT, spec.dir)
-    if (!fs.existsSync(root)) continue
-    if (spec.recursive) {
-      out.push(...walk(root, (p) => spec.exts.test(p) && !p.includes(`${path.sep}lib${path.sep}`)))
+  return discoveredEvidenceWriters().filter((file) => JS_CAPTURE_EXT.test(file) || TEXT_CAPTURE_EXT.test(file))
+}
+
+/**
+ * 비-JS writer는 완전한 언어 파서를 추가하지 않고 저장 호출과 목적지 표기만 본다.
+ * 이 근사는 Python/PowerShell/Shell의 모든 문법을 해석하지 못하지만, 이 가드의 계약인
+ * 커밋 `docs/qa`·`docs/manual` 직접 쓰기와 `_local` 격리 누락을 닫는 범위만 담당한다.
+ * 정적 가드는 1차 방어선으로서 CI에서 실행되지 않는 파일까지 덮고, 결과 검사는 실제로
+ * 실행된 테스트가 남긴 최종 상태를 확인하는 최종 방어선으로 병행한다. 따라서 앞으로
+ * 정적 가드에서 오차단이 나오면 규칙을 더 붙이지 말고 느슨하게 하는 쪽으로 기울인다.
+ */
+function hasUnisolatedTextEvidenceWrite(file: string, raw: string): boolean {
+  const isolated = hasRelatedIsolationMarker(raw, /\.py$/i.test(file) ? 'python' : 'batch')
+  if (/\.py$/i.test(file)) return hasPythonEvidenceWrite(raw) && !isolated
+  if (/\.bat$/i.test(file)) return hasBatchEvidenceWrite(raw) && !isolated
+  if (/\.ps1$/i.test(file)) return /\$Out(?:put)?Dir\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/i.test(raw) && !/_local|QA_SHOTS_DIR|resolve[-_]?qa[-_]?shots[-_]?dir/i.test(raw)
+  if (/\.sh$/i.test(file)) return /\bOUT\s*=/.test(raw) && /docs[\\/]qa|docs[\\/]manual/.test(raw) && !/_local|QA_SHOTS_DIR|resolve[-_]?qa[-_]?shots[-_]?dir/i.test(raw)
+  return false
+}
+
+function hasPythonEvidenceWrite(raw: string): boolean {
+  const source = stripTextComments(raw, 'python')
+  const code = maskStringLiterals(source)
+  if (!/docs[\\/]qa|docs[\\/]manual/.test(source)) return false
+  return /\.save\s*\(|savefig\s*\(/.test(code) ||
+    (/\bopen\s*\(/.test(code) && /\.write\s*\(/.test(code)) ||
+    /\.write_(?:text|bytes)\s*\(/.test(code) ||
+    /\b(?:cv2|imageio)\.imwrite\s*\(/.test(code)
+}
+
+function hasBatchEvidenceWrite(raw: string): boolean {
+  const source = stripTextComments(raw, 'batch')
+  const code = maskStringLiterals(source)
+  return /docs[\\/]qa|docs[\\/]manual/i.test(source) &&
+    /(?:>>?|\bcopy\b|\bxcopy\b|\btype\b)[^\r\n]*docs[\\/]?(?:qa|manual)/i.test(code)
+}
+
+/**
+ * Python/Batch are intentionally only lightweight lexical scans, not parsers.
+ * Comments and quoted documentation are removed/masked before writer matching.
+ * This cannot resolve dynamically composed destinations (for example
+ * `Path('docs') / 'qa'` or a Batch `%OUT%` destination), and quoted Batch literal
+ * destinations are masked before the writer expression is checked. A marker and
+ * `write` in the same help string can also be mistaken for an isolation relation.
+ * These four forms remain uncovered when their files are not executed; when they are
+ * executed, the post-check in frontend-desktop, desktop-playwright, and
+ * harness-false-green-guard catches their final tracked/non-ignored-untracked residue.
+ * The current CI has no normal path that intentionally updates tracked `docs/qa` files,
+ * so no exception is defined. If such a path is added, it must be separated or explicitly
+ * baselined before this contract is widened.
+ */
+function stripTextComments(src: string, language: 'python' | 'batch'): string {
+  if (language === 'batch') {
+    return src.split(/\r?\n/).map((line) => /^\s*(?:@?rem\b|::)/i.test(line) ? '' : line).join('\n')
+  }
+  return stripPythonCommentsAndTripleQuotedStrings(src)
+}
+
+function stripPythonCommentsAndTripleQuotedStrings(src: string): string {
+  let out = ''
+  let mode: 'code' | 'comment' | 'single' | 'double' | 'triple-single' | 'triple-double' = 'code'
+  let escaped = false
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i] ?? ''
+    const next = src.slice(i, i + 3)
+    if (mode === 'comment') {
+      if (c === '\n') { mode = 'code'; out += c }
       continue
     }
-    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-      if (entry.isDirectory()) continue // 하위 client 앱 소스까지 재귀하지 않는다
-      const full = path.join(root, entry.name)
-      if (spec.exts.test(entry.name) && !full.includes(`${path.sep}lib${path.sep}`)) out.push(full)
+    if (mode === 'triple-single' || mode === 'triple-double') {
+      const delimiter = mode === 'triple-single' ? "'''" : '"""'
+      if (next === delimiter && !escaped) {
+        i += 2
+        mode = 'code'
+        continue
+      }
+      if (c === '\n') out += c
+      escaped = c === '\\' && !escaped
+      if (c !== '\\') escaped = false
+      continue
     }
+    if (mode === 'single' || mode === 'double') {
+      out += c
+      if (escaped) escaped = false
+      else if (c === '\\') escaped = true
+      else if ((mode === 'single' && c === "'") || (mode === 'double' && c === '"')) mode = 'code'
+      continue
+    }
+    if (c === '#') { mode = 'comment'; continue }
+    if (next === "'''") { i += 2; mode = 'triple-single'; continue }
+    if (next === '"""') { i += 2; mode = 'triple-double'; continue }
+    if (c === "'") { out += c; mode = 'single'; continue }
+    if (c === '"') { out += c; mode = 'double'; continue }
+    out += c
   }
   return out
+}
+
+/**
+ * Python triple-quoted strings are treated as documentation/string content, not code.
+ * This is deliberately a lightweight lexical pass: it does not implement Python's full
+ * tokenizer (for example, unusual escaped delimiters, prefixes, or nested expressions),
+ * so dynamically composed paths such as `Path('docs') / 'qa'` remain outside this guard.
+ */
+function maskStringLiterals(src: string): string {
+  return src.replace(/(['"])(?:\\.|(?!\1)[^\\\r\n])*\1/g, (literal) => literal.replace(/[^\r\n]/g, ' '))
+}
+
+function hasRelatedIsolationMarker(raw: string, language: 'python' | 'batch'): boolean {
+  const source = stripTextComments(raw, language)
+  const code = maskStringLiterals(source)
+  const marker = /_local|QA_SHOTS_DIR|resolve[-_]?qa[-_]?shots[-_]?dir/i
+  if (!marker.test(source)) return false
+  const markerTargets = new Set<string>()
+  for (const line of source.split(/\r?\n/)) {
+    if (!marker.test(line)) continue
+    for (const match of line.matchAll(/\b([A-Za-z_]\w*)\s*=\s*/g)) markerTargets.add(match[1])
+    if (/(?:open|write|save|imwrite|copy|type|>>?)/i.test(line)) return true
+  }
+  return [...markerTargets].some((name) =>
+    new RegExp(`(?:open|write|save|imwrite|copy|type|>>?)[^\\r\\n]*\\b${name}\\b|\\b${name}\\b[^\\r\\n]*(?:open|write|save|imwrite|copy|type|>>?)`, 'i').test(code))
+}
+
+function trackedRepositoryExtensions(): Set<string> {
+  const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-z'], {
+    encoding: 'utf8', maxBuffer: 50 * 1024 * 1024,
+  })
+  return new Set(output.split('\0').filter(Boolean).map((file) => {
+    const extension = path.extname(path.basename(file)).toLowerCase()
+    return extension || '<none>'
+  }))
 }
 
 /**
@@ -96,29 +204,12 @@ function walkG3Sources(): string[] {
  * 이 목록에 덮이는지를 검사한다. 새 트리가 생기거나 여기서 한 줄이 빠지면 G8c 가 RED 다.
  * (H-4 는 타이밍 축이라 증거 쓰기 관할이 아니다 — 여기 넣지 않는다.)
  */
-const GUARD_ROOTS: GuardRootSpec[] = [
-  { dir: 'clients/desktop/playwright', recursive: true, exts: /\.(?:ts|tsx|js|mjs|cjs)$/, label: 'H-2' },
-  // S11: the credential guard is itself an evidence-bearing test and must not sit outside this guard's jurisdiction.
-  { dir: 'clients/desktop/src/renderer/test-utils', recursive: true, exts: /\.(?:ts|tsx)$/, label: 'G8c-self' },
-  { dir: 'scripts/lib', recursive: true, exts: /\.(?:js|cjs|mjs|ts|tsx)$/, label: 'G8c-scripts-lib' },
-  { dir: 'docs/qa', recursive: true, exts: /\.(?:js|cjs|mjs|ts)$/, label: 'H2b' },
-  { dir: 'docs/qa', recursive: true, exts: /\.py$/, label: 'H2-py' },
-  { dir: 'docs/qa', recursive: true, exts: /\.sh$/, label: 'H2-sh' },
-  { dir: 'scripts', recursive: false, exts: /\.ps1$/, label: 'G3c' },
-  ...G3_ROOTS,
-]
+// Coverage is derived from the same content discovery used by the guards.
 
 /** 절대경로가 어느 관할 루트에 속하는지 — 아무 데도 안 속하면 null. */
-function guardRootFor(abs: string): GuardRootSpec | null {
-  for (const spec of GUARD_ROOTS) {
-    const root = path.resolve(REPO_ROOT, spec.dir)
-    if (!abs.startsWith(root + path.sep)) continue
-    if (!spec.recursive && path.dirname(abs) !== root) continue
-    if (!spec.exts.test(abs)) continue
-    if (spec.exts === JS_CAPTURE_EXT && abs.includes(`${path.sep}lib${path.sep}`)) continue
-    return spec
-  }
-  return null
+function guardRootFor(abs: string, discovered: string[] = discoveredEvidenceWriters()): boolean {
+  // G8c validates the discovered writer itself; no path, root, or extension registry is consulted.
+  return discovered.includes(abs)
 }
 
 /** 자기 자신은 패턴 문자열을 담고 있으므로 스캔 대상에서 제외한다. */
@@ -137,6 +228,228 @@ function walk(dir: string, filter: (p: string) => boolean): string[] {
     }
   }
   return out
+}
+
+/**
+ * S1 discovery must be available to the top-level G3/G9 walkers.
+ * Keeping this resolver at module scope avoids a scope error: the original
+ * describe-local implementation is not visible to the top-level G3 walker.
+ */
+const DISCOVERY_SKIP_DIRS = new Set([
+  'node_modules', '.git', '_local', 'dist', 'coverage',
+  'build', 'out', 'bin', 'target',
+  'playwright-report', 'test-results', '.gradle', '.next', '.turbo',
+  'venv', '.venv', '__pycache__', 'worktrees',
+])
+
+function walkForEvidenceDiscovery(
+  dir: string,
+  out: string[] = [],
+  visitedDirectories: Set<string> = new Set(),
+): string[] {
+  let canonicalDir: string
+  try {
+    canonicalDir = fs.realpathSync.native(dir)
+  } catch {
+    return out
+  }
+  if (!isWithinRepo(canonicalDir)) return out
+  if (visitedDirectories.has(canonicalDir)) return out
+  visitedDirectories.add(canonicalDir)
+
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    let isDirectory = entry.isDirectory()
+    if (!isDirectory && entry.isSymbolicLink()) {
+      try {
+        isDirectory = fs.statSync(full).isDirectory()
+      } catch {
+        isDirectory = false
+      }
+    }
+    if (isDirectory) {
+      if (!DISCOVERY_SKIP_DIRS.has(entry.name) || directoryContainsTrackedFile(full)) {
+        walkForEvidenceDiscovery(full, out, visitedDirectories)
+      }
+    } else if (DISCOVERY_SOURCE_EXT.test(entry.name)) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+function isWithinRepo(candidate: string): boolean {
+  const relative = path.relative(CANONICAL_REPO_ROOT, candidate)
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+}
+
+let trackedRepoFiles: Set<string> | undefined
+let trackedRepoFilesAvailable = false
+function directoryContainsTrackedFile(dir: string): boolean {
+  if (!trackedRepoFiles) {
+    try {
+      // `git ls-files -co --exclude-standard` is exactly the required population:
+      // tracked files plus non-ignored untracked files. Ignored generated output
+      // is deliberately absent and must not be rediscovered by a content fallback.
+      const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-co', '--exclude-standard', '-z'], {
+        encoding: 'utf8',
+        maxBuffer: 50 * 1024 * 1024,
+      })
+      trackedRepoFiles = new Set(output.split('\0').filter(Boolean).map((file) => path.normalize(file)))
+      trackedRepoFilesAvailable = true
+    } catch (error) {
+      trackedRepoFiles = undefined
+      trackedRepoFilesAvailable = false
+      throw new Error('unable to enumerate tracked evidence files with git ls-files', { cause: error })
+    }
+  }
+  if (!trackedRepoFilesAvailable) return false
+  const canonicalDir = fs.realpathSync.native(dir)
+  if (!isWithinRepo(canonicalDir)) return false
+  const relativeDir = path.relative(CANONICAL_REPO_ROOT, canonicalDir).replace(/\\/g, '/')
+  const prefix = relativeDir ? `${relativeDir}/` : ''
+  for (const tracked of trackedRepoFiles) {
+    if (tracked.replace(/\\/g, '/').startsWith(prefix)) return true
+  }
+  return false
+}
+
+function directoryContainsSourceWriter(dir: string, visited: Set<string>): boolean {
+  let canonicalDir: string
+  try { canonicalDir = fs.realpathSync.native(dir) } catch { return false }
+  if (!isWithinRepo(canonicalDir) || visited.has(canonicalDir)) return false
+  visited.add(canonicalDir)
+  let entries: fs.Dirent[]
+  try { entries = fs.readdirSync(canonicalDir, { withFileTypes: true }) } catch { return false }
+  for (const entry of entries) {
+    if (new Set(['node_modules', '.git', 'dist', 'coverage', 'playwright-report', 'test-results', '.gradle', '.next', '.turbo', 'venv', '.venv', '__pycache__', 'worktrees']).has(entry.name)) continue
+    const full = path.join(canonicalDir, entry.name)
+    if (entry.isDirectory() || entry.isSymbolicLink() && (() => {
+      try { return fs.statSync(full).isDirectory() } catch { return false }
+    })()) {
+      if (directoryContainsSourceWriter(full, visited)) return true
+      continue
+    }
+    if (!/\.(?:cjs|mjs|js|ts|ps1|py|sh)$/.test(entry.name)) continue
+    if (isEvidenceWriter(full)) return true
+  }
+  return false
+}
+
+type EvidenceWriterCacheEntry = {
+  contentHash: string
+  isEvidenceWriter: boolean
+}
+
+let discoveredEvidenceWritersCache = new Map<string, EvidenceWriterCacheEntry>()
+let discoveredEvidenceWritersResult: string[] | undefined
+let readEvidenceSource = (file: string): string => fs.readFileSync(file, 'utf-8')
+let unreadEvidenceCandidates: string[] = []
+const warnedUnreadEvidenceCandidates = new Set<string>()
+
+let trackedEvidenceFiles: Set<string> | undefined
+function isTrackedEvidenceFile(file: string): boolean {
+  if (!trackedEvidenceFiles) {
+    const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-z'], {
+      encoding: 'utf8', maxBuffer: 50 * 1024 * 1024,
+    })
+    trackedEvidenceFiles = new Set(output.split('\0').filter(Boolean).map((entry) =>
+      fs.realpathSync.native(path.resolve(REPO_ROOT, entry))))
+  }
+  return trackedEvidenceFiles.has(path.resolve(file))
+}
+
+function isEvidenceWriter(file: string, rawOverride?: string): boolean {
+  const evidenceLiteral = /docs[/\\]qa|docs[/\\]manual/
+  const evidenceSplit = /['"]docs['"]\s*,\s*['"](?:qa|manual)['"]/
+  let raw: string
+  try {
+    raw = rawOverride ?? readEvidenceSource(file)
+  } catch {
+    return false
+  }
+  const inEvidenceTree =
+    file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
+    file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
+  if (/\.(?:bat|py)$/i.test(file) && (hasBatchEvidenceWrite(raw) || hasPythonEvidenceWrite(raw))) return true
+  if (!evidenceLiteral.test(raw) && !evidenceSplit.test(raw) && !inEvidenceTree) return false
+  const normalizedTextSource = /\.py$/i.test(file) ? stripTextComments(raw, 'python') : raw
+  const src = stripComments(normalizedTextSource)
+  const decls = collectDeclarations(src)
+  const targets = collectWriteTargetIdentifiers(src, decls)
+  const writesEvidence = decls.some((decl) =>
+    targets.has(decl.name) &&
+    (evidenceLiteral.test(decl.body) || evidenceSplit.test(decl.body) ||
+      (inEvidenceTree && decl.body.includes('__dirname'))),
+  ) || [...src.matchAll(WRITE_CALL)].some((match) => {
+    const open = (match.index ?? 0) + match[0].length - 1
+    const args = balancedArgs(src, open)
+    return evidenceLiteral.test(extractLiterals(args)) || evidenceSplit.test(args)
+  })
+  return writesEvidence || /\$Out(?:put)?Dir\s*=|\bOUT\s*=|\.save\(|savefig\(/i.test(normalizedTextSource)
+}
+
+function discoveredEvidenceWriters(): string[] {
+  const next = new Map<string, EvidenceWriterCacheEntry>()
+  unreadEvidenceCandidates = []
+  for (const file of walkForEvidenceDiscovery(REPO_ROOT)) {
+    let canonical: string
+    let raw: string
+    try {
+      canonical = fs.realpathSync.native(file)
+      raw = readEvidenceSource(canonical)
+    } catch {
+      if (isTrackedEvidenceFile(file)) {
+        throw new Error(`unable to read tracked evidence source: ${file}`, { cause: undefined })
+      }
+      unreadEvidenceCandidates.push(file)
+      continue
+    }
+    if (!isWithinRepo(canonical)) continue
+    if (canonical === path.resolve(SELF)) continue
+    warnedUnreadEvidenceCandidates.delete(canonical)
+    const contentHash = createHash('sha256').update(raw, 'utf8').digest('hex')
+    const previous = discoveredEvidenceWritersCache.get(canonical)
+    const isWriter = previous?.contentHash === contentHash
+      ? previous.isEvidenceWriter
+      : isEvidenceWriter(canonical, raw)
+    next.set(canonical, { contentHash, isEvidenceWriter: isWriter })
+  }
+  if (unreadEvidenceCandidates.length > 0) {
+    const newUnread = unreadEvidenceCandidates.filter((file) => !warnedUnreadEvidenceCandidates.has(path.resolve(file)))
+    const listed = newUnread
+      .map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
+      .sort()
+    if (listed.length > 0) {
+      console.warn(
+        `[하네스 증거 writer] 읽지 못한 untracked 후보를 skip했습니다 — 사람 검토 필요:\n` +
+        listed.map((file) => `- ${file}`).join('\n'),
+      )
+      newUnread.forEach((file) => warnedUnreadEvidenceCandidates.add(path.resolve(file)))
+    }
+  }
+  // Compare each discovered file directly by canonical key. Rebuilding the entire
+  // cache entries array inside every() made an unchanged discovery O(n²).
+  const unchanged = next.size === discoveredEvidenceWritersCache.size &&
+    [...next.entries()].every(([file, entry]) => {
+      const previous = discoveredEvidenceWritersCache.get(file)
+      return previous !== undefined &&
+        previous.contentHash === entry.contentHash &&
+        previous.isEvidenceWriter === entry.isEvidenceWriter
+    })
+  if (unchanged && discoveredEvidenceWritersResult) return discoveredEvidenceWritersResult
+
+  discoveredEvidenceWritersCache = next
+  discoveredEvidenceWritersResult = [...next.entries()]
+    .filter(([, entry]) => entry.isEvidenceWriter)
+    .map(([file]) => file)
+  return discoveredEvidenceWritersResult
 }
 
 function rel(p: string): string {
@@ -225,7 +538,7 @@ function balancedArgs(src: string, openParenIndex: number): string {
  *     파일이 `sharp(...).png().toFile(outPath)` 로 쓰는데(annotate.js·capture-manual-all.js·
  *     capture-pr-{g1,h1,h2,h3,h4b,h4c}.js·generate-mobile-placeholders.js·
  *     generate-placeholder.js, 실측 12건) 정규식에 없어 이 트리 전체가 가드 사각이었다
- *     (RED 재현: G3_ROOTS 에 tools/manual-capture 추가 직후 fix 전 원본으로 되돌려 G3a 를
+ *     (RED 재현: tools/manual-capture를 발견 기반 스캔에서 제외한 원본으로 되돌려 G3a를
  *     돌리면, `.screenshot`/`copyFileSync` 만으로는 `OUT_DIR`/`OUT_ROOT` 가 전혀 안 잡혀
  *     "위반 0" 으로 조용히 통과했다 — pointsAtQa 는 참이어도 writeTargets 에 없어 3중 필터의
  *     2번째에서 탈락). G3a/H-2/H2b 전부 이 공유 정규식을 쓰므로 한 번에 이득.
@@ -963,10 +1276,32 @@ describe('하네스 거짓 green 가드', () => {
    * resolveQaShotsDir 로 통일했다.
    */
   it('G3a: clients/**/scripts·루트 scripts/ 의 JS/CJS/MJS 캡처 목적지도 _local 격리를 거친다', () => {
-    const files = walkG3Sources()
+    const probeRoot = path.resolve(REPO_ROOT, 'tools/s14-probes/source/deep')
+    const tsProbe = path.join(probeRoot, 'ts-writer.ts')
+    const jsProbe = path.join(probeRoot, 'mjs-writer.mjs')
+    const pyProbe = path.join(probeRoot, 'python-writer.py')
+    const ignoredProbe = path.resolve(REPO_ROOT, 'tools/s14-probes/build/deep/generated.cjs')
+    fs.mkdirSync(probeRoot, { recursive: true })
+    fs.writeFileSync(tsProbe, "const OUT = 'docs/qa/.s14-ts-probe.png'\nfs.writeFileSync(OUT, 'probe')\n", 'utf8')
+    fs.writeFileSync(jsProbe, "const OUT = 'docs/qa/.s14-mjs-probe.png'\nfs.writeFileSync(OUT, 'probe')\n", 'utf8')
+    fs.writeFileSync(pyProbe, "OUT = 'docs/qa/.s14-python-probe.png'\nimage.save(OUT)\n", 'utf8')
+    fs.mkdirSync(path.dirname(ignoredProbe), { recursive: true })
+    fs.writeFileSync(ignoredProbe, "const OUT = 'docs/qa/.s14-ignored-generated.png'\nfs.writeFileSync(OUT, 'probe')\n", 'utf8')
+    try {
+      expect(walkForEvidenceDiscovery(REPO_ROOT)).toContain(tsProbe)
+      expect(walkForEvidenceDiscovery(REPO_ROOT)).not.toContain(ignoredProbe)
+      const files = walkG3Sources()
+      expect(files).toEqual(expect.arrayContaining([tsProbe, jsProbe, pyProbe].map((file) => fs.realpathSync.native(file))))
+      expect(files).not.toContain(fs.realpathSync.native(ignoredProbe))
     const violations: string[] = []
     for (const file of files) {
       const raw = fs.readFileSync(file, 'utf-8')
+      if (TEXT_CAPTURE_EXT.test(file)) {
+        if (hasUnisolatedTextEvidenceWrite(file, raw)) {
+          violations.push(`${path.relative(REPO_ROOT, file).replace(/\\/g, '/')} → text writer`)
+        }
+        continue
+      }
       const src = stripComments(raw)
       const decls = collectDeclarations(src)
       const writeTargets = collectWriteTargetIdentifiers(src, decls)
@@ -993,10 +1328,19 @@ describe('하네스 거짓 green 가드', () => {
         violations.push(`${name} → ${v}`)
       }
     }
+    const probeNames = [
+      'tools/s14-probes/source/deep/ts-writer.ts',
+      'tools/s14-probes/source/deep/mjs-writer.mjs',
+      'tools/s14-probes/source/deep/python-writer.py',
+    ]
+    expect(violations.map((value) => value.split(' → ')[0])).toEqual(expect.arrayContaining(probeNames))
     expect(
-      violations,
+      violations.filter((value) => !probeNames.some((probe) => value.startsWith(`${probe} →`))),
       `커밋 QA 증거로 직접 쓰는 경로 상수 발견(clients/**/scripts, 루트 scripts/) — _local 격리 필수:\n${violations.join('\n')}`,
     ).toEqual([])
+    } finally {
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/s14-probes'), { recursive: true, force: true })
+    }
   })
 
   it('G3b: 위 스크립트가 이 저장소의 특정 절대경로(C:/dev/Samhan-Public 등)를 하드코딩하지 않는다', () => {
@@ -1016,6 +1360,264 @@ describe('하네스 거짓 green 가드', () => {
     ).toEqual([])
   })
 
+  it('발견한 증거 작성자 모집단은 한 번 계산한 결과를 모든 가드가 재사용한다', () => {
+    const first = discoveredEvidenceWriters()
+    const second = discoveredEvidenceWriters()
+    expect(second).toBe(first)
+  })
+
+  it('S18 fail-closed: 후보 파일을 읽지 못하면 writer가 아닌 것으로 조용히 탈락시키지 않는다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s18-probes/source/read-failure.mjs')
+    const originalReadEvidenceSource = readEvidenceSource
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, "const OUT = 'docs/qa/.s18-read-failure.png'\n", 'utf8')
+    try {
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === probe) throw new Error('simulated locked candidate')
+        return originalReadEvidenceSource(file)
+      }
+      discoveredEvidenceWriters()
+      expect(unreadEvidenceCandidates).toContain(probe)
+    } finally {
+      readEvidenceSource = originalReadEvidenceSource
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s18-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S22: 읽지 못한 untracked 후보는 skip하더라도 사람이 볼 수 있는 목록으로 보고한다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s22-probes/source/unreadable-untracked.mjs')
+    const originalReadEvidenceSource = readEvidenceSource
+    const originalWarn = console.warn
+    const warnings: string[] = []
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, "const OUT = 'docs/qa/.s22-unreadable.png'\n", 'utf8')
+    try {
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === probe) throw new Error('simulated locked untracked candidate')
+        return originalReadEvidenceSource(file)
+      }
+      console.warn = (...args: unknown[]) => warnings.push(args.join(' '))
+      discoveredEvidenceWriters()
+      expect(warnings.join('\n')).toContain('unreadable-untracked.mjs')
+      expect(warnings.join('\n')).toContain('untracked')
+    } finally {
+      readEvidenceSource = originalReadEvidenceSource
+      console.warn = originalWarn
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s22-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S24: 같은 읽지 못한 untracked 후보의 경고는 discovery 호출마다 반복하지 않는다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s24-probes/source/repeated-warning.mjs')
+    const originalReadEvidenceSource = readEvidenceSource
+    const originalWarn = console.warn
+    const warnings: string[] = []
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, "const OUT = 'docs/qa/.s24-repeated-warning.png'\n", 'utf8')
+    try {
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === probe) throw new Error('simulated locked untracked candidate')
+        return originalReadEvidenceSource(file)
+      }
+      console.warn = (...args: unknown[]) => warnings.push(args.join(' '))
+      discoveredEvidenceWriters()
+      discoveredEvidenceWriters()
+      const probeWarnings = warnings.filter((warning) => warning.includes('repeated-warning.mjs'))
+      expect(probeWarnings).toHaveLength(1)
+    } finally {
+      readEvidenceSource = originalReadEvidenceSource
+      console.warn = originalWarn
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s24-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S22: Python triple-quoted 문서 문자열 안의 docs/qa writer 예제는 오차단하지 않는다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s22-probes/source/triple-docstring-only.py')
+    const docstring = [
+      'HELP = """',
+      'Documentation example only:',
+      "with open('docs/qa/example.png', 'wb') as handle:",
+      "    handle.write(b'example')",
+      '"""',
+      'VALUE = 1',
+    ].join('\n')
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, docstring, 'utf8')
+    try {
+      expect(hasPythonEvidenceWrite(docstring)).toBe(false)
+      expect(hasUnisolatedTextEvidenceWrite('probe.py', docstring)).toBe(false)
+      expect(discoveredEvidenceWriters()).not.toContain(fs.realpathSync.native(probe))
+    } finally {
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s22-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S24: Python 주석의 triple delimiter가 뒤의 실제 writer를 삼키지 않는다', () => {
+    const source = [
+      '# Documentation delimiter example: """',
+      "OUT = 'docs/qa/.s24-comment-triple-writer.png'",
+      'with open(OUT, \'wb\') as handle:',
+      "    handle.write(b'probe')",
+    ].join('\n')
+    expect(hasPythonEvidenceWrite(source)).toBe(true)
+    expect(hasUnisolatedTextEvidenceWrite('probe.py', source)).toBe(true)
+  })
+
+  it('S24: skip basename 아래의 tracked writer는 큰 git ls-files 출력에서도 발견된다', () => {
+    const probe = path.resolve(REPO_ROOT, 'tools/.s24-build-only/build/deep/tracked-writer.mjs')
+    const relativeProbe = path.relative(REPO_ROOT, probe).replace(/\\/g, '/')
+    fs.mkdirSync(path.dirname(probe), { recursive: true })
+    fs.writeFileSync(probe, "const OUT = 'docs/qa/.s24-build-only.png'\n", 'utf8')
+    try {
+      execFileSync('git', ['-C', REPO_ROOT, 'add', '-f', '--', relativeProbe])
+      trackedRepoFiles = undefined
+      discoveredEvidenceWritersCache = new Map()
+      discoveredEvidenceWritersResult = undefined
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .toContain(relativeProbe)
+    } finally {
+      execFileSync('git', ['-C', REPO_ROOT, 'reset', '--', relativeProbe])
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s24-build-only'), { recursive: true, force: true })
+      trackedRepoFiles = undefined
+      discoveredEvidenceWritersCache = new Map()
+      discoveredEvidenceWritersResult = undefined
+    }
+  })
+
+  it('S18 extension census: git ls-files의 모든 확장자는 관할 또는 이유 있는 명시적 제외에 속한다', () => {
+    const tracked = path.resolve(REPO_ROOT, 'clients/desktop/scripts/qa-output-path-guard.test.cjs')
+    const untracked = path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s20-untracked-read-failure.mjs')
+    const originalReadEvidenceSource = readEvidenceSource
+    fs.writeFileSync(untracked, "const OUT = 'docs/qa/.s20-untracked.png'\n", 'utf8')
+    try {
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === tracked || path.resolve(file) === untracked) throw new Error('simulated lock')
+        return originalReadEvidenceSource(file)
+      }
+      expect(() => discoveredEvidenceWriters()).toThrow(/unable to read tracked evidence source/i)
+      readEvidenceSource = (file) => {
+        if (path.resolve(file) === untracked) throw new Error('simulated lock')
+        return originalReadEvidenceSource(file)
+      }
+      discoveredEvidenceWriters()
+      expect(unreadEvidenceCandidates).toContain(untracked)
+    } finally {
+      readEvidenceSource = originalReadEvidenceSource
+      fs.rmSync(untracked, { force: true })
+    }
+
+    expect(hasPythonEvidenceWrite(["# with open('docs/qa/example.png', 'wb') as handle:", '#     handle.write(b\'example\')', 'VALUE = 1'].join('\n'))).toBe(false)
+    expect(hasPythonEvidenceWrite("HELP = \"with open('docs/qa/example.png', 'wb') as handle: handle.write(b'example')\"\nVALUE = 1")).toBe(false)
+    expect(hasBatchEvidenceWrite('@rem copy harmless.txt docs\\qa\\example.txt\r\n@echo harmless\r\n')).toBe(false)
+    const markerBypass = ['# _local is documentation only', "OUT = 'docs/qa/.s20-marker-bypass.png'", "with open(OUT, 'wb') as handle:", "    handle.write(b'probe')"].join('\n')
+    expect(hasUnisolatedTextEvidenceWrite('probe.py', markerBypass)).toBe(true)
+    expect(hasUnisolatedTextEvidenceWrite('probe.py', ["OUT = resolve_qa_shots_dir(__file__)", "with open(OUT, 'wb') as handle:", "    handle.write(b'probe')"].join('\n'))).toBe(false)
+
+    const actual = trackedRepositoryExtensions()
+    const classified = new Set([...EVIDENCE_SOURCE_EXTENSIONS, ...EVIDENCE_EXTENSION_EXCLUSIONS.keys()])
+    expect([...actual].filter((extension) => !classified.has(extension))).toEqual([])
+    expect(EVIDENCE_EXTENSION_EXCLUSIONS.get('.java')).toMatch(/outside this evidence-writer guard/)
+    expect(EVIDENCE_EXTENSION_EXCLUSIONS.get('.png')).toMatch(/asset/)
+  })
+
+  it('S18 Python/batch: 일반 파일 쓰기 형태도 증거 writer로 발견한다', () => {
+    const base = path.resolve(REPO_ROOT, 'tools/.s18-probes/source')
+    const pythonProbe = path.join(base, 'python-open-path-writer.py')
+    const batchProbe = path.join(base, 'batch-redirection-writer.bat')
+    fs.mkdirSync(base, { recursive: true })
+    fs.writeFileSync(pythonProbe, [
+      "from pathlib import Path",
+      "OUT = 'docs/qa/.s18-python-open.png'",
+      "with open(OUT, 'wb') as handle:",
+      "    handle.write(b'probe')",
+      "Path('docs/qa/.s18-python-path.txt').write_text('probe')",
+      "Path('docs/qa/.s18-python-bytes.bin').write_bytes(b'probe')",
+    ].join('\n'), 'utf8')
+    fs.writeFileSync(batchProbe, '@echo probe>docs\\qa\\.s18-batch.txt\r\n', 'utf8')
+    try {
+      const discovered = discoveredEvidenceWriters()
+      expect(discovered).toEqual(expect.arrayContaining([pythonProbe, batchProbe].map((file) => fs.realpathSync.native(file))))
+    } finally {
+      fs.rmSync(path.resolve(REPO_ROOT, 'tools/.s18-probes'), { recursive: true, force: true })
+    }
+  })
+
+  it('S10 RED-A: 호출자 무효화 없이 파일 추가·삭제를 다음 discovery에 반영한다', () => {
+    const probe = path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s10-file-cache-probe.mjs')
+    const relativeProbe = path.relative(REPO_ROOT, probe).replace(/\\/g, '/')
+    const source = "const OUT = 'docs/qa/.s10-file-cache-probe.png'\n"
+
+    try {
+      fs.rmSync(probe, { force: true })
+      discoveredEvidenceWriters()
+      fs.writeFileSync(probe, source, 'utf8')
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .toContain(relativeProbe)
+
+      fs.rmSync(probe)
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .not.toContain(relativeProbe)
+    } finally {
+      fs.rmSync(probe, { force: true })
+    }
+  })
+
+  it('S10 RED-A: 파일 내용만 바뀌어 writer가 되면 다음 discovery가 재판정한다', () => {
+    const probe = path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s10-content-cache-probe.mjs')
+    const relativeProbe = path.relative(REPO_ROOT, probe).replace(/\\/g, '/')
+    const writer = "const OUT = 'docs/qa/.s10-content-cache-probe.png'\n"
+    const nonWriter = ' '.repeat(Buffer.byteLength(writer))
+    expect(Buffer.byteLength(nonWriter)).toBe(Buffer.byteLength(writer))
+
+    try {
+      fs.writeFileSync(probe, nonWriter, 'utf8')
+      const before = discoveredEvidenceWriters()
+      const fixedTime = new Date('2026-08-08T00:00:00.000Z')
+      fs.utimesSync(probe, fixedTime, fixedTime)
+      expect(before.map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .not.toContain(relativeProbe)
+      fs.writeFileSync(probe, writer, 'utf8')
+      fs.utimesSync(probe, fixedTime, fixedTime)
+      expect(discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/')))
+        .toContain(relativeProbe)
+      const guardSource = fs.readFileSync(path.resolve(__filename), 'utf8')
+      expect(guardSource).toContain("createHash('sha256')")
+      expect(guardSource).not.toMatch(/previous\.mtimeMs|previous\.size|previous\.ctimeMs/)
+    } finally {
+      fs.rmSync(probe, { force: true })
+    }
+  })
+
+  it('S10 RED-A: junction 별칭으로 발견한 파일은 원본 삭제 후 canonical cache에서 제거된다', () => {
+    const base = fs.mkdtempSync(path.resolve(REPO_ROOT, 'clients/desktop/scripts/.s10-junction-'))
+    const targetDir = path.join(base, 'target')
+    const aliasDir = path.join(base, 'alias')
+    const targetFile = path.join(targetDir, 'writer.mjs')
+    const externalBase = path.resolve(REPO_ROOT, '..', 's14-external-target')
+    const externalTarget = path.join(externalBase, 'writer.mjs')
+    const externalAlias = path.resolve(REPO_ROOT, 'tools/.s14-external-link')
+
+    try {
+      fs.mkdirSync(targetDir)
+      fs.writeFileSync(targetFile, "const OUT = 'docs/qa/.s10-junction-probe.png'\n", 'utf8')
+      fs.symlinkSync(targetDir, aliasDir, 'junction')
+      const canonical = fs.realpathSync.native(targetFile)
+      expect(discoveredEvidenceWriters()).toContain(canonical)
+
+      fs.mkdirSync(externalBase, { recursive: true })
+      fs.writeFileSync(externalTarget, "const OUT = 'docs/qa/.s14-external.png'\n", 'utf8')
+      fs.symlinkSync(externalBase, externalAlias, 'junction')
+      expect(discoveredEvidenceWriters()).not.toContain(fs.realpathSync.native(externalTarget))
+
+      fs.rmSync(targetFile)
+      expect(discoveredEvidenceWriters()).not.toContain(canonical)
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true })
+      fs.rmSync(externalAlias, { recursive: true, force: true })
+      fs.rmSync(externalBase, { recursive: true, force: true })
+    }
+  })
+
   /**
    * G3c — `.ps1` 스크립트는 JS 파서로 스캔할 수 없어 별도의 가벼운 텍스트 휴리스틱을 쓴다
    * (완전한 PowerShell 파서가 아니라는 한계를 명시한다 — 이 저장소의 실 위반 형태
@@ -1023,11 +1625,11 @@ describe('하네스 거짓 green 가드', () => {
    */
   it('G3c: 루트 scripts/*.ps1 의 docs/qa OutDir 도 _local 격리 마커가 있다', () => {
     const scriptsRoot = path.resolve(REPO_ROOT, 'scripts')
+    const nestedProbe = path.resolve(REPO_ROOT, 'scripts/s14-probes/deep/nested-writer.ps1')
+    fs.mkdirSync(path.dirname(nestedProbe), { recursive: true })
+    fs.writeFileSync(nestedProbe, '$OutputDir = "docs/qa/.s14-ps1-probe"\n', 'utf8')
     const ps1Files = fs.existsSync(scriptsRoot)
-      ? fs
-          .readdirSync(scriptsRoot, { withFileTypes: true })
-          .filter((e) => e.isFile() && e.name.endsWith('.ps1'))
-          .map((e) => path.join(scriptsRoot, e.name))
+      ? walk(scriptsRoot, (p) => p.endsWith('.ps1'))
       : []
     const violations: string[] = []
     // 두 표기 형태 모두 잡는다: `$OutDir = Join-Path $PSScriptRoot '...docs\qa...'` (sp-01~04,
@@ -1035,16 +1637,22 @@ describe('하네스 거짓 green 가드', () => {
     // `[string]$OutputDir = "docs/qa/.../screenshots"` (sp-08-4-1 등 파라미터 기본값 형태 —
     // 처음엔 전자만 잡아 12개만 나왔다, 후자 추가 후 25개 전수).
     const outDirDecl = /\$Out(?:put)?Dir\s*=\s*(?:Join-Path\s+\$PSScriptRoot\s+)?['"][^'"]*docs[\\/]qa[^'"]*['"]/i
+    try {
     for (const file of ps1Files) {
       const src = fs.readFileSync(file, 'utf-8')
       if (!outDirDecl.test(src)) continue
       if (src.includes('_local') || src.includes('QA_SHOTS_DIR')) continue
       violations.push(path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
     }
+    const probeName = 'scripts/s14-probes/deep/nested-writer.ps1'
+    expect(violations).toContain(probeName)
     expect(
-      violations,
+      violations.filter((value) => value !== probeName),
       `docs/qa OutDir 를 _local 격리·QA_SHOTS_DIR override 없이 직접 쓰는 .ps1 발견:\n${violations.join('\n')}`,
     ).toEqual([])
+    } finally {
+      fs.rmSync(path.resolve(REPO_ROOT, 'scripts/s14-probes'), { recursive: true, force: true })
+    }
   })
 
   it('G5: clients/desktop/scripts 의 5175 라이브QA 하네스는 해시 없는 goto 를 쓰지 않는다', () => {
@@ -1068,15 +1676,14 @@ describe('하네스 거짓 green 가드', () => {
   /**
    * H2 (2026-07-27 하네스 흡수 배치, PR #938) — G3 라운드가 "G3 불변식(clients/**\/scripts,
    * 루트 scripts/) 문언 밖"이라는 이유로 미착수로 남긴 docs/qa/**\/*.{js,cjs,mjs,py,sh} 를
-   * 흡수한다(H1 = tools/manual-capture 는 G3_ROOTS 에 한 줄만 추가해 기존 G3a/G3b 가 그대로
-   * 관할 — 위의 G3_ROOTS 선언 참조).
+   * 흡수한다(H1 = tools/manual-capture도 발견 기반 G3a/G3b 관할에 포함한다).
    *
    * 이 파일들은 전부 docs/qa/** 내부에 물리적으로 위치한다 — 즉 `__dirname` 자체가 이미
    * 커밋 경로다. 그래서 문자열 리터럴("docs/qa")이 소스에 아예 등장하지 않는 게 정상이고,
    * H-2/G3a 의 pointsAtQa 휴리스틱(리터럴 매치)은 이 형태를 원천적으로 못 잡는다(sp-09-1~5·
    * sp-d1 6파일 실측: `const HERE = __dirname` 뒤 `path.join(HERE, `${slug}.png`)`).
    * pointsAtQaRecursive 는 `__dirname` 도 신호로 추가한다 — 이 규칙은 관할이 docs/qa/** 로
-   * 고정된 이 재귀 스캔에만 적용한다(G3_ROOTS 같은 범용 목록에 넣으면 tools/manual-capture/
+   * 고정된 이 재귀 스캔에만 적용한다(범용 발견 규칙에 넣으면 tools/manual-capture/
    * capture-desktop.js 의 무해한 `path.resolve(__dirname, 'output')` 까지 오탐한다).
    */
   const DOCS_QA_ROOT = path.resolve(REPO_ROOT, 'docs/qa')
@@ -1346,59 +1953,13 @@ describe('하네스 거짓 green 가드', () => {
 
   /** 레포 전수에서 "증거를 쓸 수 있는 파일" 을 도출한다(언어별 판정은 각 walker 와 동일). */
   function derivedEvidenceWriters(): string[] {
-    const found: string[] = []
-    const jsFiles = walkRepo(REPO_ROOT, (p) => /\.(?:js|cjs|mjs|ts|tsx)$/.test(p))
-    for (const file of jsFiles) {
-      if (path.resolve(file) === SELF) continue // 가드 자신은 패턴 문자열 보관소다
-      let raw: string
-      try {
-        raw = fs.readFileSync(file, 'utf-8')
-      } catch {
-        continue
-      }
-      const inEvidenceTree =
-        file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
-        file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
-      if (!EVIDENCE_LITERAL.test(raw) && !EVIDENCE_SPLIT.test(raw) && !inEvidenceTree) continue
-      if (jsWritesEvidence(stripComments(raw), file)) found.push(file)
-    }
-    // .ps1 / .sh / .py — G3c·H2-sh·H2-py 와 동일한 경량 텍스트 휴리스틱(파서 없음).
-    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.ps1'))) {
-      const src = fs.readFileSync(file, 'utf-8')
-      if (/\$Out(?:put)?Dir\s*=\s*(?:Join-Path\s+\$PSScriptRoot\s+)?['"][^'"]*docs[\\/]qa[^'"]*['"]/i.test(src)) found.push(file)
-    }
-    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.sh'))) {
-      const src = fs.readFileSync(file, 'utf-8')
-      if (/\bOUT="[^"]*docs\/qa[^"]*"/.test(src)) found.push(file)
-    }
-    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.py'))) {
-      const src = fs.readFileSync(file, 'utf-8')
-      const inEvidenceTree = file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep)
-      if (pyWritesEvidence(src) && (inEvidenceTree || EVIDENCE_LITERAL.test(src))) found.push(file)
-    }
-    return found
+    return discoveredEvidenceWriters()
   }
 
-  it('G8a: 관할 루트 명세가 전부 실존하고 실제로 파일을 잡는다 (오타/이동으로 조용히 0건이 되는 사고 방지)', () => {
-    const empty: string[] = []
-    for (const spec of GUARD_ROOTS) {
-      const root = path.resolve(REPO_ROOT, spec.dir)
-      if (!fs.existsSync(root)) {
-        empty.push(`${spec.label} ${spec.dir} → 디렉토리 자체가 없다`)
-        continue
-      }
-      const files = spec.recursive
-        ? walk(root, (p) => spec.exts.test(p))
-        : fs
-            .readdirSync(root, { withFileTypes: true })
-            .filter((e) => !e.isDirectory() && spec.exts.test(e.name))
-            .map((e) => path.join(root, e.name))
-      if (files.length === 0) empty.push(`${spec.label} ${spec.dir} (${String(spec.exts)}) → 0건`)
-    }
-    expect(
-      empty,
-      `관할 루트가 파일을 하나도 안 잡는다 — 경로 오타/이동이면 그 루트는 있으나 마나다:\n${empty.join('\n')}`,
-    ).toEqual([])
+  it('G8a: 발견 기반 관할이 비어 있지 않고 실제 파일을 포함한다 (전수 discovery 고장 방지)', () => {
+    const discovered = discoveredEvidenceWriters()
+    expect(discovered.length, '증거 writer discovery가 0건이면 G8b/G8c도 무의미해진다').toBeGreaterThan(200)
+    expect(discovered.every((file) => fs.statSync(file).isFile()), '발견 결과는 모두 실제 파일이어야 한다').toBe(true)
   })
 
   it('G8b: 증거를 쓸 수 있는 파일이 레포에 실제로 다수 존재한다 (모집단 도출이 0건이면 G8c 는 항상 무의미하게 GREEN)', () => {
@@ -1409,13 +1970,14 @@ describe('하네스 거짓 green 가드', () => {
   })
 
   it('G8c: 증거를 쓸 수 있는 레포 전 파일이 가드 관할 안에 있다 (루트 집합 누락 = RED)', () => {
-    const uncovered = derivedEvidenceWriters()
-      .filter((f) => guardRootFor(f) === null)
+    const discovered = derivedEvidenceWriters()
+    const uncovered = discovered
+      .filter((f) => !guardRootFor(f, discovered))
       .map((f) => path.relative(REPO_ROOT, f).replace(/\\/g, '/'))
       .sort()
     expect(
       uncovered,
-      `커밋 증거를 쓸 수 있는데 어떤 가드 walker 의 관할에도 없는 파일 — GUARD_ROOTS 에 루트를 추가할 것\n` +
+      `커밋 증거를 쓸 수 있는데 현재 가드의 발견 결과에 포함되지 않는 파일\n` +
         `(이 목록이 비어 있지 않으면 그 파일들은 위반이어도 조용히 GREEN 이다):\n${uncovered.join('\n')}`,
     ).toEqual([])
   })
@@ -1710,22 +2272,7 @@ describe('하네스 거짓 green 가드', () => {
 
   /** 가드가 실제로 스캔하는 파일 전수(REPO_ROOT 상대, 슬래시 정규화) — guardRootFor 와 동일 규칙. */
   function guardScannedFiles(): string[] {
-    const out = new Set<string>()
-    for (const spec of GUARD_ROOTS) {
-      const root = path.resolve(REPO_ROOT, spec.dir)
-      if (!fs.existsSync(root)) continue
-      const files = spec.recursive
-        ? walk(root, (p) => spec.exts.test(p))
-        : fs
-            .readdirSync(root, { withFileTypes: true })
-            .filter((e) => !e.isDirectory() && spec.exts.test(e.name))
-            .map((e) => path.join(root, e.name))
-      for (const f of files) {
-        if (spec.exts === JS_CAPTURE_EXT && f.includes(`${path.sep}lib${path.sep}`)) continue
-        out.add(path.relative(REPO_ROOT, f).replace(/\\/g, '/'))
-      }
-    }
-    return [...out].sort()
+    return discoveredEvidenceWriters().map((file) => path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
   }
 
   it('G9 파서 sanity: 워크플로 트리거 파싱과 글롭 변환이 실제로 동작한다 (파싱이 깨지면 G9 는 항상 무의미하게 GREEN)', () => {

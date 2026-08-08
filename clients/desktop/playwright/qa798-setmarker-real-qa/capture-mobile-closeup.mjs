@@ -4,7 +4,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 // SET 행의 mobile-only 이름셀만 확대 캡처(2x 스케일)로 가독성 판정.
 import { chromium } from '@playwright/test';
 
-const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-part3-marker');
+const OUT = resolveQaShotsDir(process.env.QA_OUT || '../../docs/qa/e782-part3-marker');
 const URL = process.env.QA_URL || 'http://localhost:5198/';
 const SET_MODEL = 'QA797-SET-01';
 

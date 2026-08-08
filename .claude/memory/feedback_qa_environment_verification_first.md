@@ -52,6 +52,34 @@ PM 쪽에서도 QA 결과를 집계하기 전에 물을 것:
 데이터 조건   발화에 필요한 행이 실제로 있는가
 ```
 
+## 🆕 2026-08-08 — **백엔드를 바꿨으면 push 직후 PM 이 재배포한다** (하루 3회)
+
+QA 를 붙였다가 **배포본 불일치로 판정 불가**를 받은 것이 하루에 세 번이다.
+
+```text
+#1074  배포 JAR 에 되돌린 assertWithinCutoffForCreation 이 남아 있었다
+#1092  배포 JAR 이 S2 커밋보다 오래되고 ChangeEstimateOwnerRequest.class 가 없었다  (2회)
+```
+
+세 번 다 **QA 가 판정을 거부한 것이 옳았고**, 세 번 다 PM 이 재배포한 뒤 다시 돌렸다.
+⟹ QA 한 라운드가 통째로 낭비된다. **QA 가 잡을 일이 아니라 PM 이 미리 맞출 일이다.**
+
+```text
+✅ 백엔드 파일이 diff 에 있으면  →  커밋·push 직후 곧바로 재배포한다
+                                    (QA 브리핑을 쓰기 전에)
+✅ 브리핑에 "배포본 = HEAD 를 맞췄다" 를 근거와 함께 적는다
+🚫 "QA 가 알아서 볼 것" 으로 미루지 않는다
+```
+
+재배포는 override 를 반드시 함께 준다(→ [[feedback_parallel_backend_tracks_share_docker_stack]]):
+```
+docker compose -f docker-compose.yml -f docker-compose.local-all.yml \
+               -f docker-compose.slip-port-override.yml up -d --build --no-deps <service>
+```
+
+🔑 확인은 **파일 시각이 아니라 산출물**로 — *"배포 JAR 안에 이번에 추가한 클래스가 있는가"* 가
+   `docker inspect .Created` 보다 확실하다. `#1092` 를 가른 것이 그 확인이었다.
+
 ## 관련
 
 - [[feedback_stale_deployment_looks_like_defect]] — 배포본 나이 계열의 선행 관측

@@ -9,7 +9,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 //       + 실 partner-auth-service(bizNo 2118712345 / PIN 1234) + 실 partner-order/product-service.
 import { chromium } from '@playwright/test';
 
-const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-defaultqty');
+const OUT = resolveQaShotsDir(process.env.QA_OUT || '../../docs/qa/e782-defaultqty');
 const URL = process.env.QA_URL || 'http://localhost:5196/';
 
 const SET_MODEL = 'QA782-SET-01';

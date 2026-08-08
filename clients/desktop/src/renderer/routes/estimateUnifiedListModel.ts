@@ -12,7 +12,8 @@ export interface UnifiedEstimateListRow {
   /** 주문서만 보유한다. 종합견적서의 partner_id/사업자번호로 대체하지 않는다. */
   partnerCode: string | null
   amount: string
-  writer: string | null
+  /** requester_id 기반 담당 표시명. created_by 작성 기록과 혼동하지 않도록 담당으로 명명한다. */
+  owner: string | null
   writtenAt: string | null
   sortAt: string | null
   status: string
@@ -22,7 +23,7 @@ export interface UnifiedEstimateListRow {
 
 type EstimateListSource = Pick<
   EstimateSummary,
-  'id' | 'estimateNo' | 'estimateDate' | 'status' | 'partnerName' | 'totalAmount' | 'requesterId' | 'isDeleted'
+  'id' | 'estimateNo' | 'estimateDate' | 'status' | 'partnerName' | 'totalAmount' | 'requesterId' | 'requesterName' | 'isDeleted'
 >
 type OrderListSource = Pick<
   PartnerOrderSummary,
@@ -71,8 +72,7 @@ export function mergeEstimateAndOrderRows(
     partnerName: row.partnerName ?? null,
     partnerCode: null,
     amount: String(row.totalAmount),
-    // requesterId는 작성자 user-id UUID이며 사용자명 계약이 없으므로 화면에 노출하지 않는다.
-    writer: null,
+    owner: row.requesterName ?? null,
     writtenAt: row.estimateDate,
     sortAt: row.estimateDate,
     status: estimateStatusLabel[row.status],
@@ -89,7 +89,7 @@ export function mergeEstimateAndOrderRows(
     partnerCode: row.partnerCode || null,
     amount: String(row.totalAmount),
     // 주문서 목록 응답은 createdBy/작성자명을 제공하지 않는다. UUID를 추론하거나 표시하지 않는다.
-    writer: null,
+    owner: null,
     writtenAt: row.createdAt ?? null,
     sortAt: row.submittedAt ?? row.createdAt ?? null,
     status: orderStatusLabel[row.status],
