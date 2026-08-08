@@ -966,6 +966,52 @@ describe('AsyncAutocomplete', () => {
     expect(onChange).toHaveBeenCalledWith(only)
   })
 
+  it.each([33, 140])(
+    'A2 단일 후보 자동확정 후 %dms 뒤 입력은 suffix를 덮어쓰고 정상 입력을 보존한다',
+    async (delay) => {
+      const only: Option = { id: 'only', label: 'HQ-001 · 본사 창고' }
+      const onChange = vi.fn()
+
+      function ControlledAutocomplete() {
+        const [value, setValue] = useState<Option | null>(null)
+        return (
+          <AsyncAutocomplete<Option>
+            value={value}
+            onChange={(next) => {
+              onChange(next)
+              setValue(next)
+            }}
+            search={vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([only])}
+            getKey={(item) => item.id}
+            getInputLabel={(item) => item.label}
+            renderOption={(item) => <span>{item.label}</span>}
+            listboxLabel="품목 목록"
+            ariaLabel="품목"
+            resultSelectionMode="single"
+            autoSelectSingleResult
+            debounceMs={0}
+          />
+        )
+      }
+
+      render(<ControlledAutocomplete />)
+      const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+      fireEvent.focus(input)
+      fireEvent.change(input, { target: { value: 'H' } })
+      await waitFor(() => expect(input.value).toBe(only.label))
+      expect(input.selectionStart).toBe(1)
+      expect(input.selectionEnd).toBe(only.label.length)
+
+      await new Promise((resolve) => window.setTimeout(resolve, delay))
+      fireEvent.change(input, { target: { value: 'HQ' } })
+
+      await waitFor(() => expect(input.value).toBe(only.label))
+      expect(onChange).toHaveBeenCalledTimes(2)
+      expect(input.selectionStart).toBe(2)
+      expect(input.selectionEnd).toBe(only.label.length)
+    },
+  )
+
   it('외부 controlled value 교체는 편집을 닫고 새 표시값과 committed 상태를 동기화한다', () => {
     const first: Option = { id: 'p-1', label: '첫 거래처' }
     const second: Option = { id: 'p-2', label: '둘째 거래처' }
