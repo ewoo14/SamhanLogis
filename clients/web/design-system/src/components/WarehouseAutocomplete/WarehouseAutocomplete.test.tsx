@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { WarehouseAutocomplete, type Warehouse } from './WarehouseAutocomplete'
@@ -165,6 +165,59 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     expect(input.value).toBe('HQ-001 · 본사 창고')
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('확정 직후 Enter는 다른 창고를 자동 선택하지 않는다', async () => {
+    const onChange = vi.fn()
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={[
+            warehouses[0]!,
+            {
+              id: 'warehouse-cs-001',
+              name: '위탁창고',
+              code: 'CS-001',
+              type: 'CONSIGNMENT',
+              active: true,
+            },
+          ]}
+          value={value}
+          onChange={(next, warehouse) => {
+            setValue(next)
+            onChange(next, warehouse)
+          }}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+
+    render(<ControlledWarehouse />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'CS' } })
+    expect(input.value).toBe('CS-001 · 위탁창고')
+
+    fireEvent.blur(input)
+    await waitFor(() => expect(input.getAttribute('aria-expanded')).toBe('false'))
+    fireEvent.focus(input)
+    await waitFor(() => {
+      expect(input.value).toBe('')
+      expect(screen.getByRole('listbox', { name: '창고 목록' })).toBeTruthy()
+    })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledTimes(1)
+      expect(onChange).toHaveBeenLastCalledWith(
+        'warehouse-cs-001',
+        expect.objectContaining({ code: 'CS-001', name: '위탁창고' }),
+      )
+      expect(input.value).toBe('CS-001 · 위탁창고')
+    })
   })
 
   it('검색 모달 바깥 클릭은 취소와 같이 draft를 보존한다', () => {

@@ -179,6 +179,9 @@ export const WarehouseAutocomplete = forwardRef<
   const preserveDraftOnNextFocusRef = useRef(false)
   const lastTypedDraftRef = useRef<string | null>(null)
   const canReopenSelectionRef = useRef(false)
+  // 확정값과 포커스 복원 뒤의 검색 draft를 구분한다. 확정 직후 빈 draft로
+  // 복원된 Enter는 기존 dropdown 첫 후보를 다시 pick하면 안 된다.
+  const hasConfirmedSelectionRef = useRef(false)
 
   const candidates = useMemo(
     () => searchWarehouses(visibleWarehouses, draft),
@@ -233,6 +236,7 @@ export const WarehouseAutocomplete = forwardRef<
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
+    hasConfirmedSelectionRef.current = false
     lastTypedDraftRef.current = nextDraft
     setDraft(nextDraft)
     setActiveIndex(-1)
@@ -271,6 +275,11 @@ export const WarehouseAutocomplete = forwardRef<
       return
     }
 
+    if (e.key === 'Enter' && hasConfirmedSelectionRef.current && !draft.trim()) {
+      e.preventDefault()
+      return
+    }
+
     if (!open) return
 
     if (e.key === 'Escape') {
@@ -296,6 +305,7 @@ export const WarehouseAutocomplete = forwardRef<
 
   const pick = (w: Warehouse) => {
     canReopenSelectionRef.current = false
+    hasConfirmedSelectionRef.current = true
     onChange(w.id, w)
     setDraft(`${w.code} · ${w.name}`)
     setActiveIndex(-1)
