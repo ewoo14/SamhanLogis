@@ -38,10 +38,30 @@ function Try-Fetch-ComparisonRef([string] $Ref) {
     $psi.Arguments = "-C $quotedRepo fetch --no-tags --depth=1 $remote $fetchRef"
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $psi
+    function Stop-ProcessTree([System.Diagnostics.Process] $RootProcess) {
+        if (-not $RootProcess -or $RootProcess.HasExited) { return }
+        if ($env:OS -eq 'Windows_NT') {
+            $killer = New-Object System.Diagnostics.Process
+            $killer.StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $killer.StartInfo.FileName = 'taskkill.exe'
+            $killer.StartInfo.Arguments = "/PID $($RootProcess.Id) /T /F"
+            $killer.StartInfo.UseShellExecute = $false
+            $killer.StartInfo.CreateNoWindow = $true
+            try {
+                [void] $killer.Start()
+                [void] $killer.WaitForExit(5000)
+            } finally {
+                $killer.Dispose()
+            }
+        } else {
+            try { $RootProcess.Kill() } catch { }
+        }
+        try { [void] $RootProcess.WaitForExit(5000) } catch { }
+    }
     try {
         [void] $process.Start()
         if (-not $process.WaitForExit(20000)) {
-            try { $process.Kill() } catch { }
+            Stop-ProcessTree $process
             return $false
         }
         return $process.ExitCode -eq 0

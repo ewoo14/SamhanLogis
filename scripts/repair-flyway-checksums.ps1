@@ -5,7 +5,8 @@ param(
     [string] $RepoPath,
     [string] $PostgresContainer = 'samhan-postgres',
     [string] $Network = 'samhan-net',
-    [string] $FlywayImage = 'flyway/flyway:10.10.0'
+    [string] $FlywayImage = 'flyway/flyway:10.10.0',
+    [string] $DockerCommand = $(if ($env:FLYWAY_REPAIR_DOCKER_COMMAND) { $env:FLYWAY_REPAIR_DOCKER_COMMAND } else { 'docker' })
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,7 +38,7 @@ function Read-DotEnv([string] $Path) {
 function Invoke-Docker([string[]] $Arguments, [switch] $AllowFailure) {
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    try { $output = & docker @Arguments 2>&1; $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorAction }
+    try { $output = & $DockerCommand @Arguments 2>&1; $exitCode = $LASTEXITCODE } finally { $ErrorActionPreference = $previousErrorAction }
     $redactedOutput = @($output | ForEach-Object { Redact-Text ([string] $_) })
     if (-not $AllowFailure -and $exitCode -ne 0) { throw "docker $((Redact-Arguments $Arguments) -join ' ') failed with exit code $exitCode`n$($redactedOutput -join [Environment]::NewLine)" }
     return [pscustomobject]@{ ExitCode = $exitCode; Output = $redactedOutput }
@@ -47,10 +48,19 @@ $repoRoot = if ($RepoPath) { (Resolve-Path -LiteralPath $RepoPath).Path } else {
 $infraRoot = Join-Path $repoRoot 'infrastructure'
 $composeWorkDir = $null
 if (-not $EnvFile) {
-    $composeInspect = Invoke-Docker @('inspect', 'samhan-auth-service', '--format', '{{index .Config.Labels "com.docker.compose.project.working_dir"}}') -AllowFailure
+    # PowerShell 5.1 can strip quotes inside a Docker Go-template argument.
+    # Read inspect JSON instead so discovery is shell-independent.
+    $composeInspect = Invoke-Docker @('inspect', 'samhan-auth-service') -AllowFailure
     if ($composeInspect.ExitCode -eq 0) {
-        $composeCandidate = $composeInspect.Output | Where-Object { [string] $_ -match '^(?:[A-Za-z]:[\\/]|/)' } | Select-Object -First 1
-        if ($composeCandidate) { $composeWorkDir = [string] $composeCandidate }
+        try {
+            $inspectJson = ($composeInspect.Output -join [Environment]::NewLine) | ConvertFrom-Json
+            $composeCandidate = $inspectJson[0].Config.Labels.'com.docker.compose.project.working_dir'
+            if ($composeCandidate -and [string]$composeCandidate -match '^(?:[A-Za-z]:[\\/]|/)') {
+                $composeWorkDir = [string] $composeCandidate
+            }
+        } catch {
+            $composeWorkDir = $null
+        }
     }
 }
 $candidateEnvFiles = @()
@@ -73,10 +83,26 @@ if (-not $dbPassword) {
 if (-not $dbPassword) { throw 'Database password was not provided by the environment file or running Postgres container.' }
 $script:RedactionValues = @($dbPassword)
 
+$databaseByService = @{
+    'accounting-service' = 'accounting_db'
+    'arologis-service' = 'arologis_db'
+    'auth-service' = 'auth_db'
+    'dashboard-service' = 'dashboard_db'
+    'dc-config-service' = 'dc_config_db'
+    'groupware-service' = 'groupware_db'
+    'inventory-service' = 'inventory_db'
+    'notification-service' = 'notification_db'
+    'partner-auth-service' = 'partner_auth_db'
+    'partner-order-service' = 'partner_order_db'
+    'partner-service' = 'partner_db'
+    'product-service' = 'product_db'
+    'slip-service' = 'slip_db'
+    'user-service' = 'user_db'
+}
 $targetDefinitions = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'services') -Directory | ForEach-Object {
     $location = Join-Path $_.FullName 'src/main/resources/db/migration'
-    if (Test-Path -LiteralPath $location -PathType Container) {
-        ,@($_.Name, (($_.Name -replace '-', '_') + '_db'), $location)
+    if ($databaseByService.ContainsKey($_.Name) -and (Test-Path -LiteralPath $location -PathType Container)) {
+        ,@($_.Name, $databaseByService[$_.Name], $location)
     }
 })
 $targets = @($targetDefinitions | Where-Object { -not $Service -or $_[0] -eq $Service } | ForEach-Object {
@@ -99,9 +125,15 @@ foreach ($target in $targets) {
         $unexpectedLines = @($validate.Output | Where-Object {
             $line = [string] $_
             if ([string]::IsNullOrWhiteSpace($line)) { return $false }
-            return $line -notmatch '(?i)^\s*(?:ERROR:\s*)?Validate failed:.*$' -and
+            return $line -notmatch '(?i)^\s*WARNING:\s*.*$' -and
+                $line -notmatch '(?i)^\s*Flyway OSS Edition\s+.*$' -and
+                $line -notmatch '(?i)^\s*See release notes here:.*$' -and
+                $line -notmatch '(?i)^\s*Database:\s+.*$' -and
+                $line -notmatch '(?i)^\s*(?:ERROR:\s*)?Validate failed:.*$' -and
                 $line -notmatch '(?i)^\s*Migration checksum mismatch for migration version\s+[0-9.]+' -and
-                $line -notmatch '(?i)^\s*-\s*(Applied to database|Resolved locally)\s*:'
+                $line -notmatch '(?i)^\s*(?:->\s*|-\s*)(Applied to database|Resolved locally)\s*:' -and
+                $line -notmatch '(?i)^\s*Either revert the changes to the migration, or run repair to update the schema history\.\s*$' -and
+                $line -notmatch '(?i)^\s*Need more flexibility with validation rules\? Learn more:.*$'
         })
         if ($unexpectedLines.Count -gt 0 -or ($validate.ExitCode -ne 0 -and $mismatchLines.Count -eq 0)) { throw "$($target.Name) validate failed for a reason other than a checksum mismatch:`n$validateText" }
         $displayVersions = if ($versions.Count) { $versions -join ', ' } else { '(none)' }
