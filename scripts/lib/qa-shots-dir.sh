@@ -227,8 +227,28 @@ _qa_is_within_physical() {
   esac
 }
 
+_qa_evidence_root() {
+  local current="$1"
+  while true; do
+    current="$(_qa_physical_path "$current")" || return 1
+    local leaf parent parent_leaf
+    leaf="${current##*/}"
+    parent="${current%/*}"
+    parent_leaf="${parent##*/}"
+    if [ "$(printf '%s' "$parent_leaf" | tr '[:upper:]' '[:lower:]')" = "docs" ]; then
+      printf '%s' "$current"
+      return 0
+    fi
+    [ "$parent" = "$current" ] && return 1
+    current="$parent"
+  done
+}
+
 resolve_qa_shots_dir() {
   local committed_dir="$1"
+  local protection_mode="${2:-protect}"
+  local protect=1
+  [ "$protection_mode" = "regenerate" ] && protect=0
   local dir
   if [ -n "${QA_SHOTS_DIR:-}" ]; then
     if ! dir="$(_qa_physical_path "$QA_SHOTS_DIR")"; then
@@ -242,22 +262,19 @@ resolve_qa_shots_dir() {
     fi
   fi
 
-  local script_dir
-  local docs_qa_root
-  script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-  if ! docs_qa_root="$(_qa_physical_path "$script_dir/../../docs/qa")"; then
-    printf '%s\n' '[QA 출력 경로 가드] docs/qa 기준점의 물리 식별에 실패했습니다.' >&2
-    return 1
-  fi
-
   if [ -n "${QA_SHOTS_DIR:-}" ]; then
+    local qa_evidence_root
+    if ! qa_evidence_root="$(_qa_evidence_root "$committed_dir")"; then
+      printf '%s\n' '[QA 출력 경로 가드] 호출자의 QA 증거 루트 물리 식별에 실패했습니다.' >&2
+      return 1
+    fi
     local within_status=0
-    if _qa_is_within_physical "$docs_qa_root" "$dir"; then
+    if [ -n "$qa_evidence_root" ] && _qa_is_within_physical "$qa_evidence_root" "$dir"; then
       within_status=0
     else
       within_status=$?
     fi
-    if [ "$within_status" -eq 0 ] && ! _qa_has_explicit_overwrite_intent; then
+    if [ "$protect" -eq 1 ] && [ "$within_status" -eq 0 ] && ! _qa_has_explicit_overwrite_intent; then
       printf '%s\n' "[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: $dir. 명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오." >&2
       return 1
     fi

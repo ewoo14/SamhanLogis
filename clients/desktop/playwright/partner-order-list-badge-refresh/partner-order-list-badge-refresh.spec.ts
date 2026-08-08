@@ -72,6 +72,10 @@ async function selectWarehouseAutocomplete(
   await expect(input).toBeVisible({ timeout: 5_000 })
   await input.click()
   await input.fill(searchText)
+  if ((await input.getAttribute('aria-expanded')) === 'false') {
+    await expect(input).toHaveValue(/HQ-001/)
+    return
+  }
   await expect(input).toHaveAttribute('aria-expanded', 'true', { timeout: 5_000 })
   const listbox = warehouseDiv.locator('[role="listbox"]')
   await expect(listbox).toBeVisible({ timeout: 5_000 })

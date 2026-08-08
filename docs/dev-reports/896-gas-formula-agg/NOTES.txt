@@ -1,0 +1,326 @@
+
+
+########## range-estimate-ejs-3.json
+1) 구간 4401-6600 을 전수 읽고, 경계규칙에 따라 6600 을 넘겨 시작한 함수 renderCommOptions(6623-6675)까지 포함했다. 4390 에서 시작하는 partUnitPrice 의 꼬리(4401-4403)는 앞 구간 담당 몫이라 제외. getCommFilterRows_(6678-)·renderComm(6734-)은 시작줄이 6600 밖이라 제외. 2) 참조하는 계산 헬퍼는 전부 이 구간 밖에 정의돼 있다: getBaseListPrice:2267, getModelFlags:2368, getRealHomePrice:2398, getRealCommPrice:2403, getRealSinglePrice:2408, handleFreightInput:2991, parseFixedDc:3126, adjustSingleSetBasePrice:3284, roundK:3317, roundByConfig:3323, splitIndoorOutdoorToK:3370, formatSpecialPriceForDisplay:3532, isExpansionModel:4272, classifySingleSetFixed:4285, priceFrom:4326, homeUnitPrice:4344, partUnitPrice:4390, normKey:7172, calcRecommendOdu:18030. 이 구간의 금액 수식은 대부분 이들 위에 얹힌 조합이라, 동적 전환 시 헬퍼 쪽 계약을 먼저 고정해야 한다. 3) 업무 의미를 추론하지 않았다 — 8000(I형호스), 130/103/120(조합비 한도), 6:4/4:6(배분비), 45(상업 기본할인율), 2(추천표 분기), 26개 판넬 모델코드의 '왜' 는 코드에 근거가 없어 ambiguous/exceptions 로만 적었다. 4) DB 조회는 하지 않았다(읽기 전용 정적 분석). dynamic 판정은 '값이 서버 데이터에서 오는가' 기준의 코드 관찰이며, 실제 DB 컬럼 존재 여부는 확인하지 않았다.
+
+
+########## range-estimate-ejs-4.json
+형식 이탈 1건: quote 200자 제한을 144건 중 50건이 초과한다. 분기 조건이 else-if 체인이나 3중 테이블이라 앞부분만 자르면 판정 근거가 사라져 원문을 그대로 두었다(잘라 붙이면 인용 위조가 된다). 필요하면 location 의 줄 범위로 원문 재현 가능.
+
+범위: index.ejs 6601-8800 (시작 줄이 이 범위 안인 수식만). 6601-6603 은 normalizeCommCategory 의 꼬리(시작 줄이 앞 구간)라 제외. 8834 syncHomeTotals 부터는 다음 구간.
+
+문맥 확인을 위해 구간 밖을 참조만 한 정의(보고 대상 아님): getBaseListPrice(2267), getRealCommPrice(2403), getOldDiscountPercent(2468), makeListPriceInput(2834), makePriceInput(2964), handleFreightInput(2991), numInp(3049), roundSel(3096), getStockState_(3148), inferOneWaySize(3181), pickPanelBy(3201), roundByConfig(3323), formatSpecialPriceForDisplay(3532), commIndoorKind(4056), computeCommRemoteModelForIndoor_(4090), pickHoseModel(4122), parseSetHPs(4143), chooseBaseModel(4150), modelByNameLike(4207), countBranchForSet(4220), RENEW_FILTER_MAP(4229), classifySingleSetFixed(4285), homeUnitPrice(4344), commUnitPrice(4455), HOSE_*/FOOT_*/BRANCH_*/REMOTE_* 상수(4513-4530), PANEL_MODELS(4532, 26코드), SS_*_ID(4538-4542), calcSetUnitPrice(5134), explodeSetParts(5199), partsForCommSet_(5335).
+
+실측 카운트: 필터용 KIT_WHITELIST 11개(6681-6693) / 렌더용 19개(6739-6744) / PUMP_MAP 펌프 6 x 실내기 22(8466-8473) / MAP360 16코드 / PANEL_MODELS 26코드(구간 밖 상수, 참조만).
+
+DB 조회는 하지 않았다(읽기 전용 코드 분석). 'DATA_OK/DATA_PARTIAL' 은 '코드가 데이터에서 값을 읽는가' 기준이며 실제 DB 에 그 값이 채워져 있는지는 확인하지 않았다 — 특히 고정DC(r['고정DC'])·useK2·item.isDisc/sheetPrice·capacity 는 실 데이터 채움률을 별도로 세야 한다.
+
+
+########## range-estimate-ejs-5.json
+구간 8801-11000 전수. 경계: syncSingleUIFromState 는 8770 에서 시작해 앞 구간 담당이지만 8801 이후에 시작하는 수식 4건(8803·8807·8815·8826)만 보고했다. getSingleSetOptionLabel 은 10989 에서 시작하므로 11000 을 넘어 11050 까지 이어지는 부분을 내가 보고했다. getSingleSetOptionLabelLive(11053)·getStructuredQuoteData(11081)는 시작 줄이 구간 밖이라 제외. 문맥 확인을 위해 8700-8800(직전 함수 본문)과 CONFIG/getOldDiscountPercent 정의(2340-2485), 헬퍼 정의 줄번호만 grep 으로 확인했고 그 외 구간은 열거하지 않았다. 참조한 헬퍼 정의 위치(전부 구간 밖): getBaseListPrice 2267 · getRealHomePrice 2398 · getRealCommPrice 2403 · getRealSinglePrice 2408 · getRealOldPrice 2414 · applyEstimateTotalAdjustments 2567 · getRealListPrice 2646 · makePriceInput 2964 · analyzeSingleSetDiscountFlags 3398 · classifySingleSetFixed 4285 · homeUnitPrice 4344 · SEND_AS_SET_IDS 4542 · sumHome 4666 · sumSingles 4667 · allowRemoteChange_ 5097 · setBasePriceRightFirst 5124 · calcSetUnitPrice 5134 · partsForSetStrict_ 5192 · explodeSetParts 5199 · explodeCommSets_ 7221 · applyCardFeeLogic 16651 · applyCutoffLogic 16684. 실행·DB 조회는 하지 않았고 저장소 파일은 읽기만 했다. 이 구간에는 운임/절삭 '금액 입력 시 수량 1 자동' 의 입력 UI 자체는 없고, 절삭은 applyCutoffLogic 호출(9637) 한 지점으로만 등장한다.
+
+
+########## range-estimate-ejs-6.json
+범위 11001-13200 을 전수로 읽었고, 경계 확인을 위해 10940-11000 과 13201-13400 을 문맥으로만 추가로 읽었다(보고 대상에서 제외). 경계 처리: (a) 11001-11049 는 getSingleSetOptionLabel(함수 시작 10988, 앞 구간 담당) 내부이지만 개별 수식의 시작 줄이 11001 이후라 '시작 줄 기준' 규칙에 따라 포함했다 — 앞 구간 담당과 중복될 수 있으니 병합 시 중복 제거 필요. (b) 13201 이후에 시작하는 updateBranchRatios(13225, 실내기합*0.1 / 한도 103.0 vs 120.0 / maxIndoor 초과), snapshotBranchState(13278), pushBranchPartsToCommFromBadges(13311, 코드→모델 MAP 6종 AXJ-YA1509N 등), saveBranchState(13341), loadBranchState(13349), applyBranchState(13354) 는 다음 구간 담당이라 제외했다. buildBranchView 는 시작 줄이 13198 이라 포함했다. 이 구간에서 참조만 하고 정의는 밖에 있는 함수: getBaseListPrice(2267), getRealListPrice(2646), getRealHome/Comm/Single/OldPrice(2398-2414), getFooterNoticeHtml(2558), applyEstimateTotalAdjustments(2567), isCommOutdoorRow(4050), classifySingleSetFixed(4285), SEND_AS_SET_IDS(4542), allowRemoteChange_(5097), partsForSetStrict_(5192), explodeSetParts(5199), explodeCommPreviewParts(7203), aggregateSendRows(9188), buildSendRows(9378), applyCardFeeLogic(16651), autoShrinkTableColumns(19381). 마스터 데이터(COMMULTI/HOMEMULTI/SINGLE_SETS/SINGLE_PARTS/COMM_PARTS/OLD_PRODUCTS/SPEC_DETAIL_MAP)는 2258-2330 에서 서버 주입 RAW 를 파싱한 것이라 그 값을 쓰는 계산은 DATA_OK 로, 임계값·색상·키워드·모델코드 규칙처럼 파일 안 리터럴에만 의존하는 것은 CODE_ONLY 로 표시했다. DB 조회는 하지 않았다(코드 정적 분석만). 파일 쓰기 성공.
+
+
+########## range-estimate-ejs-7.json
+구간 13201~15400 전수. 경계 처리: buildBranchView(13195 시작)·repackLeft·pushBackToLeft 는 시작 줄이 13201 이전이라 제외했고, enforceTagsOnInput(15435)·appendMemo(15482)·checkCardValid(15498)는 15400 이후 시작이라 제외했다(updateOrderTags 는 15395 시작이라 포함, 본문 15432 까지 걸침). 문맥 확인차 구간 밖을 읽은 곳: 13150-13205(구간 시작이 함수 중간인지 확인), 2463-2480(getVatDivisor/estimateConfigNumber — vatRate 는 설정 기반 확인), 4666-4674(sumHome/sumComm 정의 확인), 12692-12748(recomputeBranchCodes 가 data-code 를 어떻게 채우는지 — 임계값 1200/2000/2800/3100/3800 은 앞 구간 담당). 13312 MAP 은 그 앞 구간의 코드 산출 결과를 모델코드로 바꾸는 후단이라 둘을 함께 전환해야 한다. 수치는 전부 실측: 이 구간의 하드코딩 할인 임계 4개(1e8/5e7/3e7/1e7), 보너스율 4개(0.04/0.03/0.02/0.01), 기준율 0.45·하향값 0.40·허용오차 0.001, 접속률 한도 2개(103.0/120.0), 용량 계수 0.1, 분기관 모델코드 6개, 조회기간 상한 7일, KST 오프셋 9시간, 모바일 브레이크포인트 1280(2곳: 14815, 15099), 디바운스 180ms·포커스 80ms·초기화 100ms, html2canvas scale 2(4곳), A4 픽셀 794/1123. 중복 주의: updateOrderTags(15395 시작, 본문 15432 까지)의 메모 태그 계산은 줄 번호로는 15411-15431 이라 다음 구간(15401-) 담당자와 겹칠 수 있다 — 시작 줄 기준으로 이 파일이 정본이다. 파일 쓰기 성공.
+
+
+########## range-estimate-ejs-8.json
+1) 경계: updateOrderTags 함수 머리는 15395(내 구간 앞)이지만 접두 합성(15401-)과 상/하 태그 계산(15411-)의 시작 줄이 내 구간 안이라 규칙대로 포함했다. 7번 구간 담당과 중복될 수 있다. 2) handleSaveSnapshot 은 17550(내 구간 안)에서 시작해 17838 까지 이어지므로 함수 전체의 수식(17601~17838 포함)을 보고했다. 9번 구간 담당과 중복될 수 있으니 부모가 dedupe 할 것. 3) 15401 이전 시작 수식(toggleAuditLater 15341-, togglePayDueCb 15365-)과 17601 이후 시작 수식(renderSnapshotTable 17932-, showSnapshotPreview 17971-, 추천실외기 계산 18029-)은 보고하지 않았다. 4) 참조 확인한 구간 밖 정의: SPECIAL_ROW_SOURCE=2285-2288, catalogSpecialMetadata=2291-2298(정규식 /운임|절삭/), getCardFeeRate=2472-2474(CONFIG cardFeeRate 기본 0.03), getVatDivisor=2476-2478(CONFIG vatRate 기본 0.1), fmt=3239, aggregateSendRows=9188, buildSendRows=9378, getStructuredQuoteData=11081, applyCustomerDiscounts=2585, getFooterNoticeHtml=2558. 5) dynamic 판정 기준: DATA_OK=이미 서버/CONFIG/데이터에서 값이 오는 것, DATA_PARTIAL=일부만(입력칸 값은 사용자에게서 오지만 컨트롤 ID·임계값·필드명이 코드 상수), CODE_ONLY=전부 코드 상수, UNKNOWN=이 구간만으로 판정 불가. 6) 업무 의미는 추론하지 않았다 — 확정되지 않은 것은 전부 ambiguous 에 갈래로 남겼다. 7) 저장소 파일은 읽기만 했고 수정/커밋/DB 접근은 없다. 8) quote 는 200자 이내를 목표로 했으나 20건이 200~259자다 — 더 자르면 수식의 다른 쪽 분기(예: vatTotals 의 inc 분기, applyCutoffLogic 의 신규 음수 행)가 잘려 증거가 훼손되므로 남겼다. 최대 259자(applyCutoffLogic+apply). 9) 인용은 모두 원문 복사이되 지면상 생략한 곳은 '...' 로 표시했다 — 축약 없는 원문은 location 의 줄 범위에서 확인할 것.
+
+
+########## range-estimate-ejs-9.json
+구간 17601~19753(2,153줄) 전수. 이 구간은 대부분 UI 렌더·이벤트·되돌리기 층이고, 순수 금액/수량 산식은 (a) 저장 시 VAT 분배(17812-17815), (b) 구성품↔세트 양방향 동기화(18728-18920, 19230-19293, 19296-19378), (c) 사용자정의 행 소계(18666-18682), (d) 추천 실외기 룩업(18030-18043) 네 덩어리에 몰려 있다. 경계 처리: 17601 이 handleSaveSnapshot(17550 시작) 함수 중간이라 함수 전체는 앞 구간(8) 담당이지만, 17601 이후에 시작하는 개별 수식(스타일 상수·조합비 라벨·auto-shrink·payload 축소·VAT 분배 등)만 여기에 담았다. 17550-17600 에 있는 targetSize=450000·totalCols·labelSpan·grandTotal·showList 정의는 보고하지 않고 참조만 했다(앞 구간 담당). 파일 밖 참조 확인: RECOMMEND_DATA 는 서버 주입 REC_RAW(2259-2260)라 추천 실외기 테이블은 이미 DATA_OK, HOME_RATIO_LIMIT=130 만 코드 상수(4970). fmt 는 3239 의 toLocaleString('ko-KR') 래퍼. 저장소는 수정하지 않았고 파일 생성은 지정된 scratchpad 경로에만 했다.
+
+
+########## range-gas-est-code-1.json
+① 범위·경계: 시작 줄이 1~2200 안에 있는 수식만 담았다. getAllNotionDcConfigs_(2204행 시작)·saveOrderToNotion(2340행)·getPriceIncData_ 는 시작 줄이 2200 밖이라 제외했다. initDcConfigFromNotion(2166-2201)은 시작 줄이 안쪽이라 포함했다. ② dynamic 판정 근거는 로컬 Docker postgres 실측(2026-08-08): dc_configs 210행(home/commercial_discount_rate·discount_360/4way/1way/stand/deluxe/first_grade_amount·unit_round_to/mode·show_i_hose 전부 컬럼 존재) / estimate_configs 1행 싱글턴(common_home_discount_rate 0.4500, common_commercial_discount_rate 0.4500, old_product_discount_rate 0.5000, vat_rate 0.1000, card_fee_rate 0.0300, home_no_hose·home_no_branch·home_with_foot·home_default_panel·single_default_wired_remote·single_no_remote·single_with_base·single_default_panel·single_panel_shape·single_discount·single_one_way_discount·single_material_inclusion) / products 활성 3,083행 중 cat_l_id 1,119 · cat_m_id 888 · cat_s_id 118 · fixed_discount_rate 167 · panel_type 61 · remote_type 17 · pyong_size 271 · has_variable_discount true 802 · legacy_discount_flag true 29 · set_material_key 106 · bundle_mode EXPAND 344/KEEP 0 · discount_flags 는 '000000' 3,075 과 '100000' 8 두 값뿐 / classification 활성 L 30·M 67·S 28 / product_spec 활성 spec_key 27종(최다 '냉방소비전력, kW' 660행, '최대 연결 실내기 대수, 대' 191행 — **'용량' 이라는 spec_key 는 없다**) / spec_key_template 60행 / odu_recommendation_lookup 32행(HOME_MULTI 8 · MULTI_HEATING_COOLING 24) / material_price 28행 / dc_rules 0행 / inventory_db.warehouses 활성 8행. ③ 창고 주의: warehouses 의 '00003'='초월창고 S18', '2'='상일창고 S18' 로 **이름에 QA 라운드 식별자 S18 이 박혀 있다** — QA 산물일 가능성이 높아 권위 데이터로 세지 않았다. whNameMap 의 '14'(온라인창고)·'1'(서초창고)은 DB 에 없다. 그래서 창고 관련 항목은 전부 DATA_PARTIAL. ④ dynamic 값의 의미: DATA_OK=대응 컬럼·행이 실재해 코드 상수를 걷어낼 수 있음 / DATA_PARTIAL=일부만 채워졌거나 개념 중 일부만 있음 / CODE_ONLY=대응 저장소가 없음 / UNKNOWN=코드만으로 의미를 확정 못 함. ⑤ 분류 규칙(classifyHome_·classifyCommercial_·classifySingleSetLM_)은 **결과(cat_l/m/s_id)는 DB 에 있으나 규칙 자체(정규식 테이블)는 어디에도 없다.** 규칙을 데이터화하려면 새 테이블이 필요하다 — 현재는 products 에 이미 붙은 분류 결과를 읽는 방향만 가능하고 그것도 L 36.3%(1,119/3,083)만 채워져 있다. ⑥ 저장소 사본은 라이브보다 약 374줄 낡았다는 비고를 감안했다 — 여기 적은 줄번호는 **저장소 사본 기준**이다. ⑦ 업무 의미는 추론하지 않았다. 코드가 무엇을 하는지만 적고, 왜 그런지 모르는 것은 ambiguous 에 넣었다.
+
+
+########## range-gas-est-code-2.json
+① 담당 구간 2201-3203 중 2201 은 initDcConfigFromNotion(2166 시작)의 닫는 중괄호라 앞 구간 담당 몫이며 보고에서 제외했다. 실제 보고 시작은 2204(getAllNotionDcConfigs_). 파일 총 3203줄로 구간 끝과 파일 끝이 일치한다(wc -l 실측 3203). ② 구간 밖 참조는 문맥 확인용으로만 읽었고 보고하지 않았다: buildDefaultDcConfig_(1990-2004), fetchNotionDcConfig_(2007-2163), getCustomerDataAsync 의 dcMap 소비부(1417-1423), findIdx_(192-195), parseKRNumber_(196-201), 상수 선언부(2,3,49,72-74). ③ getPriceIncData_ 는 index.html 이 직접 부르지 않고 부트스트랩 번들(Code.js:30 priceInc)에 실려 프론트로 내려간다. getAllNotionDcConfigs_ 는 getCustomerDataAsync(1417)에서 거래처 목록에 dc 필드로 붙는다. getInventoryTable 은 index.html:16089 에서 호출된다(grep 실측). ④ dynamic 판정 기준: DATA_OK=기준값이 이미 외부 데이터(노션/시트)에서 옴, DATA_PARTIAL=값은 데이터인데 속성명·키워드·상한 등 규칙이 코드에 박힘, CODE_ONLY=전부 코드 리터럴. UNKNOWN 은 0건. ⑤ 이 저장소 사본은 라이브보다 약 374줄 낡았다고 고지받았다. 따라서 라이브에는 여기 없는 수식이 더 있을 수 있고, 반대로 여기 있는 수식이 라이브에서 이미 바뀌었을 수 있다. 아래 줄번호는 모두 저장소 사본 기준이다. ⑥ 업무 의미를 추론하지 않았다. 코드가 무엇을 하는지만 적고, 의도가 코드만으로 확정되지 않는 22건은 ambiguous 로 분리했다.
+
+
+########## range-gas-ord-code-1.json
+구간 1-2200 을 전수 정독했다. 경계 규칙에 따라 1954줄에서 시작한 sendOrderFromUi 는 2404줄까지 본 에이전트가 담당했고, 2407줄부터(detectHomeOrder, buildDefaultDcConfig_, fetchNotionDcConfig_ 등)는 다음 구간 담당이라 보고하지 않았다.
+
+실측한 것: (1) `wc -l Code.js` = 3520줄. (2) grep 으로 소비처 확인 — useK2 는 index.html:2471·2591 에서, isDisc 는 index.html:4503·4545·4573·5645·6257 에서 사용. matKey 와 oldDiscount 는 index.html 참조 **0건**. (3) discountPctText / isSoldOutByNote_ / findHeaderIndex_ / extractRowsFromFormula_ 는 Code.js 안에서 grep 결과 정의 1건뿐(호출 0).
+
+추론하지 않고 남긴 것: $L$2 · $D$7/$D$8 · $I$1 세 절대참조 셀이 각각 무엇인지는 스프레드시트를 열지 않으면 확정할 수 없어 ambiguous 로 올렸다. 창고 코드 '2'/'00003' 의 업무 의미(상일/초월)는 프로젝트 메모리에 적힌 것이지 이 코드가 말하는 바가 아니므로 exceptions/ambiguous 에서 '갈래' 로만 적었다.
+
+부수 관찰(수식은 아니나 이관 시 영향): (a) `logKey`·`logName` 이 선언 없이 암묵적 전역에 대입된다(1987-1988). (b) catch 블록(2401)이 try 안쪽에서 선언된 `deviceTag`(1984)를 참조하므로, 1984줄 이전에 예외가 나면 catch 에서 ReferenceError 가 나 원래 오류가 가려진다. (c) NOTION_VER = '2025-09-03'(96) 인데 실제 fetch 헤더는 '2022-06-28' 하드코딩(153, 187) — 상수와 사용값 불일치. (d) 스냅샷 이미지가 300청크(600,000자)를 넘으면 초과분이 else 없이 버려진다(126-129). (e) 소스 코드에 이카운트 인증키·노션 토큰이 평문으로 들어 있다(파일에는 REDACTED 로 치환돼 있음).
+
+파일 쓰기 실패 없음. JSON.parse 로 유효성 재확인했고 formulas 배열 길이가 응답 count 와 일치한다.
+
+
+########## range-gas-ord-code-2.json
+구간 2201-3520 전수 조사. 경계 처리: 2201-2226 은 앞 구간(2118~)에서 시작한 merged.forEach 안의 페이로드 매핑이라 계산 자체(qty/priceVat/supply/vatAmt/priceEx, 2119-2128)는 앞 구간 담당이고, 여기서는 '시작 줄이 2201 이후인' 매핑·Math.abs·리터럴만 보고했다. 문맥 확인을 위해 2090-2200 을 읽었으나 그 구간의 수식은 보고하지 않았다. 파일 상단 상수값은 grep 으로 확인: DISCOUNT_RATE_HOME=0.45(81행), DISCOUNT_RATE_COMM=0.45(82행), SHOW_I_HOSE=false(83행), 360/4way/스탠드/1way/디럭스/1등급 정액 할인 전부 0(84-89행), UNIT_ROUND_TO=0(90행), UNIT_ROUND_MODE='ROUND'(91행). 파일 마지막 줄 3520 은 parseNaverGeocodeResponse_ 의 catch 절이며 함수가 그 줄에서 끝난다. 토큰·API 키는 저장소에서 이미 REDACTED_* 로 치환돼 있어 실제 값은 확인 불가. 저장소 파일은 읽기만 했고 수정·생성하지 않았다.
+
+
+########## range-order-html-1.json
+구간 1-2200 전수. 파일 전체는 10156줄이며 1-1333 은 head/CSS/HTML 마크업, 1334 부터 legacy JS 가 시작한다. 경계 규칙에 따라 시작 줄이 2200 이하인 것만 담았다 — specTableWithTriple_(2204), specTable_(2256), MANUAL_QTY_LOCKS/setDerivedQty 계열(2278-2380), rawNameOf/isCommIndoorRow/isCommOutdoorRow(2383-2407) 은 다음 구간 담당이다(문맥 확인용으로 2407 까지 읽었으나 보고하지 않음). CSS 는 순수 장식 리터럴(padding·color·border-radius 등)을 제외하고 동작이나 업무 표시를 가르는 것만 담았다 — 모바일 분기점 1280px, 표 높이 계산, 열 너비 세트 4종, 행 틴트 알파. 그 기준으로 CSS 항목은 6건이다. dynamic 판정 근거: dc_config 필드(discount360Amount·unitRoundTo·unitRoundMode 등)는 services/dc-config-service 의 DcConfig 도메인·DcConfigResponse 에 실재하고, price_change_schedule 은 product-service V22/V23/V26 마이그레이션과 partner-order-service BootstrapService 에 실재한다 — 그래서 CONFIG/incActive 계열을 DATA_OK 로 뒀다. 반대로 모델코드 문자 위치 규칙(getModelFlags·isExpansionModel), 정규식 분류기(판넬·리모컨·부자재·상업 키워드), 클램프 상수(999999·0.99·1000)는 저장소 어디에도 대응 데이터가 없어 CODE_ONLY 다. 이 구간에서는 DB 를 조회하지 않았다(SELECT 미실행) — DATA_OK/PARTIAL 는 '데이터 출처가 코드가 아니라 부트스트랩/설정이다' 라는 뜻이지 '실 DB 에 값이 채워져 있다' 는 뜻이 아니다. 실제 채움률은 별도 확인이 필요하다. 견적앱 대조는 estimate-app/views/index.ejs 의 해당 함수만 발췌해 비교했고, getModelFlags 와 isExpansionModel 은 문자 단위로 동일함을 확인했다.
+
+
+########## range-order-html-2.json
+구간 2201-4400 을 Read 로 전량 확인(2201-2800, 2800-3400, 3400-3950, 3950-4500). 경계 처리: 2201-2202 는 2201 이전에 시작한 함수 꼬리라 제외. renderComm 은 시작 줄 4399 가 구간 안이라 포함하고 4601 까지 읽어 보고. singleUnitPrice(2779 시작)도 2822 까지 걸쳐 보고. 구간 밖 의존 함수는 줄번호만 병기: roundByConfig(1752) · parseFixedDc(1556) · incActive(1447) · getModelFlags(1473) · adjustSingleSetBasePrice(1715) · splitIndoorOutdoorToK(1796) · roundK(1746) · pickPanelBy(1636) · isPanelRow(1611) · isRemoteRow(1624) · isIndoorUnitPart(1772) · isOutdoorUnitPart(1785) · getStockState_(1583) · recomputeCommDerived(5687) · isHomeManualLocked(5042) · isSingleManualLocked(5083) · onHomeQtyInput(5056) · onSingleQtyInput(5088) · BRANCH_KEY(7793). 저장소 파일은 읽기만 했고 수정·생성하지 않았다. DB 조회·Docker·빌드 없음. dynamic 판정 기준: DATA_OK=값이 전부 로드된 데이터/CONFIG 에서 옴, DATA_PARTIAL=데이터를 읽되 선택 기준(정규식·키워드·모델코드)이 코드에 박힘, CODE_ONLY=값과 기준이 모두 코드 리터럴.
+
+
+########## range-order-html-3.json
+구간 4401-6600 전수. 시작 줄 기준 경계 규칙을 적용했다.
+
+(1) renderComm 함수 자체는 4398 에서 시작하므로 함수 헤더는 앞 구간 담당이다. 그 안에서 4402(KIT_WHITELIST) 이후 시작하는 계산 지점만 보고했다.
+
+(2) buildSendRows 는 6542 에서 시작해 6658 에서 끝난다. 시작 줄이 내 구간이라 함수 전체를 보고했고, 그 안의 OLD 블록(6626-6655)은 시작 줄이 6600 을 넘으므로 뒤 구간과 중복될 수 있다. 해당 항목(buildSendRows+old)의 what 에 그 사실을 적어 두었다.
+
+(3) 6600 이후에 시작하는 initEvents(6671)·forceOrderTitle(6661) 등은 보고하지 않았다.
+
+(4) 호출만 하고 정의는 구간 밖인 함수들: commUnitPrice, commPartUnitPrice, calcSetUnitPrice, setBasePriceRightFirst, explodeSetParts, classifySingleSetFixed, analyzeSingleSetDiscountFlags, pickPanelBy(1636), inferOneWaySize(1616), PANEL_MODELS(2901), pickHoseModel, commIndoorKind, isCommIndoorRow/OutdoorRow/PanelRow/RemoteRow/HoseRow/PumpRow/DerivedRow, parseSetHPs, chooseBaseModel, countBranchForSet, modelByNameLike, RENEW_FILTER_MAP, computeCommRemoteModelForIndoor_, setDerivedQty, registerDerivedQty, targetScope_, isManualQtyLocked, getStockState_, normalizeCommCategory, stripCommKeywords, cleanDisplayName, rawNameOf, is1WaySet_, allowRemoteChange_, sumHome, sumSingles, setPreviewFoot, updateInlineTotals, updateHomeRatio, updateCommRatio. 이들의 내부 수식은 해당 구간 담당자 몫이다.
+
+(5) 하드코딩 모델코드 실측 개수(내 구간): 판넬 계열 리터럴 모델코드 5240-5245 에 7개, 5355-5358 fallback 4개, 5389-5390 에 7개, 5409-5414 에 8개, 5922-5923 에 2개, 5928 에 1개, 5931-5942 에 16개, 5946-5951 에 4개, 5957-5962 에 16개. 리모컨 5462/5465-5467/5471-5473/5481-5482 에 6개(중복 포함). 호스 5651/5655/5659/5736 에 4개. 분기관 5536/5538/5823 에 3개. 발통/부가품 5181/5195/5202 에 3개. 실외기 모델 5177 에 2개. 펌프 5754-5761 에 키 6개 + 값 25개. 그리고 KIT_WHITELIST(4402) 품목명 19개.
+
+(6) 50% 할인 수식은 내 구간에서만 5곳(4831·4871·4900·6198·6638)에 중복 구현돼 있다. 받침대 판별 정규식은 3곳(5691·5800/5815·5862), 인피니트 판넬 모델 사전은 2곳(5240·5388), 4WAY 공청 치환 맵은 2곳(5232·5409), 부자재 표시명 가공은 2곳(4612·4647), 세트 전개 수식은 3곳(4742·4763·4791)에 중복돼 있다. 동적 전환 시 한 곳만 고치면 나머지가 남는다.
+
+(7) 파일 쓰기 성공. 이 JSON 은 UTF-8 로 저장했고 formulas 배열은 129건이다.
+
+(8) quote 필드는 지시대로 200자 상한을 지키느라 56건을 말줄임했다. 원문은 location 의 줄 범위로 직접 확인할 것.
+
+
+########## range-order-html-4.json
+범위: clients/web/order-app/index.html 6601-8800 (전체 10156줄 중 4/5 구간). 경계 처리 — buildSendRows 는 6542 에서 시작하므로 함수 자체는 앞 구간 담당이나, 6602(싱글 행 push)와 6626-6655(구형 블록)는 시작 줄이 내 구간 안이라 포함했다. 8800 이후로 넘어가는 수식은 시작 줄 기준으로 제외했다 — 다음 구간(5/5) 담당 몫: enforceDateLimit 바인딩 4건(8801-8804), 화면복귀 navIds 루프(8807-8815), #btnHistSearch 바인딩(8818), 주문내역 텍스트 필터(8821-8829, 소문자 부분일치 + tr.children.length>1 게이트), fetchOrderHistory(8832-8846), renderHistory(8850-).
+
+dynamic 판정 근거(실측): ▶ estimate_configs(services/dc-config-service/.../V4__add_estimate_config.sql:4-23)에 common_home_discount_rate·common_commercial_discount_rate(기본 0.4500), old_product_discount_rate(0.5000), vat_rate, card_fee_rate, advance_discount_rate, combo_warn_rate(0.0000) 존재 → 구형 50% DC(6638)와 기본 45% 할인율은 DATA_OK. ▶ branch_pipe_lookup(services/product-service/.../V3__migration_extension.sql:125-139) 은 branch_code VARCHAR(16), description, summary_qty 3컬럼뿐 — 임계값·모델매핑 컬럼 없음 → 분기관 코드 관련은 DATA_PARTIAL. ▶ 티어 보너스(1천만~1억, +1~4%p), 0.48 상한, noMain 40% 페널티, 조합비 한도 103/120 키워드 규칙은 db/migration 전체 grep 에서 대응 컬럼 0건 → CODE_ONLY. ▶ combo_warn_rate 는 단일 NUMERIC 이라 103/120 2단 분기를 담지 못한다.
+
+미확인(모른다고 남김): limitByOutdoor(7701)·sumCapsIn(7704)·firstBranchByOutdoorCap(7710) 세 함수는 6601-8800 구간 안에 호출부가 없다. 구간 밖 호출 여부는 다른 담당 구간이라 확인하지 않았다. runWithAdjustedRates 의 REMARKS 치환(8172-8176)이 실제로 발화하는지도 실행 확인 없이는 확정 불가.
+
+저장소 무수정·DB 미접근(SELECT 포함 안 함)으로 수행. 파일 쓰기 성공, 재파싱으로 유효성 확인.
+
+
+########## range-order-html-5.json
+구간 8801-10156(1,356줄) 전수. 경계: enforceDateLimit 본문(8756-8799)과 MAX_DAYS=7(8754)은 앞 구간 소관이라 항목화하지 않고, 8801-8804 의 리스너 등록만 보고했다. 이 구간에는 카탈로그 전개·옵션 조립·할인 계산이 없다 — 주문내역 조회/상세, 로그, UI 재배치, 스냅샷 저장·복원, 자동 로그아웃, 튜토리얼 엔진이 전부다. 금액 계산은 9269(미리보기 이미지)와 9807(전송확인 표) 두 곳뿐이고 둘 다 buildSendRows(6542)→aggregateSendRows(6425) 결과를 소비한다. 실측 확인한 것: (a) 'function updateTopControls' 가 9103·9192 두 번 정의됨 — grep 이 아니라 두 블록을 직접 읽어 확인. (b) 초기화 시퀀스(9757-9779)에 recomputeCommDerived() 가 명시적으로 없지만 renderComm()(4399) 내부 4598 에서 호출되므로 '상업멀티 파생 미계산' 은 사실이 아니다 — 처음 그렇게 보였으나 코드로 확인해 정정했다. (c) recomputeFootAll(5159)은 홈멀티 전용이다(HOMEMULTI/homeQty/#home_foot 만 사용). (d) 홈멀티 수량 input 은 data-m(4010), 싱글은 data-sid+data-model(4179), 상업은 data-model(4565) — 튜토리얼 셀렉터가 이 차이를 반영하고 있다. (e) 이 구간 전체에 '운임'·'절삭'·'부가세'·'할인'·'DC' 문자열 0건(awk 로 구간 잘라 grep). (f) fmt 는 1669 의 `n=>(Number(n||0)).toLocaleString('ko-KR')` 이고, 이 구간의 comma(8902)·toLocaleString 직접호출(8912·9812-9814)은 fmt 를 쓰지 않아 폴백·로케일이 제각각이다. 업무 의미(왜 역순인지, 450000 의 근거, 3시간의 근거, 어느 합계식이 권위인지)는 코드만으로 확정 불가라 ambiguous 에 두었고 추측 번역하지 않았다.
+
+
+########## done-clients_web_estimate-app_views_index.ejs_1-2200.json
+## 이 구간의 성격
+1-2200 은 계산 본체가 아니라 **계산의 입출력 표면**입니다(산술 연산 0건, 실측). 있는 것은 셋뿐: (가) 입력 컨트롤과 그 **후보값이 HTML 리터럴로 박힌 곳**(절삭 5단계·창고 4종·분기 6코드·VAT 3분기 두 벌·요청사항 6종·전화 접두 `010-`), (나) 계산 **결과가 꽂히는 출력 슬롯**(homeTotal/singleTotal/commTotal·조합비·추천 실외기·선택 배지), (다) 값에 닿는 **CSS 표시 규칙**. 따라서 **이 구간만으로 온전히 이관 가능한 수식은 없습니다** — 후보값(데이터)과 연산(코드)이 갈라져 있어 반드시 쌍으로 묶어야 합니다.
+
+## 🚨 확정 모델에 안 맞는 예외
+**E1 절삭 — 축이 다름.** `selCutUnit`(1753-1761)은 **전표마다 사용자가 고르는** 값입니다. 확정 모델의 "반올림"은 거래처 마스터(dc_configs)라, 말이 같다고 거기에 넣으면 전표별 선택이 사라집니다. **모델을 넓혀야 함** — (a)거래처 기본값 + (b)전표 헤더 오버라이드 2층. 단 총액 절사인지 `절삭` 행 금액인지 미확정(ambiguous 1) — 갈리기 전에 스키마 확정 금지.
+
+**E2 카드 수수료 — 방향이 반대.** chkCardPay(1745)/chkCardPayPv(1889)는 **더하는** 축인데 모델엔 할인(빼는 축)뿐. 음수 할인율로 끼우면 할인 목록·집계에 수수료가 할인으로 섞입니다. **별도 축(수수료) 권장.** 요율은 구간 밖이라 모름.
+
+**E3 야적/지방 — 모델에 축 자체가 없음.** chkYard/chkLocal(1793-1798)은 onchange 가 없어 금액인지 태그인지 판정 불가(ambiguous 8). **판정 전 모델에 끼워 넣지 말 것.**
+
+**E4 분기 수동 가산.** extra-branch(2062-2067)는 자동 산출 옆에 **사람이 직접 넣는 칸**. 모델의 동기화(SUM 누산)에 수동 오프셋 축이 없고, 가산이냐 대체냐로 SUM/REPLACE 가 갈립니다(ambiguous 5).
+
+**E5 6개 분기 코드가 파일에 두 번.** `1509/2512/2812/2815/3419/4119` 가 **2062-2067** 과 **12780-12786** 에 동일 마크업으로 존재. 한 곳만 고치면 **에러 없이 조용히 다른 값**이 나옵니다.
+
+**E6 인쇄 양식은 이관 대상 아님(CODE_ONLY).** slip-canvas 794x1123(458-460), export-table 30/20/10/10/15/15%(1926-1935). 계승 규칙상 legacy 100% 매칭 유지. 다만 preview 표(1836-1838)가 같은 비율을 두 번째로 하드코딩해 어긋날 수 있습니다.
+
+**E7 창고 코드 zero-padding 불일치** — `00003` 만 5자리, `2`/`14`/`1` 은 비padded. 조인 키 정규화 규칙 없이 옮기면 매칭이 조용히 실패.
+
+## 결함성 사실(수식 아님, 기록)
+- `#ebxebxeb`(496) 무효 색상 — 전표 인쇄 품목표 헤더 배경 미적용. 504 `.total-box` 는 `#ebebeb` 정상. 오타로 보이나 단정 안 함.
+- VAT 라디오만 goFinal 미호출(1768/1773/1778). / 구형 탭 합계행 전체 주석(1603-1609). / `data-testid="dc-final-price"` 는 homeTotal 에만(1465) — DC 최종가 검증이 홈멀티 한 탭만 커버. / 합계행 CSS 상시 숨김(105).
+
+## 모르는 것
+절삭·VAT·카드수수료·야적/지방의 **실제 산식과 계수는 이 구간에 없습니다**(숫자를 지어내지 않았습니다). 조합비·추천 실외기 산식도 없고 출력 슬롯만 있습니다. 6개 분기 코드의 정체는 라벨이 없어 모릅니다.
+
+
+########## done-clients_web_estimate-app_views_index.ejs_2201-4400.json
+## 확정 모델에 안 맞는 예외
+①운임·절삭(2991-3046): 금액→수량 역방향. 절삭은 -Math.abs 강제, 금액≠0이면 qty를 1로 lock(3번째 인자 true). 화면은 절댓값·저장은 부호 유지. 수량칸이 읽기전용이라 수량축에 표현할 자리가 없음 → 예외로 남길 것. 소계는 fmt(val)로 수량을 곱하지 않음(3042).
+②정액 할인 6종 순차 차감(3284-3314, 3398-3426): v=Math.max(0,v-d)를 360/4way/스탠드/1way/디럭스/1등급 순으로 누적. 율이 아니라 금액이고 조건이 겹치면 여러 번 빠짐. 부자재 정규식 10키워드·모델접두 ^(AC|AP|AR|AF) 두 겹 게이트. 같은 규칙이 3284·3398·4435(다음 구간) 세 곳에 복제 → 모델을 넓힐 것(정액·조건별·누적 할인 종류 필요).
+③모델코드 자릿수 파싱(2368-2395, 4044-4053, 4272-4283): m[7]==='6'&&m[8]==='P', substring(5,7)==='CS', charAt(6)==='N'. AP230/AP290은 그 규칙을 뒤집는 예외(isStand 강제·isDeluxe 해제). 데이터화 방식(자릿수표 vs 품목 플래그 컬럼)은 업무 판단 — 모르겠습니다.
+④점수 선택(3201-3230): is_default 대신 -6/3, -4/2, -2/0, 2/-1 가중치 최저점. is_default로 접으면 동점·우선순위가 사라짐 → 우선순위(정수) 필드 필요.
+⑤이름 문자열에서 수량(4143-4147, 4220-4226): 괄호 안 '+' 개수=분기관 수, 8496에서 ×세트수량. factor가 품명에서 나옴 → 세트 구성 데이터에 수량 필드 필요.
+⑥2단 계산(4195-4205 호출처0 / 2913-2957): 후자는 세트단가→구성품 단가 역배분으로 전개와 방향이 반대.
+⑦잔액 역배분+천단위 강제(3370-3396): 합을 보존하면서 양쪽을 1000 단위에 맞추는 제약 계산(mod 보정 ±1000, 음수는 상계). 단순 반올림으로 대체 불가 → 예외로 남길 것.
+
+## 같은 계산이 경로마다 다름(값이 조용히 갈림)
+구형단가 isCustom 분기: 2428 있음 / 2875 없음 · 유연호스 게이트: 4350·4461 DOM 체크박스 / 4392·4416 window.SHOW_I_HOSE · HP 괄호치환: 4200 제거 / 8490 유지 · 판넬 정규식: 3178 '판널' 허용 / 4068 미허용 · 판넬 타공사이즈 원본 필드: 3541 cool_kw / 3640·3705 cool_cap_kcal. 정본을 정하지 않으면 이관 시 한쪽이 바뀝니다.
+
+## 죽은 코드(grep 정의부 1건뿐)
+applyHomeMultiPriceVat(4250 — 항등 반환·VAT 없음) · basesForSetPiecesByExistingRule_(4195) · INDOOR_AY047(2362) · PANEL_PC1DWSK1(2363).
+
+## 수식으로 세지 않은 것
+2480-2556 이스케이프/sanitize는 값 계산이 아니라 제외. 단 estimateSpecValueHtml(2524)은 이스케이프 후 &lt;br&gt;만 <br>로 되돌려 스펙 값에 줄바꿈 태그를 허용 — 스펙 데이터에 <br>이 들어 있다는 뜻이라 이관 시 알아 두실 필요가 있습니다.
+
+## 경계
+4400은 partUnitPrice(4390-4403) 몸통 안이고 시작줄이 구간 내라 제가 보고했습니다. singleUnitPrice(4405)·commUnitPrice(4455)·HOSE_* 상수(4518-4521)는 시작줄이 4400 이후라 제외(문맥 확인용으로만 읽음). 2201은 HTML 마크업 중간이라 잘린 수식 없음.
+
+
+########## critic.json
+[방법과 결과]
+
+찾은 방법 6가지와 각각의 수확:
+ (1) 좌표 커버리지 맵 — 기존 21개 산출 파일에서 location 3,254건을 파싱해 파일별 줄 커버리지와
+     빈 구간을 계산했다(coverage.txt). 지정 6개 소스의 커버리지: 견적앱 ejs 65.8%, 주문앱 html 63.7%,
+     legacy 견적 Code.js 56.3%, legacy 주문 Code.js 65.2%, legacy 견적 index.html 22.8%,
+     legacy 주문 index.html 25.1%.
+ (2) 계산 식별자 전수 스캔 — 6개 소스의 계산 포함 줄을 정규식으로 뽑아 커버리지와 대조했다.
+     미커버 계산줄: 견적앱 ejs 35 / 주문앱 html 18 / legacy 견적 Code.js 30 / legacy 주문 Code.js 29
+     / legacy 견적 index.html 345 / legacy 주문 index.html 164.
+ (3) legacy↔현행 diff 로 '한 곳에만 있는 계산' 분리 — 네 파일이 근친이라(견적 diff 3,425줄,
+     주문 diff 4,237줄) legacy index.html 의 미커버 345/164 건 중 현행에 쌍둥이가 있고 그 쌍둥이가
+     커버된 것이 316/142 건이었다. 진짜 미조사는 legacy 전용 8/18 건 + 양쪽 미커버 21/4 건뿐이었고,
+     그중 계산은 정규식 품목분류·모델코드 치환 정도로 이미 다른 좌표에 잡혀 있었다.
+ (4) 함수 단위 제로커버리지 — 6개 소스에서 함수 정의 1,788개를 뽑아 본문에 기재 항목이 하나도 없는
+     것을 셌다. 지정 6소스의 계산 함수는 이름 기준으로 거의 다 잡혀 있었고(sumComm·packOutColumn·
+     computeCommPanelModelForIndoor_ 등 60개 확인), 이름이 통째로 없는 것만 남았다.
+ (5) 호출 그래프 추적 — 기재된 함수가 부르는 함수를 따라가다 estimate-app 의 서버측 모듈과
+     order-app 의 TypeScript 모듈이 조사 대상에 아예 없다는 것을 발견했다.
+ (6) 산출물 파일 없는 소스 목록화 — clients/web 과 tools/legacy-gas 전체를 열거해 대조했다.
+
+새로 찾은 것: 138건. 내역은 아래.
+
+[죽은 구간이 있었는가]
+지정된 6개 소스 안에는 없다. 2,200줄짜리 구멍은 하나도 없었다. 가장 큰 미커버 구간은
+견적앱 ejs 599-1261(663줄)인데 실물은 <style> 블록이고, legacy 견적 index.html 24-1659(1,636줄)도
+같은 CSS 구간이다. 구간 담당 에이전트가 실패한 흔적은 없다.
+
+죽은 것은 구간이 아니라 파일이다. 아래 소스들은 담당 에이전트가 배정된 적이 없다:
+
+ A. clients/web/estimate-app 서버측 — 4,405줄, 기재 0건
+      lib/code.js 2,858 · lib/apps-script-shim.js 534 · lib/db-catalog.js 255 · lib/slip-bridge.js 201
+      lib/google-sheets-client.js 186 · public/version-gate.js 129 · lib/directory.js 110
+      lib/version-check.js 100 · routes/rpc.js 57 · routes/index.js 41 · lib/auth-context.js 42
+      lib/quoteSnapshotContract.js 22 · lib/version-gate.js 13
+      lib/code.js 만 계산 포함 줄 151개. 부가세 분리·선금할인·전역DC 기본값·창고코드 분기가 여기 있다.
+      legacy 종합견적서/Code.js 와의 diff 는 삭제 2,213 / 추가 1,867 줄로 사본이 아니라 재작성이다.
+ B. clients/web/order-app TypeScript — 1,010줄, 기재 0건
+      src/samhanApi.ts 486 · src/quantitySync.ts 220 · src/legacyShim.ts 164 · src/main.ts 128
+      quantitySync.ts 가 factor/multiplier/SUM/FLOOR 동기화 엔진 전체를 담고 있다.
+ C. clients/web/order-app/dist/index.html — 9,695줄, 기재 0건. 소스와 612줄 삭제/180줄 추가로 다르다.
+ D. tools/legacy-gas 나머지 28개 도구 — 47개 파일 37,066줄, 기재 0건, 계산 포함 줄 1,373개
+      에어디자이너 주문서 인식 Code.js 152 · 제이시스템 주문서 인식 Code.js 145
+      일마감 Index.html 115 · 거래처별 일괄 거래명세서 Index.html 84 · 내일자 전표 이미지 Index.html 75
+      일마감 Code.js 68 · 거래처별 원장생성 Index.html 60 · 계산서일괄등록양식 Index.html 34
+      미배차리스트 31 · 알리고 자동 업로드 30 · 전표정리리스트 29 · 가배차분류리스트 27
+      배차안내문자 Code.js 27 · 지방가배차분류리스트 26 · 가입고처리 26 · (이하 생략)
+      이번에 영업수수료 계산과 일마감 프로그램 두 도구만 실제로 열어 수식을 뽑았다.
+
+[이번 138건의 출처별 내역]
+  clients/web/order-app/src/quantitySync.ts        12
+  clients/web/estimate-app/lib/code.js             36
+  clients/web/estimate-app/lib/db-catalog.js       14
+  clients/web/estimate-app/lib/slip-bridge.js       6
+  clients/web/estimate-app/lib/apps-script-shim.js  4
+  clients/web/order-app/src/samhanApi.ts            5
+  clients/web/order-app/dist/index.html             2
+  tools/legacy-gas/영업수수료 계산/Index.html       14
+  tools/legacy-gas/일마감 프로그램 (Code.js 17 + Index.html 5)  22
+  거래명세서 3 · 원장생성 3 · 계산서일괄 3 · 전표이미지 1       10
+  지정 6소스 잔여 (index.ejs 4 · order index.html 5 ·
+                   종합견적서 Code.js 2 · 발송주문서 Code.js 2)  13
+  합계 138
+
+[전수라고 보는 근거 — 그리고 볼 수 없는 부분]
+ - 지정된 6개 소스에 대해서는 전수에 가깝다고 본다. 계산 식별자 정규식으로 뽑은 줄 2,888개 중
+   미커버는 621개였고, 그 621개를 전부 눈으로 확인해 실제 계산은 위 15건뿐이었다(나머지는
+   base64 폰트·CDN script 태그·CSS 선택자·주석·URL·캐시 TTL 60*10 반복).
+ - 함수 이름 축으로 교차 확인했을 때도 지정 6소스의 계산 함수 중 산출물에 이름이 아예 없는 것은
+   5개(commManualSetForRow, findCommSetAnchor_, findCommSetPartRows_, sanitizeLegacyTableHtml,
+   syncBizAddr)뿐이었고 전부 이번에 넣었다.
+ - 그러나 전체를 전수라고는 말할 수 없다. 위 A~D 네 덩어리(52,176줄)가 조사 대상에서 빠져 있었고,
+   이번에 그중 A·B·C 는 계산 포함 줄을 전부 확인했지만 D(28개 도구 1,373 계산줄)는
+   영업수수료·일마감 두 도구만 열었다. 나머지 26개 도구는 파일·줄·계산줄 수만 셌고 내용은 안 봤다.
+   특히 '에어디자이너 전용 주문서 인식'(152)과 '제이시스템 전용 주문서 인식'(145)은
+   외부 주문서에서 품목·수량을 뽑아내는 파서라 수량 규칙이 들어 있을 가능성이 높다.
+
+[검증 방법]
+ 인용한 줄은 모두 원본 파일에서 다시 읽어 대조했다(일마감 Index.html:1216-1217/1218-1223 은
+ 최초 기재 좌표가 2~5줄 어긋나 실측값으로 정정했다). diff·줄 수·계산줄 수는 실제로 명령을 돌려 센 값이다.
+ legacy index.html 두 개는 wc -l 실측 19,182 / 9,825 줄이며, 다른 산출물이 적은 19,183 / 9,826 과
+ 1줄 차이가 나는데 이는 파일 끝 개행 처리 차이로 보인다.
+
+[산출물]
+ 커버리지 원자료: coverage.txt · scan-uncovered.txt · truly-missing.txt · uncovered-funcs.txt
+ (모두 이 디렉터리. 저장소에는 아무것도 쓰지 않았다.)
+
+
+
+########## kind-금액.json
+1) 파일 쓰기 성공. 경로 = C:/Users/user/AppData/Local/Temp/claude/C--dev-Samhan-Public/2f7b11ce-2478-4e2b-ae95-3a7d452d7783/scratchpad/gas896/kind-금액.json
+
+2) 훑기 방식: 종류축이므로 6개 소스를 금액 식별자(price/단가/납품가/출고가/sub/sum/total/VAT/부가세/공급가/운임/절삭/수수료/할인)로 grep 한 뒤, 히트한 함수 정의부를 전부 열어 읽었다. legacy-gas index.html 2개는 이번이 유일한 훑기이므로 money 관련 함수 정의를 grep 으로 전수 열거(종합견적서 80+ 개 중 금액 관련 전부, 거래처 발송 주문서 동일)한 뒤 하나씩 읽었다.
+
+3) 줄 수 실측: 종합견적서/index.html 19,183줄(wc -l 19,182 + 마지막 개행 없음) · 거래처 발송 주문서/index.html 9,826줄 · index.ejs 19,753 · order-app 10,156 · 종합견적서/Code.js 3,203 · 주문서/Code.js 3,520.
+
+4) 견적앱 vs 주문앱 차이(요구사항) — 확인된 것만:
+   ① I형 유연호스 고정단가 7000(legacy 견적) vs 8000(legacy 주문·신규 견적·신규 주문). 신규 견적앱이 8000 으로 넘어갔다.
+   ② 인상단가 게이트: 견적=체크박스(chkHomeInc/chkCommInc/chkSingleInc) · 주문=납기일(#due). legacy 주문은 PRICE_INC_DATE='2026-07-01' 리터럴, 신규 주문은 PRICE_CHANGE_SCHEDULE 이고 부등호 방향이 반대다.
+   ③ 정액 DC 해석: 견적=항상 정액 · 주문=1 미만이면 비율.
+   ④ DC 값 출처: 견적=DOM 입력칸(#home_rate/#comm_rate/#ss_disc_*) · 주문=CONFIG/window 전역. 주문앱엔 DC 입력 UI 자체가 없다.
+   ⑤ 수동 단가/수동 출고가: 견적만 존재(homeCustomPrices/homeCustomListPrices 등 8개 Map). 주문엔 없다.
+   ⑥ 운임/절삭: 견적=표에 금액 input 을 그리고 전표에 실어 보낸다 · 주문=서버 로더에서 버리고 표·미리보기·전송 전부에서 제외.
+   ⑦ 카드수수료·자동절삭·사용자정의품목·선금할인: 견적에만 존재. 주문 buildSendRows 에는 넷 다 없다.
+   ⑧ roundByConfig 시그니처: 견적=(n, prefix) 로 섹션별 DOM select · 주문=(n) 으로 CONFIG 단일.
+   ⑨ commUnitPrice 분기 수: 견적 2분기 · legacy 주문 3분기(고정DC 단독 분기 + 받침대 고정가 우회) · 신규 주문 3분기(받침대 우회 소실, 고정DC 조건 완화).
+   ⑩ explodeSetParts: 견적만 가정용 벽걸이를 고정부로 이동. explodeCommSets_: 견적만 'Q' 센티넬과 부품없음 폴백.
+   ⑪ 구형 할인율: 견적=UI 입력 + config(신규) · 주문=0.5 리터럴 4곳 중복.
+
+5) 직전 구간축 파일에 없을 가능성이 높은 것(이번 종류축의 수확): legacy-gas index.html 2개 전량(구간축 대상이 아니었음) · 견적/주문 사이 값 불일치 11건 · sumOld 0.5 잔존(index.ejs 가 동적화하다 만 지점) · incActive 부등호 반전 · commUnitPrice 고정DC 조건 완화 · 받침대 우회 소실 · fmtMoney floor vs formatWonDiscountLabel_ round · buildQuoteSections 의 [^0-9] vs buildSendRows 의 [^0-9-] · 절삭 타깃 탐색 방향 반대 · USER_PRICE_VAT 절대값.
+
+6) 세지 않은 것: DB 를 조회하지 않았으므로 dynamic 판정의 DATA_OK/DATA_PARTIAL 은 '코드가 데이터/설정을 읽는가'만 뜻하며 '그 데이터가 실제로 채워져 있는가'는 확인하지 않았다. 특히 PRICE_CHANGE_SCHEDULE·PRICE_DEFAULT_VARIANT·CONFIG.discount360~firstGradeDiscount 가 실제로 비어 있는지는 미확인.
+
+7) 업무 의미를 추론하지 않은 지점은 전부 ambiguous 로 뺐다(15건). 특히 sumOld 0.5 · 7000/8000 · incActive 부등호 · calc 이중모드 · 받침대 우회 다섯 건은 어느 쪽이 정본인지에 따라 이관 설계가 달라지므로 개발책임자 확인이 필요하다.
+
+
+########## kind-수량.json
+① 훑기 방식: 파일을 구간으로 자르지 않고 함수 단위로 4개 HTML 소스에서 같은 이름의 함수를 뽑아 pairwise diff 했다(추출 스크립트: scratchpad/gas896/ex.sh). 이 방식으로 구간축이 못 본 '같은 계산의 4개 사본 간 차이' 를 잡았다. 실측 diff 줄수는 본문 각 항목에 반영.
+② tools/legacy-gas/종합견적서/index.html 과 clients/web/estimate-app/views/index.ejs 의 전체 차이는 1,656줄, tools/legacy-gas/거래처 발송 주문서/index.html 과 clients/web/order-app/index.html 은 2,498줄(diff 실측). 수량 함수 16개 중 견적 계열은 2개만 달랐고(chooseBaseModel 4줄, recomputeCommDerived 17줄), 주문 계열은 12개가 달랐다 — 웹 주문앱이 레거시에서 가장 많이 벗어나 있다.
+③ GAS Code.js 2개에는 파생 수량 계산이 없다. 수량은 전부 클라이언트가 정해 보내고 서버는 `priceVat * qty` 합계와 '유효수량없음' 게이트만 한다. 단 SHOW_I_HOSE=false 상수(Code.js:61/83)가 1WAY 호스 대상 모델을 지배한다.
+④ 하드코딩 모델코드 개수 실측: PANEL_MODELS 26종(4파일 동일) · PUMP_MAP 실내기 22 + 펌프 6 · RENEW_FILTER_MAP 실외기 4 + 필터 2 · 분기관 MAP 6 · 리모컨 5(computeCommRemoteModelForIndoor_) + 3(allowRemoteChange_) · 인피니트 판넬 7 × 2회 중복 · 공청 치환 4쌍 × 2회 중복 · 받침대 이름 6('SI-AL600a','SI-AL700a','GHP방진가대','ACL-KORGHP07','방진가대S2소/중/대') · 일자발 세트 2(AP230DAPDHH1S·AP290DAPDHH1S) · 웹 주문앱 fallback 14종.
+⑤ 하드코딩 숫자 경계 실측: chooseBaseModel HP 리터럴 45개+ · codeByCumulativeSum 경계 5 · codeByOutdoorHP 경계 5 · 인라인 fallback 경계 5(전혀 다른 값) · 조합비 한도 130/103.0/120.0 · 추천배열 분기 inCount>2 · 배분비 6:4/4:6 · 유연호스 I형 단가 7000(3곳 중복) · 구형 50% DC.
+⑥ 확인하지 않은 것: 실제 카탈로그(HOMEMULTI/COMMULTI/SINGLE_SETS/COMM_PARTS/SINGLE_PARTS)에 각 정규식이 몇 건 매칭되는지는 세지 않았다. DB·시트 조회를 하지 않았으므로 '이 분기가 실제로 발화하는가' 는 판정 불가. ambiguous 항목 중 4건(1WAY 인피니트 이중계상, kind 미판별 실내기, csum 경계값, 소수 대당개수)은 표본 카운트가 있어야 영향 규모가 확정된다.
+⑦ 파일 쓰기 성공. 응답 크기 상한 때문에 parts/p01~p09.json + meta.json 으로 나눠 쓴 뒤 스크립트로 합쳤다.
+
+
+########## kind-조건클램프코드.json
+훑는 축: 종류(조건게이트·클램프·모델코드합성)로 6개 소스를 가로질렀다. 직전 단계가 못 본 tools/legacy-gas/종합견적서/index.html(19,182줄)·tools/legacy-gas/거래처 발송 주문서/index.html(9,825줄) 두 파일이 이번 훑기의 중심.
+
+항목 단위: 같은 규칙이 여러 파일에 복제돼 있으므로 **규칙 1개 = 항목 1개**로 잡고 location 에 모든 파일:줄 좌표를 나열했다. 동적화 작업에서 필요한 것이 '이 규칙을 고치려면 어디어디를 봐야 하는가' 이기 때문이다. 파일별로 세면 항목 수는 대략 3~4배가 된다.
+
+실측 수치(전부 grep -c 로 셈):
+- Math.max/min 총 179회 — estimate-app 41 · legacy 종합견적서 41 · order-app 40 · legacy 거래처 발송 주문서 38 · 거래처 발송 주문서/Code.js 11 · 종합견적서/Code.js 8
+- 0 이 아닌 숫자 리터럴 비교(루프 인덱스 제외) — estimate-app 92 · legacy 종합견적서 96 · order-app 73 · legacy 거래처 발송 주문서 66 · Code.js 각 11
+- 모델코드형 문자열 리터럴('PC1MWSK3NW' 류) — 4개 html 파일 전부에 PANEL 22 + INF 7 + 공청치환 4쌍 + 분기관 6 + 펌프 22 + 필터 4 + 리모컨 5~6 이 박혀 있다
+- 'return 7000' 계열: legacy 종합견적서 5곳 / 나머지 3파일 0곳. 'return 8000' 계열: estimate-app 5 · order-app 5 · legacy 거래처 발송 주문서 5 · legacy 종합견적서 0
+- PRICE_INC_DATE: legacy 거래처 발송 주문서 1(정의) + 5(사용). 다른 3파일 0
+- 0.48 상한: order-app 2 · legacy 거래처 발송 주문서 2 · 견적앱 2개 0
+
+파일 대응 관계(실측): clients/web/estimate-app/views/index.ejs ↔ tools/legacy-gas/종합견적서/index.html 이 거의 같은 계보(줄 오프셋 약 +300~400), clients/web/order-app/index.html ↔ tools/legacy-gas/거래처 발송 주문서/index.html 이 같은 계보(오프셋 약 +330). 다만 현행판이 레거시를 그대로 옮긴 것이 아니라 여러 곳에서 규칙이 바뀌었고(7000→8000, 분기관 누산 방향, catalogSpecialMetadata 도입, setDerivedQty 잠금 체계, requireCommCatalogRow_ 누락 기록, CONFIG 키 5개 추가), 반대로 레거시에만 남은 규칙도 있다(PRICE_INC_DATE 납기일 게이트, codeByCumulativeSum 의 <= 경계, downstream 누산).
+
+이미 동적화가 끝난 것(dynamic=DATA_OK 6건): CONFIG.vatRate · CONFIG.cardFeeRate · CONFIG.oldDiscount · CONFIG.advanceDiscountRate · CONFIG.unitRoundTo/unitRoundMode(주문앱) · applyCustomerDiscounts 의 노션 거래처별 할인. 전부 현행 견적앱/주문앱 쪽이고 레거시에는 리터럴로 남아 있다. CONFIG.comboWarnRate 는 키만 있고 읽는 코드가 없다.
+
+안 한 것: 각 규칙이 실제 데이터에서 몇 건에 걸리는지는 세지 않았다(읽기 전용·DB 미조회 지시). dynamic 판정은 '값의 출처가 코드인가 설정/시트인가' 기준이며, 시트 컬럼에서 오는 값(r.price, r.list, r.maxIndoor, r['고정DC'], r.useK2, r.capacity)은 DATA_PARTIAL 로 표시했다.
+
+
+########## kind-할인.json
+파일 쓰기 성공. 훑은 범위: 지정된 6개 소스 전체를 '할인' 키워드(할인/discount/DC/rate/round/0.45/0.5/45/50/8000/7000/고정DC/변동DC/useK2/$L$2/$I$1)로 가로질러 확인. 추가로 개발책임자 지시의 'dc-config 연동 지점' 을 위해 clients/web/estimate-app/lib/code.js(2,858줄, 견적앱 BE)의 할인 관련 구간을 포함했다 — 견적앱의 CFG_RAW·거래처 dc 는 전부 여기서 나온다. 주문앱은 별도 BE 파일 없이 index.html 안 normalizePartnerConfig 가 dc-config 응답을 직접 매핑한다.
+
+견적앱 vs 주문앱 핵심 차이 8가지:
+(1) 화면 입력칸 — 견적앱은 home_rate/comm_rate/old_rate + ss_disc_* 6종 + round_unit/mode 6개를 사용자가 직접 만진다. 주문앱은 이 입력칸이 **하나도 없고** CONFIG 값만 쓴다(grep 0건). 즉 주문앱에서 할인은 100% 서버 설정이다.
+(2) 고정DC/변동DC UI — 견적 계열만 표에 '고정DC' 입력칸과 '변동DC' 체크박스 열이 있다. 주문 계열은 시트 값(useK2, '고정DC')만 읽는다.
+(3) 상업 고정DC 단독 분기 — 주문 계열에만 있다(위 exceptions [3]).
+(4) 정액 6종 해석 — 주문 계열만 율/정액 이중 해석(exceptions [1]).
+(5) 반올림 축 — 견적앱 섹션별 DOM / 주문앱 CONFIG 전역(exceptions [5]).
+(6) 등급 보너스 — 주문앱만 0.48 상한, 페널티 판정식도 다름(exceptions [8][9], ambiguous 9번).
+(7) 구형 할인 — 견적앱은 old_rate/CONFIG.oldDiscount, 주문앱은 0.5 리터럴 5곳.
+(8) 적요 조립 위치 — 견적은 프런트, 주문은 GAS 서버(exceptions [15]). 싱글 플래그 키 이름도 hasFirstGradeDc(견적) vs hasGrade1Dc(주문)로 다르다.
+
+legacy index.html 2개(이번이 유일한 훑기)에서 나온 것 중 현행에 없는 것:
+- 거래처 발송 주문서 index.html:2571 상업 받침대/방진가대 납품가 고정 게이트 → 현행 order-app 에 없음
+- 거래처 발송 주문서 index.html:2594 `fixedDc > 0` 조건 → 현행 order-app 에서 누락
+- 거래처 발송 주문서 index.html:1420 parseFixedDc 대시 가드 → 현행에 없음(실효 차이는 없음)
+- 종합견적서 index.html I형 유연호스 7000(현행 전부 8000)
+- 종합견적서 index.html:16183 카드수수료 0.03 리터럴 → 현행은 CONFIG.cardFeeRate
+- 종합견적서 index.html:16218 절삭 대상에서 CATALOG_SPECIAL 제외 가드 없음 → 현행에 추가됨
+- 종합견적서 index.html:7144 sumOld 0.5 → **현행 견적앱에 그대로 남아 있다**(승계된 결함 후보)
+
+동적 전환 시 DB 로 옮겨야 할 리터럴을 종류별로 세면: 율 기본값 0.45×2 · 구형 0.5(주문 5곳+견적 sumOld 1곳+적요 1곳) · I형 호스 8000(4곳)/7000(4곳) · 등급 보너스 임계 4 + 율 4(×2앱) · 페널티 0.40(×2앱) · 상한 0.48(주문만) · 45% 판정 오차 0.001 · 카드수수료 0.03 · VAT 1.1(GAS 2곳) · 고정DC 클램프 0/0.99 · 전역DC 임계 0.01 · 정액 입력 단위 1000 · 반올림 단위 [0,10,100,1000] · 모드 [ROUND,FLOOR,CEIL] · reset 45(×4곳)/50(×2곳).
+
+확인 못 한 것(추측하지 않음): 시트 '할인'/'1WAY할인'/'싱글 할인' 컬럼의 소비처(ambiguous 10번), estimate_config.singleDiscount/singleOneWayDiscount 의 의도(ambiguous 11번). DB 조회는 하지 않았다(읽기 전용 지시 + 표본 유무 미확인).

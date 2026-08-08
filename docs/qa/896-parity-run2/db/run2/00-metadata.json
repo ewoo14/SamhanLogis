@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "purpose": "#896 Google Sheets 이관 전 레거시 출력 기준선",
+  "acquiredAtUtc": "2026-08-08T13:10:11.890Z",
+  "acquiredAtKst": "2026-08-08T22:10:11+09:00",
+  "baseUrl": "http://127.0.0.1:5183",
+  "catalogSource": "sheet",
+  "spreadsheetId": "1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ",
+  "app": {
+    "name": "@samhan/estimate-app",
+    "version": "2.0.0",
+    "commitSha": "37ffacea0698ac86825d31d9f3c3dacf29c06a6b"
+  },
+  "tabsReadByCurrentAppConstants": {
+    "HOME_NAME": "홈멀티_단가인상",
+    "SINGLE_NAME": "싱글 세트_단가인상",
+    "SINGLE_PARTS_NAME": "싱글 구성품_단가인상",
+    "COMM_NAME": "상업멀티_단가인상",
+    "COMM_PARTS_NAME": "상업멀티 구성_단가인상"
+  },
+  "canonicalTabsByDeveloperDirection": [
+    "홈멀티",
+    "싱글 세트",
+    "싱글 구성품",
+    "상업멀티",
+    "상업멀티 구성"
+  ],
+  "priceOverlayConvention": "_단가인상 접미사 탭은 인상단가 오버레이",
+  "connection": {
+    "homeMulti": 119,
+    "singleSets": 288,
+    "singleParts": 1448,
+    "commercialMulti": 408,
+    "commercialParts": 137,
+    "oldProducts": 40,
+    "samples": {
+      "home": [
+        {
+          "model": "AJ060MXHNBC1",
+          "name": "실외기_6HP 단배관",
+          "price": 1611115
+        },
+        {
+          "model": "AJ050MXHNBC1",
+          "name": "실외기_5HP 단배관",
+          "price": 1352780
+        }
+      ],
+      "singleSet": [
+        {
+          "model": "AC060CS6PBH1SY",
+          "name": "360 CST UV",
+          "price": 1660000
+        },
+        {
+          "model": "AC072CS6PBH1SY",
+          "name": "360 CST UV",
+          "price": 1840000
+        }
+      ],
+      "singlePart": [
+        {
+          "setModel": "AF70F19D11BRS",
+          "model": "AF70F19D11BN",
+          "name": "가정용 에어컨 무풍클래식 베이지 실내기",
+          "price": 0
+        },
+        {
+          "setModel": "AF70F19D11BRS",
+          "model": "AF70F19D1PBX",
+          "name": "가정용 에어컨 무풍클래식 화이트 실외기",
+          "price": 0
+        }
+      ],
+      "commercial": [
+        {
+          "model": "AM160NXGGBH1",
+          "name": "GHP 가스히트펌프 16HP",
+          "price": 19519500
+        },
+        {
+          "model": "AM200NXGGBH1",
+          "name": "GHP 가스히트펌프 20HP",
+          "price": 20020000
+        }
+      ]
+    }
+  }
+}
