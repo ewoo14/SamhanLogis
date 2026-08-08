@@ -247,6 +247,7 @@ public class ProductSheetSyncService {
                 summary.totalInserted += tabResult.inserted;
                 summary.totalUpdated += tabResult.updated;
                 summary.totalNameDrift += tabResult.nameDrift;
+                summary.totalPriceHistoryExposureSpecWrites += tabResult.priceHistoryExposureSpecWrites;
                 summary.totalSoftDeleted += tabResult.softDeleted;
                 summary.totalSkipped += tabResult.skipped;
                 summary.totalPreservedManual += tabResult.preservedManual;
@@ -283,11 +284,11 @@ public class ProductSheetSyncService {
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
         log.info("[ProductSheetSync] sync 완료: 총 inserted={}, updated={}, softDeleted={}, skipped={}, "
-                        + "preservedManual={}, 구성품 linked={}, bundle marked={}, 사양 linked={}, duration={}ms",
+                        + "preservedManual={}, 구성품 linked={}, bundle marked={}, 사양 linked={}, priceHistoryExposureSpecWrites={}, duration={}ms",
                 summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted,
                 summary.totalSkipped, summary.totalPreservedManual,
                 summary.totalComponentsLinked, summary.totalBundlesMarked,
-                summary.totalSpecsLinked, summary.durationMs);
+                summary.totalSpecsLinked, summary.totalPriceHistoryExposureSpecWrites, summary.durationMs);
         return summary;
     }
 
@@ -470,7 +471,9 @@ public class ProductSheetSyncService {
      *
      * @return 이번 row 에 적재(upsert)한 spec 개수
      */
-    private int loadSpecsForProduct(UUID productId, List<String> header, List<String> cells, SheetTabMapping mapping) {
+    private int loadSpecsForProduct(UUID productId, List<String> header, List<String> cells,
+                                    SheetTabMapping mapping, SpecWriteObservation specWrites) {
+        Map<String, SpecState> beforeSpecs = captureSpecState(productId);
         Set<String> seenKeys = new HashSet<>();
         Set<Integer> consumedColumns = new HashSet<>();
         int linked = 0;
@@ -497,7 +500,20 @@ public class ProductSheetSyncService {
                 productSpecRepository.save(s);
             }
         }
+        if (!beforeSpecs.equals(captureSpecState(productId))) {
+            // 호출부에서 Product 변경과 분리해 관측할 수 있도록, 실제 spec 상태 변화만 표시한다.
+            specWrites.changed = true;
+        }
         return linked;
+    }
+
+    private Map<String, SpecState> captureSpecState(UUID productId) {
+        return productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId).stream()
+                .collect(java.util.stream.Collectors.toMap(ProductSpec::getSpecKey,
+                        s -> new SpecState(s.getSpecValue(), s.getUnit(), s.getDisplayOrder())));
+    }
+
+    private record SpecState(String value, String unit, Integer displayOrder) {
     }
 
     private int loadBlocklistSpecs(UUID productId, List<String> header, List<String> cells, SheetTabMapping mapping,
@@ -1273,6 +1289,8 @@ public class ProductSheetSyncService {
             Optional<Product> existing = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
             UUID productId = null;
             Product productForExposure = null;
+            ExternalWriteTracker externalWrites = new ExternalWriteTracker();
+            boolean productChanged = false;
             if (existing.isEmpty()) {
                 Product p = Product.seedFromSheet(name, modelCode, defaultCategory,
                         releasePrice, deliveryPrice,
@@ -1286,7 +1304,8 @@ public class ProductSheetSyncService {
                 applyAttributes(p, name, modelCode);
                 applyPyongSize(p, mapping, cells);
                 productRepository.save(p);
-                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
+                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice,
+                        externalWrites);
                 productId = p.getId();
                 productForExposure = p;
                 result.inserted++;
@@ -1361,21 +1380,29 @@ public class ProductSheetSyncService {
                     applyPyongSize(p, mapping, cells);
                 }
                 productRepository.save(p);
-                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
+                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice,
+                        externalWrites);
                 productId = p.getId();
                 productForExposure = p;
-                if (before.changed()) {
+                productChanged = before.changed();
+                if (productChanged) {
                     result.updated++;
                 } else {
                     result.unchanged++;
                 }
             }
 
-            upsertSheetExposure(productForExposure, mapping.estimateCategory, displayOrder);
+            externalWrites.markIfChanged(upsertSheetExposure(productForExposure,
+                    mapping.estimateCategory, displayOrder));
 
             // 사양(ProductSpec) 적재 — 사양 보유 탭은 V17 매핑전용, 비사양 탭은 기존 blocklist 보존.
             if (headerCells != null) {
-                result.specsLinked += loadSpecsForProduct(productId, headerCells, cells, mapping);
+                SpecWriteObservation specWrites = new SpecWriteObservation();
+                result.specsLinked += loadSpecsForProduct(productId, headerCells, cells, mapping, specWrites);
+                externalWrites.markIfChanged(specWrites.changed);
+            }
+            if (existing.isPresent() && !productChanged && externalWrites.changed()) {
+                result.priceHistoryExposureSpecWrites++;
             }
         }
 
@@ -1417,9 +1444,10 @@ public class ProductSheetSyncService {
             }
         }
 
-        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, nameDrift={}, softDeleted={}, skipped={}, preservedManual={}",
+        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, nameDrift={}, priceHistoryExposureSpecWrites={}, softDeleted={}, skipped={}, preservedManual={}",
                 mapping.tabName, result.inserted, result.updated, result.unchanged,
-                result.nameDrift, result.softDeleted, result.skipped, result.preservedManual);
+                result.nameDrift, result.priceHistoryExposureSpecWrites, result.softDeleted,
+                result.skipped, result.preservedManual);
         return result;
     }
 
@@ -1429,23 +1457,24 @@ public class ProductSheetSyncService {
      * <p>수동 override 품목은 PATCH /usage 가 단일 권위이므로 sync 에서 노출을 변경하지 않는다.
      * sync 는 삭제를 절대 수행하지 않고, 탭에 등장한 카테고리 행을 보장하거나 displayOrder 만 갱신한다.
      */
-    private void upsertSheetExposure(Product product, EstimateCategory estimateCategory, int displayOrder) {
+    private boolean upsertSheetExposure(Product product, EstimateCategory estimateCategory, int displayOrder) {
         if (product == null || product.getId() == null || estimateCategory == null) {
-            return;
+            return false;
         }
         if (product.isUsageScopeManual()) {
-            return;
+            return false;
         }
-        exposureRepository.findByProductIdAndEstimateCategoryAndIsDeletedFalse(product.getId(), estimateCategory)
-                .ifPresentOrElse(
-                        exposure -> {
-                            // syncTab self-invocation 경로는 활성 트랜잭션이 없어 dirty checking 미적용 →
-                            // display_order 변경을 명시 save 로 flush (P1, [[self-invocation-transactional-bypass]]).
-                            exposure.changeDisplayOrder(displayOrder);
-                            exposureRepository.save(exposure);
-                        },
-                        () -> exposureRepository.save(ProductEstimateExposure.create(
-                                product.getId(), estimateCategory, displayOrder)));
+        Optional<ProductEstimateExposure> existing = exposureRepository
+                .findByProductIdAndEstimateCategoryAndIsDeletedFalse(product.getId(), estimateCategory);
+        if (existing.isEmpty()) {
+            exposureRepository.save(ProductEstimateExposure.create(product.getId(), estimateCategory, displayOrder));
+            return true;
+        }
+        ProductEstimateExposure exposure = existing.get();
+        boolean changed = !Objects.equals(exposure.getDisplayOrder(), displayOrder);
+        exposure.changeDisplayOrder(displayOrder);
+        exposureRepository.save(exposure);
+        return changed;
     }
 
     /**
@@ -1485,6 +1514,23 @@ public class ProductSheetSyncService {
                     currentState, loadedState, product, session);
             return dirtyProperties != null && dirtyProperties.length > 0;
         }
+    }
+
+    /** Product 변경 판정과 독립적으로 PriceHistory/Exposure/Spec 저장 상태를 관측한다. */
+    private static final class ExternalWriteTracker {
+        private boolean changed;
+
+        private void markIfChanged(boolean value) {
+            changed |= value;
+        }
+
+        private boolean changed() {
+            return changed;
+        }
+    }
+
+    private static final class SpecWriteObservation {
+        private boolean changed;
     }
 
     private boolean applyAttributes(Product product, String name, String modelCode) {
@@ -1543,20 +1589,25 @@ public class ProductSheetSyncService {
             BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
             BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
             upsertPriceHistory(product.get().getId(), BEFORE_INCREASE_EFFECTIVE_DATE,
-                    releasePrice, deliveryPrice);
+                    releasePrice, deliveryPrice, new ExternalWriteTracker());
         }
     }
 
     private void upsertPriceHistory(UUID productId, LocalDate effectiveDate,
-                                    BigDecimal releasePrice, BigDecimal deliveryPrice) {
+                                    BigDecimal releasePrice, BigDecimal deliveryPrice,
+                                    ExternalWriteTracker externalWrites) {
         PriceHistory row = priceHistoryRepository
                 .findByProductIdAndEffectiveDate(productId, effectiveDate)
                 .orElseGet(() -> PriceHistory.seed(productId, effectiveDate,
                         releasePrice, deliveryPrice, null));
+        boolean changed = row.getId() == null
+                || !Objects.equals(row.getReleasePrice(), releasePrice)
+                || !Objects.equals(row.getDeliveryPrice(), deliveryPrice);
         if (row.getId() != null) {
             row.changePrices(releasePrice, deliveryPrice);
         }
         priceHistoryRepository.save(row);
+        externalWrites.markIfChanged(changed);
     }
 
     private int findHeaderRow(List<List<Object>> rows) {
@@ -2051,6 +2102,8 @@ public class ProductSheetSyncService {
         public int unchanged = 0;
         /** 시트명과 DB명이 다르지만 sync 대상이 아니어서 DB 이름을 보존한 품목 수. */
         public int nameDrift = 0;
+        /** Product가 unchanged여도 실제로 변경된 PriceHistory/Exposure 행 수. */
+        public int priceHistoryExposureSpecWrites = 0;
         public int softDeleted = 0;
         /** 파싱 불가(이름/modelCode 공백) 행 수. */
         public int skipped = 0;
@@ -2082,6 +2135,8 @@ public class ProductSheetSyncService {
         public int totalUpdated = 0;
         /** 이름 불일치 관측 합계. updated/unchanged와 별도로 집계한다. */
         public int totalNameDrift = 0;
+        /** Product가 unchanged여도 실제로 변경된 PriceHistory/Exposure/Spec 행이 있는 품목 수. */
+        public int totalPriceHistoryExposureSpecWrites = 0;
         public int totalSoftDeleted = 0;
         public int totalSkipped = 0;
         /** usageScopeManual=true 로 soft-delete 보호된 품목 합계 (사이클2 지적 P3-6). */

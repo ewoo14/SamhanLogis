@@ -324,6 +324,32 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void sync_Product가_변경되지_않아도_priceHistory와_exposure_변경을_별도카운터로_관측한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("External write one", "EXTERNAL_WRITE_ONE", "", "1,000,000", "", "900,000"),
+                row("External write two", "EXTERNAL_WRITE_TWO", "", "2,000,000", "", "1,800,000")
+        ));
+        syncService.syncAll();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("External write two", "EXTERNAL_WRITE_TWO", "", "2,000,000", "", "1,800,000"),
+                row("External write one", "EXTERNAL_WRITE_ONE", "", "1,000,000", "", "900,000")
+        ));
+        ProductSheetSyncService.TabSyncResult reordered = syncService.syncAll().byTab.get("홈멀티");
+
+        assertThat(reordered.updated).isZero();
+        assertThat(reordered.unchanged).isEqualTo(2);
+        assertThat(reordered.priceHistoryExposureSpecWrites).isEqualTo(2);
+
+        ProductSheetSyncService.TabSyncResult repeated = syncService.syncAll().byTab.get("홈멀티");
+
+        assertThat(repeated.updated).isZero();
+        assertThat(repeated.unchanged).isEqualTo(2);
+        assertThat(repeated.priceHistoryExposureSpecWrites).isZero();
+    }
+
+    @Test
     void sync_시트에서_사라진_row_softDelete() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
