@@ -13873,30 +13873,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         print: boolean
       }> = {}
       for (const page of SP_D1_PAGES) {
-        const legacyCell = _mockPermissionCells.find((cell) => cell.roleCode === role && cell.pageCode === page)
-        const actionOnly = MOCK_ACTION_ONLY_PAGES[page]
-        if (actionOnly) {
-          const editable = legacyCell?.edit ?? false
-          accountMatrix[page] = {
-            view: legacyCell?.view ?? false,
-            create: editable && actionOnly.includes('CREATE'),
-            update: editable && actionOnly.includes('UPDATE'),
-            delete: editable && actionOnly.includes('DELETE'),
-            restore: editable && actionOnly.includes('RESTORE'),
-            download: editable && actionOnly.includes('DOWNLOAD'),
-            print: editable && actionOnly.includes('PRINT'),
-          }
-          continue
-        }
-        accountMatrix[page] = {
-          view: legacyCell?.view ?? false,
-          create: legacyCell?.edit ?? false,
-          update: legacyCell?.edit ?? false,
-          delete: legacyCell?.edit ?? false,
-          restore: page === 'sales.slip.list' ? (legacyCell?.edit ?? false) : false,
-          download: legacyCell?.view ?? false,
-          print: legacyCell?.view ?? false,
-        }
+        accountMatrix[page] = mockActionMatrixFromRole(role, page)
       }
       // system.permission-admin 는 MASTER 전용 이중 가드 (RoleGuard + PermissionGuard).
       // mock 계정(MANAGER/SALES/DISPATCH)에는 MASTER 가 없으므로 일괄 미부여(false) — 실 BE MASTER 전용 정책과 정합.
@@ -13955,7 +13932,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const permissions: Record<string, string[]> = {}
     for (const cell of myCells) {
       const actions: string[] = []
-      if (cell.view) actions.push('VIEW')
+      const override = MOCK_ACTION_MATRIX_OVERRIDES[`${mockRole}:${cell.pageCode}`]
+      const matrix = override ? mockActionMatrixFromRole(mockRole, cell.pageCode) : null
+      if (matrix ? matrix.view : cell.view) actions.push('VIEW')
+      if (matrix) {
+        for (const action of allActions.slice(1)) {
+          const key = action.toLowerCase() as keyof MockActionMatrix
+          if (matrix[key]) actions.push(action)
+        }
+        permissions[cell.pageCode] = actions
+        continue
+      }
       // [C2c] 특수 page-code 는 action-only(seed 정합) — 일반 edit→CRUD 도출 대신 지정 액션만.
       // sales.partner-order.convert = create-only(V41) → update/delete 과다 grant 방지(Codex review P1).
       const actionOnly = MOCK_ACTION_ONLY_PAGES[cell.pageCode]
@@ -18785,6 +18772,19 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'estimates.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
 }
 
+/** V98: MANAGER 입고 검수는 canonical 권한에서 UPDATE만 additive grant 한다. */
+const MOCK_ACTION_MATRIX_OVERRIDES: Record<string, Partial<MockActionMatrix>> = {
+  'MANAGER:inbound.inspection': {
+    view: true,
+    create: false,
+    update: true,
+    delete: false,
+    restore: false,
+    download: false,
+    print: false,
+  },
+}
+
 /**
  * 역할 × 페이지 기본 view 권한 (V7+V8+V10 seed 기반 — SP-D1/D2/D4 통합 매트릭스).
  *
@@ -19204,6 +19204,14 @@ const emptyMockActionMatrix = (): MockActionMatrix => ({
 
 const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix => {
   const cell = _mockPermissionCells.find((c) => c.roleCode === role && c.pageCode === page)
+  const override = MOCK_ACTION_MATRIX_OVERRIDES[`${role}:${page}`]
+  if (override) {
+    return {
+      ...emptyMockActionMatrix(),
+      view: cell?.view ?? false,
+      ...override,
+    }
+  }
   const actionOnly = MOCK_ACTION_ONLY_PAGES[page]
   if (actionOnly) {
     const editable = cell?.edit ?? false
