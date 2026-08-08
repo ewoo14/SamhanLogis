@@ -523,7 +523,7 @@ export function AppLayout() {
   const showAccountingSalesSlip   = dynamicCanAccess('accounting.sales-slip.accounting', 'view')
   const showAccountingPurchaseSlip = dynamicCanAccess('accounting.purchase-slip.accounting', 'view')
   const showAccountingTaxInvoiceBatch = dynamicCanAccess('accounting.tax-invoice.batch-issue', 'view')
-  const showAccountingTaxInvoiceInbound = dynamicCanAccess('accounting.tax-invoice.inbound', 'view')
+  const showAccountingTaxInvoiceInbound = dynamicCanAccess('accounting.tax-invoice.inbound.manage', 'view')
   const showAccountingTaxInvoice  = dynamicCanAccess('accounting.tax-invoice.list', 'view')
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')

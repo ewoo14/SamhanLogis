@@ -1389,7 +1389,7 @@ const routes = [
       {
         path: '/accounting/tax-invoices/inbound',
         element: (
-          <PermissionGuard pageCode="accounting.tax-invoice.inbound" action="view">
+          <PermissionGuard pageCode="accounting.tax-invoice.inbound.manage" action="view">
             <TaxInvoiceInboundPage />
           </PermissionGuard>
         ),

@@ -18618,6 +18618,7 @@ const SP_D1_PAGES = [
   'accounting.tax-invoice.cancel',
   'accounting.tax-invoice.batch-issue',
   'accounting.tax-invoice.inbound',
+  'accounting.tax-invoice.inbound.manage',
   'accounting.sales-slip.list',
   'accounting.purchase-slip.list',
   'accounting.daily-closing',
@@ -18816,7 +18817,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   MANAGER: [
     // SP-D1
     'accounting.tax-invoice.list', 'accounting.tax-invoice.cancel', 'accounting.tax-invoice.batch-issue',
-    'accounting.tax-invoice.inbound', 'accounting.sales-slip.list',
+    'accounting.sales-slip.list',
     'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
     'accounting.general-ledger',
@@ -18904,7 +18905,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.tax-invoice.cancel',
-    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run', 'accounting.general-ledger',
     'purchases.slip.list', 'sales.slip.list',
@@ -19003,7 +19004,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
 const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   MANAGER: [
     'accounting.tax-invoice.cancel',
-    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.tax-invoice.batch-issue',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.daily-closing.run',
     'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts',
@@ -19081,7 +19082,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.tax-invoice.cancel',
-    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
