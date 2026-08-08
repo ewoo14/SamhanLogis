@@ -10,6 +10,9 @@ const PAGE_CODE_ENUM_PATH = resolve(
 )
 const PERMISSIONS_API_PATH = resolve(process.cwd(), 'src/renderer/api/permissionsApi.ts')
 const FRONTEND_REMOVED_BACKEND_PAGE_CODES = new Set([
+  // V91/V92에서 5개 권한 정본의 활성 grant를 모두 soft-delete한 dead page-code.
+  'notification.dispatch-sms.send-audit',
+  // public endpoint가 internal endpoint로 이관되어 FE @RequirePermission 소비처가 사라진 dead page-code.
   'slip.period-lock',
 ])
 
@@ -132,5 +135,14 @@ describe('permission page catalog parity', () => {
       expect(frontendPageCodes.has(pageCode), `${pageCode}는 FE 권한 카탈로그에 노출되면 안 됩니다.`).toBe(false)
       expect(frontendUnionPageCodes.has(pageCode), `${pageCode}는 permissionsApi PageCode union에 남으면 안 됩니다.`).toBe(false)
     }
+  })
+
+  it('keeps the S25 closed-date permission rows visible while deprecated rows stay hidden', () => {
+    const frontendPageCodes = extractFrontendPageCodes()
+
+    expect(frontendPageCodes.has('slip.closed-date-exception')).toBe(true)
+    expect(frontendPageCodes.has('slip.closed-date-admin')).toBe(true)
+    expect(frontendPageCodes.has('notification.dispatch-sms.send-audit')).toBe(false)
+    expect(frontendPageCodes.has('slip.period-lock')).toBe(false)
   })
 })
