@@ -394,6 +394,7 @@ public class SlipService {
     public SlipDetailResponse editHeader(UUID id, EditHeaderRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // [게이트⑦] 배송태그 확정(신규/변경) 마감 게이트 — applyMutation 직전.
         // 태그 미변경(memo/driver만 수정) 또는 null 보존 경우는 게이트 미적용.
         DeliveryTag incomingTag = req.deliveryTag();
@@ -444,6 +445,7 @@ public class SlipService {
     public SlipDetailResponse editDriver(UUID id, UpdateSlipDriverRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(() -> slip.editHeader(null, null, null, null,
                 req.driverName(), req.driverPhone()));
         // 권한 재편 Phase 2.1 — 기사 정보 변경(driverName/driverPhone 은 toSnapshot 필드)도 버전이력에
@@ -474,6 +476,7 @@ public class SlipService {
     public SlipDetailResponse updateSlip(UUID id, UpdateSlipRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // [게이트⑧] 배치 헤더 수정 — 배송태그 신규/변경 시 마감 게이트 적용.
         // 태그 미변경(memo/driver/partnerName 등만 수정) 또는 null 보존 경우는 게이트 미적용.
         DeliveryTag incomingTagBatch = req.deliveryTag();
@@ -551,6 +554,7 @@ public class SlipService {
     public SlipDetailResponse applyOverlayPatch(UUID id, String fieldName, String newValue,
                                                 String callerId, String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // PR-H3 — 사용자 명시 잠금 정책 가드 (status 별 분기, APPROVED 1회 소진)
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
         String oldValue = slip.readOverlayField(fieldName);
@@ -607,6 +611,7 @@ public class SlipService {
         // 편집 화면이 아니라 실제 저장 구간만 행 잠금으로 직렬화한다. 잠금 획득 후 최신
         // 필드값을 baseline 과 비교하므로 서로 다른 필드는 JPA @Version 충돌 없이 병합된다.
         Slip slip = loadOrThrowForCollabUpdate(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         // 협업 수락 전용 가드 — 물리 종결(배송중/배송완료/취소/반려) 만 차단, APPROVED 소진 불요
         guardCollabModifiable(slip);
         // 전역 revision 잠금이 아니라 필드별 baseline 을 검증한다. 따라서 같은 필드의 stale
@@ -656,6 +661,7 @@ public class SlipService {
      */
     public void softDelete(UUID id, String callerId) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
         dispatchGroupSlipReferenceGuard.assertDeletable(id);
         applyMutation(() -> slip.markDeleted(callerId == null ? "system" : callerId));
@@ -840,6 +846,7 @@ public class SlipService {
     public SlipDetailResponse addLine(UUID id, AddLineRequest req, String callerId,
                                       String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         slip.requireEditable();
         ProductSummary summary = productClient.requireExists(req.productId());
         // 에픽 후속 #2 — 기존 전표 라인추가도 create 경로와 동일 전개 엔진 사용.
@@ -871,6 +878,7 @@ public class SlipService {
      */
     public void removeLine(UUID id, UUID lineId, String callerId, String callerName) {
         Slip slip = loadOrThrow(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         slip.requireEditable();
         SlipLine line = slip.getLines().stream()
                 .filter(l -> l.getId() != null && l.getId().equals(lineId))

@@ -19,6 +19,7 @@ import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.web.dto.SlipUpdateRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -67,9 +68,11 @@ class SlipUpdateLineIdContractTest {
     private final ProductClient productClient = mock(ProductClient.class);
 
     private final SlipUpdateService purchaseUpdateService = new SlipUpdateService(
-            slipRepository, auditLogService, revisionService, priceMemoryService, productClient);
+            slipRepository, auditLogService, revisionService, priceMemoryService, productClient,
+            mock(SlipClosedDateGuard.class));
     private final SalesSlipUpdateService salesUpdateService = new SalesSlipUpdateService(
-            slipRepository, auditLogService, revisionService, priceMemoryService, productClient);
+            slipRepository, auditLogService, revisionService, priceMemoryService, productClient,
+            mock(SlipClosedDateGuard.class));
 
     // ------------------------------------------- 마커 부재 = 구 클라이언트 → 400 (매출)
 

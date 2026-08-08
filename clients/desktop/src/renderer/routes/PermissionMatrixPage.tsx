@@ -456,6 +456,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'slip.mobile-sales': '영업 모바일',
   'slip.publish.from-estimate': '견적 전표발행',
   'slip.publish.from-partner-order': '주문 전표발행',
+  'slip.period-lock': '기간 잠금(기존 보유 권한 회수)',
   'inbound.inspection': '입고 검수',
   'dispatch.board': '배차 보드',
   'dispatch.external-carriers': '외부기사/배송사',
@@ -697,6 +698,9 @@ const MATRIX_DOMAIN_ID_BY_LABEL: Record<string, string> = {
   아로로지스: 'arologis',
 }
 
+/** 일반 업무 카탈로그에는 숨기되, 기존 보유 grant를 회수할 수 있게 하는 internal orphan. */
+const REVOKABLE_HIDDEN_PAGES: PageCode[] = ['slip.period-lock']
+
 type AccountMatrixState = Record<PageCode, PermissionActionMatrix>
 type AccountDirtyKey = `${PageCode}__${PermissionAction}`
 
@@ -717,7 +721,7 @@ function emptyPermissionActions(): PermissionActionMatrix {
 
 function accountMatrixToState(matrix: AccountPermissionMatrix | undefined): AccountMatrixState {
   const state = {} as AccountMatrixState
-  for (const page of PAGES_ORDER) {
+  for (const page of [...PAGES_ORDER, ...REVOKABLE_HIDDEN_PAGES]) {
     state[page] = emptyPermissionActions()
   }
   for (const cell of matrix?.cells ?? []) {
@@ -740,7 +744,7 @@ function accountDirtyKeys(
 ): Set<AccountDirtyKey> {
   const dirty = new Set<AccountDirtyKey>()
   if (!server || !current) return dirty
-  for (const page of PAGES_ORDER) {
+  for (const page of [...PAGES_ORDER, ...REVOKABLE_HIDDEN_PAGES]) {
     for (const action of PERMISSION_ACTIONS) {
       if (server[page]?.[action] !== current[page]?.[action]) {
         dirty.add(matrixDirtyKey(page, action))
@@ -1148,6 +1152,30 @@ export function PermissionMatrixPage() {
         <div style={{ padding: 24, color: 'var(--color-danger-600)' }}>
           계정 권한설정을 불러오지 못했습니다.
         </div>
+      )}
+
+      {!matrixQuery.isLoading && !matrixQuery.isError && currentState && REVOKABLE_HIDDEN_PAGES.some((page) =>
+        PERMISSION_ACTIONS.some((action) => currentState[page]?.[action]),
+      ) && (
+        <section
+          aria-label="비노출 권한 회수"
+          style={{ marginBottom: 12, padding: 12, border: '1px solid var(--color-warning-300)', borderRadius: 8 }}
+        >
+          <strong>비노출 권한 회수</strong>
+          <p style={{ margin: '6px 0 10px', color: 'var(--color-neutral-600)', fontSize: 12 }}>
+            일반 권한 카탈로그에는 표시하지 않지만, 기존 보유자가 있는 internal 권한은 여기서 회수할 수 있습니다.
+          </p>
+          {REVOKABLE_HIDDEN_PAGES.filter((page) => PERMISSION_ACTIONS.some((action) => currentState[page]?.[action])).map((page) => (
+            <Button
+              key={page}
+              variant="ghost"
+              onClick={() => setPageActions([page], PERMISSION_ACTIONS, false)}
+              data-testid={`perm-matrix-revoke-${matrixPageNorm(page)}`}
+            >
+              {page} 보유 권한 전체 회수
+            </Button>
+          ))}
+        </section>
       )}
 
       {!matrixQuery.isLoading && !matrixQuery.isError && currentState && (
