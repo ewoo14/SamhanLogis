@@ -740,6 +740,22 @@ class SlipServiceTest {
     }
 
     @Test
+    void inspect_withoutApprovalPermission_returnsForbiddenBeforeClosedDateGuard() {
+        Slip slip = preparedOutbound(SlipStatus.INSPECTING, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        String actorId = UUID.randomUUID().toString();
+        when(approvalLineAuthorizeClient.authorize(anyString(), anyString(), eq(UUID.fromString(actorId))))
+                .thenReturn(new com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult(true, false));
+        assertThatThrownBy(() -> service.inspect(slipId, actorId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(closedDateGuard, never()).assertAllowed(any(), any(), anyString());
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
+    }
+
+    @Test
     void send_inbound_capturesRedlineAnchorFromMaxStoredRevision() {
         Slip slip = preparedInbound(SlipStatus.SAVED);
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));

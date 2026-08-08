@@ -982,8 +982,8 @@ public class SlipService {
      */
     public SlipDetailResponse inspect(UUID id, String inspectorUserId) {
         Slip slip = loadOrThrow(id);
-        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), inspectorUserId);
         enforceSlipApprovalLine(slip, inspectorUserId, approvalGateForInspect(slip.getSlipType()));
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), inspectorUserId);
         applyMutation(() -> {
             slip.inspect(inspectorUserId);
             if (slip.getSlipType() == SlipType.OUTBOUND) {
