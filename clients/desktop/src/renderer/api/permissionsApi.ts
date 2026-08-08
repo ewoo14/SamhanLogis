@@ -145,6 +145,7 @@ export type PageCode =
   | 'slip.publish.from-estimate'
   | 'slip.publish.from-partner-order'
   | 'slip.closed-date-exception'
+  | 'slip.closed-date-admin'
   | 'inbound.inspection'
   | 'dispatch.board'
   | 'hr.carriers'

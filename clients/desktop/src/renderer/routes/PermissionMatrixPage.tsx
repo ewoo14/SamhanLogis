@@ -444,6 +444,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'slip.comments': '댓글',
   'slip.audit-overlay': 'audit patch',
   'slip.closed-date-exception': '마감일 예외 생성',
+  'slip.closed-date-admin': '마감 기준선 관리',
   'slip.audit-revert': 'audit revert',
   'slip.edit-requests': '전표 수정 요청',
   'slip.edit-requests.decide': '전표 요청 승인',
