@@ -83,9 +83,12 @@ public class SlipUpdateService {
         // 읽기 전에 거부하는 편이 게이트의 의도(쓰기 차단)를 가장 좁게 표현한다.
         requireLineIdContract(request);
         Slip slip = load(id);
+        // updatedAt 검증을 날짜 정책 repository 조회보다 먼저 수행한다. 외부 @Transactional 호출자가
+        // 직전 mutation 후 같은 persistence context를 재사용하면 guard 조회의 AUTO flush가
+        // modifiedAt/version을 먼저 전진시켜, 아직 유효한 요청을 자체 stale로 만들 수 있다.
+        verifyVersion(slip, request.updatedAt());
         closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(),
                 actorId == null ? null : actorId.toString(), actorRole);
-        verifyVersion(slip, request.updatedAt());
         // validateLines 는 BusinessException(SLIP_UPDATE_INVALID_LINE) 을 던지므로 try 외부에서 처리
         validateLines(request.lines());
         List<ProductSummary> products = productClient.lookup(request.lines().stream()
