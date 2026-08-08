@@ -24,6 +24,8 @@ $normalFixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("flyway-repair
     $gitBaselineMigrationSource = Join-Path $repoRoot $gitBaselineMigration
     $authMigration = 'services/auth-service/src/main/resources/db/migration/V10__sp_d4_remaining_domains_page_permissions.sql'
     $authMigrationSource = Join-Path $repoRoot $authMigration
+    $authV1Migration = 'services/auth-service/src/main/resources/db/migration/V1__init_account.sql'
+    $authV1MigrationSource = Join-Path $repoRoot $authV1Migration
     $migrationRoot = Join-Path $fixtureRoot 'migration-root'
 
 try {
@@ -37,6 +39,7 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $migrationRoot 'services/auth-service/src/main/resources/db/migration') -Force | Out-Null
     Copy-Item -LiteralPath $gitBaselineMigrationSource -Destination (Join-Path $migrationRoot $gitBaselineMigration) -Force
     Copy-Item -LiteralPath $authMigrationSource -Destination (Join-Path $migrationRoot $authMigration) -Force
+    Copy-Item -LiteralPath $authV1MigrationSource -Destination (Join-Path $migrationRoot $authV1Migration) -Force
     Copy-Item -LiteralPath $authMigrationSource -Destination (Join-Path $fixtureRoot $authMigration) -Force
     New-Item -ItemType Directory -Path (Join-Path $normalFixtureRoot 'infrastructure') -Force | Out-Null
     foreach ($normalService in $normalServices) {
@@ -46,6 +49,7 @@ try {
     Set-Content -LiteralPath (Join-Path $fixtureRoot 'infrastructure/.env') -Value "POSTGRES_USER=samhan`nPOSTGRES_PASSWORD=$secret`n" -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $normalFixtureRoot 'infrastructure/.env') -Value "POSTGRES_USER=samhan`nPOSTGRES_PASSWORD=$secret`n" -Encoding UTF8
     $composeJsonPath = ((Join-Path $fixtureRoot 'infrastructure') -replace '\\', '/')
+    $fixtureOutputPath = $flywayOutputFixture
     Set-Content -LiteralPath $fakeDocker -Value @"
 @echo off
 set /p FAKE_DOCKER_MODE=<"$modeFile"
@@ -77,21 +81,6 @@ if "%FAKE_DOCKER_MODE%"=="checksum-mismatch-multiline" (
   echo Need more flexibility with validation rules? Learn more: https://rd.gt/3AbJUZE 1>&2
   exit /b 1
 )
-findstr /l /x /c:"checksum-mismatch-real" "$modeFile" >nul
-if not errorlevel 1 (
-  echo WARNING: Storing migrations in 'sql' is not recommended and default scanning of this location may be deprecated in a future release 1>&2
-  echo WARNING: This version of Flyway is out of date. Upgrade to Flyway 13.2.0: https://rd.gt/3rXiSlV 1>&2
-  echo Flyway OSS Edition 10.10.0 by Redgate 1>&2
-  echo See release notes here: https://rd.gt/416ObMi 1>&2
-  echo Database: jdbc:postgresql://127.0.0.1:5432/auth_db (PostgreSQL 16.13) 1>&2
-  echo ERROR: Validate failed: Migrations have failed validation 1>&2
-  echo Migration checksum mismatch for migration version 1 1>&2
-  echo -^> Applied to database : 123 1>&2
-  echo -^> Resolved locally    : 906221903 1>&2
-  echo Either revert the changes to the migration, or run repair to update the schema history. 1>&2
-  echo Need more flexibility with validation rules? Learn more: https://rd.gt/3AbJUZE 1>&2
-  exit /b 1
-)
 if "%FAKE_DOCKER_MODE%"=="auth-failure" (
   echo fake Flyway validate failed: authentication rejected 1>&2
   exit /b 17
@@ -107,6 +96,23 @@ if not errorlevel 1 (
   exit /b 0
 )
 echo Migration checksum mismatch for migration version 10 1>&2
+exit /b 1
+"@ -Encoding ASCII
+    $successfulDocker = Join-Path $fakeBin 'successful-validation.cmd'
+    Set-Content -LiteralPath $successfulDocker -Value @"
+@echo off
+echo WARNING: Storing migrations in 'sql' is not recommended and default scanning of this location may be deprecated in a future release 1>&2
+echo WARNING: This version of Flyway is out of date. Upgrade to Flyway 13.2.0: https://rd.gt/3rXiSlV 1>&2
+echo Flyway OSS Edition 10.10.0 by Redgate 1>&2
+echo See release notes here: https://rd.gt/416ObMi 1>&2
+echo Database: jdbc:postgresql://postgres:5432/auth_db (PostgreSQL 16.14) 1>&2
+echo Successfully validated 96 migrations (execution time 00:00.267s)
+exit /b 0
+"@ -Encoding ASCII
+    $fixtureDocker = Join-Path $fakeBin 'fixture-input.cmd'
+    Set-Content -LiteralPath $fixtureDocker -Value @"
+@echo off
+type "$fixtureOutputPath"
 exit /b 1
 "@ -Encoding ASCII
 
@@ -142,7 +148,19 @@ exit /b 1
         $previewEnvFile = [regex]::Match($previewArgs, '--env-file\s+([^\s]+)').Groups[1].Value
         if ($previewEnvFile -and (Test-Path -LiteralPath $previewEnvFile)) { throw "temporary credential file was not removed after preview: $previewEnvFile" }
 
-        Remove-Item -LiteralPath $dockerArgsLog -Force
+        Remove-Item -LiteralPath $dockerArgsLog -Force -ErrorAction SilentlyContinue
+        try { $successful = @(& $script -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service 'auth-service' -PostgresContainer 'unused' -DockerCommand $successfulDocker -WhatIf 2>&1) } catch { $successful = @($_) }
+        $successfulText = $successful -join "`n"
+        Write-Output "SUCCESS raw output:`n$successfulText"
+        if ($successfulText -match 'validate failed for a reason other than a checksum mismatch|Successfully validated') { throw "successful Flyway validation was rejected: $successfulText" }
+
+        Remove-Item -LiteralPath $dockerArgsLog -Force -ErrorAction SilentlyContinue
+        try { $fixtureInput = @(& $script -RepoPath $repoRoot -MigrationRoot $migrationRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service 'auth-service' -PostgresContainer 'unused' -DockerCommand $fixtureDocker -WhatIf 2>&1) } catch { $fixtureInput = @($_) }
+        if ($LASTEXITCODE -ne 0) { throw "fixture-backed checksum mismatch preview failed: $($fixtureInput -join "`n")" }
+        $fixtureInputText = $fixtureInput -join "`n"
+        if ($fixtureInputText -notmatch 'checksum mismatch versions = 1|What if') { throw "fixture-backed Flyway output was not consumed: $fixtureInputText" }
+
+        Remove-Item -LiteralPath $dockerArgsLog -Force -ErrorAction SilentlyContinue
         Set-Content -LiteralPath $modeFile -Value 'inspect-missing' -NoNewline -Encoding ASCII
         try {
             $missingEnv = @(& $script -PostgresContainer 'unused' 2>&1)
@@ -152,13 +170,13 @@ exit /b 1
         $missingEnvText = $missingEnv -join "`n"
         if ($missingEnvText -notmatch 'Environment file not found|Checked') { throw "missing env failure did not explain checked paths: $missingEnvText" }
 
-        Remove-Item -LiteralPath $dockerArgsLog -Force
+        Remove-Item -LiteralPath $dockerArgsLog -Force -ErrorAction SilentlyContinue
         Set-Content -LiteralPath $modeFile -Value 'inspect-env' -NoNewline -Encoding ASCII
         $discovered = @(& $script -PostgresContainer 'unused' -WhatIf 2>&1)
         $discoveredText = $discovered -join "`n"
         if ($discoveredText -notmatch [regex]::Escape((Join-Path $fixtureRoot 'infrastructure/.env'))) { throw "default env discovery did not use Compose working_dir: $discoveredText" }
 
-        Remove-Item -LiteralPath $dockerArgsLog -Force
+        Remove-Item -LiteralPath $dockerArgsLog -Force -ErrorAction SilentlyContinue
         Set-Content -LiteralPath $modeFile -Value 'mixed-validate-errors' -NoNewline -Encoding ASCII
         try {
             $mixed = @(& $script -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service auth-service -PostgresContainer 'unused' -DockerCommand $fakeDocker 2>&1)
@@ -170,13 +188,13 @@ exit /b 1
         if ($mixedText -notmatch 'checksum mismatch|Detected failed migration|validate') { throw "mixed validate failure cause was not reported: $mixedText" }
 
 
-        Remove-Item -LiteralPath $dockerArgsLog -Force
+        Remove-Item -LiteralPath $dockerArgsLog -Force -ErrorAction SilentlyContinue
         Set-Content -LiteralPath $modeFile -Value 'checksum-mismatch-multiline' -NoNewline -Encoding ASCII
         $multiline = @(& $script -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service auth-service -PostgresContainer 'unused' -DockerCommand $fakeDocker -WhatIf 2>&1)
         $multilineText = $multiline -join "`n"
         if ($multilineText -notmatch 'checksum mismatch|What if') { throw "checksum-only multiline output did not reach repair preview: $multilineText" }
 
-        Remove-Item -LiteralPath $dockerArgsLog -Force
+        Remove-Item -LiteralPath $dockerArgsLog -Force -ErrorAction SilentlyContinue
         Set-Content -LiteralPath $modeFile -Value 'checksum-mismatch-multiline' -NoNewline -Encoding ASCII
         try { $normalCommitted = @(& $script -RepoPath $repoRoot -MigrationRoot $migrationRoot -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service auth-service -PostgresContainer 'unused' -WhatIf 2>&1) } catch { $normalCommitted = @($_) }
         if ($LASTEXITCODE -ne 0) { throw "committed migration repair preview failed: $($normalCommitted -join "`n")" }
