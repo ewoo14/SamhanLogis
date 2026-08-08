@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { WarehouseAutocomplete, type Warehouse } from './WarehouseAutocomplete'
@@ -106,6 +106,35 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
 
     expect(onChange).toHaveBeenCalledWith(warehouses[0]!.id, warehouses[0])
     expect(input.value).toBe('HQ-001 · 본사 창고')
+  })
+
+  it('모달 확정 후 포커스가 복원되어도 확정 창고 표시값과 dropdown 상태를 유지한다', async () => {
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={warehouses}
+          value={value}
+          onChange={(next) => setValue(next)}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+
+    render(<ControlledWarehouse />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'HQ-001' }))
+    const confirm = screen.getByRole('button', { name: '선택 확정' })
+    confirm.focus()
+    fireEvent.keyDown(confirm, { key: 'Enter' })
+    fireEvent.click(confirm)
+
+    await waitFor(() => expect(input.value).toBe('HQ-001 · 본사 창고'))
+    expect(input.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('검색 모달 바깥 클릭은 취소와 같이 draft를 보존한다', () => {
