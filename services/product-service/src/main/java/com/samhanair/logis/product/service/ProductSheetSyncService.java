@@ -239,6 +239,7 @@ public class ProductSheetSyncService {
                 summary.byTab.put(mapping.tabName, tabResult);
                 summary.totalInserted += tabResult.inserted;
                 summary.totalUpdated += tabResult.updated;
+                summary.totalNameDrift += tabResult.nameDrift;
                 summary.totalSoftDeleted += tabResult.softDeleted;
                 summary.totalSkipped += tabResult.skipped;
                 summary.totalPreservedManual += tabResult.preservedManual;
@@ -1263,8 +1264,8 @@ public class ProductSheetSyncService {
             // 구성품 탭에만 존재하는 모델은 SINGLE_PART/NONE 으로 insert 됨이 정상(노출 비대상).
             // ※ 신규 탭 추가 시 견적 탭은 구성품 탭보다 앞에 둘 것.
             Optional<Product> existing = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
-            UUID productId;
-            Product productForExposure;
+            UUID productId = null;
+            Product productForExposure = null;
             if (existing.isEmpty()) {
                 Product p = Product.seedFromSheet(name, modelCode, defaultCategory,
                         releasePrice, deliveryPrice,
@@ -1282,7 +1283,14 @@ public class ProductSheetSyncService {
                 productId = p.getId();
                 productForExposure = p;
                 result.inserted++;
-            } else if (!isProductRowUnchanged(existing.get(), mapping, name, cells,
+            } else {
+                if (!Objects.equals(existing.get().getName(), name)) {
+                    result.nameDrift++;
+                    log.info("[ProductSheetSync] tab '{}' modelCode='{}' name drift observed (DB name retained)",
+                            mapping.tabName, modelCode);
+                }
+            }
+            if (existing.isPresent() && !isProductRowUnchanged(existing.get(), mapping, name, cells,
                     releasePrice, deliveryPrice, hasVariableDiscount, materialKey,
                     legacyDiscount, fixedRate, discountFlags, classifications)) {
                 Product p = existing.get();
@@ -1351,7 +1359,7 @@ public class ProductSheetSyncService {
                 productId = p.getId();
                 productForExposure = p;
                 result.updated++;
-            } else {
+            } else if (existing.isPresent()) {
                 Product p = existing.get();
                 if (p.getProductCategory() == mapping.productCategory && applyAttributes(p, name, modelCode)) {
                     productRepository.save(p);
@@ -1413,9 +1421,9 @@ public class ProductSheetSyncService {
             }
         }
 
-        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, softDeleted={}, skipped={}, preservedManual={}",
+        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, nameDrift={}, softDeleted={}, skipped={}, preservedManual={}",
                 mapping.tabName, result.inserted, result.updated, result.unchanged,
-                result.softDeleted, result.skipped, result.preservedManual);
+                result.nameDrift, result.softDeleted, result.skipped, result.preservedManual);
         return result;
     }
 
@@ -1460,8 +1468,7 @@ public class ProductSheetSyncService {
                                            BigDecimal fixedRate,
                                            String discountFlags,
                                            ClassificationSet classifications) {
-        if (!Objects.equals(product.getName(), name)
-                || !sameDecimal(product.getReleasePrice(), releasePrice)
+        if (!sameDecimal(product.getReleasePrice(), releasePrice)
                 || !sameDecimal(product.getDeliveryPrice(), deliveryPrice)
                 || !attributesMatch(product, name, product.getModelCode())
                 || (mapping.productCategory == ProductCategory.SINGLE_SET
@@ -2066,6 +2073,8 @@ public class ProductSheetSyncService {
         public int inserted = 0;
         public int updated = 0;
         public int unchanged = 0;
+        /** 시트명과 DB명이 다르지만 sync 대상이 아니어서 DB 이름을 보존한 품목 수. */
+        public int nameDrift = 0;
         public int softDeleted = 0;
         /** 파싱 불가(이름/modelCode 공백) 행 수. */
         public int skipped = 0;
@@ -2095,6 +2104,8 @@ public class ProductSheetSyncService {
         public Map<String, ComponentSyncResult> byComponentTab = new HashMap<>();
         public int totalInserted = 0;
         public int totalUpdated = 0;
+        /** 이름 불일치 관측 합계. updated/unchanged와 별도로 집계한다. */
+        public int totalNameDrift = 0;
         public int totalSoftDeleted = 0;
         public int totalSkipped = 0;
         /** usageScopeManual=true 로 soft-delete 보호된 품목 합계 (사이클2 지적 P3-6). */

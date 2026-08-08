@@ -197,6 +197,39 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(homeTab.unchanged).isEqualTo(1);
     }
 
+    @Test
+    void sync_시트명과_DB명이_달라도_update를_반복하지_않는다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        List<List<Object>> homeMulti = homeMultiRows(
+                row("Sheet name", "NAME_DRIFT_MODEL", "", "1,000,000", "", "900,000")
+        );
+        when(sheetsClient.readSheetDisplay(eq("test-sheet-id"), anyString())).thenReturn(homeMulti);
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_출고증가!A1:Z")).thenReturn(homeMulti);
+        syncService.syncAll();
+        Product product = productRepository.findByModelCodeAndIsDeletedFalse("NAME_DRIFT_MODEL").orElseThrow();
+        product.rename("DB authoritative name");
+        productRepository.saveAndFlush(product);
+
+        ProductSheetSyncService.SyncSummary second = syncService.syncAll();
+        ProductSheetSyncService.TabSyncResult homeTab = second.byTab.get("홈멀티");
+
+        assertThat(homeTab.updated).isZero();
+        assertThat(homeTab.unchanged).isEqualTo(1);
+        assertThat(homeTab.nameDrift).isEqualTo(1);
+        String homeTabName = second.byTab.entrySet().stream()
+                .filter(entry -> entry.getValue() == homeTab)
+                .map(java.util.Map.Entry::getKey)
+                .findFirst().orElseThrow();
+
+        ProductSheetSyncService.SyncSummary third = syncService.syncAll();
+        ProductSheetSyncService.TabSyncResult thirdHomeTab = third.byTab.get(homeTabName);
+        assertThat(thirdHomeTab.updated).isZero();
+        assertThat(thirdHomeTab.unchanged).isEqualTo(1);
+        assertThat(thirdHomeTab.nameDrift).isEqualTo(1);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("NAME_DRIFT_MODEL").orElseThrow()
+                .getName()).isEqualTo("DB authoritative name");
+    }
+
     /**
      * 변경 행의 후속 DB 저장이 실패해 탭 트랜잭션이 롤백되면,
      * 같은 JVM의 재시도는 롤백된 DB 단가를 기준으로 행을 다시 처리해야 한다.
