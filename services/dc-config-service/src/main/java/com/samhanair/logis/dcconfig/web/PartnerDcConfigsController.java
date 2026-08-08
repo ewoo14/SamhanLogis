@@ -51,11 +51,15 @@ public class PartnerDcConfigsController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false) String keyword) {
-        String k = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        String k = (keyword == null || keyword.isBlank()) ? null : escapeLikeLiteral(keyword.trim());
         Page<PartnerDcConfigResponse> result = dcConfigRepository
                 .search(k, PageRequest.of(page, size))
                 .map(PartnerDcConfigResponse::from);
         return ApiResponse.ok(result);
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /** 거래처 전표 가격계산 화면용 DC 설정 단건 조회. */
