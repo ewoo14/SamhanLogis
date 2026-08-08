@@ -213,6 +213,11 @@ export const WarehouseAutocomplete = forwardRef<
         //   - 선택값이 없으면 draft 비운 상태 유지, 부모 상태 null 유지.
         if (selectedWarehouse) {
           setDraft(selectedLabel)
+        } else if (lastTypedDraftRef.current !== null) {
+          // 검색 모달 backdrop 취소 뒤 복원 focus가 소비된 marker를 거쳐
+          // 같은 pointer 동작의 후속 blur를 만들 수 있다. 이 경우 선택값이
+          // 없다는 이유로 보존된 사용자 draft를 빈 문자열로 덮어쓰지 않는다.
+          setDraft(lastTypedDraftRef.current)
         }
         return
       }
@@ -232,6 +237,13 @@ export const WarehouseAutocomplete = forwardRef<
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
+    // 단건 자동확정 직후 브라우저가 이미 확정 라벨을 입력값으로 삼아
+    // 이어진 키를 다시 change로 전달할 수 있다. 그 suffix는 사용자가
+    // 새 검색을 시작한 것이 아니므로 표시값과 내부 선택을 분리하지 않는다.
+    if (selectedWarehouse && nextDraft.startsWith(selectedLabel) && nextDraft !== selectedLabel) {
+      setDraft(selectedLabel)
+      return
+    }
     lastTypedDraftRef.current = nextDraft
     setDraft(nextDraft)
     setActiveIndex(-1)
@@ -255,6 +267,7 @@ export const WarehouseAutocomplete = forwardRef<
     if (!open) return
 
     if (e.key === 'Escape') {
+      e.stopPropagation()
       setOpen(false)
       setActiveIndex(-1)
       setDraft(selectedLabel)

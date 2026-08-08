@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { Modal } from '../Modal/Modal'
 import { WarehouseAutocomplete, type Warehouse } from './WarehouseAutocomplete'
 
 const warehouses: Warehouse[] = [
@@ -35,6 +36,78 @@ function renderWarehouse(onChange = vi.fn()) {
 }
 
 describe('WarehouseAutocomplete opaque option DOM contract', () => {
+  it('backdrop 취소 뒤 후속 blur가 보존된 draft를 덮어쓰지 않는다', async () => {
+    render(
+      <WarehouseAutocomplete
+        warehouses={warehouses}
+        value={null}
+        onChange={vi.fn()}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+    fireEvent.mouseDown(screen.getByTestId('ds-modal-backdrop'))
+    fireEvent.focus(input)
+    input.blur()
+    await new Promise((resolve) => window.setTimeout(resolve, 150))
+
+    expect(input.value).toBe('창고')
+  })
+
+  it('자동확정 직후 이어진 키 입력이 확정 라벨에 붙지 않는다', async () => {
+    function ControlledWarehouse() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <WarehouseAutocomplete
+          warehouses={warehouses}
+          value={value}
+          onChange={(next) => setValue(next)}
+          label="출고 창고"
+          resultSelectionMode="single"
+          autoSelectSingleResult
+        />
+      )
+    }
+
+    render(<ControlledWarehouse />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'H' } })
+    await waitFor(() => expect(input.value).toBe('HQ-001 · 본사 창고'))
+    fireEvent.change(input, { target: { value: 'HQ-001 · 본사 창고Q' } })
+
+    expect(input.value).toBe('HQ-001 · 본사 창고')
+  })
+
+  it('dropdown Escape가 상위 keydown 핸들러로 전파되지 않는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <WarehouseAutocomplete
+            warehouses={warehouses}
+            value={null}
+            onChange={vi.fn()}
+            label="출고 창고"
+          />
+        </Modal>
+      )
+    }
+    render(
+      <OuterModal />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.focus(input)
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('dialog', { name: '병합전환' })).toBeTruthy()
+  })
+
   it('opt-in contract: two candidates open the shared modal and cancel leaves selection unchanged', () => {
     const onChange = vi.fn()
     render(
