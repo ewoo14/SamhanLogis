@@ -9,6 +9,7 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderLineRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
@@ -44,6 +45,7 @@ public class PartnerOrderDeleteService {
     private final PartnerOrderAuditLogService auditLogService;
     private final PartnerOrderRevisionService revisionService;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
+    private final PartnerOrderAuthorityEventPublisher authorityEventPublisher;
 
     /**
      * 주문과 전체 라인을 soft-delete 처리한다.
@@ -135,6 +137,9 @@ public class PartnerOrderDeleteService {
         lineRepository.saveAll(lines);
         auditLogService.recordBatch(saved, actorId, actorName, null,
                 List.of(new ChangeEntry("RESTORE", "soft-deleted", null)));
+        if (authorityEventPublisher != null) {
+            authorityEventPublisher.publish(saved.getId(), "RESTORED", null);
+        }
         publishListChanged("RESTORED");
         return PartnerOrderDetailResponse.from(saved);
     }

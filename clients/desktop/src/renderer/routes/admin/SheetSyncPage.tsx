@@ -45,6 +45,7 @@ import {
   type TabSyncResult,
 } from '../../api/sheetSyncApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { buildSheetSyncRows } from './sheetSyncRows'
 
 const LAST_QUERY_KEY = ['admin', 'sheet-sync', 'last'] as const
 
@@ -84,11 +85,8 @@ export function SheetSyncPage() {
     triggerMutation.data ?? lastQuery.data?.summary ?? null
 
   const rows = useMemo(() => {
-    if (!summary?.byTab) return []
-    return Object.entries(summary.byTab).map(([tabName, result]) => ({
-      tabName,
-      result,
-    }))
+    if (!summary) return []
+    return buildSheetSyncRows(summary)
   }, [summary])
 
   const isPending = triggerMutation.isPending
@@ -284,6 +282,12 @@ function SummaryTotals({ summary }: SummaryTotalsProps) {
         tone="warning"
       />
       <TotalChip label="총 skip" value={summary.totalSkipped} tone="neutral" />
+      <TotalChip label="수동 보존" value={summary.totalPreservedManual} tone="neutral" />
+      <TotalChip
+        label="탭 결과"
+        value={`${summary.successfulTabs}/${summary.totalTabs} 성공`}
+        tone={summary.failedTabs > 0 ? 'warning' : 'success'}
+      />
       <TotalChip
         label="소요"
         value={`${summary.durationMs}ms`}

@@ -1,0 +1,506 @@
+{
+  "environment": {
+    "frontendWorktree": "C:/dev/Samhan-Public/.claude/worktrees/t1110",
+    "frontend": "http://127.0.0.1:5176",
+    "gateway": "http://127.0.0.1:8080",
+    "partnerOrderDirectPort": 18088,
+    "mockMode": false
+  },
+  "triggerCounts": {
+    "soloRestore": 1,
+    "immediateRepeatRestore": 1,
+    "differentOrderConcurrentRequests": 2,
+    "rowLockContention": 1,
+    "stalePermissionRestore": 1,
+    "deduperWindowOverflow": 0,
+    "reachableNotFoundRestore": 0
+  },
+  "scenarios": {
+    "soloAndRepeat": {
+      "solo": {
+        "status": 200,
+        "toast": "버전 1 시점으로 주문을 복원했습니다.\n×"
+      },
+      "immediateRepeat": {
+        "status": 200,
+        "toast": "버전 1 시점으로 주문을 복원했습니다.\n×"
+      }
+    },
+    "differentOrderConcurrent": {
+      "statuses": [
+        200,
+        200
+      ]
+    },
+    "lockFailure": {
+      "response": {
+        "status": 409,
+        "toast": "동시에 복원된 주문입니다. 다른 사용자의 복원이 먼저 완료되어 다시 조회해 주세요.\n×"
+      },
+      "before": {
+        "revisionCount": 8,
+        "revisionRows": 33,
+        "maxRevisionNo": 33,
+        "auditRows": 8,
+        "outboxRows": 0,
+        "activeLines": 1,
+        "deletedLines": 28,
+        "headerFingerprint": "09a0421a4501ba4004216cd1b612ac40"
+      },
+      "after": {
+        "revisionCount": 8,
+        "revisionRows": 33,
+        "maxRevisionNo": 33,
+        "auditRows": 8,
+        "outboxRows": 0,
+        "activeLines": 1,
+        "deletedLines": 28,
+        "headerFingerprint": "09a0421a4501ba4004216cd1b612ac40"
+      }
+    },
+    "forbidden": {
+      "status": 403,
+      "toast": "주문 복원에 실패했습니다. 다시 시도해 주세요.\n×"
+    }
+  },
+  "network": [
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/1/restore",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/1/restore",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/comments",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence/join",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/comments",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/presence/join",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/revisions",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/revisions/1/restore",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/1/restore",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/revisions",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/revisions",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982",
+      "status": 200
+    },
+    {
+      "page": "different-A",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1980",
+      "status": 200
+    },
+    {
+      "page": "different-B",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982",
+      "status": 200
+    },
+    {
+      "page": "normal-A",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1980/revisions/1/restore",
+      "status": 409
+    },
+    {
+      "page": "permission-stale",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/stream",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/comments",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/presence/join",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/collab/presence",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "GET",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/revisions",
+      "status": 200
+    },
+    {
+      "page": "permission-stale",
+      "method": "POST",
+      "path": "/api/v1/partner-orders/2026-06-08-1982/revisions/1/restore",
+      "status": 403
+    }
+  ]
+}

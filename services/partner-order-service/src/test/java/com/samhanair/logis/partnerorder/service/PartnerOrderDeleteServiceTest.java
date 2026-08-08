@@ -12,6 +12,7 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderLineRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.common.exception.BusinessException;
 import java.math.BigDecimal;
@@ -38,6 +39,8 @@ class PartnerOrderDeleteServiceTest {
     private PartnerOrderRevisionService revisionService;
     @Mock
     private PartnerOrderBoardChangePublisher boardChangePublisher;
+    @Mock
+    private PartnerOrderAuthorityEventPublisher authorityEventPublisher;
 
     @Test
     void restoreDeleted_ignoresHistoricalEditLinesAndRestoresCurrentDeleteLines() {
@@ -69,13 +72,14 @@ class PartnerOrderDeleteServiceTest {
 
         PartnerOrderDeleteService service = new PartnerOrderDeleteService(
                 orderRepository, lineRepository, auditLogService, revisionService,
-                boardChangePublisher);
+                boardChangePublisher, authorityEventPublisher);
 
         service.restoreDeleted(order.getOrderNo(), actorId, "복원자");
 
         assertThat(order.getIsDeleted()).isFalse();
         assertThat(historical.getIsDeleted()).isTrue();
         assertThat(current.getIsDeleted()).isFalse();
+        org.mockito.Mockito.verify(authorityEventPublisher).publish(orderId, "RESTORED", null);
     }
 
     @Test
@@ -99,9 +103,10 @@ class PartnerOrderDeleteServiceTest {
 
         PartnerOrderDeleteService service = new PartnerOrderDeleteService(
                 orderRepository, lineRepository, auditLogService, revisionService,
-                boardChangePublisher);
+                boardChangePublisher, authorityEventPublisher);
 
         assertThatThrownBy(() -> service.restoreDeleted(order.getOrderNo(), actorId, "복원자"))
                 .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(authorityEventPublisher);
     }
 }

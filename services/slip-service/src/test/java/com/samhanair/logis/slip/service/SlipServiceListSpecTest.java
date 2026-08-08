@@ -63,6 +63,17 @@ class SlipServiceListSpecTest {
         pageable = PageRequest.of(0, 20);
     }
 
+    @Test
+    void searchBySlipNo_는_LIKE_와일드카드를_리터럴로_전달한다() {
+        when(slipRepository.searchByKeywordAndSlipTypeIn("\\%\\_\\\\", List.of(SlipType.values()),
+                PageRequest.of(0, 20))).thenReturn(List.of());
+
+        service.searchBySlipNo(" %_\\ ", 20);
+
+        verify(slipRepository).searchByKeywordAndSlipTypeIn("\\%\\_\\\\", List.of(SlipType.values()),
+                PageRequest.of(0, 20));
+    }
+
     private void stubFindAllReturnsEmpty() {
         Page<Slip> empty = new PageImpl<>(Collections.emptyList(), pageable, 0);
         when(slipRepository.findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class))).thenReturn(empty);

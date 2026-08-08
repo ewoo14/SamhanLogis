@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.attachment.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.samhanair.logis.slip.attachment.domain.SlipAttachment;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
@@ -17,6 +18,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.PageImpl;
 
 /**
  * SlipAttachmentService.listByType 단위 테스트 — P1 배송 완료 사진 첨부.
@@ -67,5 +70,16 @@ class SlipAttachmentServiceListByTypeTest {
         List<SlipAttachment> result = service.listByType(slipId, SlipAttachmentType.INSPECTION);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("listPhotoAudit — LIKE 와일드카드를 리터럴로 전달")
+    void listPhotoAudit_escapesLikeWildcards() {
+        given(attachmentRepository.findPhotoAudit(null, null, null, "\\%\\_\\\\", PageRequest.of(0, 20)))
+                .willReturn(new PageImpl<>(List.of()));
+
+        service.listPhotoAudit(null, null, null, " %_\\ ", PageRequest.of(0, 20));
+
+        verify(attachmentRepository).findPhotoAudit(null, null, null, "\\%\\_\\\\", PageRequest.of(0, 20));
     }
 }

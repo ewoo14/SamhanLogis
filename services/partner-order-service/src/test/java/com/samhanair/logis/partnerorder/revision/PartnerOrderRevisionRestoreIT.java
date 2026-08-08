@@ -33,9 +33,12 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -103,6 +106,7 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
     @Autowired private PartnerOrderAuditLogRepository auditLogRepository;
     @Autowired private SlipPublishOutboxRepository outboxRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private DataSource dataSource;
 
     // ── 외부 client MockBean ────────────────────────────────────────────────────
 
@@ -1012,6 +1016,77 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
         assertThat(sorted.get(1).getRevisionType().name()).isEqualTo("EDIT");
         assertThat(sorted.get(2).getRevisionType().name()).isEqualTo("RESTORE");
         assertThat(sorted.get(2).getSourceRevisionNo()).isEqualTo(1);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("RED-A: 잠긴 target 복원은 409, 잠금 해제 후 복원은 200과 RESTORE revision 1건")
+    void lockedRestore_returnsConflict_thenUnlockedRestoreSucceeds() throws Exception {
+        UUID estimateId = UUID.randomUUID();
+        when(estimateClient.findById(estimateId)).thenReturn(Optional.of(estimateSnapshot(estimateId)));
+        MvcResult createResult = mockMvc.perform(
+                        post("/api/v1/partner-orders/from-estimate/{id}", estimateId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID orderId = UUID.fromString(extractOrderId(createResult));
+
+        try (Connection lockConnection = dataSource.getConnection()) {
+            lockConnection.setAutoCommit(false);
+            try (PreparedStatement lock = lockConnection.prepareStatement(
+                    "SELECT * FROM partner_orders WHERE id = ? FOR UPDATE")) {
+                lock.setObject(1, orderId);
+                try (var result = lock.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                }
+
+                // 별도 커넥션의 미커밋 row lock을 직접 보유하므로 NOWAIT 계약을 타이밍 없이 검증한다.
+                assertThat(restoreStatus(orderId)).isEqualTo(409);
+            }
+
+            lockConnection.rollback();
+
+            // 잠금 해제 뒤에는 사용자가 다시 누른 순차 복원이 정상 성공해야 한다.
+            assertThat(restoreStatus(orderId)).isEqualTo(200);
+            assertThat(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId).stream()
+                    .filter(revision -> revision.getRevisionType() ==
+                            com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType.RESTORE))
+                    .hasSize(1);
+        }
+    }
+
+    private int restoreStatus(UUID orderId) throws Exception {
+        return mockMvc.perform(
+                        post("/api/v1/partner-orders/{id}/revisions/{no}/restore", orderId, 1)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "복원담당자"))
+                .andReturn().getResponse().getStatus();
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("RED-B: 순차 복원 두 번은 각각 200이고 RESTORE revision 2건")
+    void sequentialRestore_sameTarget_isAllowed() throws Exception {
+        UUID estimateId = UUID.randomUUID();
+        when(estimateClient.findById(estimateId)).thenReturn(Optional.of(estimateSnapshot(estimateId)));
+        MvcResult createResult = mockMvc.perform(
+                        post("/api/v1/partner-orders/from-estimate/{id}", estimateId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID orderId = UUID.fromString(extractOrderId(createResult));
+
+        assertThat(restoreStatus(orderId)).isEqualTo(200);
+        assertThat(restoreStatus(orderId)).isEqualTo(200);
+        assertThat(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId).stream()
+                .filter(revision -> revision.getRevisionType() ==
+                        com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType.RESTORE))
+                .hasSize(2);
     }
 
     // ══════════════════════════════════════════════════════════════════════════

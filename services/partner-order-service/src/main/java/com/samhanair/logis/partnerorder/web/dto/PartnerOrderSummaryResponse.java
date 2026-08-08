@@ -15,6 +15,7 @@ public record PartnerOrderSummaryResponse(
         String partnerCode,
         String partnerName,
         LocalDateTime submittedAt,
+        LocalDateTime createdAt,
         String status,
         String slipPublishStatus,
         BigDecimal totalAmount,
@@ -42,7 +43,7 @@ public record PartnerOrderSummaryResponse(
             boolean isDeleted,
             LocalDateTime deletedAt,
             String deletedByName) {
-        this(orderNumber, partnerCode, partnerName, submittedAt, status, slipPublishStatus,
+        this(orderNumber, partnerCode, partnerName, submittedAt, null, status, slipPublishStatus,
                 totalAmount, linkedSlipNo, isDeleted, deletedAt, deletedByName, true, null);
     }
 
@@ -58,6 +59,7 @@ public record PartnerOrderSummaryResponse(
                 order.getPartnerCode(),
                 null,
                 order.getConfirmedAt(),
+                order.getCreatedAt(),
                 order.getStatus().name(),
                 order.getSlipPublishStatus().name(),
                 order.getTotalAmount(),

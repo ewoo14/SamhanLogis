@@ -27,4 +27,9 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> fail(ErrorCode code, String message) {
         return new ApiResponse<>(false, code.name(), message, null, Instant.now());
     }
+
+    /** 실패 상태에서도 호출 결과 상세를 전달해야 하는 endpoint 용 envelope. */
+    public static <T> ApiResponse<T> fail(String code, String message, T data) {
+        return new ApiResponse<>(false, code, message, data, Instant.now());
+    }
 }

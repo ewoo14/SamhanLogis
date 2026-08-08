@@ -58,7 +58,7 @@ public interface SlipAttachmentRepository extends JpaRepository<SlipAttachment, 
                       and (:type is null or a.attachmentType = :type)
                       and (:from is null or s.slipDate >= :from)
                       and (:to is null or s.slipDate <= :to)
-                      and (:slipNo is null or lower(s.slipNo) like lower(concat('%', :slipNo, '%')))
+                      and (:slipNo is null or lower(s.slipNo) like lower(concat('%', :slipNo, '%')) ESCAPE '\\')
                     order by a.uploadedAt desc
                     """,
             countQuery = """
@@ -70,7 +70,7 @@ public interface SlipAttachmentRepository extends JpaRepository<SlipAttachment, 
                       and (:type is null or a.attachmentType = :type)
                       and (:from is null or s.slipDate >= :from)
                       and (:to is null or s.slipDate <= :to)
-                      and (:slipNo is null or lower(s.slipNo) like lower(concat('%', :slipNo, '%')))
+                      and (:slipNo is null or lower(s.slipNo) like lower(concat('%', :slipNo, '%')) ESCAPE '\\')
                     """)
     Page<SlipPhotoAuditResponse> findPhotoAudit(
             @Param("type") SlipAttachmentType type,

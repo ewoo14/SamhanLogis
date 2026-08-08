@@ -243,6 +243,10 @@ public class Product extends BaseEntity {
     @Column(name = "usage_scope_manual", nullable = false)
     private boolean usageScopeManual = false;
 
+    /** 구성품 수기 편집 여부. true 이면 시트 구성품 sync 가 해당 세트를 덮어쓰지 않는다. */
+    @Column(name = "bundle_components_manual", nullable = false)
+    private boolean bundleComponentsManual = false;
+
     /** (legacy) 시트 규격 컬럼 — ProductSpec 1:N 으로 대체. read-only fallback. */
     @Column(name = "spec_text", length = 255)
     private String specText;
@@ -538,6 +542,16 @@ public class Product extends BaseEntity {
      */
     public void clearUsageManual() {
         this.usageScopeManual = false;
+    }
+
+    /** 구성품 replace-all 성공 후 세트 단위 수기 편집 보호를 켠다. */
+    public void markBundleComponentsManual() {
+        this.bundleComponentsManual = true;
+    }
+
+    /** 구성품 수기 편집 보호를 해제한다. 다음 시트 sync 부터 시트 정본을 적용한다. */
+    public void clearBundleComponentsManual() {
+        this.bundleComponentsManual = false;
     }
 
     /**

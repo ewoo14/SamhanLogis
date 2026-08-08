@@ -27,8 +27,11 @@ vi.mock('../audit/PartnerOrderVersionHistoryPanel', () => ({
 }))
 const canAccessMock = vi.fn(() => true)
 vi.mock('../../hooks/usePermissions', () => ({ usePermissions: () => ({ canAccess: canAccessMock }) }))
+const realtimeMocks = vi.hoisted(() => ({
+  subscribe: vi.fn(),
+}))
 vi.mock('../../realtime/PartnerOrderCollabRealtimeClient', () => ({
-  PartnerOrderCollabRealtimeClient: { subscribe: () => ({ abort: () => undefined }) },
+  PartnerOrderCollabRealtimeClient: { subscribe: realtimeMocks.subscribe },
 }))
 vi.mock('../../api/partnerOrderCollab', () => ({
   getPartnerOrderCollabComments: vi.fn(() => Promise.resolve([{
@@ -67,9 +70,91 @@ afterEach(() => {
   cleanup()
   canAccessMock.mockReturnValue(true)
   vi.mocked(addPartnerOrderCollabComment).mockReset()
+  realtimeMocks.subscribe.mockReset()
+  realtimeMocks.subscribe.mockReturnValue({ abort: vi.fn() })
 })
 
 describe('PartnerOrderCollaborationPanel 협업 패널 배치', () => {
+  it('권위 사건은 상세와 revision을 한 번만 재검증하고 공유 문서를 건드리지 않는다', async () => {
+    let onEvent!: (event: { event: string; data: unknown; raw: string }) => void
+    realtimeMocks.subscribe.mockImplementation((_orderId: string, handler: typeof onEvent) => {
+      onEvent = handler
+      return { abort: vi.fn() }
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries')
+
+    render(
+      <QueryClientProvider client={client}>
+        <PartnerOrderCollaborationPanel
+          orderId="2099/06/27-COED-1"
+          status="DRAFT"
+          currentValues={{ memo: null, dueDate: null, lines: [] }}
+        />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(onEvent).toBeTypeOf('function'))
+    const event = {
+      event: 'partner-order:authority',
+      data: {
+        commitId: 'commit-1',
+        orderId: '2099/06/27-COED-1',
+        revisionNo: 8,
+        changeType: 'RESTORE',
+      },
+      raw: '',
+    }
+    onEvent(event)
+    onEvent(event)
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledTimes(3)
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['partner-order', '2099/06/27-COED-1'] })
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['partner-order-revisions', '2099/06/27-COED-1'] })
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['partner-orders'] })
+    })
+  })
+
+  it('권위 사건으로 부모 상세가 갱신되어도 편집 중인 overlay draft는 유지한다', async () => {
+    let onEvent!: (event: { event: string; data: unknown; raw: string }) => void
+    realtimeMocks.subscribe.mockImplementation((_orderId: string, handler: typeof onEvent) => {
+      onEvent = handler
+      return { abort: vi.fn() }
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <PartnerOrderCollaborationPanel
+          orderId="2099/06/27-COED-1"
+          status="DRAFT"
+          editMode
+          currentValues={{ memo: '서버의 이전 값', dueDate: null, lines: [] }}
+        />
+      </QueryClientProvider>,
+    )
+
+    const memoInput = await screen.findByLabelText('요청사항 수정값')
+    fireEvent.change(memoInput, { target: { value: 'A의 미저장 초안' } })
+    onEvent({
+      event: 'partner-order:authority',
+      data: { commitId: 'commit-restore', orderId: '2099/06/27-COED-1', revisionNo: 9, changeType: 'RESTORE' },
+      raw: '',
+    })
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <PartnerOrderCollaborationPanel
+          orderId="2099/06/27-COED-1"
+          status="DRAFT"
+          editMode
+          currentValues={{ memo: 'B가 복원한 서버 값', dueDate: null, lines: [] }}
+        />
+      </QueryClientProvider>,
+    )
+
+    expect((screen.getByLabelText('요청사항 수정값') as HTMLInputElement).value).toBe('A의 미저장 초안')
+  })
+
   it('협업 헤더와 changeSet 수정 이력 목록을 제거하고 코멘트와 버전 이력만 렌더한다', () => {
     renderPanel('2099/06/27-COED-1')
 

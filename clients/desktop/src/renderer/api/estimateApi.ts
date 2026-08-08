@@ -115,6 +115,10 @@ export interface EstimateSummary {
   acceptedAt: string | null
   convertedAt: string | null
   requesterId: string | null
+  /** 담당자 표시명 — UUID를 화면에 표시하지 않기 위한 서버 제공 label. */
+  requesterName?: string | null
+  /** 불변 작성 기록 표시명 — 담당 변경과 별개의 감사 정보. */
+  createdByName?: string | null
   version: number
   isDeleted: boolean
   deletedAt: string | null
@@ -219,6 +223,12 @@ export interface ListEstimatesOptions {
   size?: number
 }
 
+/** 담당 변경 요청 — 견적서 계열만 허용하며 UUID는 payload 전용이다. */
+export interface ChangeEstimateOwnerRequest {
+  requesterId: string
+  documentType?: 'ESTIMATE'
+}
+
 // ---------------------------------------------------------------------------
 // endpoint 호출
 // ---------------------------------------------------------------------------
@@ -238,6 +248,29 @@ export async function listEstimates(
   if (options.includeDeleted) params['includeDeleted'] = 'true'
   const res = await apiClient.get<ApiEnvelope<PageResponse<EstimateSummary>>>(
     '/slips/estimates',
+    { params },
+  )
+  return {
+    ...res.data.data,
+    content: res.data.data.content.map(normalizeEstimateSummary),
+  }
+}
+
+/** 웹 표면 자기 담당 견적 조회. 데스크톱 견적서 메뉴는 {@link listEstimates}를 사용한다. */
+export async function listAssignedEstimates(
+  options: ListEstimatesOptions = {},
+): Promise<PageResponse<EstimateSummary>> {
+  const params: Record<string, string | number> = {
+    page: options.page ?? 0,
+    size: options.size ?? 20,
+  }
+  if (options.status) params['status'] = options.status
+  if (options.partnerId) params['partnerId'] = options.partnerId
+  if (options.startDate) params['startDate'] = options.startDate
+  if (options.endDate) params['endDate'] = options.endDate
+  if (options.includeDeleted) params['includeDeleted'] = 'true'
+  const res = await apiClient.get<ApiEnvelope<PageResponse<EstimateSummary>>>(
+    '/slips/estimates/assigned',
     { params },
   )
   return {
@@ -320,4 +353,16 @@ export async function restoreEstimate(id: string): Promise<void> {
     `/slips/estimates/${encodeURIComponent(id)}/restore`,
     {},
   )
+}
+
+/** 견적서 메뉴에서 담당을 변경한다. created_by는 서버에서 보존한다. */
+export async function changeEstimateOwner(
+  id: string,
+  request: ChangeEstimateOwnerRequest,
+): Promise<EstimateDetail> {
+  const res = await apiClient.patch<ApiEnvelope<EstimateDetail>>(
+    `/slips/estimates/${encodeURIComponent(id)}/owner`,
+    request,
+  )
+  return normalizeEstimateDetail(res.data.data)
 }

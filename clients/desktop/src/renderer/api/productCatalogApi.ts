@@ -467,6 +467,19 @@ export async function updateProduct(
 }
 
 /**
+ * 품목 soft-delete — `DELETE /api/products/{id}`.
+ * BUNDLE 활성 구성품이 있으면 PATCH 전환과 같은 Boolean+집합 토큰을 보낸다.
+ */
+export async function deleteProduct(
+  id: string,
+  consent?: { confirmBundleChildrenDeletion?: boolean; expectedBundleComponentSetToken?: string },
+): Promise<void> {
+  await apiClient.delete(`/api/products/${encodeURIComponent(id)}`, {
+    params: consent,
+  })
+}
+
+/**
  * 품목 노출 수동 설정 — `PATCH /api/v1/products/{modelCode}/usage`.
  *
  * usageScopeManual=true 로 설정되어 시트 sync 재실행 시에도 유지됨.

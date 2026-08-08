@@ -20,11 +20,15 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import com.samhanair.logis.partnerorder.revision.snapshot.PartnerOrderSnapshot;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.lang.reflect.Method;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -35,6 +39,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -58,6 +63,19 @@ import org.springframework.web.server.ResponseStatusException;
 @ExtendWith(MockitoExtension.class)
 class PartnerOrderRevisionServiceTest {
 
+    @Test
+    @DisplayName("복원 조회는 native FOR UPDATE NOWAIT를 직접 사용하고 @Lock은 사용하지 않는다")
+    void restoreRepositoryQuery_usesDatabaseLockWithoutSpringDataLockAnnotation() throws Exception {
+        Method method = PartnerOrderRepository.class.getMethod(
+                "findByIdIncludingDeletedForUpdate", UUID.class);
+        Query query = method.getAnnotation(Query.class);
+
+        assertThat(query).isNotNull();
+        assertThat(query.nativeQuery()).isTrue();
+        assertThat(query.value()).containsIgnoringCase("FOR UPDATE NOWAIT");
+        assertThat(method.getAnnotation(Lock.class)).isNull();
+    }
+
     @Mock
     private PartnerOrderRevisionRepository revisionRepository;
 
@@ -67,6 +85,9 @@ class PartnerOrderRevisionServiceTest {
     @Mock
     private PartnerOrderLineRepository lineRepository;
 
+    @Mock
+    private PartnerOrderAuthorityEventPublisher authorityEventPublisher;
+
     private ObjectMapper objectMapper;
     private PartnerOrderRevisionService service;
 
@@ -75,7 +96,8 @@ class PartnerOrderRevisionServiceTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        service = new PartnerOrderRevisionService(revisionRepository, orderRepository, lineRepository, objectMapper);
+        service = new PartnerOrderRevisionService(revisionRepository, orderRepository, lineRepository, objectMapper,
+                null, authorityEventPublisher);
 
         // restore() 내부 lineRepository.findAllIncludingDeletedByPartnerOrderId() 기본 lenient stub
         // (단위 테스트에서 실 DB 조회 불가 — 빈 리스트 반환으로 사이드이펙트 없음)
@@ -161,6 +183,8 @@ class PartnerOrderRevisionServiceTest {
             // then
             assertThat(rev1.getRevisionNo()).isEqualTo(1);
             assertThat(rev2.getRevisionNo()).isEqualTo(2);
+            verify(authorityEventPublisher).publish(orderId, "CREATE", 1);
+            verify(authorityEventPublisher).publish(orderId, "EDIT", 2);
         }
     }
 
@@ -295,7 +319,7 @@ class PartnerOrderRevisionServiceTest {
             String snapshotJson = objectMapper.writeValueAsString(snapshot);
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -313,6 +337,7 @@ class PartnerOrderRevisionServiceTest {
             assertThat(result.order().getMemo()).isEqualTo("원본메모");
             // DRAFT 복원은 slipResyncRequired=false
             assertThat(result.slipResyncRequired()).isFalse();
+            verify(authorityEventPublisher).publish(orderId, "RESTORE", 2);
         }
 
         @Test
@@ -335,7 +360,7 @@ class PartnerOrderRevisionServiceTest {
             String snapshotJson = objectMapper.writeValueAsString(snapshot);
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -351,6 +376,35 @@ class PartnerOrderRevisionServiceTest {
             assertThat(result.slipResyncRequired()).isTrue();
             // [P1-6] restoreHeader 는 status 를 변경하지 않으므로 복원 후에도 CONFIRMED 유지
             assertThat(result.order().getStatus()).isEqualTo(PartnerOrderStatus.CONFIRMED);
+            verify(authorityEventPublisher).publish(orderId, "RESTORE", 2);
+        }
+
+        @Test
+        @DisplayName("동시 복원 낙관적 잠금 충돌은 500 대신 409로 이유를 전달한다")
+        void restore_optimisticLockConflict_returns409() throws Exception {
+            UUID orderId = UUID.randomUUID();
+            PartnerOrder order = draftOrder(orderId);
+            PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(
+                    orderId, 1, objectMapper.writeValueAsString(new PartnerOrderSnapshot(
+                            order.getOrderNo(), "ORIG-PC", "ORIG-BIZ", PartnerOrderStatus.DRAFT,
+                            null, null, BigDecimal.ZERO, null, null, null, "메모", null, 0,
+                            List.of(PartnerOrderSnapshot.LineSnapshot.from(
+                                    PartnerOrderLine.create(UUID.randomUUID(), "MODEL", "상품", "cat",
+                                            1, BigDecimal.ZERO, null))))));
+
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
+            when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
+                    .thenReturn(Optional.of(targetRevision));
+            when(orderRepository.saveAndFlush(any()))
+                    .thenThrow(new ObjectOptimisticLockingFailureException(PartnerOrder.class, orderId));
+
+            assertThatThrownBy(() -> service.restore(orderId, 1, UUID.randomUUID(), "복원자", null))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(ex -> {
+                        ResponseStatusException response = (ResponseStatusException) ex;
+                        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                        assertThat(response.getReason()).contains("동시에 복원된");
+                    });
         }
 
         @Test
@@ -360,7 +414,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = confirmingOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(mockRevision(orderId, 1)));
 
@@ -378,7 +432,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = canceledOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(mockRevision(orderId, 1)));
 
@@ -393,7 +447,7 @@ class PartnerOrderRevisionServiceTest {
         @DisplayName("orderId 미존재 → 404 NOT_FOUND")
         void restore_orderNotFound_throws404() {
             UUID orderId = UUID.randomUUID();
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.empty());
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.restore(orderId, 1, UUID.randomUUID(), "복원자", null))
                     .isInstanceOf(ResponseStatusException.class)
@@ -407,7 +461,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = draftOrder(orderId);
 
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 99))
                     .thenReturn(Optional.empty());
 
@@ -441,7 +495,7 @@ class PartnerOrderRevisionServiceTest {
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
             // findByIdIncludingDeleted — soft-deleted 주문 반환
-            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeletedForUpdate(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));

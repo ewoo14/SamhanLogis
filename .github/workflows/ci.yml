@@ -635,14 +635,38 @@ jobs:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
 
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: 자격 평문 비공개 정적 검사 (shell guard)
         run: |
           chmod +x scripts/check-credential-plaintext.sh
           bash scripts/check-credential-plaintext.sh
 
+      - name: 자격 소비자 discovery 계약 테스트
+        run: node --test scripts/lib/qa-credentials.test.cjs
+
       # Playwright spec hard gate 는 후속 슬라이스 — 본 PR 에서는 shell guard 단독
       # (SP-08-7 notion-zero-guard 패턴 일관). spec testDir 외부 testMatch 이슈 (No tests found)
       # 해결은 별도 PR (qa/playwright testDir 확장 또는 spec 이전).
+
+  local-stack-port-guard:
+    name: Local Stack Port Resolver Guard (#1113)
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan every tracked PowerShell consumer
+        shell: pwsh
+        run: ./scripts/check-local-stack-port-literals.ps1 -Root $PWD
+
+      - name: Execute resolver and Measure-Object regressions
+        shell: powershell
+        run: ./tools/operational-validation/test-s7-axis-redefined.ps1
 
   config-audit-guard:
     name: "Config Audit Guard (다운스트림 URL/포트 정합, #745)"
@@ -787,6 +811,13 @@ jobs:
       # "Missing script" 로 CI 가 즉시 실패했다 — 여기로 옮겨 실제로 실행되게 한다.
       - name: "#910 버전 빌드·QA·문서 계약 테스트"
         run: npm run test:round-910-contract
+
+      # 정적 가드는 미실행 파일까지 덮는 1차 방어선이고, 이 결과 검사는 실제로
+      # 실행된 테스트가 남긴 최종 오염을 확인하는 최종 방어선이다.
+      - name: "docs/qa 결과 검사 (tracked 변경 + non-ignored untracked 잔재 0)"
+        if: always()
+        working-directory: clients/desktop
+        run: node ../../scripts/check-docs-qa-clean.cjs
 
   frontend-order-app:
     name: Frontend Order-App (typecheck + test + build)

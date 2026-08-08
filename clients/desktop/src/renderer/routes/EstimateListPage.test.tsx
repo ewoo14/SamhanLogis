@@ -11,6 +11,7 @@ import {
   restoreEstimate,
   type EstimateSummary,
 } from '../api/estimateApi'
+import { listPartnerOrders, type PartnerOrderSummary } from '../api/sales'
 import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
 
 const navigateMock = vi.fn()
@@ -41,8 +42,14 @@ vi.mock('../api/estimateApi', async () => {
   }
 })
 
+vi.mock('../api/sales', async () => {
+  const actual = await vi.importActual<typeof import('../api/sales')>('../api/sales')
+  return { ...actual, listPartnerOrders: vi.fn() }
+})
+
 const listEstimatesMock = vi.mocked(listEstimates)
 const restoreEstimateMock = vi.mocked(restoreEstimate)
+const listPartnerOrdersMock = vi.mocked(listPartnerOrders)
 const useCollectionRealtimeMock = vi.mocked(useCollectionRealtime)
 
 afterEach(cleanup)
@@ -87,6 +94,33 @@ function pageOf(content: EstimateSummary[]) {
   }
 }
 
+function orderRow(overrides: Partial<PartnerOrderSummary> = {}): PartnerOrderSummary {
+  return {
+    orderNumber: '2026-08-08-1',
+    partnerCode: 'P-1',
+    partnerName: '주문 거래처',
+    submittedAt: '2026-08-08T09:00:00',
+    status: 'DRAFT',
+    slipPublishStatus: 'NOT_REQUIRED',
+    totalAmount: 220000,
+    linkedSlipNo: null,
+    isDeleted: false,
+    ...overrides,
+  }
+}
+
+function orderPageOf(content: PartnerOrderSummary[]) {
+  return {
+    content,
+    totalElements: content.length,
+    totalPages: 1,
+    number: 0,
+    size: 10000,
+    first: true,
+    last: true,
+  }
+}
+
 function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -108,8 +142,10 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     useCollectionRealtimeMock.mockReset()
     listEstimatesMock.mockReset()
     restoreEstimateMock.mockReset()
+    listPartnerOrdersMock.mockReset()
     restoreEstimateMock.mockResolvedValue(undefined)
     listEstimatesMock.mockResolvedValue(pageOf([estimateRow()]))
+    listPartnerOrdersMock.mockResolvedValue(orderPageOf([]))
   })
 
   it('견적 목록 coarse SSE 키로 realtime invalidate를 구독한다', async () => {
@@ -243,5 +279,77 @@ describe('EstimateListPage E2 list realtime and restore', () => {
 
     const row = await screen.findByTestId('estimate-list-row-qa-residue')
     expect(within(row).queryByTestId('estimate-list-row-qa-residue-restore')).toBeNull()
+  })
+
+  it('통합 보기에서 두 계열의 API 행을 한 목록에 누락 없이 표시한다', async () => {
+    const estimateCount = 2
+    const orderCount = 1
+    listEstimatesMock.mockResolvedValue(pageOf(
+      Array.from({ length: estimateCount }, (_, index) => estimateRow({
+        id: `estimate-${index}`,
+        estimateNo: `Q-${index}`,
+      })),
+    ))
+    listPartnerOrdersMock.mockResolvedValue(orderPageOf(
+      Array.from({ length: orderCount }, (_, index) => orderRow({
+        orderNumber: `O-${index}`,
+        partnerCode: `P-${index}`,
+      })),
+    ))
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
+
+    const table = await screen.findByTestId('estimate-unified-list-table')
+    await waitFor(() => {
+      expect(within(table).getAllByText('종합견적서')).toHaveLength(estimateCount)
+      expect(within(table).getAllByText('주문서')).toHaveLength(orderCount)
+      expect(within(table).getAllByText('P-0')).toHaveLength(1)
+    })
+  })
+
+  it('통합 보기에는 담당 열이 있고 계열이 보유하지 않는 값은 빈칸으로 둔다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ id: 'estimate-without-code', requesterName: '홍길동' })]))
+    listPartnerOrdersMock.mockResolvedValue(orderPageOf([orderRow({ partnerCode: '' })]))
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
+
+    const table = await screen.findByTestId('estimate-unified-list-table')
+    await waitFor(() => expect(within(table).getByText('담당')).toBeTruthy())
+
+    expect(table.textContent).not.toContain('—')
+    expect(within(table).getByTestId('estimate-unified-row-estimate:estimate-without-code-owner').textContent).toBe('홍길동')
+    expect(within(table).getByTestId('estimate-unified-row-order:2026-08-08-1-owner').textContent).toBe('')
+  })
+
+  it('통합 보기에서 한 계열 조회가 실패해도 다른 계열을 표시하고 오류를 드러낸다', async () => {
+    listPartnerOrdersMock.mockRejectedValue(new Error('partner-order unavailable'))
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
+
+    const table = await screen.findByTestId('estimate-unified-list-table')
+    await waitFor(() => expect(within(table).getAllByText('종합견적서')).toHaveLength(1))
+    expect((await screen.findByTestId('estimate-unified-list-error')).textContent).toContain('주문서')
+  })
+
+  it('통합 보기에서 후속 페이지가 실패해도 먼저 받은 페이지와 불완전 표시를 보존한다', async () => {
+    listEstimatesMock.mockImplementation(async (options) => {
+      if (options.size === 10000 && options.page === 1) {
+        throw new Error('estimate page 2 unavailable')
+      }
+      if (options.size === 10000) {
+        return { ...pageOf([estimateRow({ id: 'estimate-page-1', estimateNo: '2026/08/08-9001' })]), totalPages: 2 }
+      }
+      return pageOf([estimateRow()])
+    })
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
+
+    const table = await screen.findByTestId('estimate-unified-list-table')
+    await waitFor(() => expect(within(table).getByText('2026/08/08-9001')).toBeTruthy())
+    expect((await screen.findByTestId('estimate-unified-list-error')).textContent).toContain('종합견적서')
   })
 })

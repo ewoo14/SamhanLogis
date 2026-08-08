@@ -9,6 +9,7 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderLineRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderAuthorityEventPublisher;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
@@ -30,6 +31,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,12 +75,22 @@ public class PartnerOrderRevisionService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper snapshotObjectMapper;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
+    private final PartnerOrderAuthorityEventPublisher authorityEventPublisher;
 
     public PartnerOrderRevisionService(PartnerOrderRevisionRepository revisionRepository,
                                        PartnerOrderRepository orderRepository,
                                        PartnerOrderLineRepository lineRepository,
                                        ObjectMapper objectMapper) {
-        this(revisionRepository, orderRepository, lineRepository, objectMapper, null);
+        this(revisionRepository, orderRepository, lineRepository, objectMapper, null, null);
+    }
+
+    public PartnerOrderRevisionService(PartnerOrderRevisionRepository revisionRepository,
+                                       PartnerOrderRepository orderRepository,
+                                       PartnerOrderLineRepository lineRepository,
+                                       ObjectMapper objectMapper,
+                                       PartnerOrderBoardChangePublisher boardChangePublisher) {
+        this(revisionRepository, orderRepository, lineRepository, objectMapper,
+                boardChangePublisher, null);
     }
 
     @Autowired
@@ -85,12 +98,14 @@ public class PartnerOrderRevisionService {
                                        PartnerOrderRepository orderRepository,
                                        PartnerOrderLineRepository lineRepository,
                                        ObjectMapper objectMapper,
-                                       PartnerOrderBoardChangePublisher boardChangePublisher) {
+                                       PartnerOrderBoardChangePublisher boardChangePublisher,
+                                       PartnerOrderAuthorityEventPublisher authorityEventPublisher) {
         this.revisionRepository = revisionRepository;
         this.orderRepository = orderRepository;
         this.lineRepository = lineRepository;
         this.objectMapper = objectMapper;
         this.boardChangePublisher = boardChangePublisher;
+        this.authorityEventPublisher = authorityEventPublisher;
         this.snapshotObjectMapper = objectMapper.copy()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
@@ -136,19 +151,29 @@ public class PartnerOrderRevisionService {
         String safeActorName = displayNameOrNull(actorId, actorName);
 
         try {
-            return saveWithNextRevisionNo(order, type, sourceRevisionNo,
+            PartnerOrderRevision saved = saveWithNextRevisionNo(order, type, sourceRevisionNo,
                     snapshotJson, actorId, safeActorName, actorColor);
+            publishAuthority(order, type, saved.getRevisionNo());
+            return saved;
         } catch (DataIntegrityViolationException firstConflict) {
             log.warn("[PartnerOrderRevisionService] revision_no 채번 충돌 1차 재시도 — orderId={}",
                     order.getId());
             try {
-                return saveWithNextRevisionNo(order, type, sourceRevisionNo,
+                PartnerOrderRevision saved = saveWithNextRevisionNo(order, type, sourceRevisionNo,
                         snapshotJson, actorId, safeActorName, actorColor);
+                publishAuthority(order, type, saved.getRevisionNo());
+                return saved;
             } catch (DataIntegrityViolationException retryConflict) {
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
                         "동시 수정 충돌로 버전 캡처에 실패했습니다. 잠시 후 다시 시도해 주세요.");
             }
+        }
+    }
+
+    private void publishAuthority(PartnerOrder order, PartnerOrderRevisionType type, int revisionNo) {
+        if (authorityEventPublisher != null) {
+            authorityEventPublisher.publish(order.getId(), type.name(), revisionNo);
         }
     }
 
@@ -198,10 +223,19 @@ public class PartnerOrderRevisionService {
                                              String actorColor) {
         // 1. 주문 로드 — soft-deleted 주문도 복원 대상이므로 @SQLRestriction 우회 조회 사용
         //    (설계서 §3.3a: 삭제된 주문도 복원 가능)
-        PartnerOrder order = orderRepository.findByIdIncludingDeleted(orderId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "주문을 찾을 수 없습니다"));
+        PartnerOrder order;
+        try {
+            order = orderRepository.findByIdIncludingDeletedForUpdate(orderId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "주문을 찾을 수 없습니다"));
+        } catch (PessimisticLockingFailureException ex) {
+            log.warn("[PartnerOrderRevisionService] 복원 대상 주문 락 경합 — orderId={}", orderId);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "동시에 복원된 주문입니다. 다른 사용자의 복원이 먼저 완료되어 다시 조회해 주세요.",
+                    ex);
+        }
 
         // 2. 대상 revision 로드
         PartnerOrderRevision target = revisionRepository
@@ -281,8 +315,18 @@ public class PartnerOrderRevisionService {
                 .toList();
         order.replaceLines(newLines);
 
-        // 영속화 (낙관적 락 충돌은 호출자가 처리)
-        PartnerOrder saved = orderRepository.saveAndFlush(order);
+        // 영속화 — 동시 복원 충돌은 업무 409로 변환해 사용자에게 원인을 전달한다.
+        PartnerOrder saved;
+        try {
+            saved = orderRepository.saveAndFlush(order);
+        } catch (OptimisticLockingFailureException ex) {
+            log.warn("[PartnerOrderRevisionService] 동시 복원 충돌 — orderId={}, targetRevisionNo={}",
+                    orderId, targetRevisionNo);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "동시에 복원된 주문입니다. 다른 사용자의 복원이 먼저 완료되어 다시 조회해 주세요.",
+                    ex);
+        }
 
         // 7. 복원 결과를 RESTORE revision 으로 캡처
         capture(saved, PartnerOrderRevisionType.RESTORE, targetRevisionNo,

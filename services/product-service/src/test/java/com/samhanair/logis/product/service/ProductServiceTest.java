@@ -742,6 +742,80 @@ class ProductServiceTest {
         assertThat(product.getDeletedBy()).isEqualTo("user-1");
     }
 
+    @Test
+    void delete_bundleWithChildren_requiresExplicitConfirmation() {
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        List<BundleComponent> children = children(productId, 2);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productRepository.findByIdForUpdate(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children);
+
+        assertThatThrownBy(() -> service.delete(productId, "user-1", false, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("2")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+
+        assertThat(product.getIsDeleted()).isFalse();
+        verify(bundleComponentService, never()).removeBundleChildren(any(UUID.class), any());
+    }
+
+    @Test
+    void delete_bundleWithChildren_softDeletesParentChildrenAndExposuresAfterConfirmation() {
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        List<BundleComponent> children = children(productId, 2);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productRepository.findByIdForUpdate(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children);
+
+        service.delete(productId, "user-1", true, BundleComponentConsentToken.from(children));
+
+        verify(bundleComponentService).removeBundleChildren(productId, "user-1");
+        assertThat(product.getIsDeleted()).isTrue();
+        assertThat(product.getDeletedBy()).isEqualTo("user-1");
+    }
+
+    @Test
+    void delete_bundleWithChildren_rejectsStaleOrPartialConsent() {
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        List<BundleComponent> children = children(productId, 2);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productRepository.findByIdForUpdate(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(children);
+
+        assertThatThrownBy(() -> service.delete(productId, "user-1", true, "stale-token"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("집합이 변경");
+        assertThatThrownBy(() -> service.delete(productId, "user-1", true, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("집합이 변경");
+        assertThat(product.getIsDeleted()).isFalse();
+    }
+
+    @Test
+    void delete_bundleWithoutChildren_doesNotRequireConfirmation() {
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productRepository.findByIdForUpdate(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.findByBundleProductId(productId)).thenReturn(List.of());
+
+        service.delete(productId, "user-1", false, null);
+
+        assertThat(product.getIsDeleted()).isTrue();
+        verify(bundleComponentService, never()).removeBundleChildren(any(UUID.class), any());
+    }
+
+    @Test
+    void delete_generalProduct_doesNotReadOrRemoveBundleChildren() {
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        service.delete(productId, "user-1", false, null);
+
+        assertThat(product.getIsDeleted()).isTrue();
+        verify(bundleComponentRepository, never()).findByBundleProductId(any(UUID.class));
+        verify(bundleComponentService, never()).removeBundleChildren(any(UUID.class), any());
+    }
+
     // R1 결함 3 [MED] — discontinue/delete가 수량 동기화 규칙 참조 때문에 막힐 때
     // 원인이 드러나야 한다(J-4). 단위 테스트라 실 DB 트리거 없이 서비스 계층의
     // 선제 확인만 격리해 검증한다.

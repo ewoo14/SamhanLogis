@@ -6,7 +6,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 // 회귀가드로 유효.
 import { chromium } from '@playwright/test';
 
-const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-defaultqty');
+const OUT = resolveQaShotsDir(process.env.QA_OUT || '../../docs/qa/e782-defaultqty');
 const URL = process.env.QA_URL || 'http://localhost:5197/';
 
 const SET_MODEL = 'QA782-SET-01';

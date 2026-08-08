@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.SlipPublishStatus;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /** 주문 상세·목록 응답이 전표 발행 상태를 동일하게 보존하는지 검증한다. */
 class PartnerOrderResponseTest {
@@ -40,6 +42,21 @@ class PartnerOrderResponseTest {
                 .contains("병합할 수 없습니다")
                 .contains("단건 전표 발행");
         assertThat(summary.mergeIneligibilityReason()).doesNotContain(UUID.randomUUID().toString());
+    }
+
+    @Test
+    void draftSummary_keepsSentAtEmptyAndExposesCreatedAtSeparately() {
+        PartnerOrder order = PartnerOrder.createFromConfirm(
+                "P-DRAFT", "123-45-67890", "PO-DRAFT", "idem-draft", BigDecimal.TEN);
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 7, 19, 35, 2);
+        ReflectionTestUtils.setField(order, "createdAt", createdAt);
+
+        assertThat(order.getConfirmedAt()).isNull();
+        assertThat(order.getCreatedAt()).isEqualTo(createdAt);
+        PartnerOrderSummaryResponse summary = PartnerOrderSummaryResponse.from(order);
+
+        assertThat(summary.submittedAt()).isNull();
+        assertThat(summary.createdAt()).isEqualTo(createdAt);
     }
 
     @Test

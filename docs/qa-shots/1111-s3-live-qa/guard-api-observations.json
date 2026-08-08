@@ -1,0 +1,18 @@
+{
+  "startedAt": "2026-08-07T12:59:30.330Z",
+  "errors": [],
+  "createStatus": 201,
+  "modelCode": "S3-1111-GUARD-API-20260807-S3",
+  "componentPutStatus": 200,
+  "setToGeneral": {
+    "status": 400,
+    "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"구성품 집합이 변경되었습니다. 현재 구성품 1건을 확인한 뒤 다시 저장하십시오.\",\"data\":null,\"timestamp\":\"2026-08-07T12:59:33.016338689Z\"}"
+  },
+  "setToMaterial": {
+    "status": 400,
+    "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"구성품 집합이 변경되었습니다. 현재 구성품 1건을 확인한 뒤 다시 저장하십시오.\",\"data\":null,\"timestamp\":\"2026-08-07T12:59:33.031094133Z\"}"
+  },
+  "remainingRows": 1,
+  "deletedGuardVisible": 0,
+  "finishedAt": "2026-08-07T12:59:34.567Z"
+}

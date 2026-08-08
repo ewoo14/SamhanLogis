@@ -787,11 +787,40 @@ public class ProductService {
         }
     }
 
+    /**
+     * 품목을 soft-delete 한다. BUNDLE 활성 구성품이 있으면 전환 PATCH와 동일한
+     * Boolean+집합 토큰 동의를 요구하고, 확인된 구성품을 부모와 함께 정리한다.
+     * 구성품이 없는 BUNDLE 및 일반 품목은 기존처럼 확인 없이 삭제할 수 있다.
+     */
     public void delete(UUID id, String callerId) {
+        delete(id, callerId, false, null);
+    }
+
+    public void delete(UUID id, String callerId,
+                       Boolean confirmBundleChildrenDeletion,
+                       String expectedBundleComponentSetToken) {
         quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
+        List<BundleComponent> components = List.of();
+        if (product.getProductType() == ProductType.BUNDLE) {
+            product = productRepository.findByIdForUpdate(id).orElse(product);
+            components = bundleComponentRepository.findByBundleProductId(id);
+            boolean consentAttempt = Boolean.TRUE.equals(confirmBundleChildrenDeletion)
+                    || expectedBundleComponentSetToken != null;
+            if ((components.size() > 0 || consentAttempt)
+                    && (!Boolean.TRUE.equals(confirmBundleChildrenDeletion)
+                    || expectedBundleComponentSetToken == null
+                    || !expectedBundleComponentSetToken.equals(BundleComponentConsentToken.from(components)))) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "구성품 집합이 변경되었습니다. 현재 구성품 " + components.size()
+                                + "건을 확인한 뒤 다시 삭제하십시오.");
+            }
+        }
         assertNotReferencedByEnabledQuantitySyncRule(id);
         String actor = callerId == null ? "system" : callerId;
+        if (!components.isEmpty()) {
+            bundleComponentService.removeBundleChildren(id, actor);
+        }
         product.markDeleted(actor);
         softDeleteAll(exposureRepository.findByProductIdAndIsDeletedFalse(product.getId()), actor);
     }

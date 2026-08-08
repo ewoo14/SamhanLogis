@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$KeepClients,
     [switch]$DownVolumes
 )
@@ -42,16 +42,23 @@ if (-not $KeepClients) {
 }
 
 Push-Location $RepoRoot
+$downExitCode = 0
 try {
     if ($DownVolumes) {
         Write-Host "[stop] docker compose down -v (volume 포함 삭제)"
         docker compose @ComposeFiles down -v
+        $downExitCode = $LASTEXITCODE
     } else {
         Write-Host "[stop] docker compose down"
         docker compose @ComposeFiles down
+        $downExitCode = $LASTEXITCODE
     }
 } finally {
     Pop-Location
+}
+
+if ($downExitCode -ne 0) {
+    throw "[stop] docker compose down 실패 (exit $downExitCode)"
 }
 
 Write-Host "[stop] local stack stopped"

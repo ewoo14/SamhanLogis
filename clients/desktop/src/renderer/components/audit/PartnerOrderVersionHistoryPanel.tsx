@@ -24,6 +24,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { Badge, Button, Card, Modal, Spinner } from '@samhan/design-system'
 import {
   listPartnerOrderRevisions,
@@ -84,6 +85,31 @@ const REVISION_TYPE_META: Record<
  */
 function isRestorableStatus(status: PartnerOrderStatus): boolean {
   return status !== 'CONFIRMING' && status !== 'CANCELED'
+}
+
+/**
+ * 복원 endpoint 상태 코드별 사용자 안내.
+ *
+ * <p>업무 충돌(409)만 서버 메시지를 표시하고, 권한/인증/자원 부재는 사용자가
+ * 취할 조치를 안내한다. 그 외 상태 코드는 내부 사정이 새지 않도록 일반 문구로 감춘다.
+ */
+export function partnerOrderRestoreErrorMessage(error: unknown): string {
+  const fallback = '주문 복원에 실패했습니다. 다시 시도해 주세요.'
+  if (!isAxiosError(error)) return fallback
+
+  // 401은 공통 apiClient 인터셉터가 먼저 세션 정리·로그인 이동 처리하므로 이 함수에 도달하지 않는다.
+  switch (error.response?.status) {
+    case 403:
+      return '주문 복원 권한이 없습니다. MASTER, MANAGER 또는 SALES 권한이 있는 담당자에게 요청해 주세요.'
+    case 404:
+      return '복원할 주문 또는 버전을 찾을 수 없습니다. 최신 주문 정보를 확인해 주세요.'
+    case 409: {
+      const message = (error.response.data as { message?: unknown } | undefined)?.message
+      return typeof message === 'string' && message.trim() ? message.trim() : fallback
+    }
+    default:
+      return fallback
+  }
 }
 
 /** UUID 형태 문자열 판별 — actorName 에 계정 UUID 가 섞여 들어와도 화면 노출을 차단(방어). */
@@ -193,9 +219,9 @@ export function PartnerOrderVersionHistoryPanel({
         })
       }
     },
-    onError: () => {
+    onError: (error) => {
       setRestoreTarget(null)
-      setToast({ kind: 'danger', text: '주문 복원에 실패했습니다. 다시 시도해 주세요.' })
+      setToast({ kind: 'danger', text: partnerOrderRestoreErrorMessage(error) })
     },
   })
 

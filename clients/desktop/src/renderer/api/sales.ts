@@ -430,6 +430,8 @@ export interface PartnerOrderSummary {
   /** 거래처명. BE entity 컬럼 부재로 현재 null. SP-08-4-2 lookup 후 채움. */
   partnerName: string | null
   submittedAt: string | null
+  /** 작성일. DRAFT도 생성 시각을 보유하며 발송일(submittedAt)과 별개다. */
+  createdAt?: string | null
   status: PartnerOrderStatus
   slipPublishStatus: SlipPublishStatus
   totalAmount: number
@@ -643,6 +645,7 @@ export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): Partner
     partnerCode: raw.partnerCode ?? '',
     partnerName: raw.partnerName ?? null,
     submittedAt: raw.submittedAt ?? null,
+    createdAt: raw.createdAt ?? null,
     status: (raw.status ?? 'DRAFT') as PartnerOrderStatus,
     // raw.slipPublishStatus: SlipPublishStatus | undefined — '??' 결과가 이미 SlipPublishStatus
     // 로 좁혀지므로(폴백값 'NOT_REQUIRED' 가 union 의 기존 멤버) 캐스트가 불필요하다(#854 R5
@@ -683,6 +686,7 @@ function normalizePartnerOrderSummary(raw: RawPartnerOrderSummary): PartnerOrder
     partnerCode: raw.partnerCode ?? '',
     partnerName: raw.partnerName ?? null,
     submittedAt: raw.submittedAt ?? null,
+    createdAt: raw.createdAt ?? null,
     status: (raw.status ?? 'DRAFT') as PartnerOrderStatus,
     slipPublishStatus: raw.slipPublishStatus ?? 'NOT_REQUIRED',
     totalAmount: numberValue(raw.totalAmount),

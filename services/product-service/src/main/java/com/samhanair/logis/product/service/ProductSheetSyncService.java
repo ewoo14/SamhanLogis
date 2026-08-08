@@ -234,10 +234,13 @@ public class ProductSheetSyncService {
             log.error("[ProductSheetSync] default category {} 미존재 — V2 시드 누락 가능. sync 중단.",
                     DEFAULT_CATEGORY_CODE);
             summary.error = "default category " + DEFAULT_CATEGORY_CODE + " not found";
+            summary.totalTabs = TAB_MAPPINGS.size() + COMPONENT_TAB_MAPPINGS.size();
+            summary.failedTabs = summary.totalTabs;
             return summary;
         }
 
         for (SheetTabMapping mapping : TAB_MAPPINGS) {
+            summary.totalTabs++;
             try {
                 TabSyncResult tabResult = self.syncTab(mapping, defaultCategory);
                 summary.byTab.put(mapping.tabName, tabResult);
@@ -248,26 +251,32 @@ public class ProductSheetSyncService {
                 summary.totalPreservedManual += tabResult.preservedManual;
                 summary.totalPreservedByRule += tabResult.preservedByRule;
                 summary.totalSpecsLinked += tabResult.specsLinked;
+                summary.successfulTabs++;
             } catch (Exception e) {
                 log.error("[ProductSheetSync] tab '{}' sync 실패: {}", mapping.tabName, e.getMessage(), e);
                 TabSyncResult err = new TabSyncResult();
                 err.error = e.getMessage();
                 summary.byTab.put(mapping.tabName, err);
+                summary.failedTabs++;
             }
         }
 
         // 구성품(BUNDLE) 적재 — Product 전 tab sync 완료 후 부모/자식이 모두 DB 에 존재하는 시점.
         for (ComponentTabMapping cm : COMPONENT_TAB_MAPPINGS) {
+            summary.totalTabs++;
             try {
                 ComponentSyncResult cr = self.syncComponentTab(cm);
                 summary.byComponentTab.put(cm.tabName, cr);
                 summary.totalComponentsLinked += cr.linked;
                 summary.totalBundlesMarked += cr.bundlesMarked;
+                summary.totalPreservedManual += cr.preservedManual;
+                summary.successfulTabs++;
             } catch (Exception e) {
                 log.error("[ProductSheetSync] 구성품 tab '{}' sync 실패: {}", cm.tabName, e.getMessage(), e);
                 ComponentSyncResult err = new ComponentSyncResult();
                 err.error = e.getMessage();
                 summary.byComponentTab.put(cm.tabName, err);
+                summary.failedTabs++;
             }
         }
 
@@ -359,6 +368,13 @@ public class ProductSheetSyncService {
                         .orElseThrow(() -> new IllegalStateException("구성품 부모 품목을 잠금 조회할 수 없습니다: "
                                 + parentOpt.get().getId()));
                 lockedParents.add(parent.getId());
+            }
+
+            // 수기 편집 세트는 시트 sync 가 구성품 집합을 덮어쓰지 않는다.
+            // seenByParent 에 넣지 않아 soft-delete 단계도 함께 건너뛴다.
+            if (parent.isBundleComponentsManual()) {
+                result.preservedManual++;
+                continue;
             }
 
             String kindRaw = cKind >= 0 ? safeGet(cells, cKind).trim() : "";
@@ -1114,6 +1130,8 @@ public class ProductSheetSyncService {
 
     /** 구성품 tab sync 결과. */
     public static class ComponentSyncResult {
+        /** 수기 편집 보호로 건너뛴 구성품 행 수. */
+        public int preservedManual = 0;
         public int linked = 0;
         public int bundlesMarked = 0;
         public int softDeleted = 0;
@@ -2064,6 +2082,12 @@ public class ProductSheetSyncService {
         public int totalSkipped = 0;
         /** usageScopeManual=true 로 soft-delete 보호된 품목 합계 (사이클2 지적 P3-6). */
         public int totalPreservedManual = 0;
+        /** 실행을 시도한 전체 탭 수. */
+        public int totalTabs = 0;
+        /** 예외로 처리되지 못한 탭 수. */
+        public int failedTabs = 0;
+        /** 예외 없이 처리된 탭 수. manual 보존/skip은 성공 탭에 포함한다. */
+        public int successfulTabs = 0;
         /** 활성 수량 동기화 규칙 참조로 usageScope NONE 전환이 보류된 품목 합계(R6 결함 5). */
         public int totalPreservedByRule = 0;
         public int totalComponentsLinked = 0;

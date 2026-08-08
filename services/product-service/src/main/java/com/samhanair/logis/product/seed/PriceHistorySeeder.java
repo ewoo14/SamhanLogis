@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
  * #773 S1a — dev 환경용 price_history 결정적 시더.
  *
  * <p><b>이중 가드</b>: {@code @Profile("dev")} +
- * {@code app.product.seed-test-data=true} 둘 다 만족할 때만 실행한다. 운영/스테이징
+ * {@code app.seed-test-data=true} 둘 다 만족할 때만 실행한다. 운영/스테이징
  * price_history 는 Google Sheets sync 가 원천이며, 본 시더는 실 자격 없이도 dev
  * 재검증 기준 단가를 만들기 위한 결정적 fallback 이다.
  *
@@ -45,7 +45,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("dev")
-@ConditionalOnProperty(value = "app.product.seed-test-data", havingValue = "true")
+@ConditionalOnProperty(value = "app.seed-test-data", havingValue = "true")
 @Order(200)
 public class PriceHistorySeeder implements CommandLineRunner {
 

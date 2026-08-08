@@ -1,8 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const { spawnSync } = require('node:child_process')
 const { randomUUID } = require('node:crypto')
 const { pathToFileURL } = require('node:url')
+const { spawnSyncWithFileOutput, summarizeOutputFile } = require('../../../scripts/capture-child-output.cjs')
 
 const REAL_QA_ROOT = 'clients/desktop/playwright'
 const REAL_QA_SUFFIX = '-real-qa.spec.ts'
@@ -34,23 +34,25 @@ function listTrackedRealQaFiles({ repoRoot }) {
   // 끝나 `.endsWith(REAL_QA_SUFFIX)`가 실패하고 그 파일이 tracked 집합에서 조용히 사라진다
   // (PC 별 core.quotepath 값에 판정이 좌우됨 — U-9). `-z`는 이름을 NUL로만 구분하고 절대
   // 따옴표/이스케이프하지 않는다(core.quotepath 값과 무관, git 문서상 공식 동작).
-  const result = spawnSync('git', ['ls-files', '-z', '--cached', '--', REAL_QA_ROOT], {
+  const result = spawnSyncWithFileOutput('git', ['ls-files', '-z', '--cached', '--', REAL_QA_ROOT], {
     cwd: repoRoot,
-    encoding: 'utf8',
     windowsHide: true,
   })
 
-  if (result.error || result.status !== 0) {
-    const detail = result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`
-    throw new Error(`[real-QA 추적 집합 판정 실패] git ls-files --cached 를 실행하지 못했습니다: ${detail}`)
-  }
+  try {
+    if (result.error || result.status !== 0) {
+      const stderr = summarizeOutputFile(result.stderrPath, { limit: 1 }).records[0]?.trim()
+      const detail = result.error?.message ?? stderr ?? `exit ${result.status}`
+      throw new Error(`[real-QA 추적 집합 판정 실패] git ls-files --cached 를 실행하지 못했습니다: ${detail}`)
+    }
 
-  return result.stdout
-    .split('\u0000')
-    .filter((entry) => entry.length > 0)
-    .map(normalizeRepoPath)
-    .filter((file) => file.endsWith(REAL_QA_SUFFIX))
-    .sort()
+    return summarizeOutputFile(result.stdoutPath, { delimiter: '\u0000', limit: Infinity }).records
+      .map(normalizeRepoPath)
+      .filter((file) => file.endsWith(REAL_QA_SUFFIX))
+      .sort()
+  } finally {
+    result.cleanup()
+  }
 }
 
 // 🚨 [SONNET5 재수렴 결함1 fix] `.gitignore`(88-95행)가 개발책임자 요청(2026-07-05)으로 로컬
@@ -62,23 +64,26 @@ function listTrackedRealQaFiles({ repoRoot }) {
 // .gitignore 판정 결과이므로 이 스크립트가 정책(7개 디렉터리 목록)을 따로 하드코딩해
 // 중복 유지할 필요가 없다 — .gitignore 가 바뀌면 이 판정도 자동으로 같이 바뀐다.
 function listGitignoredUntrackedRealQaFiles({ repoRoot }) {
-  const result = spawnSync(
+  const result = spawnSyncWithFileOutput(
     'git',
     ['ls-files', '-z', '--others', '--ignored', '--exclude-per-directory=.gitignore', '--', REAL_QA_ROOT],
-    { cwd: repoRoot, encoding: 'utf8', windowsHide: true },
+    { cwd: repoRoot, windowsHide: true },
   )
 
-  if (result.error || result.status !== 0) {
-    const detail = result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`
-    throw new Error(`[real-QA 무시 파일 판정 실패] git ls-files --others --ignored 를 실행하지 못했습니다: ${detail}`)
-  }
+  try {
+    if (result.error || result.status !== 0) {
+      const stderr = summarizeOutputFile(result.stderrPath, { limit: 1 }).records[0]?.trim()
+      const detail = result.error?.message ?? stderr ?? `exit ${result.status}`
+      throw new Error(`[real-QA 무시 파일 판정 실패] git ls-files --others --ignored 를 실행하지 못했습니다: ${detail}`)
+    }
 
-  return result.stdout
-    .split('\u0000')
-    .filter((entry) => entry.length > 0)
-    .map(normalizeRepoPath)
-    .filter((file) => file.endsWith(REAL_QA_SUFFIX))
-    .sort()
+    return summarizeOutputFile(result.stdoutPath, { delimiter: '\u0000', limit: Infinity }).records
+      .map(normalizeRepoPath)
+      .filter((file) => file.endsWith(REAL_QA_SUFFIX))
+      .sort()
+  } finally {
+    result.cleanup()
+  }
 }
 
 function compareRealQaScope({ diskFiles, trackedFiles, gitignoredFiles = [] }) {

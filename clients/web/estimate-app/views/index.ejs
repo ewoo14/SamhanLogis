@@ -2280,6 +2280,27 @@ function getBaseListPrice(type, model, defaultVal) {
 
 /* 유틸 */
 function J(v,d){if(typeof v==='string'){try{const p=JSON.parse(v);return p==null?d:p;}catch(e){return d;}}return v==null?d:v;}
+
+// 특수행 출처 — 화면 라벨은 동일하지만 catalog 행과 자동 cutoff 행은 절대 병합하지 않는다.
+const SPECIAL_ROW_SOURCE = Object.freeze({
+  CATALOG_SPECIAL: 'CATALOG_SPECIAL',
+  AUTO_CUTOFF: 'AUTO_CUTOFF',
+});
+
+// 카탈로그 원본을 row metadata로 변환하는 유일한 경계. 이후 계산/저장/payload는 metadata만 읽는다.
+function catalogSpecialMetadata(product) {
+  const text = `${product?.kind || ''} ${product?.name || ''}`;
+  if (!/운임|절삭/i.test(text)) return null;
+  return {
+    source: SPECIAL_ROW_SOURCE.CATALOG_SPECIAL,
+    kind: /절삭/i.test(text) ? 'CUT' : 'FREIGHT',
+  };
+}
+
+function catalogSpecialSource(product) {
+  return catalogSpecialMetadata(product)?.source;
+}
+
 const HOMEMULTI=J(HM_RAW,[]),SINGLE_SETS=J(SS_RAW,[]),SINGLE_PARTS=J(SP_RAW,[]);
 const COMMULTI=J(CM_RAW,[]), COMM_PARTS=J(CP_RAW,[]);
 const HOME_DEFAULTS=J(HD_RAW,{}),SINGLE_DEFAULTS=J(SD_RAW,{}),SINGLE_MAT=J(SM_RAW,{});
@@ -2307,6 +2328,13 @@ COMMULTI.sort((a, b) => {
 });
 
 const OLD_PRODUCTS=J(OLD_RAW,[]);
+
+// catalog boundary에서만 이름/종류를 읽고, 이후 모든 단계는 이 metadata를 사용한다.
+[...HOMEMULTI, ...SINGLE_SETS, ...COMMULTI, ...OLD_PRODUCTS].forEach((product) => {
+  const metadata = catalogSpecialMetadata(product);
+  if (metadata) Object.assign(product, metadata);
+});
+
 const oldQty=new Map();
 let CUSTOMERS = [];
 let MANAGERS = [];
@@ -3500,6 +3528,11 @@ function openSpecModalByItem(item, scope){
   logAction('조회', '장비스펙');
 }
 
+// 특수행 단가는 저장·계산 부호를 유지하고 입력 칸에는 절댓값으로 표시한다.
+function formatSpecialPriceForDisplay(currentPrice, formatter) {
+  return currentPrice ? formatter(Math.abs(currentPrice)) : '';
+}
+
 // 홈멀티 스펙
 function renderHomeSpec_(catL, item, s){
   if(catL==='판넬'){
@@ -4630,11 +4663,11 @@ if (origStyleColor) {
 
 /* 합계/포맷 */
 const sumBy=pred=>HOMEMULTI.reduce((t,r)=>t+((pred(r?.name||'')?(homeQty.get(r.model)||0):0)),0);
-const sumHome=()=>Array.from(homeQty.entries()).reduce((s,[m,q])=>s+(homeUnitPrice(m)||0)*(q||0),0);
-const sumSingles=()=>SINGLE_SETS.reduce((s,x)=>s+(calcSetUnitPrice(x)*(singleQty.get(x.id)||0)),0);
+const sumHome=()=>Array.from(homeQty.entries()).reduce((s,[m,q])=>s+(getRealHomePrice(m)||0)*(q||0),0);
+const sumSingles=()=>SINGLE_SETS.reduce((s,x)=>s+((getRealSinglePrice(x.id)||0)*(singleQty.get(x.id)||0)),0);
 const sumComm = () =>
   Array.from(commQty.entries())
-    .reduce((s, [m, q]) => s + (commUnitPrice(m) || 0) * (q || 0), 0);
+    .reduce((s, [m, q]) => s + (getRealCommPrice(m) || 0) * (q || 0), 0);
 
 // 상업멀티
 function syncCommTotals(){
@@ -5697,7 +5730,7 @@ function renderHome(){
 
   // 데이터 매핑
   let rows=HOMEMULTI.map((r,idx)=>{
-    if(/운임|절삭/.test(r.name)) {
+    if(r.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL) {
         return {r, L:'기타', M:'', S:'', _idx:idx};
     }
     const {catL,catM,catS}=normalizeHomeCategory(r);
@@ -5706,8 +5739,8 @@ function renderHome(){
 
   // 정렬
   rows.sort((a,b)=>{
-    if(a.r.name === '운임' || a.r.name === '절삭') return 1;
-    if(b.r.name === '운임' || b.r.name === '절삭') return -1;
+    if(a.r.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL) return 1;
+    if(b.r.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL) return -1;
     if(a.L==='실외기 받침대' && b.L==='인테리어핏') return -1;
     if(a.L==='인테리어핏'    && b.L==='실외기 받침대') return 1;
     if(a.L==='실외기 받침대'&&b.L==='실외기 받침대'){
@@ -5764,9 +5797,8 @@ function renderHome(){
     const r=row.r;
     const q=homeQty.get(r.model)||0;
     
-    const isFreight = /운임/.test(r.name);
-    const isCut = /절삭/.test(r.name);
-    const isSpecial = isFreight || isCut;
+    const isSpecial = r.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL;
+    const isCut = r.kind === 'CUT';
 
     if(isSpecial && typeof HOME_MANUAL_BRANCH !== 'undefined') {
         HOME_MANUAL_BRANCH.add(r.model);
@@ -5878,7 +5910,7 @@ function renderHome(){
         
         const inp = document.createElement('input');
         inp.type = 'text'; inp.className = 'price-input'; inp.inputMode = 'numeric';
-        inp.value = currentPrice ? fmt(Math.abs(currentPrice)) : '';
+            inp.value = formatSpecialPriceForDisplay(currentPrice, fmt);
         inp.placeholder = '0';
         inp.style.width = '100%'; inp.style.textAlign='right';
         inp.style.border='1px solid #d1d5db'; inp.style.borderRadius='4px'; inp.style.padding='4px';
@@ -6260,9 +6292,8 @@ function renderSingle(){
     const s = row.s;
     const qty = singleQty.get(s.id)||0;
     
-    const isFreight = /운임/.test(s.name);
-    const isCut = /절삭/.test(s.name);
-    const isSpecial = isFreight || isCut;
+    const isSpecial = s.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL;
+    const isCut = s.kind === 'CUT';
 
     const autoUnit = calcSetUnitPrice(s); 
     const currentPrice = (typeof singleCustomPrices !== 'undefined' && singleCustomPrices.has(s.id)) 
@@ -6358,7 +6389,7 @@ function renderSingle(){
 
        const inp = document.createElement('input');
        inp.type = 'text'; inp.className = 'price-input'; inp.inputMode = 'numeric';
-       inp.value = currentPrice ? fmt(currentPrice) : '';
+       inp.value = formatSpecialPriceForDisplay(currentPrice, fmt);
        inp.placeholder = '0';
        inp.style.width = '100%'; inp.style.textAlign='right'; 
        inp.style.border='1px solid #d1d5db'; inp.style.borderRadius='4px'; inp.style.padding='4px';
@@ -6785,9 +6816,8 @@ function renderComm(){
     const r = row.r;
     const q = commQty.get(r.model) || 0;
     
-    const isFreight = /운임/.test(r.name);
-    const isCut = /절삭/.test(r.name);
-    const isSpecial = isFreight || isCut;
+    const isSpecial = r.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL;
+    const isCut = r.kind === 'CUT';
 
     const unitPrice = commUnitPrice(r.model);
     const currentPrice = (typeof commCustomPrices !== 'undefined' && commCustomPrices.has(r.model)) 
@@ -6890,7 +6920,7 @@ function renderComm(){
 
        const inp = document.createElement('input');
        inp.type = 'text'; inp.className = 'price-input'; inp.inputMode = 'numeric';
-       inp.value = currentPrice ? fmt(currentPrice) : '';
+       inp.value = formatSpecialPriceForDisplay(currentPrice, fmt);
        inp.placeholder = '0';
        inp.style.width = '100%'; inp.style.textAlign = 'right';
        inp.style.border = '1px solid #d1d5db'; inp.style.borderRadius = '4px'; 
@@ -7406,9 +7436,8 @@ function renderOld(){
     const q = oldQty.get(item.model) || 0;
     
     // 운임 절삭
-    const isFreight = /운임/.test(item.name);
-    const isCut = /절삭/.test(item.name);
-    const isSpecial = isFreight || isCut;
+    const isSpecial = item.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL;
+    const isCut = item.kind === 'CUT';
 
     let listPrice = Math.round(Number(item.price) || 0); 
     let autoPrice;
@@ -7471,7 +7500,7 @@ function renderOld(){
        inp.type = 'text'; 
        inp.className = 'price-input'; 
        inp.inputMode = 'numeric';
-       inp.value = currentPrice ? fmt(currentPrice) : '';
+       inp.value = formatSpecialPriceForDisplay(currentPrice, fmt);
        inp.placeholder = '0';
        
        // makePriceInput과 동일한 스타일 적용
@@ -8665,6 +8694,18 @@ function computeCommPanelModelForIndoor_(row){
 function syncHomeUIFromState() {
   homeRowByModel.forEach((row, model) => {
     const q = homeQty.get(model) || 0;
+
+    // 특수행은 수량 입력이 없고 저장용 단가 Map이 유일한 표시 단가 출처다.
+    // 일반행용 자동 단가(특수행에서는 0)를 소계에 사용하면 입력·복원 후 소계가 0으로 덮인다.
+    if (row?.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL) {
+      const specialUnit = homeCustomPrices.has(model)
+        ? homeCustomPrices.get(model)
+        : homeUnitPrice(model);
+      const specialSubCell = document.querySelector(`#homeBody [data-sub="${CSS.escape(model)}"]`);
+      if (specialSubCell) specialSubCell.textContent = fmt(specialUnit * q);
+      return;
+    }
+
     // 수량입력창 동기화
     const qtyInp = document.querySelector(`#homeBody .qty-input[data-m="${CSS.escape(model)}"]`);
     if (qtyInp && document.activeElement !== qtyInp) {
@@ -9473,7 +9514,7 @@ function buildSendRows(){
       let cList = getRealListPrice('COMM', r.model, cBase);
 
       if (isKyungdong) userSpec = (userSpec && userSpec !== '\u200B' ? userSpec + ' / ' : '') + fmt(cList);
-      rows.push({ section: 'COMM', name: r?.name || '', model: r.model, qty: q, list: fmt(cList), price: getRealCommPrice(r.model), fixedDc: fDc, spec: userSpec || (COMM_PARTS.find(p => p.model === r.model)?.spec) || '\u200B' });
+      rows.push({ section: 'COMM', name: r?.name || '', model: r.model, qty: q, list: fmt(cList), price: getRealCommPrice(r.model), fixedDc: fDc, spec: userSpec || (COMM_PARTS.find(p => p.model === r.model)?.spec) || '\u200B', source: r.source });
     }
   });
 
@@ -9490,7 +9531,7 @@ function buildSendRows(){
     if (isKyungdong) userSpec = (userSpec && userSpec !== '\u200B' ? userSpec + ' / ' : '') + fmt(hList);
 
     rows.push({ 
-        section:'HOME', name:r?.name||'', model:r.model, qty:q, 
+        section:'HOME', name:r?.name||'', model:r.model, qty:q, source: r.source,
         list: fmt(hList),
         price: getRealHomePrice(r.model), fixedDc: fDc, spec: userSpec || '\u200B'
     });
@@ -9503,10 +9544,10 @@ function buildSendRows(){
     const fDc = getActiveFixedDc('SINGLE', s.id, s.fixedDc);
     const userSpec = getLiveSpec('SINGLE', s.id, s.spec);
 
-    if(/운임|절삭/.test(s.name)) {
+    if(s.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL) {
        rows.push({
          section: 'SINGLE', setId: s.id, setName: s.name, isSetHead: false, 
-         name: s.name, model: s.model, unit: '식', qty: q, price: getRealSinglePrice(s.id),
+         name: s.name, model: s.model, unit: '식', qty: q, price: getRealSinglePrice(s.id), source: SPECIAL_ROW_SOURCE.CATALOG_SPECIAL,
          hasSetDc: false, fixedDc: 0, spec: '\u200B'
        });
        return;
@@ -9578,7 +9619,7 @@ function buildSendRows(){
     if (isKyungdong) userSpec = (userSpec !== '\u200B' && userSpec ? userSpec + ' / ' : '') + fmt(oList);
 
     rows.push({ 
-        section: 'OLD', name: item.name, model: item.model, unit: item.unit || 'EA', qty: q, 
+        section: 'OLD', name: item.name, model: item.model, unit: item.unit || 'EA', qty: q, source: item.source,
         list: fmt(oList),
         price: getRealOldPrice(item.model), remarks: rem, spec: userSpec 
     });
@@ -10498,11 +10539,12 @@ function fixFootersForMobile(isMobile){
       cells[0].colSpan = 6;
       cells[1].style.display = 'none';
       const totalText = document.getElementById('commTotal')?.textContent || '0';
-      cells[2].innerHTML = `<strong>합계 <span id="commTotalInline">${totalText}</span></strong>`;
+      cells[2].innerHTML = `<strong id="commTotal">${totalText}</strong>`;
     } else {
       cells[0].colSpan = 6;
       cells[1].style.display = '';
-      cells[2].innerHTML = `<strong>합계</strong>`;
+      const totalText = document.getElementById('commTotal')?.textContent || '0';
+      cells[2].innerHTML = `<strong id="commTotal">${totalText}</strong>`;
     }
   }
 
@@ -11117,7 +11159,7 @@ function getStructuredQuoteData() {
         const price = getRealCommPrice(r.model);
         commRows.push({ 
           type:'item', name:r.name, originalName:r.name, model:r.model, unit:r.unit, 
-          qty:q, price:price, sub:(q*price),
+          qty:q, price:price, sub:(q*price), source: r.source,
           list: listP
         });
       }
@@ -11142,7 +11184,7 @@ function getStructuredQuoteData() {
 
       homeRows.push({ 
         type:'item', name:r.name, originalName:r.name, model:r.model, unit:r.unit, 
-        qty:q, price:price, sub:(q*price),
+        qty:q, price:price, sub:(q*price), source: r.source,
         list: listP
       });
     });
@@ -11162,7 +11204,7 @@ function getStructuredQuoteData() {
       const cls = typeof classifySingleSetFixed==='function' ? classifySingleSetFixed(s) : {};
       const catL = String(cls.catL || '');
       const isAccessory = catL === '부자재' || catL === '실외기 받침';
-      const isSpecial = /운임|절삭/.test(s.name);
+      const isSpecial = s.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL;
       const isSet = !isSpecial && !isAccessory;
 
       // 이름
@@ -11204,7 +11246,7 @@ function getStructuredQuoteData() {
       if ((typeof SEND_AS_SET_IDS!=='undefined' && SEND_AS_SET_IDS.has(s.id)) || isAccessory || isSpecial || isSimple) {
          singleRows.push({ 
            type:'item', name:finalName, originalName:s.name, model:s.model, unit:s.unit||'식', 
-           qty:q, price:realPrice, sub:(q*realPrice),
+           qty:q, price:realPrice, sub:(q*realPrice), source: isSpecial ? SPECIAL_ROW_SOURCE.CATALOG_SPECIAL : undefined,
            list: listP
          });
       } else {
@@ -11298,7 +11340,7 @@ function getStructuredQuoteData() {
 
       oldRows.push({ 
         type:'item', name:item.name, originalName:item.name, model:item.model, unit:item.unit||'EA', 
-        qty:q, price:price, sub:(q*price),
+        qty:q, price:price, sub:(q*price), source: item.source,
         list: listP
       });
     });
@@ -11351,7 +11393,9 @@ function getStructuredQuoteData() {
       let target = null;
       for (let i = sections.length - 1; i >= 0; i--) {
         const sec = sections[i];
-        const found = sec.rows.find(r => r.qty === 1 && r.type !== 'set-head');
+        const found = sec.rows.find(r => r.qty === 1
+          && r.type !== 'set-head'
+          && r.source !== SPECIAL_ROW_SOURCE.CATALOG_SPECIAL);
         if (found) {
           target = found;
           break;
@@ -11364,7 +11408,9 @@ function getStructuredQuoteData() {
       } else {
         const cutRow = { 
             type:'item', name:'절삭', originalName:'절삭', model:'절삭', unit:'식', 
-            qty:1, price:-rem, sub:-rem, list:0, spec:'\u200B' 
+            qty:1, price:-rem, sub:-rem, list:0, spec:'\u200B',
+            source: SPECIAL_ROW_SOURCE.AUTO_CUTOFF,
+            identity: `auto-cutoff:${cutUnit}:${sections.length}`
         };
         
         let etcSec = sections.find(s => s.title === '기타');
@@ -16648,7 +16694,10 @@ function applyCutoffLogic(rows) {
   if (rem === 0) return;
 
   // 타겟설정
-  let target = rows.find(r => r.qty === 1 && r.type !== 'set-head');
+  // 사용자 카탈로그 절삭은 자동 절삭의 대상이 아니다. 이름/모델이 같아도 source가 다르다.
+  let target = rows.find(r => r.qty === 1
+    && r.type !== 'set-head'
+    && r.source !== SPECIAL_ROW_SOURCE.CATALOG_SPECIAL);
 
   if (target) {
     // 차감
@@ -16664,7 +16713,9 @@ function applyCutoffLogic(rows) {
       qty: 1,
       price: -rem,
       sub: -rem,
-      remarks: ''
+      remarks: '',
+      source: SPECIAL_ROW_SOURCE.AUTO_CUTOFF,
+      identity: `auto-cutoff:${unit}:${rows.length}`
     });
   }
 }
