@@ -21,6 +21,10 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +34,10 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * lookup 3종 시트 sync IT — 외부 GoogleSheetsClient 는 {@code @MockBean} 으로 격리한다.
@@ -75,6 +83,9 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void resetState() throws Exception {
@@ -394,6 +405,95 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(retry.byTab.get("싱글 자재가격").updated).isEqualTo(2);
         assertThat(retry.byTab.get("추천실외기").unchanged).isEqualTo(1);
         assertThat(retry.byTab.get("분기계산").unchanged).isEqualTo(1);
+    }
+
+    /**
+     * DB commit 순서와 afterCompletion 순서가 역전되어도 다음 sync가 DB를 기준으로 재처리한다.
+     *
+     * <p>T1의 DB commit 뒤 서비스 cache callback 직전에 멈추고, T2가 50,000을 commit/callback
+     * 한 다음 T1 callback을 재개한다. 캐시를 기준으로 판정하면 마지막 입력 45,000이 unchanged가
+     * 되어 DB의 50,000을 영구히 유지하지만, DB 행 해시를 기준으로 판정하면 45,000으로 갱신된다.
+     */
+    @Test
+    void concurrent_commit과_afterCompletion_순서가_엇갈려도_다음_sync는_DB를_기준으로_재처리한다()
+            throws Exception {
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 자재가격!A1:D"))
+                .thenReturn(materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "40,000", "", "")));
+        syncService.syncMaterialPricesTab();
+        entityManager.clear();
+
+        CountDownLatch t1CallbackEntered = new CountDownLatch(1);
+        CountDownLatch releaseT1Callback = new CountDownLatch(1);
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 자재가격!A1:D"))
+                .thenAnswer(invocation -> {
+                    String threadName = Thread.currentThread().getName();
+                    String price = threadName.contains("t1") ? "45,000" : "50,000";
+                    return materialRows(
+                            row("품 명", "가격", "옵션", "계산값"),
+                            row("유선리모컨", price, "", ""));
+                });
+
+        ExecutorService executor = Executors.newFixedThreadPool(2, runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setName("lookup-sync-" + thread.getId());
+            return thread;
+        });
+        try {
+            Future<ProductLookupSheetSyncService.TabSyncResult> t1 = executor.submit(() -> {
+                Thread.currentThread().setName("lookup-sync-t1");
+                TransactionTemplate template = new TransactionTemplate(transactionManager);
+                return template.execute(status -> {
+                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int completionStatus) {
+                            t1CallbackEntered.countDown();
+                            try {
+                                releaseT1Callback.await();
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException(e);
+                            }
+                        }
+                    });
+                    try {
+                        return syncService.syncMaterialPricesTab();
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                });
+            });
+
+            assertThat(t1CallbackEntered.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+
+            Future<ProductLookupSheetSyncService.TabSyncResult> t2 = executor.submit(
+                    () -> syncService.syncMaterialPricesTab());
+            ProductLookupSheetSyncService.TabSyncResult t2Result = t2.get();
+            assertThat(t2Result.updated).isEqualTo(1);
+
+            releaseT1Callback.countDown();
+            assertThat(t1.get().updated).isEqualTo(1);
+        } finally {
+            releaseT1Callback.countDown();
+            executor.shutdownNow();
+        }
+
+        entityManager.clear();
+        assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
+                .isEqualByComparingTo(new BigDecimal("50000"));
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 자재가격!A1:D"))
+                .thenReturn(materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "45,000", "", "")));
+        ProductLookupSheetSyncService.TabSyncResult next = syncService.syncMaterialPricesTab();
+        entityManager.clear();
+
+        assertThat(next.updated).isEqualTo(1);
+        assertThat(next.unchanged).isZero();
+        assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
+                .isEqualByComparingTo(new BigDecimal("45000"));
     }
 
     /**
