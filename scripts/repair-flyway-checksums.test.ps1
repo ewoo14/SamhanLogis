@@ -19,9 +19,24 @@ try {
     Set-Content -LiteralPath $fakeDocker -Value @"
 @echo off
 echo %*>>"$dockerArgsLog"
+if "%FAKE_DOCKER_MODE%"=="inspect-env" echo %* | findstr /b /c:"inspect " >nul
+if "%FAKE_DOCKER_MODE%"=="inspect-env" if not errorlevel 1 (
+  echo $(Join-Path $fixtureRoot 'infrastructure')
+  exit /b 0
+)
+if "%FAKE_DOCKER_MODE%"=="inspect-missing" echo %* | findstr /b /c:"inspect " >nul
+if "%FAKE_DOCKER_MODE%"=="inspect-missing" if not errorlevel 1 (
+  echo $(Join-Path $fixtureRoot 'missing-compose')
+  exit /b 0
+)
 if "%FAKE_DOCKER_MODE%"=="auth-failure" (
   echo fake Flyway validate failed: authentication rejected 1>&2
   exit /b 17
+)
+if "%FAKE_DOCKER_MODE%"=="mixed-validate-errors" (
+  echo Migration checksum mismatch for migration version 1 1>&2
+  echo Detected failed migration version 2 1>&2
+  exit /b 1
 )
 echo %* | findstr /c:" repair" >nul
 if "%FAKE_DOCKER_MODE%"=="repair-success" if not errorlevel 1 (
@@ -61,6 +76,35 @@ exit /b 1
         $previewArgs = Get-Content -LiteralPath $dockerArgsLog -Raw
         $previewEnvFile = [regex]::Match($previewArgs, '--env-file\s+([^\s]+)').Groups[1].Value
         if ($previewEnvFile -and (Test-Path -LiteralPath $previewEnvFile)) { throw "temporary credential file was not removed after preview: $previewEnvFile" }
+
+        Remove-Item -LiteralPath $dockerArgsLog -Force
+        $env:FAKE_DOCKER_MODE = 'inspect-missing'
+        try {
+            $missingEnv = @(& $script -PostgresContainer 'unused' 2>&1)
+        } catch {
+            $missingEnv = @($_)
+        }
+        $missingEnvText = $missingEnv -join "`n"
+        if ($missingEnvText -notmatch 'Environment file not found|Checked') { throw "missing env failure did not explain checked paths: $missingEnvText" }
+
+        Remove-Item -LiteralPath $dockerArgsLog -Force
+        $env:FAKE_DOCKER_MODE = 'inspect-env'
+        $discovered = @(& $script -PostgresContainer 'unused' -WhatIf 2>&1)
+        $discoveredText = $discovered -join "`n"
+        if ($discoveredText -notmatch [regex]::Escape((Join-Path $fixtureRoot 'infrastructure/.env'))) { throw "default env discovery did not use Compose working_dir: $discoveredText" }
+
+        Remove-Item -LiteralPath $dockerArgsLog -Force
+        $env:FAKE_DOCKER_MODE = 'mixed-validate-errors'
+        try {
+            $mixed = @(& $script -EnvFile (Join-Path $fixtureRoot 'infrastructure/.env') -Service auth-service -PostgresContainer 'unused' 2>&1)
+        } catch {
+            $mixed = @($_)
+        }
+        $mixedText = $mixed -join "`n"
+        $mixedArgs = if (Test-Path -LiteralPath $dockerArgsLog) { Get-Content -LiteralPath $dockerArgsLog -Raw } else { '' }
+        if ($mixedText -notmatch 'checksum mismatch|Detected failed migration|validate') { throw "mixed validate failure cause was not reported: $mixedText" }
+        if ($mixedArgs -match '\brepair\b') { throw "repair ran despite a non-checksum validate error: $mixedArgs" }
+
 
         Remove-Item -LiteralPath $dockerArgsLog -Force
         $env:FAKE_DOCKER_MODE = 'repair-success'
