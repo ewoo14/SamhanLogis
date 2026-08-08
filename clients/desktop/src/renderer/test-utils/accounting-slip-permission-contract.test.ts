@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { getMockResponse } from '../api/mock'
+import { assertExactPermissionMatrix } from './permission-contract-checker'
 
 const workspace = resolve(__dirname, '../../..')
 const routes = readFileSync(resolve(workspace, 'src/renderer/routes/index.tsx'), 'utf8')
@@ -200,5 +201,9 @@ describe('accounting slip permission contract', () => {
     expect(getMatrixPermissionCell('MASTER', 'system.permission-admin')).toMatchObject({
       canView: true, canEdit: true,
     })
+  })
+
+  it('R8: every mock page and every role matches the canonical 7-bit matrix', () => {
+    assertExactPermissionMatrix({ getMockResponse })
   })
 })

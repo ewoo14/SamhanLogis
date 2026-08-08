@@ -13858,7 +13858,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     !url.includes('/copy-from')
   ) {
     if (method === 'GET') {
-      const mockAccountRole = url.match(/mock-account-(manager|sales|dispatch|accountant|developer|driver|partner|staff|inventory|warehouse)/)?.[1]
+      const mockAccountRole = url.match(/mock-account-(master|manager|sales|dispatch|accountant|developer|driver|partner|staff|inventory|warehouse)/)?.[1]
       const role = mockAccountRole
         ? mockAccountRole.toUpperCase()
         : 'MANAGER'
