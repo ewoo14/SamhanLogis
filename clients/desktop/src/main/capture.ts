@@ -172,9 +172,9 @@ function resolveOutputDir(): string {
   const override = process.env['QA_SHOTS_DIR']
   const trimmed = override && override.trim().length > 0 ? override.trim() : undefined
   const directory = trimmed ? resolve(trimmed) : resolve(committedDir, '_local')
-  const docsQaRoot = resolve(repoRootFromHere, 'docs', 'qa')
+  const qaEvidenceAxis = resolve(repoRootFromHere, 'docs')
 
-  if (trimmed && isWithinPhysical(docsQaRoot, directory) && !hasExplicitOverwriteIntent()) {
+  if (trimmed && isWithinPhysical(qaEvidenceAxis, directory) && !hasExplicitOverwriteIntent()) {
     throw new Error(
       `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${directory}. ` +
         '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',

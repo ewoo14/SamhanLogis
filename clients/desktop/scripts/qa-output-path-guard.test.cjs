@@ -68,6 +68,7 @@ const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 const desktopRoot = path.resolve(__dirname, '..')
 const repoRoot = path.resolve(desktopRoot, '../..')
 const docsQaRoot = path.join(repoRoot, 'docs', 'qa')
+const docsQaShotsRoot = path.join(repoRoot, 'docs', 'qa-shots')
 const tsHelperPath = path.join(desktopRoot, 'playwright', 'support', 'qa-screenshot-dir.ts')
 const mjsHelperPath = path.join(desktopRoot, 'playwright', 'support', 'qa-screenshot-dir.mjs')
 const rootMjsHelperPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.mjs')
@@ -165,13 +166,23 @@ test('D-3 [C] docs/qa 루트 자체를 QA_SHOTS_DIR 로 지정하면 차단한�
   )
 })
 
-test('D-3 A~D 전부 QA_ALLOW_OVERWRITE=1 이면 명시 경로를 그대로 사용한다 (승격 opt-in 은 유지)', () => {
+test('D-3 [E] 새 커밋 QA 증거 루트도 모집단 축에 따라 자동 차단한다', () => {
+  process.env.QA_SHOTS_DIR = path.join(docsQaShotsRoot, 'new-root-fixture')
+
+  assert.throws(
+    () => resolveQaShotsDir(MY_FIXTURE_COMMITTED_DIR),
+    error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+  )
+})
+
+test('D-3 A~E 전부 QA_ALLOW_OVERWRITE=1 이면 명시 경로를 그대로 사용한다 (승격 opt-in 은 유지)', () => {
   process.env.QA_ALLOW_OVERWRITE = '1'
   const cases = {
     A: OTHER_SLUG_COMMITTED_DIR,
     B: MY_FIXTURE_COMMITTED_DIR,
     C: docsQaRoot,
     D: path.join(docsQaRoot, 'some-other-slug', '..', '__863-r1-guard-fixture__'),
+    E: path.join(docsQaShotsRoot, 'new-root-fixture'),
   }
   for (const [label, target] of Object.entries(cases)) {
     process.env.QA_SHOTS_DIR = target
@@ -616,12 +627,12 @@ test('N-1 (2026-07-28 재수렴, D-A 회귀 가드) — UTF-16 resolver 사본�
 
 test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소스는 구조 마커로, .mjs 는 실행으로 대조', async () => {
   // .ts 는 이 CommonJS 테스트에서 직접 require/import 할 수 없다(ts-node 미설치) — 소스 텍스트로
-  // 핵심 계약 마커(기본값 _local·DOCS_QA_ROOT 기반 가드·QA_ALLOW_OVERWRITE 탈출구)를 확인한다.
+  // 핵심 계약 마커(기본값 _local·QA_EVIDENCE_AXIS 기반 가드·QA_ALLOW_OVERWRITE 탈출구)를 확인한다.
   // 실제 런타임 동작은 clients/desktop 전체 Playwright mock 스위트 실행(.ts 를 실제로 실행)과
   // 아래 .mjs 실행 비교로 이중 확인한다.
   const tsSource = fs.readFileSync(tsHelperPath, 'utf8')
   assert.match(tsSource, /path\.join\(committed,\s*'_local'\)/, '.ts 기본값이 _local 이 아님 (D-2 회귀)')
-  assert.match(tsSource, /DOCS_QA_ROOT/, '.ts 에 전역 docs/qa 루트 가드가 없음 (D-3 미이관)')
+  assert.match(tsSource, /QA_EVIDENCE_AXIS/, '.ts 에 QA 증거 축 가드가 없음 (D-3 미이관)')
   assert.match(tsSource, /QA_ALLOW_OVERWRITE/, '.ts 에 명시 허용 탈출구가 없음')
   assert.match(tsSource, /export function resolveQaShotsDir/, '.ts 가 resolveQaShotsDir 를 export 하지 않음 (H-2 가드 대상)')
   assert.doesNotMatch(
@@ -631,10 +642,10 @@ test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소�
   )
 
   const mjsSource = fs.readFileSync(mjsHelperPath, 'utf8')
-  assert.match(mjsSource, /DOCS_QA_ROOT/, '.mjs 에 전역 docs/qa 루트 가드가 없음 (D-3 미이관)')
+  assert.match(mjsSource, /QA_EVIDENCE_AXIS/, '.mjs 에 QA 증거 축 가드가 없음 (D-3 미이관)')
 
   const qaPlaywrightSource = fs.readFileSync(qaPlaywrightHelperPath, 'utf8')
-  assert.match(qaPlaywrightSource, /DOCS_QA_ROOT/, 'qa/playwright resolver에 전역 docs/qa 루트 가드가 없음')
+  assert.match(qaPlaywrightSource, /QA_EVIDENCE_AXIS/, 'qa/playwright resolver에 QA 증거 축 가드가 없음')
 
   const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
   const committedDir = path.join(tempRoot, 'ts-mjs-parity')

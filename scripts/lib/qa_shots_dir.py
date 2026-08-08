@@ -152,8 +152,8 @@ def resolve_qa_shots_dir(committed_dir: str) -> str:
     else:
         directory = os.path.join(committed, '_local')
 
-    docs_qa_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'qa'))
-    if override.strip() and _is_within_physical(docs_qa_root, directory) and not _has_explicit_overwrite_intent():
+    qa_evidence_axis = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'docs'))
+    if override.strip() and _is_within_physical(qa_evidence_axis, directory) and not _has_explicit_overwrite_intent():
         raise RuntimeError(
             f'[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: {directory}. '
             '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.'

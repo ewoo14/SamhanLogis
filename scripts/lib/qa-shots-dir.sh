@@ -243,16 +243,16 @@ resolve_qa_shots_dir() {
   fi
 
   local script_dir
-  local docs_qa_root
+  local qa_evidence_axis
   script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-  if ! docs_qa_root="$(_qa_physical_path "$script_dir/../../docs/qa")"; then
-    printf '%s\n' '[QA 출력 경로 가드] docs/qa 기준점의 물리 식별에 실패했습니다.' >&2
+  if ! qa_evidence_axis="$(_qa_physical_path "$script_dir/../../docs")"; then
+    printf '%s\n' '[QA 출력 경로 가드] QA 증거 축의 물리 식별에 실패했습니다.' >&2
     return 1
   fi
 
   if [ -n "${QA_SHOTS_DIR:-}" ]; then
     local within_status=0
-    if _qa_is_within_physical "$docs_qa_root" "$dir"; then
+    if _qa_is_within_physical "$qa_evidence_axis" "$dir"; then
       within_status=0
     else
       within_status=$?

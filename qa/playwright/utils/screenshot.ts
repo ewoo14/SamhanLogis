@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : dirname(fileURLToPath(import.meta.url));
 
-/** 이 파일(qa/playwright/utils) 기준 레포의 커밋 QA 증거 루트 전체. */
-const DOCS_QA_ROOT = resolve(_dirname, '../../../docs/qa');
+/** 개별 증거 루트를 열거하지 않고 모든 docs 하위 증거 루트를 보호하는 축. */
+/** 개별 증거 루트를 열거하지 않고 모든 docs 하위 증거 루트를 보호하는 축. */
+const QA_EVIDENCE_AXIS = resolve(_dirname, '../../../docs');
 
 function hasExplicitOverwriteIntent(): boolean {
   return ['1', 'true', 'yes'].includes(
@@ -153,7 +154,7 @@ function resolveQaShotsDir(committedDir: string): string {
   const dir =
     trimmed ? resolve(trimmed) : join(resolve(committedDir), '_local');
 
-  if (trimmed && isWithinPhysical(DOCS_QA_ROOT, dir) && !hasExplicitOverwriteIntent()) {
+  if (trimmed && isWithinPhysical(QA_EVIDENCE_AXIS, dir) && !hasExplicitOverwriteIntent()) {
     throw new Error(
       `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${dir}. ` +
         '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',
