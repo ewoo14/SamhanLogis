@@ -13858,11 +13858,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     !url.includes('/copy-from')
   ) {
     if (method === 'GET') {
-      const role =
-        url.includes('mock-account-sales') ? 'SALES'
-          : url.includes('mock-account-dispatch') ? 'DISPATCH'
-            : url.includes('mock-account-accountant') ? 'ACCOUNTANT'
-              : 'MANAGER'
+      const mockAccountRole = url.match(/mock-account-(manager|sales|dispatch|accountant|developer|driver|partner|staff|inventory|warehouse)/)?.[1]
+      const role = mockAccountRole
+        ? mockAccountRole.toUpperCase()
+        : 'MANAGER'
       const accountMatrix: Record<string, {
         view: boolean
         create: boolean
@@ -18827,6 +18826,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.list', 'accounting.tax-invoice.cancel', 'accounting.tax-invoice.batch-issue',
     'accounting.sales-slip.list',
     'accounting.purchase-slip.list', 'accounting.daily-closing',
+    // V97: MANAGER 회계전표는 .list 1111 비트를 .accounting 으로 계승.
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run',
     'accounting.general-ledger',
     'purchases.slip.list', 'sales.slip.list',
@@ -18897,6 +18898,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
     'sales.slip.list',
+    // V97: SALES 회계전표는 .list 1000 비트를 .accounting 으로 계승.
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'messenger.send',
     // SP-D4 — SALES: 견적/주문/거래처/상품 view
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
@@ -19027,6 +19030,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.tax-invoice.cancel',
     'accounting.tax-invoice.batch-issue',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
+    // V97: MANAGER .list 1111 → .accounting 1111.
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run',
     'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts',
     // V37 supplier-profiles — MANAGER: view/edit 허용

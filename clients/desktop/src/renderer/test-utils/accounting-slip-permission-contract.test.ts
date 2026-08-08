@@ -60,12 +60,22 @@ describe('accounting slip permission contract', () => {
     expect(layout).toContain("dynamicCanAccess('accounting.purchase-slip.accounting', 'view')")
   })
 
-  it('copies list permissions to accounting permissions for all permission stores and keeps list rows', () => {
+  it('grants accounting permissions by inheriting list bits across role, group, and account stores', () => {
     expect(existsSync(migrationPath)).toBe(true)
-    expect(migration).toContain('권한을 새로 부여하지 않는다')
-    expect(migration).not.toMatch(/INSERT\s+INTO|UPDATE\s+.+\s+SET|DELETE\s+FROM/i)
-    expect(migration).not.toContain('accounting.sales-slip.list')
-    expect(migration).not.toContain('accounting.purchase-slip.list')
+    expect(migration).toContain('accounting.sales-slip.list')
+    expect(migration).toContain('accounting.purchase-slip.list')
+    expect(migration).toContain('role_page_permissions')
+    expect(migration).toContain('role_page_permission_templates')
+    expect(migration).toContain('group_page_permissions')
+    expect(migration).toContain('account_page_permissions')
+    expect(migration).toContain("'00000000-0000-0000-0000-000000000101'::uuid")
+    expect(migration).toContain("'00000000-0000-0000-0000-000000000102'::uuid")
+    expect(migration).toContain("'dev_manager', 'janyeonggu', 'manager@samhan.test'")
+    expect(migration).toContain('accounting.tax-invoice.inbound.manage')
+    expect(migration).toMatch(/ON CONFLICT\s*\([^)]*page_code[^)]*\)[\s\S]*DO UPDATE/i)
+    expect(migration).not.toMatch(/DELETE\s+FROM/i)
+    expect(migration).not.toContain('SELECT 1;')
+    expect(migration).toContain('V97')
   })
 
   it('uses the BE inbound.manage page code for the inbound tax invoice screen', () => {
@@ -100,17 +110,28 @@ describe('accounting slip permission contract', () => {
     expect(getRolePermissionCell('accountant', 'messenger.send').view).toBe(true)
   })
 
-  it('RED-B: MANAGER/SALES mock matrix keeps both accounting slip accounting codes denied', () => {
+  it('RED-A: MANAGER/SALES mock matrix grants accounting slip accounting codes with list bits', () => {
     for (const role of ['manager', 'sales']) {
       for (const pageCode of [
         'accounting.sales-slip.accounting',
         'accounting.purchase-slip.accounting',
       ]) {
         const cell = getRolePermissionCell(role, pageCode)
-        expect(cell.view).toBe(false)
-        expect(cell.create).toBe(false)
-        expect(cell.update).toBe(false)
-        expect(cell.delete).toBe(false)
+        expect(cell.view).toBe(true)
+        expect(cell.create).toBe(role === 'manager')
+        expect(cell.update).toBe(role === 'manager')
+        expect(cell.delete).toBe(role === 'manager')
+      }
+    }
+
+    for (const role of ['MANAGER', 'SALES']) {
+      for (const pageCode of [
+        'accounting.sales-slip.accounting',
+        'accounting.purchase-slip.accounting',
+      ]) {
+        const cell = getMatrixPermissionCell(role, pageCode)
+        expect(cell.canView).toBe(true)
+        expect(cell.canEdit).toBe(role === 'MANAGER')
       }
     }
 
@@ -118,5 +139,20 @@ describe('accounting slip permission contract', () => {
     expect(getRolePermissionCell('manager', 'messenger.send').view).toBe(true)
     expect(getRolePermissionCell('sales', 'messenger.send').view).toBe(true)
     expect(getRolePermissionCell('sales', 'ecount.mig.ops-dashboard').view).toBe(false)
+  })
+
+  it('RED-B: every role outside MANAGER/SALES/ACCOUNTANT/MASTER remains denied', () => {
+    for (const role of ['developer', 'driver', 'partner', 'staff', 'dispatch', 'inventory', 'warehouse']) {
+      for (const pageCode of [
+        'accounting.sales-slip.accounting',
+        'accounting.purchase-slip.accounting',
+      ]) {
+        const cell = getRolePermissionCell(role, pageCode)
+        expect(cell.view, `${role} unexpectedly has ${pageCode}`).toBe(false)
+        expect(cell.create).toBe(false)
+        expect(cell.update).toBe(false)
+        expect(cell.delete).toBe(false)
+      }
+    }
   })
 })
