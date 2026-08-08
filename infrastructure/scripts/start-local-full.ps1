@@ -68,6 +68,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# SAMHAN_SEED_TEST_DATA 는 호출자 PowerShell 프로세스에서 상속되는 공통 toggle 이다.
+# 스크립트가 .env.dev-seed 를 로드하거나 -RunSeed 로 덮어써도, 반환 시 진입 전 상태를
+# 복원해야 같은 셸에서 이어지는 표준 compose 가 명시적 seed 실행으로 오인되지 않는다.
+$seedEnvWasDefined = Test-Path 'env:SAMHAN_SEED_TEST_DATA'
+$seedEnvOriginalValue = [Environment]::GetEnvironmentVariable('SAMHAN_SEED_TEST_DATA', 'Process')
+
+try {
+
 # -----------------------------------------------------------------------------
 # 0. Pre-flight — 경로 + 환경 + port 충돌 검증
 # -----------------------------------------------------------------------------
@@ -575,4 +583,12 @@ if ($failedRequired -or $failedHealth.Count -gt 0) {
     Write-Host '==============================================================' -ForegroundColor Cyan
     Write-Host ' 완료' -ForegroundColor Green
     Write-Host '==============================================================' -ForegroundColor Cyan
+}
+
+} finally {
+    if ($seedEnvWasDefined) {
+        Set-Item 'env:SAMHAN_SEED_TEST_DATA' $seedEnvOriginalValue
+    } else {
+        Remove-Item 'env:SAMHAN_SEED_TEST_DATA' -ErrorAction SilentlyContinue
+    }
 }
