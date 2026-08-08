@@ -1,10 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { resolveQaShotsDir } from './lib/qa-shots-dir.mjs';
 
 const root = process.cwd();
-const outputDir = path.join(root, 'docs', 'qa', '896-p0-golden-manifest');
+const committedOutputDir = path.join(root, 'docs', 'qa', '896-p0-golden-manifest');
+const outputDir = resolveQaShotsDir(committedOutputDir);
 const goldenDir = path.join(outputDir, 'golden');
+// Manifest에 기록하는 논리 경로는 POSIX 구분자를 고정한다. 파일 접근 시에만
+// path.join(root, baselineDir, ...)으로 호스트 OS의 물리 경로로 변환한다.
 const baselineDir = 'docs/qa/896-parity-run2/sheet/run2';
 const formulaDir = 'docs/dev-reports/896-gas-formula-agg';
 const goldenFiles = [
@@ -33,7 +37,7 @@ function sha256(filePath) {
 }
 
 function writeJson(relativePath, value) {
-  const filePath = path.join(root, relativePath);
+  const filePath = path.isAbsolute(relativePath) ? relativePath : path.join(root, relativePath);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
@@ -112,7 +116,8 @@ for (const [index, feature] of features.componentFeatures.entries()) {
   });
 }
 
-const manifest = {
+function buildManifest() {
+  return {
   schemaVersion: 1,
   purpose: '#896 P0 골든·열 계약·적재 manifest 고정',
   reproducibility: {
@@ -172,13 +177,16 @@ const manifest = {
     rawGoogleSheetSnapshotPresent: false,
     note: '저장소에 이미 있는 기준선 JSON의 행/JSON 좌표를 고정했다. 원시 Google Sheets 셀 스냅샷은 이 라운드에서 새로 읽지 않았다.',
   },
-};
+  };
+}
+
+const manifest = buildManifest();
 
 const manifestLines = sourceRecords.map((record) => JSON.stringify(record)).join('\n') + '\n';
 fs.writeFileSync(path.join(outputDir, 'input-manifest.jsonl'), manifestLines, 'utf8');
 const sums = manifest.golden.map((entry) => `${entry.sha256}  ${entry.file}`).join('\n') + '\n';
 fs.writeFileSync(path.join(outputDir, 'golden', 'SHA256SUMS.txt'), sums, 'utf8');
-writeJson('docs/qa/896-p0-golden-manifest/manifest.json', manifest);
+writeJson(path.join(outputDir, 'manifest.json'), manifest);
 
 console.log(JSON.stringify({
   outputDirectory: 'docs/qa/896-p0-golden-manifest',
