@@ -74,6 +74,25 @@ describe('permission page catalog parity', () => {
     ).toEqual([])
   })
 
+  it('keeps the desktop row catalog complete and duplicate-free against BE PageCode', () => {
+    const backendPageCodes = extractBackendPageCodes(readPageCodeEnumSource())
+    const groupedPages = PAGE_GROUPS.flatMap((group) => group.pages)
+    const expectedBackendOnlyPageCodes = new Set(FRONTEND_REMOVED_BACKEND_PAGE_CODES)
+    const backendOnlyMissingRows = Array.from(backendPageCodes)
+      .filter((pageCode) => !groupedPages.includes(pageCode))
+      .filter((pageCode) => !expectedBackendOnlyPageCodes.has(pageCode))
+      .sort()
+
+    expect(
+      new Set(groupedPages).size,
+      'desktop 권한 행 목록에 중복 page-code가 있습니다.',
+    ).toBe(groupedPages.length)
+    expect(
+      backendOnlyMissingRows,
+      `BE 런타임 PageCode가 desktop 권한 행에서 누락되었습니다: ${backendOnlyMissingRows.join(', ')}`,
+    ).toEqual([])
+  })
+
   it('keeps permissionsApi PageCode union aligned with BE PageCode enum', () => {
     const backendPageCodes = extractBackendPageCodes(readPageCodeEnumSource())
     const frontendUnionPageCodes = extractFrontendPageCodeUnion(readPermissionsApiSource())
