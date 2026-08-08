@@ -708,6 +708,9 @@ export function MergeConvertDialog({
             label="출고 창고"
             placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '창고 코드 또는 이름 입력…'}
             hideVirtual
+            resultSelectionMode="single"
+            autoSelectSingleResult
+            resultSelectionTitle="출고 창고 검색 결과"
             required
             disabled={mergeMutation.isPending || warehousesQuery.isLoading}
             error={warehouseError}

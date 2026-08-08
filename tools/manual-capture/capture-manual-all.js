@@ -50,7 +50,7 @@ const OUT_ROOT = resolveQaShotsDir(path.resolve(
   'docs',
   'manual',
   'screenshots',
-))
+), { protect: false })
 const SAMPLE_ONLY = process.env.SAMPLE_ONLY === '1'
 
 /**

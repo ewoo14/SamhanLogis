@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -105,6 +106,7 @@ public class SlipPublishService {
     private final EntityManager entityManager;
     /** 출고전표 마감 게이트 — 발행 3경로(게이트④⑤⑥). */
     private final OutboundCutoffGuard cutoffGuard;
+    private final SlipClosedDateGuard closedDateGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
 
@@ -135,6 +137,7 @@ public class SlipPublishService {
         // 2. 헤더 매핑 — PR-G1: memo prepend 폐기, 사용자 자유 입력만 보존
         UUID warehouseId = warehouseCodeMapper.resolve(req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
+        closedDateGuard.assertCreatable(SlipType.OUTBOUND, slipDate, requesterId);
         String memo = preserveFreeMemo(req.memo());
         String requester = pickRequester(req.employeeCode(), requesterId);
 
@@ -151,7 +154,8 @@ public class SlipPublishService {
         slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트④] 견적 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate(),
+                SlipType.OUTBOUND, requesterId);
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }
@@ -220,6 +224,7 @@ public class SlipPublishService {
 
         UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
+        closedDateGuard.assertCreatable(SlipType.OUTBOUND, slipDate, requesterId);
         // PR-G1: memo prepend 폐기 — orderApprovedAt 만 사용자 자유 입력 memo 와 결합 보존 (snapshot 컬럼 없음)
         String memo = mergePartnerOrderApprovalIntoMemo(req.memo(), req.orderApprovedAt());
         String requester = pickRequester(req.employeeCode(), requesterId);
@@ -235,7 +240,8 @@ public class SlipPublishService {
         slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트⑤] 주문 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate(),
+                SlipType.OUTBOUND, requesterId);
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }
@@ -322,6 +328,7 @@ public class SlipPublishService {
 
         UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
+        closedDateGuard.assertCreatable(SlipType.OUTBOUND, slipDate, requesterId);
         String memo = preserveFreeMemo(req.memo());
         String requester = pickRequester(req.employeeCode(), requesterId);
 
@@ -334,7 +341,8 @@ public class SlipPublishService {
         slip.setSourceWarehouseCode(req.warehouseCode());
         // [게이트⑥] 주문 병합 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate(),
+                SlipType.OUTBOUND, requesterId);
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }

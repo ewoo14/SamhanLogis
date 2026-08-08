@@ -363,7 +363,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                AND (CAST(:to AS date) IS NULL OR s.slip_date <= CAST(:to AS date))
                AND (CAST(:partnerCode AS varchar) IS NULL OR s.partner_code = CAST(:partnerCode AS varchar))
                AND (CAST(:driverPhone AS varchar) IS NULL
-                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%'))
+                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%') ESCAPE E'\\\\')
                AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
                AND (:includeDeleted = TRUE OR s.is_deleted = FALSE)
              ORDER BY s.slip_date DESC, s.seq_no DESC
@@ -377,7 +377,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                AND (CAST(:to AS date) IS NULL OR s.slip_date <= CAST(:to AS date))
                AND (CAST(:partnerCode AS varchar) IS NULL OR s.partner_code = CAST(:partnerCode AS varchar))
                AND (CAST(:driverPhone AS varchar) IS NULL
-                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%'))
+                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%') ESCAPE E'\\\\')
                AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
                AND (:includeDeleted = TRUE OR s.is_deleted = FALSE)
             """,
@@ -415,8 +415,8 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             WHERE s.isDeleted = false
               AND s.slipType IN :slipTypes
               AND (
-                    lower(s.slipNo) LIKE lower(concat('%', :q, '%'))
-                    OR lower(coalesce(s.partnerName, '')) LIKE lower(concat('%', :q, '%'))
+                    lower(s.slipNo) LIKE lower(concat('%', :q, '%')) ESCAPE '\\'
+                    OR lower(coalesce(s.partnerName, '')) LIKE lower(concat('%', :q, '%')) ESCAPE '\\'
               )
             ORDER BY s.slipDate DESC, s.seqNo DESC
             """)

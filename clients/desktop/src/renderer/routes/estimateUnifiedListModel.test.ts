@@ -12,6 +12,7 @@ describe('통합 견적서 목록 모델', () => {
         partnerName: '종합 거래처',
         totalAmount: '110000',
         requesterId: '00000000-0000-0000-0000-000000000001',
+        requesterName: '홍길동',
         isDeleted: false,
       }],
       [{
@@ -34,7 +35,7 @@ describe('통합 견적서 목록 모델', () => {
         documentNo: '2026/08/08-1',
         partnerCode: 'P-1',
         amount: '220000',
-        writer: null,
+        owner: null,
         writtenAt: '2026-08-01T09:00:00',
       }),
       expect.objectContaining<Partial<UnifiedEstimateListRow>>({
@@ -42,7 +43,7 @@ describe('통합 견적서 목록 모델', () => {
         sourceLabel: '종합견적서',
         documentNo: '2026/08/07-1',
         amount: '110000',
-        writer: null,
+        owner: '홍길동',
       }),
     ])
   })

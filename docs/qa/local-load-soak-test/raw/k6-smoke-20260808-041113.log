@@ -1,0 +1,251 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: /scripts/mixed-load.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 2 max VUs, 1m30s max duration (incl. graceful stop):
+              * mixed: 2 looping VUs for 1m0s (gracefulStop: 30s)
+
+
+running (0m01.0s), 2/2 VUs, 0 complete and 0 interrupted iterations
+mixed   [   1% ] 2 VUs  0m00.8s/1m0s
+
+running (0m02.0s), 2/2 VUs, 1 complete and 0 interrupted iterations
+mixed   [   3% ] 2 VUs  0m01.8s/1m0s
+
+running (0m03.0s), 2/2 VUs, 1 complete and 0 interrupted iterations
+mixed   [   5% ] 2 VUs  0m02.8s/1m0s
+
+running (0m04.0s), 2/2 VUs, 3 complete and 0 interrupted iterations
+mixed   [   6% ] 2 VUs  0m03.8s/1m0s
+
+running (0m05.0s), 2/2 VUs, 4 complete and 0 interrupted iterations
+mixed   [   8% ] 2 VUs  0m04.8s/1m0s
+
+running (0m06.0s), 2/2 VUs, 4 complete and 0 interrupted iterations
+mixed   [  10% ] 2 VUs  0m05.8s/1m0s
+
+running (0m07.0s), 2/2 VUs, 5 complete and 0 interrupted iterations
+mixed   [  11% ] 2 VUs  0m06.8s/1m0s
+
+running (0m08.0s), 2/2 VUs, 6 complete and 0 interrupted iterations
+mixed   [  13% ] 2 VUs  0m07.8s/1m0s
+
+running (0m09.0s), 2/2 VUs, 6 complete and 0 interrupted iterations
+mixed   [  15% ] 2 VUs  0m08.8s/1m0s
+
+running (0m10.0s), 2/2 VUs, 7 complete and 0 interrupted iterations
+mixed   [  16% ] 2 VUs  0m09.8s/1m0s
+
+running (0m11.0s), 2/2 VUs, 7 complete and 0 interrupted iterations
+mixed   [  18% ] 2 VUs  0m10.8s/1m0s
+
+running (0m12.0s), 2/2 VUs, 7 complete and 0 interrupted iterations
+mixed   [  20% ] 2 VUs  0m11.8s/1m0s
+
+running (0m13.0s), 2/2 VUs, 8 complete and 0 interrupted iterations
+mixed   [  21% ] 2 VUs  0m12.8s/1m0s
+
+running (0m14.0s), 2/2 VUs, 9 complete and 0 interrupted iterations
+mixed   [  23% ] 2 VUs  0m13.8s/1m0s
+
+running (0m15.0s), 2/2 VUs, 11 complete and 0 interrupted iterations
+mixed   [  25% ] 2 VUs  0m14.8s/1m0s
+
+running (0m16.0s), 2/2 VUs, 11 complete and 0 interrupted iterations
+mixed   [  26% ] 2 VUs  0m15.8s/1m0s
+
+running (0m17.0s), 2/2 VUs, 11 complete and 0 interrupted iterations
+mixed   [  28% ] 2 VUs  0m16.8s/1m0s
+
+running (0m18.0s), 2/2 VUs, 11 complete and 0 interrupted iterations
+mixed   [  30% ] 2 VUs  0m17.8s/1m0s
+
+running (0m19.0s), 2/2 VUs, 11 complete and 0 interrupted iterations
+mixed   [  31% ] 2 VUs  0m18.8s/1m0s
+
+running (0m20.0s), 2/2 VUs, 13 complete and 0 interrupted iterations
+mixed   [  33% ] 2 VUs  0m19.8s/1m0s
+
+running (0m21.0s), 2/2 VUs, 13 complete and 0 interrupted iterations
+mixed   [  35% ] 2 VUs  0m20.8s/1m0s
+
+running (0m22.0s), 2/2 VUs, 14 complete and 0 interrupted iterations
+mixed   [  36% ] 2 VUs  0m21.8s/1m0s
+
+running (0m23.0s), 2/2 VUs, 15 complete and 0 interrupted iterations
+mixed   [  38% ] 2 VUs  0m22.8s/1m0s
+
+running (0m24.0s), 2/2 VUs, 16 complete and 0 interrupted iterations
+mixed   [  40% ] 2 VUs  0m23.8s/1m0s
+
+running (0m25.0s), 2/2 VUs, 17 complete and 0 interrupted iterations
+mixed   [  41% ] 2 VUs  0m24.8s/1m0s
+
+running (0m26.0s), 2/2 VUs, 18 complete and 0 interrupted iterations
+mixed   [  43% ] 2 VUs  0m25.8s/1m0s
+
+running (0m27.0s), 2/2 VUs, 18 complete and 0 interrupted iterations
+mixed   [  45% ] 2 VUs  0m26.8s/1m0s
+
+running (0m28.0s), 2/2 VUs, 18 complete and 0 interrupted iterations
+mixed   [  46% ] 2 VUs  0m27.8s/1m0s
+
+running (0m29.0s), 2/2 VUs, 19 complete and 0 interrupted iterations
+mixed   [  48% ] 2 VUs  0m28.8s/1m0s
+
+running (0m30.0s), 2/2 VUs, 21 complete and 0 interrupted iterations
+mixed   [  50% ] 2 VUs  0m29.8s/1m0s
+
+running (0m31.0s), 2/2 VUs, 21 complete and 0 interrupted iterations
+mixed   [  51% ] 2 VUs  0m30.8s/1m0s
+
+running (0m32.0s), 2/2 VUs, 22 complete and 0 interrupted iterations
+mixed   [  53% ] 2 VUs  0m31.8s/1m0s
+
+running (0m33.0s), 2/2 VUs, 22 complete and 0 interrupted iterations
+mixed   [  55% ] 2 VUs  0m32.8s/1m0s
+
+running (0m34.0s), 2/2 VUs, 23 complete and 0 interrupted iterations
+mixed   [  56% ] 2 VUs  0m33.8s/1m0s
+
+running (0m35.0s), 2/2 VUs, 23 complete and 0 interrupted iterations
+mixed   [  58% ] 2 VUs  0m34.8s/1m0s
+
+running (0m36.0s), 2/2 VUs, 23 complete and 0 interrupted iterations
+mixed   [  60% ] 2 VUs  0m35.8s/1m0s
+
+running (0m37.0s), 2/2 VUs, 24 complete and 0 interrupted iterations
+mixed   [  61% ] 2 VUs  0m36.8s/1m0s
+
+running (0m38.0s), 2/2 VUs, 25 complete and 0 interrupted iterations
+mixed   [  63% ] 2 VUs  0m37.8s/1m0s
+
+running (0m39.0s), 2/2 VUs, 25 complete and 0 interrupted iterations
+mixed   [  65% ] 2 VUs  0m38.8s/1m0s
+
+running (0m40.0s), 2/2 VUs, 25 complete and 0 interrupted iterations
+mixed   [  66% ] 2 VUs  0m39.8s/1m0s
+
+running (0m41.0s), 2/2 VUs, 26 complete and 0 interrupted iterations
+mixed   [  68% ] 2 VUs  0m40.8s/1m0s
+
+running (0m42.0s), 2/2 VUs, 27 complete and 0 interrupted iterations
+mixed   [  70% ] 2 VUs  0m41.8s/1m0s
+
+running (0m43.0s), 2/2 VUs, 27 complete and 0 interrupted iterations
+mixed   [  71% ] 2 VUs  0m42.8s/1m0s
+
+running (0m44.0s), 2/2 VUs, 27 complete and 0 interrupted iterations
+mixed   [  73% ] 2 VUs  0m43.8s/1m0s
+
+running (0m45.0s), 2/2 VUs, 28 complete and 0 interrupted iterations
+mixed   [  75% ] 2 VUs  0m44.8s/1m0s
+
+running (0m46.0s), 2/2 VUs, 28 complete and 0 interrupted iterations
+mixed   [  76% ] 2 VUs  0m45.8s/1m0s
+
+running (0m47.0s), 2/2 VUs, 29 complete and 0 interrupted iterations
+mixed   [  78% ] 2 VUs  0m46.8s/1m0s
+
+running (0m48.0s), 2/2 VUs, 30 complete and 0 interrupted iterations
+mixed   [  80% ] 2 VUs  0m47.8s/1m0s
+
+running (0m49.0s), 2/2 VUs, 31 complete and 0 interrupted iterations
+mixed   [  81% ] 2 VUs  0m48.8s/1m0s
+
+running (0m50.0s), 2/2 VUs, 31 complete and 0 interrupted iterations
+mixed   [  83% ] 2 VUs  0m49.8s/1m0s
+
+running (0m51.0s), 2/2 VUs, 31 complete and 0 interrupted iterations
+mixed   [  85% ] 2 VUs  0m50.8s/1m0s
+
+running (0m52.0s), 2/2 VUs, 33 complete and 0 interrupted iterations
+mixed   [  86% ] 2 VUs  0m51.8s/1m0s
+
+running (0m53.0s), 2/2 VUs, 33 complete and 0 interrupted iterations
+mixed   [  88% ] 2 VUs  0m52.8s/1m0s
+
+running (0m54.0s), 2/2 VUs, 34 complete and 0 interrupted iterations
+mixed   [  90% ] 2 VUs  0m53.8s/1m0s
+
+running (0m55.0s), 2/2 VUs, 34 complete and 0 interrupted iterations
+mixed   [  91% ] 2 VUs  0m54.8s/1m0s
+
+running (0m56.0s), 2/2 VUs, 35 complete and 0 interrupted iterations
+mixed   [  93% ] 2 VUs  0m55.8s/1m0s
+
+running (0m57.0s), 2/2 VUs, 35 complete and 0 interrupted iterations
+mixed   [  95% ] 2 VUs  0m56.8s/1m0s
+
+running (0m58.0s), 2/2 VUs, 36 complete and 0 interrupted iterations
+mixed   [  96% ] 2 VUs  0m57.8s/1m0s
+
+running (0m59.0s), 2/2 VUs, 36 complete and 0 interrupted iterations
+mixed   [  98% ] 2 VUs  0m58.8s/1m0s
+
+running (1m00.0s), 2/2 VUs, 37 complete and 0 interrupted iterations
+mixed   [ 100% ] 2 VUs  0m59.8s/1m0s
+
+running (1m01.0s), 2/2 VUs, 37 complete and 0 interrupted iterations
+mixed ↓ [ 100% ] 2 VUs  1m0s
+
+running (1m02.0s), 1/2 VUs, 38 complete and 0 interrupted iterations
+mixed ↓ [ 100% ] 2 VUs  1m0s
+
+
+  █ THRESHOLDS 
+
+    http_req_duration
+    ✓ 'p(95)<500' p(95)=20.79ms
+    ✓ 'p(99)<1500' p(99)=171.23ms
+
+    http_req_failed
+    ✗ 'rate<0.01' rate=1.27%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 622    10.028325/s
+    checks_succeeded...: 99.35% 618 out of 622
+    checks_failed......: 0.64%  4 out of 622
+
+    ✓ 로그인 envelope success=true
+    ✓ 로그인 token 존재
+    ✗ 2xx 응답
+      ↳  99% — ✓ 304 / ✗ 2
+    ✗ ApiResponse success=true
+      ↳  99% — ✓ 304 / ✗ 2
+
+    CUSTOM
+    samhan_http_4xx................: 2      0.032245/s
+
+    HTTP
+    http_req_duration..............: avg=13.49ms min=4.48ms med=9.78ms max=178.99ms p(90)=17.83ms p(95)=20.79ms
+      { expected_response:true }...: avg=13.42ms min=4.48ms med=9.78ms max=178.99ms p(90)=17.78ms p(95)=20.35ms
+    http_req_failed................: 1.27%  4 out of 313
+    http_reqs......................: 313    5.046408/s
+
+    EXECUTION
+    iteration_duration.............: avg=3.14s   min=1.28s  med=3.25s  max=5.03s    p(90)=4.56s   p(95)=4.76s  
+    iterations.....................: 39     0.628786/s
+    vus............................: 1      min=1        max=2
+    vus_max........................: 2      min=2        max=2
+
+    NETWORK
+    data_received..................: 700 kB 11 kB/s
+    data_sent......................: 154 kB 2.5 kB/s
+
+
+
+
+running (1m02.0s), 0/2 VUs, 39 complete and 0 interrupted iterations
+mixed ✓ [ 100% ] 2 VUs  1m0s
+time="2026-08-07T19:12:16Z" level=error msg="thresholds on metrics 'http_req_failed' have been crossed"

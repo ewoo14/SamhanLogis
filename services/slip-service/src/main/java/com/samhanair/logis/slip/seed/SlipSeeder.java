@@ -6,6 +6,7 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
@@ -199,12 +200,14 @@ public class SlipSeeder implements CommandLineRunner {
     private static final String DRIVER_PHONE_PATTERN = "010-1000-%04d";
 
     private final SlipRepository slipRepository;
+    private final SlipClosedDateGuard closedDateGuard;
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    public SlipSeeder(SlipRepository slipRepository) {
+    public SlipSeeder(SlipRepository slipRepository, SlipClosedDateGuard closedDateGuard) {
         this.slipRepository = slipRepository;
+        this.closedDateGuard = closedDateGuard;
     }
 
     @Override
@@ -233,6 +236,7 @@ public class SlipSeeder implements CommandLineRunner {
             }
 
             try {
+                closedDateGuard.assertAllowed(spec.type(), slipDate, EMPLOYEE_UUIDS.get(spec.idx() % EMPLOYEE_UUIDS.size()));
                 Slip slip = buildAndTransition(spec, slipNo, slipDate, seqNo);
                 slipRepository.save(slip);
                 created++;

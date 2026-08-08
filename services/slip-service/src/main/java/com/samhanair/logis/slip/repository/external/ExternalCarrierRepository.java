@@ -16,8 +16,8 @@ public interface ExternalCarrierRepository extends JpaRepository<ExternalCarrier
 
     @Query("SELECT c FROM ExternalCarrier c WHERE "
             + "(CAST(:q AS string) IS NULL "
-            + " OR LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + " OR LOWER(c.phone) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) )")
+            + " OR LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + " OR LOWER(c.phone) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' )")
     Page<ExternalCarrier> searchAdmin(@Param("q") String q, Pageable pageable);
 
     /** 복구용 deleted 단건 조회. {@code @SQLRestriction} 우회를 위해 native query 를 사용한다. */

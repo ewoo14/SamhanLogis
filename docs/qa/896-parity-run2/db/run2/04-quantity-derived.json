@@ -1,0 +1,115 @@
+{
+  "home": {
+    "inputs": {
+      "AJ060MXHNBC1": 1,
+      "AJ012BN1PBC2": 2,
+      "AM052BN4DBH1": 1
+    },
+    "output": [
+      {
+        "model": "AJ060MXHNBC1",
+        "name": "실외기_6HP 단배관",
+        "quantity": 1,
+        "derived": false
+      },
+      {
+        "model": "AJ012BN1PBC2",
+        "name": "실내기(1-Way) 무풍 소형 WIFI 내장 3평형",
+        "quantity": 2,
+        "derived": false
+      },
+      {
+        "model": "AM052BN4DBH1",
+        "name": "실내기(4-Way)_DVM_S 무풍 WIFI내장 13평형",
+        "quantity": 1,
+        "derived": false
+      },
+      {
+        "model": "FH-LFHLF",
+        "name": "유연호스 L형 1WAY",
+        "quantity": 2,
+        "derived": true
+      },
+      {
+        "model": "FH-LFHLN",
+        "name": "유연호스 L형 4WAY",
+        "quantity": 1,
+        "derived": true
+      },
+      {
+        "model": "AXJ-YA2512N",
+        "name": "Y형 실내기 분기관",
+        "quantity": 1,
+        "derived": true
+      },
+      {
+        "model": "AXJ-YA1509N",
+        "name": "Y형 실내기 분기관",
+        "quantity": 1,
+        "derived": true
+      },
+      {
+        "model": "AR-EC05",
+        "name": "무선리모컨(냉방전용)",
+        "quantity": 3,
+        "derived": true
+      },
+      {
+        "model": "PC1MWSK3NW",
+        "name": "판넬 1way 무풍소형 WIFI 내장",
+        "quantity": 2,
+        "derived": true
+      },
+      {
+        "model": "PC4NUFK1NW",
+        "name": "판넬 4way 무풍 WIFI 내장",
+        "quantity": 1,
+        "derived": true
+      }
+    ]
+  },
+  "commercial": {
+    "inputs": {
+      "AM072TNCDBH1": 2,
+      "AM052DNLDBH1": 1
+    },
+    "output": [
+      {
+        "model": "AM072TNCDBH1",
+        "name": "실내기 실링 18평형",
+        "quantity": 2,
+        "derived": false
+      },
+      {
+        "model": "AM052DNLDBH1",
+        "name": "실내기 DUCT(저정압 SLIM) 13평형",
+        "quantity": 1,
+        "derived": false
+      },
+      {
+        "model": "MDP-Z075SZED",
+        "name": "DUCT 드레인펌프(슬림덕트)",
+        "quantity": 1,
+        "derived": true
+      },
+      {
+        "model": "ADP-F075SP",
+        "name": "실링용 드레인펌프",
+        "quantity": 2,
+        "derived": true
+      },
+      {
+        "model": "AR-EH05",
+        "name": "무선리모컨(냉난방전용)",
+        "quantity": 2,
+        "derived": true
+      },
+      {
+        "model": "AWR-WE13N",
+        "name": "유선리모컨(통합)",
+        "quantity": 1,
+        "derived": true
+      }
+    ]
+  }
+}

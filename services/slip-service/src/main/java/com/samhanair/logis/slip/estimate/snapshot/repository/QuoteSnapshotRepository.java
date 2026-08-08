@@ -58,7 +58,7 @@ public interface QuoteSnapshotRepository extends JpaRepository<QuoteSnapshot, UU
     @Query("""
             SELECT q FROM QuoteSnapshot q
             WHERE (:userEmail IS NULL OR q.authorEmail = :userEmail)
-              AND LOWER(q.custName) LIKE LOWER(CONCAT('%', CAST(:custName AS string), '%'))
+              AND LOWER(q.custName) LIKE LOWER(CONCAT('%', CAST(:custName AS string), '%')) ESCAPE '\\'
             ORDER BY q.savedAt DESC
             """)
     List<QuoteSnapshot> findByCustomer(@Param("userEmail") String userEmail,
