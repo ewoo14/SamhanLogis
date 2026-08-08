@@ -178,6 +178,7 @@ export const WarehouseAutocomplete = forwardRef<
   // 검색 모달 취소로 input 포커스가 복원될 때 사용자의 draft를 보존한다.
   const preserveDraftOnNextFocusRef = useRef(false)
   const lastTypedDraftRef = useRef<string | null>(null)
+  const canReopenSelectionRef = useRef(false)
 
   const candidates = useMemo(
     () => searchWarehouses(visibleWarehouses, draft),
@@ -251,6 +252,25 @@ export const WarehouseAutocomplete = forwardRef<
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
+
+    if (
+      e.key === 'Enter' &&
+      resultSelectionMode &&
+      canReopenSelectionRef.current &&
+      draft.trim()
+    ) {
+      e.preventDefault()
+      const nextCandidates = searchWarehouses(visibleWarehouses, draft)
+      if (autoSelectSingleResult && nextCandidates.length === 1) {
+        pick(nextCandidates[0]!)
+      } else if (nextCandidates.length > 1) {
+        setSelectionCandidates(nextCandidates)
+        setSelectionOpen(true)
+        setOpen(false)
+      }
+      return
+    }
+
     if (!open) return
 
     if (e.key === 'Escape') {
@@ -275,6 +295,7 @@ export const WarehouseAutocomplete = forwardRef<
   }
 
   const pick = (w: Warehouse) => {
+    canReopenSelectionRef.current = false
     onChange(w.id, w)
     setDraft(`${w.code} · ${w.name}`)
     setActiveIndex(-1)
@@ -287,6 +308,7 @@ export const WarehouseAutocomplete = forwardRef<
       blurTimer.current = undefined
     }
     preserveDraftOnNextFocusRef.current = true
+    canReopenSelectionRef.current = true
     setSelectionOpen(false)
     setSelectionCandidates([])
     setDraft(lastTypedDraftRef.current ?? '')

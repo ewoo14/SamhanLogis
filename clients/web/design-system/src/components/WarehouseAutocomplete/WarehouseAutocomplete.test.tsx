@@ -77,6 +77,63 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     expect((input as HTMLInputElement).value).toBe('창고')
   })
 
+  it('검색 모달 취소 뒤 Enter로 같은 draft의 후보 모달을 다시 연다', () => {
+    render(
+      <WarehouseAutocomplete
+        warehouses={warehouses}
+        value={null}
+        onChange={vi.fn()}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+    fireEvent.click(screen.getByRole('button', { name: '취소' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getAllByRole('radio')).toHaveLength(2)
+  })
+
+  it('취소 뒤 Enter에서 후보가 1건이면 autoSelectSingleResult대로 확정한다', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <WarehouseAutocomplete
+        warehouses={warehouses}
+        value={null}
+        onChange={onChange}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '창고' } })
+    fireEvent.click(screen.getByRole('button', { name: '취소' }))
+    rerender(
+      <WarehouseAutocomplete
+        warehouses={[warehouses[0]!]}
+        value={null}
+        onChange={onChange}
+        label="출고 창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+      />,
+    )
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: '출고 창고' }), { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledWith(warehouses[0]!.id, warehouses[0])
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('검색 모달에서 선택 확정하면 입력값을 선택값으로 교체한다', () => {
     const onChange = vi.fn()
     function ControlledWarehouse() {
@@ -106,6 +163,8 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
 
     expect(onChange).toHaveBeenCalledWith(warehouses[0]!.id, warehouses[0])
     expect(input.value).toBe('HQ-001 · 본사 창고')
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('검색 모달 바깥 클릭은 취소와 같이 draft를 보존한다', () => {
@@ -193,6 +252,7 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
   it('후보 0건이면 expanded/controls/active/listbox 없이 status만 표시한다', () => {
     const { input } = renderWarehouse()
     fireEvent.change(input, { target: { value: '없는 창고' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
 
     expect(input.getAttribute('aria-expanded')).toBe('false')
     expect(input.getAttribute('aria-controls')).toBeNull()
