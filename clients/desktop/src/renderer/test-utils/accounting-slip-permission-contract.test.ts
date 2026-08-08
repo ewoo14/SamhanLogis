@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { getMockResponse } from '../api/mock'
 
 const workspace = resolve(__dirname, '../../..')
 const routes = readFileSync(resolve(workspace, 'src/renderer/routes/index.tsx'), 'utf8')
@@ -15,6 +16,37 @@ const migrationPath = resolve(
   '../../services/auth-service/src/main/resources/db/migration/V97__align_accounting_slip_permissions.sql',
 )
 const migration = existsSync(migrationPath) ? readFileSync(migrationPath, 'utf8') : ''
+
+type PermissionCell = {
+  view: boolean
+  create?: boolean
+  update?: boolean
+  delete?: boolean
+  canView?: boolean
+  canEdit?: boolean
+}
+
+type MockEnvelope<T> = { data: T }
+
+function getRolePermissionCell(role: string, pageCode: string): PermissionCell {
+  const response = getMockResponse({
+    method: 'GET',
+    url: `/auth/admin/permissions/account/mock-account-${role.toLowerCase()}`,
+  }) as MockEnvelope<Record<string, PermissionCell>> | null
+  const cell = response?.data?.[pageCode]
+  expect(cell, `${role} permission cell is missing for ${pageCode}`).toBeDefined()
+  return cell as PermissionCell
+}
+
+function getMatrixPermissionCell(role: string, pageCode: string): PermissionCell {
+  const response = getMockResponse({
+    method: 'GET',
+    url: '/auth/admin/permissions',
+  }) as MockEnvelope<Record<string, Record<string, PermissionCell>>> | null
+  const cell = response?.data?.[role]?.[pageCode]
+  expect(cell, `${role} permission cell is missing for ${pageCode}`).toBeDefined()
+  return cell as PermissionCell
+}
 
 describe('accounting slip permission contract', () => {
   it('guards sales and purchase list/create routes with the BE accounting page codes and matching actions', () => {
@@ -53,25 +85,38 @@ describe('accounting slip permission contract', () => {
     expect(mock).toContain("'accounting.sales-slip.list'")
     expect(mock).toContain("'accounting.purchase-slip.list'")
 
-    const accountantBlock = mock.match(/ACCOUNTANT: \[(.*?)\n  \],\n  WAREHOUSE:/s)?.[1] ?? ''
+    for (const role of ['MASTER', 'ACCOUNTANT']) {
+      for (const pageCode of [
+        'accounting.sales-slip.accounting',
+        'accounting.purchase-slip.accounting',
+      ]) {
+        const cell = getMatrixPermissionCell(role, pageCode)
+        expect(cell.canView).toBe(true)
+        expect(cell.canEdit).toBe(true)
+      }
+    }
 
-    expect(accountantBlock).toContain('accounting.sales-slip.accounting')
-    expect(accountantBlock).toContain('accounting.purchase-slip.accounting')
-    expect(accountantBlock).toContain('ecount.mig.ops-dashboard')
-    expect(accountantBlock).toContain('messenger.send')
+    expect(getRolePermissionCell('accountant', 'ecount.mig.ops-dashboard').view).toBe(true)
+    expect(getRolePermissionCell('accountant', 'messenger.send').view).toBe(true)
   })
 
   it('RED-B: MANAGER/SALES mock matrix keeps both accounting slip accounting codes denied', () => {
-    const managerBlock = mock.match(/MANAGER: \[(.*?)\n  \],\n  DISPATCH:/s)?.[1] ?? ''
-    const salesBlock = mock.match(/SALES: \[(.*?)\n  \],\n  ACCOUNTANT:/s)?.[1] ?? ''
+    for (const role of ['manager', 'sales']) {
+      for (const pageCode of [
+        'accounting.sales-slip.accounting',
+        'accounting.purchase-slip.accounting',
+      ]) {
+        const cell = getRolePermissionCell(role, pageCode)
+        expect(cell.view).toBe(false)
+        expect(cell.create).toBe(false)
+        expect(cell.update).toBe(false)
+        expect(cell.delete).toBe(false)
+      }
+    }
 
-    expect(managerBlock).not.toContain('accounting.sales-slip.accounting')
-    expect(managerBlock).not.toContain('accounting.purchase-slip.accounting')
-    expect(managerBlock).toContain('ecount.mig.ops-dashboard')
-    expect(managerBlock).toContain('messenger.send')
-    expect(salesBlock).not.toContain('accounting.sales-slip.accounting')
-    expect(salesBlock).not.toContain('accounting.purchase-slip.accounting')
-    expect(salesBlock).toContain('messenger.send')
-    expect(salesBlock).not.toContain('ecount.mig.ops-dashboard')
+    expect(getRolePermissionCell('manager', 'ecount.mig.ops-dashboard').view).toBe(true)
+    expect(getRolePermissionCell('manager', 'messenger.send').view).toBe(true)
+    expect(getRolePermissionCell('sales', 'messenger.send').view).toBe(true)
+    expect(getRolePermissionCell('sales', 'ecount.mig.ops-dashboard').view).toBe(false)
   })
 })
