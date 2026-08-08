@@ -56,6 +56,9 @@ function Reset-Fixture {
 try {
     New-Fixture
 
+    $workflow = Get-Content -LiteralPath (Join-Path $repoRoot '.github/workflows/applied-migration-guard.yml') -Raw -Encoding UTF8
+    if ($workflow -notmatch 'github\.event\.before|BeforeRef') { throw 'push workflow does not pass the event previous SHA to the guard' }
+
     # RED-B: an already-present migration modified, deleted, or renamed must fail.
     Set-Content -LiteralPath (Join-Path $fixtureRoot 'services/example/src/main/resources/db/migration/V1__initial.sql') -Value "-- comment changed`nCREATE TABLE fixture (id integer);`n" -Encoding UTF8
     Commit-Fixture 'modify applied migration'
@@ -74,6 +77,35 @@ try {
     $renamed = Assert-ExitCode 'renamed applied migration' { & $guard -RepoPath $fixtureRoot -BaseRef main } 1
     if (($renamed -join "`n") -notmatch 'R.*V1__initial\.sql|V1__renamed\.sql') { throw "renamed migration was not reported: $($renamed -join "`n")" }
     Reset-Fixture
+
+    # RED-B: direct pushes to main must compare against the push's previous SHA,
+    # not origin/main (which already points at the pushed HEAD).
+    Invoke-Git $fixtureRoot @('checkout', 'main') | Out-Null
+    $pushBefore = ((Invoke-Git $fixtureRoot @('rev-parse', 'HEAD') | Out-String).Trim())
+    Set-Content -LiteralPath (Join-Path $fixtureRoot 'services/example/src/main/resources/db/migration/V1__initial.sql') -Value "-- direct push edit`nCREATE TABLE fixture (id integer);`n" -Encoding UTF8
+    Commit-Fixture 'direct push migration edit'
+    $directPush = Assert-ExitCode 'direct push migration edit' { & $guard -RepoPath $fixtureRoot -BaseRef $pushBefore } 1
+    if (($directPush -join "`n") -notmatch 'V1__initial\.sql|checksum') { throw "direct push migration was not reported: $($directPush -join "`n")" }
+    Invoke-Git $fixtureRoot @('reset', '--hard', $pushBefore) | Out-Null
+
+    # The whole push range must be inspected, not only its final commit.
+    Set-Content -LiteralPath (Join-Path $fixtureRoot 'README.md') -Value 'first push commit' -Encoding UTF8
+    Commit-Fixture 'direct push unrelated commit'
+    Set-Content -LiteralPath (Join-Path $fixtureRoot 'services/example/src/main/resources/db/migration/V1__initial.sql') -Value "-- second commit edit`nCREATE TABLE fixture (id integer);`n" -Encoding UTF8
+    Commit-Fixture 'direct push migration edit in second commit'
+    $rangePush = Assert-ExitCode 'multi-commit direct push migration edit' { & $guard -RepoPath $fixtureRoot -BaseRef $pushBefore } 1
+    if (($rangePush -join "`n") -notmatch 'V1__initial\.sql') { throw "multi-commit push migration was not reported: $($rangePush -join "`n")" }
+    Invoke-Git $fixtureRoot @('reset', '--hard', $pushBefore) | Out-Null
+
+    # First push has no previous SHA; it must remain a valid, non-blocking case.
+    $firstPush = Assert-ExitCode 'first direct push' { & $guard -RepoPath $fixtureRoot -BaseRef 'origin/main' -BeforeRef ('0' * 40) } 0
+    if (($firstPush -join "`n") -notmatch 'PASS') { throw "first push result was not explicit: $($firstPush -join "`n")" }
+
+    # A force-push may make the previous SHA unavailable locally; do not crash
+    # or block an otherwise innocent push when the comparison object is gone.
+    $missingBefore = Assert-ExitCode 'force-push missing previous SHA' { & $guard -RepoPath $fixtureRoot -BaseRef 'origin/main' -BeforeRef ('f' * 40) } 0
+    if (($missingBefore -join "`n") -notmatch 'PASS|WARN') { throw "missing previous SHA result was not explicit: $($missingBefore -join "`n")" }
+    Invoke-Git $fixtureRoot @('checkout', 'feature') | Out-Null
 
     # RED-A: a new migration, unrelated change, and the current main state pass.
     New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'services/example/src/main/resources/db/migration') -Force | Out-Null

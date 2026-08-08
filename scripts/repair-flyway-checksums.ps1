@@ -7,6 +7,21 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$script:RedactionValues = @()
+
+function Redact-Text([string] $Text) {
+    $redacted = $Text
+    foreach ($value in $script:RedactionValues) {
+        if (-not [string]::IsNullOrEmpty($value)) {
+            $redacted = $redacted.Replace($value, '<redacted>')
+        }
+    }
+    return $redacted
+}
+
+function Redact-Arguments([string[]] $Arguments) {
+    return @($Arguments | ForEach-Object { Redact-Text ([string] $_) })
+}
 
 function Read-DotEnv([string] $Path) {
     $values = @{}
@@ -31,10 +46,11 @@ function Invoke-Docker([string[]] $Arguments, [switch] $AllowFailure) {
     } finally {
         $ErrorActionPreference = $previousErrorAction
     }
+    $redactedOutput = @($output | ForEach-Object { Redact-Text ([string] $_) })
     if (-not $AllowFailure -and $LASTEXITCODE -ne 0) {
-        throw "docker $($Arguments -join ' ') failed with exit code $LASTEXITCODE`n$($output -join [Environment]::NewLine)"
+        throw "docker $((Redact-Arguments $Arguments) -join ' ') failed with exit code $LASTEXITCODE`n$($redactedOutput -join [Environment]::NewLine)"
     }
-    return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = @($output) }
+    return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $redactedOutput }
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -70,6 +86,7 @@ if (-not $dbPassword) {
     if ($passwordLine) { $dbPassword = ($passwordLine -split '=', 2)[1] }
 }
 if (-not $dbPassword) { throw 'DB 비밀번호가 환경 파일 또는 실행 중 Postgres 컨테이너에서 제공되지 않았습니다.' }
+$script:RedactionValues = @($dbPassword)
 
 $targets = @(
     [pscustomobject]@{ Name = 'auth_db'; Database = 'auth_db'; Location = (Join-Path $repoRoot 'services/auth-service/src/main/resources/db/migration') },
@@ -79,18 +96,25 @@ $targets = @(
 foreach ($target in $targets) {
     if (-not (Test-Path -LiteralPath $target.Location)) { throw "Migration location not found: $($target.Location)" }
     $jdbcUrl = "jdbc:postgresql://postgres:5432/$($target.Database)"
-    $common = @('run', '--rm', '--network', $Network, '-e', "FLYWAY_URL=$jdbcUrl", '-e', "FLYWAY_USER=$dbUser", '-e', "FLYWAY_PASSWORD=$dbPassword", '-v', "$($target.Location):/flyway/sql:ro", $FlywayImage)
-    $validate = Invoke-Docker ($common + @('validate')) -AllowFailure
-    $mismatchLines = @($validate.Output | Where-Object { $_ -match 'Migration checksum mismatch for migration version' })
-    $versions = @($mismatchLines | ForEach-Object { if ($_ -match 'version\s+([0-9.]+)') { $Matches[1] } })
-    if ($versions.Count -eq 0 -and $validate.ExitCode -ne 0) {
-        throw "$($target.Name) validate failed for a reason other than a checksum mismatch:`n$($validate.Output -join [Environment]::NewLine)"
-    }
-    $displayVersions = if ($versions.Count) { $versions -join ', ' } else { '(none)' }
-    Write-Output "$($target.Name): checksum mismatch versions = $displayVersions"
-    if ($PSCmdlet.ShouldProcess($target.Name, 'Flyway repair (checksum metadata only)')) {
-        $repair = Invoke-Docker ($common + @('repair'))
-        Write-Output "$($target.Name): repair completed"
-        $repair.Output | Where-Object { $_ -match 'Successfully repaired|Repair of' } | ForEach-Object { Write-Output $_ }
+    $credentialFile = [System.IO.Path]::GetTempFileName()
+    try {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($credentialFile, "FLYWAY_URL=$jdbcUrl`nFLYWAY_USER=$dbUser`nFLYWAY_PASSWORD=$dbPassword`n", $utf8NoBom)
+        $common = @('run', '--rm', '--network', $Network, '--env-file', $credentialFile, '-v', "$($target.Location):/flyway/sql:ro", $FlywayImage)
+        $validate = Invoke-Docker ($common + @('validate')) -AllowFailure
+        $mismatchLines = @($validate.Output | Where-Object { $_ -match 'Migration checksum mismatch for migration version' })
+        $versions = @($mismatchLines | ForEach-Object { if ($_ -match 'version\s+([0-9.]+)') { $Matches[1] } })
+        if ($versions.Count -eq 0 -and $validate.ExitCode -ne 0) {
+            throw "$($target.Name) validate failed for a reason other than a checksum mismatch:`n$($validate.Output -join [Environment]::NewLine)"
+        }
+        $displayVersions = if ($versions.Count) { $versions -join ', ' } else { '(none)' }
+        Write-Output "$($target.Name): checksum mismatch versions = $displayVersions"
+        if ($PSCmdlet.ShouldProcess($target.Name, 'Flyway repair (checksum metadata only)')) {
+            $repair = Invoke-Docker ($common + @('repair'))
+            Write-Output "$($target.Name): repair completed"
+            $repair.Output | Where-Object { $_ -match 'Successfully repaired|Repair of' } | ForEach-Object { Write-Output $_ }
+        }
+    } finally {
+        if (Test-Path -LiteralPath $credentialFile) { Remove-Item -LiteralPath $credentialFile -Force -Confirm:$false -WhatIf:$false }
     }
 }

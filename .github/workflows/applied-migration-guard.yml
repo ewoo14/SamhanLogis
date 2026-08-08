@@ -37,4 +37,6 @@ jobs:
 
       - name: 적용된 마이그레이션 변경 검사
         shell: pwsh
-        run: ./scripts/check-applied-migrations.ps1 -BaseRef origin/main
+        env:
+          PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
+        run: ./scripts/check-applied-migrations.ps1 -BaseRef origin/main -BeforeRef $env:PUSH_BEFORE_SHA

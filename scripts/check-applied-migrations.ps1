@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string] $RepoPath,
-    [string] $BaseRef = 'origin/main'
+    [string] $BaseRef = 'origin/main',
+    [string] $BeforeRef
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,8 +33,29 @@ if (-not (Test-Path -LiteralPath $RepoPath -PathType Container)) {
     throw "Repository path not found: $RepoPath"
 }
 
-Invoke-Git @('rev-parse', '--verify', $BaseRef) | Out-Null
-$diffLines = @(Invoke-Git @('diff', '--name-status', '--find-renames', "$BaseRef...HEAD"))
+$comparisonRef = if (-not [string]::IsNullOrWhiteSpace($BeforeRef)) { $BeforeRef } else { $BaseRef }
+$isPushComparison = -not [string]::IsNullOrWhiteSpace($BeforeRef)
+$emptyTree = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+
+if ($comparisonRef -match '^0+$') {
+    $comparisonRef = $emptyTree
+}
+
+$refExists = $true
+try {
+    Invoke-Git @('cat-file', '-e', "$comparisonRef^{commit}") | Out-Null
+} catch {
+    $refExists = $false
+}
+
+if (-not $refExists) {
+    Write-Output "WARN: 비교 기준 커밋을 로컬에서 찾지 못했습니다($comparisonRef). force-push의 이전 SHA가 소실된 경우이므로 검사를 건너뜁니다."
+    Write-Output 'PASS: 비교 기준 부재로 적용된 마이그레이션 변경을 판정하지 않음.'
+    exit 0
+}
+
+$diffSpec = if ($isPushComparison) { "$comparisonRef..HEAD" } else { "$comparisonRef...HEAD" }
+$diffLines = @(Invoke-Git @('diff', '--name-status', '--find-renames', $diffSpec))
 $violations = @()
 
 foreach ($line in $diffLines) {
