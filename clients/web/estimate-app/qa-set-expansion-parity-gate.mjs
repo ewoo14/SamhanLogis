@@ -14,9 +14,22 @@ const REPO = path.resolve(HERE, '../../..');
 const DEFAULT_SOURCE = 'docs/qa/896-p0-golden-manifest/input-manifest.jsonl';
 const DEFAULT_GOLDEN = 'docs/qa/896-p0-golden-manifest/golden/02-set-expansion.json';
 const LEGACY_HTML = 'tools/legacy-gas/종합견적서/index.html';
-// explodeSetParts/ explodeCommSets_가 실제 인쇄행으로 반환하는 필드만 비교한다.
-// feature/isDefault는 P0 원본 카탈로그 메타데이터이며 반환 상세행에는 없다.
+// feature/isDefault 는 골든 전 행이 기본값('' / false)이라 비교 신호가 없다.
+//   single 682행 · commercial 170행 모두 feature 비어있음 · isDefault=false
+// 게이트 쪽 정규화는 원천 메타데이터에서 값을 채우므로 비교하면 682건이
+// 무의미한 차이로 잡힌다. 골든이 이 축을 담게 되면 다시 넣는다.
 const FIELDS = ['model', 'name', 'kind', 'unit', 'quantity', 'unitPrice', 'subtotal', 'spec'];
+
+const SOURCE_TABS = ['홈멀티', '싱글 세트', '싱글 구성품', '상업멀티', '상업멀티 구성', '구형'];
+const ALL_SHEET_TABS = [
+  '전표생성폼', '종합견적서', '전표업로드목록', '홈멀티', '홈멀티_단가인상', '싱글 세트',
+  '싱글 세트_단가인상', '싱글 구성품', '싱글 구성품_단가인상', '상업멀티',
+  '상업멀티_단가인상', '싱글 자재가격', '상업멀티 구성', '상업멀티 구성_단가인상',
+  '분기계산', '구형', '장비스펙', '부속품스펙', '홈멀티_템플릿', '거래처',
+  '전표생성폼_템플릿', '싱글 세트_템플릿', '상업멀티_템플릿', '분기계산_템플릿',
+  '구형_템플릿', '담당자', '추천실외기',
+];
+const OUT_OF_SCOPE_TABS = ALL_SHEET_TABS.filter((tab) => !SOURCE_TABS.includes(tab));
 
 function balancedSlice(source, start) {
   const open = source.indexOf('{', start);
@@ -169,12 +182,28 @@ export function runGate({ root = REPO, sourcePath = DEFAULT_SOURCE, goldenPath =
   const expected = JSON.parse(fs.readFileSync(golden, 'utf8'));
   const actual = expandCatalog(catalog);
   const differences = compareExpansion(actual, expected);
-  return { passed: differences.length === 0, differences, actual, expected, source: sourcePath.replaceAll(path.sep, '/'), golden: goldenPath.replaceAll(path.sep, '/') };
+  return {
+    passed: differences.length === 0,
+    differences,
+    actual,
+    expected,
+    source: sourcePath.replaceAll(path.sep, '/'),
+    golden: goldenPath.replaceAll(path.sep, '/'),
+    scope: {
+      sourceTabs: SOURCE_TABS,
+      allSheetTabs: ALL_SHEET_TABS,
+      codeReadTabCount: 17,
+      outOfScopeTabs: OUT_OF_SCOPE_TABS,
+    },
+  };
 }
 
 function print(result) {
   console.log('== #896 P2 세트 전개 상세행 parity gate ==');
   console.log(`source: ${result.source}`); console.log(`golden: ${result.golden}`);
+  console.log(`scope: sourceTab ${result.scope.sourceTabs.length}개 (정규화 manifest; 세트 판정은 싱글/상업 계열) — 전체 시트 탭 ${result.scope.allSheetTabs.length}개 중 code-read ${result.scope.codeReadTabCount}개 기준 부분집합`);
+  console.log('uncovered: feature · isDefault — 골든 전 행이 기본값이라 판정 불가');
+  console.log(`scope-outside-tabs: ${result.scope.outOfScopeTabs.join(', ')}`);
   console.log(`sets: single=${result.actual.single.length}/${result.expected.single.length}, commercial=${result.actual.commercial.length}/${result.expected.commercial.length}`);
   if (!result.differences.length) { console.log('PASS: 전개 상세행 0건 차이'); return; }
   console.log(`FAIL: 차이 ${result.differences.length}건`);
