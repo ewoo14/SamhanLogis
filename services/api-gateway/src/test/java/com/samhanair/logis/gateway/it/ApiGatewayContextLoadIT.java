@@ -360,6 +360,7 @@ class ApiGatewayContextLoadIT {
                 "/admin/external-carriers", "/admin/external-carriers/**",
                 "/admin/external-dispatches", "/admin/external-dispatches/**",
                 "/admin/slip-cutoffs", "/admin/slip-cutoffs/**",
+                "/admin/slip-closing-baselines", "/admin/slip-closing-baselines/**",
                 "/admin/dispatch-groups", "/admin/dispatch-groups/**",
                 "/admin/carriers", "/admin/carriers/**",
                 "/admin/dispatches/pre-classify");
