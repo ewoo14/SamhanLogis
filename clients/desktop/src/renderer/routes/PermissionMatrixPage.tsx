@@ -443,6 +443,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'slip.photo-audit': '사진 감사',
   'slip.comments': '댓글',
   'slip.audit-overlay': 'audit patch',
+  'slip.closed-date-exception': '마감일 예외 생성',
   'slip.audit-revert': 'audit revert',
   'slip.edit-requests': '전표 수정 요청',
   'slip.edit-requests.decide': '전표 요청 승인',

@@ -144,6 +144,7 @@ export type PageCode =
   | 'slip.mobile-sales'
   | 'slip.publish.from-estimate'
   | 'slip.publish.from-partner-order'
+  | 'slip.closed-date-exception'
   | 'inbound.inspection'
   | 'dispatch.board'
   | 'hr.carriers'

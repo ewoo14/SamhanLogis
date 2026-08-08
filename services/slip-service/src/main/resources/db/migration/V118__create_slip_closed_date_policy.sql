@@ -1,5 +1,5 @@
--- #1123 S1: 전표 종류별 날짜 마감 정책.
--- 날짜 하나마다 자동 행을 만들지 않고, 기준선 + 예외/명시 규칙으로 판정한다.
+-- #1123 S1: 전표 종류별 전표일 마감 정책.
+-- 날짜별 행을 자동으로 만들지 않고, 기준선 + 예외/명시 규칙으로 판정한다.
 
 CREATE TABLE slip_closing_baselines (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
