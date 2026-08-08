@@ -26,6 +26,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
@@ -204,23 +206,40 @@ public class SlipSeeder implements CommandLineRunner {
     private final SlipRepository slipRepository;
     private final SlipClosedDateGuard closedDateGuard;
     private final ProductClient productClient;
+    private final SeedDependencyState dependencyState;
+    private final PlatformTransactionManager transactionManager;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     public SlipSeeder(SlipRepository slipRepository, SlipClosedDateGuard closedDateGuard,
-                      ProductClient productClient) {
+                      ProductClient productClient, SeedDependencyState dependencyState) {
+        this(slipRepository, closedDateGuard, productClient, dependencyState, null);
+    }
+
+    /** 운영 경로 — callback 반환 후 commit까지 run의 예외 경계 안에 둔다. */
+    @org.springframework.beans.factory.annotation.Autowired
+    public SlipSeeder(SlipRepository slipRepository, SlipClosedDateGuard closedDateGuard,
+                      ProductClient productClient, SeedDependencyState dependencyState,
+                      PlatformTransactionManager transactionManager) {
         this.slipRepository = slipRepository;
         this.closedDateGuard = closedDateGuard;
         this.productClient = productClient;
+        this.dependencyState = dependencyState;
+        this.transactionManager = transactionManager;
     }
 
     @Override
-    @Transactional
     public void run(String... args) {
         try {
-            seed(args);
+            if (transactionManager == null) {
+                seed(args);
+            } else {
+                new TransactionTemplate(transactionManager).executeWithoutResult(status -> seed(args));
+            }
+            dependencyState.markSlipSeedSucceeded();
         } catch (RuntimeException ex) {
+            dependencyState.markSlipSeedFailed();
             if (TransactionSynchronizationManager.isActualTransactionActive()) {
                 TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             }
@@ -265,6 +284,8 @@ public class SlipSeeder implements CommandLineRunner {
                 throw ex;
             }
         }
+        // save()는 commit 시점까지 SQL 오류를 지연할 수 있으므로 catch 범위 안에서 flush한다.
+        slipRepository.flush();
         log.info("[SlipSeeder] 완료 — 신규 {}건, skip {}건 (총 {}건)",
                 created, skipped, created + skipped);
     }

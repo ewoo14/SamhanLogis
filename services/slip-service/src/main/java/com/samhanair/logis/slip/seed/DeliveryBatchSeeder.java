@@ -66,16 +66,23 @@ public class DeliveryBatchSeeder implements CommandLineRunner {
 
     private final DeliveryBatchRepository batchRepository;
     private final SlipRepository slipRepository;
+    private final SeedDependencyState dependencyState;
 
     public DeliveryBatchSeeder(DeliveryBatchRepository batchRepository,
-                               SlipRepository slipRepository) {
+                               SlipRepository slipRepository, SeedDependencyState dependencyState) {
         this.batchRepository = batchRepository;
         this.slipRepository = slipRepository;
+        this.dependencyState = dependencyState;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
+        if (!dependencyState.isSlipSeedSucceeded()) {
+            log.error("[DeliveryBatchSeeder] 시딩을 건너뜁니다 — 선행 SlipSeeder가 성공하지 않았습니다. 상태={}",
+                    dependencyState.slipSeedStatus());
+            return;
+        }
         log.info("[DeliveryBatchSeeder] Stage 2 시드 시작 — 30 batch (driver 10명 × 3 batch)");
 
         int created = 0;

@@ -52,14 +52,21 @@ public class SlipLockSeeder implements CommandLineRunner {
     private static final LocalDate LOCK_END   = LocalDate.of(2026, 1, 31);
 
     private final SlipRepository slipRepository;
+    private final SeedDependencyState dependencyState;
 
-    public SlipLockSeeder(SlipRepository slipRepository) {
+    public SlipLockSeeder(SlipRepository slipRepository, SeedDependencyState dependencyState) {
         this.slipRepository = slipRepository;
+        this.dependencyState = dependencyState;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
+        if (!dependencyState.isSlipSeedSucceeded()) {
+            log.error("[SlipLockSeeder] 시딩을 건너뜁니다 — 선행 SlipSeeder가 성공하지 않았습니다. 상태={}",
+                    dependencyState.slipSeedStatus());
+            return;
+        }
         log.info("[SlipLockSeeder] P2 마감 lock 시드 시작 — 기간 {} ~ {}, 대상 상태 CONFIRMED",
                 LOCK_START, LOCK_END);
 

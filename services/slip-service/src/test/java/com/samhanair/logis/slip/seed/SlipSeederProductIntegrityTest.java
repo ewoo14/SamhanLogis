@@ -32,11 +32,13 @@ class SlipSeederProductIntegrityTest {
     @Mock
     private ProductClient productClient;
 
+    private final SeedDependencyState dependencyState = new SeedDependencyState();
+
     @Test
     void missingSeedProductSkipsSeedingWithoutStoppingServiceStartup() {
         when(productClient.lookup(anyList())).thenReturn(List.of());
 
-        SlipSeeder seeder = new SlipSeeder(slipRepository, closedDateGuard, productClient);
+        SlipSeeder seeder = new SlipSeeder(slipRepository, closedDateGuard, productClient, dependencyState);
 
         seeder.run();
 
@@ -58,7 +60,7 @@ class SlipSeederProductIntegrityTest {
                 }).toList();
         when(productClient.lookup(anyList())).thenReturn(products);
 
-        new SlipSeeder(slipRepository, closedDateGuard, productClient).run();
+        new SlipSeeder(slipRepository, closedDateGuard, productClient, dependencyState).run();
 
         ArgumentCaptor<Slip> captor = ArgumentCaptor.forClass(Slip.class);
         verify(slipRepository, times(100)).save(captor.capture());
@@ -81,9 +83,30 @@ class SlipSeederProductIntegrityTest {
                 }).toList();
         when(productClient.lookup(anyList())).thenReturn(products);
 
-        new SlipSeeder(slipRepository, closedDateGuard, productClient).run();
+        new SlipSeeder(slipRepository, closedDateGuard, productClient, dependencyState).run();
 
         verify(slipRepository, times(100)).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void flushFailureIsHandledAsSeedFailureWithoutEscapingRun() {
+        when(slipRepository.findBySlipTypeAndSlipNoIncludingDeleted(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Optional.empty());
+        List<ProductSummary> products = java.util.stream.IntStream.rangeClosed(1, HvacSeedProductCatalog.size())
+                .mapToObj(seq -> {
+                    String model = HvacSeedProductCatalog.byOneBasedSeq(seq).modelName();
+                    UUID id = HvacSeedProductCatalog.deterministicProductId(model);
+                    return new ProductSummary(id, "제품-" + model, model, "CODE-" + model,
+                            null, null, "ACTIVE");
+                }).toList();
+        when(productClient.lookup(anyList())).thenReturn(products);
+        org.mockito.Mockito.doThrow(new IllegalStateException("flush failure")).when(slipRepository).flush();
+
+        new SlipSeeder(slipRepository, closedDateGuard, productClient, dependencyState).run();
+
+        assertThat(dependencyState.slipSeedStatus())
+                .isEqualTo(SeedDependencyState.SlipSeedStatus.FAILED);
     }
 
 }

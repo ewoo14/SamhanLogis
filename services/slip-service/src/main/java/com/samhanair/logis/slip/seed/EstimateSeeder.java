@@ -80,16 +80,24 @@ public class EstimateSeeder implements CommandLineRunner {
 
     private final EstimateRepository estimateRepository;
     private final EstimateNumberSequenceRepository sequenceRepository;
+    private final SeedDependencyState dependencyState;
 
     public EstimateSeeder(EstimateRepository estimateRepository,
-                          EstimateNumberSequenceRepository sequenceRepository) {
+                          EstimateNumberSequenceRepository sequenceRepository,
+                          SeedDependencyState dependencyState) {
         this.estimateRepository = estimateRepository;
         this.sequenceRepository = sequenceRepository;
+        this.dependencyState = dependencyState;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
+        if (!dependencyState.isSlipSeedSucceeded()) {
+            log.error("[EstimateSeeder] 시딩을 건너뜁니다 — 선행 SlipSeeder가 성공하지 않았습니다. 상태={}",
+                    dependencyState.slipSeedStatus());
+            return;
+        }
         log.info("[EstimateSeeder] P2 시드 시작 — 40건 견적서 (DRAFT 10 / SENT 12 / ACCEPTED 8 / REJECTED 5 / CONVERTED 5)");
 
         List<EstimateSpec> specs = buildSpecs();
