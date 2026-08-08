@@ -62,6 +62,7 @@ export interface PartnerAutocompleteProps {
   resultSelectionMode?: SearchResultSelectionMode
   /** 결과 선택 모달 제목. */
   resultSelectionTitle?: ReactNode
+  autoSelectSingleResult?: boolean
 }
 
 function HighlightedPartnerField({

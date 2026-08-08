@@ -192,6 +192,7 @@ services:
       SERVER_PORT: "8084"
       DB_NAME: product_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_SEED_TEST_DATA: ${SAMHAN_SEED_TEST_DATA:-false}
     ports:
       - "127.0.0.1:8084:8084"
     depends_on: *service-depends
@@ -219,6 +220,7 @@ services:
       SERVER_PORT: "8085"
       DB_NAME: inventory_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_SEED_TEST_DATA: ${SAMHAN_SEED_TEST_DATA:-false}
     ports:
       - "127.0.0.1:8085:8085"
     depends_on: *service-depends

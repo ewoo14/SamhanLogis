@@ -308,19 +308,19 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     })
   })
 
-  it('통합 보기에는 작성자 열이 있고 계열이 보유하지 않는 값은 빈칸으로 둔다', async () => {
-    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ id: 'estimate-without-code' })]))
+  it('통합 보기에는 담당 열이 있고 계열이 보유하지 않는 값은 빈칸으로 둔다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ id: 'estimate-without-code', requesterName: '홍길동' })]))
     listPartnerOrdersMock.mockResolvedValue(orderPageOf([orderRow({ partnerCode: '' })]))
 
     renderPage()
     fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
 
     const table = await screen.findByTestId('estimate-unified-list-table')
-    await waitFor(() => expect(within(table).getByText('작성자')).toBeTruthy())
+    await waitFor(() => expect(within(table).getByText('담당')).toBeTruthy())
 
     expect(table.textContent).not.toContain('—')
-    expect(within(table).getByTestId('estimate-unified-row-estimate:estimate-without-code-writer').textContent).toBe('')
-    expect(within(table).getByTestId('estimate-unified-row-order:2026-08-08-1-writer').textContent).toBe('')
+    expect(within(table).getByTestId('estimate-unified-row-estimate:estimate-without-code-owner').textContent).toBe('홍길동')
+    expect(within(table).getByTestId('estimate-unified-row-order:2026-08-08-1-owner').textContent).toBe('')
   })
 
   it('통합 보기에서 한 계열 조회가 실패해도 다른 계열을 표시하고 오류를 드러낸다', async () => {

@@ -141,19 +141,18 @@ test.describe('SP-06 Notion-origin data is Samhan Public DB CRUD', () => {
 
   test('DB migration script follows local service port overrides', () => {
     expect(importScript).toContain('DB 이관')
-    expect(importScript).toContain('Resolve-ImportServicePort')
-    expect(importScript).toContain('SAMHAN_AROLOGIS_PORT')
-    expect(importScript).toContain('SAMHAN_DC_CONFIG_PORT')
-    expect(importScript).toContain('SAMHAN_NOTIFICATION_PORT')
-    expect(importScript).toContain('SAMHAN_PARTNER_PORT')
+    expect(importScript).toContain("local-stack-port.ps1")
+    expect(importScript).toContain("Get-LocalStackPort -Service 'arologis-service'")
+    expect(importScript).toContain("Get-LocalStackPort -Service 'dc-config-service'")
+    expect(importScript).toContain("Get-LocalStackPort -Service 'notification-service'")
+    expect(importScript).toContain("Get-LocalStackPort -Service 'partner-service'")
     expect(importScript).toContain('$arologisPort')
     expect(importScript).toContain('$dcConfigPort')
     expect(importScript).toContain('$notificationPort')
     expect(importScript).toContain('$partnerPort')
-    expect(importScript).toContain('Resolve-ImportGatewayUrl')
-    expect(importScript).toContain('SAMHAN_API_GATEWAY_PORT')
-    expect(importScript).toContain('$fallback = [int] $DefaultPort + 100')
-    expect(importScript).toContain('Test-ImportHealthPort -Port $fallback')
+    expect(importScript).toContain("Get-LocalStackPort -Service 'api-gateway'")
+    expect(importScript).not.toContain('Resolve-ImportServicePort')
+    expect(importScript).not.toContain('Test-ImportHealthPort -Port $fallback')
   })
 
   test('operational smoke script reuses resolved service ports for DB CRUD validation', () => {

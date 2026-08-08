@@ -412,6 +412,23 @@ spring:
         # 이전 + X-Internal-Token 인증. /internal/** 는 게이트웨이 비노출(estimate-app 직결)이라
         # 기존 /api/v1/estimates/** NoStripPrefix 무인증 라우트 폐기.
 
+        # SlipPublishController 는 /api/v1/slips 풀패스를 유지한다. generic StripPrefix route보다
+        # 먼저 배치해 공개 발행 3경로가 /slips/from-*로 잘리지 않도록 한다.
+        - id: slip-service-publish-v1-noprefix
+          uri: lb://slip-service
+          predicates:
+            - Path=/api/v1/slips/from-estimate,/api/v1/slips/from-partner-order,/api/v1/slips/from-orders-merge
+          filters:
+            - JwtAuthentication
+
+        # MobileSalesController 는 /mobile/sales 풀패스 컨트롤러다.
+        - id: slip-service-mobile-sales-noprefix
+          uri: lb://slip-service
+          predicates:
+            - Path=/mobile/sales/**
+          filters:
+            - JwtAuthentication
+
         - id: slip-service-v1
           uri: lb://slip-service
           predicates:
@@ -669,7 +686,7 @@ spring:
         - id: slip-dispatch-admin-noprefix
           uri: lb://slip-service
           predicates:
-            - Path=/admin/dispatch-tasks,/admin/dispatch-tasks/**,/admin/dispatch-board,/admin/dispatch-board/**,/admin/external-carriers,/admin/external-carriers/**,/admin/external-dispatches,/admin/external-dispatches/**,/admin/slip-cutoffs,/admin/slip-cutoffs/**,/admin/dispatch-groups,/admin/dispatch-groups/**,/admin/carriers,/admin/carriers/**,/admin/dispatches/pre-classify
+            - Path=/admin/dispatch-tasks,/admin/dispatch-tasks/**,/admin/dispatch-board,/admin/dispatch-board/**,/admin/external-carriers,/admin/external-carriers/**,/admin/external-dispatches,/admin/external-dispatches/**,/admin/slip-cutoffs,/admin/slip-cutoffs/**,/admin/slip-closing-baselines,/admin/slip-closing-baselines/**,/admin/dispatch-groups,/admin/dispatch-groups/**,/admin/carriers,/admin/carriers/**,/admin/dispatches/pre-classify
           filters:
             - JwtAuthentication
 

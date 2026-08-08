@@ -485,7 +485,7 @@ public class SlipController {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
         checkSlipMutationPermission(callerHeader, resolveSlipType(id),
                 SALES_SLIP_EDIT_PAGE_CODE, PermissionAction.UPDATE);
-        return ApiResponse.ok(slipService.send(id));
+        return ApiResponse.ok(slipService.send(id, callerOrSystem(callerHeader)));
     }
 
     /** SENT → ACCEPTED. OUTBOUND 면 inventory reserve. */
@@ -506,8 +506,9 @@ public class SlipController {
     @Operation(summary = "처리 시작", description = "ACCEPTED → PROCESSING")
     @PostMapping("/{id}/process")
     @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    public ApiResponse<SlipDetailResponse> process(@PathVariable UUID id) {
-        return ApiResponse.ok(slipService.process(id));
+    public ApiResponse<SlipDetailResponse> process(@PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(slipService.process(id, callerOrSystem(callerHeader)));
     }
 
     /**
@@ -547,8 +548,9 @@ public class SlipController {
     })
     @PostMapping("/{id}/complete")
     @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    public ApiResponse<SlipDetailResponse> complete(@PathVariable UUID id) {
-        return ApiResponse.ok(slipService.complete(id));
+    public ApiResponse<SlipDetailResponse> complete(@PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(slipService.complete(id, callerOrSystem(callerHeader)));
     }
 
     /** COMPLETED → SHIPPING (출고전표 한정). */
@@ -559,7 +561,7 @@ public class SlipController {
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         checkOutboundPostInspectionPermission(callerHeader, isSystemMaster, id, "slip.transfer.process");
-        return ApiResponse.ok(slipService.ship(id));
+        return ApiResponse.ok(slipService.ship(id, callerOrSystem(callerHeader)));
     }
 
     /** SHIPPING → DELIVERED (출고전표 한정). */
@@ -570,7 +572,7 @@ public class SlipController {
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         checkOutboundPostInspectionPermission(callerHeader, isSystemMaster, id, "slip.transfer.process");
-        return ApiResponse.ok(slipService.deliver(id));
+        return ApiResponse.ok(slipService.deliver(id, callerOrSystem(callerHeader)));
     }
 
     /** 확정 — DELIVERED→CONFIRMED (출고) / COMPLETED→CONFIRMED (입고). */

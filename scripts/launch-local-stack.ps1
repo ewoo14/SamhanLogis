@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$SkipBuild,
     [switch]$SkipClients,
     [switch]$SerialBuild,
@@ -37,6 +37,12 @@ Assert-Command "npm.cmd" "Node.js 20+ 설치"
 Assert-DockerDaemon
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$portResolver = Join-Path $RepoRoot "scripts\lib\local-stack-port.ps1"
+. (Resolve-Path -LiteralPath $portResolver)
+$eurekaPort = Get-LocalStackPort -Service 'eureka-server'
+$gatewayPort = Get-LocalStackPort -Service 'api-gateway'
+$authPort = Get-LocalStackPort -Service 'auth-service'
+$dashboardPort = Get-LocalStackPort -Service 'dashboard-service'
 $ComposeFiles = @(
     "-f", "infrastructure/docker-compose.yml",
     "-f", "infrastructure/docker-compose.local-all.yml"
@@ -127,18 +133,26 @@ Invoke-AtRoot {
             :services:partner-service:bootJar `
             :services:arologis-service:bootJar `
             @gradleOpts
+        $buildExitCode = $LASTEXITCODE
+        if ($buildExitCode -ne 0) {
+            throw "[local-stack] bootJar build 실패 (exit $buildExitCode)"
+        }
     }
 
     Write-Host "[local-stack] docker compose up -d"
     $composeArgs = if ($Rebuild) { @('up', '-d', '--build') } else { @('up', '-d') }
     docker compose @ComposeFiles @composeArgs
+    $composeExitCode = $LASTEXITCODE
+    if ($composeExitCode -ne 0) {
+        throw "[local-stack] docker compose up 실패 (exit $composeExitCode)"
+    }
 }
 
 Wait-Postgres
-Wait-Http "eureka" "http://localhost:8761/actuator/health" 180
-Wait-Http "gateway" "http://localhost:8080/actuator/health" 180
-Wait-Http "auth" "http://localhost:8081/actuator/health" 180
-Wait-Http "dashboard" "http://localhost:8094/actuator/health" 180
+Wait-Http "eureka" "http://localhost:$eurekaPort/actuator/health" 180
+Wait-Http "gateway" "http://localhost:$gatewayPort/actuator/health" 180
+Wait-Http "auth" "http://localhost:$authPort/actuator/health" 180
+Wait-Http "dashboard" "http://localhost:$dashboardPort/actuator/health" 180
 
 if (-not $SkipClients) {
     if ($TunnelExpo) {
@@ -156,8 +170,8 @@ if (-not $SkipClients) {
 
 Write-Host ""
 Write-Host "SamhanLogis local stack URLs"
-Write-Host "  API Gateway       http://localhost:8080"
-Write-Host "  Eureka            http://localhost:8761"
+Write-Host "  API Gateway       http://localhost:$gatewayPort"
+Write-Host "  Eureka            http://localhost:$eurekaPort"
 Write-Host "  Grafana           http://localhost:3000  (admin / samhan_dev_pw)"
 Write-Host "  Prometheus        http://localhost:9090"
 Write-Host "  MinIO Console     http://localhost:9001  (samhan / samhan_dev_pw)"
@@ -165,7 +179,7 @@ Write-Host "  Desktop           Electron 자동 실행, Vite renderer http://loc
 Write-Host "  Estimate Web      http://localhost:5183"
 Write-Host "  Order Web         http://localhost:5180"
 Write-Host "  Design System     http://localhost:5176"
-Write-Host "  Arologis Desktop  Electron 자동 실행, API http://localhost:8097"
+Write-Host "  Arologis Desktop  Electron 자동 실행, API http://localhost:$(Get-LocalStackPort -Service 'arologis-service')"
 Write-Host "  Mobile QR         Expo 터미널 로그: $LogDir"
 Write-Host ""
 Write-Host "Seed 실행: .\scripts\seed-local-stack.ps1"

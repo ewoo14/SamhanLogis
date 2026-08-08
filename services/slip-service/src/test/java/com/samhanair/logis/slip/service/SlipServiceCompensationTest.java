@@ -65,6 +65,7 @@ class SlipServiceCompensationTest {
     @Mock private SlipRealtimeBroker broker;
     @Mock private CompensationAuditWriter compensationAuditWriter;
     @Mock private com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService priceMemoryService;
+    @Mock private com.samhanair.logis.slip.service.closing.SlipClosedDateGuard closedDateGuard;
 
     @InjectMocks private SlipService service;
 

@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.web.dto.SlipUpdateRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -42,7 +43,8 @@ class SalesSlipUpdateServiceTest {
             mock(SlipAuditLogService.class),
             mock(SlipRevisionService.class),
             mock(PartnerProductPriceMemoryService.class),
-            mock(ProductClient.class));
+            mock(ProductClient.class),
+            mock(SlipClosedDateGuard.class));
 
     @Test
     @DisplayName("매출 전체수정은 BUNDLE 자체 라인을 영속하지 않고 거부한다")

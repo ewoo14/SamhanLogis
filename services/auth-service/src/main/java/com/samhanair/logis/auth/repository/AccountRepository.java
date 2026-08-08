@@ -50,7 +50,7 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
             FROM Account a
             WHERE a.enabled = true
               AND a.isDeleted = false
-              AND (:q = '' OR LOWER(a.displayName) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (:q = '' OR LOWER(a.displayName) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\')
               AND NOT EXISTS (
                   SELECT 1 FROM AccountGroup ag
                   JOIN PermissionGroup pg ON ag.groupId = pg.id

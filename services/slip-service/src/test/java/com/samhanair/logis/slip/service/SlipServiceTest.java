@@ -81,6 +81,7 @@ class SlipServiceTest {
      * 단위 테스트에서는 mock 격리(lenient, 기본 통과).
      */
     @Mock private com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard cutoffGuard;
+    @Mock private com.samhanair.logis.slip.service.closing.SlipClosedDateGuard closedDateGuard;
     /** 결재선 결재자 게이트 — 단위 테스트 격리. */
     @Mock private com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     /** user-service 내부 클라이언트 — 단위 테스트 격리 (ownerFullName resolve). */
@@ -153,6 +154,41 @@ class SlipServiceTest {
         assertThat(res.lines()).hasSize(1);
         assertThat(res.lines().get(0).lineTotal()).isEqualByComparingTo(new BigDecimal("200.00"));
         verify(productClient).lookup(any());
+    }
+
+    @Test
+    void create_checksClosedDateGuardForOutbound() {
+        when(slipNumberService.next(any(LocalDate.class), eq(SlipType.OUTBOUND))).thenReturn("2026/05/04-3");
+        when(slipNumberService.extractSeqNo("2026/05/04-3")).thenReturn(3);
+        when(slipRepository.save(any(Slip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CreateSlipRequest req = new CreateSlipRequest(
+                SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), sourceWh, destWh, partnerId, "삼한공조",
+                DeliveryTag.DAY, "마감 게이트", null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                null,
+                List.of(new CreateSlipRequest.SlipLineRequest(productId, "에어컨", "M-1", null,
+                        1, new BigDecimal("100.00"), null)));
+
+        service.create(req, "user-1", "홍길동");
+
+        verify(closedDateGuard).assertCreatable(SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), "user-1");
+    }
+
+    @Test
+    void process_checksClosedDateGuardBeforeStatusMutation() {
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(slip.getSlipType()).thenReturn(SlipType.OUTBOUND);
+        when(slip.getSlipDate()).thenReturn(LocalDate.of(2026, 5, 4));
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.CONFLICT, "마감된 날짜입니다"))
+                .when(closedDateGuard).assertAllowed(SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), "user-1");
+
+        assertThatThrownBy(() -> service.process(slipId, "user-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("마감된 날짜입니다");
+        verify(slip, never()).process();
     }
 
     @Test
@@ -685,6 +721,38 @@ class SlipServiceTest {
         // 검수 완료는 inventory mutation 없음 (deduct 는 complete 시점에 이미).
         verify(inventoryClient, never())
                 .deduct(any(), any(), anyInt(), anyBoolean(), anyString(), any());
+    }
+
+    @Test
+    void inspect_onClosedDate_isRejectedBeforeMutation() {
+        Slip slip = preparedOutbound(SlipStatus.INSPECTING, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        BusinessException closed = new BusinessException(ErrorCode.CONFLICT, "마감된 날짜입니다");
+        org.mockito.Mockito.doThrow(closed).when(closedDateGuard)
+                .assertAllowed(eq(SlipType.OUTBOUND), eq(LocalDate.of(2026, 5, 4)), eq("inspector-1"));
+
+        assertThatThrownBy(() -> service.inspect(slipId, "inspector-1"))
+                .isSameAs(closed);
+
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
+        verify(closedDateGuard).assertAllowed(SlipType.OUTBOUND,
+                LocalDate.of(2026, 5, 4), "inspector-1");
+    }
+
+    @Test
+    void inspect_withoutApprovalPermission_returnsForbiddenBeforeClosedDateGuard() {
+        Slip slip = preparedOutbound(SlipStatus.INSPECTING, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        String actorId = UUID.randomUUID().toString();
+        when(approvalLineAuthorizeClient.authorize(anyString(), anyString(), eq(UUID.fromString(actorId))))
+                .thenReturn(new com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult(true, false));
+        assertThatThrownBy(() -> service.inspect(slipId, actorId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(closedDateGuard, never()).assertAllowed(any(), any(), anyString());
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
     }
 
     @Test

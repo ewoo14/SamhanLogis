@@ -513,6 +513,39 @@ function balancedArgs(src: string, openParenIndex: number): string {
   return src.slice(openParenIndex + 1)
 }
 
+function splitTopLevelCallArguments(args: string): string[] {
+  const parts: string[] = []
+  let start = 0
+  let quote = ''
+  let parenDepth = 0
+  let bracketDepth = 0
+  let braceDepth = 0
+  for (let i = 0; i < args.length; i++) {
+    const ch = args[i]
+    if (quote) {
+      if (ch === '\\') i++
+      else if (ch === quote) quote = ''
+      continue
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch
+      continue
+    }
+    if (ch === '(') parenDepth++
+    else if (ch === ')') parenDepth--
+    else if (ch === '[') bracketDepth++
+    else if (ch === ']') bracketDepth--
+    else if (ch === '{') braceDepth++
+    else if (ch === '}') braceDepth--
+    else if (ch === ',' && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
+      parts.push(args.slice(start, i))
+      start = i + 1
+    }
+  }
+  parts.push(args.slice(start))
+  return parts
+}
+
 /**
  * 파일 안에서 "쓰기" 호출의 인자에 등장하는 식별자.
  *
@@ -621,7 +654,11 @@ function collectWriteTargetIdentifiers(
   const names = new Set<string>()
   for (const m of src.matchAll(WRITE_CALL)) {
     const open = (m.index ?? 0) + m[0].length - 1
-    const args = stripMultilineTemplateContent(balancedArgs(src, open))
+    const allArgs = balancedArgs(src, open)
+    const selectedArgs = m[0].includes('copyFileSync')
+      ? splitTopLevelCallArguments(allArgs).slice(1).join(',')
+      : allArgs
+    const args = stripMultilineTemplateContent(selectedArgs)
     for (const id of args.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) names.add(id[0])
   }
   // 지역변수 간접 — 전이적 폐포(transitive closure). names 는 단조 증가만 하므로 종료된다.
@@ -1236,6 +1273,27 @@ describe('하네스 거짓 green 가드', () => {
       const pathDecls = collectDeclarations(pathSrc)
       const pathTargets = collectWriteTargetIdentifiers(pathSrc, pathDecls)
       expect([...pathTargets], '한 줄 템플릿 보간(OUT)까지 같이 지워짐(과잉 수정)').toContain('OUT')
+    })
+
+    it('MH3 RED-A/RED-B — fs.copyFileSync는 두 번째 인자만 쓰기 대상으로 수집한다', () => {
+      const src = [
+        "const SOURCE = path.join('docs', 'qa', '896-parity-run2/sheet/run2/input.json')",
+        "const DEST = path.join('_local', 'golden', 'input.json')",
+        'fs.copyFileSync(SOURCE, path.join(DEST, file))',
+      ].join('\n')
+      const targets = collectWriteTargetIdentifiers(src, collectDeclarations(src))
+
+      // RED-A: 목적지는 계속 추적되어야 한다.
+      expect([...targets]).toContain('DEST')
+      // RED-B: 읽기 원본은 쓰기 목적지로 오탐하면 안 된다.
+      expect([...targets]).not.toContain('SOURCE')
+      expect(jsWritesEvidence(src, path.resolve(REPO_ROOT, 'scripts/probe.mjs'))).toBe(false)
+
+      const destinationProbe = [
+        "const DEST = 'docs/qa/committed-probe/output.json'",
+        "fs.copyFileSync(input, DEST)",
+      ].join('\n')
+      expect(jsWritesEvidence(destinationProbe, path.resolve(REPO_ROOT, 'scripts/probe.mjs'))).toBe(true)
     })
   })
 

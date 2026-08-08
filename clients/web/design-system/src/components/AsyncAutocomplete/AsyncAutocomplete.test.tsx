@@ -9,6 +9,34 @@ interface Option {
 }
 
 describe('AsyncAutocomplete', () => {
+  it('opt-in contract: one candidate is confirmed immediately without opening a modal', async () => {
+    const onChange = vi.fn()
+    const search = vi.fn().mockResolvedValue([{ id: 'P-001', label: '삼한상사' }])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="거래처 목록"
+        ariaLabel="거래처"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '거래처' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '삼한' } })
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ id: 'P-001', label: '삼한상사' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('결과 모달로 이동하는 blur에서는 소비자 exact lookup을 호출하지 않는다', async () => {
     const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
       { id: 'first', label: 'AJ 첫 품목' },

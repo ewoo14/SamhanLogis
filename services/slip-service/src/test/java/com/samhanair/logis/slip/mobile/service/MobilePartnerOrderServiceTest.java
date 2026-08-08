@@ -22,6 +22,7 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.WarehouseCodeSnapshotService;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -49,6 +50,7 @@ class MobilePartnerOrderServiceTest {
     @Mock private PartnerInternalClient partnerInternalClient;
     @Mock private WarehouseCodeSnapshotService warehouseCodeSnapshotService;
     @Mock private OutboundCutoffGuard cutoffGuard;
+    @Mock private SlipClosedDateGuard closedDateGuard;
     @Mock private Clock clock;
     /** 결정 ① 음성 가드: 향후 주문 서비스에 가격기억 의존성이 추가되면 @InjectMocks가 주입한다. */
     @Mock private PartnerProductPriceMemoryService priceMemoryService;

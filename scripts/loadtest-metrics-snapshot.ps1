@@ -1,4 +1,4 @@
-param(
+﻿param(
     [int]$IntervalSec = 300,
     [string]$OutDir = "",
     [switch]$Once

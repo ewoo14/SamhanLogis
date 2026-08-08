@@ -153,6 +153,18 @@ function isWithinPhysical(parentDir: string, candidateDir: string): boolean {
   )
 }
 
+function deriveQaEvidenceRoot(committedDir: string): string | undefined {
+  let current = resolve(committedDir)
+  while (true) {
+    if (basename(dirname(current)).toLowerCase() === 'docs') {
+      return current
+    }
+    const parent = dirname(current)
+    if (parent === current) return undefined
+    current = parent
+  }
+}
+
 function resolveOutputDir(): string {
   // 2026-07-28 재수렴 — docs/qa 루트는 이 파일 자신의 물리 위치(__dirname) 기준으로 유도한다
   // (scripts/lib/qa-shots-dir.ps1 이 $PSScriptRoot 를 쓰는 것과 같은 이유). 이전에는
@@ -172,9 +184,9 @@ function resolveOutputDir(): string {
   const override = process.env['QA_SHOTS_DIR']
   const trimmed = override && override.trim().length > 0 ? override.trim() : undefined
   const directory = trimmed ? resolve(trimmed) : resolve(committedDir, '_local')
-  const docsQaRoot = resolve(repoRootFromHere, 'docs', 'qa')
+  const qaEvidenceRoot = deriveQaEvidenceRoot(committedDir)
 
-  if (trimmed && isWithinPhysical(docsQaRoot, directory) && !hasExplicitOverwriteIntent()) {
+  if (trimmed && qaEvidenceRoot && isWithinPhysical(qaEvidenceRoot, directory) && !hasExplicitOverwriteIntent()) {
     throw new Error(
       `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${directory}. ` +
         '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',
