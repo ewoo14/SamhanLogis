@@ -206,7 +206,7 @@ foreach ($target in $targets) {
                 $line -notmatch '(?i)^\s*See release notes here:.*$' -and
                 $line -notmatch '(?i)^\s*Database:\s+.*$' -and
                 $line -notmatch '(?i)^\s*(?:ERROR:\s*)?Validate failed:.*$' -and
-                $line -notmatch '(?i)^\s*Successfully validated\s+[0-9,]+\s+migrations\s+\(execution time\s+[^)]+\)\s*$' -and
+                $line -notmatch '(?i)^\s*Successfully validated\s+[0-9]+(?:,[0-9]{3})*\s+migrations\s+\(execution time\s+\d{2}:\d{2}\.\d{3}s\)\s*$' -and
                 $line -notmatch '(?i)^\s*Migration checksum mismatch for migration version\s+[0-9.]+' -and
                 $line -notmatch '(?i)^\s*(?:->\s*|-\s*)(Applied to database|Resolved locally)\s*:' -and
                 $line -notmatch '(?i)^\s*Either revert the changes to the migration, or run repair to update the schema history\.\s*$' -and
