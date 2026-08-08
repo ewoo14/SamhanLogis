@@ -204,6 +204,6 @@ describe('accounting slip permission contract', () => {
   })
 
   it('R8: every mock page and every role matches the canonical 7-bit matrix', () => {
-    assertExactPermissionMatrix({ getMockResponse })
+    assertExactPermissionMatrix({ getMockResponse, mockSource: mock })
   })
 })
