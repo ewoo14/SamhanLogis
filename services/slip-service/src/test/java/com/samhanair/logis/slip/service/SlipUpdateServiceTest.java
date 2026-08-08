@@ -18,6 +18,7 @@ import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.web.dto.SlipUpdateRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,7 +38,8 @@ class SlipUpdateServiceTest {
             mock(SlipAuditLogService.class),
             mock(SlipRevisionService.class),
             mock(PartnerProductPriceMemoryService.class),
-            mock(ProductClient.class));
+            mock(ProductClient.class),
+            mock(SlipClosedDateGuard.class));
 
     @Test
     @DisplayName("매입 전체수정은 BUNDLE 부모를 저장하지 않고 사용자 안내 오류로 거부한다")

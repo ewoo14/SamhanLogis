@@ -27,7 +27,7 @@ public class ExternalCarrierService {
     /** 관리자 검색 목록. q 는 name/phone LIKE 로 적용한다. */
     @Transactional(readOnly = true)
     public Page<ExternalCarrierResponse> search(String q, Pageable pageable) {
-        String normalized = normalizeNullable(q);
+        String normalized = normalizeLikeNullable(q);
         return repository.searchAdmin(normalized, pageable).map(ExternalCarrierResponse::from);
     }
 
@@ -136,6 +136,15 @@ public class ExternalCarrierService {
             return null;
         }
         return raw.trim();
+    }
+
+    private static String normalizeLikeNullable(String raw) {
+        String normalized = normalizeNullable(raw);
+        return normalized == null ? null : escapeLikeLiteral(normalized);
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private static String callerOrSystem(String callerId) {

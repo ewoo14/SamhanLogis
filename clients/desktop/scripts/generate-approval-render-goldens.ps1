@@ -1,4 +1,4 @@
-<#
+﻿<#
   DS-1 committed HTML golden 생성 전용 명시 스크립트.
   일반 vitest 실행과 vitest -u는 golden을 갱신하지 않는다.
 #>

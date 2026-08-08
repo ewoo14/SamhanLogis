@@ -5,12 +5,14 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.cutoff.SlipOutboundCutoff;
 import com.samhanair.logis.slip.repository.cutoff.SlipOutboundCutoffRepository;
+import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -31,13 +33,27 @@ import org.springframework.stereotype.Component;
  * ({@link com.samhanair.logis.slip.config.TimeConfig} 참조).
  */
 @Component
-@RequiredArgsConstructor
 public class OutboundCutoffGuard {
 
     private static final DateTimeFormatter TIME_DISPLAY = DateTimeFormatter.ofPattern("HH:mm");
+    private static final int MAX_ALTERNATIVE_DAYS = 31;
 
     private final Clock clock;
     private final SlipOutboundCutoffRepository cutoffRepository;
+    private final SlipClosedDateGuard closedDateGuard;
+
+    @Autowired
+    public OutboundCutoffGuard(Clock clock, SlipOutboundCutoffRepository cutoffRepository,
+                               SlipClosedDateGuard closedDateGuard) {
+        this.clock = clock;
+        this.cutoffRepository = cutoffRepository;
+        this.closedDateGuard = closedDateGuard;
+    }
+
+    /** 기존 단위 테스트·문맥 없는 태그 수정 경로용 생성자. */
+    public OutboundCutoffGuard(Clock clock, SlipOutboundCutoffRepository cutoffRepository) {
+        this(clock, cutoffRepository, null);
+    }
 
     /**
      * 배송태그 + 전표날짜 기준으로 마감 시각 초과 여부를 검증한다.
@@ -58,12 +74,21 @@ public class OutboundCutoffGuard {
      * @throws BusinessException(CONFLICT) 당일 출고전표이고 현재 시각이 마감 시각을 초과했을 때
      */
     public void assertWithinCutoff(DeliveryTag tag, LocalDate slipDate) {
+        assertWithinCutoff(tag, slipDate, null, null);
+    }
+
+    /**
+     * 날짜 마감 권한을 포함해 사용자가 실제로 선택할 수 있는 대체 출고일을 안내한다.
+     * 기존 2-인자 API는 배송태그 수정 등 요청자 문맥이 없는 경로의 하위 호환용이다.
+     */
+    public void assertWithinCutoff(DeliveryTag tag, LocalDate slipDate,
+                                   SlipType slipType, String requesterId) {
         // opt-in: 태그 또는 날짜 미확정 경로는 통과
         if (tag == null || slipDate == null) {
             return;
         }
         // 오늘(KST) 전표가 아니면 통과 (미래 출고 미리 생성 허용)
-        if (!slipDate.equals(LocalDate.now(clock.getZone()))) {
+        if (!slipDate.equals(LocalDate.now(clock))) {
             return;
         }
         // 해당 태그의 활성 마감시각이 없으면 통과 (opt-in)
@@ -74,10 +99,40 @@ public class OutboundCutoffGuard {
         SlipOutboundCutoff cutoff = cutoffOpt.get();
         LocalTime now = LocalTime.now(clock);
         if (now.isAfter(cutoff.getCutoffTime())) {
+            LocalDate alternativeDate = findAlternativeDate(slipDate, slipType, requesterId);
+            String message = alternativeDate == null
+                    ? tag.getKoreanLabel() + " 당일 마감("
+                        + cutoff.getCutoffTime().format(TIME_DISPLAY)
+                        + ") 초과 — 날짜 마감과 겹쳐 대체 출고일을 자동으로 제시할 수 없습니다."
+                    : alternativeDate.equals(slipDate.plusDays(1))
+                        ? tag.getKoreanLabel() + " 당일 마감("
+                            + cutoff.getCutoffTime().format(TIME_DISPLAY)
+                            + ") 초과 — 익일 출고로 생성하세요"
+                        : tag.getKoreanLabel() + " 당일 마감("
+                            + cutoff.getCutoffTime().format(TIME_DISPLAY)
+                            + ") 초과 — " + alternativeDate + " 출고로 생성하세요";
             throw new BusinessException(ErrorCode.CONFLICT,
-                    tag.getKoreanLabel() + " 당일 마감("
-                    + cutoff.getCutoffTime().format(TIME_DISPLAY)
-                    + ") 초과 — 익일 출고로 생성하세요");
+                    message);
         }
+    }
+
+    private LocalDate findAlternativeDate(LocalDate slipDate, SlipType slipType, String requesterId) {
+        if (slipType == null) {
+            return slipDate.plusDays(1);
+        }
+        for (int offset = 1; offset <= MAX_ALTERNATIVE_DAYS; offset++) {
+            LocalDate candidate = slipDate.plusDays(offset);
+            if (closedDateGuard != null
+                    && closedDateGuard.isCreatable(slipType, candidate, requesterId)
+                    && passesCutoffFor(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private boolean passesCutoffFor(LocalDate candidate) {
+        // 현재 컷오프 정책은 오늘 날짜에만 적용된다. 미래 후보는 #1074 계약상 통과한다.
+        return !candidate.equals(LocalDate.now(clock));
     }
 }

@@ -9,8 +9,13 @@ const PAGE_CODE_ENUM_PATH = resolve(
   '../../services/auth-service/src/main/java/com/samhanair/logis/auth/domain/PageCode.java',
 )
 const PERMISSIONS_API_PATH = resolve(process.cwd(), 'src/renderer/api/permissionsApi.ts')
-const FRONTEND_REMOVED_BACKEND_PAGE_CODES = new Set([
+const FRONTEND_CATALOG_OMITTED_BACKEND_PAGE_CODES = new Set([
+  'notification.dispatch-sms.send-audit',
   'slip.period-lock',
+])
+const FRONTEND_UNION_OMITTED_BACKEND_PAGE_CODES = new Set([
+  // V91/V92에서 5개 권한 정본의 활성 grant를 모두 soft-delete한 dead page-code.
+  'notification.dispatch-sms.send-audit',
 ])
 
 function readPageCodeEnumSource(): string {
@@ -74,6 +79,25 @@ describe('permission page catalog parity', () => {
     ).toEqual([])
   })
 
+  it('keeps the desktop row catalog complete and duplicate-free against BE PageCode', () => {
+    const backendPageCodes = extractBackendPageCodes(readPageCodeEnumSource())
+    const groupedPages = PAGE_GROUPS.flatMap((group) => group.pages)
+    const expectedBackendOnlyPageCodes = new Set(FRONTEND_CATALOG_OMITTED_BACKEND_PAGE_CODES)
+    const backendOnlyMissingRows = Array.from(backendPageCodes)
+      .filter((pageCode) => !groupedPages.includes(pageCode))
+      .filter((pageCode) => !expectedBackendOnlyPageCodes.has(pageCode))
+      .sort()
+
+    expect(
+      new Set(groupedPages).size,
+      'desktop 권한 행 목록에 중복 page-code가 있습니다.',
+    ).toBe(groupedPages.length)
+    expect(
+      backendOnlyMissingRows,
+      `BE 런타임 PageCode가 desktop 권한 행에서 누락되었습니다: ${backendOnlyMissingRows.join(', ')}`,
+    ).toEqual([])
+  })
+
   it('keeps permissionsApi PageCode union aligned with BE PageCode enum', () => {
     const backendPageCodes = extractBackendPageCodes(readPageCodeEnumSource())
     const frontendUnionPageCodes = extractFrontendPageCodeUnion(readPermissionsApiSource())
@@ -92,7 +116,7 @@ describe('permission page catalog parity', () => {
       .sort()
     const backendOnlyMissingUnionMembers = Array.from(backendPageCodes)
       .filter((pageCode) => !frontendUnionPageCodes.has(pageCode))
-      .filter((pageCode) => !FRONTEND_REMOVED_BACKEND_PAGE_CODES.has(pageCode))
+      .filter((pageCode) => !FRONTEND_UNION_OMITTED_BACKEND_PAGE_CODES.has(pageCode))
       .sort()
 
     expect(
@@ -109,9 +133,20 @@ describe('permission page catalog parity', () => {
     const frontendPageCodes = extractFrontendPageCodes()
     const frontendUnionPageCodes = extractFrontendPageCodeUnion(readPermissionsApiSource())
 
-    for (const pageCode of FRONTEND_REMOVED_BACKEND_PAGE_CODES) {
+    for (const pageCode of FRONTEND_UNION_OMITTED_BACKEND_PAGE_CODES) {
       expect(frontendPageCodes.has(pageCode), `${pageCode}는 FE 권한 카탈로그에 노출되면 안 됩니다.`).toBe(false)
       expect(frontendUnionPageCodes.has(pageCode), `${pageCode}는 permissionsApi PageCode union에 남으면 안 됩니다.`).toBe(false)
     }
+    expect(frontendPageCodes.has('slip.period-lock')).toBe(false)
+    expect(frontendUnionPageCodes.has('slip.period-lock')).toBe(true)
+  })
+
+  it('keeps the S25 closed-date permission rows visible while deprecated rows stay hidden', () => {
+    const frontendPageCodes = extractFrontendPageCodes()
+
+    expect(frontendPageCodes.has('slip.closed-date-exception')).toBe(true)
+    expect(frontendPageCodes.has('slip.closed-date-admin')).toBe(true)
+    expect(frontendPageCodes.has('notification.dispatch-sms.send-audit')).toBe(false)
+    expect(frontendPageCodes.has('slip.period-lock')).toBe(false)
   })
 })

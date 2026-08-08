@@ -13,6 +13,7 @@ import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipUpdateRequest;
 import jakarta.persistence.OptimisticLockException;
@@ -50,6 +51,7 @@ public class SalesSlipUpdateService {
     private final SlipRevisionService slipRevisionService;
     private final PartnerProductPriceMemoryService priceMemoryService;
     private final ProductClient productClient;
+    private final SlipClosedDateGuard closedDateGuard;
 
     /**
      * 매출 전표 헤더와 라인을 전체 교체한다.
@@ -78,6 +80,7 @@ public class SalesSlipUpdateService {
         // [D-R8-9] 매입(SlipUpdateService) 미러 — 계약 마커 검증은 어떤 상태를 읽기도 전에.
         requireLineIdContract(request);
         Slip slip = load(id);
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), actorId == null ? null : actorId.toString());
         verifyVersion(slip, request.updatedAt());
         // validateLines 는 BusinessException(SLIP_UPDATE_INVALID_LINE) 을 던지므로 try 외부에서 처리
         validateLines(request.lines());

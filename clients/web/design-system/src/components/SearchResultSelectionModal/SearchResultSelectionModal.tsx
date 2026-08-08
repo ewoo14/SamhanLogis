@@ -1,5 +1,6 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../Button'
+import { Input } from '../Input'
 import { Modal } from '../Modal'
 import styles from './SearchResultSelectionModal.module.css'
 
@@ -41,6 +42,18 @@ export function SearchResultSelectionModal<T>({
 }: SearchResultSelectionModalProps<T>) {
   const initialKeySet = useMemo(() => new Set(initialSelectedKeys), [initialSelectedKeys])
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(initialKeySet)
+  const [query, setQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (open) setQuery('')
+  }, [open])
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    if (!normalizedQuery) return options
+    return options.filter((option) => getLabel(option).toLocaleLowerCase().includes(normalizedQuery))
+  }, [getLabel, options, query])
 
   const toggle = (option: T) => {
     const key = getKey(option)
@@ -62,6 +75,7 @@ export function SearchResultSelectionModal<T>({
       open={open}
       onClose={onCancel}
       title={title}
+      initialFocusRef={searchInputRef}
       size={columns && columns.length > 0 ? 'xl' : 'md'}
       footer={
         <>
@@ -72,6 +86,18 @@ export function SearchResultSelectionModal<T>({
         </>
       }
     >
+      <div className={styles['searchField']}>
+        <span>검색 결과 필터</span>
+        <Input
+          ref={searchInputRef}
+          type="search"
+          inputSize="md"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label="검색 결과 필터"
+          placeholder="검색어를 입력하세요"
+        />
+      </div>
       {columns && columns.length > 0 ? (
         <div className={styles['tableViewport']}>
           <table className={styles['table']}>
@@ -83,7 +109,7 @@ export function SearchResultSelectionModal<T>({
               </tr>
             </thead>
             <tbody>
-              {options.map((option) => {
+              {filteredOptions.map((option) => {
                 const key = getKey(option)
                 const selected = selectedKeys.has(key)
                 return (
@@ -103,10 +129,13 @@ export function SearchResultSelectionModal<T>({
               })}
             </tbody>
           </table>
+          {filteredOptions.length === 0 ? (
+            <p className={styles['emptyState']}>검색 결과가 없습니다.</p>
+          ) : null}
         </div>
       ) : (
         <div className={styles['list']} role="listbox" aria-label="검색 결과 선택">
-          {options.map((option) => {
+          {filteredOptions.map((option) => {
             const key = getKey(option)
             const selected = selectedKeys.has(key)
             return (
@@ -122,6 +151,9 @@ export function SearchResultSelectionModal<T>({
               </label>
             )
           })}
+          {filteredOptions.length === 0 ? (
+            <p className={styles['emptyState']}>검색 결과가 없습니다.</p>
+          ) : null}
         </div>
       )}
     </Modal>

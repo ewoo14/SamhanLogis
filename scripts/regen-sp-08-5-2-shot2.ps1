@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$OutputDir = ''
 )
 . (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')

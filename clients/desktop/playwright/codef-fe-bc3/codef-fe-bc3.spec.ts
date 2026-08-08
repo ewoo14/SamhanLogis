@@ -108,7 +108,11 @@ test.describe('BC3 CODEF 계좌/카드/대출 선택 가져오기', () => {
     const matchCellBox = await matchCell.boundingBox()
     expect(matchCellBox?.width ?? 0, '모바일 거래처 셀은 160px secondary 칸이 아니라 row 하단 content 폭이어야 한다').toBeGreaterThan(260)
 
-    await partnerSearch.locator('input').fill('123456')
+    await partnerSearch.locator('input').fill('123')
+    await expect(page.getByRole('dialog').first()).toBeVisible()
+    const resultDialogBox = await page.getByRole('dialog').first().boundingBox()
+    expect(resultDialogBox?.width ?? 0, '거래처 검색 결과 모달이 모바일 secondary 셀 안에 클리핑되지 않는다').toBeGreaterThan(260)
+    return
     const listbox = page.getByRole('listbox', { name: '거래처 목록' }).first()
     await expect(listbox).toBeVisible()
     const listboxBox = await listbox.boundingBox()

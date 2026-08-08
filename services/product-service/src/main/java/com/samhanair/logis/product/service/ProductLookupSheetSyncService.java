@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -33,9 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * RC9 lookup 3종 구글 시트 → DB 동기화 서비스.
  *
- * <p>기존 {@link ProductSheetSyncService} 와 같은 운영 원칙을 따른다. 시트 row 의
- * SHA-256 hash 를 JVM 메모리에 보관해 동일 row 는 update 하지 않고, DB active row 가
- * 시트에서 사라지면 hard delete 없이 {@code BaseEntity.markDeleted()} 로 비활성화한다.
+ * <p>기존 {@link ProductSheetSyncService} 와 같은 운영 원칙을 따른다. 시트 row 와 현재
+ * DB active row의 SHA-256 hash를 그 자리에서 비교해 동일 row는 update 하지 않고, DB active
+ * row가 시트에서 사라지면 hard delete 없이 {@code BaseEntity.markDeleted()} 로 비활성화한다.
  *
  * <p>대상 탭은 `싱글 자재가격`, `추천실외기`, `분기계산` 3개이며, 시트에 실값이 없는
  * 컬럼은 null 로 보존한다. 특히 HOME_MULTI 추천실외기는 indoorCapacity 를 합성하지
@@ -65,9 +64,6 @@ public class ProductLookupSheetSyncService {
     private final OduRecommendationLookupRepository oduRepository;
     private final BranchPipeLookupRepository branchRepository;
     private final ObjectProvider<ProductLookupSheetSyncService> selfProvider;
-
-    /** rowHash 캐시 — natural key → SHA-256. DB 컬럼을 늘리지 않는 기존 sync 패턴을 따른다. */
-    private final Map<String, String> lastKnownRowHash = new ConcurrentHashMap<>();
 
     /**
      * lookup sync service 생성자.
@@ -152,8 +148,7 @@ public class ProductLookupSheetSyncService {
             }
             String optionLabel = i <= MATERIAL_SIDE_BLOCK_LAST_INDEX ? blankToNull(safeGet(cells, 2)) : null;
             String computedFormula = i <= MATERIAL_SIDE_BLOCK_LAST_INDEX ? blankToNull(safeGet(cells, 3)) : null;
-            String rowHash = sha256(Arrays.asList(materialKey, name, price, optionLabel, computedFormula).toString());
-            String cacheKey = "material:" + materialKey;
+            String rowHash = materialRowHash(materialKey, name, price, optionLabel, computedFormula);
 
             Optional<MaterialPrice> active = materialPriceRepository.findByMaterialKey(materialKey);
             if (active.isEmpty()) {
@@ -165,12 +160,10 @@ public class ProductLookupSheetSyncService {
                         })
                         .orElseGet(() -> MaterialPrice.seed(materialKey, name, price, optionLabel, computedFormula));
                 materialPriceRepository.save(row);
-                lastKnownRowHash.put(cacheKey, rowHash);
                 result.inserted++;
-            } else if (!Objects.equals(lastKnownRowHash.get(cacheKey), rowHash)) {
+            } else if (!Objects.equals(materialRowHash(active.get()), rowHash)) {
                 active.get().updateFromSheet(name, price, optionLabel, computedFormula);
                 materialPriceRepository.save(active.get());
-                lastKnownRowHash.put(cacheKey, rowHash);
                 result.updated++;
             } else {
                 result.unchanged++;
@@ -211,7 +204,6 @@ public class ProductLookupSheetSyncService {
         }
 
         for (OduSheetRow sheetRow : sheetRows.values()) {
-            String cacheKey = "odu:" + sheetRow.key();
             String rowHash = sha256(sheetRow.hashPayload());
             Optional<OduRecommendationLookup> active = oduRepository.findActiveByNaturalKey(
                     sheetRow.recommendationType(), sheetRow.indoorCapacity(),
@@ -228,12 +220,10 @@ public class ProductLookupSheetSyncService {
                         .orElseGet(() -> OduRecommendationLookup.seed(sheetRow.recommendationType(),
                                 sheetRow.indoorCapacity(), sheetRow.indoorCount(), sheetRow.outdoorHp()));
                 oduRepository.save(row);
-                lastKnownRowHash.put(cacheKey, rowHash);
                 result.inserted++;
-            } else if (!Objects.equals(lastKnownRowHash.get(cacheKey), rowHash)) {
+            } else if (!Objects.equals(oduRowHash(active.get()), rowHash)) {
                 active.get().updateFromSheet(sheetRow.indoorCapacity(), sheetRow.indoorCount(), sheetRow.outdoorHp());
                 oduRepository.save(active.get());
-                lastKnownRowHash.put(cacheKey, rowHash);
                 result.updated++;
             } else {
                 result.unchanged++;
@@ -266,8 +256,7 @@ public class ProductLookupSheetSyncService {
                 result.skipped++;
                 continue;
             }
-            String rowHash = sha256(Arrays.asList(branchCode, null, null).toString());
-            String cacheKey = "branch:" + branchCode;
+            String rowHash = branchRowHash(branchCode);
             sheetKeys.add(branchCode);
 
             Optional<BranchPipeLookup> active = branchRepository.findByBranchCode(branchCode);
@@ -280,12 +269,10 @@ public class ProductLookupSheetSyncService {
                         })
                         .orElseGet(() -> BranchPipeLookup.seed(branchCode, null, null));
                 branchRepository.save(row);
-                lastKnownRowHash.put(cacheKey, rowHash);
                 result.inserted++;
-            } else if (!Objects.equals(lastKnownRowHash.get(cacheKey), rowHash)) {
+            } else if (!Objects.equals(branchRowHash(active.get().getBranchCode()), rowHash)) {
                 active.get().updateFromSheet(null, null);
                 branchRepository.save(active.get());
-                lastKnownRowHash.put(cacheKey, rowHash);
                 result.updated++;
             } else {
                 result.unchanged++;
@@ -295,11 +282,8 @@ public class ProductLookupSheetSyncService {
         return softDeleteMissingBranches(sheetKeys, result);
     }
 
-    /**
-     * 테스트 전용 hash cache 초기화.
-     */
+    /** 기존 테스트 호환용 no-op. lookup sync는 더 이상 프로세스 로컬 hash cache를 사용하지 않는다. */
     public void clearHashCacheForTest() {
-        lastKnownRowHash.clear();
     }
 
     /** 탭 실행 wrapper — 실패를 summary 에 기록하고 다음 탭으로 진행한다. */
@@ -315,7 +299,6 @@ public class ProductLookupSheetSyncService {
             summary.totalSkipped += result.skipped;
             summary.successfulTabs++;
         } catch (Exception e) {
-            invalidateHashCacheForTab(tabName);
             log.error("[ProductLookupSheetSync] tab '{}' sync 실패: {}", tabName, e.getMessage(), e);
             TabSyncResult result = new TabSyncResult();
             result.error = e.getMessage();
@@ -330,7 +313,6 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(row.getMaterialKey())) {
                 row.markDeleted(SYSTEM_ACTOR);
                 materialPriceRepository.save(row);
-                lastKnownRowHash.remove("material:" + row.getMaterialKey());
                 result.softDeleted++;
             }
         }
@@ -344,7 +326,6 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(key)) {
                 row.markDeleted(SYSTEM_ACTOR);
                 oduRepository.save(row);
-                lastKnownRowHash.remove("odu:" + key);
                 result.softDeleted++;
             }
         }
@@ -357,7 +338,6 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(row.getBranchCode())) {
                 row.markDeleted(SYSTEM_ACTOR);
                 branchRepository.save(row);
-                lastKnownRowHash.remove("branch:" + row.getBranchCode());
                 result.softDeleted++;
             }
         }
@@ -437,6 +417,36 @@ public class ProductLookupSheetSyncService {
         }
     }
 
+    /** 시트 자재 row와 DB 엔티티가 같은 표현을 사용하도록 정규화한 hash를 생성한다. */
+    private static String materialRowHash(String materialKey, String name, BigDecimal price,
+                                          String optionLabel, String computedFormula) {
+        return sha256(Arrays.asList(normalizeText(materialKey), normalizeText(name),
+                canonicalDecimal(price), normalizeText(optionLabel), normalizeText(computedFormula)).toString());
+    }
+
+    private static String materialRowHash(MaterialPrice row) {
+        return materialRowHash(row.getMaterialKey(), row.getName(), row.getPrice(),
+                row.getOptionLabel(), row.getComputedFormula());
+    }
+
+    /** 시트 ODU row와 DB 엔티티가 NUMERIC scale 차이 없이 비교되도록 hash를 생성한다. */
+    private static String oduRowHash(OduRecommendationLookup row) {
+        return sha256(Arrays.asList(row.getRecommendationType(),
+                canonicalDecimal(row.getIndoorCapacity()), row.getIndoorCount(),
+                normalizeText(row.getOutdoorHp())).toString());
+    }
+
+    private static String branchRowHash(String branchCode) {
+        return sha256(Arrays.asList(normalizeText(branchCode), null, null).toString());
+    }
+
+    private static String normalizeText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
     /** 추천실외기 natural key 문자열 생성. */
     private static String oduKey(RecommendationType type, BigDecimal indoorCapacity,
                                  Integer indoorCount, String outdoorHp) {
@@ -446,20 +456,6 @@ public class ProductLookupSheetSyncService {
     /** ODU NUMERIC scale 차이를 제거한 natural key 용 decimal 문자열. */
     private static String canonicalDecimal(BigDecimal value) {
         return value == null ? null : value.stripTrailingZeros().toPlainString();
-    }
-
-    /** 탭 트랜잭션 실패 시 rollback 된 rowHash 캐시를 제거한다. */
-    private void invalidateHashCacheForTab(String tabName) {
-        String prefix = switch (tabName) {
-            case MATERIAL_TAB -> "material:";
-            case ODU_TAB -> "odu:";
-            case BRANCH_TAB -> "branch:";
-            default -> null;
-        };
-        if (prefix == null) {
-            return;
-        }
-        lastKnownRowHash.keySet().removeIf(key -> key.startsWith(prefix));
     }
 
     /** 탭 결과 error 문자열에 row 단위 사유를 누적한다. */

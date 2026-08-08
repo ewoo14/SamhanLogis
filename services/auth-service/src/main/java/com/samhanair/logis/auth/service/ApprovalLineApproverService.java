@@ -72,11 +72,15 @@ public class ApprovalLineApproverService {
     /** 활성 계정을 표시명 contains 로 검색한다. */
     @Transactional(readOnly = true)
     public List<AccountSearchResult> searchUsers(String q, int limit) {
-        String keyword = q == null ? "" : q.trim();
+        String keyword = q == null ? "" : escapeLikeLiteral(q.trim());
         int safeLimit = Math.max(1, Math.min(limit, MAX_SEARCH_LIMIT));
         return accountRepository.searchActiveByDisplayName(keyword, PageRequest.of(0, safeLimit)).stream()
                 .map(account -> new AccountSearchResult(account.getId(), accountDisplayName(account)))
                 .toList();
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private void validateReference(ApproverType type, UUID refId) {
