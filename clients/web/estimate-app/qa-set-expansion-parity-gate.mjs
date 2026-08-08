@@ -21,6 +21,7 @@ const LEGACY_HTML = 'tools/legacy-gas/종합견적서/index.html';
 const FIELDS = ['model', 'name', 'kind', 'unit', 'quantity', 'unitPrice', 'subtotal', 'spec'];
 
 const SOURCE_TABS = ['홈멀티', '싱글 세트', '싱글 구성품', '상업멀티', '상업멀티 구성', '구형'];
+const CONSUMED_SOURCE_TABS = ['싱글 세트', '싱글 구성품', '상업멀티', '상업멀티 구성'];
 const ALL_SHEET_TABS = [
   '전표생성폼', '종합견적서', '전표업로드목록', '홈멀티', '홈멀티_단가인상', '싱글 세트',
   '싱글 세트_단가인상', '싱글 구성품', '싱글 구성품_단가인상', '상업멀티',
@@ -178,10 +179,17 @@ export function compareExpansion(actual, expected) {
 export function runGate({ root = REPO, sourcePath = DEFAULT_SOURCE, goldenPath = DEFAULT_GOLDEN } = {}) {
   const source = path.isAbsolute(sourcePath) ? sourcePath : path.resolve(root, sourcePath);
   const golden = path.isAbsolute(goldenPath) ? goldenPath : path.resolve(root, goldenPath);
-  const catalog = createCatalogSource(readSource(source));
+  const sourceRows = readSource(source);
+  const manifestSourceTabs = [...new Set(sourceRows.map((row) => row.sourceTab))];
+  const catalog = createCatalogSource(sourceRows);
   const expected = JSON.parse(fs.readFileSync(golden, 'utf8'));
   const actual = expandCatalog(catalog);
   const differences = compareExpansion(actual, expected);
+  const rowCountByTab = new Map(manifestSourceTabs.map((tab) => [tab, sourceRows.filter((row) => row.sourceTab === tab).length]));
+  const unconsumedSourceTabs = manifestSourceTabs
+    .filter((tab) => !CONSUMED_SOURCE_TABS.includes(tab))
+    .map((tab) => ({ tab, rows: rowCountByTab.get(tab) || 0 }));
+  const consumedSourceTabs = CONSUMED_SOURCE_TABS.filter((tab) => manifestSourceTabs.includes(tab));
   return {
     passed: differences.length === 0,
     differences,
@@ -190,10 +198,12 @@ export function runGate({ root = REPO, sourcePath = DEFAULT_SOURCE, goldenPath =
     source: sourcePath.replaceAll(path.sep, '/'),
     golden: goldenPath.replaceAll(path.sep, '/'),
     scope: {
-      sourceTabs: SOURCE_TABS,
+      sourceTabs: manifestSourceTabs,
+      consumedSourceTabs,
+      unconsumedSourceTabs,
       allSheetTabs: ALL_SHEET_TABS,
       codeReadTabCount: 17,
-      outOfScopeTabs: OUT_OF_SCOPE_TABS,
+      outOfScopeTabs: ALL_SHEET_TABS.filter((tab) => !consumedSourceTabs.includes(tab)),
     },
   };
 }
@@ -201,8 +211,11 @@ export function runGate({ root = REPO, sourcePath = DEFAULT_SOURCE, goldenPath =
 function print(result) {
   console.log('== #896 P2 세트 전개 상세행 parity gate ==');
   console.log(`source: ${result.source}`); console.log(`golden: ${result.golden}`);
-  console.log(`scope: sourceTab ${result.scope.sourceTabs.length}개 (정규화 manifest; 세트 판정은 싱글/상업 계열) — 전체 시트 탭 ${result.scope.allSheetTabs.length}개 중 code-read ${result.scope.codeReadTabCount}개 기준 부분집합`);
-  console.log('uncovered: feature · isDefault — 골든 전 행이 기본값이라 판정 불가');
+  console.log(`scope: manifest sourceTab ${result.scope.sourceTabs.length}개 중 실제 소비 ${result.scope.consumedSourceTabs.length}개 (${result.scope.consumedSourceTabs.join('/')})`);
+  console.log(`       — 전체 시트 탭 ${result.scope.allSheetTabs.length}개 중 code-read ${result.scope.codeReadTabCount}개 기준 부분집합 · 실효 ${result.scope.allSheetTabs.length} = ${result.scope.consumedSourceTabs.length} + ${result.scope.outOfScopeTabs.length}`);
+  console.log(`unconsumed: ${result.scope.unconsumedSourceTabs.map(({ tab, rows }) => `${tab} ${rows}행`).join(' · ')} (manifest 에 있으나 이 게이트가 소비하지 않음)`);
+  console.log('uncovered: feature · isDefault (골든 전 행이 기본값이라 판정 불가) ·');
+  console.log('           수량/가격/토글 시나리오 · 상업 레거시 함수 미실행');
   console.log(`scope-outside-tabs: ${result.scope.outOfScopeTabs.join(', ')}`);
   console.log(`sets: single=${result.actual.single.length}/${result.expected.single.length}, commercial=${result.actual.commercial.length}/${result.expected.commercial.length}`);
   if (!result.differences.length) { console.log('PASS: 전개 상세행 0건 차이'); return; }
