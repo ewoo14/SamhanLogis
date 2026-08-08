@@ -103,7 +103,6 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() throws Exception {
         cleanup();
-        syncService.clearHashCacheForTest();
         lenient().doNothing().when(sheetsClient).invalidateCache();
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
         lenient().when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());

@@ -111,7 +111,6 @@ class QuantitySyncRuleReconvergenceR7IT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() throws Exception {
         cleanup();
-        syncService.clearHashCacheForTest();
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);

@@ -1,9 +1,12 @@
 package com.samhanair.logis.product.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +21,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.PriceHistory;
+import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.ClassificationRepository;
@@ -36,12 +40,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -51,7 +58,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>테스트 시나리오:
  * <ul>
  *     <li>1) 첫 sync: insert 만 발생, DB row 수 = 시트 row 수</li>
- *     <li>2) 동일 시트 재 sync: rowHash 일치 → unchanged 만 (update X)</li>
+ *     <li>2) 동일 시트 재 sync: DB 상태 일치 → unchanged 만 (update X)</li>
  *     <li>3) 시트 row 가격 변경 → update 발생 (releasePrice 갱신)</li>
  *     <li>4) 시트에서 row 사라짐 → soft-delete (isDeleted=true)</li>
  * </ul>
@@ -93,7 +100,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     @Autowired
     private ProductSpecRepository productSpecRepository;
 
-    @Autowired
+    @SpyBean
     private ProductEstimateExposureRepository exposureRepository;
 
     @Autowired
@@ -101,12 +108,18 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     @BeforeEach
     void resetState() throws Exception {
-        // 메모리 hash 캐시 초기화 — 테스트 간 격리 (Spring 싱글턴 bean 의 in-memory state)
-        syncService.clearHashCacheForTest();
         // 캐시 invalidate mock — 호출 검증용
         lenient().doNothing().when(sheetsClient).invalidateCache();
         // FORMULA read 기본값 — 개별 테스트에서 필요한 탭만 override.
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
+    }
+
+    @AfterEach
+    void cleanupRollbackFixture() {
+        productRepository.findByModelCodeAndIsDeletedFalse("ROLLBACK_PRICE_MODEL").ifPresent(product -> {
+            product.markDeleted("test-cleanup");
+            productRepository.save(product);
+        });
     }
 
     @Test
@@ -165,7 +178,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void sync_재실행_rowHash_동일이면_update_없음() throws Exception {
+    void sync_재실행_DB상태_동일이면_update_없음() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         List<List<Object>> homeMulti = homeMultiRows(
                 row("Hi-Multi", "MODEL_HASH_TEST", "", "1,000,000", "", "900,000")
@@ -177,11 +190,43 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         // 2차 sync — 동일 데이터
         ProductSheetSyncService.SyncSummary second = syncService.syncAll();
 
-        // hash 일치 → updated=0 (해당 tab 만)
+        // DB 상태 일치 → updated=0 (해당 tab 만)
         ProductSheetSyncService.TabSyncResult homeTab = second.byTab.get("홈멀티");
         assertThat(homeTab).isNotNull();
         assertThat(homeTab.updated).isZero();
         assertThat(homeTab.unchanged).isEqualTo(1);
+    }
+
+    /**
+     * 변경 행의 후속 DB 저장이 실패해 탭 트랜잭션이 롤백되면,
+     * 같은 JVM의 재시도는 롤백된 DB 단가를 기준으로 행을 다시 처리해야 한다.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void syncTab_후속저장실패로_롤백된_단가는_같은행_재시도에서_반영되어야한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("롤백 단가 품목", "ROLLBACK_PRICE_MODEL", "", "1,000,000", "", "900,000")
+        ));
+        syncService.syncAll();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("롤백 단가 품목", "ROLLBACK_PRICE_MODEL", "", "1,200,000", "", "1,080,000")
+        ));
+        doThrow(new IllegalStateException("injected exposure save failure"))
+                .when(exposureRepository).save(any(ProductEstimateExposure.class));
+
+        ProductSheetSyncService.SyncSummary rolledBack = syncService.syncAll();
+        assertThat(rolledBack.byTab.get("홈멀티").error).isEqualTo("injected exposure save failure");
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("ROLLBACK_PRICE_MODEL").orElseThrow()
+                .getReleasePrice()).isEqualByComparingTo(new BigDecimal("1000000"));
+
+        reset(exposureRepository);
+        ProductSheetSyncService.SyncSummary retry = syncService.syncAll();
+
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("ROLLBACK_PRICE_MODEL").orElseThrow()
+                .getReleasePrice()).isEqualByComparingTo(new BigDecimal("1200000"));
+        assertThat(retry.byTab.get("홈멀티").updated).isEqualTo(1);
     }
 
     @Test
@@ -640,7 +685,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void sync_rowHash_동일해도_attribute_null이면_백필하고_다음_sync는_unchanged() throws Exception {
+    void sync_DB상태_동일해도_attribute_null이면_백필하고_다음_sync는_unchanged() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         List<List<Object>> sameRows = rows(
                 row("품 명", "모델명", "비고", "출고가", "비고", "납품가"),
@@ -765,7 +810,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                         com.samhanair.logis.product.domain.UsageScope.BOTH)))
                 .extracting(Product::getModelCode).contains("STOMP_TEST");
 
-        // 2차 sync — rowHash 동일 경로에서도 구성품 탭 재출현이 attribute 를 덮어쓰지 않아야 한다.
+        // 2차 sync — DB 상태 동일 경로에서도 구성품 탭 재출현이 attribute 를 덮어쓰지 않아야 한다.
         syncService.syncAll();
         Product afterSecondSync = productRepository.findByModelCodeAndIsDeletedFalse("STOMP_TEST").orElseThrow();
         assertThat(afterSecondSync.getPanelType()).isEqualTo("공청");
@@ -793,7 +838,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         productRepository.save(p);
         assertThat(p.isUsageScopeManual()).isTrue();
 
-        // 2차 sync — 시트 row 변경(가격 변경 → hash 변경으로 update 경로 진입)
+        // 2차 sync — 시트 row 변경(가격 변경 → DB 직접 비교로 update 경로 진입)
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi 수동테스트", "MANUAL_GUARD", "", "1,600,000", "", "1,300,000")  // 가격 변경
         ));
@@ -837,7 +882,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         productRepository.save(p);
         assertThat(p.isUsageScopeManual()).isFalse();
 
-        // 2차 sync — 가격 변경으로 update 경로 진입 (hash 변경)
+        // 2차 sync — 가격 변경으로 update 경로 진입 (DB 직접 비교)
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi 자동", "AUTO_GUARD", "", "1,700,000", "", "1,400,000")
         ));
@@ -960,7 +1005,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     /**
      * V19 변동DC DELETE 자동복귀 — clearVariableDiscountOverride 는 manual=false 로 되돌리고
-     * rowHash 를 evict 하므로, 행 내용이 동일해도 다음 sync 가 시트 기준 변동DC를 재적재한다.
+     * 수동 override 해제 후 DB 직접 비교로, 행 내용이 동일해도 다음 sync 가 시트 기준 변동DC를 재적재한다.
      */
     @Test
     void sync_variableDiscountManual_DELETE_후_행무변경_sync_시트기준_복원() throws Exception {
@@ -985,7 +1030,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(p.getHasVariableDiscount()).isFalse();
         assertThat(p.isVariableDiscountManual()).isTrue();
 
-        // DELETE /variable-discount 와 동일: manual=false 복귀 + rowHash evict.
+        // DELETE /variable-discount 와 동일: manual=false 복귀.
         productService.clearVariableDiscountOverride("VAR_CLEAR_01");
         Product cleared = productRepository.findByModelCodeAndIsDeletedFalse("VAR_CLEAR_01").orElseThrow();
         assertThat(cleared.getHasVariableDiscount()).isFalse();
@@ -994,7 +1039,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
         assertThat(homeTab.updated)
-                .as("variableDiscount DELETE 후 rowHash evict 로 행 무변경에도 update 경로 진입")
+                .as("variableDiscount DELETE 후 DB 직접 비교로 행 무변경에도 update 경로 진입")
                 .isEqualTo(1);
 
         Product after = productRepository.findByModelCodeAndIsDeletedFalse("VAR_CLEAR_01").orElseThrow();
@@ -1005,7 +1050,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     /**
-     * F1-a 수동 분류/고정DC 보존 — PATCH 후 rowHash evict 로 update 경로에 진입해도
+     * F1-a 수동 분류/고정DC 보존 — PATCH 후 행이 다시 비교되어도
      * 사용자가 저장한 분류와 고정DC는 시트/GAS 기본값으로 되돌아가면 안 된다.
      */
     @Test
@@ -1040,8 +1085,8 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
         assertThat(homeTab.updated)
-                .as("classification PATCH 후 rowHash evict 로 행 무변경에도 update 경로 진입")
-                .isEqualTo(1);
+                .as("classification 수동값이 있는 행은 DB 직접 비교 후에도 불필요한 update 없이 유지")
+                .isZero();
 
         Product afterSync = productRepository.findByModelCodeAndIsDeletedFalse("CLASS_MANUAL_01").orElseThrow();
         assertThat(afterSync.getCatL()).extracting(Classification::getName).isEqualTo("수동 대분류");
@@ -1160,15 +1205,15 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     /**
-     * V14 rowHash 캐시 evict — 수동 override 해제(DELETE /usage) 후 행 내용 무변경 상태로
+     * V14 수동 override 해제(DELETE /usage) 후 행 내용 무변경 상태로
      * sync 재실행 시 시트 기준으로 재분류되어야 한다 (지적 [2], PR-B 2026-06-11).
      *
      * <p>시나리오:
-     * 1차 sync → insert(BOTH). 수동 PARTNER_ORDER 토글 → evictRowHash. 2차 sync(행 무변경)
-     * → hash miss → update 경로 진입 → BOTH 재분류.
+     * 1차 sync → insert(BOTH). 수동 PARTNER_ORDER 토글 → override 해제. 2차 sync(행 무변경)
+     * → 현재 DB 값과 시트 기준이 달라 update 경로 진입 → BOTH 재분류.
      */
     @Test
-    void sync_rowHash_evict_후_행무변경_sync_시트기준_재분류() throws Exception {
+    void sync_수동override_해제_후_행무변경_sync_시트기준_재분류() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         List<List<Object>> sameRows = homeMultiRows(
                 row("Hi-Multi EvictTest", "EVICT_MODEL", "", "1,500,000", "", "1,200,000")
@@ -1185,19 +1230,18 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         productRepository.save(p);
         assertThat(p.isUsageScopeManual()).isTrue();
 
-        // clearUsageManual + evictRowHash (DELETE /usage 경로와 동일)
+        // clearUsageManual (DELETE /usage 경로와 동일)
         p.clearUsageManual();
         productRepository.save(p);
-        syncService.evictRowHash("EVICT_MODEL");
 
         // 2차 sync — 시트 행 내용 무변경 (동일 sameRows)
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(sameRows);
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
-        // hash evict → update 경로 진입 → BOTH 재분류
+        // DB 직접 비교에서 usageScope 차이를 발견 → update 경로 진입 → BOTH 재분류
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
         assertThat(homeTab.updated)
-                .as("hash evict 로 행 무변경에도 update 경로 진입")
+                .as("override 해제 후 DB 직접 비교로 행 무변경에도 update 경로 진입")
                 .isEqualTo(1);
 
         Product after = productRepository.findByModelCodeAndIsDeletedFalse("EVICT_MODEL").orElseThrow();

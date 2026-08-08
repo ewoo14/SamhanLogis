@@ -22,9 +22,6 @@ import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -36,7 +33,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -63,9 +59,9 @@ import org.springframework.transaction.annotation.Transactional;
  *     <li>구형 → OLD, BOTH</li>
  * </ul>
  *
- * <p><b>변경 감지</b> — row 의 SHA-256 hash 를 Product.discountFlags + remark prefix 에
- * 저장하지 않고, 메모리 내 비교 (rowHash != stored hash 시만 update). 신규 row =
- * insert. DB 에 있으나 시트에 없는 row = soft delete (deletedAt 설정). 시트 재현 시 복구.
+ * <p><b>변경 감지</b> — 시트 row 와 현재 DB Product 상태를 직접 비교해 변경 시에만 update 한다.
+ * 신규 row = insert. DB 에 있으나 시트에 없는 row = soft delete (deletedAt 설정).
+ * 시트 재현 시 복구.
  *
  * <p><b>트랜잭션</b>: 시트 1 tab 씩 별도 트랜잭션 — 1 tab 실패가 전체 sync 무효화 방지.
  * row 단위 실패는 catch + log + skip (sync continuity 우선).
@@ -172,9 +168,6 @@ public class ProductSheetSyncService {
     private final QuantitySyncRuleService quantitySyncRuleService;
     private final EcountAliasReservationService ecountAliasReservationService;
     private final ProductSheetSyncService self;
-
-    /** rowHash 캐시 — JVM 메모리. (시트 row → SHA-256). 다음 sync 시 비교. */
-    private final Map<String, String> lastKnownRowHash = new ConcurrentHashMap<>();
 
     public ProductSheetSyncService(GoogleSheetsClient sheetsClient,
                                    ProductRepository productRepository,
@@ -1108,18 +1101,25 @@ public class ProductSheetSyncService {
         if (mapping.productCategory != ProductCategory.SINGLE_SET) {
             return;
         }
+        BigDecimal pyongSize = sheetPyongSize(cells);
+        if (pyongSize != null) {
+            p.changePyongSize(pyongSize);
+        }
+    }
+
+    private static BigDecimal sheetPyongSize(List<String> cells) {
         String raw = safeGet(cells, 1); // 싱글 세트 B열 = 평형
         if (raw == null || raw.isBlank()) {
-            return;
+            return null;
         }
         String digits = raw.replaceAll("[^\\d.]", "");
         if (digits.isBlank()) {
-            return;
+            return null;
         }
         try {
-            p.changePyongSize(new BigDecimal(digits));
+            return new BigDecimal(digits);
         } catch (NumberFormatException ignored) {
-            // 비숫자 평형 표기 — skip
+            return null;
         }
     }
 
@@ -1148,7 +1148,7 @@ public class ProductSheetSyncService {
 
     /**
      * tab 1개 sync — read sheet → upsert 매트릭스. 별도 트랜잭션.
-     * row hash 비교: 신규 / 변경 / 동일 / 시트에서 사라진 row 4-way 분기.
+     * DB 상태 비교: 신규 / 변경 / 동일 / 시트에서 사라진 row 4-way 분기.
      *
      * <p><b>render mode</b> (개발책임자 정정 2026-05-05 — legacy 1:1 보존):
      * legacy estimate Code.js + partner-order Code.js 의 모든 6 tab read 가
@@ -1239,8 +1239,6 @@ public class ProductSheetSyncService {
             sheetModelCodes.add(modelCode);
             int displayOrder = ++displaySeq; // 시트 노출 순서(유효 데이터 행 순번)
 
-            String rowHash = sha256(cells.subList(0, Math.min(8, cells.size())).toString());
-            String prevHash = lastKnownRowHash.get(modelCode);
             BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
             BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
 
@@ -1281,11 +1279,12 @@ public class ProductSheetSyncService {
                 applyPyongSize(p, mapping, cells);
                 productRepository.save(p);
                 upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
-                lastKnownRowHash.put(modelCode, rowHash);
                 productId = p.getId();
                 productForExposure = p;
                 result.inserted++;
-            } else if (prevHash == null || !prevHash.equals(rowHash)) {
+            } else if (!isProductRowUnchanged(existing.get(), mapping, name, cells,
+                    releasePrice, deliveryPrice, hasVariableDiscount, materialKey,
+                    legacyDiscount, fixedRate, discountFlags, classifications)) {
                 Product p = existing.get();
                 p.changePrices(releasePrice, deliveryPrice);
                 // ECOUNT-first 행은 최초 생성 시 productCategory/usageScope가 비어 있다.
@@ -1349,7 +1348,6 @@ public class ProductSheetSyncService {
                 }
                 productRepository.save(p);
                 upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
-                lastKnownRowHash.put(modelCode, rowHash);
                 productId = p.getId();
                 productForExposure = p;
                 result.updated++;
@@ -1357,7 +1355,6 @@ public class ProductSheetSyncService {
                 Product p = existing.get();
                 if (p.getProductCategory() == mapping.productCategory && applyAttributes(p, name, modelCode)) {
                     productRepository.save(p);
-                    lastKnownRowHash.put(modelCode, rowHash);
                     productId = p.getId();
                     productForExposure = p;
                     upsertPriceHistory(productId, PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
@@ -1412,7 +1409,6 @@ public class ProductSheetSyncService {
                 p.markDeleted(actor);
                 productRepository.save(p);
                 softDeleteExposures(p.getId(), actor);
-                lastKnownRowHash.remove(code);
                 result.softDeleted++;
             }
         }
@@ -1446,6 +1442,66 @@ public class ProductSheetSyncService {
                         },
                         () -> exposureRepository.save(ProductEstimateExposure.create(
                                 product.getId(), estimateCategory, displayOrder)));
+    }
+
+    /**
+     * 시트가 관리하는 현재 Product 상태를 DB 엔티티와 직접 비교한다.
+     * JVM 상태를 기억하지 않으므로 커밋되지 않은 row가 다음 실행에서 unchanged가 될 수 없다.
+     */
+    private boolean isProductRowUnchanged(Product product,
+                                           SheetTabMapping mapping,
+                                           String name,
+                                           List<String> cells,
+                                           BigDecimal releasePrice,
+                                           BigDecimal deliveryPrice,
+                                           boolean hasVariableDiscount,
+                                           MaterialKey materialKey,
+                                           boolean legacyDiscount,
+                                           BigDecimal fixedRate,
+                                           String discountFlags,
+                                           ClassificationSet classifications) {
+        if (!Objects.equals(product.getName(), name)
+                || !sameDecimal(product.getReleasePrice(), releasePrice)
+                || !sameDecimal(product.getDeliveryPrice(), deliveryPrice)
+                || !attributesMatch(product, name, product.getModelCode())
+                || (mapping.productCategory == ProductCategory.SINGLE_SET
+                        && sheetPyongSize(cells) != null
+                        && !sameDecimal(product.getPyongSize(), sheetPyongSize(cells)))) {
+            return false;
+        }
+        if (!product.isUsageScopeManual() && product.getUsageScope() != mapping.usageScope) {
+            return false;
+        }
+        if (!product.isVariableDiscountManual()
+                && (!Objects.equals(product.getHasVariableDiscount(), hasVariableDiscount)
+                        || !Objects.equals(product.getSetMaterialKey(), materialKey)
+                        || !Objects.equals(product.getLegacyDiscountFlag(), legacyDiscount)
+                        || !Objects.equals(product.getDiscountFlags(), discountFlags))) {
+            return false;
+        }
+        if (!product.isFixedDiscountManual() && !sameDecimal(product.getFixedDiscountRate(), fixedRate)) {
+            return false;
+        }
+        if (!product.isClassificationManual()
+                && (!sameClassification(product.getCatL(), classifications.catL())
+                        || !sameClassification(product.getCatM(), classifications.catM())
+                        || !sameClassification(product.getCatS(), classifications.catS()))) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean attributesMatch(Product product, String name, String modelCode) {
+        return Objects.equals(product.getPanelType(), attributeClassifier.classifyPanelType(name, modelCode))
+                && Objects.equals(product.getRemoteType(), attributeClassifier.classifyRemoteType(name));
+    }
+
+    private static boolean sameDecimal(BigDecimal left, BigDecimal right) {
+        return left == null ? right == null : right != null && left.compareTo(right) == 0;
+    }
+
+    private static boolean sameClassification(Classification left, Classification right) {
+        return left == null ? right == null : right != null && Objects.equals(left.getId(), right.getId());
     }
 
     private boolean applyAttributes(Product product, String name, String modelCode) {
@@ -1952,45 +2008,6 @@ public class ProductSheetSyncService {
         } catch (NumberFormatException e) {
             return BigDecimal.ZERO;
         }
-    }
-
-    private static String sha256(String s) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(s.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : digest) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 always available on JVM
-            return Integer.toHexString(s.hashCode());
-        }
-    }
-
-    /**
-     * 특정 modelCode 의 rowHash 캐시 무효화 — 수동 override 해제 시 호출.
-     *
-     * <p>인메모리 {@link #lastKnownRowHash} 에서 해당 모델의 hash 를 제거하여
-     * 다음 sync 에서 {@code unchanged} 분기를 건너뛰고 usageScope/estimateCategory 를
-     * 시트 기준으로 재분류하도록 강제한다 (지적 [2], PR-B 2026-06-11).
-     *
-     * <p>시트 행 내용이 바뀌지 않았어도 override 해제 후 반드시 재분류가 필요하므로
-     * hash 자체를 제거한다. 제거 후 다음 sync = 신규 insert 가 아닌 hash miss → update 경로.
-     *
-     * @param modelCode override 해제된 품목의 modelCode
-     */
-    public void evictRowHash(String modelCode) {
-        if (modelCode != null) {
-            lastKnownRowHash.remove(modelCode);
-        }
-    }
-
-    /**
-     * 테스트 전용 — 메모리 hash 캐시 초기화.
-     * IT 에서 @BeforeEach 로 호출하여 테스트 간 격리 보장. 운영 코드에서 호출 금지.
-     */
-    public void clearHashCacheForTest() {
-        lastKnownRowHash.clear();
     }
 
     private String sheetSyncKey(String scope) {
