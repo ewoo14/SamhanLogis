@@ -20,3 +20,14 @@ export function vatFromIntegerSupply(supplyAmount: bigint): bigint {
 export function supplyFromVatInclusive(lineTotal: bigint): bigint {
   return (lineTotal * 100n) / 110n
 }
+
+/** VAT 포함 총액을 화면에 표시할 공급가액·부가세액·총액으로 분리한다. */
+export function splitVatInclusive(
+  totalAmount: number,
+  taxable: boolean,
+): { supply: number; vat: number; total: number } {
+  const total = Number.isFinite(totalAmount) ? Math.trunc(totalAmount) : 0
+  if (!taxable) return { supply: total, vat: 0, total }
+  const supply = Number(supplyFromVatInclusive(BigInt(total)))
+  return { supply, vat: total - supply, total }
+}

@@ -16,7 +16,7 @@ import {
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { today } from '../../utils/dateUtils'
 import { fmtKrw } from '../../utils/currencyUtils'
-import { vatFromSupply } from '../../utils/vatRounding'
+import { splitVatInclusive } from '../../utils/vatRounding'
 
 const inputStyle: CSSProperties = {
   height: 32,
@@ -43,8 +43,11 @@ export function SalesAccountingSlipFormPage() {
     [allocations],
   )
   const sourcePartner = useMemo(() => resolveAllocationPartner(selectedRows), [selectedRows])
-  const totalSupply = selectedRows.reduce((sum, row) => sum + row.allocatedAmount, 0)
-  const totalVat = taxType === 'TAXABLE' ? vatFromSupply(totalSupply) : 0
+  const vatInclusiveTotal = selectedRows.reduce((sum, row) => sum + row.allocatedAmount, 0)
+  const { supply: totalSupply, vat: totalVat, total: totalAmount } = splitVatInclusive(
+    vatInclusiveTotal,
+    taxType === 'TAXABLE',
+  )
 
   const mutation = useMutation({
     mutationFn: createSalesSlipDraft,
@@ -68,7 +71,7 @@ export function SalesAccountingSlipFormPage() {
           productCode: first.productCode,
           productName: first.productName,
           qty: String(qty || first.sourceQty),
-          unitPrice: String(qty > 0 ? Math.round(totalSupply / qty) : first.sourceAmount / first.sourceQty),
+          unitPrice: String(qty > 0 ? Math.round(vatInclusiveTotal / qty) : first.sourceAmount / first.sourceQty),
           allocations: selectedRows.map((row) => ({
             sourceSlipId: row.sourceSlipId,
             sourceSlipNo: row.sourceSlipNo,
@@ -145,7 +148,7 @@ export function SalesAccountingSlipFormPage() {
           <div>
             <div>공급가 {fmtKrw(String(totalSupply))}</div>
             <div>부가세 {fmtKrw(String(totalVat))}</div>
-            <strong>합계 {fmtKrw(String(totalSupply + totalVat))}</strong>
+            <strong>합계 {fmtKrw(String(totalAmount))}</strong>
           </div>
           <Button
             variant="primary"
