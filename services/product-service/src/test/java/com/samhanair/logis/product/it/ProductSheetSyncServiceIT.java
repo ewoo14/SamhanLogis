@@ -225,7 +225,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
         assertThat(homeTab.updated).isZero();
         assertThat(homeTab.unchanged).isEqualTo(1);
-        assertThat(homeTab.nameDrift).isEqualTo(1);
+        assertThat(homeTab.nameDriftOccurrences).isEqualTo(1);
         String homeTabName = second.byTab.entrySet().stream()
                 .filter(entry -> entry.getValue() == homeTab)
                 .map(java.util.Map.Entry::getKey)
@@ -235,7 +235,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.TabSyncResult thirdHomeTab = third.byTab.get(homeTabName);
         assertThat(thirdHomeTab.updated).isZero();
         assertThat(thirdHomeTab.unchanged).isEqualTo(1);
-        assertThat(thirdHomeTab.nameDrift).isEqualTo(1);
+        assertThat(thirdHomeTab.nameDriftOccurrences).isEqualTo(1);
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("NAME_DRIFT_MODEL").orElseThrow()
                 .getName()).isEqualTo("DB authoritative name");
     }
@@ -340,13 +340,33 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
         assertThat(reordered.updated).isZero();
         assertThat(reordered.unchanged).isEqualTo(2);
-        assertThat(reordered.priceHistoryExposureSpecWrites).isEqualTo(2);
+        assertThat(reordered.priceHistoryExposureSpecChangedRows).isEqualTo(2);
 
         ProductSheetSyncService.TabSyncResult repeated = syncService.syncAll().byTab.get("홈멀티");
 
         assertThat(repeated.updated).isZero();
         assertThat(repeated.unchanged).isEqualTo(2);
-        assertThat(repeated.priceHistoryExposureSpecWrites).isZero();
+        assertThat(repeated.priceHistoryExposureSpecChangedRows).isZero();
+    }
+
+    @Test
+    void sync_동일_Product의_ProductSpec_두행_변경은_변경행수_2로_센다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z"))
+                .thenReturn(singleSetSpecRows("A", "1등급"));
+        syncService.syncAll();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z"))
+                .thenReturn(singleSetSpecRows("B", "2등급"));
+
+        ProductSheetSyncService.TabSyncResult result = syncService.syncAll().byTab.get("싱글 세트");
+
+        assertThat(result.updated).isZero();
+        assertThat(result.unchanged).isEqualTo(1);
+        assertThat(result.priceHistoryExposureSpecChangedRows).isEqualTo(2);
+
+        ProductSheetSyncService.TabSyncResult repeated = syncService.syncAll().byTab.get("싱글 세트");
+        assertThat(repeated.priceHistoryExposureSpecChangedRows).isZero();
     }
 
     @Test
@@ -1388,6 +1408,16 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         // 헤더 row — col0 에 "품" + "명" 포함 (findHeaderRow 가 인식)
         all.add(List.of("품 명", "모델명", "비고", "출고가", "비고", "납품가"));
         for (List<Object> r : dataRows) all.add(r);
+        return all;
+    }
+
+    private static List<List<Object>> singleSetSpecRows(String pipeDiameter, String efficiencyGrade) {
+        java.util.List<java.util.List<Object>> all = new java.util.ArrayList<>();
+        all.add(List.of("품 명", "평형", "모델명", "비고", "출고가", "비고", "비고", "납품가",
+                "성능(kcal/h)(최소/정격/최대)", "성능(kW)(최소/정격/최대)",
+                "소비전력(kW)(최소/정격/최대)", "배관경", "등급(냉방/난방)"));
+        all.add(List.of("Spec counter", "1", "SPEC_COUNTER_MODEL", "", "1,000,000", "", "", "900,000",
+                "100|200|300", "10|20|30", "5|6|7", pipeDiameter, efficiencyGrade));
         return all;
     }
 

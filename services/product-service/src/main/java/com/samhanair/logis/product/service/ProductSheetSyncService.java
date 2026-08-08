@@ -246,8 +246,8 @@ public class ProductSheetSyncService {
                 summary.byTab.put(mapping.tabName, tabResult);
                 summary.totalInserted += tabResult.inserted;
                 summary.totalUpdated += tabResult.updated;
-                summary.totalNameDrift += tabResult.nameDrift;
-                summary.totalPriceHistoryExposureSpecWrites += tabResult.priceHistoryExposureSpecWrites;
+                summary.totalNameDriftOccurrences += tabResult.nameDriftOccurrences;
+                summary.totalPriceHistoryExposureSpecChangedRows += tabResult.priceHistoryExposureSpecChangedRows;
                 summary.totalSoftDeleted += tabResult.softDeleted;
                 summary.totalSkipped += tabResult.skipped;
                 summary.totalPreservedManual += tabResult.preservedManual;
@@ -284,11 +284,11 @@ public class ProductSheetSyncService {
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
         log.info("[ProductSheetSync] sync 완료: 총 inserted={}, updated={}, softDeleted={}, skipped={}, "
-                        + "preservedManual={}, 구성품 linked={}, bundle marked={}, 사양 linked={}, priceHistoryExposureSpecWrites={}, duration={}ms",
+                        + "preservedManual={}, 구성품 linked={}, bundle marked={}, 사양 linked={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
                 summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted,
                 summary.totalSkipped, summary.totalPreservedManual,
                 summary.totalComponentsLinked, summary.totalBundlesMarked,
-                summary.totalSpecsLinked, summary.totalPriceHistoryExposureSpecWrites, summary.durationMs);
+                summary.totalSpecsLinked, summary.totalPriceHistoryExposureSpecChangedRows, summary.durationMs);
         return summary;
     }
 
@@ -500,11 +500,20 @@ public class ProductSheetSyncService {
                 productSpecRepository.save(s);
             }
         }
-        if (!beforeSpecs.equals(captureSpecState(productId))) {
-            // 호출부에서 Product 변경과 분리해 관측할 수 있도록, 실제 spec 상태 변화만 표시한다.
-            specWrites.changed = true;
-        }
+        specWrites.changedRows = changedRowCount(beforeSpecs, captureSpecState(productId));
         return linked;
+    }
+
+    private static int changedRowCount(Map<String, SpecState> before, Map<String, SpecState> after) {
+        Set<String> keys = new HashSet<>(before.keySet());
+        keys.addAll(after.keySet());
+        int changed = 0;
+        for (String key : keys) {
+            if (!Objects.equals(before.get(key), after.get(key))) {
+                changed++;
+            }
+        }
+        return changed;
     }
 
     private Map<String, SpecState> captureSpecState(UUID productId) {
@@ -1311,7 +1320,7 @@ public class ProductSheetSyncService {
                 result.inserted++;
             } else {
                 if (!Objects.equals(existing.get().getName(), name)) {
-                    result.nameDrift++;
+                    result.nameDriftOccurrences++;
                     log.info("[ProductSheetSync] tab '{}' modelCode='{}' name drift observed (DB name retained)",
                             mapping.tabName, modelCode);
                 }
@@ -1399,14 +1408,14 @@ public class ProductSheetSyncService {
             if (headerCells != null) {
                 SpecWriteObservation specWrites = new SpecWriteObservation();
                 result.specsLinked += loadSpecsForProduct(productId, headerCells, cells, mapping, specWrites);
-                externalWrites.markIfChanged(specWrites.changed);
+                externalWrites.addChangedRows(specWrites.changedRows);
             }
-            if (existing.isPresent() && !productChanged && externalWrites.changed()) {
-                result.priceHistoryExposureSpecWrites++;
-            }
+            result.priceHistoryExposureSpecChangedRows += externalWrites.changedRows();
         }
 
-        syncBeforeIncreasePriceHistory(mapping, sheetModelCodes);
+        ExternalWriteTracker beforeIncreaseWrites = new ExternalWriteTracker();
+        syncBeforeIncreasePriceHistory(mapping, sheetModelCodes, beforeIncreaseWrites);
+        result.priceHistoryExposureSpecChangedRows += beforeIncreaseWrites.changedRows();
 
         // soft-delete: DB 의 같은 productCategory row 중 시트에서 사라진 것.
         // usageScopeManual=true 인 품목은 시트 부재 시에도 soft-delete 제외 — 개발책임자 결정
@@ -1444,9 +1453,9 @@ public class ProductSheetSyncService {
             }
         }
 
-        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, nameDrift={}, priceHistoryExposureSpecWrites={}, softDeleted={}, skipped={}, preservedManual={}",
+        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, nameDriftOccurrences={}, priceHistoryExposureSpecChangedRows={}, softDeleted={}, skipped={}, preservedManual={}",
                 mapping.tabName, result.inserted, result.updated, result.unchanged,
-                result.nameDrift, result.priceHistoryExposureSpecWrites, result.softDeleted,
+                result.nameDriftOccurrences, result.priceHistoryExposureSpecChangedRows, result.softDeleted,
                 result.skipped, result.preservedManual);
         return result;
     }
@@ -1518,19 +1527,23 @@ public class ProductSheetSyncService {
 
     /** Product 변경 판정과 독립적으로 PriceHistory/Exposure/Spec 저장 상태를 관측한다. */
     private static final class ExternalWriteTracker {
-        private boolean changed;
+        private int changedRows;
 
         private void markIfChanged(boolean value) {
-            changed |= value;
+            if (value) changedRows++;
         }
 
-        private boolean changed() {
-            return changed;
+        private void addChangedRows(int count) {
+            changedRows += count;
+        }
+
+        private int changedRows() {
+            return changedRows;
         }
     }
 
     private static final class SpecWriteObservation {
-        private boolean changed;
+        private int changedRows;
     }
 
     private boolean applyAttributes(Product product, String name, String modelCode) {
@@ -1555,7 +1568,8 @@ public class ProductSheetSyncService {
         }
     }
 
-    private void syncBeforeIncreasePriceHistory(SheetTabMapping mapping, Set<String> currentModelCodes) throws Exception {
+    private void syncBeforeIncreasePriceHistory(SheetTabMapping mapping, Set<String> currentModelCodes,
+                                                ExternalWriteTracker externalWrites) throws Exception {
         if (mapping.beforeIncreaseTabName == null || currentModelCodes.isEmpty()) {
             return;
         }
@@ -1589,7 +1603,7 @@ public class ProductSheetSyncService {
             BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
             BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
             upsertPriceHistory(product.get().getId(), BEFORE_INCREASE_EFFECTIVE_DATE,
-                    releasePrice, deliveryPrice, new ExternalWriteTracker());
+                    releasePrice, deliveryPrice, externalWrites);
         }
     }
 
@@ -2100,10 +2114,10 @@ public class ProductSheetSyncService {
         public int inserted = 0;
         public int updated = 0;
         public int unchanged = 0;
-        /** 시트명과 DB명이 다르지만 sync 대상이 아니어서 DB 이름을 보존한 품목 수. */
-        public int nameDrift = 0;
-        /** Product가 unchanged여도 실제로 변경된 PriceHistory/Exposure 행 수. */
-        public int priceHistoryExposureSpecWrites = 0;
+        /** 시트 행 occurrence와 DB 품명이 달라 DB 이름을 보존한 occurrence 수. */
+        public int nameDriftOccurrences = 0;
+        /** 실제로 변경된 PriceHistory/Exposure/ProductSpec 행 수. */
+        public int priceHistoryExposureSpecChangedRows = 0;
         public int softDeleted = 0;
         /** 파싱 불가(이름/modelCode 공백) 행 수. */
         public int skipped = 0;
@@ -2133,10 +2147,10 @@ public class ProductSheetSyncService {
         public Map<String, ComponentSyncResult> byComponentTab = new HashMap<>();
         public int totalInserted = 0;
         public int totalUpdated = 0;
-        /** 이름 불일치 관측 합계. updated/unchanged와 별도로 집계한다. */
-        public int totalNameDrift = 0;
-        /** Product가 unchanged여도 실제로 변경된 PriceHistory/Exposure/Spec 행이 있는 품목 수. */
-        public int totalPriceHistoryExposureSpecWrites = 0;
+        /** 이름 불일치 occurrence 합계. updated/unchanged와 별도로 집계한다. */
+        public int totalNameDriftOccurrences = 0;
+        /** 실제로 변경된 PriceHistory/Exposure/ProductSpec 행 수 합계. */
+        public int totalPriceHistoryExposureSpecChangedRows = 0;
         public int totalSoftDeleted = 0;
         public int totalSkipped = 0;
         /** usageScopeManual=true 로 soft-delete 보호된 품목 합계 (사이클2 지적 P3-6). */
