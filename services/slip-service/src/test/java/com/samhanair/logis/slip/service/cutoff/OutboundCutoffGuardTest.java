@@ -5,8 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.cutoff.SlipOutboundCutoff;
+import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosingBaselineRepository;
+import com.samhanair.logis.slip.service.closing.SlipClosingDateRuleRepository;
 import com.samhanair.logis.slip.repository.cutoff.SlipOutboundCutoffRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -33,7 +38,8 @@ class OutboundCutoffGuardTest {
                 Arguments.of(DeliveryTag.REGION, LocalTime.NOON),
                 Arguments.of(DeliveryTag.STACK, LocalTime.of(14, 0)),
                 Arguments.of(DeliveryTag.GYEONGDONG_PARCEL, LocalTime.of(15, 0)),
-                Arguments.of(DeliveryTag.GYEONGDONG_FREIGHT, LocalTime.of(15, 0))
+                Arguments.of(DeliveryTag.GYEONGDONG_FREIGHT, LocalTime.of(15, 0)),
+                Arguments.of(DeliveryTag.RETURN_RENTAL, LocalTime.of(16, 0))
         );
     }
 
@@ -48,7 +54,8 @@ class OutboundCutoffGuardTest {
         OutboundCutoffGuard guard = new OutboundCutoffGuard(Clock.fixed(afterCutoff, KST), repository);
 
         assertThatThrownBy(() -> guard.assertWithinCutoff(tag, TODAY))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(tag.getKoreanLabel());
         assertThatCode(() -> guard.assertWithinCutoff(tag, TODAY.plusDays(1)))
                 .doesNotThrowAnyException();
     }
@@ -65,5 +72,89 @@ class OutboundCutoffGuardTest {
 
         assertThatCode(() -> guard.assertWithinCutoff(tag, TODAY))
                 .doesNotThrowAnyException();
+    }
+
+    @org.junit.jupiter.api.Test
+    void cutoffFailure_keepsLegacyNextDayMessageWhenNextDayPassesBothGates() {
+        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
+        SlipClosedDateGuard closedDateGuard = Mockito.mock(SlipClosedDateGuard.class);
+        when(repository.findByDeliveryTagAndActiveTrue(DeliveryTag.REGION))
+                .thenReturn(Optional.of(SlipOutboundCutoff.create(DeliveryTag.REGION, LocalTime.NOON)));
+        when(closedDateGuard.isCreatable(SlipType.OUTBOUND, TODAY.plusDays(1), "requester"))
+                .thenReturn(true);
+        Instant afterCutoff = TODAY.atTime(13, 0).atZone(KST).toInstant();
+        OutboundCutoffGuard guard = new OutboundCutoffGuard(
+                Clock.fixed(afterCutoff, KST), repository, closedDateGuard);
+
+        assertThatThrownBy(() -> guard.assertWithinCutoff(
+                DeliveryTag.REGION, TODAY, SlipType.OUTBOUND, "requester"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("익일 출고로 생성하세요");
+    }
+
+    @org.junit.jupiter.api.Test
+    void cutoffFailure_doesNotOfferNextDayWhenNextDaysAreClosed() {
+        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
+        SlipClosedDateGuard closedDateGuard = Mockito.mock(SlipClosedDateGuard.class);
+        when(repository.findByDeliveryTagAndActiveTrue(DeliveryTag.REGION))
+                .thenReturn(Optional.of(SlipOutboundCutoff.create(DeliveryTag.REGION, LocalTime.NOON)));
+        when(closedDateGuard.isCreatable(
+                SlipType.OUTBOUND, TODAY.plusDays(1), "requester")).thenReturn(false);
+        when(closedDateGuard.isCreatable(
+                SlipType.OUTBOUND, TODAY.plusDays(2), "requester")).thenReturn(false);
+        Instant afterCutoff = TODAY.atTime(13, 0).atZone(KST).toInstant();
+        OutboundCutoffGuard guard = new OutboundCutoffGuard(
+                Clock.fixed(afterCutoff, KST), repository, closedDateGuard);
+
+        assertThatThrownBy(() -> guard.assertWithinCutoff(
+                DeliveryTag.REGION, TODAY, SlipType.OUTBOUND, "requester"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageNotContaining("익일 출고로 생성하세요");
+    }
+
+    @org.junit.jupiter.api.Test
+    void cutoffFailure_namesFirstLaterDateWhenTomorrowIsClosed() {
+        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
+        SlipClosedDateGuard closedDateGuard = Mockito.mock(SlipClosedDateGuard.class);
+        when(repository.findByDeliveryTagAndActiveTrue(DeliveryTag.REGION))
+                .thenReturn(Optional.of(SlipOutboundCutoff.create(DeliveryTag.REGION, LocalTime.NOON)));
+        when(closedDateGuard.isCreatable(
+                SlipType.OUTBOUND, TODAY.plusDays(1), "requester")).thenReturn(false);
+        when(closedDateGuard.isCreatable(
+                SlipType.OUTBOUND, TODAY.plusDays(2), "requester")).thenReturn(true);
+        Instant afterCutoff = TODAY.atTime(13, 0).atZone(KST).toInstant();
+        OutboundCutoffGuard guard = new OutboundCutoffGuard(
+                Clock.fixed(afterCutoff, KST), repository, closedDateGuard);
+
+        assertThatThrownBy(() -> guard.assertWithinCutoff(
+                DeliveryTag.REGION, TODAY, SlipType.OUTBOUND, "requester"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(TODAY.plusDays(2).toString())
+                .hasMessageNotContaining("익일 출고로 생성하세요");
+    }
+
+    @org.junit.jupiter.api.Test
+    void noClosingBaseline_keepsLegacyNextDayMessage() {
+        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
+        SlipClosingBaselineRepository baselineRepository = Mockito.mock(SlipClosingBaselineRepository.class);
+        SlipClosingDateRuleRepository dateRuleRepository = Mockito.mock(SlipClosingDateRuleRepository.class);
+        DynamicPermissionClient permissionClient = Mockito.mock(DynamicPermissionClient.class);
+        when(repository.findByDeliveryTagAndActiveTrue(DeliveryTag.REGION))
+                .thenReturn(Optional.of(SlipOutboundCutoff.create(DeliveryTag.REGION, LocalTime.NOON)));
+        when(baselineRepository.findBySlipTypeAndIsDeletedFalse(SlipType.OUTBOUND))
+                .thenReturn(Optional.empty());
+        when(dateRuleRepository.findBySlipTypeAndClosingDateAndIsDeletedFalse(
+                SlipType.OUTBOUND, TODAY.plusDays(1))).thenReturn(Optional.empty());
+        SlipClosedDateGuard closedDateGuard = new SlipClosedDateGuard(
+                baselineRepository, dateRuleRepository, permissionClient, Clock.fixed(
+                        TODAY.atStartOfDay(KST).toInstant(), KST));
+        Instant afterCutoff = TODAY.atTime(13, 0).atZone(KST).toInstant();
+        OutboundCutoffGuard guard = new OutboundCutoffGuard(
+                Clock.fixed(afterCutoff, KST), repository, closedDateGuard);
+
+        assertThatThrownBy(() -> guard.assertWithinCutoff(
+                DeliveryTag.REGION, TODAY, SlipType.OUTBOUND, "requester"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("익일 출고로 생성하세요");
     }
 }

@@ -88,7 +88,8 @@ public class EstimateToSlipConverter {
         // [게이트②] 견적→출고전표 변환 마감 게이트 — createOutbound 직후.
         // deliveryTag null(견적 변환 시 항상 null) 이므로 assertWithinCutoff 내부에서 즉시 통과.
         // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦이 잡는다.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate(),
+                com.samhanair.logis.slip.domain.SlipType.OUTBOUND, estimate.getRequesterId());
 
         // estimate_lines → slip_lines 1:1 copy (lineNo 순). 옵션 A: 세트는 이미 견적에서 구성품으로
         // 전개돼 있으므로 1:1 복사면 전표에 구성품으로 올라간다. 세트 구성품 메타(setHead/부모세트)도 복사.

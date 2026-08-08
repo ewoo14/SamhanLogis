@@ -22,14 +22,20 @@ public class SlipClosedDateGuard {
     private final Clock clock;
 
     public void assertCreatable(SlipType slipType, LocalDate slipDate, String requesterId) {
-        if (!isClosed(slipType, slipDate)) {
-            return;
-        }
-        UUID accountId = parseUuid(requesterId);
-        if (accountId != null && permissionClient.check(accountId, PAGE_CODE, PermissionAction.CREATE)) {
+        if (isCreatable(slipType, slipDate, requesterId)) {
             return;
         }
         throw new SlipClosedDateException();
+    }
+
+    /** 날짜 마감과 예외 권한을 함께 판정한다. 대체 출고일 탐색에서도 같은 정책을 재사용한다. */
+    public boolean isCreatable(SlipType slipType, LocalDate slipDate, String requesterId) {
+        if (!isClosed(slipType, slipDate)) {
+            return true;
+        }
+        UUID accountId = parseUuid(requesterId);
+        return accountId != null
+                && permissionClient.check(accountId, PAGE_CODE, PermissionAction.CREATE);
     }
 
     private boolean isClosed(SlipType slipType, LocalDate slipDate) {
