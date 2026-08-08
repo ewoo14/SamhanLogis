@@ -155,4 +155,50 @@ describe('accounting slip permission contract', () => {
       }
     }
   })
+
+  it('R7: every mock page changed by R6 preserves the real model 7-bit action boundary', () => {
+    const expected: Record<string, Record<string, PermissionCell>> = {
+      manager: {
+        'accounting.tax-invoice.inbound.manage': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+        'accounting.sales-slip.accounting': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+        'accounting.purchase-slip.accounting': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+        'messenger.send': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+        'ecount.mig.ops-dashboard': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+      },
+      sales: {
+        'accounting.sales-slip.accounting': { view: true, create: false, update: false, delete: false, restore: false, download: false, print: false },
+        'accounting.purchase-slip.accounting': { view: true, create: false, update: false, delete: false, restore: false, download: false, print: false },
+        'messenger.send': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+      },
+      accountant: {
+        'accounting.tax-invoice.inbound.manage': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+        'accounting.sales-slip.accounting': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+        'accounting.purchase-slip.accounting': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+        'messenger.send': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+        'ecount.mig.ops-dashboard': { view: true, create: false, update: false, delete: false, restore: false, download: false, print: false },
+      },
+      warehouse: {
+        'messenger.send': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+      },
+      inventory: {
+        'messenger.send': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+      },
+      developer: {
+        'messenger.send': { view: true, create: true, update: true, delete: true, restore: false, download: false, print: false },
+      },
+    }
+
+    for (const [role, pages] of Object.entries(expected)) {
+      for (const [pageCode, expectedCell] of Object.entries(pages)) {
+        expect(getRolePermissionCell(role, pageCode), `${role} ${pageCode}`).toEqual(expectedCell)
+      }
+    }
+
+    expect(getRolePermissionCell('manager', 'system.permission-admin')).toEqual({
+      view: false, create: false, update: false, delete: false, restore: false, download: false, print: false,
+    })
+    expect(getMatrixPermissionCell('MASTER', 'system.permission-admin')).toMatchObject({
+      canView: true, canEdit: true,
+    })
+  })
 })
