@@ -902,21 +902,28 @@ export function EstimateFormPage() {
     linesRef.current = draftLines
     setLines(draftLines)
     setHydratedEstimateId(editId ?? null)
+  }, [editId, isEdit, detailQuery.data, estimateFormCoeditProvider])
+
+  // 상태 조회는 협업 provider 연결/반영 경로와 분리한다. 품목 상태가 늦어져도 상대 입력
+  // 수신을 기다리게 하지 않으며, 완료 시 현재 라인의 상태 필드만 병합한다.
+  useEffect(() => {
+    if (!isEdit || !editId || !detailQuery.data) return
+    const estimateIdAtStart = detailQuery.data.id
+    const draftLines = linesRef.current
     void hydrateCurrentProductStatuses(draftLines, lookupProducts).then((hydratedWithCurrentStatuses) => {
-      if (estimateDataRef.current?.id !== e.id) return
+      if (estimateDataRef.current?.id !== estimateIdAtStart) return
       const statusByProductId = new Map(
         hydratedWithCurrentStatuses
           .filter((line) => line.productId)
           .map((line) => [line.productId!, line.status ?? null]),
       )
-      // 협업 provider가 hydrate 중에 반영한 미저장 입력은 버리지 않고 현재 상태만 합친다.
       const currentLines = linesRef.current.map((line) => line.productId && statusByProductId.has(line.productId)
         ? { ...line, status: statusByProductId.get(line.productId) ?? null }
         : line)
       linesRef.current = currentLines
       setLines(currentLines)
     })
-  }, [editId, isEdit, detailQuery.data, estimateFormCoeditProvider])
+  }, [editId, isEdit, detailQuery.data])
 
   useEffect(() => {
     const estimate = estimateDataRef.current

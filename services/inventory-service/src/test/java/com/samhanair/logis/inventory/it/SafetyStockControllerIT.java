@@ -83,7 +83,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
                         UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"));
 
         // Sprint 4 — findAlerts() 의 batch lookup stub. enrich (productCode/productName) 검증용.
-        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+        Mockito.lenient().when(productClient.lookupAllowMissing(Mockito.anyList()))
                 .thenAnswer(inv -> {
                     java.util.List<UUID> ids = inv.getArgument(0);
                     return ids.stream()

@@ -684,7 +684,6 @@ public class ProductService {
 
     public void reactivate(UUID id) {
         Product product = loadOrThrow(id);
-        assertNameAvailable(product.getName(), product.getId());
         product.reactivate();
     }
 
