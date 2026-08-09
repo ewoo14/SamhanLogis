@@ -6,7 +6,7 @@ import java.util.List;
  * MIG-1 PoC — 이카운트 거래처 CSV 17 컬럼 import 결과.
  *
  * <p>spec: docs/superpowers/specs/2026-05-19-ecount-mig-1-partner-design.md (D-MIG-1-11).
- * 총 row / 분류 카테고리 + trailer 제외 및 파싱 보류 건수. UUID는 응답에 노출하지 않는다.
+ * 총 row / 분류 카테고리 + trailer 제외 및 파싱·DB 적재 보류 건수. UUID는 응답에 노출하지 않는다.
  *
  * @param totalRows CSV 데이터 row 수 (메타 + 헤더 제외)
  * @param imported 신규 INSERT 건수 (transform_status=IMPORTED)
@@ -29,6 +29,7 @@ public record EcountPartnerImportResult(
         String sourceFileHash,
         List<RejectedRow> rejectedSample,
         int excludedTrailerRows,
+        /** 파싱 또는 행 단위 DB 제약 실패로 보류된 건수. */
         int heldParseFailureRows,
         List<RejectedRow> heldSample,
         int registrationDateParsedCount,
@@ -46,7 +47,7 @@ public record EcountPartnerImportResult(
      * reject / skip row sample — CSV row 번호 (1-base, 메타=1 / 헤더=2 / 데이터=3+) + 사유 + 입력 거래처명.
      *
      * @param rowNumber CSV 1-base row 번호 (3 이상)
-     * @param reason 분류 사유 (REJECT_NAME_NULL / SKIPPED_PLACEHOLDER)
+     * @param reason 분류 사유 (REJECT_NAME_NULL / SKIPPED_PLACEHOLDER / DB_CONSTRAINT)
      * @param rawPartnerCode CSV 거래처코드 raw (placeholder 또는 빈값 그대로)
      * @param rawName CSV 거래처명 raw (REJECT 시 빈문자열)
      */

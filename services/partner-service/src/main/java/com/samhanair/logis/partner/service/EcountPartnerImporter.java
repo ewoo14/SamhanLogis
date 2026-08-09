@@ -36,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.input.BOMInputStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -150,7 +151,9 @@ public class EcountPartnerImporter {
         int skippedPlaceholder = 0;
         int activeCount = 0;
         int suspendedCount = 0;
+        int heldParseFailureRows = 0;
         List<EcountPartnerImportResult.RejectedRow> rejectedSample = new ArrayList<>();
+        List<EcountPartnerImportResult.RejectedRow> heldSample = new ArrayList<>();
 
         try (BOMInputStream bomFree = BOMInputStream.builder()
                 .setInputStream(new ByteArrayInputStream(content)).get();
@@ -204,7 +207,18 @@ public class EcountPartnerImporter {
                                 rawPartnerCode, rawName);
                     }
                     case NORMAL -> {
-                        UpsertResult ur = upsertPartnerInRowTransaction(cells, c.effectiveCode);
+                        UpsertResult ur;
+                        try {
+                            ur = upsertPartnerInRowTransaction(cells, c.effectiveCode);
+                        } catch (DataAccessException ex) {
+                            heldParseFailureRows++;
+                            String reason = "DB_CONSTRAINT";
+                            updateStagingStatus(sourceFileHash, rowNo, "PENDING", reason, null);
+                            addRejectSample(heldSample, rowNo, reason, rawPartnerCode, rawName);
+                            log.warn("MIG-1 import 행 DB 적재 실패 — row={} partnerCode={} status=HELD",
+                                    rowNo, rawPartnerCode, ex);
+                            continue;
+                        }
                         if (ur.isNew) {
                             imported++;
                         } else {
@@ -234,13 +248,13 @@ public class EcountPartnerImporter {
         }
 
         log.info("MIG-1 import 완료 — total={} imported={} updated={} rejectedNullName={} "
-                        + "skippedPlaceholder={} ACTIVE={} SUSPENDED={} hash={} actor={}",
+                        + "skippedPlaceholder={} heldParseFailureRows={} ACTIVE={} SUSPENDED={} hash={} actor={}",
                 totalRows, imported, updated, rejectedNullName, skippedPlaceholder,
-                activeCount, suspendedCount, sourceFileHash, actorUserId);
+                heldParseFailureRows, activeCount, suspendedCount, sourceFileHash, actorUserId);
 
         return new EcountPartnerImportResult(totalRows, imported, updated, rejectedNullName,
                 skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample,
-                0, 0, List.of(), 0, 0);
+                0, heldParseFailureRows, heldSample, 0, 0);
     }
 
     /**
@@ -294,8 +308,18 @@ public class EcountPartnerImporter {
             else registrationDateParsedCount++;
             // 유효한 등록일자는 created_at과 registration_date에 함께 보존한다.
             // 공란/실패는 registration_date=null, created_at=이번 배치의 단일 적재 시각이다.
-            UpsertResult result = upsertPartnerInRowTransaction(cells, classification.effectiveCode,
-                    registrationDate, registrationDate == null ? loadTimestamp : registrationDate.atStartOfDay());
+            UpsertResult result;
+            try {
+                result = upsertPartnerInRowTransaction(cells, classification.effectiveCode,
+                        registrationDate, registrationDate == null ? loadTimestamp : registrationDate.atStartOfDay());
+            } catch (DataAccessException ex) {
+                String reason = "DB_CONSTRAINT";
+                updateStagingStatus(parsed.sourceFileHash(), rowNo, "PENDING", reason, null);
+                addRejectSample(held, rowNo, reason, cells[0], cells[4]);
+                log.warn("MIG-1 XLSX import 행 DB 적재 실패 — row={} partnerCode={} status=HELD",
+                        rowNo, cells[0], ex);
+                continue;
+            }
             if (result.isNew) imported++; else updated++;
             if (result.status == PartnerStatus.ACTIVE) activeCount++; else if (result.status == PartnerStatus.SUSPENDED) suspendedCount++;
             updateStagingStatus(parsed.sourceFileHash(), rowNo, result.isNew ? "IMPORTED" : "UPDATED",

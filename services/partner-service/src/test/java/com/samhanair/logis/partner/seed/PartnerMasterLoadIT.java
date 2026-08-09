@@ -234,6 +234,37 @@ class PartnerMasterLoadIT extends AbstractPostgresIT {
         assertThat(statusValue).isEqualTo("SUSPENDED");
     }
 
+    @Test
+    void R8_한행의_DB실패는_뒤의정상행을_계속적재하고_실패행만보류한다() {
+        String tooLongName = "가".repeat(201);
+        EcountPartnerImportResult result = importer.importCsv(
+                csvRows(
+                        csvRow("R8-BEFORE", "R8 앞 정상"),
+                        csvRow("R8-BAD", tooLongName),
+                        csvRow("R8-AFTER", "R8 뒤 정상")),
+                "r8-it");
+
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.heldSample()).singleElement().satisfies(rejected -> {
+            assertThat(rejected.rowNumber()).isEqualTo(4);
+            assertThat(rejected.rawPartnerCode()).isEqualTo("R8-BAD");
+            assertThat(rejected.reason()).isEqualTo("DB_CONSTRAINT");
+        });
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partners WHERE partner_code IN ('R8-BEFORE', 'R8-AFTER')",
+                new MapSqlParameterSource(), Integer.class)).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partners WHERE partner_code = 'R8-BAD'",
+                new MapSqlParameterSource(), Integer.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT transform_status FROM staging.ecount_partner_raw WHERE raw_partner_code = 'R8-BAD'",
+                new MapSqlParameterSource(), String.class)).isEqualTo("PENDING");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT reject_reason FROM staging.ecount_partner_raw WHERE raw_partner_code = 'R8-BAD'",
+                new MapSqlParameterSource(), String.class)).isEqualTo("DB_CONSTRAINT");
+    }
+
     private ByteArrayInputStream csv(String code, String registrationDate) {
         return csv(code, registrationDate, "", "YES");
     }
@@ -250,6 +281,20 @@ class PartnerMasterLoadIT extends AbstractPostgresIT {
                 + "\"특이사항\t\",\"그룹\t\",\"사용구분\t\",\"이체정보\t\",\"여신한도\t\",\"최초작성일자\t\",\"\"\n"
                 + String.format("\"%s\t\",\"%s\t\",\"담당자\t\",\"\t\",\"R3 거래처\t\",\"대표\t\",\"서울\t\",\"\t\",\"\t\",\"\t\",\"\t\",\"일반업체\t\",\"%s\t\",\"등록\t\",\"%s\t\",\"\t\",\"\"\n", code, registrationDate, usageFlag, creditLimit);
         return new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private ByteArrayInputStream csvRows(String... rows) {
+        String value = "\uFEFF\"데이터관리>거래처-Excel다운로드\"\n"
+                + "\"거래처코드\t\",\"등록일자\t\",\"담당자명\t\",\"종사업장번호\t\",\"거래처명\t\","
+                + "\"대표자명\t\",\"주소1\t\",\"전화번호\t\",\"핸드폰번호\t\",\"검색창내용\t\","
+                + "\"특이사항\t\",\"그룹\t\",\"사용구분\t\",\"이체정보\t\",\"여신한도\t\","
+                + "\"최초작성일자\t\",\"\"\n"
+                + String.join("", rows);
+        return new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String csvRow(String code, String name) {
+        return String.format("\"%s\t\",\"20230814\t\",\"담당\t\",\"\t\",\"%s\t\",\"대표\t\",\"서울\t\",\"\t\",\"\t\",\"\t\",\"\t\",\"일반업체\t\",\"YES\t\",\"등록\t\",\"0\t\",\"\t\",\"\"\n", code, name);
     }
 
     private Map<String, String> snapshot() {
