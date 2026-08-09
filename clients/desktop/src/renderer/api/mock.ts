@@ -13924,7 +13924,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     if (mockRole === 'MASTER') {
       const permissions: Record<string, string[]> = {}
-      for (const page of SP_D1_PAGES) permissions[page] = allActions
+      for (const page of SP_D1_PAGES) {
+        permissions[page] = page === 'inbound.inspection' ? allActions.slice(0, 4) : allActions
+      }
       permissions['system.permission-admin'] = allActions
       return envelope(permissions)
     }
