@@ -130,6 +130,25 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
         verify(partnerInternalClient, times(0)).verifyPartnerCode(eq(""));
     }
 
+    @Test
+    void backfill_resolvesPartnerIdToCode_withoutChangingPartnerId() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        Slip violation = persistCommittedWithPartnerId(partnerId);
+        when(partnerInternalClient.resolvePartnerCode(partnerId))
+                .thenReturn(Optional.of("P-BACKFILL-CODE-FOUND"));
+
+        mockMvc.perform(post("/internal/slips/backfill-committed-partners")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.processedCount").value(1))
+                .andExpect(jsonPath("$.data.unresolvedCount").value(0));
+
+        Slip updated = slipRepository.findById(violation.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(updated.getPartnerId()).isEqualTo(partnerId);
+        org.assertj.core.api.Assertions.assertThat(updated.getPartnerCode()).isEqualTo("P-BACKFILL-CODE-FOUND");
+        verify(partnerInternalClient, times(1)).resolvePartnerCode(partnerId);
+    }
+
     private Slip persistCommittedPartnerless(String partnerCode) {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         Slip slip = Slip.createOutbound(
@@ -139,6 +158,18 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
                 UUID.randomUUID(), UUID.randomUUID(),
                 null, null, DeliveryTag.DAY, "backfill test", "backfill-test");
         slip.setPartnerCode(partnerCode);
+        ReflectionTestUtils.setField(slip, "status", SlipStatus.SENT);
+        return slipRepository.saveAndFlush(slip);
+    }
+
+    private Slip persistCommittedWithPartnerId(UUID partnerId) {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        Slip slip = Slip.createInbound(
+                "2026/07/19-BF-CODE-" + suffix,
+                LocalDate.of(2026, 7, 19),
+                Math.abs(suffix.hashCode()),
+                UUID.randomUUID(), partnerId, "backfill code test", null,
+                "backfill code test", "backfill-test");
         ReflectionTestUtils.setField(slip, "status", SlipStatus.SENT);
         return slipRepository.saveAndFlush(slip);
     }

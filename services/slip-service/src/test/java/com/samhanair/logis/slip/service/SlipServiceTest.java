@@ -158,6 +158,34 @@ class SlipServiceTest {
     }
 
     @Test
+    void create_inbound_resolvesPartnerCode_andPersistsBothPartnerColumns() {
+        when(slipNumberService.next(any(LocalDate.class), eq(SlipType.INBOUND))).thenReturn("2026/05/04-1");
+        when(slipNumberService.extractSeqNo("2026/05/04-1")).thenReturn(1);
+        when(partnerInternalClient.resolvePartnerCode(partnerId)).thenReturn(Optional.of("P-INBOUND-0001"));
+        when(slipRepository.save(any(Slip.class))).thenAnswer(inv -> {
+            Slip s = inv.getArgument(0);
+            ReflectionTestUtils.setField(s, "id", slipId);
+            return s;
+        });
+
+        CreateSlipRequest req = new CreateSlipRequest(
+                SlipType.INBOUND, LocalDate.of(2026, 5, 4),
+                null, destWh, partnerId, "삼한공조", null, "입고 partnerCode 회귀",
+                null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                null,
+                List.of(new CreateSlipRequest.SlipLineRequest(productId, "에어컨", "M-1", null,
+                        1, new BigDecimal("100.00"), null)));
+
+        SlipDetailResponse response = service.create(req, "user-1", "홍길동");
+
+        assertThat(response.partnerId()).isEqualTo(partnerId);
+        assertThat(response.partnerCode()).isEqualTo("P-INBOUND-0001");
+        verify(partnerInternalClient).resolvePartnerCode(partnerId);
+    }
+
+    @Test
     void create_checksClosedDateGuardForOutbound() {
         when(slipNumberService.next(any(LocalDate.class), eq(SlipType.OUTBOUND))).thenReturn("2026/05/04-3");
         when(slipNumberService.extractSeqNo("2026/05/04-3")).thenReturn(3);

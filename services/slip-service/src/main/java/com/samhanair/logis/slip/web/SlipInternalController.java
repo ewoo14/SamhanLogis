@@ -93,8 +93,9 @@ public class SlipInternalController {
      * 커밋 전표 거래처 동적 보정 — cutover 시점에 partner-service 경유로 실행한다.
      *
      * <p>{@code /internal/**} + {@code ROLE_MASTER} 이중 가드가 적용된다. 활성 필수 9상태의
-     * partner_id null 행만 매번 재조회하므로 이미 보정된 행은 멱등하게 건너뛴다. dry-run은
-     * partner-service 조회·미해소 리포트·잔여 count만 만들고 DB를 변경하지 않는다.
+     * partner_id 또는 partner_code 한쪽이 비어 있는 행만 매번 재조회하므로 이미 보정된 행은
+     * 멱등하게 건너뛴다. dry-run은 partner-service 조회·미해소 리포트·잔여 count만 만들고
+     * DB를 변경하지 않는다.
      *
      * @param dryRun true면 조회만 수행
      * @return 처리/미해소/잔여 count와 미해소 상세
