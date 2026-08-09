@@ -162,7 +162,7 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
         assertThat(homeTab).isNotNull();
         assertThat(homeTab.error).isNull();
-        assertThat(homeTab.softDeleted).isZero();
+        assertThat(homeTab.softDeletedRows).isZero();
 
         Boolean goneDeleted = jdbcTemplate.queryForObject(
                 "SELECT is_deleted FROM products WHERE model_code = ?", Boolean.class, goneCode);

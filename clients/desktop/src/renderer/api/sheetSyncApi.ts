@@ -23,20 +23,27 @@ import { apiClient, type ApiEnvelope } from './client'
  * 누적 처리 결과.
  */
 export interface TabSyncResult {
-  inserted: number
-  updated: number
-  unchanged: number
-  softDeleted: number
-  skipped: number
+  insertedRows: number
+  updatedRows: number
+  unchangedRows: number
+  softDeletedRows: number
+  skippedOccurrences: number
+  nameDriftOccurrences?: number
+  priceHistoryExposureSpecChangedRows?: number
+  preservedManualProductOccurrences?: number
+  preservedByRuleProductOccurrences?: number
+  deferredByEcountReservationProductOccurrences?: number
+  specsLinkedRows?: number
   error?: string | null
 }
 
 export interface ComponentSyncResult {
-  preservedManual?: number
-  linked?: number
-  bundlesMarked?: number
-  softDeleted?: number
-  skipped?: number
+  preservedManualComponentOccurrences?: number
+  linkedOccurrences?: number
+  bundlesMarkedProducts?: number
+  softDeletedComponentRows?: number
+  skippedOccurrences?: number
+  blockedByRuleOccurrences?: number
   error?: string | null
 }
 
@@ -49,11 +56,18 @@ export interface ComponentSyncResult {
 export interface SyncSummary {
   byTab: Record<string, TabSyncResult>
   byComponentTab?: Record<string, ComponentSyncResult>
-  totalInserted: number
-  totalUpdated: number
-  totalSoftDeleted: number
-  totalSkipped: number
-  totalPreservedManual: number
+  totalInsertedRows: number
+  totalUpdatedRows: number
+  totalSoftDeletedRows: number
+  totalSoftDeletedComponentRows: number
+  totalSkippedOccurrences: number
+  totalPreservedManualProductOccurrences: number
+  totalPreservedManualComponentOccurrences: number
+  totalPreservedByRuleProductOccurrences: number
+  totalComponentLinkOccurrences: number
+  totalBundlesMarkedProducts: number
+  totalBlockedByRuleOccurrences: number
+  totalSpecsLinkedRows: number
   totalTabs: number
   successfulTabs: number
   failedTabs: number

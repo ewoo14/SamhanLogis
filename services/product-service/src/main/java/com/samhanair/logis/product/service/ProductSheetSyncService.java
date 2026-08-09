@@ -244,15 +244,15 @@ public class ProductSheetSyncService {
             try {
                 TabSyncResult tabResult = self.syncTab(mapping, defaultCategory);
                 summary.byTab.put(mapping.tabName, tabResult);
-                summary.totalInserted += tabResult.inserted;
-                summary.totalUpdated += tabResult.updated;
+                summary.totalInsertedRows += tabResult.insertedRows;
+                summary.totalUpdatedRows += tabResult.updatedRows;
                 summary.totalNameDriftOccurrences += tabResult.nameDriftOccurrences;
                 summary.totalPriceHistoryExposureSpecChangedRows += tabResult.priceHistoryExposureSpecChangedRows;
-                summary.totalSoftDeleted += tabResult.softDeleted;
-                summary.totalSkipped += tabResult.skipped;
-                summary.totalPreservedManual += tabResult.preservedManual;
-                summary.totalPreservedByRule += tabResult.preservedByRule;
-                summary.totalSpecsLinked += tabResult.specsLinked;
+                summary.totalSoftDeletedRows += tabResult.softDeletedRows;
+                summary.totalSkippedOccurrences += tabResult.skippedOccurrences;
+                summary.totalPreservedManualProductOccurrences += tabResult.preservedManualProductOccurrences;
+                summary.totalPreservedByRuleProductOccurrences += tabResult.preservedByRuleProductOccurrences;
+                summary.totalSpecsLinkedRows += tabResult.specsLinkedRows;
                 summary.successfulTabs++;
             } catch (Exception e) {
                 log.error("[ProductSheetSync] tab '{}' sync 실패: {}", mapping.tabName, e.getMessage(), e);
@@ -269,9 +269,12 @@ public class ProductSheetSyncService {
             try {
                 ComponentSyncResult cr = self.syncComponentTab(cm);
                 summary.byComponentTab.put(cm.tabName, cr);
-                summary.totalComponentsLinked += cr.linked;
-                summary.totalBundlesMarked += cr.bundlesMarked;
-                summary.totalPreservedManual += cr.preservedManual;
+                summary.totalComponentLinkOccurrences += cr.linkedOccurrences;
+                summary.totalBundlesMarkedProducts += cr.bundlesMarkedProducts;
+                summary.totalPreservedManualComponentOccurrences += cr.preservedManualComponentOccurrences;
+                summary.totalSkippedOccurrences += cr.skippedOccurrences;
+                summary.totalSoftDeletedComponentRows += cr.softDeletedComponentRows;
+                summary.totalBlockedByRuleOccurrences += cr.blockedByRuleOccurrences;
                 summary.successfulTabs++;
             } catch (Exception e) {
                 log.error("[ProductSheetSync] 구성품 tab '{}' sync 실패: {}", cm.tabName, e.getMessage(), e);
@@ -284,11 +287,12 @@ public class ProductSheetSyncService {
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
         log.info("[ProductSheetSync] sync 완료: 총 inserted={}, updated={}, softDeleted={}, skipped={}, "
-                        + "preservedManual={}, 구성품 linked={}, bundle marked={}, 사양 linked={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
-                summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted,
-                summary.totalSkipped, summary.totalPreservedManual,
-                summary.totalComponentsLinked, summary.totalBundlesMarked,
-                summary.totalSpecsLinked, summary.totalPriceHistoryExposureSpecChangedRows, summary.durationMs);
+                        + "preservedManualProductOccurrences={}, preservedManualComponentOccurrences={}, 구성품 linkOccurrences={}, bundle markedProducts={}, 사양 linkedRows={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
+                summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows,
+                summary.totalSkippedOccurrences, summary.totalPreservedManualProductOccurrences,
+                summary.totalPreservedManualComponentOccurrences, summary.totalComponentLinkOccurrences,
+                summary.totalBundlesMarkedProducts, summary.totalSpecsLinkedRows,
+                summary.totalPriceHistoryExposureSpecChangedRows, summary.durationMs);
         return summary;
     }
 
@@ -359,7 +363,7 @@ public class ProductSheetSyncService {
             Optional<Product> childOpt = productRepository.findByModelCodeAndIsDeletedFalse(childModel);
             if (parentOpt.isEmpty() || childOpt.isEmpty()) {
                 // 부모/자식 미존재(시트 정합 이슈) — 조용히 skip(부모 sync 가 우선).
-                result.skipped++;
+                result.skippedOccurrences++;
                 continue;
             }
             Product parent = parentOpt.get();
@@ -375,7 +379,7 @@ public class ProductSheetSyncService {
             // 수기 편집 세트는 시트 sync 가 구성품 집합을 덮어쓰지 않는다.
             // seenByParent 에 넣지 않아 soft-delete 단계도 함께 건너뛴다.
             if (parent.isBundleComponentsManual()) {
-                result.preservedManual++;
+                result.preservedManualComponentOccurrences++;
                 continue;
             }
 
@@ -419,7 +423,7 @@ public class ProductSheetSyncService {
                     log.warn("[ProductSheetSync] 구성품 tab '{}' 부모='{}' 자식='{}' → 활성 수량 동기화"
                                     + " 규칙({}) 자기구성품 충돌로 연결 제외",
                             mapping.tabName, setModel, childModel, String.join(", ", brokenRuleKeys));
-                    result.blockedByRule++;
+                    result.blockedByRuleOccurrences++;
                     continue;
                 }
             }
@@ -432,7 +436,7 @@ public class ProductSheetSyncService {
                 parent.changeBundle(ProductType.BUNDLE, mode);
                 productRepository.save(parent);
                 markedBundles.add(parent.getId());
-                result.bundlesMarked++;
+                result.bundlesMarkedProducts++;
             }
             if (!setModel.equals(child.getParentBundleSetModel())) {
                 child.changeParentBundleSetModel(setModel);
@@ -445,7 +449,7 @@ public class ProductSheetSyncService {
                 match.changeAttributes(qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec));
                 bundleComponentRepository.save(match);
             }
-            result.linked++;
+            result.linkedOccurrences++;
             seenByParent.computeIfAbsent(parent.getId(), k -> new HashSet<>()).add(childModel);
         }
 
@@ -455,13 +459,14 @@ public class ProductSheetSyncService {
                 if (!e.getValue().contains(b.getComponentProductCode())) {
                     b.markDeleted("system-sheet-sync");
                     bundleComponentRepository.save(b);
-                    result.softDeleted++;
+                    result.softDeletedComponentRows++;
                 }
             }
         }
 
-        log.info("[ProductSheetSync] 구성품 tab '{}': linked={}, bundlesMarked={}, softDeleted={}, skipped={}",
-                mapping.tabName, result.linked, result.bundlesMarked, result.softDeleted, result.skipped);
+        log.info("[ProductSheetSync] 구성품 tab '{}': linkedOccurrences={}, bundlesMarkedProducts={}, softDeletedComponentRows={}, skippedOccurrences={}",
+                mapping.tabName, result.linkedOccurrences, result.bundlesMarkedProducts,
+                result.softDeletedComponentRows, result.skippedOccurrences);
         return result;
     }
 
@@ -1164,18 +1169,18 @@ public class ProductSheetSyncService {
     /** 구성품 tab sync 결과. */
     public static class ComponentSyncResult {
         /** 수기 편집 보호로 건너뛴 구성품 행 수. */
-        public int preservedManual = 0;
-        public int linked = 0;
-        public int bundlesMarked = 0;
-        public int softDeleted = 0;
-        public int skipped = 0;
+        public int preservedManualComponentOccurrences = 0;
+        public int linkedOccurrences = 0;
+        public int bundlesMarkedProducts = 0;
+        public int softDeletedComponentRows = 0;
+        public int skippedOccurrences = 0;
         /**
          * 🚨 2026-07-28 재수렴 R6 결함 3 [MED] 계열 sweep — 이 부모(BUNDLE)를 source로
          * 갖는 활성 수량 동기화 규칙의 target을 자기 구성품으로 새로 연결하려다 거부된
          * (부모,자식) 행 수. {@link BundleComponentService#replaceComponents}와 같은
          * 불변식(I-3)을 시트 sync 경로에서도 지킨다.
          */
-        public int blockedByRule = 0;
+        public int blockedByRuleOccurrences = 0;
         public String error;
     }
 
@@ -1266,7 +1271,7 @@ public class ProductSheetSyncService {
             String name = safeGet(cells, mapping.nameColumn).trim();
             String modelCode = safeGet(cells, mapping.modelCodeColumn).trim();
             if (name.isBlank() || modelCode.isBlank()) {
-                result.skipped++;
+            result.skippedOccurrences++;
                 continue;
             }
             sheetModelCodes.add(modelCode);
@@ -1317,7 +1322,7 @@ public class ProductSheetSyncService {
                         externalWrites);
                 productId = p.getId();
                 productForExposure = p;
-                result.inserted++;
+                result.insertedRows++;
             } else {
                 if (!Objects.equals(existing.get().getName(), name)) {
                     result.nameDriftOccurrences++;
@@ -1372,7 +1377,7 @@ public class ProductSheetSyncService {
                             log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
                                             + " 참조로 usageScope NONE 전환 보류",
                                     mapping.tabName, modelCode, String.join(", ", blockingRuleKeys));
-                            result.preservedByRule++;
+                            result.preservedByRuleProductOccurrences++;
                         } else {
                             p.changeUsage(mapping.usageScope);
                         }
@@ -1395,9 +1400,9 @@ public class ProductSheetSyncService {
                 productForExposure = p;
                 productChanged = before.changed();
                 if (productChanged) {
-                    result.updated++;
+                    result.updatedRows++;
                 } else {
-                    result.unchanged++;
+                    result.unchangedRows++;
                 }
             }
 
@@ -1407,7 +1412,7 @@ public class ProductSheetSyncService {
             // 사양(ProductSpec) 적재 — 사양 보유 탭은 V17 매핑전용, 비사양 탭은 기존 blocklist 보존.
             if (headerCells != null) {
                 SpecWriteObservation specWrites = new SpecWriteObservation();
-                result.specsLinked += loadSpecsForProduct(productId, headerCells, cells, mapping, specWrites);
+                result.specsLinkedRows += loadSpecsForProduct(productId, headerCells, cells, mapping, specWrites);
                 externalWrites.addChangedRows(specWrites.changedRows);
             }
             result.priceHistoryExposureSpecChangedRows += externalWrites.changedRows();
@@ -1429,7 +1434,7 @@ public class ProductSheetSyncService {
                     // 수동 override 품목 — 시트에 없어도 삭제 보호 (별도 카운터 preservedManual 사용, 사이클2 지적 P3-6)
                     log.debug("[ProductSheetSync] tab '{}' modelCode='{}' usageScopeManual=true → soft-delete 제외",
                             mapping.tabName, code);
-                    result.preservedManual++;
+                    result.preservedManualProductOccurrences++;
                     continue;
                 }
                 List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysReferencing(p.getId());
@@ -1441,7 +1446,7 @@ public class ProductSheetSyncService {
                 if (ecountAliasReservationService.hasActiveReservation(p.getId())) {
                     log.info("[ProductSheetSync] tab '{}' modelCode='{}' → MIG-8 alias reservation active; soft-delete 보류",
                             mapping.tabName, code);
-                    result.deferredByEcountReservation++;
+                    result.deferredByEcountReservationProductOccurrences++;
                     continue;
                 }
                 // BaseEntity.markDeleted: deletedAt + deletedBy + isDeleted=true 설정 (shared:common).
@@ -1449,14 +1454,14 @@ public class ProductSheetSyncService {
                 p.markDeleted(actor);
                 productRepository.save(p);
                 softDeleteExposures(p.getId(), actor);
-                result.softDeleted++;
+                result.softDeletedRows++;
             }
         }
 
         log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, nameDriftOccurrences={}, priceHistoryExposureSpecChangedRows={}, softDeleted={}, skipped={}, preservedManual={}",
-                mapping.tabName, result.inserted, result.updated, result.unchanged,
-                result.nameDriftOccurrences, result.priceHistoryExposureSpecChangedRows, result.softDeleted,
-                result.skipped, result.preservedManual);
+                mapping.tabName, result.insertedRows, result.updatedRows, result.unchangedRows,
+                result.nameDriftOccurrences, result.priceHistoryExposureSpecChangedRows, result.softDeletedRows,
+                result.skippedOccurrences, result.preservedManualProductOccurrences);
         return result;
     }
 
@@ -2111,50 +2116,53 @@ public class ProductSheetSyncService {
      * 두 카운터를 분리하여 sync 리포트에서 "파싱 skip"과 "수동 보존"을 독립적으로 확인 가능.
      */
     public static class TabSyncResult {
-        public int inserted = 0;
-        public int updated = 0;
-        public int unchanged = 0;
+        public int insertedRows = 0;
+        public int updatedRows = 0;
+        public int unchangedRows = 0;
         /** 시트 행 occurrence와 DB 품명이 달라 DB 이름을 보존한 occurrence 수. */
         public int nameDriftOccurrences = 0;
         /** 실제로 변경된 PriceHistory/Exposure/ProductSpec 행 수. */
         public int priceHistoryExposureSpecChangedRows = 0;
-        public int softDeleted = 0;
+        public int softDeletedRows = 0;
         /** 파싱 불가(이름/modelCode 공백) 행 수. */
-        public int skipped = 0;
+        public int skippedOccurrences = 0;
         /** soft-delete 대상이나 usageScopeManual=true 로 삭제 보호된 품목 수 (사이클2 지적 P3-6). */
-        public int preservedManual = 0;
+        public int preservedManualProductOccurrences = 0;
         /**
          * 🚨 2026-07-28 재수렴 R6 결함 5 [MED] fix (I-5) — 탭 매핑이 NONE으로 되돌리려
          * 했으나 활성 수량 동기화 규칙이 참조 중이라 usageScope 갱신을 보류한 품목 수.
          * preservedManual과 원인이 다르므로(수동 override 보호 vs 규칙 무결성 보호)
          * 별도 카운터로 집계한다.
          */
-        public int preservedByRule = 0;
+        public int preservedByRuleProductOccurrences = 0;
         /** MIG-8 변환이 잡고 있는 Product reservation 때문에 soft-delete를 보류한 품목 수. */
-        public int deferredByEcountReservation = 0;
-        public int specsLinked = 0;
+        public int deferredByEcountReservationProductOccurrences = 0;
+        public int specsLinkedRows = 0;
         public String error;
     }
 
     /**
      * 전체 sync 집계.
      *
-     * <p>{@code totalPreservedManual} — usageScopeManual=true 로 soft-delete 에서 보호된 품목 합계.
-     * {@code totalSkipped} 와 별도 집계하여 파싱 skip 과 혼용하지 않는다 (사이클2 지적 P3-6).
+     * <p>Product 행 occurrence, 구성품 행 occurrence, 링크 occurrence는 서로 다른 필드로
+     * 노출한다. {@code totalSkippedOccurrences}는 Product와 구성품 occurrence의 합이다.
      */
     public static class SyncSummary {
         public Map<String, TabSyncResult> byTab = new HashMap<>();
         public Map<String, ComponentSyncResult> byComponentTab = new HashMap<>();
-        public int totalInserted = 0;
-        public int totalUpdated = 0;
+        public int totalInsertedRows = 0;
+        public int totalUpdatedRows = 0;
         /** 이름 불일치 occurrence 합계. updated/unchanged와 별도로 집계한다. */
         public int totalNameDriftOccurrences = 0;
         /** 실제로 변경된 PriceHistory/Exposure/ProductSpec 행 수 합계. */
         public int totalPriceHistoryExposureSpecChangedRows = 0;
-        public int totalSoftDeleted = 0;
-        public int totalSkipped = 0;
-        /** usageScopeManual=true 로 soft-delete 보호된 품목 합계 (사이클2 지적 P3-6). */
-        public int totalPreservedManual = 0;
+        public int totalSoftDeletedRows = 0;
+        public int totalSoftDeletedComponentRows = 0;
+        public int totalSkippedOccurrences = 0;
+        /** Product 행 occurrence 중 usageScopeManual=true 로 보존된 occurrence 합계. */
+        public int totalPreservedManualProductOccurrences = 0;
+        /** 구성품 행 occurrence 중 수기 구성품 집합 보호로 보존된 occurrence 합계. */
+        public int totalPreservedManualComponentOccurrences = 0;
         /** 실행을 시도한 전체 탭 수. */
         public int totalTabs = 0;
         /** 예외로 처리되지 못한 탭 수. */
@@ -2162,10 +2170,11 @@ public class ProductSheetSyncService {
         /** 예외 없이 처리된 탭 수. manual 보존/skip은 성공 탭에 포함한다. */
         public int successfulTabs = 0;
         /** 활성 수량 동기화 규칙 참조로 usageScope NONE 전환이 보류된 품목 합계(R6 결함 5). */
-        public int totalPreservedByRule = 0;
-        public int totalComponentsLinked = 0;
-        public int totalBundlesMarked = 0;
-        public int totalSpecsLinked = 0;
+        public int totalPreservedByRuleProductOccurrences = 0;
+        public int totalComponentLinkOccurrences = 0;
+        public int totalBundlesMarkedProducts = 0;
+        public int totalBlockedByRuleOccurrences = 0;
+        public int totalSpecsLinkedRows = 0;
         public long durationMs = 0;
         public String error;
     }

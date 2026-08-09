@@ -132,18 +132,18 @@ public class ProductAdminController {
         }
         lookupSummary.byTab.forEach((tabName, lookupTab) -> {
             ProductSheetSyncService.TabSyncResult tab = new ProductSheetSyncService.TabSyncResult();
-            tab.inserted = lookupTab.inserted;
-            tab.updated = lookupTab.updated;
-            tab.unchanged = lookupTab.unchanged;
-            tab.softDeleted = lookupTab.softDeleted;
-            tab.skipped = lookupTab.skipped;
+            tab.insertedRows = lookupTab.inserted;
+            tab.updatedRows = lookupTab.updated;
+            tab.unchangedRows = lookupTab.unchanged;
+            tab.softDeletedRows = lookupTab.softDeleted;
+            tab.skippedOccurrences = lookupTab.skipped;
             tab.error = lookupTab.error;
             summary.byTab.put("lookup:" + tabName, tab);
         });
-        summary.totalInserted += lookupSummary.totalInserted;
-        summary.totalUpdated += lookupSummary.totalUpdated;
-        summary.totalSoftDeleted += lookupSummary.totalSoftDeleted;
-        summary.totalSkipped += lookupSummary.totalSkipped;
+        summary.totalInsertedRows += lookupSummary.totalInserted;
+        summary.totalUpdatedRows += lookupSummary.totalUpdated;
+        summary.totalSoftDeletedRows += lookupSummary.totalSoftDeleted;
+        summary.totalSkippedOccurrences += lookupSummary.totalSkipped;
         summary.totalTabs += lookupSummary.totalTabs;
         summary.failedTabs += lookupSummary.failedTabs;
         summary.successfulTabs += lookupSummary.successfulTabs;

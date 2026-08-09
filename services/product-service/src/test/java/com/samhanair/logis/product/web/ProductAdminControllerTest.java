@@ -51,9 +51,9 @@ class ProductAdminControllerTest {
     void triggerSync_캐시invalidate_후_syncAll_호출하고_lastSnapshot_갱신() {
         // given
         ProductSheetSyncService.SyncSummary summary = new ProductSheetSyncService.SyncSummary();
-        summary.totalInserted = 3;
-        summary.totalUpdated = 2;
-        summary.totalSoftDeleted = 1;
+        summary.totalInsertedRows = 3;
+        summary.totalUpdatedRows = 2;
+        summary.totalSoftDeletedRows = 1;
         ProductLookupSheetSyncService.SyncSummary lookupSummary = new ProductLookupSheetSyncService.SyncSummary();
         ProductLookupSheetSyncService.TabSyncResult lookupTab = new ProductLookupSheetSyncService.TabSyncResult();
         lookupTab.inserted = 4;
@@ -71,9 +71,9 @@ class ProductAdminControllerTest {
         verify(lookupSyncService).syncAll();
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getData().totalInserted).isEqualTo(7);
-        assertThat(response.getBody().getData().totalUpdated).isEqualTo(2);
-        assertThat(response.getBody().getData().totalSoftDeleted).isEqualTo(1);
+        assertThat(response.getBody().getData().totalInsertedRows).isEqualTo(7);
+        assertThat(response.getBody().getData().totalUpdatedRows).isEqualTo(2);
+        assertThat(response.getBody().getData().totalSoftDeletedRows).isEqualTo(1);
         assertThat(response.getBody().getData().byTab).containsKey("lookup:싱글 자재가격");
 
         // lastSnapshot 도 trigger 후 갱신 — GET /sync/last 가 즉시 시각 + summary 노출

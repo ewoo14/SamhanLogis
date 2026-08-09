@@ -91,7 +91,7 @@ public class ProductSheetSyncScheduler {
         try {
             ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
             log.info("[ProductSheetSyncScheduler] cron product sync 완료: inserted={}, updated={}, softDeleted={}",
-                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted);
+                    summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows);
         } catch (Exception e) {
             log.error("[ProductSheetSyncScheduler] cron product sync 실패: {}", e.getMessage(), e);
         }
@@ -137,7 +137,7 @@ public class ProductSheetSyncScheduler {
         try {
             ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
             log.info("[ProductSheetSyncScheduler] 부팅 product sync 완료: inserted={}, updated={}, softDeleted={}",
-                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted);
+                    summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows);
         } catch (Exception e) {
             log.warn("[ProductSheetSyncScheduler] 부팅 product sync 실패 (cron 으로 재시도): {}", e.getMessage());
         }

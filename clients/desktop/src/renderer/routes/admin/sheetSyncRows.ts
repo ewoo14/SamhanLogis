@@ -1,12 +1,12 @@
 export interface SheetSyncResult {
-  inserted?: number
-  updated?: number
-  unchanged?: number
-  softDeleted?: number
-  skipped?: number
+  insertedRows?: number
+  updatedRows?: number
+  unchangedRows?: number
+  softDeletedRows?: number
+  skippedOccurrences?: number
   error?: string | null
-  linked?: number
-  bundlesMarked?: number
+  linkedOccurrences?: number
+  bundlesMarkedProducts?: number
 }
 
 export interface SheetSyncSummary {
@@ -17,7 +17,7 @@ export interface SheetSyncSummary {
 
 export interface SheetSyncRow {
   tabName: string
-  result: Required<Pick<SheetSyncResult, 'inserted' | 'updated' | 'unchanged' | 'softDeleted' | 'skipped'>> & Pick<SheetSyncResult, 'error'>
+  result: Required<Pick<SheetSyncResult, 'insertedRows' | 'updatedRows' | 'unchangedRows' | 'softDeletedRows' | 'skippedOccurrences'>> & Pick<SheetSyncResult, 'error'>
 }
 
 export function buildSheetSyncRows(summary: SheetSyncSummary): SheetSyncRow[] {
@@ -30,11 +30,11 @@ export function buildSheetSyncRows(summary: SheetSyncSummary): SheetSyncRow[] {
     rows.push({
       tabName: `구성품 · ${tabName}`,
       result: normalizeResult({
-        inserted: result.linked,
-        updated: result.bundlesMarked,
-        unchanged: 0,
-        softDeleted: result.softDeleted,
-        skipped: result.skipped,
+        insertedRows: result.linkedOccurrences,
+        updatedRows: result.bundlesMarkedProducts,
+        unchangedRows: 0,
+        softDeletedRows: result.softDeletedRows,
+        skippedOccurrences: result.skippedOccurrences,
         error: result.error,
       }),
     })
@@ -45,11 +45,11 @@ export function buildSheetSyncRows(summary: SheetSyncSummary): SheetSyncRow[] {
 
 function normalizeResult(result: SheetSyncResult): SheetSyncRow['result'] {
   return {
-    inserted: result.inserted ?? 0,
-    updated: result.updated ?? 0,
-    unchanged: result.unchanged ?? 0,
-    softDeleted: result.softDeleted ?? 0,
-    skipped: result.skipped ?? 0,
+    insertedRows: result.insertedRows ?? 0,
+    updatedRows: result.updatedRows ?? 0,
+    unchangedRows: result.unchangedRows ?? 0,
+    softDeletedRows: result.softDeletedRows ?? 0,
+    skippedOccurrences: result.skippedOccurrences ?? 0,
     error: result.error,
   }
 }

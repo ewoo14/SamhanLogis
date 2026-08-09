@@ -238,13 +238,13 @@ export function SheetSyncPage() {
                 >
                   <td style={tdStyle}>{tabName}</td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.inserted}
+                    {result.insertedRows}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.updated}
+                    {result.updatedRows}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.softDeleted}
+                    {result.softDeletedRows}
                   </td>
                   <td style={{ ...tdStyle, color: result.error ? 'var(--color-danger-700, #b91c1c)' : 'var(--color-neutral-500)' }}>
                     {formatTabRemark(result)}
@@ -274,15 +274,16 @@ function SummaryTotals({ summary }: SummaryTotalsProps) {
         fontSize: 13,
       }}
     >
-      <TotalChip label="총 신규" value={summary.totalInserted} tone="brand" />
-      <TotalChip label="총 변경" value={summary.totalUpdated} tone="success" />
+      <TotalChip label="총 신규 row" value={summary.totalInsertedRows} tone="brand" />
+      <TotalChip label="총 변경 row" value={summary.totalUpdatedRows} tone="success" />
       <TotalChip
         label="총 삭제"
-        value={summary.totalSoftDeleted}
+        value={summary.totalSoftDeletedRows + summary.totalSoftDeletedComponentRows}
         tone="warning"
       />
-      <TotalChip label="총 skip" value={summary.totalSkipped} tone="neutral" />
-      <TotalChip label="수동 보존" value={summary.totalPreservedManual} tone="neutral" />
+      <TotalChip label="총 skip occurrence" value={summary.totalSkippedOccurrences} tone="neutral" />
+      <TotalChip label="수동 보존 Product occurrence" value={summary.totalPreservedManualProductOccurrences} tone="neutral" />
+      <TotalChip label="수동 보존 구성품 occurrence" value={summary.totalPreservedManualComponentOccurrences} tone="neutral" />
       <TotalChip
         label="탭 결과"
         value={`${summary.successfulTabs}/${summary.totalTabs} 성공`}
@@ -336,8 +337,8 @@ function TotalChip({ label, value, tone }: TotalChipProps) {
 function formatTabRemark(result: TabSyncResult): string {
   if (result.error) return result.error
   const parts: string[] = []
-  if (result.unchanged) parts.push(`변경 없음 ${result.unchanged}`)
-  if (result.skipped) parts.push(`skip ${result.skipped}`)
+  if (result.unchangedRows) parts.push(`변경 없음 ${result.unchangedRows}`)
+  if (result.skippedOccurrences) parts.push(`skip occurrence ${result.skippedOccurrences}`)
   return parts.length === 0 ? '—' : parts.join(' / ')
 }
 
