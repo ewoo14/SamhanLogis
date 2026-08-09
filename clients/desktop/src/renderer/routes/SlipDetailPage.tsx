@@ -68,7 +68,7 @@ import {
   type SlipType,
 } from '../api/slip'
 // D-R8-7: 전표 수정 거래처 자동완성 — 견적(EstimateFormPage)과 동일 소스로 통일한다.
-import { searchPartners } from '../api/sales'
+import { searchPartners, type PartnerSummary } from '../api/sales'
 import { getApiErrorInfo } from '../api/apiError'
 import { type StockBalanceLookupLine } from '../api/inventory'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
@@ -78,6 +78,20 @@ import {
   type SlipAuditLogEntry,
 } from '../api/slipAudit'
 import { getRedline, type SlipFieldRedline } from '../api/slipRedline'
+
+/**
+ * direct edit 거래처 검색 결과를 전표 헤더 옵션으로 변환한다.
+ * 거래처코드와 사업자번호는 서로 다른 식별자 체계이므로 원 필드를 보존한다.
+ */
+export function toSlipPartnerOption(row: PartnerSummary): PartnerOption {
+  return {
+    id: row.partnerId ?? undefined,
+    partnerCode: row.partnerCode ?? '',
+    name: row.companyName,
+    bizNo: row.businessRegistrationNumber,
+    phone: row.contactPhone ?? undefined,
+  }
+}
 import { RedlineCell } from '../components/audit/RedlineCell'
 import {
   createSlipEditRequest,
@@ -2685,7 +2699,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    *
    * <p>거래처 4필드(partnerId/명/코드/사업자번호)를 <b>CRDT 트랜잭션 1회</b>로 원자 전파한다.
    * 필드를 따로 쓰면 상대 피어가 중간 상태(새 이름 + 구 UUID)를 관측하는 창이 열린다.
-   * partnerCode 는 사업자번호 digits 규약(P0-B) 을 따른다.
+   * partnerCode 는 거래처코드 체계를 따른다. 사업자번호는 businessNumber에만 둔다.
    *
    * <p>해제(null)는 지원하지 않는다 — 전표는 생성 시점부터 거래처가 확정돼 있고, BE
    * {@code SlipUpdateRequest.partnerId} 는 null 을 "기존 거래처 보존" 으로 읽는다.
@@ -2693,12 +2707,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const handleSlipPartnerSelect = (option: PartnerOption | null) => {
     if (!option) return
     const nextPartnerId = option.id ?? ''
-    const nextBizNo = option.bizNo ?? option.partnerCode ?? ''
+    const nextPartnerCode = option.partnerCode
+    const nextBizNo = option.bizNo ?? ''
     const apply = (setId: (v: string) => void, setName: (v: string) => void,
                    setCode: (v: string) => void, setBizNo: (v: string) => void) => {
       setId(nextPartnerId)
       setName(option.name)
-      setCode(nextBizNo)
+      setCode(nextPartnerCode)
       setBizNo(nextBizNo)
     }
     if (mode === 'OUTBOUND') {
@@ -2713,7 +2728,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       provider.doc.transact(() => {
         provider.setHeaderValue('partnerId', nextPartnerId)
         provider.setHeaderValue('partnerName', option.name)
-        provider.setHeaderValue('partnerCode', nextBizNo)
+        provider.setHeaderValue('partnerCode', nextPartnerCode)
         provider.setHeaderValue('businessNumber', nextBizNo)
       })
     }
@@ -2877,16 +2892,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     }
   }
 
-  const searchSlipPartnerOptions = async (q: string): Promise<PartnerOption[]> => {
-    const rows = await searchPartners(q, 8)
-    return rows.map((row) => ({
-      id: row.partnerId ?? undefined,
-      partnerCode: row.businessRegistrationNumber,
-      name: row.companyName,
-      bizNo: row.businessRegistrationNumber,
-      phone: row.contactPhone ?? undefined,
-    }))
-  }
+  const searchSlipPartnerOptions = async (q: string): Promise<PartnerOption[]> =>
+    (await searchPartners(q, 8)).map(toSlipPartnerOption)
 
   /** 현재 거래처의 PartnerAutocomplete controlled value — 이름이 있으면 표시한다. */
   const slipPartnerOption = (name: string, bizNo: string, partnerId: string): PartnerOption | null =>

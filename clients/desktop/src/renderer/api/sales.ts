@@ -917,6 +917,8 @@ export async function releasePartnerOrder(orderNumber: string): Promise<PartnerO
 export interface PartnerSummary {
   /** 내부 partnerId UUID — 화면 표시 금지, API payload 전용. */
   partnerId?: string | null
+  /** 거래처코드 (= BE `partnerCode`, 사용자 노출 식별자). */
+  partnerCode?: string
   /** 사업자등록번호 (= BE `bizNo`, 사용자 노출 식별자). */
   businessRegistrationNumber: string
   /** 거래처명 (= BE `name`). */
@@ -979,6 +981,7 @@ export async function searchPartners(
   )
   return res.data.data.items.map((row) => ({
     partnerId: row.partnerId ?? null,
+    partnerCode: row.partnerCode,
     businessRegistrationNumber: row.bizNo ?? row.partnerCode,
     companyName: row.name ?? '',
     representativeName: null,
