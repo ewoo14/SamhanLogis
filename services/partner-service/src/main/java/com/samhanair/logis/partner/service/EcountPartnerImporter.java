@@ -563,11 +563,17 @@ public class EcountPartnerImporter {
         PartnerStatus status = mapStatus(rawUsageFlag);
 
         Optional<Partner> existing = partnerRepository.findByPartnerCode(effectiveCode);
+        if (existing.isEmpty()) {
+            existing = partnerRepository.findByPartnerCodeIncludingDeleted(effectiveCode);
+        }
 
         Partner partner;
         boolean isNew;
         if (existing.isPresent()) {
             partner = existing.get();
+            if (Boolean.TRUE.equals(partner.getIsDeleted())) {
+                partner.markRestored();
+            }
             partner.updateProfile(name, address1, phone);
             partner.updateBusinessProfile(representative, partner.getBusinessType(),
                     partner.getIndustry(), subBizNo);
@@ -582,6 +588,9 @@ public class EcountPartnerImporter {
             // outstanding_balance, status, partner_group2 등 운영/거래 결과 필드는 덮어쓰지 않는다.
             partner.replaceCreditLimitFromImport(creditLimit);
             partner.changeRegistrationDate(registrationDate);
+            if (registrationDate != null) {
+                partner.overrideCreatedAtForImport(registrationDate.atStartOfDay());
+            }
             partner.updateTransferInfo(transferInfo);
             partner.updateNote(note);
             partner.updateManagerName(managerName);
