@@ -811,7 +811,9 @@ public class EcountPartnerImporter {
                         + "WHERE source_file_hash = :hash AND reject_reason IS NOT NULL",
                 params, Long.class);
         List<EcountPartnerImportResult.RejectedRow> items = jdbcTemplate.query(
-                "SELECT source_row_no, reject_reason, raw_partner_code, raw_name "
+                "SELECT source_row_no, reject_reason, raw_partner_code, "
+                        + "CASE WHEN reject_reason LIKE 'CSV_ENCODING%' THEN '읽을 수 없음' "
+                        + "ELSE raw_name END AS raw_name "
                         + "FROM staging.ecount_partner_raw "
                         + "WHERE source_file_hash = :hash AND reject_reason IS NOT NULL "
                         + "ORDER BY source_row_no LIMIT :limit OFFSET :offset",

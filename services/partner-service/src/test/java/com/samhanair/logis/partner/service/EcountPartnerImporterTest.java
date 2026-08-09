@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.io.ByteArrayOutputStream;
@@ -39,6 +40,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.jpa.JpaSystemException;
 
@@ -61,6 +64,22 @@ class EcountPartnerImporterTest {
         assertThat(EcountPartnerImporter.failureReason(
                 new JpaSystemException(new IllegalStateException("rollback connection"))))
                 .isEqualTo("DB_INFRASTRUCTURE");
+    }
+
+    @Test
+    void rejectionPage_CSV_ENCODING은_페이지응답에서도_읽을수없음으로_정규화한다() {
+        when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Long.class))).thenReturn(1L);
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class))).thenAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            assertThat(sql).contains("CASE WHEN reject_reason LIKE 'CSV_ENCODING%' THEN '읽을 수 없음'");
+            return List.of(new EcountPartnerImportResult.RejectedRow(
+                    3, "CSV_ENCODING", "SOL1154R24-ENC-BAD", "읽을 수 없음"));
+        });
+
+        EcountPartnerImportResult.RejectedRow row = importer
+                .findRejectionPage("A".repeat(64), 0, 100).items().get(0);
+
+        assertThat(row.rawName()).isEqualTo("읽을 수 없음");
     }
 
     @Test
