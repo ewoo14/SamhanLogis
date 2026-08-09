@@ -7,6 +7,11 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductGoodsType;
+import com.samhanair.logis.product.domain.EstimateCategory;
+import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.ProductEstimateExposure;
+import com.samhanair.logis.product.domain.UsageScope;
+import java.util.List;
 import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -53,6 +58,30 @@ class ProductSummaryResponseTest {
         assertThat(new ObjectMapper().readTree(json).get("goodsType")).isNotNull();
         assertThat(new ObjectMapper().readTree(json).get("goodsType").asText())
                 .isEqualTo("NON_GOODS");
+    }
+
+    @Test
+    void from_withExposures_serializesSearchMetadataWithoutRequeryShape() throws Exception {
+        Product product = mock(Product.class);
+        Category category = mock(Category.class);
+        UUID productId = UUID.randomUUID();
+        when(product.getId()).thenReturn(productId);
+        when(product.getCategory()).thenReturn(category);
+        when(category.getId()).thenReturn(UUID.randomUUID());
+        when(product.getUsageScope()).thenReturn(UsageScope.ESTIMATE);
+        when(product.getProductCategory()).thenReturn(ProductCategory.SINGLE_PART);
+        when(product.getGoodsType()).thenReturn(ProductGoodsType.NON_GOODS);
+
+        ProductSummaryResponse response = ProductSummaryResponse.from(product, List.of(
+                ProductEstimateExposure.create(productId, EstimateCategory.HOME_MULTI, 3),
+                ProductEstimateExposure.create(productId, EstimateCategory.SINGLE_SET, 4)));
+
+        var json = new ObjectMapper().readTree(new ObjectMapper().writeValueAsString(response));
+        assertThat(json.get("usageScope").asText()).isEqualTo("ESTIMATE");
+        assertThat(json.get("estimateCategories").toString())
+                .isEqualTo("[\"HOME_MULTI\",\"SINGLE_SET\"]");
+        assertThat(json.get("goodsType").asText()).isEqualTo("NON_GOODS");
+        assertThat(json.get("productCategory").asText()).isEqualTo("SINGLE_PART");
     }
 
     @Test

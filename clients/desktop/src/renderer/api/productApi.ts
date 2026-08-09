@@ -18,7 +18,7 @@
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
 import type { ProductOption } from '@samhan/design-system'
-import type { UsageScope } from './productCatalogApi'
+import type { EstimateCategory, ProductCategory, UsageScope } from './productCatalogApi'
 
 /**
  * product-service `ProductSummaryResponse` 매핑 타입 (FE 전용).
@@ -40,6 +40,9 @@ interface ProductSummaryResponse {
   fixedDiscountRate?: number | null
   hasVariableDiscount?: boolean | null
   goodsType?: 'GOODS' | 'NON_GOODS' | null
+  usageScope?: UsageScope | null
+  estimateCategories?: EstimateCategory[] | null
+  productCategory?: ProductCategory | null
 }
 
 /**
@@ -96,6 +99,9 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
       fixedDiscountRate: p.fixedDiscountRate ?? null,
       hasVariableDiscount: p.hasVariableDiscount ?? null,
       goodsType: p.goodsType ?? undefined,
+      usageScope: p.usageScope ?? undefined,
+      estimateCategories: p.estimateCategories ?? undefined,
+      productCategory: p.productCategory ?? undefined,
   }
 }
 

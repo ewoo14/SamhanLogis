@@ -42,6 +42,9 @@ export interface ProductOption {
   hasVariableDiscount?: boolean | null
   /** 품목 마스터 선언 상품/비상품 — 이름으로 추론하지 않는다. */
   goodsType?: 'GOODS' | 'NON_GOODS'
+  usageScope?: 'NONE' | 'ESTIMATE' | 'PARTNER_ORDER' | 'BOTH'
+  estimateCategories?: Array<'HOME_MULTI' | 'SINGLE_SET' | 'COMMERCIAL_MULTI' | 'LEGACY' | 'OTHER'>
+  productCategory?: string | null
 }
 
 export interface ProductAutocompleteProps {

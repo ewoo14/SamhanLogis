@@ -124,9 +124,19 @@ public class ProductService {
         String qNormalised = (q == null || q.isBlank()) ? null : escapeLikeWildcards(q.trim());
         String usageScopeName = usageScope == null ? null : usageScope.name();
         String productCategoryName = productCategory == null ? null : productCategory.name();
-        return productRepository
-                .search(categoryId, statusName, qNormalised, tagFilter, usageScopeName, productCategoryName, pageable)
-                .map(ProductSummaryResponse::from);
+        Page<Product> products = productRepository.search(
+                categoryId, statusName, qNormalised, tagFilter, usageScopeName, productCategoryName, pageable);
+        List<UUID> productIds = products.getContent().stream().map(Product::getId).toList();
+        Map<UUID, List<ProductEstimateExposure>> exposuresByProductId = new LinkedHashMap<>();
+        if (!productIds.isEmpty()) {
+            for (ProductEstimateExposure exposure : exposureRepository
+                    .findByProductIdInAndIsDeletedFalse(productIds)) {
+                exposuresByProductId.computeIfAbsent(exposure.getProductId(), ignored -> new ArrayList<>())
+                        .add(exposure);
+            }
+        }
+        return products.map(product -> ProductSummaryResponse.from(
+                product, exposuresByProductId.getOrDefault(product.getId(), List.of())));
     }
 
     /**
