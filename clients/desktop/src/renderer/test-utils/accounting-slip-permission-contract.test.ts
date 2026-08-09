@@ -8,6 +8,9 @@ const workspace = resolve(__dirname, '../../..')
 const routes = readFileSync(resolve(workspace, 'src/renderer/routes/index.tsx'), 'utf8')
 const layout = readFileSync(resolve(workspace, 'src/renderer/components/AppLayout.tsx'), 'utf8')
 const mock = readFileSync(resolve(workspace, 'src/renderer/api/mock.ts'), 'utf8')
+const refreshScript = readFileSync(resolve(workspace, '../../scripts/refresh-accounting-permission-db-snapshot.ps1'), 'utf8')
+const salesAccountingSlipPage = readFileSync(resolve(workspace, 'src/renderer/routes/accounting/SalesAccountingSlipPage.tsx'), 'utf8')
+const purchaseAccountingSlipPage = readFileSync(resolve(workspace, 'src/renderer/routes/accounting/PurchaseAccountingSlipPage.tsx'), 'utf8')
 const taxInvoiceController = readFileSync(
   resolve(workspace, '../../services/accounting-service/src/main/java/com/samhanair/logis/accounting/web/TaxInvoiceInboundController.java'),
   'utf8',
@@ -59,6 +62,25 @@ describe('accounting slip permission contract', () => {
     expect(routes).not.toContain('pageCode="accounting.purchase-slip.list" action="edit"')
     expect(layout).toContain("dynamicCanAccess('accounting.sales-slip.accounting', 'view')")
     expect(layout).toContain("dynamicCanAccess('accounting.purchase-slip.accounting', 'view')")
+  })
+
+  it('keeps the MASTER runtime seven-action derivation in the official refresh generator', () => {
+    expect(refreshScript).toContain("$lines.Add('const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE")
+    expect(refreshScript).toContain("$lines.Add('// DynamicPermissionService bypasses role templates for MASTER")
+    expect(refreshScript).toContain("MASTER: Object.fromEntries(PERMISSION_PAGE_CODES.map((pageCode) => [pageCode, '1111111']))")
+  })
+
+  it('gates every accounting slip write CTA by the canonical accounting permission action', () => {
+    for (const [page, source, path] of [
+      ['sales', salesAccountingSlipPage, 'accounting.sales-slip.accounting'],
+      ['purchase', purchaseAccountingSlipPage, 'accounting.purchase-slip.accounting'],
+    ] as const) {
+      expect(source, `${page} page imports usePermissions`).toContain("from '../../hooks/usePermissions'")
+      expect(source, `${page} create CTA`).toContain(`canAccess('${path}', 'create')`)
+      expect(source, `${page} post CTA`).toContain(`canAccess('${path}', 'update')`)
+      expect(source, `${page} create button conditional`).toMatch(/canCreate[\s\S]*navigate\('\/accounting\/(sales|purchase)-slips\/new'\)/)
+      expect(source, `${page} post button conditional`).toMatch(/canPost[\s\S]*row\.status === 'DRAFT'/)
+    }
   })
 
   it('grants accounting permissions by inheriting list bits across role, group, and account stores', () => {

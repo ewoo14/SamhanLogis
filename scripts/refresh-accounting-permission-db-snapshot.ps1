@@ -74,9 +74,11 @@ foreach ($row in $rows) {
   $byRole[$parts[0]][$parts[1]] = $parts[2]
 }
 $lines = [System.Collections.Generic.List[string]]::new()
+$lines.Add("import { PERMISSION_PAGE_CODES } from './accounting-slip-permission-snapshot'")
+$lines.Add('')
 $lines.Add('// auth_db role_page_permission_templates projection, derived from all Flyway migrations in this repository.')
 $lines.Add('// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES. Missing DB rows are 0000000.')
-$lines.Add('export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {')
+$lines.Add('const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {')
 foreach ($role in $roles) {
   $lines.Add("  '$role': {")
   foreach ($page in $pages) {
@@ -85,6 +87,13 @@ foreach ($role in $roles) {
   }
   $lines.Add('  },')
 }
+$lines.Add('}')
+$lines.Add('')
+$lines.Add('// DynamicPermissionService bypasses role templates for MASTER: every known')
+$lines.Add('// page code is exposed with all seven actions regardless of stored rows.')
+$lines.Add('export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {')
+$lines.Add('  ...TEMPLATE_PERMISSION_DB_BITS_BY_ROLE,')
+$lines.Add("  MASTER: Object.fromEntries(PERMISSION_PAGE_CODES.map((pageCode) => [pageCode, '1111111'])),")
 $lines.Add('}')
 [IO.File]::WriteAllText($outputPath, ($lines -join [Environment]::NewLine) + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 Write-Output "Wrote DB-derived projection: $outputPath"
