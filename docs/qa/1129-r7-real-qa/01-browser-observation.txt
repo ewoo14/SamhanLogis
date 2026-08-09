@@ -1,0 +1,16 @@
+PR #1129 R7 SOL 라이브 GUI 관측 결과
+
+실 renderer는 mock OFF로 HTTP 200까지 기동했다.
+Browser runtime의 공식 복구 절차를 수행한 뒤 가용 브라우저 목록을 1회 확인했으나 []였다.
+선택 결과 원문: No browser is available
+
+따라서 로그인, 잠긴 CONFIRMED 전표 상세 진입, 마감 lock 배지의 실제 DOM 및 PNG 캡처는 관측 불가다.
+mock, 합성 이미지, 독립 Playwright로 대체하지 않았다.
+
+정적 경로에서는 별도 결함이 확정된다.
+- SlipDetail 응답/desktop SlipDetail 타입에 lockFlag가 없다.
+- SlipDetailPage의 isLocked는 SHIPPING/DELIVERED/CANCELED/REJECTED 상태만 본다.
+- 시더 lock 5건은 모두 CONFIRMED이므로 slip-detail-locked-banner가 렌더링되지 않는다.
+
+스크린샷 신규 파일: 없음
+
