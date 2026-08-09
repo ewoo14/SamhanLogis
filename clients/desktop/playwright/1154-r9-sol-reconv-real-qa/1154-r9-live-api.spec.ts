@@ -11,16 +11,19 @@ const AUTH_BASE = process.env['AUTH_API_BASE'] ?? 'http://127.0.0.1:8080'
 const PARTNER_BASE = process.env['PARTNER_API_BASE'] ?? 'http://127.0.0.1:48095'
 const DB_CONTAINER = process.env['R9_DB_CONTAINER'] ?? ''
 const SOURCE = path.resolve(DIRNAME, '../../../../docs/migration/896-sheet/ecount/거래처등록.xlsx')
-const SHOTS = resolveQaShotsDir(path.resolve(DIRNAME, '../../../../docs/qa/2026-08-09-1154-r10-failure-taxonomy'))
-const HEAD = process.env['R9_HEAD'] ?? '156f73c71c77d300caee85e778b6fb070f852124'
+const SHOTS = resolveQaShotsDir(path.resolve(DIRNAME, '../../../../docs/qa/2026-08-09-1154-r11-sol-reconv'))
+const HEAD = process.env['R9_HEAD'] ?? '4dd3848d800b0f1492aba2580b305575680a8819'
 const JAR_SHA256 = process.env['R9_JAR_SHA256'] ?? ''
 const MASTER_HASH = '064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619'
 const FAULT_CODE = '01'
 const FAULT_NAME = 'R9 transient infrastructure probe'
 const UUID_CODE = '0004'
-const TX_BEFORE = 'SOL1154R10B-BEFORE'
-const TX_BAD = 'SOL1154R10B-BAD'
-const TX_AFTER = 'SOL1154R10B-AFTER'
+const TX_BEFORE = 'SOL1154R11-BEFORE'
+const TX_BAD = 'SOL1154R11-BAD'
+const TX_AFTER = 'SOL1154R11-AFTER'
+const NEGATIVE_CREDIT = 'SOL1154R11-NEGATIVE'
+const NEGATIVE_BEFORE = 'SOL1154R11-NEG-BEFORE'
+const NEGATIVE_AFTER = 'SOL1154R11-NEG-AFTER'
 
 interface CallRecord { method: string; url: string; status: number; body: string }
 
@@ -30,11 +33,11 @@ function sql(query: string): string {
   }).trim()
 }
 
-function csv(rows: Array<{ code: string; name: string }>): Buffer {
+function csv(rows: Array<{ code: string; name: string; creditLimit?: string }>): Buffer {
   const meta = '\uFEFF"데이터관리>거래처-Excel다운로드"'
   const header = '"거래처코드\t","등록일자\t","담당자명\t","종사업장번호\t","거래처명\t","대표자명\t","주소1\t","전화번호\t","핸드폰번호\t","검색창내용\t","특이사항\t","그룹\t","사용구분\t","이체정보\t","여신한도\t","최초작성일자\t",""'
-  const data = rows.map(({ code, name }) =>
-    `"${code}\t","20230814\t","R9담당자\t","\t","${name}\t","대표\t","서울\t","\t","\t","\t","\t","일반업체\t","YES\t","등록\t","\t","\t",""`,
+  const data = rows.map(({ code, name, creditLimit = '' }) =>
+    `"${code}\t","20230814\t","R11담당자\t","\t","${name}\t","대표\t","서울\t","\t","\t","\t","\t","일반업체\t","YES\t","등록\t","${creditLimit}\t","\t",""`,
   )
   return Buffer.from([meta, header, ...data].join('\n') + '\n', 'utf8')
 }
@@ -44,7 +47,7 @@ async function renderEvidence(page: Page, title: string, evidence: unknown, file
     body{font-family:"Noto Sans KR",Arial,sans-serif;background:#0b1220;color:#e5eefc;margin:0;padding:36px}
     h1{font-size:27px;margin:0 0 18px;color:#fda4af}pre{white-space:pre-wrap;word-break:break-all;background:#111c30;border:1px solid #713f55;border-radius:12px;padding:22px;font-size:15px;line-height:1.55}
     .tag{display:inline-block;background:#881337;color:#ffe4e6;border-radius:999px;padding:6px 12px;margin-bottom:18px}
-  </style></head><body><span class="tag">PR #1154 R9 · HEAD 156f73c71</span><h1>${title}</h1><pre>${JSON.stringify(evidence, null, 2).replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</pre></body></html>`)
+  </style></head><body><span class="tag">PR #1154 R11 · HEAD 4dd3848d8</span><h1>${title}</h1><pre>${JSON.stringify(evidence, null, 2).replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</pre></body></html>`)
   await page.screenshot({ path: path.join(SHOTS, filename), fullPage: true })
 }
 
@@ -59,7 +62,7 @@ async function pollSql(query: string, predicate: (value: string) => boolean, tim
   throw new Error(`SQL poll timeout: last=${last}`)
 }
 
-test('PR #1154 R10 실 관리자 API 실패 분류 재수렴', async ({ page, request, browserName }) => {
+test('PR #1154 R11 실 관리자 API 실패 분류 재수렴', async ({ page, request, browserName }) => {
   expect(browserName).toBe('chromium')
   let password: string
   try {
@@ -105,7 +108,7 @@ test('PR #1154 R10 실 관리자 API 실패 분류 재수렴', async ({ page, re
     authPort: 8080,
     dbVersion: sql('SELECT version()'),
     masterRowsBefore: Number(sql(`SELECT count(*) FROM staging.ecount_partner_raw WHERE source_file_hash='${MASTER_HASH}'`)),
-    txRowsBefore: Number(sql(`SELECT count(*) FROM partners WHERE partner_code IN ('${TX_BEFORE}','${TX_BAD}','${TX_AFTER}') AND is_deleted=false`)),
+    txRowsBefore: Number(sql(`SELECT count(*) FROM partners WHERE partner_code IN ('${TX_BEFORE}','${TX_BAD}','${TX_AFTER}','${NEGATIVE_CREDIT}','${NEGATIVE_BEFORE}','${NEGATIVE_AFTER}') AND is_deleted=false`)),
     sourceBytes: fs.statSync(SOURCE).size,
   }
   expect([0, 7253]).toContain(triggerCounts.masterRowsBefore)
@@ -155,6 +158,33 @@ test('PR #1154 R10 실 관리자 API 실패 분류 재수렴', async ({ page, re
   expect(baselineBody).toMatchObject({ totalRows: 7253, activeCount: 7253, heldParseFailureRows: 0 })
   expect(baselineBody.imported + baselineBody.updated).toBe(7253)
 
+  // 각도 1 핵심: 신규 경로는 음수 여신한도를 그대로 저장하고, 기존 갱신 경로는 같은 값을
+  // IllegalArgumentException으로 거부한다. 후자는 두 DB 축 어디에도 계상되지 않고 요청 전체가 5xx다.
+  const positiveSeed = await uploadCsv(csv([
+    { code: NEGATIVE_CREDIT, name: 'R11 여신한도 축 표본', creditLimit: '1' },
+  ]), 'r11-positive-credit-seed.csv')
+  expect(positiveSeed.response.status(), positiveSeed.body).toBe(200)
+  const negative = await uploadCsv(csv([
+    { code: NEGATIVE_BEFORE, name: 'R11 음수 앞 정상' },
+    { code: NEGATIVE_CREDIT, name: 'R11 여신한도 축 표본', creditLimit: '-1' },
+    { code: NEGATIVE_AFTER, name: 'R11 음수 뒤 정상' },
+  ]), 'r11-negative-credit.csv')
+  const negativeStaging = sql(`SELECT raw_partner_code,transform_status,coalesce(reject_reason,''),target_partner_id IS NULL FROM staging.ecount_partner_raw WHERE source_file_hash=(SELECT source_file_hash FROM staging.ecount_partner_raw WHERE raw_partner_code='${NEGATIVE_CREDIT}' ORDER BY imported_at DESC LIMIT 1) AND raw_partner_code='${NEGATIVE_CREDIT}'`)
+  const negativeStored = sql(`SELECT count(*)::text || '|' || coalesce(min(credit_limit)::text,'NULL') FROM partners WHERE partner_code='${NEGATIVE_CREDIT}' AND is_deleted=false`)
+  const negativeContinuation = sql(`SELECT count(*) FILTER (WHERE partner_code='${NEGATIVE_BEFORE}')::text || '|' || count(*) FILTER (WHERE partner_code='${NEGATIVE_AFTER}')::text FROM partners WHERE is_deleted=false AND partner_code IN ('${NEGATIVE_BEFORE}','${NEGATIVE_AFTER}')`)
+  const negativeEvidence = {
+    http: negative.response.status(),
+    response: negative.body,
+    staging: negativeStaging,
+    storedAfterRejectedUpdate: negativeStored,
+    beforeAndAfterActive: negativeContinuation,
+    expectedDataAxis: 'heldParseFailureRows + DB_CONSTRAINT',
+  }
+  expect(negative.response.status(), negative.body).toBe(400)
+  expect(negativeStored).toBe('1|1.00')
+  expect(negativeContinuation).toBe('1|0')
+  await renderEvidence(page, '각도 1 · 제3축 — 음수 여신한도가 두 DB 축 밖에서 파일을 중단', negativeEvidence, '01-data-failure-outside-data-access.png')
+
   // 각도 1: 기존 정본 한 행의 거래처명을 실 관리자 CSV로 변경해 UPDATE를 강제하고,
   // row lock으로 대기시킨 뒤 그 JDBC 연결만 끊는다.
   // DB 데이터 쓰기는 모두 관리자 API로만 수행한다. SQL은 SELECT/SELECT FOR UPDATE/연결 종료뿐이다.
@@ -171,7 +201,7 @@ test('PR #1154 R10 실 관리자 API 실패 분류 재수렴', async ({ page, re
   })
   const faultSql = sql(`SELECT raw_partner_code,transform_status,coalesce(reject_reason,''),target_partner_id IS NULL FROM staging.ecount_partner_raw WHERE source_file_hash='${faultedBody.sourceFileHash}' AND raw_partner_code='${FAULT_CODE}'`)
   const angle1 = { blockedPid: transient.blockedPid, terminated: transient.terminated, http: faulted.response.status(), response: faultedBody, faultRow, sql: faultSql }
-  await renderEvidence(page, '각도 1 · 순간 연결 단절이 DB_INFRASTRUCTURE로 보고됨', angle1, '01-transient-db-failure.png')
+  await renderEvidence(page, '각도 2 · 순간 연결 단절이 DB_INFRASTRUCTURE로 보고됨', angle1, '02-transient-db-failure.png')
 
   // 인프라 장애 표본을 정본으로 복구한다.
   const retry = await uploadXlsx()
@@ -197,7 +227,7 @@ test('PR #1154 R10 실 관리자 API 실패 분류 재수렴', async ({ page, re
   expect(rowFailureBody).toMatchObject({ totalRows: 3, heldParseFailureRows: 1, infrastructureFailureRows: 0 })
   expect(rowFailureBody.imported + rowFailureBody.updated).toBe(2)
   expect(rowFailureCounts).toEqual({ before: 1, bad: 0, after: 1 })
-  await renderEvidence(page, '각도 2 · 201자 실패행 격리와 뒤 정상행 커밋', { response: rowFailureBody, counts: rowFailureCounts, sql: rowFailureSql }, '02-row-failure-isolation.png')
+  await renderEvidence(page, '각도 3a · 201자 실패행 격리와 뒤 정상행 커밋', { response: rowFailureBody, counts: rowFailureCounts, sql: rowFailureSql }, '03-row-failure-isolation.png')
 
   // 각도 4: 201자로 실패한 같은 거래처 코드를 짧은 이름으로 고친 새 파일로 재업로드한다.
   const corrected = await uploadCsv(csv([
@@ -211,7 +241,7 @@ test('PR #1154 R10 실 관리자 API 실패 분류 재수렴', async ({ page, re
   const correctedActive = Number(sql(`SELECT count(*) FROM partners WHERE partner_code='${TX_BAD}' AND is_deleted=false`))
   expect(correctedSql).toMatch(/(?:IMPORTED|UPDATED)\|\|t/)
   expect(correctedActive).toBe(1)
-  await renderEvidence(page, '각도 4 · 201자 실패행을 고친 파일 재업로드', { response: correctedBody, active: correctedActive, sql: correctedSql }, '04-pending-row-retry.png')
+  await renderEvidence(page, '각도 3d · 201자 실패행을 고친 파일 재업로드', { response: correctedBody, active: correctedActive, sql: correctedSql }, '05-pending-row-retry.png')
 
   // 조합 1: 인프라 실패가 첫 행이고 뒤 정상행은 계속 처리된다.
   const infraFirstAfter = 'SOL1154R10INFRAFIRSTAFTER'
@@ -256,16 +286,16 @@ test('PR #1154 R10 실 관리자 API 실패 분류 재수렴', async ({ page, re
   expect(uuidSql).toBe(`${beforeUuid}|${beforeUuid}|1|0|0`)
   const cleanupAddress = await call('DELETE', `${PARTNER_BASE}/api/v1/partners/${UUID_CODE}/shipping-addresses/${addressId}`, { headers })
   expect(cleanupAddress.response.status(), cleanupAddress.body).toBe(204)
-  for (const code of [TX_BEFORE, TX_BAD, TX_AFTER, infraFirstAfter, bothBad, bothAfter]) {
+  for (const code of [TX_BEFORE, TX_BAD, TX_AFTER, NEGATIVE_CREDIT, NEGATIVE_BEFORE, NEGATIVE_AFTER, infraFirstAfter, bothBad, bothAfter]) {
     const cleanup = await call('DELETE', `${PARTNER_BASE}/admin/partners/${code}`, { headers })
     expect([200, 404], cleanup.body).toContain(cleanup.response.status())
   }
-  await renderEvidence(page, '각도 3 · UUID 복원과 7,253건 분포 불변', { restoreResponse: restoredBody, uuidSql, distributionSql, rowFailureCounts }, '03-r6-r7-invariants.png')
+  await renderEvidence(page, '각도 3b/c · UUID 복원과 7,253건 분포 불변', { restoreResponse: restoredBody, uuidSql, distributionSql, rowFailureCounts }, '04-r6-r7-invariants.png')
 
   const cleanupVerify = {
     uuidCodeActive: Number(sql(`SELECT count(*) FROM partners WHERE partner_code='${UUID_CODE}' AND is_deleted=false`)),
     uuidQaAddressActive: Number(sql("SELECT count(*) FROM partner_shipping_addresses WHERE alias='R9정본참조' AND is_deleted=false")),
-    txActive: Number(sql(`SELECT count(*) FROM partners WHERE partner_code IN ('${TX_BEFORE}','${TX_BAD}','${TX_AFTER}') AND is_deleted=false`)),
+    txActive: Number(sql(`SELECT count(*) FROM partners WHERE partner_code IN ('${TX_BEFORE}','${TX_BAD}','${TX_AFTER}','${NEGATIVE_CREDIT}','${NEGATIVE_BEFORE}','${NEGATIVE_AFTER}') AND is_deleted=false`)),
     forbiddenSharedCodeTouchedByFixture: false,
   }
   expect(cleanupVerify).toEqual({ uuidCodeActive: 1, uuidQaAddressActive: 0, txActive: 0, forbiddenSharedCodeTouchedByFixture: false })

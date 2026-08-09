@@ -1,0 +1,6 @@
+{
+  "uuidCodeActive": 1,
+  "uuidQaAddressActive": 0,
+  "txActive": 0,
+  "forbiddenSharedCodeTouchedByFixture": false
+}
