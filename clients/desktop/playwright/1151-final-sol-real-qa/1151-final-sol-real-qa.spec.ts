@@ -12,6 +12,14 @@ const SHOTS = resolveQaShotsDir(
 )
 
 test('실 Desktop 입고 완료가 source journal을 남긴다', async ({ page }) => {
+  let password: string
+  try {
+    password = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
+  } catch (error) {
+    test.skip(true, error instanceof Error ? error.message : String(error))
+    return
+  }
+
   const observed: string[] = []
   page.on('response', (response) => {
     if (response.url().startsWith(`${API_BASE}/`)) {
@@ -27,7 +35,7 @@ test('실 Desktop 입고 완료가 source journal을 남긴다', async ({ page }
   const loginResponse = await page.request.post(`${API_BASE}/auth/login`, {
     data: {
       loginId: 'dev_master',
-      password: resolveQaCredential('QA_DEV_DEFAULT_PASSWORD'),
+      password,
     },
   })
   expect(loginResponse.status()).toBe(200)

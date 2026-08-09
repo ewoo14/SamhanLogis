@@ -8,15 +8,14 @@ const API_BASE = process.env['API_BASE'] ?? 'http://127.0.0.1:28082'
 const MASTER_TARGET = process.env['QA_MASTER_TARGET'] ?? '38936dfd-2f4e-4c18-ae06-781af441837c'
 const MANAGER_TARGET = process.env['QA_MANAGER_TARGET'] ?? 'dd0456d0-50f9-4c76-8bbe-c9672a20356d'
 const SHOTS = resolveQaShotsDir(path.resolve(process.cwd(), '../../docs/qa/1151-postmerge-sol-reconv'))
-const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 
 type Login = { token: string; role: string; userId: string; displayName: string }
 
 test.describe.configure({ mode: 'serial' })
 
-async function login(page: Page, loginId: string): Promise<Login> {
+async function login(page: Page, loginId: string, password: string): Promise<Login> {
   const response = await page.request.post(`${API_BASE}/auth/login`, {
-    data: { loginId, password: PASSWORD },
+    data: { loginId, password },
   })
   expect(response.ok(), `${loginId} login HTTP ${response.status()}`).toBeTruthy()
   return (await response.json()).data as Login
@@ -66,8 +65,16 @@ async function advanceToProcessing(page: Page, target: string): Promise<void> {
 }
 
 test('MASTER 실 Desktop 입고 완료가 병합본 API를 호출한다', async ({ page }) => {
+  let password: string
+  try {
+    password = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
+  } catch (error) {
+    test.skip(true, error instanceof Error ? error.message : String(error))
+    return
+  }
+
   const observed = observeApi(page)
-  const master = await login(page, 'dev_master')
+  const master = await login(page, 'dev_master', password)
   await installAuth(page, master)
   await page.goto(`${APP_BASE}/#/purchases/${MASTER_TARGET}`)
   await advanceToProcessing(page, MASTER_TARGET)
@@ -90,8 +97,16 @@ test('MASTER 실 Desktop 입고 완료가 병합본 API를 호출한다', async 
 })
 
 test('MANAGER 입고 완료는 journal 발화 경로를 거쳐 검수 완료까지 간다', async ({ page }) => {
+  let password: string
+  try {
+    password = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
+  } catch (error) {
+    test.skip(true, error instanceof Error ? error.message : String(error))
+    return
+  }
+
   const observed = observeApi(page)
-  const manager = await login(page, 'dev_manager')
+  const manager = await login(page, 'dev_manager', password)
   const permissionResponse = await page.request.get(`${API_BASE}/auth/admin/permissions/my`, {
     headers: { Authorization: `Bearer ${manager.token}` },
   })
@@ -127,7 +142,15 @@ test('MANAGER 입고 완료는 journal 발화 경로를 거쳐 검수 완료까�
 })
 
 test('SALES는 동일 입고 검수 완료를 GUI와 API 양쪽에서 차단당한다', async ({ page }) => {
-  const sales = await login(page, 'dev_sales')
+  let password: string
+  try {
+    password = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
+  } catch (error) {
+    test.skip(true, error instanceof Error ? error.message : String(error))
+    return
+  }
+
+  const sales = await login(page, 'dev_sales', password)
   const permissionResponse = await page.request.get(`${API_BASE}/auth/admin/permissions/my`, {
     headers: { Authorization: `Bearer ${sales.token}` },
   })
