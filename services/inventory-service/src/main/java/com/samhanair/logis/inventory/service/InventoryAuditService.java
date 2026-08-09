@@ -131,6 +131,9 @@ public class InventoryAuditService {
         List<AuditLineSnapshot> snapshots = new ArrayList<>();
         for (StockBalance balance : balances) {
             ProductSummary product = productMap.get(balance.getProductId());
+            if (product != null && InventoryProductGate.isExcluded(product)) {
+                continue;
+            }
             String name = product == null ? "(미상)" : product.name();
             BigDecimal unitCost = resolveUnitCost(balance.getProductId(), warehouse.getId(), product);
             int expected = balance.getTotalQty();
@@ -359,6 +362,12 @@ public class InventoryAuditService {
     }
 
     private void adjustStockForLine(InventoryAudit audit, InventoryAuditLine line, String actorUserId) {
+        ProductSummary product = productClient.requireExists(line.getProductId());
+        if (InventoryProductGate.isExcluded(product)) {
+            log.info("비상품/세트 품목 실사 조정 생략 — auditNo={}, productId={}",
+                    audit.getAuditNo(), line.getProductId());
+            return;
+        }
         StockBalance balance = stockBalanceRepository
                 .findByProductIdAndWarehouse_IdAndIsDeletedFalse(
                         line.getProductId(), audit.getWarehouse().getId())

@@ -43,8 +43,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class StockInstanceService {
 
-    private static final String PRODUCT_TYPE_BUNDLE = "BUNDLE";
-
     private final StockInstanceRepository repo;
     private final ProductClient productClient;
 
@@ -450,7 +448,7 @@ public class StockInstanceService {
      * 세트는 구성품(SINGLE)만 재고 대상이다.
      */
     private boolean isInventoryExcluded(ProductSummary product) {
-        return !product.goods() || PRODUCT_TYPE_BUNDLE.equals(product.productType());
+        return InventoryProductGate.isExcluded(product);
     }
 
     private void lockBatchKey(String lockKey) {

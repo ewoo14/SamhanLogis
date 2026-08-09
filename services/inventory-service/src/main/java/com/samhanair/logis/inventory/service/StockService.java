@@ -55,8 +55,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class StockService {
 
-    private static final String PRODUCT_TYPE_BUNDLE = "BUNDLE";
-
     private final StockLotRepository stockLotRepository;
     private final StockBalanceRepository stockBalanceRepository;
     private final StockMovementRepository stockMovementRepository;
@@ -505,7 +503,7 @@ public class StockService {
      * 세트가 들어와도 비상품과 동일하게 no-op skip 한다.
      */
     private boolean isInventoryExcluded(ProductSummary product) {
-        return !product.goods() || PRODUCT_TYPE_BUNDLE.equals(product.productType());
+        return InventoryProductGate.isExcluded(product);
     }
 
     /**

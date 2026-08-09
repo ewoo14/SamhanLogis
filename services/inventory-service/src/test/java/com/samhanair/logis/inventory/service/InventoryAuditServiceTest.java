@@ -95,6 +95,9 @@ class InventoryAuditServiceTest {
                 .thenReturn(Optional.of(warehouse));
         lenient().when(auditNumberSequenceRepository.findLockedByAuditDate(any()))
                 .thenAnswer(inv -> Optional.of(InventoryAuditNumberSequence.create(inv.getArgument(0))));
+        lenient().when(productClient.requireExists(any(UUID.class)))
+                .thenAnswer(inv -> new ProductSummary(inv.getArgument(0), "상품", "SKU", "SKU-001",
+                        UUID.randomUUID(), BigDecimal.ZERO, "ACTIVE", false, true));
     }
 
     @Test
@@ -122,6 +125,26 @@ class InventoryAuditServiceTest {
         assertThat(response.lines().get(0).expectedQty()).isEqualTo(100);
         assertThat(response.lines().get(0).productName()).isEqualTo("AC");
         assertThat(response.lines().get(0).unitCost()).isEqualByComparingTo("100000.00");
+    }
+
+    @Test
+    void create_excludesNonGoodsBalancesFromAuditSnapshot() {
+        StockBalance balance = newBalance(productId, warehouse, 2);
+        when(stockBalanceRepository.findAllByWarehouse_IdAndIsDeletedFalse(eq(warehouseId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(balance)));
+        when(productClient.lookup(anyList())).thenReturn(List.of(new ProductSummary(
+                productId, "운임", "FREIGHT", "FREIGHT-001", UUID.randomUUID(),
+                new BigDecimal("100000.00"), "ACTIVE", false, false)));
+        when(auditRepository.save(any(InventoryAudit.class))).thenAnswer(inv -> {
+            InventoryAudit a = inv.getArgument(0);
+            ReflectionTestUtils.setField(a, "id", UUID.randomUUID());
+            return a;
+        });
+
+        AuditDetailResponse response = service.create(
+                new CreateAuditRequest(warehouseId, LocalDate.of(2026, 12, 31)), "user-1");
+
+        assertThat(response.lines()).isEmpty();
     }
 
     @Test
@@ -251,6 +274,27 @@ class InventoryAuditServiceTest {
                 .createAuditAdjustmentJournal(eq(audit.getId()), eq(audit.getAuditNo()),
                         eq(audit.getAuditDate()), diffCaptor.capture());
         assertThat(diffCaptor.getValue()).isEqualByComparingTo("-500000.00");
+    }
+
+    @Test
+    void complete_nonGoodsDiff_doesNotAdjustStockOrCreateMovement() {
+        InventoryAudit audit = freshAudit();
+        InventoryAuditLine line = InventoryAuditLine.snapshot(
+                audit, productId, "운임", 2, new BigDecimal("100000.00"));
+        audit.addLine(line);
+        audit.start();
+        line.recordActual(1, false); // diff -1
+        when(auditRepository.findById(audit.getId())).thenReturn(Optional.of(audit));
+        when(productClient.requireExists(productId)).thenReturn(new ProductSummary(
+                productId, "운임", "FREIGHT", "FREIGHT-001", UUID.randomUUID(),
+                new BigDecimal("100000.00"), "ACTIVE", false, false));
+
+        StockBalance balance = newBalance(productId, warehouse, 2);
+
+        service.complete(audit.getId(), "actor-1");
+
+        assertThat(balance.getTotalQty()).isEqualTo(2);
+        verify(stockMovementRepository, never()).save(any());
     }
 
     @Test
