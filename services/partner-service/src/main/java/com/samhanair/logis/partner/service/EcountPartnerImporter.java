@@ -2,6 +2,7 @@ package com.samhanair.logis.partner.service;
 
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvValidationException;
+import com.samhanair.logis.common.ecount.io.EcountXlsxSupport;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.domain.Partner;
@@ -20,12 +21,16 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.input.BOMInputStream;
@@ -93,10 +98,15 @@ public class EcountPartnerImporter {
 
     /** 등록일자 YYYYMMDD 파서. */
     private static final DateTimeFormatter REGISTRATION_DATE_FORMAT =
-            DateTimeFormatter.ofPattern("yyyyMMdd", Locale.KOREAN);
+            DateTimeFormatter.ofPattern("uuuuMMdd", Locale.KOREAN)
+                    .withResolverStyle(java.time.format.ResolverStyle.STRICT);
+    private static final Pattern FIRST_CREATED_PATTERN = Pattern.compile(
+            "^(\\d{4}/\\d{2}/\\d{2})\\s+(오전|오후)\\s+(\\d{1,2}):(\\d{2}):(\\d{2})$");
 
     /** reject sample 최대 건수 (응답 페이로드 가드). */
     private static final int REJECT_SAMPLE_MAX = 20;
+
+    private static final String[] XLSX_HEADERS = EXPECTED_HEADERS;
 
     private final PartnerRepository partnerRepository;
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -222,7 +232,75 @@ public class EcountPartnerImporter {
                 activeCount, suspendedCount, sourceFileHash, actorUserId);
 
         return new EcountPartnerImportResult(totalRows, imported, updated, rejectedNullName,
-                skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample);
+                skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample,
+                0, 0, List.of(), 0, 0);
+    }
+
+    /**
+     * 이카운트 정본 XLSX를 관리자 적재 경로로 반영한다.
+     * 메타 1행/헤더 1행은 공통 XLSX 파서가 처리하고, A열 timestamp만 있는 trailer와
+     * 변환 실패 행은 partners에 쓰지 않고 staging에 증거로 남긴다.
+     */
+    public EcountPartnerImportResult importXlsx(InputStream xlsx, String actorUserId) {
+        EcountXlsxSupport.ParsedXlsx parsed = EcountXlsxSupport.parse(xlsx, XLSX_HEADERS);
+        int imported = 0;
+        int updated = 0;
+        int rejectedNullName = 0;
+        int skippedPlaceholder = 0;
+        int activeCount = 0;
+        int suspendedCount = 0;
+        int excludedTrailer = 0;
+        int registrationDateParsedCount = 0;
+        int createdAtLoadTimeCount = 0;
+        List<EcountPartnerImportResult.RejectedRow> rejected = new ArrayList<>();
+        List<EcountPartnerImportResult.RejectedRow> held = new ArrayList<>();
+        LocalDateTime loadTimestamp = LocalDateTime.now();
+
+        for (EcountXlsxSupport.ParsedRow parsedRow : parsed.rows()) {
+            int rowNo = parsedRow.sourceRowNo();
+            String[] cells = parsedRow.cells();
+            if (isTrailerRow(cells)) {
+                excludedTrailer++;
+                addRejectSample(rejected, rowNo, "EXCLUDED_TRAILER", cells[0], "");
+                continue;
+            }
+
+            stagingUpsert(parsed.sourceFileHash(), rowNo, cells, actorUserId);
+            // 기초거래처 정본은 '-'와 비숫자 partner_code도 업무 식별자로 유효하다.
+            Classification classification = classifyMasterRow(cells[0], cells[4]);
+            if (classification.kind == Kind.REJECT_NAME_NULL) {
+                rejectedNullName++;
+                updateStagingStatus(parsed.sourceFileHash(), rowNo, "REJECT_NAME_NULL",
+                        "거래처명 빈값", null);
+                addRejectSample(rejected, rowNo, "REJECT_NAME_NULL", cells[0], cells[4]);
+                continue;
+            }
+            if (classification.kind == Kind.SKIPPED_PLACEHOLDER) {
+                skippedPlaceholder++;
+                updateStagingStatus(parsed.sourceFileHash(), rowNo, "SKIPPED_PLACEHOLDER",
+                        "거래처코드 placeholder (" + cells[0] + ")", null);
+                addRejectSample(rejected, rowNo, "SKIPPED_PLACEHOLDER", cells[0], cells[4]);
+                continue;
+            }
+            LocalDate registrationDate = parseRegistrationDate(cells[1]);
+            if (registrationDate == null) createdAtLoadTimeCount++;
+            else registrationDateParsedCount++;
+            // 유효한 등록일자는 created_at과 registration_date에 함께 보존한다.
+            // 공란/실패는 registration_date=null, created_at=이번 배치의 단일 적재 시각이다.
+            UpsertResult result = upsertPartner(cells, classification.effectiveCode,
+                    registrationDate, registrationDate == null ? loadTimestamp : registrationDate.atStartOfDay());
+            if (result.isNew) imported++; else updated++;
+            if (result.status == PartnerStatus.ACTIVE) activeCount++; else if (result.status == PartnerStatus.SUSPENDED) suspendedCount++;
+            updateStagingStatus(parsed.sourceFileHash(), rowNo, result.isNew ? "IMPORTED" : "UPDATED",
+                    null, result.partnerId);
+        }
+        if (imported + updated > 0) {
+            collectionRealtimePublisher.publishChange(PartnerListRealtime.CHANNEL_ID,
+                    PartnerListRealtime.EVENT_CHANGED, Map.of("changeType", "BULK_UPDATED"));
+        }
+        return new EcountPartnerImportResult(parsed.dataRowCount() - excludedTrailer, imported, updated,
+                rejectedNullName, skippedPlaceholder, activeCount, suspendedCount, parsed.sourceFileHash(),
+                rejected, excludedTrailer, 0, held, registrationDateParsedCount, createdAtLoadTimeCount);
     }
 
     // ============================================================
@@ -300,28 +378,77 @@ public class EcountPartnerImporter {
     }
 
     static BigDecimal parseCreditLimit(String raw) {
-        if (raw == null || raw.isEmpty() || "-".equals(raw)) {
-            return BigDecimal.ZERO;
+        if (raw == null || raw.isBlank() || "-".equals(raw.strip())) {
+            return null;
         }
-        String cleaned = raw.replace(",", "").replace(" ", "");
+        String cleaned = raw.replace(",", "").replace(" ", "").replace("원", "");
         try {
             return new BigDecimal(cleaned);
         } catch (NumberFormatException ex) {
-            log.warn("MIG-1 여신한도 파싱 실패 — raw='{}' → 0 fallback", raw);
-            return BigDecimal.ZERO;
+            // 필드 단위 실패: 거래처 행은 적재하고 여신한도만 null로 둔다.
+            return null;
         }
     }
 
+    /**
+     * 등록일자 자유 입력 파서.
+     * 지원 형식은 YYYYMMDD, YYYY-MM-DD, YYYY.MM.DD, YY.MM.DD, YYMMDD이다.
+     * YY는 업무 데이터의 관행에 따라 2000년대로 해석한다(26 -> 2026).
+     * 해석이 틀린 경우에도 staging의 raw_registration 원문으로 규칙 변경 후 재파싱할 수 있다.
+     */
     static LocalDate parseRegistrationDate(String raw) {
-        if (raw == null || raw.isEmpty() || "임시".equals(raw)) {
-            return null;
-        }
+        if (raw == null || raw.isBlank() || "임시".equals(raw.strip())) return null;
+        String digits = raw.strip().replace("-", "").replace(".", "");
         try {
-            return LocalDate.parse(raw, REGISTRATION_DATE_FORMAT);
-        } catch (Exception ex) {
-            log.debug("MIG-1 등록일자 파싱 실패 — raw='{}' → null", raw);
+            if (digits.matches("\\d{8}")) {
+                return LocalDate.parse(digits, REGISTRATION_DATE_FORMAT);
+            }
+            if (digits.matches("\\d{6}")) {
+                int year = 2000 + Integer.parseInt(digits.substring(0, 2));
+                return LocalDate.of(year, Integer.parseInt(digits.substring(2, 4)),
+                        Integer.parseInt(digits.substring(4, 6)));
+            }
+        } catch (RuntimeException ex) {
             return null;
         }
+        return null;
+    }
+
+    /** 최초작성일자는 audit created_at에 넣지 않고 형식만 검증하며 raw는 staging에 보존한다. */
+    static LocalDateTime parseFirstCreated(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        Matcher matcher = FIRST_CREATED_PATTERN.matcher(raw.strip().replaceAll("\\s+", " "));
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("최초작성일자 파싱 실패: raw='" + raw + "'");
+        }
+        LocalDate date;
+        try {
+            date = LocalDate.parse(matcher.group(1).replace("/", "-"));
+            int hour = Integer.parseInt(matcher.group(3));
+            if (hour < 1 || hour > 12) throw new IllegalArgumentException("시각 범위 오류");
+            if ("오후".equals(matcher.group(2)) && hour < 12) hour += 12;
+            if ("오전".equals(matcher.group(2)) && hour == 12) hour = 0;
+            return LocalDateTime.of(date, LocalTime.of(hour, Integer.parseInt(matcher.group(4)), Integer.parseInt(matcher.group(5))));
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("최초작성일자 파싱 실패: raw='" + raw + "'", ex);
+        }
+    }
+
+    static boolean isTrailerRow(String[] cells) {
+        if (cells.length < 16 || cells[0].isBlank()) return false;
+        if (!cells[0].matches("\\d{4}/\\d{2}/\\d{2}\\s+(오전|오후)\\s+\\d{1,2}:\\d{2}:\\d{2}")) return false;
+        for (int i = 1; i < cells.length; i++) if (!cells[i].isBlank()) return false;
+        return true;
+    }
+
+    static Classification classifyMasterRow(String rawCode, String rawName) {
+        if (rawName == null || rawName.isBlank()) {
+            return new Classification(Kind.REJECT_NAME_NULL, null);
+        }
+        if (rawCode == null || rawCode.isBlank()) {
+            return new Classification(Kind.SKIPPED_PLACEHOLDER, null);
+        }
+        return new Classification(Kind.NORMAL, rawCode);
     }
 
     static String nullIfBlank(String s) {
@@ -404,10 +531,22 @@ public class EcountPartnerImporter {
 
     /**
      * 거래처 UPSERT — partner_code 기준 (= 거래처코드 = bizNo).
+     * 이카운트 적재 갱신 정책: name/대표자/주소/연락처/검색어/메모/담당자/그룹1/
+     * registration_date/transfer_info/credit_limit만 원천으로 덮어쓴다. status는 기존 행 보존,
+     * outstanding_balance 및 partner_group2 등 운영·거래 결과 필드는 덮어쓰지 않는다.
      * 동일 transaction 내에서 staging 적재와 묶이지 않도록 row 단위 진행 (대량 import 의 부분 성공 허용).
      */
     @Transactional
     public UpsertResult upsertPartner(String[] cells, String effectiveCode) {
+        LocalDate registrationDate = parseRegistrationDate(cells[1]);
+        LocalDateTime createdAt = registrationDate == null
+                ? LocalDateTime.now() : registrationDate.atStartOfDay();
+        return upsertPartner(cells, effectiveCode, registrationDate, createdAt);
+    }
+
+    @Transactional
+    public UpsertResult upsertPartner(String[] cells, String effectiveCode,
+                                      LocalDate registrationDate, LocalDateTime createdAt) {
         String name = cells[4];
         String managerName = nullIfBlank(cells[2]);
         String subBizNo = nullIfBlank(cells[3]);
@@ -421,7 +560,6 @@ public class EcountPartnerImporter {
         String rawUsageFlag = cells[12];
         String transferInfo = nullIfBlank(cells[13]);
         BigDecimal creditLimit = parseCreditLimit(cells[14]);
-        LocalDate registrationDate = parseRegistrationDate(cells[1]);
         PartnerStatus status = mapStatus(rawUsageFlag);
 
         Optional<Partner> existing = partnerRepository.findByPartnerCode(effectiveCode);
@@ -440,15 +578,18 @@ public class EcountPartnerImporter {
             partner.updateSearchKeyword(searchKeyword);
             partner.updateClassification(partnerGroup1, partner.getPartnerGroup2(),
                     partner.getWebsite());
-            partner.changeCreditLimit(creditLimit);
+            // 이관 정책: credit_limit은 원천 숫자/빈칸(null)을 그대로 반영한다.
+            // outstanding_balance, status, partner_group2 등 운영/거래 결과 필드는 덮어쓰지 않는다.
+            partner.replaceCreditLimitFromImport(creditLimit);
             partner.changeRegistrationDate(registrationDate);
             partner.updateTransferInfo(transferInfo);
             partner.updateNote(note);
             partner.updateManagerName(managerName);
-            partner.changeStatus(status);
+            // 기존 비활성 거래처를 파일 YES만으로 되살리지 않는다.
             isNew = false;
         } else {
             partner = Partner.register(effectiveCode, effectiveCode, name, address1, phone, creditLimit);
+            partner.overrideCreatedAtForImport(createdAt);
             partner.updateBusinessProfile(representative, null, null, subBizNo);
             partner.updateContactChannels(null, null, null, mobile);
             partner.updateAddresses(null, address1, null, null);
@@ -462,7 +603,7 @@ public class EcountPartnerImporter {
             isNew = true;
         }
         partner = partnerRepository.save(partner);
-        return new UpsertResult(partner.getId(), isNew, status);
+        return new UpsertResult(partner.getId(), isNew, partner.getStatus());
     }
 
     // ============================================================
@@ -481,10 +622,10 @@ public class EcountPartnerImporter {
     }
 
     /** 분류 결과. */
-    record Classification(Kind kind, String effectiveCode) {
+    public record Classification(Kind kind, String effectiveCode) {
     }
 
-    enum Kind {
+    public enum Kind {
         REJECT_NAME_NULL, SKIPPED_PLACEHOLDER, NORMAL
     }
 

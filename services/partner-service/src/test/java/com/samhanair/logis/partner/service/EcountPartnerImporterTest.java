@@ -24,6 +24,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
+import java.io.ByteArrayOutputStream;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -217,17 +222,26 @@ class EcountPartnerImporterTest {
 
     @Test
     void parseCreditLimit_빈_제로_콤마_숫자() {
-        assertThat(EcountPartnerImporter.parseCreditLimit("")).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(EcountPartnerImporter.parseCreditLimit(null)).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(EcountPartnerImporter.parseCreditLimit("-")).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(EcountPartnerImporter.parseCreditLimit("")).isNull();
+        assertThat(EcountPartnerImporter.parseCreditLimit(null)).isNull();
+        assertThat(EcountPartnerImporter.parseCreditLimit("-")).isNull();
         assertThat(EcountPartnerImporter.parseCreditLimit("1000000")).isEqualByComparingTo(new BigDecimal("1000000"));
         assertThat(EcountPartnerImporter.parseCreditLimit("1,000,000")).isEqualByComparingTo(new BigDecimal("1000000"));
-        assertThat(EcountPartnerImporter.parseCreditLimit("invalid")).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(EcountPartnerImporter.parseCreditLimit("1,000,000원")).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(EcountPartnerImporter.parseCreditLimit("invalid")).isNull();
     }
 
     @Test
-    void parseRegistrationDate_YYYYMMDD_임시_빈() {
+    void parseRegistrationDate_지원_형식과_실패는_null() {
         assertThat(EcountPartnerImporter.parseRegistrationDate("20230814"))
+                .isEqualTo(LocalDate.of(2023, 8, 14));
+        assertThat(EcountPartnerImporter.parseRegistrationDate("2023-08-14"))
+                .isEqualTo(LocalDate.of(2023, 8, 14));
+        assertThat(EcountPartnerImporter.parseRegistrationDate("2023.08.14"))
+                .isEqualTo(LocalDate.of(2023, 8, 14));
+        assertThat(EcountPartnerImporter.parseRegistrationDate("23.08.14"))
+                .isEqualTo(LocalDate.of(2023, 8, 14));
+        assertThat(EcountPartnerImporter.parseRegistrationDate("230814"))
                 .isEqualTo(LocalDate.of(2023, 8, 14));
         assertThat(EcountPartnerImporter.parseRegistrationDate("임시")).isNull();
         assertThat(EcountPartnerImporter.parseRegistrationDate("")).isNull();
@@ -266,6 +280,70 @@ class EcountPartnerImporterTest {
 
         assertThat(result.imported()).isEqualTo(0);
         assertThat(result.updated()).isEqualTo(1);
+    }
+
+    @Test
+    void 기존_status는_파일이_YES여도_되살리지_않고_credit_limit_빈칸은_null() {
+        Partner existing = Partner.register("CODE001", "CODE001", "기존거래처", null, null,
+                new BigDecimal("1000000"));
+        existing.suspend();
+        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.of(existing));
+        wireSaveEcho();
+
+        importer.importCsv(csvStream(META_LINE + HEADER_LINE
+                + row("CODE001", "20230814", "이성미", "", "기존거래처", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "", "")), "tester");
+
+        assertThat(existing.getStatus()).isEqualTo(PartnerStatus.SUSPENDED);
+        assertThat(existing.getCreditLimit()).isNull();
+    }
+
+    @Test
+    void 최초작성일자_오전오후_파싱규칙을_검증한다() {
+        assertThat(EcountPartnerImporter.parseFirstCreated("2023/08/17  오전 10:34:00"))
+                .isEqualTo(java.time.LocalDateTime.of(2023, 8, 17, 10, 34));
+        assertThat(EcountPartnerImporter.parseFirstCreated("2023/08/17 오후 1:05:00"))
+                .isEqualTo(java.time.LocalDateTime.of(2023, 8, 17, 13, 5));
+        assertThatThrownBy(() -> EcountPartnerImporter.parseFirstCreated("날짜 아님"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void xlsx_정본_적재는_trailer를_제외하고_실패행을_보류한다() throws Exception {
+        Partner existing = Partner.register("CODE001", "CODE001", "기존", null, null,
+                new BigDecimal("1000000"));
+        existing.suspend();
+        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.of(existing));
+        wireSaveEcho();
+
+        String[][] rows = {
+                {"CODE001", "20230814", "담당", "", "기존", "대표", "주소", "", "", "", "", "일반업체", "YES", "등록", "", "2023/08/17  오전 10:34:00"},
+                {"CODE002", "bad-date", "담당", "", "신규", "대표", "주소", "", "", "", "", "일반업체", "YES", "등록", "", ""},
+                {"2026/08/09 오후 12:59:06", "", "", "", "", "", "", "", "", "", "", "", "", "", ""}
+        };
+        byte[] xlsx;
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("거래처등록");
+            writeXlsxRow(sheet.createRow(0), new String[]{"회사명 : (주)삼한공조시스템"});
+            writeXlsxRow(sheet.createRow(1), new String[]{"거래처코드", "등록일자", "담당자명", "종사업장번호", "거래처명", "대표자명", "주소1", "전화번호", "핸드폰번호", "검색창내용", "특이사항", "그룹", "사용구분", "이체정보", "여신한도", "최초작성일자"});
+            for (int i = 0; i < rows.length; i++) writeXlsxRow(sheet.createRow(i + 2), rows[i]);
+            workbook.write(out);
+            xlsx = out.toByteArray();
+        }
+
+        EcountPartnerImportResult result = importer.importXlsx(new ByteArrayInputStream(xlsx), "tester");
+
+        assertThat(result.totalRows()).isEqualTo(2);
+        assertThat(result.updated()).isEqualTo(1);
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.registrationDateNullRows()).isEqualTo(1);
+        assertThat(result.heldParseFailureRows()).isZero();
+        assertThat(result.excludedTrailerRows()).isEqualTo(1);
+        assertThat(existing.getStatus()).isEqualTo(PartnerStatus.SUSPENDED);
+    }
+
+    private static void writeXlsxRow(Row row, String[] values) {
+        for (int i = 0; i < values.length; i++) row.createCell(i).setCellValue(values[i]);
     }
 
     @Test

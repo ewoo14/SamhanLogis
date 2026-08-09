@@ -60,4 +60,22 @@ public class EcountPartnerImportController {
         }
         return importer.importCsv(file.getInputStream(), userId);
     }
+
+    /** 이카운트 거래처등록 XLSX 정본을 실제 staging + partners 경로로 적재한다. */
+    @PostMapping(value = "/ecount-xlsx", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequirePermission(page = "partners.edit", action = PermissionAction.CREATE)
+    @Operation(summary = "이카운트 거래처등록 XLSX 적재",
+            description = "거래처등록.xlsx 16컬럼 정본을 partner_code 멱등 키로 적재한다. trailer와 파싱 실패 행은 보류한다.")
+    public EcountPartnerImportResult uploadEcountPartnerXlsx(
+            @RequestPart("file") MultipartFile file,
+            @RequestHeader("X-User-Id") String userId) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "XLSX 파일 필수");
+        }
+        if (file.getSize() > MAX_SIZE_BYTES) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "파일 크기 한도 초과: " + file.getSize() + " > " + MAX_SIZE_BYTES);
+        }
+        return importer.importXlsx(file.getInputStream(), userId);
+    }
 }
