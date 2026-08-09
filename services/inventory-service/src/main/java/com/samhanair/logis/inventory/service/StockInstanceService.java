@@ -6,6 +6,7 @@ import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
+import com.samhanair.logis.inventory.domain.SourceOperationOutcome;
 import com.samhanair.logis.inventory.repository.StockInstanceRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -43,10 +44,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class StockInstanceService {
 
-    private static final String PRODUCT_TYPE_BUNDLE = "BUNDLE";
-
     private final StockInstanceRepository repo;
     private final ProductClient productClient;
+
+    private final SourceOperationJournalWriter sourceJournalWriter;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -106,8 +107,18 @@ public class StockInstanceService {
     public List<StockInstance> inboundBatch(UUID productId, String productCode, UUID warehouseId,
                                             int quantity, String inboundType, String inboundSlipNo,
                                             BigDecimal unitCost, LocalDateTime receivedAt) {
+        return inboundBatch(productId, productCode, warehouseId, quantity, inboundType, inboundSlipNo,
+                unitCost, receivedAt, null);
+    }
+
+    @Transactional
+    public List<StockInstance> inboundBatch(UUID productId, String productCode, UUID warehouseId,
+                                            int quantity, String inboundType, String inboundSlipNo,
+                                            BigDecimal unitCost, LocalDateTime receivedAt,
+                                            com.samhanair.logis.inventory.web.dto.SourceOperationContext sourceContext) {
         ProductSummary product = productClient.requireExists(productId);
         if (isInventoryExcluded(product)) {
+            recordSource(sourceContext, product, SourceOperationOutcome.NO_OP_EXCLUDED, List.of(), List.of());
             return List.of(); // 비상품/세트 SKU — 시리얼 인스턴스 미생성 no-op skip
         }
         if (!product.serialManaged()) {
@@ -119,6 +130,7 @@ public class StockInstanceService {
         long existingCount = repo.countByInboundSlipAndProduct(inboundSlipNo, productId);
         List<StockInstance> existing = repo.findByInboundSlipAndProduct(inboundSlipNo, productId);
         if (existingCount >= quantity) {
+            recordSource(sourceContext, product, SourceOperationOutcome.NO_OP_EXISTING, List.of(), List.of());
             return existing;
         }
         int deficit = quantity - Math.toIntExact(existingCount);
@@ -133,6 +145,8 @@ public class StockInstanceService {
         List<StockInstance> result = new ArrayList<>(existing.size() + saved.size());
         result.addAll(existing);
         result.addAll(saved);
+        recordSource(sourceContext, product, SourceOperationOutcome.APPLIED, List.of(),
+                saved.stream().map(StockInstance::getId).filter(java.util.Objects::nonNull).toList());
         return result;
     }
 
@@ -153,6 +167,9 @@ public class StockInstanceService {
     public List<StockInstance> reserveBatch(String productCode, UUID warehouseId, int quantity,
                                             String outboundSlipNo) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 예약 인스턴스 미생성 no-op skip
+        }
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);
@@ -192,7 +209,17 @@ public class StockInstanceService {
     @Transactional
     public List<StockInstance> shipBatch(String outboundSlipNo, String productCode,
                                          String partnerCode, LocalDateTime outboundAt) {
+        return shipBatch(outboundSlipNo, productCode, partnerCode, outboundAt, null);
+    }
+
+    @Transactional
+    public List<StockInstance> shipBatch(String outboundSlipNo, String productCode,
+                                         String partnerCode, LocalDateTime outboundAt,
+                                         com.samhanair.logis.inventory.web.dto.SourceOperationContext sourceContext) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 출고 인스턴스 미생성 no-op skip
+        }
         List<StockInstance> reserved = product == null
                 ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
                         outboundSlipNo, productCode, StockInstanceStatus.RESERVED)
@@ -200,10 +227,19 @@ public class StockInstanceService {
         for (StockInstance instance : reserved) {
             instance.ship(partnerCode, outboundSlipNo, outboundAt);
         }
+        recordSource(sourceContext, product,
+                reserved.isEmpty() ? SourceOperationOutcome.NO_OP_EXISTING : SourceOperationOutcome.APPLIED,
+                List.of(), List.of());
         return product == null
                 ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
                         outboundSlipNo, productCode, StockInstanceStatus.SHIPPED)
                 : findBySlipAndStatus(outboundSlipNo, product, productCode, StockInstanceStatus.SHIPPED);
+    }
+
+    private void recordSource(com.samhanair.logis.inventory.web.dto.SourceOperationContext context,
+                              ProductSummary product, SourceOperationOutcome outcome,
+                              List<UUID> createdLotIds, List<UUID> createdInstanceIds) {
+        sourceJournalWriter.record(context, product, outcome, createdLotIds, createdInstanceIds);
     }
 
     /**
@@ -216,6 +252,9 @@ public class StockInstanceService {
     @Transactional
     public List<StockInstance> releaseBatch(String outboundSlipNo, String productCode) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 예약 해제 인스턴스 미생성 no-op skip
+        }
         List<StockInstance> reserved = product == null
                 ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
                         outboundSlipNo, productCode, StockInstanceStatus.RESERVED)
@@ -244,6 +283,9 @@ public class StockInstanceService {
     public List<StockInstance> recallBatch(String partnerCode, String productCode,
                                            int quantity, String recallSlipNo) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 회수 인스턴스 미생성 no-op skip
+        }
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);
@@ -340,6 +382,9 @@ public class StockInstanceService {
     @Transactional
     public List<StockInstance> unrecallBatch(String recallSlipNo, String productCode) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 되돌림 인스턴스 미생성 no-op skip
+        }
         lockRecallBatchKey(recallSlipNo, productCode);
         // BE 리뷰 P1: ForUpdate row lock — unrecall-batch endpoint 직접 동시호출 시 같은 RECALLED 행 중복 전이 방지
         List<StockInstance> recalled = findRecalledForUpdate(recallSlipNo, product, productCode);
@@ -368,6 +413,9 @@ public class StockInstanceService {
     public List<StockInstance> resellBatch(String recallSlipNo, String productCode,
                                            int quantity, String actorUserId) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 재판매 되돌림 인스턴스 미생성 no-op skip
+        }
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);
@@ -432,7 +480,7 @@ public class StockInstanceService {
      * 세트는 구성품(SINGLE)만 재고 대상이다.
      */
     private boolean isInventoryExcluded(ProductSummary product) {
-        return !product.goods() || PRODUCT_TYPE_BUNDLE.equals(product.productType());
+        return InventoryProductGate.isExcluded(product);
     }
 
     private void lockBatchKey(String lockKey) {

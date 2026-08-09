@@ -16,7 +16,13 @@ public record DeductRequest(
         Boolean fromReservation,
         @Size(max = 30) String referenceType,
         UUID referenceId,
-        @Size(max = 500) String note) {
+        @Size(max = 500) String note,
+        @NotNull(message = "sourceContext 는 필수입니다") SourceOperationContext sourceContext) {
+
+    public DeductRequest(UUID productId, UUID warehouseId, Integer quantity, Boolean fromReservation,
+                         String referenceType, UUID referenceId, String note) {
+        this(productId, warehouseId, quantity, fromReservation, referenceType, referenceId, note, null);
+    }
 
     public boolean fromReservationOrFalse() {
         return Boolean.TRUE.equals(fromReservation);

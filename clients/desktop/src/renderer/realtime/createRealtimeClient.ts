@@ -15,6 +15,7 @@
  * })
  */
 import { apiClient } from '../api/client'
+import { isMockMode } from '../api/mock'
 import { getAuthProvider, isElectronPlatform } from '../auth/authProvider'
 
 /** SSE 1 이벤트의 파싱된 형태. */
@@ -34,6 +35,11 @@ export interface RealtimeClientConfig {
   name: string
   /** entityId → endpoint path 변환 (baseURL 제외, '/' prefix 필수). */
   endpointPath: (entityId: string) => string
+  /**
+   * mock 모드에서도 transport를 시작할지 여부. 협업 SSE처럼 Playwright/mock
+   * fixture가 stream을 직접 가로채는 client만 명시적으로 허용한다.
+   */
+  allowMockMode?: boolean
 }
 
 export interface RealtimeClient {
@@ -62,6 +68,10 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
     onEvent: RealtimeHandler,
   ): AbortController {
     const controller = new AbortController()
+
+    // 기본 mock fixture에는 SSE 서버가 없으므로 raw fetch 경계를 열지 않는다.
+    // 협업 client처럼 fixture가 stream을 직접 제공하는 경우만 명시적으로 허용한다.
+    if (isMockMode() && !config.allowMockMode) return controller
 
     let backoffMs = BACKOFF_INITIAL_MS
     let lastEventAt = Date.now()

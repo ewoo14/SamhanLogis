@@ -47,6 +47,16 @@ describe('apiError helpers', () => {
     expect(getApiErrorInfo(err)).toEqual({ status: 422, data })
   })
 
+  it('keeps combined closing and cutoff guidance for the desktop error surface', () => {
+    const message = 'REGION 당일 마감(12:00) 초과 — 익일 출고로 생성하세요'
+
+    expect(extractApiErrorResponseMessage(axiosError(409, {
+      success: false,
+      code: 'CONFLICT',
+      message,
+    }))).toBe(message)
+  })
+
   it('returns null when axios response has no usable backend message (원본 에러 보존 분기)', () => {
     expect(extractApiErrorResponseMessage(axiosError(500, {}))).toBeNull()
     expect(extractApiErrorResponseMessage(axiosError(500, { message: '   ' }))).toBeNull()

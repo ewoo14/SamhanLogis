@@ -35,8 +35,8 @@ public interface DcConfigRepository extends JpaRepository<DcConfig, UUID> {
     @Query("""
             SELECT dc FROM DcConfig dc
               WHERE (CAST(:keyword AS string) IS NULL
-                     OR LOWER(dc.partner.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
-                     OR LOWER(dc.partner.partnerCode) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
+                     OR LOWER(dc.partner.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) ESCAPE '\\'
+                     OR LOWER(dc.partner.partnerCode) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) ESCAPE '\\')
             """)
     Page<DcConfig> search(String keyword, Pageable pageable);
 

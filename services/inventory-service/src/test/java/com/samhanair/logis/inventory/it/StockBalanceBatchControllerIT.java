@@ -234,6 +234,9 @@ class StockBalanceBatchControllerIT extends AbstractPostgresIT {
         deductBody.put("warehouseId", hqWarehouseId.toString());
         deductBody.put("quantity", 100);
         deductBody.put("note", "ZERO 시나리오용 전량 차감");
+        deductBody.put("sourceContext", Map.of(
+                "sourceOperationId", UUID.randomUUID().toString(),
+                "slipId", productId.toString(), "slipRevision", 1));
 
         mockMvc.perform(post("/inventory/deduct")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -303,6 +306,9 @@ class StockBalanceBatchControllerIT extends AbstractPostgresIT {
         body.put("quantity", quantity);
         body.put("unitCost", 100000);
         body.put("lotNo", lotNo);
+        body.put("sourceContext", Map.of(
+                "sourceOperationId", UUID.randomUUID().toString(),
+                "slipId", productId.toString(), "slipRevision", 1));
 
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())

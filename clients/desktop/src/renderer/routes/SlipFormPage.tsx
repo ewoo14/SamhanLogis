@@ -153,6 +153,7 @@ const emptyLine = (): LineDraft => ({
   lookupError: null,
   lookupLoading: false,
   productType: null,
+  status: null,
   modelCode: null,
   setOptions: emptyBundleSetOptions(),
 })
@@ -388,6 +389,7 @@ function SlipMobileLineCard(props: {
           min={1}
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.quantity}
+          disabled={props.line.status === 'OUT_OF_STOCK'}
           onChange={(e) => {
             // #902 R3 H7′(H7 대체, 개발책임자 회귀 지시 S5 — 데스크톱 LineRow 와 동일 규약):
             // 종전 D8 fix 는 문자 단위로 숫자가 아닌 문자만 제거해 "2.7"→"27"(10배 오주문),
@@ -398,8 +400,9 @@ function SlipMobileLineCard(props: {
             if (!/^\d*$/.test(e.target.value)) return
             props.onQuantityChange(e.target.value)
           }}
-          aria-label={`라인 ${props.lineNumber} 수량`}
+          aria-label={`라인 ${props.lineNumber} 수량${props.line.status === 'OUT_OF_STOCK' ? ' 품절' : ''}`}
         />
+        {props.line.status === 'OUT_OF_STOCK' ? <span role="status">품절</span> : null}
       </div>
 
       <div className="mobile-line-field">
@@ -1387,12 +1390,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       priceMemoryUpdatedAt: null,
       priceRefreshChanged: false,
       productType: product?.productType ?? null,
+      status: product?.status ?? null,
       modelCode: product?.modelCode ?? null,
       lookupError: null,
       lookupLoading: Boolean(partnerId && productId && shouldAutoFill && !dcResult),
     }
     updateLine(line.id, nextLine)
-    if (nextLine.productType === 'BUNDLE' && (!partnerId || !productId || !shouldAutoFill)) {
+    if (nextLine.productType === 'BUNDLE' && nextLine.status !== 'OUT_OF_STOCK'
+      && (!partnerId || !productId || !shouldAutoFill)) {
       await expandSelectedBundle(nextLine, nextLine, shouldAutoFill ? partnerDcConfig : null)
       return
     }

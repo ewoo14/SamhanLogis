@@ -65,7 +65,6 @@ class EcountSheetOrderConvergenceIT extends AbstractPostgresIT {
 
     @BeforeEach
     void resetState() throws Exception {
-        syncService.clearHashCacheForTest();
         lenient().doNothing().when(sheetsClient).invalidateCache();
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
         lenient().when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());

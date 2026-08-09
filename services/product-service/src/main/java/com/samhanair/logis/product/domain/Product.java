@@ -650,6 +650,11 @@ public class Product extends BaseEntity {
         this.goodsType = goodsType == null ? ProductGoodsType.GOODS : goodsType;
     }
 
+    /** 비상품 전환 시 수량관리도 함께 끈다. */
+    public void changeInventoryQtyMgmt(boolean enabled) {
+        this.inventoryQtyMgmt = enabled;
+    }
+
     /** 단위 변경. null/blank 는 기존 값을 보존한다. */
     public void changeUnit(String unit) {
         if (unit != null && !unit.isBlank()) {

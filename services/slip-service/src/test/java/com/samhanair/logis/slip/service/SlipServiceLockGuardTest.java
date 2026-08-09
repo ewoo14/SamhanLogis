@@ -62,6 +62,7 @@ class SlipServiceLockGuardTest {
     @Mock private com.samhanair.logis.slip.revision.service.SlipRevisionService slipRevisionService;
     /** #809 가격기억 — 단위 테스트 격리. */
     @Mock private com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService priceMemoryService;
+    @Mock private com.samhanair.logis.slip.service.closing.SlipClosedDateGuard closedDateGuard;
 
     @InjectMocks private SlipService slipService;
 

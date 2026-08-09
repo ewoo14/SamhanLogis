@@ -92,8 +92,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             WHERE p.is_deleted = false
               AND (:categoryId IS NULL OR p.category_id = :categoryId)
               AND (:status      IS NULL OR p.status     = :status)
-              AND (CAST(:q AS text) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
-                                        OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
+            AND (CAST(:q AS text) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                         OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\')
               AND (CAST(:tagFilter AS text) IS NULL OR p.tags @> CAST(:tagFilter AS jsonb))
               AND (CAST(:usageScope AS text) IS NULL
                    OR (CAST(:usageScope AS text) = 'ESTIMATE' AND p.usage_scope IN ('ESTIMATE', 'BOTH'))
@@ -106,8 +106,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             WHERE p.is_deleted = false
               AND (:categoryId IS NULL OR p.category_id = :categoryId)
               AND (:status      IS NULL OR p.status     = :status)
-              AND (CAST(:q AS text) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
-                                        OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
+            AND (CAST(:q AS text) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                         OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\')
               AND (CAST(:tagFilter AS text) IS NULL OR p.tags @> CAST(:tagFilter AS jsonb))
               AND (CAST(:usageScope AS text) IS NULL
                    OR (CAST(:usageScope AS text) = 'ESTIMATE' AND p.usage_scope IN ('ESTIMATE', 'BOTH'))

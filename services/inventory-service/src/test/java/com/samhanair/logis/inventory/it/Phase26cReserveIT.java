@@ -319,6 +319,7 @@ class Phase26cReserveIT extends AbstractPostgresIT {
         body.put("quantity", qty);
         body.put("lotNo", "LOT-" + UUID.randomUUID().toString().substring(0, 8));
         body.put("receivedAt", "2026-01-01T00:00:00");
+        body.put("sourceContext", sourceContext(productId));
         body.put("unitCost", "1000");
         body.put("note", "IT 테스트 입고");
 
@@ -339,6 +340,12 @@ class Phase26cReserveIT extends AbstractPostgresIT {
         m.put("quantity", qty);
         m.put("referenceType", refType);
         m.put("referenceId", refId.toString());
+        m.put("sourceContext", sourceContext(productId));
         return m;
+    }
+
+    private Map<String, Object> sourceContext(UUID productId) {
+        return Map.of("sourceOperationId", UUID.randomUUID().toString(),
+                "slipId", productId.toString(), "slipRevision", 1);
     }
 }

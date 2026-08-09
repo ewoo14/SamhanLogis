@@ -69,9 +69,29 @@ gh run list --branch <branch> --limit 6 --json headSha,status,conclusion,name
 
 **체크가 현재 SHA 에 하나도 없으면 그것부터.** 실패가 있으면 라운드 판정보다 먼저 본다 — 게이트 ②는 "성공 수 = 전체 수" 다.
 
+## 🚨 **고아 산출물을 "회수" 할 때가 가장 잘 놓친다** — 2026-08-09 재발
+
+세션 단위 워크트리 훑기로 고아 산출물을 main 에 회수하다가 **같은 가드를 또 깼다**(main 15분 red).
+
+```
+99f98ea2e  docs(qa): 고아로 남은 라이브QA 증거 회수 (5개 디렉터리)
+           → H-2 · G3a · G3b  3건 red
+           1110-s12-live-qa.spec.ts 의 const SHOT_DIR 가 resolveQaShotsDir 미경유
+           + 저장소 절대경로 하드코딩
+```
+
+🔑 **왜 또 놓쳤나 — "새로 쓴 코드" 가 아니라서다.** 회수는 *옮기는 일*로 느껴져서 "내 변경" 목록에 안 올라가고, 가드를 돌릴 생각 자체가 안 든다. 파일이 **몇 달 전 것**이라 더 그렇다 — 그때는 가드가 없었으니 위반인 게 당연하다.
+
+⟹ **가드는 파일이 언제 쓰였는지 묻지 않는다. 커밋 시점에 트리에 있으면 대상이다.**
+
+- 🚨 회수·이관·복원도 **커밋 전에 가드를 돌린다**. `git mv`·`cp` 로 들어온 것도 예외가 아니다.
+- 🚨 회수할 때는 **PNG·보고서만** 가져오고 드라이버(`*.spec.ts`·`*.mjs`)는 두고 온다. 위 사고에서 증거였던 것은 스크린샷 10장이고 나머지 6개는 재현 편의였다 — 결국 드라이버만 빼서 해결했다.
+- 🔑 **로컬 가드 실행 결과를 CI 와 같은 모집단으로 착각하지 마라.** 로컬은 `.claude/tmp/**` 같은 untracked 임시파일까지 스캔해 CI 3건 대 로컬 5건이 나왔다. **권위는 CI** 이고, 로컬은 "내가 넣은 것이 목록에 있나" 를 보는 데만 쓴다.
+
 ## 관련
 
 - [[feedback_live_qa_artifacts_vanish_silently]] — 증거가 사라지는 네 경로(이 파일의 가드가 막는 것)
+- [[feedback_pm_copy_untracked_files]] — 고아 산출물을 회수하는 절차 자체
 - [[feedback_live_qa_first_not_last]] — 같은 세션에서 나온 순서 개편
 - [[feedback_screenshot_restore_scope_destroys_edits]] — QA 산출물 커밋이 다른 것을 망가뜨리는 계열
 - [[feedback_design_system_playwright_mock_suite]]

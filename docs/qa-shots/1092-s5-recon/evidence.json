@@ -1,0 +1,74 @@
+{
+  "head": "a646f50df93210513c0c1d40da423eb221a29edd",
+  "browser": {
+    "headless": true,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
+  "ownerAxis": {
+    "estimateNo": "2026/08/07-22",
+    "checkpoints": [
+      {
+        "step": "before",
+        "ownerLabel": "원담당",
+        "createdByPreserved": true,
+        "requesterMatched": true
+      },
+      {
+        "step": "sales",
+        "ownerLabel": "[DEV-SEED] 개발영업",
+        "createdByPreserved": true,
+        "requesterMatched": true
+      },
+      {
+        "step": "manager",
+        "ownerLabel": "[DEV-SEED] 개발매니저",
+        "createdByPreserved": true,
+        "requesterMatched": true
+      },
+      {
+        "step": "master",
+        "ownerLabel": "[DEV-SEED] 개발마스터",
+        "createdByPreserved": true,
+        "requesterMatched": true
+      },
+      {
+        "step": "sales-again",
+        "ownerLabel": "[DEV-SEED] 개발영업",
+        "createdByPreserved": true,
+        "requesterMatched": true
+      }
+    ],
+    "createdByPreservedAcrossChanges": true,
+    "crossSeriesDirectApi": {
+      "status": 400,
+      "requesterUnchanged": true
+    }
+  },
+  "surfaceCounts": {
+    "all": 53,
+    "allReturned": 53,
+    "otherOwnerCount": 53,
+    "salesAssigned": 16,
+    "salesAssignedReturned": 16,
+    "masterAssigned": 0,
+    "masterAssignedReturned": 0,
+    "salesAssignedOnlySelf": true,
+    "masterAssignedOnlySelf": true
+  },
+  "ui": {
+    "ownerNameShown": "[DEV-SEED] 개발영업",
+    "uuidAbsent": true,
+    "desktopAllCountShown": 53,
+    "unifiedOwnerHeader": true,
+    "unifiedCrossSourcesVisible": true,
+    "unifiedCrossSortMatchedAllRows": 57,
+    "partialFailureEstimateRowsPreserved": true
+  },
+  "restoration": {
+    "requesterRestored": true,
+    "createdByStillPreserved": true
+  }
+}

@@ -373,16 +373,16 @@ export function EstimateListPage() {
       render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.partnerName ?? ''}</span>,
     },
     {
-      key: 'writer',
-      header: '작성자',
+      key: 'owner',
+      header: '담당',
       width: '120px',
       mobilePriority: 'secondary',
       render: (row) => (
         <span
-          data-testid={`estimate-unified-row-${row.id}-writer`}
+          data-testid={`estimate-unified-row-${row.id}-owner`}
           style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}
         >
-          {row.writer ?? ''}
+          {row.owner ?? ''}
         </span>
       ),
     },

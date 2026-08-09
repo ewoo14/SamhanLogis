@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$PostgresImage = 'postgres:16-alpine'
 )
 

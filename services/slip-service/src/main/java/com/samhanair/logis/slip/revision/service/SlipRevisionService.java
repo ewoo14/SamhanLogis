@@ -14,6 +14,7 @@ import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository.SlipR
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.ChangeSummary;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.FieldChange;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.shared.realtime.presence.PresenceColor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -30,6 +31,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -49,6 +51,7 @@ public class SlipRevisionService {
 
     private final SlipRevisionRepository repository;
     private final ObjectMapper snapshotObjectMapper;
+    private final SlipClosedDateGuard closedDateGuard;
 
     private static final java.util.regex.Pattern UUID_PATTERN = java.util.regex.Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -60,7 +63,14 @@ public class SlipRevisionService {
     }
 
     public SlipRevisionService(SlipRevisionRepository repository, ObjectMapper objectMapper) {
+        this(repository, objectMapper, null);
+    }
+
+    @Autowired
+    public SlipRevisionService(SlipRevisionRepository repository, ObjectMapper objectMapper,
+                               SlipClosedDateGuard closedDateGuard) {
         this.repository = repository;
+        this.closedDateGuard = closedDateGuard;
         this.snapshotObjectMapper = objectMapper.copy()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
@@ -221,6 +231,10 @@ public class SlipRevisionService {
                         .map(SlipRevision::getSnapshot)
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                                 "복원 대상 버전을 찾을 수 없습니다 (버전 " + targetRevisionNo + ")")));
+        if (closedDateGuard != null) {
+            closedDateGuard.assertAllowed(slip.getSlipType(), targetSnapshot.slipDate(),
+                    actorId == null ? null : actorId.toString());
+        }
         slip.restoreFromSnapshot(targetSnapshot);
         return capture(slip, SlipRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);

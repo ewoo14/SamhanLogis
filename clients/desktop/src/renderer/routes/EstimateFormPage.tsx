@@ -78,6 +78,7 @@ import {
 } from '../realtime/coeditLineIds'
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
+import { quantityAfterDeliveryPriceInput } from './estimateLineModel'
 import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
@@ -130,6 +131,8 @@ interface DraftLine {
   lookupLoading: boolean
   /** 품목 유형 — "SINGLE" | "BUNDLE". BUNDLE 일 때만 세트 옵션 노출. */
   productType: string | null
+  goodsType: 'GOODS' | 'NON_GOODS' | null
+  status?: string | null
   /** 세트 전개 옵션 — BUNDLE 라인에 한해 채움 (BE BundleSetOptions). */
   setOptions: BundleSetOptions
 }
@@ -162,6 +165,8 @@ const emptyLine = (): DraftLine => ({
   lookupError: null,
   lookupLoading: false,
   productType: null,
+  goodsType: null,
+  status: null,
   setOptions: emptyBundleSetOptions(),
 })
 
@@ -300,6 +305,7 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           lookupLoading: false,
           // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음.
           productType: null,
+          goodsType: null,
           setOptions: line.setOptions ?? emptyBundleSetOptions(),
         }
       })
@@ -408,6 +414,7 @@ function coeditLinesToDraftLines(
       specificationSource,
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice,
+      goodsType: previous?.goodsType ?? null,
       supplyAmount: previous?.supplyAmount ?? '0',
       vatAmount: previous?.vatAmount ?? '0',
       lineTotal: previous?.lineTotal ?? '0',
@@ -1110,7 +1117,7 @@ export function EstimateFormPage() {
    * 후보를 반환하면 절대 실행하지 않는다.
    */
   const searchEstimateProducts = async (q: string): Promise<ProductOption[]> => {
-    const candidates = (await searchProducts(q, { usageScope: 'ESTIMATE' }))
+    const candidates = (await searchProducts(q, { usageScope: 'ESTIMATE', size: 50 }))
       .filter((candidate) => isSelectableProductStatus(candidate.status))
     if (candidates.length > 0) return candidates
     try {
@@ -1224,9 +1231,11 @@ export function EstimateFormPage() {
   const updatePrice = (index: number, unitPrice: string) => {
     const current = linesRef.current[index]
     if (!current) return
+    const quantity = quantityAfterDeliveryPriceInput(current.goodsType, current.quantity, unitPrice)
     updateLine(index, {
-      ...recalculateLineVat(asVatLine({ ...current, unitPrice }), 'PRICE'),
+      ...recalculateLineVat(asVatLine({ ...current, unitPrice, quantity }), 'PRICE'),
       unitPrice,
+      quantity,
       priceSource: 'USER',
       priceMemoryUpdatedAt: null,
       priceRefreshChanged: false,
@@ -1448,6 +1457,8 @@ export function EstimateFormPage() {
         specification: 'specification' in rawResult ? rawResult.specification : null,
         sellingPrice: String(rawResult.sellingPrice ?? ''),
         productType: rawResult.productType,
+        goodsType: rawResult.goodsType,
+        status: rawResult.status ?? null,
       }
       const currentAfterProductLookup = linesRef.current.find((current) => current.uid === line.uid)
       if (!currentAfterProductLookup || !isProductBindCurrent(currentAfterProductLookup)) {
@@ -1538,6 +1549,7 @@ export function EstimateFormPage() {
         specification: nextSpecification,
         specificationSource: nextSpecificationSource,
         productType: result.productType ?? 'SINGLE',
+        goodsType: result.goodsType ?? current.goodsType,
         catalogUnitPrice: result.sellingPrice,
         unitPrice: applyPrice ? nextUnitPrice : current.unitPrice,
         priceSource: applyPrice ? nextPriceSource : current.priceSource,
@@ -1616,6 +1628,7 @@ export function EstimateFormPage() {
         modelName: '',
         productName: '',
         productType: null,
+        goodsType: null,
         catalogUnitPrice: null,
         ...(hadAutoSpecification
           ? { specification: '', specificationSource: null }
@@ -1648,6 +1661,7 @@ export function EstimateFormPage() {
       productId: null,
       productName: '',
       productType: product.productType ?? null,
+      status: product.status ?? null,
     }, true)
     try {
       estimateFormCoeditProvider?.setItemValue(index, 'modelName', product.modelName)
@@ -2190,6 +2204,7 @@ export function EstimateFormPage() {
                   modelName: line.modelName,
                   productName: line.productName,
                   productType: line.productType ?? undefined,
+                  status: line.status,
                   sellingPrice: line.catalogUnitPrice == null ? undefined : Number(line.catalogUnitPrice),
                   specification: line.specification,
                 } : null}
@@ -2243,7 +2258,7 @@ export function EstimateFormPage() {
                 value={line.productName}
                 onValueChange={(value) => updateLine(i, { productName: value }, true)}
                 onDocSyncValueChange={(value) => updateLine(i, { productName: value })}
-                readOnly={Boolean(isReadOnly)}
+                readOnly={Boolean(isReadOnly) || line.status === 'OUT_OF_STOCK'}
                 aria-label={`라인 ${i + 1} 품목명`}
               />
               <CollaborativeSlipInput
@@ -2270,9 +2285,10 @@ export function EstimateFormPage() {
                 readOnly={Boolean(isReadOnly)}
                 inputMode="numeric"
                 inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
-                aria-label={`라인 ${i + 1} 수량`}
+                aria-label={`라인 ${i + 1} 수량${line.status === 'OUT_OF_STOCK' ? ' 품절' : ''}`}
                 data-testid={`estimate-form-line-${i}-qty`}
               />
+              {line.status === 'OUT_OF_STOCK' ? <span role="status">품절</span> : null}
               <div>
                 <CollaborativeSlipInput
                   provider={estimateFormCoeditProvider}

@@ -39,6 +39,8 @@ import {
   copyFromAccount,
   fetchAccountMatrix,
   fetchAccounts,
+  fetchPermissionMatrix,
+  updatePermissionBatch,
   updateAccountMatrix,
   type AccountPermissionMatrix,
   type AccountPermissionUpdate,
@@ -206,6 +208,8 @@ export const PAGE_GROUPS: PageGroup[] = [
       'slip.photo-audit',
       'slip.comments',
       'slip.audit-overlay',
+      'slip.closed-date-exception',
+      'slip.closed-date-admin',
       'slip.audit-revert',
       'slip.edit-requests',
       'slip.edit-requests.decide',
@@ -443,6 +447,8 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'slip.photo-audit': '사진 감사',
   'slip.comments': '댓글',
   'slip.audit-overlay': 'audit patch',
+  'slip.closed-date-exception': '마감일 예외 생성',
+  'slip.closed-date-admin': '마감 기준선 관리',
   'slip.audit-revert': 'audit revert',
   'slip.edit-requests': '전표 수정 요청',
   'slip.edit-requests.decide': '전표 요청 승인',
@@ -452,11 +458,11 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'slip.mobile-sales': '영업 모바일',
   'slip.publish.from-estimate': '견적 전표발행',
   'slip.publish.from-partner-order': '주문 전표발행',
+  'slip.period-lock': '기간 잠금(기존 보유 권한 회수)',
   'inbound.inspection': '입고 검수',
   'dispatch.board': '배차 보드',
   'dispatch.external-carriers': '외부기사/배송사',
   'notification.dispatch-sms.display': '배차안내 SMS',
-  'notification.dispatch-sms.send-audit': '배차안내 SMS (회수됨)',
   'dispatch.sms-save-history': '배차문자 저장',
   'dispatch.batch': '배차 SMS batch',
   'admin.permissions': '권한 관리',
@@ -694,6 +700,9 @@ const MATRIX_DOMAIN_ID_BY_LABEL: Record<string, string> = {
   아로로지스: 'arologis',
 }
 
+/** 일반 업무 카탈로그에는 숨기되, 기존 보유 grant를 회수할 수 있게 하는 internal orphan. */
+const REVOKABLE_HIDDEN_PAGES: PageCode[] = ['slip.period-lock']
+
 type AccountMatrixState = Record<PageCode, PermissionActionMatrix>
 type AccountDirtyKey = `${PageCode}__${PermissionAction}`
 
@@ -714,7 +723,7 @@ function emptyPermissionActions(): PermissionActionMatrix {
 
 function accountMatrixToState(matrix: AccountPermissionMatrix | undefined): AccountMatrixState {
   const state = {} as AccountMatrixState
-  for (const page of PAGES_ORDER) {
+  for (const page of [...PAGES_ORDER, ...REVOKABLE_HIDDEN_PAGES]) {
     state[page] = emptyPermissionActions()
   }
   for (const cell of matrix?.cells ?? []) {
@@ -737,7 +746,7 @@ function accountDirtyKeys(
 ): Set<AccountDirtyKey> {
   const dirty = new Set<AccountDirtyKey>()
   if (!server || !current) return dirty
-  for (const page of PAGES_ORDER) {
+  for (const page of [...PAGES_ORDER, ...REVOKABLE_HIDDEN_PAGES]) {
     for (const action of PERMISSION_ACTIONS) {
       if (server[page]?.[action] !== current[page]?.[action]) {
         dirty.add(matrixDirtyKey(page, action))
@@ -853,6 +862,11 @@ export function PermissionMatrixPage() {
     enabled: selectedAccountId.length > 0,
   })
 
+  const roleMatrixQuery = useQuery({
+    queryKey: ['admin', 'permission-role-matrix'],
+    queryFn: fetchPermissionMatrix,
+  })
+
   const selectedAccount = accountsQuery.data?.find((account) => account.id === selectedAccountId)
   const serverState = useMemo(() => accountMatrixToState(matrixQuery.data), [matrixQuery.data])
   const currentState = editState ?? serverState
@@ -910,6 +924,18 @@ export function PermissionMatrixPage() {
       setToast({ type: 'success', message: `다른 계정 권한을 복사했습니다. (${result.changedCount}건)` })
     },
     onError: () => setToast({ type: 'error', message: '계정 권한 복사 중 오류가 발생했습니다.' }),
+  })
+
+  const revokeRoleMutation = useMutation({
+    mutationFn: (roleCode: RbacRole) => updatePermissionBatch([
+      { roleCode, pageCode: 'slip.period-lock', action: 'view', allowed: false },
+      { roleCode, pageCode: 'slip.period-lock', action: 'update', allowed: false },
+    ]),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'permission-role-matrix'] })
+      setToast({ type: 'success', message: '역할의 slip.period-lock 권한을 회수했습니다.' })
+    },
+    onError: () => setToast({ type: 'error', message: '역할 권한 회수 중 오류가 발생했습니다.' }),
   })
 
   const setPageActions = useCallback((
@@ -1145,6 +1171,55 @@ export function PermissionMatrixPage() {
         <div style={{ padding: 24, color: 'var(--color-danger-600)' }}>
           계정 권한설정을 불러오지 못했습니다.
         </div>
+      )}
+
+      {!matrixQuery.isLoading && !matrixQuery.isError && currentState && REVOKABLE_HIDDEN_PAGES.some((page) =>
+        PERMISSION_ACTIONS.some((action) => currentState[page]?.[action]),
+      ) && (
+        <section
+          aria-label="비노출 권한 회수"
+          style={{ marginBottom: 12, padding: 12, border: '1px solid var(--color-warning-300)', borderRadius: 8 }}
+        >
+          <strong>비노출 권한 회수</strong>
+          <p style={{ margin: '6px 0 10px', color: 'var(--color-neutral-600)', fontSize: 12 }}>
+            일반 권한 카탈로그에는 표시하지 않지만, 기존 보유자가 있는 internal 권한은 여기서 회수할 수 있습니다.
+          </p>
+          {REVOKABLE_HIDDEN_PAGES.filter((page) => PERMISSION_ACTIONS.some((action) => currentState[page]?.[action])).map((page) => (
+            <Button
+              key={page}
+              variant="ghost"
+              onClick={() => setPageActions([page], PERMISSION_ACTIONS, false)}
+              data-testid={`perm-matrix-revoke-${matrixPageNorm(page)}`}
+            >
+              {page} 보유 권한 전체 회수
+            </Button>
+          ))}
+        </section>
+      )}
+
+      {!roleMatrixQuery.isLoading && !roleMatrixQuery.isError && (
+        <section
+          aria-label="비노출 역할 권한 회수"
+          style={{ marginBottom: 12, padding: 12, border: '1px solid var(--color-warning-300)', borderRadius: 8 }}
+        >
+          <strong>비노출 역할 권한 회수</strong>
+          <p style={{ margin: '6px 0 10px', color: 'var(--color-neutral-600)', fontSize: 12 }}>
+            일반 권한 카탈로그에는 표시하지 않지만, 기존 보유 역할 권한은 여기서 회수할 수 있습니다.
+          </p>
+          {(roleMatrixQuery.data?.cells ?? [])
+            .filter((cell) => cell.pageCode === 'slip.period-lock' && (cell.view || cell.edit))
+            .map((cell) => (
+              <Button
+                key={cell.roleCode}
+                variant="ghost"
+                onClick={() => revokeRoleMutation.mutate(cell.roleCode)}
+                disabled={revokeRoleMutation.isPending}
+                data-testid={`perm-matrix-revoke-role-${cell.roleCode.toLowerCase()}`}
+              >
+                {ROLE_LABEL[cell.roleCode] ?? cell.roleCode} 역할 권한 전체 회수
+              </Button>
+            ))}
+        </section>
       )}
 
       {!matrixQuery.isLoading && !matrixQuery.isError && currentState && (

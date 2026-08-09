@@ -14,6 +14,7 @@ import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.service.SlipService;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -45,6 +46,7 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
     private final SlipRevisionService revisionService;
     private final ObjectMapper objectMapper;
     private final SlipRevisionRepository revisionRepository;
+    private final SlipClosedDateGuard closedDateGuard;
     private final SlipCollabSuggestionRepository suggestionRepository;
     private final SlipCollabCommentRepository commentRepository;
 
@@ -53,7 +55,7 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
                                          SlipRevisionService revisionService,
                                          ObjectMapper objectMapper) {
         this(CollabDocumentType.SLIP_OUTBOUND, slipRepository, slipService, revisionService,
-                objectMapper, null, null, null);
+                objectMapper, null, null, null, null);
     }
 
     public SlipDocumentCollaborationPort(CollabDocumentType documentType,
@@ -62,7 +64,7 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
                                          SlipRevisionService revisionService,
                                          ObjectMapper objectMapper) {
         this(documentType, slipRepository, slipService, revisionService, objectMapper,
-                null, null, null);
+                null, null, null, null);
     }
 
     public SlipDocumentCollaborationPort(SlipRepository slipRepository,
@@ -71,9 +73,22 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
                                          ObjectMapper objectMapper,
                                          SlipRevisionRepository revisionRepository,
                                          SlipCollabSuggestionRepository suggestionRepository,
-                                         SlipCollabCommentRepository commentRepository) {
+                                         SlipCollabCommentRepository commentRepository,
+                                         SlipClosedDateGuard closedDateGuard) {
         this(CollabDocumentType.SLIP_OUTBOUND, slipRepository, slipService, revisionService,
-                objectMapper, revisionRepository, suggestionRepository, commentRepository);
+                objectMapper, revisionRepository, suggestionRepository, commentRepository, closedDateGuard);
+    }
+
+    /** 기존 직접 생성 호출 호환용 생성자. 운영 bean은 Factory를 통해 guard 주입 생성자를 사용한다. */
+    public SlipDocumentCollaborationPort(SlipRepository slipRepository,
+                                         SlipService slipService,
+                                         SlipRevisionService revisionService,
+                                         ObjectMapper objectMapper,
+                                         SlipRevisionRepository revisionRepository,
+                                         SlipCollabSuggestionRepository suggestionRepository,
+                                         SlipCollabCommentRepository commentRepository) {
+        this(slipRepository, slipService, revisionService, objectMapper, revisionRepository,
+                suggestionRepository, commentRepository, null);
     }
 
     public SlipDocumentCollaborationPort(CollabDocumentType documentType,
@@ -83,7 +98,8 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
                                          ObjectMapper objectMapper,
                                          SlipRevisionRepository revisionRepository,
                                          SlipCollabSuggestionRepository suggestionRepository,
-                                         SlipCollabCommentRepository commentRepository) {
+                                         SlipCollabCommentRepository commentRepository,
+                                         SlipClosedDateGuard closedDateGuard) {
         this.documentType = documentType;
         this.slipRepository = slipRepository;
         this.slipService = slipService;
@@ -92,6 +108,7 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         this.revisionRepository = revisionRepository;
         this.suggestionRepository = suggestionRepository;
         this.commentRepository = commentRepository;
+        this.closedDateGuard = closedDateGuard;
     }
 
     @Override
@@ -245,6 +262,9 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         Slip slip = loadSlip(documentId);
         try {
             SlipSnapshot snapshot = objectMapper.readValue(snapshotJson, SlipSnapshot.class);
+            if (closedDateGuard != null) {
+                closedDateGuard.assertAllowed(slip.getSlipType(), snapshot.slipDate(), SYSTEM_ACTOR_ID.toString());
+            }
             slip.restoreFromSnapshot(snapshot);
             slipRepository.save(slip);
             // [S2c] collab-core 시스템 복원(SYSTEM_ACTOR "협업 복원")은 사용자 "전표수정내역"
@@ -426,6 +446,7 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         private final SlipRevisionRepository revisionRepository;
         private final SlipCollabSuggestionRepository suggestionRepository;
         private final SlipCollabCommentRepository commentRepository;
+        private final SlipClosedDateGuard closedDateGuard;
 
         public Factory(SlipRepository slipRepository,
                        SlipService slipService,
@@ -433,7 +454,8 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
                        ObjectMapper objectMapper,
                        SlipRevisionRepository revisionRepository,
                        SlipCollabSuggestionRepository suggestionRepository,
-                       SlipCollabCommentRepository commentRepository) {
+                       SlipCollabCommentRepository commentRepository,
+                       SlipClosedDateGuard closedDateGuard) {
             this.slipRepository = slipRepository;
             this.slipService = slipService;
             this.revisionService = revisionService;
@@ -441,12 +463,13 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
             this.revisionRepository = revisionRepository;
             this.suggestionRepository = suggestionRepository;
             this.commentRepository = commentRepository;
+            this.closedDateGuard = closedDateGuard;
         }
 
         public SlipDocumentCollaborationPort create(CollabDocumentType documentType) {
             return new SlipDocumentCollaborationPort(documentType, slipRepository, slipService,
                     revisionService, objectMapper, revisionRepository, suggestionRepository,
-                    commentRepository);
+                    commentRepository, closedDateGuard);
         }
     }
 }

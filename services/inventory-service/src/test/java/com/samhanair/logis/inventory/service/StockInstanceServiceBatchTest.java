@@ -40,6 +40,9 @@ class StockInstanceServiceBatchTest {
     @Mock
     private ProductClient productClient;
 
+    @Mock
+    private SourceOperationJournalWriter sourceJournalWriter;
+
     @InjectMocks
     private StockInstanceService service;
 
@@ -136,6 +139,7 @@ class StockInstanceServiceBatchTest {
                 "구매", "INB-002", new BigDecimal("500000"), receivedAt);
 
         assertThat(result).hasSize(3);
+        verify(sourceJournalWriter).record(any(), any(), any(), any(), any());
         assertThat(result)
                 .allSatisfy(instance -> {
                     assertThat(instance.getProductId()).isEqualTo(productId);

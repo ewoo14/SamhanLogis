@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 전표 목록 soft-delete 복원 endpoint (E2). */
@@ -25,7 +26,9 @@ public class SlipRestoreController {
             description = "soft-deleted 전표를 복원합니다. 동일 전표번호 활성행이 있으면 409 를 반환합니다.")
     @PostMapping("/{id}/restore")
     @RequirePermission(page = "sales.slip.list", action = PermissionAction.RESTORE)
-    public ApiResponse<SlipResponse> restore(@PathVariable UUID id) {
-        return ApiResponse.ok(SlipResponse.from(restoreService.restore(id)));
+    public ApiResponse<SlipResponse> restore(@PathVariable UUID id,
+                                             @RequestHeader(value = "X-User-Id", required = false)
+                                             String requesterId) {
+        return ApiResponse.ok(SlipResponse.from(restoreService.restore(id, requesterId)));
     }
 }

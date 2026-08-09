@@ -13,6 +13,7 @@ import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipUpdateRequest;
 import jakarta.persistence.OptimisticLockException;
@@ -47,6 +48,7 @@ public class SlipUpdateService {
     private final SlipRevisionService slipRevisionService;
     private final PartnerProductPriceMemoryService priceMemoryService;
     private final ProductClient productClient;
+    private final SlipClosedDateGuard closedDateGuard;
 
     /**
      * 매입 전표 헤더와 라인을 전체 교체한다.
@@ -69,12 +71,24 @@ public class SlipUpdateService {
     @Transactional
     public SlipDetailResponse update(UUID id, SlipUpdateRequest request,
                                      UUID actorId, String actorName) {
+        return update(id, request, actorId, actorName, null);
+    }
+
+    /** direct PUT 호출자의 역할을 마감일 guard까지 전달한다. */
+    @Transactional
+    public SlipDetailResponse update(UUID id, SlipUpdateRequest request,
+                                     UUID actorId, String actorName, String actorRole) {
         // [D-R8-9] 계약 마커 검증은 조회보다 먼저다 — 구 클라이언트에게는 전표의 존재 여부(404)나
         // 낙관적 잠금(409)보다 "앱을 업데이트하라"가 유일하게 조치 가능한 정보이며, 어떤 상태도
         // 읽기 전에 거부하는 편이 게이트의 의도(쓰기 차단)를 가장 좁게 표현한다.
         requireLineIdContract(request);
         Slip slip = load(id);
+        // updatedAt 검증을 날짜 정책 repository 조회보다 먼저 수행한다. 외부 @Transactional 호출자가
+        // 직전 mutation 후 같은 persistence context를 재사용하면 guard 조회의 AUTO flush가
+        // modifiedAt/version을 먼저 전진시켜, 아직 유효한 요청을 자체 stale로 만들 수 있다.
         verifyVersion(slip, request.updatedAt());
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(),
+                actorId == null ? null : actorId.toString(), actorRole);
         // validateLines 는 BusinessException(SLIP_UPDATE_INVALID_LINE) 을 던지므로 try 외부에서 처리
         validateLines(request.lines());
         List<ProductSummary> products = productClient.lookup(request.lines().stream()
