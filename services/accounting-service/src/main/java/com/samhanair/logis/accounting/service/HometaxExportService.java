@@ -563,6 +563,7 @@ public class HometaxExportService {
         String remark        = safeStr(raw.get("deliveryAddress"));
         String itemName1     = safeStr(raw.get("itemName"));
         String slipNo        = safeStr(raw.get("slipNo"));
+        String partnerCode   = safeStr(raw.get("partnerCode"));
 
         return new HomtaxRow(
                 "01", dateStr,
@@ -578,7 +579,7 @@ public class HometaxExportService {
                 "", "", "", null, null, null, null, "",
                 null, null, null, null,
                 "02",
-                slipNo
+                slipNo, partnerCode
         );
     }
 

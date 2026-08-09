@@ -75,6 +75,7 @@ class HometaxExportServiceTest {
 
         HomtaxRow row = service.toHomtaxRow(raw, null);
 
+        assertThat(row.partnerCode()).isEqualTo("P-2026-0001");
         assertThat(row.buyerRegNo()).isEqualTo("1130710031");
         assertThat(row.buyerRegNo()).isNotEqualTo("20260001");
     }

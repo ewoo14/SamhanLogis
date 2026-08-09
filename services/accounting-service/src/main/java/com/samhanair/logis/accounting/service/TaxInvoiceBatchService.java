@@ -378,6 +378,7 @@ public class TaxInvoiceBatchService {
         String remark = safeStr(raw.get("deliveryAddress"));
         String itemName1 = safeStr(raw.get("itemName"));
         String slipNo = safeStr(raw.get("slipNo"));
+        String partnerCode = safeStr(raw.get("partnerCode"));
 
         return new HomtaxRow(
                 "01",           // invoiceType: 일반
@@ -416,7 +417,8 @@ public class TaxInvoiceBatchService {
                 "", "", "", null, null, null, null, "",
                 null, null, null, null,  // 현금/수표/어음/외상미수금
                 "02",           // 영수(01),청구(02)
-                slipNo          // 내부용 전표번호
+                slipNo,         // 내부용 전표번호
+                partnerCode     // 내부용 거래처 코드 (홈택스 양식에는 미포함)
         );
     }
 
