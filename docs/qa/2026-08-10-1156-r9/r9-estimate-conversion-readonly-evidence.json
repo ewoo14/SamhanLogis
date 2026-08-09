@@ -1,0 +1,14 @@
+{
+  "round": "R9",
+  "mode": "read-only",
+  "estimateNo": "2026/08/10-5",
+  "convertedSlipNo": "2026/08/10-21",
+  "partnerCode": "P-2026-0001",
+  "businessNumber": "113-07-10031",
+  "endpoints": {
+    "renderer": "127.0.0.1:5330",
+    "slip": "127.0.0.1:28206"
+  },
+  "ids": "<redacted-uuid>",
+  "credentials": "<redacted>"
+}
