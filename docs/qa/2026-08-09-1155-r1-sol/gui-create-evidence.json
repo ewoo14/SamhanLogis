@@ -1,0 +1,8 @@
+{
+  "status": 201,
+  "slipNo": "2026/08/09-4",
+  "slipType": "INBOUND",
+  "partnerId": "<redacted-uuid>",
+  "partnerCode": "00",
+  "finalUrl": "http://127.0.0.1:5327/purchases"
+}
