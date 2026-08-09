@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -297,24 +299,25 @@ public class BootstrapService {
     }
 
     private Map<String, Object> loadProductCatalogPayloads() {
-        List<Map<String, Object>> homemulti = nullToEmpty(estimateCatalogClient.catalog(
-                EstimateCategory.HOME_MULTI, UsageScope.PARTNER_ORDER));
-        List<Map<String, Object>> commercialMulti = nullToEmpty(estimateCatalogClient.catalog(
-                EstimateCategory.COMMERCIAL_MULTI, UsageScope.PARTNER_ORDER));
-        List<Map<String, Object>> singleSets = nullToEmpty(estimateCatalogClient.catalog(
-                EstimateCategory.SINGLE_SET, UsageScope.PARTNER_ORDER));
-        List<Map<String, Object>> oldProducts = nullToEmpty(estimateCatalogClient.catalog(
-                EstimateCategory.LEGACY, UsageScope.PARTNER_ORDER));
+        List<Map<String, Object>> homemulti = catalogSafely("HOME_MULTI", () ->
+                estimateCatalogClient.catalog(EstimateCategory.HOME_MULTI, UsageScope.PARTNER_ORDER));
+        List<Map<String, Object>> commercialMulti = catalogSafely("COMMERCIAL_MULTI", () ->
+                estimateCatalogClient.catalog(EstimateCategory.COMMERCIAL_MULTI, UsageScope.PARTNER_ORDER));
+        List<Map<String, Object>> singleSets = catalogSafely("SINGLE_SET", () ->
+                estimateCatalogClient.catalog(EstimateCategory.SINGLE_SET, UsageScope.PARTNER_ORDER));
+        List<Map<String, Object>> oldProducts = catalogSafely("LEGACY", () ->
+                estimateCatalogClient.catalog(EstimateCategory.LEGACY, UsageScope.PARTNER_ORDER));
         // BE-1 문서화 (#777 item 2) — 구성품(singleParts/commercialParts)은 ProductEstimateExposure
         // 행이 없지만 product-service priceBaseline() 이 exposure 미커버 baseline product 를
         // estimateCategory=null 로 추가 반환한다. 따라서 singlePartsInc/commPartsInc 는 구성품도
         // Model B 자동전환 대상으로 채워진다. oldProducts 는 여전히 baseline 데이터 부재 케이스가
         // 남아 있어 별도 결정/슬라이스 전까지 base(인상 후) fallthrough 를 유지한다.
-        List<Map<String, Object>> singleParts = nullToEmpty(estimateCatalogClient.components(
-                EstimateCategory.SINGLE_SET));
-        List<Map<String, Object>> commercialParts = nullToEmpty(estimateCatalogClient.components(
-                EstimateCategory.COMMERCIAL_MULTI));
-        List<Map<String, Object>> materialPrices = nullToEmpty(estimateCatalogClient.materialPrices());
+        List<Map<String, Object>> singleParts = catalogSafely("SINGLE_SET components", () ->
+                estimateCatalogClient.components(EstimateCategory.SINGLE_SET));
+        List<Map<String, Object>> commercialParts = catalogSafely("COMMERCIAL_MULTI components", () ->
+                estimateCatalogClient.components(EstimateCategory.COMMERCIAL_MULTI));
+        List<Map<String, Object>> materialPrices = catalogSafely("material prices",
+                estimateCatalogClient::materialPrices);
         // BE-2 (#688 S3 R1 리뷰) — priceBaseline/priceChangeSchedule 은 각각 개별 try-catch 로
         // 격리한다. 이 둘을 감싸지 않으면 loadProductCatalogPayloadsSafely() 의 catch-all 이 예외를
         // 여기서 붙잡아, 이미 성공적으로 조회된 위 7개 catalog(homemulti~materialPrices) 까지
@@ -345,37 +348,58 @@ public class BootstrapService {
         // 로 productCatalogCache 에 캐싱된다. fetch() 는 productPayloads.containsKey(key) 를
         // 시트/V2 seed fallback 보다 우선하므로(정상 catalog 없음 방지 목적) 이 오판이 발생하면
         // 유효한 시트/seed 데이터를 빈 배열로 영구 override — order-app 0행 회귀(#688 S3 정찰 적발).
-        boolean hasProductData = !(homemulti.isEmpty()
-                && commercialMulti.isEmpty()
-                && singleSets.isEmpty()
-                && oldProducts.isEmpty()
-                && singleParts.isEmpty()
-                && commercialParts.isEmpty()
-                && materialPrices.isEmpty());
+        boolean hasProductData = Stream.of(homemulti, commercialMulti, singleSets, oldProducts,
+                singleParts, commercialParts, materialPrices)
+                .anyMatch(rows -> rows != null && !rows.isEmpty());
         if (!hasProductData) {
             return Map.of();
         }
 
         Map<String, Map<String, Object>> baselineByModel = baselineByModel(priceBaseline);
         Map<String, Object> payloads = new LinkedHashMap<>();
-        payloads.put("homemulti", catalogRows(homemulti, CatalogShape.MULTI));
-        payloads.put("singleSets", singleSetRows(singleSets));
-        payloads.put("singleParts", componentRows(singleParts, false));
-        payloads.put("singleMatPrices", materialPriceMap(materialPrices));
-        payloads.put("commercialMulti", catalogRows(commercialMulti, CatalogShape.MULTI));
-        payloads.put("commercialParts", componentRows(commercialParts, true));
-        payloads.put("oldProducts", catalogRows(oldProducts, CatalogShape.LEGACY));
-        payloads.put("homeInc", incPriceMap(homemulti, baselineByModel, "modelCode", "releasePrice", "homeInc"));
-        payloads.put("commInc", incPriceMap(commercialMulti, baselineByModel,
-                "modelCode", "releasePrice", "commInc"));
-        payloads.put("singleInc", incPriceMap(singleSets, baselineByModel,
-                "modelCode", "deliveryPrice", "singleInc"));
-        payloads.put("singlePartsInc", incPriceMap(singleParts, baselineByModel,
-                "componentModelCode", "deliveryPrice", "singlePartsInc"));
-        payloads.put("commPartsInc", incPriceMapFirstDecimal(commercialParts, baselineByModel,
-                "componentModelCode", "commPartsInc"));
+        if (homemulti != null) {
+            payloads.put("homemulti", catalogRows(homemulti, CatalogShape.MULTI));
+            payloads.put("homeInc", incPriceMap(homemulti, baselineByModel, "modelCode", "releasePrice", "homeInc"));
+        }
+        if (singleSets != null) {
+            payloads.put("singleSets", singleSetRows(singleSets));
+            payloads.put("singleInc", incPriceMap(singleSets, baselineByModel,
+                    "modelCode", "deliveryPrice", "singleInc"));
+        }
+        if (singleParts != null) {
+            payloads.put("singleParts", componentRows(singleParts, false));
+            payloads.put("singlePartsInc", incPriceMap(singleParts, baselineByModel,
+                    "componentModelCode", "deliveryPrice", "singlePartsInc"));
+        }
+        if (materialPrices != null) {
+            payloads.put("singleMatPrices", materialPriceMap(materialPrices));
+        }
+        if (commercialMulti != null) {
+            payloads.put("commercialMulti", catalogRows(commercialMulti, CatalogShape.MULTI));
+            payloads.put("commInc", incPriceMap(commercialMulti, baselineByModel,
+                    "modelCode", "releasePrice", "commInc"));
+        }
+        if (commercialParts != null) {
+            payloads.put("commercialParts", componentRows(commercialParts, true));
+            payloads.put("commPartsInc", incPriceMapFirstDecimal(commercialParts, baselineByModel,
+                    "componentModelCode", "commPartsInc"));
+        }
+        if (oldProducts != null) {
+            payloads.put("oldProducts", catalogRows(oldProducts, CatalogShape.LEGACY));
+        }
         payloads.put("priceChangeSchedule", priceChangeSchedule == null ? Map.of() : priceChangeSchedule);
         return payloads;
+    }
+
+    /** 카테고리 단위 product-service 실패를 격리해 성공한 축은 fallback으로 폐기하지 않는다. */
+    private <T> T catalogSafely(String axis, Supplier<T> loader) {
+        try {
+            return loader.get();
+        } catch (Exception ex) {
+            log.warn("[BootstrapService] product catalog 조회 실패 — category={}, fallback 적용, err={}",
+                    axis, ex.getMessage());
+            return null;
+        }
     }
 
     private List<Map<String, Object>> catalogRows(List<Map<String, Object>> rows, CatalogShape shape) {

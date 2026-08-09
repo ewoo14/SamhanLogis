@@ -64,6 +64,16 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
     @Autowired
     private BundleComponentRepository bundleComponentRepository;
 
+    /** estimate-app 의 실제 BASE 경로에 규칙 endpoint 가 존재하고 내부 토큰 필터를 통과한다. */
+    @Test
+    void quantitySyncRules_estimateCatalogPath_returns200() throws Exception {
+        mockMvc.perform(get("/products/internal/estimate-catalog/quantity-sync-rules")
+                        .param("estimateCategory", "HOME_MULTI")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
     /** products endpoint 는 default ESTIMATE, 주문서 호출은 PARTNER_ORDER + BOTH scope 로 노출 필터를 바꾼다. */
     @Test
     void products_scopeParam_filtersEstimateVsPartnerOrderCatalog() throws Exception {

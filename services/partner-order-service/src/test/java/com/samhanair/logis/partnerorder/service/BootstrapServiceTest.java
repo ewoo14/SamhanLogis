@@ -182,6 +182,24 @@ class BootstrapServiceTest {
     }
 
     @Test
+    void fetch_한카테고리_실패시_정상카테고리는_보존하고_실패카테고리를_로그에_남긴다(
+            CapturedOutput output) throws Exception {
+        setField("sheetPrefetchEnabled", false);
+        when(estimateCatalogClient.catalog(EstimateCategory.HOME_MULTI, UsageScope.PARTNER_ORDER))
+                .thenThrow(new RuntimeException("HOME catalog unavailable"));
+        when(estimateCatalogClient.catalog(EstimateCategory.COMMERCIAL_MULTI, UsageScope.PARTNER_ORDER))
+                .thenReturn(List.of(catalogRow("상업 실외기", "CM-OK", "EA", "100", "200",
+                        "실외기", "표준", "", false, null, null, false, null, null, null)));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of());
+
+        BootstrapResponse response = bootstrapService.fetch();
+
+        assertThat(response.payloads().get("commercialMulti")).isNotEqualTo(List.of());
+        assertThat(response.payloads().get("homemulti")).isEqualTo(List.of());
+        assertThat(output.getOut()).contains("HOME_MULTI");
+    }
+
+    @Test
     void fetch_productDb_catalog를_legacy_bootstrap_shape로_변환한다() throws Exception {
         // given — product_db 행은 주문서 legacy key shape 로 변환되어야 한다.
         setField("sheetPrefetchEnabled", false);

@@ -197,7 +197,8 @@ test.describe.serial('#896 SOL 5.6 첫 적대검증 — 실 GUI 수량 동기화
       subtotal: numberFrom(await subtotal(target).innerText()),
     }])))
     console.log('[estimate 실제 대상값]', JSON.stringify(targetValues))
-    expect(TARGETS.every(target => targetValues[target].qty === '2')).toBeFalsy()
+    expect(TARGETS.every(target => targetValues[target].qty === '2')).toBeTruthy()
+    expect(targetValues['AWR-WE13N'].qty).toBe('2')
     expect(await qty(UNRULED).inputValue()).toBe(unrelatedBefore.qty)
     expect(await price(UNRULED).inputValue()).toBe(unrelatedBefore.price)
     expect(numberFrom(await subtotal(UNRULED).innerText())).toBe(unrelatedBefore.subtotal)

@@ -23,6 +23,9 @@ import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
+import com.samhanair.logis.product.service.QuantitySyncRuleService;
+import com.samhanair.logis.product.domain.QuantitySyncEstimateCategory;
+import com.samhanair.logis.product.web.dto.QuantitySyncRuleResponse;
 import com.samhanair.logis.product.web.dto.ProductSpecResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import java.math.BigDecimal;
@@ -67,6 +70,8 @@ public class EstimateCatalogInternalController {
     private static final LocalDate BASELINE_DATE = LocalDate.of(2000, 1, 1);
     private static final String SPEC_CAPACITY = "용량";
     private static final String SPEC_MAX_INDOOR = "최대연결실내기대수";
+
+    private final QuantitySyncRuleService quantitySyncRuleService;
 
     /*
      * legacy clients/web/estimate-app/lib/code.js getSpecDetailMap_()
@@ -351,6 +356,15 @@ public class EstimateCatalogInternalController {
                 })
                 .toList();
         return ApiResponse.ok(rows);
+    }
+
+    /** 종합견적서의 서버 규칙 기반 수량 동기화용 internal read endpoint. */
+    @GetMapping("/quantity-sync-rules")
+    public ApiResponse<List<QuantitySyncRuleResponse>> quantitySyncRules() {
+        if (quantitySyncRuleService == null) {
+            return ApiResponse.ok(List.of());
+        }
+        return ApiResponse.ok(quantitySyncRuleService.list(QuantitySyncEstimateCategory.HOME_MULTI));
     }
 
     /** 자재가격 — legacy getSingleMatPrices ('싱글 자재가격' 탭). */
