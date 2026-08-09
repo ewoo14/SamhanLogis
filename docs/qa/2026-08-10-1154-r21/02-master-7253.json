@@ -1,0 +1,45 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount-xlsx",
+    "sourceFileHash": "064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619"
+  },
+  "status": 200,
+  "body": {
+    "totalRows": 7253,
+    "imported": 0,
+    "updated": 7253,
+    "rejectedNullName": 0,
+    "skippedPlaceholder": 0,
+    "activeCount": 7253,
+    "suspendedCount": 0,
+    "sourceFileHash": "064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619",
+    "rejectedSample": [
+      {
+        "rowNumber": 7256,
+        "reason": "EXCLUDED_TRAILER",
+        "rawPartnerCode": "2026/08/09  오후 12:59:06",
+        "rawName": ""
+      }
+    ],
+    "excludedTrailerRows": 1,
+    "heldParseFailureRows": 0,
+    "heldSample": [],
+    "infrastructureFailureRows": 0,
+    "infrastructureFailureSample": [],
+    "infrastructureFailure": false,
+    "registrationDateParsedCount": 2423,
+    "createdAtLoadTimeCount": 4830
+  },
+  "expected": {
+    "totalRows": 7253,
+    "activeCount": 7253,
+    "rejectedNullName": 0,
+    "excludedTrailerRows": 1,
+    "heldParseFailureRows": 0,
+    "infrastructureFailureRows": 0,
+    "registrationDateParsedCount": 2423,
+    "createdAtLoadTimeCount": 4830,
+    "sourceFileHash": "064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619"
+  }
+}

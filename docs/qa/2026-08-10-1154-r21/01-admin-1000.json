@@ -1,0 +1,150 @@
+{
+  "actualApis": {
+    "login": "http://127.0.0.1:8080/auth/login",
+    "gatewayUpload": "http://127.0.0.1:8080/admin/partners/imports/ecount",
+    "bypassUpload": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "page": "http://127.0.0.1:48095/admin/partners/imports/ecount/rejections"
+  },
+  "sourceFileHash": "AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D",
+  "count": 1000,
+  "pages": 10,
+  "first": {
+    "rowNumber": 3,
+    "reason": "거래처명 빈값",
+    "rawPartnerCode": "SOL1154R21-BULK-0001",
+    "rawName": "읽을 수 없음"
+  },
+  "last": {
+    "rowNumber": 1002,
+    "reason": "거래처명 빈값",
+    "rawPartnerCode": "SOL1154R21-BULK-1000",
+    "rawName": "읽을 수 없음"
+  },
+  "gatewayTrace": [
+    {
+      "event": "reuse-persisted-after-timeout",
+      "status": 200,
+      "totalElements": 1000
+    },
+    {
+      "event": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/admin/partners/imports/ecount"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=0&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=0&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=0&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=0&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=1&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=1&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=2&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=2&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=3&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=3&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=4&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=4&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=5&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=5&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=6&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=6&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=7&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=7&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=8&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=8&size=100"
+    },
+    {
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=9&size=100"
+    },
+    {
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=AB2372AC0707DA1F202A37D5E8C72939B9BB367FBF8039ED1AC86CF68EC9763D&page=9&size=100"
+    }
+  ]
+}
