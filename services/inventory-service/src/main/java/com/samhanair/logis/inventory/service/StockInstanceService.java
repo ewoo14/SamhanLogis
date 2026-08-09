@@ -153,6 +153,9 @@ public class StockInstanceService {
     public List<StockInstance> reserveBatch(String productCode, UUID warehouseId, int quantity,
                                             String outboundSlipNo) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 예약 인스턴스 미생성 no-op skip
+        }
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);
@@ -191,8 +194,11 @@ public class StockInstanceService {
      */
     @Transactional
     public List<StockInstance> shipBatch(String outboundSlipNo, String productCode,
-                                         String partnerCode, LocalDateTime outboundAt) {
+                                          String partnerCode, LocalDateTime outboundAt) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 출고 인스턴스 미생성 no-op skip
+        }
         List<StockInstance> reserved = product == null
                 ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
                         outboundSlipNo, productCode, StockInstanceStatus.RESERVED)
@@ -216,6 +222,9 @@ public class StockInstanceService {
     @Transactional
     public List<StockInstance> releaseBatch(String outboundSlipNo, String productCode) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 예약 해제 인스턴스 미생성 no-op skip
+        }
         List<StockInstance> reserved = product == null
                 ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
                         outboundSlipNo, productCode, StockInstanceStatus.RESERVED)
@@ -244,6 +253,9 @@ public class StockInstanceService {
     public List<StockInstance> recallBatch(String partnerCode, String productCode,
                                            int quantity, String recallSlipNo) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 회수 인스턴스 미생성 no-op skip
+        }
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);
@@ -340,6 +352,9 @@ public class StockInstanceService {
     @Transactional
     public List<StockInstance> unrecallBatch(String recallSlipNo, String productCode) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 되돌림 인스턴스 미생성 no-op skip
+        }
         lockRecallBatchKey(recallSlipNo, productCode);
         // BE 리뷰 P1: ForUpdate row lock — unrecall-batch endpoint 직접 동시호출 시 같은 RECALLED 행 중복 전이 방지
         List<StockInstance> recalled = findRecalledForUpdate(recallSlipNo, product, productCode);
@@ -368,6 +383,9 @@ public class StockInstanceService {
     public List<StockInstance> resellBatch(String recallSlipNo, String productCode,
                                            int quantity, String actorUserId) {
         ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (product != null && isInventoryExcluded(product)) {
+            return List.of(); // 비상품/세트 SKU — 재판매 되돌림 인스턴스 미생성 no-op skip
+        }
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);

@@ -229,6 +229,64 @@ class StockServiceTest {
     }
 
     @Test
+    void reserve_nonGoods_skipsWithoutBalanceOrMovement() {
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "운임", "FREIGHT", "FREIGHT-001",
+                        UUID.randomUUID(), new BigDecimal("50000.00"), "ACTIVE",
+                        false, false, "SINGLE"));
+
+        ReservationResponse response = service.reserve(
+                new ReserveRequest(productId, warehouseId, 1, "SLIP", UUID.randomUUID(), null), "u1");
+
+        assertThat(response.quantity()).isZero();
+        assertThat(response.availableQty()).isZero();
+        assertThat(response.reservedQty()).isZero();
+        verify(stockBalanceRepository, never()).findByProductIdAndWarehouse_IdAndIsDeletedFalse(
+                any(), any());
+        verify(stockMovementRepository, never()).save(any());
+    }
+
+    @Test
+    void release_nonGoods_skipsWithoutBalanceOrMovement() {
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "설치비", "INSTALL", "INSTALL-001",
+                        UUID.randomUUID(), new BigDecimal("100000.00"), "ACTIVE",
+                        false, false, "SINGLE"));
+
+        ReservationResponse response = service.release(
+                new ReleaseRequest(productId, warehouseId, 1, "SLIP", UUID.randomUUID(), null), "u1");
+
+        assertThat(response.quantity()).isZero();
+        assertThat(response.availableQty()).isZero();
+        assertThat(response.reservedQty()).isZero();
+        verify(stockBalanceRepository, never()).findByProductIdAndWarehouse_IdAndIsDeletedFalse(
+                any(), any());
+        verify(stockMovementRepository, never()).save(any());
+    }
+
+    @Test
+    void reserve_mixedGoodsAndNonGoods_reservesGoodsAndSkipsNonGoods() {
+        UUID nonGoodsId = UUID.randomUUID();
+        StockBalance goodsBalance = balanceWith(4, 0, 4);
+        when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, warehouseId))
+                .thenReturn(Optional.of(goodsBalance));
+        when(productClient.requireExists(nonGoodsId)).thenReturn(
+                new ProductSummary(nonGoodsId, "설치비", "INSTALL", "INSTALL-001",
+                        UUID.randomUUID(), new BigDecimal("100000.00"), "ACTIVE",
+                        false, false, "SINGLE"));
+
+        ReservationResponse goods = service.reserve(
+                new ReserveRequest(productId, warehouseId, 2, "SLIP", UUID.randomUUID(), null), "u1");
+        ReservationResponse nonGoods = service.reserve(
+                new ReserveRequest(nonGoodsId, warehouseId, 1, "SLIP", UUID.randomUUID(), null), "u1");
+
+        assertThat(goods.reservedQty()).isEqualTo(2);
+        assertThat(nonGoods.quantity()).isZero();
+        assertThat(nonGoods.reservedQty()).isZero();
+        verify(stockMovementRepository, times(1)).save(any(StockMovement.class));
+    }
+
+    @Test
     void release_movesReservedBackToAvailable() {
         StockBalance balance = balanceWith(20, 10, 30);
         when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, warehouseId))
