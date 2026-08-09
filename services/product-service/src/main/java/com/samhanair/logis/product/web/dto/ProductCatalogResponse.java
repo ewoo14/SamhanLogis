@@ -7,6 +7,7 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductGoodsType;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -58,6 +59,7 @@ public record ProductCatalogResponse(
         boolean hasVariableDiscount,
         boolean variableDiscountManual,
         boolean legacyDiscountFlag,
+        ProductStatus status,
         String discountFlags,
         ProductType productType,
         int componentCount,
@@ -109,6 +111,7 @@ public record ProductCatalogResponse(
                 Boolean.TRUE.equals(p.getHasVariableDiscount()),
                 p.isVariableDiscountManual(),
                 Boolean.TRUE.equals(p.getLegacyDiscountFlag()),
+                p.getStatus(),
                 p.getDiscountFlags(),
                 p.getProductType(),
                 0,
@@ -130,7 +133,7 @@ public record ProductCatalogResponse(
                 modelCode, name, usageScope, estimateCategory,
                 productCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
                 releasePrice, deliveryPrice, goodsType, fixedDiscountRate,
-                hasVariableDiscount, variableDiscountManual, legacyDiscountFlag, discountFlags,
+                hasVariableDiscount, variableDiscountManual, legacyDiscountFlag, status, discountFlags,
                 productType, count, token
         );
     }

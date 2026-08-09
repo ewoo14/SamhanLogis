@@ -39,6 +39,7 @@ interface ProductSummaryResponse {
   categoryKey?: string | null
   fixedDiscountRate?: number | null
   hasVariableDiscount?: boolean | null
+  status?: string | null
   goodsType?: 'GOODS' | 'NON_GOODS' | null
   usageScope?: UsageScope | null
   estimateCategories?: EstimateCategory[] | null
@@ -110,11 +111,17 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
       categoryKey: p.categoryKey ?? undefined,
       fixedDiscountRate: p.fixedDiscountRate ?? null,
       hasVariableDiscount: p.hasVariableDiscount ?? null,
+      status: p.status ?? null,
       goodsType: p.goodsType ?? undefined,
       usageScope: p.usageScope ?? undefined,
       estimateCategories: p.estimateCategories ?? undefined,
       productCategory: p.productCategory ?? undefined,
   }
+}
+
+/** 새로 선택할 수 있는 후보 상태. OUT_OF_STOCK은 표시·수량 잠금 대상이라 포함한다. */
+export function isSelectableProductStatus(status?: string | null): boolean {
+  return status !== 'DISCONTINUED' && status !== 'NOT_FOR_SALE'
 }
 
 /** BE `LookupRequest` 상한 — 요청당 productId 최대 100개 (`@Size(max = 100)`). */

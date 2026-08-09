@@ -349,7 +349,12 @@ describe('samhanApi.call', () => {
   it('카탈로그 direct Page 응답도 content 배열로 변환한다', async () => {
     mocks.get.mockResolvedValue({
       data: {
-        content: [{ modelCode: 'HM-1' }],
+        content: [
+          { modelCode: 'HM-1', status: 'ACTIVE' },
+          { modelCode: 'HM-OOS', status: 'OUT_OF_STOCK' },
+          { modelCode: 'HM-DISC', status: 'DISCONTINUED' },
+          { modelCode: 'HM-NFS', status: 'NOT_FOR_SALE' },
+        ],
         totalElements: 1,
         totalPages: 1,
         number: 0,
@@ -359,7 +364,10 @@ describe('samhanApi.call', () => {
 
     const result = await samhanApi.call('getProducts', ['HOME_MULTI']);
 
-    expect(result).toEqual([{ modelCode: 'HM-1' }]);
+    expect(result).toEqual([
+      { modelCode: 'HM-1', status: 'ACTIVE' },
+      { modelCode: 'HM-OOS', status: 'OUT_OF_STOCK' },
+    ]);
   });
 
   it('주문 이력 RPC 는 서버가 읽는 필터와 페이지 정보를 query로 보낸다', async () => {

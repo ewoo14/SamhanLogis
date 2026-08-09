@@ -1,0 +1,21 @@
+{
+  "discontinuedProductName": "",
+  "notForSaleProductName": "",
+  "estimateOutOfStockEditable": true,
+  "estimateOutOfStockValueBefore": "1",
+  "estimateOutOfStockValueAfter": "7",
+  "estimateActiveEditable": true,
+  "estimateActiveValue": "2",
+  "nonGoodsQuantityAfterPrice": "1",
+  "slipOutOfStockDisabled": true,
+  "slipOutOfStockExpandCalls": [],
+  "activeBundleExpandCalls": [
+    200
+  ],
+  "activeBundleLineCount": 8,
+  "safetyDiscontinuedSaveEnabled": false,
+  "estimateItemsDiscontinuedExactTexts": 1,
+  "estimateItemsDiscontinuedAddEnabled": false,
+  "estimateItemsActiveAddEnabled": false,
+  "estimateItemsDiscontinuedManagedRows": 1
+}

@@ -1,0 +1,56 @@
+{
+  "targets": [
+    {
+      "estimateNo": "2026/08/10-2",
+      "lines": 1,
+      "activeLines": 1,
+      "lockedActive": 0,
+      "lookupHttpMs": 78,
+      "editableAfterMs": 763
+    },
+    {
+      "estimateNo": "2026/08/10-3",
+      "lines": 1,
+      "activeLines": 1,
+      "lockedActive": 0,
+      "lookupHttpMs": 21,
+      "editableAfterMs": 532
+    },
+    {
+      "estimateNo": "2026/08/10-4",
+      "lines": 1,
+      "activeLines": 1,
+      "lockedActive": 0,
+      "lookupHttpMs": 27,
+      "editableAfterMs": 525
+    },
+    {
+      "estimateNo": "2026/08/10-5",
+      "lines": 1,
+      "activeLines": 1,
+      "lockedActive": 0,
+      "lookupHttpMs": 23,
+      "editableAfterMs": 536
+    },
+    {
+      "estimateNo": "2026/08/10-6",
+      "lines": 1,
+      "activeLines": 1,
+      "lockedActive": 0,
+      "lookupHttpMs": 19,
+      "editableAfterMs": 509
+    }
+  ],
+  "totals": {
+    "estimates": 5,
+    "activeLines": 5,
+    "improperlyLocked": 0
+  },
+  "delayedLookup": {
+    "configuredDelayMs": 5000,
+    "initiallyEditable": false,
+    "releasedAfterMs": 5709,
+    "editableAfterMs": 6678,
+    "postResponseUnlockMs": 969
+  }
+}

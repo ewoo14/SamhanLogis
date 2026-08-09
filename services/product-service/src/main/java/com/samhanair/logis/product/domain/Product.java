@@ -494,6 +494,14 @@ public class Product extends BaseEntity {
         this.status = ProductStatus.ACTIVE;
     }
 
+    /** 시트 정본의 판매 상태를 반영한다. null은 호출자가 보존 정책을 적용하도록 허용하지 않는다. */
+    public void changeStatus(ProductStatus status) {
+        if (status == null) {
+            throw new IllegalArgumentException("제품 상태는 필수입니다");
+        }
+        this.status = status;
+    }
+
     public void editDescription(String description) {
         this.description = description;
     }

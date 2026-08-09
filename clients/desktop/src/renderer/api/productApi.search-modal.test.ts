@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from './client'
-import { searchProducts, type ProductSearchResults } from './productApi'
+import { isSelectableProductStatus, searchProducts, type ProductSearchResults } from './productApi'
 
 vi.mock('./client', () => ({ apiClient: { get: vi.fn() } }))
 
@@ -29,6 +29,13 @@ describe('품목 검색 결과 선택 모달 API 계약', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/api/products', {
       params: { q: 'AJ', size: 20 },
     })
+  })
+
+  it('단종·미판매는 제외하고 품절은 선택 후보로 남긴다', () => {
+    expect(isSelectableProductStatus('DISCONTINUED')).toBe(false)
+    expect(isSelectableProductStatus('NOT_FOR_SALE')).toBe(false)
+    expect(isSelectableProductStatus('OUT_OF_STOCK')).toBe(true)
+    expect(isSelectableProductStatus('ACTIVE')).toBe(true)
   })
 
   it('검색 페이지의 전체 건수와 절단 여부를 호출자에게 보존한다', async () => {

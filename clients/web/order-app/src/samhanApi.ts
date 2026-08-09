@@ -405,7 +405,13 @@ const RPC_MAP: Record<string, RpcHandler> = {
   getCustomerData: ([partnerCode]) =>
     http.get(`/partners/${encodeURIComponent(String(partnerCode))}`).then((r) => unwrapApiResponse(r.data)),
   getProducts: ([category]) =>
-    fetchAllPages('/products', { usageScope: 'PARTNER_ORDER', category }, 50),
+    fetchAllPages('/products', { usageScope: 'PARTNER_ORDER', category }, 50)
+      .then((rows) => rows.filter((row) => {
+        const status = row && typeof row === 'object' && 'status' in row
+          ? String((row as { status?: unknown }).status ?? '')
+          : ''
+        return status !== 'DISCONTINUED' && status !== 'NOT_FOR_SALE'
+      })),
   // 3d backlog — partner-auth-service 의 로그인 응답이 이미 DC 정책을 nested 로 포함하므로
   // 별도 backend 호출 없이 sessionStorage 캐시를 즉시 반환한다. 캐시 부재 시 graceful null.
   // 외부 단건 endpoint `/partner-dc-configs/{partnerCode}` 는 admin list 전용 (4b backlog 와 별개).

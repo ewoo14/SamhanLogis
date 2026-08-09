@@ -1,0 +1,21 @@
+{
+  "qaRound": "R10-1095-SINGLE-STATUS",
+  "estimateId": "<redacted-id>",
+  "runs": [
+    {
+      "run": 1,
+      "durationMs": 404,
+      "syncedValue": "R10-1095-COLLAB-1"
+    },
+    {
+      "run": 2,
+      "durationMs": 383,
+      "syncedValue": "R10-1095-COLLAB-2"
+    },
+    {
+      "run": 3,
+      "durationMs": 395,
+      "syncedValue": "R10-1095-COLLAB-3"
+    }
+  ]
+}

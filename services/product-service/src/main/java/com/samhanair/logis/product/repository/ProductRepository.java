@@ -284,6 +284,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                 AND e.isDeleted = false
                 AND e.estimateCategory = :estimateCategory
                 AND p.isDeleted = false
+                AND p.status NOT IN (com.samhanair.logis.product.domain.ProductStatus.DISCONTINUED,
+                                     com.samhanair.logis.product.domain.ProductStatus.NOT_FOR_SALE)
                 AND p.usageScope IN :scopes
               ORDER BY e.displayOrder ASC NULLS LAST, p.modelCode ASC
             """)

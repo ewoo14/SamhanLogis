@@ -83,7 +83,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
                         UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"));
 
         // Sprint 4 — findAlerts() 의 batch lookup stub. enrich (productCode/productName) 검증용.
-        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+        Mockito.lenient().when(productClient.lookupAllowMissing(Mockito.anyList()))
                 .thenAnswer(inv -> {
                     java.util.List<UUID> ids = inv.getArgument(0);
                     return ids.stream()
@@ -287,6 +287,37 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
                         .value(org.hamcrest.Matchers.hasItem("TEST-001")))
                 .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')].warehouseName")
                         .value(org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.notNullValue())));
+    }
+
+    @Test
+    @DisplayName("R10 알림 목록: product lookup 전량 미조회여도 알림 자체는 남는다")
+    void listAlerts_whenEveryProductLookupMissing_keepsAlertWithNullIdentity() throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("warehouseId", hqWarehouseId.toString());
+        body.put("threshold", 50);
+        body.put("scopeMode", "SELECTED");
+
+        mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated());
+
+        Mockito.when(productClient.lookupAllowMissing(Mockito.anyList()))
+                .thenReturn(java.util.List.of());
+
+        mockMvc.perform(get("/inventory/alerts/safety-stock")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')]").isNotEmpty())
+                .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')].productCode")
+                        .value(org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')].productName")
+                        .value(org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.nullValue())));
+
+        Mockito.verify(productClient).lookupAllowMissing(Mockito.anyList());
     }
 
     @Test
