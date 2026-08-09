@@ -82,6 +82,7 @@ import { quantityAfterDeliveryPriceInput } from './estimateLineModel'
 import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
+import { hydrateCurrentProductStatuses } from '../utils/estimateLineStatus'
 
 let __lineUidCounter = 0
 const nextLineUid = (): string => `est-line-${++__lineUidCounter}`
@@ -573,15 +574,16 @@ function EstimateMobileLineCard(props: {
           coeditPending={props.coeditPending}
           fieldPath={`items.${props.index}.quantity`}
           value={props.line.quantity}
-          onValueChange={(value) => props.onUpdate(
-            changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value),
-            true,
-          )}
-          onDocSyncValueChange={(value) => props.onUpdate(
-            changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value),
-          )}
+          onValueChange={(value) => {
+            if (props.line.status === 'OUT_OF_STOCK') return
+            props.onUpdate(changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value), true)
+          }}
+          onDocSyncValueChange={(value) => {
+            if (props.line.status === 'OUT_OF_STOCK') return
+            props.onUpdate(changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value))
+          }}
           inputSize="sm"
-          readOnly={props.isReadOnly}
+          readOnly={props.isReadOnly || props.line.status === 'OUT_OF_STOCK'}
           type="text"
           inputMode="numeric"
           inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -900,6 +902,20 @@ export function EstimateFormPage() {
     linesRef.current = draftLines
     setLines(draftLines)
     setHydratedEstimateId(editId ?? null)
+    void hydrateCurrentProductStatuses(draftLines, lookupProducts).then((hydratedWithCurrentStatuses) => {
+      if (estimateDataRef.current?.id !== e.id) return
+      const statusByProductId = new Map(
+        hydratedWithCurrentStatuses
+          .filter((line) => line.productId)
+          .map((line) => [line.productId!, line.status ?? null]),
+      )
+      // 협업 provider가 hydrate 중에 반영한 미저장 입력은 버리지 않고 현재 상태만 합친다.
+      const currentLines = linesRef.current.map((line) => line.productId && statusByProductId.has(line.productId)
+        ? { ...line, status: statusByProductId.get(line.productId) ?? null }
+        : line)
+      linesRef.current = currentLines
+      setLines(currentLines)
+    })
   }, [editId, isEdit, detailQuery.data, estimateFormCoeditProvider])
 
   useEffect(() => {
@@ -1249,7 +1265,7 @@ export function EstimateFormPage() {
 
   const updateQuantity = (index: number, quantity: string) => {
     const current = linesRef.current[index]
-    if (!current) return
+    if (!current || current.status === 'OUT_OF_STOCK') return
     updateLine(index, changeLineQuantity(asVatLine({ ...current, quantity }), quantity), true)
   }
 
@@ -1557,6 +1573,7 @@ export function EstimateFormPage() {
         priceRefreshChanged: applyPrice ? false : current.priceRefreshChanged,
         partnerRefreshEligible: applyPrice ? true : current.partnerRefreshEligible,
         isBundleComponent: false,
+        status: result.status ?? null,
         lookupError: null,
         lookupLoading: false,
       }
@@ -1629,6 +1646,7 @@ export function EstimateFormPage() {
         productName: '',
         productType: null,
         goodsType: null,
+        status: null,
         catalogUnitPrice: null,
         ...(hadAutoSpecification
           ? { specification: '', specificationSource: null }
@@ -2279,10 +2297,8 @@ export function EstimateFormPage() {
                 type="text"
                 value={line.quantity}
                   onValueChange={(value) => updateQuantity(i, value)}
-                  onDocSyncValueChange={(value) => updateLine(i, {
-                    ...changeLineQuantity(asVatLine({ ...line, quantity: value }), value),
-                  })}
-                readOnly={Boolean(isReadOnly)}
+                  onDocSyncValueChange={(value) => updateQuantity(i, value)}
+                readOnly={Boolean(isReadOnly) || line.status === 'OUT_OF_STOCK'}
                 inputMode="numeric"
                 inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
                 aria-label={`라인 ${i + 1} 수량${line.status === 'OUT_OF_STOCK' ? ' 품절' : ''}`}

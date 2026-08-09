@@ -1565,7 +1565,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     fireEvent.click(screen.getByTestId('estimate-select-partner-b'))
 
     expect(estimateUnitPrice().value).toBe('11000')
-    expect(mocks.lookupProducts).not.toHaveBeenCalled()
+    expect(mocks.lookupProducts).toHaveBeenCalledWith(['product-1'])
     expect(mocks.getPriceMemories).not.toHaveBeenCalled()
   })
 

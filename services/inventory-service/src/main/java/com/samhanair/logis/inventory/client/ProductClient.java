@@ -78,6 +78,11 @@ public class ProductClient {
         return lookupInternal(productIds, false);
     }
 
+    /** 안전재고 등 표시 보강용 — 존재하지 않는 ID가 섞여도 존재하는 항목은 반환한다. */
+    public List<ProductSummary> lookupAllowMissing(List<UUID> productIds) {
+        return lookupInternal(productIds, false);
+    }
+
     private List<ProductSummary> lookupInternal(List<UUID> productIds, boolean requireAll) {
         if (productIds == null || productIds.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 제품 ID가 비어있습니다");
