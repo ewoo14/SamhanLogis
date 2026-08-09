@@ -61,6 +61,54 @@ class EcountPartnerImporterTest {
                 .isEqualTo("DB_INFRASTRUCTURE");
     }
 
+    @Test
+    void RED_A_기존행의_음수여신한도는_데이터축으로보류하고_뒤정상행을_계속적재한다() {
+        Partner existing = Partner.register("R12-NEGATIVE", "R12-NEGATIVE", "기존 거래처", null, null,
+                new BigDecimal("10"));
+        when(partnerRepository.findByPartnerCode("R12-NEGATIVE")).thenReturn(Optional.of(existing));
+        when(partnerRepository.findByPartnerCode("R12-BEFORE")).thenReturn(Optional.empty());
+        when(partnerRepository.findByPartnerCode("R12-AFTER")).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        EcountPartnerImportResult result = importer.importCsv(csvStream(
+                META_LINE + HEADER_LINE
+                        + row("R12-BEFORE", "20260809", "", "", "앞 정상", "", "", "", "", "", "", "", "YES", "", "0", "")
+                        + row("R12-NEGATIVE", "20260809", "", "", "기존 거래처", "", "", "", "", "", "", "", "YES", "", "-1", "")
+                        + row("R12-AFTER", "20260809", "", "", "뒤 정상", "", "", "", "", "", "", "", "YES", "", "0", "")),
+                "tester");
+
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.infrastructureFailureRows()).isZero();
+        assertThat(result.heldSample()).singleElement()
+                .extracting(EcountPartnerImportResult.RejectedRow::rawPartnerCode)
+                .isEqualTo("R12-NEGATIVE");
+    }
+
+    @Test
+    void RED_C_전용_입력검증_경계밖의_IllegalArgumentException은_전파한다() {
+        Partner existing = new BuggyPartner();
+        when(partnerRepository.findByPartnerCode("R12-BUG")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> importer.importCsv(csvStream(
+                META_LINE + HEADER_LINE
+                        + row("R12-BUG", "20260809", "", "", "버그 행", "", "", "", "", "", "", "", "YES", "", "0", "")),
+                "tester"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("예상치 못한 버그");
+    }
+
+    private static final class BuggyPartner extends Partner {
+        private BuggyPartner() {
+            super();
+        }
+
+        @Override
+        public void updateProfile(String name, String address, String phone) {
+            throw new IllegalArgumentException("예상치 못한 버그");
+        }
+    }
+
     private static final byte[] UTF8_BOM = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
 
     private static final String META_LINE = "\"데이터관리>거래처-Excel다운로드\"\n";

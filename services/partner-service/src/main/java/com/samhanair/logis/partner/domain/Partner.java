@@ -40,6 +40,13 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class Partner extends BaseEntity {
 
+    /** 이카운트 적재 중 원천 입력값이 도메인 검증을 통과하지 못했음을 나타낸다. */
+    public static class InvalidImportedCreditLimitException extends IllegalArgumentException {
+        public InvalidImportedCreditLimitException(String message) {
+            super(message);
+        }
+    }
+
     @Id
     @GeneratedValue
     @UuidGenerator
@@ -292,7 +299,7 @@ public class Partner extends BaseEntity {
      */
     public void replaceCreditLimitFromImport(BigDecimal newLimit) {
         if (newLimit != null && newLimit.signum() < 0) {
-            throw new IllegalArgumentException("creditLimit 은 음수 불가");
+            throw new InvalidImportedCreditLimitException("creditLimit 은 음수 불가");
         }
         this.creditLimit = newLimit;
     }

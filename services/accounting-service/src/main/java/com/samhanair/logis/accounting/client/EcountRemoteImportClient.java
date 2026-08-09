@@ -69,7 +69,7 @@ public class EcountRemoteImportClient {
         }
     }
 
-    private RemoteImportResult parse(String response) {
+    RemoteImportResult parse(String response) {
         try {
             JsonNode root = response == null || response.isBlank() ? objectMapper.createObjectNode()
                     : objectMapper.readTree(response);
@@ -78,7 +78,10 @@ public class EcountRemoteImportClient {
                     intValue(data, "imported") + intValue(data, "updated")
                             + intValue(data, "aliasImported") + intValue(data, "lineAdded"),
                     intValue(data, "rejected") + intValue(data, "rejectedNullName"),
-                    textValue(data, "sourceFileHash"));
+                    textValue(data, "sourceFileHash"),
+                    intValue(data, "heldParseFailureRows"),
+                    intValue(data, "infrastructureFailureRows"),
+                    booleanValue(data, "infrastructureFailure"));
         } catch (Exception ex) {
             throw new BusinessException(ErrorCode.MIG20_REIMPORT_FAILED,
                     "외부 이카운트 import 응답 파싱 실패: " + ex.getMessage(), ex);
@@ -95,10 +98,20 @@ public class EcountRemoteImportClient {
         return value == null || value.isNull() ? null : value.asText();
     }
 
+    private static boolean booleanValue(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        return value != null && value.isBoolean() && value.asBoolean();
+    }
+
     private static String normalizeUser(String userId) {
         return userId == null || userId.isBlank() ? "system" : userId;
     }
 
-    public record RemoteImportResult(int imported, int rejected, String sourceFileHash) {
+    public record RemoteImportResult(int imported, int rejected, String sourceFileHash,
+                                     int heldParseFailureRows, int infrastructureFailureRows,
+                                     boolean infrastructureFailure) {
+        public RemoteImportResult(int imported, int rejected, String sourceFileHash) {
+            this(imported, rejected, sourceFileHash, 0, 0, false);
+        }
     }
 }

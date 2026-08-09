@@ -155,9 +155,19 @@ public class EcountReimportService {
             totals.totalImported += summary.imported;
             totals.totalRejected += summary.rejected;
             recordProcessed(slice, target, fileName, hash, summary, userId);
+            if (summary.infrastructureFailure) {
+                errors.add(error(target.key, fileName, "DB_INFRASTRUCTURE",
+                        "원격 import 인프라 실패 " + summary.infrastructureFailureRows + "건"));
+            }
+            String status = summary.infrastructureFailure
+                    ? "PROCESSED_WITH_INFRASTRUCTURE_FAILURE"
+                    : summary.rejected > 0 || summary.heldParseFailureRows > 0
+                    ? "PROCESSED_WITH_REJECTIONS" : "PROCESSED";
             details.add(new EcountReimportResult.SliceResult(
-                    target.key, fileName, hash, "PROCESSED",
-                    summary.imported, summary.rejected, summary.message));
+                    target.key, fileName, hash, status,
+                    summary.imported, summary.rejected, summary.message,
+                    summary.heldParseFailureRows, summary.infrastructureFailureRows,
+                    summary.infrastructureFailure));
         } catch (BusinessException ex) {
             int rejectedRows = rejectedRowsOnFailure(file);
             totals.totalRejected += rejectedRows;
@@ -187,7 +197,9 @@ public class EcountReimportService {
                     : summary.rejected > 0 ? "거부 " + summary.rejected + "건 — errors 상세를 확인하십시오." : null;
             details.add(new EcountReimportResult.SliceResult(
                     target.key, null, null, status,
-                    summary.imported, summary.rejected, message));
+                    summary.imported, summary.rejected, message,
+                    summary.heldParseFailureRows, summary.infrastructureFailureRows,
+                    summary.infrastructureFailure));
         } catch (BusinessException ex) {
             totals.totalRejected++;
             errors.add(error(target.key, null, ex.getErrorCode().name(), ex.getMessage()));
@@ -528,7 +540,9 @@ public class EcountReimportService {
     }
 
     private static CountSummary summarize(EcountRemoteImportClient.RemoteImportResult result) {
-        return new CountSummary(result.imported(), result.rejected(), null);
+        return new CountSummary(result.imported(), result.rejected(), null, List.of(),
+                result.heldParseFailureRows(), result.infrastructureFailureRows(),
+                result.infrastructureFailure());
     }
 
     private static CountSummary summarize(EcountAccountImportResult result) {
@@ -655,9 +669,16 @@ public class EcountReimportService {
     }
 
     private record CountSummary(int imported, int rejected, String message,
-                                List<EcountReimportResult.ErrorSample> errors) {
+                                List<EcountReimportResult.ErrorSample> errors,
+                                int heldParseFailureRows, int infrastructureFailureRows,
+                                boolean infrastructureFailure) {
         private CountSummary(int imported, int rejected, String message) {
-            this(imported, rejected, message, List.of());
+            this(imported, rejected, message, List.of(), 0, 0, false);
+        }
+
+        private CountSummary(int imported, int rejected, String message,
+                             List<EcountReimportResult.ErrorSample> errors) {
+            this(imported, rejected, message, errors, 0, 0, false);
         }
     }
 

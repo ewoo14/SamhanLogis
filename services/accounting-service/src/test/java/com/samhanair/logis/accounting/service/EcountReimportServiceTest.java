@@ -131,6 +131,27 @@ class EcountReimportServiceTest {
     }
 
     @Test
+    void RED_B_원격_인프라_실패_필드와_건수를_관리자_상세응답까지_전달한다() throws Exception {
+        write("품목-Excel다운로드_202605.csv", "item");
+        write("품목관계-Excel다운로드_202605.csv", "relation");
+        write("품목계층그룹-Excel다운로드_202605.csv", "group");
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(0);
+        when(jdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+        when(remoteImportClient.importFile(eq("product-service"), eq("/admin/products/imports/ecount"),
+                any(), eq("tester"))).thenReturn(new EcountRemoteImportClient.RemoteImportResult(
+                        0, 0, null, 1, 2, true));
+
+        EcountReimportResult result = service().reimportSlice("mig-2", "tester");
+
+        assertThat(result.details()).singleElement().satisfies(detail -> {
+            assertThat(detail.heldParseFailureRows()).isEqualTo(1);
+            assertThat(detail.infrastructureFailureRows()).isEqualTo(2);
+            assertThat(detail.infrastructureFailure()).isTrue();
+        });
+    }
+
+    @Test
     void mig8_거부_sample이_관리자_응답의_errors로_전달되고_상세상태가_남는다() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         EcountMig8TransformResult transform = new EcountMig8TransformResult(

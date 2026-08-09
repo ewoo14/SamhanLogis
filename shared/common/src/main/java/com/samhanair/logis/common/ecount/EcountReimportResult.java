@@ -20,7 +20,15 @@ public record EcountReimportResult(
             String status,
             int imported,
             int rejected,
-            String message) {
+            String message,
+            int heldParseFailureRows,
+            int infrastructureFailureRows,
+            boolean infrastructureFailure) {
+        public SliceResult(String target, String fileName, String sourceFileHash,
+                           String status, int imported, int rejected, String message) {
+            this(target, fileName, sourceFileHash, status, imported, rejected, message,
+                    0, 0, false);
+        }
     }
 
     public record ErrorSample(

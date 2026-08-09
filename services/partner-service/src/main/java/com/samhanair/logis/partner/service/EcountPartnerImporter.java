@@ -213,6 +213,13 @@ public class EcountPartnerImporter {
                         UpsertResult ur;
                         try {
                             ur = upsertPartnerInRowTransaction(cells, c.effectiveCode);
+                        } catch (Partner.InvalidImportedCreditLimitException ex) {
+                            heldParseFailureRows++;
+                            addRejectSample(heldSample, rowNo, "INPUT_VALIDATION", rawPartnerCode, rawName);
+                            updateStagingStatus(sourceFileHash, rowNo, "PENDING", "INPUT_VALIDATION", null);
+                            log.warn("MIG-1 import 행 입력 검증 실패 — row={} partnerCode={} reason=INPUT_VALIDATION",
+                                    rowNo, rawPartnerCode, ex);
+                            continue;
                         } catch (DataAccessException ex) {
                             String reason = failureReason(ex);
                             if ("DB_CONSTRAINT".equals(reason)) {
@@ -324,6 +331,13 @@ public class EcountPartnerImporter {
             try {
                 result = upsertPartnerInRowTransaction(cells, classification.effectiveCode,
                         registrationDate, registrationDate == null ? loadTimestamp : registrationDate.atStartOfDay());
+            } catch (Partner.InvalidImportedCreditLimitException ex) {
+                heldParseFailureRows++;
+                addRejectSample(held, rowNo, "INPUT_VALIDATION", cells[0], cells[4]);
+                updateStagingStatus(parsed.sourceFileHash(), rowNo, "PENDING", "INPUT_VALIDATION", null);
+                log.warn("MIG-1 XLSX import 행 입력 검증 실패 — row={} partnerCode={} reason=INPUT_VALIDATION",
+                        rowNo, cells[0], ex);
+                continue;
             } catch (DataAccessException ex) {
                 String reason = failureReason(ex);
                 if ("DB_CONSTRAINT".equals(reason)) {
