@@ -976,6 +976,7 @@ const MOCK_SLIPS = [
     slipDate: '2026-05-04',
     seqNo: 1,
     status: 'PROCESSING',
+    lockFlag: false,
     partnerId: 'p001',
     partnerName: '주식회사 윌리-정현수',
     sourceWarehouseId: HQ_ID,
@@ -1010,6 +1011,7 @@ const MOCK_SLIPS = [
     slipDate: '2026-05-04',
     seqNo: 2,
     status: 'CONFIRMED',
+    lockFlag: true,
     partnerId: 'p002',
     partnerName: '○○종합건설',
     sourceWarehouseId: HQ_ID,
@@ -1291,7 +1293,9 @@ const MOCK_TRANSFERS = [
  * PR-3b: `productType` 추가 — "BUNDLE" 이면 세트 옵션 picker 노출.
  * `modelCode` 미지정 시 modelName 을 그대로 사용 (BE ProductSummary 기본값).
  */
-const MOCK_PRODUCT_AJ040_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040'
+// 주문전환 fixture도 product-service dev seed의 실제 master UUID를 사용한다.
+// samhan-seed:product:AR07TXEAAWKNEU-03 (DB 간 참조가 필요한 경로의 synthetic UUID 금지)
+export const MOCK_PRODUCT_AJ040_ID = '2e40fa30-10b2-3a9b-a99c-570ac92287ad'
 const MOCK_PRODUCT_MWR10_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb010'
 
 const MOCK_PRODUCTS_BY_MODEL: Record<
@@ -1992,7 +1996,7 @@ const MOCK_PRODUCT_CATEGORIES = [
 const SAMPLE_LINES = [
   {
     id: 'line-001',
-    productId: 'p-aj040',
+    productId: MOCK_PRODUCT_AJ040_ID,
     productName: '시스템에어컨 4Way 4HP',
     modelName: 'AJ040RXH4BC1',
     specification: '4HP', // Slice A
@@ -2045,7 +2049,7 @@ const SAMPLE_LINES = [
 const SAMPLE_TRANSFER_LINES = [
   {
     id: 'tline-001',
-    productId: 'p-aj040',
+    productId: MOCK_PRODUCT_AJ040_ID,
     requestedQuantity: 5,
     shippedQuantity: 0,
     receivedQuantity: 0,
@@ -5133,6 +5137,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const id = slipTransitionMatch[1]!
     const action = slipTransitionMatch[2]!
     const found = MOCK_SLIPS.find((s) => s.id === id) ?? MOCK_SLIPS[0]!
+    if (found.lockFlag === true && (action === 'cancel' || action === 'reject')) {
+      return mockError(409, 'CONFLICT', '회계 마감으로 잠긴 전표는 취소·반려할 수 없습니다.')
+    }
     const nextStatus: Record<string, string> = {
       save: 'SAVED',
       send: 'SENT',
@@ -5356,7 +5363,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // 창고 코드 → { totalQty, reservedQty }. null/미존재 코드는 balances 에서 제외 (잔량 row 없음).
     // Phase 2.6c: reservedQty 필드 추가 — availableQty = totalQty - reservedQty.
     const mockPerProduct: Record<string, Record<string, { total: number; reserved: number }>> = {
-      'p-aj040': { 'HQ-001': { total: 12, reserved: 2 }, 'VH-001': { total: 3, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
+      [MOCK_PRODUCT_AJ040_ID]: { 'HQ-001': { total: 12, reserved: 2 }, 'VH-001': { total: 3, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
       'p-aj052': { 'HQ-001': { total: 5, reserved: 1 }, 'VH-001': { total: 2, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
       'p-aj036': { 'HQ-001': { total: 8, reserved: 0 }, 'VH-001': { total: 0, reserved: 0 }, 'CS-001': { total: 1, reserved: 0 } },
       'p-aj100': { 'HQ-001': { total: 2, reserved: 2 }, 'VH-001': { total: 0, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
@@ -5396,9 +5403,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && url.includes('/inventory/balances') && !url.includes('/batch')) {
     const mockRows = [
       // 본사창고 HQ: AJ040 — 예약 3건 (주문 전환 중)
-      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 9, reservedQty: 3, totalQty: 12 },
+      { productId: MOCK_PRODUCT_AJ040_ID, productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 9, reservedQty: 3, totalQty: 12 },
       // 차량창고 VH: AJ040 — 예약 1건 (당일 출고 전환 중)
-      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 2, reservedQty: 1, totalQty: 3 },
+      { productId: MOCK_PRODUCT_AJ040_ID, productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 2, reservedQty: 1, totalQty: 3 },
       // 본사창고 HQ: AJ052 — 예약 1건
       { productId: 'p-aj052', productCode: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 4, reservedQty: 1, totalQty: 5 },
       // 차량창고 VH: AJ052 — 예약 2건 (전환 대기)
@@ -12378,7 +12385,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       poId === 'ord-partially-converted'
         ? [
             {
-              productId: 'p-aj040',
+              productId: MOCK_PRODUCT_AJ040_ID,
               lineId: 'line-po-001',
               modelCode: 'AJ040RXH4BC1',
               productName: '실외기',
@@ -12410,7 +12417,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           ]
         : [
             {
-              productId: 'p-aj040',
+              productId: MOCK_PRODUCT_AJ040_ID,
               lineId: 'line-po-001',
               modelCode: 'AJ040RXH4BC1',
               productName: '실외기',
@@ -12740,7 +12747,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         expandedComponents: [],
       }
       const singleLine = {
-        productId: 'p-aj040',
+        productId: MOCK_PRODUCT_AJ040_ID,
         lineId: 'line-bundle-002',
         modelCode: 'AJ040RXH4BC1',
         productName: '실외기',
@@ -15588,7 +15595,7 @@ const MOCK_INVENTORY_AUDITS = [
     auditorName: '홍지수',
     note: '5월 정기 실사 (1차)',
     lines: [
-      { productId: 'p-aj040', modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 12, actualQty: 12, adjustQty: 0 },
+      { productId: MOCK_PRODUCT_AJ040_ID, modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 12, actualQty: 12, adjustQty: 0 },
       { productId: 'p-aj052', modelName: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', expectedQty: 5, actualQty: 4, adjustQty: -1 },
       { productId: 'p-mwr10', modelName: 'MWR-WE10N', productName: '유선 리모컨', expectedQty: 45, actualQty: 47, adjustQty: 2 },
     ],
@@ -15604,7 +15611,7 @@ const MOCK_INVENTORY_AUDITS = [
     auditorName: '김기철',
     note: '차량 재고 실사 — 진행 중',
     lines: [
-      { productId: 'p-aj040', modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 3, actualQty: 3, adjustQty: 0 },
+      { productId: MOCK_PRODUCT_AJ040_ID, modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 3, actualQty: 3, adjustQty: 0 },
       { productId: 'p-mwr10', modelName: 'MWR-WE10N', productName: '유선 리모컨', expectedQty: 10, actualQty: 9, adjustQty: -1 },
     ],
   },
@@ -17118,7 +17125,7 @@ const MOCK_ESTIMATE_DETAIL_LINES = [
   {
     id: 'eline-001',
     lineNo: 0,
-    productId: 'p-aj040',
+    productId: MOCK_PRODUCT_AJ040_ID,
     productName: '시스템에어컨 4Way 4HP',
     modelName: 'AJ040RXH4BC1',
     specification: '\u20604HP',

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -63,19 +64,28 @@ public class DeliveryBatchSeeder implements CommandLineRunner {
     /** SHIPPING+ 단계 = batch 매핑 후보 슬립 (driver 정보 보유). */
     private static final Set<SlipStatus> BATCH_ELIGIBLE_STATUSES = EnumSet.of(
             SlipStatus.SHIPPING, SlipStatus.DELIVERED, SlipStatus.CONFIRMED);
+    private static final Map<SlipStatus, List<String>> BATCH_SEED_SLIP_NOS_BY_STATUS =
+            SlipSeeder.batchEligibleSeedSlipNosByStatus();
 
     private final DeliveryBatchRepository batchRepository;
     private final SlipRepository slipRepository;
+    private final SeedDependencyState dependencyState;
 
     public DeliveryBatchSeeder(DeliveryBatchRepository batchRepository,
-                               SlipRepository slipRepository) {
+                               SlipRepository slipRepository, SeedDependencyState dependencyState) {
         this.batchRepository = batchRepository;
         this.slipRepository = slipRepository;
+        this.dependencyState = dependencyState;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
+        if (!dependencyState.isSlipSeedSucceeded()) {
+            log.error("[DeliveryBatchSeeder] 시딩을 건너뜁니다 — 선행 SlipSeeder가 성공하지 않았습니다. 상태={}",
+                    dependencyState.slipSeedStatus());
+            return;
+        }
         log.info("[DeliveryBatchSeeder] Stage 2 시드 시작 — 30 batch (driver 10명 × 3 batch)");
 
         int created = 0;
@@ -86,11 +96,12 @@ public class DeliveryBatchSeeder implements CommandLineRunner {
         // COMPLETED(SMS) = batch + markSmsSent  (의미상 "발송 완료")
         // EXPIRED        = batch + markSmsFailed (token 만료 + 실패 기록)
 
-        // 슬립 매핑 풀 — SHIPPING/DELIVERED/CONFIRMED 단계 OUTBOUND 슬립.
+        // 슬립 매핑 풀 — SlipSeeder가 만든 SHIPPING/DELIVERED/CONFIRMED OUTBOUND 슬립.
         List<Slip> mappableSlips = new ArrayList<>();
         for (SlipStatus s : BATCH_ELIGIBLE_STATUSES) {
-            slipRepository.findAllByStatusAndIsDeletedFalse(s,
-                    org.springframework.data.domain.Pageable.unpaged())
+            slipRepository.findAllBySlipTypeAndSlipNoInAndCreatedByAndStatusAndIsDeletedFalse(
+                    SlipType.OUTBOUND, BATCH_SEED_SLIP_NOS_BY_STATUS.getOrDefault(s, List.of()),
+                    "system", s)
                     .stream()
                     .filter(sl -> sl.getSlipType() == SlipType.OUTBOUND)
                     .filter(sl -> sl.getDriverPhone() != null && !sl.getDriverPhone().isBlank())

@@ -81,6 +81,21 @@ function sourceRow(
   }
 }
 
+function fractionalSourceRow(type: 'OUTBOUND' | 'INBOUND', partner: typeof PARTNER_A, suffix: string) {
+  return {
+    ...sourceRow(type, partner, suffix),
+    lines: [{
+      lineId: `line-${suffix}`,
+      lineNo: 1,
+      productCode: 'SKU-FRACTIONAL',
+      productName: '?먯닔 ?덈ぉ',
+      quantity: 0.08,
+      unitPrice: '434788',
+      lineTotal: '34783',
+    }],
+  }
+}
+
 function renderPage(kind: 'sales' | 'purchase') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const Page = kind === 'sales' ? SalesAccountingSlipFormPage : PurchaseAccountingSlipFormPage
@@ -119,6 +134,24 @@ describe.each([
   ['sales', 'OUTBOUND', 'sales-accounting-slip-form-page', 'sales'],
   ['purchase', 'INBOUND', 'purchase-accounting-slip-form-page', 'purchase'],
 ] as const)('%s accounting allocation partner contract', (kind, sourceType, testId, mutationKind) => {
+  it('uses whole-won display convention without changing the precise saved calculation', async () => {
+    mocks.listSources.mockResolvedValue([
+      fractionalSourceRow(sourceType, PARTNER_A, `${mutationKind}-fractional`),
+    ])
+
+    renderPage(kind)
+    await allocateEverySourceRow()
+
+    const pageText = screen.getByTestId(testId).textContent ?? ''
+    expect(pageText).toContain('34,783')
+    expect(pageText).not.toContain('34,783.04')
+
+    fireEvent.click(submitButton(testId))
+    const mutation = mutationKind === 'sales' ? mocks.createSales : mocks.createPurchase
+    await waitFor(() => expect(mutation).toHaveBeenCalledTimes(1))
+    expect(mutation.mock.calls[0]![0].lines[0].unitPrice).toBe('434788')
+  })
+
   it('derives header partnerId/code/name from multiple same-partner sources', async () => {
     mocks.listSources.mockResolvedValue([
       sourceRow(sourceType, PARTNER_A, `${mutationKind}-a`),

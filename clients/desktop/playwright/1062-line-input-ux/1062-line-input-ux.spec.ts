@@ -7,6 +7,8 @@
  */
 import { expect, test } from '@playwright/test'
 
+const MOCK_PRODUCT_AJ040_ID = '2e40fa30-10b2-3a9b-a99c-570ac92287ad'
+
 test.describe('PR #1063 전표 라인 입력 UX mock', () => {
   test('후보 2건 이상은 UUID 없이 읽을 수 있는 품목 표 모달을 연다', async ({ page }) => {
     await page.goto('/#/inventory/safety-stock-alerts?mockRole=MASTER', {
@@ -26,7 +28,7 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
     await expect(dialog.getByRole('columnheader', { name: '단가' })).toBeVisible()
     await expect(dialog.getByText('AJ040RXH4BC1', { exact: true })).toBeVisible()
     await expect(dialog.getByText('1,850,000원', { exact: true })).toBeVisible()
-    await expect(dialog).not.toContainText('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040')
+    await expect(dialog).not.toContainText(MOCK_PRODUCT_AJ040_ID)
 
     await dialog.screenshot({ path: test.info().outputPath('01-product-selection-modal.png') })
 

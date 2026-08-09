@@ -1,0 +1,17 @@
+PR #1129 R7 SOL 라이브QA 환경 확인 절
+
+측정 시각: 2026-08-09 09:33:46 KST
+HEAD: cdcdcb485a178a294a47aa49611db8aae2589e78
+renderer: http://127.0.0.1:5219 (HTTP 200)
+renderer source: 이 워크트리 vite.renderer.dev.config.ts
+VITE_MOCK_MODE: 미설정 (mock OFF)
+VITE_API_BASE_URL: http://127.0.0.1:8080
+gateway health: HTTP 200
+auth health: HTTP 200
+slip health: HTTP 200 (127.0.0.1:18086)
+공유 slip-service profile: dev
+공유 slip-service SAMHAN_SLIP_SEED_TEST_DATA: 미주입
+
+공유 DB는 PGOPTIONS=--default_transaction_read_only=on 및 BEGIN READ ONLY로만 조회했다.
+상태 변경 API, INSERT, UPDATE, DELETE는 실행하지 않았다.
+

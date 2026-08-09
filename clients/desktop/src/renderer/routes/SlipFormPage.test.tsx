@@ -499,6 +499,21 @@ describe('SlipFormPage price memory autofill', () => {
     expect(screen.getByTestId('line-1').getAttribute('data-discount-info')).toBe('')
     expect(screen.getByTestId('line-1').getAttribute('data-lookup-loading')).toBe('true')
     expect(screen.getByTestId('slip-price-refresh-banner').textContent).toBe('')
+
+    // 이 테스트가 남긴 현재 A 거래처 DC Promise도 여기서 닫는다. cleanup은
+    // unmount만 수행하므로, 미해결로 남기면 제품의 5초 timeout 뒤 이전 렌더가
+    // 새 테스트의 module-level 가격 mock을 호출할 수 있다.
+    let currentPartnerDcSettled = false
+    await act(async () => {
+      pendingCurrentPartnerDc.resolve(null)
+      await pendingCurrentPartnerDc.promise
+      currentPartnerDcSettled = true
+    })
+    expect(currentPartnerDcSettled).toBe(true)
+    await waitFor(() => expect(harness.getPriceMemories).toHaveBeenCalledWith(
+      harness.partnerA.id,
+      [harness.productA.id],
+    ))
   })
 
   it('ignores a late response when the same line changes to another product', async () => {
@@ -2324,17 +2339,26 @@ describe('SlipFormPage 모바일 라인 카드 aria-describedby (MED-1)', () => 
 
   // 데스크톱 케이스 '둘 다'(REMEMBERED + 변경 → IDREF 2)와 대응 — 복수 IDREF 병합의 핵심 회귀 가드.
   it('둘 다: 단가 input IDREF 는 "priceStatusId priceChangedStatusId" 복수를 순서대로 가리킨다', async () => {
-    harness.getPriceMemory.mockResolvedValueOnce({
-      unitPrice: 100000,
-      source: 'LINE_SAVE',
-      updatedAt: '2026-07-10T09:00:00',
+    // 응답은 전역 호출 순서가 아니라 거래처·품목 인자에 귀속시킨다. 선행
+    // 테스트의 늦은 A 호출이 있어도 현재 B의 200000 응답을 선소비할 수 없다.
+    harness.getPriceMemory.mockImplementation((partnerId: string, productId: string) => {
+      if (partnerId === harness.partnerA.id && productId === harness.productA.id) {
+        return Promise.resolve({
+          unitPrice: 100000,
+          source: 'LINE_SAVE',
+          updatedAt: '2026-07-10T09:00:00',
+        })
+      }
+      return Promise.resolve(null)
     })
-    harness.getPriceMemories.mockResolvedValueOnce({ hits: [{
-      productId: harness.productA.id,
-      unitPrice: 200000,
-      source: 'LINE_SAVE',
-      updatedAt: '2026-07-11T09:00:00',
-    }], failedProductIds: [] })
+    const partnerBPrice = deferred<{
+      hits: Array<{ productId: string; unitPrice: number; source: string; updatedAt: string }>
+      failedProductIds: string[]
+    }>()
+    harness.getPriceMemories.mockImplementation((partnerId: string) => {
+      if (partnerId === harness.partnerB.id) return partnerBPrice.promise
+      return Promise.resolve({ hits: [], failedProductIds: [] })
+    })
     renderMobilePage()
     await selectPartnerA()
     fireEvent.click(screen.getByTestId('select-product-a-1'))
@@ -2345,6 +2369,16 @@ describe('SlipFormPage 모바일 라인 카드 aria-describedby (MED-1)', () => 
       harness.partnerB.id,
       [harness.productA.id],
     ))
+
+    await act(async () => {
+      partnerBPrice.resolve({ hits: [{
+        productId: harness.productA.id,
+        unitPrice: 200000,
+        source: 'LINE_SAVE',
+        updatedAt: '2026-07-11T09:00:00',
+      }], failedProductIds: [] })
+      await partnerBPrice.promise
+    })
     await waitFor(() => expect(mobileUnitPrice().value).toBe('200000'))
     await waitFor(() => expect(screen.getByText('단가 변경')).toBeTruthy())
 
