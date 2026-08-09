@@ -34,6 +34,8 @@ import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.input.BOMInputStream;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -111,6 +113,11 @@ public class EcountPartnerImporter {
     private final PartnerRepository partnerRepository;
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final CollectionRealtimePublisher collectionRealtimePublisher;
+
+    /** 행 단위 UPSERT를 Spring 트랜잭션 프록시로 호출하기 위한 자기 참조. */
+    @Lazy
+    @Autowired
+    private EcountPartnerImporter transactionalProxy;
 
     /**
      * CSV 스트림을 적재한다.
@@ -197,7 +204,7 @@ public class EcountPartnerImporter {
                                 rawPartnerCode, rawName);
                     }
                     case NORMAL -> {
-                        UpsertResult ur = upsertPartner(cells, c.effectiveCode);
+                        UpsertResult ur = upsertPartnerInRowTransaction(cells, c.effectiveCode);
                         if (ur.isNew) {
                             imported++;
                         } else {
@@ -287,7 +294,7 @@ public class EcountPartnerImporter {
             else registrationDateParsedCount++;
             // 유효한 등록일자는 created_at과 registration_date에 함께 보존한다.
             // 공란/실패는 registration_date=null, created_at=이번 배치의 단일 적재 시각이다.
-            UpsertResult result = upsertPartner(cells, classification.effectiveCode,
+            UpsertResult result = upsertPartnerInRowTransaction(cells, classification.effectiveCode,
                     registrationDate, registrationDate == null ? loadTimestamp : registrationDate.atStartOfDay());
             if (result.isNew) imported++; else updated++;
             if (result.status == PartnerStatus.ACTIVE) activeCount++; else if (result.status == PartnerStatus.SUSPENDED) suspendedCount++;
@@ -528,6 +535,20 @@ public class EcountPartnerImporter {
     // ============================================================
     // partner UPSERT
     // ============================================================
+
+    /** 적재 진입점에서 호출하는 행 단위 트랜잭션 경계. 단위 테스트의 직접 인스턴스도 지원한다. */
+    private UpsertResult upsertPartnerInRowTransaction(String[] cells, String effectiveCode) {
+        EcountPartnerImporter target = transactionalProxy == null ? this : transactionalProxy;
+        return target.upsertPartner(cells, effectiveCode);
+    }
+
+    /** 적재 진입점에서 호출하는 행 단위 트랜잭션 경계. 단위 테스트의 직접 인스턴스도 지원한다. */
+    private UpsertResult upsertPartnerInRowTransaction(String[] cells, String effectiveCode,
+                                                       LocalDate registrationDate,
+                                                       LocalDateTime createdAt) {
+        EcountPartnerImporter target = transactionalProxy == null ? this : transactionalProxy;
+        return target.upsertPartner(cells, effectiveCode, registrationDate, createdAt);
+    }
 
     /**
      * 거래처 UPSERT — partner_code 기준 (= 거래처코드 = bizNo).

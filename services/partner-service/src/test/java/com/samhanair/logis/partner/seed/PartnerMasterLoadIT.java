@@ -3,9 +3,15 @@ package com.samhanair.logis.partner.seed;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.partner.PartnerServiceApplication;
+import com.samhanair.logis.partner.domain.Partner;
+import com.samhanair.logis.partner.domain.PartnerCreditHistory;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
 import com.samhanair.logis.partner.it.AbstractPostgresIT;
+import com.samhanair.logis.partner.repository.PartnerCreditHistoryRepository;
+import com.samhanair.logis.partner.repository.PartnerRepository;
 import com.samhanair.logis.partner.service.EcountPartnerImporter;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -13,18 +19,29 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 
 /**
  * #896 실제 XLSX 정본을 일회용 Testcontainers PostgreSQL에 두 번 적재하는 멱등성 관문.
  * 공유 DB 접속 정보는 사용하지 않으며, 컨테이너 종료 시 데이터가 함께 회수된다.
  */
 @SpringBootTest(classes = PartnerServiceApplication.class)
+@AutoConfigureMockMvc
 class PartnerMasterLoadIT extends AbstractPostgresIT {
 
     private static final Path SOURCE = locateSource();
@@ -44,6 +61,26 @@ class PartnerMasterLoadIT extends AbstractPostgresIT {
 
     @Autowired
     private NamedParameterJdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PartnerRepository partnerRepository;
+
+    @Autowired
+    private PartnerCreditHistoryRepository partnerCreditHistoryRepository;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
+    @BeforeEach
+    void allowAdminActions() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
+    }
 
     @BeforeEach
     void cleanOneShotDatabase() {
@@ -124,12 +161,94 @@ class PartnerMasterLoadIT extends AbstractPostgresIT {
         assertThat(second).isEqualTo(first);
     }
 
+    @Test
+    void RED_A_관리자_삭제_후_같은_코드_재적재는_원래_UUID를_복원해야한다() throws Exception {
+        String code = "RED-UUID-RESTORE";
+        importer.importCsv(csv(code, "20230814", "10"), "r6-it");
+        String beforeUuid = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM partners WHERE partner_code = :code AND is_deleted = false",
+                new MapSqlParameterSource("code", code), String.class);
+
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/{partnerCode}", code)
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000102")
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk());
+
+        importer.importCsv(csv(code, "20230814"), "r6-it");
+
+        String state = jdbcTemplate.queryForObject(
+                "SELECT string_agg(id::text || '|' || is_deleted::text, ',' ORDER BY is_deleted, id) "
+                        + "FROM partners WHERE partner_code = :code",
+                new MapSqlParameterSource("code", code), String.class);
+        String activeUuid = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM partners WHERE partner_code = :code AND is_deleted = false",
+                new MapSqlParameterSource("code", code), String.class);
+        System.out.println("RED-A SELECT partner_code='" + code + "' before_uuid=" + beforeUuid
+                + " active_uuid=" + activeUuid + " rows=" + state);
+
+        assertThat(activeUuid).isEqualTo(beforeUuid);
+        assertThat(state).isEqualTo(beforeUuid + "|false");
+    }
+
+    @Test
+    void RED_B_삭제행을_참조하던_FK_자식은_재적재_후_고아가_되지_않는다() throws Exception {
+        String code = "RED-FK-RESTORE";
+        importer.importCsv(csv(code, "20230814", "10"), "r6-it");
+        Partner original = partnerRepository.findByPartnerCode(code).orElseThrow();
+        partnerCreditHistoryRepository.save(
+                PartnerCreditHistory.creditLimitChange(original, java.math.BigDecimal.TEN, "r6-it"));
+
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/{partnerCode}", code)
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000102")
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk());
+        importer.importCsv(csv(code, "20230814", "10"), "r6-it");
+
+        Integer orphanReferenceRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_credit_history h "
+                        + "WHERE h.partner_id <> (SELECT p.id FROM partners p "
+                        + "WHERE p.partner_code = :code AND p.is_deleted = false)",
+                new MapSqlParameterSource("code", code), Integer.class);
+        Integer referenceRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_credit_history h "
+                        + "JOIN partners p ON p.id = h.partner_id WHERE p.partner_code = :code",
+                new MapSqlParameterSource("code", code), Integer.class);
+        System.out.println("RED-B SELECT orphan_reference_rows=" + orphanReferenceRows
+                + " reference_rows=" + referenceRows + " partner_code='" + code + "'");
+
+        assertThat(referenceRows).isEqualTo(1);
+        assertThat(orphanReferenceRows).isZero();
+    }
+
+    @Test
+    void RED_C_비활성_거래처는_파일의_YES만으로_활성화되지_않는다() {
+        String code = "RED-STATUS-PRESERVE";
+        importer.importCsv(csv(code, "20230814", "", "NO"), "r6-it");
+        importer.importCsv(csv(code, "20230814", "", "YES"), "r6-it");
+
+        String statusValue = jdbcTemplate.queryForObject(
+                "SELECT status::text FROM partners WHERE partner_code = :code AND is_deleted = false",
+                new MapSqlParameterSource("code", code), String.class);
+        System.out.println("RED-C SELECT status FROM partners WHERE partner_code='" + code
+                + "' => " + statusValue);
+        assertThat(statusValue).isEqualTo("SUSPENDED");
+    }
+
     private ByteArrayInputStream csv(String code, String registrationDate) {
+        return csv(code, registrationDate, "", "YES");
+    }
+
+    private ByteArrayInputStream csv(String code, String registrationDate, String creditLimit) {
+        return csv(code, registrationDate, creditLimit, "YES");
+    }
+
+    private ByteArrayInputStream csv(String code, String registrationDate, String creditLimit,
+                                     String usageFlag) {
         String value = "\uFEFF\"데이터관리>거래처-Excel다운로드\"\n"
                 + "\"거래처코드\t\",\"등록일자\t\",\"담당자명\t\",\"종사업장번호\t\",\"거래처명\t\","
                 + "\"대표자명\t\",\"주소1\t\",\"전화번호\t\",\"핸드폰번호\t\",\"검색창내용\t\","
                 + "\"특이사항\t\",\"그룹\t\",\"사용구분\t\",\"이체정보\t\",\"여신한도\t\",\"최초작성일자\t\",\"\"\n"
-                + String.format("\"%s\t\",\"%s\t\",\"담당자\t\",\"\t\",\"R3 거래처\t\",\"대표\t\",\"서울\t\",\"\t\",\"\t\",\"\t\",\"\t\",\"일반업체\t\",\"YES\t\",\"등록\t\",\"\t\",\"\t\",\"\"\n", code, registrationDate);
+                + String.format("\"%s\t\",\"%s\t\",\"담당자\t\",\"\t\",\"R3 거래처\t\",\"대표\t\",\"서울\t\",\"\t\",\"\t\",\"\t\",\"\t\",\"일반업체\t\",\"%s\t\",\"등록\t\",\"%s\t\",\"\t\",\"\"\n", code, registrationDate, usageFlag, creditLimit);
         return new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8));
     }
 
