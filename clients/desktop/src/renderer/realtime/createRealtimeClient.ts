@@ -15,6 +15,7 @@
  * })
  */
 import { apiClient } from '../api/client'
+import { isMockMode } from '../api/mock'
 import { getAuthProvider, isElectronPlatform } from '../auth/authProvider'
 
 /** SSE 1 이벤트의 파싱된 형태. */
@@ -62,6 +63,10 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
     onEvent: RealtimeHandler,
   ): AbortController {
     const controller = new AbortController()
+
+    // mock fixture에는 SSE 서버가 없으므로 공통 raw fetch 경계를 열지 않는다.
+    // 모든 도메인 realtime client가 같은 no-op/abort cleanup 계약을 유지한다.
+    if (isMockMode()) return controller
 
     let backoffMs = BACKOFF_INITIAL_MS
     let lastEventAt = Date.now()
