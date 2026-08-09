@@ -40,13 +40,19 @@ class ProductSummaryResponseTest {
     }
 
     @Test
-    void goodsType_isSerializedInSearchResponseContract() throws Exception {
-        ProductSummaryResponse response = new ProductSummaryResponse(
-                UUID.randomUUID(), "비상품", "NON-GOODS-001", UUID.randomUUID(),
-                null, null);
+    void from_nonGoods_isSerializedAsNonGoodsInSearchResponseContract() throws Exception {
+        Product product = mock(Product.class);
+        Category category = mock(Category.class);
+        when(product.getCategory()).thenReturn(category);
+        when(category.getId()).thenReturn(UUID.randomUUID());
+        when(product.getGoodsType()).thenReturn(ProductGoodsType.NON_GOODS);
 
-        assertThat(new ObjectMapper().readTree(new ObjectMapper().writeValueAsString(response))
-                .get("goodsType").asText()).isEqualTo("GOODS");
+        ProductSummaryResponse response = ProductSummaryResponse.from(product);
+        String json = new ObjectMapper().writeValueAsString(response);
+
+        assertThat(new ObjectMapper().readTree(json).get("goodsType")).isNotNull();
+        assertThat(new ObjectMapper().readTree(json).get("goodsType").asText())
+                .isEqualTo("NON_GOODS");
     }
 
     @Test

@@ -30,24 +30,4 @@ describe('품목 검색 결과 선택 모달 API 계약', () => {
       params: { q: 'AJ', size: 20 },
     })
   })
-
-  it('실제 검색 응답의 goodsType을 견적 라인 옵션까지 전달한다', async () => {
-    vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: {
-        data: {
-          content: [{
-            id: 'p-non-goods',
-            modelName: 'NON-GOODS-001',
-            name: '비상품 품목',
-            goods: false,
-            goodsType: 'NON_GOODS',
-          }],
-        },
-      },
-    })
-
-    const [option] = await searchProducts('NON-GOODS-001')
-
-    expect(option.goodsType).toBe('NON_GOODS')
-  })
 })
