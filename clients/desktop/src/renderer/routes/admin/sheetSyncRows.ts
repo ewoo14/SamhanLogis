@@ -27,7 +27,7 @@ export interface SheetSyncRow {
 }
 
 export function buildSheetSyncRows(summary: SheetSyncSummary): SheetSyncRow[] {
-  const rows = Object.entries(summary.byTab ?? {}).map(([tabName, result]) => ({
+  const rows: SheetSyncRow[] = Object.entries(summary.byTab ?? {}).map(([tabName, result]) => ({
     tabName,
     kind: 'product' as const,
     result: normalizeResult(result),

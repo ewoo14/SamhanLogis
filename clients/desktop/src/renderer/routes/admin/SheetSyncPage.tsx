@@ -42,10 +42,9 @@ import {
   getLastSync,
   triggerSync,
   type SyncSummary,
-  type TabSyncResult,
 } from '../../api/sheetSyncApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { buildSheetSyncRows } from './sheetSyncRows'
+import { buildSheetSyncRows, type SheetSyncRowResult } from './sheetSyncRows'
 
 const LAST_QUERY_KEY = ['admin', 'sheet-sync', 'last'] as const
 
@@ -334,7 +333,7 @@ function TotalChip({ label, value, tone }: TotalChipProps) {
   )
 }
 
-function formatTabRemark(result: TabSyncResult): string {
+function formatTabRemark(result: SheetSyncRowResult): string {
   if (result.error) return result.error
   const parts: string[] = []
   if (result.unchangedRows) parts.push(`변경 없음 ${result.unchangedRows}`)

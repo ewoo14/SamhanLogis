@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ComponentSyncResult } from '../../../api/sheetSyncApi'
 import { buildSheetSyncRows, type SheetSyncSummary } from './sheetSyncRows'
 
 const result = (overrides: Record<string, unknown> = {}) => ({
@@ -15,7 +16,7 @@ describe('buildSheetSyncRows', () => {
     const rows = buildSheetSyncRows({
       byTab: {},
       byComponentTab: {
-        구성품: { softDeletedComponentRows: 3 } as never,
+        구성품: { softDeletedComponentRows: 3 } satisfies ComponentSyncResult,
       },
       failedTabs: 0,
     })
