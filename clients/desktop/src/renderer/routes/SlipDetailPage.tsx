@@ -2896,8 +2896,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     (await searchPartners(q, 8)).map(toSlipPartnerOption)
 
   /** 현재 거래처의 PartnerAutocomplete controlled value — 이름이 있으면 표시한다. */
-  const slipPartnerOption = (name: string, bizNo: string, partnerId: string): PartnerOption | null =>
-    name ? { id: partnerId || undefined, partnerCode: bizNo, name, bizNo } : null
+  const slipPartnerOption = (name: string, code: string, bizNo: string, partnerId: string): PartnerOption | null =>
+    name ? { id: partnerId || undefined, partnerCode: code, name, bizNo } : null
 
   const hasUnavailableReprice = Array.from(repriceOutcomeByLineId.values())
     .some((outcome) => outcome.source === 'UNAVAILABLE')
@@ -3050,7 +3050,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <label className="sales-edit-field">
           <span className="detail-label">거래처</span>
           <PartnerAutocomplete
-            value={slipPartnerOption(salesPartnerName, salesBusinessNumber, salesPartnerId)}
+            value={slipPartnerOption(salesPartnerName, salesPartnerCode, salesBusinessNumber, salesPartnerId)}
             onChange={handleSlipPartnerSelect}
             searchPartners={searchSlipPartnerOptions}
             ariaLabel="거래처"
@@ -3386,7 +3386,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <label className="purchase-edit-field">
           <span className="detail-label">거래처</span>
           <PartnerAutocomplete
-            value={slipPartnerOption(purchasePartnerName, purchaseBusinessNumber, purchasePartnerId)}
+            value={slipPartnerOption(purchasePartnerName, purchasePartnerCode, purchaseBusinessNumber, purchasePartnerId)}
             onChange={handleSlipPartnerSelect}
             searchPartners={searchSlipPartnerOptions}
             ariaLabel="거래처"

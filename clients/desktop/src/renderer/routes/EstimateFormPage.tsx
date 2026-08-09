@@ -1097,7 +1097,7 @@ export function EstimateFormPage() {
     const rows = await searchPartners(q, 8)
     return rows.map((row) => ({
       id: row.partnerId ?? undefined,
-      partnerCode: row.businessRegistrationNumber,
+      partnerCode: row.partnerCode ?? '',
       name: row.companyName,
       bizNo: row.businessRegistrationNumber,
       phone: row.contactPhone ?? undefined,
@@ -1157,7 +1157,8 @@ export function EstimateFormPage() {
     }
     handleSelectPartner({
       partnerId: option.id ?? null,
-      businessRegistrationNumber: option.bizNo ?? option.partnerCode,
+      businessRegistrationNumber: option.bizNo ?? '',
+      partnerCode: option.partnerCode,
       companyName: option.name,
       representativeName: null,
       contactPhone: option.phone ?? null,
@@ -1924,7 +1925,7 @@ export function EstimateFormPage() {
             value={partner
               ? {
                   id: partner.partnerId ?? undefined,
-                  partnerCode: partner.businessRegistrationNumber,
+                  partnerCode: partner.partnerCode ?? '',
                   name: partner.companyName,
                   bizNo: partner.businessRegistrationNumber,
                   phone: partner.contactPhone ?? undefined,

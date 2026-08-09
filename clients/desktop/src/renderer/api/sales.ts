@@ -324,7 +324,7 @@ export async function getEstimate(estimateNumber: string): Promise<EstimateDetai
   const e = res.data.data
   return {
     estimateNumber: e.estimateNo,
-    partnerCode: e.partnerBusinessNo ?? '',
+    partnerCode: e.partnerCode ?? '',
     partnerName: e.partnerName,
     category: 'OTHER',
     status: 'DRAFT',
@@ -370,6 +370,7 @@ interface LiveEstimateLineResponse {
 interface LiveEstimateDetailResponse {
   estimateNo: string
   estimateDate: string
+  partnerCode?: string | null
   partnerName: string
   partnerBusinessNo: string | null
   partnerAddress: string | null
@@ -982,7 +983,7 @@ export async function searchPartners(
   return res.data.data.items.map((row) => ({
     partnerId: row.partnerId ?? null,
     partnerCode: row.partnerCode,
-    businessRegistrationNumber: row.bizNo ?? row.partnerCode,
+    businessRegistrationNumber: row.bizNo ?? '',
     companyName: row.name ?? '',
     representativeName: null,
     contactPhone: row.phone,
