@@ -45,7 +45,7 @@ import {
   emptyBundleSetOptions,
   toApiBundleSetOptions,
 } from '../api/slip'
-import { lookupProducts, searchProducts } from '../api/productApi'
+import { isSelectableProductStatus, lookupProducts, searchProducts } from '../api/productApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -1110,10 +1110,12 @@ export function EstimateFormPage() {
    * 후보를 반환하면 절대 실행하지 않는다.
    */
   const searchEstimateProducts = async (q: string): Promise<ProductOption[]> => {
-    const candidates = await searchProducts(q)
+    const candidates = (await searchProducts(q, { usageScope: 'ESTIMATE' }))
+      .filter((candidate) => isSelectableProductStatus(candidate.status))
     if (candidates.length > 0) return candidates
     try {
       const legacy = await lookupProductByModelName(q)
+      if (!isSelectableProductStatus(legacy.status)) return []
       return [{
         id: legacy.productId,
         modelName: legacy.modelName,
@@ -1121,6 +1123,7 @@ export function EstimateFormPage() {
         sellingPrice: Number(legacy.sellingPrice),
         modelCode: legacy.modelCode,
         productType: legacy.productType,
+        status: legacy.status,
       }]
     } catch {
       return []

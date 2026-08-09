@@ -110,7 +110,7 @@ import {
   withPriceLookupTimeout,
   type PartnerRepriceCandidate,
 } from '../utils/usePartnerPriceRefresh'
-import { searchProducts as searchProductsApi } from '../api/productApi'
+import { isSelectableProductStatus, searchProducts as searchProductsApi } from '../api/productApi'
 import { searchPartners as searchPartnersApi } from '../api/partnerApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -2484,7 +2484,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                           modelCode: null,
                         })
                       }}
-                      searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
+                      searchProducts={async (q) => (await searchProductsApi(q, { usageScope: 'PARTNER_ORDER' }))
+                        .filter((candidate) => isSelectableProductStatus(candidate.status))}
                       label=""
                       ariaLabel={`라인 ${idx + 1} 품목`}
                       placeholder="모델명 또는 품목명"
@@ -2564,7 +2565,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                               modelCode: null,
                             })
                           }}
-                          searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
+                          searchProducts={async (q) => (await searchProductsApi(q, { usageScope: 'PARTNER_ORDER' }))
+                            .filter((candidate) => isSelectableProductStatus(candidate.status))}
                           label=""
                           ariaLabel={`라인 ${idx + 1} 품목`}
                           placeholder="모델명 또는 품목명"

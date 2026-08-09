@@ -474,6 +474,7 @@ export interface ProductLookupResult {
   productType?: string
   /** 카탈로그 자동 규격 — 견적 라인 확정 시 저장되는 값. */
   specification?: string | null
+  status?: string | null
 }
 
 interface ProductLookupWireResult {
@@ -484,6 +485,7 @@ interface ProductLookupWireResult {
   modelCode?: string | null
   productType?: string | null
   specification?: string | null
+  status?: string | null
 }
 
 /** 거래처+품목 최근 수동단가 기억 응답 — 단가는 VAT 포함 입력 단가. */
@@ -841,6 +843,7 @@ export async function lookupProductByModelName(
     modelCode: data.modelCode ?? undefined,
     productType: data.productType ?? undefined,
     specification: data.specification ?? undefined,
+    status: data.status ?? null,
   }
 }
 
