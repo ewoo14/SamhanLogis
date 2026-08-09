@@ -103,7 +103,6 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() throws Exception {
         cleanup();
-        syncService.clearHashCacheForTest();
         lenient().doNothing().when(sheetsClient).invalidateCache();
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
         lenient().when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
@@ -163,7 +162,7 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
         assertThat(homeTab).isNotNull();
         assertThat(homeTab.error).isNull();
-        assertThat(homeTab.softDeleted).isZero();
+        assertThat(homeTab.softDeletedProductRows).isZero();
 
         Boolean goneDeleted = jdbcTemplate.queryForObject(
                 "SELECT is_deleted FROM products WHERE model_code = ?", Boolean.class, goneCode);

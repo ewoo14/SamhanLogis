@@ -96,6 +96,11 @@ export function Modal({
   const titleId = title ? `ds-modal-title-${reactId}` : undefined
   const descId = description ? `ds-modal-desc-${reactId}` : undefined
 
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
   // Move focus into modal on open; restore on close.
   useEffect(() => {
     if (!open) return
@@ -141,13 +146,25 @@ export function Modal({
     if (!open || !closeOnEsc) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Modal은 body portal로 렌더되므로 DOM의 마지막 dialog가 현재 최상위 레이어다.
+        // React effect 등록 순서는 부모/자식에 따라 달라질 수 있어 등록 스택을 쓰지 않는다.
+        const dialogs = document.querySelectorAll('[role="dialog"]')
+        const active = document.activeElement
+        const activeInAnotherDialog = Array.from(dialogs).some(
+          (dialog) => dialog !== dialogRef.current && dialog.contains(active),
+        )
+        if (activeInAnotherDialog) return
+        if (dialogs[dialogs.length - 1] !== dialogRef.current && !dialogRef.current?.contains(active)) return
         e.stopPropagation()
-        onClose()
+        e.stopImmediatePropagation()
+        onCloseRef.current()
       }
     }
     document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [open, closeOnEsc, onClose])
+    return () => {
+      document.removeEventListener('keydown', handler)
+    }
+  }, [open, closeOnEsc])
 
   const handleBackdropClick = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>) => {

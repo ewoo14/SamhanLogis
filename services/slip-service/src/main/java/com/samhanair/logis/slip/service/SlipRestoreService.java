@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import com.samhanair.logis.slip.realtime.SlipListRealtime;
 import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
@@ -25,6 +26,7 @@ public class SlipRestoreService {
     private final SlipRepository slipRepository;
     private final SlipLineRepository slipLineRepository;
     private final CollectionRealtimePublisher collectionRealtimePublisher;
+    private final SlipClosedDateGuard closedDateGuard;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -69,6 +71,11 @@ public class SlipRestoreService {
      */
     @Transactional
     public Slip restore(UUID slipId) {
+        return restore(slipId, null);
+    }
+
+    @Transactional
+    public Slip restore(UUID slipId, String requesterId) {
         Slip slip = slipRepository.findByIdIncludingDeleted(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다."));
         // deleteForSales 의 OUTBOUND 타입가드와 대칭 — 복원도 판매전표(OUTBOUND) 전용.
@@ -80,6 +87,7 @@ public class SlipRestoreService {
             slip.getLines().size();
             return slip;
         }
+        closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), requesterId);
         if (slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(slip.getSlipType(), slip.getSlipNo()).isPresent()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 같은 전표번호의 활성 전표가 존재하여 복원할 수 없습니다: " + slip.getSlipNo());

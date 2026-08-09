@@ -177,9 +177,13 @@ public class SafetyStockService {
             int to = Math.min(from + PRODUCT_LOOKUP_BATCH_SIZE, ids.size());
             List<UUID> chunk = ids.subList(from, to);
             try {
-                List<ProductSummary> summaries = productClient.lookup(chunk);
-                for (ProductSummary s : summaries) {
-                    map.put(s.id(), s);
+                List<ProductSummary> summaries = productClient.lookupAllowMissing(chunk);
+                Set<UUID> foundIds = summaries.stream().map(ProductSummary::id).collect(Collectors.toSet());
+                for (ProductSummary s : summaries) map.put(s.id(), s);
+                if (foundIds.size() < chunk.size()) {
+                    List<UUID> missingIds = chunk.stream().filter(id -> !foundIds.contains(id)).toList();
+                    log.warn("findAlerts: product-service가 batch 일부만 반환했습니다 — 식별자 없는 품목만 fallback 처리합니다. 요청={}, 응답={}, missingProductIds={}",
+                            chunk.size(), foundIds.size(), missingIds);
                 }
             } catch (RuntimeException ex) {
                 log.warn("findAlerts: product-service lookup chunk 실패, productCode/modelName fallback null — chunkSize={}, {}",

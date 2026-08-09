@@ -1,0 +1,61 @@
+{
+  "round": "R9",
+  "slipNo": "2026/08/10-9",
+  "memo": "R9 GUI persistence partnerCode businessNumber",
+  "requestPartnerCode": "P-2026-0001",
+  "requestBusinessNumber": "113-07-10031",
+  "responsePartnerCode": "P-2026-0001",
+  "responseBusinessNumber": "113-07-10031",
+  "network": [
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/admin/partners/search",
+      "destination": "gateway-8080"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/price-memory",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "POST",
+      "status": 201,
+      "path": "/slips",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/<redacted-uuid>",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/query",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/admin/partners/search",
+      "destination": "gateway-8080"
+    },
+    {
+      "method": "POST",
+      "status": 200,
+      "path": "/slips/price-memory/bulk",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "PUT",
+      "status": 200,
+      "path": "/slips/<redacted-uuid>",
+      "destination": "SLIP-28206"
+    }
+  ],
+  "ids": "<redacted-uuid>",
+  "credentials": "<redacted>"
+}

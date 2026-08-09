@@ -109,6 +109,7 @@ class ApiGatewayContextLoadIT {
         assertRoutePath(routes, "product-catalog-realtime-v1", "/api/v1/products/catalog-realtime");
         assertRoutePath(routes, "product-fixed-discount-v1", "/api/v1/products/*/fixed-discount");
         assertRoutePath(routes, "product-classification-v1", "/api/v1/products/*/classification");
+        assertRoutePath(routes, "product-goods-type-v1", "/api/v1/products/*/goods-type");
         assertRoutePath(routes, "product-classifications-v1",
                 "/api/v1/classifications", "/api/v1/classifications/**");
 
@@ -118,6 +119,7 @@ class ApiGatewayContextLoadIT {
         assertNoStripPrefix(routes, "product-catalog-realtime-v1");
         assertNoStripPrefix(routes, "product-fixed-discount-v1");
         assertNoStripPrefix(routes, "product-classification-v1");
+        assertNoStripPrefix(routes, "product-goods-type-v1");
         assertNoStripPrefix(routes, "product-classifications-v1");
 
         // (3) 선언 순서 — 세 라우트 모두 generic product-service-v1 보다 먼저 선언.
@@ -127,7 +129,8 @@ class ApiGatewayContextLoadIT {
                 .isGreaterThanOrEqualTo(0);
         for (String id : List.of(
                 "product-components-v1", "product-display-orders-v1", "product-catalog-realtime-v1",
-                "product-fixed-discount-v1", "product-classification-v1", "product-classifications-v1")) {
+                "product-fixed-discount-v1", "product-classification-v1", "product-goods-type-v1",
+                "product-classifications-v1")) {
             assertThat(indexOfRoute(routes, id))
                     .as("%s 는 generic product-service-v1 보다 먼저 선언돼야 한다(선언 순서=우선순위)", id)
                     .isGreaterThanOrEqualTo(0)
@@ -140,6 +143,7 @@ class ApiGatewayContextLoadIT {
         assertHasJwtAuthenticationFilter(routes, "product-catalog-realtime-v1");
         assertHasJwtAuthenticationFilter(routes, "product-fixed-discount-v1");
         assertHasJwtAuthenticationFilter(routes, "product-classification-v1");
+        assertHasJwtAuthenticationFilter(routes, "product-goods-type-v1");
         assertHasJwtAuthenticationFilter(routes, "product-classifications-v1");
     }
 
@@ -360,6 +364,7 @@ class ApiGatewayContextLoadIT {
                 "/admin/external-carriers", "/admin/external-carriers/**",
                 "/admin/external-dispatches", "/admin/external-dispatches/**",
                 "/admin/slip-cutoffs", "/admin/slip-cutoffs/**",
+                "/admin/slip-closing-baselines", "/admin/slip-closing-baselines/**",
                 "/admin/dispatch-groups", "/admin/dispatch-groups/**",
                 "/admin/carriers", "/admin/carriers/**",
                 "/admin/dispatches/pre-classify");

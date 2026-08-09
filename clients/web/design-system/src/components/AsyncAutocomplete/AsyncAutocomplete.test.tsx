@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { Modal } from '../Modal/Modal'
 import { AsyncAutocomplete } from './AsyncAutocomplete'
 
 interface Option {
@@ -9,6 +10,34 @@ interface Option {
 }
 
 describe('AsyncAutocomplete', () => {
+  it('opt-in contract: one candidate is confirmed immediately without opening a modal', async () => {
+    const onChange = vi.fn()
+    const search = vi.fn().mockResolvedValue([{ id: 'P-001', label: '삼한상사' }])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="거래처 목록"
+        ariaLabel="거래처"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '거래처' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '삼한' } })
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ id: 'P-001', label: '삼한상사' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('결과 모달로 이동하는 blur에서는 소비자 exact lookup을 호출하지 않는다', async () => {
     const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
       { id: 'first', label: 'AJ 첫 품목' },
@@ -907,6 +936,122 @@ describe('AsyncAutocomplete', () => {
     expect(screen.queryByRole('option')).toBeNull()
   })
 
+  it('does not auto-confirm during a native IME composition, then confirms after compositionend', async () => {
+    const only: Option = { id: 'only', label: 'HQ-001 · 본사창고' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([only])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="창고 목록"
+        ariaLabel="창고"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.compositionStart(input)
+    fireEvent.input(input, {
+      target: { value: '본' },
+      data: '본',
+      inputType: 'insertCompositionText',
+      isComposing: true,
+    })
+    fireEvent.compositionUpdate(input, { data: '본' })
+
+    await waitFor(() => expect(search).toHaveBeenCalledWith('본'))
+    await waitFor(() => expect(input.value).toBe('본'))
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.compositionEnd(input)
+    fireEvent.input(input, {
+      target: { value: '본사' },
+      data: '사',
+      inputType: 'insertText',
+      isComposing: false,
+    })
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(only))
+    expect(input.value).toBe(only.label)
+  })
+
+  it('does not overwrite a user selection when an async auto-confirmation resolves', async () => {
+    const only: Option = { id: 'only', label: '00003S · 모델' }
+    let resolveSearch: ((items: Option[]) => void) | undefined
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>(
+      () => new Promise((resolve) => { resolveSearch = resolve }),
+    )
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="모델명"
+        resultSelectionMode="single"
+        autoSelectSingleResult
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '모델명' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '00003S' } })
+    await waitFor(() => expect(search).toHaveBeenCalledWith('00003S'))
+    await waitFor(() => expect(resolveSearch).toBeDefined())
+
+    input.setSelectionRange(0, 1)
+    await act(async () => {
+      resolveSearch?.([only])
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(only))
+    await waitFor(() => expect(input.value).toBe(only.label))
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe(1)
+  })
+
+  it('does not restore the committed label when Escape is pressed during composition', () => {
+    const selected: Option = { id: 'selected', label: '기존 선택' }
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={selected}
+        onChange={vi.fn()}
+        search={vi.fn().mockResolvedValue([])}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="목록"
+        ariaLabel="입력"
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '입력' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: '기존 선' } })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true })
+
+    expect(input.value).toBe('기존 선')
+  })
+
   it('R23 RED-A2 후보 1건은 단일 선택 모달 없이 종전 listbox 선택을 유지한다', async () => {
     const only: Option = { id: 'only', label: '유일 품목' }
     const onChange = vi.fn()
@@ -937,6 +1082,52 @@ describe('AsyncAutocomplete', () => {
 
     expect(onChange).toHaveBeenCalledWith(only)
   })
+
+  it.each([33, 140])(
+    'A2 단일 후보 자동확정 후 %dms 뒤 입력은 suffix를 덮어쓰고 정상 입력을 보존한다',
+    async (delay) => {
+      const only: Option = { id: 'only', label: 'HQ-001 · 본사 창고' }
+      const onChange = vi.fn()
+
+      function ControlledAutocomplete() {
+        const [value, setValue] = useState<Option | null>(null)
+        return (
+          <AsyncAutocomplete<Option>
+            value={value}
+            onChange={(next) => {
+              onChange(next)
+              setValue(next)
+            }}
+            search={vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([only])}
+            getKey={(item) => item.id}
+            getInputLabel={(item) => item.label}
+            renderOption={(item) => <span>{item.label}</span>}
+            listboxLabel="품목 목록"
+            ariaLabel="품목"
+            resultSelectionMode="single"
+            autoSelectSingleResult
+            debounceMs={0}
+          />
+        )
+      }
+
+      render(<ControlledAutocomplete />)
+      const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+      fireEvent.focus(input)
+      fireEvent.change(input, { target: { value: 'H' } })
+      await waitFor(() => expect(input.value).toBe(only.label))
+      expect(input.selectionStart).toBe(1)
+      expect(input.selectionEnd).toBe(only.label.length)
+
+      await new Promise((resolve) => window.setTimeout(resolve, delay))
+      fireEvent.change(input, { target: { value: 'HQ' } })
+
+      await waitFor(() => expect(input.value).toBe(only.label))
+      expect(onChange).toHaveBeenCalledTimes(2)
+      expect(input.selectionStart).toBe(2)
+      expect(input.selectionEnd).toBe(only.label.length)
+    },
+  )
 
   it('외부 controlled value 교체는 편집을 닫고 새 표시값과 committed 상태를 동기화한다', () => {
     const first: Option = { id: 'p-1', label: '첫 거래처' }
@@ -1158,5 +1349,60 @@ describe('AsyncAutocomplete', () => {
     // 재검색 hit → 후보 전이.
     await screen.findByText('결과 있음 후보')
     expect(input.getAttribute('aria-expanded')).toBe('true')
+  })
+  it('모달 조상에서 조합 중 Escape는 모달과 입력을 닫지 않는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <AsyncAutocomplete<Option>
+            value={null}
+            onChange={vi.fn()}
+            search={vi.fn().mockResolvedValue([])}
+            getKey={(item) => item.id}
+            getInputLabel={(item) => item.label}
+            renderOption={(item) => <span>{item.label}</span>}
+            listboxLabel="창고 목록"
+            ariaLabel="출고 창고"
+          />
+        </Modal>
+      )
+    }
+
+    render(<OuterModal />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: '본가' } })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false })
+
+    expect(screen.getByRole('dialog', { name: '병합전환' })).toBeTruthy()
+    expect(input.value).toBe('본가')
+  })
+
+  it('조합 중이 아닌 Escape는 입력이 닫힌 모달을 기존대로 닫는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <AsyncAutocomplete<Option>
+            value={null}
+            onChange={vi.fn()}
+            search={vi.fn().mockResolvedValue([])}
+            getKey={(item) => item.id}
+            getInputLabel={(item) => item.label}
+            renderOption={(item) => <span>{item.label}</span>}
+            listboxLabel="창고 목록"
+            ariaLabel="출고 창고"
+          />
+        </Modal>
+      )
+    }
+
+    render(<OuterModal />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false })
+
+    expect(screen.queryByRole('dialog', { name: '병합전환' })).toBeNull()
   })
 })

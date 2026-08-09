@@ -1,0 +1,42 @@
+{
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "성공",
+    "data": {
+      "totalRows": 2,
+      "imported": 0,
+      "updated": 1,
+      "rejectedNullName": 0,
+      "skippedPlaceholder": 0,
+      "activeCount": 1,
+      "suspendedCount": 0,
+      "sourceFileHash": "69403387E20E976F1F27C97143666146CC0D40DED0D9D3711F61786623D40EA5",
+      "rejectedSample": [],
+      "excludedTrailerRows": 0,
+      "heldParseFailureRows": 1,
+      "heldSample": [
+        {
+          "rowNumber": 3,
+          "reason": "CSV_ENCODING",
+          "rawPartnerCode": "SOL1154R24-ENC-BAD",
+          "rawName": "읽을 수 없음"
+        }
+      ],
+      "infrastructureFailureRows": 0,
+      "infrastructureFailureSample": [],
+      "infrastructureFailure": false,
+      "registrationDateParsedCount": 0,
+      "createdAtLoadTimeCount": 0
+    },
+    "timestamp": "2026-08-09T19:07:43.087029253Z"
+  },
+  "visibleRows": [
+    "3CSV_ENCODING: 거래처명에 치환문자(U+FFFD)가 포함됨SOL1154R24-ENC-BAD읽을 수 없음"
+  ],
+  "readableRow": "R24 읽을 수 있는 정상 상호",
+  "unreadableLabel": "읽을 수 없음",
+  "credentials": "<redacted>",
+  "transportAdapterBypass": false,
+  "appRoute": "/admin/partners"
+}

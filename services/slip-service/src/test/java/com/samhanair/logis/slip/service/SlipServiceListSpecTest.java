@@ -53,6 +53,7 @@ class SlipServiceListSpecTest {
     @Mock private ProductClient productClient;
     @Mock private InventoryClient inventoryClient;
     @Mock private com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService priceMemoryService;
+    @Mock private com.samhanair.logis.slip.service.closing.SlipClosedDateGuard closedDateGuard;
 
     @InjectMocks private SlipService service;
 
@@ -61,6 +62,17 @@ class SlipServiceListSpecTest {
     @BeforeEach
     void setUp() {
         pageable = PageRequest.of(0, 20);
+    }
+
+    @Test
+    void searchBySlipNo_는_LIKE_와일드카드를_리터럴로_전달한다() {
+        when(slipRepository.searchByKeywordAndSlipTypeIn("\\%\\_\\\\", List.of(SlipType.values()),
+                PageRequest.of(0, 20))).thenReturn(List.of());
+
+        service.searchBySlipNo(" %_\\ ", 20);
+
+        verify(slipRepository).searchByKeywordAndSlipTypeIn("\\%\\_\\\\", List.of(SlipType.values()),
+                PageRequest.of(0, 20));
     }
 
     private void stubFindAllReturnsEmpty() {

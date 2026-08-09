@@ -68,6 +68,8 @@ const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 const desktopRoot = path.resolve(__dirname, '..')
 const repoRoot = path.resolve(desktopRoot, '../..')
 const docsQaRoot = path.join(repoRoot, 'docs', 'qa')
+const docsQaShotsRoot = path.join(repoRoot, 'docs', 'qa-shots')
+const docsDevReportsRoot = path.join(repoRoot, 'docs', 'dev-reports')
 const tsHelperPath = path.join(desktopRoot, 'playwright', 'support', 'qa-screenshot-dir.ts')
 const mjsHelperPath = path.join(desktopRoot, 'playwright', 'support', 'qa-screenshot-dir.mjs')
 const rootMjsHelperPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.mjs')
@@ -83,9 +85,20 @@ const tempRoot = path.join(os.tmpdir(), 'samhan-863-qa-output-path-guard')
  */
 const OTHER_SLUG_COMMITTED_DIR = path.join(docsQaRoot, '809-partner-product-price-memory')
 const MY_FIXTURE_COMMITTED_DIR = path.join(docsQaRoot, '__863-r1-guard-fixture__')
+const DEV_REPORT_COMMITTED_DIR = path.join(docsDevReportsRoot, '__1116-s5-guard-fixture__')
 
 function isWindowsPlatform() {
   return process.platform === 'win32'
+}
+
+function discoverCommittedCaptureRoots() {
+  const tracked = execFileSync('git', ['ls-files', '-z', '--', 'docs/**/*.png', 'docs/**/*.jpg', 'docs/**/*.jpeg'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  })
+    .split('\0')
+    .filter(Boolean)
+  return [...new Set(tracked.map(file => file.split('/').slice(0, 2).join('/')))].sort()
 }
 
 /**
@@ -122,7 +135,178 @@ function resetEnvironment() {
 }
 
 test.afterEach(resetEnvironment)
+
+test('S5 RED-B docs/dev-reports도 호출자의 보호 선언 기본값으로 차단된다', () => {
+  process.env.QA_SHOTS_DIR = DEV_REPORT_COMMITTED_DIR
+  assert.throws(
+    () => resolveQaShotsDir(DEV_REPORT_COMMITTED_DIR),
+    error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+    'docs/dev-reports 커밋 증거 루트가 보호되지 않습니다',
+  )
+})
+
+test('S5 행위 울타리 — 커밋 캡처가 있는 docs 루트는 보호 또는 재생성 선언으로 분류된다', async () => {
+  const roots = discoverCommittedCaptureRoots()
+  assert.ok(roots.length > 0, '커밋된 docs 캡처 루트를 찾지 못했습니다')
+
+  const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(rootMjsHelperPath).href)
+  const resolvers = [
+    ['cjs', resolveQaShotsDir],
+    ['mjs', mjsResolve],
+    ['ts', loadTypeScriptResolver()],
+  ]
+  const regeneratingSources = []
+  for (const file of [
+    path.join(repoRoot, 'tools', 'manual-capture', 'sync-screenshots.js'),
+    path.join(repoRoot, 'tools', 'manual-capture', 'generate-mobile-placeholders.js'),
+    path.join(repoRoot, 'tools', 'manual-capture', 'capture-manual-all.js'),
+  ]) {
+    if (fs.readFileSync(file, 'utf8').includes('protect: false')) regeneratingSources.push(file)
+  }
+  assert.equal(regeneratingSources.length, 3, '재생성 호출자 3곳 모두 보호 해제를 선언해야 합니다')
+
+  const unclassified = []
+  for (const root of roots) {
+    const committedDir = path.join(repoRoot, root)
+    let protectedByDefault = true
+    for (const [name, resolver] of resolvers) {
+      process.env.QA_SHOTS_DIR = committedDir
+      try {
+        resolver(committedDir)
+        protectedByDefault = false
+        unclassified.push(`${root}:${name}`)
+      } catch (error) {
+        assert.match(String(error?.message ?? error), /QA_ALLOW_OVERWRITE=1/)
+      }
+    }
+    if (!protectedByDefault && !regeneratingSources.some(file => fs.readFileSync(file, 'utf8').includes(root))) {
+      unclassified.push(root)
+    }
+  }
+  assert.deepEqual(unclassified, [], `캡처 루트가 보호/재생성 어느 쪽에도 분류되지 않았습니다: ${unclassified.join(', ')}`)
+})
 test.after(resetEnvironment)
+
+test('S9 — Linux bash는 cygpath가 없어도 .sh resolver 후보가 된다', () => {
+  const executable = findGitBashExecutable({
+    platform: 'linux',
+    candidates: ['mock-linux-bash'],
+    probe: () => true,
+  })
+  assert.equal(executable, 'mock-linux-bash', 'cygpath 부재를 이유로 Linux bash 후보를 제외했습니다')
+})
+
+test('S7 RED-B — 여섯 resolver는 동일 입력에서 protect/regenerate 판정을 모두 일치시킨다', async () => {
+  const runProcess = (name, args, env = {}) => {
+    const childEnv = { ...process.env }
+    for (const [key, value] of Object.entries(env)) {
+      if (value === undefined) delete childEnv[key]
+      else childEnv[key] = value
+    }
+    if (!Object.prototype.hasOwnProperty.call(env, 'QA_SHOTS_DIR')) delete childEnv.QA_SHOTS_DIR
+    try {
+      execFileSync(name, args, { cwd: repoRoot, encoding: 'utf8', env: childEnv })
+      return 'ALLOW'
+    } catch (error) {
+      const output = `${error.stdout ?? ''}${error.stderr ?? ''}`
+      assert.match(output, /QA_ALLOW_OVERWRITE=1/, `${name} 판정이 가드 오류가 아닌 이유로 실패했습니다: ${output}`)
+      return 'BLOCK'
+    }
+  }
+
+  const runPowerShell = (committedDir, targetDir, mode) => runProcess(POWERSHELL_EXE, [
+    '-NoProfile', '-Command',
+    `. '${path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1')}' ; ` +
+      `Resolve-QaShotsDir -CommittedDir '${committedDir}' -RequestedDir '${targetDir ?? ''}' -ProtectionMode ${mode} | Out-Null`,
+  ], targetDir === undefined ? {} : { QA_SHOTS_DIR: targetDir })
+
+  const runBash = (committedDir, targetDir, mode) => {
+    const libPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')
+    return runProcess(GITBASH_EXE, ['-lc',
+      `source '${libPath}'; resolve_qa_shots_dir "$COMMITTED_DIR" ${mode}`,
+    ], {
+      ...(targetDir === undefined ? {} : { QA_SHOTS_DIR: targetDir.replaceAll('\\', '/') }),
+      COMMITTED_DIR: committedDir.replaceAll('\\', '/'),
+    })
+  }
+
+  const runPython = (committedDir, targetDir, protect) => runProcess(PYTHON_EXE, ['-c', [
+    'import os, sys',
+    `sys.path.insert(0, ${JSON.stringify(path.join(repoRoot, 'scripts', 'lib'))})`,
+    'from qa_shots_dir import resolve_qa_shots_dir',
+    `resolve_qa_shots_dir(${JSON.stringify(committedDir)}, protect=${protect ? 'True' : 'False'})`,
+  ].join('\n'),], targetDir === undefined ? {} : { QA_SHOTS_DIR: targetDir })
+
+  const nodeResolvers = [
+    ['cjs', async (committedDir, targetDir, protect) => {
+      process.env.QA_SHOTS_DIR = targetDir ?? ''
+      return resolveQaShotsDir(committedDir, { protect })
+    }],
+    ['mjs', async (committedDir, targetDir, protect) => {
+      process.env.QA_SHOTS_DIR = targetDir ?? ''
+      return (await import(pathToFileURL(path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.mjs')).href)).resolveQaShotsDir(committedDir, { protect })
+    }],
+    ['ts', async (committedDir, targetDir, protect) => {
+      process.env.QA_SHOTS_DIR = targetDir ?? ''
+      return loadTypeScriptResolver()(committedDir, { protect })
+    }],
+  ]
+  const processResolvers = [
+    ['ps1', POWERSHELL_EXE, POWERSHELL_SKIP_REASON, (committedDir, targetDir, protect) => runPowerShell(committedDir, targetDir, protect ? 'Protect' : 'Regenerate')],
+    ['sh', GITBASH_EXE, GITBASH_SKIP_REASON, (committedDir, targetDir, protect) => runBash(committedDir, targetDir, protect ? 'protect' : 'regenerate')],
+    ['py', PYTHON_EXE, PYTHON_EXE ? false : '이 환경에 python/python3 실행파일이 없습니다', (committedDir, targetDir, protect) => runPython(committedDir, targetDir, protect)],
+  ]
+  const availableResolvers = [
+    ...nodeResolvers.map(([name, resolver]) => [name, resolver]),
+    ...processResolvers.filter(([, executable]) => executable).map(([name, , , resolver]) => [name, resolver]),
+  ]
+  const unavailableResolvers = processResolvers
+    .filter(([, executable]) => !executable)
+    .map(([name, , reason]) => `${name}: ${reason}`)
+  assert.ok(availableResolvers.length >= nodeResolvers.length, '실행 가능한 resolver가 하나도 남지 않았습니다')
+  if (unavailableResolvers.length > 0) {
+    console.log(`[S7 resolver skip] ${unavailableResolvers.join(' | ')}`)
+  }
+  const qaCases = [
+    ['docs/qa', path.join(repoRoot, 'docs', 'qa'), path.join(repoRoot, 'docs', 'qa')],
+    ['docs/qa-shots', path.join(repoRoot, 'docs', 'qa-shots'), path.join(repoRoot, 'docs', 'qa-shots')],
+    ['docs/dev-reports', path.join(repoRoot, 'docs', 'dev-reports'), path.join(repoRoot, 'docs', 'dev-reports')],
+    ['manual regenerate', path.join(repoRoot, 'docs', 'manual', 'screenshots'), path.join(repoRoot, 'docs', 'manual', 'screenshots')],
+    ['repo outside', path.join(repoRoot, 'docs', 'manual', 'screenshots'), path.join(tempRoot, 's7-outside')],
+  ]
+  const rows = []
+  const runNodeCase = async (name, resolver, committedDir, targetDir, protect) => {
+    const expectedPath = targetDir ?? path.join(committedDir, '_local')
+    let verdict = 'ALLOW'
+    try {
+      const actual = await resolver(committedDir, targetDir, protect)
+      assert.equal(actual, expectedPath, `${name}가 예상 경로가 아닌 곳을 반환했습니다`)
+    } catch (error) {
+      assert.match(String(error), /QA_ALLOW_OVERWRITE=1/)
+      verdict = 'BLOCK'
+    }
+    return verdict
+  }
+  for (const [label, committedDir, targetDir] of qaCases) {
+    const protect = label !== 'manual regenerate'
+    for (const [name, resolver] of availableResolvers) {
+      rows.push([name, label, name === 'cjs' || name === 'mjs' || name === 'ts'
+        ? await runNodeCase(name, resolver, committedDir, targetDir, protect)
+        : resolver(committedDir, targetDir, protect)])
+    }
+    const expectedVerdict = label === 'docs/qa' || label === 'docs/qa-shots' || label === 'docs/dev-reports' ? 'BLOCK' : 'ALLOW'
+    assert.deepEqual(rows.slice(-availableResolvers.length).map(([, , verdict]) => verdict), Array(availableResolvers.length).fill(expectedVerdict), `${label} 실행 가능한 resolver 판정 불일치`)
+  }
+  for (const [label, committedDir] of [['default', path.join(repoRoot, 'docs', 'manual', 'screenshots')]]) {
+    for (const [name, resolver] of availableResolvers) {
+      rows.push([name, label, name === 'cjs' || name === 'mjs' || name === 'ts'
+        ? (await runNodeCase(name, resolver, committedDir, undefined, true))
+        : resolver(committedDir, undefined, true)])
+    }
+  }
+  assert.deepEqual(rows.slice(-availableResolvers.length).map(([, , verdict]) => verdict), Array(availableResolvers.length).fill('ALLOW'), 'default 실행 가능한 resolver 판정 불일치')
+  console.log(`[S7 six-impl parity] ${rows.map(([name, label, verdict]) => `${name}/${label}=${verdict}`).join(' ')}`)
+})
 
 test('resolver 기본 출력(QA_SHOTS_DIR 미지정)은 <committedDir>/_local 이다', () => {
   const committedDir = path.join(tempRoot, 'committed')
@@ -165,13 +349,43 @@ test('D-3 [C] docs/qa 루트 자체를 QA_SHOTS_DIR 로 지정하면 차단한�
   )
 })
 
-test('D-3 A~D 전부 QA_ALLOW_OVERWRITE=1 이면 명시 경로를 그대로 사용한다 (승격 opt-in 은 유지)', () => {
+test('D-3 [E] 새 커밋 QA 증거 루트도 모집단 축에 따라 자동 차단한다', () => {
+  process.env.QA_SHOTS_DIR = path.join(docsQaShotsRoot, 'new-root-fixture')
+
+  assert.throws(
+    () => resolveQaShotsDir(path.join(docsQaShotsRoot, 'new-root-fixture')),
+    error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+  )
+})
+
+test('S5 RED-A 매뉴얼 재생성 호출자 선언은 보호를 해제하고 통과한다', () => {
+  for (const committedDir of [
+    path.join(repoRoot, 'docs', 'manual', 'screenshots'),
+    path.join(repoRoot, 'docs', 'manual', 'screenshots'),
+    path.join(repoRoot, 'docs', 'manual', 'screenshots', '04-모바일'),
+  ]) {
+    process.env.QA_SHOTS_DIR = committedDir
+    assert.equal(resolveQaShotsDir(committedDir, { protect: false }), committedDir)
+  }
+})
+
+test('S3 RED-B docs/qa-shots 는 호출자의 증거 루트로 보호된다', () => {
+  process.env.QA_SHOTS_DIR = path.join(repoRoot, 'docs', 'qa-shots', 'new-root-fixture')
+
+  assert.throws(
+    () => resolveQaShotsDir(path.join(repoRoot, 'docs', 'qa-shots', 'new-root-fixture')),
+    error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+  )
+})
+
+test('D-3 A~E 전부 QA_ALLOW_OVERWRITE=1 이면 명시 경로를 그대로 사용한다 (승격 opt-in 은 유지)', () => {
   process.env.QA_ALLOW_OVERWRITE = '1'
   const cases = {
     A: OTHER_SLUG_COMMITTED_DIR,
     B: MY_FIXTURE_COMMITTED_DIR,
     C: docsQaRoot,
     D: path.join(docsQaRoot, 'some-other-slug', '..', '__863-r1-guard-fixture__'),
+    E: path.join(docsQaShotsRoot, 'new-root-fixture'),
   }
   for (const [label, target] of Object.entries(cases)) {
     process.env.QA_SHOTS_DIR = target
@@ -616,12 +830,12 @@ test('N-1 (2026-07-28 재수렴, D-A 회귀 가드) — UTF-16 resolver 사본�
 
 test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소스는 구조 마커로, .mjs 는 실행으로 대조', async () => {
   // .ts 는 이 CommonJS 테스트에서 직접 require/import 할 수 없다(ts-node 미설치) — 소스 텍스트로
-  // 핵심 계약 마커(기본값 _local·DOCS_QA_ROOT 기반 가드·QA_ALLOW_OVERWRITE 탈출구)를 확인한다.
+  // 핵심 계약 마커(기본값 _local·호출자 파생 증거 루트·QA_ALLOW_OVERWRITE 탈출구)를 확인한다.
   // 실제 런타임 동작은 clients/desktop 전체 Playwright mock 스위트 실행(.ts 를 실제로 실행)과
   // 아래 .mjs 실행 비교로 이중 확인한다.
   const tsSource = fs.readFileSync(tsHelperPath, 'utf8')
   assert.match(tsSource, /path\.join\(committed,\s*'_local'\)/, '.ts 기본값이 _local 이 아님 (D-2 회귀)')
-  assert.match(tsSource, /DOCS_QA_ROOT/, '.ts 에 전역 docs/qa 루트 가드가 없음 (D-3 미이관)')
+  assert.match(tsSource, /deriveQaEvidenceRoot/, '.ts 에 호출자 파생 QA 증거 축 가드가 없음 (D-3 미이관)')
   assert.match(tsSource, /QA_ALLOW_OVERWRITE/, '.ts 에 명시 허용 탈출구가 없음')
   assert.match(tsSource, /export function resolveQaShotsDir/, '.ts 가 resolveQaShotsDir 를 export 하지 않음 (H-2 가드 대상)')
   assert.doesNotMatch(
@@ -631,13 +845,13 @@ test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소�
   )
 
   const mjsSource = fs.readFileSync(mjsHelperPath, 'utf8')
-  assert.match(mjsSource, /DOCS_QA_ROOT/, '.mjs 에 전역 docs/qa 루트 가드가 없음 (D-3 미이관)')
+  assert.match(mjsSource, /deriveQaEvidenceRoot/, '.mjs 에 호출자 파생 QA 증거 축 가드가 없음 (D-3 미이관)')
 
   const qaPlaywrightSource = fs.readFileSync(qaPlaywrightHelperPath, 'utf8')
-  assert.match(qaPlaywrightSource, /DOCS_QA_ROOT/, 'qa/playwright resolver에 전역 docs/qa 루트 가드가 없음')
+  assert.match(qaPlaywrightSource, /deriveQaEvidenceRoot/, 'qa/playwright resolver에 호출자 파생 QA 증거 축 가드가 없음')
 
   const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
-  const committedDir = path.join(tempRoot, 'ts-mjs-parity')
+  const committedDir = MY_FIXTURE_COMMITTED_DIR
 
   // 기본값 parity
   assert.equal(mjsResolve(committedDir), resolveQaShotsDir(committedDir))
@@ -649,6 +863,24 @@ test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소�
   // QA_ALLOW_OVERWRITE parity
   process.env.QA_ALLOW_OVERWRITE = '1'
   assert.equal(mjsResolve(committedDir), resolveQaShotsDir(committedDir))
+})
+
+test('S3 반열거 울타리 — 모든 resolver는 호출자 파생 축을 가져야 하며 docs 전역 축을 되살리면 RED가 된다', () => {
+  const resolverPaths = [
+    rootMjsHelperPath,
+    tsHelperPath,
+    mjsHelperPath,
+    path.join(repoRoot, 'clients', 'desktop', 'src', 'main', 'capture.ts'),
+    qaPlaywrightHelperPath,
+    path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.cjs'),
+    path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.mjs'),
+    path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1'),
+    path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh'),
+    path.join(repoRoot, 'scripts', 'lib', 'qa_shots_dir.py'),
+  ]
+  const source = resolverPaths.map(readSourceText).join('\n')
+  assert.doesNotMatch(source, /QA_EVIDENCE_AXIS|qaEvidenceAxis|qa_evidence_axis/, 'docs 전역 축 열거가 되살아났습니다')
+  assert.match(source, /deriveQaEvidenceRoot|Get-QaEvidenceRoot|_derive_qa_evidence_root|_qa_evidence_root/, '호출자 파생 축이 사라졌습니다')
 })
 
 // ============================================================================
@@ -1471,11 +1703,17 @@ test(
   },
 )
 
-function findGitBashExecutable() {
-  const candidates = ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe', 'bash']
-  for (const candidate of candidates) {
+function findGitBashExecutable({ platform = isWindowsPlatform(), candidates, probe } = {}) {
+  const candidateList = candidates ?? (platform
+    ? ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe', 'bash']
+    : ['bash'])
+  for (const candidate of candidateList) {
     try {
-      execFileSync(candidate, ['-c', 'command -v cygpath'], { stdio: 'ignore' })
+      if (probe) {
+        if (probe(candidate, platform)) return candidate
+        continue
+      }
+      execFileSync(candidate, ['-c', platform ? 'command -v cygpath' : 'exit 0'], { stdio: 'ignore' })
       return candidate
     } catch {
       continue
@@ -1485,11 +1723,13 @@ function findGitBashExecutable() {
 }
 
 const GITBASH_EXE = findGitBashExecutable()
-const GITBASH_SKIP_REASON = !isWindowsPlatform()
-  ? 'UNC admin-share 는 Windows 전용 개념입니다(resolver 도 cygpath 존재를 환경 신호로 분기)'
-  : GITBASH_EXE
-    ? false
-    : '이 환경에 cygpath 를 가진 bash(Git-Bash/MSYS) 실행파일이 없습니다'
+const GITBASH_SKIP_REASON = GITBASH_EXE
+  ? (!isWindowsPlatform()
+    ? 'UNC admin-share 는 Windows 전용 개념입니다(.sh resolver의 순수 POSIX 동작은 S7에서 검증)'
+    : false)
+  : isWindowsPlatform()
+    ? '이 환경에 cygpath 를 가진 bash(Git-Bash/MSYS) 실행파일이 없습니다'
+    : '이 환경에 bash 실행파일이 없습니다(.sh resolver를 실행할 수 없습니다)'
 
 test(
   'T-9 (2026-07-28 R4 재수렴 결함3) — qa-shots-dir.sh 도 자기 자신을 가리키는 UNC admin-share 표기를 차단한다',

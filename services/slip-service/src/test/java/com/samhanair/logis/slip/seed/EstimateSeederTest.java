@@ -36,11 +36,15 @@ class EstimateSeederTest {
     @Mock
     private EstimateNumberSequenceRepository sequenceRepository;
 
+    private SeedDependencyState dependencyState;
+
     private EstimateSeeder seeder;
 
     @BeforeEach
     void setUp() {
-        seeder = new EstimateSeeder(estimateRepository, sequenceRepository);
+        dependencyState = new SeedDependencyState();
+        dependencyState.markSlipSeedSucceeded();
+        seeder = new EstimateSeeder(estimateRepository, sequenceRepository, dependencyState);
     }
 
     @Test

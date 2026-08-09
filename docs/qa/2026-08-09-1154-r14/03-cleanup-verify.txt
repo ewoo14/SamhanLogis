@@ -1,0 +1,4 @@
+DELETE API: R14 active rows 0, soft-deleted rows 5
+staging rows retained: 9 (SELECT only; reject/transform evidence is append/staging history)
+DB_CONSTRAINT held row SOL1154R14-DB-BAD had no partner row; DELETE returned 404 and required no cleanup.
+accounting R14 container removed; port 28087 released.

@@ -1,0 +1,22 @@
+PR #1127 R4 SOL live QA evidence
+measured_at_kst=2026-08-09 08:14:31.077 +09:00
+worktree=C:\dev\Samhan-Public\.claude\worktrees\t978c
+branch=feat/978-fast-path-carryover
+head=be0ab80746063984c7d27afb8abd4c927112dfbf
+api=http://127.0.0.1:8080 (real Docker gateway, mock OFF)
+product_service=http://127.0.0.1:8084 (real Docker product-service)
+database=product_db on samhan-postgres (read-only queries only)
+login_account=manager@samhan.test / MANAGER (password and token omitted)
+login_status=200
+me_status=200
+last_sync_status=200
+last_sync_body={"success":true,"code":"OK","message":"성공","data":{"lastSyncAt":null,"summary":null},"timestamp":"2026-08-08T23:14:31.064536075Z"}
+
+deployed_product_started_at=2026-08-08T00:43:08.651883866Z
+deployed_product_image=sha256:547f21200d2002b237356433b8500c97d295a663326bea2dbfe508a87dd33ab2
+deployed_class_lastKnownRowHash=1
+deployed_class_ProductMutationSnapshot=0
+deployed_class_priceHistoryExposureSpecWrites=0
+
+The live product-service is older than R1-R4. POST sync was not called because it writes the shared real DB.
+The in-app browser inventory was empty, so a real GUI screenshot could not be captured.

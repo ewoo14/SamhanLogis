@@ -46,7 +46,8 @@ import {
   listHometaxHistory,
   getHometaxHistory,
   type HometaxPreviewResponse,
-  type HometaxPreviewRow,
+  type HometaxResultRow,
+  toHometaxResultRow,
   type HometaxExclusion,
   type HometaxBatchHistory,
   type AddHometaxExclusionRequest,
@@ -81,11 +82,18 @@ function todayIso(): string {
 }
 
 /** KRW BigDecimal string → 천단위 콤마 + ₩ prefix. */
-function fmtKrw(raw: string | null | undefined): string {
+function fmtKrw(raw: string | number | null | undefined): string {
   if (!raw) return '—'
-  const n = Number.parseFloat(raw)
-  if (!Number.isFinite(n)) return raw
+  const rawText = String(raw)
+  const n = Number.parseFloat(rawText)
+  if (!Number.isFinite(n)) return rawText
   return '₩' + Math.trunc(n).toLocaleString('ko-KR')
+}
+
+function fmtGridAmount(raw: unknown): string {
+  if (typeof raw !== 'string' && typeof raw !== 'number') return '—'
+  const n = Number(raw)
+  return Number.isFinite(n) ? Math.trunc(n).toLocaleString('ko-KR') : '—'
 }
 
 /** 날짜 표시 — YYYY-MM-DD 입력 그대로 표시. */
@@ -473,26 +481,26 @@ function Tab1Preview({
 
 const PAGE_SIZE = 100
 
-const HOMETAX_GRID_COLUMNS: DataGridColumn<HometaxPreviewRow>[] = [
+const HOMETAX_GRID_COLUMNS: DataGridColumn<HometaxResultRow>[] = [
   { key: 'rowNo',               label: '번호',        filter: false, align: 'right' as const },
   { key: 'slipNo',              label: '전표번호',     filter: 'text' as const },
-  { key: 'issueDate',           label: '발행일자',     filter: 'text' as const },
+  { key: 'writeDate',           label: '작성일자',     filter: 'text' as const },
   { key: 'supplierName',        label: '공급자',       filter: 'text' as const },
-  { key: 'supplierBusinessNo',  label: '공급자사업자',  filter: 'text' as const },
-  { key: 'recipientName',       label: '공급받는자',   filter: 'text' as const },
-  { key: 'recipientBusinessNo', label: '사업자번호',   filter: 'text' as const },
-  { key: 'recipientEmail',      label: '이메일',       filter: 'text' as const },
+  { key: 'supplierRegNo',       label: '공급자사업자',  filter: 'text' as const },
+  { key: 'buyerName',           label: '공급받는자',   filter: 'text' as const },
+  { key: 'buyerRegNo',          label: '사업자번호',   filter: 'text' as const },
+  { key: 'buyerEmail1',         label: '이메일',       filter: 'text' as const },
   { key: 'supplyAmount',        label: '공급가액',     filter: false, align: 'right' as const,
-    format: (v: unknown) => typeof v === 'string' ? parseInt(v, 10).toLocaleString('ko-KR') : '—' },
+    format: fmtGridAmount },
   { key: 'vatAmount',           label: '세액',         filter: false, align: 'right' as const,
-    format: (v: unknown) => typeof v === 'string' ? parseInt(v, 10).toLocaleString('ko-KR') : '—' },
+    format: fmtGridAmount },
   { key: 'totalAmount',         label: '합계금액',     filter: false, align: 'right' as const,
-    format: (v: unknown) => typeof v === 'string' ? parseInt(v, 10).toLocaleString('ko-KR') : '—' },
-  { key: 'itemName',            label: '품목',         filter: 'text' as const },
-  { key: 'specification',       label: '규격',         filter: 'text' as const },
-  { key: 'quantity',            label: '수량',         filter: false, align: 'right' as const },
-  { key: 'unitPrice',           label: '단가',         filter: false, align: 'right' as const,
-    format: (v: unknown) => typeof v === 'string' ? parseInt(v, 10).toLocaleString('ko-KR') : '—' },
+    format: fmtGridAmount },
+  { key: 'itemName1',           label: '품목',         filter: 'text' as const },
+  { key: 'itemSpec1',           label: '규격',         filter: 'text' as const },
+  { key: 'itemQty1',            label: '수량',         filter: false, align: 'right' as const },
+  { key: 'itemPrice1',          label: '단가',         filter: false, align: 'right' as const,
+    format: fmtGridAmount },
   { key: 'partnerCode',         label: '거래처코드',    filter: 'text' as const },
   { key: 'remark',              label: '비고',         filter: 'text' as const },
 ]
@@ -513,7 +521,7 @@ function Tab2Result({ data }: { data: HometaxPreviewResponse | null }) {
 
   const { batchNo, batchId, totalRowCount, splitFileCount, rows } = data
 
-  const pageRows: HometaxPreviewRow[] = rows.slice(
+  const pageRows: HometaxResultRow[] = rows.map((row, index) => toHometaxResultRow(row, index + 1)).slice(
     fileIndex * PAGE_SIZE,
     (fileIndex + 1) * PAGE_SIZE,
   )
@@ -621,7 +629,7 @@ function Tab2Result({ data }: { data: HometaxPreviewResponse | null }) {
 
       {gridMode ? (
         <div style={{ height: 540 }} data-testid="batch-result-datagrid">
-          <DataGrid<HometaxPreviewRow>
+          <DataGrid<HometaxResultRow>
             columns={HOMETAX_GRID_COLUMNS}
             rows={pageRows}
             rowKey={(r) => String(r.rowNo)}
@@ -707,18 +715,18 @@ function Tab2Result({ data }: { data: HometaxPreviewResponse | null }) {
                     </td>
                     <td style={{ padding: '6px 10px', fontVariantNumeric: 'tabular-nums' }}>{row.slipNo}</td>
                     <td style={{ padding: '6px 10px', fontVariantNumeric: 'tabular-nums' }}>
-                      {fmtDate(row.issueDate)}
+                      {fmtDate(row.writeDate)}
                     </td>
                     <td style={{ padding: '6px 10px' }}>{row.supplierName}</td>
                     <td style={{ padding: '6px 10px', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.supplierBusinessNo}
+                      {row.supplierRegNo}
                     </td>
-                    <td style={{ padding: '6px 10px' }}>{row.recipientName}</td>
+                    <td style={{ padding: '6px 10px' }}>{row.buyerName}</td>
                     <td style={{ padding: '6px 10px', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.recipientBusinessNo}
+                      {row.buyerRegNo}
                     </td>
                     <td style={{ padding: '6px 10px', color: 'var(--color-neutral-600)' }}>
-                      {row.recipientEmail ?? '—'}
+                      {row.buyerEmail1 || '—'}
                     </td>
                     <td style={{ padding: '6px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {fmtKrw(row.supplyAmount)}
@@ -729,11 +737,11 @@ function Tab2Result({ data }: { data: HometaxPreviewResponse | null }) {
                     <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                       {fmtKrw(row.totalAmount)}
                     </td>
-                    <td style={{ padding: '6px 10px' }}>{row.itemName ?? '—'}</td>
-                    <td style={{ padding: '6px 10px' }}>{row.specification ?? '—'}</td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right' }}>{row.quantity ?? '—'}</td>
+                    <td style={{ padding: '6px 10px' }}>{row.itemName1 || '—'}</td>
+                    <td style={{ padding: '6px 10px' }}>{row.itemSpec1 || '—'}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'right' }}>{row.itemQty1 ?? '—'}</td>
                     <td style={{ padding: '6px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      {row.unitPrice ? fmtKrw(row.unitPrice) : '—'}
+                      {row.itemPrice1 != null ? fmtKrw(row.itemPrice1) : '—'}
                     </td>
                     <td style={{ padding: '6px 10px', fontVariantNumeric: 'tabular-nums' }}>
                       {row.partnerCode}

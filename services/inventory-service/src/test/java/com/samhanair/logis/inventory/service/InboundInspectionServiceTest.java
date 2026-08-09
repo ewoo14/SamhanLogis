@@ -302,7 +302,9 @@ class InboundInspectionServiceTest {
 
             stockService.inbound(new com.samhanair.logis.inventory.web.dto.InboundRequest(
                     productId, warehouseId, "2025/01/10-001", SHARED_SLIP_LINE_ID, 2,
-                    java.time.LocalDateTime.now(), new BigDecimal("100000"), "전표 경로"), actorId);
+                    java.time.LocalDateTime.now(), new BigDecimal("100000"), "전표 경로",
+                    new com.samhanair.logis.inventory.web.dto.SourceOperationContext(
+                            UUID.randomUUID(), productId, 1L)), actorId);
             service.completeInspection(slipId, actorId);
 
             verify(stockLotRepository, times(1)).save(any());

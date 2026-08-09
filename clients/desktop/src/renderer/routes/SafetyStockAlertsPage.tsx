@@ -46,7 +46,7 @@ import {
   type SafetyStockAlert,
 } from '../api/safetyStockApi'
 import { listWarehouses, type Warehouse } from '../api/inventory'
-import { searchProducts } from '../api/productApi'
+import { isSelectableProductStatus, searchProducts } from '../api/productApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -295,7 +295,7 @@ export function SafetyStockAlertsPage() {
                 setConfigProduct(product)
                 configMutation.reset()
               }}
-              searchProducts={searchProducts}
+              searchProducts={async (query) => (await searchProducts(query)).filter((product) => isSelectableProductStatus(product.status))}
               label=""
               ariaLabel="제품"
               placeholder="모델명 또는 품목명 검색"

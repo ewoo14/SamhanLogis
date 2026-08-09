@@ -68,7 +68,7 @@ import {
   type SlipType,
 } from '../api/slip'
 // D-R8-7: 전표 수정 거래처 자동완성 — 견적(EstimateFormPage)과 동일 소스로 통일한다.
-import { searchPartners } from '../api/sales'
+import { searchPartners, type PartnerSummary } from '../api/sales'
 import { getApiErrorInfo } from '../api/apiError'
 import { type StockBalanceLookupLine } from '../api/inventory'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
@@ -78,6 +78,20 @@ import {
   type SlipAuditLogEntry,
 } from '../api/slipAudit'
 import { getRedline, type SlipFieldRedline } from '../api/slipRedline'
+
+/**
+ * direct edit 거래처 검색 결과를 전표 헤더 옵션으로 변환한다.
+ * 거래처코드와 사업자번호는 서로 다른 식별자 체계이므로 원 필드를 보존한다.
+ */
+export function toSlipPartnerOption(row: PartnerSummary): PartnerOption {
+  return {
+    id: row.partnerId ?? undefined,
+    partnerCode: row.partnerCode ?? '',
+    name: row.companyName,
+    bizNo: row.businessRegistrationNumber,
+    phone: row.contactPhone ?? undefined,
+  }
+}
 import { RedlineCell } from '../components/audit/RedlineCell'
 import {
   createSlipEditRequest,
@@ -113,7 +127,8 @@ import {
   type PartnerRepriceCandidate,
   type PartnerRepriceOutcome,
 } from '../utils/usePartnerPriceRefresh'
-import { lookupProducts } from '../api/productApi'
+import { lookupProductPresence, lookupProducts } from '../api/productApi'
+import { findMissingProductIds } from '../utils/productLinkWarning'
 import {
   editSlipLineAmount,
   hasVatWarning,
@@ -1581,6 +1596,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     queryFn: () => getSlip(id),
     enabled: !!id,
   })
+  const productPresenceQuery = useQuery({
+    queryKey: ['slip-product-presence', id, detailQuery.data?.updatedAt],
+    queryFn: () => lookupProductPresence(detailQuery.data?.lines.map((line) => line.productId) ?? []),
+    enabled: !!detailQuery.data,
+  })
+  const deletedProductWarningIds = productPresenceQuery.data
+    ? findMissingProductIds(
+      detailQuery.data?.lines.map((line) => line.productId) ?? [],
+      productPresenceQuery.data.foundProductIds,
+      productPresenceQuery.data.unresolvedProductIds,
+    )
+    : []
   const { refetch: refetchDetail } = detailQuery
   // presence(보는 사람) — detailQuery 성공(조회권한+존재) 이후에만 join.
   // enabled 가 !!id 뿐이면 로딩/에러(404/403) 상태에서도 join+heartbeat 유지되어
@@ -2336,6 +2363,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const canRejectSlip = possibleActions.includes('reject')
     && canAccessSlipAction('reject', mode, canAccess)
   const canCancelSlip = possibleActions.includes('cancel')
+    && slip.lockFlag !== true
     && canAccessSlipAction('cancel', mode, canAccess)
   const directEditAllowed = canOpenDirectEdit(mode, slip.status, canAccess)
 
@@ -2383,7 +2411,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     || slip.status === 'CANCELED'
     || slip.status === 'REJECTED'
 
-  const isLocked = isPhysicalTerminal
+  const isLocked = slip.lockFlag === true || isPhysicalTerminal
 
   const canCollabEdit = canOpenCollabEdit(
     slip.status,
@@ -2671,7 +2699,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    *
    * <p>거래처 4필드(partnerId/명/코드/사업자번호)를 <b>CRDT 트랜잭션 1회</b>로 원자 전파한다.
    * 필드를 따로 쓰면 상대 피어가 중간 상태(새 이름 + 구 UUID)를 관측하는 창이 열린다.
-   * partnerCode 는 사업자번호 digits 규약(P0-B) 을 따른다.
+   * partnerCode 는 거래처코드 체계를 따른다. 사업자번호는 businessNumber에만 둔다.
    *
    * <p>해제(null)는 지원하지 않는다 — 전표는 생성 시점부터 거래처가 확정돼 있고, BE
    * {@code SlipUpdateRequest.partnerId} 는 null 을 "기존 거래처 보존" 으로 읽는다.
@@ -2679,12 +2707,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const handleSlipPartnerSelect = (option: PartnerOption | null) => {
     if (!option) return
     const nextPartnerId = option.id ?? ''
-    const nextBizNo = option.bizNo ?? option.partnerCode ?? ''
+    const nextPartnerCode = option.partnerCode
+    const nextBizNo = option.bizNo ?? ''
     const apply = (setId: (v: string) => void, setName: (v: string) => void,
                    setCode: (v: string) => void, setBizNo: (v: string) => void) => {
       setId(nextPartnerId)
       setName(option.name)
-      setCode(nextBizNo)
+      setCode(nextPartnerCode)
       setBizNo(nextBizNo)
     }
     if (mode === 'OUTBOUND') {
@@ -2699,7 +2728,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       provider.doc.transact(() => {
         provider.setHeaderValue('partnerId', nextPartnerId)
         provider.setHeaderValue('partnerName', option.name)
-        provider.setHeaderValue('partnerCode', nextBizNo)
+        provider.setHeaderValue('partnerCode', nextPartnerCode)
         provider.setHeaderValue('businessNumber', nextBizNo)
       })
     }
@@ -2863,20 +2892,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     }
   }
 
-  const searchSlipPartnerOptions = async (q: string): Promise<PartnerOption[]> => {
-    const rows = await searchPartners(q, 8)
-    return rows.map((row) => ({
-      id: row.partnerId ?? undefined,
-      partnerCode: row.businessRegistrationNumber,
-      name: row.companyName,
-      bizNo: row.businessRegistrationNumber,
-      phone: row.contactPhone ?? undefined,
-    }))
-  }
+  const searchSlipPartnerOptions = async (q: string): Promise<PartnerOption[]> =>
+    (await searchPartners(q, 8)).map(toSlipPartnerOption)
 
   /** 현재 거래처의 PartnerAutocomplete controlled value — 이름이 있으면 표시한다. */
-  const slipPartnerOption = (name: string, bizNo: string, partnerId: string): PartnerOption | null =>
-    name ? { id: partnerId || undefined, partnerCode: bizNo, name, bizNo } : null
+  const slipPartnerOption = (name: string, code: string, bizNo: string, partnerId: string): PartnerOption | null =>
+    name ? { id: partnerId || undefined, partnerCode: code, name, bizNo } : null
 
   const hasUnavailableReprice = Array.from(repriceOutcomeByLineId.values())
     .some((outcome) => outcome.source === 'UNAVAILABLE')
@@ -3029,7 +3050,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <label className="sales-edit-field">
           <span className="detail-label">거래처</span>
           <PartnerAutocomplete
-            value={slipPartnerOption(salesPartnerName, salesBusinessNumber, salesPartnerId)}
+            value={slipPartnerOption(salesPartnerName, salesPartnerCode, salesBusinessNumber, salesPartnerId)}
             onChange={handleSlipPartnerSelect}
             searchPartners={searchSlipPartnerOptions}
             ariaLabel="거래처"
@@ -3365,7 +3386,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <label className="purchase-edit-field">
           <span className="detail-label">거래처</span>
           <PartnerAutocomplete
-            value={slipPartnerOption(purchasePartnerName, purchaseBusinessNumber, purchasePartnerId)}
+            value={slipPartnerOption(purchasePartnerName, purchasePartnerCode, purchaseBusinessNumber, purchasePartnerId)}
             onChange={handleSlipPartnerSelect}
             searchPartners={searchSlipPartnerOptions}
             ariaLabel="거래처"
@@ -3633,6 +3654,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             수정 {revisionCount}회
           </span>
           <PresenceIndicator entries={presenceEntries} size="lg" />
+          {slip.lockFlag === true ? (
+            <Badge variant="danger" data-testid="slip-detail-lock-badge">
+              마감 잠금
+            </Badge>
+          ) : null}
         </div>
         {!isMobile ? (
         <div className="detail-action-bar">
@@ -4115,7 +4141,15 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           data-testid="slip-detail-locked-banner"
           className="warning-banner"
         >
-          현재 단계({slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 물리 종결 전 단계에서만 권한자 수정 또는 삭제 요청이 가능합니다.
+          {slip.lockFlag === true
+            ? '회계 마감으로 잠긴 전표입니다. 취소·반려를 포함한 변경은 409로 차단됩니다.'
+            : `현재 단계(${slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 물리 종결 전 단계에서만 권한자 수정 또는 삭제 요청이 가능합니다.`}
+        </div>
+      ) : null}
+
+      {deletedProductWarningIds.length > 0 ? (
+        <div role="alert" className="warning-banner" data-testid="slip-detail-deleted-product-banner">
+          이 전표는 삭제된 품목을 포함합니다. 저장된 품목명은 유지됩니다.
         </div>
       ) : null}
 

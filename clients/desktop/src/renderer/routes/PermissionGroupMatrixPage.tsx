@@ -38,10 +38,12 @@ const ACTION_LABEL: Record<PermissionAction, string> = {
 
 const matrixPageNorm = (page: PageCode): string => page.replace(/\./g, '-')
 const dirtyKey = (page: PageCode, action: PermissionAction): DirtyKey => `${page}__${action}`
+/** 일반 카탈로그에는 숨기되, 기존 보유 grant를 회수할 수 있게 하는 internal orphan. */
+const REVOKABLE_HIDDEN_PAGES: PageCode[] = ['slip.period-lock']
 
 function matrixToState(matrix: AccountPermissionMatrix | undefined): MatrixState {
   const state = {} as MatrixState
-  for (const page of PAGES_ORDER) state[page] = emptyGroupPermissionMatrix()
+  for (const page of [...PAGES_ORDER, ...REVOKABLE_HIDDEN_PAGES]) state[page] = emptyGroupPermissionMatrix()
   for (const cell of matrix?.cells ?? []) {
     state[cell.pageCode] = {
       view: cell.view,
@@ -59,7 +61,7 @@ function matrixToState(matrix: AccountPermissionMatrix | undefined): MatrixState
 function dirtyKeys(server: MatrixState | null, current: MatrixState | null): Set<DirtyKey> {
   const dirty = new Set<DirtyKey>()
   if (!server || !current) return dirty
-  for (const page of PAGES_ORDER) {
+  for (const page of [...PAGES_ORDER, ...REVOKABLE_HIDDEN_PAGES]) {
     for (const action of PERMISSION_ACTIONS) {
       if (server[page]?.[action] !== current[page]?.[action]) dirty.add(dirtyKey(page, action))
     }
@@ -294,6 +296,30 @@ export function PermissionGroupMatrixPage() {
 
       {matrixQuery.isLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
+      ) : null}
+
+      {!matrixQuery.isLoading && !matrixQuery.isError && currentState && REVOKABLE_HIDDEN_PAGES.some((page) =>
+        PERMISSION_ACTIONS.some((action) => currentState[page]?.[action]),
+      ) ? (
+        <section
+          aria-label="비노출 권한그룹 권한 회수"
+          style={{ marginBottom: 12, padding: 12, border: '1px solid var(--color-warning-300)', borderRadius: 8 }}
+        >
+          <strong>비노출 권한그룹 권한 회수</strong>
+          <p style={{ margin: '6px 0 10px', color: 'var(--color-neutral-600)', fontSize: 12 }}>
+            일반 권한 카탈로그에는 표시하지 않지만, 기존 보유 그룹 권한은 여기서 회수할 수 있습니다.
+          </p>
+          {REVOKABLE_HIDDEN_PAGES.filter((page) => PERMISSION_ACTIONS.some((action) => currentState[page]?.[action])).map((page) => (
+            <Button
+              key={page}
+              variant="ghost"
+              onClick={() => setPageActions([page], PERMISSION_ACTIONS, false)}
+              data-testid={`perm-group-matrix-revoke-${matrixPageNorm(page)}`}
+            >
+              {page} 보유 권한 전체 회수
+            </Button>
+          ))}
+        </section>
       ) : null}
 
       {!matrixQuery.isLoading && !matrixQuery.isError && currentState ? (

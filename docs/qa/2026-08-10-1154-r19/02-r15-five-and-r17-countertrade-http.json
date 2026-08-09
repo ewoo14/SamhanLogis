@@ -1,0 +1,943 @@
+{
+  "normalCsv": [
+    {
+      "code": "SOL1154R19-NORMAL-UTF8",
+      "name": "R19 정상 한글 상호",
+      "encoding": "utf8",
+      "upload": {
+        "status": 200,
+        "raw": "{\"totalRows\":1,\"imported\":0,\"updated\":1,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"69ECAA653D7172B7F2D34CDEA0C8FA2184E1459FA1932FEA860ACABDF8E16044\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}",
+        "body": {
+          "totalRows": 1,
+          "imported": 0,
+          "updated": 1,
+          "rejectedNullName": 0,
+          "skippedPlaceholder": 0,
+          "activeCount": 1,
+          "suspendedCount": 0,
+          "sourceFileHash": "69ECAA653D7172B7F2D34CDEA0C8FA2184E1459FA1932FEA860ACABDF8E16044",
+          "rejectedSample": [],
+          "excludedTrailerRows": 0,
+          "heldParseFailureRows": 0,
+          "heldSample": [],
+          "infrastructureFailureRows": 0,
+          "infrastructureFailureSample": [],
+          "infrastructureFailure": false,
+          "registrationDateParsedCount": 0,
+          "createdAtLoadTimeCount": 0
+        }
+      },
+      "storedName": "R19 정상 한글 상호"
+    },
+    {
+      "code": "SOL1154R19-NORMAL-ASCII",
+      "name": "R19 Normal Partner 123",
+      "encoding": "utf8",
+      "upload": {
+        "status": 200,
+        "raw": "{\"totalRows\":1,\"imported\":0,\"updated\":1,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"B060DD37BAA2105C0D3A8A262F66A6A06E0DE5B6807C2C5EDF8A5D7FD21BE72B\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}",
+        "body": {
+          "totalRows": 1,
+          "imported": 0,
+          "updated": 1,
+          "rejectedNullName": 0,
+          "skippedPlaceholder": 0,
+          "activeCount": 1,
+          "suspendedCount": 0,
+          "sourceFileHash": "B060DD37BAA2105C0D3A8A262F66A6A06E0DE5B6807C2C5EDF8A5D7FD21BE72B",
+          "rejectedSample": [],
+          "excludedTrailerRows": 0,
+          "heldParseFailureRows": 0,
+          "heldSample": [],
+          "infrastructureFailureRows": 0,
+          "infrastructureFailureSample": [],
+          "infrastructureFailure": false,
+          "registrationDateParsedCount": 0,
+          "createdAtLoadTimeCount": 0
+        }
+      },
+      "storedName": "R19 Normal Partner 123"
+    },
+    {
+      "code": "SOL1154R19-NORMAL-CP949",
+      "name": "R19 정상 CP949 한글상호",
+      "encoding": "cp949",
+      "upload": {
+        "status": 200,
+        "raw": "{\"totalRows\":1,\"imported\":0,\"updated\":1,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"5B9E794227AD65436E1141EA280EE3D1BEA196895660036197E25D89A0011959\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}",
+        "body": {
+          "totalRows": 1,
+          "imported": 0,
+          "updated": 1,
+          "rejectedNullName": 0,
+          "skippedPlaceholder": 0,
+          "activeCount": 1,
+          "suspendedCount": 0,
+          "sourceFileHash": "5B9E794227AD65436E1141EA280EE3D1BEA196895660036197E25D89A0011959",
+          "rejectedSample": [],
+          "excludedTrailerRows": 0,
+          "heldParseFailureRows": 0,
+          "heldSample": [],
+          "infrastructureFailureRows": 0,
+          "infrastructureFailureSample": [],
+          "infrastructureFailure": false,
+          "registrationDateParsedCount": 0,
+          "createdAtLoadTimeCount": 0
+        }
+      },
+      "storedName": "R19 정상 CP949 한글상호"
+    },
+    {
+      "code": "SOL1154R19-NORMAL-PUNCT",
+      "name": "R19 \"따옴표\" (주)삼한, 대리점/본점\\창고",
+      "encoding": "utf8",
+      "upload": {
+        "status": 200,
+        "raw": "{\"totalRows\":1,\"imported\":0,\"updated\":1,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"F9D683F4988A0EFCD95E4C6DE8EC5E5107661023A356D2961E5D960ACCFCF999\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}",
+        "body": {
+          "totalRows": 1,
+          "imported": 0,
+          "updated": 1,
+          "rejectedNullName": 0,
+          "skippedPlaceholder": 0,
+          "activeCount": 1,
+          "suspendedCount": 0,
+          "sourceFileHash": "F9D683F4988A0EFCD95E4C6DE8EC5E5107661023A356D2961E5D960ACCFCF999",
+          "rejectedSample": [],
+          "excludedTrailerRows": 0,
+          "heldParseFailureRows": 0,
+          "heldSample": [],
+          "infrastructureFailureRows": 0,
+          "infrastructureFailureSample": [],
+          "infrastructureFailure": false,
+          "registrationDateParsedCount": 0,
+          "createdAtLoadTimeCount": 0
+        }
+      },
+      "storedName": "R19 \"따옴표\" (주)삼한, 대리점/본점\\창고"
+    }
+  ],
+  "bulk": {
+    "direct": {
+      "status": 200,
+      "raw": "{\"totalRows\":1000,\"imported\":0,\"updated\":0,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":0,\"suspendedCount\":0,\"sourceFileHash\":\"25F19584A031C235E4A101C8B6618824DBCED637131BE082F37A52AF1FDEB23B\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":1000,\"heldSample\":[{\"rowNumber\":3,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0001\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0001\"},{\"rowNumber\":4,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0002\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0002\"},{\"rowNumber\":5,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0003\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0003\"},{\"rowNumber\":6,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0004\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0004\"},{\"rowNumber\":7,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0005\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0005\"},{\"rowNumber\":8,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0006\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0006\"},{\"rowNumber\":9,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0007\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0007\"},{\"rowNumber\":10,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0008\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0008\"},{\"rowNumber\":11,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0009\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0009\"},{\"rowNumber\":12,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0010\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0010\"},{\"rowNumber\":13,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0011\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0011\"},{\"rowNumber\":14,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0012\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0012\"},{\"rowNumber\":15,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0013\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0013\"},{\"rowNumber\":16,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0014\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0014\"},{\"rowNumber\":17,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0015\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0015\"},{\"rowNumber\":18,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0016\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0016\"},{\"rowNumber\":19,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0017\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0017\"},{\"rowNumber\":20,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0018\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0018\"},{\"rowNumber\":21,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0019\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0019\"},{\"rowNumber\":22,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0020\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0020\"}],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}",
+      "body": {
+        "totalRows": 1000,
+        "imported": 0,
+        "updated": 0,
+        "rejectedNullName": 0,
+        "skippedPlaceholder": 0,
+        "activeCount": 0,
+        "suspendedCount": 0,
+        "sourceFileHash": "25F19584A031C235E4A101C8B6618824DBCED637131BE082F37A52AF1FDEB23B",
+        "rejectedSample": [],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 1000,
+        "heldSample": [
+          {
+            "rowNumber": 3,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0001",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0001"
+          },
+          {
+            "rowNumber": 4,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0002",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0002"
+          },
+          {
+            "rowNumber": 5,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0003",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0003"
+          },
+          {
+            "rowNumber": 6,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0004",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0004"
+          },
+          {
+            "rowNumber": 7,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0005",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0005"
+          },
+          {
+            "rowNumber": 8,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0006",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0006"
+          },
+          {
+            "rowNumber": 9,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0007",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0007"
+          },
+          {
+            "rowNumber": 10,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0008",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0008"
+          },
+          {
+            "rowNumber": 11,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0009",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0009"
+          },
+          {
+            "rowNumber": 12,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0010",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0010"
+          },
+          {
+            "rowNumber": 13,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0011",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0011"
+          },
+          {
+            "rowNumber": 14,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0012",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0012"
+          },
+          {
+            "rowNumber": 15,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0013",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0013"
+          },
+          {
+            "rowNumber": 16,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0014",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0014"
+          },
+          {
+            "rowNumber": 17,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0015",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0015"
+          },
+          {
+            "rowNumber": 18,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0016",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0016"
+          },
+          {
+            "rowNumber": 19,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0017",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0017"
+          },
+          {
+            "rowNumber": 20,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0018",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0018"
+          },
+          {
+            "rowNumber": 21,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0019",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0019"
+          },
+          {
+            "rowNumber": 22,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R19-BULK-0020",
+            "rawName": "R19 대량 정상 SOL1154R19-BULK-0020"
+          }
+        ],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      }
+    },
+    "accountingHttp": {
+      "status": 200,
+      "raw": "{\"slice\":\"mig-1\",\"filesScanned\":7,\"filesProcessed\":7,\"filesSkipped\":0,\"totalImported\":4,\"totalRejected\":1,\"details\":[{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BLANK.csv\",\"sourceFileHash\":\"92247A80754B63DFE0CECFCE09BC31B283F7A033D3E327424F9A2B9053BF26C0\",\"status\":\"PROCESSED_WITH_REJECTIONS\",\"imported\":0,\"rejected\":1,\"message\":\"held row=3 reason=REJECT_NAME_NULL partnerCode=SOL1154R19-BLANK-NAME name=\",\"heldParseFailureRows\":0,\"infrastructureFailureRows\":0,\"infrastructureFailure\":false,\"heldSample\":[],\"rejectedSample\":[{\"rowNumber\":3,\"reason\":\"REJECT_NAME_NULL\",\"rawPartnerCode\":\"SOL1154R19-BLANK-NAME\",\"rawName\":\"\"}]},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"sourceFileHash\":\"25F19584A031C235E4A101C8B6618824DBCED637131BE082F37A52AF1FDEB23B\",\"status\":\"PROCESSED_WITH_REJECTIONS\",\"imported\":0,\"rejected\":0,\"message\":\"held row=3 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0001 name=R19 대량 정상 SOL1154R19-BULK-0001\",\"heldParseFailureRows\":1000,\"infrastructureFailureRows\":0,\"infrastructureFailure\":false,\"heldSample\":[{\"rowNumber\":3,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0001\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0001\"},{\"rowNumber\":4,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0002\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0002\"},{\"rowNumber\":5,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0003\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0003\"},{\"rowNumber\":6,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0004\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0004\"},{\"rowNumber\":7,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0005\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0005\"},{\"rowNumber\":8,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0006\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0006\"},{\"rowNumber\":9,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0007\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0007\"},{\"rowNumber\":10,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0008\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0008\"},{\"rowNumber\":11,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0009\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0009\"},{\"rowNumber\":12,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0010\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0010\"},{\"rowNumber\":13,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0011\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0011\"},{\"rowNumber\":14,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0012\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0012\"},{\"rowNumber\":15,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0013\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0013\"},{\"rowNumber\":16,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0014\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0014\"},{\"rowNumber\":17,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0015\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0015\"},{\"rowNumber\":18,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0016\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0016\"},{\"rowNumber\":19,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0017\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0017\"},{\"rowNumber\":20,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0018\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0018\"},{\"rowNumber\":21,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0019\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0019\"},{\"rowNumber\":22,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-BULK-0020\",\"rawName\":\"R19 대량 정상 SOL1154R19-BULK-0020\"}],\"rejectedSample\":[]},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_NORMAL-ASCII.csv\",\"sourceFileHash\":\"B060DD37BAA2105C0D3A8A262F66A6A06E0DE5B6807C2C5EDF8A5D7FD21BE72B\",\"status\":\"PROCESSED\",\"imported\":1,\"rejected\":0,\"message\":null,\"heldParseFailureRows\":0,\"infrastructureFailureRows\":0,\"infrastructureFailure\":false,\"heldSample\":[],\"rejectedSample\":[]},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_NORMAL-CP949.csv\",\"sourceFileHash\":\"5B9E794227AD65436E1141EA280EE3D1BEA196895660036197E25D89A0011959\",\"status\":\"PROCESSED\",\"imported\":1,\"rejected\":0,\"message\":null,\"heldParseFailureRows\":0,\"infrastructureFailureRows\":0,\"infrastructureFailure\":false,\"heldSample\":[],\"rejectedSample\":[]},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_NORMAL-PUNCT.csv\",\"sourceFileHash\":\"F9D683F4988A0EFCD95E4C6DE8EC5E5107661023A356D2961E5D960ACCFCF999\",\"status\":\"PROCESSED\",\"imported\":1,\"rejected\":0,\"message\":null,\"heldParseFailureRows\":0,\"infrastructureFailureRows\":0,\"infrastructureFailure\":false,\"heldSample\":[],\"rejectedSample\":[]},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_NORMAL-UTF8.csv\",\"sourceFileHash\":\"69ECAA653D7172B7F2D34CDEA0C8FA2184E1459FA1932FEA860ACABDF8E16044\",\"status\":\"PROCESSED\",\"imported\":1,\"rejected\":0,\"message\":null,\"heldParseFailureRows\":0,\"infrastructureFailureRows\":0,\"infrastructureFailure\":false,\"heldSample\":[],\"rejectedSample\":[]},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_PUNCTUATION_HELD.csv\",\"sourceFileHash\":\"E8AAB5279A24A66115CA63C887C55E3895C8F6BD9634A64F91ACC8F2F1F17C90\",\"status\":\"PROCESSED_WITH_REJECTIONS\",\"imported\":0,\"rejected\":0,\"message\":\"held row=3 reason=INPUT_VALIDATION partnerCode=SOL1154R19-NORMAL-PUNCT name=R19 \\\"따옴표\\\" (주)삼한, 대리점/본점\\\\창고\",\"heldParseFailureRows\":1,\"infrastructureFailureRows\":0,\"infrastructureFailure\":false,\"heldSample\":[{\"rowNumber\":3,\"reason\":\"INPUT_VALIDATION\",\"rawPartnerCode\":\"SOL1154R19-NORMAL-PUNCT\",\"rawName\":\"R19 \\\"따옴표\\\" (주)삼한, 대리점/본점\\\\창고\"}],\"rejectedSample\":[]}],\"errors\":[{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BLANK.csv\",\"errorCode\":\"REJECT_NAME_NULL\",\"message\":\"held row=3 reason=REJECT_NAME_NULL partnerCode=SOL1154R19-BLANK-NAME name=\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=3 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0001 name=R19 대량 정상 SOL1154R19-BULK-0001\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=4 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0002 name=R19 대량 정상 SOL1154R19-BULK-0002\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=5 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0003 name=R19 대량 정상 SOL1154R19-BULK-0003\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=6 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0004 name=R19 대량 정상 SOL1154R19-BULK-0004\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=7 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0005 name=R19 대량 정상 SOL1154R19-BULK-0005\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=8 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0006 name=R19 대량 정상 SOL1154R19-BULK-0006\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=9 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0007 name=R19 대량 정상 SOL1154R19-BULK-0007\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=10 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0008 name=R19 대량 정상 SOL1154R19-BULK-0008\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=11 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0009 name=R19 대량 정상 SOL1154R19-BULK-0009\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=12 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0010 name=R19 대량 정상 SOL1154R19-BULK-0010\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=13 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0011 name=R19 대량 정상 SOL1154R19-BULK-0011\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=14 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0012 name=R19 대량 정상 SOL1154R19-BULK-0012\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=15 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0013 name=R19 대량 정상 SOL1154R19-BULK-0013\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=16 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0014 name=R19 대량 정상 SOL1154R19-BULK-0014\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=17 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0015 name=R19 대량 정상 SOL1154R19-BULK-0015\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=18 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0016 name=R19 대량 정상 SOL1154R19-BULK-0016\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=19 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0017 name=R19 대량 정상 SOL1154R19-BULK-0017\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=20 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0018 name=R19 대량 정상 SOL1154R19-BULK-0018\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=21 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0019 name=R19 대량 정상 SOL1154R19-BULK-0019\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_BULK_1000.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=22 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0020 name=R19 대량 정상 SOL1154R19-BULK-0020\"},{\"target\":\"partner\",\"fileName\":\"거래처-Excel다운로드_R19_PUNCTUATION_HELD.csv\",\"errorCode\":\"INPUT_VALIDATION\",\"message\":\"held row=3 reason=INPUT_VALIDATION partnerCode=SOL1154R19-NORMAL-PUNCT name=R19 \\\"따옴표\\\" (주)삼한, 대리점/본점\\\\창고\"}]}"
+    },
+    "detail": {
+      "target": "partner",
+      "fileName": "거래처-Excel다운로드_R19_BULK_1000.csv",
+      "sourceFileHash": "25F19584A031C235E4A101C8B6618824DBCED637131BE082F37A52AF1FDEB23B",
+      "status": "PROCESSED_WITH_REJECTIONS",
+      "imported": 0,
+      "rejected": 0,
+      "message": "held row=3 reason=INPUT_VALIDATION partnerCode=SOL1154R19-BULK-0001 name=R19 대량 정상 SOL1154R19-BULK-0001",
+      "heldParseFailureRows": 1000,
+      "infrastructureFailureRows": 0,
+      "infrastructureFailure": false,
+      "heldSample": [
+        {
+          "rowNumber": 3,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0001",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0001"
+        },
+        {
+          "rowNumber": 4,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0002",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0002"
+        },
+        {
+          "rowNumber": 5,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0003",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0003"
+        },
+        {
+          "rowNumber": 6,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0004",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0004"
+        },
+        {
+          "rowNumber": 7,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0005",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0005"
+        },
+        {
+          "rowNumber": 8,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0006",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0006"
+        },
+        {
+          "rowNumber": 9,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0007",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0007"
+        },
+        {
+          "rowNumber": 10,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0008",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0008"
+        },
+        {
+          "rowNumber": 11,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0009",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0009"
+        },
+        {
+          "rowNumber": 12,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0010",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0010"
+        },
+        {
+          "rowNumber": 13,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0011",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0011"
+        },
+        {
+          "rowNumber": 14,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0012",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0012"
+        },
+        {
+          "rowNumber": 15,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0013",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0013"
+        },
+        {
+          "rowNumber": 16,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0014",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0014"
+        },
+        {
+          "rowNumber": 17,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0015",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0015"
+        },
+        {
+          "rowNumber": 18,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0016",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0016"
+        },
+        {
+          "rowNumber": 19,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0017",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0017"
+        },
+        {
+          "rowNumber": 20,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0018",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0018"
+        },
+        {
+          "rowNumber": 21,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0019",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0019"
+        },
+        {
+          "rowNumber": 22,
+          "reason": "INPUT_VALIDATION",
+          "rawPartnerCode": "SOL1154R19-BULK-0020",
+          "rawName": "R19 대량 정상 SOL1154R19-BULK-0020"
+        }
+      ],
+      "rejectedSample": []
+    },
+    "pageSummary": {
+      "pages": 10,
+      "totalElements": 1000,
+      "rowsRead": 1000,
+      "first": {
+        "rowNumber": 3,
+        "reason": "INPUT_VALIDATION",
+        "rawPartnerCode": "SOL1154R19-BULK-0001",
+        "rawName": "R19 대량 정상 SOL1154R19-BULK-0001"
+      },
+      "last": {
+        "rowNumber": 1002,
+        "reason": "INPUT_VALIDATION",
+        "rawPartnerCode": "SOL1154R19-BULK-1000",
+        "rawName": "R19 대량 정상 SOL1154R19-BULK-1000"
+      }
+    }
+  },
+  "blankName": {
+    "direct": {
+      "status": 200,
+      "raw": "{\"totalRows\":1,\"imported\":0,\"updated\":0,\"rejectedNullName\":1,\"skippedPlaceholder\":0,\"activeCount\":0,\"suspendedCount\":0,\"sourceFileHash\":\"92247A80754B63DFE0CECFCE09BC31B283F7A033D3E327424F9A2B9053BF26C0\",\"rejectedSample\":[{\"rowNumber\":3,\"reason\":\"REJECT_NAME_NULL\",\"rawPartnerCode\":\"SOL1154R19-BLANK-NAME\",\"rawName\":\"\"}],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}",
+      "body": {
+        "totalRows": 1,
+        "imported": 0,
+        "updated": 0,
+        "rejectedNullName": 1,
+        "skippedPlaceholder": 0,
+        "activeCount": 0,
+        "suspendedCount": 0,
+        "sourceFileHash": "92247A80754B63DFE0CECFCE09BC31B283F7A033D3E327424F9A2B9053BF26C0",
+        "rejectedSample": [
+          {
+            "rowNumber": 3,
+            "reason": "REJECT_NAME_NULL",
+            "rawPartnerCode": "SOL1154R19-BLANK-NAME",
+            "rawName": ""
+          }
+        ],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 0,
+        "heldSample": [],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      }
+    },
+    "accounting": {
+      "target": "partner",
+      "fileName": "거래처-Excel다운로드_R19_BLANK.csv",
+      "sourceFileHash": "92247A80754B63DFE0CECFCE09BC31B283F7A033D3E327424F9A2B9053BF26C0",
+      "status": "PROCESSED_WITH_REJECTIONS",
+      "imported": 0,
+      "rejected": 1,
+      "message": "held row=3 reason=REJECT_NAME_NULL partnerCode=SOL1154R19-BLANK-NAME name=",
+      "heldParseFailureRows": 0,
+      "infrastructureFailureRows": 0,
+      "infrastructureFailure": false,
+      "heldSample": [],
+      "rejectedSample": [
+        {
+          "rowNumber": 3,
+          "reason": "REJECT_NAME_NULL",
+          "rawPartnerCode": "SOL1154R19-BLANK-NAME",
+          "rawName": ""
+        }
+      ]
+    }
+  },
+  "invalidEncoding": {
+    "status": 200,
+    "raw": "{\"totalRows\":0,\"imported\":0,\"updated\":0,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":0,\"suspendedCount\":0,\"sourceFileHash\":\"86E89592F44DFE78DE00B8D2D138A9E8E6DAE73770EE61C5E279A9DA4E859627\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":1,\"heldSample\":[{\"rowNumber\":0,\"reason\":\"CSV_ENCODING\",\"rawPartnerCode\":\"\",\"rawName\":\"\"}],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}",
+    "body": {
+      "totalRows": 0,
+      "imported": 0,
+      "updated": 0,
+      "rejectedNullName": 0,
+      "skippedPlaceholder": 0,
+      "activeCount": 0,
+      "suspendedCount": 0,
+      "sourceFileHash": "86E89592F44DFE78DE00B8D2D138A9E8E6DAE73770EE61C5E279A9DA4E859627",
+      "rejectedSample": [],
+      "excludedTrailerRows": 0,
+      "heldParseFailureRows": 1,
+      "heldSample": [
+        {
+          "rowNumber": 0,
+          "reason": "CSV_ENCODING",
+          "rawPartnerCode": "",
+          "rawName": ""
+        }
+      ],
+      "infrastructureFailureRows": 0,
+      "infrastructureFailureSample": [],
+      "infrastructureFailure": false,
+      "registrationDateParsedCount": 0,
+      "createdAtLoadTimeCount": 0
+    }
+  },
+  "punctuation": {
+    "inputName": "R19 \"따옴표\" (주)삼한, 대리점/본점\\창고",
+    "normalStoredName": "R19 \"따옴표\" (주)삼한, 대리점/본점\\창고",
+    "heldObservedName": "R19 \"따옴표\" (주)삼한, 대리점/본점\\창고"
+  },
+  "adminUi": {
+    "url": "http://127.0.0.1:5224/#/admin/partners",
+    "title": "Samhan Public 데스크톱",
+    "uiHasImportSurface": false,
+    "interactiveLabels": [
+      {
+        "tag": "BUTTON",
+        "text": "다시 확인",
+        "aria": null,
+        "testid": null,
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "닫기",
+        "aria": null,
+        "testid": "app-auto-update-dismiss",
+        "type": "button"
+      },
+      {
+        "tag": "A",
+        "text": "홈",
+        "aria": null,
+        "testid": null,
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "알림 내역",
+        "aria": null,
+        "testid": "sidebar-notifications",
+        "type": null
+      },
+      {
+        "tag": "BUTTON",
+        "text": "판매",
+        "aria": null,
+        "testid": "sidebar-category-toggle-판매",
+        "type": "button"
+      },
+      {
+        "tag": "A",
+        "text": "판매관리",
+        "aria": null,
+        "testid": "sidebar-sales",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "견적서 관리",
+        "aria": null,
+        "testid": "sidebar-sales-estimates",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "주문서 관리",
+        "aria": null,
+        "testid": "sidebar-sales-partner-orders",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "주문서 관리 (이관)",
+        "aria": null,
+        "testid": "sidebar-accounting-admin-orders",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "주문서 승인",
+        "aria": null,
+        "testid": null,
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "주문서 앱 접근권한 설정",
+        "aria": null,
+        "testid": null,
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "거래처 관리",
+        "aria": null,
+        "testid": "sidebar-sales-partners",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "거래처 DC 설정",
+        "aria": null,
+        "testid": "sidebar-sales-partner-dc-config",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "견적 가격 설정",
+        "aria": null,
+        "testid": "sidebar-sales-estimate-config",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "발송금지 거래처",
+        "aria": null,
+        "testid": "sidebar-sales-blocked-partners",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "전표 정리",
+        "aria": null,
+        "testid": "sidebar-sales-slip-cleanup",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "내일자 전표 이미지",
+        "aria": null,
+        "testid": "sidebar-sales-next-day-slip",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "기초품목 관리",
+        "aria": null,
+        "testid": "sidebar-products-catalog",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "견적품목 관리",
+        "aria": null,
+        "testid": "sidebar-products-estimate-items",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "분류 관리",
+        "aria": null,
+        "testid": "sidebar-products-classifications",
+        "type": null
+      },
+      {
+        "tag": "A",
+        "text": "시트 동기화",
+        "aria": null,
+        "testid": "sidebar-settings-sheet-sync-in-products",
+        "type": null
+      },
+      {
+        "tag": "BUTTON",
+        "text": "구매",
+        "aria": null,
+        "testid": "sidebar-category-toggle-구매",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "회계",
+        "aria": null,
+        "testid": "sidebar-category-toggle-회계",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "그룹웨어",
+        "aria": null,
+        "testid": "sidebar-category-toggle-그룹웨어",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "인사",
+        "aria": null,
+        "testid": "sidebar-category-toggle-인사",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "개발",
+        "aria": null,
+        "testid": "sidebar-category-toggle-개발",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "배차",
+        "aria": null,
+        "testid": "sidebar-category-toggle-배차",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "창고 운영",
+        "aria": null,
+        "testid": "sidebar-category-toggle-창고운영",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "≡",
+        "aria": "메뉴 열기",
+        "testid": "app-drawer-toggle",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "1",
+        "aria": "알림 1건",
+        "testid": "notification-bell",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "[DEV-SEED] 개발마스터 · MASTER▼",
+        "aria": null,
+        "testid": "header-user-name",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Excel 다운로드",
+        "aria": null,
+        "testid": "admin-partners-excel-export",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "신규 등록",
+        "aria": null,
+        "testid": "admin-partners-create-btn",
+        "type": "button"
+      },
+      {
+        "tag": "INPUT",
+        "text": "",
+        "aria": null,
+        "testid": "admin-partners-search-input",
+        "type": "search"
+      },
+      {
+        "tag": "SELECT",
+        "text": "상태 전체거래중거래중지거래종료",
+        "aria": null,
+        "testid": "admin-partners-status-filter",
+        "type": null
+      },
+      {
+        "tag": "SELECT",
+        "text": "유형 전체고객공급사고객/공급사",
+        "aria": null,
+        "testid": "admin-partners-type-filter",
+        "type": null
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "이상덕기사님(경기퀵) 거래처 삭제",
+        "testid": "admin-partners-row---delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "파인씨엔디 거래처 삭제",
+        "testid": "admin-partners-row-00-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "국제전자센타91호-이영규 거래처 삭제",
+        "testid": "admin-partners-row-000-00-00000-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "에어컨총각들(임시) 거래처 삭제",
+        "testid": "admin-partners-row-000000000-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "한울냉열시스템 거래처 삭제",
+        "testid": "admin-partners-row-000011111111-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "청담 동양파라곤 / 개인고객 거래처 삭제",
+        "testid": "admin-partners-row-00011241415-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "김남국-개인고객 거래처 삭제",
+        "testid": "admin-partners-row-000191919-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "정효림-개인 거래처 삭제",
+        "testid": "admin-partners-row-0004-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "(임시) 신도림테크노마트 거래처 삭제",
+        "testid": "admin-partners-row-00040000-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "국민건강보험공단 거래처 삭제",
+        "testid": "admin-partners-row-01-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "향남부평-(박동수) 거래처 삭제",
+        "testid": "admin-partners-row-010-2564-8488-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "김한진 거래처 삭제",
+        "testid": "admin-partners-row-010-2757-9484-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "김용길 거래처 삭제",
+        "testid": "admin-partners-row-010-3670932-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "신정호 거래처 삭제",
+        "testid": "admin-partners-row-010-3849-4725-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "개인-윤정용 거래처 삭제",
+        "testid": "admin-partners-row-010-4387-0709-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "정연재 거래처 삭제",
+        "testid": "admin-partners-row-010-4553-6280-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "개인-김필준 거래처 삭제",
+        "testid": "admin-partners-row-010-4872-2432-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "김완영-개인 거래처 삭제",
+        "testid": "admin-partners-row-010-7378-9955-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "박노성(개인) 거래처 삭제",
+        "testid": "admin-partners-row-010-9056-3027-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "삭제",
+        "aria": "신민철프로 거래처 삭제",
+        "testid": "admin-partners-row-01000000-delete",
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "이전",
+        "aria": null,
+        "testid": null,
+        "type": "button"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "다음",
+        "aria": null,
+        "testid": null,
+        "type": "button"
+      }
+    ],
+    "network": [
+      {
+        "method": "GET",
+        "status": 200,
+        "url": "http://localhost:8080/admin/partners/list-realtime"
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "url": "http://localhost:8080/admin/partners/search?page=0&size=20&includeDeleted=true"
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "url": "http://localhost:8080/admin/partners/search?page=0&size=20&includeDeleted=true"
+      }
+    ],
+    "sourceConsumerGrep": 0,
+    "apiPagesReadByQa": 10,
+    "apiRowsReadByQa": 1000
+  }
+}

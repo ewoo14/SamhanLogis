@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { PartnerAutocomplete, type PartnerOption } from './PartnerAutocomplete'
 
 describe('R6 거래처 5,587건 비용 실측', () => {
@@ -47,4 +47,24 @@ describe('R6 거래처 5,587건 비용 실측', () => {
     console.info(`[R6 COST] modal radios=${radios.length} domElements=${domElementCount}`)
     expect(domElementCount).toBeLessThanOrEqual(100_000)
   }, 30_000)
+  it('single opt-in은 단일 후보를 모달 없이 즉시 확정한다', async () => {
+    const partner: PartnerOption = { partnerCode: 'P-001', name: '단일 거래처' }
+    const onChange = vi.fn()
+    render(
+      <PartnerAutocomplete
+        value={null}
+        onChange={onChange}
+        searchPartners={async () => [partner]}
+        resultSelectionMode="single"
+        autoSelectSingleResult
+        debounceMs={0}
+      />,
+    )
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'P' } })
+
+    await screen.findByDisplayValue('단일 거래처')
+    expect(onChange).toHaveBeenCalledWith(partner)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
 })

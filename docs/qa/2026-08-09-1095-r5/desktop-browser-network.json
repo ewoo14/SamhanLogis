@@ -1,0 +1,83 @@
+[
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AC072BSCPBH2SY&size=50&usageScope=ESTIMATE"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AF60F17D11LS&size=50&usageScope=ESTIMATE"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AR60F09C13WS&size=50&usageScope=ESTIMATE"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AC060CS6PBH1SY&size=50&usageScope=ESTIMATE"
+  },
+  {
+    "method": "GET",
+    "status": "FAILED",
+    "url": "http://127.0.0.1:5296/slips/lookup-product?modelName=AC060CS6PBH1SY",
+    "error": "net::ERR_ABORTED"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=%EC%9A%B4%EC%9E%84&size=50&usageScope=ESTIMATE"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AR60F09C13WS&size=20&usageScope=PARTNER_ORDER"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AC060CS6PBH1SY&size=20&usageScope=PARTNER_ORDER"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/slips/expand-line"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/inventory/alerts/safety-stock"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AC072BSCPBH2SY&size=20"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/v1/products/catalog-realtime"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/v1/products?category=HOME_MULTI&page=0&size=50"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AJ012MB1PBC2&size=50"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/products?q=AJ016BN1PBC2&size=50"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://127.0.0.1:5296/api/v1/products?q=AJ012MB1PBC2&category=HOME_MULTI&page=0&size=50"
+  }
+]

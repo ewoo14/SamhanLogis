@@ -90,8 +90,8 @@ public class ProductSheetSyncScheduler {
     private void runProductSyncForCron() {
         try {
             ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
-            log.info("[ProductSheetSyncScheduler] cron product sync 완료: inserted={}, updated={}, softDeleted={}",
-                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted);
+            log.info("[ProductSheetSyncScheduler] cron product sync 완료: insertedRows={}, updatedRows={}, softDeletedProductRows={}",
+                    summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows);
         } catch (Exception e) {
             log.error("[ProductSheetSyncScheduler] cron product sync 실패: {}", e.getMessage(), e);
         }
@@ -101,8 +101,8 @@ public class ProductSheetSyncScheduler {
     private void runLookupSyncForCron() {
         try {
             ProductLookupSheetSyncService.SyncSummary summary = lookupSyncService.syncAll();
-            log.info("[ProductSheetSyncScheduler] cron lookup sync 완료: inserted={}, updated={}, softDeleted={}",
-                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted);
+            log.info("[ProductSheetSyncScheduler] cron lookup sync 완료: lookupInsertedRows={}, lookupUpdatedRows={}, lookupSoftDeletedRows={}",
+                    summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedLookupRows);
         } catch (Exception e) {
             log.error("[ProductSheetSyncScheduler] cron lookup sync 실패: {}", e.getMessage(), e);
         }
@@ -136,8 +136,8 @@ public class ProductSheetSyncScheduler {
     private void runProductSyncForBoot() {
         try {
             ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
-            log.info("[ProductSheetSyncScheduler] 부팅 product sync 완료: inserted={}, updated={}, softDeleted={}",
-                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted);
+            log.info("[ProductSheetSyncScheduler] 부팅 product sync 완료: insertedRows={}, updatedRows={}, softDeletedProductRows={}",
+                    summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows);
         } catch (Exception e) {
             log.warn("[ProductSheetSyncScheduler] 부팅 product sync 실패 (cron 으로 재시도): {}", e.getMessage());
         }
@@ -147,8 +147,8 @@ public class ProductSheetSyncScheduler {
     private void runLookupSyncForBoot() {
         try {
             ProductLookupSheetSyncService.SyncSummary summary = lookupSyncService.syncAll();
-            log.info("[ProductSheetSyncScheduler] 부팅 lookup sync 완료: inserted={}, updated={}, softDeleted={}",
-                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted);
+            log.info("[ProductSheetSyncScheduler] 부팅 lookup sync 완료: lookupInsertedRows={}, lookupUpdatedRows={}, lookupSoftDeletedRows={}",
+                    summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedLookupRows);
         } catch (Exception e) {
             log.warn("[ProductSheetSyncScheduler] 부팅 lookup sync 실패 (cron 으로 재시도): {}", e.getMessage());
         }

@@ -652,6 +652,22 @@ jobs:
       # (SP-08-7 notion-zero-guard 패턴 일관). spec testDir 외부 testMatch 이슈 (No tests found)
       # 해결은 별도 PR (qa/playwright testDir 확장 또는 spec 이전).
 
+  local-stack-port-guard:
+    name: Local Stack Port Resolver Guard (#1113)
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan every tracked PowerShell consumer
+        shell: pwsh
+        run: ./scripts/check-local-stack-port-literals.ps1 -Root $PWD
+
+      - name: Execute resolver and Measure-Object regressions
+        shell: powershell
+        run: ./tools/operational-validation/test-s7-axis-redefined.ps1
+
   config-audit-guard:
     name: "Config Audit Guard (다운스트림 URL/포트 정합, #745)"
     runs-on: ubuntu-latest

@@ -18,9 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 커밋 전표의 partner_id legacy 위반을 partner-service 경유로 동적으로 보정한다.
  *
- * <p>실행 시점에 활성 9상태 + partner_id null을 재조회한다. FOUND와 실제 partnerId가 모두 있는
- * 경우에만 변경하며, 그 밖의 partner-service 결과는 회계 무결성을 위해 fail-open하지 않고
- * 미해소 리포트로 남긴다. 보정 대상은 이미 값이 있으면 조회 대상에서 제외되어 멱등이다.
+ * <p>실행 시점에 활성 9상태의 두 종류 legacy 위반을 재조회한다. partner_code가 있고
+     * partner_id가 없는 행은 기존 방향으로, partner_id가 있고 partner_code가 없는 행은
+     * 반대 방향으로 partner-service를 호출한다. lookup 실패는 미해소 리포트로 남기며 저장을
+     * 막지 않는다. 두 방향 모두 이미 값이 있으면 조회 대상에서 제외되어 멱등이다.
  */
 @Slf4j
 @Service
@@ -40,13 +41,15 @@ public class SlipPartnerBackfillService {
      */
     @Transactional
     public SlipPartnerBackfillResponse backfill(boolean dryRun) {
-        List<Slip> candidates = slipRepository
+        List<Slip> partnerIdMissing = slipRepository
                 .findAllByStatusInAndPartnerIdIsNullAndIsDeletedFalse(REQUIRED_STATUSES);
+        List<Slip> partnerCodeMissing = slipRepository
+                .findAllByStatusInAndPartnerIdIsNotNullAndPartnerCodeMissingAndIsDeletedFalse(REQUIRED_STATUSES);
         List<Slip> updated = new ArrayList<>();
         List<UnresolvedSlip> unresolved = new ArrayList<>();
         long processedCount = 0;
 
-        for (Slip slip : candidates) {
+        for (Slip slip : partnerIdMissing) {
             String partnerCode = normalize(slip.getPartnerCode());
             if (partnerCode == null) {
                 unresolved.add(unresolved(slip, null, "partnerCode 없음"));
@@ -66,15 +69,30 @@ public class SlipPartnerBackfillService {
             unresolved.add(unresolved(slip, partnerCode, reason(result)));
         }
 
+        for (Slip slip : partnerCodeMissing) {
+            String partnerCode = normalize(partnerInternalClient.resolvePartnerCode(slip.getPartnerId()).orElse(null));
+            if (partnerCode != null) {
+                processedCount++;
+                if (!dryRun) {
+                    slip.setPartnerCode(partnerCode);
+                    updated.add(slip);
+                }
+                continue;
+            }
+            unresolved.add(unresolved(slip, null, "partnerCode resolve 실패"));
+        }
+
         if (!dryRun && !updated.isEmpty()) {
             slipRepository.saveAllAndFlush(updated);
         }
         long remainingCount = slipRepository
-                .countByStatusInAndPartnerIdIsNullAndIsDeletedFalse(REQUIRED_STATUSES);
+                .countByStatusInAndEitherPartnerColumnMissing(REQUIRED_STATUSES);
         log.info("커밋 전표 거래처 보정 완료 — dryRun={}, candidate={}, processed={}, unresolved={}, remaining={}",
-                dryRun, candidates.size(), processedCount, unresolved.size(), remainingCount);
+                dryRun, partnerIdMissing.size() + partnerCodeMissing.size(), processedCount,
+                unresolved.size(), remainingCount);
         return new SlipPartnerBackfillResponse(
-                candidates.size(), processedCount, unresolved.size(), remainingCount, dryRun,
+                partnerIdMissing.size() + partnerCodeMissing.size(), processedCount, unresolved.size(),
+                remainingCount, dryRun,
                 List.copyOf(unresolved));
     }
 

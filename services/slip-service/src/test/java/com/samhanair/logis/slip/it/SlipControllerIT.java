@@ -13,6 +13,7 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.InventoryClient;
+import com.samhanair.logis.slip.client.SourceOperationContext;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
@@ -606,11 +607,12 @@ class SlipControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk());
 
-        // InventoryClient.deduct(productId, warehouseId, quantity, fromReservation, refType, refId) — 6 인자.
+        // InventoryClient.deduct(..., sourceContext) — source journal 컨텍스트까지 전달.
         Mockito.verify(inventoryClient, Mockito.atLeastOnce())
                 .deduct(ArgumentMatchers.any(UUID.class), ArgumentMatchers.any(UUID.class),
                         ArgumentMatchers.anyInt(), ArgumentMatchers.eq(true),
-                        ArgumentMatchers.any(), ArgumentMatchers.any(UUID.class));
+                        ArgumentMatchers.any(), ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.any(SourceOperationContext.class));
     }
 
     @Test

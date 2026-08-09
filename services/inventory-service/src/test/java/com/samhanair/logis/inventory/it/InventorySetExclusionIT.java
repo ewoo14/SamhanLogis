@@ -15,6 +15,7 @@ import com.samhanair.logis.inventory.service.StockService;
 import com.samhanair.logis.inventory.web.dto.DeductRequest;
 import com.samhanair.logis.inventory.web.dto.DeductionResponse;
 import com.samhanair.logis.inventory.web.dto.InboundRequest;
+import com.samhanair.logis.inventory.web.dto.SourceOperationContext;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -75,7 +76,8 @@ class InventorySetExclusionIT extends AbstractPostgresIT {
         var bundleInbound = stockService.inbound(inbound(bundleProductId, "BUNDLE-LOT", 4), "it-user");
         var nonGoodsInbound = stockService.inbound(inbound(nonGoodsProductId, "FEE-LOT", 4), "it-user");
         DeductionResponse bundleDeduct = stockService.deduct(
-                new DeductRequest(bundleProductId, warehouseId, 2, false, null, null, "세트 차감 시도"),
+                new DeductRequest(bundleProductId, warehouseId, 2, false, null, null, "세트 차감 시도",
+                        new SourceOperationContext(UUID.randomUUID(), bundleProductId, 1L)),
                 "it-user");
 
         assertThat(singleInbound).isNotNull();
@@ -103,9 +105,10 @@ class InventorySetExclusionIT extends AbstractPostgresIT {
 
     private InboundRequest inbound(UUID productId, String lotNo, int quantity) {
         return new InboundRequest(
-                productId, warehouseId, lotNo, quantity,
+                productId, warehouseId, lotNo, null, quantity,
                 LocalDateTime.of(2026, 6, 19, 9, 0),
-                new BigDecimal("10000.00"), "재고 게이트 IT");
+                new BigDecimal("10000.00"), "재고 게이트 IT",
+                new SourceOperationContext(UUID.randomUUID(), productId, 1L));
     }
 
     private ProductSummary product(UUID productId, String name, String productCode,

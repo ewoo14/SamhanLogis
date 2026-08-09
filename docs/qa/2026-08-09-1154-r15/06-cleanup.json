@@ -1,0 +1,11 @@
+{
+  "apiDeletes": {
+    "requested": 1004,
+    "ok200": 1004,
+    "other": []
+  },
+  "additionalApiDeletes": 1,
+  "active": 0,
+  "softDeleted": 1005,
+  "staging": 2013
+}

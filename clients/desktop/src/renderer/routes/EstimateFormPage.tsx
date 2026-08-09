@@ -45,7 +45,7 @@ import {
   emptyBundleSetOptions,
   toApiBundleSetOptions,
 } from '../api/slip'
-import { lookupProducts, searchProducts } from '../api/productApi'
+import { isSelectableProductStatus, lookupProducts, searchProducts } from '../api/productApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -78,9 +78,11 @@ import {
 } from '../realtime/coeditLineIds'
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
+import { quantityAfterDeliveryPriceInput } from './estimateLineModel'
 import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
+import { hydrateCurrentProductStatuses, isQuantityEditable } from '../utils/estimateLineStatus'
 
 let __lineUidCounter = 0
 const nextLineUid = (): string => `est-line-${++__lineUidCounter}`
@@ -130,6 +132,8 @@ interface DraftLine {
   lookupLoading: boolean
   /** 품목 유형 — "SINGLE" | "BUNDLE". BUNDLE 일 때만 세트 옵션 노출. */
   productType: string | null
+  goodsType: 'GOODS' | 'NON_GOODS' | null
+  status?: string | null
   /** 세트 전개 옵션 — BUNDLE 라인에 한해 채움 (BE BundleSetOptions). */
   setOptions: BundleSetOptions
 }
@@ -162,6 +166,8 @@ const emptyLine = (): DraftLine => ({
   lookupError: null,
   lookupLoading: false,
   productType: null,
+  goodsType: null,
+  status: null,
   setOptions: emptyBundleSetOptions(),
 })
 
@@ -300,6 +306,7 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           lookupLoading: false,
           // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음.
           productType: null,
+          goodsType: null,
           setOptions: line.setOptions ?? emptyBundleSetOptions(),
         }
       })
@@ -408,6 +415,7 @@ function coeditLinesToDraftLines(
       specificationSource,
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice,
+      goodsType: previous?.goodsType ?? null,
       supplyAmount: previous?.supplyAmount ?? '0',
       vatAmount: previous?.vatAmount ?? '0',
       lineTotal: previous?.lineTotal ?? '0',
@@ -566,15 +574,16 @@ function EstimateMobileLineCard(props: {
           coeditPending={props.coeditPending}
           fieldPath={`items.${props.index}.quantity`}
           value={props.line.quantity}
-          onValueChange={(value) => props.onUpdate(
-            changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value),
-            true,
-          )}
-          onDocSyncValueChange={(value) => props.onUpdate(
-            changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value),
-          )}
+          onValueChange={(value) => {
+            if (!isQuantityEditable(props.line.productId, props.line.status)) return
+            props.onUpdate(changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value), true)
+          }}
+          onDocSyncValueChange={(value) => {
+            if (!isQuantityEditable(props.line.productId, props.line.status)) return
+            props.onUpdate(changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value))
+          }}
           inputSize="sm"
-          readOnly={props.isReadOnly}
+          readOnly={props.isReadOnly || !isQuantityEditable(props.line.productId, props.line.status)}
           type="text"
           inputMode="numeric"
           inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -895,6 +904,27 @@ export function EstimateFormPage() {
     setHydratedEstimateId(editId ?? null)
   }, [editId, isEdit, detailQuery.data, estimateFormCoeditProvider])
 
+  // 상태 조회는 협업 provider 연결/반영 경로와 분리한다. 품목 상태가 늦어져도 상대 입력
+  // 수신을 기다리게 하지 않으며, 완료 시 현재 라인의 상태 필드만 병합한다.
+  useEffect(() => {
+    if (!isEdit || !editId || !detailQuery.data) return
+    const estimateIdAtStart = detailQuery.data.id
+    const draftLines = linesRef.current
+    void hydrateCurrentProductStatuses(draftLines, lookupProducts).then((hydratedWithCurrentStatuses) => {
+      if (estimateDataRef.current?.id !== estimateIdAtStart) return
+      const statusByProductId = new Map(
+        hydratedWithCurrentStatuses
+          .filter((line) => line.productId)
+          .map((line) => [line.productId!, line.status ?? null]),
+      )
+      const currentLines = linesRef.current.map((line) => line.productId && statusByProductId.has(line.productId)
+        ? { ...line, status: statusByProductId.get(line.productId) ?? null }
+        : line)
+      linesRef.current = currentLines
+      setLines(currentLines)
+    })
+  }, [editId, isEdit, detailQuery.data])
+
   useEffect(() => {
     const estimate = estimateDataRef.current
     if (!isEdit || !editId || !estimate || !canCollabEdit) {
@@ -1097,7 +1127,7 @@ export function EstimateFormPage() {
     const rows = await searchPartners(q, 8)
     return rows.map((row) => ({
       id: row.partnerId ?? undefined,
-      partnerCode: row.businessRegistrationNumber,
+      partnerCode: row.partnerCode ?? '',
       name: row.companyName,
       bizNo: row.businessRegistrationNumber,
       phone: row.contactPhone ?? undefined,
@@ -1110,10 +1140,12 @@ export function EstimateFormPage() {
    * 후보를 반환하면 절대 실행하지 않는다.
    */
   const searchEstimateProducts = async (q: string): Promise<ProductOption[]> => {
-    const candidates = await searchProducts(q)
+    const candidates = (await searchProducts(q, { usageScope: 'ESTIMATE', size: 50 }))
+      .filter((candidate) => isSelectableProductStatus(candidate.status))
     if (candidates.length > 0) return candidates
     try {
       const legacy = await lookupProductByModelName(q)
+      if (!isSelectableProductStatus(legacy.status)) return []
       return [{
         id: legacy.productId,
         modelName: legacy.modelName,
@@ -1121,6 +1153,7 @@ export function EstimateFormPage() {
         sellingPrice: Number(legacy.sellingPrice),
         modelCode: legacy.modelCode,
         productType: legacy.productType,
+        status: legacy.status,
       }]
     } catch {
       return []
@@ -1157,7 +1190,8 @@ export function EstimateFormPage() {
     }
     handleSelectPartner({
       partnerId: option.id ?? null,
-      businessRegistrationNumber: option.bizNo ?? option.partnerCode,
+      businessRegistrationNumber: option.bizNo ?? '',
+      partnerCode: option.partnerCode,
       companyName: option.name,
       representativeName: null,
       contactPhone: option.phone ?? null,
@@ -1221,9 +1255,11 @@ export function EstimateFormPage() {
   const updatePrice = (index: number, unitPrice: string) => {
     const current = linesRef.current[index]
     if (!current) return
+    const quantity = quantityAfterDeliveryPriceInput(current.goodsType, current.quantity, unitPrice)
     updateLine(index, {
-      ...recalculateLineVat(asVatLine({ ...current, unitPrice }), 'PRICE'),
+      ...recalculateLineVat(asVatLine({ ...current, unitPrice, quantity }), 'PRICE'),
       unitPrice,
+      quantity,
       priceSource: 'USER',
       priceMemoryUpdatedAt: null,
       priceRefreshChanged: false,
@@ -1237,7 +1273,7 @@ export function EstimateFormPage() {
 
   const updateQuantity = (index: number, quantity: string) => {
     const current = linesRef.current[index]
-    if (!current) return
+    if (!current || !isQuantityEditable(current.productId, current.status)) return
     updateLine(index, changeLineQuantity(asVatLine({ ...current, quantity }), quantity), true)
   }
 
@@ -1445,6 +1481,8 @@ export function EstimateFormPage() {
         specification: 'specification' in rawResult ? rawResult.specification : null,
         sellingPrice: String(rawResult.sellingPrice ?? ''),
         productType: rawResult.productType,
+        goodsType: rawResult.goodsType,
+        status: rawResult.status ?? null,
       }
       const currentAfterProductLookup = linesRef.current.find((current) => current.uid === line.uid)
       if (!currentAfterProductLookup || !isProductBindCurrent(currentAfterProductLookup)) {
@@ -1535,6 +1573,7 @@ export function EstimateFormPage() {
         specification: nextSpecification,
         specificationSource: nextSpecificationSource,
         productType: result.productType ?? 'SINGLE',
+        goodsType: result.goodsType ?? current.goodsType,
         catalogUnitPrice: result.sellingPrice,
         unitPrice: applyPrice ? nextUnitPrice : current.unitPrice,
         priceSource: applyPrice ? nextPriceSource : current.priceSource,
@@ -1542,6 +1581,7 @@ export function EstimateFormPage() {
         priceRefreshChanged: applyPrice ? false : current.priceRefreshChanged,
         partnerRefreshEligible: applyPrice ? true : current.partnerRefreshEligible,
         isBundleComponent: false,
+        status: result.status ?? null,
         lookupError: null,
         lookupLoading: false,
       }
@@ -1613,6 +1653,8 @@ export function EstimateFormPage() {
         modelName: '',
         productName: '',
         productType: null,
+        goodsType: null,
+        status: null,
         catalogUnitPrice: null,
         ...(hadAutoSpecification
           ? { specification: '', specificationSource: null }
@@ -1645,6 +1687,7 @@ export function EstimateFormPage() {
       productId: null,
       productName: '',
       productType: product.productType ?? null,
+      status: product.status ?? null,
     }, true)
     try {
       estimateFormCoeditProvider?.setItemValue(index, 'modelName', product.modelName)
@@ -1924,7 +1967,7 @@ export function EstimateFormPage() {
             value={partner
               ? {
                   id: partner.partnerId ?? undefined,
-                  partnerCode: partner.businessRegistrationNumber,
+                  partnerCode: partner.partnerCode ?? '',
                   name: partner.companyName,
                   bizNo: partner.businessRegistrationNumber,
                   phone: partner.contactPhone ?? undefined,
@@ -2187,6 +2230,7 @@ export function EstimateFormPage() {
                   modelName: line.modelName,
                   productName: line.productName,
                   productType: line.productType ?? undefined,
+                  status: line.status,
                   sellingPrice: line.catalogUnitPrice == null ? undefined : Number(line.catalogUnitPrice),
                   specification: line.specification,
                 } : null}
@@ -2240,7 +2284,7 @@ export function EstimateFormPage() {
                 value={line.productName}
                 onValueChange={(value) => updateLine(i, { productName: value }, true)}
                 onDocSyncValueChange={(value) => updateLine(i, { productName: value })}
-                readOnly={Boolean(isReadOnly)}
+                readOnly={Boolean(isReadOnly) || !isQuantityEditable(line.productId, line.status)}
                 aria-label={`라인 ${i + 1} 품목명`}
               />
               <CollaborativeSlipInput
@@ -2261,15 +2305,14 @@ export function EstimateFormPage() {
                 type="text"
                 value={line.quantity}
                   onValueChange={(value) => updateQuantity(i, value)}
-                  onDocSyncValueChange={(value) => updateLine(i, {
-                    ...changeLineQuantity(asVatLine({ ...line, quantity: value }), value),
-                  })}
-                readOnly={Boolean(isReadOnly)}
+                  onDocSyncValueChange={(value) => updateQuantity(i, value)}
+                readOnly={Boolean(isReadOnly) || !isQuantityEditable(line.productId, line.status)}
                 inputMode="numeric"
                 inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
-                aria-label={`라인 ${i + 1} 수량`}
+                aria-label={`라인 ${i + 1} 수량${line.status === 'OUT_OF_STOCK' ? ' 품절' : !isQuantityEditable(line.productId, line.status) ? ' 상태 확인 중' : ''}`}
                 data-testid={`estimate-form-line-${i}-qty`}
               />
+              {!isQuantityEditable(line.productId, line.status) ? <span role="status">{line.status === 'OUT_OF_STOCK' ? '품절' : '상태 확인 중'}</span> : null}
               <div>
                 <CollaborativeSlipInput
                   provider={estimateFormCoeditProvider}

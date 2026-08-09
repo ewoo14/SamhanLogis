@@ -86,6 +86,36 @@ public interface EstimateRepository extends JpaRepository<Estimate, UUID> {
                                           @Param("includeDeleted") boolean includeDeleted,
                                           Pageable pageable);
 
+    /** 웹 자기 담당 표면 전용 조회. 역할 등급이 아니라 requester_id로만 범위를 고정한다. */
+    @Query(value = """
+            SELECT *
+              FROM estimates e
+             WHERE e.requester_id = :requesterId
+               AND (:includeDeleted = TRUE OR e.is_deleted = FALSE)
+               AND (CAST(:status AS varchar) IS NULL OR e.status = CAST(:status AS varchar))
+               AND (CAST(:partnerId AS uuid) IS NULL OR e.partner_id = CAST(:partnerId AS uuid))
+               AND (CAST(:startDate AS date) IS NULL OR e.estimate_date >= CAST(:startDate AS date))
+               AND (CAST(:endDate AS date) IS NULL OR e.estimate_date <= CAST(:endDate AS date))
+             ORDER BY e.is_deleted ASC, e.estimate_date DESC, e.seq_no DESC, e.created_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+              FROM estimates e
+             WHERE e.requester_id = :requesterId
+               AND (:includeDeleted = TRUE OR e.is_deleted = FALSE)
+               AND (CAST(:status AS varchar) IS NULL OR e.status = CAST(:status AS varchar))
+               AND (CAST(:partnerId AS uuid) IS NULL OR e.partner_id = CAST(:partnerId AS uuid))
+               AND (CAST(:startDate AS date) IS NULL OR e.estimate_date >= CAST(:startDate AS date))
+               AND (CAST(:endDate AS date) IS NULL OR e.estimate_date <= CAST(:endDate AS date))
+            """, nativeQuery = true)
+    Page<Estimate> searchAssigned(@Param("requesterId") String requesterId,
+                                  @Param("status") String status,
+                                  @Param("partnerId") UUID partnerId,
+                                  @Param("startDate") LocalDate startDate,
+                                  @Param("endDate") LocalDate endDate,
+                                  @Param("includeDeleted") boolean includeDeleted,
+                                  Pageable pageable);
+
     /** 상태별 페이지. */
     Page<Estimate> findAllByStatusAndIsDeletedFalse(EstimateStatus status, Pageable pageable);
 

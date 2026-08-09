@@ -9,7 +9,7 @@
     Samhan Public DB CRUD 화면/API 에서 수행한다.
 
     동작 순서:
-        1) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (userId / role)
+        1) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (sub / groups / isSystemMaster)
         2) 4 CSV 를 multipart/form-data 로 admin endpoint 호출 (SAMHAN_*_PORT override 반영)
             - REGION : POST arologis-service/admin/arologis/regions/import
             - DC     : POST dc-config-service/api/v1/dc-config/admin/import
@@ -19,7 +19,7 @@
         4) 종합 합격/불합격 판정
 
 .PARAMETER GatewayUrl
-    API Gateway base URL (default http://localhost:8080). 로그인은 gateway 경유.
+    API Gateway base URL. 로그인은 gateway 경유.
     DB 이관 endpoint 호출은 start-local-full.ps1 의 SAMHAN_*_PORT override 와 +100
     fallback 을 따라 service port 직접 호출한다.
 
@@ -56,7 +56,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $GatewayUrl       = 'http://localhost:8080',
+    [string] $GatewayUrl       = '',
     [string] $LoginId          = 'kimmiseon',
     [string] $Password         = '',
     [string] $NotionExportRoot = '',
@@ -66,6 +66,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $qaCredentialLoader = Join-Path $PSScriptRoot '..\..\scripts\lib\qa-credentials.ps1'
 . (Resolve-Path -LiteralPath $qaCredentialLoader)
+. (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot 'smoke-test-helpers.ps1'))
 if ([string]::IsNullOrWhiteSpace($Password)) {
     $Password = Resolve-QaCredential -Key 'QA_MASTER_PASSWORD' -CompatibilityAliases @('QA_PASSWORD', 'QA_MASTER_PW')
 }
@@ -77,6 +78,7 @@ if ([string]::IsNullOrWhiteSpace($Password)) {
 # 0. 경로 + 설정
 # -----------------------------------------------------------------------------
 $ProjectRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
+. (Resolve-Path -LiteralPath (Join-Path $ProjectRoot 'scripts\lib\local-stack-port.ps1'))
 if (-not $NotionExportRoot) {
     $NotionExportRoot = Join-Path $ProjectRoot 'tools\legacy-gas\_notion-export'
 }
@@ -98,47 +100,18 @@ function Test-ImportHealthPort {
 
 function Resolve-ImportGatewayUrl {
     param([string] $CurrentGatewayUrl)
-    $envValue = [Environment]::GetEnvironmentVariable('SAMHAN_API_GATEWAY_PORT')
-    if ($envValue -and $envValue -match '^\d+$') {
-        return "http://localhost:$envValue"
-    }
-    if ($CurrentGatewayUrl -ne 'http://localhost:8080') {
+    if (-not [string]::IsNullOrWhiteSpace($CurrentGatewayUrl)) {
         return $CurrentGatewayUrl
     }
-    if (Test-ImportHealthPort -Port 8080) {
-        return $CurrentGatewayUrl
-    }
-    if (Test-ImportHealthPort -Port 8180) {
-        return 'http://localhost:8180'
-    }
-    return $CurrentGatewayUrl
+    return "http://localhost:$(Get-LocalStackPort -Service 'api-gateway')"
 }
 
 # service port override 반영 — start-local-full.ps1 의 SAMHAN_*_PORT 와 정합.
-function Resolve-ImportServicePort {
-    param(
-        [string] $EnvName,
-        [int] $DefaultPort
-    )
-    $envValue = [Environment]::GetEnvironmentVariable($EnvName)
-    if ($envValue -and $envValue -match '^\d+$') {
-        return [int] $envValue
-    }
-    if (Test-ImportHealthPort -Port $DefaultPort) {
-        return [int] $DefaultPort
-    }
-    $fallback = [int] $DefaultPort + 100
-    if (Test-ImportHealthPort -Port $fallback) {
-        return $fallback
-    }
-    return $DefaultPort
-}
-
 $GatewayUrl       = Resolve-ImportGatewayUrl -CurrentGatewayUrl $GatewayUrl
-$arologisPort     = Resolve-ImportServicePort -EnvName 'SAMHAN_AROLOGIS_PORT' -DefaultPort 8097
-$dcConfigPort     = Resolve-ImportServicePort -EnvName 'SAMHAN_DC_CONFIG_PORT' -DefaultPort 8089
-$notificationPort = Resolve-ImportServicePort -EnvName 'SAMHAN_NOTIFICATION_PORT' -DefaultPort 8093
-$partnerPort      = Resolve-ImportServicePort -EnvName 'SAMHAN_PARTNER_PORT' -DefaultPort 8095
+$arologisPort     = Get-LocalStackPort -Service 'arologis-service'
+$dcConfigPort     = Get-LocalStackPort -Service 'dc-config-service'
+$notificationPort = Get-LocalStackPort -Service 'notification-service'
+$partnerPort      = Get-LocalStackPort -Service 'partner-service'
 
 Write-Host ''
 Write-Host '==============================================================' -ForegroundColor Cyan
@@ -203,7 +176,7 @@ function Get-CsvDataRowCount {
 }
 
 # -----------------------------------------------------------------------------
-# 0-1. JWT base64url payload 디코드 (X-User-Id / X-User-Role 추출 헬퍼)
+# 0-1. JWT base64url payload 디코드 (identity claim 추출 헬퍼)
 # -----------------------------------------------------------------------------
 function Get-JwtClaims {
     param([string] $Token)
@@ -230,7 +203,9 @@ $loginUrl  = "$GatewayUrl/api/auth/login"
 $loginBody = @{ loginId = $LoginId; password = $Password } | ConvertTo-Json -Compress
 $token     = $null
 $userId    = $null
-$roleName  = $null
+$groups    = ''
+$isSystemMaster = $false
+$departmentName = ''
 try {
     $loginResp = Invoke-RestMethod -Uri $loginUrl -Method POST `
         -ContentType 'application/json' -Body $loginBody -TimeoutSec 10
@@ -244,16 +219,18 @@ try {
     }
     $claims   = Get-JwtClaims -Token $token
     $userId   = $claims.sub
-    $roleName = $claims.role
-    if (-not $userId -or -not $roleName) {
-        throw "JWT claims 부재 (sub / role) — claims=$($claims | ConvertTo-Json -Compress)"
+    $groups   = [string]$claims.groups
+    $isSystemMaster = ($claims.isSystemMaster -eq $true)
+    $departmentName = [string]$claims.departmentName
+    if (-not $userId) {
+        throw "JWT claims 부재 (sub) — claims=$($claims | ConvertTo-Json -Compress)"
     }
-    Write-Host "   OK — JWT 발급 (length=$($token.Length), sub=$userId, role=$roleName)" -ForegroundColor Green
+    Write-Host "   OK — JWT 발급 (length=$($token.Length), sub=$userId, groups=$groups, isSystemMaster=$isSystemMaster)" -ForegroundColor Green
 } catch {
     Write-Host "   FAIL — 로그인 실패: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "   확인 사항:" -ForegroundColor Yellow
     Write-Host "     1) start-local-full.ps1 가 부팅 완료되었는지" -ForegroundColor DarkGray
-    Write-Host "     2) auth-service (8081) + api-gateway (8080) UP 인지" -ForegroundColor DarkGray
+    Write-Host "     2) auth-service + api-gateway UP 인지" -ForegroundColor DarkGray
     Write-Host '     3) kimmiseon 비밀번호가 QA_MASTER_PASSWORD 값인지 (OrgChartSeeder)' -ForegroundColor DarkGray
     throw
 }
@@ -307,12 +284,16 @@ foreach ($imp in $imports) {
 
     # multipart/form-data 호출 — DB 이관 endpoint.
     # PowerShell 5.1 호환 — Invoke-WebRequest -Form 미지원 → 수동 multipart body 구성
-    # gateway 미경유 → JWT (Authorization) + X-User-Id + X-User-Role 동시 전달.
-    # downstream HeaderAuthenticationFilter 가 X-User-* 신뢰 → @PreAuthorize 통과.
+    # gateway 미경유 → JWT (Authorization) + 서명 토큰에서 파생한 identity headers 전달.
+    # downstream HeaderAuthenticationFilter 가 X-User-Id/X-User-Groups 를 신뢰 → @PreAuthorize 통과.
     $url = $imp.url
     $headers = @{
         'X-User-Id'     = $userId
-        'X-User-Role'   = $roleName
+        'X-User-Groups' = $groups
+        'X-Is-System-Master' = [string]$isSystemMaster
+    }
+    if (-not [string]::IsNullOrWhiteSpace($departmentName)) {
+        $headers['X-User-Department'] = [Uri]::EscapeDataString($departmentName)
     }
     if (-not $imp.omitAuthorization) {
         $headers['Authorization'] = "Bearer $token"
@@ -431,8 +412,8 @@ Write-Host ''
 Write-Host '[3/3] 종합 결과' -ForegroundColor Yellow
 $results | Format-Table -AutoSize
 
-$okCount   = ($results | Where-Object { $_.Verdict -eq 'OK' }).Count
-$failCount = ($results | Where-Object { $_.Verdict -ne 'OK' }).Count
+$okCount   = @($results | Where-Object { $_.Verdict -eq 'OK' }).Count
+$failCount = Get-SmokeFailureCount -Results @($results)
 
 Write-Host ''
 if ($failCount -eq 0) {

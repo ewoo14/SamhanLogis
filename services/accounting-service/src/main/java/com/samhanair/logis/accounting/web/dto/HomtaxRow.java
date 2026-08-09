@@ -89,6 +89,8 @@ public record HomtaxRow(
         /** col58: 영수(01),청구(02). 기본값 "02". */
         String receiptType,
         /** 내부용 — 원본 전표번호 (홈택스 양식에는 미포함, col59). */
-        String slipNo
+        String slipNo,
+        /** 내부용 — 원본 거래처 코드 (홈택스 양식에는 미포함, 결과표 표시용). */
+        String partnerCode
 ) {
 }

@@ -8,8 +8,18 @@ import { fileURLToPath } from 'node:url';
 
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : dirname(fileURLToPath(import.meta.url));
 
-/** 이 파일(qa/playwright/utils) 기준 레포의 커밋 QA 증거 루트 전체. */
-const DOCS_QA_ROOT = resolve(_dirname, '../../../docs/qa');
+/** 보호 선언이 켜진 호출자의 docs 하위 증거 경계를 찾는다. */
+function deriveQaEvidenceRoot(committedDir: string): string | undefined {
+  let current = resolve(committedDir);
+  while (true) {
+    if (parse(dirname(current)).base.toLowerCase() === 'docs') {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+}
 
 function hasExplicitOverwriteIntent(): boolean {
   return ['1', 'true', 'yes'].includes(
@@ -147,13 +157,15 @@ function isWithinPhysical(parentDir: string, candidateDir: string): boolean {
  * @param committedDir 기존 커밋 캡처가 있는(또는 있을) 절대경로
  * @returns 이번 실행에서 실제로 스크린샷을 써야 할 절대경로(디렉토리는 이미 생성됨)
  */
-function resolveQaShotsDir(committedDir: string): string {
+function resolveQaShotsDir(committedDir: string, options: { protect?: boolean } = {}): string {
   const override = process.env['QA_SHOTS_DIR'];
   const trimmed = override && override.trim().length > 0 ? override.trim() : undefined;
   const dir =
     trimmed ? resolve(trimmed) : join(resolve(committedDir), '_local');
 
-  if (trimmed && isWithinPhysical(DOCS_QA_ROOT, dir) && !hasExplicitOverwriteIntent()) {
+  const protect = options.protect !== false;
+  const evidenceRoot = protect ? deriveQaEvidenceRoot(committedDir) : undefined;
+  if (trimmed && protect && evidenceRoot && isWithinPhysical(evidenceRoot, dir) && !hasExplicitOverwriteIntent()) {
     throw new Error(
       `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${dir}. ` +
         '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',

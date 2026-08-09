@@ -380,7 +380,7 @@ export function CashReceiptFormPage() {
                 <PartnerAutocomplete
                   label="거래처"
                   placeholder="거래처명 또는 코드"
-                  value={line.partnerCode || line.partnerName ? { partnerCode: line.partnerCode || line.partnerName, name: line.partnerName, bizNo: line.bizNo || undefined } : null}
+                  value={line.partnerCode || line.partnerName ? { partnerCode: line.partnerCode, name: line.partnerName, bizNo: line.bizNo || undefined } : null}
                   onChange={(partner) => patchLine(index, { partnerCode: partner?.partnerCode ?? '', bizNo: partner?.bizNo ?? '', partnerName: partner?.name ?? '' })}
                   searchPartners={searchPartners}
                   disabled={readOnly || coeditActive}

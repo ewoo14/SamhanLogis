@@ -65,5 +65,15 @@ PM 이 쓴 것    "#1037 SOL 이 낸 결함 2건의 fix 를 이어서 발주하�
 - description 에는 **HEAD SHA · 실측 수치 · 다음 라운드 근거**를 적는다.
 - 🚨 **트랙 상태를 볼 때 `SOL 실행 횟수`를 함께 센다** → [[feedback_sol_stage_starvation]]
 
+## 🚨 2026-08-09 — TODO 에 `close #N` 이라 적는 것과 **실제로 닫는 것**은 다르다
+
+> 개발책임자: *"이슈도 반드시 닫고 아티팩트랑 TODO리스트 항시 갱신할것"*
+
+머지 3건의 TODO 제목에 `(close #1064)` · `(close #1141)` 를 적어 뒀는데 **셋 다 OPEN 이었다.** PR 본문에 `연관 Issue: #978` 처럼 적어도 GitHub 은 `Closes #N` 키워드가 없으면 자동으로 닫지 않는다. 제목의 `close` 표기가 "닫았다" 는 착각을 만들어 세 번 연속 놓쳤다.
+
+**머지 직후 한 묶음으로**: ① squash 머지 → ② `gh issue close <N>` (머지 SHA·게이트 3개 근거를 코멘트로) → ③ 워크트리 정리(프로세스 먼저) → ④ TODO 를 `✅머지 <sha> · 이슈 #N CLOSED` 로 → ⑤ 아티팩트 갱신.
+
+🔑 감사법 = `gh issue view N --json state`. **적은 것 말고 실제 상태를 물어라.** 같은 계열이 이 세션에만 여러 번 있었다 — 커밋했다고 적고 게시를 안 함 · fix 했다고 적고 DB 엔 안 들어감([[feedback_exit_code_measurement_traps]] 계열).
+
 ## 관련
 [[feedback_canonical_workflow]] · [[feedback_pm_verifies_round_and_directs_next_fix]] · [[feedback_pm_adjusts_workflow_weight_per_track]]

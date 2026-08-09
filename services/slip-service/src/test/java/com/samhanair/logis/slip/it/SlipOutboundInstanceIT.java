@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.SourceOperationContext;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipStatus;
@@ -139,12 +140,14 @@ class SlipOutboundInstanceIT extends AbstractPostgresIT {
                 .andExpect(status().isOk());
 
         verify(inventoryClient, times(1))
-                .shipInstances(anyString(), eq("AC-S3-SLIP"), eq(null), eq(null));
+                .shipInstances(anyString(), eq("AC-S3-SLIP"), eq(null), eq(null),
+                        any(SourceOperationContext.class));
         verify(inventoryClient, times(1))
                 .deduct(eq(batchProductId), eq(sourceWarehouseId), eq(4), eq(true),
-                        anyString(), any(UUID.class));
+                        anyString(), any(UUID.class), any(SourceOperationContext.class));
         verify(inventoryClient, never())
-                .deduct(eq(serialProductId), any(), anyInt(), eq(true), anyString(), any());
+                .deduct(eq(serialProductId), any(), anyInt(), eq(true), anyString(), any(),
+                        any(SourceOperationContext.class));
     }
 
     @Test

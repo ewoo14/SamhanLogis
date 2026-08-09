@@ -60,14 +60,12 @@ class ProductSheetSyncExposureReorderIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         cleanupRows();
-        syncService.clearHashCacheForTest();
         lenient().doNothing().when(sheetsClient).invalidateCache();
     }
 
     @AfterEach
     void tearDown() {
         cleanupRows();
-        syncService.clearHashCacheForTest();
     }
 
     @Test

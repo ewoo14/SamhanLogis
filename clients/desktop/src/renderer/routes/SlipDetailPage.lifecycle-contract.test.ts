@@ -282,15 +282,15 @@ describe('SlipDetailPage lifecycle contract', () => {
     ])
 
     const managerInbound = (pageCode: string, action = 'view') =>
-      pageCode === 'slip.transfer.process' && action === 'update'
+      ['slip.transfer.process', 'inbound.inspection'].includes(pageCode) && action === 'update'
     const warehouseInbound = (pageCode: string, action = 'view') =>
       ['purchases.slip.edit', 'slip.transfer.process', 'inbound.inspection'].includes(pageCode)
       && action === 'update'
     const managerOutbound = () => true
     const denied = () => false
 
-    expect(canAccessSlipAction('inspect', 'INBOUND', managerInbound)).toBe(false)
-    expect(canAccessSlipAction('inspect', 'INBOUND', managerInbound, true)).toBe(false)
+    expect(canAccessSlipAction('inspect', 'INBOUND', managerInbound)).toBe(true)
+    expect(canAccessSlipAction('inspect', 'INBOUND', managerInbound, true)).toBe(true)
     expect(canAccessSlipAction('inspect', 'OUTBOUND', denied, true)).toBe(true)
     expect(canAccessSlipAction('save', 'INBOUND', managerInbound, true)).toBe(false)
     expect(canAccessSlipAction('save', 'INBOUND', warehouseInbound)).toBe(true)
@@ -315,7 +315,7 @@ describe('SlipDetailPage lifecycle contract', () => {
       MANAGER: new Set([
         'purchases.slip.edit:update', 'purchases.slip.delete:delete',
         'sales.slip.edit:update', 'sales.slip.edit:delete',
-        'slip.transfer.process:update', 'sales.slip.confirm:update',
+        'slip.transfer.process:update', 'inbound.inspection:update', 'sales.slip.confirm:update',
         'slip.reject:update', 'sales.slip.cancel:update',
       ]),
       SALES: new Set(['sales.slip.edit:update', 'sales.slip.cancel:update']),
@@ -339,7 +339,7 @@ describe('SlipDetailPage lifecycle contract', () => {
     }
     const expected: Record<string, Record<'INBOUND' | 'OUTBOUND', string[]>> = {
       MANAGER: {
-        INBOUND: ['save', 'send', 'accept', 'process', 'complete', 'confirm', 'reject', 'cancel'],
+        INBOUND: ['save', 'send', 'accept', 'process', 'complete', 'inspect', 'confirm', 'reject', 'cancel'],
         OUTBOUND: ['save', 'send', 'accept', 'process', 'complete', 'ship', 'deliver', 'confirm', 'reject', 'cancel'],
       },
       SALES: {

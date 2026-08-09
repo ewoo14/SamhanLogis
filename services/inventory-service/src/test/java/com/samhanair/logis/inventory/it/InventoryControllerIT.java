@@ -172,6 +172,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         inboundBody.put("quantity", 100);
         inboundBody.put("unitCost", 100000);
         inboundBody.put("lotNo", "FIFO-RECV-001");
+        inboundBody.put("sourceContext", sourceContext());
 
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -187,6 +188,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         deductBody.put("warehouseId", hqWarehouseId.toString());
         deductBody.put("quantity", 30);
         deductBody.put("note", "FIFO 출고 검증");
+        deductBody.put("sourceContext", sourceContext());
 
         mockMvc.perform(post("/inventory/deduct")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -210,6 +212,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         inboundBody.put("quantity", 10);
         inboundBody.put("unitCost", 100000);
         inboundBody.put("lotNo", "INSUFFICIENT-PRE-001");
+        inboundBody.put("sourceContext", sourceContext());
 
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -223,6 +226,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         deductBody.put("warehouseId", hqWarehouseId.toString());
         deductBody.put("quantity", 50);
         deductBody.put("note", "재고 부족 시나리오 (10개만 있는데 50개 요청)");
+        deductBody.put("sourceContext", sourceContext());
 
         mockMvc.perform(post("/inventory/deduct")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -247,6 +251,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         inboundBody.put("quantity", 12);
         inboundBody.put("unitCost", 100000);
         inboundBody.put("lotNo", "BATCH-LOOKUP-001");
+        inboundBody.put("sourceContext", sourceContext());
 
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -327,6 +332,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         body.put("quantity", 10);
         body.put("unitCost", 100000);
         body.put("lotNo", "SALES-FAIL-001");
+        body.put("sourceContext", sourceContext());
 
         Mockito.when(dynamicPermissionClient.check(
                         Mockito.any(UUID.class),
@@ -373,6 +379,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         inboundBody.put("quantity", 7);
         inboundBody.put("unitCost", 100000);
         inboundBody.put("lotNo", "EXPORT-PRODCODE-001");
+        inboundBody.put("sourceContext", sourceContext());
 
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -418,6 +425,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         inboundBody.put("quantity", 3);
         inboundBody.put("unitCost", 100000);
         inboundBody.put("lotNo", "EXPORT-UUIDCHK-001");
+        inboundBody.put("sourceContext", sourceContext());
 
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -451,5 +459,9 @@ class InventoryControllerIT extends AbstractPostgresIT {
             }
         }
         return false;
+    }
+    private static Map<String, Object> sourceContext() {
+        return Map.of("sourceOperationId", UUID.randomUUID().toString(),
+                "slipId", UUID.randomUUID().toString(), "slipRevision", 1);
     }
 }
