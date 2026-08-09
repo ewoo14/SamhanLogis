@@ -2,18 +2,18 @@
 
 ## 결론
 
-R6가 mock에 추가·이관한 PageCode를 auth_db의 실 모델과 대조했다. V97은 적용하지 않았고, `auth_db`의 현재 `.list`/seed 원본을 `V97`의 `SELECT ... INSERT` 투영 대상으로 사용했다. mock은 `view / create / update / delete`만 필요한 일부 코드에 `download / print`까지 주고 있었고, MANAGER의 `accounting.tax-invoice.inbound.manage`는 누락되어 있었다.
+R6가 mock에 추가·이관한 PageCode를 auth_db의 실 모델과 대조했다. V99은 적용하지 않았고, `auth_db`의 현재 `.list`/seed 원본을 `V99`의 `SELECT ... INSERT` 투영 대상으로 사용했다. mock은 `view / create / update / delete`만 필요한 일부 코드에 `download / print`까지 주고 있었고, MANAGER의 `accounting.tax-invoice.inbound.manage`는 누락되어 있었다.
 
 비트 순서: `can_view / can_create / can_update / can_delete / can_restore / can_download / can_print`.
 
 ## 실 DB 읽기 원문과 판정
 
-실 DB는 `docker exec samhan-postgres psql -U samhan -d auth_db`의 SELECT만 실행했다. INSERT/UPDATE/DELETE와 V97 실행은 하지 않았다.
+실 DB는 `docker exec samhan-postgres psql -U samhan -d auth_db`의 SELECT만 실행했다. INSERT/UPDATE/DELETE와 V99 실행은 하지 않았다.
 
 - `role_page_permission_templates`의 `.list` 원본: MANAGER `1111000`, SALES `1000000`, ACCOUNTANT `1111000`, MASTER `1111000`.
 - `group_page_permissions`의 매니저 그룹 `101`: `1111000`; 영업원 그룹 `102`: `1000000`.
 - `account_page_permissions`의 실 계정 원본도 같은 두 패턴을 반환했다. 활성 계정 중 `.list`가 허용된 MANAGER 계정은 `1111000`, SALES 계정은 `1000000`이며, download/print는 모두 `false`였다.
-- 현재 DB의 `.accounting` 행은 V97 미적용 상태로 MANAGER/SALES가 `0000000`이다. 따라서 `.accounting`의 기대값은 V97을 적용하지 않고 `.list` 원본 비트를 시뮬레이션했다.
+- 현재 DB의 `.accounting` 행은 V99 미적용 상태로 MANAGER/SALES가 `0000000`이다. 따라서 `.accounting`의 기대값은 V99을 적용하지 않고 `.list` 원본 비트를 시뮬레이션했다.
 - V37/V30/V27 원본 seed의 `inbound.manage`, `messenger.send`, `ecount.mig.ops-dashboard`도 download/print가 `false`인 것을 직접 읽었다.
 
 ## mock ↔ 실 모델 전수 대조표
@@ -74,7 +74,7 @@ Tests       7 passed (7)
 
 ## 셋째 가능성
 
-V97을 실제로 적용하지 않았으므로, 적용 시 `EffectivePermissionMaterializer`가 role/group/account 우선순위를 다르게 처리하는 가능성은 남는다. 다만 이번 판정은 migration의 투영 SQL과 auth_db의 세 원본 계층을 각각 읽어 같은 비트를 확인했으므로, 이 라운드에서 그 가능성을 검증하기 위해 DB를 변경하는 것은 금지 범위다. V97 적용 후에는 동일 SELECT로 `.accounting` materialization 결과만 재확인하면 된다.
+V99을 실제로 적용하지 않았으므로, 적용 시 `EffectivePermissionMaterializer`가 role/group/account 우선순위를 다르게 처리하는 가능성은 남는다. 다만 이번 판정은 migration의 투영 SQL과 auth_db의 세 원본 계층을 각각 읽어 같은 비트를 확인했으므로, 이 라운드에서 그 가능성을 검증하기 위해 DB를 변경하는 것은 금지 범위다. V99 적용 후에는 동일 SELECT로 `.accounting` materialization 결과만 재확인하면 된다.
 
 ## 신규 파일 경로 목록
 

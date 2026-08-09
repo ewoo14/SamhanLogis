@@ -4,11 +4,11 @@
 
 진단은 맞았다. \`routes/index.tsx\`의 두 회계전표 라우트와 \`AppLayout.tsx\`의 메뉴 가드는 \`accounting.sales-slip.accounting\` 및 \`accounting.purchase-slip.accounting\`을 요구했지만, R3 시점의 \`mock.ts\`에는 두 코드가 없었다. 따라서 MASTER 자동 우회는 있었어도 ACCOUNTANT mock은 두 화면에 도달할 수 없었다.
 
-이번 라운드는 V97을 수정하지 않았고, 실 DB에 접근하거나 Docker를 재배포하지 않았다.
+이번 라운드는 V99을 수정하지 않았고, 실 DB에 접근하거나 Docker를 재배포하지 않았다.
 
 ## R2 보고서 정정
 
-R2 보고서의 “mock 권한 매트릭스와 계약 테스트 갱신”은 사실과 다르다. 당시 실제로 갱신된 것은 FE route/layout 계약과 V97의 무부여 예약 migration뿐이며, \`mock.ts\`의 \`SP_D1_PAGES\` 및 역할별 \`SP_D1_DEFAULT_VIEW/EDIT\`에는 두 \`.accounting\` 코드가 추가되지 않았다. 이번 R4에서 처음으로 mock 매트릭스와 계약 테스트를 갱신했다.
+R2 보고서의 “mock 권한 매트릭스와 계약 테스트 갱신”은 사실과 다르다. 당시 실제로 갱신된 것은 FE route/layout 계약과 V99의 무부여 예약 migration뿐이며, \`mock.ts\`의 \`SP_D1_PAGES\` 및 역할별 \`SP_D1_DEFAULT_VIEW/EDIT\`에는 두 \`.accounting\` 코드가 추가되지 않았다. 이번 R4에서 처음으로 mock 매트릭스와 계약 테스트를 갱신했다.
 
 ## 변경 내용 및 역할별 근거
 

@@ -13871,6 +13871,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         download: boolean
         print: boolean
       }> = {}
+      if (role === 'MASTER') {
+        for (const page of SP_D1_PAGES) {
+          accountMatrix[page] = {
+            view: true,
+            create: true,
+            update: true,
+            delete: true,
+            restore: true,
+            download: true,
+            print: true,
+          }
+        }
+        return envelope(accountMatrix)
+      }
       for (const page of SP_D1_PAGES) {
         const legacyCell = _mockPermissionCells.find((cell) => cell.roleCode === role && cell.pageCode === page)
         const actionOnly = MOCK_ACTION_ONLY_PAGES[page]
@@ -18770,7 +18784,7 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'accounting.daily-closing.run': ['CREATE'],
   // V37: accounting.daily-closing.unlock 은 잠금 해제 UPDATE endpoint 전용.
   'accounting.daily-closing.unlock': ['UPDATE'],
-  // V97: 회계전표/수신 세금계산서/이관 운영 코드는 실 모델의 VIEW/CRUD만 허용하고
+  // V99: 회계전표/수신 세금계산서/이관 운영 코드는 실 모델의 VIEW/CRUD만 허용하고
   // DOWNLOAD/PRINT는 부여하지 않는다.
   'accounting.tax-invoice.inbound.manage': ['CREATE', 'UPDATE', 'DELETE'],
   'accounting.sales-slip.accounting': ['CREATE', 'UPDATE', 'DELETE'],
@@ -18835,7 +18849,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list',
     'accounting.purchase-slip.list', 'accounting.daily-closing',
-    // V97: MANAGER 회계전표는 .list 1111 비트를 .accounting 으로 계승.
+    // V99: MANAGER 회계전표는 .list 1111 비트를 .accounting 으로 계승.
     'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run',
     'accounting.general-ledger',
@@ -18907,7 +18921,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
     'sales.slip.list',
-    // V97: SALES 회계전표는 .list 1000 비트를 .accounting 으로 계승.
+    // V99: SALES 회계전표는 .list 1000 비트를 .accounting 으로 계승.
     'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'messenger.send',
     // SP-D4 — SALES: 견적/주문/거래처/상품 view
@@ -19042,7 +19056,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.tax-invoice.cancel',
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
-    // V97: MANAGER .list 1111 → .accounting 1111.
+    // V99: MANAGER .list 1111 → .accounting 1111.
     'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run',
     'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts',

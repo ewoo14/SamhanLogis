@@ -49,7 +49,7 @@ BE 컨트롤러, 전표 데이터, 원장, 분개, VAT 코드는 변경하지 �
 
 ### 2.2 복제 후 예상 집합
 
-`V97__align_accounting_slip_permissions.sql`은 세 축과 두 역할 저장 표현 모두 다음 방식이다.
+`V99__align_accounting_slip_permissions.sql`은 세 축과 두 역할 저장 표현 모두 다음 방식이다.
 
 1. `.list` 행을 동일 주체의 `.accounting` 행으로 INSERT한다.
 2. 이미 `.accounting` 행이 있으면 `.list`의 7-action 값을 UPDATE한다.
@@ -168,7 +168,7 @@ clients/desktop: npm test -- --run src/renderer/test-utils/accounting-slip-permi
 ## 7. 신규 파일 목록
 
 - `clients/desktop/src/renderer/test-utils/accounting-slip-permission-contract.test.ts`
-- `services/auth-service/src/main/resources/db/migration/V97__align_accounting_slip_permissions.sql`
+- `services/auth-service/src/main/resources/db/migration/V99__align_accounting_slip_permissions.sql`
 - `docs/dev-reports/2026-08-08-1144-p0b-pagecode-alignment.md`
 
 수정 파일:

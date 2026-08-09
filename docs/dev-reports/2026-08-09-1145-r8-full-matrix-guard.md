@@ -14,13 +14,13 @@ R7의 단일 page/일부 역할 열거 검사를 유지한 채, mock account per
 ## 정본 계약
 
 정본은 `auth_db.role_page_permission_templates`의 활성 행이다. 이 세션에서는 실행 중
-Postgres에 대해 SELECT만 수행했다. V97은 적용 이력이 없었고, 요청대로 SQL 파일과 DB를
+Postgres에 대해 SELECT만 수행했다. V99은 적용 이력이 없었고, 요청대로 SQL 파일과 DB를
 변경하지 않았다. 테스트 실행 시 DB를 읽지 않는 CI/mock 환경을 위해 다음 스냅샷을 저장소에
 고정했다.
 
 `clients/desktop/src/renderer/test-utils/accounting-slip-permission-snapshot.ts`는
 2026-08-09 읽기 전용 계약 확인 시점의 역할·page code·7비트 기준을 담는다. 스냅샷 갱신은
-권한 seed 또는 V97 이후 migration이 실제 auth_db에 적용된 뒤, 동일한 read-only 조회로
+권한 seed 또는 V99 이후 migration이 실제 auth_db에 적용된 뒤, 동일한 read-only 조회로
 새 역할·page code 집합과 7비트를 재추출하고 리뷰를 거쳐 갱신한다. migration을 테스트에서
 실행하거나 테스트 실행 중 DB를 쓰지 않는다.
 

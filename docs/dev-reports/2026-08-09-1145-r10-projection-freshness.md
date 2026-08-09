@@ -6,8 +6,8 @@
 체크인된 desktop DB projection과 `role_page_permission_templates`를 7비트로 비교하는
 실행 시 게이트를 추가했다. projection이 stale이면 CI가 RED가 된다.
 
-현재 원복 상태에서 게이트는 V97 적용 결과와 체크인 projection의 다음 5셀을 실제로 잡아
-RED가 된다. V97은 변경하지 않았다.
+현재 원복 상태에서 게이트는 V99 적용 결과와 체크인 projection의 다음 5셀을 실제로 잡아
+RED가 된다. V99은 변경하지 않았다.
 
 ```text
 MANAGER|accounting.tax-invoice.inbound.manage db=1111000 projection=0000000
@@ -18,7 +18,7 @@ SALES|accounting.purchase-slip.accounting     db=1000000 projection=0000000
 ```
 
 이는 이번 게이트가 발견한 기존 stale 상태다. projection을 갱신해 GREEN으로 만들면 R9의
-동결된 354셀 집합이 줄어들 수 있으므로, 요청에 따라 projection·mock·V97을 영구 변경하지
+동결된 354셀 집합이 줄어들 수 있으므로, 요청에 따라 projection·mock·V99을 영구 변경하지
 않았다. 임시 정합 mutation으로 GREEN 동작은 별도로 증명했다.
 
 ## 검사 위치와 이유
@@ -70,7 +70,7 @@ UPDATE role_page_permission_templates
 
 ```text
 MANAGER|accounting.sales-slip.list db=1111001 projection=1111000
-... plus the pre-existing V97 5-cell mismatch
+... plus the pre-existing V99 5-cell mismatch
 BUILD FAILED; 1 test completed, 1 failed
 ```
 
@@ -96,7 +96,7 @@ git status --short
 
 ```text
 MASTER|partners.delete db=1111100 projection=1111101
-... plus the pre-existing V97 5-cell mismatch
+... plus the pre-existing V99 5-cell mismatch
 BUILD FAILED; 1 test completed, 1 failed
 ```
 
@@ -104,7 +104,7 @@ BUILD FAILED; 1 test completed, 1 failed
 
 ### 3. 정합 상태 — GREEN
 
-임시로 projection에 V97 적용 결과 5셀을 추가했다.
+임시로 projection에 V99 적용 결과 5셀을 추가했다.
 
 ```text
 MANAGER accounting.tax-invoice.inbound.manage = 1111000
@@ -138,7 +138,7 @@ BUILD SUCCESSFUL in 24s
 |---|---|---:|
 | `clients/desktop` 지정 Vitest | 1 file / 8 tests passed | 3.8s |
 | targeted `AccountingPermissionProjectionFreshnessIT` (정합 임시 mutation) | GREEN, 1 test passed | 24.7s |
-| targeted `AccountingPermissionProjectionFreshnessIT` (최종 원복 상태) | RED, V97 5셀 stale 검출 | 61.2s |
+| targeted `AccountingPermissionProjectionFreshnessIT` (최종 원복 상태) | RED, V99 5셀 stale 검출 | 61.2s |
 
 요청대로 auth-service 전체 스위트는 실행하지 않았다. 전체 스위트는 타임아웃 위험이
 있으며, CI에서는 `:services:auth-service:test` 묶음에 이 IT가 포함된다.
@@ -148,4 +148,4 @@ BUILD SUCCESSFUL in 24s
 - `services/auth-service/src/test/java/com/samhanair/logis/auth/it/AccountingPermissionProjectionFreshnessIT.java`
 - `docs/dev-reports/2026-08-09-1145-r10-projection-freshness.md`
 
-현재 `git status --short`에는 위 두 신규 파일만 표시되어야 하며, V97 변경은 없다.
+현재 `git status --short`에는 위 두 신규 파일만 표시되어야 하며, V99 변경은 없다.

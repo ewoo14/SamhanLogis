@@ -1,6 +1,8 @@
+import { PERMISSION_PAGE_CODES } from './accounting-slip-permission-snapshot'
+
 // auth_db role_page_permission_templates projection, derived from all Flyway migrations in this repository.
 // Scope: PERMISSION_ROLES 횞 PERMISSION_PAGE_CODES. Missing DB rows are 0000000.
-export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {
+const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {
   'MASTER': {
     'partners.delete': '1111100',
     'accounting.daily-closing.unlock': '1111000',
@@ -401,4 +403,11 @@ export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> 
     'sales.partner-order.print': '1000000',
     'sales.partner-order.list': '1000000',
   },
+}
+
+// DynamicPermissionService bypasses role templates for MASTER: every known
+// page code is exposed with all seven actions regardless of stored rows.
+export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {
+  ...TEMPLATE_PERMISSION_DB_BITS_BY_ROLE,
+  MASTER: Object.fromEntries(PERMISSION_PAGE_CODES.map((pageCode) => [pageCode, '1111111'])),
 }

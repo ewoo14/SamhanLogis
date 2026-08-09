@@ -14,7 +14,7 @@ const taxInvoiceController = readFileSync(
 )
 const migrationPath = resolve(
   workspace,
-  '../../services/auth-service/src/main/resources/db/migration/V97__align_accounting_slip_permissions.sql',
+  '../../services/auth-service/src/main/resources/db/migration/V99__align_accounting_slip_permissions.sql',
 )
 const migration = existsSync(migrationPath) ? readFileSync(migrationPath, 'utf8') : ''
 
@@ -76,7 +76,7 @@ describe('accounting slip permission contract', () => {
     expect(migration).toMatch(/ON CONFLICT\s*\([^)]*page_code[^)]*\)[\s\S]*DO UPDATE/i)
     expect(migration).not.toMatch(/DELETE\s+FROM/i)
     expect(migration).not.toContain('SELECT 1;')
-    expect(migration).toContain('V97')
+    expect(migrationPath).toContain('V99__align_accounting_slip_permissions.sql')
   })
 
   it('uses the BE inbound.manage page code for the inbound tax invoice screen', () => {

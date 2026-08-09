@@ -8,7 +8,7 @@
 - 역할별 권한 endpoint 응답에서 `MANAGER`·`SALES`의 두 코드가 `view/create/update/delete=false`인지 확인한다.
 - 역할 또는 페이지 셀이 누락되면 명시적인 `permission cell is missing` 단정 실패가 발생한다. 따라서 빈 문자열 fallback으로 조용히 통과할 수 없다.
 - 기존 `.list` 문자열 계약과 RED-A의 `ecount.mig.ops-dashboard`, `messenger.send` 계약은 유지했다.
-- `mock.ts` 권한 부여 내용과 `V97`은 변경하지 않았다.
+- `mock.ts` 권한 부여 내용과 `V99`은 변경하지 않았다.
 
 ## mutation proof
 

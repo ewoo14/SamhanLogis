@@ -46,7 +46,7 @@ Error: Port 5175 is already in use
 - 전체 97개 migration 적용 성공, `Successfully applied 97 migrations`, exit `0`.
 - 임시 컨테이너와 네트워크는 `finally`에서 제거됐다.
 - 생성 결과는 기존 projection과 내용상 동일했고, projection 파일은 복구 후 `git diff --exit-code` 통과했다.
-- V97, mock 349셀, projection 체크인 값을 변경하지 않았다.
+- V99, mock 349셀, projection 체크인 값을 변경하지 않았다.
 
 ## 3. 실제 Playwright 라이브 QA
 
@@ -86,7 +86,7 @@ Error: QA 자격이 없습니다: C:\dev\Samhan-Public\.claude\worktrees\t1144\i
 |---|---|
 | `npx vitest run src/renderer/test-utils/accounting-slip-permission-contract.test.ts` | **GREEN — 8/8** |
 | `./gradlew :services:auth-service:test --tests '*ProjectionFreshness*' --rerun-tasks` | **BUILD SUCCESSFUL** |
-| R11 5검사 묶음 | R11 최종 기록의 회계 exact, 전수 exact, 양방향 가드, 349셀 동결, freshness IT 모두 GREEN. R12에서는 V97/mock/projection 계약을 바꾸지 않았고 위 두 핵심 검사를 재실행해 GREEN 재확인 |
+| R11 5검사 묶음 | R11 최종 기록의 회계 exact, 전수 exact, 양방향 가드, 349셀 동결, freshness IT 모두 GREEN. R12에서는 V99/mock/projection 계약을 바꾸지 않았고 위 두 핵심 검사를 재실행해 GREEN 재확인 |
 
 ## 5. 신규 파일 경로
 

@@ -2,7 +2,7 @@
 
 ## 판정
 
-회계 page-code 정합 범위는 R7의 exact 검사(초과·누락 0)를 유지했다. V97은 변경하지 않았고, mock의 340비트도 고치지 않았다. 실 DB는 `samhan-postgres/auth_db`에 SELECT만 실행했다.
+회계 page-code 정합 범위는 R7의 exact 검사(초과·누락 0)를 유지했다. V99은 변경하지 않았고, mock의 340비트도 고치지 않았다. 실 DB는 `samhan-postgres/auth_db`에 SELECT만 실행했다.
 
 ## ① 양방향 가드와 mutation 증거
 
@@ -51,7 +51,7 @@ npx vitest run src/renderer/test-utils/accounting-slip-permission-contract.test.
 1. 실 DB를 읽을 수 있는 시점에만 갱신한다.
 2. DB 파생 파일과 divergence 목록은 같은 변경으로 검토한다.
 3. 테스트에서 차이 집합이 바뀌면 목록을 함께 갱신해야 하며, 줄어드는 경우도 통과시키지 않는다.
-4. V97 SQL은 갱신 대상이 아니며, 실 DB에는 쓰기 SQL을 실행하지 않는다.
+4. V99 SQL은 갱신 대상이 아니며, 실 DB에는 쓰기 SQL을 실행하지 않는다.
 
 DB 부재 시 동작:
 
