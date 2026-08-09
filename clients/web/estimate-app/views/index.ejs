@@ -35,6 +35,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="/quantitySync.js"></script>
 <!-- Phase 7 4차 잔여 — Pretendard web font 통일.
      Phase 7 5/6차 정정 (DevOps): jsdelivr CDN SPOF 회피 위해 self-host @font-face 로 전환.
      `public/fonts/fonts.css` 가 Express static 으로 `/fonts/fonts.css` 에 노출.
@@ -2262,6 +2263,7 @@ const PRICE_INC_RAW = <%- priceInc %>;
 const PRICE_INC = J(PRICE_INC_RAW, {home:{}, comm:{}, single:{}});
 const PRICE_CHANGE_SCHEDULE = J(<%- priceChangeSchedule %>, {});
 const PRICE_DEFAULT_VARIANT = J(<%- priceDefaultVariant %>, {});
+const HOME_QUANTITY_SYNC_RULES = J(<%- quantitySyncRules || '[]' %>, []);
 
 // 출고가 보정
 function getBaseListPrice(type, model, defaultVal) {
@@ -8329,8 +8331,45 @@ function recomputeHomeBranches() {
   if (BRANCH_1509) setB(BRANCH_1509, b15);
 }
 
+/* 서버 규칙 기반 홈멀티 파생수량. 실패하면 호출자가 legacy 계산으로 fallback한다. */
+function applyServerHomeQuantitySync_() {
+  if (!Array.isArray(HOME_QUANTITY_SYNC_RULES) || HOME_QUANTITY_SYNC_RULES.length === 0) return false;
+  const evaluator = window.SamhanQuantitySync && window.SamhanQuantitySync.evaluateQuantitySyncRules;
+  if (typeof evaluator !== 'function') return false;
+
+  const configured = evaluator(HOME_QUANTITY_SYNC_RULES, HOMEMULTI, homeQty);
+  if (!(configured instanceof Map)) return false;
+
+  const targetCodes = new Set(HOME_QUANTITY_SYNC_RULES.flatMap(rule =>
+    Array.isArray(rule?.targets) ? rule.targets.map(target => String(target?.productCode || '').trim()) : []));
+  const isManual = model => HOME_MANUAL_PANEL.has(model) || HOME_MANUAL_HOSE.has(model)
+    || HOME_MANUAL_REMOTE.has(model) || HOME_MANUAL_BRANCH.has(model) || HOME_MANUAL_FOOT.has(model);
+  HOMEMULTI.forEach(row => {
+    if (targetCodes.has(String(row?.model || '')) && !isManual(row.model)) homeQty.set(row.model, 0);
+  });
+  configured.forEach((quantity, key) => {
+    const row = HOMEMULTI.find(candidate => String(candidate?.id ?? candidate?.model) === String(key));
+    if (row && targetCodes.has(String(row.model || '')) && !isManual(row.model)) {
+      homeQty.set(row.model, Number(quantity) || 0);
+    }
+  });
+  return true;
+}
+
 /* 홈파생계산 */
 function recomputeHomeDerived(updateUI) {
+  if (typeof applyServerHomeQuantitySync_ === 'function' && applyServerHomeQuantitySync_()) {
+    if (updateUI) {
+      syncHomeUIFromState();
+      syncHomeTotals();
+      refreshSelectedBadge();
+      updateHomeRatio();
+    }
+    return;
+  }
+
+  /* 서버 규칙을 읽지 못한 구버전/장애 fallback — 아래 기존 수량·금액 경로를 그대로 보존한다. */
+
   // 실내기집계
   let n1w=0, n4w=0, c360=0;
   HOMEMULTI.forEach(r => {

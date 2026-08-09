@@ -9,6 +9,9 @@ import com.samhanair.logis.product.service.BundleExpander;
 import com.samhanair.logis.product.service.EcountAliasResolveService;
 import com.samhanair.logis.product.service.EcountAliasReservationService;
 import com.samhanair.logis.product.service.ProductService;
+import com.samhanair.logis.product.service.QuantitySyncRuleService;
+import com.samhanair.logis.product.domain.QuantitySyncEstimateCategory;
+import com.samhanair.logis.product.web.dto.QuantitySyncRuleResponse;
 import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
 import com.samhanair.logis.product.web.dto.EcountAliasResolveRequest;
 import com.samhanair.logis.product.web.dto.EcountAliasResolveResponse;
@@ -56,24 +59,27 @@ public class ProductInternalController {
     private final BundleExpander bundleExpander;
     private final EcountAliasResolveService ecountAliasResolveService;
     private final EcountAliasReservationService ecountAliasReservationService;
+    private final QuantitySyncRuleService quantitySyncRuleService;
 
     @Autowired
     public ProductInternalController(ProductService productService, ProductRepository productRepository,
                                      BundleExpander bundleExpander,
                                      EcountAliasResolveService ecountAliasResolveService,
-                                     EcountAliasReservationService ecountAliasReservationService) {
+                                     EcountAliasReservationService ecountAliasReservationService,
+                                     QuantitySyncRuleService quantitySyncRuleService) {
         this.productService = productService;
         this.productRepository = productRepository;
         this.bundleExpander = bundleExpander;
         this.ecountAliasResolveService = ecountAliasResolveService;
         this.ecountAliasReservationService = ecountAliasReservationService;
+        this.quantitySyncRuleService = quantitySyncRuleService;
     }
 
     /** 기존 standalone controller 단위 테스트와의 생성자 호환용. 운영 bean은 5-인 생성자를 사용한다. */
     public ProductInternalController(ProductService productService, ProductRepository productRepository,
                                      BundleExpander bundleExpander,
                                      EcountAliasResolveService ecountAliasResolveService) {
-        this(productService, productRepository, bundleExpander, ecountAliasResolveService, null);
+        this(productService, productRepository, bundleExpander, ecountAliasResolveService, null, null);
     }
 
     /**
@@ -362,6 +368,13 @@ public class ProductInternalController {
     @GetMapping("/bundle-integrity")
     public ApiResponse<BundleIntegrityResponse> bundleIntegrity() {
         return ApiResponse.ok(productService.checkBundleIntegrity());
+    }
+
+    /** 종합견적서의 서버 규칙 기반 수량 동기화용 internal read endpoint. */
+    @GetMapping("/quantity-sync-rules")
+    public ApiResponse<List<QuantitySyncRuleResponse>> quantitySyncRules() {
+        if (quantitySyncRuleService == null) return ApiResponse.ok(List.of());
+        return ApiResponse.ok(quantitySyncRuleService.list(QuantitySyncEstimateCategory.HOME_MULTI));
     }
 
     private FixedDiscountResponse findFixedDiscountRate(UUID productId) {

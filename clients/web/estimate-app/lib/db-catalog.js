@@ -45,6 +45,14 @@ async function get(pathAndQuery) {
   return (resp.data && resp.data.data) || [];
 }
 
+/**
+ * 종합견적서가 소비할 HOME_MULTI 수량 동기화 규칙.
+ * 규칙은 product-service의 내부 endpoint에서 읽고, 장애 시 호출자가 fallback한다.
+ */
+async function quantitySyncRules() {
+  return get('/quantity-sync-rules?estimateCategory=HOME_MULTI');
+}
+
 async function getDcConfig(pathAndQuery) {
   const resp = await ax.get(`${DC_CONFIG_BASE}/internal${pathAndQuery}`, {
     headers: { 'X-Internal-Token': INTERNAL_TOKEN },
@@ -241,6 +249,7 @@ async function estimateConfig() {
 }
 
 module.exports = {
+  quantitySyncRules,
   multiCatalog,
   singleSets,
   oldProducts,
