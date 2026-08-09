@@ -175,6 +175,7 @@ function AsyncAutocompleteInner<T>(
   const inputRef = useRef<HTMLInputElement | null>(null)
   const isComposingRef = useRef(false)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  const userSelectionRef = useRef<{ start: number; end: number } | null>(null)
 
   const { candidates, resolvedQuery } = searchState
 
@@ -191,6 +192,16 @@ function AsyncAutocompleteInner<T>(
   useLayoutEffect(() => {
     const pending = pendingSelectionRef.current
     if (!pending || isComposingRef.current || !inputRef.current) return
+    if (userSelectionRef.current) {
+      inputRef.current.setSelectionRange(userSelectionRef.current.start, userSelectionRef.current.end)
+      userSelectionRef.current = null
+      pendingSelectionRef.current = null
+      return
+    }
+    if (inputRef.current.selectionStart !== inputRef.current.selectionEnd) {
+      pendingSelectionRef.current = null
+      return
+    }
     inputRef.current.setSelectionRange(pending.start, pending.end)
     pendingSelectionRef.current = null
   }, [draft, open, selectedLabel, selectionRequest])
@@ -244,8 +255,15 @@ function AsyncAutocompleteInner<T>(
 
   const pick = useCallback(
     (item: T, selectGeneratedSuffix = false) => {
+      if (isComposingRef.current) return
       cancelDebouncedSearch()
       const nextLabel = getInputLabel(item)
+      if (selectGeneratedSuffix && inputRef.current && inputRef.current.selectionStart !== inputRef.current.selectionEnd) {
+        userSelectionRef.current = {
+          start: inputRef.current.selectionStart ?? 0,
+          end: inputRef.current.selectionEnd ?? 0,
+        }
+      }
       if (selectGeneratedSuffix && !isComposingRef.current) {
         pendingSelectionRef.current = {
           start: getAutocompleteSelectionStart(nextLabel, lastTypedDraftRef.current ?? draft),
@@ -414,6 +432,7 @@ function AsyncAutocompleteInner<T>(
   /** 입력 변경 — debounce 후 서버 검색 */
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
+    userSelectionRef.current = null
     preserveDraftOnNextFocusRef.current = false
     lastTypedDraftRef.current = nextDraft
     setDraft(nextDraft)
@@ -527,7 +546,7 @@ function AsyncAutocompleteInner<T>(
     if (value && e.currentTarget.value === '' && (e.key === 'Backspace' || e.key === 'Delete')) {
       lastTypedDraftRef.current = ''
     }
-    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
+    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) return
     if (!open) return
     const candidatesAreFresh = draft.trim() === resolvedQuery
 
@@ -680,11 +699,28 @@ function AsyncAutocompleteInner<T>(
           onFocus={handleFocus}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
+          onSelect={() => {
+            userSelectionRef.current = {
+              start: inputRef.current?.selectionStart ?? 0,
+              end: inputRef.current?.selectionEnd ?? 0,
+            }
+          }}
           onCompositionStart={() => {
             isComposingRef.current = true
           }}
           onCompositionEnd={() => {
             isComposingRef.current = false
+            window.setTimeout(() => {
+              const item = candidates.length === 1 ? candidates[0] : undefined
+              if (
+                item &&
+                autoSelectSingleResult &&
+                draft.trim() === resolvedQuery &&
+                lastTypedDraftRef.current !== getInputLabel(item)
+              ) {
+                pick(item, true)
+              }
+            }, 0)
           }}
           placeholder={placeholder}
           disabled={disabled}

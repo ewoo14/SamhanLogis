@@ -184,10 +184,21 @@ export const WarehouseAutocomplete = forwardRef<
   const inputRef = useRef<HTMLInputElement | null>(null)
   const isComposingRef = useRef(false)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  const userSelectionRef = useRef<{ start: number; end: number } | null>(null)
 
   useLayoutEffect(() => {
     const pending = pendingSelectionRef.current
     if (!pending || isComposingRef.current || !inputRef.current) return
+    if (userSelectionRef.current) {
+      inputRef.current.setSelectionRange(userSelectionRef.current.start, userSelectionRef.current.end)
+      userSelectionRef.current = null
+      pendingSelectionRef.current = null
+      return
+    }
+    if (inputRef.current.selectionStart !== inputRef.current.selectionEnd) {
+      pendingSelectionRef.current = null
+      return
+    }
     inputRef.current.setSelectionRange(pending.start, pending.end)
     pendingSelectionRef.current = null
   }, [draft, open, selectedLabel, selectionRequest])
@@ -251,6 +262,7 @@ export const WarehouseAutocomplete = forwardRef<
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
+    userSelectionRef.current = null
     preserveDraftOnNextFocusRef.current = false
     lastTypedDraftRef.current = nextDraft
     setDraft(nextDraft)
@@ -270,7 +282,7 @@ export const WarehouseAutocomplete = forwardRef<
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
+    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) return
 
     if (!open) return
 
@@ -297,8 +309,15 @@ export const WarehouseAutocomplete = forwardRef<
   }
 
   const pick = (w: Warehouse, selectGeneratedSuffix = false) => {
+    if (isComposingRef.current) return
     onChange(w.id, w)
     const nextLabel = `${w.code} · ${w.name}`
+    if (selectGeneratedSuffix && inputRef.current && inputRef.current.selectionStart !== inputRef.current.selectionEnd) {
+      userSelectionRef.current = {
+        start: inputRef.current.selectionStart ?? 0,
+        end: inputRef.current.selectionEnd ?? 0,
+      }
+    }
     if (selectGeneratedSuffix && !isComposingRef.current) {
       pendingSelectionRef.current = {
         start: getAutocompleteSelectionStart(nextLabel, lastTypedDraftRef.current ?? ''),
@@ -360,11 +379,25 @@ export const WarehouseAutocomplete = forwardRef<
               onFocus={handleFocus}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
+              onSelect={() => {
+                userSelectionRef.current = {
+                  start: inputRef.current?.selectionStart ?? 0,
+                  end: inputRef.current?.selectionEnd ?? 0,
+                }
+              }}
               onCompositionStart={() => {
                 isComposingRef.current = true
               }}
               onCompositionEnd={() => {
                 isComposingRef.current = false
+                window.setTimeout(() => {
+                  const currentDraft = lastTypedDraftRef.current ?? ''
+                  const nextCandidates = searchWarehouses(visibleWarehouses, currentDraft)
+                  const item = nextCandidates.length === 1 ? nextCandidates[0] : undefined
+                  if (item && autoSelectSingleResult && currentDraft !== `${item.code} · ${item.name}`) {
+                    pick(item, true)
+                  }
+                }, 0)
               }}
               placeholder={placeholder}
               disabled={disabled}

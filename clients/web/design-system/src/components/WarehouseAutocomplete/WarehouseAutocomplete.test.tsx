@@ -106,14 +106,25 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
     fireEvent.focus(input)
     fireEvent.compositionStart(input)
-    fireEvent.change(input, { target: { value: 'H' } })
-    await waitFor(() => expect(input.value).toContain('HQ-001'))
+    fireEvent.input(input, {
+      target: { value: 'H' },
+      data: 'H',
+      inputType: 'insertCompositionText',
+      isComposing: true,
+    })
+    fireEvent.compositionUpdate(input, { data: 'H' })
+    await waitFor(() => expect(input.value).toBe('H'))
     // IME 조합 중에는 자동확정이 selection을 건드리지 않아야 한다.
-    expect(input.selectionStart).not.toBe(1)
+    expect(input.value).not.toContain('HQ-001')
     fireEvent.compositionEnd(input)
-    fireEvent.change(input, { target: { value: 'HQ-001 · 본사 창고창' } })
+    fireEvent.input(input, {
+      target: { value: 'HQ' },
+      data: 'Q',
+      inputType: 'insertText',
+      isComposing: false,
+    })
 
-    expect(input.value).toContain('창')
+    await waitFor(() => expect(input.value).toContain('HQ-001'))
   })
 
   it('allows autocomplete replacement immediately after auto-confirmation', async () => {

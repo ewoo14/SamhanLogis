@@ -10,7 +10,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
 const SHOTS = resolveQaShotsDir(path.resolve(
   _dirname,
-  '../../../../docs/qa/2026-08-09-1150-a2-sol-review/screenshots',
+  '../../../../docs/qa/2026-08-09-1150-a2-sol-review-real-qa/screenshots',
 ))
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }
@@ -238,6 +238,9 @@ test.describe.serial('PR #1150 A2 SOL 첫 적대검증 — 실 API/mock OFF', ()
     const duringComposition = await selection(input)
     const duringEvents = await nativeEvents(page)
     console.log('[WAREHOUSE_IME_DURING]', JSON.stringify({ query: updateQuery, label, duringComposition, events: duringEvents }))
+    expect(duringComposition.value, '네이티브 IME 조합 중 자동확정됨').not.toBe(label)
+    expect(duringEvents.some((event) => event.type === 'compositionstart'), '네이티브 compositionstart 미발생').toBeTruthy()
+    expect(duringEvents.some((event) => event.inputType === 'insertCompositionText' && event.isComposing === true), '네이티브 insertCompositionText 미발생').toBeTruthy()
     await page.screenshot({ path: path.join(SHOTS, '02-warehouse-ime-during.png'), fullPage: false })
 
     const shortened = query
@@ -248,6 +251,7 @@ test.describe.serial('PR #1150 A2 SOL 첫 적대검증 — 실 API/mock OFF', ()
     await cdp.send('Input.insertText', { text: shortened })
     await page.waitForTimeout(100)
     console.log('[WAREHOUSE_IME_COMMIT]', JSON.stringify({ state: await selection(input), events: await nativeEvents(page) }))
+    expect((await selection(input)).value, '조합 종료 후 창고 라벨이 확정되지 않음').toBe(label)
     expect((await nativeEvents(page)).some((event) => event.type === 'compositionstart'), '브라우저 compositionstart 미발생').toBeTruthy()
 
     await cdp.send('Input.imeSetComposition', { text: query, selectionStart: query.length, selectionEnd: query.length })
