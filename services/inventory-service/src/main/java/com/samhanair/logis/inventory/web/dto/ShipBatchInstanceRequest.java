@@ -1,6 +1,7 @@
 package com.samhanair.logis.inventory.web.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
 /**
@@ -22,5 +23,5 @@ public record ShipBatchInstanceRequest(
         LocalDateTime outboundAt,
 
         /** source journal 연결 정보(기존 호출은 생략 가능) */
-        SourceOperationContext sourceContext) {
+        @NotNull(message = "sourceContext 는 필수입니다") SourceOperationContext sourceContext) {
 }

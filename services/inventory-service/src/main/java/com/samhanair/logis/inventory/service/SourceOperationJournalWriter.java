@@ -2,6 +2,8 @@ package com.samhanair.logis.inventory.service;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.SourceOperationJournal;
 import com.samhanair.logis.inventory.domain.SourceOperationOutcome;
@@ -21,9 +23,12 @@ public class SourceOperationJournalWriter {
     public void record(SourceOperationContext context, ProductSummary product,
                        SourceOperationOutcome outcome, List<UUID> createdLotIds,
                        List<UUID> createdInstanceIds) {
-        SourceOperationContext safe = context == null ? new SourceOperationContext(null, null, null) : context;
+        if (context == null || context.slipId() == null || context.slipRevision() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "sourceContext 의 slipId/slipRevision 은 재고 mutation journal에 필수입니다");
+        }
         repository.save(SourceOperationJournal.create(
-                safe.operationIdOrGenerate(), safe.slipId(), safe.slipRevision(), snapshot(product), outcome,
+                context.operationIdOrGenerate(), context.slipId(), context.slipRevision(), snapshot(product), outcome,
                 createdLotIds, createdInstanceIds));
     }
 

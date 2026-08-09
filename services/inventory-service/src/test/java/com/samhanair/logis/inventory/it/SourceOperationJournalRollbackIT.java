@@ -28,14 +28,16 @@ class SourceOperationJournalRollbackIT extends AbstractPostgresIT {
     @Test
     void journal_commit_and_rollback_share_the_same_transaction() {
         UUID committed = UUID.randomUUID();
+        UUID committedSlip = UUID.randomUUID();
         transactionTemplate.executeWithoutResult(status -> writer.record(
-                new SourceOperationContext(committed, null, 1L), product(),
+                new SourceOperationContext(committed, committedSlip, 1L), product(),
                 SourceOperationOutcome.APPLIED, List.of(), List.of()));
         assertThat(repository.countBySourceOperationId(committed)).isEqualTo(1);
 
         UUID rolledBack = UUID.randomUUID();
+        UUID rolledBackSlip = UUID.randomUUID();
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
-            writer.record(new SourceOperationContext(rolledBack, null, 1L), product(),
+            writer.record(new SourceOperationContext(rolledBack, rolledBackSlip, 1L), product(),
                     SourceOperationOutcome.APPLIED, List.of(), List.of());
             throw new IllegalStateException("RED-B rollback probe");
         })).isInstanceOf(IllegalStateException.class);

@@ -43,6 +43,6 @@ public record BatchInboundInstanceRequest(
         /** 입고일시 — null 이면 서버 기준 now() 사용 */
         LocalDateTime receivedAt,
 
-        /** source journal 연결 정보(기존 호출은 생략 가능) */
-        SourceOperationContext sourceContext) {
+        /** source journal 연결 정보 — 전표 파생 호출에는 필수 */
+        @NotNull(message = "sourceContext 는 필수입니다") SourceOperationContext sourceContext) {
 }

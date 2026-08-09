@@ -17,7 +17,7 @@ public record DeductRequest(
         @Size(max = 30) String referenceType,
         UUID referenceId,
         @Size(max = 500) String note,
-        SourceOperationContext sourceContext) {
+        @NotNull(message = "sourceContext 는 필수입니다") SourceOperationContext sourceContext) {
 
     public DeductRequest(UUID productId, UUID warehouseId, Integer quantity, Boolean fromReservation,
                          String referenceType, UUID referenceId, String note) {

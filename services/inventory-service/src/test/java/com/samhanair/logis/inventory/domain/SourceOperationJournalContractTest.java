@@ -12,14 +12,16 @@ class SourceOperationJournalContractTest {
     @Test
     void journal_preserves_outcome_and_created_id_sets() {
         UUID operationId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
         UUID lotId = UUID.randomUUID();
         SourceOperationJournal journal = SourceOperationJournal.create(
-                operationId, null, 3L,
+                operationId, slipId, 3L,
                 JsonNodeFactory.instance.objectNode().put("goods", true),
                 SourceOperationOutcome.APPLIED,
                 List.of(lotId), List.of());
 
         assertThat(journal.getSourceOperationId()).isEqualTo(operationId);
+        assertThat(journal.getSlipId()).isEqualTo(slipId);
         assertThat(journal.getSlipRevision()).isEqualTo(3L);
         assertThat(journal.getOutcome()).isEqualTo(SourceOperationOutcome.APPLIED);
         assertThat(journal.getCreatedLotIds()).containsExactly(lotId.toString());
