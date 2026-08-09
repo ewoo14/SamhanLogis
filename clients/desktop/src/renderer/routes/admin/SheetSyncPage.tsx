@@ -8,7 +8,7 @@
  * <p><b>구성</b>:
  * - 헤더 — "구글 시트 동기화" + 마지막 sync 시각 표시
  * - "지금 동기화" 버튼 (mutate pending 동안 disabled + 우측 spinner)
- * - 결과 표 — tab 별 inserted / updated / softDeleted (sync 1번도 없으면 빈 상태)
+ * - 결과 표 — Product row와 구성품 occurrence를 단위가 드러나는 라벨로 표시
  *
  * <p><b>refetch 정책</b>:
  * - useQuery refetchOnMount = 'always' — 페이지 진입 시 항상 최신 last 조회
@@ -203,10 +203,10 @@ export function SheetSyncPage() {
               }}
             >
               <th style={thStyle}>탭 이름</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>신규 (inserted)</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>변경 (updated)</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>신규 Product row / 연결 occurrence</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>변경 Product row / Bundle Product</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>
-                삭제 (softDeleted)
+                삭제 Product row / 구성품 row
               </th>
               <th style={thStyle}>비고</th>
             </tr>
@@ -228,7 +228,7 @@ export function SheetSyncPage() {
                 </td>
               </tr>
             ) : (
-              rows.map(({ tabName, result }) => (
+              rows.map(({ tabName, kind, result }) => (
                 <tr
                   key={tabName}
                   data-testid="admin-sheetsync-tab-row"
@@ -238,13 +238,13 @@ export function SheetSyncPage() {
                 >
                   <td style={tdStyle}>{tabName}</td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.insertedRows}
+                    {kind === 'component' ? result.linkedOccurrences : result.insertedRows}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.updatedRows}
+                    {kind === 'component' ? result.bundlesMarkedProducts : result.updatedRows}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.softDeletedRows}
+                    {kind === 'component' ? result.softDeletedComponentRows : result.softDeletedProductRows}
                   </td>
                   <td style={{ ...tdStyle, color: result.error ? 'var(--color-danger-700, #b91c1c)' : 'var(--color-neutral-500)' }}>
                     {formatTabRemark(result)}

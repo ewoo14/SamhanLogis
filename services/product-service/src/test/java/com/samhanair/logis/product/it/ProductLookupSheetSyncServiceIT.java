@@ -45,7 +45,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>검증 범위:
  * <ul>
  *     <li>3탭 insert — material/odu/branch natural key 기준 신규 적재</li>
- *     <li>rowHash 동일 재실행 — update 없이 unchanged 처리</li>
+ *     <li>rowHash 동일 재실행 — update 없이 unchangedRows 처리</li>
  *     <li>시트 값 변경 — active row update</li>
  *     <li>시트 row 제거 — hard delete 없이 soft-delete</li>
  *     <li>시트 무값 컬럼 — branch description/summaryQty, HOME_MULTI indoorCapacity null 보존</li>
@@ -134,10 +134,10 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         entityManager.clear();
 
         // then: insert + null 계약
-        assertThat(first.totalInserted).isEqualTo(9);
-        assertThat(first.totalUpdated).isZero();
-        assertThat(first.totalSoftDeleted).isZero();
-        assertThat(first.byTab.get("싱글 자재가격").skipped).isEqualTo(5);
+        assertThat(first.totalInsertedRows).isEqualTo(9);
+        assertThat(first.totalUpdatedRows).isZero();
+        assertThat(first.totalSoftDeletedLookupRows).isZero();
+        assertThat(first.byTab.get("싱글 자재가격").skippedOccurrences).isEqualTo(5);
 
         MaterialPrice d2 = materialPriceRepository.findByMaterialKey("D2").orElseThrow();
         assertThat(d2.getName()).isEqualTo("유선리모컨");
@@ -177,10 +177,10 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         ProductLookupSheetSyncService.SyncSummary second = syncService.syncAll();
         entityManager.clear();
 
-        // then: unchanged 만 증가
-        assertThat(second.totalInserted).isZero();
-        assertThat(second.totalUpdated).isZero();
-        assertThat(second.totalSoftDeleted).isZero();
+        // then: unchangedRows 만 증가
+        assertThat(second.totalInsertedRows).isZero();
+        assertThat(second.totalUpdatedRows).isZero();
+        assertThat(second.totalSoftDeletedLookupRows).isZero();
         assertThat(second.totalUnchanged).isEqualTo(9);
 
         // given: material 가격 변경 + branch 2512 제거
@@ -212,8 +212,8 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         entityManager.clear();
 
         // then: update + soft-delete
-        assertThat(third.byTab.get("싱글 자재가격").updated).isEqualTo(1);
-        assertThat(third.byTab.get("분기계산").softDeleted).isEqualTo(1);
+        assertThat(third.byTab.get("싱글 자재가격").updatedRows).isEqualTo(1);
+        assertThat(third.byTab.get("분기계산").softDeletedLookupRows).isEqualTo(1);
         assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
                 .isEqualByComparingTo(new BigDecimal("45000"));
         assertThat(branchRepository.findByBranchCode("2512")).isEmpty();
@@ -240,7 +240,7 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         ProductLookupSheetSyncService.SyncSummary emptyRead = syncService.syncAll();
         entityManager.clear();
 
-        assertThat(emptyRead.totalSoftDeleted).isZero();
+        assertThat(emptyRead.totalSoftDeletedLookupRows).isZero();
         assertThat(materialPriceRepository.findByMaterialKey("D2")).isPresent();
         assertThat(oduRepository.findActiveByNaturalKey(
                 RecommendationType.MULTI_HEATING_COOLING, new BigDecimal("5.5"), null, "4HP"))
@@ -296,8 +296,8 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
      * 자재 탭 저장 실패로 트랜잭션이 롤백되면, 먼저 처리된 행의 hash도 캐시에 남지 않아야 한다.
      *
      * <p>첫 행 저장은 성공시키고 둘째 행 저장에서 실제 런타임 예외를 주입한다. 그러면 첫 행의
-     * DB 변경은 롤백되어야 하며, 다음 성공 sync에서는 첫 행도 {@code unchanged}가 아니라
-     * {@code updated}로 다시 처리되어야 한다.
+     * DB 변경은 롤백되어야 하며, 다음 성공 sync에서는 첫 행도 {@code unchangedRows}가 아니라
+     * {@code updatedRows}로 다시 처리되어야 한다.
      */
     @Test
     void syncMaterialPricesTab_저장실패_롤백시_앞서갱신한_hash도_재처리된다() throws Exception {
@@ -344,8 +344,8 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         ProductLookupSheetSyncService.TabSyncResult retry = syncService.syncMaterialPricesTab();
         entityManager.clear();
 
-        assertThat(retry.updated).isEqualTo(2);
-        assertThat(retry.unchanged).isZero();
+        assertThat(retry.updatedRows).isEqualTo(2);
+        assertThat(retry.unchangedRows).isZero();
         assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
                 .isEqualByComparingTo(new BigDecimal("45000"));
     }
@@ -395,23 +395,23 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(failed.successfulTabs).isEqualTo(2);
         assertThat(failed.byTab.get("싱글 자재가격").error)
                 .isEqualTo("injected material price save failure");
-        assertThat(failed.byTab.get("추천실외기").unchanged).isEqualTo(1);
-        assertThat(failed.byTab.get("분기계산").unchanged).isEqualTo(1);
+        assertThat(failed.byTab.get("추천실외기").unchangedRows).isEqualTo(1);
+        assertThat(failed.byTab.get("분기계산").unchangedRows).isEqualTo(1);
 
         doAnswer(invocation -> invocation.getArgument(0))
                 .when(materialPriceRepositorySpy).save(any(MaterialPrice.class));
         ProductLookupSheetSyncService.SyncSummary retry = syncService.syncAll();
 
-        assertThat(retry.byTab.get("싱글 자재가격").updated).isEqualTo(2);
-        assertThat(retry.byTab.get("추천실외기").unchanged).isEqualTo(1);
-        assertThat(retry.byTab.get("분기계산").unchanged).isEqualTo(1);
+        assertThat(retry.byTab.get("싱글 자재가격").updatedRows).isEqualTo(2);
+        assertThat(retry.byTab.get("추천실외기").unchangedRows).isEqualTo(1);
+        assertThat(retry.byTab.get("분기계산").unchangedRows).isEqualTo(1);
     }
 
     /**
      * DB commit 순서와 afterCompletion 순서가 역전되어도 다음 sync가 DB를 기준으로 재처리한다.
      *
      * <p>T1의 DB commit 뒤 서비스 cache callback 직전에 멈추고, T2가 50,000을 commit/callback
-     * 한 다음 T1 callback을 재개한다. 캐시를 기준으로 판정하면 마지막 입력 45,000이 unchanged가
+     * 한 다음 T1 callback을 재개한다. 캐시를 기준으로 판정하면 마지막 입력 45,000이 unchangedRows가
      * 되어 DB의 50,000을 영구히 유지하지만, DB 행 해시를 기준으로 판정하면 45,000으로 갱신된다.
      */
     @Test
@@ -470,10 +470,10 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
             Future<ProductLookupSheetSyncService.TabSyncResult> t2 = executor.submit(
                     () -> syncService.syncMaterialPricesTab());
             ProductLookupSheetSyncService.TabSyncResult t2Result = t2.get();
-            assertThat(t2Result.updated).isEqualTo(1);
+            assertThat(t2Result.updatedRows).isEqualTo(1);
 
             releaseT1Callback.countDown();
-            assertThat(t1.get().updated).isEqualTo(1);
+            assertThat(t1.get().updatedRows).isEqualTo(1);
         } finally {
             releaseT1Callback.countDown();
             executor.shutdownNow();
@@ -490,8 +490,8 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         ProductLookupSheetSyncService.TabSyncResult next = syncService.syncMaterialPricesTab();
         entityManager.clear();
 
-        assertThat(next.updated).isEqualTo(1);
-        assertThat(next.unchanged).isZero();
+        assertThat(next.updatedRows).isEqualTo(1);
+        assertThat(next.unchangedRows).isZero();
         assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
                 .isEqualByComparingTo(new BigDecimal("45000"));
     }
@@ -558,8 +558,8 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
 
         ProductLookupSheetSyncService.TabSyncResult result = syncService.syncOduRecommendationsTab();
 
-        assertThat(result.inserted).isEqualTo(1);
-        assertThat(result.skipped).isEqualTo(1);
+        assertThat(result.insertedRows).isEqualTo(1);
+        assertThat(result.skippedOccurrences).isEqualTo(1);
         assertThat(result.error).contains("추천실외기 natural key 중복");
     }
 

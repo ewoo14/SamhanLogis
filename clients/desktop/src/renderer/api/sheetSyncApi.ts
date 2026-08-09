@@ -26,7 +26,7 @@ export interface TabSyncResult {
   insertedRows: number
   updatedRows: number
   unchangedRows: number
-  softDeletedRows: number
+  softDeletedProductRows: number
   skippedOccurrences: number
   nameDriftOccurrences?: number
   priceHistoryExposureSpecChangedRows?: number
@@ -51,7 +51,7 @@ export interface ComponentSyncResult {
  * 전체 sync 집계 — BE `ProductSheetSyncService.SyncSummary` 와 1:1.
  *
  * <p>byTab 의 key 는 시트 tab 이름 (예: "주방소도구", "음식점주방기구").
- * total* 4종은 byTab 합산 + skipped 누계.
+ * total* 카운터는 byTab 합산 + occurrence 누계.
  */
 export interface SyncSummary {
   byTab: Record<string, TabSyncResult>

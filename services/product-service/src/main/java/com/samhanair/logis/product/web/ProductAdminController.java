@@ -52,7 +52,7 @@ public class ProductAdminController {
      * 시트 → DB 수동 sync trigger (옵션 C-3).
      * 캐시 invalidate 후 sync 실행 — 시트 최신값 즉시 반영. 실행 후 lastSnapshot 갱신.
      *
-     * @return 응답 envelope 안 SyncSummary (총 inserted/updated/softDeleted/skipped + tab 별 분포)
+     * @return 응답 envelope 안 SyncSummary (총 insertedRows/updatedRows/softDeletedProductRows/skippedOccurrences + tab 별 분포)
      */
     @Operation(summary = "구글 시트 → DB 수동 sync trigger (옵션 C-3)",
             description = "cron 5분 주기 (옵션 C-2, PR-D Part 1) 와 별개로 시트 변경 즉시 반영이 필요할 때 호출. "
@@ -132,18 +132,18 @@ public class ProductAdminController {
         }
         lookupSummary.byTab.forEach((tabName, lookupTab) -> {
             ProductSheetSyncService.TabSyncResult tab = new ProductSheetSyncService.TabSyncResult();
-            tab.insertedRows = lookupTab.inserted;
-            tab.updatedRows = lookupTab.updated;
-            tab.unchangedRows = lookupTab.unchanged;
-            tab.softDeletedRows = lookupTab.softDeleted;
-            tab.skippedOccurrences = lookupTab.skipped;
+            tab.insertedRows = lookupTab.insertedRows;
+            tab.updatedRows = lookupTab.updatedRows;
+            tab.unchangedRows = lookupTab.unchangedRows;
+            tab.softDeletedProductRows = lookupTab.softDeletedLookupRows;
+            tab.skippedOccurrences = lookupTab.skippedOccurrences;
             tab.error = lookupTab.error;
             summary.byTab.put("lookup:" + tabName, tab);
         });
-        summary.totalInsertedRows += lookupSummary.totalInserted;
-        summary.totalUpdatedRows += lookupSummary.totalUpdated;
-        summary.totalSoftDeletedRows += lookupSummary.totalSoftDeleted;
-        summary.totalSkippedOccurrences += lookupSummary.totalSkipped;
+        summary.totalInsertedRows += lookupSummary.totalInsertedRows;
+        summary.totalUpdatedRows += lookupSummary.totalUpdatedRows;
+        summary.totalSoftDeletedRows += lookupSummary.totalSoftDeletedLookupRows;
+        summary.totalSkippedOccurrences += lookupSummary.totalSkippedOccurrences;
         summary.totalTabs += lookupSummary.totalTabs;
         summary.failedTabs += lookupSummary.failedTabs;
         summary.successfulTabs += lookupSummary.successfulTabs;

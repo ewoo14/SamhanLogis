@@ -221,7 +221,7 @@ public class ProductSheetSyncService {
      * 전체 시트 sync — scheduler / admin 양쪽 진입점.
      * tab 별 별도 트랜잭션 (per-tab) — 1 tab 실패가 전체 무효화 방지.
      *
-     * @return SyncResult — tab 별 inserted/updated/softDeleted/skipped 집계
+     * @return SyncResult — tab 별 insertedRows/updatedRows/softDeletedProductRows/skippedOccurrences 집계
      */
     public SyncSummary syncAll() {
         log.info("[ProductSheetSync] sync 시작: sheetId={}", sheetId);
@@ -248,7 +248,7 @@ public class ProductSheetSyncService {
                 summary.totalUpdatedRows += tabResult.updatedRows;
                 summary.totalNameDriftOccurrences += tabResult.nameDriftOccurrences;
                 summary.totalPriceHistoryExposureSpecChangedRows += tabResult.priceHistoryExposureSpecChangedRows;
-                summary.totalSoftDeletedRows += tabResult.softDeletedRows;
+                summary.totalSoftDeletedRows += tabResult.softDeletedProductRows;
                 summary.totalSkippedOccurrences += tabResult.skippedOccurrences;
                 summary.totalPreservedManualProductOccurrences += tabResult.preservedManualProductOccurrences;
                 summary.totalPreservedByRuleProductOccurrences += tabResult.preservedByRuleProductOccurrences;
@@ -286,8 +286,8 @@ public class ProductSheetSyncService {
         }
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
-        log.info("[ProductSheetSync] sync 완료: 총 inserted={}, updated={}, softDeleted={}, skipped={}, "
-                        + "preservedManualProductOccurrences={}, preservedManualComponentOccurrences={}, 구성품 linkOccurrences={}, bundle markedProducts={}, 사양 linkedRows={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
+        log.info("[ProductSheetSync] sync 완료: 총 insertedRows={}, updatedRows={}, softDeletedProductRows={}, skippedOccurrences={}, "
+                        + "preservedManualProductOccurrences={}, preservedManualComponentOccurrences={}, 구성품 linkedOccurrences={}, bundle markedProducts={}, 사양 linkedRows={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
                 summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows,
                 summary.totalSkippedOccurrences, summary.totalPreservedManualProductOccurrences,
                 summary.totalPreservedManualComponentOccurrences, summary.totalComponentLinkOccurrences,
@@ -346,7 +346,7 @@ public class ProductSheetSyncService {
         // rule CRUD와 동일한 advisory lock 아래에서 세대 확인과 함께 수행한다.
         quantitySyncRuleService.lockGraphMutation();
         if (!quantitySyncRuleService.isCurrentSheetSyncGeneration(syncKey, syncGeneration)) {
-            log.info("[ProductSheetSync] component tab '{}' stale response skipped (generation={})",
+            log.info("[ProductSheetSync] component tab '{}' stale response ignored (generation={})",
                     mapping.tabName, syncGeneration);
             return result;
         }
@@ -481,21 +481,21 @@ public class ProductSheetSyncService {
         Map<String, SpecState> beforeSpecs = captureSpecState(productId);
         Set<String> seenKeys = new HashSet<>();
         Set<Integer> consumedColumns = new HashSet<>();
-        int linked = 0;
+        int linkedSpecRows = 0;
         boolean specBearing = isSpecBearing(mapping.productCategory);
         String rowName = safeGet(cells, mapping.nameColumn);
         String rowModelCode = safeGet(cells, mapping.modelCodeColumn);
         if (mapping.estimateCategory == EstimateCategory.HOME_MULTI) {
-            linked += loadHomeSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
+            linkedSpecRows += loadHomeSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
         } else if (mapping.estimateCategory == EstimateCategory.SINGLE_SET) {
-            linked += loadSingleSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
+            linkedSpecRows += loadSingleSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
         } else if (mapping.estimateCategory == EstimateCategory.COMMERCIAL_MULTI) {
-            linked += loadCommercialSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
+            linkedSpecRows += loadCommercialSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
         }
         if (specBearing) {
             logUnmappedSpecHeaders(mapping, header, cells, consumedColumns);
         } else {
-            linked += loadBlocklistSpecs(productId, header, cells, mapping, seenKeys, consumedColumns);
+            linkedSpecRows += loadBlocklistSpecs(productId, header, cells, mapping, seenKeys, consumedColumns);
         }
 
         // soft-delete: 이번 시트에 더 이상 없는 기존 spec 키. 매핑된 구키는 seenKeys 에 없으므로 여기서 정리된다.
@@ -506,7 +506,7 @@ public class ProductSheetSyncService {
             }
         }
         specWrites.changedRows = changedRowCount(beforeSpecs, captureSpecState(productId));
-        return linked;
+        return linkedSpecRows;
     }
 
     private static int changedRowCount(Map<String, SpecState> before, Map<String, SpecState> after) {
@@ -532,17 +532,17 @@ public class ProductSheetSyncService {
 
     private int loadBlocklistSpecs(UUID productId, List<String> header, List<String> cells, SheetTabMapping mapping,
                                    Set<String> seenKeys, Set<Integer> consumedColumns) {
-        int linked = 0;
+        int linkedSpecRows = 0;
         for (int col = 0; col < header.size(); col++) {
             if (shouldSkipBlocklistSpecColumn(col, header, cells, mapping, consumedColumns)) continue;
             String h = normHeader(header.get(col));
             String key = h.length() > 50 ? h.substring(0, 50) : h;
             String value = safeGet(cells, col).trim();
             if (upsertSpec(productId, seenKeys, key, value, null, col)) {
-                linked++;
+                linkedSpecRows++;
             }
         }
-        return linked;
+        return linkedSpecRows;
     }
 
     private void logUnmappedSpecHeaders(SheetTabMapping mapping, List<String> header, List<String> cells,
@@ -603,46 +603,46 @@ public class ProductSheetSyncService {
                     9, 10, 11, 12, 16, 17, true);
         }
 
-        int linked = 0;
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
+        int linkedSpecRows = 0;
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
                 "배관경", null, 1, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKcal,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKcal,
                 "냉방능력, kcal/h", "kcal/h", 2, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKw,
                 "냉방능력, kW", "kW", 3, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowKw,
                 "냉방소비전력, kW", "kW", 4, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
                 "냉매가스", null, 5, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "에너지소비효율", "에너지소비효율등급"),
                 "에너지소비효율등급", null, 6, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "전원선"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "전원선"),
                 "전원선, mm²", "mm²", 7, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "차단기"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "차단기"),
                 "차단기, A", "A", 8, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
                 "제품크기, mm", "mm", 9, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
                 "제품중량, kg", "kg", 10, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
                 "포장치수, mm", "mm", 11, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
                 "포장중량, kg", "kg", 12, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, firstExistingIdx(H, "최대장배관", "최대장배관"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, firstExistingIdx(H, "최대장배관", "최대장배관"),
                 "배관길이, m", "m", 13, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, firstExistingIdx(H, "최대고저차", "최대고저차"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, firstExistingIdx(H, "최대고저차", "최대고저차"),
                 "고낙차, m", "m", 14, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "최대연결실내기대수", "최대연결실내기대수"),
                 "최대 연결 실내기 대수, 대", "대", 15, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "타공사이즈", "타공사이즈(mm)"),
                 "타공사이즈, mm", "mm", 16, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "전산볼트간격", "전산볼트간격(mm)"),
                 "전산볼트간격, mm", "mm", 17, SpecValueMode.NUMBER);
-        return linked;
+        return linkedSpecRows;
     }
 
     private int loadSingleSpecs(UUID productId, List<String> header, List<String> cells,
@@ -663,69 +663,69 @@ public class ProductSheetSyncService {
         Pair powerBreaker = splitSlash(cell(cells, firstExistingIdx(H, "전원(mm²)/차단(A)", "전원(mm²)/차단(A)")));
         Pair pipeDrop = splitSlash(cell(cells, firstExistingIdx(H, "배관길이/고낙차(m)", "배관길이/고낙차(m)")));
 
-        int linked = 0;
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
+        int linkedSpecRows = 0;
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
                 "배관경", null, 1, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iCapKcal,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iCapKcal,
                 "냉방능력, kcal/h", capKcal.a(), "kcal/h", 2, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iCapKcal,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iCapKcal,
                 "난방능력, kcal/h", capKcal.b(), "kcal/h", 3, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iCapKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iCapKw,
                 "냉방능력, kW", capKw.a(), "kW", 4, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iCapKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iCapKw,
                 "난방능력, kW", capKw.b(), "kW", 5, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iPowKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iPowKw,
                 "냉방소비전력, kW", pow.a(), "kW", 6, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iPowKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iPowKw,
                 "난방소비전력, kW", pow.b(), "kW", 7, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
                 "냉매가스", null, 8, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "등급(냉방/난방)", "등급(냉방/난방)"),
                 "에너지소비효율등급", null, 9, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns,
                 firstExistingIdx(H, "전원(mm²)/차단(A)", "전원(mm²)/차단(A)"),
                 "전원선, mm²", powerBreaker.a(), "mm²", 10, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns,
                 firstExistingIdx(H, "전원(mm²)/차단(A)", "전원(mm²)/차단(A)"),
                 "차단기, A", powerBreaker.b(), "A", 11, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실내기크기(mm)", "실내기크기(mm)"),
                 "실내기크기, mm", "mm", 12, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실외기크기(mm)", "실외기크기(mm)"),
                 "실외기크기, mm", "mm", 13, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실내기중량(kg)", "실내기중량(kg)"),
                 "실내기중량, kg", "kg", 14, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실외기중량(kg)", "실외기중량(kg)"),
                 "실외기중량, kg", "kg", 15, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실내기포장(mm)", "실내기포장(mm)"),
                 "실내기포장, mm", "mm", 16, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실외기포장(mm)", "실외기포장(mm)"),
                 "실외기포장, mm", "mm", 17, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실내기포장중량(kg)", "실내기포장중량(kg)"),
                 "실내기포장중량, kg", "kg", 18, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실외기포장중량(kg)", "실외기포장중량(kg)"),
                 "실외기포장중량, kg", "kg", 19, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns,
                 firstExistingIdx(H, "배관길이/고낙차(m)", "배관길이/고낙차(m)"),
                 "배관길이, m", pipeDrop.a(), "m", 20, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns,
                 firstExistingIdx(H, "배관길이/고낙차(m)", "배관길이/고낙차(m)"),
                 "고낙차, m", pipeDrop.b(), "m", 21, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "타공사이즈", "타공사이즈(mm)"),
                 "타공사이즈, mm", "mm", 22, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "전산볼트간격", "전산볼트간격(mm)"),
                 "전산볼트간격, mm", "mm", 23, SpecValueMode.NUMBER);
-        return linked;
+        return linkedSpecRows;
     }
 
     private int loadCommercialSpecs(UUID productId, List<String> header, List<String> cells,
@@ -753,17 +753,17 @@ public class ProductSheetSyncService {
                     12, 13, 14, 15, 19, 20, true);
         }
 
-        int linked = 0;
+        int linkedSpecRows = 0;
         if (isErvLayout) {
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, coolCapCols,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, coolCapCols,
                     "냉방능력, kcal/h", joinCols(cells, coolCapCols), "kcal/h", 2, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, heatCapCols,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, heatCapCols,
                     "난방능력, kcal/h", joinCols(cells, heatCapCols), "kcal/h", 3, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, coolPowCols,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, coolPowCols,
                     "냉방소비전력, kW", joinCols(cells, coolPowCols), "kW", 6, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, heatPowCols,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, heatPowCols,
                     "난방소비전력, kW", joinCols(cells, heatPowCols), "kW", 7, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iDuct >= 0 ? iDuct : idx(H, "냉매가스"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iDuct >= 0 ? iDuct : idx(H, "냉매가스"),
                     "냉매가스", null, 8, SpecValueMode.AS_IS);
         } else {
             int iCoolKcal = coolCols.size() > 0 ? coolCols.get(0) : -1;
@@ -773,79 +773,79 @@ public class ProductSheetSyncService {
             int iPowCool = powCols.size() > 0 ? powCols.get(0) : -1;
             int iPowHeat = powCols.size() >= 2 ? powCols.get(powCols.size() - 1) : (iPowCool >= 0 ? iPowCool + 1 : -1);
 
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
                     "배관경", null, 1, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKcal,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKcal,
                     "냉방능력, kcal/h", "kcal/h", 2, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iHeatKcal,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iHeatKcal,
                     "난방능력, kcal/h", "kcal/h", 3, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKw,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKw,
                     "냉방능력, kW", "kW", 4, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iHeatKw,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iHeatKw,
                     "난방능력, kW", "kW", 5, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowCool,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowCool,
                     "냉방소비전력, kW", "kW", 6, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowHeat,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowHeat,
                     "난방소비전력, kW", "kW", 7, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
                     "냉매가스", null, 8, SpecValueMode.AS_IS);
         }
 
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "소비효율등급", "에너지소비효율등급"),
                 "소비효율등급", null, 9, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "전원선"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "전원선"),
                 "전원선, mm²", "mm²", 10, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "차단기"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "차단기"),
                 "차단기, A", "A", 11, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
                 "제품크기, mm", "mm", 12, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
                 "제품중량, kg", "kg", 13, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
                 "포장치수, mm", "mm", 14, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
                 "포장중량, kg", "kg", 15, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "최대장배관", "배관길이"),
                 "배관길이, m", "m", 16, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "최대고저차", "고낙차"),
                 "고낙차, m", "m", 17, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "최대연결실내기대수", "최대연결실내기대수"),
                 "최대 연결 실내기 대수, 대", "대", 18, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "타공사이즈", "타공사이즈(mm)"),
                 "타공사이즈, mm", "mm", 19, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "전산볼트간격", "전산볼트간격(mm)"),
                 "전산볼트간격, mm", "mm", 20, SpecValueMode.NUMBER);
-        return linked;
+        return linkedSpecRows;
     }
 
     private int loadPanelSpecs(UUID productId, Set<String> seenKeys, Set<Integer> consumedColumns,
                                List<String> cells, List<String> H, List<Integer> punchCols, int boltCol,
                                int sizeOrder, int weightOrder, int packageSizeOrder, int packageWeightOrder,
                                int punchOrder, int boltOrder, boolean includePhysicalSpecs) {
-        int linked = 0;
+        int linkedSpecRows = 0;
         int punchCol = firstNonBlankColumn(cells, punchCols);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, punchCols,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, punchCols,
                 "타공사이즈, mm", cell(cells, punchCol), "mm", punchOrder, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, boltCol,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, boltCol,
                 "전산볼트간격, mm", "mm", boltOrder, SpecValueMode.NUMBER);
 
         if (includePhysicalSpecs) {
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
                     "제품크기, mm", "mm", sizeOrder, SpecValueMode.DIMENSION);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
                     "제품중량, kg", "kg", weightOrder, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
                     "포장치수, mm", "mm", packageSizeOrder, SpecValueMode.DIMENSION);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
                     "포장중량, kg", "kg", packageWeightOrder, SpecValueMode.NUMBER);
         }
-        return linked;
+        return linkedSpecRows;
     }
 
     private int addMappedSpec(UUID productId, Set<String> seenKeys, Set<Integer> consumedColumns,
@@ -1257,7 +1257,7 @@ public class ProductSheetSyncService {
         // 순수 로컬 파싱은 이 락 없이 끝났다.
         quantitySyncRuleService.lockGraphMutation();
         if (!quantitySyncRuleService.isCurrentSheetSyncGeneration(syncKey, syncGeneration)) {
-            log.info("[ProductSheetSync] tab '{}' stale response skipped (generation={})",
+            log.info("[ProductSheetSync] tab '{}' stale response ignored (generation={})",
                     mapping.tabName, syncGeneration);
             return result;
         }
@@ -1431,7 +1431,7 @@ public class ProductSheetSyncService {
             if (code == null) continue;
             if (!sheetModelCodes.contains(code)) {
                 if (p.isUsageScopeManual()) {
-                    // 수동 override 품목 — 시트에 없어도 삭제 보호 (별도 카운터 preservedManual 사용, 사이클2 지적 P3-6)
+                    // 수동 override 품목 — 시트에 없어도 삭제 보호 (별도 카운터 preservedManualProductOccurrences 사용, 사이클2 지적 P3-6)
                     log.debug("[ProductSheetSync] tab '{}' modelCode='{}' usageScopeManual=true → soft-delete 제외",
                             mapping.tabName, code);
                     result.preservedManualProductOccurrences++;
@@ -1454,13 +1454,13 @@ public class ProductSheetSyncService {
                 p.markDeleted(actor);
                 productRepository.save(p);
                 softDeleteExposures(p.getId(), actor);
-                result.softDeletedRows++;
+                result.softDeletedProductRows++;
             }
         }
 
-        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, nameDriftOccurrences={}, priceHistoryExposureSpecChangedRows={}, softDeleted={}, skipped={}, preservedManual={}",
+        log.info("[ProductSheetSync] tab '{}': insertedRows={}, updatedRows={}, unchangedRows={}, nameDriftOccurrences={}, priceHistoryExposureSpecChangedRows={}, softDeletedProductRows={}, skippedOccurrences={}, preservedManualProductOccurrences={}",
                 mapping.tabName, result.insertedRows, result.updatedRows, result.unchangedRows,
-                result.nameDriftOccurrences, result.priceHistoryExposureSpecChangedRows, result.softDeletedRows,
+                result.nameDriftOccurrences, result.priceHistoryExposureSpecChangedRows, result.softDeletedProductRows,
                 result.skippedOccurrences, result.preservedManualProductOccurrences);
         return result;
     }
@@ -2110,8 +2110,8 @@ public class ProductSheetSyncService {
      *
      * <p><b>카운터 구분 (사이클2 지적 P3-6, 2026-06-11)</b>:
      * <ul>
-     *   <li>{@code skipped} — 파싱 불가(이름/modelCode 공백) 행 수</li>
-     *   <li>{@code preservedManual} — soft-delete 대상이나 {@code usageScopeManual=true} 로 보존된 품목 수</li>
+     *   <li>{@code skippedOccurrences} — 파싱 불가(이름/modelCode 공백) 행 occurrence 수</li>
+     *   <li>{@code preservedManualProductOccurrences} — soft-delete 대상이나 {@code usageScopeManual=true} 로 보존된 품목 occurrence 수</li>
      * </ul>
      * 두 카운터를 분리하여 sync 리포트에서 "파싱 skip"과 "수동 보존"을 독립적으로 확인 가능.
      */
@@ -2123,7 +2123,7 @@ public class ProductSheetSyncService {
         public int nameDriftOccurrences = 0;
         /** 실제로 변경된 PriceHistory/Exposure/ProductSpec 행 수. */
         public int priceHistoryExposureSpecChangedRows = 0;
-        public int softDeletedRows = 0;
+        public int softDeletedProductRows = 0;
         /** 파싱 불가(이름/modelCode 공백) 행 수. */
         public int skippedOccurrences = 0;
         /** soft-delete 대상이나 usageScopeManual=true 로 삭제 보호된 품목 수 (사이클2 지적 P3-6). */
@@ -2131,7 +2131,7 @@ public class ProductSheetSyncService {
         /**
          * 🚨 2026-07-28 재수렴 R6 결함 5 [MED] fix (I-5) — 탭 매핑이 NONE으로 되돌리려
          * 했으나 활성 수량 동기화 규칙이 참조 중이라 usageScope 갱신을 보류한 품목 수.
-         * preservedManual과 원인이 다르므로(수동 override 보호 vs 규칙 무결성 보호)
+         * preservedManualProductOccurrences와 원인이 다르므로(수동 override 보호 vs 규칙 무결성 보호)
          * 별도 카운터로 집계한다.
          */
         public int preservedByRuleProductOccurrences = 0;
@@ -2152,7 +2152,7 @@ public class ProductSheetSyncService {
         public Map<String, ComponentSyncResult> byComponentTab = new HashMap<>();
         public int totalInsertedRows = 0;
         public int totalUpdatedRows = 0;
-        /** 이름 불일치 occurrence 합계. updated/unchanged와 별도로 집계한다. */
+        /** 이름 불일치 occurrence 합계. updatedRows/unchangedRows와 별도로 집계한다. */
         public int totalNameDriftOccurrences = 0;
         /** 실제로 변경된 PriceHistory/Exposure/ProductSpec 행 수 합계. */
         public int totalPriceHistoryExposureSpecChangedRows = 0;

@@ -56,9 +56,9 @@ class ProductAdminControllerTest {
         summary.totalSoftDeletedRows = 1;
         ProductLookupSheetSyncService.SyncSummary lookupSummary = new ProductLookupSheetSyncService.SyncSummary();
         ProductLookupSheetSyncService.TabSyncResult lookupTab = new ProductLookupSheetSyncService.TabSyncResult();
-        lookupTab.inserted = 4;
+        lookupTab.insertedRows = 4;
         lookupSummary.byTab.put("싱글 자재가격", lookupTab);
-        lookupSummary.totalInserted = 4;
+        lookupSummary.totalInsertedRows = 4;
         when(syncService.syncAll()).thenReturn(summary);
         when(lookupSyncService.syncAll()).thenReturn(lookupSummary);
 

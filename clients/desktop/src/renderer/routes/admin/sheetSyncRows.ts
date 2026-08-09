@@ -1,39 +1,47 @@
-export interface SheetSyncResult {
+import type { ComponentSyncResult, TabSyncResult } from '../../api/sheetSyncApi'
+
+export interface SheetSyncResult extends Partial<TabSyncResult>, Partial<ComponentSyncResult> {}
+
+export interface SheetSyncRowResult {
   insertedRows?: number
   updatedRows?: number
   unchangedRows?: number
-  softDeletedRows?: number
+  softDeletedProductRows?: number
+  softDeletedComponentRows?: number
   skippedOccurrences?: number
-  error?: string | null
   linkedOccurrences?: number
   bundlesMarkedProducts?: number
+  error?: string | null
 }
 
 export interface SheetSyncSummary {
-  byTab: Record<string, SheetSyncResult>
-  byComponentTab?: Record<string, SheetSyncResult>
+  byTab: Record<string, TabSyncResult>
+  byComponentTab?: Record<string, ComponentSyncResult>
   failedTabs: number
 }
 
 export interface SheetSyncRow {
   tabName: string
-  result: Required<Pick<SheetSyncResult, 'insertedRows' | 'updatedRows' | 'unchangedRows' | 'softDeletedRows' | 'skippedOccurrences'>> & Pick<SheetSyncResult, 'error'>
+  kind: 'product' | 'component'
+  result: SheetSyncRowResult
 }
 
 export function buildSheetSyncRows(summary: SheetSyncSummary): SheetSyncRow[] {
   const rows = Object.entries(summary.byTab ?? {}).map(([tabName, result]) => ({
     tabName,
+    kind: 'product' as const,
     result: normalizeResult(result),
   }))
 
   for (const [tabName, result] of Object.entries(summary.byComponentTab ?? {})) {
     rows.push({
       tabName: `구성품 · ${tabName}`,
+      kind: 'component' as const,
       result: normalizeResult({
-        insertedRows: result.linkedOccurrences,
-        updatedRows: result.bundlesMarkedProducts,
+        linkedOccurrences: result.linkedOccurrences,
+        bundlesMarkedProducts: result.bundlesMarkedProducts,
         unchangedRows: 0,
-        softDeletedRows: result.softDeletedRows,
+        softDeletedComponentRows: result.softDeletedComponentRows,
         skippedOccurrences: result.skippedOccurrences,
         error: result.error,
       }),
@@ -43,13 +51,16 @@ export function buildSheetSyncRows(summary: SheetSyncSummary): SheetSyncRow[] {
   return rows
 }
 
-function normalizeResult(result: SheetSyncResult): SheetSyncRow['result'] {
+function normalizeResult(result: SheetSyncResult): SheetSyncRowResult {
   return {
     insertedRows: result.insertedRows ?? 0,
     updatedRows: result.updatedRows ?? 0,
     unchangedRows: result.unchangedRows ?? 0,
-    softDeletedRows: result.softDeletedRows ?? 0,
+    softDeletedProductRows: result.softDeletedProductRows ?? 0,
+    softDeletedComponentRows: result.softDeletedComponentRows ?? 0,
     skippedOccurrences: result.skippedOccurrences ?? 0,
+    linkedOccurrences: result.linkedOccurrences ?? 0,
+    bundlesMarkedProducts: result.bundlesMarkedProducts ?? 0,
     error: result.error,
   }
 }

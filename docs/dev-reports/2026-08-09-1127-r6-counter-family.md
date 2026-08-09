@@ -2,7 +2,7 @@
 
 ## 결론
 
-이번 sync의 카운터는 행/occurrence/link/Product/탭 단위를 이름에 고정했다. Product 보호와 구성품 보호를 하나의 `totalPreservedManual`에 합치지 않고, `totalSkippedOccurrences`만 Product·구성품 skip occurrence의 합으로 닫았다.
+이번 sync의 카운터는 행/occurrence/link/Product/탭 단위를 이름에 고정했다. Product 보호와 구성품 보호를 하나의 `totalPreservedManualProductOccurrences`에 합치지 않고, `totalSkippedOccurrencesOccurrences`만 Product·구성품 skip occurrence의 합으로 닫았다.
 
 운영 판정 원문 기준으로 다음 값이 보존된다.
 
@@ -29,7 +29,7 @@
 | `unchangedRows` | Product 시트 행 occurrence | 예 | 일치 |
 | `nameDriftOccurrences` | 이름 drift 시트 행 occurrence | 예 | 1,012 일치 |
 | `priceHistoryExposureSpecChangedRows` | 실제 변경된 보조 entity 행 | 예 | 2행/0행 일치 |
-| `softDeletedRows` | Product 행 | 예 | 일치 |
+| `softDeletedProductRows` | Product 행 | 예 | 일치 |
 | `skippedOccurrences` | 파싱 불가 Product 행 occurrence | 예 | 일치 |
 | `preservedManualProductOccurrences` | 수동 보존 Product 행 occurrence | 예 | 일치 |
 | `preservedByRuleProductOccurrences` | rule 보호 Product 행 occurrence | 예 | 일치 |
@@ -57,9 +57,9 @@
 | `totalPriceHistoryExposureSpecChangedRows` | 실제 변경 보조 entity 행 | 예 | 2/0 |
 | `totalSoftDeletedRows` | Product 행 | 예 | Product tab 부분합 |
 | `totalSoftDeletedComponentRows` | 구성품 link 행 | 예 | Component tab 부분합 |
-| `totalSkippedOccurrences` | Product + 구성품 + 병합 lookup skip occurrence | 예 | 모든 부분을 누락 없이 합산; 구성품 37 포함 |
-| `totalPreservedManualProductOccurrences` | 수동 보존 Product occurrence | 예 | 구성품 보존을 더하지 않음; 0 |
-| `totalPreservedManualComponentOccurrences` | 수동 보존 구성품 occurrence | 예 | Product 보존과 분리; 2 |
+| `totalSkippedOccurrencesOccurrences` | Product + 구성품 + 병합 lookup skip occurrence | 예 | 모든 부분을 누락 없이 합산; 구성품 37 포함 |
+| `totalPreservedManualProductOccurrencesProductOccurrences` | 수동 보존 Product occurrence | 예 | 구성품 보존을 더하지 않음; 0 |
+| `totalPreservedManualProductOccurrencesComponentOccurrences` | 수동 보존 구성품 occurrence | 예 | Product 보존과 분리; 2 |
 | `totalPreservedByRuleProductOccurrences` | rule 보호 Product occurrence | 예 | Product tab 부분합 |
 | `totalComponentLinkOccurrences` | 구성품 link occurrence | 예 | 1,600; 고유 link 1,581 아님 |
 | `totalBundlesMarkedProducts` | BUNDLE 표식 Product | 예 | Component tab 부분합 |
@@ -67,7 +67,7 @@
 | `totalSpecsLinkedRows` | ProductSpec 행 | 예 | Product tab 부분합 |
 | `totalTabs` / `failedTabs` / `successfulTabs` | 탭 | 예: `Tabs` | 성공/실패 부분합 불변식 |
 
-핵심 불변식은 `totalSkippedOccurrences = Product skipped occurrence 합 + Component skipped occurrence 합 (+ admin 병합 lookup skip)`이다. `totalPreservedManualProductOccurrences`는 Product 보호만, 구성품 보호는 별도 필드만 증가한다. `totalComponentLinkOccurrences`는 natural key 고유 링크가 아니라 입력 행 occurrence라는 정의를 이름과 로그에 함께 고정했다.
+핵심 불변식은 `totalSkippedOccurrencesOccurrences = Product skippedOccurrences occurrence 합 + Component skippedOccurrences occurrence 합 (+ admin 병합 lookup skip)`이다. `totalPreservedManualProductOccurrencesProductOccurrences`는 Product 보호만, 구성품 보호는 별도 필드만 증가한다. `totalComponentLinkOccurrences`는 natural key 고유 링크가 아니라 입력 행 occurrence라는 정의를 이름과 로그에 함께 고정했다.
 
 ## 2. 정한 규칙과 테스트 강제
 
@@ -95,20 +95,20 @@
 
 ```text
 구성품 미존재 occurrence 2건
-expected totalSkippedOccurrences = 2
+expected totalSkippedOccurrencesOccurrences = 2
 expected ComponentSyncResult.skippedOccurrences = 2
 ```
 
 ```java
 sync_구성품_미존재_두_occurrence는_총_skip_occurrence에_합산된다()
 assertThat(...skippedOccurrences).isEqualTo(2);
-assertThat(summary.totalSkippedOccurrences).isEqualTo(2);
+assertThat(summary.totalSkippedOccurrencesOccurrences).isEqualTo(2);
 ```
 
 ```text
 수기 구성품 보존 occurrence 2건
-expected totalPreservedManualComponentOccurrences = 2
-expected totalPreservedManualProductOccurrences = 0
+expected totalPreservedManualProductOccurrencesComponentOccurrences = 2
+expected totalPreservedManualProductOccurrencesProductOccurrences = 0
 ```
 
 ### RED-B — 0건 발생 → 카운터 0
@@ -125,12 +125,12 @@ expected totalComponentLinkOccurrences = 0
 ### RED-C — total = 부분의 합
 
 ```text
-Product skipped occurrence 합 + Component skipped occurrence 합
-= totalSkippedOccurrences
+Product skippedOccurrences occurrence 합 + Component skippedOccurrences occurrence 합
+= totalSkippedOccurrencesOccurrences
 0 + 2 = 2
 ```
 
-구성품 `cr.skippedOccurrences`를 `syncAll()`의 `summary.totalSkippedOccurrences`에 더하지 않으면 이 테스트가 0을 내므로 RED가 된다. 기존 이름 없는 `totalSkipped` 누락 결함을 직접 방지한다.
+구성품 `cr.skippedOccurrences`를 `syncAll()`의 `summary.totalSkippedOccurrencesOccurrences`에 더하지 않으면 이 테스트가 0을 내므로 RED가 된다. 기존 이름 없는 `totalSkippedOccurrences` 누락 결함을 직접 방지한다.
 
 추가로 `priceHistoryExposureSpecChangedRows`는 기존 R5 fixture에서 `2 -> 2`, 재실행 `0 -> 0`을 유지했고, name drift는 occurrence 1,012 계약을 유지했다.
 
@@ -141,13 +141,13 @@ Product skipped occurrence 합 + Component skipped occurrence 합
 - `services/product-service/src/main/java/com/samhanair/logis/product/scheduler/ProductSheetSyncScheduler.java` — Product sync 로그 소비자.
 - `services/product-service/src/test/java/com/samhanair/logis/product/it/ProductSheetSyncServiceIT.java` — 관련 50 tests와 R6 양방향 fixture.
 - `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleReconvergenceR7IT.java` — `blockedByRuleOccurrences`.
-- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleScopeReductionRegressionIT.java` — `softDeletedRows`.
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleScopeReductionRegressionIT.java` — `softDeletedProductRows`.
 - `services/product-service/src/test/java/com/samhanair/logis/product/web/ProductAdminControllerTest.java` — admin merge 계약.
 - `clients/desktop/src/renderer/api/sheetSyncApi.ts` — BE 응답 타입.
 - `clients/desktop/src/renderer/routes/admin/SheetSyncPage.tsx` — 총계 chip, 행 표시, skip/보존 단위 라벨.
 - `clients/desktop/src/renderer/routes/admin/sheetSyncRows.ts` — 구성품 link occurrence를 행 표시에 매핑.
 
-`ProductLookupSheetSyncService`의 `inserted/updated/skipped`는 별도 lookup sync 내부 DTO라서 이름을 섞지 않았다. 다만 `ProductAdminController.mergeLookupSummary()`에서 ProductSheetSyncService의 단위 명시 DTO에 매핑되는 지점까지 grep으로 확인했다.
+`ProductLookupSheetSyncService`의 `insertedRows/updatedRows/skippedOccurrences`는 별도 lookup sync 내부 DTO라서 이름을 섞지 않았다. 다만 `ProductAdminController.mergeLookupSummary()`에서 ProductSheetSyncService의 단위 명시 DTO에 매핑되는 지점까지 grep으로 확인했다.
 
 ## 5. 검증
 

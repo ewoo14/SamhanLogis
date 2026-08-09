@@ -200,7 +200,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         // 2차 sync — 동일 데이터
         ProductSheetSyncService.SyncSummary second = syncService.syncAll();
 
-        // DB 상태 일치 → updated=0 (해당 tab 만)
+        // DB 상태 일치 → updatedRows=0 (해당 tab 만)
         ProductSheetSyncService.TabSyncResult homeTab = second.byTab.get("홈멀티");
         assertThat(homeTab).isNotNull();
         assertThat(homeTab.updatedRows).isZero();
@@ -249,13 +249,13 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ));
 
         syncService.syncAll();
-        Product inserted = productRepository.findByModelCodeAndIsDeletedFalse("ECOUNT_PROMOTION_MODEL")
+        Product insertedProduct = productRepository.findByModelCodeAndIsDeletedFalse("ECOUNT_PROMOTION_MODEL")
                 .orElseThrow();
         jdbcTemplate.update("""
                 UPDATE products
                    SET lineage = 'ECOUNT', product_category = NULL, usage_scope = 'NONE'
                  WHERE id = ?
-                """, inserted.getId());
+                """, insertedProduct.getId());
         entityManager.clear();
 
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
@@ -383,7 +383,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.softDeletedRows).isEqualTo(1);
+        assertThat(homeTab.softDeletedProductRows).isEqualTo(1);
         // soft delete 후 active 조회 X
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("WILL_VANISH")).isEmpty();
     }
@@ -403,7 +403,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                 .thenReturn(homeMultiRows());
         ProductSheetSyncService.TabSyncResult result = syncService.syncAll().byTab.get("홈멀티");
 
-        assertThat(result.softDeletedRows).isZero();
+        assertThat(result.softDeletedProductRows).isZero();
         assertThat(result.deferredByEcountReservationProductOccurrences).isEqualTo(1);
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("RESERVED_NOSHEET")).isPresent();
         ecountAliasReservationService.release(reservationToken);
@@ -1451,9 +1451,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("MANUAL_NOSHEET"))
                 .as("usageScopeManual=true 품목 — 시트 부재 시에도 soft-delete 보호")
                 .isPresent();
-        // softDeleted=0, preservedManual=1, skipped=0 (파싱 skip 없음) — 사이클2 지적 P3-6 카운터 분리
+        // softDeletedProductRows=0, preservedManualProductOccurrences=1, skippedOccurrences=0 (파싱 skip 없음) — 사이클2 지적 P3-6 카운터 분리
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.softDeletedRows).isZero();
+        assertThat(homeTab.softDeletedProductRows).isZero();
         assertThat(homeTab.preservedManualProductOccurrences).isEqualTo(1);
         assertThat(homeTab.skippedOccurrences).isZero();
     }

@@ -51,7 +51,7 @@ BUILD SUCCESSFUL
 테스트 판정은 다음과 같다.
 
 ```java
-assertThat(result.updated).isZero();
+assertThat(result.updatedRows).isZero();
 assertThat(result.unchanged).isEqualTo(1);
 assertThat(result.priceHistoryExposureSpecChangedRows).isEqualTo(2);
 ```
@@ -61,7 +61,7 @@ assertThat(result.priceHistoryExposureSpecChangedRows).isEqualTo(2);
 기존 반복 sync 테스트의 원문 판정:
 
 ```java
-assertThat(repeated.updated).isZero();
+assertThat(repeated.updatedRows).isZero();
 assertThat(repeated.unchanged).isEqualTo(2);
 assertThat(repeated.priceHistoryExposureSpecChangedRows).isZero();
 ```
@@ -74,14 +74,14 @@ assertThat(repeated.priceHistoryExposureSpecChangedRows).isZero();
 
 | 이름 | 세는 단위 | 실제 일치 여부 |
 |---|---|---|
-| `inserted` | 새 Product 행 | 일치. `Product` 신규 생성 1회마다 증가 |
-| `updated` | Hibernate dirty인 기존 Product 행 | 일치. R3 `findDirty` 결과와 연결 |
+| `insertedRows` | 새 Product 행 | 일치. `Product` 신규 생성 1회마다 증가 |
+| `updatedRows` | Hibernate dirty인 기존 Product 행 | 일치. R3 `findDirty` 결과와 연결 |
 | `unchanged` | 기존 Product 중 dirty가 아닌 처리 행 | 일치 |
 | `nameDriftOccurrences` | 시트 행 occurrence 중 시트명과 DB명이 다른 occurrence | 일치. 고유 품목 수가 아님을 이름에 명시 |
 | `priceHistoryExposureSpecChangedRows` | 실제 변경된 PriceHistory/Exposure/ProductSpec 행 | 수정 후 일치. boolean 축약 제거 |
-| `softDeleted` | 시트에서 사라져 soft-delete 된 Product 행 | 일치 |
-| `skipped` | 이름 또는 modelCode 공백으로 파싱하지 않은 Product 행 | 일치. null/빈 전체 응답은 별도 탭 skip |
-| `preservedManual` | 시트 부재에도 usageScopeManual로 보존한 Product 행 | 일치 |
+| `softDeletedProductRows` | 시트에서 사라져 soft-delete 된 Product 행 | 일치 |
+| `skippedOccurrences` | 이름 또는 modelCode 공백으로 파싱하지 않은 Product 행 | 일치. null/빈 전체 응답은 별도 탭 skip |
+| `preservedManualProductOccurrences` | 시트 부재에도 usageScopeManual로 보존한 Product 행 | 일치 |
 | `preservedByRule` | 활성 수량 규칙 때문에 usageScope NONE 전환을 보류한 Product 행 | 일치 |
 | `deferredByEcountReservation` | ECOUNT alias reservation 때문에 soft-delete를 보류한 Product 행 | 일치 |
 | `specsLinked` | 이번 시트 행에서 매핑된 ProductSpec upsert 항목 수 | 일치. 단, “변경 행 수”가 아니며 동일 값 매핑도 포함 가능 |
@@ -90,28 +90,28 @@ assertThat(repeated.priceHistoryExposureSpecChangedRows).isZero();
 
 | 이름 | 세는 단위 | 실제 일치 여부 |
 |---|---|---|
-| `linked` | 유효한 부모-자식 구성품 시트 행 occurrence | 일치. 기존 link 재저장도 occurrence로 셈 |
+| `linkedOccurrences` | 유효한 부모-자식 구성품 시트 행 occurrence | 일치. 기존 link 재저장도 occurrence로 셈 |
 | `bundlesMarked` | 이번 실행에서 BUNDLE 표식을 새로 처리한 고유 부모 Product | 일치. `markedBundles` set으로 중복 방지 |
-| `softDeleted` | 시트에서 사라져 soft-delete 된 BundleComponent 행 | 일치 |
-| `skipped` | 부모 또는 자식 Product 미존재로 처리하지 않은 구성품 행 | 일치 |
-| `preservedManual` | bundleComponentsManual로 구성품 집합을 보존한 행 occurrence | 일치 |
+| `softDeletedProductRows` | 시트에서 사라져 soft-delete 된 BundleComponent 행 | 일치 |
+| `skippedOccurrences` | 부모 또는 자식 Product 미존재로 처리하지 않은 구성품 행 | 일치 |
+| `preservedManualProductOccurrences` | bundleComponentsManual로 구성품 집합을 보존한 행 occurrence | 일치 |
 | `blockedByRule` | 활성 수량 규칙의 자기 구성품 충돌로 연결을 거부한 행 | 일치 |
 
 ### 전체 summary (`SyncSummary`)
 
 | 이름 | 세는 단위 | 실제 일치 여부 |
 |---|---|---|
-| `totalInserted` / `totalUpdated` / `totalSoftDeleted` / `totalSkipped` | 각 Product 탭 결과의 합 | 일치 |
+| `totalInserted` / `totalUpdated` / `totalSoftDeleted` / `totalSkippedOccurrences` | 각 Product 탭 결과의 합 | 일치 |
 | `totalNameDriftOccurrences` | Product 탭의 name drift occurrence 합 | 일치 |
 | `totalPriceHistoryExposureSpecChangedRows` | 실제 보조 엔티티 변경 행 합 | 수정 후 일치 |
-| `totalPreservedManual` / `totalPreservedByRule` | 해당 Product 탭 보호 행 합 | 일치 |
-| `totalComponentsLinked` | 구성품 유효 행 occurrence 합 | 일치 |
+| `totalPreservedManualProductOccurrences` / `totalPreservedByRule` | 해당 Product 탭 보호 행 합 | 일치 |
+| `totalComponentLinkOccurrences` | 구성품 유효 행 occurrence 합 | 일치 |
 | `totalBundlesMarked` | 구성품 탭의 신규 BUNDLE 부모 합 | 일치 |
 | `totalSpecsLinked` | Product 탭의 매핑된 ProductSpec upsert 항목 합 | 일치. changed row와 다른 단위 |
 | `totalTabs` | 실행을 시도한 Product/구성품 탭 수 | 일치 |
 | `successfulTabs` / `failedTabs` | 예외 없이 끝난 탭 / 예외 탭 수 | 일치 |
 
-구성품 `softDeleted`, `skipped`, `blockedByRule`, `deferredByEcountReservation`는 현재 component 결과 객체에 기록되며 전체 summary 필드로 합산하지 않는다. 따라서 “전체 summary에 없는 값”을 누락된 실제 카운터로 가장하지 않고 탭 결과 단위로 표에 열거했다.
+구성품 `softDeletedProductRows`, `skippedOccurrences`, `blockedByRule`, `deferredByEcountReservation`는 현재 component 결과 객체에 기록되며 전체 summary 필드로 합산하지 않는다. 따라서 “전체 summary에 없는 값”을 누락된 실제 카운터로 가장하지 않고 탭 결과 단위로 표에 열거했다.
 
 ## ④ R1~R3 회귀 확인
 
