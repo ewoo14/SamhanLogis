@@ -1,0 +1,17 @@
+[
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://localhost:8080/admin/partners/list-realtime"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://localhost:8080/admin/partners/search?page=0&size=20&includeDeleted=true"
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "url": "http://localhost:8080/admin/partners/search?page=0&size=20&q=1068689215&includeDeleted=true"
+  }
+]
