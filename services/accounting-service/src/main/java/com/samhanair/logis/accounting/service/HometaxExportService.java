@@ -550,8 +550,7 @@ public class HometaxExportService {
         String supplierEmail = supplier != null && supplier.getEmail() != null
                                ? supplier.getEmail() : FALLBACK_EMAIL;
 
-        String partnerCode = safeStr(raw.get("partnerCode"));
-        String buyerRegNo  = partnerCode.replaceAll("[^0-9]", "");
+        String buyerRegNo  = safeStr(raw.get("businessNumber")).replaceAll("[^0-9]", "");
         String buyerName   = cleanCustomerName(safeStr(raw.get("partnerName")));
         String buyerCeo    = safeStr(raw.get("representativeName"));
         String buyerAddr   = safeStr(raw.get("address"));

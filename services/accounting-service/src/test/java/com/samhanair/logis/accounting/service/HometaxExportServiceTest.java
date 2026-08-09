@@ -12,12 +12,14 @@ import com.samhanair.logis.accounting.repository.TaxInvoiceBatchExclusionReposit
 import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
+import com.samhanair.logis.accounting.web.dto.HomtaxRow;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.poi.ss.usermodel.Row;
@@ -62,6 +64,32 @@ class HometaxExportServiceTest {
 
     private static final LocalDate FROM = LocalDate.of(2026, 5, 1);
     private static final LocalDate TO = LocalDate.of(2026, 5, 31);
+
+    @Test
+    @DisplayName("홈택스 공급받는자 등록번호는 partnerCode가 아니라 businessNumber에서 읽는다")
+    void buyerRegistrationNumberUsesBusinessNumber() {
+        Map<String, Object> raw = new java.util.HashMap<>();
+        raw.put("partnerCode", "P-2026-0001");
+        raw.put("businessNumber", "113-07-10031");
+        raw.put("partnerName", "테스트 거래처");
+
+        HomtaxRow row = service.toHomtaxRow(raw, null);
+
+        assertThat(row.buyerRegNo()).isEqualTo("1130710031");
+        assertThat(row.buyerRegNo()).isNotEqualTo("20260001");
+    }
+
+    @Test
+    @DisplayName("홈택스 공급받는자 사업자번호가 없으면 가짜 등록번호를 만들지 않는다")
+    void buyerRegistrationNumberIsBlankWhenBusinessNumberMissing() {
+        Map<String, Object> raw = new java.util.HashMap<>();
+        raw.put("partnerCode", "P-2026-0001");
+        raw.put("partnerName", "사업자번호 없음");
+
+        HomtaxRow row = service.toHomtaxRow(raw, null);
+
+        assertThat(row.buyerRegNo()).isBlank();
+    }
 
     @Test
     @DisplayName("POI workbook — sheet 1장 + 헤더 + 1 라인 (fallback supplierRegNo 사용)")

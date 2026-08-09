@@ -47,6 +47,7 @@ class TaxInvoiceBatchServiceTest {
         rawRow = new HashMap<>();
         rawRow.put("slipNo", "SLP-001");
         rawRow.put("partnerCode", "PC001");
+        rawRow.put("businessNumber", "113-07-10031");
         rawRow.put("partnerName", "테스트거래처");
         rawRow.put("representativeName", "대표자");
         rawRow.put("address", "서울시 강남구");
@@ -146,5 +147,24 @@ class TaxInvoiceBatchServiceTest {
         HomtaxRow row = service.toHomtaxRow(rawRow, profile);
 
         assertThat(row.supplierSubNo()).isEqualTo("");
+    }
+
+    @Test
+    @DisplayName("배치 홈택스 공급받는자 등록번호는 사업자번호에서 읽는다")
+    void buyerRegistrationNumberUsesBusinessNumber() {
+        HomtaxRow row = service.toHomtaxRow(rawRow, null);
+
+        assertThat(row.buyerRegNo()).isEqualTo("1130710031");
+        assertThat(row.buyerRegNo()).isNotEqualTo("001");
+    }
+
+    @Test
+    @DisplayName("배치 홈택스 사업자번호가 없으면 가짜 등록번호를 만들지 않는다")
+    void buyerRegistrationNumberIsBlankWhenBusinessNumberMissing() {
+        rawRow.remove("businessNumber");
+
+        HomtaxRow row = service.toHomtaxRow(rawRow, null);
+
+        assertThat(row.buyerRegNo()).isBlank();
     }
 }

@@ -1,6 +1,6 @@
 import type { CashReceiptLine, CashReceiptRequest, CashReceiptRow } from '../api/accounting'
-import type { PartnerOption } from '@samhan/design-system'
 import { localTodayIso } from './localDate'
+import { asBusinessNumber, asPartnerCode, type PartnerSelectionOption } from '../types/partnerIdentity'
 
 export const CASH_RECEIPT_DEFAULT_DEBIT_ACCOUNT_CODE = '102'
 export const CASH_RECEIPT_DEFAULT_CREDIT_ACCOUNT_CODE = '110'
@@ -99,12 +99,12 @@ export function cashReceiptFormStateFromRow(row: CashReceiptRow): CashReceiptFor
   })
 }
 
-export function partnerOptionFromFormState(state: CashReceiptFormState): PartnerOption | null {
+export function partnerOptionFromFormState(state: CashReceiptFormState): PartnerSelectionOption | null {
   if (!state.partnerCode && !state.partnerName) return null
   return {
-    partnerCode: state.partnerCode || state.bizNo || state.partnerName,
+    partnerCode: asPartnerCode(state.partnerCode),
     name: state.partnerName,
-    bizNo: state.bizNo || undefined,
+    bizNo: state.bizNo ? asBusinessNumber(state.bizNo) : undefined,
   }
 }
 

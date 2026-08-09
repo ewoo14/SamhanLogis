@@ -63,6 +63,7 @@ import {
   truncatePartnerName,
 } from './CashReceiptListPage.model'
 import { localMonthStartIso, localTodayIso } from './localDate'
+import { asPartnerCode, type PartnerSelectionOption } from '../types/partnerIdentity'
 
 type StatusTab = 'ALL' | BankMatchStatus
 type SourceTab = 'ALL' | BankTransactionRow['source']
@@ -130,12 +131,12 @@ function statusStyle(status: BankMatchStatus): React.CSSProperties {
   }
 }
 
-function partnerValueOf(row: BankTransactionRow): PartnerOption | null {
+export function partnerValueOf(row: BankTransactionRow): PartnerSelectionOption | null {
   if (!row.matchedPartnerCode && !row.matchedPartnerName) return null
   return {
-    partnerCode: row.matchedPartnerCode ?? row.matchedBizNo ?? '',
+    partnerCode: asPartnerCode(row.matchedPartnerCode ?? ''),
     name: row.matchedPartnerName ?? row.matchedPartnerCode ?? '',
-    bizNo: row.matchedBizNo ?? undefined,
+    bizNo: row.matchedBizNo ? row.matchedBizNo as PartnerSelectionOption['bizNo'] : undefined,
   }
 }
 
