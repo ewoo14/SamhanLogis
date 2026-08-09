@@ -612,6 +612,9 @@ public class EcountPartnerImporter {
             isNew = true;
         }
         partner = partnerRepository.save(partner);
+        if (registrationDate != null) {
+            partnerRepository.overrideCreatedAtForImport(partner.getId(), registrationDate.atStartOfDay());
+        }
         return new UpsertResult(partner.getId(), isNew, partner.getStatus());
     }
 

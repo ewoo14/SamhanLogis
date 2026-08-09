@@ -6,6 +6,9 @@ import com.samhanair.logis.partner.PartnerServiceApplication;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
 import com.samhanair.logis.partner.it.AbstractPostgresIT;
 import com.samhanair.logis.partner.service.EcountPartnerImporter;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -76,6 +79,58 @@ class PartnerMasterLoadIT extends AbstractPostgresIT {
         assertThat(first.createdAtLoadTimeCount()).isEqualTo(4830);
         assertThat(first.registrationDateParsedCount() + first.createdAtLoadTimeCount()).isEqualTo(7253);
         assertThat(countWhere("partners", "created_at IS NOT NULL")).isEqualTo(7253);
+    }
+
+    @Test
+    void RED_A_등록일자_있는_신규행의_DB_created_at은_등록일_자정이다() {
+        importer.importCsv(csv("RED-A", "20230814"), "r3-it");
+
+        String createdAt = jdbcTemplate.queryForObject(
+                "SELECT created_at::text FROM partners WHERE partner_code = 'RED-A'",
+                new MapSqlParameterSource(), String.class);
+
+        System.out.println("GREEN-A SELECT created_at FROM partners WHERE partner_code='RED-A' => " + createdAt);
+        assertThat(createdAt).startsWith("2023-08-14 00:00:00");
+    }
+
+    @Test
+    void RED_B_등록일자_있는_기존행의_DB_created_at은_등록일_자정으로_교정된다() {
+        importer.importCsv(csv("RED-B", "20230101"), "r3-it");
+
+        importer.importCsv(csv("RED-B", "20230814"), "r3-it");
+
+        String createdAt = jdbcTemplate.queryForObject(
+                "SELECT created_at::text FROM partners WHERE partner_code = 'RED-B'",
+                new MapSqlParameterSource(), String.class);
+
+        System.out.println("GREEN-B SELECT created_at FROM partners WHERE partner_code='RED-B' => " + createdAt);
+        assertThat(createdAt).startsWith("2023-08-14 00:00:00");
+    }
+
+    @Test
+    void RED_C_등록일자_없는_행은_연속_적재해도_DB_created_at이_불변이다() {
+        importer.importCsv(csv("RED-C", "임시"), "r3-it");
+        LocalDateTime first = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM partners WHERE partner_code = 'RED-C'",
+                new MapSqlParameterSource(), LocalDateTime.class);
+
+        importer.importCsv(csv("RED-C", "임시"), "r3-it");
+        LocalDateTime second = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM partners WHERE partner_code = 'RED-C'",
+                new MapSqlParameterSource(), LocalDateTime.class);
+
+        System.out.println("GREEN-C SELECT created_at FROM partners WHERE partner_code='RED-C' => first="
+                + first + ", second=" + second);
+        assertThat(second).isEqualTo(first);
+    }
+
+    private ByteArrayInputStream csv(String code, String registrationDate) {
+        String value = "\uFEFF\"데이터관리>거래처-Excel다운로드\"\n"
+                + "\"거래처코드\t\",\"등록일자\t\",\"담당자명\t\",\"종사업장번호\t\",\"거래처명\t\","
+                + "\"대표자명\t\",\"주소1\t\",\"전화번호\t\",\"핸드폰번호\t\",\"검색창내용\t\","
+                + "\"특이사항\t\",\"그룹\t\",\"사용구분\t\",\"이체정보\t\",\"여신한도\t\",\"최초작성일자\t\",\"\"\n"
+                + String.format("\"%s\t\",\"%s\t\",\"담당자\t\",\"\t\",\"R3 거래처\t\",\"대표\t\",\"서울\t\",\"\t\",\"\t\",\"\t\",\"\t\",\"일반업체\t\",\"YES\t\",\"등록\t\",\"\t\",\"\t\",\"\"\n", code, registrationDate);
+        return new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8));
     }
 
     private Map<String, String> snapshot() {

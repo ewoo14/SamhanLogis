@@ -300,37 +300,6 @@ class EcountPartnerImporterTest {
     }
 
     @Test
-    void 기존_등록일자가_있으면_createdAt을_등록일_자정으로_교정한다() {
-        Partner existing = Partner.register("CODE001", "CODE001", "기존거래처", null, null,
-                BigDecimal.ZERO);
-        existing.overrideCreatedAtForImport(LocalDateTime.of(2026, 8, 9, 12, 34));
-        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.of(existing));
-        wireSaveEcho();
-
-        importer.importCsv(csvStream(META_LINE + HEADER_LINE
-                + row("CODE001", "20230814", "이성미", "", "기존거래처", "", "", "", "",
-                "", "", "일반업체", "YES", "등록", "0", "")), "tester");
-
-        assertThat(existing.getCreatedAt()).isEqualTo(LocalDateTime.of(2023, 8, 14, 0, 0));
-    }
-
-    @Test
-    void 기존_등록일자가_없으면_createdAt을_재적재로_변경하지_않는다() {
-        Partner existing = Partner.register("CODE001", "CODE001", "기존거래처", null, null,
-                BigDecimal.ZERO);
-        LocalDateTime original = LocalDateTime.of(2026, 1, 2, 3, 4);
-        existing.overrideCreatedAtForImport(original);
-        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.of(existing));
-        wireSaveEcho();
-
-        importer.importCsv(csvStream(META_LINE + HEADER_LINE
-                + row("CODE001", "임시", "이성미", "", "기존거래처", "", "", "", "",
-                "", "", "일반업체", "YES", "등록", "0", "")), "tester");
-
-        assertThat(existing.getCreatedAt()).isEqualTo(original);
-    }
-
-    @Test
     void 삭제행이_있으면_활성행을_새로_만들지_않고_같은_UUID로_부활한다() {
         Partner deleted = Partner.register("CODE001", "CODE001", "삭제거래처", null, null,
                 BigDecimal.ZERO);
