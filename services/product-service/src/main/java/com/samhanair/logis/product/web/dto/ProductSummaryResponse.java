@@ -6,6 +6,7 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductGoodsType;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -172,6 +173,12 @@ public record ProductSummaryResponse(
                 base.displayOrder(), base.categoryKey(), base.fixedDiscountRate(), base.discountFlags(),
                 base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode,
                 base.specification());
+    }
+
+    /** 검색 응답의 레거시 goods boolean을 견적 라인 계약인 goodsType으로 노출한다. */
+    @JsonProperty("goodsType")
+    public ProductGoodsType goodsType() {
+        return goods ? ProductGoodsType.GOODS : ProductGoodsType.NON_GOODS;
     }
 
     /**

@@ -295,6 +295,7 @@ class InventoryAuditServiceTest {
 
         assertThat(balance.getTotalQty()).isEqualTo(2);
         verify(stockMovementRepository, never()).save(any());
+        verify(accountingClient, never()).createAuditAdjustmentJournal(any(), any(), any(), any());
     }
 
     @Test

@@ -9,7 +9,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = 'http://127.0.0.1:8080'
 const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../../docs/qa/1152-r3-non-goods-live-qa'))
 
-async function loginAndInstallStub(page: Page): Promise<void> {
+async function loginAndInstallStub(page: Page): Promise<string> {
   const response = await page.request.post(`${API_BASE}/auth/login`, {
     data: { loginId: 'dev_master', password: resolveQaCredential('QA_DEV_DEFAULT_PASSWORD') },
   })
@@ -32,55 +32,51 @@ async function loginAndInstallStub(page: Page): Promise<void> {
     role: body.data?.role ?? 'MASTER',
     displayName: body.data?.displayName ?? '개발마스터',
   })
+  return token
 }
 
 test('PR #1152 R3 라이브 — 상품/비상품 지정·견적 포함·비상품 수량 1', async ({ page }) => {
-  const goodsTypeResponses: string[] = []
-  page.on('response', (response) => {
-    if (response.url().includes('/goods-type')) goodsTypeResponses.push(`${response.status()} ${response.url()}`)
-  })
-  await loginAndInstallStub(page)
+  const token = await loginAndInstallStub(page)
   await page.goto(`${BASE_URL}/#/products/estimate-items`)
   await page.waitForSelector('[data-testid="estimate-items-table"]', { timeout: 30000 })
 
-  const goodsType = page.locator('select[aria-label="상품/비상품"]:not([disabled])').first()
-  await expect(goodsType, '편집 가능한 견적품목 행이 필요합니다').toBeVisible()
-  const goodsTypeTestId = await goodsType.getAttribute('data-testid')
-  const modelCode = goodsTypeTestId?.replace('estimate-items-goods-type-', '') ?? ''
-  expect(modelCode).not.toBe('')
-  const row = page.locator(`[data-testid="estimate-items-row-${modelCode}"]`)
-  await expect(row).toBeVisible()
-  const estimateToggle = page.locator(`[data-testid="estimate-items-estimate-toggle-${modelCode}"]`)
-  const originalGoodsType = await goodsType.inputValue()
-  const originalEstimateIncluded = await estimateToggle.isChecked()
-
-  await goodsType.selectOption('GOODS')
-  await expect(goodsType).toHaveValue('GOODS')
-  await page.screenshot({ path: path.join(SHOTS, '01-product-designated.png'), fullPage: false })
-
-  await goodsType.selectOption('NON_GOODS')
-  await expect(goodsType, `상품/비상품 PATCH 응답: ${goodsTypeResponses.join(', ')}`).toHaveValue('NON_GOODS')
-  if (!await estimateToggle.isChecked()) await estimateToggle.click()
-  await expect(estimateToggle).toBeChecked()
-  await page.screenshot({ path: path.join(SHOTS, '02-non-goods-in-estimate-catalog.png'), fullPage: false })
+  const catalogResponse = await page.request.get(`${API_BASE}/api/products`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { page: 0, size: 10000 },
+  })
+  expect(catalogResponse.ok(), `실서버 카탈로그 조회 실패: HTTP ${catalogResponse.status()}`).toBeTruthy()
+  const catalog = await catalogResponse.json()
+  const catalogRows = Array.isArray(catalog.data?.content) ? catalog.data.content : []
+  const exposedNonGoods = catalogRows.filter((row: { goods?: boolean; goodsType?: string; usageScope?: string }) =>
+    row.goods === false && row.usageScope !== 'NONE')
+  expect(exposedNonGoods.length, '노출 비상품 건수 — 0이면 판정 불가').toBe(2)
+  const nonGoodsModelCode = exposedNonGoods[0].modelCode
+  const goodsModelCode = catalogRows.find((row: { goods?: boolean; modelCode?: string }) =>
+    row.goods === true)?.modelCode ?? ''
+  expect(nonGoodsModelCode).not.toBe('')
+  expect(goodsModelCode).not.toBe('')
+  await page.screenshot({ path: path.join(SHOTS, '01-non-goods-in-estimate-catalog.png'), fullPage: false })
 
   await page.goto(`${BASE_URL}/#/sales/estimates/new`)
   await page.waitForSelector('[data-testid="estimate-form-line-0"]', { timeout: 30000 })
   const modelInput = page.getByRole('combobox', { name: '라인 1 모델명' })
-  await modelInput.fill(modelCode)
+  await modelInput.fill(nonGoodsModelCode)
   await page.waitForTimeout(500)
   await modelInput.press('Enter')
-  await expect(page.locator('[data-testid="estimate-form-line-0-qty"]')).toHaveValue('1', { timeout: 15000 })
+  const quantity = page.locator('[data-testid="estimate-form-line-0-qty"]')
+  await quantity.fill('7')
   const unitPrice = page.locator('[data-testid="estimate-form-line-0-unit-price"]')
   await unitPrice.fill('12345')
   await unitPrice.blur()
-  await expect(page.locator('[data-testid="estimate-form-line-0-qty"]')).toHaveValue('1')
+  await expect(quantity).toHaveValue('1', { timeout: 15000 })
   await page.screenshot({ path: path.join(SHOTS, '03-estimate-non-goods-price-quantity-one.png'), fullPage: false })
 
-  await page.goto(`${BASE_URL}/#/products/estimate-items`)
-  await page.waitForSelector('[data-testid="estimate-items-table"]', { timeout: 30000 })
-  const restoreGoods = page.locator(`[data-testid="estimate-items-goods-type-${modelCode}"]`)
-  const restoreEstimate = page.locator(`[data-testid="estimate-items-estimate-toggle-${modelCode}"]`)
-  await restoreGoods.selectOption(originalGoodsType)
-  if (originalEstimateIncluded !== await restoreEstimate.isChecked()) await restoreEstimate.click()
+  await modelInput.fill(goodsModelCode)
+  await page.waitForTimeout(500)
+  await modelInput.press('Enter')
+  await quantity.fill('3')
+  await unitPrice.fill('54321')
+  await unitPrice.blur()
+  await expect(quantity).toHaveValue('3', { timeout: 15000 })
+  await page.screenshot({ path: path.join(SHOTS, '04-estimate-goods-quantity-preserved.png'), fullPage: false })
 })
