@@ -76,7 +76,7 @@ test('R6 실 API — 전표 발화조건·권한 양방향·버튼 표본 상태
   }))
 
   await installAuth(page, manager)
-  await page.goto(`${BASE_URL}/warehouse/inbound-inspections`)
+  await page.goto(`${BASE_URL}/#/warehouse/inbound-inspections`)
   await expect(page.getByTestId('inbound-inspection-list-table')).toBeVisible({ timeout: 30_000 })
   await page.screenshot({ path: path.join(SHOTS, '01-manager-inspection-sample-unavailable.png'), fullPage: true })
 })

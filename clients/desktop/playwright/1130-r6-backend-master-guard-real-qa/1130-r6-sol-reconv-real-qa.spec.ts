@@ -46,7 +46,7 @@ function authHeaders(auth: Login): Record<string, string> {
 test('MANAGER — 입고 검수 메뉴와 빈 목록에 실 API로 진입한다', async ({ page }) => {
   const manager = await login(page, 'dev_manager')
   await installAuth(page, manager)
-  await page.goto(`${BASE_URL}/warehouse/inbound-inspections`)
+  await page.goto(`${BASE_URL}/#/warehouse/inbound-inspections`)
 
   await expect(page.getByTestId('sidebar-warehouse-inbound-inspections')).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId('inbound-inspection-list-table')).toBeVisible({ timeout: 30_000 })
@@ -67,7 +67,7 @@ test('MANAGER — INBOUND+INSPECTING 실 전표의 처리 완료 버튼이 활�
   expect(target?.id).toBeTruthy()
 
   await installAuth(page, manager)
-  await page.goto(`${BASE_URL}/purchases/${target.id}`)
+  await page.goto(`${BASE_URL}/#/purchases/${target.id}`)
   const action = page.getByRole('button', { name: '완료 (처리 완료)' })
   await expect(action).toBeVisible({ timeout: 30_000 })
   await expect(action).toBeEnabled()
@@ -83,7 +83,8 @@ test('SALES — 입고 검수 메뉴·라우트·목록 API가 계속 차단된�
   expect(api.status()).toBe(403)
 
   await installAuth(page, sales)
-  await page.goto(`${BASE_URL}/warehouse/inbound-inspections`)
+  await page.goto(`${BASE_URL}/#/warehouse/inbound-inspections`)
+  await expect(page.getByRole('heading', { name: '대시보드', level: 2 })).toBeVisible({ timeout: 30_000 })
   await expect(page).not.toHaveURL(/\/warehouse\/inbound-inspections$/, { timeout: 30_000 })
   await expect(page.getByTestId('sidebar-warehouse-inbound-inspections')).toHaveCount(0)
   await page.screenshot({ path: path.join(SHOTS, '03-sales-inbound-denied.png'), fullPage: true })
@@ -101,7 +102,7 @@ test('MASTER — system.permission-admin 실 권한으로 권한설정 화면이
   ])
 
   await installAuth(page, master)
-  await page.goto(`${BASE_URL}/admin/permission-matrix`)
+  await page.goto(`${BASE_URL}/#/admin/permission-matrix`)
   await expect(page.getByRole('heading', { name: '권한설정', level: 3 })).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId('permission-matrix-table')).toBeVisible({ timeout: 30_000 })
   await page.screenshot({ path: path.join(SHOTS, '04-master-permission-admin.png'), fullPage: true })
