@@ -1,0 +1,71 @@
+{
+  "rows": 1000,
+  "userOutcome": "result",
+  "trace": [
+    {
+      "atMs": 1036,
+      "event": "request",
+      "url": "http://localhost:8080/admin/partners/imports/ecount"
+    },
+    {
+      "atMs": 3448,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount"
+    }
+  ],
+  "boundariesMs": {
+    "fileSelectionToRequest": 1036,
+    "requestToFirstObservedDb": 269,
+    "firstToLastObservedDb": 1600,
+    "lastObservedDbToResponse": 543,
+    "requestToResponse": 2412
+  },
+  "dbSamples": [
+    {
+      "atMs": 1305,
+      "rows": [
+        "active|IO|UPDATE staging.ecount_partner_raw    SET transform_status = $1,        reject_reason    ="
+      ]
+    },
+    {
+      "atMs": 1578,
+      "rows": [
+        "active|IO|INSERT INTO staging.ecount_partner_raw (   source_file_hash, source_row_no,   raw_partner_"
+      ]
+    },
+    {
+      "atMs": 1821,
+      "rows": [
+        "active|Client|INSERT INTO staging.ecount_partner_raw (   source_file_hash, source_row_no,   raw_partner_"
+      ]
+    },
+    {
+      "atMs": 2110,
+      "rows": [
+        "active|IO|UPDATE staging.ecount_partner_raw    SET transform_status = $1,        reject_reason    ="
+      ]
+    },
+    {
+      "atMs": 2384,
+      "rows": [
+        "active|Client|UPDATE staging.ecount_partner_raw    SET transform_status = $1,        reject_reason    ="
+      ]
+    },
+    {
+      "atMs": 2687,
+      "rows": [
+        "active|IO|INSERT INTO staging.ecount_partner_raw (   source_file_hash, source_row_no,   raw_partner_"
+      ]
+    },
+    {
+      "atMs": 2905,
+      "rows": [
+        "active|IO|INSERT INTO staging.ecount_partner_raw (   source_file_hash, source_row_no,   raw_partner_"
+      ]
+    }
+  ],
+  "measurementNote": "pg_stat_activity 외부 표본이므로 DB 구간 시작·끝은 표본 주기만큼의 오차가 있다.",
+  "credentials": "<redacted>",
+  "transportAdapterBypass": false
+}

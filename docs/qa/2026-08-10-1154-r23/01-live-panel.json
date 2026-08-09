@@ -1,0 +1,114 @@
+{
+  "actualApiBase": "http://localhost:8080",
+  "first": {
+    "hash": "486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6",
+    "rows": 201,
+    "pages": 3
+  },
+  "second": {
+    "hash": "793D229DD41A37F6F91CF9EF1A1E681C45AE37E46127F7792FAC2FE18991A5E3",
+    "rows": 201,
+    "pageAfterUpload": 1
+  },
+  "trace": [
+    {
+      "atMs": 1173,
+      "event": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/admin/partners/imports/ecount"
+    },
+    {
+      "atMs": 1774,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount"
+    },
+    {
+      "atMs": 1786,
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6&page=0&size=100"
+    },
+    {
+      "atMs": 1786,
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6&page=0&size=100"
+    },
+    {
+      "atMs": 1808,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6&page=0&size=100"
+    },
+    {
+      "atMs": 1817,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6&page=0&size=100"
+    },
+    {
+      "atMs": 2335,
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6&page=1&size=100"
+    },
+    {
+      "atMs": 2350,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6&page=1&size=100"
+    },
+    {
+      "atMs": 2383,
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6&page=2&size=100"
+    },
+    {
+      "atMs": 2398,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=486D3E4D6BD86106841D839178117107928E1608D72D6353671036D1955C69F6&page=2&size=100"
+    },
+    {
+      "atMs": 2510,
+      "event": "request",
+      "method": "POST",
+      "url": "http://localhost:8080/admin/partners/imports/ecount"
+    },
+    {
+      "atMs": 3067,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount"
+    },
+    {
+      "atMs": 3074,
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=793D229DD41A37F6F91CF9EF1A1E681C45AE37E46127F7792FAC2FE18991A5E3&page=2&size=100"
+    },
+    {
+      "atMs": 3074,
+      "event": "request",
+      "method": "GET",
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=793D229DD41A37F6F91CF9EF1A1E681C45AE37E46127F7792FAC2FE18991A5E3&page=0&size=100"
+    },
+    {
+      "atMs": 3092,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=793D229DD41A37F6F91CF9EF1A1E681C45AE37E46127F7792FAC2FE18991A5E3&page=0&size=100"
+    },
+    {
+      "atMs": 3096,
+      "event": "response",
+      "status": 200,
+      "url": "http://localhost:8080/admin/partners/imports/ecount/rejections?sourceFileHash=793D229DD41A37F6F91CF9EF1A1E681C45AE37E46127F7792FAC2FE18991A5E3&page=2&size=100"
+    }
+  ],
+  "credentials": "<redacted>",
+  "transportAdapterBypass": false,
+  "updaterWorkaround": "Playwright init script에서 samhanUpdater를 not-available로 종료시킴"
+}
