@@ -1,12 +1,15 @@
 param(
   [string]$Database = 'auth_db',
   [string]$User = 'samhan',
-  [string]$Password = 'samhan_dev_pw',
   [string]$PostgresImage = 'postgres:16-alpine',
   [string]$FlywayImage = 'flyway/flyway:10.10.0'
 )
 
 $ErrorActionPreference = 'Stop'
+$randomPasswordBytes = New-Object byte[] 32
+$randomNumberGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
+try { $randomNumberGenerator.GetBytes($randomPasswordBytes) } finally { $randomNumberGenerator.Dispose() }
+[string]$Password = [Convert]::ToBase64String($randomPasswordBytes)
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $snapshotPath = Join-Path $repoRoot 'clients/desktop/src/renderer/test-utils/accounting-slip-permission-snapshot.ts'
 $outputPath = Join-Path $repoRoot 'clients/desktop/src/renderer/test-utils/accounting-slip-permission-db-snapshot.ts'

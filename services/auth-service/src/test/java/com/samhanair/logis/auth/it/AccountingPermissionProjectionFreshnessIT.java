@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.flywaydb.core.Flyway;
@@ -35,12 +36,13 @@ class AccountingPermissionProjectionFreshnessIT {
     private static final Pattern ROLE_BLOCK = Pattern.compile(
             "(?s)\\'([A-Z]+)\\'\\s*:\\s*\\{(.*?)\\n\\s*\\},");
     private static final Pattern CELL = Pattern.compile("\\'([^\\']+)\\'\\s*:\\s*\\'([01]{7})\\'");
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("auth_db")
             .withUsername("samhan")
-            .withPassword("samhan_dev_pw");
+            .withPassword(POSTGRES_PASSWORD);
 
     private JdbcTemplate jdbcTemplate;
 
