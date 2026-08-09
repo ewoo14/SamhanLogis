@@ -1,0 +1,14 @@
+{
+  "first": {
+    "hash": "C4665BA2A57F8B6892D92BACCA6B121654367F7E2DA442259CCFFAA2DC6E4983",
+    "rows": 201,
+    "lastPage": 3
+  },
+  "second": {
+    "hash": "B69B5955B5C35A0DAC642DA9B0DE3A9AFFAA1EAA7C70AA8E48E5E16A82A36E29",
+    "rows": 201,
+    "pageAfterUpload": 1
+  },
+  "credentials": "<redacted>",
+  "transportAdapterBypass": false
+}

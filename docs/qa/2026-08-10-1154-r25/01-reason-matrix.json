@@ -1,0 +1,218 @@
+{
+  "mixedPhysicalRows": [
+    {
+      "rowNumber": 3,
+      "code": "SOL1154R25-ENC-BAD",
+      "name": "<invalid-bytes>"
+    },
+    {
+      "rowNumber": 4,
+      "code": "SOL1154R25-ENC-GOOD",
+      "name": "R25 읽을 수 있는 정상 상호"
+    }
+  ],
+  "encodingRows": [
+    "3CSV_ENCODING: 거래처명에 치환문자(U+FFFD)가 포함됨SOL1154R25-ENC-BAD읽을 수 없음"
+  ],
+  "reasonRows": [
+    "3INPUT_VALIDATIONSOL1154R25-INPUTR25 입력 검증 원문 상호",
+    "4DB_CONSTRAINTSOL1154R25-DBR25 DB 제약 원문 상호-가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+  ],
+  "responses": [
+    {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "totalRows": 2,
+        "imported": 0,
+        "updated": 1,
+        "rejectedNullName": 0,
+        "skippedPlaceholder": 0,
+        "activeCount": 1,
+        "suspendedCount": 0,
+        "sourceFileHash": "8A5E927F02D849EB74546572EDFDF4D2DB9679C53437546FC1D45B2C978CCEB1",
+        "rejectedSample": [],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 1,
+        "heldSample": [
+          {
+            "rowNumber": 3,
+            "reason": "CSV_ENCODING",
+            "rawPartnerCode": "SOL1154R25-ENC-BAD",
+            "rawName": "읽을 수 없음"
+          }
+        ],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      },
+      "timestamp": "2026-08-09T19:46:17.318497716Z"
+    },
+    {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "totalRows": 1,
+        "imported": 0,
+        "updated": 1,
+        "rejectedNullName": 0,
+        "skippedPlaceholder": 0,
+        "activeCount": 1,
+        "suspendedCount": 0,
+        "sourceFileHash": "BA70B970A2F830D8D747F002F1ED5447290E209566C8C424E7C2D59F25D1F3BC",
+        "rejectedSample": [],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 0,
+        "heldSample": [],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      },
+      "timestamp": "2026-08-09T19:46:17.734993083Z"
+    },
+    {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "totalRows": 2,
+        "imported": 0,
+        "updated": 0,
+        "rejectedNullName": 0,
+        "skippedPlaceholder": 0,
+        "activeCount": 0,
+        "suspendedCount": 0,
+        "sourceFileHash": "A4392F48DD24F05E7E4DE49F82660C95CD55BDF4715E2788FF0B033BC7E3FB5E",
+        "rejectedSample": [],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 2,
+        "heldSample": [
+          {
+            "rowNumber": 3,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R25-INPUT",
+            "rawName": "R25 입력 검증 원문 상호"
+          },
+          {
+            "rowNumber": 4,
+            "reason": "DB_CONSTRAINT",
+            "rawPartnerCode": "SOL1154R25-DB",
+            "rawName": "R25 DB 제약 원문 상호-가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+          }
+        ],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      },
+      "timestamp": "2026-08-09T19:46:17.886051101Z"
+    }
+  ],
+  "pageResponses": [
+    {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "sourceFileHash": "8A5E927F02D849EB74546572EDFDF4D2DB9679C53437546FC1D45B2C978CCEB1",
+        "page": 0,
+        "size": 100,
+        "totalElements": 1,
+        "totalPages": 1,
+        "items": [
+          {
+            "rowNumber": 3,
+            "reason": "CSV_ENCODING: 거래처명에 치환문자(U+FFFD)가 포함됨",
+            "rawPartnerCode": "SOL1154R25-ENC-BAD",
+            "rawName": "읽을 수 없음"
+          }
+        ]
+      },
+      "timestamp": "2026-08-09T19:46:17.345900231Z"
+    },
+    {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "sourceFileHash": "8A5E927F02D849EB74546572EDFDF4D2DB9679C53437546FC1D45B2C978CCEB1",
+        "page": 0,
+        "size": 100,
+        "totalElements": 1,
+        "totalPages": 1,
+        "items": [
+          {
+            "rowNumber": 3,
+            "reason": "CSV_ENCODING: 거래처명에 치환문자(U+FFFD)가 포함됨",
+            "rawPartnerCode": "SOL1154R25-ENC-BAD",
+            "rawName": "읽을 수 없음"
+          }
+        ]
+      },
+      "timestamp": "2026-08-09T19:46:17.353132400Z"
+    },
+    {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "sourceFileHash": "A4392F48DD24F05E7E4DE49F82660C95CD55BDF4715E2788FF0B033BC7E3FB5E",
+        "page": 0,
+        "size": 100,
+        "totalElements": 2,
+        "totalPages": 1,
+        "items": [
+          {
+            "rowNumber": 3,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R25-INPUT",
+            "rawName": "R25 입력 검증 원문 상호"
+          },
+          {
+            "rowNumber": 4,
+            "reason": "DB_CONSTRAINT",
+            "rawPartnerCode": "SOL1154R25-DB",
+            "rawName": "R25 DB 제약 원문 상호-가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+          }
+        ]
+      },
+      "timestamp": "2026-08-09T19:46:17.901454150Z"
+    },
+    {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "sourceFileHash": "A4392F48DD24F05E7E4DE49F82660C95CD55BDF4715E2788FF0B033BC7E3FB5E",
+        "page": 0,
+        "size": 100,
+        "totalElements": 2,
+        "totalPages": 1,
+        "items": [
+          {
+            "rowNumber": 3,
+            "reason": "INPUT_VALIDATION",
+            "rawPartnerCode": "SOL1154R25-INPUT",
+            "rawName": "R25 입력 검증 원문 상호"
+          },
+          {
+            "rowNumber": 4,
+            "reason": "DB_CONSTRAINT",
+            "rawPartnerCode": "SOL1154R25-DB",
+            "rawName": "R25 DB 제약 원문 상호-가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+          }
+        ]
+      },
+      "timestamp": "2026-08-09T19:46:17.909233072Z"
+    }
+  ],
+  "credentials": "<redacted>",
+  "transportAdapterBypass": false
+}
