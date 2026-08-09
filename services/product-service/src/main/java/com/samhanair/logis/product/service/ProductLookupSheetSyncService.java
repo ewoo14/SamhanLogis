@@ -106,7 +106,7 @@ public class ProductLookupSheetSyncService {
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
         log.info("[ProductLookupSheetSync] sync 완료: insertedRows={}, updatedRows={}, unchangedRows={}, softDeletedLookupRows={}, skippedOccurrences={}, duration={}ms",
-                summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalUnchanged,
+                summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalUnchangedRows,
                 summary.totalSoftDeletedLookupRows, summary.totalSkippedOccurrences, summary.durationMs);
         return summary;
     }
@@ -294,7 +294,7 @@ public class ProductLookupSheetSyncService {
             summary.byTab.put(tabName, result);
             summary.totalInsertedRows += result.insertedRows;
             summary.totalUpdatedRows += result.updatedRows;
-            summary.totalUnchanged += result.unchangedRows;
+            summary.totalUnchangedRows += result.unchangedRows;
             summary.totalSoftDeletedLookupRows += result.softDeletedLookupRows;
             summary.totalSkippedOccurrences += result.skippedOccurrences;
             summary.successfulTabs++;
@@ -500,7 +500,7 @@ public class ProductLookupSheetSyncService {
         public Map<String, TabSyncResult> byTab = new HashMap<>();
         public int totalInsertedRows = 0;
         public int totalUpdatedRows = 0;
-        public int totalUnchanged = 0;
+        public int totalUnchangedRows = 0;
         public int totalSoftDeletedLookupRows = 0;
         public int totalSkippedOccurrences = 0;
         public int totalTabs = 0;

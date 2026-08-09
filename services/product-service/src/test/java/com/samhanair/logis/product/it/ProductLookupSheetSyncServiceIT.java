@@ -181,7 +181,7 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(second.totalInsertedRows).isZero();
         assertThat(second.totalUpdatedRows).isZero();
         assertThat(second.totalSoftDeletedLookupRows).isZero();
-        assertThat(second.totalUnchanged).isEqualTo(9);
+        assertThat(second.totalUnchangedRows).isEqualTo(9);
 
         // given: material 가격 변경 + branch 2512 제거
         stubLookupSheets(

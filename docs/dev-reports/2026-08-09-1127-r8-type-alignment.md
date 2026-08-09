@@ -95,6 +95,16 @@ AssertionError: expected +0 to be 3 // Object.is equality
 
 즉 API 필드를 화면에서 0으로 바꾸면 기대 3/수신 0으로 실패하며, 현재 구현은 이 mutation을 살려두지 않는다.
 
+### 정정 — R9 `totalUnchanged` 검색 범위 보완
+
+당시 위 검색식에는 `unchanged`/`totalUnchanged`가 포함되어 있지 않았다. 따라서 이 절의 "0건"은 `ProductLookupSheetSyncService.totalUnchanged`까지 포함한 전수 검색 결과가 아니었다. R9에서 `ProductLookupSheetSyncService`의 내부 집계 필드를 형제 필드 규칙에 맞춰 `totalUnchangedRows`로 개명하여 이 누락을 닫았다. 새 검증에는 다음 검색식을 원문 그대로 사용했다.
+
+```powershell
+git grep -n -I -w -- totalUnchanged -- services/ clients/
+```
+
+R9 변경 후 위 검색식은 0건이며, `tools/legacy-gas/**`의 동명 지역변수는 별도 코드베이스라 대상에 포함하지 않았다.
+
 ## ④ 정본 typecheck와 같은 계열 전수 결과
 
 실행 위치: `clients/desktop`
