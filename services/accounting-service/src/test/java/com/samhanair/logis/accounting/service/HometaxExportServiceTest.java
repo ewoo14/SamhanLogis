@@ -93,6 +93,30 @@ class HometaxExportServiceTest {
     }
 
     @Test
+    @DisplayName("홈택스 화면 매퍼는 sales-query의 첫 라인 5개 값을 보존한다")
+    void toHomtaxRowPreservesSalesLineValues() {
+        Map<String, Object> raw = new java.util.HashMap<>();
+        raw.put("partnerCode", "P-2026-0001");
+        raw.put("partnerName", "테스트 거래처");
+        raw.put("email", "buyer@test.com");
+        raw.put("itemName", "에어컨");
+        raw.put("itemSpec", "0000098");
+        raw.put("itemQty", 1);
+        raw.put("itemPrice", 949);
+        raw.put("itemRemark", "현장 납품");
+        raw.put("supplyAmount", 949);
+        raw.put("vatAmount", 94);
+
+        HomtaxRow row = service.toHomtaxRow(raw, null);
+
+        assertThat(row.buyerEmail1()).isEqualTo("buyer@test.com");
+        assertThat(row.itemSpec1()).isEqualTo("0000098");
+        assertThat(row.itemQty1()).isEqualByComparingTo("1");
+        assertThat(row.itemPrice1()).isEqualByComparingTo("949");
+        assertThat(row.itemRemark1()).isEqualTo("현장 납품");
+    }
+
+    @Test
     @DisplayName("POI workbook — sheet 1장 + 헤더 + 1 라인 (fallback supplierRegNo 사용)")
     void singleSheetWithOneLine() throws Exception {
         // SupplierProfile 미설정 → fallback 사용

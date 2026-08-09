@@ -376,7 +376,12 @@ public class TaxInvoiceBatchService {
         BigDecimal supplyAmount = toBigDecimal(raw.get("supplyAmount"));
         BigDecimal vatAmount = toBigDecimal(raw.get("vatAmount"));
         String remark = safeStr(raw.get("deliveryAddress"));
-        String itemName1 = safeStr(raw.get("itemName"));
+       String itemName1 = safeStr(raw.get("itemName"));
+        String itemSpec1 = safeStr(raw.get("itemSpec"));
+        BigDecimal itemQty1 = raw.get("itemQty") == null ? null : toBigDecimal(raw.get("itemQty"));
+        BigDecimal itemPrice1 = raw.get("itemPrice") == null ? null : toBigDecimal(raw.get("itemPrice"));
+        String itemRemark1 = safeStr(raw.get("itemRemark"));
+        if (remark.isBlank() && !itemRemark1.isBlank()) remark = itemRemark1;
         String slipNo = safeStr(raw.get("slipNo"));
         String partnerCode = safeStr(raw.get("partnerCode"));
 
@@ -405,12 +410,12 @@ public class TaxInvoiceBatchService {
                 remark,         // col21
                 day2,           // col22: 일자1
                 itemName1,      // col23: 품목1
-                "",             // 규격1
-                null,           // 수량1
-                null,           // 단가1
+                itemSpec1,
+                itemQty1,
+                itemPrice1,
                 supplyAmount,   // 공급가액1
-                vatAmount,      // 세액1
-                "",             // 품목비고1
+                vatAmount,
+                itemRemark1,
                 // 품목2~4 빈값
                 "", "", "", null, null, null, null, "",
                 "", "", "", null, null, null, null, "",

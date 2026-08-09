@@ -167,4 +167,21 @@ class TaxInvoiceBatchServiceTest {
 
         assertThat(row.buyerRegNo()).isBlank();
     }
+
+    @Test
+    @DisplayName("배치 매퍼는 sales-query의 첫 라인 5개 값을 보존한다")
+    void toHomtaxRowPreservesSalesLineValues() {
+        rawRow.put("itemSpec", "0000098");
+        rawRow.put("itemQty", 1);
+        rawRow.put("itemPrice", 949);
+        rawRow.put("itemRemark", "현장 납품");
+
+        HomtaxRow row = service.toHomtaxRow(rawRow, null);
+
+        assertThat(row.buyerEmail1()).isEqualTo("buyer@test.com");
+        assertThat(row.itemSpec1()).isEqualTo("0000098");
+        assertThat(row.itemQty1()).isEqualByComparingTo("1");
+        assertThat(row.itemPrice1()).isEqualByComparingTo("949");
+        assertThat(row.itemRemark1()).isEqualTo("현장 납품");
+    }
 }

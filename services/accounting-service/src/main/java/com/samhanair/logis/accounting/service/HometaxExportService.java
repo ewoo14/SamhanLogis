@@ -562,6 +562,11 @@ public class HometaxExportService {
         BigDecimal vatAmt    = toBigDecimal(raw.get("vatAmount"));
         String remark        = safeStr(raw.get("deliveryAddress"));
         String itemName1     = safeStr(raw.get("itemName"));
+        String itemSpec1     = safeStr(raw.get("itemSpec"));
+        BigDecimal itemQty1  = raw.get("itemQty") == null ? null : toBigDecimal(raw.get("itemQty"));
+        BigDecimal itemPrice1 = raw.get("itemPrice") == null ? null : toBigDecimal(raw.get("itemPrice"));
+        String itemRemark1   = safeStr(raw.get("itemRemark"));
+        if (remark.isBlank() && !itemRemark1.isBlank()) remark = itemRemark1;
         String slipNo        = safeStr(raw.get("slipNo"));
         String partnerCode   = safeStr(raw.get("partnerCode"));
 
@@ -572,7 +577,7 @@ public class HometaxExportService {
                 buyerRegNo, "", buyerName, buyerCeo, buyerAddr, buyerBizTp, buyerBizIt,
                 buyerEmail1, "",
                 supplyAmt, vatAmt, remark,
-                day2, itemName1, "", null, null, supplyAmt, vatAmt, "",
+                day2, itemName1, itemSpec1, itemQty1, itemPrice1, supplyAmt, vatAmt, itemRemark1,
                 // 품목2~4 빈값
                 "", "", "", null, null, null, null, "",
                 "", "", "", null, null, null, null, "",

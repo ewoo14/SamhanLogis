@@ -32,8 +32,16 @@ public record PartnerInternalResponse(
         String bizNo,
         BigDecimal creditLimit,
         BigDecimal outstandingBalance,
-        PartnerStatus status
+        PartnerStatus status,
+        String email,
+        String email2
 ) {
+
+    public PartnerInternalResponse(UUID partnerId, String partnerCode, String name, String bizNo,
+                                   BigDecimal creditLimit, BigDecimal outstandingBalance,
+                                   PartnerStatus status) {
+        this(partnerId, partnerCode, name, bizNo, creditLimit, outstandingBalance, status, "", "");
+    }
 
     public static PartnerInternalResponse from(Partner p) {
         return new PartnerInternalResponse(
@@ -43,6 +51,6 @@ public record PartnerInternalResponse(
                 p.getBizNo(),
                 p.getCreditLimit(),
                 p.getOutstandingBalance(),
-                p.getStatus());
+                p.getStatus(), p.getEmail(), p.getEmail2());
     }
 }

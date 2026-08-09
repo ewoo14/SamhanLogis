@@ -51,6 +51,27 @@ public class PartnerInternalClient {
     private final InternalAuthProperties internalAuthProperties;
     private final ObjectMapper objectMapper;
 
+    /** partnerCode 기준 거래처 대표 이메일 조회 — 홈택스 sales-query용. */
+    public Optional<String> resolveEmailByPartnerCode(String partnerCode) {
+        if (partnerCode == null || partnerCode.isBlank()) return Optional.empty();
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) return Optional.empty();
+        try {
+            String body = restClient.get()
+                    .uri("/internal/partners/{partnerCode}", partnerCode)
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve().body(String.class);
+            JsonNode root = objectMapper.readTree(body == null ? "{}" : body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            JsonNode email = data == null ? null : data.get("email");
+            return email == null || email.isNull() || email.asText().isBlank()
+                    ? Optional.empty() : Optional.of(email.asText());
+        } catch (Exception ex) {
+            log.warn("PartnerInternalClient.resolveEmailByPartnerCode 실패 — partnerCode={}", partnerCode);
+            return Optional.empty();
+        }
+    }
+
     public PartnerInternalClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                                  InternalAuthProperties internalAuthProperties,
                                  ObjectMapper objectMapper) {

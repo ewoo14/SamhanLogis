@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.web.dto.SlipSalesQueryResponse;
 import java.time.LocalDate;
@@ -11,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Optional;
 
 /**
  * accounting-service 세금계산서 일괄발행 배치용 OUTBOUND 판매조회 서비스.
@@ -36,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SlipSalesQueryService {
 
     private final SlipRepository slipRepository;
+    private final PartnerInternalClient partnerInternalClient;
 
     /**
      * 기간 내 OUTBOUND CONFIRMED 슬립 페이지 조회.
@@ -76,6 +79,10 @@ public class SlipSalesQueryService {
 
         return slipRepository
                 .findConfirmedSalesForPeriod(from, to, normalizedCode, pageable)
-                .map(SlipSalesQueryResponse::from);
+                .map(slip -> SlipSalesQueryResponse.from(
+                        slip,
+                        Optional.ofNullable(partnerInternalClient.resolveEmailByPartnerCode(slip.getPartnerCode()))
+                                .flatMap(value -> value)
+                                .orElse("")));
     }
 }
