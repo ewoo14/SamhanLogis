@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.SourceOperationContext;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.CompensationOperation;
@@ -160,7 +161,8 @@ class SlipServiceCompensationTest {
         BusinessException compensationFailure = new BusinessException(ErrorCode.INTERNAL_ERROR, "unrecall 실패");
         org.mockito.Mockito.doThrow(original)
                 .when(inventoryClient).inbound(eq(batchProductId), eq(destinationWarehouseId),
-                        eq(5), eq("2026/06/03-1"), eq(new BigDecimal("10000.00")));
+                        eq(5), eq("2026/06/03-1"), eq(new BigDecimal("10000.00")),
+                        any(SourceOperationContext.class));
         org.mockito.Mockito.doThrow(compensationFailure)
                 .when(inventoryClient).unrecallInstances(eq("2026/06/03-1"), eq("AC-RECALL-COMP"));
 
