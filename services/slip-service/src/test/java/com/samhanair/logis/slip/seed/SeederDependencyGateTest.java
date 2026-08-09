@@ -48,8 +48,8 @@ class SeederDependencyGateTest {
     void deliveryBatchSeedRunsAllThirtyBatchesWhenSlipSeedSucceeded() {
         when(dependencyState.isSlipSeedSucceeded()).thenReturn(true);
         when(batchRepository.findByDriverPhoneAndBatchDate(any(), any())).thenReturn(Optional.empty());
-        when(slipRepository.findAllByStatusAndIsDeletedFalse(any(), any()))
-                .thenReturn(new PageImpl<>(java.util.List.of()));
+        when(slipRepository.findAllBySlipTypeAndSlipNoInAndCreatedByAndStatusAndIsDeletedFalse(
+                any(), any(), any(), any())).thenReturn(java.util.List.of());
         when(batchRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         new DeliveryBatchSeeder(batchRepository, slipRepository, dependencyState).run();

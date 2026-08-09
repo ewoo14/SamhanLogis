@@ -558,6 +558,31 @@ public class SlipSeeder implements CommandLineRunner {
         return Collections.unmodifiableMap(result);
     }
 
+    /**
+     * DeliveryBatchSeeder가 매핑할 수 있는 OUTBOUND 시더 전표번호를 상태별로 반환한다.
+     * 시더 본체와 동일한 spec 순서·날짜별 채번을 재생하여 실 업무 전표가 후보에 섞이지 않게 한다.
+     */
+    static Map<SlipStatus, List<String>> batchEligibleSeedSlipNosByStatus() {
+        Map<SequenceKey, Integer> seqByDateType = new HashMap<>();
+        Map<SlipStatus, List<String>> result = new EnumMap<>(SlipStatus.class);
+        for (SlipSpec spec : buildSpecs()) {
+            LocalDate slipDate = computeSlipDate(spec.idx());
+            int seqNo = seqByDateType.merge(new SequenceKey(slipDate, spec.type()), 1, Integer::sum);
+            if (spec.type() == SlipType.OUTBOUND && isBatchEligible(spec.targetStatus())) {
+                result.computeIfAbsent(spec.targetStatus(), ignored -> new ArrayList<>())
+                        .add(formatSlipNo(slipDate, seqNo));
+            }
+        }
+        result.replaceAll((status, slipNos) -> Collections.unmodifiableList(slipNos));
+        return Collections.unmodifiableMap(result);
+    }
+
+    private static boolean isBatchEligible(SlipStatus status) {
+        return status == SlipStatus.SHIPPING
+                || status == SlipStatus.DELIVERED
+                || status == SlipStatus.CONFIRMED;
+    }
+
     /** "yyyy/MM/dd-N" 포맷. SlipNumberSequence 미경유 — 시드 결정적 채번. */
     private static String formatSlipNo(LocalDate slipDate, int seqNo) {
         return String.format("%04d/%02d/%02d-%d",

@@ -529,6 +529,13 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     List<Slip> findAllBySlipTypeAndSlipNoInAndCreatedByAndStatusAndLockFlagFalseAndIsDeletedFalse(
             SlipType slipType, Collection<String> slipNos, String createdBy, SlipStatus status);
 
+    /**
+     * 시더가 만든 특정 전표번호 집합 중 배차 배치 연결 후보만 조회한다.
+     * 날짜·상태 범위가 아니라 시더 전표번호와 provenance를 식별축으로 사용한다.
+     */
+    List<Slip> findAllBySlipTypeAndSlipNoInAndCreatedByAndStatusAndIsDeletedFalse(
+            SlipType slipType, Collection<String> slipNos, String createdBy, SlipStatus status);
+
     // ---- PR-E1 BE-A5/A6 — 다음날자 이미지 / 정리 리스트 ----
 
     /**
