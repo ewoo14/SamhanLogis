@@ -2,21 +2,18 @@ import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
-const _dirname = path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const PASSWORD = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
-const OUT = path.resolve(_dirname, '../../../../docs/qa/2026-08-09-1150-r4-sol-reconv')
-const SHOTS = path.join(OUT, 'screenshots')
+const SHOTS = resolveQaShotsDir(path.resolve(process.cwd(), '../../docs/qa/2026-08-09-1150-r4-sol-reconv'))
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }
 interface Warehouse { id: string; code: string; name: string; type: string; active: boolean }
 
-async function login(page: Page): Promise<LoginResult> {
+async function login(page: Page, password: string): Promise<LoginResult> {
   const response = await page.request.post(`${API_BASE}/auth/login`, {
-    data: { loginId: 'dev_master', password: PASSWORD },
+    data: { loginId: 'dev_master', password },
   })
   expect(response.ok(), `실서버 로그인 실패: HTTP ${response.status()}`).toBeTruthy()
   const body = (await response.json()).data ?? {}
@@ -124,6 +121,14 @@ async function clearEvents(page: Page): Promise<void> {
 }
 
 test('PR #1150 R4 SOL 재수렴 — 실 GUI·실 API·CDP IME', async ({ page }) => {
+  let password: string
+  try {
+    password = resolveQaCredential('QA_DEV_DEFAULT_PASSWORD')
+  } catch (error) {
+    test.skip(true, error instanceof Error ? error.message : String(error))
+    return
+  }
+
   fs.mkdirSync(SHOTS, { recursive: true })
   const network: Array<{ url: string; status: number; body: string }> = []
   const servedModules: Array<{ url: string; hasComposingOrRef: boolean; hasStopPropagation: boolean; snippets: string[] }> = []
@@ -149,7 +154,7 @@ test('PR #1150 R4 SOL 재수렴 — 실 GUI·실 API·CDP IME', async ({ page })
     } catch { /* navigation 취소 응답은 판정 근거에서 제외 */ }
   })
 
-  const auth = await login(page)
+  const auth = await login(page, password)
   await installAuth(page, auth)
   const items = await warehouses(page, auth.token)
   const unique = uniqueHangul(items)
@@ -300,5 +305,5 @@ test('PR #1150 R4 SOL 재수렴 — 실 GUI·실 API·CDP IME', async ({ page })
   console.log('[R4_TRIGGERS]', JSON.stringify(result.triggers))
   console.log('[R4_SERVED_MODULES]', JSON.stringify(servedModules))
   console.log('[R4_RESOURCES]', JSON.stringify(result.resources))
-  fs.writeFileSync(path.join(OUT, 'live-qa-result.json'), JSON.stringify(result, null, 2), 'utf8')
+  fs.writeFileSync(path.join(SHOTS, 'live-qa-result.json'), JSON.stringify(result, null, 2), 'utf8')
 })
