@@ -1,0 +1,3 @@
+CLEANUP_VERIFY UUID_CODE active=0 active_child=0
+CLEANUP_VERIFY TX_BEFORE active=0
+CLEANUP_VERIFY MASTER_CANDIDATE code=00 active=1 active_child=0
