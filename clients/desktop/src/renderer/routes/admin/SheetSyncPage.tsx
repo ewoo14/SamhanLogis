@@ -333,9 +333,9 @@ function TotalChip({ label, value, tone }: TotalChipProps) {
   )
 }
 
-function formatTabRemark(result: SheetSyncRowResult): string {
-  if (result.error) return result.error
+export function formatTabRemark(result: SheetSyncRowResult): string {
   const parts: string[] = []
+  if (result.error) parts.push(result.error)
   if (result.unchangedRows) parts.push(`변경 없음 ${result.unchangedRows}`)
   if (result.skippedOccurrences) parts.push(`skip occurrence ${result.skippedOccurrences}`)
   return parts.length === 0 ? '—' : parts.join(' / ')
