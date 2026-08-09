@@ -154,7 +154,7 @@ public class EcountPartnerImporter {
             decodedCsv = decodeCsv(content);
         } catch (CharacterCodingException ex) {
             log.warn("MIG-1 CSV 인코딩 판별 실패 — 파일을 보류한다. hash={}", sourceFileHash, ex);
-            return encodingHeldResult(sourceFileHash);
+            return encodingHeldResult(sourceFileHash, content, actorUserId);
         }
 
         int totalRows = 0;
@@ -325,12 +325,32 @@ public class EcountPartnerImporter {
                 .toString();
     }
 
-    private static EcountPartnerImportResult encodingHeldResult(String sourceFileHash) {
-        return new EcountPartnerImportResult(0, 0, 0, 0, 0, 0, 0, sourceFileHash,
-                List.of(), 0, 1,
-                List.of(new EcountPartnerImportResult.RejectedRow(
-                        0, "CSV_ENCODING", "", "")),
-                0, List.of(), false, 0, 0);
+    private EcountPartnerImportResult encodingHeldResult(
+            String sourceFileHash, byte[] content, String actorUserId) {
+        int dataRows = Math.max(1, countPhysicalDataRows(content));
+        List<EcountPartnerImportResult.RejectedRow> held = new ArrayList<>();
+        String[] unreadableCells = new String[EXPECTED_HEADERS.length];
+        java.util.Arrays.fill(unreadableCells, "");
+        for (int rowNumber = 3; rowNumber < 3 + dataRows; rowNumber++) {
+            stagingUpsert(sourceFileHash, rowNumber, unreadableCells, actorUserId);
+            updateStagingStatus(sourceFileHash, rowNumber, "PENDING",
+                    "CSV_ENCODING: 행 내용을 읽을 수 없음", null);
+            addRejectSample(held, rowNumber, "CSV_ENCODING", "읽을 수 없음", "읽을 수 없음");
+        }
+        return new EcountPartnerImportResult(dataRows, 0, 0, 0, 0, 0, 0, sourceFileHash,
+                List.of(), 0, dataRows, held, 0, List.of(), false, 0, 0);
+    }
+
+    /** 디코딩 전에도 줄바꿈은 바이트 단위로 셀 수 있으므로, 보류 행의 CSV 실제 줄을 보존한다. */
+    private static int countPhysicalDataRows(byte[] content) {
+        int lineCount = 1;
+        for (byte value : content) {
+            if (value == '\n') lineCount++;
+        }
+        // 마지막 개행은 빈 trailing 행을 뜻하므로 데이터 행 수에서 제외한다.
+        boolean endsWithLineBreak = content.length > 0
+                && (content[content.length - 1] == '\n' || content[content.length - 1] == '\r');
+        return Math.max(1, lineCount - 2 - (endsWithLineBreak ? 1 : 0));
     }
 
     /**

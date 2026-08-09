@@ -264,8 +264,12 @@ class EcountPartnerImporterTest {
         assertThat(result.imported()).isZero();
         assertThat(result.heldParseFailureRows()).isEqualTo(1);
         assertThat(result.heldSample()).singleElement()
-                .extracting(EcountPartnerImportResult.RejectedRow::reason)
-                .isEqualTo("CSV_ENCODING");
+                .satisfies(sample -> {
+                    assertThat(sample.reason()).isEqualTo("CSV_ENCODING");
+                    assertThat(sample.rowNumber()).isEqualTo(3);
+                    assertThat(sample.rawPartnerCode()).isEqualTo("읽을 수 없음");
+                    assertThat(sample.rawName()).isEqualTo("읽을 수 없음");
+                });
     }
 
     private static int indexOf(byte[] source, byte[] target) {
