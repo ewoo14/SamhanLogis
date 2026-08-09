@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.auth.domain.RolePagePermission;
+import com.samhanair.logis.auth.domain.PageCode;
 import com.samhanair.logis.auth.repository.RolePagePermissionRepository;
 import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.auth.web.dto.PermissionBatchUpdateRequest;
@@ -223,6 +224,23 @@ class DynamicPermissionServiceTest {
     // -----------------------------------------------------------------------
     // getPermissionMatrix
     // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("getMyPermissions MASTER — 모든 PageCode가 7-action 전권")
+    void getMyPermissions_master_returnsAllActionsForEveryPageCode() {
+        List<PermissionDto> permissions = service.getMyPermissions("MASTER");
+
+        assertThat(permissions).hasSize(PageCode.values().length);
+        assertThat(permissions).allSatisfy(permission -> {
+            assertThat(permission.roleCode()).isEqualTo("MASTER");
+            assertThat(permission.canView()).isTrue();
+            assertThat(permission.canEdit()).isTrue();
+            assertThat(permission.isOverride()).isTrue();
+        });
+        assertThat(permissions).extracting(PermissionDto::pageCode)
+                .containsExactlyInAnyOrderElementsOf(
+                        java.util.Arrays.stream(PageCode.values()).map(PageCode::getCode).toList());
+    }
 
     @Test
     @DisplayName("getPermissionMatrix — DB rows 없으면 전체 매트릭스 isOverride=false")
