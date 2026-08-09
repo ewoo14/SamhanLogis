@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { evaluateQuantitySyncRules } = require('../estimate-app/public/quantitySync');
 
 const SOURCE_PATH = {
   estimate: path.resolve(__dirname, '../estimate-app/views/index.ejs'),
@@ -162,6 +163,10 @@ function commonContextScript(input) {
     const window = {
       SHOW_I_HOSE: ${JSON.stringify(!!options.showIHose)},
       ABSOLUTE_LOCK: new Set(${JSON.stringify(input.absoluteLocks || [])}),
+      SamhanQuantitySync: { evaluateQuantitySyncRules: (...args) => {
+        const result = evaluateQuantitySyncRules(...args);
+        return result instanceof Map ? new Map(result) : result;
+      } },
     };
     const CSS = { escape: (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, '_') };
     const fmt = (value) => String(value);
@@ -217,6 +222,8 @@ function runHome(source, input) {
     'clearAllRemotes',
     'pickPanelBy',
     'recomputeFootAll',
+    'recomputeHomeHoses_',
+    'applyServerHomeQuantitySync_',
     'recomputeHomeBranches',
     'recomputeHomeRemotes',
     'recomputeHomePanels',
@@ -232,6 +239,7 @@ function runHome(source, input) {
     ${domScript(input.options?.dom)}
     ${catalogPreludeScript(source, input)}
     const homeQty = new Map(Object.entries(${JSON.stringify(quantities)}));
+    const HOME_QUANTITY_SYNC_RULES = ${JSON.stringify(input.quantitySyncRules || [])};
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
     let HOME_CATALOG_MISSING_MODELS = new Map();
     const HOME_MANUAL_PANEL = new Set();
@@ -250,6 +258,7 @@ function runHome(source, input) {
   const context = {
     nonZeroMap,
     mapObject,
+    evaluateQuantitySyncRules,
     console: { log: () => {} },
   };
   vm.runInNewContext(script, context, { filename: SOURCE_PATH[input.app || 'estimate'] });
