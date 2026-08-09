@@ -56,8 +56,9 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
 
   test('기본 옵션은 서버가 선언한 리모컨 target을 복원하지 않고 legacy 매핑을 최종 계약으로 쓴다', () => {
     const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
+    const apply = source.slice(source.indexOf('function applyServerHomeQuantitySync_()'), source.indexOf('/* 홈파생계산 */'));
     expect(source).not.toContain('configuredByModel.forEach((quantity, model) => {');
-    expect(source).toContain("if (remoteOption === '기본') {");
+    expect(apply).not.toContain('recomputeHomeRemotes();');
   });
 
   test('서버 규칙 적용 후에도 legacy 네 파생계산을 실행하고 target 소유 모델만 덮어쓴다', () => {
@@ -68,9 +69,31 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
     expect(apply).toContain('return new Set(');
     expect(derived).toContain('const serverOwnedTargets = typeof applyServerHomeQuantitySync_ === \'function\'');
     expect(derived).not.toMatch(/applyServerHomeQuantitySync_\(\)\)\s*\{[\s\S]*?\breturn\s*;/);
-    expect(derived.indexOf('recomputeHomeBranches();')).toBeGreaterThan(-1);
-    expect(derived.indexOf('recomputeHomeRemotes();')).toBeGreaterThan(derived.indexOf('recomputeHomeBranches();'));
-    expect(derived.indexOf('recomputeFootAll();')).toBeGreaterThan(derived.indexOf('recomputeHomeRemotes();'));
+    expect(derived.indexOf('recomputeHomeHoses_();')).toBeGreaterThan(-1);
+    expect(derived.indexOf('recomputeHomeBranches();')).toBeGreaterThan(derived.indexOf('recomputeHomeHoses_();'));
+    expect(derived.indexOf('recomputeFootAll();')).toBeGreaterThan(derived.indexOf('recomputeHomeBranches();'));
     expect(derived.indexOf('recomputeHomePanels();')).toBeGreaterThan(derived.indexOf('recomputeFootAll();'));
+    expect(derived.indexOf('recomputeHomeRemotes();')).toBeGreaterThan(derived.indexOf('const serverOwnedTargets ='));
+  });
+
+  test('규칙 적용 뒤 옵션 계약을 호스·리모컨·판넬 순서로 한 번 재수렴한다', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
+    const derived = source.slice(source.indexOf('function recomputeHomeDerived('));
+    const apply = source.slice(source.indexOf('function applyServerHomeQuantitySync_()'), source.indexOf('/* 홈파생계산 */'));
+    const serverApply = derived.indexOf('const serverOwnedTargets =');
+    const optionReconciliation = derived.slice(serverApply);
+
+    expect(apply).not.toContain('recomputeHomeRemotes();');
+    expect(optionReconciliation).toContain('recomputeHomeHoses_();');
+    expect(optionReconciliation.indexOf('recomputeHomeHoses_();')).toBeLessThan(optionReconciliation.indexOf('recomputeHomeRemotes();'));
+    expect(optionReconciliation.indexOf('recomputeHomeRemotes();')).toBeLessThan(optionReconciliation.indexOf('recomputeHomePanels();'));
+  });
+
+  test('유연호스 I형 옵션은 4WAY target도 I형으로 전환한다', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
+    const hose = source.slice(source.indexOf('function recomputeHomeHoses_()'), source.indexOf('/* 서버 규칙 기반 홈멀티'));
+    expect(hose).toContain('const hoseI4Model = hasServerHomeRules ? (HOSE_I_4W || HOSE_I_1W) : \'\';');
+    expect(hose).toContain('if(hoseI4Model) setH(hoseI4Model, n4w');
+    expect(hose).toContain("if(HOSE_4W) setH(HOSE_4W, 0);");
   });
 });
