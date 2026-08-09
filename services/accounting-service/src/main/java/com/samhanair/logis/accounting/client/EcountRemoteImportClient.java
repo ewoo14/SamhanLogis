@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import com.samhanair.logis.common.ecount.EcountReimportResult;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.MediaType;
@@ -74,12 +77,22 @@ public class EcountRemoteImportClient {
             JsonNode root = response == null || response.isBlank() ? objectMapper.createObjectNode()
                     : objectMapper.readTree(response);
             JsonNode data = root.has("data") ? root.get("data") : root;
+            List<EcountReimportResult.HeldSample> heldSample = new ArrayList<>();
+            JsonNode held = data == null ? null : data.get("heldSample");
+            if (held != null && held.isArray()) {
+                for (JsonNode sample : held) {
+                    heldSample.add(new EcountReimportResult.HeldSample(
+                            intValue(sample, "rowNumber"), textValue(sample, "reason"),
+                            textValue(sample, "rawPartnerCode"), textValue(sample, "rawName")));
+                }
+            }
             return new RemoteImportResult(
                     intValue(data, "imported") + intValue(data, "updated")
                             + intValue(data, "aliasImported") + intValue(data, "lineAdded"),
                     intValue(data, "rejected") + intValue(data, "rejectedNullName"),
                     textValue(data, "sourceFileHash"),
                     intValue(data, "heldParseFailureRows"),
+                    heldSample,
                     intValue(data, "infrastructureFailureRows"),
                     booleanValue(data, "infrastructureFailure"));
         } catch (Exception ex) {
@@ -108,10 +121,18 @@ public class EcountRemoteImportClient {
     }
 
     public record RemoteImportResult(int imported, int rejected, String sourceFileHash,
-                                     int heldParseFailureRows, int infrastructureFailureRows,
-                                     boolean infrastructureFailure) {
+                                     int heldParseFailureRows,
+                                     List<EcountReimportResult.HeldSample> heldSample,
+                                     int infrastructureFailureRows, boolean infrastructureFailure) {
+        public RemoteImportResult(int imported, int rejected, String sourceFileHash,
+                                   int heldParseFailureRows, int infrastructureFailureRows,
+                                   boolean infrastructureFailure) {
+            this(imported, rejected, sourceFileHash, heldParseFailureRows, List.of(),
+                    infrastructureFailureRows, infrastructureFailure);
+        }
+
         public RemoteImportResult(int imported, int rejected, String sourceFileHash) {
-            this(imported, rejected, sourceFileHash, 0, 0, false);
+            this(imported, rejected, sourceFileHash, 0, List.of(), 0, false);
         }
     }
 }

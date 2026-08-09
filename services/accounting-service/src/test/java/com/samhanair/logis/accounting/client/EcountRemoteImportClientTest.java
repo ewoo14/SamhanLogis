@@ -20,4 +20,30 @@ class EcountRemoteImportClientTest {
         assertThat(result.infrastructureFailureRows()).isEqualTo(2);
         assertThat(result.infrastructureFailure()).isTrue();
     }
+
+    @Test
+    void parse_파트너_heldSample의_사유와_행_식별자를_보존한다() {
+        EcountRemoteImportClient.RemoteImportResult result = new EcountRemoteImportClient(
+                null, new ObjectMapper()).parse("""
+                        {"data":{"imported":2,"updated":1,"heldParseFailureRows":2,
+                        "heldSample":[
+                          {"rowNumber":4,"reason":"INPUT_VALIDATION","rawPartnerCode":"R14-NEG","rawName":"음수"},
+                          {"rowNumber":5,"reason":"DB_CONSTRAINT","rawPartnerCode":"R14-DUP","rawName":"중복"}
+                        ]}}
+                        """);
+
+        assertThat(result.heldSample()).containsExactly(
+                new com.samhanair.logis.common.ecount.EcountReimportResult.HeldSample(
+                        4, "INPUT_VALIDATION", "R14-NEG", "음수"),
+                new com.samhanair.logis.common.ecount.EcountReimportResult.HeldSample(
+                        5, "DB_CONSTRAINT", "R14-DUP", "중복"));
+    }
+
+    @Test
+    void parse_heldSample이_없으면_빈_목록이다() {
+        EcountRemoteImportClient.RemoteImportResult result = new EcountRemoteImportClient(
+                null, new ObjectMapper()).parse("{\"data\":{\"imported\":1}}");
+
+        assertThat(result.heldSample()).isEmpty();
+    }
 }
