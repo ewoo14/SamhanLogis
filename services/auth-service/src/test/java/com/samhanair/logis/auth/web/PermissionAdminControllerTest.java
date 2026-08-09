@@ -19,6 +19,7 @@ import com.samhanair.logis.security.InternalAuthProperties;
 import com.samhanair.logis.security.InternalTokenFilter;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.EnumSet;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -92,9 +93,15 @@ class PermissionAdminControllerTest {
         JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
         assertThat(data.isObject()).isTrue();
         assertThat(data.size()).isEqualTo(PageCode.values().length);
-        assertThat(data.get(PAGE_JOURNALS)).isNotNull();
-        assertThat(data.get(PAGE_JOURNALS)).extracting(JsonNode::asText).containsExactlyInAnyOrder(
-                "VIEW", "CREATE", "UPDATE", "DELETE", "RESTORE", "DOWNLOAD", "PRINT");
+        assertThat(data.fieldNames()).toIterable()
+                .containsExactlyInAnyOrderElementsOf(
+                        Arrays.stream(PageCode.values()).map(PageCode::getCode).toList());
+        var expectedActions = List.of("VIEW", "CREATE", "UPDATE", "DELETE", "RESTORE", "DOWNLOAD", "PRINT");
+        for (PageCode pageCode : PageCode.values()) {
+            assertThat(data.get(pageCode.getCode()))
+                    .extracting(JsonNode::asText)
+                    .containsExactlyInAnyOrderElementsOf(expectedActions);
+        }
     }
 
     /**

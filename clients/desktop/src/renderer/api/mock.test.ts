@@ -3114,6 +3114,23 @@ describe('mock depositor mapping contract', () => {
 })
 
 describe('mock permission matrix contract', () => {
+  it('MANAGER는 입고 검수 완료를 위해 inbound.inspection UPDATE를 가진다', () => {
+    const manager = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-manager',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+
+    expect(manager.data['inbound.inspection']).toEqual({
+      view: true,
+      create: false,
+      update: true,
+      delete: false,
+      restore: false,
+      download: false,
+      print: false,
+    })
+  })
+
   it('입금자명 매핑은 V87처럼 MASTER/MANAGER/ACCOUNTANT CRUD만 허용한다', () => {
     const manager = mockRequest({
       method: 'GET',
