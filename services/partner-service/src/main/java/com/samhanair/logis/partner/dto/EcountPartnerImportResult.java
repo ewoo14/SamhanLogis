@@ -32,6 +32,12 @@ public record EcountPartnerImportResult(
         /** 파싱 또는 행 단위 DB 제약 실패로 보류된 건수. */
         int heldParseFailureRows,
         List<RejectedRow> heldSample,
+        /** 행 단위 적재 중 데이터 제약이 아닌 인프라 계층에서 실패한 건수. 재시도 대상이다. */
+        int infrastructureFailureRows,
+        /** 인프라 실패 표본 최대 20건. {@code reason=DB_INFRASTRUCTURE}로 데이터 실패와 구분한다. */
+        List<RejectedRow> infrastructureFailureSample,
+        /** 인프라 실패가 포함되어 전체 성공으로 해석하면 안 되는 응답인지 여부. */
+        boolean infrastructureFailure,
         int registrationDateParsedCount,
         int createdAtLoadTimeCount) {
 
@@ -47,7 +53,7 @@ public record EcountPartnerImportResult(
      * reject / skip row sample — CSV row 번호 (1-base, 메타=1 / 헤더=2 / 데이터=3+) + 사유 + 입력 거래처명.
      *
      * @param rowNumber CSV 1-base row 번호 (3 이상)
-     * @param reason 분류 사유 (REJECT_NAME_NULL / SKIPPED_PLACEHOLDER / DB_CONSTRAINT)
+     * @param reason 분류 사유 (REJECT_NAME_NULL / SKIPPED_PLACEHOLDER / DB_CONSTRAINT / DB_INFRASTRUCTURE)
      * @param rawPartnerCode CSV 거래처코드 raw (placeholder 또는 빈값 그대로)
      * @param rawName CSV 거래처명 raw (REJECT 시 빈문자열)
      */

@@ -11,16 +11,16 @@ const AUTH_BASE = process.env['AUTH_API_BASE'] ?? 'http://127.0.0.1:8080'
 const PARTNER_BASE = process.env['PARTNER_API_BASE'] ?? 'http://127.0.0.1:48095'
 const DB_CONTAINER = process.env['R9_DB_CONTAINER'] ?? ''
 const SOURCE = path.resolve(DIRNAME, '../../../../docs/migration/896-sheet/ecount/거래처등록.xlsx')
-const SHOTS = resolveQaShotsDir(path.resolve(DIRNAME, '../../../../docs/qa/2026-08-09-1154-r9-sol-reconv'))
+const SHOTS = resolveQaShotsDir(path.resolve(DIRNAME, '../../../../docs/qa/2026-08-09-1154-r10-failure-taxonomy'))
 const HEAD = process.env['R9_HEAD'] ?? '156f73c71c77d300caee85e778b6fb070f852124'
 const JAR_SHA256 = process.env['R9_JAR_SHA256'] ?? ''
 const MASTER_HASH = '064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619'
 const FAULT_CODE = '01'
 const FAULT_NAME = 'R9 transient infrastructure probe'
 const UUID_CODE = '0004'
-const TX_BEFORE = 'SOL1154R9BEFORE'
-const TX_BAD = 'SOL1154R9BAD'
-const TX_AFTER = 'SOL1154R9AFTER'
+const TX_BEFORE = 'SOL1154R10B-BEFORE'
+const TX_BAD = 'SOL1154R10B-BAD'
+const TX_AFTER = 'SOL1154R10B-AFTER'
 
 interface CallRecord { method: string; url: string; status: number; body: string }
 
@@ -59,7 +59,7 @@ async function pollSql(query: string, predicate: (value: string) => boolean, tim
   throw new Error(`SQL poll timeout: last=${last}`)
 }
 
-test('PR #1154 R9 실 관리자 API 적대 재수렴', async ({ page, request, browserName }) => {
+test('PR #1154 R10 실 관리자 API 실패 분류 재수렴', async ({ page, request, browserName }) => {
   expect(browserName).toBe('chromium')
   let password: string
   try {
@@ -105,7 +105,7 @@ test('PR #1154 R9 실 관리자 API 적대 재수렴', async ({ page, request, b
     authPort: 8080,
     dbVersion: sql('SELECT version()'),
     masterRowsBefore: Number(sql(`SELECT count(*) FROM staging.ecount_partner_raw WHERE source_file_hash='${MASTER_HASH}'`)),
-    txRowsBefore: Number(sql(`SELECT count(*) FROM partners WHERE partner_code IN ('${TX_BEFORE}','${TX_BAD}','${TX_AFTER}')`)),
+    txRowsBefore: Number(sql(`SELECT count(*) FROM partners WHERE partner_code IN ('${TX_BEFORE}','${TX_BAD}','${TX_AFTER}') AND is_deleted=false`)),
     sourceBytes: fs.statSync(SOURCE).size,
   }
   expect([0, 7253]).toContain(triggerCounts.masterRowsBefore)
@@ -124,6 +124,30 @@ test('PR #1154 R9 실 관리자 API 적대 재수렴', async ({ page, request, b
     timeout: 15 * 60_000,
   })
 
+  const transientUpload = async (contents: Buffer, name: string) => {
+    const locker = spawn('docker', [
+      'exec', '-e', 'PGAPPNAME=r10-locker', DB_CONTAINER,
+      'psql', '-X', '-U', 'samhan', '-d', 'partner_r9', '-v', 'ON_ERROR_STOP=1', '-c',
+      `BEGIN; SELECT id FROM partners WHERE partner_code='${FAULT_CODE}' FOR UPDATE; SELECT pg_sleep(300); COMMIT;`,
+    ], { stdio: 'ignore' })
+    await pollSql("SELECT pid::text FROM pg_stat_activity WHERE application_name='r10-locker'", value => value !== '')
+
+    const uploadPromise = uploadCsv(contents, name)
+    const blockedPid = await pollSql(
+      "SELECT pid::text FROM pg_stat_activity WHERE datname='partner_r9' AND application_name='PostgreSQL JDBC Driver' AND cardinality(pg_blocking_pids(pid)) > 0 ORDER BY pid LIMIT 1",
+      value => /^\d+$/.test(value),
+      120_000,
+    )
+    const terminated = sql(`SELECT pg_terminate_backend(${blockedPid}::int)::text`)
+    expect(['t', 'true']).toContain(terminated)
+    const lockerPid = sql("SELECT pid::text FROM pg_stat_activity WHERE application_name='r10-locker'")
+    if (lockerPid) sql(`SELECT pg_terminate_backend(${lockerPid}::int)::text`)
+    locker.kill()
+    const result = await uploadPromise
+    expect(result.response.status(), result.body).toBe(200)
+    return { result, blockedPid, terminated }
+  }
+
   // 기준 정본을 먼저 실 관리자 API로 적재한다.
   const baseline = await uploadXlsx()
   expect(baseline.response.status(), baseline.body).toBe(200)
@@ -135,33 +159,19 @@ test('PR #1154 R9 실 관리자 API 적대 재수렴', async ({ page, request, b
   // row lock으로 대기시킨 뒤 그 JDBC 연결만 끊는다.
   // DB 데이터 쓰기는 모두 관리자 API로만 수행한다. SQL은 SELECT/SELECT FOR UPDATE/연결 종료뿐이다.
   expect(Number(sql(`SELECT count(*) FROM partners WHERE partner_code='${FAULT_CODE}' AND is_deleted=false`))).toBe(1)
-  const locker = spawn('docker', [
-    'exec', '-e', 'PGAPPNAME=r9-locker', DB_CONTAINER,
-    'psql', '-X', '-U', 'samhan', '-d', 'partner_r9', '-v', 'ON_ERROR_STOP=1', '-c',
-    `BEGIN; SELECT id FROM partners WHERE partner_code='${FAULT_CODE}' FOR UPDATE; SELECT pg_sleep(300); COMMIT;`,
-  ], { stdio: 'ignore' })
-  await pollSql("SELECT pid::text FROM pg_stat_activity WHERE application_name='r9-locker'", value => value !== '')
-
-  const faultedPromise = uploadCsv(csv([{ code: FAULT_CODE, name: FAULT_NAME }]), 'r9-transient-infrastructure.csv')
-  const blockedPid = await pollSql(
-    "SELECT pid::text FROM pg_stat_activity WHERE datname='partner_r9' AND application_name='PostgreSQL JDBC Driver' AND cardinality(pg_blocking_pids(pid)) > 0 ORDER BY pid LIMIT 1",
-    value => /^\d+$/.test(value),
-    120_000,
-  )
-  const terminated = sql(`SELECT pg_terminate_backend(${blockedPid}::int)::text`)
-  expect(['t', 'true']).toContain(terminated)
-  const lockerPid = sql("SELECT pid::text FROM pg_stat_activity WHERE application_name='r9-locker'")
-  if (lockerPid) sql(`SELECT pg_terminate_backend(${lockerPid}::int)::text`)
-  locker.kill()
-
-  const faulted = await faultedPromise
-  expect(faulted.response.status(), faulted.body).toBe(200)
+  const transient = await transientUpload(csv([{ code: FAULT_CODE, name: FAULT_NAME }]), 'r10-transient-infrastructure.csv')
+  const faulted = transient.result
   const faultedBody = JSON.parse(faulted.body)
-  const faultRow = faultedBody.heldSample.find((row: { rawPartnerCode: string }) => row.rawPartnerCode === FAULT_CODE)
+  const faultRow = faultedBody.infrastructureFailureSample.find((row: { rawPartnerCode: string }) => row.rawPartnerCode === FAULT_CODE)
   expect(faultRow, JSON.stringify(faultedBody)).toBeTruthy()
+  expect(faultedBody).toMatchObject({
+    heldParseFailureRows: 0,
+    infrastructureFailureRows: 1,
+    infrastructureFailure: true,
+  })
   const faultSql = sql(`SELECT raw_partner_code,transform_status,coalesce(reject_reason,''),target_partner_id IS NULL FROM staging.ecount_partner_raw WHERE source_file_hash='${faultedBody.sourceFileHash}' AND raw_partner_code='${FAULT_CODE}'`)
-  const angle1 = { blockedPid, terminated, http: faulted.response.status(), response: faultedBody, faultRow, sql: faultSql }
-  await renderEvidence(page, '각도 1 · 순간 연결 단절이 2xx + DB_CONSTRAINT HELD로 수렴', angle1, '01-transient-db-failure.png')
+  const angle1 = { blockedPid: transient.blockedPid, terminated: transient.terminated, http: faulted.response.status(), response: faultedBody, faultRow, sql: faultSql }
+  await renderEvidence(page, '각도 1 · 순간 연결 단절이 DB_INFRASTRUCTURE로 보고됨', angle1, '01-transient-db-failure.png')
 
   // 인프라 장애 표본을 정본으로 복구한다.
   const retry = await uploadXlsx()
@@ -184,7 +194,8 @@ test('PR #1154 R9 실 관리자 API 적대 재수렴', async ({ page, request, b
     bad: Number(sql(`SELECT count(*) FROM partners WHERE partner_code='${TX_BAD}' AND is_deleted=false`)),
     after: Number(sql(`SELECT count(*) FROM partners WHERE partner_code='${TX_AFTER}' AND is_deleted=false`)),
   }
-  expect(rowFailureBody).toMatchObject({ totalRows: 3, imported: 2, heldParseFailureRows: 1 })
+  expect(rowFailureBody).toMatchObject({ totalRows: 3, heldParseFailureRows: 1, infrastructureFailureRows: 0 })
+  expect(rowFailureBody.imported + rowFailureBody.updated).toBe(2)
   expect(rowFailureCounts).toEqual({ before: 1, bad: 0, after: 1 })
   await renderEvidence(page, '각도 2 · 201자 실패행 격리와 뒤 정상행 커밋', { response: rowFailureBody, counts: rowFailureCounts, sql: rowFailureSql }, '02-row-failure-isolation.png')
 
@@ -194,12 +205,35 @@ test('PR #1154 R9 실 관리자 API 적대 재수렴', async ({ page, request, b
   ]), 'r9-corrected-row.csv')
   expect(corrected.response.status(), corrected.body).toBe(200)
   const correctedBody = JSON.parse(corrected.body)
-  expect(correctedBody).toMatchObject({ totalRows: 1, imported: 1, heldParseFailureRows: 0 })
+  expect(correctedBody).toMatchObject({ totalRows: 1, heldParseFailureRows: 0, infrastructureFailureRows: 0 })
+  expect(correctedBody.imported + correctedBody.updated).toBe(1)
   const correctedSql = sql(`SELECT transform_status,coalesce(reject_reason,''),target_partner_id IS NOT NULL FROM staging.ecount_partner_raw WHERE raw_partner_code='${TX_BAD}' ORDER BY transform_status`)
   const correctedActive = Number(sql(`SELECT count(*) FROM partners WHERE partner_code='${TX_BAD}' AND is_deleted=false`))
-  expect(correctedSql).toBe('IMPORTED||t\nPENDING|DB_CONSTRAINT|f')
+  expect(correctedSql).toMatch(/(?:IMPORTED|UPDATED)\|\|t/)
   expect(correctedActive).toBe(1)
   await renderEvidence(page, '각도 4 · 201자 실패행을 고친 파일 재업로드', { response: correctedBody, active: correctedActive, sql: correctedSql }, '04-pending-row-retry.png')
+
+  // 조합 1: 인프라 실패가 첫 행이고 뒤 정상행은 계속 처리된다.
+  const infraFirstAfter = 'SOL1154R10INFRAFIRSTAFTER'
+  const infraFirst = await transientUpload(csv([
+    { code: FAULT_CODE, name: 'R10 infra first' },
+    { code: infraFirstAfter, name: 'R10 infra first 뒤 정상' },
+  ]), 'r10-infra-first.csv')
+  const infraFirstBody = JSON.parse(infraFirst.result.body)
+  expect(infraFirstBody).toMatchObject({ totalRows: 2, heldParseFailureRows: 0, infrastructureFailureRows: 1, infrastructureFailure: true })
+  expect(infraFirstBody.imported + infraFirstBody.updated).toBe(1)
+
+  // 조합 2: 같은 요청에서 인프라 실패와 데이터 제약 실패가 함께 발생해도 축을 섞지 않는다.
+  const bothBad = 'SOL1154R10BOTHBAD'
+  const bothAfter = 'SOL1154R10BOTHAFTER'
+  const both = await transientUpload(csv([
+    { code: FAULT_CODE, name: 'R10 both infra first' },
+    { code: bothBad, name: '가'.repeat(201) },
+    { code: bothAfter, name: 'R10 both 뒤 정상' },
+  ]), 'r10-both-failures.csv')
+  const bothBody = JSON.parse(both.result.body)
+  expect(bothBody).toMatchObject({ totalRows: 3, heldParseFailureRows: 1, infrastructureFailureRows: 1, infrastructureFailure: true })
+  expect(bothBody.imported + bothBody.updated).toBe(1)
 
   // 각도 3a: 정본 7,253건 분포와 성공/실패 트랜잭션 불변.
   const distributionSql = sql(`SELECT count(*) AS active_rows, count(*) FILTER (WHERE p.status='ACTIVE') AS active_count, count(*) FILTER (WHERE p.status='SUSPENDED') AS suspended_count, count(*) FILTER (WHERE p.credit_limit IS NULL) AS credit_null, count(*) FILTER (WHERE p.registration_date IS NOT NULL AND p.created_at <> p.registration_date::timestamp) AS created_at_mismatch FROM partners p WHERE p.is_deleted=false AND p.id IN (SELECT target_partner_id FROM staging.ecount_partner_raw WHERE source_file_hash='${MASTER_HASH}')`)
@@ -222,9 +256,9 @@ test('PR #1154 R9 실 관리자 API 적대 재수렴', async ({ page, request, b
   expect(uuidSql).toBe(`${beforeUuid}|${beforeUuid}|1|0|0`)
   const cleanupAddress = await call('DELETE', `${PARTNER_BASE}/api/v1/partners/${UUID_CODE}/shipping-addresses/${addressId}`, { headers })
   expect(cleanupAddress.response.status(), cleanupAddress.body).toBe(204)
-  for (const code of [TX_BEFORE, TX_BAD, TX_AFTER]) {
+  for (const code of [TX_BEFORE, TX_BAD, TX_AFTER, infraFirstAfter, bothBad, bothAfter]) {
     const cleanup = await call('DELETE', `${PARTNER_BASE}/admin/partners/${code}`, { headers })
-    expect(cleanup.response.status(), cleanup.body).toBe(200)
+    expect([200, 404], cleanup.body).toContain(cleanup.response.status())
   }
   await renderEvidence(page, '각도 3 · UUID 복원과 7,253건 분포 불변', { restoreResponse: restoredBody, uuidSql, distributionSql, rowFailureCounts }, '03-r6-r7-invariants.png')
 

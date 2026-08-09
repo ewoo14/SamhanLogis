@@ -37,6 +37,8 @@ import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.jpa.JpaSystemException;
 
 /**
  * MIG-1 PoC — {@link EcountPartnerImporter} 단위 테스트.
@@ -48,6 +50,16 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
  */
 @ExtendWith(MockitoExtension.class)
 class EcountPartnerImporterTest {
+
+    @Test
+    void failureTaxonomy_제약위반과_JpaSystemException을_서로다른축으로분류한다() {
+        assertThat(EcountPartnerImporter.failureReason(
+                new DataIntegrityViolationException("constraint")))
+                .isEqualTo("DB_CONSTRAINT");
+        assertThat(EcountPartnerImporter.failureReason(
+                new JpaSystemException(new IllegalStateException("rollback connection"))))
+                .isEqualTo("DB_INFRASTRUCTURE");
+    }
 
     private static final byte[] UTF8_BOM = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
 

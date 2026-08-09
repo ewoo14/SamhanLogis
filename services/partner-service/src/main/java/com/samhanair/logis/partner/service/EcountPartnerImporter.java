@@ -37,6 +37,7 @@ import org.apache.commons.io.input.BOMInputStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -152,8 +153,10 @@ public class EcountPartnerImporter {
         int activeCount = 0;
         int suspendedCount = 0;
         int heldParseFailureRows = 0;
+        int infrastructureFailureRows = 0;
         List<EcountPartnerImportResult.RejectedRow> rejectedSample = new ArrayList<>();
         List<EcountPartnerImportResult.RejectedRow> heldSample = new ArrayList<>();
+        List<EcountPartnerImportResult.RejectedRow> infrastructureFailureSample = new ArrayList<>();
 
         try (BOMInputStream bomFree = BOMInputStream.builder()
                 .setInputStream(new ByteArrayInputStream(content)).get();
@@ -211,12 +214,17 @@ public class EcountPartnerImporter {
                         try {
                             ur = upsertPartnerInRowTransaction(cells, c.effectiveCode);
                         } catch (DataAccessException ex) {
-                            heldParseFailureRows++;
-                            String reason = "DB_CONSTRAINT";
+                            String reason = failureReason(ex);
+                            if ("DB_CONSTRAINT".equals(reason)) {
+                                heldParseFailureRows++;
+                                addRejectSample(heldSample, rowNo, reason, rawPartnerCode, rawName);
+                            } else {
+                                infrastructureFailureRows++;
+                                addRejectSample(infrastructureFailureSample, rowNo, reason, rawPartnerCode, rawName);
+                            }
                             updateStagingStatus(sourceFileHash, rowNo, "PENDING", reason, null);
-                            addRejectSample(heldSample, rowNo, reason, rawPartnerCode, rawName);
-                            log.warn("MIG-1 import 행 DB 적재 실패 — row={} partnerCode={} status=HELD",
-                                    rowNo, rawPartnerCode, ex);
+                            log.warn("MIG-1 import 행 DB 적재 실패 — row={} partnerCode={} reason={}",
+                                    rowNo, rawPartnerCode, reason, ex);
                             continue;
                         }
                         if (ur.isNew) {
@@ -254,7 +262,8 @@ public class EcountPartnerImporter {
 
         return new EcountPartnerImportResult(totalRows, imported, updated, rejectedNullName,
                 skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample,
-                0, heldParseFailureRows, heldSample, 0, 0);
+                0, heldParseFailureRows, heldSample, infrastructureFailureRows,
+                infrastructureFailureSample, infrastructureFailureRows > 0, 0, 0);
     }
 
     /**
@@ -273,8 +282,11 @@ public class EcountPartnerImporter {
         int excludedTrailer = 0;
         int registrationDateParsedCount = 0;
         int createdAtLoadTimeCount = 0;
+        int heldParseFailureRows = 0;
+        int infrastructureFailureRows = 0;
         List<EcountPartnerImportResult.RejectedRow> rejected = new ArrayList<>();
         List<EcountPartnerImportResult.RejectedRow> held = new ArrayList<>();
+        List<EcountPartnerImportResult.RejectedRow> infrastructureFailures = new ArrayList<>();
         LocalDateTime loadTimestamp = LocalDateTime.now();
 
         for (EcountXlsxSupport.ParsedRow parsedRow : parsed.rows()) {
@@ -313,11 +325,17 @@ public class EcountPartnerImporter {
                 result = upsertPartnerInRowTransaction(cells, classification.effectiveCode,
                         registrationDate, registrationDate == null ? loadTimestamp : registrationDate.atStartOfDay());
             } catch (DataAccessException ex) {
-                String reason = "DB_CONSTRAINT";
+                String reason = failureReason(ex);
+                if ("DB_CONSTRAINT".equals(reason)) {
+                    heldParseFailureRows++;
+                    addRejectSample(held, rowNo, reason, cells[0], cells[4]);
+                } else {
+                    infrastructureFailureRows++;
+                    addRejectSample(infrastructureFailures, rowNo, reason, cells[0], cells[4]);
+                }
                 updateStagingStatus(parsed.sourceFileHash(), rowNo, "PENDING", reason, null);
-                addRejectSample(held, rowNo, reason, cells[0], cells[4]);
-                log.warn("MIG-1 XLSX import 행 DB 적재 실패 — row={} partnerCode={} status=HELD",
-                        rowNo, cells[0], ex);
+                log.warn("MIG-1 XLSX import 행 DB 적재 실패 — row={} partnerCode={} reason={}",
+                        rowNo, cells[0], reason, ex);
                 continue;
             }
             if (result.isNew) imported++; else updated++;
@@ -331,7 +349,9 @@ public class EcountPartnerImporter {
         }
         return new EcountPartnerImportResult(parsed.dataRowCount() - excludedTrailer, imported, updated,
                 rejectedNullName, skippedPlaceholder, activeCount, suspendedCount, parsed.sourceFileHash(),
-                rejected, excludedTrailer, 0, held, registrationDateParsedCount, createdAtLoadTimeCount);
+                rejected, excludedTrailer, heldParseFailureRows, held, infrastructureFailureRows,
+                infrastructureFailures, infrastructureFailureRows > 0,
+                registrationDateParsedCount, createdAtLoadTimeCount);
     }
 
     // ============================================================
@@ -666,6 +686,19 @@ public class EcountPartnerImporter {
     // ============================================================
     // 보조
     // ============================================================
+
+    /**
+     * 행 적재 예외를 데이터 축과 인프라 축으로 나눈다.
+     *
+     * <p>Spring의 명시적 제약 위반 타입만 데이터 오류로 인정한다. {@link
+     * org.springframework.orm.jpa.JpaSystemException}처럼 제약 타입이 아닌
+     * {@link DataAccessException}은 원인이 값인지 단정할 수 없으므로 인프라 오류로
+     * 보고하여 사용자가 재시도 대상으로 판단할 수 있게 한다. 문자열 메시지는 사용하지 않는다.
+     */
+    static String failureReason(DataAccessException ex) {
+        return ex instanceof DataIntegrityViolationException
+                ? "DB_CONSTRAINT" : "DB_INFRASTRUCTURE";
+    }
 
     private static void addRejectSample(List<EcountPartnerImportResult.RejectedRow> sample,
                                         int rowNo, String reason, String code, String name) {
