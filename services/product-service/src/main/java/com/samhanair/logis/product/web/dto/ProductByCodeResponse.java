@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.web.dto;
 
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductGoodsType;
 import java.util.UUID;
 
 /**
@@ -14,9 +15,10 @@ import java.util.UUID;
  * @param modelCode 사용자 노출 식별자 (시트 B열, V3 마이그)
  * @param name      제품명 (선택적 confirm 표시용)
  */
-public record ProductByCodeResponse(UUID id, String modelCode, String name) {
+public record ProductByCodeResponse(UUID id, String modelCode, String name, ProductGoodsType goodsType) {
 
     public static ProductByCodeResponse from(Product product) {
-        return new ProductByCodeResponse(product.getId(), product.getModelCode(), product.getName());
+        return new ProductByCodeResponse(
+                product.getId(), product.getModelCode(), product.getName(), product.getGoodsType());
     }
 }

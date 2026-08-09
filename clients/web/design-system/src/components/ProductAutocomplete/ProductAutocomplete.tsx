@@ -4,7 +4,7 @@
  * 공개 API(`ProductOption`, `searchProducts`)는 유지하고,
  * 공통 async typeahead 동작은 `AsyncAutocomplete<T>`에 위임한다.
  */
-import { forwardRef } from 'react'
+import { forwardRef, useState } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
 import { MultiSelectAutocomplete } from '../MultiSelectAutocomplete'
 import type {
@@ -98,6 +98,20 @@ export interface ProductMultiSelectAutocompleteProps {
   max?: number
 }
 
+type ProductSearchResults = ProductOption[] & {
+  totalElements?: number
+  truncated?: boolean
+}
+
+function SearchTruncationNotice({ results }: { results: ProductSearchResults | null }) {
+  if (!results?.truncated || results.totalElements == null) return null
+  return (
+    <p role="status" data-testid="product-search-truncation-notice">
+      {results.totalElements.toLocaleString('ko-KR')}건 중 {results.length.toLocaleString('ko-KR')}건 표시 — 더 입력해 좁히세요
+    </p>
+  )
+}
+
 function HighlightedProductField({
   value,
   query,
@@ -173,10 +187,17 @@ export const ProductAutocomplete = forwardRef<
   },
   ref,
 ) {
+  const [lastSearchResults, setLastSearchResults] = useState<ProductSearchResults | null>(null)
+  const searchWithMeta = async (query: string): Promise<ProductOption[]> => {
+    const results = await searchProducts(query) as ProductSearchResults
+    setLastSearchResults(results)
+    return results
+  }
+
   return (
     <AsyncAutocomplete<ProductOption>
       ref={ref}
-      search={searchProducts}
+      search={searchWithMeta}
       getKey={(product) => product.id}
       getInputLabel={(product) => product.modelName}
       listboxLabel="품목 목록"
@@ -202,6 +223,7 @@ export const ProductAutocomplete = forwardRef<
       resultSelectionMode={resultSelectionMode ?? undefined}
       resultSelectionTitle="품목 검색 결과"
       resultSelectionColumns={productResultColumns}
+      resultSelectionNotice={<SearchTruncationNotice results={lastSearchResults} />}
       autoSelectSingleResult={autoSelectSingleResult}
       {...rest}
     />
@@ -216,10 +238,17 @@ export const ProductMultiSelectAutocomplete = forwardRef<
   { searchProducts, label = '품목', placeholder = '모델명 또는 품목명 입력…', ...rest },
   ref,
 ) {
+  const [lastSearchResults, setLastSearchResults] = useState<ProductSearchResults | null>(null)
+  const searchWithMeta = async (query: string): Promise<ProductOption[]> => {
+    const results = await searchProducts(query) as ProductSearchResults
+    setLastSearchResults(results)
+    return results
+  }
+
   return (
     <MultiSelectAutocomplete<ProductOption, ProductOption>
       ref={ref}
-      search={searchProducts}
+      search={searchWithMeta}
       getOptionKey={(product) => product.id}
       getSelectedKey={(product) => product.id}
       getInputLabel={(product) => product.modelCode ?? product.modelName}
@@ -250,6 +279,7 @@ export const ProductMultiSelectAutocomplete = forwardRef<
       placeholder={placeholder}
       resultSelectionMode="multiple"
       resultSelectionTitle="품목 검색 결과"
+      resultSelectionNotice={<SearchTruncationNotice results={lastSearchResults} />}
       autoSelectSingleResult
       {...rest}
     />

@@ -84,6 +84,8 @@ export interface AsyncAutocompleteProps<T> {
   resultSelectionTitle?: ReactNode
   /** 결과 선택 모달에 표시할 표 열. 지정하면 후보 내용을 행 단위로 읽는다. */
   resultSelectionColumns?: readonly SearchResultSelectionColumn<T>[]
+  /** 결과가 서버 페이지에서 잘렸을 때 모달에 표시할 안내. */
+  resultSelectionNotice?: ReactNode
   /** multiple 모달에서 이미 선택한 후보의 opaque key. */
   selectedKeys?: string[]
   /** 기존 wrapper가 1건 후보를 즉시 확정하던 명시적 계약. 기본값 false. */
@@ -125,6 +127,7 @@ function AsyncAutocompleteInner<T>(
     onResultsConfirmed,
     resultSelectionTitle = '검색 결과 선택',
     resultSelectionColumns,
+    resultSelectionNotice,
     selectedKeys = [],
     autoSelectSingleResult = false,
   }: AsyncAutocompleteProps<T>,
@@ -561,6 +564,11 @@ function AsyncAutocompleteInner<T>(
     setCommitted(true)
   }, [closeSearchSurface, setCommitted])
 
+  const refineSelection = useCallback(async (query: string) => {
+    const results = await search(query)
+    setSelectionCandidates(results)
+  }, [search])
+
   // 표시값 — 포커스 중에는 draft, 그 외엔 selectedLabel
   // 모달 취소로 검색 surface만 닫혀도, 아직 확정되지 않은 검색어는 입력란에 남긴다.
   const displayValue = open || draft.length > 0 ? draft : selectedLabel
@@ -797,6 +805,8 @@ function AsyncAutocompleteInner<T>(
       getLabel={getInputLabel}
       renderOption={(item) => renderOption(item, { query: draft.trim() })}
       columns={resultSelectionColumns}
+      notice={resultSelectionNotice}
+      onFilterSubmit={refineSelection}
       initialSelectedKeys={selectedKeys}
       onConfirm={(items) => {
         if (resultSelectionMode === 'multiple') onResultsConfirmed?.(items)

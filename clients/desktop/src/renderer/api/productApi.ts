@@ -45,6 +45,13 @@ interface ProductSummaryResponse {
   productCategory?: ProductCategory | null
 }
 
+/** 서버 페이지 메타데이터를 보존한 품목 검색 배열. 배열 호환 호출자는 그대로 사용할 수 있다. */
+export type ProductSearchResults = ProductOption[] & {
+  totalElements?: number
+  displayedElements?: number
+  truncated?: boolean
+}
+
 /**
  * 품목 부분 검색 — `GET /api/products?q={q}&size=20`.
  *
@@ -71,7 +78,12 @@ export async function searchProducts(
     )
     const page = res.data.data
     const content = Array.isArray(page?.content) ? page.content : []
-    return content.map(toProductOption)
+    const results = content.map(toProductOption) as ProductSearchResults
+    const totalElements = Number(page?.totalElements ?? content.length)
+    results.totalElements = totalElements
+    results.displayedElements = results.length
+    results.truncated = totalElements > results.length
+    return results
   } catch {
     // 네트워크/서버 오류 시 graceful 빈 배열 반환
     return []

@@ -29,6 +29,11 @@ class ProductResponseGoodsTypeSerializationTest {
         assertGoodsType(ProductResponse.class);
     }
 
+    @Test
+    void productByCodeResponse_serializesGoodsType() throws Exception {
+        assertGoodsType(ProductByCodeResponse.class);
+    }
+
     private void assertGoodsType(Class<?> dtoType) throws Exception {
         RecordComponent[] components = dtoType.getRecordComponents();
         Object[] args = Arrays.stream(components)

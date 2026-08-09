@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Button } from '../Button'
 import { Input } from '../Input'
 import { Modal } from '../Modal'
@@ -24,6 +24,8 @@ export interface SearchResultSelectionModalProps<T> {
   onConfirm: (options: T[]) => void
   onCancel: () => void
   initialSelectedKeys?: string[]
+  notice?: ReactNode
+  onFilterSubmit?: (query: string) => void | Promise<void>
 }
 
 /** 검색 결과가 여러 건일 때 후보를 임시 선택하고 한 번에 확정하는 공용 모달. */
@@ -39,11 +41,14 @@ export function SearchResultSelectionModal<T>({
   onConfirm,
   onCancel,
   initialSelectedKeys = [],
+  notice,
+  onFilterSubmit,
 }: SearchResultSelectionModalProps<T>) {
   const initialKeySet = useMemo(() => new Set(initialSelectedKeys), [initialSelectedKeys])
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(initialKeySet)
   const [query, setQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const [filterPending, setFilterPending] = useState(false)
 
   useEffect(() => {
     if (open) setQuery('')
@@ -64,6 +69,17 @@ export function SearchResultSelectionModal<T>({
       else next.add(key)
       return next
     })
+  }
+
+  const submitFilter = async (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || !onFilterSubmit || !query.trim()) return
+    event.preventDefault()
+    setFilterPending(true)
+    try {
+      await onFilterSubmit(query.trim())
+    } finally {
+      setFilterPending(false)
+    }
   }
 
   const confirm = () => {
@@ -94,10 +110,13 @@ export function SearchResultSelectionModal<T>({
           inputSize="md"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={submitFilter}
           aria-label="검색 결과 필터"
-          placeholder="검색어를 입력하세요"
+          placeholder={onFilterSubmit ? '검색어 입력 후 Enter로 다시 검색' : '검색어를 입력하세요'}
+          aria-busy={filterPending || undefined}
         />
       </div>
+      {notice}
       {columns && columns.length > 0 ? (
         <div className={styles['tableViewport']}>
           <table className={styles['table']}>

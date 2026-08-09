@@ -1115,7 +1115,7 @@ export function EstimateFormPage() {
    * 후보를 반환하면 절대 실행하지 않는다.
    */
   const searchEstimateProducts = async (q: string): Promise<ProductOption[]> => {
-    const candidates = await searchProducts(q)
+    const candidates = await searchProducts(q, { size: 50 })
     if (candidates.length > 0) return candidates
     try {
       const legacy = await lookupProductByModelName(q)
