@@ -121,6 +121,8 @@ class SlipServiceTest {
         lenient().when(productClient.requireExists(productId)).thenReturn(
                 new ProductSummary(productId, "에어컨", "M-1", "AC-001", UUID.randomUUID(),
                         new BigDecimal("1000.00"), "ACTIVE"));
+        lenient().when(partnerInternalClient.resolvePartnerCode(any(UUID.class)))
+                .thenReturn(Optional.empty());
     }
 
     // ---------- create ----------
@@ -819,6 +821,59 @@ class SlipServiceTest {
     }
 
     @Test
+    void send_inbound_fillsMissingPartnerCode_beforeTransition() {
+        Slip slip = preparedInbound(SlipStatus.SAVED);
+        slip.setPartnerCode(null);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(partnerInternalClient.resolvePartnerCode(partnerId)).thenReturn(Optional.of("P-SEND-001"));
+
+        service.send(slipId);
+
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.SENT);
+        assertThat(slip.getPartnerCode()).isEqualTo("P-SEND-001");
+    }
+
+    @Test
+    void send_keepsExistingPartnerCode_withoutReResolving() {
+        Slip slip = preparedInbound(SlipStatus.SAVED);
+        slip.setPartnerCode("P-SNAPSHOT-001");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.send(slipId);
+
+        assertThat(slip.getPartnerCode()).isEqualTo("P-SNAPSHOT-001");
+        verify(partnerInternalClient, never()).resolvePartnerCode(partnerId);
+    }
+
+    @Test
+    void send_lookupFailure_doesNotBlockTransition() {
+        Slip slip = preparedInbound(SlipStatus.SAVED);
+        slip.setPartnerCode(null);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        lenient().when(partnerInternalClient.resolvePartnerCode(partnerId)).thenReturn(Optional.empty());
+
+        service.send(slipId);
+
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.SENT);
+        assertThat(slip.getPartnerCode()).isNull();
+        verify(partnerInternalClient).resolvePartnerCode(partnerId);
+    }
+
+    @Test
+    void confirm_lookupFailure_doesNotBlockTransition() {
+        Slip slip = preparedInbound(SlipStatus.COMPLETED);
+        slip.setPartnerCode(null);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        lenient().when(partnerInternalClient.resolvePartnerCode(partnerId)).thenReturn(Optional.empty());
+
+        service.confirm(slipId, "u");
+
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.CONFIRMED);
+        assertThat(slip.getPartnerCode()).isNull();
+        verify(partnerInternalClient).resolvePartnerCode(partnerId);
+    }
+
+    @Test
     void inspect_fromProcessing_throwsConflict() {
         // PROCESSING 에서 inspect 시도 → 409 (PROCESSING → INSPECTING 은 complete 가, INSPECTING → COMPLETED 만 inspect)
         Slip slip = preparedOutbound(SlipStatus.PROCESSING, 1, new BigDecimal("10.00"));
@@ -935,6 +990,22 @@ class SlipServiceTest {
 
         assertThat(slip.getPartnerName()).isEqualTo("새거래처");
         assertThat(slip.getMemo()).isEqualTo("새메모");
+    }
+
+    @Test
+    void editHeader_partnerChanged_resolvesNewPartnerCode() {
+        UUID oldPartnerId = UUID.randomUUID();
+        UUID newPartnerId = UUID.randomUUID();
+        Slip slip = preparedInbound(SlipStatus.DRAFT);
+        ReflectionTestUtils.setField(slip, "partnerId", oldPartnerId);
+        slip.setPartnerCode("P-OLD-001");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(partnerInternalClient.resolvePartnerCode(newPartnerId)).thenReturn(Optional.of("P-NEW-002"));
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(newPartnerId, "새거래처", null, null, null, null, null), "u", "홍길동");
+
+        assertThat(slip.getPartnerCode()).isEqualTo("P-NEW-002");
     }
 
     @Test

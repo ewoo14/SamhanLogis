@@ -420,6 +420,7 @@ public class SlipSeeder implements CommandLineRunner {
                     HQ_WAREHOUSE_ID,
                     partnerId, partnerName, spec.tag(), memo, requesterId);
         }
+        slip.setPartnerCode(partnerCode);
 
         // SHIPPING+ 단계 OUTBOUND 슬립은 driver 정보 필요 (ship() 후 도메인은 driver 검증 X 지만
         // SMS/링크발송 흐름 정합성을 위해 driver 정보 미리 set).

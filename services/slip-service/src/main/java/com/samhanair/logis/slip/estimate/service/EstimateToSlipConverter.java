@@ -5,6 +5,7 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
@@ -51,6 +52,7 @@ public class EstimateToSlipConverter {
     private final Clock clock;
     /** 레거시/비공식 견적이 BUNDLE 부모를 전표로 우회시키지 않도록 변환 경계에서 재검증한다. */
     private final ProductClient productClient;
+    private final PartnerInternalClient partnerInternalClient;
 
     /**
      * 견적 → Slip(OUTBOUND DRAFT) 변환.
@@ -83,6 +85,10 @@ public class EstimateToSlipConverter {
                 null,
                 buildSlipMemo(estimate),
                 estimate.getRequesterId());
+        if (estimate.getPartnerId() != null) {
+            partnerInternalClient.resolvePartnerCode(estimate.getPartnerId())
+                    .ifPresent(slip::setPartnerCode);
+        }
         slip.withProjectInfo(estimate.getPartnerBusinessNo(), null, null, null, null, null);
 
         // [게이트②] 견적→출고전표 변환 마감 게이트 — createOutbound 직후.

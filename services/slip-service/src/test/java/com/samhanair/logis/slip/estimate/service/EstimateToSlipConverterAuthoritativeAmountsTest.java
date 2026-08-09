@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -25,6 +26,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -36,13 +38,15 @@ class EstimateToSlipConverterAuthoritativeAmountsTest {
     private final OutboundCutoffGuard cutoffGuard = mock(OutboundCutoffGuard.class);
     private final SlipClosedDateGuard closedDateGuard = mock(SlipClosedDateGuard.class);
     private final ProductClient productClient = mock(ProductClient.class);
+    private final PartnerInternalClient partnerInternalClient = mock(PartnerInternalClient.class);
     private final EstimateToSlipConverter converter = new EstimateToSlipConverter(
             slipRepository,
             slipNumberService,
             cutoffGuard,
             closedDateGuard,
             Clock.fixed(Instant.parse("2026-07-22T00:00:00Z"), ZoneId.of("Asia/Seoul")),
-            productClient);
+            productClient,
+            partnerInternalClient);
 
     @Test
     @DisplayName("권위 견적 라인의 공급가액·부가세·합계를 재반올림하지 않는다")
@@ -94,6 +98,19 @@ class EstimateToSlipConverterAuthoritativeAmountsTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("세트 품목은 구성품으로 전개된 견적만 전표로 변환할 수 있습니다");
         verifyNoInteractions(slipRepository);
+    }
+
+    @Test
+    @DisplayName("견적 변환 시 partnerCode snapshot을 채운다")
+    void resolvesPartnerCodeSnapshot() {
+        Estimate estimate = estimate();
+        UUID partnerId = estimate.getPartnerId();
+        when(partnerInternalClient.resolvePartnerCode(partnerId))
+                .thenReturn(Optional.of("P-ESTIMATE-001"));
+
+        Slip converted = convert(estimate);
+
+        assertThat(converted.getPartnerCode()).isEqualTo("P-ESTIMATE-001");
     }
 
     private Slip convert(Estimate estimate) {

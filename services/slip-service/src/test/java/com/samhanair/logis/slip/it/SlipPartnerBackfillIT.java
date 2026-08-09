@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.hasItem;
 
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
@@ -85,6 +86,8 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
     @Test
     void backfill_resolvesPartnerCode_updatesDatabase_andSecondRunIsIdempotent() throws Exception {
         UUID partnerId = UUID.randomUUID();
+        long baselineCandidates = candidateCount();
+        long baselineRemaining = remainingCount();
         Slip violation = persistCommittedPartnerless("P-BACKFILL-FOUND");
         when(partnerInternalClient.verifyPartnerCode("P-BACKFILL-FOUND"))
                 .thenReturn(PartnerInternalClient.PartnerVerifyResult.found(Optional.of(partnerId)));
@@ -93,8 +96,9 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", "test-internal-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.processedCount").value(1))
-                .andExpect(jsonPath("$.data.unresolvedCount").value(0))
-                .andExpect(jsonPath("$.data.remainingCount").value(0))
+                .andExpect(jsonPath("$.data.candidateCount").value((int) baselineCandidates + 1))
+                .andExpect(jsonPath("$.data.unresolvedCount").value((int) baselineCandidates))
+                .andExpect(jsonPath("$.data.remainingCount").value((int) baselineRemaining))
                 .andExpect(jsonPath("$.data.dryRun").value(false));
 
         Slip updated = slipRepository.findById(violation.getId()).orElseThrow();
@@ -105,14 +109,17 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", "test-internal-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.processedCount").value(0))
-                .andExpect(jsonPath("$.data.unresolvedCount").value(0))
-                .andExpect(jsonPath("$.data.remainingCount").value(0));
+                .andExpect(jsonPath("$.data.candidateCount").value((int) baselineCandidates))
+                .andExpect(jsonPath("$.data.unresolvedCount").value((int) baselineCandidates))
+                .andExpect(jsonPath("$.data.remainingCount").value((int) baselineRemaining));
 
         verify(partnerInternalClient, times(1)).verifyPartnerCode(eq("P-BACKFILL-FOUND"));
     }
 
     @Test
     void backfill_dryRun_doesNotModify_and_reportsPartnerlessCodeMissingRow() throws Exception {
+        long baselineCandidates = candidateCount();
+        long baselineRemaining = remainingCount();
         Slip violation = persistCommittedPartnerless(null);
 
         mockMvc.perform(post("/internal/slips/backfill-committed-partners")
@@ -120,10 +127,11 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", "test-internal-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.processedCount").value(0))
-                .andExpect(jsonPath("$.data.unresolvedCount").value(1))
-                .andExpect(jsonPath("$.data.remainingCount").value(1))
+                .andExpect(jsonPath("$.data.candidateCount").value((int) baselineCandidates + 1))
+                .andExpect(jsonPath("$.data.unresolvedCount").value((int) baselineCandidates + 1))
+                .andExpect(jsonPath("$.data.remainingCount").value((int) baselineRemaining + 1))
                 .andExpect(jsonPath("$.data.dryRun").value(true))
-                .andExpect(jsonPath("$.data.unresolved[0].reason").value("partnerCode 없음"));
+                .andExpect(jsonPath("$.data.unresolved[*].slipNo", hasItem(violation.getSlipNo())));
 
         Slip unchanged = slipRepository.findById(violation.getId()).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(unchanged.getPartnerId()).isNull();
@@ -133,6 +141,8 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
     @Test
     void backfill_resolvesPartnerIdToCode_withoutChangingPartnerId() throws Exception {
         UUID partnerId = UUID.randomUUID();
+        long baselineCandidates = candidateCount();
+        long baselineRemaining = remainingCount();
         Slip violation = persistCommittedWithPartnerId(partnerId);
         when(partnerInternalClient.resolvePartnerCode(partnerId))
                 .thenReturn(Optional.of("P-BACKFILL-CODE-FOUND"));
@@ -141,12 +151,25 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", "test-internal-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.processedCount").value(1))
-                .andExpect(jsonPath("$.data.unresolvedCount").value(0));
+                .andExpect(jsonPath("$.data.candidateCount").value((int) baselineCandidates + 1))
+                .andExpect(jsonPath("$.data.unresolvedCount").value((int) baselineCandidates))
+                .andExpect(jsonPath("$.data.remainingCount").value((int) baselineRemaining));
 
         Slip updated = slipRepository.findById(violation.getId()).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(updated.getPartnerId()).isEqualTo(partnerId);
         org.assertj.core.api.Assertions.assertThat(updated.getPartnerCode()).isEqualTo("P-BACKFILL-CODE-FOUND");
         verify(partnerInternalClient, times(1)).resolvePartnerCode(partnerId);
+    }
+
+    private long candidateCount() {
+        return slipRepository.findAllByStatusInAndPartnerIdIsNullAndIsDeletedFalse(
+                        Slip.requiredPartnerStatuses()).size()
+                + slipRepository.findAllByStatusInAndPartnerIdIsNotNullAndPartnerCodeMissingAndIsDeletedFalse(
+                        Slip.requiredPartnerStatuses()).size();
+    }
+
+    private long remainingCount() {
+        return slipRepository.countByStatusInAndEitherPartnerColumnMissing(Slip.requiredPartnerStatuses());
     }
 
     private Slip persistCommittedPartnerless(String partnerCode) {
