@@ -531,6 +531,7 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
         body.put("warehouseId", warehouseId.toString());
         body.put("quantity", quantity);
         body.put("outboundSlipNo", outboundSlipNo);
+        body.put("sourceContext", sourceContext());
         return body;
     }
 
@@ -540,6 +541,7 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
         body.put("productCode", SERIAL_CODE);
         body.put("partnerCode", partnerCode);
         body.put("outboundAt", LocalDateTime.of(2026, 6, 2, 15, 0).toString());
+        body.put("sourceContext", sourceContext());
         return body;
     }
 
@@ -547,6 +549,7 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("outboundSlipNo", outboundSlipNo);
         body.put("productCode", SERIAL_CODE);
+        body.put("sourceContext", sourceContext());
         return body;
     }
 
@@ -572,6 +575,11 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
         body.put("productCode", SERIAL_CODE);
         body.put("quantity", quantity);
         return body;
+    }
+
+    private Map<String, Object> sourceContext() {
+        return Map.of("sourceOperationId", UUID.randomUUID().toString(),
+                "slipId", UUID.randomUUID().toString(), "slipRevision", 1);
     }
 
     @SafeVarargs

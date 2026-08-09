@@ -167,6 +167,9 @@ class StockBalanceQueryLazyIT extends AbstractPostgresIT {
         body.put("receivedAt", "2026-06-08T00:00:00");
         body.put("unitCost", "1000");
         body.put("note", "D-LOAD-01 LazyInitialization 회귀 테스트");
+        body.put("sourceContext", Map.of(
+                "sourceOperationId", UUID.randomUUID().toString(),
+                "slipId", productId.toString(), "slipRevision", 1));
 
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())

@@ -31,6 +31,7 @@ import com.samhanair.logis.inventory.web.dto.ReleaseRequest;
 import com.samhanair.logis.inventory.web.dto.ReservationResponse;
 import com.samhanair.logis.inventory.web.dto.ReserveRequest;
 import com.samhanair.logis.inventory.web.dto.StockLotResponse;
+import com.samhanair.logis.inventory.web.dto.SourceOperationContext;
 import jakarta.persistence.OptimisticLockException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -96,8 +97,9 @@ class StockServiceTest {
         });
 
         StockLotResponse response = service.inbound(new InboundRequest(
-                productId, warehouseId, "LOT-1", 50, LocalDateTime.now(),
-                new BigDecimal("1100000.00"), "초도 입고"), "user-1");
+                productId, warehouseId, "LOT-1", null, 50, LocalDateTime.now(),
+                new BigDecimal("1100000.00"), "초도 입고",
+                sourceContext(productId)), "user-1");
 
         assertThat(response.quantity()).isEqualTo(50);
         assertThat(response.warehouseCode()).isEqualTo("HQ-001");
@@ -114,8 +116,9 @@ class StockServiceTest {
                 .thenReturn(Optional.of(inspectionLot));
 
         StockLotResponse response = service.inbound(new InboundRequest(
-                productId, warehouseId, "2026/08/01-1041", 8, LocalDateTime.now(),
-                new BigDecimal("1100000.00"), "전표 경로 중복 재현"), "user-1");
+                productId, warehouseId, "2026/08/01-1041", null, 8, LocalDateTime.now(),
+                new BigDecimal("1100000.00"), "전표 경로 중복 재현",
+                sourceContext(productId)), "user-1");
 
         assertThat(response.quantity()).isEqualTo(8);
         verify(stockLotRepository, never()).save(any(StockLot.class));
@@ -136,9 +139,9 @@ class StockServiceTest {
         UUID secondLineId = UUID.randomUUID();
 
         service.inbound(new InboundRequest(productId, warehouseId, "2026/08/01-1041", firstLineId,
-                2, LocalDateTime.now(), new BigDecimal("10000.00"), "라인1"), "user-1");
+                2, LocalDateTime.now(), new BigDecimal("10000.00"), "라인1", sourceContext(productId)), "user-1");
         service.inbound(new InboundRequest(productId, warehouseId, "2026/08/01-1041", secondLineId,
-                3, LocalDateTime.now(), new BigDecimal("10000.00"), "라인2"), "user-1");
+                3, LocalDateTime.now(), new BigDecimal("10000.00"), "라인2", sourceContext(productId)), "user-1");
 
         verify(stockLotRepository, times(2)).save(any(StockLot.class));
         verify(stockMovementRepository, times(2)).save(any(StockMovement.class));
@@ -162,7 +165,7 @@ class StockServiceTest {
                 .thenReturn(Optional.of(StockBalance.create(productId, warehouse)));
 
         InboundRequest request = new InboundRequest(productId, warehouseId, "2026/08/01-1041", lineKey,
-                2, LocalDateTime.now(), new BigDecimal("10000.00"), "전표·검수 교차 호출");
+                2, LocalDateTime.now(), new BigDecimal("10000.00"), "전표·검수 교차 호출", sourceContext(productId));
         service.inbound(request, "user-1");
         service.inbound(request, "user-1");
 
@@ -179,8 +182,8 @@ class StockServiceTest {
 
         // 비상품 — no-op skip: 재고 미생성 + null 반환 (개발책임자 2026-06-15)
         var response = service.inbound(new InboundRequest(
-                productId, warehouseId, "FEE-LOT", 1, LocalDateTime.now(),
-                new BigDecimal("50000.00"), "비상품 입고 시도"), "user-1");
+                productId, warehouseId, "FEE-LOT", null, 1, LocalDateTime.now(),
+                new BigDecimal("50000.00"), "비상품 입고 시도", sourceContext(productId)), "user-1");
 
         assertThat(response).isNull();
         verify(stockLotRepository, never()).save(any());
@@ -196,8 +199,8 @@ class StockServiceTest {
                         false, true, "BUNDLE"));
 
         var response = service.inbound(new InboundRequest(
-                productId, warehouseId, "SET-LOT", 1, LocalDateTime.now(),
-                new BigDecimal("1500000.00"), "세트 SKU 입고 시도"), "user-1");
+                productId, warehouseId, "SET-LOT", null, 1, LocalDateTime.now(),
+                new BigDecimal("1500000.00"), "세트 SKU 입고 시도", sourceContext(productId)), "user-1");
 
         assertThat(response).isNull();
         verify(stockLotRepository, never()).save(any());
@@ -259,7 +262,7 @@ class StockServiceTest {
                 .thenReturn(Optional.of(balance));
 
         DeductionResponse response = service.deduct(
-                new DeductRequest(productId, warehouseId, 15, false, null, null, null), "u1");
+                new DeductRequest(productId, warehouseId, 15, false, null, null, null, sourceContext(productId)), "u1");
 
         assertThat(oldLot.getQuantity()).isZero();
         assertThat(newLot.getQuantity()).isEqualTo(15);
@@ -282,7 +285,7 @@ class StockServiceTest {
                 .thenReturn(Optional.of(balance));
 
         assertThatThrownBy(() -> service.deduct(
-                new DeductRequest(productId, warehouseId, 10, false, null, null, null), "u1"))
+                new DeductRequest(productId, warehouseId, 10, false, null, null, null, sourceContext(productId)), "u1"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
@@ -296,7 +299,7 @@ class StockServiceTest {
                         false, true, "BUNDLE"));
 
         DeductionResponse response = service.deduct(
-                new DeductRequest(productId, warehouseId, 3, false, null, null, "세트 SKU 차감 시도"),
+                new DeductRequest(productId, warehouseId, 3, false, null, null, "세트 SKU 차감 시도", sourceContext(productId)),
                 "u1");
 
         assertThat(response.requestedQuantity()).isZero();
@@ -339,7 +342,7 @@ class StockServiceTest {
                 .thenReturn(Optional.of(balance));
 
         DeductionResponse response = service.deduct(
-                new DeductRequest(productId, warehouseId, 5, true, null, null, null), "u1");
+                new DeductRequest(productId, warehouseId, 5, true, null, null, null, sourceContext(productId)), "u1");
 
         assertThat(response.availableQty()).isEqualTo(15);
         assertThat(response.reservedQty()).isZero();
@@ -417,7 +420,7 @@ class StockServiceTest {
         when(warehouseRepository.findById(missing)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.inbound(new InboundRequest(
-                productId, missing, null, 1, null, null, null), "u1"))
+                productId, missing, null, null, 1, null, null, null, sourceContext(productId)), "u1"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.NOT_FOUND));
@@ -520,6 +523,10 @@ class StockServiceTest {
         ReflectionTestUtils.setField(b, "reservedQty", reserved);
         ReflectionTestUtils.setField(b, "totalQty", total);
         return b;
+    }
+
+    private SourceOperationContext sourceContext(UUID productId) {
+        return new SourceOperationContext(UUID.randomUUID(), productId, 1L);
     }
 
     private StockLot lotWith(int qty, LocalDateTime receivedAt) {
