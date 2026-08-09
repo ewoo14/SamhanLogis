@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { Modal } from '../Modal/Modal'
 import { AsyncAutocomplete } from './AsyncAutocomplete'
 
 interface Option {
@@ -1348,5 +1349,60 @@ describe('AsyncAutocomplete', () => {
     // 재검색 hit → 후보 전이.
     await screen.findByText('결과 있음 후보')
     expect(input.getAttribute('aria-expanded')).toBe('true')
+  })
+  it('모달 조상에서 조합 중 Escape는 모달과 입력을 닫지 않는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <AsyncAutocomplete<Option>
+            value={null}
+            onChange={vi.fn()}
+            search={vi.fn().mockResolvedValue([])}
+            getKey={(item) => item.id}
+            getInputLabel={(item) => item.label}
+            renderOption={(item) => <span>{item.label}</span>}
+            listboxLabel="창고 목록"
+            ariaLabel="출고 창고"
+          />
+        </Modal>
+      )
+    }
+
+    render(<OuterModal />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: '본가' } })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false })
+
+    expect(screen.getByRole('dialog', { name: '병합전환' })).toBeTruthy()
+    expect(input.value).toBe('본가')
+  })
+
+  it('조합 중이 아닌 Escape는 입력이 닫힌 모달을 기존대로 닫는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <AsyncAutocomplete<Option>
+            value={null}
+            onChange={vi.fn()}
+            search={vi.fn().mockResolvedValue([])}
+            getKey={(item) => item.id}
+            getInputLabel={(item) => item.label}
+            renderOption={(item) => <span>{item.label}</span>}
+            listboxLabel="창고 목록"
+            ariaLabel="출고 창고"
+          />
+        </Modal>
+      )
+    }
+
+    render(<OuterModal />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false })
+
+    expect(screen.queryByRole('dialog', { name: '병합전환' })).toBeNull()
   })
 })

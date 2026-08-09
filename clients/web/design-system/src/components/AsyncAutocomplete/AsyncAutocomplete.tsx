@@ -546,7 +546,14 @@ function AsyncAutocompleteInner<T>(
     if (value && e.currentTarget.value === '' && (e.key === 'Backspace' || e.key === 'Delete')) {
       lastTypedDraftRef.current = ''
     }
-    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) return
+    const isComposing = e.nativeEvent.isComposing || isComposingRef.current
+    if (isComposing && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        isComposingRef.current = false
+      }
+      return
+    }
     if (!open) return
     const candidatesAreFresh = draft.trim() === resolvedQuery
 

@@ -256,16 +256,29 @@ test.describe.serial('PR #1150 A2 SOL 첫 적대검증 — 실 API/mock OFF', ()
 
     await cdp.send('Input.imeSetComposition', { text: query, selectionStart: query.length, selectionEnd: query.length })
     await page.waitForTimeout(50)
+    const beforeEscape = await selection(input)
     await page.keyboard.press('Escape')
     await page.waitForTimeout(100)
     const inputAfterEscape = page.getByTestId('merge-convert-warehouse').locator('input')
     const inputCountAfterEscape = await inputAfterEscape.count()
+    const dialogCountAfterCompositionEscape = await page.getByRole('dialog').count()
+    const afterCompositionEscape = inputCountAfterEscape ? await selection(inputAfterEscape) : null
     console.log('[WAREHOUSE_IME_ESCAPE]', JSON.stringify({
       inputCountAfterEscape,
-      state: inputCountAfterEscape ? await selection(inputAfterEscape) : null,
+      dialogCountAfterCompositionEscape,
+      state: afterCompositionEscape,
       url: page.url(),
       events: await nativeEvents(page),
     }))
+    expect(inputCountAfterEscape, '조합 중 Escape 뒤 창고 input이 제거되지 않음').toBe(1)
+    expect(dialogCountAfterCompositionEscape, '조합 중 Escape 뒤 병합 dialog가 제거되지 않음').toBeGreaterThan(0)
+    expect(afterCompositionEscape, '조합 중 Escape 뒤 input 상태가 보존됨').toEqual(beforeEscape)
+
+    await page.reload()
+    const normalInput = await openMergeWarehouse(page)
+    await normalInput.blur()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
   })
 
   test('품목 공통 AsyncAutocomplete — 기존 선택영역/동일 라벨 suffix/양방향 입력', async ({ page }) => {

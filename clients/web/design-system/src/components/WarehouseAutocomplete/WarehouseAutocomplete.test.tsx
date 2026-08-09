@@ -517,4 +517,52 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     expect(input.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByRole('status')).toBeNull()
   })
+
+  it('모달 조상에서 조합 중 Escape는 모달과 입력을 닫지 않는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <WarehouseAutocomplete
+            warehouses={warehouses}
+            value={null}
+            onChange={vi.fn()}
+            label="출고 창고"
+          />
+        </Modal>
+      )
+    }
+
+    render(<OuterModal />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: '본가' } })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false })
+
+    expect(screen.getByRole('dialog', { name: '병합전환' })).toBeTruthy()
+    expect(input.value).toBe('본가')
+  })
+
+  it('조합 중이 아닌 Escape는 입력이 닫힌 모달을 기존대로 닫는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <WarehouseAutocomplete
+            warehouses={warehouses}
+            value={null}
+            onChange={vi.fn()}
+            label="출고 창고"
+          />
+        </Modal>
+      )
+    }
+
+    render(<OuterModal />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false })
+
+    expect(screen.queryByRole('dialog', { name: '병합전환' })).toBeNull()
+  })
 })
