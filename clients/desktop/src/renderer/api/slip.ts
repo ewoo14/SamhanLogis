@@ -115,6 +115,8 @@ export interface SlipApprovalActor {
 
 /** 상세 응답 — BE `SlipDetailResponse`. */
 export interface SlipDetail extends SlipSummary {
+  /** 회계 마감 잠금 여부 — SlipStatus와 독립된 표시/변경 제한 축. */
+  lockFlag: boolean
   /** 발행 출처. 구 응답 누락 시 기존 수기 전표와 동일하게 처리한다. */
   sourceType?: SlipSourceType
   memo: string | null

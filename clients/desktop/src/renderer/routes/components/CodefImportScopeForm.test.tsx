@@ -187,8 +187,10 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     // 클릭 전에 보장한다 — 위와 동일한 이유(대기 조건 부재가 아니라 상태 갱신 타이밍).
     await flushZeroDelayTasks()
     fireEvent.click(screen.getByTestId('codef-save-scope-button'))
-    await flushZeroDelayTasks()
-    expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2)
+    // mutate()의 비동기 호출 경계를 기다린 뒤에도 호출 횟수와 version 계약은
+    // 그대로 강하게 단정한다. 고정 flush 직후의 동기 관찰은 스케줄러 지연 시
+    // 두 번째 호출이 spy에 도달하기 전에 검사할 수 있다.
+    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2))
     expect(saveCodefImportScopeMock.mock.calls[1]![0]).toMatchObject({ version: 1 })
   })
 

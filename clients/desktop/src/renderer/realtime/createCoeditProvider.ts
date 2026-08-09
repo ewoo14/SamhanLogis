@@ -147,6 +147,7 @@ function createBasePathRealtimeClient(name: string, basePath: string) {
   return createRealtimeClient({
     name,
     endpointPath: () => endpointPath,
+    allowMockMode: true,
   })
 }
 

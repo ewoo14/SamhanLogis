@@ -8,7 +8,7 @@
  * <p><b>구성</b>:
  * - 헤더 — "구글 시트 동기화" + 마지막 sync 시각 표시
  * - "지금 동기화" 버튼 (mutate pending 동안 disabled + 우측 spinner)
- * - 결과 표 — tab 별 inserted / updated / softDeleted (sync 1번도 없으면 빈 상태)
+ * - 결과 표 — Product row와 구성품 occurrence를 단위가 드러나는 라벨로 표시
  *
  * <p><b>refetch 정책</b>:
  * - useQuery refetchOnMount = 'always' — 페이지 진입 시 항상 최신 last 조회
@@ -42,10 +42,9 @@ import {
   getLastSync,
   triggerSync,
   type SyncSummary,
-  type TabSyncResult,
 } from '../../api/sheetSyncApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { buildSheetSyncRows } from './sheetSyncRows'
+import { buildSheetSyncRows, type SheetSyncRowResult } from './sheetSyncRows'
 
 const LAST_QUERY_KEY = ['admin', 'sheet-sync', 'last'] as const
 
@@ -203,10 +202,10 @@ export function SheetSyncPage() {
               }}
             >
               <th style={thStyle}>탭 이름</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>신규 (inserted)</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>변경 (updated)</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>신규 Product row / 연결 occurrence</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>변경 Product row / Bundle Product</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>
-                삭제 (softDeleted)
+                삭제 Product row / 구성품 row
               </th>
               <th style={thStyle}>비고</th>
             </tr>
@@ -228,7 +227,7 @@ export function SheetSyncPage() {
                 </td>
               </tr>
             ) : (
-              rows.map(({ tabName, result }) => (
+              rows.map(({ tabName, kind, result }) => (
                 <tr
                   key={tabName}
                   data-testid="admin-sheetsync-tab-row"
@@ -238,13 +237,13 @@ export function SheetSyncPage() {
                 >
                   <td style={tdStyle}>{tabName}</td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.inserted}
+                    {kind === 'component' ? result.linkedOccurrences : result.insertedRows}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.updated}
+                    {kind === 'component' ? result.bundlesMarkedProducts : result.updatedRows}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {result.softDeleted}
+                    {kind === 'component' ? result.softDeletedComponentRows : result.softDeletedProductRows}
                   </td>
                   <td style={{ ...tdStyle, color: result.error ? 'var(--color-danger-700, #b91c1c)' : 'var(--color-neutral-500)' }}>
                     {formatTabRemark(result)}
@@ -274,15 +273,16 @@ function SummaryTotals({ summary }: SummaryTotalsProps) {
         fontSize: 13,
       }}
     >
-      <TotalChip label="총 신규" value={summary.totalInserted} tone="brand" />
-      <TotalChip label="총 변경" value={summary.totalUpdated} tone="success" />
+      <TotalChip label="총 신규 row" value={summary.totalInsertedRows} tone="brand" />
+      <TotalChip label="총 변경 row" value={summary.totalUpdatedRows} tone="success" />
       <TotalChip
         label="총 삭제"
-        value={summary.totalSoftDeleted}
+        value={summary.totalSoftDeletedRows + summary.totalSoftDeletedComponentRows}
         tone="warning"
       />
-      <TotalChip label="총 skip" value={summary.totalSkipped} tone="neutral" />
-      <TotalChip label="수동 보존" value={summary.totalPreservedManual} tone="neutral" />
+      <TotalChip label="총 skip occurrence" value={summary.totalSkippedOccurrences} tone="neutral" />
+      <TotalChip label="수동 보존 Product occurrence" value={summary.totalPreservedManualProductOccurrences} tone="neutral" />
+      <TotalChip label="수동 보존 구성품 occurrence" value={summary.totalPreservedManualComponentOccurrences} tone="neutral" />
       <TotalChip
         label="탭 결과"
         value={`${summary.successfulTabs}/${summary.totalTabs} 성공`}
@@ -333,11 +333,11 @@ function TotalChip({ label, value, tone }: TotalChipProps) {
   )
 }
 
-function formatTabRemark(result: TabSyncResult): string {
-  if (result.error) return result.error
+export function formatTabRemark(result: SheetSyncRowResult): string {
   const parts: string[] = []
-  if (result.unchanged) parts.push(`변경 없음 ${result.unchanged}`)
-  if (result.skipped) parts.push(`skip ${result.skipped}`)
+  if (result.error) parts.push(result.error)
+  if (result.unchangedRows) parts.push(`변경 없음 ${result.unchangedRows}`)
+  if (result.skippedOccurrences) parts.push(`skip occurrence ${result.skippedOccurrences}`)
   return parts.length === 0 ? '—' : parts.join(' / ')
 }
 

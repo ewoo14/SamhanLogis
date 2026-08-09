@@ -5,7 +5,7 @@ import { LineTableHeader } from './LineTableHeader'
 
 const baseLine: LineDraft = {
   id: 'line-1',
-  productId: 'p-aj040',
+  productId: '2e40fa30-10b2-3a9b-a99c-570ac92287ad',
   modelName: 'AJ040RXH4BC1',
   productName: '시스템에어컨 4Way 4HP',
   specification: '4HP', // Slice A 신규 (피드백 #4)

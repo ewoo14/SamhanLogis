@@ -6,6 +6,7 @@ import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult;
 import com.samhanair.logis.slip.client.InventoryClient;
+import com.samhanair.logis.slip.client.SourceOperationContext;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductClient;
@@ -1149,12 +1150,12 @@ public class SlipService {
                 if (product.serialManaged()) {
                     if (dispatchedSerialProducts.add(line.getProductId())) {
                         inventoryClient.shipInstances(slip.getSlipNo(), product.productCode(),
-                                slip.getPartnerCode(), null);
+                                slip.getPartnerCode(), null, sourceContext(slip));
                     }
                     continue;
                 }
                 inventoryClient.deduct(line.getProductId(), slip.getSourceWarehouseId(),
-                        line.getQuantity(), true, SLIP_REF_TYPE, slip.getId());
+                        line.getQuantity(), true, SLIP_REF_TYPE, slip.getId(), sourceContext(slip));
             }
         } else {
             Map<UUID, ProductSummary> productsById = new LinkedHashMap<>();
@@ -1187,7 +1188,8 @@ public class SlipService {
                         SerialInboundGroup group = serialGroups.get(line.getProductId());
                         inventoryClient.inboundInstances(line.getProductId(), product.productCode(),
                                 slip.getDestinationWarehouseId(), group.quantity(),
-                                resolveInboundType(slip), slip.getSlipNo(), group.weightedUnitCost());
+                                resolveInboundType(slip), slip.getSlipNo(), group.weightedUnitCost(),
+                                sourceContext(slip));
                     }
                 }
             }
@@ -1207,11 +1209,17 @@ public class SlipService {
     private void inboundBatchLine(Slip slip, SlipLine line) {
         if (line.getId() == null) {
             inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                    line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
+                    line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line), sourceContext(slip));
             return;
         }
         inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                line.getQuantity(), slip.getSlipNo(), line.getId(), inboundUnitCost(line));
+                line.getQuantity(), slip.getSlipNo(), line.getId(), inboundUnitCost(line), sourceContext(slip));
+    }
+
+    /** 재고 호출자가 원전표와 당시 revision을 명시하도록 하는 source journal 선언. */
+    private SourceOperationContext sourceContext(Slip slip) {
+        long revision = slip.getRevisionCount() == null ? 0L : slip.getRevisionCount().longValue();
+        return new SourceOperationContext(UUID.randomUUID(), slip.getId(), revision);
     }
 
     private boolean isRecallInbound(Slip slip) {

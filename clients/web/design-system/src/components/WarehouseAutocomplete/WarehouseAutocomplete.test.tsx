@@ -105,11 +105,26 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     render(<ControlledWarehouse />)
     const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
     fireEvent.focus(input)
-    fireEvent.change(input, { target: { value: 'H' } })
-    await waitFor(() => expect(input.value).toContain('HQ-001'))
-    fireEvent.change(input, { target: { value: 'HQ-001 · 본사 창고창' } })
+    fireEvent.compositionStart(input)
+    fireEvent.input(input, {
+      target: { value: 'H' },
+      data: 'H',
+      inputType: 'insertCompositionText',
+      isComposing: true,
+    })
+    fireEvent.compositionUpdate(input, { data: 'H' })
+    await waitFor(() => expect(input.value).toBe('H'))
+    // IME 조합 중에는 자동확정이 selection을 건드리지 않아야 한다.
+    expect(input.value).not.toContain('HQ-001')
+    fireEvent.compositionEnd(input)
+    fireEvent.input(input, {
+      target: { value: 'HQ' },
+      data: 'Q',
+      inputType: 'insertText',
+      isComposing: false,
+    })
 
-    expect(input.value).toContain('창')
+    await waitFor(() => expect(input.value).toContain('HQ-001'))
   })
 
   it('allows autocomplete replacement immediately after auto-confirmation', async () => {
@@ -203,30 +218,45 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     expect(input.value).toBe('창')
   })
 
-  it('알려진 동작: 자동확정 직후 이어진 키가 라벨 뒤에 붙는다 (#1141)', async () => {
-    function ControlledWarehouse() {
-      const [value, setValue] = useState<string | null>(null)
-      return (
-        <WarehouseAutocomplete
-          warehouses={warehouses}
-          value={value}
-          onChange={(next) => setValue(next)}
-          label="출고 창고"
-          resultSelectionMode="single"
-          autoSelectSingleResult
-        />
-      )
-    }
+  it.each([33, 140])(
+    'A2 자동확정 후 %dms 뒤 입력은 suffix를 덮어쓰고 정상 입력을 보존한다 (RED-A/RED-B)',
+    async (delay) => {
+      const onChange = vi.fn()
+      function ControlledWarehouse() {
+        const [value, setValue] = useState<string | null>(null)
+        return (
+          <WarehouseAutocomplete
+            warehouses={warehouses}
+            value={value}
+            onChange={(next, warehouse) => {
+              onChange(next, warehouse)
+              setValue(next)
+            }}
+            label="출고 창고"
+            resultSelectionMode="single"
+            autoSelectSingleResult
+          />
+        )
+      }
 
-    render(<ControlledWarehouse />)
-    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
-    fireEvent.focus(input)
-    fireEvent.change(input, { target: { value: 'H' } })
-    await waitFor(() => expect(input.value).toBe('HQ-001 · 본사 창고'))
-    fireEvent.change(input, { target: { value: 'HQ-001 · 본사 창고Q' } })
+      render(<ControlledWarehouse />)
+      const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+      fireEvent.focus(input)
+      fireEvent.change(input, { target: { value: 'H' } })
+      await waitFor(() => expect(input.value).toBe('HQ-001 · 본사 창고'))
+      expect(input.selectionStart).toBe(1)
+      expect(input.selectionEnd).toBe(input.value.length)
 
-    expect(input.value).toBe('HQ-001 · 본사 창고Q')
-  })
+      await new Promise((resolve) => window.setTimeout(resolve, delay))
+      // 실제 브라우저에서는 현재 selection이 이 범위를 덮어쓰며 value가 HQ가 된다.
+      fireEvent.change(input, { target: { value: 'HQ' } })
+
+      await waitFor(() => expect(input.value).toBe('HQ-001 · 본사 창고'))
+      expect(onChange).toHaveBeenCalledTimes(2)
+      expect(input.selectionStart).toBe(2)
+      expect(input.selectionEnd).toBe(input.value.length)
+    },
+  )
 
   it('dropdown Escape가 상위 keydown 핸들러로 전파되지 않는다', () => {
     function OuterModal() {
@@ -486,5 +516,53 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
 
     expect(input.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('모달 조상에서 조합 중 Escape는 모달과 입력을 닫지 않는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <WarehouseAutocomplete
+            warehouses={warehouses}
+            value={null}
+            onChange={vi.fn()}
+            label="출고 창고"
+          />
+        </Modal>
+      )
+    }
+
+    render(<OuterModal />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: '본가' } })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false })
+
+    expect(screen.getByRole('dialog', { name: '병합전환' })).toBeTruthy()
+    expect(input.value).toBe('본가')
+  })
+
+  it('조합 중이 아닌 Escape는 입력이 닫힌 모달을 기존대로 닫는다', () => {
+    function OuterModal() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Modal open={open} onClose={() => setOpen(false)} title="병합전환">
+          <WarehouseAutocomplete
+            warehouses={warehouses}
+            value={null}
+            onChange={vi.fn()}
+            label="출고 창고"
+          />
+        </Modal>
+      )
+    }
+
+    render(<OuterModal />)
+    const input = screen.getByRole('combobox', { name: '출고 창고' })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false })
+
+    expect(screen.queryByRole('dialog', { name: '병합전환' })).toBeNull()
   })
 })

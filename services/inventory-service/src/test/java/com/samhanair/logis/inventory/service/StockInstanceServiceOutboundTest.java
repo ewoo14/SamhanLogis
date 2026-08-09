@@ -38,6 +38,9 @@ class StockInstanceServiceOutboundTest {
     @Mock
     private ProductClient productClient;
 
+    @Mock
+    private SourceOperationJournalWriter sourceJournalWriter;
+
     @InjectMocks
     private StockInstanceService service;
 

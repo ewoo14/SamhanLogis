@@ -111,7 +111,6 @@ class QuantitySyncRuleReconvergenceR7IT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() throws Exception {
         cleanup();
-        syncService.clearHashCacheForTest();
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
@@ -252,7 +251,7 @@ class QuantitySyncRuleReconvergenceR7IT extends AbstractPostgresIT {
         ProductSheetSyncService.ComponentSyncResult result = syncService.syncComponentTab(
                 new ProductSheetSyncService.ComponentTabMapping("R7_COMPONENT", false));
 
-        assertThat(result.blockedByRule).isEqualTo(1);
+        assertThat(result.blockedByRuleOccurrences).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM bundle_component bc
                  JOIN products p ON p.id = bc.bundle_product_id

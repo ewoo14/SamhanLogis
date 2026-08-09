@@ -154,3 +154,31 @@ export async function lookupProducts(ids: string[]): Promise<ProductOption[]> {
   }
   return results
 }
+
+/** 전표 상세의 삭제 품목 경고용 벌크 존재 확인. 조회 실패 품목은 경고 대상에서 제외한다. */
+export async function lookupProductPresence(ids: string[]): Promise<{
+  foundProductIds: string[]
+  unresolvedProductIds: string[]
+}> {
+  const uniqueIds = [...new Set(ids)].filter(Boolean)
+  if (uniqueIds.length === 0) return { foundProductIds: [], unresolvedProductIds: [] }
+
+  const foundProductIds: string[] = []
+  const unresolvedProductIds: string[] = []
+  for (let start = 0; start < uniqueIds.length; start += PRODUCT_LOOKUP_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(start, start + PRODUCT_LOOKUP_CHUNK_SIZE)
+    try {
+      const res = await apiClient.post<ApiEnvelope<ProductSummaryResponse[]>>(
+        '/api/products/lookup',
+        { ids: chunk },
+      )
+      const items = Array.isArray(res.data.data) ? res.data.data : []
+      foundProductIds.push(...items.map((item) => item.id))
+      const found = new Set(items.map((item) => item.id))
+      unresolvedProductIds.push(...chunk.filter((id) => !found.has(id)))
+    } catch {
+      unresolvedProductIds.push(...chunk)
+    }
+  }
+  return { foundProductIds, unresolvedProductIds }
+}

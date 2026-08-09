@@ -1,0 +1,12 @@
+[
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:18085/auth/admin/permissions/my",
+    "status": 200
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:18085/api/v1/products/admin/sync/last",
+    "status": 200
+  }
+]

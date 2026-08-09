@@ -543,11 +543,14 @@ class InventoryPermissionControllerIT {
 
     private static String inboundBody() {
         return "{\"productId\":\"" + ID + "\",\"warehouseId\":\"" + OTHER_ID
-                + "\",\"quantity\":1,\"unitCost\":1000}";
+                + "\",\"quantity\":1,\"unitCost\":1000,\"sourceContext\":{\"sourceOperationId\":\""
+                + ID + "\",\"slipId\":\"" + OTHER_ID + "\",\"slipRevision\":1}}";
     }
 
     private static String quantityBody() {
-        return "{\"productId\":\"" + ID + "\",\"warehouseId\":\"" + OTHER_ID + "\",\"quantity\":1}";
+        return "{\"productId\":\"" + ID + "\",\"warehouseId\":\"" + OTHER_ID
+                + "\",\"quantity\":1,\"sourceContext\":{\"sourceOperationId\":\""
+                + ID + "\",\"slipId\":\"" + OTHER_ID + "\",\"slipRevision\":1}}";
     }
 
     private static String adjustBody() {

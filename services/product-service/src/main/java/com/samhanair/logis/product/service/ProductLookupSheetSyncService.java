@@ -105,9 +105,9 @@ public class ProductLookupSheetSyncService {
         runTab(summary, BRANCH_TAB, self::syncBranchPipesTab);
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
-        log.info("[ProductLookupSheetSync] sync 완료: inserted={}, updated={}, unchanged={}, softDeleted={}, skipped={}, duration={}ms",
-                summary.totalInserted, summary.totalUpdated, summary.totalUnchanged,
-                summary.totalSoftDeleted, summary.totalSkipped, summary.durationMs);
+        log.info("[ProductLookupSheetSync] sync 완료: insertedRows={}, updatedRows={}, unchangedRows={}, softDeletedLookupRows={}, skippedOccurrences={}, duration={}ms",
+                summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalUnchangedRows,
+                summary.totalSoftDeletedLookupRows, summary.totalSkippedOccurrences, summary.durationMs);
         return summary;
     }
 
@@ -131,7 +131,7 @@ public class ProductLookupSheetSyncService {
             List<String> cells = GoogleSheetsClient.toStringRow(rows.get(i), 4);
             String name = blankToNull(safeGet(cells, 0));
             if (name == null) {
-                result.skipped++;
+                result.skippedOccurrences++;
                 continue;
             }
 
@@ -140,7 +140,7 @@ public class ProductLookupSheetSyncService {
             sheetKeys.add(materialKey);
             BigDecimal price = parseDecimalOrNull(safeGet(cells, 1));
             if (price == null) {
-                result.skipped++;
+                result.skippedOccurrences++;
                 recordError(result, "싱글 자재가격 " + materialKey + " 가격 무값/파싱 실패");
                 log.warn("[ProductLookupSheetSync] tab '{}' row {} 가격 무값/파싱 실패 — skip",
                         MATERIAL_TAB, sheetRowNumber);
@@ -160,13 +160,13 @@ public class ProductLookupSheetSyncService {
                         })
                         .orElseGet(() -> MaterialPrice.seed(materialKey, name, price, optionLabel, computedFormula));
                 materialPriceRepository.save(row);
-                result.inserted++;
+                result.insertedRows++;
             } else if (!Objects.equals(materialRowHash(active.get()), rowHash)) {
                 active.get().updateFromSheet(name, price, optionLabel, computedFormula);
                 materialPriceRepository.save(active.get());
-                result.updated++;
+                result.updatedRows++;
             } else {
-                result.unchanged++;
+                result.unchangedRows++;
             }
         }
 
@@ -220,13 +220,13 @@ public class ProductLookupSheetSyncService {
                         .orElseGet(() -> OduRecommendationLookup.seed(sheetRow.recommendationType(),
                                 sheetRow.indoorCapacity(), sheetRow.indoorCount(), sheetRow.outdoorHp()));
                 oduRepository.save(row);
-                result.inserted++;
+                result.insertedRows++;
             } else if (!Objects.equals(oduRowHash(active.get()), rowHash)) {
                 active.get().updateFromSheet(sheetRow.indoorCapacity(), sheetRow.indoorCount(), sheetRow.outdoorHp());
                 oduRepository.save(active.get());
-                result.updated++;
+                result.updatedRows++;
             } else {
-                result.unchanged++;
+                result.unchangedRows++;
             }
         }
 
@@ -253,7 +253,7 @@ public class ProductLookupSheetSyncService {
             List<String> cells = GoogleSheetsClient.toStringRow(rows.get(i), 1);
             String branchCode = blankToNull(safeGet(cells, 0));
             if (branchCode == null) {
-                result.skipped++;
+                result.skippedOccurrences++;
                 continue;
             }
             String rowHash = branchRowHash(branchCode);
@@ -269,13 +269,13 @@ public class ProductLookupSheetSyncService {
                         })
                         .orElseGet(() -> BranchPipeLookup.seed(branchCode, null, null));
                 branchRepository.save(row);
-                result.inserted++;
+                result.insertedRows++;
             } else if (!Objects.equals(branchRowHash(active.get().getBranchCode()), rowHash)) {
                 active.get().updateFromSheet(null, null);
                 branchRepository.save(active.get());
-                result.updated++;
+                result.updatedRows++;
             } else {
-                result.unchanged++;
+                result.unchangedRows++;
             }
         }
 
@@ -292,11 +292,11 @@ public class ProductLookupSheetSyncService {
         try {
             TabSyncResult result = callable.sync();
             summary.byTab.put(tabName, result);
-            summary.totalInserted += result.inserted;
-            summary.totalUpdated += result.updated;
-            summary.totalUnchanged += result.unchanged;
-            summary.totalSoftDeleted += result.softDeleted;
-            summary.totalSkipped += result.skipped;
+            summary.totalInsertedRows += result.insertedRows;
+            summary.totalUpdatedRows += result.updatedRows;
+            summary.totalUnchangedRows += result.unchangedRows;
+            summary.totalSoftDeletedLookupRows += result.softDeletedLookupRows;
+            summary.totalSkippedOccurrences += result.skippedOccurrences;
             summary.successfulTabs++;
         } catch (Exception e) {
             log.error("[ProductLookupSheetSync] tab '{}' sync 실패: {}", tabName, e.getMessage(), e);
@@ -313,7 +313,7 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(row.getMaterialKey())) {
                 row.markDeleted(SYSTEM_ACTOR);
                 materialPriceRepository.save(row);
-                result.softDeleted++;
+                result.softDeletedLookupRows++;
             }
         }
         return result;
@@ -326,7 +326,7 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(key)) {
                 row.markDeleted(SYSTEM_ACTOR);
                 oduRepository.save(row);
-                result.softDeleted++;
+                result.softDeletedLookupRows++;
             }
         }
         return result;
@@ -338,7 +338,7 @@ public class ProductLookupSheetSyncService {
             if (!sheetKeys.contains(row.getBranchCode())) {
                 row.markDeleted(SYSTEM_ACTOR);
                 branchRepository.save(row);
-                result.softDeleted++;
+                result.softDeletedLookupRows++;
             }
         }
         return result;
@@ -356,7 +356,7 @@ public class ProductLookupSheetSyncService {
                 sheetRowNumber, sourceColumns);
         OduSheetRow existing = rows.putIfAbsent(row.key(), row);
         if (existing != null && existing.sheetRowNumber() != sheetRowNumber) {
-            result.skipped++;
+            result.skippedOccurrences++;
             String message = "추천실외기 natural key 중복: key=" + row.key()
                     + ", firstRow=" + existing.sheetRowNumber()
                     + ", duplicateRow=" + sheetRowNumber;
@@ -487,22 +487,22 @@ public class ProductLookupSheetSyncService {
 
     /** tab 1개 sync 결과. */
     public static class TabSyncResult {
-        public int inserted = 0;
-        public int updated = 0;
-        public int unchanged = 0;
-        public int softDeleted = 0;
-        public int skipped = 0;
+        public int insertedRows = 0;
+        public int updatedRows = 0;
+        public int unchangedRows = 0;
+        public int softDeletedLookupRows = 0;
+        public int skippedOccurrences = 0;
         public String error;
     }
 
     /** 전체 lookup sync 집계. */
     public static class SyncSummary {
         public Map<String, TabSyncResult> byTab = new HashMap<>();
-        public int totalInserted = 0;
-        public int totalUpdated = 0;
-        public int totalUnchanged = 0;
-        public int totalSoftDeleted = 0;
-        public int totalSkipped = 0;
+        public int totalInsertedRows = 0;
+        public int totalUpdatedRows = 0;
+        public int totalUnchangedRows = 0;
+        public int totalSoftDeletedLookupRows = 0;
+        public int totalSkippedOccurrences = 0;
         public int totalTabs = 0;
         public int failedTabs = 0;
         public int successfulTabs = 0;

@@ -1,0 +1,190 @@
+{
+  "environment": {
+    "root": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\t1141b",
+    "base": "http://127.0.0.1:5175",
+    "api": "http://localhost:8080"
+  },
+  "network": [
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/app/notices/active",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/api/notifications/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/partner-orders/board-realtime",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/partner-orders?page=0&size=1&slipPublishStatus=FAILED",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/partner-orders?page=0&size=50&status=DRAFT",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/partner-orders?page=0&size=1&slipPublishStatus=FAILED",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/api/v1/partner-orders?page=0&size=50&status=DRAFT",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/inventory/warehouses",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8080/logs/front",
+      "status": 503
+    }
+  ],
+  "duringFirstComposition": {
+    "value": "본",
+    "selectionStart": 1,
+    "selectionEnd": 1
+  },
+  "afterCommit": {
+    "value": "HQ-001 · 본사창고",
+    "selectionStart": 10,
+    "selectionEnd": 13
+  },
+  "duringSecondComposition": {
+    "value": "HQ-001 · 본가",
+    "selectionStart": 11,
+    "selectionEnd": 11
+  },
+  "afterEscape": {
+    "inputCount": 0,
+    "dialogCount": 0,
+    "url": "http://127.0.0.1:5175/#/sales/partner-orders"
+  },
+  "events": [
+    {
+      "type": "compositionstart",
+      "data": "",
+      "value": "",
+      "start": 0,
+      "end": 0
+    },
+    {
+      "type": "compositionupdate",
+      "data": "본",
+      "value": "",
+      "start": 0,
+      "end": 0
+    },
+    {
+      "type": "beforeinput",
+      "data": "본",
+      "inputType": "insertCompositionText",
+      "isComposing": true,
+      "value": "",
+      "start": 0,
+      "end": 0
+    },
+    {
+      "type": "input",
+      "data": "본",
+      "inputType": "insertCompositionText",
+      "isComposing": true,
+      "value": "본",
+      "start": 1,
+      "end": 1
+    },
+    {
+      "type": "compositionupdate",
+      "data": "본",
+      "value": "본",
+      "start": 0,
+      "end": 1
+    },
+    {
+      "type": "beforeinput",
+      "data": "본",
+      "inputType": "insertCompositionText",
+      "isComposing": true,
+      "value": "본",
+      "start": 0,
+      "end": 1
+    },
+    {
+      "type": "input",
+      "data": "본",
+      "inputType": "insertCompositionText",
+      "isComposing": true,
+      "value": "본",
+      "start": 1,
+      "end": 1
+    },
+    {
+      "type": "compositionend",
+      "data": "본",
+      "value": "본",
+      "start": 1,
+      "end": 1
+    },
+    {
+      "type": "compositionstart",
+      "data": "사창고",
+      "value": "HQ-001 · 본사창고",
+      "start": 10,
+      "end": 13
+    },
+    {
+      "type": "compositionupdate",
+      "data": "가",
+      "value": "HQ-001 · 본사창고",
+      "start": 10,
+      "end": 13
+    },
+    {
+      "type": "beforeinput",
+      "data": "가",
+      "inputType": "insertCompositionText",
+      "isComposing": true,
+      "value": "HQ-001 · 본사창고",
+      "start": 10,
+      "end": 13
+    },
+    {
+      "type": "input",
+      "data": "가",
+      "inputType": "insertCompositionText",
+      "isComposing": true,
+      "value": "HQ-001 · 본가",
+      "start": 11,
+      "end": 11
+    },
+    {
+      "type": "keydown",
+      "isComposing": true,
+      "key": "Escape",
+      "value": "HQ-001 · 본가",
+      "start": 11,
+      "end": 11
+    }
+  ]
+}

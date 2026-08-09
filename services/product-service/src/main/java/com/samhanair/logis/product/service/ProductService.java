@@ -79,12 +79,6 @@ public class ProductService {
     private final BundleComponentService bundleComponentService;
 
     /**
-     * rowHash 캐시 evict 를 위해 직접 주입.
-     * ProductSheetSyncService → ProductService 방향의 의존이 없으므로 순환 없음.
-     */
-    private final ProductSheetSyncService productSheetSyncService;
-
-    /**
      * 품목 단종/삭제 전 수량 동기화 규칙 참조 여부 확인용(R1 결함 3). QuantitySyncRuleService
      * → ProductService 방향의 의존이 없으므로(ProductRepository/BundleComponentRepository만
      * 사용) 순환 없음.
@@ -725,8 +719,8 @@ public class ProductService {
      *
      * <p>초기값은 시트 sync 가 적재하지만, 멀티 카탈로그(견적품목 관리)의 수동 토글은
      * {@link Product#markVariableDiscountManual(boolean)} 로 보호하여 이후 sync 가 덮어쓰지 않는다.
-     * SET 직후에는 rowHash evict 가 필요 없다. 다음 sync 가 행 무변경이면 unchanged 분기로
-     * 수동값이 그대로 유지되고, 행 변경으로 update 분기에 진입해도 variableDiscountManual 가드가
+     * SET 직후에는 별도 sync 캐시 무효화가 필요 없다. 다음 sync가 DB 상태를 직접 비교하며,
+     * 행 변경으로 update 분기에 진입해도 variableDiscountManual 가드가
      * 변동DC 및 부속 할인필드를 보호한다.
      *
      * @param modelCode 수동 override 대상 품목의 모델코드
@@ -760,10 +754,6 @@ public class ProductService {
 
         product.markClassificationManual(catL, catM, catS);
 
-        String evictKey = product.getModelCode();
-        if (evictKey != null) {
-            productSheetSyncService.evictRowHash(evictKey);
-        }
         return product;
     }
 
@@ -771,21 +761,12 @@ public class ProductService {
     public Product updateFixedDiscountAndReturn(String modelCode, UpdateProductFixedDiscountRequest req) {
         Product product = loadByModelCodeOrThrow(modelCode);
         product.markFixedDiscountManual(parseFixedDiscountRate(req.fixedDiscountRate()));
-        String evictKey = product.getModelCode();
-        if (evictKey != null) {
-            productSheetSyncService.evictRowHash(evictKey);
-        }
         return product;
     }
 
     public void clearUsageOverride(String modelCode) {
         Product product = loadByModelCodeOrThrow(modelCode);
         product.clearUsageManual();
-        // evict: 로드된 엔티티의 실제 modelCode 를 키로 사용. null 이면 캐시 항목 없으므로 no-op.
-        String evictKey = product.getModelCode();
-        if (evictKey != null) {
-            productSheetSyncService.evictRowHash(evictKey);
-        }
     }
 
     /**
@@ -793,18 +774,12 @@ public class ProductService {
      * {@link Product#clearVariableDiscountManual()} 을 호출하여 플래그를 해제한다.
      *
      * <p>플래그 해제 후 다음 ProductSheetSyncService sync 에서 시트 기준으로 재적재된다.
-     * usage override 와 동일하게 rowHash 캐시를 무효화하여 행 내용이 같아도 update 경로에 진입시킨다.
-     *
      * @param modelCode override 해제 대상 품목의 카탈로그 노출 식별자 (modelCode 또는 modelName)
      * @throws BusinessException(NOT_FOUND) modelCode 에 해당하는 품목이 없을 때
      */
     public void clearVariableDiscountOverride(String modelCode) {
         Product product = loadByModelCodeOrThrow(modelCode);
         product.clearVariableDiscountManual();
-        String evictKey = product.getModelCode();
-        if (evictKey != null) {
-            productSheetSyncService.evictRowHash(evictKey);
-        }
     }
 
     /**

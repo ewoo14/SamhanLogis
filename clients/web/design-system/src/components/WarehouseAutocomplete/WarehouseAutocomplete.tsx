@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -15,6 +16,7 @@ import {
   SearchResultSelectionModal,
   type SearchResultSelectionMode,
 } from '../SearchResultSelectionModal'
+import { getAutocompleteSelectionStart } from '../autocompleteSelection'
 
 /**
  * 창고 분류 enum (BE `WarehouseType` 와 1:1 대응).
@@ -174,10 +176,32 @@ export const WarehouseAutocomplete = forwardRef<
   const [activeIndex, setActiveIndex] = useState<number>(-1)
   const [selectionCandidates, setSelectionCandidates] = useState<Warehouse[]>([])
   const [selectionOpen, setSelectionOpen] = useState(false)
+  const [selectionRequest, setSelectionRequest] = useState(0)
   const blurTimer = useRef<number | undefined>(undefined)
   // 검색 모달 취소로 input 포커스가 복원될 때 사용자의 draft를 보존한다.
   const preserveDraftOnNextFocusRef = useRef(false)
   const lastTypedDraftRef = useRef<string | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const isComposingRef = useRef(false)
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  const userSelectionRef = useRef<{ start: number; end: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const pending = pendingSelectionRef.current
+    if (!pending || isComposingRef.current || !inputRef.current) return
+    if (userSelectionRef.current) {
+      inputRef.current.setSelectionRange(userSelectionRef.current.start, userSelectionRef.current.end)
+      userSelectionRef.current = null
+      pendingSelectionRef.current = null
+      return
+    }
+    if (inputRef.current.selectionStart !== inputRef.current.selectionEnd) {
+      pendingSelectionRef.current = null
+      return
+    }
+    inputRef.current.setSelectionRange(pending.start, pending.end)
+    pendingSelectionRef.current = null
+  }, [draft, open, selectedLabel, selectionRequest])
 
   const candidates = useMemo(
     () => searchWarehouses(visibleWarehouses, draft),
@@ -238,6 +262,7 @@ export const WarehouseAutocomplete = forwardRef<
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
+    userSelectionRef.current = null
     preserveDraftOnNextFocusRef.current = false
     lastTypedDraftRef.current = nextDraft
     setDraft(nextDraft)
@@ -247,7 +272,7 @@ export const WarehouseAutocomplete = forwardRef<
     if (resultSelectionMode && nextDraft.trim()) {
       const nextCandidates = searchWarehouses(visibleWarehouses, nextDraft)
       if (autoSelectSingleResult && nextCandidates.length === 1) {
-        pick(nextCandidates[0]!)
+        pick(nextCandidates[0]!, !isComposingRef.current)
       } else if (nextCandidates.length > 1) {
         setSelectionCandidates(nextCandidates)
         setSelectionOpen(true)
@@ -257,7 +282,14 @@ export const WarehouseAutocomplete = forwardRef<
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
+    const isComposing = e.nativeEvent.isComposing || isComposingRef.current
+    if (isComposing && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        isComposingRef.current = false
+      }
+      return
+    }
 
     if (!open) return
 
@@ -283,9 +315,23 @@ export const WarehouseAutocomplete = forwardRef<
     }
   }
 
-  const pick = (w: Warehouse) => {
+  const pick = (w: Warehouse, selectGeneratedSuffix = false) => {
+    if (isComposingRef.current) return
     onChange(w.id, w)
     const nextLabel = `${w.code} · ${w.name}`
+    if (selectGeneratedSuffix && inputRef.current && inputRef.current.selectionStart !== inputRef.current.selectionEnd) {
+      userSelectionRef.current = {
+        start: inputRef.current.selectionStart ?? 0,
+        end: inputRef.current.selectionEnd ?? 0,
+      }
+    }
+    if (selectGeneratedSuffix && !isComposingRef.current) {
+      pendingSelectionRef.current = {
+        start: getAutocompleteSelectionStart(nextLabel, lastTypedDraftRef.current ?? ''),
+        end: nextLabel.length,
+      }
+      setSelectionRequest((previous) => previous + 1)
+    }
     lastTypedDraftRef.current = nextLabel
     setDraft(nextLabel)
     setActiveIndex(-1)
@@ -326,7 +372,11 @@ export const WarehouseAutocomplete = forwardRef<
               .join(' ')}
           >
             <input
-              ref={ref}
+              ref={(node) => {
+                inputRef.current = node
+                if (typeof ref === 'function') ref(node)
+                else if (ref) ref.current = node
+              }}
               id={id}
               type="text"
               autoComplete="off"
@@ -336,6 +386,26 @@ export const WarehouseAutocomplete = forwardRef<
               onFocus={handleFocus}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
+              onSelect={() => {
+                userSelectionRef.current = {
+                  start: inputRef.current?.selectionStart ?? 0,
+                  end: inputRef.current?.selectionEnd ?? 0,
+                }
+              }}
+              onCompositionStart={() => {
+                isComposingRef.current = true
+              }}
+              onCompositionEnd={() => {
+                isComposingRef.current = false
+                window.setTimeout(() => {
+                  const currentDraft = lastTypedDraftRef.current ?? ''
+                  const nextCandidates = searchWarehouses(visibleWarehouses, currentDraft)
+                  const item = nextCandidates.length === 1 ? nextCandidates[0] : undefined
+                  if (item && autoSelectSingleResult && currentDraft !== `${item.code} · ${item.name}`) {
+                    pick(item, true)
+                  }
+                }, 0)
+              }}
               placeholder={placeholder}
               disabled={disabled}
               required={req}
