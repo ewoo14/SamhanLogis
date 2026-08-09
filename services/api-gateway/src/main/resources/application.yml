@@ -330,6 +330,15 @@ spring:
           filters:
             - JwtAuthentication
 
+        # [#1152] 상품→비상품 토글 PATCH 는 ProductCatalogController 풀패스라 no-strip.
+        # generic product-service-v1(strip=2)보다 먼저 선언하지 않으면 /products/...로 변형된다.
+        - id: product-goods-type-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/*/goods-type
+          filters:
+            - JwtAuthentication
+
         # F1-a 분류 마스터 CRUD — ClassificationController 가 /api/v1/classifications 풀패스 보유.
         # product-service-v1(strip=2) 보다 먼저 no-strip 으로 그대로 전달.
         - id: product-classifications-v1
