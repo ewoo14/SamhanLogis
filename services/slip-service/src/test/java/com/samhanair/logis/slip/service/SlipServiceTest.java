@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.SourceOperationContext;
 import com.samhanair.logis.slip.editrequest.service.SlipEditRequestService;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
@@ -81,6 +82,7 @@ class SlipServiceTest {
      * 단위 테스트에서는 mock 격리(lenient, 기본 통과).
      */
     @Mock private com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard cutoffGuard;
+    @Mock private com.samhanair.logis.slip.service.closing.SlipClosedDateGuard closedDateGuard;
     /** 결재선 결재자 게이트 — 단위 테스트 격리. */
     @Mock private com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     /** user-service 내부 클라이언트 — 단위 테스트 격리 (ownerFullName resolve). */
@@ -153,6 +155,41 @@ class SlipServiceTest {
         assertThat(res.lines()).hasSize(1);
         assertThat(res.lines().get(0).lineTotal()).isEqualByComparingTo(new BigDecimal("200.00"));
         verify(productClient).lookup(any());
+    }
+
+    @Test
+    void create_checksClosedDateGuardForOutbound() {
+        when(slipNumberService.next(any(LocalDate.class), eq(SlipType.OUTBOUND))).thenReturn("2026/05/04-3");
+        when(slipNumberService.extractSeqNo("2026/05/04-3")).thenReturn(3);
+        when(slipRepository.save(any(Slip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CreateSlipRequest req = new CreateSlipRequest(
+                SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), sourceWh, destWh, partnerId, "삼한공조",
+                DeliveryTag.DAY, "마감 게이트", null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                null,
+                List.of(new CreateSlipRequest.SlipLineRequest(productId, "에어컨", "M-1", null,
+                        1, new BigDecimal("100.00"), null)));
+
+        service.create(req, "user-1", "홍길동");
+
+        verify(closedDateGuard).assertCreatable(SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), "user-1");
+    }
+
+    @Test
+    void process_checksClosedDateGuardBeforeStatusMutation() {
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(slip.getSlipType()).thenReturn(SlipType.OUTBOUND);
+        when(slip.getSlipDate()).thenReturn(LocalDate.of(2026, 5, 4));
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.CONFLICT, "마감된 날짜입니다"))
+                .when(closedDateGuard).assertAllowed(SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), "user-1");
+
+        assertThatThrownBy(() -> service.process(slipId, "user-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("마감된 날짜입니다");
+        verify(slip, never()).process();
     }
 
     @Test
@@ -330,7 +367,8 @@ class SlipServiceTest {
 
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
         verify(inventoryClient, times(1))
-                .deduct(eq(productId), eq(sourceWh), eq(3), eq(true), anyString(), eq(slipId));
+                .deduct(eq(productId), eq(sourceWh), eq(3), eq(true), anyString(), eq(slipId),
+                        any(SourceOperationContext.class));
     }
 
     @Test
@@ -349,11 +387,14 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient, times(1))
-                .shipInstances(eq("2026/05/04-1"), eq("AC-SERIAL-001"), eq("P-2026-0001"), eq(null));
+                .shipInstances(eq("2026/05/04-1"), eq("AC-SERIAL-001"), eq("P-2026-0001"), eq(null),
+                        any(SourceOperationContext.class));
         verify(inventoryClient, times(1))
-                .deduct(eq(batchProductId), eq(sourceWh), eq(4), eq(true), anyString(), eq(slipId));
+                .deduct(eq(batchProductId), eq(sourceWh), eq(4), eq(true), anyString(), eq(slipId),
+                        any(SourceOperationContext.class));
         verify(inventoryClient, never())
-                .deduct(eq(productId), any(), anyInt(), anyBoolean(), anyString(), any());
+                .deduct(eq(productId), any(), anyInt(), anyBoolean(), anyString(), any(),
+                        any(SourceOperationContext.class));
     }
 
     @Test
@@ -366,7 +407,8 @@ class SlipServiceTest {
 
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
         verify(inventoryClient, times(1))
-                .inbound(eq(productId), eq(destWh), eq(1), eq("2026/05/04-1"), eq(new BigDecimal("10.00")));
+                .inbound(eq(productId), eq(destWh), eq(1), eq("2026/05/04-1"), eq(new BigDecimal("10.00")),
+                        any(SourceOperationContext.class));
     }
 
     @Test
@@ -387,7 +429,7 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient).inbound(eq(productId), eq(destWh), eq(2),
-                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
+                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")), any(SourceOperationContext.class));
     }
 
     @Test
@@ -403,9 +445,11 @@ class SlipServiceTest {
 
         verify(inventoryClient, times(1))
                 .inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh), eq(2),
-                        eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")));
+                        eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
+                        any(SourceOperationContext.class));
         verify(inventoryClient, never())
-                .inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+                .inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                        any(SourceOperationContext.class));
     }
 
     @Test
@@ -426,7 +470,8 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient).inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh),
-                eq(2), eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
+                eq(2), eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -448,9 +493,11 @@ class SlipServiceTest {
 
         verify(inventoryClient, times(1))
                 .inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh), eq(5),
-                        eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")));
+                eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
+                any(SourceOperationContext.class));
         verify(inventoryClient, never())
-                .inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+                .inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                        any(SourceOperationContext.class));
     }
 
     @Test
@@ -476,10 +523,11 @@ class SlipServiceTest {
 
         verify(inventoryClient, times(1))
                 .inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh), eq(2),
-                        eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")));
+                        eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
+                        any(SourceOperationContext.class));
         verify(inventoryClient, times(1))
                 .inbound(eq(batchProductId), eq(destWh), eq(5),
-                        eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
+                        eq("2026/05/04-1"), eq(new BigDecimal("10000.00")), any(SourceOperationContext.class));
     }
 
     @Test
@@ -494,7 +542,8 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient).inboundInstances(eq(productId), eq("AC-BORROW-001"), eq(destWh),
-                eq(1), eq("차용"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")));
+                eq(1), eq("차용"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -512,8 +561,9 @@ class SlipServiceTest {
         verify(inventoryClient).recallInstances(eq("P-RETURN-001"), eq("AC-RETURN-001"),
                 eq(1), eq("2026/05/04-1"));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
-        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+                anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -531,8 +581,9 @@ class SlipServiceTest {
         verify(inventoryClient).recallInstances(eq("P-RETURN-TRIP-001"), eq("AC-RETURN-TRIP-001"),
                 eq(1), eq("2026/05/04-1"));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
-        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+                anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -551,7 +602,8 @@ class SlipServiceTest {
                 .hasMessageContaining("출고 거래처 코드");
 
         verify(inventoryClient, never()).recallInstances(anyString(), anyString(), anyInt(), anyString());
-        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -567,9 +619,10 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient).inbound(eq(productId), eq(destWh), eq(3),
-                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
+                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
+                anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
     }
 
     @Test
@@ -595,9 +648,11 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient).inbound(eq(productId), eq(destWh), eq(2),
-                eq("2026/05/04-1"), eq(first.getId()), eq(new BigDecimal("10000.00")));
+                eq("2026/05/04-1"), eq(first.getId()), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
         verify(inventoryClient).inbound(eq(productId), eq(destWh), eq(3),
-                eq("2026/05/04-1"), eq(second.getId()), eq(new BigDecimal("10000.00")));
+                eq("2026/05/04-1"), eq(second.getId()), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
         System.out.println("C: batch 반품 복수 라인 2+3 = 5 (각 라인 1회)");
     }
 
@@ -627,9 +682,9 @@ class SlipServiceTest {
         inOrder.verify(inventoryClient).recallInstances(eq("P-RETURN-MIX-001"), eq("AC-SERIAL-001"),
                 eq(2), eq("2026/05/04-1"));
         inOrder.verify(inventoryClient).inbound(eq(batchProductId), eq(destWh), eq(5),
-                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
+                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")), any(SourceOperationContext.class));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
+                anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
     }
 
     @Test
@@ -653,7 +708,8 @@ class SlipServiceTest {
                         new BigDecimal("10000.00"), "ACTIVE", false));
         org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.CONFLICT, "batch inbound 실패"))
                 .when(inventoryClient).inbound(eq(batchProductId), eq(destWh), eq(5),
-                        eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
+                        eq("2026/05/04-1"), eq(new BigDecimal("10000.00")),
+                        any(SourceOperationContext.class));
 
         assertThatThrownBy(() -> service.complete(slipId))
                 .isInstanceOf(BusinessException.class)
@@ -663,7 +719,8 @@ class SlipServiceTest {
         inOrder.verify(inventoryClient).recallInstances(eq("P-RETURN-MIX-002"), eq("AC-SERIAL-001"),
                 eq(2), eq("2026/05/04-1"));
         inOrder.verify(inventoryClient).inbound(eq(batchProductId), eq(destWh), eq(5),
-                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
+                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
         inOrder.verify(inventoryClient).unrecallInstances(eq("2026/05/04-1"), eq("AC-SERIAL-001"));
     }
 
@@ -684,7 +741,40 @@ class SlipServiceTest {
         assertThat(slip.getRedlineAnchorRevisionNo()).isEqualTo(5);
         // 검수 완료는 inventory mutation 없음 (deduct 는 complete 시점에 이미).
         verify(inventoryClient, never())
-                .deduct(any(), any(), anyInt(), anyBoolean(), anyString(), any());
+                .deduct(any(), any(), anyInt(), anyBoolean(), anyString(), any(),
+                        any(SourceOperationContext.class));
+    }
+
+    @Test
+    void inspect_onClosedDate_isRejectedBeforeMutation() {
+        Slip slip = preparedOutbound(SlipStatus.INSPECTING, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        BusinessException closed = new BusinessException(ErrorCode.CONFLICT, "마감된 날짜입니다");
+        org.mockito.Mockito.doThrow(closed).when(closedDateGuard)
+                .assertAllowed(eq(SlipType.OUTBOUND), eq(LocalDate.of(2026, 5, 4)), eq("inspector-1"));
+
+        assertThatThrownBy(() -> service.inspect(slipId, "inspector-1"))
+                .isSameAs(closed);
+
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
+        verify(closedDateGuard).assertAllowed(SlipType.OUTBOUND,
+                LocalDate.of(2026, 5, 4), "inspector-1");
+    }
+
+    @Test
+    void inspect_withoutApprovalPermission_returnsForbiddenBeforeClosedDateGuard() {
+        Slip slip = preparedOutbound(SlipStatus.INSPECTING, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        String actorId = UUID.randomUUID().toString();
+        when(approvalLineAuthorizeClient.authorize(anyString(), anyString(), eq(UUID.fromString(actorId))))
+                .thenReturn(new com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult(true, false));
+        assertThatThrownBy(() -> service.inspect(slipId, actorId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(closedDateGuard, never()).assertAllowed(any(), any(), anyString());
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
     }
 
     @Test

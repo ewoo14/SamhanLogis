@@ -1,4 +1,4 @@
-# mock only — Segoe UI + hex literal; 실 화면은 Pretendard 9 weight + CSS var(--color-*) 사용 (sub-sub-task PR 에서 교체)
+﻿# mock only — Segoe UI + hex literal; 실 화면은 Pretendard 9 weight + CSS var(--color-*) 사용 (sub-sub-task PR 에서 교체)
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')

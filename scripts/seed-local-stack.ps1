@@ -1,11 +1,30 @@
-param(
-    [string]$GatewayUrl = "http://localhost:8080",
-    [string]$AuthBaseUrl = "http://localhost:8080/api/auth",
-    [string]$AccountingBaseUrl = "http://localhost:8087",
+﻿param(
+    [string]$GatewayUrl = "",
+    [string]$AuthBaseUrl = "",
+    [string]$AccountingBaseUrl = "",
     [switch]$SkipReimport
 )
 
 $ErrorActionPreference = "Stop"
+$seedScriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Join-Path (Get-Location) 'scripts'
+} else {
+    $PSScriptRoot
+}
+. (Resolve-Path -LiteralPath (Join-Path $seedScriptRoot 'lib\local-stack-port.ps1'))
+. (Resolve-Path -LiteralPath (Join-Path $seedScriptRoot 'lib\qa-credentials.ps1'))
+
+$gatewayPort = Get-LocalStackPort -Service 'api-gateway'
+$authPort = Get-LocalStackPort -Service 'auth-service'
+$accountingPort = Get-LocalStackPort -Service 'accounting-service'
+if ([string]::IsNullOrWhiteSpace($GatewayUrl)) { $GatewayUrl = "http://localhost:$gatewayPort" }
+if ([string]::IsNullOrWhiteSpace($AuthBaseUrl)) { $AuthBaseUrl = "$GatewayUrl/api/auth" }
+if ([string]::IsNullOrWhiteSpace($AccountingBaseUrl)) { $AccountingBaseUrl = "http://localhost:$accountingPort" }
+$authServiceBaseUrl = "http://localhost:$authPort"
+
+# 자격은 표준 환경변수 또는 infrastructure/.env.local에서 읽는다. 누락 시 빈 값을 전송하지 않고 즉시 실패한다.
+$seedLoginId = if ($env:SEED_LOGIN_ID) { $env:SEED_LOGIN_ID } else { "dev_master" }
+$seedLoginPw = Resolve-QaCredential -Key 'QA_DEV_DEFAULT_PASSWORD' -CompatibilityAliases @('SEED_LOGIN_PW')
 
 # PowerShell 5.1 (cp949) 환경에서 한글 console 출력 보존 — [feedback_powershell_utf8_writes]
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -32,6 +51,19 @@ function Invoke-Json {
     Invoke-RestMethod @args
 }
 
+function Get-JwtClaims {
+    param([Parameter(Mandatory = $true)][string]$Token)
+    $parts = $Token -split '\.'
+    if ($parts.Length -lt 2) { throw "JWT 형식 오류" }
+    $payload = $parts[1].Replace('-', '+').Replace('_', '/')
+    switch ($payload.Length % 4) {
+        2 { $payload += '==' }
+        3 { $payload += '=' }
+    }
+    $bytes = [Convert]::FromBase64String($payload)
+    return ([Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json)
+}
+
 function Wait-Http {
     param([string]$Name, [string]$Url)
     $deadline = (Get-Date).AddSeconds(180)
@@ -48,22 +80,24 @@ function Wait-Http {
 }
 
 Wait-Http "gateway" "$GatewayUrl/actuator/health"
-Wait-Http "auth-service" "http://localhost:8081/actuator/health"
+Wait-Http "auth-service" "$authServiceBaseUrl/actuator/health"
 Wait-Http "accounting-service" "$AccountingBaseUrl/actuator/health"
 
-# 자격은 환경변수로 주입 (평문 커밋 금지 — GitGuardian). 미설정 시 V5 시드 DEV 값.
-$seedLoginId = if ($env:SEED_LOGIN_ID) { $env:SEED_LOGIN_ID } else { "dev_master" }
-$seedLoginPw = if ($env:SEED_LOGIN_PW) { $env:SEED_LOGIN_PW } else { "" }
 $masterLogin = Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/login" -Body @{
     loginId = $seedLoginId
     password = $seedLoginPw
 }
 $token = $masterLogin.data.token
-$masterUserId = $masterLogin.data.userId
+$claims = Get-JwtClaims -Token $token
+$masterUserId = $claims.sub
 $headers = @{
     Authorization = "Bearer $token"
     "X-User-Id" = $masterUserId
-    "X-User-Role" = "MASTER"
+    "X-User-Groups" = [string]$claims.groups
+    "X-Is-System-Master" = [string]($claims.isSystemMaster -eq $true)
+}
+if (-not [string]::IsNullOrWhiteSpace([string]$claims.departmentName)) {
+    $headers["X-User-Department"] = [Uri]::EscapeDataString([string]$claims.departmentName)
 }
 
 $users = @(
@@ -82,7 +116,7 @@ foreach ($user in $users) {
             displayName = $user.displayName
             role = $user.role
         }
-        Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/register" -Headers $headers -Body $body | Out-Null
+        Invoke-Json -Method "POST" -Uri "$authServiceBaseUrl/auth/register" -Headers $headers -Body $body | Out-Null
         Write-Host "[seed] created $($user.loginId) ROLE_$($user.role)"
     } catch {
         $message = $_.Exception.Message
@@ -95,22 +129,15 @@ foreach ($user in $users) {
 }
 
 $serviceHealth = @(
-    "http://localhost:8081/actuator/health",
-    "http://localhost:8083/actuator/health",
-    "http://localhost:8084/actuator/health",
-    "http://localhost:8085/actuator/health",
-    "http://localhost:8086/actuator/health",
-    "http://localhost:8087/actuator/health",
-    "http://localhost:8088/actuator/health",
-    "http://localhost:8089/actuator/health",
-    "http://localhost:8091/actuator/health",
-    "http://localhost:8092/actuator/health",
-    "http://localhost:8093/actuator/health",
-    "http://localhost:8094/actuator/health",
-    "http://localhost:8095/actuator/health",
-    "http://localhost:8097/actuator/health"
+    @{ Name = 'auth-service' }, @{ Name = 'user-service' }, @{ Name = 'product-service' },
+    @{ Name = 'inventory-service' }, @{ Name = 'slip-service' }, @{ Name = 'accounting-service' },
+    @{ Name = 'partner-order-service' }, @{ Name = 'partner-auth-service' }, @{ Name = 'dc-config-service' },
+    @{ Name = 'groupware-service' }, @{ Name = 'notification-service' }, @{ Name = 'dashboard-service' },
+    @{ Name = 'partner-service' }, @{ Name = 'arologis-service' }
 )
-foreach ($url in $serviceHealth) {
+foreach ($service in $serviceHealth) {
+    $port = Get-LocalStackPort -Service $service.Name
+    $url = "http://localhost:$port/actuator/health"
     Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10 | Out-Null
 }
 Write-Host "[seed] 14 service actuator health OK — Flyway startup completed"

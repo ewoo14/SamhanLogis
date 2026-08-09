@@ -79,6 +79,10 @@ async function selectWarehouse(page: Page): Promise<void> {
   const input = warehouse.locator('input[role="combobox"]')
   await expect(input).toBeVisible({ timeout: 5_000 })
   await input.fill('HQ')
+  if ((await input.getAttribute('aria-expanded')) === 'false') {
+    await expect(input).toHaveValue(/HQ-001/)
+    return
+  }
   await expect(input).toHaveAttribute('aria-expanded', 'true', { timeout: 5_000 })
   await warehouse.locator('[role="listbox"] [role="option"]').first().click()
   await expect(input).toHaveAttribute('aria-expanded', 'false', { timeout: 5_000 })

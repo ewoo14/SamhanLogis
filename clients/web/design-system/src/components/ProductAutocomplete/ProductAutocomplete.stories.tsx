@@ -6,7 +6,7 @@ import type { ProductOption } from './ProductAutocomplete'
 /** 시연용 품목 목록 — AC-2 mock 5개. */
 const SAMPLE_PRODUCTS: ProductOption[] = [
   {
-    id: 'p-aj040',
+    id: '2e40fa30-10b2-3a9b-a99c-570ac92287ad',
     modelName: 'AJ040RXH4BC1',
     productName: '시스템에어컨 4Way 4HP',
     sellingPrice: 1850000,
@@ -193,7 +193,7 @@ export const Disabled: Story = {
     <div style={{ width: 420, padding: 16 }}>
       <ProductAutocomplete
         value={{
-          id: 'p-aj040',
+          id: '2e40fa30-10b2-3a9b-a99c-570ac92287ad',
           modelName: 'AJ040RXH4BC1',
           productName: '시스템에어컨 4Way 4HP',
           sellingPrice: 1850000,
@@ -232,7 +232,7 @@ export const MinChars: Story = {
 export const SelectThenBlur: Story = {
   render: () => {
     const [selected, setSelected] = useState<ProductOption | null>({
-      id: 'p-aj040',
+      id: '2e40fa30-10b2-3a9b-a99c-570ac92287ad',
       modelName: 'AJ040RXH4BC1',
       productName: '시스템에어컨 4Way 4HP',
       sellingPrice: 1850000,

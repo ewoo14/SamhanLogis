@@ -1,16 +1,29 @@
 import { describe, expect, it } from 'vitest'
+import type { ComponentSyncResult } from '../../../api/sheetSyncApi'
 import { buildSheetSyncRows, type SheetSyncSummary } from './sheetSyncRows'
 
 const result = (overrides: Record<string, unknown> = {}) => ({
-  inserted: 1,
-  updated: 2,
-  unchanged: 3,
-  softDeleted: 4,
-  skipped: 0,
+  insertedRows: 1,
+  updatedRows: 2,
+  unchangedRows: 3,
+  softDeletedProductRows: 4,
+  skippedOccurrences: 0,
   ...overrides,
 })
 
 describe('buildSheetSyncRows', () => {
+  it('API의 softDeletedComponentRows 3건을 화면에 3건으로 표시한다', () => {
+    const rows = buildSheetSyncRows({
+      byTab: {},
+      byComponentTab: {
+        구성품: { softDeletedComponentRows: 3 } satisfies ComponentSyncResult,
+      },
+      failedTabs: 0,
+    })
+
+    expect(rows[0]?.result.softDeletedComponentRows).toBe(3)
+  })
+
   it('RED-A: 전체 실패 11건을 failedTabs와 같은 11행으로 만든다', () => {
     const summary: SheetSyncSummary = {
       byTab: Object.fromEntries(
@@ -33,12 +46,12 @@ describe('buildSheetSyncRows', () => {
     const summary: SheetSyncSummary = {
       byTab: {
         성공: result(),
-        'manual 보존': result({ skipped: 2 }),
+        'manual 보존': result({ skippedOccurrences: 2 }),
         부분실패: result({ error: '실패' }),
       },
       byComponentTab: {
         구성품실패: { error: '구성품 실패' },
-        구성품성공: { linked: 2, bundlesMarked: 1, softDeleted: 0, skipped: 0 },
+        구성품성공: { linkedOccurrences: 2, bundlesMarkedProducts: 1, softDeletedComponentRows: 0, skippedOccurrences: 0 },
       },
       failedTabs: 2,
     }

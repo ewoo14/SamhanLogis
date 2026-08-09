@@ -20,6 +20,7 @@
  * 호출자(SlipDetailPage)가 화면 노출하지 않고 cache invalidate 키로만 사용한다.
  */
 import { apiClient } from '../api/client'
+import { isMockMode } from '../api/mock'
 import { getAuthProvider, isElectronPlatform } from '../auth/authProvider'
 
 /**
@@ -60,6 +61,10 @@ export function subscribe(
   onEvent: SlipRealtimeHandler,
 ): AbortController {
   const controller = new AbortController()
+
+  // mock fixture에는 SSE 서버가 없으므로 raw fetch가 mock 경계를 넘지 않게 한다.
+  // 호출자는 동일한 abort 계약으로 cleanup할 수 있어 화면 코드는 변경하지 않는다.
+  if (isMockMode()) return controller
 
   let backoffMs = BACKOFF_INITIAL_MS
   let lastEventAt = Date.now()

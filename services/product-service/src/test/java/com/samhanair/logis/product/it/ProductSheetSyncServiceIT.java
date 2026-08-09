@@ -1,9 +1,12 @@
 package com.samhanair.logis.product.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,8 +19,10 @@ import com.samhanair.logis.product.domain.Classification;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.ProductLineage;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.PriceHistory;
+import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.ClassificationRepository;
@@ -35,13 +40,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -51,7 +62,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>테스트 시나리오:
  * <ul>
  *     <li>1) 첫 sync: insert 만 발생, DB row 수 = 시트 row 수</li>
- *     <li>2) 동일 시트 재 sync: rowHash 일치 → unchanged 만 (update X)</li>
+ *     <li>2) 동일 시트 재 sync: DB 상태 일치 → unchanged 만 (update X)</li>
  *     <li>3) 시트 row 가격 변경 → update 발생 (releasePrice 갱신)</li>
  *     <li>4) 시트에서 row 사라짐 → soft-delete (isDeleted=true)</li>
  * </ul>
@@ -85,6 +96,12 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     private ProductRepository productRepository;
 
     @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @Autowired
     private PriceHistoryRepository priceHistoryRepository;
 
     @Autowired
@@ -93,7 +110,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     @Autowired
     private ProductSpecRepository productSpecRepository;
 
-    @Autowired
+    @SpyBean
     private ProductEstimateExposureRepository exposureRepository;
 
     @Autowired
@@ -101,12 +118,18 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     @BeforeEach
     void resetState() throws Exception {
-        // 메모리 hash 캐시 초기화 — 테스트 간 격리 (Spring 싱글턴 bean 의 in-memory state)
-        syncService.clearHashCacheForTest();
         // 캐시 invalidate mock — 호출 검증용
         lenient().doNothing().when(sheetsClient).invalidateCache();
         // FORMULA read 기본값 — 개별 테스트에서 필요한 탭만 override.
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
+    }
+
+    @AfterEach
+    void cleanupRollbackFixture() {
+        productRepository.findByModelCodeAndIsDeletedFalse("ROLLBACK_PRICE_MODEL").ifPresent(product -> {
+            product.markDeleted("test-cleanup");
+            productRepository.save(product);
+        });
     }
 
     @Test
@@ -121,9 +144,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
         // then
-        assertThat(summary.totalInserted).isEqualTo(1);
-        assertThat(summary.totalUpdated).isZero();
-        assertThat(summary.totalSoftDeleted).isZero();
+        assertThat(summary.totalInsertedRows).isEqualTo(1);
+        assertThat(summary.totalUpdatedRows).isZero();
+        assertThat(summary.totalSoftDeletedRows).isZero();
 
         Optional<Product> p = productRepository.findByModelCodeAndIsDeletedFalse("AJ040RXH4BC1");
         assertThat(p).isPresent();
@@ -145,7 +168,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.inserted).isEqualTo(1);
+        assertThat(homeTab.insertedRows).isEqualTo(1);
         Optional<Product> product = productRepository.findByModelCodeAndIsDeletedFalse("AJ060MXHNBC1");
         assertThat(product).isPresent();
         assertThat(product.get().getReleasePrice()).isEqualByComparingTo(new BigDecimal("2000000"));
@@ -165,7 +188,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void sync_재실행_rowHash_동일이면_update_없음() throws Exception {
+    void sync_재실행_DB상태_동일이면_update_없음() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         List<List<Object>> homeMulti = homeMultiRows(
                 row("Hi-Multi", "MODEL_HASH_TEST", "", "1,000,000", "", "900,000")
@@ -177,11 +200,106 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         // 2차 sync — 동일 데이터
         ProductSheetSyncService.SyncSummary second = syncService.syncAll();
 
-        // hash 일치 → updated=0 (해당 tab 만)
+        // DB 상태 일치 → updatedRows=0 (해당 tab 만)
         ProductSheetSyncService.TabSyncResult homeTab = second.byTab.get("홈멀티");
         assertThat(homeTab).isNotNull();
-        assertThat(homeTab.updated).isZero();
-        assertThat(homeTab.unchanged).isEqualTo(1);
+        assertThat(homeTab.updatedRows).isZero();
+        assertThat(homeTab.unchangedRows).isEqualTo(1);
+    }
+
+    @Test
+    void sync_시트명과_DB명이_달라도_update를_반복하지_않는다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        List<List<Object>> homeMulti = homeMultiRows(
+                row("Sheet name", "NAME_DRIFT_MODEL", "", "1,000,000", "", "900,000")
+        );
+        when(sheetsClient.readSheetDisplay(eq("test-sheet-id"), anyString())).thenReturn(homeMulti);
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_출고증가!A1:Z")).thenReturn(homeMulti);
+        syncService.syncAll();
+        Product product = productRepository.findByModelCodeAndIsDeletedFalse("NAME_DRIFT_MODEL").orElseThrow();
+        product.rename("DB authoritative name");
+        productRepository.saveAndFlush(product);
+
+        ProductSheetSyncService.SyncSummary second = syncService.syncAll();
+        ProductSheetSyncService.TabSyncResult homeTab = second.byTab.get("홈멀티");
+
+        assertThat(homeTab.updatedRows).isZero();
+        assertThat(homeTab.unchangedRows).isEqualTo(1);
+        assertThat(homeTab.nameDriftOccurrences).isEqualTo(1);
+        String homeTabName = second.byTab.entrySet().stream()
+                .filter(entry -> entry.getValue() == homeTab)
+                .map(java.util.Map.Entry::getKey)
+                .findFirst().orElseThrow();
+
+        ProductSheetSyncService.SyncSummary third = syncService.syncAll();
+        ProductSheetSyncService.TabSyncResult thirdHomeTab = third.byTab.get(homeTabName);
+        assertThat(thirdHomeTab.updatedRows).isZero();
+        assertThat(thirdHomeTab.unchangedRows).isEqualTo(1);
+        assertThat(thirdHomeTab.nameDriftOccurrences).isEqualTo(1);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("NAME_DRIFT_MODEL").orElseThrow()
+                .getName()).isEqualTo("DB authoritative name");
+    }
+
+    @Test
+    void sync_동일한_값이어도_ECOUNT_승격은_updated로_판정하고_시트_정본을_적용한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "구분", "단위", "출고가", "비고", "납품가", "세트", "구성품특징", "규격"),
+                row("시트 정본 이름", "", "ECOUNT_PROMOTION_MODEL", "", "EA", "1,000,000", "", "900,000", "", "", "")
+        ));
+
+        syncService.syncAll();
+        Product insertedProduct = productRepository.findByModelCodeAndIsDeletedFalse("ECOUNT_PROMOTION_MODEL")
+                .orElseThrow();
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET lineage = 'ECOUNT', product_category = NULL, usage_scope = 'NONE'
+                 WHERE id = ?
+                """, insertedProduct.getId());
+        entityManager.clear();
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        ProductSheetSyncService.TabSyncResult componentTab = summary.byTab.get("싱글 구성품");
+        assertThat(componentTab.updatedRows).isEqualTo(1);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("ECOUNT_PROMOTION_MODEL")).get()
+                .satisfies(product -> {
+                    assertThat(product.getLineage()).isEqualTo(ProductLineage.SHEET);
+                    assertThat(product.getProductCategory()).isEqualTo(ProductCategory.SINGLE_PART);
+                    assertThat(product.getName()).isEqualTo("시트 정본 이름");
+                });
+    }
+
+    /**
+     * 변경 행의 후속 DB 저장이 실패해 탭 트랜잭션이 롤백되면,
+     * 같은 JVM의 재시도는 롤백된 DB 단가를 기준으로 행을 다시 처리해야 한다.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void syncTab_후속저장실패로_롤백된_단가는_같은행_재시도에서_반영되어야한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("롤백 단가 품목", "ROLLBACK_PRICE_MODEL", "", "1,000,000", "", "900,000")
+        ));
+        syncService.syncAll();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("롤백 단가 품목", "ROLLBACK_PRICE_MODEL", "", "1,200,000", "", "1,080,000")
+        ));
+        doThrow(new IllegalStateException("injected exposure save failure"))
+                .when(exposureRepository).save(any(ProductEstimateExposure.class));
+
+        ProductSheetSyncService.SyncSummary rolledBack = syncService.syncAll();
+        assertThat(rolledBack.byTab.get("홈멀티").error).isEqualTo("injected exposure save failure");
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("ROLLBACK_PRICE_MODEL").orElseThrow()
+                .getReleasePrice()).isEqualByComparingTo(new BigDecimal("1000000"));
+
+        reset(exposureRepository);
+        ProductSheetSyncService.SyncSummary retry = syncService.syncAll();
+
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("ROLLBACK_PRICE_MODEL").orElseThrow()
+                .getReleasePrice()).isEqualByComparingTo(new BigDecimal("1200000"));
+        assertThat(retry.byTab.get("홈멀티").updatedRows).isEqualTo(1);
     }
 
     @Test
@@ -199,10 +317,56 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.updated).isEqualTo(1);
+        assertThat(homeTab.updatedRows).isEqualTo(1);
         Optional<Product> p = productRepository.findByModelCodeAndIsDeletedFalse("PRICE_CHANGE_MODEL");
         assertThat(p).isPresent();
         assertThat(p.get().getReleasePrice()).isEqualByComparingTo(new BigDecimal("1100000"));
+    }
+
+    @Test
+    void sync_Product가_변경되지_않아도_priceHistory와_exposure_변경을_별도카운터로_관측한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("External write one", "EXTERNAL_WRITE_ONE", "", "1,000,000", "", "900,000"),
+                row("External write two", "EXTERNAL_WRITE_TWO", "", "2,000,000", "", "1,800,000")
+        ));
+        syncService.syncAll();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("External write two", "EXTERNAL_WRITE_TWO", "", "2,000,000", "", "1,800,000"),
+                row("External write one", "EXTERNAL_WRITE_ONE", "", "1,000,000", "", "900,000")
+        ));
+        ProductSheetSyncService.TabSyncResult reordered = syncService.syncAll().byTab.get("홈멀티");
+
+        assertThat(reordered.updatedRows).isZero();
+        assertThat(reordered.unchangedRows).isEqualTo(2);
+        assertThat(reordered.priceHistoryExposureSpecChangedRows).isEqualTo(2);
+
+        ProductSheetSyncService.TabSyncResult repeated = syncService.syncAll().byTab.get("홈멀티");
+
+        assertThat(repeated.updatedRows).isZero();
+        assertThat(repeated.unchangedRows).isEqualTo(2);
+        assertThat(repeated.priceHistoryExposureSpecChangedRows).isZero();
+    }
+
+    @Test
+    void sync_동일_Product의_ProductSpec_두행_변경은_변경행수_2로_센다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z"))
+                .thenReturn(singleSetSpecRows("A", "1등급"));
+        syncService.syncAll();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z"))
+                .thenReturn(singleSetSpecRows("B", "2등급"));
+
+        ProductSheetSyncService.TabSyncResult result = syncService.syncAll().byTab.get("싱글 세트");
+
+        assertThat(result.updatedRows).isZero();
+        assertThat(result.unchangedRows).isEqualTo(1);
+        assertThat(result.priceHistoryExposureSpecChangedRows).isEqualTo(2);
+
+        ProductSheetSyncService.TabSyncResult repeated = syncService.syncAll().byTab.get("싱글 세트");
+        assertThat(repeated.priceHistoryExposureSpecChangedRows).isZero();
     }
 
     @Test
@@ -219,7 +383,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.softDeleted).isEqualTo(1);
+        assertThat(homeTab.softDeletedProductRows).isEqualTo(1);
         // soft delete 후 active 조회 X
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("WILL_VANISH")).isEmpty();
     }
@@ -239,8 +403,8 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                 .thenReturn(homeMultiRows());
         ProductSheetSyncService.TabSyncResult result = syncService.syncAll().byTab.get("홈멀티");
 
-        assertThat(result.softDeleted).isZero();
-        assertThat(result.deferredByEcountReservation).isEqualTo(1);
+        assertThat(result.softDeletedProductRows).isZero();
+        assertThat(result.deferredByEcountReservationProductOccurrences).isEqualTo(1);
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("RESERVED_NOSHEET")).isPresent();
         ecountAliasReservationService.release(reservationToken);
     }
@@ -256,7 +420,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
         ProductSheetSyncService.TabSyncResult singleSet = summary.byTab.get("싱글 세트");
-        assertThat(singleSet.inserted).isEqualTo(1);
+        assertThat(singleSet.insertedRows).isEqualTo(1);
         Optional<Product> product = productRepository.findByModelCodeAndIsDeletedFalse("AC060CS6PBH1SY");
         assertThat(product).isPresent();
         assertThat(product.get().getProductCategory()).isEqualTo(ProductCategory.SINGLE_SET);
@@ -306,7 +470,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
         ProductSheetSyncService.TabSyncResult commercialPart = summary.byTab.get("상업멀티 구성");
-        assertThat(commercialPart.inserted).isEqualTo(1);
+        assertThat(commercialPart.insertedRows).isEqualTo(1);
         Optional<Product> product = productRepository.findByModelCodeAndIsDeletedFalse("AM080AXVHHH1");
         assertThat(product).isPresent();
         assertThat(product.get().getProductCategory()).isEqualTo(ProductCategory.COMMERCIAL_PART);
@@ -409,8 +573,8 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ));
 
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
-        assertThat(summary.totalComponentsLinked).isEqualTo(3);
-        assertThat(summary.totalBundlesMarked).isEqualTo(2);
+        assertThat(summary.totalComponentLinkOccurrences).isEqualTo(3);
+        assertThat(summary.totalBundlesMarkedProducts).isEqualTo(2);
 
         // EXPAND 부모
         Product expandSet = productRepository.findByModelCodeAndIsDeletedFalse("AC060CS6PBH1SY").orElseThrow();
@@ -440,6 +604,63 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         Product keepSet = productRepository.findByModelCodeAndIsDeletedFalse("FOOT_SET_001").orElseThrow();
         assertThat(keepSet.getProductType()).isEqualTo(ProductType.BUNDLE);
         assertThat(keepSet.getBundleMode()).isEqualTo(BundleMode.KEEP);
+    }
+
+    @Test
+    void sync_구성품_미존재_두_occurrence는_총_skip_occurrence에_합산된다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "구분", "단위", "출고가", "비고", "납품가", "세트", "구성품특징", "규격"),
+                row("없는 자식 1", "", "MISSING_CHILD_1", "자재", "EA", "10,000", "", "10,000", "MISSING_PARENT", "", ""),
+                row("없는 자식 2", "", "MISSING_CHILD_2", "자재", "EA", "20,000", "", "20,000", "MISSING_PARENT", "", "")
+        ));
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        assertThat(summary.byComponentTab.get("싱글 구성품_단가인상").skippedOccurrences).isEqualTo(2);
+        assertThat(summary.totalSkippedOccurrences).isEqualTo(2);
+        assertThat(summary.totalComponentLinkOccurrences).isZero();
+        assertThat(summary.totalPreservedManualProductOccurrences).isZero();
+        assertThat(summary.totalPreservedManualComponentOccurrences).isZero();
+    }
+
+    @Test
+    void sync_수기_구성품_보존은_product와_분리된_두_occurrence로_집계된다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "단위", "출고가", "수량", "납품가", "납품가", "소계"),
+                row("수기 보존 세트", "", "MANUAL_COMPONENT_PARENT", "SET", "100,000", "", "80,000", "80,000", "-")
+        ));
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "구분", "단위", "출고가", "비고", "납품가", "세트", "구성품특징", "규격"),
+                row("수기 자재 1", "", "MANUAL_COMPONENT_CHILD_1", "자재", "EA", "10,000", "", "10,000", "MANUAL_COMPONENT_PARENT", "", ""),
+                row("수기 자재 2", "", "MANUAL_COMPONENT_CHILD_2", "자재", "EA", "20,000", "", "20,000", "MANUAL_COMPONENT_PARENT", "", "")
+        ));
+        syncService.syncAll();
+        Product parent = productRepository.findByModelCodeAndIsDeletedFalse("MANUAL_COMPONENT_PARENT").orElseThrow();
+        parent.markBundleComponentsManual();
+        productRepository.save(parent);
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        assertThat(summary.totalPreservedManualProductOccurrences).isZero();
+        assertThat(summary.totalPreservedManualComponentOccurrences).isEqualTo(2);
+        assertThat(summary.totalSkippedOccurrences).isZero();
+    }
+
+    @Test
+    void sync_카운터_필드는_단위_suffix를_강제한다() {
+        assertThat(java.util.stream.Stream.of(
+                ProductSheetSyncService.TabSyncResult.class,
+                ProductSheetSyncService.ComponentSyncResult.class,
+                ProductSheetSyncService.SyncSummary.class)
+                .flatMap(type -> java.util.Arrays.stream(type.getFields()))
+                .filter(field -> field.getType() == int.class)
+                .map(java.lang.reflect.Field::getName)
+                .filter(name -> !name.endsWith("Rows") && !name.endsWith("Occurrences")
+                        && !name.endsWith("Products") && !name.endsWith("Tabs"))
+                .toList())
+                .isEmpty();
     }
 
     @Test
@@ -542,7 +763,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                 row("실내기", "", "IDEMP_IN", "실내기", "대", "250,000", "", "250,000", "IDEMP_SET", "기본", "규격A")
         ));
         ProductSheetSyncService.SyncSummary third = syncService.syncAll();
-        assertThat(third.byComponentTab.get("싱글 구성품_단가인상").softDeleted).isEqualTo(1);
+        assertThat(third.byComponentTab.get("싱글 구성품_단가인상").softDeletedComponentRows).isEqualTo(1);
         List<BundleComponent> remaining = bundleComponentRepository.findByBundleProductId(set.getId());
         assertThat(remaining).hasSize(1);
         assertThat(remaining).extracting(BundleComponent::getComponentProductCode).containsExactly("IDEMP_IN");
@@ -558,7 +779,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         ));
 
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
-        assertThat(summary.byTab.get("홈멀티").specsLinked).isEqualTo(4);
+        assertThat(summary.byTab.get("홈멀티").specsLinkedRows).isEqualTo(4);
 
         Product p = productRepository.findByModelCodeAndIsDeletedFalse("HM_SPEC_1").orElseThrow();
         List<ProductSpec> specs = productSpecRepository.findByProductIdOrderByDisplayOrderAsc(p.getId());
@@ -640,7 +861,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void sync_rowHash_동일해도_attribute_null이면_백필하고_다음_sync는_unchanged() throws Exception {
+    void sync_DB상태_동일해도_attribute_null이면_백필하고_다음_sync는_unchanged() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         List<List<Object>> sameRows = rows(
                 row("품 명", "모델명", "비고", "출고가", "비고", "납품가"),
@@ -655,15 +876,15 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
         ProductSheetSyncService.SyncSummary second = syncService.syncAll();
         ProductSheetSyncService.TabSyncResult secondHome = second.byTab.get("홈멀티");
-        assertThat(secondHome.updated).isEqualTo(1);
-        assertThat(secondHome.unchanged).isZero();
+        assertThat(secondHome.updatedRows).isEqualTo(1);
+        assertThat(secondHome.unchangedRows).isZero();
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("HM_PANEL_BACKFILL").orElseThrow()
                 .getPanelType()).isEqualTo("공청");
 
         ProductSheetSyncService.SyncSummary third = syncService.syncAll();
         ProductSheetSyncService.TabSyncResult thirdHome = third.byTab.get("홈멀티");
-        assertThat(thirdHome.updated).isZero();
-        assertThat(thirdHome.unchanged).isEqualTo(1);
+        assertThat(thirdHome.updatedRows).isZero();
+        assertThat(thirdHome.unchangedRows).isEqualTo(1);
     }
 
     @Test
@@ -765,7 +986,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                         com.samhanair.logis.product.domain.UsageScope.BOTH)))
                 .extracting(Product::getModelCode).contains("STOMP_TEST");
 
-        // 2차 sync — rowHash 동일 경로에서도 구성품 탭 재출현이 attribute 를 덮어쓰지 않아야 한다.
+        // 2차 sync — DB 상태 동일 경로에서도 구성품 탭 재출현이 attribute 를 덮어쓰지 않아야 한다.
         syncService.syncAll();
         Product afterSecondSync = productRepository.findByModelCodeAndIsDeletedFalse("STOMP_TEST").orElseThrow();
         assertThat(afterSecondSync.getPanelType()).isEqualTo("공청");
@@ -793,7 +1014,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         productRepository.save(p);
         assertThat(p.isUsageScopeManual()).isTrue();
 
-        // 2차 sync — 시트 row 변경(가격 변경 → hash 변경으로 update 경로 진입)
+        // 2차 sync — 시트 row 변경(가격 변경 → DB 직접 비교로 update 경로 진입)
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi 수동테스트", "MANUAL_GUARD", "", "1,600,000", "", "1,300,000")  // 가격 변경
         ));
@@ -837,7 +1058,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         productRepository.save(p);
         assertThat(p.isUsageScopeManual()).isFalse();
 
-        // 2차 sync — 가격 변경으로 update 경로 진입 (hash 변경)
+        // 2차 sync — 가격 변경으로 update 경로 진입 (DB 직접 비교)
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi 자동", "AUTO_GUARD", "", "1,700,000", "", "1,400,000")
         ));
@@ -960,7 +1181,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     /**
      * V19 변동DC DELETE 자동복귀 — clearVariableDiscountOverride 는 manual=false 로 되돌리고
-     * rowHash 를 evict 하므로, 행 내용이 동일해도 다음 sync 가 시트 기준 변동DC를 재적재한다.
+     * 수동 override 해제 후 DB 직접 비교로, 행 내용이 동일해도 다음 sync 가 시트 기준 변동DC를 재적재한다.
      */
     @Test
     void sync_variableDiscountManual_DELETE_후_행무변경_sync_시트기준_복원() throws Exception {
@@ -985,7 +1206,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(p.getHasVariableDiscount()).isFalse();
         assertThat(p.isVariableDiscountManual()).isTrue();
 
-        // DELETE /variable-discount 와 동일: manual=false 복귀 + rowHash evict.
+        // DELETE /variable-discount 와 동일: manual=false 복귀.
         productService.clearVariableDiscountOverride("VAR_CLEAR_01");
         Product cleared = productRepository.findByModelCodeAndIsDeletedFalse("VAR_CLEAR_01").orElseThrow();
         assertThat(cleared.getHasVariableDiscount()).isFalse();
@@ -993,8 +1214,8 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.updated)
-                .as("variableDiscount DELETE 후 rowHash evict 로 행 무변경에도 update 경로 진입")
+        assertThat(homeTab.updatedRows)
+                .as("variableDiscount DELETE 후 DB 직접 비교로 행 무변경에도 update 경로 진입")
                 .isEqualTo(1);
 
         Product after = productRepository.findByModelCodeAndIsDeletedFalse("VAR_CLEAR_01").orElseThrow();
@@ -1005,7 +1226,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     /**
-     * F1-a 수동 분류/고정DC 보존 — PATCH 후 rowHash evict 로 update 경로에 진입해도
+     * F1-a 수동 분류/고정DC 보존 — PATCH 후 행이 다시 비교되어도
      * 사용자가 저장한 분류와 고정DC는 시트/GAS 기본값으로 되돌아가면 안 된다.
      */
     @Test
@@ -1039,9 +1260,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.updated)
-                .as("classification PATCH 후 rowHash evict 로 행 무변경에도 update 경로 진입")
-                .isEqualTo(1);
+        assertThat(homeTab.updatedRows)
+                .as("classification 수동값이 있는 행은 DB 직접 비교 후에도 불필요한 update 없이 유지")
+                .isZero();
 
         Product afterSync = productRepository.findByModelCodeAndIsDeletedFalse("CLASS_MANUAL_01").orElseThrow();
         assertThat(afterSync.getCatL()).extracting(Classification::getName).isEqualTo("수동 대분류");
@@ -1160,15 +1381,15 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     /**
-     * V14 rowHash 캐시 evict — 수동 override 해제(DELETE /usage) 후 행 내용 무변경 상태로
+     * V14 수동 override 해제(DELETE /usage) 후 행 내용 무변경 상태로
      * sync 재실행 시 시트 기준으로 재분류되어야 한다 (지적 [2], PR-B 2026-06-11).
      *
      * <p>시나리오:
-     * 1차 sync → insert(BOTH). 수동 PARTNER_ORDER 토글 → evictRowHash. 2차 sync(행 무변경)
-     * → hash miss → update 경로 진입 → BOTH 재분류.
+     * 1차 sync → insert(BOTH). 수동 PARTNER_ORDER 토글 → override 해제. 2차 sync(행 무변경)
+     * → 현재 DB 값과 시트 기준이 달라 update 경로 진입 → BOTH 재분류.
      */
     @Test
-    void sync_rowHash_evict_후_행무변경_sync_시트기준_재분류() throws Exception {
+    void sync_수동override_해제_후_행무변경_sync_시트기준_재분류() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         List<List<Object>> sameRows = homeMultiRows(
                 row("Hi-Multi EvictTest", "EVICT_MODEL", "", "1,500,000", "", "1,200,000")
@@ -1185,19 +1406,18 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         productRepository.save(p);
         assertThat(p.isUsageScopeManual()).isTrue();
 
-        // clearUsageManual + evictRowHash (DELETE /usage 경로와 동일)
+        // clearUsageManual (DELETE /usage 경로와 동일)
         p.clearUsageManual();
         productRepository.save(p);
-        syncService.evictRowHash("EVICT_MODEL");
 
         // 2차 sync — 시트 행 내용 무변경 (동일 sameRows)
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(sameRows);
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
-        // hash evict → update 경로 진입 → BOTH 재분류
+        // DB 직접 비교에서 usageScope 차이를 발견 → update 경로 진입 → BOTH 재분류
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.updated)
-                .as("hash evict 로 행 무변경에도 update 경로 진입")
+        assertThat(homeTab.updatedRows)
+                .as("override 해제 후 DB 직접 비교로 행 무변경에도 update 경로 진입")
                 .isEqualTo(1);
 
         Product after = productRepository.findByModelCodeAndIsDeletedFalse("EVICT_MODEL").orElseThrow();
@@ -1231,11 +1451,11 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("MANUAL_NOSHEET"))
                 .as("usageScopeManual=true 품목 — 시트 부재 시에도 soft-delete 보호")
                 .isPresent();
-        // softDeleted=0, preservedManual=1, skipped=0 (파싱 skip 없음) — 사이클2 지적 P3-6 카운터 분리
+        // softDeletedProductRows=0, preservedManualProductOccurrences=1, skippedOccurrences=0 (파싱 skip 없음) — 사이클2 지적 P3-6 카운터 분리
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
-        assertThat(homeTab.softDeleted).isZero();
-        assertThat(homeTab.preservedManual).isEqualTo(1);
-        assertThat(homeTab.skipped).isZero();
+        assertThat(homeTab.softDeletedProductRows).isZero();
+        assertThat(homeTab.preservedManualProductOccurrences).isEqualTo(1);
+        assertThat(homeTab.skippedOccurrences).isZero();
     }
 
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */
@@ -1245,6 +1465,16 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         // 헤더 row — col0 에 "품" + "명" 포함 (findHeaderRow 가 인식)
         all.add(List.of("품 명", "모델명", "비고", "출고가", "비고", "납품가"));
         for (List<Object> r : dataRows) all.add(r);
+        return all;
+    }
+
+    private static List<List<Object>> singleSetSpecRows(String pipeDiameter, String efficiencyGrade) {
+        java.util.List<java.util.List<Object>> all = new java.util.ArrayList<>();
+        all.add(List.of("품 명", "평형", "모델명", "비고", "출고가", "비고", "비고", "납품가",
+                "성능(kcal/h)(최소/정격/최대)", "성능(kW)(최소/정격/최대)",
+                "소비전력(kW)(최소/정격/최대)", "배관경", "등급(냉방/난방)"));
+        all.add(List.of("Spec counter", "1", "SPEC_COUNTER_MODEL", "", "1,000,000", "", "", "900,000",
+                "100|200|300", "10|20|30", "5|6|7", pipeDiameter, efficiencyGrade));
         return all;
     }
 

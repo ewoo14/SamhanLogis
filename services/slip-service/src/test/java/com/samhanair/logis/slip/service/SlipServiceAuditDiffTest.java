@@ -79,6 +79,8 @@ class SlipServiceAuditDiffTest {
      * 단위 테스트에서는 mock 격리(lenient, 기본 통과).
      */
     @Mock private com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard cutoffGuard;
+    /** 전표일 마감 게이트 — 단위 테스트에서는 mock 격리. */
+    @Mock private com.samhanair.logis.slip.service.closing.SlipClosedDateGuard closedDateGuard;
     /** 결재선 결재자 게이트 — 단위 테스트 격리. */
     @Mock private com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     /** user-service 내부 클라이언트 — 단위 테스트 격리 (ownerFullName resolve). */

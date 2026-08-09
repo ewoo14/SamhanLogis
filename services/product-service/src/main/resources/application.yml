@@ -53,10 +53,10 @@ app:
     # 6 tab × 12회/시간 = 72 read/시간 → Sheets API quota 60 read/min 안전 마진 50배.
     enabled: ${PRODUCT_SYNC_SCHEDULING_ENABLED:true}
     product-sync-cron: ${PRODUCT_SYNC_CRON:0 */5 * * * *}
-  # Stage 1 local-test seed (HvacProductSeeder) toggle. dev profile + 본 toggle 모두 true 인 경우만
+  # product/inventory 공통 local-test seed toggle. dev profile + 본 toggle 모두 true 인 경우만
   # Samsung HVAC 100건 seed. 운영 / staging 데이터 오염 방지 — default false.
+  seed-test-data: ${SAMHAN_SEED_TEST_DATA:false}
   product:
-    seed-test-data: ${SAMHAN_PRODUCT_SEED_TEST_DATA:false}
     # PR-H4b (Phase 12 Step 4b BE-C) — 제품 마스터 수정/삭제 요청 자동 만료 (시간 단위, default 24h).
     # ProductEditRequest.requestedAt + expires-hours < now() → status = EXPIRED 전환 (스케줄러 1h 주기).
     edit-request:

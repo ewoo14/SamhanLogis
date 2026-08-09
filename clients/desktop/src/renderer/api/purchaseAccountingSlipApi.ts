@@ -7,7 +7,7 @@ import type {
   SlipAllocationRequest,
   SlipAllocationResponse,
 } from './salesAccountingSlipApi'
-import { vatFromSupply } from '../utils/vatRounding'
+import { splitVatInclusive } from '../utils/vatRounding'
 
 export type PurchaseAccountingSlipStatus = 'DRAFT' | 'POSTED'
 
@@ -130,10 +130,13 @@ function buildMockDraft(req: CreatePurchaseAccountingSlipRequest): PurchaseAccou
   const source = firstAllocation == null
     ? undefined
     : MOCK_SOURCE_SLIPS.find((summary) => summary.lines.some((line) => line.lineId === firstAllocation.sourceLineId))
-  const supply = req.lines.reduce((sum, line) => {
-    return sum + Number(line.qty || 0) * Number(line.unitPrice || 0)
-  }, 0)
-  const vat = req.taxType === 'TAXABLE' ? vatFromSupply(supply) : 0
+  const amounts = req.lines.map((line) => splitVatInclusive(
+    Number(line.qty || 0) * Number(line.unitPrice || 0),
+    req.taxType === 'TAXABLE',
+  ))
+  const supply = amounts.reduce((sum, amount) => sum + amount.supply, 0)
+  const vat = amounts.reduce((sum, amount) => sum + amount.vat, 0)
+  const total = amounts.reduce((sum, amount) => sum + amount.total, 0)
   return {
     id: null,
     // 실 BE PurchaseAccountingSlipNumberGenerator = yyyy/MM/dd-N 슬래시 (feedback_slip_order_number_format)
@@ -145,20 +148,22 @@ function buildMockDraft(req: CreatePurchaseAccountingSlipRequest): PurchaseAccou
     status: 'DRAFT',
     totalSupplyAmount: String(supply),
     totalVatAmount: String(vat),
-    totalAmount: String(supply + vat),
+    totalAmount: String(total),
     memo: req.memo ?? null,
     lines: req.lines.map((line, index) => {
-      const lineSupply = Number(line.qty || 0) * Number(line.unitPrice || 0)
-      const lineVat = req.taxType === 'TAXABLE' ? vatFromSupply(lineSupply) : 0
+      const lineAmount = splitVatInclusive(
+        Number(line.qty || 0) * Number(line.unitPrice || 0),
+        req.taxType === 'TAXABLE',
+      )
       return {
         lineNo: index + 1,
         productCode: line.productCode,
         productName: line.productName,
         qty: line.qty,
         unitPrice: line.unitPrice,
-        supplyAmount: String(lineSupply),
-        vatAmount: String(lineVat),
-        lineTotal: String(lineSupply + lineVat),
+        supplyAmount: String(lineAmount.supply),
+        vatAmount: String(lineAmount.vat),
+        lineTotal: String(lineAmount.total),
         allocations: line.allocations.map((a) => ({
           sourceSlipNo: a.sourceSlipNo,
           sourceLineNo: a.sourceLineNo,

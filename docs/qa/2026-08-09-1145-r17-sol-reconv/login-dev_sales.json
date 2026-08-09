@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "code": "OK",
+  "message": "성공",
+  "data": {
+    "token": "<redacted>",
+    "userId": "a0000000-0000-0000-0000-000000000004",
+    "role": "SALES",
+    "displayName": "[DEV-SEED] 개발영업",
+    "partnerCode": null,
+    "groups": [
+      {
+        "id": "00000000-0000-0000-0000-000000000102",
+        "name": "영업원",
+        "builtin": false
+      }
+    ]
+  },
+  "timestamp": "2026-08-09T08:38:19.153982309Z"
+}

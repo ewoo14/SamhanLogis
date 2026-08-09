@@ -71,6 +71,8 @@ export interface MultiSelectAutocompleteProps<TOption, TSelected> {
   resultSelectionMode?: SearchResultSelectionMode
   /** 결과 선택 모달 제목. */
   resultSelectionTitle?: ReactNode
+  /** 결과가 서버 페이지에서 잘렸을 때 모달에 표시할 안내. */
+  resultSelectionNotice?: ReactNode
   /** 기존 호출자의 1건 즉시 확정 계약을 opt-in으로 보존한다. */
   autoSelectSingleResult?: boolean
 }
@@ -100,6 +102,7 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
     max,
     resultSelectionMode,
     resultSelectionTitle,
+    resultSelectionNotice,
     autoSelectSingleResult = false,
   }: MultiSelectAutocompleteProps<TOption, TSelected>,
   ref: ForwardedRef<HTMLInputElement>,
@@ -215,6 +218,7 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
         debounceMs={debounceMs}
         resultSelectionMode={resultSelectionMode}
         resultSelectionTitle={resultSelectionTitle}
+        resultSelectionNotice={resultSelectionNotice}
         selectedKeys={selected.map(getSelectedKey)}
         autoSelectSingleResult={autoSelectSingleResult}
         onResultsConfirmed={(options) => options.forEach(add)}

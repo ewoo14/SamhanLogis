@@ -420,6 +420,9 @@ export const BANK_TRANSACTION_LIST_COLUMN_DEFINITIONS: readonly BankTransactionC
                 if (partner) context.onMatch(row, partner)
               }}
               searchPartners={searchPartners}
+              resultSelectionMode="single"
+              autoSelectSingleResult
+              resultSelectionTitle="거래처 검색 결과"
               disabled={!context.canUpdate || context.pending}
               minChars={1}
               debounceMs={200}

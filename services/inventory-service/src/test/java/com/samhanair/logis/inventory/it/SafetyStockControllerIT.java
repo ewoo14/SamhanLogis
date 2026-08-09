@@ -312,6 +312,9 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
         inboundBody.put("quantity", 100);
         inboundBody.put("unitCost", 100000);
         inboundBody.put("lotNo", "SAFETY-INBOUND-001");
+        inboundBody.put("sourceContext", Map.of(
+                "sourceOperationId", UUID.randomUUID().toString(),
+                "slipId", productId.toString(), "slipRevision", 1));
 
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())

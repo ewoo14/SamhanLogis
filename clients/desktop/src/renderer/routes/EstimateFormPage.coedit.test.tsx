@@ -1061,7 +1061,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     fireEvent.blur(model)
 
     const dialog = await screen.findByRole('dialog', { name: '품목 검색 결과' })
-    expect(mocks.searchProducts).toHaveBeenCalledWith('AJ')
+    expect(mocks.searchProducts).toHaveBeenCalledWith('AJ', { size: 50 })
     expect(dialog.textContent).toContain('220V')
     expect(dialog.textContent).toContain('22,000원')
     expect(dialog.textContent).not.toContain('11111111-1111-1111-1111-111111111111')

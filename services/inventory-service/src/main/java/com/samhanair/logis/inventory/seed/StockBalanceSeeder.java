@@ -3,6 +3,7 @@ package com.samhanair.logis.inventory.seed;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>활성 조건 (이중 가드):
  * <ul>
  *   <li>{@link Profile @Profile("dev")} — local/dev 프로파일 한정</li>
- *   <li>{@link ConditionalOnProperty}({@code app.inventory.seed-test-data=true}) — toggle 명시적 ON</li>
+ *   <li>{@link ConditionalOnProperty}({@code app.seed-test-data=true}) — product/inventory 공통 toggle</li>
  * </ul>
  *
  * <p>대상 제품: Stage 1 이 시드한 product 100건.
@@ -39,7 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @Profile("dev")
-@ConditionalOnProperty(value = "app.inventory.seed-test-data", havingValue = "true")
+@ConditionalOnProperty(value = "app.seed-test-data", havingValue = "true")
 @Order(10)
 public class StockBalanceSeeder implements CommandLineRunner {
 
@@ -128,21 +129,24 @@ public class StockBalanceSeeder implements CommandLineRunner {
     private static final String VH_WAREHOUSE_CODE = "VH-001";
 
     private final JdbcTemplate jdbcTemplate;
+    private final ProductSeedIntegrityValidator productSeedIntegrityValidator;
 
-    public StockBalanceSeeder(JdbcTemplate jdbcTemplate) {
+    public StockBalanceSeeder(JdbcTemplate jdbcTemplate, ProductSeedIntegrityValidator productSeedIntegrityValidator) {
         this.jdbcTemplate = jdbcTemplate;
+        this.productSeedIntegrityValidator = productSeedIntegrityValidator;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
         log.info("[StockBalanceSeeder] Stage 2 시드 시작 — 100 product × 2 warehouse = 200 row");
+        productSeedIntegrityValidator.validate(Arrays.asList(PRODUCT_MODEL_NAMES));
 
         int created = 0;
         int skipped = 0;
         for (int productSeq = 1; productSeq <= PRODUCT_MODEL_NAMES.length; productSeq++) {
             String modelName = PRODUCT_MODEL_NAMES[productSeq - 1];
-            UUID productId = deterministicUuid(PRODUCT_UUID_PREFIX + modelName);
+            UUID productId = ProductSeedIntegrityValidator.productId(modelName);
             int qHq = computeQuantity(productSeq, 1);
             int qVh = computeQuantity(productSeq, 2);
             if (insertIfAbsent(productId, HQ_WAREHOUSE_ID, HQ_WAREHOUSE_CODE, modelName, qHq)) {

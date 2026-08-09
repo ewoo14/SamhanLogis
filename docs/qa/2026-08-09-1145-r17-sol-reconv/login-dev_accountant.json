@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "code": "OK",
+  "message": "성공",
+  "data": {
+    "token": "<redacted>",
+    "userId": "a0000000-0000-0000-0000-000000000005",
+    "role": "ACCOUNTANT",
+    "displayName": "[DEV-SEED] 개발회계",
+    "partnerCode": null,
+    "groups": [
+      {
+        "id": "00000000-0000-0000-0000-000000000104",
+        "name": "회계원",
+        "builtin": false
+      }
+    ]
+  },
+  "timestamp": "2026-08-09T08:34:13.663744586Z"
+}

@@ -8,7 +8,7 @@
 
     동작 순서:
         1) 14 service /actuator/health 200 검증 (+ dc-config-service 선택)
-        2) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (sub/role)
+        2) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (sub/groups/isSystemMaster)
         3) 8 endpoint smoke test (gateway 경유 + service port 직접 혼합):
             - GET /api/v1/auth/me                          (auth-service via gateway, controller /auth/me)
             - GET /api/v1/products?page=0&size=10          (product-service via gateway, controller /products)
@@ -20,9 +20,9 @@
         4) 종합 합격/불합격 판정
 
 .PARAMETER GatewayUrl
-    API Gateway base URL (default http://localhost:8080). 기본값 사용 시 health 검증에서 탐지한
+    API Gateway base URL. 기본값 사용 시 resolver port를 사용한다.
     api-gateway 실제 포트로 보정한다. 일부 admin endpoint 는 service port 직접 호출
-    (Authorization + X-User-Id + X-User-Role 헤더 동시 전달).
+    (Authorization + X-User-Id + X-User-Groups + X-Is-System-Master 헤더 동시 전달).
 
 .PARAMETER LoginId
     JWT 발급용 loginId (default kimmiseon).
@@ -50,15 +50,24 @@
 
 [CmdletBinding()]
 param(
-    [string] $GatewayUrl   = 'http://localhost:8080',
+    [string] $GatewayUrl   = '',
     [string] $LoginId      = 'kimmiseon',
     [string] $Password     = '',
     [switch] $SkipDcConfig
 )
 
 $ErrorActionPreference = 'Stop'
-$qaCredentialLoader = Join-Path $PSScriptRoot '..\..\scripts\lib\qa-credentials.ps1'
+$smokeScriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Join-Path (Get-Location) 'tools\operational-validation'
+} else {
+    $PSScriptRoot
+}
+$qaCredentialLoader = Join-Path $smokeScriptRoot '..\..\scripts\lib\qa-credentials.ps1'
 . (Resolve-Path -LiteralPath $qaCredentialLoader)
+. (Resolve-Path -LiteralPath (Join-Path $smokeScriptRoot 'smoke-test-helpers.ps1'))
+. (Resolve-Path -LiteralPath (Join-Path $smokeScriptRoot '..\..\scripts\lib\local-stack-port.ps1'))
+$gatewayPort = Get-LocalStackPort -Service 'api-gateway'
+if ([string]::IsNullOrWhiteSpace($GatewayUrl)) { $GatewayUrl = "http://localhost:$gatewayPort" }
 if ([string]::IsNullOrWhiteSpace($Password)) {
     $Password = Resolve-QaCredential -Key 'QA_MASTER_PASSWORD' -CompatibilityAliases @('QA_PASSWORD', 'QA_MASTER_PW')
 }
@@ -66,7 +75,7 @@ $requiredPassword = $Password
 if ([string]::IsNullOrWhiteSpace($requiredPassword)) {
     throw 'QA_MASTER_PASSWORD 환경변수를 설정하거나 -Password를 지정해야 합니다.'
 }
-$defaultGatewayUrl = 'http://localhost:8080'
+$defaultGatewayUrl = $GatewayUrl
 
 # -----------------------------------------------------------------------------
 # 0. 설정
@@ -81,24 +90,13 @@ Write-Host ''
 
 # 14 service 정의 (start-local-full.ps1 와 일치). 일부 개발 PC 는 8086/8088 등을 로컬 도구가
 # 이미 점유하여 start-local-full.ps1 가 +100 포트로 우회한다. health 검증 전 실제 포트를 탐지한다.
-$services = @(
-    @{ name = 'eureka-server';         port = 8761; env = 'SAMHAN_EUREKA_PORT' },
-    @{ name = 'auth-service';          port = 8081; env = 'SAMHAN_AUTH_PORT' },
-    @{ name = 'user-service';          port = 8083; env = 'SAMHAN_USER_PORT' },
-    @{ name = 'product-service';       port = 8084; env = 'SAMHAN_PRODUCT_PORT' },
-    @{ name = 'partner-service';       port = 8095; env = 'SAMHAN_PARTNER_PORT' },
-    @{ name = 'inventory-service';     port = 8085; env = 'SAMHAN_INVENTORY_PORT' },
-    @{ name = 'accounting-service';    port = 8087; env = 'SAMHAN_ACCOUNTING_PORT' },
-    @{ name = 'slip-service';          port = 8086; env = 'SAMHAN_SLIP_PORT' },
-    @{ name = 'partner-order-service'; port = 8088; env = 'SAMHAN_PARTNER_ORDER_PORT' },
-    @{ name = 'arologis-service';      port = 8097; env = 'SAMHAN_AROLOGIS_PORT' },
-    @{ name = 'groupware-service';     port = 8092; env = 'SAMHAN_GROUPWARE_PORT' },
-    @{ name = 'notification-service';  port = 8093; env = 'SAMHAN_NOTIFICATION_PORT' },
-    @{ name = 'dashboard-service';     port = 8094; env = 'SAMHAN_DASHBOARD_PORT' },
-    @{ name = 'api-gateway';           port = 8080; env = 'SAMHAN_API_GATEWAY_PORT' }
-)
+$services = @('eureka-server', 'auth-service', 'user-service', 'product-service', 'partner-service',
+    'inventory-service', 'accounting-service', 'slip-service', 'partner-order-service', 'arologis-service',
+    'groupware-service', 'notification-service', 'dashboard-service', 'api-gateway') | ForEach-Object {
+    @{ name = $_; port = Get-LocalStackPort -Service $_ }
+}
 if (-not $SkipDcConfig) {
-    $services += @{ name = 'dc-config-service'; port = 8089; env = 'SAMHAN_DC_CONFIG_PORT' }
+    $services += @{ name = 'dc-config-service'; port = Get-LocalStackPort -Service 'dc-config-service' }
 }
 
 function Test-HealthPort {
@@ -114,22 +112,11 @@ function Test-HealthPort {
 
 function Resolve-ServicePort {
     param($Service)
-    $envValue = [Environment]::GetEnvironmentVariable($Service.env)
-    if ($envValue -and $envValue -match '^\d+$') {
-        return [int] $envValue
-    }
-    if (Test-HealthPort -Port $Service.port) {
-        return [int] $Service.port
-    }
-    $fallback = [int] $Service.port + 100
-    if (Test-HealthPort -Port $fallback) {
-        return $fallback
-    }
     return [int] $Service.port
 }
 
 # -----------------------------------------------------------------------------
-# 0-1. JWT base64url payload 디코드 (X-User-Id / X-User-Role 추출 헬퍼)
+# 0-1. JWT base64url payload 디코드 (identity claim 추출 헬퍼)
 # -----------------------------------------------------------------------------
 function Get-JwtClaims {
     param([string] $Token)
@@ -188,7 +175,7 @@ foreach ($svc in $services) {
 }
 $healthResults | Format-Table -AutoSize
 
-$downCount = ($healthResults | Where-Object { $_.Status -ne 'UP' }).Count
+$downCount = @($healthResults | Where-Object { $_.Status -ne 'UP' }).Count
 if ($downCount -gt 0) {
     Write-Host "   $downCount service DOWN — smoke test 진행하지만 endpoint fail 가능" -ForegroundColor Yellow
 } else {
@@ -210,7 +197,9 @@ $loginUrl  = "$GatewayUrl/api/auth/login"
 $loginBody = @{ loginId = $LoginId; password = $Password } | ConvertTo-Json -Compress
 $token     = $null
 $userId    = $null
-$roleName  = $null
+$groups    = ''
+$isSystemMaster = $false
+$departmentName = ''
 try {
     $loginResp = Invoke-RestMethod -Uri $loginUrl -Method POST `
         -ContentType 'application/json' -Body $loginBody -TimeoutSec 10
@@ -224,11 +213,13 @@ try {
     }
     $claims   = Get-JwtClaims -Token $token
     $userId   = $claims.sub
-    $roleName = $claims.role
-    if (-not $userId -or -not $roleName) {
-        throw "JWT claims 부재 (sub / role)"
+    $groups   = [string]$claims.groups
+    $isSystemMaster = ($claims.isSystemMaster -eq $true)
+    $departmentName = [string]$claims.departmentName
+    if (-not $userId) {
+        throw "JWT claims 부재 (sub)"
     }
-    Write-Host "   OK — JWT 발급 (length=$($token.Length), sub=$userId, role=$roleName)" -ForegroundColor Green
+    Write-Host "   OK — JWT 발급 (length=$($token.Length), sub=$userId, groups=$groups, isSystemMaster=$isSystemMaster)" -ForegroundColor Green
 } catch {
     Write-Host "   FAIL — 로그인 실패: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host '   smoke test step 3 생략 (token 부재).' -ForegroundColor Yellow
@@ -249,7 +240,7 @@ Write-Host '[3/3] 주요 endpoint smoke test (gateway 경유 + service port 직�
 $today    = (Get-Date).ToString('yyyy-MM-dd')
 $kpiQuery = "from=$today&to=$today"
 
-# transport = 'gateway' (Authorization 만) | 'direct' (Authorization + X-User-Id + X-User-Role)
+# transport = 'gateway' (Authorization 만) | 'direct' (Authorization + identity headers)
 # direct 는 gateway 대신 health 검증에서 탐지한 service port 로 호출한다.
 $smokeEndpoints = @(
     @{ name = 'auth-service /auth/me';                transport = 'direct';  url = "http://localhost:$($servicePortByName['auth-service'])/auth/me" },
@@ -269,7 +260,11 @@ foreach ($ep in $smokeEndpoints) {
     $headers = @{ Authorization = "Bearer $token" }
     if ($ep.transport -eq 'direct') {
         $headers['X-User-Id']   = $userId
-        $headers['X-User-Role'] = $roleName
+        $headers['X-User-Groups'] = $groups
+        $headers['X-Is-System-Master'] = [string]$isSystemMaster
+        if (-not [string]::IsNullOrWhiteSpace($departmentName)) {
+            $headers['X-User-Department'] = [Uri]::EscapeDataString($departmentName)
+        }
     }
 
     $status   = 'EXCEPTION'
@@ -290,8 +285,15 @@ foreach ($ep in $smokeEndpoints) {
         if ($_.Exception.Response) {
             try { $status = "$([int]$_.Exception.Response.StatusCode)" } catch { }
         }
-        # 일부 endpoint 가 path 구조 차이로 404 — service alive 인지 확인 필요
-        if ($status -eq '404') { $verdict = 'PATH_404' }
+        $responseBody = ''
+        if ($_.Exception.Response) {
+            try {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $responseBody = $reader.ReadToEnd()
+                $reader.Dispose()
+            } catch { }
+        }
+        $verdict = Get-SmokeVerdict -Status $status -Body $responseBody
         if ($msg.Length -gt 50) { $note = $msg.Substring(0, 50) + '...' } else { $note = $msg }
     }
     $smokeResults += [pscustomobject]@{
@@ -307,7 +309,7 @@ $smokeResults | Format-Table -AutoSize
 # -----------------------------------------------------------------------------
 # 4. 종합
 # -----------------------------------------------------------------------------
-$smokeFail = ($smokeResults | Where-Object { $_.Verdict -ne 'OK' }).Count
+$smokeFail = Get-SmokeFailureCount -Results @($smokeResults)
 
 Write-Host ''
 Write-Host '==============================================================' -ForegroundColor Cyan

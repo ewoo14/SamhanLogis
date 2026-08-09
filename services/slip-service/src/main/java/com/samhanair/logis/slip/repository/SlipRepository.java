@@ -363,7 +363,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                AND (CAST(:to AS date) IS NULL OR s.slip_date <= CAST(:to AS date))
                AND (CAST(:partnerCode AS varchar) IS NULL OR s.partner_code = CAST(:partnerCode AS varchar))
                AND (CAST(:driverPhone AS varchar) IS NULL
-                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%'))
+                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%') ESCAPE E'\\\\')
                AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
                AND (:includeDeleted = TRUE OR s.is_deleted = FALSE)
              ORDER BY s.slip_date DESC, s.seq_no DESC
@@ -377,7 +377,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                AND (CAST(:to AS date) IS NULL OR s.slip_date <= CAST(:to AS date))
                AND (CAST(:partnerCode AS varchar) IS NULL OR s.partner_code = CAST(:partnerCode AS varchar))
                AND (CAST(:driverPhone AS varchar) IS NULL
-                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%'))
+                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%') ESCAPE E'\\\\')
                AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
                AND (:includeDeleted = TRUE OR s.is_deleted = FALSE)
             """,
@@ -415,8 +415,8 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             WHERE s.isDeleted = false
               AND s.slipType IN :slipTypes
               AND (
-                    lower(s.slipNo) LIKE lower(concat('%', :q, '%'))
-                    OR lower(coalesce(s.partnerName, '')) LIKE lower(concat('%', :q, '%'))
+                    lower(s.slipNo) LIKE lower(concat('%', :q, '%')) ESCAPE '\\'
+                    OR lower(coalesce(s.partnerName, '')) LIKE lower(concat('%', :q, '%')) ESCAPE '\\'
               )
             ORDER BY s.slipDate DESC, s.seqNo DESC
             """)
@@ -521,6 +521,20 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     List<Slip> findAllBySlipDateBetweenAndStatusAndLockFlagFalseAndIsDeletedFalse(
             java.time.LocalDate startDate, java.time.LocalDate endDate,
             SlipStatus status);
+
+    /**
+     * 시더가 만든 특정 전표번호 집합만 마감 lock 대상으로 조회한다.
+     * 날짜는 시더 산물 식별자가 아니므로 범위 조건에 사용하지 않는다.
+     */
+    List<Slip> findAllBySlipTypeAndSlipNoInAndCreatedByAndStatusAndLockFlagFalseAndIsDeletedFalse(
+            SlipType slipType, Collection<String> slipNos, String createdBy, SlipStatus status);
+
+    /**
+     * 시더가 만든 특정 전표번호 집합 중 배차 배치 연결 후보만 조회한다.
+     * 날짜·상태 범위가 아니라 시더 전표번호와 provenance를 식별축으로 사용한다.
+     */
+    List<Slip> findAllBySlipTypeAndSlipNoInAndCreatedByAndStatusAndIsDeletedFalse(
+            SlipType slipType, Collection<String> slipNos, String createdBy, SlipStatus status);
 
     // ---- PR-E1 BE-A5/A6 — 다음날자 이미지 / 정리 리스트 ----
 

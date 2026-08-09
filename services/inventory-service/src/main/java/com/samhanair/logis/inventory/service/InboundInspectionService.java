@@ -96,8 +96,6 @@ public class InboundInspectionService {
             Map.entry("CONFIRMED", "확정"),
             Map.entry("REJECTED", "반려"),
             Map.entry("CANCELED", "취소"));
-    private static final String PRODUCT_TYPE_BUNDLE = "BUNDLE";
-
     private final InboundInspectionRepository inspectionRepository;
     private final InboundInspectionLineRepository inspectionLineRepository;
     private final StockLotRepository stockLotRepository;
@@ -382,7 +380,7 @@ public class InboundInspectionService {
     }
 
     private boolean isInventoryExcluded(ProductSummary product) {
-        return !product.goods() || PRODUCT_TYPE_BUNDLE.equals(product.productType());
+        return InventoryProductGate.isExcluded(product);
     }
 
     /**
