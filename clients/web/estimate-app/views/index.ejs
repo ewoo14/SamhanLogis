@@ -8226,10 +8226,12 @@ function recomputeHomePanels() {
 /* 홈리모컨계산 */
 function recomputeHomeRemotes() {
   const opt = el('#home_remote')?.value || '기본';
+  const isHomeRemoteContractRow = row => isRemoteRow(row)
+    || /^(AWR-WE13N|AWR-WG00N|AR-CH01)$/i.test(String(row?.model || ''));
 
   // 초기화
   HOMEMULTI.forEach(r => {
-    if (isRemoteRow(r) && !HOME_MANUAL_REMOTE.has(r.model)) homeQty.set(r.model, 0);
+    if (isHomeRemoteContractRow(r) && !HOME_MANUAL_REMOTE.has(r.model)) homeQty.set(r.model, 0);
   });
 
   let cntC=0, cntI=0, cntW=0, cntWall=0, cntCombo=0;
@@ -8347,12 +8349,51 @@ function applyServerHomeQuantitySync_() {
   HOMEMULTI.forEach(row => {
     if (targetCodes.has(String(row?.model || '')) && !isManual(row.model)) homeQty.set(row.model, 0);
   });
+  const configuredByModel = new Map();
   configured.forEach((quantity, key) => {
     const row = HOMEMULTI.find(candidate => String(candidate?.id ?? candidate?.model) === String(key));
     if (row && targetCodes.has(String(row.model || '')) && !isManual(row.model)) {
       homeQty.set(row.model, Number(quantity) || 0);
+      configuredByModel.set(row.model, Number(quantity) || 0);
     }
   });
+  // 서버 규칙은 계속 소비하되, 홈 리모컨 옵션 계약은 규칙 성공 여부와 무관하게 재수렴한다.
+  // 기본 옵션의 R3 서버 target은 보존하고, 나머지 선택지는 legacy 매핑을 기준으로 한다.
+  const remoteContractModels = new Set([
+    REMOTE_WIRELESS, REMOTE_WIRED_KIT, REMOTE_360_DEFAULT, REMOTE_INF_DEFAULT,
+    REMOTE_COLOR_AIRCOMBO,
+    HOMEMULTI.find(r => /^AWR-WE13N$/i.test(r?.model))?.model,
+    HOMEMULTI.find(r => /^AWR-WG00N$/i.test(r?.model))?.model,
+    HOMEMULTI.find(r => /^AR-CH01$/i.test(r?.model))?.model,
+  ].filter(Boolean));
+  HOMEMULTI.forEach(row => {
+    const model = String(row?.model || '');
+    if (isRemoteRow(row) || remoteContractModels.has(model)) {
+      if (!isManual(model)) homeQty.set(model, 0);
+    }
+  });
+  recomputeHomeRemotes();
+  const remoteOption = el('#home_remote')?.value || '기본';
+  if (remoteOption === '기본') {
+    configuredByModel.forEach((quantity, model) => {
+      if (remoteContractModels.has(model) && !HOME_MANUAL_REMOTE.has(model)) homeQty.set(model, quantity);
+    });
+  } else {
+    // 서버 target이 같은 모델을 가리켜도 유선·컬러·제외는 legacy 선택지 결과가 최종 계약이다.
+    const totalIndoor = HOME_QUANTITY_SYNC_RULES.reduce((sum, rule) => sum + (Array.isArray(rule?.sources)
+      ? rule.sources.reduce((sourceSum, source) => {
+        const sourceCode = String(source?.productCode || '');
+        const factor = Number(source?.factor ?? 1) || 0;
+        return sourceSum + HOMEMULTI
+          .filter(row => String(row?.model || row?.id || '') === sourceCode)
+          .reduce((quantitySum, row) => quantitySum + (Number(homeQty.get(row.model) || 0) * factor), 0);
+      }, 0)
+      : 0), 0);
+    const wired = HOMEMULTI.find(row => /^AWR-WE13N$/i.test(row?.model))?.model;
+    const color = HOMEMULTI.find(row => /^AWR-WG00N$/i.test(row?.model))?.model;
+    if (wired && !HOME_MANUAL_REMOTE.has(wired)) homeQty.set(wired, remoteOption === '유선' ? totalIndoor : 0);
+    if (color && !HOME_MANUAL_REMOTE.has(color)) homeQty.set(color, remoteOption === '컬러' ? totalIndoor : 0);
+  }
   return true;
 }
 
