@@ -23,6 +23,30 @@ for f in $(cd $W && git diff --name-only); do cp "$W/$f" "$f"; done
 | #984 | `db/migration/V27__allow_skipped_main_candidate_status.sql` | **PR head 를 배포하면 임포트가 CHECK 위반으로 전체 롤백.** 로컬은 이미지 빌드 컨텍스트에 그 파일이 있어 통과했다 — CODEX SOL 이 `git ls-tree` 로 잡았다 |
 | #987 | `docs/qa/.../screenshots/` · 새 테스트 파일 | 별도로 `cp` 해서 우연히 면했다 |
 
+## 🆕 라운드 단위로는 부족하다 — **세션 단위로 전 워크트리를 훑어라** (2026-08-09)
+
+한 세션에서 워크트리를 전수로 훑었더니 **이틀 전 산출물 5건이 고아**로 남아 있었다. 그중 셋은 **이미 close 된 작업**이라 최종 검증 증거가 영영 사라질 뻔했다.
+
+```
+#1096 [CLOSED] 재수렴 보고서 + 캡처 25장
+#1101 [CLOSED] 재수렴 보고서 + 캡처  1장
+#1108 [CLOSED] 재수렴 보고서 + 캡처  9장
+#1091 [OPEN]  캡처 16장 · #1094 [OPEN] 캡처 11장
+```
+
+같은 세션에서 `#1111` S11 보고서(213줄 + 캡처 5장)도 같은 방식으로 살렸다 — 그 PR(`#1117`)은 **이미 머지된 상태**였다.
+
+```bash
+# 전 워크트리 훑기 (세션 시작·종료 시)
+for wt in $(git worktree list --porcelain | grep '^worktree' | cut -d' ' -f2-); do
+  st=$(git -C "$wt" status --porcelain | grep -vE '^\?\? \.claude/'); 
+  [ -n "$st" ] && { echo "=== $wt"; echo "$st"; }
+done
+```
+
+🔑 **머지된 PR 의 산출물이 가장 위험하다** — 브랜치가 지워지면 복구 경로가 없고, *"그때 무엇을 확인하고 머지했나"* 를 물으면 그것뿐이다.
+🔑 열린 PR 것은 **그 브랜치에**, 닫힌 것은 **main 에** 넣는다.
+
 ## 올바른 방법
 
 ```bash

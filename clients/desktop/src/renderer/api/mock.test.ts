@@ -1270,6 +1270,78 @@ describe('mock business document number contract', () => {
     expect(response.partnerName).toBe(source.partnerName)
   })
 
+  it.each([
+    ['sales', createSalesSlipDraft, 'OUTBOUND'],
+    ['purchase', createPurchaseSlipDraft, 'INBOUND'],
+  ] as const)('%s mock draft keeps VAT-inclusive total aligned with BE split', async (_kind, createDraft, sourceType) => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+    const source = MOCK_SOURCE_SLIPS.find((row) => row.slipType === sourceType)!
+    const response = await createDraft({
+      slipDate: '2026-05-20',
+      partnerId: source.partnerId!,
+      partnerCode: source.partnerCode!,
+      partnerName: source.partnerName!,
+      taxType: 'TAXABLE',
+      lines: [{
+        productCode: 'SKU-A',
+        productName: '품목 A',
+        qty: '1',
+        unitPrice: '330000',
+        allocations: [{
+          sourceSlipId: source.slipId,
+          sourceSlipNo: source.slipNo,
+          sourceLineId: source.lines[0]!.lineId,
+          sourceLineNo: 1,
+          allocatedQty: '1',
+          allocatedAmount: '330000',
+        }],
+      }],
+    } as never)
+
+    expect({
+      supply: response.totalSupplyAmount,
+      vat: response.totalVatAmount,
+      total: response.totalAmount,
+    }).toEqual({ supply: '300000', vat: '30000', total: '330000' })
+    expect(Number(response.totalSupplyAmount) + Number(response.totalVatAmount))
+      .toBe(Number(response.totalAmount))
+  })
+
+  it.each([
+    ['sales', createSalesSlipDraft, 'OUTBOUND'],
+    ['purchase', createPurchaseSlipDraft, 'INBOUND'],
+  ] as const)('%s mock draft preserves server fractional-won lineTotal', async (_kind, createDraft, sourceType) => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+    const source = MOCK_SOURCE_SLIPS.find((row) => row.slipType === sourceType)!
+    const response = await createDraft({
+      slipDate: '2026-05-20',
+      partnerId: source.partnerId!,
+      partnerCode: source.partnerCode!,
+      partnerName: source.partnerName!,
+      taxType: 'TAXABLE',
+      lines: [{
+        productCode: 'SKU-A',
+        productName: '품목 A',
+        qty: '0.08',
+        unitPrice: '434788',
+        allocations: [{
+          sourceSlipId: source.slipId,
+          sourceSlipNo: source.slipNo,
+          sourceLineId: source.lines[0]!.lineId,
+          sourceLineNo: 1,
+          allocatedQty: '0.08',
+          allocatedAmount: '34783',
+        }],
+      }],
+    } as never)
+
+    expect({
+      supply: response.totalSupplyAmount,
+      vat: response.totalVatAmount,
+      total: response.totalAmount,
+    }).toEqual({ supply: '31620', vat: '3163.04', total: '34783.04' })
+  })
+
   it('ledger and statement mock endpoints use BE document number format', () => {
     const ledgers = mockRequest({
       method: 'GET',
