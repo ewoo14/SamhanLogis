@@ -16,6 +16,7 @@ import com.samhanair.logis.product.domain.Classification;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.ProductSpec;
@@ -130,6 +131,37 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(p.get().getProductCategory()).isEqualTo(ProductCategory.HOME_MULTI);
         // BigDecimal 비교는 compareTo 로 — Hibernate scale (NUMERIC(12,2)) 무관
         assertThat(p.get().getReleasePrice()).isEqualByComparingTo(new BigDecimal("1500000"));
+    }
+
+    @Test
+    void sync_시트_상태_세_가지_반영하고_상태_공란은_기존상태를_보존한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품 명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "비고"),
+                row("상태 단종", "STATUS-DISCONTINUED", "EA", "100,000", "", "80,000", "-", "단종"),
+                row("상태 미판매", "STATUS-NOT-FOR-SALE", "EA", "100,000", "", "80,000", "-", "미판매"),
+                row("상태 품절", "STATUS-OUT-OF-STOCK", "EA", "100,000", "", "80,000", "-", "품절")
+        ));
+
+        syncService.syncAll();
+
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("STATUS-DISCONTINUED").orElseThrow().getStatus())
+                .isEqualTo(ProductStatus.DISCONTINUED);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("STATUS-NOT-FOR-SALE").orElseThrow().getStatus())
+                .isEqualTo(ProductStatus.NOT_FOR_SALE);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("STATUS-OUT-OF-STOCK").orElseThrow().getStatus())
+                .isEqualTo(ProductStatus.OUT_OF_STOCK);
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품 명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "비고"),
+                row("상태 단종", "STATUS-DISCONTINUED", "EA", "101,000", "", "81,000", "-", "")
+        ));
+        syncService.evictRowHash("STATUS-DISCONTINUED");
+        syncService.syncAll();
+
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("STATUS-DISCONTINUED").orElseThrow().getStatus())
+                .as("시트 상태 공란은 기존 상태를 임의로 덮지 않음")
+                .isEqualTo(ProductStatus.DISCONTINUED);
     }
 
     @Test

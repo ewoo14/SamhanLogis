@@ -12,6 +12,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
+import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
@@ -158,6 +159,7 @@ public class ProductSheetSyncService {
     private static final List<String> QTY_HEADERS = List.of("수량");
     private static final List<String> VARIANT_HEADERS = List.of("구성품특징", "특징");
     private static final List<String> SPEC_HEADERS = List.of("규격");
+    private static final List<String> STATUS_HEADERS = List.of("비고", "상태");
 
     private final GoogleSheetsClient sheetsClient;
     private final ProductRepository productRepository;
@@ -1209,9 +1211,11 @@ public class ProductSheetSyncService {
         int displaySeq = 0;
         // 고정DC 컬럼(홈멀티/상업멀티) — 헤더명 기반.
         int fixedDcColumn = -1;
+        int statusColumn = -1;
         {
             List<String> fullHeader = GoogleSheetsClient.toStringRow(rows.get(headerIdx), 30);
             fixedDcColumn = findColumnByHeader(fullHeader, List.of("고정DC"));
+            statusColumn = findColumnByHeader(fullHeader, STATUS_HEADERS);
         }
 
         // 🚨 2026-07-28 재수렴 R6 결함 4 [MED] fix (I-4) — 여기부터가 실제로 규칙
@@ -1243,6 +1247,8 @@ public class ProductSheetSyncService {
             String prevHash = lastKnownRowHash.get(modelCode);
             BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
             BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
+            ProductStatus sheetStatus = ProductStatus.fromSheetDisplay(
+                    statusColumn >= 0 ? safeGet(cells, statusColumn) : null).orElse(null);
 
             // #30 — 변동DC 판정. useK2/matKey/구형 isDisc 마커는 단가 수식에만 출현하므로
             // 행 전체 수식을 join 한다. FORMULA 행은 modelCode 매칭 우선, 인덱스 fallback.
@@ -1275,6 +1281,9 @@ public class ProductSheetSyncService {
                         mapping.usageScope,
                         mapping.estimateCategory);
                 p.applyDiscountRules(hasVariableDiscount, materialKey, legacyDiscount, fixedRate);
+                if (sheetStatus != null) {
+                    p.changeStatus(sheetStatus);
+                }
                 p.changeDiscountFlags(discountFlags);
                 p.changeClassifications(classifications.catL(), classifications.catM(), classifications.catS());
                 applyAttributes(p, name, modelCode);
@@ -1288,6 +1297,9 @@ public class ProductSheetSyncService {
             } else if (prevHash == null || !prevHash.equals(rowHash)) {
                 Product p = existing.get();
                 p.changePrices(releasePrice, deliveryPrice);
+                if (sheetStatus != null) {
+                    p.changeStatus(sheetStatus);
+                }
                 // ECOUNT-first 행은 최초 생성 시 productCategory/usageScope가 비어 있다.
                 // 시트에 같은 modelCode가 등장한 순간 시트를 정본으로 채택하고, 아래의
                 // 기존 홈 탭 분류·노출 갱신 경로를 그대로 태운다. MANUAL/SHEET 행은
@@ -1355,6 +1367,11 @@ public class ProductSheetSyncService {
                 result.updated++;
             } else {
                 Product p = existing.get();
+                boolean statusChanged = sheetStatus != null && p.getStatus() != sheetStatus;
+                if (statusChanged) {
+                    p.changeStatus(sheetStatus);
+                    productRepository.save(p);
+                }
                 if (p.getProductCategory() == mapping.productCategory && applyAttributes(p, name, modelCode)) {
                     productRepository.save(p);
                     lastKnownRowHash.put(modelCode, rowHash);
@@ -1362,11 +1379,15 @@ public class ProductSheetSyncService {
                     productForExposure = p;
                     upsertPriceHistory(productId, PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                     result.updated++;
-                } else {
+                } else if (!statusChanged) {
                     productId = p.getId();
                     productForExposure = p;
                     upsertPriceHistory(productId, PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                     result.unchanged++;
+                } else {
+                    productId = p.getId();
+                    productForExposure = p;
+                    result.updated++;
                 }
             }
 
