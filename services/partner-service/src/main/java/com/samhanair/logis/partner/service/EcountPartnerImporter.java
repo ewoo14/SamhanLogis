@@ -1,6 +1,8 @@
 package com.samhanair.logis.partner.service;
 
+import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvValidationException;
 import com.samhanair.logis.common.ecount.io.EcountXlsxSupport;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -13,11 +15,14 @@ import com.samhanair.logis.partner.realtime.PartnerListRealtime;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -34,7 +39,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.input.BOMInputStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataAccessException;
@@ -60,7 +64,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>흐름 (row 단위):
  * <ol>
  *   <li>{@link #computeFileHash(byte[])} — SHA-256(file content) → 멱등 키</li>
- *   <li>CSV 파싱 (OpenCSV + BOMInputStream)</li>
+ *   <li>CSV 인코딩 strict 판별 (UTF-8 우선, MS949 fallback) 후 OpenCSV 파싱</li>
  *   <li>{@link #stagingUpsert} — staging.ecount_partner_raw 17 raw 컬럼 적재 (멱등)</li>
  *   <li>{@link #classify} — REJECT_NAME_NULL / SKIPPED_PLACEHOLDER / NORMAL 분류</li>
  *   <li>NORMAL → Partner UPSERT (partner_code 기준)</li>
@@ -145,6 +149,13 @@ public class EcountPartnerImporter {
         }
 
         String sourceFileHash = computeFileHash(content);
+        String decodedCsv;
+        try {
+            decodedCsv = decodeCsv(content);
+        } catch (CharacterCodingException ex) {
+            log.warn("MIG-1 CSV 인코딩 판별 실패 — 파일을 보류한다. hash={}", sourceFileHash, ex);
+            return encodingHeldResult(sourceFileHash);
+        }
 
         int totalRows = 0;
         int imported = 0;
@@ -159,11 +170,11 @@ public class EcountPartnerImporter {
         List<EcountPartnerImportResult.RejectedRow> heldSample = new ArrayList<>();
         List<EcountPartnerImportResult.RejectedRow> infrastructureFailureSample = new ArrayList<>();
 
-        try (BOMInputStream bomFree = BOMInputStream.builder()
-                .setInputStream(new ByteArrayInputStream(content)).get();
-             InputStreamReader isr = new InputStreamReader(bomFree, StandardCharsets.UTF_8);
-             BufferedReader br = new BufferedReader(isr);
-             CSVReader reader = new CSVReader(br)) {
+        try (CSVReader reader = new CSVReaderBuilder(new BufferedReader(new StringReader(decodedCsv)))
+                .withCSVParser(new CSVParserBuilder()
+                        .withEscapeChar(com.opencsv.CSVParser.NULL_CHARACTER)
+                        .build())
+                .build()) {
 
             // row 1: 메타데이터 ("데이터관리>거래처-Excel다운로드") — skip
             String[] meta = reader.readNext();
@@ -192,6 +203,14 @@ public class EcountPartnerImporter {
 
                 // staging 적재 (모든 row, 멱등)
                 stagingUpsert(sourceFileHash, rowNo, cells, actorUserId);
+
+                if (rawName.indexOf('\uFFFD') >= 0) {
+                    heldParseFailureRows++;
+                    addRejectSample(heldSample, rowNo, "CSV_ENCODING", rawPartnerCode, rawName);
+                    updateStagingStatus(sourceFileHash, rowNo, "PENDING",
+                            "CSV_ENCODING: 거래처명에 치환문자(U+FFFD)가 포함됨", null);
+                    continue;
+                }
 
                 // 분류
                 Classification c = classify(rawPartnerCode, rawName);
@@ -272,6 +291,46 @@ public class EcountPartnerImporter {
                 skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample,
                 0, heldParseFailureRows, heldSample, infrastructureFailureRows,
                 infrastructureFailureSample, infrastructureFailureRows > 0, 0, 0);
+    }
+
+    /**
+     * CSV 바이트를 무손실로 문자화한다. UTF-8을 먼저 strict 판별하고 실패할 때만
+     * 한국 실무 CSV의 대표 인코딩인 MS949(CP949)를 strict 판별한다. 두 판별이
+     * 모두 실패하면 호출자가 파일을 보류하여 치환문자를 저장하지 않게 한다.
+     */
+    private static String decodeCsv(byte[] content) throws CharacterCodingException {
+        int offset = content.length >= 3
+                && (content[0] & 0xFF) == 0xEF
+                && (content[1] & 0xFF) == 0xBB
+                && (content[2] & 0xFF) == 0xBF ? 3 : 0;
+        byte[] bytes = java.util.Arrays.copyOfRange(content, offset, content.length);
+        try {
+            return strictDecode(bytes, StandardCharsets.UTF_8);
+        } catch (CharacterCodingException utf8Failure) {
+            String ms949 = strictDecode(bytes, Charset.forName("MS949"));
+            // UTF-8 파일 일부만 훼손된 경우 MS949 전체 fallback은 헤더까지 깨진다.
+            // 헤더가 복원되지 않으면 인코딩 판별 실패로 파일을 보류한다.
+            if (!ms949.contains("거래처코드")) {
+                throw new CharacterCodingException();
+            }
+            return ms949;
+        }
+    }
+
+    private static String strictDecode(byte[] bytes, Charset charset) throws CharacterCodingException {
+        return charset.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes))
+                .toString();
+    }
+
+    private static EcountPartnerImportResult encodingHeldResult(String sourceFileHash) {
+        return new EcountPartnerImportResult(0, 0, 0, 0, 0, 0, 0, sourceFileHash,
+                List.of(), 0, 1,
+                List.of(new EcountPartnerImportResult.RejectedRow(
+                        0, "CSV_ENCODING", "", "")),
+                0, List.of(), false, 0, 0);
     }
 
     /**

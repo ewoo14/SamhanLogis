@@ -42,7 +42,7 @@ public class EcountPartnerImportController {
     /**
      * 이카운트 거래처 CSV 업로드 → staging + partner 적재.
      *
-     * @param file CSV multipart file (UTF-8 BOM, 17 컬럼, 첫 행 메타데이터)
+     * @param file CSV multipart file (UTF-8 또는 MS949, 17 컬럼, 첫 행 메타데이터)
      * @param userId 작업자 user id (X-User-Id)
      * @return 분류 결과 (신규/갱신/거부/스킵 + ACTIVE/SUSPENDED 분포 + sample reject)
      */

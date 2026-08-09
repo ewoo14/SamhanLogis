@@ -21,6 +21,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -193,6 +195,91 @@ class EcountPartnerImporterTest {
         importer.importCsv(csvStream(csv), "tester");
 
         verify(partnerRepository, times(1)).save(any(Partner.class));
+    }
+
+    @Test
+    void r17_cp949_name_is_loaded_without_replacement() {
+        String name = "주식회사 한글상호";
+        String csv = META_LINE + HEADER_LINE
+                + row("R17-CP949", "20260809", "", "", name, "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        when(partnerRepository.findByPartnerCode("R17-CP949")).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        EcountPartnerImportResult result = importer.importCsv(
+                new ByteArrayInputStream(csv.getBytes(Charset.forName("MS949"))), "tester");
+
+        ArgumentCaptor<Partner> captor = ArgumentCaptor.forClass(Partner.class);
+        verify(partnerRepository).save(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo(name);
+        assertThat(result.heldParseFailureRows()).isZero();
+    }
+
+    @Test
+    void r17_punctuation_preserves_backslash_parentheses_comma_and_slash() {
+        String name = "(주)삼한, 대리점/본점\\창고 \"A\"";
+        String csv = META_LINE + HEADER_LINE
+                + row("R17-PUNCT", "20260809", "", "", name.replace("\"", "\"\""), "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        when(partnerRepository.findByPartnerCode("R17-PUNCT")).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        importer.importCsv(csvStream(csv), "tester");
+
+        ArgumentCaptor<Partner> captor = ArgumentCaptor.forClass(Partner.class);
+        verify(partnerRepository).save(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo(name);
+    }
+
+    @Test
+    void r17_replacement_character_is_held_before_partner_upsert() {
+        String csv = META_LINE + HEADER_LINE
+                + row("R17-REPLACEMENT", "20260809", "", "", "깨진�상호", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+
+        EcountPartnerImportResult result = importer.importCsv(csvStream(csv), "tester");
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.heldSample()).singleElement().satisfies(sample -> {
+            assertThat(sample.reason()).isEqualTo("CSV_ENCODING");
+            assertThat(sample.rawPartnerCode()).isEqualTo("R17-REPLACEMENT");
+            assertThat(sample.rawName()).contains("�");
+        });
+    }
+
+    @Test
+    void r17_invalid_utf8_bytes_are_held_instead_of_becoming_replacement_text() {
+        String csv = META_LINE + HEADER_LINE
+                + row("R17-BYTES", "20260809", "", "", "원문 sentinel", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
+        byte[] marker = "원문 sentinel".getBytes(StandardCharsets.UTF_8);
+        int markerOffset = indexOf(bytes, marker);
+        System.arraycopy(new byte[] {(byte) 0xB0, (byte) 0xA1, (byte) 0xB3, (byte) 0xAA},
+                0, bytes, markerOffset, 4);
+
+        EcountPartnerImportResult result = importer.importCsv(new ByteArrayInputStream(bytes), "tester");
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.heldSample()).singleElement()
+                .extracting(EcountPartnerImportResult.RejectedRow::reason)
+                .isEqualTo("CSV_ENCODING");
+    }
+
+    private static int indexOf(byte[] source, byte[] target) {
+        for (int i = 0; i <= source.length - target.length; i++) {
+            boolean matched = true;
+            for (int j = 0; j < target.length; j++) {
+                if (source[i + j] != target[j]) {
+                    matched = false;
+                    break;
+                }
+            }
+            if (matched) return i;
+        }
+        throw new AssertionError("marker not found");
     }
 
     @Test
