@@ -8226,8 +8226,11 @@ function recomputeHomePanels() {
 /* 홈리모컨계산 */
 function recomputeHomeRemotes() {
   const opt = el('#home_remote')?.value || '기본';
-  const isHomeRemoteContractRow = row => isRemoteRow(row)
-    || /^(AWR-WE13N|AWR-WG00N|AR-CH01)$/i.test(String(row?.model || ''));
+  // 레거시 isRemoteRow를 우선하되, 카탈로그 분류가 리모컨인 행도 계약 대상으로 본다.
+  // 모델 코드 목록을 별도로 유지하지 않아 새 리모컨 target도 자동으로 포함된다.
+  function isHomeRemoteContractRow(row){
+    return isRemoteRow(row) || String(row?.catM || '').trim() === '리모컨';
+  }
 
   // 초기화
   HOMEMULTI.forEach(r => {
@@ -8333,51 +8336,48 @@ function recomputeHomeBranches() {
   if (BRANCH_1509) setB(BRANCH_1509, b15);
 }
 
-/* 서버 규칙 기반 홈멀티 파생수량. 실패하면 호출자가 legacy 계산으로 fallback한다. */
+/* 서버 규칙 기반 홈멀티 파생수량. 반환값은 규칙이 소유한 target 모델 집합이다. */
 function applyServerHomeQuantitySync_() {
-  if (!Array.isArray(HOME_QUANTITY_SYNC_RULES) || HOME_QUANTITY_SYNC_RULES.length === 0) return false;
+  if (!Array.isArray(HOME_QUANTITY_SYNC_RULES) || HOME_QUANTITY_SYNC_RULES.length === 0) return new Set();
   const evaluator = window.SamhanQuantitySync && window.SamhanQuantitySync.evaluateQuantitySyncRules;
-  if (typeof evaluator !== 'function') return false;
+  if (typeof evaluator !== 'function') return new Set();
+  // 서버 규칙 target은 카탈로그 분류로 홈 리모컨 계약 여부를 판정한다.
+  function isHomeRemoteContractRow(row){
+    return isRemoteRow(row) || String(row?.catM || '').trim() === '리모컨';
+  }
 
   const configured = evaluator(HOME_QUANTITY_SYNC_RULES, HOMEMULTI, homeQty);
-  if (!(configured instanceof Map)) return false;
+  if (!(configured instanceof Map)) return new Set();
 
   const targetCodes = new Set(HOME_QUANTITY_SYNC_RULES.flatMap(rule =>
     Array.isArray(rule?.targets) ? rule.targets.map(target => String(target?.productCode || '').trim()) : []));
   const isManual = model => HOME_MANUAL_PANEL.has(model) || HOME_MANUAL_HOSE.has(model)
     || HOME_MANUAL_REMOTE.has(model) || HOME_MANUAL_BRANCH.has(model) || HOME_MANUAL_FOOT.has(model);
+  const ownedTargets = new Set(HOMEMULTI
+    .filter(row => targetCodes.has(String(row?.model || '')) && !isManual(row.model))
+    .map(row => String(row.model || '')));
   HOMEMULTI.forEach(row => {
     if (targetCodes.has(String(row?.model || '')) && !isManual(row.model)) homeQty.set(row.model, 0);
   });
-  const configuredByModel = new Map();
   configured.forEach((quantity, key) => {
     const row = HOMEMULTI.find(candidate => String(candidate?.id ?? candidate?.model) === String(key));
     if (row && targetCodes.has(String(row.model || '')) && !isManual(row.model)) {
       homeQty.set(row.model, Number(quantity) || 0);
-      configuredByModel.set(row.model, Number(quantity) || 0);
     }
   });
-  // 서버 규칙은 계속 소비하되, 홈 리모컨 옵션 계약은 규칙 성공 여부와 무관하게 재수렴한다.
-  // 기본 옵션의 R3 서버 target은 보존하고, 나머지 선택지는 legacy 매핑을 기준으로 한다.
-  const remoteContractModels = new Set([
-    REMOTE_WIRELESS, REMOTE_WIRED_KIT, REMOTE_360_DEFAULT, REMOTE_INF_DEFAULT,
-    REMOTE_COLOR_AIRCOMBO,
-    HOMEMULTI.find(r => /^AWR-WE13N$/i.test(r?.model))?.model,
-    HOMEMULTI.find(r => /^AWR-WG00N$/i.test(r?.model))?.model,
-    HOMEMULTI.find(r => /^AR-CH01$/i.test(r?.model))?.model,
-  ].filter(Boolean));
+  // 서버 규칙은 계속 소비하되, 홈 리모컨 옵션 계약은 규칙 성공 여부와 무관하게
+  // legacy 매핑으로 재수렴한다. 계약 대상은 카탈로그 분류에서 도출한다.
   HOMEMULTI.forEach(row => {
     const model = String(row?.model || '');
-    if (isRemoteRow(row) || remoteContractModels.has(model)) {
+    if (isHomeRemoteContractRow(row)) {
       if (!isManual(model)) homeQty.set(model, 0);
     }
   });
   recomputeHomeRemotes();
   const remoteOption = el('#home_remote')?.value || '기본';
   if (remoteOption === '기본') {
-    configuredByModel.forEach((quantity, model) => {
-      if (remoteContractModels.has(model) && !HOME_MANUAL_REMOTE.has(model)) homeQty.set(model, quantity);
-    });
+    // 기본은 AR-EC05 등 legacy가 계산한 행만 남긴다. 서버가 추가한 리모컨 target도
+    // 옵션 계약 밖으로 새지 않도록 복원하지 않는다.
   } else {
     // 서버 target이 같은 모델을 가리켜도 유선·컬러·제외는 legacy 선택지 결과가 최종 계약이다.
     const totalIndoor = HOME_QUANTITY_SYNC_RULES.reduce((sum, rule) => sum + (Array.isArray(rule?.sources)
@@ -8394,22 +8394,13 @@ function applyServerHomeQuantitySync_() {
     if (wired && !HOME_MANUAL_REMOTE.has(wired)) homeQty.set(wired, remoteOption === '유선' ? totalIndoor : 0);
     if (color && !HOME_MANUAL_REMOTE.has(color)) homeQty.set(color, remoteOption === '컬러' ? totalIndoor : 0);
   }
-  return true;
+  return ownedTargets;
 }
 
 /* 홈파생계산 */
 function recomputeHomeDerived(updateUI) {
-  if (typeof applyServerHomeQuantitySync_ === 'function' && applyServerHomeQuantitySync_()) {
-    if (updateUI) {
-      syncHomeUIFromState();
-      syncHomeTotals();
-      refreshSelectedBadge();
-      updateHomeRatio();
-    }
-    return;
-  }
-
-  /* 서버 규칙을 읽지 못한 구버전/장애 fallback — 아래 기존 수량·금액 경로를 그대로 보존한다. */
+  /* 서버 규칙을 읽지 못한 구버전/장애 fallback — legacy 계산은 항상 먼저 실행한다. */
+  // 기존 환경 호환 경계(typeof applyServerHomeQuantitySync_ === 'function')는 유지한다.
 
   // 실내기집계
   let n1w=0, n4w=0, c360=0;
@@ -8457,6 +8448,12 @@ function recomputeHomeDerived(updateUI) {
   recomputeHomeRemotes();
   recomputeFootAll();
   recomputeHomePanels();
+
+  // 서버 규칙은 레거시 파생계산을 모두 실행한 뒤 소유 target만 덮어쓴다.
+  // 규칙이 없거나 읽히지 않으면 빈 Set이므로 순수 legacy 결과가 유지된다.
+  const serverOwnedTargets = typeof applyServerHomeQuantitySync_ === 'function'
+    ? applyServerHomeQuantitySync_()
+    : new Set();
 
   if (updateUI) {
     syncHomeUIFromState();
