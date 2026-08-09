@@ -8,6 +8,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 const EPSILON = 1
+const MOCK_PRODUCT_AJ040_ID = '2e40fa30-10b2-3a9b-a99c-570ac92287ad'
 
 async function gotoSlipNewPage(page: Page, requireDesktopLineTable = false): Promise<void> {
   await page.goto('/#/sales/new?mockRole=MANAGER', { waitUntil: 'domcontentloaded' })
@@ -72,7 +73,7 @@ test.describe('B1-B DS a11y/layout mock hard gate', () => {
       await expect(productDialog.getByRole('columnheader', { name: '모델명' })).toBeVisible()
       await expect(productDialog.getByRole('columnheader', { name: '품목명' })).toBeVisible()
       await expect(productDialog.getByText('AJ040RXH4BC1', { exact: true })).toBeVisible()
-      await expect(productDialog).not.toContainText('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040')
+      await expect(productDialog).not.toContainText(MOCK_PRODUCT_AJ040_ID)
       await page.keyboard.press('Escape')
     }
   })
@@ -95,6 +96,6 @@ test.describe('B1-B DS a11y/layout mock hard gate', () => {
     await expect(productDialog.getByRole('columnheader', { name: '품목명' })).toBeVisible()
     const productRow = productDialog.getByRole('row').filter({ hasText: 'AJ040RXH4BC1' }).first()
     await expect(productRow).toContainText('시스템에어컨 4Way 4HP')
-    await expect(productDialog).not.toContainText('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040')
+    await expect(productDialog).not.toContainText(MOCK_PRODUCT_AJ040_ID)
   })
 })

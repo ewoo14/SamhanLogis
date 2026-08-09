@@ -57,6 +57,8 @@ public record SlipDetailResponse(
         LocalDate slipDate,
         int seqNo,
         SlipStatus status,
+        /** 회계 마감 잠금 여부 — 상태 lifecycle과 독립된 축. */
+        boolean lockFlag,
         /** 발행 출처 — FE가 subtype별 lifecycle 액션을 정확히 계산할 때 사용한다. */
         SlipSourceType sourceType,
         UUID partnerId,
@@ -209,6 +211,7 @@ public record SlipDetailResponse(
                 slip.getSlipDate(),
                 slip.getSeqNo(),
                 slip.getStatus(),
+                Boolean.TRUE.equals(slip.getLockFlag()),
                 slip.getSourceType(),
                 slip.getPartnerId(),
                 slip.getPartnerName(),

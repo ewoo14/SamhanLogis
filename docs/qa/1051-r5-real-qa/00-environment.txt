@@ -1,0 +1,34 @@
+측정일: 2026-08-09 KST
+워크트리: C:\dev\Samhan-Public\.claude\worktrees\t1051
+HEAD: 6e0fea62f27e07678bc6741bcb68473c8dfa195e
+
+[실행 전]
+samhan-slip-service image=sha256:70968650b4595b4149ecaaf54e8659081cc2c2a8bdac4f08186546210c86f669
+started=2026-08-08T16:39:11.895824145Z
+SPRING_PROFILES_ACTIVE=dev
+SAMHAN_FULL_SEED_TEST_DATA=false
+host port=127.0.0.1:18086 -> container 8086
+
+[R5 build]
+bootJar: BUILD SUCCESSFUL, direct exit code 0
+Docker image: sha256:959dc6a414dd8b05d27164cfa133e62493cee599191d8e06c849d109936478ad
+
+[첫 재기동 — 문서화된 env]
+SAMHAN_SLIP_SEED_TEST_DATA=true
+health=healthy
+SlipSeeder/SlipLockSeeder 로그: 0줄
+원인 확인: application.yml placeholder는 들여쓰기상 app.s3.seed-test-data이고,
+조건식은 app.slip.seed-test-data를 조회한다.
+
+[둘째 재기동 — 실제 R5 runner 도달을 위한 임시 직접 속성]
+SPRING_APPLICATION_JSON={"app":{"slip":{"seed-test-data":true}}}
+health=healthy
+SlipSeeder: 일부 제품을 찾을 수 없습니다 (요청 100, 응답 0)
+DeliveryBatchSeeder: 선행 SlipSeeder 상태=FAILED로 skip
+EstimateSeeder: 선행 SlipSeeder 상태=FAILED로 skip
+SlipLockSeeder: 선행 SlipSeeder 상태=FAILED로 skip
+
+[정리]
+임시 compose override는 삭제했다.
+SAMHAN_SLIP_SEED_TEST_DATA 및 SPRING_APPLICATION_JSON 없이 R5 이미지로 재기동했고 health=healthy다.
+SAMHAN_FULL_SEED_TEST_DATA=false다.
