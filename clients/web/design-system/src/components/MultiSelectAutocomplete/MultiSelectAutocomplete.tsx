@@ -165,7 +165,7 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
         className={styles['srOnly']}
         aria-live="polite"
         aria-atomic="true"
-        data-testid="multiselect-chip-count"
+        data-testid={inputTestId ? `${inputTestId}-chip-count` : 'multiselect-chip-count'}
       >
         {selected.length > 0 ? `${selected.length}개 선택됨` : ''}
       </span>

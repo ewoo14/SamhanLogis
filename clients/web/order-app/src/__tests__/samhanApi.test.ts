@@ -64,14 +64,14 @@ describe('samhanApi.fetchQuantitySyncRules', () => {
     mocks.get.mockReset();
   });
 
-  it('로그인 후 SINGLE_SET 규칙 목록을 API에서 읽고 배열로 반환한다', async () => {
+  it('홈멀티 주문 화면의 규칙 목록을 HOME_MULTI 카테고리로 읽고 배열로 반환한다', async () => {
     mocks.get.mockResolvedValue({
       data: {
         success: true,
         code: 'OK',
         data: [{
           ruleKey: 'SINGLE_S03_CEILING_DRAIN_PUMP',
-          estimateCategory: 'SINGLE_SET',
+          estimateCategory: 'HOME_MULTI',
           enabled: true,
         }],
       },
@@ -80,11 +80,11 @@ describe('samhanApi.fetchQuantitySyncRules', () => {
     const result = await samhanApi.fetchQuantitySyncRules();
 
     expect(mocks.get).toHaveBeenCalledWith('/quantity-sync-rules', {
-      params: { estimateCategory: 'SINGLE_SET', page: 0, size: 50 },
+      params: { estimateCategory: 'HOME_MULTI', page: 0, size: 50 },
     });
     expect(result).toEqual([{
       ruleKey: 'SINGLE_S03_CEILING_DRAIN_PUMP',
-      estimateCategory: 'SINGLE_SET',
+      estimateCategory: 'HOME_MULTI',
       enabled: true,
     }]);
   });

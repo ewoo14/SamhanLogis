@@ -9,6 +9,25 @@ interface Option {
 }
 
 describe('MultiSelectAutocomplete', () => {
+  it('inputTestId가 있으면 칩 카운트도 인스턴스별 testid를 사용한다', () => {
+    render(
+      <MultiSelectAutocomplete<Option, Option>
+        selected={[{ id: 'selected', label: '선택 품목' }]}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+        search={vi.fn().mockResolvedValue([])}
+        getOptionKey={(option) => option.id}
+        getSelectedKey={(option) => option.id}
+        getInputLabel={(option) => option.label}
+        renderOption={(option) => <span>{option.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        inputTestId="row-quantity-sync-input"
+      />,
+    )
+
+    expect(screen.getByTestId('row-quantity-sync-input-chip-count').textContent).toBe('1개 선택됨')
+  })
   it('이미 선택한 key를 검색 결과에서 제외하고 후보 선택을 add delta로 전달한다', async () => {
     const selected: Option = { id: 'u-1', name: '김민수' }
     const next: Option = { id: 'u-2', name: '이서윤' }
