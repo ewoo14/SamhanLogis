@@ -8510,6 +8510,46 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // POST/GET /admin/partners/imports/ecount — 관리자 거래처 적재 결과/보류 패널.
+  // 실 API와 같은 ApiResponse 봉투를 반환해 mock 모드에서도 외부 gateway XHR이 나가지 않게 한다.
+  if (method === 'POST' && (url.endsWith('/admin/partners/imports/ecount')
+    || url.endsWith('/admin/partners/imports/ecount-xlsx'))) {
+    const sourceFileHash = url.endsWith('ecount-xlsx')
+      ? 'MOCK-PARTNER-XLSX-HASH'
+      : 'MOCK-PARTNER-CSV-HASH'
+    return envelope({
+      totalRows: 1,
+      imported: 1,
+      updated: 0,
+      rejectedNullName: 0,
+      skippedPlaceholder: 0,
+      activeCount: 1,
+      suspendedCount: 0,
+      sourceFileHash,
+      rejectedSample: [],
+      excludedTrailerRows: 0,
+      heldParseFailureRows: 0,
+      heldSample: [],
+      infrastructureFailureRows: 0,
+      infrastructureFailureSample: [],
+      infrastructureFailure: false,
+      registrationDateParsedCount: 0,
+      createdAtLoadTimeCount: 1,
+    })
+  }
+  if (method === 'GET' && url.includes('/admin/partners/imports/ecount/rejections')) {
+    const page = Number(config.params?.['page'] ?? 0)
+    const size = Number(config.params?.['size'] ?? 100)
+    return envelope({
+      sourceFileHash: String(config.params?.['sourceFileHash'] ?? 'MOCK-PARTNER-CSV-HASH'),
+      page,
+      size,
+      totalElements: 0,
+      totalPages: 0,
+      items: [],
+    })
+  }
+
   // POST /admin/partners/{partnerCode}/restore — admin/PartnersPage 삭제행 복원.
   const adminPartnerRestoreMatch = url.match(/\/admin\/partners\/([^/?]+)\/restore$/)
   if (method === 'POST' && adminPartnerRestoreMatch) {

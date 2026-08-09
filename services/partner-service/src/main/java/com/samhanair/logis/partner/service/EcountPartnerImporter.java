@@ -206,7 +206,7 @@ public class EcountPartnerImporter {
 
                 if (rawName.indexOf('\uFFFD') >= 0) {
                     heldParseFailureRows++;
-                    addRejectSample(heldSample, rowNo, "CSV_ENCODING", rawPartnerCode, rawName);
+                    addRejectSample(heldSample, rowNo, "CSV_ENCODING", rawPartnerCode, "읽을 수 없음");
                     updateStagingStatus(sourceFileHash, rowNo, "PENDING",
                             "CSV_ENCODING: 거래처명에 치환문자(U+FFFD)가 포함됨", null);
                     continue;
@@ -305,7 +305,11 @@ public class EcountPartnerImporter {
                 && (content[2] & 0xFF) == 0xBF ? 3 : 0;
         byte[] bytes = java.util.Arrays.copyOfRange(content, offset, content.length);
         try {
-            return strictDecode(bytes, StandardCharsets.UTF_8);
+            // 파일 전체를 strict decode하면 한 행의 훼손 때문에 정상 행까지 함께
+            // 보류된다. UTF-8 헤더가 온전하면 파일 인코딩은 UTF-8로 확정하고,
+            // 이후 행별 U+FFFD 판정이 실제 훼손 행만 보류하도록 replacement decode한다.
+            strictDecode(firstPhysicalLines(bytes, 2), StandardCharsets.UTF_8);
+            return new String(bytes, StandardCharsets.UTF_8);
         } catch (CharacterCodingException utf8Failure) {
             String ms949 = strictDecode(bytes, Charset.forName("MS949"));
             // UTF-8 파일 일부만 훼손된 경우 MS949 전체 fallback은 헤더까지 깨진다.
@@ -315,6 +319,18 @@ public class EcountPartnerImporter {
             }
             return ms949;
         }
+    }
+
+    private static byte[] firstPhysicalLines(byte[] bytes, int lineCount) {
+        int lines = 0;
+        int end = bytes.length;
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] == '\n' && ++lines >= lineCount) {
+                end = i + 1;
+                break;
+            }
+        }
+        return java.util.Arrays.copyOf(bytes, end);
     }
 
     private static String strictDecode(byte[] bytes, Charset charset) throws CharacterCodingException {

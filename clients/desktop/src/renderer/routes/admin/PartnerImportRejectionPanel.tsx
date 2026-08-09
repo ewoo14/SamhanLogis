@@ -9,6 +9,11 @@ export function PartnerImportRejectionPanel({ sourceFileHash }: { sourceFileHash
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    setPage(0)
+    setResult(null)
+  }, [sourceFileHash])
+
+  useEffect(() => {
     let cancelled = false
     setError(null)
     void listPartnerImportRejections(sourceFileHash, page, PAGE_SIZE)

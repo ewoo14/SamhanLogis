@@ -244,7 +244,7 @@ class EcountPartnerImporterTest {
         assertThat(result.heldSample()).singleElement().satisfies(sample -> {
             assertThat(sample.reason()).isEqualTo("CSV_ENCODING");
             assertThat(sample.rawPartnerCode()).isEqualTo("R17-REPLACEMENT");
-            assertThat(sample.rawName()).contains("�");
+            assertThat(sample.rawName()).isEqualTo("읽을 수 없음");
         });
     }
 
@@ -267,9 +267,37 @@ class EcountPartnerImporterTest {
                 .satisfies(sample -> {
                     assertThat(sample.reason()).isEqualTo("CSV_ENCODING");
                     assertThat(sample.rowNumber()).isEqualTo(3);
-                    assertThat(sample.rawPartnerCode()).isEqualTo("읽을 수 없음");
+                    assertThat(sample.rawPartnerCode()).isEqualTo("R17-BYTES");
                     assertThat(sample.rawName()).isEqualTo("읽을 수 없음");
                 });
+    }
+
+    @Test
+    void r22_mixed_encoding_keeps_readable_rows_and_holds_only_the_unreadable_row() {
+        String readable = row("R22-READABLE", "20260810", "이성미", "", "정상 상호", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        String unreadable = row("R22-UNREADABLE", "20260810", "이성미", "", "깨진 상호", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        byte[] bytes = (META_LINE + HEADER_LINE + unreadable + readable).getBytes(StandardCharsets.UTF_8);
+        byte[] marker = "깨진 상호".getBytes(StandardCharsets.UTF_8);
+        int markerOffset = indexOf(bytes, marker);
+        System.arraycopy(new byte[] {(byte) 0xB0, (byte) 0xA1}, 0, bytes, markerOffset, 2);
+        when(partnerRepository.findByPartnerCode("R22-READABLE")).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        EcountPartnerImportResult result = importer.importCsv(new ByteArrayInputStream(bytes), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.heldSample()).singleElement().satisfies(sample -> {
+            assertThat(sample.rowNumber()).isEqualTo(3);
+            assertThat(sample.rawPartnerCode()).isEqualTo("R22-UNREADABLE");
+            assertThat(sample.rawName()).isEqualTo("읽을 수 없음");
+        });
+        ArgumentCaptor<Partner> captor = ArgumentCaptor.forClass(Partner.class);
+        verify(partnerRepository).save(captor.capture());
+        assertThat(captor.getValue().getPartnerCode()).isEqualTo("R22-READABLE");
+        assertThat(captor.getValue().getName()).isEqualTo("정상 상호");
     }
 
     private static int indexOf(byte[] source, byte[] target) {

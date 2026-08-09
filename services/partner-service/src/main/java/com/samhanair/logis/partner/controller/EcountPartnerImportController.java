@@ -1,5 +1,6 @@
 package com.samhanair.logis.partner.controller;
 
+import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
@@ -51,7 +52,7 @@ public class EcountPartnerImportController {
     @Operation(summary = "이카운트 거래처 CSV 적재",
             description = "MIG-1 PoC — 이카운트 export 17 컬럼 → staging.ecount_partner_raw + partners. "
                     + "동일 파일 재실행 시 멱등 (source_file_hash 기준).")
-    public EcountPartnerImportResult uploadEcountPartnerCsv(
+    public ApiResponse<EcountPartnerImportResult> uploadEcountPartnerCsv(
             @RequestPart("file") MultipartFile file,
             @RequestHeader("X-User-Id") String userId) throws IOException {
         if (file == null || file.isEmpty()) {
@@ -61,7 +62,7 @@ public class EcountPartnerImportController {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "파일 크기 한도 초과: " + file.getSize() + " > " + MAX_SIZE_BYTES);
         }
-        return importer.importCsv(file.getInputStream(), userId);
+        return ApiResponse.ok(importer.importCsv(file.getInputStream(), userId));
     }
 
     /** 이카운트 거래처등록 XLSX 정본을 실제 staging + partners 경로로 적재한다. */
@@ -69,7 +70,7 @@ public class EcountPartnerImportController {
     @RequirePermission(page = "partners.edit", action = PermissionAction.CREATE)
     @Operation(summary = "이카운트 거래처등록 XLSX 적재",
             description = "거래처등록.xlsx 16컬럼 정본을 partner_code 멱등 키로 적재한다. trailer와 파싱 실패 행은 보류한다.")
-    public EcountPartnerImportResult uploadEcountPartnerXlsx(
+    public ApiResponse<EcountPartnerImportResult> uploadEcountPartnerXlsx(
             @RequestPart("file") MultipartFile file,
             @RequestHeader("X-User-Id") String userId) throws IOException {
         if (file == null || file.isEmpty()) {
@@ -79,7 +80,7 @@ public class EcountPartnerImportController {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "파일 크기 한도 초과: " + file.getSize() + " > " + MAX_SIZE_BYTES);
         }
-        return importer.importXlsx(file.getInputStream(), userId);
+        return ApiResponse.ok(importer.importXlsx(file.getInputStream(), userId));
     }
 
     /** 대량 거부·보류 행을 페이지 단위로 조회한다. */
@@ -87,10 +88,10 @@ public class EcountPartnerImportController {
     @RequirePermission(page = "partners.edit", action = PermissionAction.VIEW)
     @Operation(summary = "이카운트 거부·보류 행 페이지 조회",
             description = "import 응답의 sourceFileHash로 전체 행을 페이지 조회한다. 최대 100행.")
-    public EcountPartnerRejectionPage findRejections(
+    public ApiResponse<EcountPartnerRejectionPage> findRejections(
             @RequestParam String sourceFileHash,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return importer.findRejectionPage(sourceFileHash, page, size);
+        return ApiResponse.ok(importer.findRejectionPage(sourceFileHash, page, size));
     }
 }

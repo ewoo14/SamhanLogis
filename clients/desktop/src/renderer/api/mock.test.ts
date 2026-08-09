@@ -250,6 +250,21 @@ describe('partner-order 병합 후보 필터 계약', () => {
   })
 })
 
+describe('거래처 적재 mock handler 계약', () => {
+  it.each([
+    ['POST CSV', 'POST', '/admin/partners/imports/ecount'],
+    ['POST XLSX', 'POST', '/admin/partners/imports/ecount-xlsx'],
+    ['GET 보류 페이지', 'GET', '/admin/partners/imports/ecount/rejections'],
+  ])('%s endpoint는 외부 XHR 없이 봉투 응답을 반환한다', (_name, method, url) => {
+    const response = mockRequest({ method, url, params: { sourceFileHash: 'mock-hash', page: 0, size: 100 }, data: new FormData() }) as {
+      __mockStatus?: number
+      body?: MockEnvelope<unknown>
+    }
+    expect(response).not.toBeNull()
+    expect((response.body ?? response).success).toBe(true)
+  })
+})
+
 describe('mock 그룹웨어 결재 생성 요청 관찰', () => {
   it('POST handler가 받은 approverIds 순서를 QA 캡처에 그대로 보존한다', () => {
     const approverIds = [
