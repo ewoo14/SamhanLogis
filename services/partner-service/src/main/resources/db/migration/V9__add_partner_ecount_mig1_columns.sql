@@ -46,7 +46,7 @@ CREATE TABLE staging.ecount_partner_raw (
     raw_first_created   TEXT,
 
     -- transform 결과 분류 (멱등 재실행 시 UPDATE)
-    transform_status    VARCHAR(30) NOT NULL DEFAULT 'PENDING',  -- IMPORTED / UPDATED / REJECT_NAME_NULL / SKIPPED_PLACEHOLDER / PARSE_HOLD
+    transform_status    VARCHAR(30) NOT NULL DEFAULT 'PENDING',  -- IMPORTED / UPDATED / REJECT_NAME_NULL / SKIPPED_PLACEHOLDER
     target_partner_id   UUID,                                     -- transform 성공 시 채움
     reject_reason       TEXT,                                     -- 분류 사유 (사용자 검토용)
 
