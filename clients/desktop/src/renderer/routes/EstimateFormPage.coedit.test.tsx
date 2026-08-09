@@ -401,7 +401,9 @@ beforeEach(() => {
   mocks.searchProducts.mockReset()
   mocks.getPriceMemory.mockResolvedValue(null)
   mocks.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
-  mocks.lookupProducts.mockResolvedValue([])
+  mocks.lookupProducts.mockImplementation(async (productIds: string[]) =>
+    productIds.map((id) => ({ id, status: 'ACTIVE' })),
+  )
   mocks.searchProducts.mockResolvedValue([])
   mocks.createEstimate.mockResolvedValue({ id: 'estimate-created' })
   mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })

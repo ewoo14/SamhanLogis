@@ -82,7 +82,7 @@ import { quantityAfterDeliveryPriceInput } from './estimateLineModel'
 import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
-import { hydrateCurrentProductStatuses } from '../utils/estimateLineStatus'
+import { hydrateCurrentProductStatuses, isQuantityEditable } from '../utils/estimateLineStatus'
 
 let __lineUidCounter = 0
 const nextLineUid = (): string => `est-line-${++__lineUidCounter}`
@@ -575,15 +575,15 @@ function EstimateMobileLineCard(props: {
           fieldPath={`items.${props.index}.quantity`}
           value={props.line.quantity}
           onValueChange={(value) => {
-            if (props.line.status === 'OUT_OF_STOCK') return
+            if (!isQuantityEditable(props.line.productId, props.line.status)) return
             props.onUpdate(changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value), true)
           }}
           onDocSyncValueChange={(value) => {
-            if (props.line.status === 'OUT_OF_STOCK') return
+            if (!isQuantityEditable(props.line.productId, props.line.status)) return
             props.onUpdate(changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value))
           }}
           inputSize="sm"
-          readOnly={props.isReadOnly || props.line.status === 'OUT_OF_STOCK'}
+          readOnly={props.isReadOnly || !isQuantityEditable(props.line.productId, props.line.status)}
           type="text"
           inputMode="numeric"
           inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -1272,7 +1272,7 @@ export function EstimateFormPage() {
 
   const updateQuantity = (index: number, quantity: string) => {
     const current = linesRef.current[index]
-    if (!current || current.status === 'OUT_OF_STOCK') return
+    if (!current || !isQuantityEditable(current.productId, current.status)) return
     updateLine(index, changeLineQuantity(asVatLine({ ...current, quantity }), quantity), true)
   }
 
@@ -2283,7 +2283,7 @@ export function EstimateFormPage() {
                 value={line.productName}
                 onValueChange={(value) => updateLine(i, { productName: value }, true)}
                 onDocSyncValueChange={(value) => updateLine(i, { productName: value })}
-                readOnly={Boolean(isReadOnly) || line.status === 'OUT_OF_STOCK'}
+                readOnly={Boolean(isReadOnly) || !isQuantityEditable(line.productId, line.status)}
                 aria-label={`라인 ${i + 1} 품목명`}
               />
               <CollaborativeSlipInput
@@ -2305,13 +2305,13 @@ export function EstimateFormPage() {
                 value={line.quantity}
                   onValueChange={(value) => updateQuantity(i, value)}
                   onDocSyncValueChange={(value) => updateQuantity(i, value)}
-                readOnly={Boolean(isReadOnly) || line.status === 'OUT_OF_STOCK'}
+                readOnly={Boolean(isReadOnly) || !isQuantityEditable(line.productId, line.status)}
                 inputMode="numeric"
                 inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
-                aria-label={`라인 ${i + 1} 수량${line.status === 'OUT_OF_STOCK' ? ' 품절' : ''}`}
+                aria-label={`라인 ${i + 1} 수량${line.status === 'OUT_OF_STOCK' ? ' 품절' : !isQuantityEditable(line.productId, line.status) ? ' 상태 확인 중' : ''}`}
                 data-testid={`estimate-form-line-${i}-qty`}
               />
-              {line.status === 'OUT_OF_STOCK' ? <span role="status">품절</span> : null}
+              {!isQuantityEditable(line.productId, line.status) ? <span role="status">{line.status === 'OUT_OF_STOCK' ? '품절' : '상태 확인 중'}</span> : null}
               <div>
                 <CollaborativeSlipInput
                   provider={estimateFormCoeditProvider}

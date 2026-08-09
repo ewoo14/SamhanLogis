@@ -1,0 +1,184 @@
+{
+  "model": "AM080AXVHHH1",
+  "deployedRevision": "R11 local JAR",
+  "productBefore": {
+    "http": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<redacted-id>\",\"name\":\"DVM S2 프라임 8HP\",\"modelName\":\"AM080AXVHHH1\",\"modelCode\":\"AM080AXVHHH1\",\"categoryId\":\"<redacted-id>\",\"categoryName\":\"벽걸이형\",\"sellingPrice\":7351300.00,\"purchasePrice\":0.00,\"currency\":\"KRW\",\"status\":\"ACTIVE\",\"tags\":{},\"description\":null,\"productCategory\":\"COMMERCIAL_MULTI\",\"catL\":{\"id\":\"<redacted-id>\",\"name\":\"실외기\"},\"catM\":{\"id\":\"<redacted-id>\",\"name\":\"프라임\"},\"catS\":null,\"itemKind\":\"GENERAL\",\"bundleMode\":null,\"parentSetModelCode\":null,\"componentKind\":null,\"unit\":\"EA\",\"releasePrice\":8573400.00,\"deliveryPrice\":4715370.00,\"fixedDiscountRate\":null,\"goodsType\":\"GOODS\",\"usageScope\":\"BOTH\",\"estimateCategory\":null,\"usageScopeManual\":false,\"displayOrder\":null,\"createdAt\":\"2026-07-28T20:33:57.7938\",\"createdBy\":\"<redacted-id>\",\"modifiedAt\":\"2026-08-10T01:54:21.524984\",\"modifiedBy\":\"<redacted-id>\",\"specs\":[{\"id\":\"<redacted-id>\",\"specKey\":\"배관경\",\"specValue\":\"9/19\",\"unit\":null,\"displayOrder\":1},{\"id\":\"<redacted-id>\",\"specKey\":\"냉방능력, kcal/h\",\"specValue\":\"20000\",\"unit\":\"kcal/h\",\"displayOrder\":2},{\"id\":\"<redacted-id>\",\"specKey\":\"난방능력, kcal/h\",\"specValue\":\"22800\",\"unit\":\"kcal/h\",\"displayOrder\":3},{\"id\":\"<redacted-id>\",\"specKey\":\"냉방능력, kW\",\"specValue\":\"23.3\",\"unit\":\"kW\",\"displayOrder\":4},{\"id\":\"<redacted-id>\",\"specKey\":\"난방능력, kW\",\"specValue\":\"26.5\",\"unit\":\"kW\",\"displayOrder\":5},{\"id\":\"<redacted-id>\",\"specKey\":\"냉방소비전력, kW\",\"specValue\":\"5.6\",\"unit\":\"kW\",\"displayOrder\":6},{\"id\":\"<redacted-id>\",\"specKey\":\"난방소비전력, kW\",\"specValue\":\"6.1\",\"unit\":\"kW\",\"displayOrder\":7},{\"id\":\"<redacted-id>\",\"specKey\":\"냉매가스\",\"specValue\":\"R410A\",\"unit\":null,\"displayOrder\":8},{\"id\":\"<redacted-id>\",\"specKey\":\"소비효율등급\",\"specValue\":\"1등급\",\"unit\":null,\"displayOrder\":9},{\"id\":\"<redacted-id>\",\"specKey\":\"전원선, mm²\",\"specValue\":\"4\",\"unit\":\"mm²\",\"displayOrder\":10},{\"id\":\"<redacted-id>\",\"specKey\":\"차단기, A\",\"specValue\":\"30\",\"unit\":\"A\",\"displayOrder\":11},{\"id\":\"<redacted-id>\",\"specKey\":\"제품크기, mm\",\"specValue\":\"930x1695x765\",\"unit\":\"mm\",\"displayOrder\":12},{\"id\":\"<redacted-id>\",\"specKey\":\"배관길이, m\",\"specValue\":\"200m/90m/1000m\",\"unit\":\"m\",\"displayOrder\":16},{\"id\":\"<redacted-id>\",\"specKey\":\"고낙차, m\",\"specValue\":\"110m/110m/50m\",\"unit\":\"m\",\"displayOrder\":17},{\"id\":\"<redacted-id>\",\"specKey\":\"최대 연결 실내기 대수, 대\",\"specValue\":\"9\",\"unit\":\"대\",\"displayOrder\":18}]},\"timestamp\":\"2026-08-09T16:55:04.709192628Z\"}"
+  },
+  "countsBefore": {
+    "ACTIVE": 2984,
+    "DISCONTINUED": 83,
+    "NOT_FOR_SALE": 14,
+    "OUT_OF_STOCK": 3
+  },
+  "estimateCreate": {
+    "http": 201,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<redacted-id>\",\"estimateNo\":\"2026/08/10-6\",\"estimateDate\":\"2026-08-10\",\"seqNo\":6,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"<redacted-id>\",\"partnerName\":\"삼성전자\",\"partnerBusinessNo\":\"1010120290\",\"partnerAddress\":null,\"validUntil\":\"2026-09-09\",\"totalSupply\":66830000.00,\"totalVat\":6683000.00,\"totalAmount\":73513000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":null,\"requesterId\":\"<redacted-id>\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"<redacted-id>\",\"lineNo\":1,\"productId\":\"<redacted-id>\",\"productName\":\"DVM S2 프라임 8HP\",\"modelName\":\"AM080AXVHHH1\",\"specification\":\"S2 프라임\",\"specificationSource\":\"CATALOG\",\"quantity\":10,\"unitPrice\":6683000.00,\"supplyAmount\":66830000.00,\"vatAmount\":6683000.00,\"lineTotal\":73513000.00,\"note\":null,\"unitPriceWithVat\":7351300.00,\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-09T16:55:06.613471609Z\"}"
+  },
+  "discontinue": {
+    "http": 204,
+    "body": ""
+  },
+  "reactivate": {
+    "http": 204,
+    "body": ""
+  },
+  "reactivateAlreadyActive": {
+    "http": 204,
+    "body": ""
+  },
+  "productAfter": {
+    "id": "<redacted-id>",
+    "name": "DVM S2 프라임 8HP",
+    "modelName": "AM080AXVHHH1",
+    "modelCode": "AM080AXVHHH1",
+    "categoryId": "<redacted-id>",
+    "categoryName": "벽걸이형",
+    "sellingPrice": 7351300,
+    "purchasePrice": 0,
+    "currency": "KRW",
+    "status": "ACTIVE",
+    "tags": {},
+    "description": null,
+    "productCategory": "COMMERCIAL_MULTI",
+    "catL": {
+      "id": "<redacted-id>",
+      "name": "실외기"
+    },
+    "catM": {
+      "id": "<redacted-id>",
+      "name": "프라임"
+    },
+    "catS": null,
+    "itemKind": "GENERAL",
+    "bundleMode": null,
+    "parentSetModelCode": null,
+    "componentKind": null,
+    "unit": "EA",
+    "releasePrice": 8573400,
+    "deliveryPrice": 4715370,
+    "fixedDiscountRate": null,
+    "goodsType": "GOODS",
+    "usageScope": "BOTH",
+    "estimateCategory": null,
+    "usageScopeManual": false,
+    "displayOrder": null,
+    "createdAt": "2026-07-28T20:33:57.7938",
+    "createdBy": "<redacted-id>",
+    "modifiedAt": "2026-08-10T01:55:07.34974",
+    "modifiedBy": "<redacted-id>",
+    "specs": [
+      {
+        "id": "<redacted-id>",
+        "specKey": "배관경",
+        "specValue": "9/19",
+        "unit": null,
+        "displayOrder": 1
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "냉방능력, kcal/h",
+        "specValue": "20000",
+        "unit": "kcal/h",
+        "displayOrder": 2
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "난방능력, kcal/h",
+        "specValue": "22800",
+        "unit": "kcal/h",
+        "displayOrder": 3
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "냉방능력, kW",
+        "specValue": "23.3",
+        "unit": "kW",
+        "displayOrder": 4
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "난방능력, kW",
+        "specValue": "26.5",
+        "unit": "kW",
+        "displayOrder": 5
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "냉방소비전력, kW",
+        "specValue": "5.6",
+        "unit": "kW",
+        "displayOrder": 6
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "난방소비전력, kW",
+        "specValue": "6.1",
+        "unit": "kW",
+        "displayOrder": 7
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "냉매가스",
+        "specValue": "R410A",
+        "unit": null,
+        "displayOrder": 8
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "소비효율등급",
+        "specValue": "1등급",
+        "unit": null,
+        "displayOrder": 9
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "전원선, mm²",
+        "specValue": "4",
+        "unit": "mm²",
+        "displayOrder": 10
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "차단기, A",
+        "specValue": "30",
+        "unit": "A",
+        "displayOrder": 11
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "제품크기, mm",
+        "specValue": "930x1695x765",
+        "unit": "mm",
+        "displayOrder": 12
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "배관길이, m",
+        "specValue": "200m/90m/1000m",
+        "unit": "m",
+        "displayOrder": 16
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "고낙차, m",
+        "specValue": "110m/110m/50m",
+        "unit": "m",
+        "displayOrder": 17
+      },
+      {
+        "id": "<redacted-id>",
+        "specKey": "최대 연결 실내기 대수, 대",
+        "specValue": "9",
+        "unit": "대",
+        "displayOrder": 18
+      }
+    ]
+  },
+  "countsAfter": {
+    "ACTIVE": 2984,
+    "DISCONTINUED": 83,
+    "NOT_FOR_SALE": 14,
+    "OUT_OF_STOCK": 3
+  }
+}
