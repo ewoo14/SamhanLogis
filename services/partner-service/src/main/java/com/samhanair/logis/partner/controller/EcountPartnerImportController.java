@@ -3,6 +3,7 @@ package com.samhanair.logis.partner.controller;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
+import com.samhanair.logis.partner.dto.EcountPartnerRejectionPage;
 import com.samhanair.logis.partner.service.EcountPartnerImporter;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.security.permission.PermissionAction;
@@ -12,6 +13,8 @@ import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -77,5 +80,17 @@ public class EcountPartnerImportController {
                     "파일 크기 한도 초과: " + file.getSize() + " > " + MAX_SIZE_BYTES);
         }
         return importer.importXlsx(file.getInputStream(), userId);
+    }
+
+    /** 대량 거부·보류 행을 페이지 단위로 조회한다. */
+    @GetMapping("/ecount/rejections")
+    @RequirePermission(page = "partners.edit", action = PermissionAction.VIEW)
+    @Operation(summary = "이카운트 거부·보류 행 페이지 조회",
+            description = "import 응답의 sourceFileHash로 전체 행을 페이지 조회한다. 최대 100행.")
+    public EcountPartnerRejectionPage findRejections(
+            @RequestParam String sourceFileHash,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return importer.findRejectionPage(sourceFileHash, page, size);
     }
 }

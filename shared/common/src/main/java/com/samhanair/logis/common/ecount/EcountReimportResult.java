@@ -24,11 +24,22 @@ public record EcountReimportResult(
             int heldParseFailureRows,
             int infrastructureFailureRows,
             boolean infrastructureFailure,
-            List<HeldSample> heldSample) {
+            List<HeldSample> heldSample,
+            List<HeldSample> rejectedSample) {
         public SliceResult(String target, String fileName, String sourceFileHash,
                            String status, int imported, int rejected, String message) {
             this(target, fileName, sourceFileHash, status, imported, rejected, message,
-                    0, 0, false, List.of());
+                    0, 0, false, List.of(), List.of());
+        }
+
+        public SliceResult(String target, String fileName, String sourceFileHash,
+                           String status, int imported, int rejected, String message,
+                           int heldParseFailureRows, int infrastructureFailureRows,
+                           boolean infrastructureFailure,
+                           List<HeldSample> heldSample) {
+            this(target, fileName, sourceFileHash, status, imported, rejected, message,
+                    heldParseFailureRows, infrastructureFailureRows, infrastructureFailure,
+                    heldSample, List.of());
         }
 
         public SliceResult(String target, String fileName, String sourceFileHash,
@@ -37,7 +48,7 @@ public record EcountReimportResult(
                            boolean infrastructureFailure) {
             this(target, fileName, sourceFileHash, status, imported, rejected, message,
                     heldParseFailureRows, infrastructureFailureRows, infrastructureFailure,
-                    List.of());
+                    List.of(), List.of());
         }
     }
 

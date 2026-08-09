@@ -162,8 +162,12 @@ public class EcountReimportService {
             for (EcountReimportResult.HeldSample sample : summary.heldSample) {
                 errors.add(error(target.key, fileName, sample.reason(), heldSampleMessage(sample)));
             }
+            for (EcountReimportResult.HeldSample sample : summary.rejectedSample) {
+                errors.add(error(target.key, fileName, sample.reason(), heldSampleMessage(sample)));
+            }
             String message = summary.message != null ? summary.message
-                    : summary.heldSample.isEmpty() ? null : heldSampleMessage(summary.heldSample.get(0));
+                    : !summary.heldSample.isEmpty() ? heldSampleMessage(summary.heldSample.get(0))
+                    : summary.rejectedSample.isEmpty() ? null : heldSampleMessage(summary.rejectedSample.get(0));
             String status = summary.infrastructureFailure
                     ? "PROCESSED_WITH_INFRASTRUCTURE_FAILURE"
                     : summary.rejected > 0 || summary.heldParseFailureRows > 0
@@ -172,7 +176,7 @@ public class EcountReimportService {
                     target.key, fileName, hash, status,
                     summary.imported, summary.rejected, message,
                     summary.heldParseFailureRows, summary.infrastructureFailureRows,
-                    summary.infrastructureFailure, summary.heldSample));
+                    summary.infrastructureFailure, summary.heldSample, summary.rejectedSample));
         } catch (BusinessException ex) {
             int rejectedRows = rejectedRowsOnFailure(file);
             totals.totalRejected += rejectedRows;
@@ -546,8 +550,8 @@ public class EcountReimportService {
 
     private static CountSummary summarize(EcountRemoteImportClient.RemoteImportResult result) {
         return new CountSummary(result.imported(), result.rejected(), null, List.of(),
-                result.heldParseFailureRows(), result.heldSample(), result.infrastructureFailureRows(),
-                result.infrastructureFailure());
+                result.heldParseFailureRows(), result.heldSample(), result.rejectedSample(),
+                result.infrastructureFailureRows(), result.infrastructureFailure());
     }
 
     private static String heldSampleMessage(EcountReimportResult.HeldSample sample) {
@@ -682,15 +686,16 @@ public class EcountReimportService {
                                 List<EcountReimportResult.ErrorSample> errors,
                                 int heldParseFailureRows,
                                 List<EcountReimportResult.HeldSample> heldSample,
+                                List<EcountReimportResult.HeldSample> rejectedSample,
                                 int infrastructureFailureRows,
                                 boolean infrastructureFailure) {
         private CountSummary(int imported, int rejected, String message) {
-            this(imported, rejected, message, List.of(), 0, List.of(), 0, false);
+            this(imported, rejected, message, List.of(), 0, List.of(), List.of(), 0, false);
         }
 
         private CountSummary(int imported, int rejected, String message,
                              List<EcountReimportResult.ErrorSample> errors) {
-            this(imported, rejected, message, errors, 0, List.of(), 0, false);
+            this(imported, rejected, message, errors, 0, List.of(), List.of(), 0, false);
         }
     }
 

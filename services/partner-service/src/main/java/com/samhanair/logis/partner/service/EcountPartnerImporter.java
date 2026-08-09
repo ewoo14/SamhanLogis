@@ -8,6 +8,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
+import com.samhanair.logis.partner.dto.EcountPartnerRejectionPage;
 import com.samhanair.logis.partner.realtime.PartnerListRealtime;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
@@ -700,6 +701,32 @@ public class EcountPartnerImporter {
     // ============================================================
     // 보조
     // ============================================================
+
+    /** 대량 거부·보류 행을 응답 본문과 분리해 페이지 단위로 조회한다. */
+    public EcountPartnerRejectionPage findRejectionPage(String sourceFileHash, int page, int size) {
+        if (sourceFileHash == null || !sourceFileHash.matches("[0-9A-Fa-f]{64}")) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "sourceFileHash 형식이 올바르지 않습니다");
+        }
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        MapSqlParameterSource params = new MapSqlParameterSource("hash", sourceFileHash)
+                .addValue("limit", safeSize).addValue("offset", safePage * safeSize);
+        long total = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM staging.ecount_partner_raw "
+                        + "WHERE source_file_hash = :hash AND reject_reason IS NOT NULL",
+                params, Long.class);
+        List<EcountPartnerImportResult.RejectedRow> items = jdbcTemplate.query(
+                "SELECT source_row_no, reject_reason, raw_partner_code, raw_name "
+                        + "FROM staging.ecount_partner_raw "
+                        + "WHERE source_file_hash = :hash AND reject_reason IS NOT NULL "
+                        + "ORDER BY source_row_no LIMIT :limit OFFSET :offset",
+                params, (rs, rowNum) -> new EcountPartnerImportResult.RejectedRow(
+                        rs.getInt("source_row_no"), rs.getString("reject_reason"),
+                        rs.getString("raw_partner_code"), rs.getString("raw_name")));
+        int totalPages = (int) Math.ceil((double) total / safeSize);
+        return new EcountPartnerRejectionPage(sourceFileHash, safePage, safeSize, total,
+                totalPages, items);
+    }
 
     /**
      * 행 적재 예외를 데이터 축과 인프라 축으로 나눈다.
