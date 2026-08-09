@@ -1,0 +1,37 @@
+{
+  "createHttpStatus": 201,
+  "slipNo": "2026/08/09-19",
+  "putHttpStatus": 200,
+  "partnerId": "<redacted-uuid>",
+  "selectedPartnerName": "(주)서울에어컨",
+  "expectedPartnerCodeFromPartnerService": "P-2026-0001",
+  "requestPartnerCode": "113-07-10031",
+  "responsePartnerCode": "113-07-10031",
+  "memo": "R3 GUI direct PUT partnerCode 축",
+  "network": [
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/<redacted-uuid>",
+      "destination": "HEAD-18206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/admin/partners/search",
+      "destination": "gateway-8080"
+    },
+    {
+      "method": "POST",
+      "status": 200,
+      "path": "/slips/price-memory/bulk",
+      "destination": "HEAD-18206"
+    },
+    {
+      "method": "PUT",
+      "status": 200,
+      "path": "/slips/<redacted-uuid>",
+      "destination": "HEAD-18206"
+    }
+  ]
+}
