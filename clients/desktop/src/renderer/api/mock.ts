@@ -13235,8 +13235,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const header = '행번호,전표번호,작성일자,공급자상호,공급자사업자번호,공급받는자상호,공급받는자사업자번호,공급가액,세액,합계\n'
     const csv = pageRows
       .map((r) =>
-        [r.rowNo, r.slipNo, r.issueDate, r.supplierName, r.supplierBusinessNo,
-          r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
+        [r.rowNo, r.slipNo, r.writeDate, r.supplierName, r.supplierRegNo,
+          r.buyerName, r.buyerRegNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
       )
       .join('\n')
     // responseType:'blob' 소비자(downloadHometaxSplit)가 res.data 를 Blob 으로 사용하므로 실제 Blob 반환.
@@ -13336,8 +13336,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const header = '행번호,전표번호,작성일자,공급자상호,공급자사업자번호,공급받는자상호,공급받는자사업자번호,공급가액,세액,합계\n'
     const csv = pageRows
       .map((r) =>
-        [r.rowNo, r.slipNo, r.issueDate, r.supplierName, r.supplierBusinessNo,
-          r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
+        [r.rowNo, r.slipNo, r.writeDate, r.supplierName, r.supplierRegNo,
+          r.buyerName, r.buyerRegNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
       )
       .join('\n')
     // responseType:'blob' 소비자(downloadHometaxSplit)가 res.data 를 Blob 으로 사용하므로 실제 Blob 반환.
@@ -18581,9 +18581,9 @@ function generateMockBatchRows(count: number) {
       slipNo: `2026/05/${day}-${rowNo}`,
       writeDate: `202605${day}`,
       supplierName: supplier.name,
-      supplierRegNo: supplier.bizNo.replaceAll('-', ''),
+      supplierRegNo: supplier.bizNo.replace(/-/g, ''),
       buyerName: p.name,
-      buyerRegNo: p.bizNo.replaceAll('-', ''),
+      buyerRegNo: p.bizNo.replace(/-/g, ''),
       buyerEmail1: `billing@partner${(i % 5) + 1}.co.kr`,
       supplyAmount,
       vatAmount,
