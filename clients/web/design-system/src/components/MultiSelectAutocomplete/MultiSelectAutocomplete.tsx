@@ -51,6 +51,8 @@ export interface MultiSelectAutocompleteProps<TOption, TSelected> {
   ariaLabel?: string
   /** 내부 input의 data-testid. */
   inputTestId?: string
+  /** 칩 카운트의 data-testid. 미지정 시 inputTestId 기반 또는 기존 고정값을 사용한다. */
+  chipCountTestId?: string
   /** placeholder. */
   placeholder?: string
   /** 필수 표시. */
@@ -92,6 +94,7 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
     renderChip,
     ariaLabel,
     inputTestId,
+    chipCountTestId,
     placeholder,
     required = false,
     minChars = 1,
@@ -168,7 +171,7 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
         className={styles['srOnly']}
         aria-live="polite"
         aria-atomic="true"
-        data-testid={inputTestId ? `${inputTestId}-chip-count` : 'multiselect-chip-count'}
+        data-testid={chipCountTestId ?? (inputTestId ? `${inputTestId}-chip-count` : 'multiselect-chip-count')}
       >
         {selected.length > 0 ? `${selected.length}개 선택됨` : ''}
       </span>

@@ -29,6 +29,27 @@ describe('MultiSelectAutocomplete', () => {
     expect(screen.getByTestId('row-quantity-sync-input-chip-count').textContent).toBe('1개 선택됨')
   })
 
+  it('chipCountTestId가 있으면 검색 input testid와 별도로 칩 카운트 testid를 지정한다', () => {
+    render(
+      <MultiSelectAutocomplete<Option, Option>
+        selected={[{ id: 'selected', label: '선택 품목' }]}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+        search={vi.fn().mockResolvedValue([])}
+        getOptionKey={(option) => option.id}
+        getSelectedKey={(option) => option.id}
+        getInputLabel={(option) => option.label}
+        renderOption={(option) => <span>{option.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        inputTestId="messenger-recipient-search"
+        chipCountTestId="multiselect-chip-count"
+      />,
+    )
+
+    expect(screen.getByTestId('multiselect-chip-count').textContent).toBe('1개 선택됨')
+  })
+
   it('opt-in contract: one candidate becomes a chip without opening a modal', async () => {
     const onAdd = vi.fn()
     const option: Option = { id: 'U-001', label: '김하나' }
