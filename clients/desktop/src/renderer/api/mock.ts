@@ -976,6 +976,7 @@ const MOCK_SLIPS = [
     slipDate: '2026-05-04',
     seqNo: 1,
     status: 'PROCESSING',
+    lockFlag: false,
     partnerId: 'p001',
     partnerName: '주식회사 윌리-정현수',
     sourceWarehouseId: HQ_ID,
@@ -1010,6 +1011,7 @@ const MOCK_SLIPS = [
     slipDate: '2026-05-04',
     seqNo: 2,
     status: 'CONFIRMED',
+    lockFlag: true,
     partnerId: 'p002',
     partnerName: '○○종합건설',
     sourceWarehouseId: HQ_ID,
@@ -5135,6 +5137,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const id = slipTransitionMatch[1]!
     const action = slipTransitionMatch[2]!
     const found = MOCK_SLIPS.find((s) => s.id === id) ?? MOCK_SLIPS[0]!
+    if (found.lockFlag === true && (action === 'cancel' || action === 'reject')) {
+      return mockError(409, 'CONFLICT', '회계 마감으로 잠긴 전표는 취소·반려할 수 없습니다.')
+    }
     const nextStatus: Record<string, string> = {
       save: 'SAVED',
       send: 'SENT',

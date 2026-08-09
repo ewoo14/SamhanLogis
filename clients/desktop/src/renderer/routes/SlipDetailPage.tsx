@@ -2349,6 +2349,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const canRejectSlip = possibleActions.includes('reject')
     && canAccessSlipAction('reject', mode, canAccess)
   const canCancelSlip = possibleActions.includes('cancel')
+    && slip.lockFlag !== true
     && canAccessSlipAction('cancel', mode, canAccess)
   const directEditAllowed = canOpenDirectEdit(mode, slip.status, canAccess)
 
@@ -2396,7 +2397,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     || slip.status === 'CANCELED'
     || slip.status === 'REJECTED'
 
-  const isLocked = isPhysicalTerminal
+  const isLocked = slip.lockFlag === true || isPhysicalTerminal
 
   const canCollabEdit = canOpenCollabEdit(
     slip.status,
@@ -3646,6 +3647,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             수정 {revisionCount}회
           </span>
           <PresenceIndicator entries={presenceEntries} size="lg" />
+          {slip.lockFlag === true ? (
+            <Badge variant="danger" data-testid="slip-detail-lock-badge">
+              마감 잠금
+            </Badge>
+          ) : null}
         </div>
         {!isMobile ? (
         <div className="detail-action-bar">
@@ -4128,7 +4134,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           data-testid="slip-detail-locked-banner"
           className="warning-banner"
         >
-          현재 단계({slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 물리 종결 전 단계에서만 권한자 수정 또는 삭제 요청이 가능합니다.
+          {slip.lockFlag === true
+            ? '회계 마감으로 잠긴 전표입니다. 취소·반려를 포함한 변경은 409로 차단됩니다.'
+            : `현재 단계(${slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 물리 종결 전 단계에서만 권한자 수정 또는 삭제 요청이 가능합니다.`}
         </div>
       ) : null}
 
