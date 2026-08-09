@@ -734,7 +734,7 @@ class ProductServiceTest {
     }
 
     @Test
-    void reactivate_existingDuplicateName_isAllowed_whenNameWasNotChanged() {
+    void reactivate_existingDuplicateName_isRejected_even_whenNameWasNotChanged() {
         Product existingActiveDuplicate = Product.create("스마트 벽걸이", "SHA-W16K",
                 category, BigDecimal.ONE, BigDecimal.ONE, "KRW", null, null);
         ReflectionTestUtils.setField(existingActiveDuplicate, "id", UUID.randomUUID());
@@ -744,9 +744,11 @@ class ProductServiceTest {
 
         product.discontinue();
 
-        service.reactivate(productId);
-
-        assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+        assertThatThrownBy(() -> service.reactivate(productId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DISCONTINUED);
     }
 
     @Test

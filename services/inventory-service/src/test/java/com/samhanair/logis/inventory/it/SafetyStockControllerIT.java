@@ -290,6 +290,37 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("R10 알림 목록: product lookup 전량 미조회여도 알림 자체는 남는다")
+    void listAlerts_whenEveryProductLookupMissing_keepsAlertWithNullIdentity() throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("warehouseId", hqWarehouseId.toString());
+        body.put("threshold", 50);
+        body.put("scopeMode", "SELECTED");
+
+        mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated());
+
+        Mockito.when(productClient.lookupAllowMissing(Mockito.anyList()))
+                .thenReturn(java.util.List.of());
+
+        mockMvc.perform(get("/inventory/alerts/safety-stock")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')]").isNotEmpty())
+                .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')].productCode")
+                        .value(org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')].productName")
+                        .value(org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.nullValue())));
+
+        Mockito.verify(productClient).lookupAllowMissing(Mockito.anyList());
+    }
+
+    @Test
     @DisplayName("알림 목록: 재고가 임계값 초과이면 해당 제품 알림 미포함")
     void listAlerts_stockAboveThreshold_notIncluded() throws Exception {
         // 1) 임계값 10 설정
