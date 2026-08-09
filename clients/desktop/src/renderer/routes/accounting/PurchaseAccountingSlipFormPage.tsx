@@ -14,7 +14,6 @@ import {
 } from '../../api/purchaseAccountingSlipApi'
 import type { SalesTaxType } from '../../api/salesAccountingSlipApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { usePermissions } from '../../hooks/usePermissions'
 import { today } from '../../utils/dateUtils'
 import { splitVatInclusiveFromQtyUnitPrice } from '../../utils/vatRounding'
 import { fmtKrw } from '../../utils/currencyUtils'
@@ -30,8 +29,6 @@ const inputStyle: CSSProperties = {
 export function PurchaseAccountingSlipFormPage() {
   usePageTitle('매입전표 작성')
   const navigate = useNavigate()
-  const { canAccess } = usePermissions()
-  const canCreate = canAccess('accounting.purchase-slip.accounting', 'create')
   const [slipDate, setSlipDate] = useState(today())
   const [partnerCode, setPartnerCode] = useState('V-30011')
   const [partnerName, setPartnerName] = useState('한빛포장')
@@ -158,15 +155,13 @@ export function PurchaseAccountingSlipFormPage() {
             <div>부가세 {fmtKrw(String(totalVat))}</div>
             <strong>합계 {fmtKrw(String(totalAmount))}</strong>
           </div>
-          {canCreate ? (
-            <Button
-              variant="primary"
-              disabled={mutation.isPending || sourcePartner.status !== 'valid'}
-              onClick={handleSubmit}
-            >
-              {mutation.isPending ? '저장 중' : '임시저장'}
-            </Button>
-          ) : null}
+          <Button
+            variant="primary"
+            disabled={mutation.isPending || sourcePartner.status !== 'valid'}
+            onClick={handleSubmit}
+          >
+            {mutation.isPending ? '저장 중' : '임시저장'}
+          </Button>
         </div>
         {mutation.isError ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>

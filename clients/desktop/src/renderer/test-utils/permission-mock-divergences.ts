@@ -84,12 +84,6 @@ export const PERMISSION_MOCK_DIVERGENCES: readonly PermissionMockDivergence[] = 
   },
   {
     "role": "MANAGER",
-    "pageCode": "inbound.inspection",
-    "snapshotBits": "1000000",
-    "mockBits": "1000011"
-  },
-  {
-    "role": "MANAGER",
     "pageCode": "hr.carriers",
     "snapshotBits": "1111000",
     "mockBits": "1111011"
@@ -1026,12 +1020,6 @@ export const PERMISSION_MOCK_DIVERGENCES: readonly PermissionMockDivergence[] = 
   },
   {
     "role": "WAREHOUSE",
-    "pageCode": "inbound.inspection",
-    "snapshotBits": "1111000",
-    "mockBits": "1111011"
-  },
-  {
-    "role": "WAREHOUSE",
     "pageCode": "sales.partner-order.print",
     "snapshotBits": "1000001",
     "mockBits": "1000011"
@@ -1149,12 +1137,6 @@ export const PERMISSION_MOCK_DIVERGENCES: readonly PermissionMockDivergence[] = 
     "pageCode": "purchases.slip.list",
     "snapshotBits": "1000000",
     "mockBits": "1000011"
-  },
-  {
-    "role": "INVENTORY",
-    "pageCode": "inbound.inspection",
-    "snapshotBits": "1111000",
-    "mockBits": "1111011"
   },
   {
     "role": "INVENTORY",

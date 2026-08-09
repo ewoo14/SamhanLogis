@@ -138,7 +138,7 @@ const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>
     'accounting.daily-closing': '1000000',
     'accounting.general-ledger': '1000000',
     'purchases.slip.list': '1000000',
-    'inbound.inspection': '1000000',
+    'inbound.inspection': '1010000',
     'hr.carriers': '1111000',
     'admin.app-release': '1111000',
     'hr.slip-cutoff': '1111000',
