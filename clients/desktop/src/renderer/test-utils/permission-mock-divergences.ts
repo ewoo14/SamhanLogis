@@ -690,24 +690,6 @@ export const PERMISSION_MOCK_DIVERGENCES: readonly PermissionMockDivergence[] = 
   },
   {
     "role": "MANAGER",
-    "pageCode": "accounting.tax-invoice.inbound.manage",
-    "snapshotBits": "0000000",
-    "mockBits": "1111000"
-  },
-  {
-    "role": "MANAGER",
-    "pageCode": "accounting.sales-slip.accounting",
-    "snapshotBits": "0000000",
-    "mockBits": "1111000"
-  },
-  {
-    "role": "MANAGER",
-    "pageCode": "accounting.purchase-slip.accounting",
-    "snapshotBits": "0000000",
-    "mockBits": "1111000"
-  },
-  {
-    "role": "MANAGER",
     "pageCode": "accounting.tax-invoice.list",
     "snapshotBits": "1000001",
     "mockBits": "1000011"
@@ -1269,18 +1251,6 @@ export const PERMISSION_MOCK_DIVERGENCES: readonly PermissionMockDivergence[] = 
     "pageCode": "sales.slip.list",
     "snapshotBits": "1000100",
     "mockBits": "1000011"
-  },
-  {
-    "role": "SALES",
-    "pageCode": "accounting.sales-slip.accounting",
-    "snapshotBits": "0000000",
-    "mockBits": "1000000"
-  },
-  {
-    "role": "SALES",
-    "pageCode": "accounting.purchase-slip.accounting",
-    "snapshotBits": "0000000",
-    "mockBits": "1000000"
   },
   {
     "role": "SALES",
@@ -2135,4 +2105,3 @@ export const PERMISSION_MOCK_DIVERGENCES: readonly PermissionMockDivergence[] = 
     "mockBits": "0000000"
   }
 ]
-

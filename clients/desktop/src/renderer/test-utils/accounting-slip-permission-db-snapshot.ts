@@ -1,5 +1,5 @@
-// auth_db role_page_permission_templates projection, read 2026-08-09; SELECT-only.
-// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES (11 × 122). Missing DB rows are 0000000.
+// auth_db role_page_permission_templates projection, derived from all Flyway migrations in this repository.
+// Scope: PERMISSION_ROLES 횞 PERMISSION_PAGE_CODES. Missing DB rows are 0000000.
 export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {
   'MASTER': {
     'partners.delete': '1111100',
@@ -121,6 +121,9 @@ export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> 
   'MANAGER': {
     'accounting.daily-closing.run': '1111000',
     'sales.partner-order.convert': '1100000',
+    'accounting.tax-invoice.inbound.manage': '1111000',
+    'accounting.sales-slip.accounting': '1111000',
+    'accounting.purchase-slip.accounting': '1111000',
     'messenger.send': '1111000',
     'ecount.mig.ops-dashboard': '1111000',
     'accounting.deposit-mapping': '1111000',
@@ -221,6 +224,8 @@ export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> 
   },
   'SALES': {
     'sales.partner-order.convert': '1100000',
+    'accounting.sales-slip.accounting': '1000000',
+    'accounting.purchase-slip.accounting': '1000000',
     'messenger.send': '1111000',
     'partners.4tab': '1111000',
     'accounting.sales-slip.list': '1000000',
