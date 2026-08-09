@@ -13923,10 +13923,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return envelope(permissions)
     }
     if (mockRole === 'MASTER') {
+      // MASTER 정본은 role_page_permission_templates가 아니라
+      // DynamicPermissionService.java:192-205의 런타임 전권 하드코딩이다.
       const permissions: Record<string, string[]> = {}
-      for (const page of SP_D1_PAGES) {
-        permissions[page] = page === 'inbound.inspection' ? allActions.slice(0, 4) : allActions
-      }
+      for (const page of SP_D1_PAGES) permissions[page] = allActions
       permissions['system.permission-admin'] = allActions
       return envelope(permissions)
     }
