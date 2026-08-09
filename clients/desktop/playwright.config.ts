@@ -23,6 +23,9 @@ export default defineConfig({
     '**/phase-2-4-real-qa/**',
     '**/*-real-qa.spec.ts',
     '**/*-real-qa/**',
+    // #1151 live reconvergence 는 mock hard gate 대상이 아니다. 실 SSE/source-journal 검증을 보존한다.
+    '**/1151-final-reconv.spec.ts',
+    '**/1151-postmerge-sol-reconv.spec.ts',
     // 레거시 GAS 소스 의존 스펙은 mock 회귀가 아니므로 3-A2 컨벤션 대상에서 제외한다.
     '**/full-menu-contract/**',
     // 🔴 3-A2 QUARANTINE — 기존 미실행 레거시 스펙 드리프트(335 통과분과 분리). 추적·수리: docs/dev-reports/slice-3-a2-desktop-playwright-ci-gate.md. 신규 mock 스펙은 본 목록과 무관하게 자동 게이트됨.

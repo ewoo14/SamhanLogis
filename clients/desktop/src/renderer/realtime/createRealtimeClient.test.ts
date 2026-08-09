@@ -51,4 +51,18 @@ describe('createRealtimeClient', () => {
     await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1))
     controller.abort()
   })
+
+  it('협업 client가 명시적으로 허용하면 mock 모드에서도 SSE fetch를 시작한다', async () => {
+    vi.mocked(isMockMode).mockReturnValue(true)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false, status: 503, body: null } as Response)
+    const client = createRealtimeClient({
+      name: 'coedit-test',
+      endpointPath: (id) => `/items/${id}/collab/stream`,
+      allowMockMode: true,
+    })
+
+    const controller = client.subscribe('item-1', () => undefined)
+    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1))
+    controller.abort()
+  })
 })
