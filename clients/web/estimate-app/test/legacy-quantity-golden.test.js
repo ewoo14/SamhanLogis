@@ -184,6 +184,17 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     expect(fixtures.map((fixture) => fixture.family)).toEqual(FAMILY_ORDER);
   });
 
+  test.each(['recomputeHomeHoses_', 'applyServerHomeQuantitySync_'])(
+    '앱별 홈 helper 경계: %s는 주문에서 선택적이고 견적에서 필수다',
+    (name) => {
+      const fixture = fixtures.find((item) => item.family === 'H-01');
+      expect(() => evaluateLegacyQuantityBoundary({ ...fixture, app: 'order' })).not.toThrow();
+      expect(() => evaluateLegacyQuantityBoundary(inputFor(fixture), {
+        sourceMutator: (source) => replaceOnce(source, `function ${name}()`, `function missing_${name}()`),
+      })).toThrow(`${name} 함수를 찾을 수 없습니다.`);
+    },
+  );
+
   test.each(fixtures)('$family 수량·target 모델이 golden과 같다', (fixture) => {
     const actual = evaluateLegacyQuantityBoundary(inputFor(fixture));
     expect(actual.quantities).toEqual(estimateGoldens[fixture.family]);

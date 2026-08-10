@@ -103,10 +103,18 @@ const ORDER_ONLY_QUANTITY_HELPERS = new Set([
   'setSingleDerivedQty_',
 ]);
 
+// R12 홈 수량 서버 규칙 헬퍼는 견적 정본에만 추가됐다. 주문 실행에서는
+// 이 두 이름만 선택적으로 제외하고, 나머지 필수 함수는 계속 즉시 추출한다.
+const ESTIMATE_ONLY_QUANTITY_HELPERS = new Set([
+  'recomputeHomeHoses_',
+  'applyServerHomeQuantitySync_',
+]);
+
 function sourceFunctionBundleForApp(source, app, names) {
-  const selected = app === 'order'
-    ? names
-    : names.filter((name) => !ORDER_ONLY_QUANTITY_HELPERS.has(name));
+  const excluded = app === 'order'
+    ? ESTIMATE_ONLY_QUANTITY_HELPERS
+    : ORDER_ONLY_QUANTITY_HELPERS;
+  const selected = names.filter((name) => !excluded.has(name));
   return sourceFunctionBundle(source, selected);
 }
 
