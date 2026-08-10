@@ -1,0 +1,39 @@
+{
+  "front": "http://127.0.0.1:5186",
+  "api": "http://localhost:8080",
+  "network": [
+    "GET http://localhost:8080/api/v1/partner-dc-configs/4563501301/audit-logs -> 500",
+    "GET http://localhost:8080/api/v1/slips/<UUID>/audit-logs -> 200",
+    "GET http://localhost:8080/api/v1/slips/<UUID>/audit-logs -> 200"
+  ],
+  "observations": [
+    {
+      "name": "login",
+      "status": 200
+    },
+    {
+      "name": "dc-audit-new-path",
+      "partner": "4563501301\t엠엠시스템에어 호남지사-김유나\t\t\t\t\t\t\t\t\t\t\t\t저장\t보기",
+      "status": 500,
+      "url": "/api/v1/partner-dc-configs/4563501301/audit-logs",
+      "body": "{\"success\":false,\"code\":\"INTERNAL_ERROR\",\"message\":\"서버 내부 오류가 발생했습니다.\",\"data\":null,\"timestamp\":\"2026-08-10T13:30:37.352043155Z\"}",
+      "panel": "엠엠시스템에어 호남지사-김유나 (4563501301) — DC 변경 이력\n수정 이력 조회 실패\n버전이력\n닫기\n\n변경 이력을 불러오지 못했습니다.",
+      "modal": "버전 이력\n\n버전 이력을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
+    },
+    {
+      "name": "slip-2026-08-10-14",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"<UUID>\",\"slipId\":\"<UUID>\",\"revisionNo\":3,\"actorId\":\"<UUID>\",\"actorName\":\"[DEV-SEED] 개발영업\",\"actorColor\":null,\"fieldName\":\"memo\",\"oldValue\":\"S33-open-overlay-ok\",\"newValue\":\"S33-open-collab-ok\",\"changedAt\":\"2026-08-09T01:08:34.874431\"},{\"id\":\"<UUID>\",\"slipId\":\"<UUID>\",\"revisionNo\":2,\"actorId\":\"<UUID>\",\"actorName\":\"[DEV-SEED] 개발영업\",\"actorColor\":null,\"fieldName\":\"memo\",\"oldValue\":\"S33-open-header-ok\",\"newValue\":\"S33-open-overlay-ok\",\"changedAt\":\"2026-08-09T01:08:34.849164\"},{\"id\":\"<UUID>\",\"slipId\":\"<UUID>\",\"revisionNo\":1,\"actorId\":\"<UUID>\",\"actorName\":\"<UUID>\",\"actorColor\":null,\"fieldName\":\"memo\",\"oldValue\":\"S33-open-normal-path\",\"newValue\":\"S33-open-header-ok\",\"changedAt\":\"2026-08-09T01:08:34.698008\"}],\"timestamp\":\"2026-08-10T13:30:37.808365340Z\"}",
+      "revision": "수정 3회",
+      "memo": "메모\nS33-open-collab-ok\nS33-open-overlay-ok\n[DEV-SEED] 개발영업\n01:08\n이력 닫기\nS33-open-header-ok\n[DEV-SEED] 개발영업\n01:08\nS33-open-normal-path\n<UUID>\n01:08"
+    },
+    {
+      "name": "slip-2026-08-10-13",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-10T13:30:38.154568422Z\"}",
+      "revision": "수정 0회",
+      "memo": "메모\nS33-concurrency-fixture\n변경 이력 없음",
+      "shipping": "배송지\n(빈 값)\n변경 이력 없음"
+    }
+  ]
+}
