@@ -8446,47 +8446,75 @@ function recomputeHomeDerived(updateUI) {
   // 아래 분기들은 모두 건너뛰어 순수 legacy 결과를 보존한다.
   const ownedHomeRows = predicate => HOMEMULTI.filter(row =>
     serverOwnedTargets.has(String(row?.model || '')) && predicate(row));
-  const ownsHomeFamily = predicate => ownedHomeRows(predicate).length > 0;
-  const reconcileExcludedHomeFamily = (predicate, excluded, recompute) => {
-    const ownedRows = ownedHomeRows(predicate);
-    if (!excluded || ownedRows.length === 0) return;
-    recompute();
-    // 레거시 함수가 알지 못하는 새 target도 제외 계약에서는 반드시 0으로 수렴한다.
-    ownedRows.forEach(row => homeQty.set(row.model, 0));
+  const reconcileHomeFamily = (predicate, manualSet, ownedRows, useOptionResult, recompute) => {
+    if (ownedRows.length === 0) return;
+
+    const ownedQuantities = new Map(ownedRows.map(row => [
+      String(row.model || ''),
+      Number(homeQty.get(row.model)) || 0,
+    ]));
+    let desiredQuantities = ownedQuantities;
+    if (useOptionResult) {
+      recompute();
+      desiredQuantities = new Map(HOMEMULTI
+        .filter(row => predicate(row) && !manualSet.has(row.model))
+        .map(row => [String(row.model || ''), Number(homeQty.get(row.model)) || 0]));
+    }
+
+    // 한 계열의 비수동 결과를 먼저 비우고, 중립 옵션이면 규칙 소유 target만,
+    // 치환·제외 옵션이면 옵션 함수가 만든 결과만 다시 반영한다.
+    HOMEMULTI.forEach(row => {
+      if (predicate(row) && !manualSet.has(row.model)) homeQty.set(row.model, 0);
+    });
+    desiredQuantities.forEach((quantity, model) => {
+      if (!manualSet.has(model)) homeQty.set(model, quantity);
+    });
   };
 
-  if (ownsHomeFamily(row => row.model === BRANCH_1509 || row.model === BRANCH_2512) && el('#home_no_branch')?.checked) {
-    recomputeHomeBranches();
-  }
-  if (ownsHomeFamily(row => row.model === FOOT_ROUND || FOOT_FLAT_MODELS.includes(String(row?.model || ''))) && !el('#home_foot')?.checked) {
-    recomputeFootAll();
-  }
-  reconcileExcludedHomeFamily(
+  const branchRows = ownedHomeRows(row => row.model === BRANCH_1509 || row.model === BRANCH_2512);
+  reconcileHomeFamily(
+    row => row.model === BRANCH_1509 || row.model === BRANCH_2512,
+    HOME_MANUAL_BRANCH,
+    branchRows,
+    !!el('#home_no_branch')?.checked,
+    recomputeHomeBranches,
+  );
+
+  const footRows = ownedHomeRows(row => row.model === FOOT_ROUND || FOOT_FLAT_MODELS.includes(String(row?.model || '')));
+  reconcileHomeFamily(
+    row => row.model === FOOT_ROUND || FOOT_FLAT_MODELS.includes(String(row?.model || '')),
+    HOME_MANUAL_FOOT,
+    footRows,
+    !el('#home_foot')?.checked,
+    recomputeFootAll,
+  );
+
+  const hoseRows = ownedHomeRows(row => /유연\s*호스|호스/i.test(String(row?.name || '')));
+  reconcileHomeFamily(
     row => /유연\s*호스|호스/i.test(String(row?.name || '')),
-    !!el('#home_no_hose')?.checked,
+    HOME_MANUAL_HOSE,
+    hoseRows,
+    !!el('#home_no_hose')?.checked || !!el('#home_hose_i')?.checked,
     recomputeHomeHoses_,
   );
 
   const ownedRemoteRows = ownedHomeRows(row =>
     isRemoteRow(row) || String(row?.catM || '').trim() === '리모컨');
-  const configuredRemoteQuantities = new Map(ownedRemoteRows.map(row => [
-    String(row.model || ''),
-    Number(homeQty.get(row.model)) || 0,
-  ]));
-  recomputeHomeRemotes();
-  if (ownedRemoteRows.length > 0) {
-    // 규칙 target이 있는 경우에도 다른 legacy 리모컨은 한 번 계산하되,
-    // 비제외 옵션에서는 규칙이 소유한 target 값을 복원한다.
-    if (el('#home_remote')?.value === '제외') {
-      ownedRemoteRows.forEach(row => homeQty.set(row.model, 0));
-    } else {
-      configuredRemoteQuantities.forEach((quantity, model) => homeQty.set(model, quantity));
-    }
-  }
+  reconcileHomeFamily(
+    row => isRemoteRow(row) || String(row?.catM || '').trim() === '리모컨',
+    HOME_MANUAL_REMOTE,
+    ownedRemoteRows,
+    (el('#home_remote')?.value || '기본') !== '기본',
+    recomputeHomeRemotes,
+  );
+  if (ownedRemoteRows.length === 0) recomputeHomeRemotes();
 
-  reconcileExcludedHomeFamily(
+  const panelRows = ownedHomeRows(row => isPanelRow(row));
+  reconcileHomeFamily(
     row => isPanelRow(row),
-    el('#home_panel')?.value === '판넬제외',
+    HOME_MANUAL_PANEL,
+    panelRows,
+    (el('#home_panel')?.value || '') !== '',
     recomputeHomePanels,
   );
 
