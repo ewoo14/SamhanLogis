@@ -265,12 +265,13 @@ public class SalesSlipUpdateService {
     }
 
     /**
-     * 신규 익명 라인의 BUNDLE 계보를 product-service 전개 결과와 대조한 뒤 영속한다.
+     * 신규 익명 라인의 BUNDLE 계보를 부모와 허용 구성품 membership으로 검증한 뒤 영속한다.
      *
      * <p>기존 {@code lineId} 라인은 {@link BundleLineageResolver}가 구 규약의 계보를 복원한다.
      * 반면 신규 구성품은 영속 ID가 없으므로 요청의 계보를 무검증으로 신뢰하면 임의 SINGLE을
-     * 세트 구성품으로 위조할 수 있다. 신규 계보 그룹이 있을 때만 부모를 조회하고, 전개 결과의
-     * 품목·수량·단가·head 순서를 모두 일치시킨 뒤 도메인 메서드를 호출한다.
+     * 세트 구성품으로 위조할 수 있다. 신규 계보 그룹이 있을 때만 부모를 조회하고, product-service
+     * 전개 결과에서 허용 구성품 ID와 canonical head만 확인한다. 수량·단가는 화면에서 편집 가능한
+     * 사용자 권위값이므로 서버 전개 원문과 동일해야 한다는 조건을 두지 않는다.
      */
     private void validateAndAssignNewBundleLineage(
             List<SlipLine> lines, List<SlipUpdateRequest.LineRequest> requests) {
@@ -323,19 +324,15 @@ public class SalesSlipUpdateService {
 
             BundleSetOptions setOptions = key.setOptions();
             ExpandedLineDto.Options expandOptions = toExpandOptions(setOptions);
-            List<ExpandedLineDto> expandedForOne = componentLines(productClient.expand(
+            List<ExpandedLineDto> expanded = componentLines(productClient.expand(
                     key.parentSetModel(), BigDecimal.ONE, expandOptions, parentUnitPrice));
-            BigDecimal setQuantity = inferSetQuantity(expandedForOne, indexes, requests);
-            List<ExpandedLineDto> expanded = setQuantity.compareTo(BigDecimal.ONE) == 0
-                    ? expandedForOne
-                    : componentLines(productClient.expand(
-                            key.parentSetModel(), setQuantity, expandOptions, parentUnitPrice));
-            validateExpandedLines(expanded, indexes, requests);
+            UUID canonicalHeadProductId = validateBundleMembership(expanded, indexes, requests);
             for (int i = 0; i < indexes.size(); i++) {
                 int index = indexes.get(i);
-                ExpandedLineDto expected = expanded.get(i);
                 lines.get(index).assignBundleComponent(
-                        key.parentSetModel(), expected.setHead(), setOptions);
+                        key.parentSetModel(),
+                        Objects.equals(requests.get(index).productId(), canonicalHeadProductId),
+                        setOptions);
             }
         }
     }
@@ -374,54 +371,70 @@ public class SalesSlipUpdateService {
                 .toList();
     }
 
-    private BigDecimal inferSetQuantity(List<ExpandedLineDto> expandedForOne, List<Integer> indexes,
-                                        List<SlipUpdateRequest.LineRequest> requests) {
-        if (expandedForOne.isEmpty() || expandedForOne.size() != indexes.size()) {
-            rejectBundleLineage("서버 전개 구성품 수가 요청과 다릅니다");
-        }
-        BigDecimal setQuantity = null;
-        for (int i = 0; i < indexes.size(); i++) {
-            ExpandedLineDto expected = expandedForOne.get(i);
-            SlipUpdateRequest.LineRequest request = requests.get(indexes.get(i));
-            if (!Objects.equals(expected.productId(), request.productId())
-                    || expected.quantity() == null || expected.quantity().signum() <= 0) {
-                rejectBundleLineage("요청 구성품이 서버 전개 결과와 일치하지 않습니다");
+    /**
+     * 서버 전개 결과를 편집 가능한 계보 증명으로 축소한다.
+     *
+     * <p>요청은 서버가 허용한 구성품의 부분집합만 포함할 수 있고, 중복 구성품이나 head 삭제는
+     * 허용하지 않는다. 1행 전개는 product-service의 {@code setHead=false} 응답도 유효하므로
+     * slip 저장 경계에서 그 유일한 구성품을 canonical head로 정규화한다.
+     */
+    private UUID validateBundleMembership(List<ExpandedLineDto> expanded,
+                                          List<Integer> indexes,
+                                          List<SlipUpdateRequest.LineRequest> requests) {
+        Map<UUID, ExpandedLineDto> allowed = new LinkedHashMap<>();
+        for (ExpandedLineDto line : expanded) {
+            if (line == null || line.productId() == null || line.componentKind() == null) {
+                continue;
             }
-            BigDecimal candidate = BigDecimal.valueOf(request.quantity())
-                    .divide(expected.quantity(), 12, RoundingMode.HALF_UP);
-            if (expected.quantity().multiply(candidate).compareTo(BigDecimal.valueOf(request.quantity())) != 0
-                    || candidate.signum() <= 0
-                    || candidate.stripTrailingZeros().scale() > 0) {
-                rejectBundleLineage("구성품 수량으로 세트 수량을 검증할 수 없습니다");
-            }
-            if (setQuantity == null) {
-                setQuantity = candidate;
-            } else if (setQuantity.compareTo(candidate) != 0) {
-                rejectBundleLineage("구성품 수량의 세트 배수가 일치하지 않습니다");
+            if (allowed.put(line.productId(), line) != null) {
+                rejectBundleLineage("서버 전개 구성품에 중복 품목이 있습니다");
             }
         }
-        return setQuantity;
-    }
+        if (allowed.isEmpty()) {
+            rejectBundleLineage("서버 전개 구성품이 없습니다");
+        }
 
-    private void validateExpandedLines(List<ExpandedLineDto> expanded,
-                                       List<Integer> indexes,
-                                       List<SlipUpdateRequest.LineRequest> requests) {
-        if (expanded.size() != indexes.size()
-                || expanded.stream().filter(ExpandedLineDto::setHead).count() != 1) {
-            rejectBundleLineage("서버 전개 결과의 구성품 수 또는 setHead가 올바르지 않습니다");
+        UUID canonicalHeadProductId;
+        if (allowed.size() == 1) {
+            canonicalHeadProductId = allowed.keySet().iterator().next();
+        } else {
+            List<UUID> serverHeads = expanded.stream()
+                    .filter(Objects::nonNull)
+                    .filter(ExpandedLineDto::setHead)
+                    .map(ExpandedLineDto::productId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+            if (serverHeads.size() != 1) {
+                rejectBundleLineage("서버 전개 결과의 구성품 수 또는 setHead가 올바르지 않습니다");
+            }
+            canonicalHeadProductId = serverHeads.get(0);
         }
-        for (int i = 0; i < expanded.size(); i++) {
-            ExpandedLineDto expected = expanded.get(i);
-            SlipUpdateRequest.LineRequest request = requests.get(indexes.get(i));
-            if (!Objects.equals(expected.productId(), request.productId())
-                    || expected.quantity() == null
-                    || expected.quantity().compareTo(BigDecimal.valueOf(request.quantity())) != 0
-                    || expected.unitPrice() == null
-                    || expected.unitPrice().compareTo(request.unitPrice()) != 0
-                    || expected.setHead() != Boolean.TRUE.equals(request.setHead())) {
-                rejectBundleLineage("요청 구성품 수량·단가·setHead가 서버 전개 결과와 다릅니다");
+
+        Set<UUID> requestedProductIds = new HashSet<>();
+        int requestedHeadCount = 0;
+        for (int index : indexes) {
+            SlipUpdateRequest.LineRequest request = requests.get(index);
+            if (!allowed.containsKey(request.productId())) {
+                rejectBundleLineage("요청 구성품이 부모 BUNDLE 전개 membership에 없습니다");
+            }
+            if (!requestedProductIds.add(request.productId())) {
+                rejectBundleLineage("요청 구성품이 중복됩니다");
+            }
+            if (Boolean.TRUE.equals(request.setHead())) {
+                requestedHeadCount++;
+                if (!Objects.equals(request.productId(), canonicalHeadProductId)) {
+                    rejectBundleLineage("요청 setHead가 부모 BUNDLE 전개 head와 다릅니다");
+                }
             }
         }
+        if (allowed.size() > 1 && requestedHeadCount != 1) {
+            rejectBundleLineage("요청 BUNDLE 구성품의 setHead가 정확히 1개가 아닙니다");
+        }
+        if (!requestedProductIds.contains(canonicalHeadProductId)) {
+            rejectBundleLineage("세트 head 구성품은 삭제할 수 없습니다");
+        }
+        return canonicalHeadProductId;
     }
 
     private void rejectBundleLineage(String message) {
