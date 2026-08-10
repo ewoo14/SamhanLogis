@@ -60,7 +60,7 @@ class BundleExpanderIT extends AbstractPostgresIT {
         comp(parent, "C001", new BigDecimal("1"), BundleComponent.QtyMode.FOLLOW_SET,
                 BundleComponent.ComponentKind.INDOOR, "기본", true, 1);
         comp(parent, "C002", new BigDecimal("2"), BundleComponent.QtyMode.FIXED,
-                BundleComponent.ComponentKind.PANEL, null, false, 2);
+                BundleComponent.ComponentKind.PANEL, null, true, 2);
         productRepository.flush();
         componentRepository.flush();
 
@@ -72,6 +72,28 @@ class BundleExpanderIT extends AbstractPostgresIT {
         // C002: FIXED → defaultQty(2) 그대로 (setQty 무관)
         assertThat(lines.get(1).modelCode()).isEqualTo("C002");
         assertThat(lines.get(1).quantity()).isEqualByComparingTo("2");
+    }
+
+    @Test
+    void EXPAND_모드에서는_isDefault_구성품만_전개한다() {
+        Category cat = categoryRepository.save(Category.create("BUNDLE-DEFAULT-ONLY", "test", null, 17));
+        Product parent = Product.seedFromSheet("상업멀티 기본 구성 세트", "BUND_DEFAULT_ONLY", cat,
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                ProductType.BUNDLE, ProductCategory.COMMERCIAL_MULTI,
+                UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI);
+        parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        parent = productRepository.save(parent);
+
+        product("DEFAULT_INDOOR", "기본 실내기", cat, ProductCategory.COMMERCIAL_PART, BigDecimal.ZERO);
+        product("OPTIONAL_OUTDOOR", "비기본 실외기", cat, ProductCategory.COMMERCIAL_PART, BigDecimal.ZERO);
+        comp(parent, "DEFAULT_INDOOR", BundleComponent.ComponentKind.INDOOR, null, true, 1);
+        comp(parent, "OPTIONAL_OUTDOOR", BundleComponent.ComponentKind.OUTDOOR, null, false, 2);
+        flush();
+
+        var lines = expander.expand("BUND_DEFAULT_ONLY", BigDecimal.ONE);
+
+        assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("DEFAULT_INDOOR");
     }
 
     @Test
@@ -162,8 +184,8 @@ class BundleExpanderIT extends AbstractPostgresIT {
         var lines = expander.expand("OPT_SET", BigDecimal.ONE, opts);
         assertThat(unit(defaultLines, "PNL_W")).isEqualByComparingTo("50000");
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
-                .containsExactly("PNL_B"); // 블랙 판넬만(화이트 제외, 자재 제외)
-        assertThat(unit(lines, "PNL_B")).isEqualByComparingTo("60000");
+                .containsExactly("PNL_W"); // 비기본 블랙 판넬은 제외되고 기본 화이트를 유지
+        assertThat(unit(lines, "PNL_W")).isEqualByComparingTo("50000");
     }
 
     @Test
@@ -174,10 +196,16 @@ class BundleExpanderIT extends AbstractPostgresIT {
         product("ROW_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("200000"));
         product("ROW_PANEL", "기본 판넬", cat, ProductCategory.SINGLE_PART, new BigDecimal("50000"));
         product("ROW_REMOTE", "기본 유선리모컨", cat, ProductCategory.SINGLE_PART, new BigDecimal("20000"));
+        product("ROW_PANEL_OPTION", "비기본 판넬", cat, ProductCategory.SINGLE_PART, new BigDecimal("60000"));
+        product("ROW_REMOTE_OPTION", "비기본 리모컨", cat, ProductCategory.SINGLE_PART, new BigDecimal("30000"));
+        product("ROW_MATERIAL_OPTION", "비기본 자재", cat, ProductCategory.SINGLE_PART, new BigDecimal("10000"));
         comp(parent, "ROW_IN", BundleComponent.ComponentKind.INDOOR, null, true, 1);
         comp(parent, "ROW_OUT", BundleComponent.ComponentKind.OUTDOOR, null, true, 2);
         comp(parent, "ROW_PANEL", BundleComponent.ComponentKind.PANEL, "기본", true, 3);
         comp(parent, "ROW_REMOTE", BundleComponent.ComponentKind.REMOTE, "기본", true, 4);
+        comp(parent, "ROW_PANEL_OPTION", BundleComponent.ComponentKind.PANEL, null, false, 5);
+        comp(parent, "ROW_REMOTE_OPTION", BundleComponent.ComponentKind.REMOTE, null, false, 6);
+        comp(parent, "ROW_MATERIAL_OPTION", BundleComponent.ComponentKind.MATERIAL, null, false, 7);
         flush();
 
         var defaults = expander.expand("OPT_DEFAULT_ROWS", BigDecimal.ONE);
@@ -187,6 +215,8 @@ class BundleExpanderIT extends AbstractPostgresIT {
         assertThat(defaults).hasSize(4)
                 .extracting(BundleExpander.ExpandedLine::modelCode)
                 .containsExactly("ROW_IN", "ROW_OUT", "ROW_PANEL", "ROW_REMOTE");
+        assertThat(defaults.stream().map(BundleExpander.ExpandedLine::unitPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("500000");
         assertThat(withoutPanel).hasSize(3)
                 .extracting(BundleExpander.ExpandedLine::modelCode)
                 .containsExactly("ROW_IN", "ROW_OUT", "ROW_REMOTE");
@@ -227,7 +257,7 @@ class BundleExpanderIT extends AbstractPostgresIT {
         var lines = expander.expand("OPT_FALLBACK_PANEL", BigDecimal.ONE, opts);
 
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
-                .containsExactly("PNL_BLACK_FB");
+                .containsExactly("PNL_BASE_FB");
     }
 
     @Test
@@ -246,7 +276,7 @@ class BundleExpanderIT extends AbstractPostgresIT {
         var lines = expander.expand("OPT_MIXED_PANEL", BigDecimal.ONE, opts);
 
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
-                .containsExactly("PNL_BLACK_AIR");
+                .containsExactly("PNL_BASE_MIXED");
     }
 
     @Test
@@ -264,7 +294,7 @@ class BundleExpanderIT extends AbstractPostgresIT {
         var lines = expander.expand("OPT_PARTIAL_PANEL", BigDecimal.ONE, opts);
 
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
-                .containsExactly("PNL_BLACK_PARTIAL");
+                .containsExactly("PNL_BASE_PARTIAL");
     }
 
     @Test
@@ -287,10 +317,10 @@ class BundleExpanderIT extends AbstractPostgresIT {
 
         assertThat(expander.expand("OPT_PANEL_ARMS", BigDecimal.ONE, airOpts))
                 .extracting(BundleExpander.ExpandedLine::modelCode)
-                .containsExactly("PNL_AIR_ATTR");
+                .containsExactly("PNL_BASE_ARMS");
         assertThat(expander.expand("OPT_PANEL_ARMS", BigDecimal.ONE, liftOpts))
                 .extracting(BundleExpander.ExpandedLine::modelCode)
-                .containsExactly("PNL_LIFT_ATTR");
+                .containsExactly("PNL_BASE_ARMS");
     }
 
     @Test
@@ -354,7 +384,7 @@ class BundleExpanderIT extends AbstractPostgresIT {
         var lines = expander.expand("OPT_REMOTE_COLOR_LEAK", BigDecimal.ONE, opts);
 
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
-                .containsExactly("RMT_PLAIN_WIRED");
+                .containsExactly("AR-EH05");
     }
 
     @Test
@@ -476,7 +506,7 @@ class BundleExpanderIT extends AbstractPostgresIT {
 
     private void comp(Product parent, String code, BundleComponent.ComponentKind kind) {
         componentRepository.save(BundleComponent.seed(parent.getId(), code, BigDecimal.ONE,
-                BundleComponent.QtyMode.FOLLOW_SET, kind, null, false, null));
+                BundleComponent.QtyMode.FOLLOW_SET, kind, null, true, null));
     }
 
     private void comp(Product parent, String code, BundleComponent.ComponentKind kind, String variant,

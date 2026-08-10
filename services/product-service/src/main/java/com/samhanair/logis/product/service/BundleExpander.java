@@ -95,7 +95,9 @@ public class BundleExpander {
         }
 
         // ── EXPAND ──────────────────────────────────────────────
-        List<BundleComponent> components = componentRepository.findByBundleProductId(parent.getId());
+        List<BundleComponent> components = componentRepository.findByBundleProductId(parent.getId()).stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsDefault()))
+                .toList();
         Map<String, Product> productsByModelCode = components.isEmpty()
                 ? Map.of()
                 : productRepository.findByModelCodeInAndIsDeletedFalse(
