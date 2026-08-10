@@ -428,6 +428,25 @@ class SlipRevisionServiceTest {
                 .doesNotContain("actorId");
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "{550e8400-e29b-41d4-a716-446655440000}",
+            "urn:uuid:550e8400-e29b-41d4-a716-446655440000",
+            "550e8400e29b41d4a716446655440000"
+    })
+    void safeActorName_hidesR15NonCanonicalUuidForms(String actorName) {
+        assertThat(service.safeActorName(actorName)).isNull();
+    }
+
+    @Test
+    void safeActorName_preserves32CharacterNonUuidNames() {
+        String koreanName = "가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허고노도";
+        String alphaNumericName = "0000000000000000000000000000000G";
+
+        assertThat(service.safeActorName(koreanName)).isEqualTo(koreanName);
+        assertThat(service.safeActorName(alphaNumericName)).isEqualTo(alphaNumericName);
+    }
+
     @Test
     @DisplayName("listWithSummary: 직전 revision 대비 헤더 필드와 품목 셀 변경 목록을 actor 색상과 함께 노출한다")
     void listWithSummaryExposesFieldLevelChangesWithPresenceColor() throws Exception {

@@ -38,7 +38,10 @@ public record SlipAuditLogResponse(
 
     private static final String UNKNOWN_ACTOR_NAME = "변경자 미상";
     private static final Pattern UUID_ACTOR_NAME = Pattern.compile(
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+            "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                    + "|\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}"
+                    + "|(?i:urn:uuid:)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                    + "|[0-9a-fA-F]{32})$");
 
     public static SlipAuditLogResponse from(SlipAuditLog log) {
         return new SlipAuditLogResponse(

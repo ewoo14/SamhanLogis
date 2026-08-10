@@ -82,7 +82,7 @@ function displayValue(v: string | null | undefined): string {
 }
 
 const UNKNOWN_ACTOR_NAME = '변경자 미상'
-const UUID_ACTOR_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
 
 /** API 경계 밖에서 직접 주입된 legacy audit row 도 UUID 를 사용자 텍스트로 내보내지 않는다. */
 function displayActorName(actorName: string): string {

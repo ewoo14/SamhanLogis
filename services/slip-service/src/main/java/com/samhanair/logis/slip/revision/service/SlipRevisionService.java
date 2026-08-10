@@ -54,7 +54,10 @@ public class SlipRevisionService {
     private final SlipClosedDateGuard closedDateGuard;
 
     private static final java.util.regex.Pattern UUID_PATTERN = java.util.regex.Pattern.compile(
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+            "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                    + "|\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}"
+                    + "|(?i:urn:uuid:)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                    + "|[0-9a-fA-F]{32})$");
 
     private record HeaderField(String path, String label, java.util.function.Function<SlipSnapshot, Object> reader) {
     }

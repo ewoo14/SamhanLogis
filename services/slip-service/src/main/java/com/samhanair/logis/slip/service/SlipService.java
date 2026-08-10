@@ -96,7 +96,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class SlipService {
 
     private static final Pattern CANONICAL_UUID_ACTOR_NAME = Pattern.compile(
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+            "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                    + "|\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}"
+                    + "|(?i:urn:uuid:)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                    + "|[0-9a-fA-F]{32})$");
 
     private static final String SLIP_REF_TYPE = "SLIP";
     private static final String SLIP_OUTBOUND_DOCUMENT_TYPE = "SLIP_OUTBOUND";
@@ -799,8 +802,9 @@ public class SlipService {
      * capture 하면 버전이력 타임라인(FE 노출 {@code SlipRevisionResponse.actorName})에 raw UUID 가
      * 새어나간다. 따라서:
      * <ol>
-     *   <li>{@code callerName} (X-User-Name) 이 있고 canonical UUID 형태가 아니면 그대로 사용한다.</li>
-     *   <li>그 외(헤더 부재 / canonical UUID 형태)는 {@code null} 을 반환한다 — 버전이력에 UUID 미노출.</li>
+     *   <li>{@code callerName} (X-User-Name) 이 있고 UUID 직렬화 형태가 아니면 그대로 사용한다.</li>
+     *   <li>그 외(헤더 부재 / canonical·중괄호·URN·32자 hex UUID 형태)는 {@code null} 을 반환한다
+     *       — 버전이력에 UUID 미노출.</li>
      * </ol>
      *
      * <p>{@code callerId} 폴백을 의도적으로 제거했다 — 폴백하면 다시 UUID 가 actorName 으로 들어간다.
@@ -815,7 +819,7 @@ public class SlipService {
             return null;
         }
         if (CANONICAL_UUID_ACTOR_NAME.matcher(callerName.trim()).matches()) {
-            return null; // canonical UUID → 비공개
+            return null; // UUID 직렬화 형태 → 비공개
         }
         return callerName;
     }

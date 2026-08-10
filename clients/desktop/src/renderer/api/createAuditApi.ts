@@ -46,7 +46,7 @@ export interface AuditApiConfig {
 }
 
 const UNKNOWN_ACTOR_NAME = '변경자 미상'
-const UUID_ACTOR_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
 
 function normalizeActorName(actorName: string | null | undefined): string {
   if (!actorName || !actorName.trim() || UUID_ACTOR_NAME.test(actorName.trim())) {
