@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -15,6 +16,7 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -231,6 +233,94 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
         assertThat(logs).extracting(log -> log.getRevisionNo()).containsOnly(1);
         assertThat(logs).anyMatch(log -> "SLIP_EDIT".equals(log.getFieldName()));
         assertThat(logs).anyMatch(log -> "영업담당자".equals(log.getActorName()));
+    }
+
+    @Test
+    @DisplayName("R2: controller JSON의 신규 BUNDLE 계보가 저장 후 GET/DB 왕복에서 보존된다")
+    void testUpdateSalesBundleLineageRoundTrip() throws Exception {
+        String id = createSlip("OUTBOUND", "SP1131-bundle");
+        MvcResult detail = mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode detailData = objectMapper.readTree(detail.getResponse().getContentAsString()).path("data");
+        String updatedAt = detailData.path("updatedAt").asText();
+        UUID existingLineId = UUID.fromString(detailData.path("lines").get(0).path("id").asText());
+        UUID bundleParentId = UUID.randomUUID();
+        UUID firstComponentId = UUID.randomUUID();
+        UUID secondComponentId = UUID.randomUUID();
+
+        Mockito.when(productClient.lookup(ArgumentMatchers.anyList()))
+                .thenAnswer(invocation -> {
+                    List<UUID> ids = invocation.getArgument(0);
+                    return ids.stream()
+                            .map(productId -> productId.equals(bundleParentId)
+                                    ? new ProductSummary(productId, "검증 BUNDLE", "BUNDLE-IT", null,
+                                    UUID.randomUUID(), new BigDecimal("7000"), "ACTIVE", false,
+                                    "BUNDLE-IT", "BUNDLE")
+                                    : new ProductSummary(productId, "검증 구성품", "COMPONENT-IT", null,
+                                    UUID.randomUUID(), new BigDecimal("1000"), "ACTIVE"))
+                            .toList();
+                });
+        Mockito.when(productClient.expand(
+                        ArgumentMatchers.eq("BUNDLE-IT"), ArgumentMatchers.any(),
+                        ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of(
+                        new ExpandedLineDto(firstComponentId, "COMP-1", "COMP-1", "구성품 1",
+                                BigDecimal.ONE, new BigDecimal("1000"), "INDOOR", true),
+                        new ExpandedLineDto(secondComponentId, "COMP-2", "COMP-2", "구성품 2",
+                                BigDecimal.ONE, new BigDecimal("1000"), "OUTDOOR", false)));
+
+        Map<String, Object> first = new HashMap<>();
+        first.put("lineId", existingLineId.toString());
+        first.put("productId", firstComponentId.toString());
+        first.put("productName", "구성품 1");
+        first.put("modelName", "COMP-1");
+        first.put("quantity", 1);
+        first.put("unitPrice", "1000");
+        first.put("parentSetModel", "BUNDLE-IT");
+        first.put("setHead", true);
+        first.put("bundleParentProductId", bundleParentId.toString());
+        first.put("bundleParentUnitPrice", "7000");
+        first.put("setOptions", Map.of("remoteExcluded", false, "materialIncluded", false));
+        Map<String, Object> second = new HashMap<>(first);
+        second.put("lineId", null);
+        second.put("productId", secondComponentId.toString());
+        second.put("productName", "구성품 2");
+        second.put("modelName", "COMP-2");
+        second.put("setHead", false);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("updatedAt", updatedAt);
+        body.put("partnerName", "SP1131-bundle");
+        body.put("lines", List.of(first, second));
+        body.put("lineIdContract", true);
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + id + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "영업담당자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines", hasSize(2)))
+                .andExpect(jsonPath("$.data.lines[0].parentSetModel", is("BUNDLE-IT")))
+                .andExpect(jsonPath("$.data.lines[1].parentSetModel", is("BUNDLE-IT")))
+                .andExpect(jsonPath("$.data.lines[0].setHead", is(true)))
+                .andExpect(jsonPath("$.data.lines[1].setHead", is(false)));
+
+        MvcResult roundTrip = mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines", hasSize(2)))
+                .andReturn();
+        JsonNode savedLines = objectMapper.readTree(roundTrip.getResponse().getContentAsString())
+                .path("data").path("lines");
+        assertThat(savedLines).allMatch(line -> "BUNDLE-IT".equals(line.path("parentSetModel").asText()));
+        assertThat(slipRepository.findById(UUID.fromString(id)).orElseThrow().getLines())
+                .allMatch(line -> "BUNDLE-IT".equals(line.getParentSetModel()));
     }
 
     @Test

@@ -3,10 +3,12 @@ package com.samhanair.logis.slip.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
@@ -21,10 +23,12 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -107,6 +111,7 @@ public class SalesSlipUpdateService {
         bundleLineage.restoreSlipLines(replacementLines, request.lines().stream()
                 .map(SlipUpdateRequest.LineRequest::lineId)
                 .toList());
+        validateAndAssignNewBundleLineage(replacementLines, request.lines());
         rejectAuthoritativeBundleComponents(replacementLines, request.lines());
         try {
             slip.updateSalesHeader(
@@ -257,6 +262,178 @@ public class SalesSlipUpdateService {
                 line.quantity(),
                 line.unitPrice(),
                 line.note());
+    }
+
+    /**
+     * 신규 익명 라인의 BUNDLE 계보를 product-service 전개 결과와 대조한 뒤 영속한다.
+     *
+     * <p>기존 {@code lineId} 라인은 {@link BundleLineageResolver}가 구 규약의 계보를 복원한다.
+     * 반면 신규 구성품은 영속 ID가 없으므로 요청의 계보를 무검증으로 신뢰하면 임의 SINGLE을
+     * 세트 구성품으로 위조할 수 있다. 신규 계보 그룹이 있을 때만 부모를 조회하고, 전개 결과의
+     * 품목·수량·단가·head 순서를 모두 일치시킨 뒤 도메인 메서드를 호출한다.
+     */
+    private void validateAndAssignNewBundleLineage(
+            List<SlipLine> lines, List<SlipUpdateRequest.LineRequest> requests) {
+        Map<BundleRequestKey, List<Integer>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < requests.size(); i++) {
+            SlipUpdateRequest.LineRequest request = requests.get(i);
+            if (!hasBundleMetadata(request)) {
+                continue;
+            }
+            if (!hasCompleteBundleMetadata(request)) {
+                if (request.lineId() == null) {
+                    rejectBundleLineage("신규 세트 구성품의 부모 계보가 불완전합니다");
+                }
+                // 기존 구 세트 행은 응답에 부모 UUID/가격이 없을 수 있으므로 resolver 결과를 보존한다.
+                continue;
+            }
+            BundleRequestKey key = BundleRequestKey.from(request);
+            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(i);
+        }
+        if (groups.isEmpty()) {
+            return;
+        }
+
+        List<UUID> parentIds = groups.keySet().stream()
+                .map(BundleRequestKey::parentProductId)
+                .distinct()
+                .toList();
+        Map<UUID, ProductSummary> parentsById = productClient.lookup(parentIds).stream()
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toMap(ProductSummary::id, value -> value,
+                        (left, right) -> left));
+
+        for (Map.Entry<BundleRequestKey, List<Integer>> entry : groups.entrySet()) {
+            BundleRequestKey key = entry.getKey();
+            List<Integer> indexes = entry.getValue();
+            if (indexes.stream().noneMatch(index -> requests.get(index).lineId() == null)) {
+                continue;
+            }
+            ProductSummary parent = parentsById.get(key.parentProductId());
+            if (parent == null || !"BUNDLE".equals(parent.productType())
+                    || !Objects.equals(key.parentSetModel(), parent.modelCode())) {
+                rejectBundleLineage("부모 BUNDLE 품목과 세트 modelCode가 일치하지 않습니다");
+            }
+            BigDecimal parentUnitPrice = requests.get(indexes.get(0)).bundleParentUnitPrice();
+            if (parentUnitPrice.signum() < 0 || indexes.stream().anyMatch(index ->
+                    requests.get(index).bundleParentUnitPrice() == null
+                            || requests.get(index).bundleParentUnitPrice().compareTo(parentUnitPrice) != 0)) {
+                rejectBundleLineage("세트 부모 단가가 구성품 행마다 일치하지 않습니다");
+            }
+
+            BundleSetOptions setOptions = key.setOptions();
+            ExpandedLineDto.Options expandOptions = toExpandOptions(setOptions);
+            List<ExpandedLineDto> expandedForOne = componentLines(productClient.expand(
+                    key.parentSetModel(), BigDecimal.ONE, expandOptions, parentUnitPrice));
+            BigDecimal setQuantity = inferSetQuantity(expandedForOne, indexes, requests);
+            List<ExpandedLineDto> expanded = setQuantity.compareTo(BigDecimal.ONE) == 0
+                    ? expandedForOne
+                    : componentLines(productClient.expand(
+                            key.parentSetModel(), setQuantity, expandOptions, parentUnitPrice));
+            validateExpandedLines(expanded, indexes, requests);
+            for (int i = 0; i < indexes.size(); i++) {
+                int index = indexes.get(i);
+                ExpandedLineDto expected = expanded.get(i);
+                lines.get(index).assignBundleComponent(
+                        key.parentSetModel(), expected.setHead(), setOptions);
+            }
+        }
+    }
+
+    private boolean hasBundleMetadata(SlipUpdateRequest.LineRequest request) {
+        return (request.parentSetModel() != null && !request.parentSetModel().isBlank())
+                || request.setHead() != null
+                || request.bundleParentProductId() != null
+                || request.bundleParentUnitPrice() != null
+                || request.setOptions() != null;
+    }
+
+    private boolean hasCompleteBundleMetadata(SlipUpdateRequest.LineRequest request) {
+        return request.parentSetModel() != null && !request.parentSetModel().isBlank()
+                && request.setHead() != null
+                && request.bundleParentProductId() != null
+                && request.bundleParentUnitPrice() != null;
+    }
+
+    private ExpandedLineDto.Options toExpandOptions(BundleSetOptions options) {
+        if (options == null) {
+            return null;
+        }
+        return new ExpandedLineDto.Options(
+                options.remoteOption(), Boolean.TRUE.equals(options.remoteExcluded()),
+                options.panelOption(), options.panelShape360(),
+                Boolean.TRUE.equals(options.materialIncluded()));
+    }
+
+    private List<ExpandedLineDto> componentLines(List<ExpandedLineDto> expanded) {
+        if (expanded == null) {
+            return List.of();
+        }
+        return expanded.stream()
+                .filter(line -> line != null && line.productId() != null && line.componentKind() != null)
+                .toList();
+    }
+
+    private BigDecimal inferSetQuantity(List<ExpandedLineDto> expandedForOne, List<Integer> indexes,
+                                        List<SlipUpdateRequest.LineRequest> requests) {
+        if (expandedForOne.isEmpty() || expandedForOne.size() != indexes.size()) {
+            rejectBundleLineage("서버 전개 구성품 수가 요청과 다릅니다");
+        }
+        BigDecimal setQuantity = null;
+        for (int i = 0; i < indexes.size(); i++) {
+            ExpandedLineDto expected = expandedForOne.get(i);
+            SlipUpdateRequest.LineRequest request = requests.get(indexes.get(i));
+            if (!Objects.equals(expected.productId(), request.productId())
+                    || expected.quantity() == null || expected.quantity().signum() <= 0) {
+                rejectBundleLineage("요청 구성품이 서버 전개 결과와 일치하지 않습니다");
+            }
+            BigDecimal candidate = BigDecimal.valueOf(request.quantity())
+                    .divide(expected.quantity(), 12, RoundingMode.HALF_UP);
+            if (expected.quantity().multiply(candidate).compareTo(BigDecimal.valueOf(request.quantity())) != 0
+                    || candidate.signum() <= 0
+                    || candidate.stripTrailingZeros().scale() > 0) {
+                rejectBundleLineage("구성품 수량으로 세트 수량을 검증할 수 없습니다");
+            }
+            if (setQuantity == null) {
+                setQuantity = candidate;
+            } else if (setQuantity.compareTo(candidate) != 0) {
+                rejectBundleLineage("구성품 수량의 세트 배수가 일치하지 않습니다");
+            }
+        }
+        return setQuantity;
+    }
+
+    private void validateExpandedLines(List<ExpandedLineDto> expanded,
+                                       List<Integer> indexes,
+                                       List<SlipUpdateRequest.LineRequest> requests) {
+        if (expanded.size() != indexes.size()
+                || expanded.stream().filter(ExpandedLineDto::setHead).count() != 1) {
+            rejectBundleLineage("서버 전개 결과의 구성품 수 또는 setHead가 올바르지 않습니다");
+        }
+        for (int i = 0; i < expanded.size(); i++) {
+            ExpandedLineDto expected = expanded.get(i);
+            SlipUpdateRequest.LineRequest request = requests.get(indexes.get(i));
+            if (!Objects.equals(expected.productId(), request.productId())
+                    || expected.quantity() == null
+                    || expected.quantity().compareTo(BigDecimal.valueOf(request.quantity())) != 0
+                    || expected.unitPrice() == null
+                    || expected.unitPrice().compareTo(request.unitPrice()) != 0
+                    || expected.setHead() != Boolean.TRUE.equals(request.setHead())) {
+                rejectBundleLineage("요청 구성품 수량·단가·setHead가 서버 전개 결과와 다릅니다");
+            }
+        }
+    }
+
+    private void rejectBundleLineage(String message) {
+        throw new BusinessException(ErrorCode.INVALID_INPUT, "세트 계보 검증 실패: " + message);
+    }
+
+    private record BundleRequestKey(String parentSetModel, UUID parentProductId,
+                                    BundleSetOptions setOptions) {
+        private static BundleRequestKey from(SlipUpdateRequest.LineRequest request) {
+            return new BundleRequestKey(request.parentSetModel().trim(),
+                    request.bundleParentProductId(), request.setOptions());
+        }
     }
 
     private void rejectAuthoritativeBundleComponents(List<SlipLine> lines,
