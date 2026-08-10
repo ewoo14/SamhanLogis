@@ -60,17 +60,6 @@ const serverLines = [
 
 const knownServerLineIds = toServerLineIdSet(serverLines)
 
-describe('S2 #1071 수정 품목 추가 RED', () => {
-  it('수정 화면은 자동 빈행·ProductAutocomplete·공통 자동 빈행 규약을 사용해야 한다', () => {
-    const source = readFileSync(fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)), 'utf8')
-    expect(source).toContain('ensureTrailingBlankRow')
-    expect(source).toContain('filter((line) => willLineBeSaved(line))')
-    expect(source).toContain('<ProductAutocomplete')
-    expect(source).toContain('appendBlankRowIfLastChanged')
-    expect(source).toContain('removeLinePreservingMinimum')
-  })
-})
-
 describe('SlipDetailPage — 수정 화면 단가 라벨 의미 계약 (재수렴 R-1 근본수정 반영)', () => {
   // 🚨 이 describe 는 원래 unitPrice/unitPriceWithVat 비교로 행마다 다른 라벨을 매기는
   // 것을 "정상"으로 단언했다 — 그 자체가 #937 R-1 결함(라벨과 실제 계산 불일치)이었다.

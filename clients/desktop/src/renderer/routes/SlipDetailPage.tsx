@@ -41,7 +41,6 @@ import {
   Modal,
   PartnerAutocomplete,
   PhoneInput,
-  ProductAutocomplete,
   ProgressBar,
   SignatureViewer,
   SlipEditRequestDialog,
@@ -49,7 +48,6 @@ import {
   Spinner,
   type AuditLogEntry,
   type PartnerOption,
-  type ProductOption,
   type SlipEditRequestType as SlipEditRequestUiType,
 } from '@samhan/design-system'
 import axios from 'axios'
@@ -136,7 +134,7 @@ import {
   type PartnerRepriceCandidate,
   type PartnerRepriceOutcome,
 } from '../utils/usePartnerPriceRefresh'
-import { isSelectableProductStatus, lookupProductPresence, lookupProducts, searchProducts as searchProductsApi } from '../api/productApi'
+import { lookupProductPresence, lookupProducts } from '../api/productApi'
 import { findMissingProductIds } from '../utils/productLinkWarning'
 import {
   editSlipLineAmount,
@@ -146,12 +144,6 @@ import {
   type LineVatLine,
 } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
-import {
-  appendBlankRowIfLastChanged,
-  ensureTrailingBlankRow,
-  removeLinePreservingMinimum,
-} from '../utils/autoBlankRow'
-import { willLineBeSaved } from '../utils/slipLineDraft'
 
 const SLIP_HEADER_TEXT_FIELDS = new Set(['memo', 'deliveryAddress', 'supervisionAddress', 'projectName'])
 
@@ -395,9 +387,8 @@ const INSPECTION_STATUS_LABEL: Record<string, string> = {
 }
 
 
-type PurchaseEditLine = Omit<SlipLineInput, 'productId'> & {
+type PurchaseEditLine = SlipLineInput & {
   key: string
-  productId: string | null
   /** authoritative 저장 경로에서 입력 단가를 보존했는지 판정하기 위한 서버 원본. */
   unitPriceWithVat?: string | null
   authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
@@ -489,73 +480,8 @@ function createEditLineKey() {
   return Math.random().toString(36).slice(2)
 }
 
-function isConfirmedEditLine(line: Pick<PurchaseEditLine, 'productId' | 'quantity'>): boolean {
-  return willLineBeSaved(line)
-}
-
-function isEditLineContentEqual(
-  a: Pick<PurchaseEditLine, 'productId' | 'modelName' | 'productName' | 'specification' | 'quantity' | 'unitPrice'>,
-  b: Pick<PurchaseEditLine, 'productId' | 'modelName' | 'productName' | 'specification' | 'quantity' | 'unitPrice'>,
-): boolean {
-  return a.productId === b.productId
-    && (a.productName ?? '').trim() === (b.productName ?? '').trim()
-    && (a.modelName ?? '').trim() === (b.modelName ?? '').trim()
-    && (a.specification ?? '').trim() === (b.specification ?? '').trim()
-    && Number(a.quantity) === Number(b.quantity)
-    && String(a.unitPrice ?? '0') === String(b.unitPrice ?? '0')
-}
-
-export function createBlankPurchaseEditLine(): PurchaseEditLine {
-  return {
-    key: createEditLineKey(),
-    lineId: null,
-    productId: null,
-    productName: '',
-    modelName: '',
-    specification: '',
-    quantity: 1,
-    unitPrice: '0',
-    unitPriceWithVat: null,
-    supplyAmount: '0',
-    vatAmount: '0',
-    lineTotalWithVat: '0',
-    note: '',
-    authority: 'PRICE',
-    vatDirty: true,
-  }
-}
-
-export function applyProductSelectionToEditLine(
-  line: PurchaseEditLine,
-  product: ProductOption | null,
-): PurchaseEditLine {
-  if (!product) return { ...line, productId: null, productName: '', modelName: '', specification: '' }
-  const unitPrice = product.sellingPrice != null ? String(product.sellingPrice) : String(line.unitPrice ?? '0')
-  const amounts = recalculateLineVat({
-    quantity: line.quantity,
-    unitPrice,
-    supplyAmount: '0',
-    vatAmount: '0',
-    lineTotal: '0',
-    authority: 'PRICE',
-  }, 'PRICE')
-  return {
-    ...line,
-    productId: product.id,
-    productName: product.productName ?? '',
-    modelName: product.modelName ?? '',
-    specification: product.specification ?? '',
-    unitPrice,
-    supplyAmount: amounts.supplyAmount,
-    vatAmount: amounts.vatAmount,
-    lineTotalWithVat: amounts.lineTotal,
-    authority: 'PRICE',
-    vatDirty: true,
-  }
-}
-
 export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
-  return ensureTrailingBlankRow(slip.lines.map((line) => ({
+  return slip.lines.map((line) => ({
     key: createEditLineKey(),
     lineId: line.id,
     productId: line.productId,
@@ -615,7 +541,7 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     vatDirty: line.supplyAmount != null && line.vatAmount != null && line.lineTotal != null,
     isBundleComponent: Boolean((line.parentSetModel ?? '').trim()),
     note: line.note ?? '',
-  })), createBlankPurchaseEditLine, isConfirmedEditLine)
+  }))
 }
 
 /**
@@ -774,7 +700,7 @@ export function coeditLinesToEditLines(
   current: PurchaseEditLine[],
   knownServerLineIds: ReadonlySet<string>,
 ): PurchaseEditLine[] {
-  return ensureTrailingBlankRow(provider.items.toArray().map((_, index) => {
+  return provider.items.toArray().map((_, index) => {
     const providerLineId = provider.getItemValue(index, 'lineId')
     const providerProductId = provider.getItemValue(index, 'productId')
     const previous = current.find((candidate) => (
@@ -834,7 +760,7 @@ export function coeditLinesToEditLines(
         ? hasVatWarning(supplyAmount!, vatAmount!)
         : (previous?.vatWarning ?? false),
     }
-  }), createBlankPurchaseEditLine, isConfirmedEditLine)
+  })
 }
 
 /**
@@ -3040,7 +2966,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: purchaseProjectName.trim() || null,
       recipientPhone: purchaseRecipientPhone.trim() || null,
       paymentDueDate: purchasePaymentDueDate || null,
-      lines: purchaseEditLines.filter((line) => willLineBeSaved(line)).map(buildDetailLinePayload),
+      lines: purchaseEditLines.map(buildDetailLinePayload),
     })
   }
 
@@ -3064,7 +2990,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: salesProjectName.trim() || null,
       recipientPhone: salesRecipientPhone.trim() || null,
       paymentDueDate: salesPaymentDueDate || null,
-      lines: salesEditLines.filter((line) => willLineBeSaved(line)).map(buildDetailLinePayload),
+      lines: salesEditLines.map(buildDetailLinePayload),
     })
   }
 
