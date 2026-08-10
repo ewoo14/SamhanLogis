@@ -41,6 +41,7 @@ import {
   Modal,
   PartnerAutocomplete,
   PhoneInput,
+  ProductAutocomplete,
   ProgressBar,
   SignatureViewer,
   SlipEditRequestDialog,
@@ -48,6 +49,7 @@ import {
   Spinner,
   type AuditLogEntry,
   type PartnerOption,
+  type ProductOption,
   type SlipEditRequestType as SlipEditRequestUiType,
 } from '@samhan/design-system'
 import axios from 'axios'
@@ -134,7 +136,12 @@ import {
   type PartnerRepriceCandidate,
   type PartnerRepriceOutcome,
 } from '../utils/usePartnerPriceRefresh'
-import { lookupProductPresence, lookupProducts } from '../api/productApi'
+import {
+  isSelectableProductStatus,
+  lookupProductPresence,
+  lookupProducts,
+  searchProducts as searchProductsApi,
+} from '../api/productApi'
 import { findMissingProductIds } from '../utils/productLinkWarning'
 import {
   editSlipLineAmount,
@@ -144,6 +151,12 @@ import {
   type LineVatLine,
 } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
+import { willLineBeSaved } from '../utils/slipLineDraft'
+import {
+  appendBlankRowIfLastChanged,
+  ensureTrailingBlankRow,
+  removeLinePreservingMinimum,
+} from '../utils/autoBlankRow'
 
 const SLIP_HEADER_TEXT_FIELDS = new Set(['memo', 'deliveryAddress', 'supervisionAddress', 'projectName'])
 
@@ -389,6 +402,8 @@ const INSPECTION_STATUS_LABEL: Record<string, string> = {
 
 type PurchaseEditLine = SlipLineInput & {
   key: string
+  /** 신규 coedit 행의 client lineId — payload lineId와 분리한 내부 안정키. */
+  coeditLineId?: string
   /** authoritative 저장 경로에서 입력 단가를 보존했는지 판정하기 위한 서버 원본. */
   unitPriceWithVat?: string | null
   authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
@@ -464,7 +479,12 @@ export function editUnitPriceColumnHeader(
 type LinePatch = Partial<PurchaseEditLine> | ((line: PurchaseEditLine) => Partial<PurchaseEditLine>)
 
 /** 상세 수정 표의 coedit 경로 — 기존 전표 라인은 배열 위치가 아닌 자기 lineId 를 키로 쓴다. */
-function detailCoeditFieldPath(index: number, line: Pick<PurchaseEditLine, 'lineId'>, cell: string): string {
+function detailCoeditFieldPath(
+  index: number,
+  line: Pick<PurchaseEditLine, 'lineId' | 'coeditLineId'>,
+  cell: string,
+): string {
+  if (line.coeditLineId) return `items.${line.coeditLineId}.${cell}`
   return `items.${line.lineId || index}.${cell}`
 }
 
@@ -478,6 +498,60 @@ function createEditLineKey() {
     return crypto.randomUUID()
   }
   return Math.random().toString(36).slice(2)
+}
+
+function emptySalesEditLine(): PurchaseEditLine {
+  return {
+    key: createEditLineKey(),
+    lineId: null,
+    productId: '',
+    productName: '',
+    modelName: '',
+    specification: '',
+    quantity: 1,
+    unitPrice: '0',
+    note: '',
+  }
+}
+
+/** PurchaseEditLine의 숫자 quantity를 저장 판정 정본(willLineBeSaved)에 맞춘다. */
+function isSalesEditLineSaved(line: Pick<PurchaseEditLine, 'productId' | 'quantity'>): boolean {
+  return willLineBeSaved({
+    productId: line.productId || null,
+    quantity: String(line.quantity),
+  })
+}
+
+function salesEditLineContentEqual(a: PurchaseEditLine, b: PurchaseEditLine): boolean {
+  return a.productId === b.productId
+    && a.productName === b.productName
+    && a.modelName === b.modelName
+    && a.specification === b.specification
+    && a.quantity === b.quantity
+    && a.unitPrice === b.unitPrice
+    && a.supplyAmount === b.supplyAmount
+    && a.vatAmount === b.vatAmount
+    && a.lineTotalWithVat === b.lineTotalWithVat
+    && a.note === b.note
+}
+
+function ensureSalesTrailingDraft(rows: readonly PurchaseEditLine[]): PurchaseEditLine[] {
+  return ensureTrailingBlankRow(rows, emptySalesEditLine, isSalesEditLineSaved)
+}
+
+/** 매출 수정 행 삭제 projection — 항상 다음 입력용 local draft를 남긴다. */
+export function removeSalesEditLine(
+  rows: readonly PurchaseEditLine[],
+  key: string,
+): PurchaseEditLine[] {
+  return removeLinePreservingMinimum(
+    rows,
+    key,
+    (line) => line.key,
+    emptySalesEditLine,
+    1,
+    isSalesEditLineSaved,
+  )
 }
 
 export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
@@ -705,6 +779,7 @@ export function coeditLinesToEditLines(
     const providerProductId = provider.getItemValue(index, 'productId')
     const previous = current.find((candidate) => (
       (providerLineId && candidate.lineId === providerLineId)
+      || (providerLineId && candidate.coeditLineId === providerLineId)
       || (!providerLineId && providerProductId && candidate.productId === providerProductId)
     ))
     const quantityValue = provider.getItemValue(index, 'quantity')
@@ -731,6 +806,9 @@ export function coeditLinesToEditLines(
     return {
       key: previous?.key ?? createEditLineKey(),
       lineId: resolveServerLineId(provider, index, knownServerLineIds),
+      ...(providerLineId && !knownServerLineIds.has(providerLineId)
+        ? { coeditLineId: providerLineId }
+        : {}),
       productId: provider.getItemValue(index, 'productId') || previous?.productId || '',
       productName: provider.getItemValue(index, 'productName'),
       modelName: provider.getItemValue(index, 'modelName'),
@@ -1084,11 +1162,11 @@ export function detailAmountDocWrites(
  */
 export function syncDetailAmountToDoc(
   provider: DocCoeditProvider | null,
-  preEditLine: Pick<PurchaseEditLine, 'lineId'>,
+  preEditLine: Pick<PurchaseEditLine, 'lineId' | 'coeditLineId'>,
   patch: Partial<PurchaseEditLine>,
 ) {
-  if (!provider || !preEditLine.lineId || patch.supplyAmount == null || patch.vatAmount == null) return
-  const lineId = preEditLine.lineId
+  if (!provider || (!preEditLine.lineId && !preEditLine.coeditLineId) || patch.supplyAmount == null || patch.vatAmount == null) return
+  const lineId = preEditLine.lineId ?? preEditLine.coeditLineId!
   const writes = detailAmountDocWrites(provider, [
     { lineId, supplyAmount: patch.supplyAmount, vatAmount: patch.vatAmount },
   ])
@@ -1133,6 +1211,51 @@ export function buildDetailLinePayload(line: PurchaseEditLine): SlipLineInput {
         }
       : {}),
   }
+}
+
+/**
+ * 품목 선택을 매출 수정 라인으로 승격한다.
+ *
+ * <p>신규 라인의 client lineId는 협업 행을 찾는 내부 키로만 보존하고, 서버 payload의
+ * {@code lineId}는 null로 유지한다. 기존 행은 자기 서버 lineId로 같은 Y.Doc Map을 갱신한다.
+ */
+export function promoteSalesProductSelection(
+  provider: DocCoeditProvider | null,
+  line: PurchaseEditLine,
+  product: ProductOption,
+): PurchaseEditLine {
+  const coeditLineId = line.lineId ?? line.coeditLineId ?? provider?.addItem() ?? null
+  const nextLine: PurchaseEditLine = {
+    ...line,
+    lineId: line.lineId ?? null,
+    coeditLineId: coeditLineId ?? undefined,
+    productId: product.id,
+    productName: product.productName,
+    modelName: product.modelName,
+    specification: product.specification ?? line.specification ?? '',
+    quantity: Number(line.quantity) > 0 ? line.quantity : 1,
+  }
+  if (provider && coeditLineId) {
+    provider.doc.transact(() => {
+      provider.setItemValueById(coeditLineId, 'productId', product.id)
+      provider.setItemValueById(coeditLineId, 'productName', nextLine.productName ?? '')
+      provider.setItemValueById(coeditLineId, 'modelName', nextLine.modelName ?? '')
+      provider.setItemValueById(coeditLineId, 'specification', nextLine.specification ?? '')
+      provider.setItemValueById(coeditLineId, 'quantity', String(nextLine.quantity))
+      provider.setItemValueById(coeditLineId, 'unitPrice', String(nextLine.unitPrice || '0'))
+      provider.setItemValueById(coeditLineId, 'note', nextLine.note ?? '')
+    })
+  }
+  return nextLine
+}
+
+/** 매출 수정 저장 projection — 품목·양수가 확정된 행만 BE payload로 보낸다. */
+export function buildSalesEditLinePayloads(
+  lines: ReadonlyArray<PurchaseEditLine>,
+): SlipLineInput[] {
+  return lines
+    .filter(isSalesEditLineSaved)
+    .map(buildDetailLinePayload)
 }
 
 /** lifecycle 전이 성공 후 서버가 채택하는 도착 status — 편집 표면 조정의 단일 진실원. */
@@ -1431,7 +1554,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const [salesPaymentDueDate, setSalesPaymentDueDate] = useState('')
   const [salesSupervisionAddress, setSalesSupervisionAddress] = useState('')
   const [salesEditLines, setSalesEditLines] = useState<PurchaseEditLine[]>([])
+  const [salesEditPromotionPending, setSalesEditPromotionPending] = useState(false)
   const salesReloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const salesEditPromotionPendingRef = useRef(false)
 
   // SP-08-5-2/E1-b-2: 매입 direct PUT 수정 state.
   const [purchaseEditOpen, setPurchaseEditOpen] = useState(false)
@@ -2130,7 +2255,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   // SP-08-6-2: 매출 수정 폼 동기화 + 충돌 reload 핸들러
   const syncSalesFormFromData = useCallback((data: SlipDetail) => {
-    const nextLines = toPurchaseEditLines(data)
+    const nextLines = ensureSalesTrailingDraft(toPurchaseEditLines(data))
     const partnerHeader = resolveSalesSlipPartnerHeader(data)
     setSalesPartnerId(data.partnerId ?? '')
     setSalesPartnerName(partnerHeader.name)
@@ -2223,7 +2348,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         setSalesProjectName(nextProvider.getHeaderValue('projectName'))
         setSalesRecipientPhone(nextProvider.getHeaderValue('recipientPhone'))
         setSalesPaymentDueDate(nextProvider.getHeaderValue('paymentDueDate'))
-        setSalesEditLines((prev) => coeditLinesToEditLines(nextProvider, prev, knownServerLineIds))
+        setSalesEditLines((prev) => ensureSalesTrailingDraft(
+          coeditLinesToEditLines(nextProvider, prev, knownServerLineIds),
+        ))
         if (partnerChanged && nextPartnerId) {
           // 원격 거래처 변경도 로컬 선택과 동일하게 최신 거래처 단가를 재조회한다.
           void repriceEditLinesForPartner(nextPartnerId, nextProvider)
@@ -2971,6 +3098,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   const handleSalesEditSave = () => {
+    if (salesEditPromotionPendingRef.current) {
+      setEditSurfaceNotice('품목 확정 중입니다. 잠시 후 다시 저장하세요.')
+      return
+    }
     if (salesEditStale) {
       setEditSurfaceNotice('현재 전표 상태가 바뀌어 매출 직접수정 내용을 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.')
       return
@@ -2990,7 +3121,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: salesProjectName.trim() || null,
       recipientPhone: salesRecipientPhone.trim() || null,
       paymentDueDate: salesPaymentDueDate || null,
-      lines: salesEditLines.map(buildDetailLinePayload),
+      lines: buildSalesEditLinePayloads(salesEditLines),
     })
   }
 
@@ -3024,8 +3155,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <Button
             type="button"
             variant="primary"
-            loading={salesUpdateMutation.isPending || modalRepricePending || partnerReprice.isPending}
-            disabled={salesEditStale || salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || salesEditLines.length === 0}
+            loading={salesUpdateMutation.isPending || modalRepricePending || partnerReprice.isPending || salesEditPromotionPending}
+            disabled={salesEditStale || salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || salesEditPromotionPending || hasUnavailableReprice || salesEditLines.length === 0}
             data-testid="sales-slip-edit-save"
             onClick={handleSalesEditSave}
           >
@@ -3190,6 +3321,15 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </thead>
           <tbody>
             {salesEditLines.map((line, index) => {
+              const lineProvider = (line.lineId || line.coeditLineId) ? slipFormCoeditProvider : null
+              const productValue: ProductOption | null = line.productId
+                ? {
+                    id: line.productId,
+                    modelName: line.modelName ?? '',
+                    productName: line.productName ?? '',
+                    specification: line.specification,
+                  }
+                : null
               const outcome = line.lineId ? repriceOutcomeByLineId.get(line.lineId) : undefined
               const marker = outcome ? partnerRepriceMarkerText(outcome) : null
               const sourceStatusId = `sales-edit-price-source-${line.key}`
@@ -3200,18 +3340,31 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 className={changed ? 'price-memory-refreshed-row' : undefined}
               >
                 <td>
+                  <ProductAutocomplete
+                    value={productValue}
+                    onChange={(product) => handleSalesProductSelection(index, product)}
+                    searchProducts={async (query) => (await searchProductsApi(query, { usageScope: 'PARTNER_ORDER' }))
+                      .filter((candidate) => isSelectableProductStatus(candidate.status))}
+                    label=""
+                    ariaLabel={`라인 ${index + 1} 품목`}
+                    placeholder="모델명 또는 품목명"
+                    resultSelectionMode="single"
+                    debounceMs={250}
+                    disabled={slipFormCoeditPending || salesEditPromotionPending}
+                  />
                   <CollaborativeSlipInput
-                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    provider={lineProvider} coeditPending={slipFormCoeditPending}
                     fieldPath={detailCoeditFieldPath(index, line, 'productName')}
                     testIdPath={detailCoeditTestIdPath(index, 'productName')}
                     value={line.productName ?? ''}
                     onValueChange={(value) => updateSalesLine(index, { productName: value })}
-                    aria-label={`품목 ${index + 1}`}
+                    inputStyle={{ display: 'none' }}
+                    aria-label={`품목명 동기화 ${index + 1}`}
                   />
                 </td>
                 <td>
                   <CollaborativeSlipInput
-                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    provider={lineProvider} coeditPending={slipFormCoeditPending}
                     fieldPath={detailCoeditFieldPath(index, line, 'modelName')}
                     testIdPath={detailCoeditTestIdPath(index, 'modelName')}
                     value={line.modelName ?? ''}
@@ -3221,7 +3374,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 </td>
                 <td>
                   <CollaborativeSlipInput
-                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    provider={lineProvider} coeditPending={slipFormCoeditPending}
                     fieldPath={detailCoeditFieldPath(index, line, 'specification')}
                     testIdPath={detailCoeditTestIdPath(index, 'specification')}
                     value={line.specification ?? ''}
@@ -3231,20 +3384,20 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 </td>
                 <td>
                   <CollaborativeSlipInput
-                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    provider={lineProvider} coeditPending={slipFormCoeditPending}
                     fieldPath={detailCoeditFieldPath(index, line, 'quantity')}
                     testIdPath={detailCoeditTestIdPath(index, 'quantity')}
                     type="number"
                     min={1}
                     value={String(line.quantity)}
                     parseValue={parseEditableDetailQuantityInput}
-                    onValueChange={(value) => updateDetailQuantity(index, updateSalesLine, slipFormCoeditProvider, line, value)}
+                    onValueChange={(value) => updateDetailQuantity(index, updateSalesLine, lineProvider, line, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
                 </td>
                 <td>
                   <CollaborativeSlipInput
-                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    provider={lineProvider} coeditPending={slipFormCoeditPending}
                     fieldPath={detailCoeditFieldPath(index, line, 'unitPrice')}
                     testIdPath={detailCoeditTestIdPath(index, 'unitPrice')}
                     type="number"
@@ -3256,7 +3409,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                       // 강조해제 분기를 타지 않는다 — 여기서 직접 처리한다(단가값 자체는
                       // 안정적이라 race 걱정 없이 closure 의 line.lineId 로 충분하다).
                       clearRepriceHighlight(line.lineId)
-                      updateDetailUnitPrice(index, updateSalesLine, slipFormCoeditProvider, line, value)
+                      updateDetailUnitPrice(index, updateSalesLine, lineProvider, line, value)
                     }}
                     aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}
                     aria-describedby={[
@@ -3273,7 +3426,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 </td>
                 <td>
                   <CollaborativeSlipInput
-                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    provider={lineProvider} coeditPending={slipFormCoeditPending}
                     fieldPath={detailCoeditFieldPath(index, line, 'supplyAmount')}
                     testIdPath={detailCoeditTestIdPath(index, 'supplyAmount')}
                     type="number" min={0}
@@ -3286,7 +3439,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 </td>
                 <td>
                   <CollaborativeSlipInput
-                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    provider={lineProvider} coeditPending={slipFormCoeditPending}
                     fieldPath={detailCoeditFieldPath(index, line, 'vatAmount')}
                     testIdPath={detailCoeditTestIdPath(index, 'vatAmount')}
                     type="number" min={0}
@@ -3302,7 +3455,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 </td>
                 <td>
                   <CollaborativeSlipInput
-                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    provider={lineProvider} coeditPending={slipFormCoeditPending}
                     fieldPath={detailCoeditFieldPath(index, line, 'lineTotalWithVat')}
                     testIdPath={detailCoeditTestIdPath(index, 'lineTotalWithVat')}
                     type="number" min={0}
@@ -5420,9 +5573,45 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     if (typeof patch !== 'function' && patch.unitPrice !== undefined) {
       clearRepriceHighlight(salesEditLinesRef.current[index]?.lineId)
     }
-    setSalesEditLines((prev) => prev.map((line, i) => (
-      i === index ? { ...line, ...(typeof patch === 'function' ? patch(line) : patch) } : line
-    )))
+    setSalesEditLines((prev) => {
+      const before = prev[index]
+      if (!before) return prev
+      const after = { ...before, ...(typeof patch === 'function' ? patch(before) : patch) }
+      return appendBlankRowIfLastChanged(
+        prev,
+        before,
+        after,
+        (line) => line.key,
+        emptySalesEditLine,
+        salesEditLineContentEqual,
+      )
+    })
+  }
+
+  function handleSalesProductSelection(index: number, product: ProductOption | null) {
+    const current = salesEditLinesRef.current[index]
+    if (!current) return
+    salesEditPromotionPendingRef.current = true
+    setSalesEditPromotionPending(true)
+    try {
+      if (!product) {
+        const coeditLineId = current.coeditLineId ?? current.lineId
+        if (coeditLineId) slipFormCoeditProvider?.removeItem(coeditLineId)
+        clearRepriceHighlight(current.lineId)
+        setSalesEditLines((prev) => removeSalesEditLine(prev, current.key))
+        return
+      }
+      const promoted = promoteSalesProductSelection(slipFormCoeditProvider, current, product)
+      setSalesEditLines((prev) => {
+        const currentIndex = prev.findIndex((line) => line.key === current.key)
+        if (currentIndex < 0) return prev
+        const next = prev.map((line, lineIndex) => lineIndex === currentIndex ? promoted : line)
+        return ensureSalesTrailingDraft(next)
+      })
+    } finally {
+      salesEditPromotionPendingRef.current = false
+      setSalesEditPromotionPending(false)
+    }
   }
 
   /** 재조회 강조에서 특정 lineId 를 제거한다(사용자 직접 편집 시). */
@@ -5444,10 +5633,14 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   function removeSalesLine(index: number) {
-    const lineId = salesEditLinesRef.current[index]?.lineId
+    const target = salesEditLinesRef.current[index]
+    const lineId = target?.lineId
     clearRepriceHighlight(lineId)
-    // 매입과 동일하게 라인 Map 자체만 삭제한다.
-    setSalesEditLines((prev) => prev.filter((_, i) => i !== index))
-    if (lineId) slipFormCoeditProvider?.removeItem(lineId)
+    const coeditLineId = target?.coeditLineId ?? lineId
+    setSalesEditLines((prev) => target ? removeSalesEditLine(prev, target.key) : prev)
+    if (coeditLineId) {
+      if (coeditLineId === lineId) slipFormCoeditProvider?.removeItem(lineId)
+      else slipFormCoeditProvider?.removeItem(coeditLineId)
+    }
   }
 }
