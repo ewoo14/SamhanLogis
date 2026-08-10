@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -34,6 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class WarehouseService {
+
+    private static final Pattern INVISIBLE_ACTOR_CHARACTERS =
+            Pattern.compile("[\\u00AD\\u200B-\\u200D\\u2060\\uFEFF]");
 
     private final WarehouseRepository warehouseRepository;
     /** 4b 후속 — 창고 변경 이력 audit overlay 기록 / 조회. */
@@ -388,10 +392,13 @@ public class WarehouseService {
         if (actorId.equals(new UUID(0L, 0L))) {
             return "system";
         }
-        if (callerName == null || callerName.isBlank()) {
+        if (callerName == null) {
             return null;
         }
-        String normalized = callerName.trim();
+        String normalized = INVISIBLE_ACTOR_CHARACTERS.matcher(callerName).replaceAll("").trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
         try {
             UUID parsedName = UUID.fromString(normalized);
             if (parsedName.toString().equalsIgnoreCase(normalized)) {

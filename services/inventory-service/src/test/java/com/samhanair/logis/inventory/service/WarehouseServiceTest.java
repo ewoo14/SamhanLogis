@@ -25,6 +25,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -191,6 +193,57 @@ class WarehouseServiceTest {
 
         verify(auditLogRecorder).recordBatch(
                 eq(mainId), eq(callerId), isNull(), isNull(), anyList());
+    }
+
+    @ParameterizedTest(name = "보이지 않는 문자 오염 actorName {0} 은 저장하지 않는다")
+    @ValueSource(strings = {
+            "\u200B",
+            "   ",
+            "\u200B123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174000\u200B",
+            "\u200C",
+            "\u200D",
+            "\uFEFF",
+            "\u00AD",
+            "\u2060"
+    })
+    void invisibleOrWrappedUuidDisplayName_isNotPersistedAsActorName(String actorName) {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("정규화 창고", null, null, null, null),
+                callerId.toString(), actorName);
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), isNull(), isNull(), anyList());
+    }
+
+    @ParameterizedTest(name = "정상 actorName {0} 은 원문을 보존한다")
+    @ValueSource(strings = {"김%감사", "김+감사", "김%20감사", "1-1-1-1-1"})
+    void normalDisplayName_isPersistedUnchanged(String actorName) {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("정상 이름 창고", null, null, null, null),
+                callerId.toString(), actorName);
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq(actorName), isNull(), anyList());
+    }
+
+    @Test
+    void mixedInvisibleCharacterDisplayName_isNormalizedBeforePersisting() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("혼합 이름 창고", null, null, null, null),
+                callerId.toString(), "김\u200B감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
     }
 
     @Test

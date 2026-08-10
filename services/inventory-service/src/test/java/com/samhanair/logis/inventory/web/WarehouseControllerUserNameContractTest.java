@@ -53,7 +53,14 @@ class WarehouseControllerUserNameContractTest {
     }
 
     static Stream<String> displayNames() {
-        return Stream.of("김%감사", "김감사", "김%20감사", "%EA%B9%80", "김+감사");
+        return Stream.of(
+                "김%감사",
+                "김감사",
+                "김%20감사",
+                "%EA%B9%80",
+                "김+감사",
+                "\u200B",
+                "\u200B123e4567-e89b-12d3-a456-426614174000");
     }
 
     @ParameterizedTest(name = "표시명 {0} 은 네 쓰기 경계에서 그대로 전달된다")

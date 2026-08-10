@@ -38,6 +38,7 @@
  */
 import { useMemo, useState } from 'react'
 import { userIdToColor } from '../../utils/userColorHash'
+import { safeActorName } from '../../utils/actorName'
 import styles from './AuditOverlay.module.css'
 
 /** 한 revision 변경의 audit 레코드 — BE {@code SlipAuditLogResponse} 와 1:1. */
@@ -114,7 +115,9 @@ export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps
                 style={{ background: userIdToColor(latest.actorId) }}
                 aria-hidden="true"
               />
-              <span className={styles['actorName']}>{latest.actorName}</span>
+              <span className={styles['actorName']}>
+                {safeActorName(latest.actorName) ?? '변경자 미상'}
+              </span>
               <span className={styles['timestamp']}>{formatHHmm(latest.changedAt)}</span>
             </span>
           </>
@@ -149,7 +152,9 @@ export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps
                   style={{ background: userIdToColor(entry.actorId) }}
                   aria-hidden="true"
                 />
-                <span className={styles['actorName']}>{entry.actorName}</span>
+                <span className={styles['actorName']}>
+                  {safeActorName(entry.actorName) ?? '변경자 미상'}
+                </span>
                 <span className={styles['timestamp']}>{formatHHmm(entry.changedAt)}</span>
               </span>
             </li>

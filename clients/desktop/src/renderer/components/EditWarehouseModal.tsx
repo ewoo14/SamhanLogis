@@ -6,7 +6,7 @@
  */
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FormGrid } from '@samhan/design-system'
+import { FormGrid, safeActorName } from '@samhan/design-system'
 import {
   listWarehouseAuditLogs,
   revertAdminWarehouseRevision,
@@ -328,13 +328,11 @@ const FIELD_LABEL: Record<string, string> = {
 }
 
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** actorName 이 없거나 UUID 로 오염된 과거 값이면 사용자에게 식별자를 표시하지 않는다. */
 function displayWarehouseActor(actorId: string, actorName: string | null): string {
   if (actorId === SYSTEM_ACTOR_ID) return '시스템'
-  if (!actorName || UUID_RE.test(actorName.trim())) return '변경자 미상'
-  return actorName
+  return safeActorName(actorName) ?? '변경자 미상'
 }
 
 interface AuditTimelineProps {

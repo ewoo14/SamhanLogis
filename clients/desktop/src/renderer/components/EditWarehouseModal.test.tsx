@@ -18,12 +18,13 @@ vi.mock('../realtime/WarehouseRealtimeClient', () => ({
   },
 }))
 
-vi.mock('@samhan/design-system', () => {
+vi.mock('@samhan/design-system', async () => {
+  const actual = await vi.importActual<typeof import('@samhan/design-system')>('@samhan/design-system')
   const FormGrid = Object.assign(
     ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     { Full: ({ children }: { children: React.ReactNode }) => <div>{children}</div> },
   )
-  return { FormGrid }
+  return { ...actual, FormGrid }
 }, { virtual: true })
 
 const ACTOR_UUID = '123e4567-e89b-12d3-a456-426614174000'
@@ -104,6 +105,23 @@ describe('EditWarehouseModal 감사 변경자 표시', () => {
     expect(revision.textContent).not.toContain(ACTOR_UUID)
   })
 
+  it.each([
+    ['U+200B 하나', '\u200B'],
+    ['공백만', '   '],
+    ['U+200B 앞 UUID', `\u200B${ACTOR_UUID}`],
+    ['U+200B 뒤 UUID', `${ACTOR_UUID}\u200B`],
+  ])('%s 는 변경자 미상으로 표시하고 UUID를 노출하지 않는다', async (_label, actorName) => {
+    vi.mocked(adminApi.listWarehouseAuditLogs).mockResolvedValue([
+      auditRow({ actorName }),
+    ])
+
+    const revision = await openAudit()
+
+    expect(revision.textContent).toContain('변경자 미상')
+    expect(revision.textContent).not.toContain(ACTOR_UUID)
+    expect(revision.textContent).not.toContain(ACTOR_UUID.slice(0, 8))
+  })
+
   it('SYSTEM_ACTOR_ID 는 계속 시스템으로 표시한다', async () => {
     vi.mocked(adminApi.listWarehouseAuditLogs).mockResolvedValue([
       auditRow({ actorId: SYSTEM_ACTOR_ID }),
@@ -115,16 +133,19 @@ describe('EditWarehouseModal 감사 변경자 표시', () => {
     expect(revision.textContent).not.toContain(SYSTEM_ACTOR_ID)
   })
 
-  it('정상 actorName 이 있는 이력 행은 이름을 그대로 표시한다', async () => {
-    vi.mocked(adminApi.listWarehouseAuditLogs).mockResolvedValue([
-      auditRow({ actorName: '김감사' }),
-    ])
+  it.each(['김감사', '김\u200B감사', '김%감사', '김+감사', '김%20감사', '1-1-1-1-1'])(
+    '정상 actorName %s 는 그대로 표시한다',
+    async (actorName) => {
+      vi.mocked(adminApi.listWarehouseAuditLogs).mockResolvedValue([
+        auditRow({ actorName }),
+      ])
 
-    const revision = await openAudit()
+      const revision = await openAudit()
 
-    expect(revision.textContent).toContain('김감사')
-    expect(revision.textContent).not.toContain(ACTOR_UUID.slice(0, 8))
-  })
+      expect(revision.textContent).toContain(actorName.replace('\u200B', ''))
+      expect(revision.textContent).not.toContain(ACTOR_UUID.slice(0, 8))
+    },
+  )
 
   it('되돌리기 버튼 조건은 fieldName 이 있고 isDeleted 가 아닌 경우로 유지한다', async () => {
     vi.mocked(adminApi.listWarehouseAuditLogs).mockResolvedValue([
