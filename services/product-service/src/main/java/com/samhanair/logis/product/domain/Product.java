@@ -494,6 +494,14 @@ public class Product extends BaseEntity {
         this.status = ProductStatus.ACTIVE;
     }
 
+    /** 시트 정본의 판매 상태를 반영한다. null은 호출자가 보존 정책을 적용하도록 허용하지 않는다. */
+    public void changeStatus(ProductStatus status) {
+        if (status == null) {
+            throw new IllegalArgumentException("제품 상태는 필수입니다");
+        }
+        this.status = status;
+    }
+
     public void editDescription(String description) {
         this.description = description;
     }
@@ -640,6 +648,11 @@ public class Product extends BaseEntity {
     /** 상품/비상품 구분 변경. null 은 기존 호환을 위해 상품으로 정규화한다. */
     public void changeGoodsType(ProductGoodsType goodsType) {
         this.goodsType = goodsType == null ? ProductGoodsType.GOODS : goodsType;
+    }
+
+    /** 비상품 전환 시 수량관리도 함께 끈다. */
+    public void changeInventoryQtyMgmt(boolean enabled) {
+        this.inventoryQtyMgmt = enabled;
     }
 
     /** 단위 변경. null/blank 는 기존 값을 보존한다. */

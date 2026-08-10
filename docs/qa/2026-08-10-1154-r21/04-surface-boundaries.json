@@ -1,0 +1,653 @@
+{
+  "zero": {
+    "totalRows": 1,
+    "imported": 0,
+    "updated": 1,
+    "rejectedNullName": 0,
+    "skippedPlaceholder": 0,
+    "activeCount": 1,
+    "suspendedCount": 0,
+    "sourceFileHash": "F6BEF9CBED72C55D73DAB854467D995C791D2A326E1225D07E1C5F48A9585B57",
+    "rejectedSample": [],
+    "excludedTrailerRows": 0,
+    "heldParseFailureRows": 0,
+    "heldSample": [],
+    "infrastructureFailureRows": 0,
+    "infrastructureFailureSample": [],
+    "infrastructureFailure": false,
+    "registrationDateParsedCount": 0,
+    "createdAtLoadTimeCount": 0
+  },
+  "exact": {
+    "sourceFileHash": "9DBBBB77947EAC1A775DF60E737BB1556374C88A40950214DFE7BC57F05A4317",
+    "page": 1,
+    "size": 100,
+    "totalElements": 200,
+    "totalPages": 2,
+    "items": [
+      {
+        "rowNumber": 103,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-101",
+        "rawName": null
+      },
+      {
+        "rowNumber": 104,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-102",
+        "rawName": null
+      },
+      {
+        "rowNumber": 105,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-103",
+        "rawName": null
+      },
+      {
+        "rowNumber": 106,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-104",
+        "rawName": null
+      },
+      {
+        "rowNumber": 107,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-105",
+        "rawName": null
+      },
+      {
+        "rowNumber": 108,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-106",
+        "rawName": null
+      },
+      {
+        "rowNumber": 109,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-107",
+        "rawName": null
+      },
+      {
+        "rowNumber": 110,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-108",
+        "rawName": null
+      },
+      {
+        "rowNumber": 111,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-109",
+        "rawName": null
+      },
+      {
+        "rowNumber": 112,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-110",
+        "rawName": null
+      },
+      {
+        "rowNumber": 113,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-111",
+        "rawName": null
+      },
+      {
+        "rowNumber": 114,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-112",
+        "rawName": null
+      },
+      {
+        "rowNumber": 115,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-113",
+        "rawName": null
+      },
+      {
+        "rowNumber": 116,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-114",
+        "rawName": null
+      },
+      {
+        "rowNumber": 117,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-115",
+        "rawName": null
+      },
+      {
+        "rowNumber": 118,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-116",
+        "rawName": null
+      },
+      {
+        "rowNumber": 119,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-117",
+        "rawName": null
+      },
+      {
+        "rowNumber": 120,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-118",
+        "rawName": null
+      },
+      {
+        "rowNumber": 121,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-119",
+        "rawName": null
+      },
+      {
+        "rowNumber": 122,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-120",
+        "rawName": null
+      },
+      {
+        "rowNumber": 123,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-121",
+        "rawName": null
+      },
+      {
+        "rowNumber": 124,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-122",
+        "rawName": null
+      },
+      {
+        "rowNumber": 125,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-123",
+        "rawName": null
+      },
+      {
+        "rowNumber": 126,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-124",
+        "rawName": null
+      },
+      {
+        "rowNumber": 127,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-125",
+        "rawName": null
+      },
+      {
+        "rowNumber": 128,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-126",
+        "rawName": null
+      },
+      {
+        "rowNumber": 129,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-127",
+        "rawName": null
+      },
+      {
+        "rowNumber": 130,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-128",
+        "rawName": null
+      },
+      {
+        "rowNumber": 131,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-129",
+        "rawName": null
+      },
+      {
+        "rowNumber": 132,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-130",
+        "rawName": null
+      },
+      {
+        "rowNumber": 133,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-131",
+        "rawName": null
+      },
+      {
+        "rowNumber": 134,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-132",
+        "rawName": null
+      },
+      {
+        "rowNumber": 135,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-133",
+        "rawName": null
+      },
+      {
+        "rowNumber": 136,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-134",
+        "rawName": null
+      },
+      {
+        "rowNumber": 137,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-135",
+        "rawName": null
+      },
+      {
+        "rowNumber": 138,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-136",
+        "rawName": null
+      },
+      {
+        "rowNumber": 139,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-137",
+        "rawName": null
+      },
+      {
+        "rowNumber": 140,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-138",
+        "rawName": null
+      },
+      {
+        "rowNumber": 141,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-139",
+        "rawName": null
+      },
+      {
+        "rowNumber": 142,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-140",
+        "rawName": null
+      },
+      {
+        "rowNumber": 143,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-141",
+        "rawName": null
+      },
+      {
+        "rowNumber": 144,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-142",
+        "rawName": null
+      },
+      {
+        "rowNumber": 145,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-143",
+        "rawName": null
+      },
+      {
+        "rowNumber": 146,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-144",
+        "rawName": null
+      },
+      {
+        "rowNumber": 147,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-145",
+        "rawName": null
+      },
+      {
+        "rowNumber": 148,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-146",
+        "rawName": null
+      },
+      {
+        "rowNumber": 149,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-147",
+        "rawName": null
+      },
+      {
+        "rowNumber": 150,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-148",
+        "rawName": null
+      },
+      {
+        "rowNumber": 151,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-149",
+        "rawName": null
+      },
+      {
+        "rowNumber": 152,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-150",
+        "rawName": null
+      },
+      {
+        "rowNumber": 153,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-151",
+        "rawName": null
+      },
+      {
+        "rowNumber": 154,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-152",
+        "rawName": null
+      },
+      {
+        "rowNumber": 155,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-153",
+        "rawName": null
+      },
+      {
+        "rowNumber": 156,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-154",
+        "rawName": null
+      },
+      {
+        "rowNumber": 157,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-155",
+        "rawName": null
+      },
+      {
+        "rowNumber": 158,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-156",
+        "rawName": null
+      },
+      {
+        "rowNumber": 159,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-157",
+        "rawName": null
+      },
+      {
+        "rowNumber": 160,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-158",
+        "rawName": null
+      },
+      {
+        "rowNumber": 161,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-159",
+        "rawName": null
+      },
+      {
+        "rowNumber": 162,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-160",
+        "rawName": null
+      },
+      {
+        "rowNumber": 163,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-161",
+        "rawName": null
+      },
+      {
+        "rowNumber": 164,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-162",
+        "rawName": null
+      },
+      {
+        "rowNumber": 165,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-163",
+        "rawName": null
+      },
+      {
+        "rowNumber": 166,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-164",
+        "rawName": null
+      },
+      {
+        "rowNumber": 167,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-165",
+        "rawName": null
+      },
+      {
+        "rowNumber": 168,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-166",
+        "rawName": null
+      },
+      {
+        "rowNumber": 169,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-167",
+        "rawName": null
+      },
+      {
+        "rowNumber": 170,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-168",
+        "rawName": null
+      },
+      {
+        "rowNumber": 171,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-169",
+        "rawName": null
+      },
+      {
+        "rowNumber": 172,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-170",
+        "rawName": null
+      },
+      {
+        "rowNumber": 173,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-171",
+        "rawName": null
+      },
+      {
+        "rowNumber": 174,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-172",
+        "rawName": null
+      },
+      {
+        "rowNumber": 175,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-173",
+        "rawName": null
+      },
+      {
+        "rowNumber": 176,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-174",
+        "rawName": null
+      },
+      {
+        "rowNumber": 177,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-175",
+        "rawName": null
+      },
+      {
+        "rowNumber": 178,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-176",
+        "rawName": null
+      },
+      {
+        "rowNumber": 179,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-177",
+        "rawName": null
+      },
+      {
+        "rowNumber": 180,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-178",
+        "rawName": null
+      },
+      {
+        "rowNumber": 181,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-179",
+        "rawName": null
+      },
+      {
+        "rowNumber": 182,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-180",
+        "rawName": null
+      },
+      {
+        "rowNumber": 183,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-181",
+        "rawName": null
+      },
+      {
+        "rowNumber": 184,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-182",
+        "rawName": null
+      },
+      {
+        "rowNumber": 185,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-183",
+        "rawName": null
+      },
+      {
+        "rowNumber": 186,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-184",
+        "rawName": null
+      },
+      {
+        "rowNumber": 187,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-185",
+        "rawName": null
+      },
+      {
+        "rowNumber": 188,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-186",
+        "rawName": null
+      },
+      {
+        "rowNumber": 189,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-187",
+        "rawName": null
+      },
+      {
+        "rowNumber": 190,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-188",
+        "rawName": null
+      },
+      {
+        "rowNumber": 191,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-189",
+        "rawName": null
+      },
+      {
+        "rowNumber": 192,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-190",
+        "rawName": null
+      },
+      {
+        "rowNumber": 193,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-191",
+        "rawName": null
+      },
+      {
+        "rowNumber": 194,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-192",
+        "rawName": null
+      },
+      {
+        "rowNumber": 195,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-193",
+        "rawName": null
+      },
+      {
+        "rowNumber": 196,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-194",
+        "rawName": null
+      },
+      {
+        "rowNumber": 197,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-195",
+        "rawName": null
+      },
+      {
+        "rowNumber": 198,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-196",
+        "rawName": null
+      },
+      {
+        "rowNumber": 199,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-197",
+        "rawName": null
+      },
+      {
+        "rowNumber": 200,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-198",
+        "rawName": null
+      },
+      {
+        "rowNumber": 201,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-199",
+        "rawName": null
+      },
+      {
+        "rowNumber": 202,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-EXACT-200",
+        "rawName": null
+      }
+    ]
+  },
+  "nonExact": {
+    "sourceFileHash": "D9FF92329145D4528E949C0EFE206CF7264CC6C49C28F81A47DB73DF07EBE498",
+    "page": 2,
+    "size": 100,
+    "totalElements": 201,
+    "totalPages": 3,
+    "items": [
+      {
+        "rowNumber": 203,
+        "reason": "거래처명 빈값",
+        "rawPartnerCode": "SOL1154R21-NONEXACT-201",
+        "rawName": null
+      }
+    ]
+  },
+  "existingPartners": {
+    "initialRows": 20,
+    "searchedRows": 2,
+    "searchedCode": "1068689215",
+    "registrationFormReached": true,
+    "registrationCompleted": true,
+    "createdPartnerCode": "P-2026-861145"
+  }
+}

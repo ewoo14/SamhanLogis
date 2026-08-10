@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "purpose": "#896 P0 골든·열 계약·적재 manifest 고정",
+  "reproducibility": {
+    "command": "node scripts/generate-896-p0-golden-manifest.mjs",
+    "outputDirectory": "docs/qa/896-p0-golden-manifest",
+    "pathsAreRelative": true,
+    "dynamicValues": false
+  },
+  "inputTotals": {
+    "gasFormulaItems": 3392,
+    "gasFormulaGroups": 2649,
+    "gasFormulaSubstantiveGroups": 2648,
+    "mainSheetTabs": 27,
+    "codeReadTabs": 17,
+    "catalogReferenceModels": 1118,
+    "priceCells": 8094,
+    "catalogRowsInStoredGolden": 2735,
+    "specKeyValueCountsFromStoredGolden": {
+      "capacity": {
+        "nonEmpty": 2735,
+        "distinctValues": 78
+      },
+      "spec": {
+        "nonEmpty": 1995,
+        "distinctValues": 227
+      },
+      "note": {
+        "nonEmpty": 103,
+        "distinctValues": 35
+      }
+    }
+  },
+  "formulaInventory": {
+    "items": {
+      "count": 3392,
+      "sourceFile": "docs/dev-reports/896-gas-formula-agg/items.json",
+      "sha256": "b610890848dbe52a7e407467cd2f5d79f2020241be2c27df6b6f2b420cb515b4"
+    },
+    "groups": {
+      "count": 2649,
+      "sourceFile": "docs/dev-reports/896-gas-formula-agg/groups.json",
+      "sha256": "e2abda0f89520d43e38bffa3fdda6470c8268bd37ad2862049dfc7c443cbff92"
+    },
+    "groupStatusCounts": {
+      "DATA_OK": 524,
+      "DATA_PARTIAL": 551,
+      "CODE_ONLY": 1560,
+      "UNKNOWN": 14
+    },
+    "expectedGroupStatusCounts": {
+      "DATA_OK": 524,
+      "DATA_PARTIAL": 551,
+      "CODE_ONLY": 1560,
+      "UNKNOWN": 14
+    }
+  },
+  "columnContract": {
+    "catalog": [
+      "source",
+      "index",
+      "model",
+      "name",
+      "unit",
+      "price",
+      "list",
+      "categoryLarge",
+      "categoryMedium",
+      "categorySmall",
+      "capacity",
+      "spec",
+      "note",
+      "setModel",
+      "kind",
+      "feature",
+      "isDefault",
+      "componentQuantity",
+      "variablePrice",
+      "fixedDiscount"
+    ],
+    "setComponent": [
+      "model",
+      "name",
+      "kind",
+      "feature",
+      "isDefault",
+      "unit",
+      "quantity",
+      "unitPrice",
+      "subtotal",
+      "spec"
+    ],
+    "feature": [
+      "setModel",
+      "model",
+      "name",
+      "kind",
+      "feature",
+      "isDefault"
+    ],
+    "priceScenario": [
+      "id",
+      "input",
+      "configured",
+      "selectedOptions",
+      "result"
+    ],
+    "toggle": [
+      "schemaVersion",
+      "purpose",
+      "catalogSource",
+      "input",
+      "off",
+      "on"
+    ],
+    "provenance": [
+      "sourceFile",
+      "sourceTab",
+      "sourceRow",
+      "model",
+      "setModel",
+      "feature",
+      "priceVariant",
+      "rawCells",
+      "sourceSha256",
+      "jsonPath"
+    ]
+  },
+  "golden": [
+    {
+      "file": "golden/01-catalog-and-categories.json",
+      "sourceFile": "docs/qa/896-parity-run2/sheet/run2/01-catalog-and-categories.json",
+      "sha256": "457116d968bbd55e8d2267f7ceb4c1ed36fd7892f851d16dc0b5884cb2a6afd4"
+    },
+    {
+      "file": "golden/02-set-expansion.json",
+      "sourceFile": "docs/qa/896-parity-run2/sheet/run2/02-set-expansion.json",
+      "sha256": "c8f85e9320722c75f4800ef914cd1b86856cbf32e6ba512acb1f0e475615da97"
+    },
+    {
+      "file": "golden/03-options-features-defaults.json",
+      "sourceFile": "docs/qa/896-parity-run2/sheet/run2/03-options-features-defaults.json",
+      "sha256": "04406c58181addd354ccdf17a4db3dc05bc7813eb9122a657a65aa99e89460e3"
+    },
+    {
+      "file": "golden/04-quantity-derived.json",
+      "sourceFile": "docs/qa/896-parity-run2/sheet/run2/04-quantity-derived.json",
+      "sha256": "313de591afddc779799a8460fc92f832d8f33da22099c4d83360eeeaa3086db9"
+    },
+    {
+      "file": "golden/05-price-scenarios.json",
+      "sourceFile": "docs/qa/896-parity-run2/sheet/run2/05-price-scenarios.json",
+      "sha256": "f8309be614b67f0b13df07b0d87b4017cfaf0b8441c069713afad07edc9d47e8"
+    },
+    {
+      "file": "golden/06-toggle-off-on.json",
+      "sourceFile": "docs/qa/896-parity-run2/sheet/run2/06-toggle-off-on.json",
+      "sha256": "b09c30363fea710439a08c6ca25f3bedde20bba1781f079657ca7f8135938fd9"
+    }
+  ],
+  "storedGoldenShape": {
+    "catalogRows": 2735,
+    "singleSetRows": 226,
+    "commercialSetRows": 86,
+    "componentFeatureRows": 1451,
+    "quantityInputs": 5,
+    "priceScenarios": 5,
+    "toggleSchemaVersion": 1
+  },
+  "sourceManifest": {
+    "recordFile": "input-manifest.jsonl",
+    "recordCount": 4186,
+    "recordsHaveCoordinates": true,
+    "rawGoogleSheetSnapshotPresent": false,
+    "note": "저장소에 이미 있는 기준선 JSON의 행/JSON 좌표를 고정했다. 원시 Google Sheets 셀 스냅샷은 이 라운드에서 새로 읽지 않았다."
+  }
+}

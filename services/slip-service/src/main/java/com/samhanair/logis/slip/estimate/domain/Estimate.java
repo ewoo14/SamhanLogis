@@ -203,6 +203,14 @@ public class Estimate extends BaseEntity {
                 partnerBusinessNo, partnerAddress, validUntil, memo, requesterId);
     }
 
+    /** 담당 변경 — 작성 감사 기록(BaseEntity.createdBy)은 절대 변경하지 않는다. */
+    public void changeRequesterId(String requesterId) {
+        if (requesterId == null || requesterId.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "담당자 식별자는 필수입니다");
+        }
+        this.requesterId = requesterId;
+    }
+
     /**
      * 헤더 부분 수정 — DRAFT/SENT 단계만. null 이 아닌 인자만 적용.
      *

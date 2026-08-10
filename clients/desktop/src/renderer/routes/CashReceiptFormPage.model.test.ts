@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   buildCashReceiptRequest,
   cashReceiptInitialFormState,
+  partnerOptionFromFormState,
   partnerLookupUnavailableOnHydrate,
   validateCashReceiptForm,
   type CashReceiptFormState,
@@ -97,6 +98,19 @@ describe('CashReceiptFormPage model', () => {
       debitAccountCode: '102',
       creditAccountCode: '110',
     })
+  })
+})
+
+it('거래처 선택값이 없을 때 사업자번호나 거래처명이 거래처코드 슬롯으로 대체되지 않는다', () => {
+  expect(partnerOptionFromFormState({
+    ...cashReceiptInitialFormState(),
+    partnerCode: '',
+    bizNo: '113-07-10031',
+    partnerName: '테스트 거래처',
+  })).toEqual({
+    partnerCode: '',
+    bizNo: '113-07-10031',
+    name: '테스트 거래처',
   })
 })
 

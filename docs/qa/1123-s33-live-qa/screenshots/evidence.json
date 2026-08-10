@@ -1,0 +1,300 @@
+{
+  "environment": {
+    "front": "http://127.0.0.1:51124",
+    "api": "http://127.0.0.1:8080"
+  },
+  "network": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/auth/me",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/auth/me",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/app/version?clientType=DESKTOP&currentVersion=2026%2F08%2F09-11233",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/auth/password/policy",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/app/notices/active",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/api/notifications/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/slips?page=0&size=1&slipType=OUTBOUND&status=PROCESSING",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/auth/admin/permissions/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/auth/admin/permissions",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/auth/admin/permissions/account/<UUID>",
+      "status": 200
+    }
+  ],
+  "observations": [
+    {
+      "name": "LOGIN_dev_master",
+      "status": 200,
+      "role": "MASTER"
+    },
+    {
+      "name": "LOGIN_dev_accountant",
+      "status": 200,
+      "role": "ACCOUNTANT"
+    },
+    {
+      "name": "LOGIN_dev_manager",
+      "status": 200,
+      "role": "MANAGER"
+    },
+    {
+      "name": "LOGIN_dev_sales",
+      "status": 200,
+      "role": "SALES"
+    },
+    {
+      "name": "PRECONDITION_BASELINES",
+      "method": "GET",
+      "url": "/admin/slip-closing-baselines",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-08T16:08:33.533314755Z\"}"
+    },
+    {
+      "name": "CREATE_BASELINE",
+      "method": "POST",
+      "url": "/admin/slip-closing-baselines",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipTypeName\":\"출고전표\",\"baselineDate\":\"2026-08-10\",\"enabled\":true},\"timestamp\":\"2026-08-08T16:08:33.692817151Z\"}"
+    },
+    {
+      "name": "A_CREATE_CLOSED_SALES",
+      "method": "POST",
+      "url": "/api/v1/slips",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:33.864880340Z\"}"
+    },
+    {
+      "name": "B_MASTER_CLOSED_CREATE",
+      "method": "POST",
+      "url": "/api/v1/slips",
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/09-13\",\"slipDate\":\"2026-08-09\",\"seqNo\":13,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-master-closed-pass\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:34.052672347\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000,\"vatAmount\":1000,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:34.061785220Z\"}"
+    },
+    {
+      "name": "B_OPEN_CREATE",
+      "method": "POST",
+      "url": "/api/v1/slips",
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-14\",\"slipDate\":\"2026-08-10\",\"seqNo\":14,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-normal-path\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:34.258440007\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000,\"vatAmount\":1000,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:34.265645116Z\"}"
+    },
+    {
+      "name": "A1_HEADER",
+      "method": "PATCH",
+      "url": "/api/v1/slips/<UUID>/header",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:34.327398116Z\"}"
+    },
+    {
+      "name": "A2_DRIVER",
+      "method": "PATCH",
+      "url": "/api/v1/slips/<UUID>/driver",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:34.358396766Z\"}"
+    },
+    {
+      "name": "A3_V20",
+      "method": "PATCH",
+      "url": "/api/v1/slips/<UUID>/v20",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:34.384677628Z\"}"
+    },
+    {
+      "name": "A4_ADD_LINE",
+      "method": "POST",
+      "url": "/api/v1/slips/<UUID>/lines",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:34.410028680Z\"}"
+    },
+    {
+      "name": "A5_REMOVE_LINE",
+      "method": "DELETE",
+      "url": "/api/v1/slips/<UUID>/lines/<UUID>",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:34.437648049Z\"}"
+    },
+    {
+      "name": "A6_OVERLAY",
+      "method": "PATCH",
+      "url": "/api/v1/slips/<UUID>/audit/overlay",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:34.459271302Z\"}"
+    },
+    {
+      "name": "A7_COLLAB_BATCH",
+      "method": "POST",
+      "url": "/api/v1/slips/<UUID>/collab/edits",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:34.489095466Z\"}"
+    },
+    {
+      "name": "A8_USER_DELETE",
+      "method": "DELETE",
+      "url": "/api/v1/slips/<UUID>/sales",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"마감된 날짜에는 신규 전표를 만들 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:34.512115474Z\"}"
+    },
+    {
+      "name": "B1_OPEN_HEADER",
+      "method": "PATCH",
+      "url": "/api/v1/slips/<UUID>/header",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-14\",\"slipDate\":\"2026-08-10\",\"seqNo\":14,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-header-ok\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:34.70078974\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":1,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000.00,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000.00,\"vatAmount\":1000.00,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:34.706454504Z\"}"
+    },
+    {
+      "name": "B2_OPEN_DRIVER",
+      "method": "PATCH",
+      "url": "/api/v1/slips/<UUID>/driver",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-14\",\"slipDate\":\"2026-08-10\",\"seqNo\":14,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-header-ok\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:34.732275597\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":\"S33-정상기사\",\"driverPhone\":\"010-3300-0002\",\"deliveryBatchId\":null,\"version\":2,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000.00,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000.00,\"vatAmount\":1000.00,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:34.736967553Z\"}"
+    },
+    {
+      "name": "B3_OPEN_V20",
+      "method": "PATCH",
+      "url": "/api/v1/slips/<UUID>/v20",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-14\",\"slipDate\":\"2026-08-10\",\"seqNo\":14,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-header-ok\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:34.763705436\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":\"S33-정상기사\",\"driverPhone\":\"010-3300-0002\",\"deliveryBatchId\":null,\"version\":3,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":\"S33-open-v20-ok\",\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000.00,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000.00,\"vatAmount\":1000.00,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:34.767751673Z\"}"
+    },
+    {
+      "name": "B4_OPEN_ADD_LINE",
+      "method": "POST",
+      "url": "/api/v1/slips/<UUID>/lines",
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-14\",\"slipDate\":\"2026-08-10\",\"seqNo\":14,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-header-ok\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:34.763705\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":\"S33-정상기사\",\"driverPhone\":\"010-3300-0002\",\"deliveryBatchId\":null,\"version\":3,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":\"S33-open-v20-ok\",\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000.00,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000.00,\"vatAmount\":1000.00,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null},{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":11000,\"lineTotal\":11000.00,\"note\":null,\"unitPriceWithVat\":12100.00,\"supplyAmount\":11000.00,\"vatAmount\":1100.00,\"unitPriceDomain\":\"SUPPLY\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:34.803115831Z\"}"
+    },
+    {
+      "name": "B5_OPEN_REMOVE_LINE",
+      "method": "DELETE",
+      "url": "/api/v1/slips/<UUID>/lines/<UUID>",
+      "status": 204,
+      "body": ""
+    },
+    {
+      "name": "B6_OPEN_OVERLAY",
+      "method": "PATCH",
+      "url": "/api/v1/slips/<UUID>/audit/overlay",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-14\",\"slipDate\":\"2026-08-10\",\"seqNo\":14,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-overlay-ok\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:34.852096266\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":\"S33-정상기사\",\"driverPhone\":\"010-3300-0002\",\"deliveryBatchId\":null,\"version\":4,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":\"S33-open-v20-ok\",\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000.00,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000.00,\"vatAmount\":1000.00,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:34.855535150Z\"}"
+    },
+    {
+      "name": "B7_OPEN_COLLAB_BATCH",
+      "method": "POST",
+      "url": "/api/v1/slips/<UUID>/collab/edits",
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"edit\":{\"id\":\"<UUID>\",\"changeSet\":\"{\\\"memo\\\":{\\\"before\\\":\\\"S33-open-overlay-ok\\\",\\\"after\\\":\\\"S33-open-collab-ok\\\"}}\",\"reason\":\"S33-open-normal\",\"proposerName\":\"[DEV-SEED] 개발영업\",\"status\":\"ACCEPTED\",\"decidedByName\":\"[DEV-SEED] 개발영업\",\"decidedAt\":\"2026-08-09T01:08:34.878318233\",\"createdAt\":\"2026-08-09T01:08:34.87847161\"},\"slip\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-14\",\"slipDate\":\"2026-08-10\",\"seqNo\":14,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-collab-ok\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:34.876306733\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":\"S33-정상기사\",\"driverPhone\":\"010-3300-0002\",\"deliveryBatchId\":null,\"version\":5,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":\"S33-open-v20-ok\",\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000.00,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000.00,\"vatAmount\":1000.00,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]}},\"timestamp\":\"2026-08-08T16:08:34.884822877Z\"}"
+    },
+    {
+      "name": "B_OPEN_DELETE_FIXTURE_CREATE",
+      "method": "POST",
+      "url": "/api/v1/slips",
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-15\",\"slipDate\":\"2026-08-10\",\"seqNo\":15,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-delete-fixture\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:35.052101802\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000,\"vatAmount\":1000,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:35.058548201Z\"}"
+    },
+    {
+      "name": "B_OPEN_DELETE_FRESH_GET",
+      "method": "GET",
+      "url": "/api/v1/slips/<UUID>",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-15\",\"slipDate\":\"2026-08-10\",\"seqNo\":15,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-open-delete-fixture\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:35.052102\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":\"[DEV-SEED] 개발영업\",\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000.00,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000.00,\"vatAmount\":1000.00,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:35.072569345Z\"}"
+    },
+    {
+      "name": "B_OPEN_DELETE",
+      "method": "DELETE",
+      "url": "/api/v1/slips/<UUID>/sales",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:35.100726562Z\"}"
+    },
+    {
+      "name": "C_FORBIDDEN_PRECEDES_CLOSED",
+      "method": "POST",
+      "url": "/api/v1/slips",
+      "status": 403,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"전표 변경 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:35.260779001Z\"}"
+    },
+    {
+      "name": "D_AFTER_CUTOFF_DAY",
+      "method": "POST",
+      "url": "/api/v1/slips",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"당일 당일 마감(00:01) 초과 — 익일 출고로 생성하세요\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:35.443277607Z\"}"
+    },
+    {
+      "name": "D_BEFORE_CUTOFF_PARCEL",
+      "method": "POST",
+      "url": "/api/v1/slips",
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/09-14\",\"slipDate\":\"2026-08-09\",\"seqNo\":14,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":\"GYEONGDONG_PARCEL\",\"memo\":\"S33-cutoff-before-pass\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:35.46923629\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000,\"vatAmount\":1000,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:35.476809788Z\"}"
+    },
+    {
+      "name": "E_CONCURRENCY_FIXTURE_CREATE",
+      "method": "POST",
+      "url": "/api/v1/slips",
+      "status": 201,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-16\",\"slipDate\":\"2026-08-10\",\"seqNo\":16,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-concurrency-fixture\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:35.67205309\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000.00,\"lineTotal\":10000,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000,\"vatAmount\":1000,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:35.678274579Z\"}"
+    },
+    {
+      "name": "E_FIRST_PUT",
+      "method": "PUT",
+      "url": "/api/v1/slips/<UUID>/sales",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<UUID>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-16\",\"slipDate\":\"2026-08-10\",\"seqNo\":16,\"status\":\"DRAFT\",\"sourceType\":\"MANUAL\",\"partnerId\":null,\"partnerName\":null,\"partnerCode\":null,\"sourceWarehouseId\":\"<UUID>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"S33-concurrency-first\",\"requesterId\":\"<UUID>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-09T01:08:35.701034092\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":null,\"customerAddress\":null,\"customerRepresentative\":null,\"paymentDueLabel\":null,\"discountInfo\":null,\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":1,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<UUID>\",\"productId\":\"<UUID>\",\"productName\":\"판넬 2Way\",\"modelName\":\"PC2NWSK1N\",\"specification\":null,\"quantity\":1,\"unitPrice\":10000,\"lineTotal\":10000.00,\"note\":null,\"unitPriceWithVat\":11000.00,\"supplyAmount\":10000.00,\"vatAmount\":1000.00,\"unitPriceDomain\":\"SUPPLY\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-08T16:08:35.706907802Z\"}"
+    },
+    {
+      "name": "E_STALE_SECOND_PUT",
+      "method": "PUT",
+      "url": "/api/v1/slips/<UUID>/sales",
+      "status": 409,
+      "body": "{\"success\":false,\"code\":\"SLIP_OPTIMISTIC_LOCK_CONFLICT\",\"message\":\"전표가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요.\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:35.723631050Z\"}"
+    },
+    {
+      "name": "CLEANUP_S33_BASELINE",
+      "method": "DELETE",
+      "url": "/admin/slip-closing-baselines/<UUID>",
+      "status": 200,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-08T16:08:36.233165773Z\"}"
+    }
+  ]
+}

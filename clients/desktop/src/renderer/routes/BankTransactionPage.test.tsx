@@ -32,6 +32,7 @@ vi.mock('../api/accounting', async (importOriginal) => {
 import {
   BANK_TRANSACTION_LIST_COLUMN_KEYS,
   partnerMatchEvidence,
+  partnerValueOf,
   BankTransactionPage,
 } from './BankTransactionPage'
 
@@ -137,6 +138,21 @@ const baseRow: BankTransactionRow = {
   matchedPartnerCode: 'P-0001',
   matchedPartnerName: '테스트 거래처',
 }
+
+describe('partnerValueOf 거래처코드/사업자번호 분리', () => {
+  it('입출금 매칭에 사업자번호만 있을 때 거래처코드 슬롯으로 복사하지 않는다', () => {
+    expect(partnerValueOf({
+      ...baseRow,
+      matchedPartnerCode: null,
+      matchedBizNo: '1130710031',
+      matchedPartnerName: '테스트 거래처',
+    })).toEqual({
+      partnerCode: '',
+      name: '테스트 거래처',
+      bizNo: '1130710031',
+    })
+  })
+})
 
 describe('BankTransactionPage 매칭근거 배지', () => {
   it.each([

@@ -1,15 +1,22 @@
 import {
   forwardRef,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ChangeEvent,
   type FocusEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react'
 import styles from './WarehouseAutocomplete.module.css'
 import { FormField } from '../FormField/FormField'
+import {
+  SearchResultSelectionModal,
+  type SearchResultSelectionMode,
+} from '../SearchResultSelectionModal'
+import { getAutocompleteSelectionStart } from '../autocompleteSelection'
 
 /**
  * 창고 분류 enum (BE `WarehouseType` 와 1:1 대응).
@@ -58,6 +65,12 @@ export interface WarehouseAutocompleteProps {
   error?: string
   /** 필수 표시 (라벨 옆 별표). */
   required?: boolean
+  /** 지정하면 2건 이상 후보를 공용 선택 모달로 표시한다. 기존 dropdown이 기본값이다. */
+  resultSelectionMode?: SearchResultSelectionMode
+  /** 결과 선택 모달 제목. */
+  resultSelectionTitle?: ReactNode
+  /** 지정하면 후보 1건을 모달 없이 즉시 확정한다. */
+  autoSelectSingleResult?: boolean
 }
 
 /**
@@ -128,6 +141,9 @@ export const WarehouseAutocomplete = forwardRef<
     disabled = false,
     error,
     required = false,
+    resultSelectionMode,
+    resultSelectionTitle = '창고 검색 결과',
+    autoSelectSingleResult = false,
   },
   ref,
 ) {
@@ -158,7 +174,34 @@ export const WarehouseAutocomplete = forwardRef<
   const [draft, setDraft] = useState<string>('')
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState<number>(-1)
+  const [selectionCandidates, setSelectionCandidates] = useState<Warehouse[]>([])
+  const [selectionOpen, setSelectionOpen] = useState(false)
+  const [selectionRequest, setSelectionRequest] = useState(0)
   const blurTimer = useRef<number | undefined>(undefined)
+  // 검색 모달 취소로 input 포커스가 복원될 때 사용자의 draft를 보존한다.
+  const preserveDraftOnNextFocusRef = useRef(false)
+  const lastTypedDraftRef = useRef<string | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const isComposingRef = useRef(false)
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  const userSelectionRef = useRef<{ start: number; end: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const pending = pendingSelectionRef.current
+    if (!pending || isComposingRef.current || !inputRef.current) return
+    if (userSelectionRef.current) {
+      inputRef.current.setSelectionRange(userSelectionRef.current.start, userSelectionRef.current.end)
+      userSelectionRef.current = null
+      pendingSelectionRef.current = null
+      return
+    }
+    if (inputRef.current.selectionStart !== inputRef.current.selectionEnd) {
+      pendingSelectionRef.current = null
+      return
+    }
+    inputRef.current.setSelectionRange(pending.start, pending.end)
+    pendingSelectionRef.current = null
+  }, [draft, open, selectedLabel, selectionRequest])
 
   const candidates = useMemo(
     () => searchWarehouses(visibleWarehouses, draft),
@@ -172,10 +215,13 @@ export const WarehouseAutocomplete = forwardRef<
       window.clearTimeout(blurTimer.current)
       blurTimer.current = undefined
     }
-    // F-2: 포커스 시 draft 를 빈 문자열로 초기화 → 전체 후보 노출 (selectedLabel 검색 마찰 제거)
-    setDraft('')
+    const preserveDraft = preserveDraftOnNextFocusRef.current
+    // F-2: 일반 포커스 시 draft 를 빈 문자열로 초기화 → 전체 후보 노출.
+    // 모달 취소 직후 한 번만 사용자의 검색 draft를 복원한다.
+    const nextDraft = preserveDraft ? (lastTypedDraftRef.current ?? '') : ''
+    setDraft(nextDraft)
     setActiveIndex(-1)
-    setOpen(true)
+    setOpen(!preserveDraft)
   }
 
   const handleBlur = (_e: FocusEvent<HTMLInputElement>) => {
@@ -184,13 +230,19 @@ export const WarehouseAutocomplete = forwardRef<
       setOpen(false)
       setActiveIndex(-1)
       // blur 시 매칭 검사 — 입력값을 코드/이름으로 매칭
-      const trimmed = draft.trim()
+      const currentDraft = lastTypedDraftRef.current ?? ''
+      const trimmed = currentDraft.trim()
       if (!trimmed) {
         // F-1: 빈 입력 blur 시 onChange 호출 금지 (게이트 우회 차단).
         //   - 기존 선택값이 있으면 draft 를 selectedLabel 로 복원 (이전 선택 유지).
         //   - 선택값이 없으면 draft 비운 상태 유지, 부모 상태 null 유지.
         if (selectedWarehouse) {
           setDraft(selectedLabel)
+        } else if (lastTypedDraftRef.current !== null) {
+          // 검색 모달 backdrop 취소 뒤 복원 focus가 소비된 marker를 거쳐
+          // 같은 pointer 동작의 후속 blur를 만들 수 있다. 이 경우 선택값이
+          // 없다는 이유로 보존된 사용자 draft를 빈 문자열로 덮어쓰지 않는다.
+          setDraft(lastTypedDraftRef.current)
         }
         return
       }
@@ -203,25 +255,49 @@ export const WarehouseAutocomplete = forwardRef<
         if (exact.id !== value) onChange(exact.id, exact)
       } else {
         // 매칭 실패 — 기존 값 복원 (free-text 입력 차단)
-        setDraft(selectedLabel)
+        if (!preserveDraftOnNextFocusRef.current) setDraft(selectedLabel)
       }
     }, 120)
   }
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setDraft(e.target.value)
+    const nextDraft = e.target.value
+    userSelectionRef.current = null
+    preserveDraftOnNextFocusRef.current = false
+    lastTypedDraftRef.current = nextDraft
+    setDraft(nextDraft)
     setActiveIndex(-1)
     if (!open) setOpen(true)
+
+    if (resultSelectionMode && nextDraft.trim()) {
+      const nextCandidates = searchWarehouses(visibleWarehouses, nextDraft)
+      if (autoSelectSingleResult && nextCandidates.length === 1) {
+        pick(nextCandidates[0]!, !isComposingRef.current)
+      } else if (nextCandidates.length > 1) {
+        setSelectionCandidates(nextCandidates)
+        setSelectionOpen(true)
+        setOpen(false)
+      }
+    }
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
+    const isComposing = e.nativeEvent.isComposing || isComposingRef.current
+    if (isComposing && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        isComposingRef.current = false
+      }
+      return
+    }
+
     if (!open) return
 
     if (e.key === 'Escape') {
+      e.stopPropagation()
       setOpen(false)
       setActiveIndex(-1)
-      setDraft(selectedLabel)
+    setDraft(selectedLabel)
       return
     }
     if (candidates.length === 0) return
@@ -239,15 +315,44 @@ export const WarehouseAutocomplete = forwardRef<
     }
   }
 
-  const pick = (w: Warehouse) => {
+  const pick = (w: Warehouse, selectGeneratedSuffix = false) => {
+    if (isComposingRef.current) return
     onChange(w.id, w)
-    setDraft(`${w.code} · ${w.name}`)
+    const nextLabel = `${w.code} · ${w.name}`
+    if (selectGeneratedSuffix && inputRef.current && inputRef.current.selectionStart !== inputRef.current.selectionEnd) {
+      userSelectionRef.current = {
+        start: inputRef.current.selectionStart ?? 0,
+        end: inputRef.current.selectionEnd ?? 0,
+      }
+    }
+    if (selectGeneratedSuffix && !isComposingRef.current) {
+      pendingSelectionRef.current = {
+        start: getAutocompleteSelectionStart(nextLabel, lastTypedDraftRef.current ?? ''),
+        end: nextLabel.length,
+      }
+      setSelectionRequest((previous) => previous + 1)
+    }
+    lastTypedDraftRef.current = nextLabel
+    setDraft(nextLabel)
     setActiveIndex(-1)
     setOpen(false)
   }
 
+  const closeSelection = () => {
+    if (blurTimer.current !== undefined) {
+      window.clearTimeout(blurTimer.current)
+      blurTimer.current = undefined
+    }
+    preserveDraftOnNextFocusRef.current = true
+    setSelectionOpen(false)
+    setSelectionCandidates([])
+    const nextDraft = lastTypedDraftRef.current ?? ''
+    setDraft(nextDraft)
+    setOpen(false)
+  }
+
   // 표시값 — 포커스 중에는 draft, 그 외엔 selectedLabel
-  const displayValue = open ? draft : selectedLabel
+  const displayValue = open || preserveDraftOnNextFocusRef.current ? draft : selectedLabel
 
   return (
     <FormField
@@ -255,6 +360,7 @@ export const WarehouseAutocomplete = forwardRef<
       error={error}
       required={required}
       render={({ id, ariaDescribedBy, invalid, required: req }) => (
+        <>
         <div className={styles['wrapper']}>
           <div
             className={[
@@ -266,7 +372,11 @@ export const WarehouseAutocomplete = forwardRef<
               .join(' ')}
           >
             <input
-              ref={ref}
+              ref={(node) => {
+                inputRef.current = node
+                if (typeof ref === 'function') ref(node)
+                else if (ref) ref.current = node
+              }}
               id={id}
               type="text"
               autoComplete="off"
@@ -276,6 +386,26 @@ export const WarehouseAutocomplete = forwardRef<
               onFocus={handleFocus}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
+              onSelect={() => {
+                userSelectionRef.current = {
+                  start: inputRef.current?.selectionStart ?? 0,
+                  end: inputRef.current?.selectionEnd ?? 0,
+                }
+              }}
+              onCompositionStart={() => {
+                isComposingRef.current = true
+              }}
+              onCompositionEnd={() => {
+                isComposingRef.current = false
+                window.setTimeout(() => {
+                  const currentDraft = lastTypedDraftRef.current ?? ''
+                  const nextCandidates = searchWarehouses(visibleWarehouses, currentDraft)
+                  const item = nextCandidates.length === 1 ? nextCandidates[0] : undefined
+                  if (item && autoSelectSingleResult && currentDraft !== `${item.code} · ${item.name}`) {
+                    pick(item, true)
+                  }
+                }, 0)
+              }}
               placeholder={placeholder}
               disabled={disabled}
               required={req}
@@ -333,6 +463,37 @@ export const WarehouseAutocomplete = forwardRef<
             </div>
           ) : null}
         </div>
+        <SearchResultSelectionModal
+          open={selectionOpen}
+          mode={resultSelectionMode ?? 'single'}
+          title={resultSelectionTitle}
+          options={selectionCandidates}
+          getKey={(warehouse) => warehouse.id}
+          getLabel={(warehouse) => warehouse.code}
+          renderOption={(warehouse) => (
+            <span>
+              <span className={styles['optionCode']}>{warehouse.code}</span>
+              <span className={styles['optionName']}>{warehouse.name}</span>
+            </span>
+          )}
+          columns={[
+            { key: 'code', label: '창고 코드', render: (warehouse: Warehouse) => warehouse.code },
+            { key: 'name', label: '창고명', render: (warehouse: Warehouse) => warehouse.name },
+          ]}
+          onConfirm={(items) => {
+            if (items[0]) {
+              pick(items[0])
+              // 확정 모달 close cleanup의 input focus 복원은 새 검색이 아니다.
+              // 선택 레이블을 보존해 복원 focus가 표시값을 비우거나 dropdown을 재개방하지 않게 한다.
+              lastTypedDraftRef.current = `${items[0].code} · ${items[0].name}`
+              preserveDraftOnNextFocusRef.current = true
+            }
+            setSelectionOpen(false)
+            setSelectionCandidates([])
+          }}
+          onCancel={closeSelection}
+        />
+        </>
       )}
     />
   )

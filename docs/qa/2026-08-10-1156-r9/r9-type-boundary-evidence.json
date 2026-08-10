@@ -1,0 +1,31 @@
+{
+  "round": "R9",
+  "runtimeCastContract": {
+    "inputPartnerCode": "P-2026-0001",
+    "outputPartnerCode": "P-2026-0001",
+    "inputBusinessNumber": "113-07-10031",
+    "outputBusinessNumber": "113-07-10031",
+    "note": "asPartnerCode/asBusinessNumber are TypeScript casts only; validation=false"
+  },
+  "bankTransactions": {
+    "status": 200,
+    "rowCount": 316,
+    "fallbackCandidateCount": 0,
+    "candidates": []
+  },
+  "cashReceipts": {
+    "status": 200,
+    "rowCount": 51,
+    "fallbackCandidateCount": 0,
+    "firstDisplayedValue": {
+      "slipNo": "2026/08/07-8",
+      "partnerCode": "P-2026-0005",
+      "partnerName": "대구HVAC솔루션",
+      "bizNo": "1653510155"
+    },
+    "candidates": []
+  },
+  "rendererNetwork": [],
+  "ids": "<redacted-uuid>",
+  "credentials": "<redacted>"
+}

@@ -217,6 +217,7 @@ vi.mock('../api/slip', () => ({
 vi.mock('../api/productApi', () => ({
   lookupProducts: mocks.lookupProducts,
   searchProducts: mocks.searchProducts,
+  isSelectableProductStatus: (status: string | null | undefined) => status !== 'DISCONTINUED' && status !== 'NOT_FOR_SALE',
 }))
 
 vi.mock('./components/LineLookupReferenceModal', () => ({
@@ -400,7 +401,9 @@ beforeEach(() => {
   mocks.searchProducts.mockReset()
   mocks.getPriceMemory.mockResolvedValue(null)
   mocks.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
-  mocks.lookupProducts.mockResolvedValue([])
+  mocks.lookupProducts.mockImplementation(async (productIds: string[]) =>
+    productIds.map((id) => ({ id, status: 'ACTIVE' })),
+  )
   mocks.searchProducts.mockResolvedValue([])
   mocks.createEstimate.mockResolvedValue({ id: 'estimate-created' })
   mocks.updateEstimate.mockResolvedValue({ id: 'estimate-1' })
@@ -1061,7 +1064,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     fireEvent.blur(model)
 
     const dialog = await screen.findByRole('dialog', { name: '품목 검색 결과' })
-    expect(mocks.searchProducts).toHaveBeenCalledWith('AJ')
+    expect(mocks.searchProducts).toHaveBeenCalledWith('AJ', { size: 50, usageScope: 'ESTIMATE' })
     expect(dialog.textContent).toContain('220V')
     expect(dialog.textContent).toContain('22,000원')
     expect(dialog.textContent).not.toContain('11111111-1111-1111-1111-111111111111')
@@ -1564,7 +1567,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     fireEvent.click(screen.getByTestId('estimate-select-partner-b'))
 
     expect(estimateUnitPrice().value).toBe('11000')
-    expect(mocks.lookupProducts).not.toHaveBeenCalled()
+    expect(mocks.lookupProducts).toHaveBeenCalledWith(['product-1'])
     expect(mocks.getPriceMemories).not.toHaveBeenCalled()
   })
 

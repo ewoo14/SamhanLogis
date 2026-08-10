@@ -4,11 +4,12 @@ const apiClientMock = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
+  patch: vi.fn(),
 }))
 
 vi.mock('./client', () => ({ apiClient: apiClientMock }))
 
-import { getEstimate, listEstimates } from './estimateApi'
+import { changeEstimateOwner, getEstimate, listAssignedEstimates, listEstimates } from './estimateApi'
 
 describe('estimate API money normalization', () => {
   beforeEach(() => vi.resetAllMocks())
@@ -64,6 +65,27 @@ describe('estimate API soft-delete population', () => {
     await listEstimates({ page: 0, size: 50, includeDeleted: true })
     expect(apiClientMock.get).toHaveBeenLastCalledWith('/slips/estimates', {
       params: { page: 0, size: 50, includeDeleted: 'true' },
+    })
+  })
+})
+
+describe('estimate owner surface contract', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  it('uses assigned-only endpoint for web and estimate-only owner mutation for desktop', async () => {
+    apiClientMock.get.mockResolvedValue({ data: { data: { content: [], totalElements: 0 } } })
+    apiClientMock.patch.mockResolvedValue({ data: { data: {
+      id: 'estimate-1', totalSupply: 0, totalVat: 0, totalAmount: 0, lines: [],
+    } } })
+
+    await listAssignedEstimates({ page: 0, size: 20 })
+    expect(apiClientMock.get).toHaveBeenLastCalledWith('/slips/estimates/assigned', {
+      params: { page: 0, size: 20 },
+    })
+
+    await changeEstimateOwner('estimate-1', { requesterId: 'owner-2', documentType: 'ESTIMATE' })
+    expect(apiClientMock.patch).toHaveBeenCalledWith('/slips/estimates/estimate-1/owner', {
+      requesterId: 'owner-2', documentType: 'ESTIMATE',
     })
   })
 })

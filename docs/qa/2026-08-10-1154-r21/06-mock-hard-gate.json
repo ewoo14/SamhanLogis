@@ -1,0 +1,11 @@
+{
+  "viteMockMode": true,
+  "interceptedBeforeExternalWrite": true,
+  "attempted": [
+    {
+      "method": "POST",
+      "url": "http://localhost:8080/admin/partners/imports/ecount",
+      "resourceType": "xhr"
+    }
+  ]
+}

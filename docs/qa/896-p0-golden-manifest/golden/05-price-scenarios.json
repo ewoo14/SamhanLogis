@@ -1,0 +1,614 @@
+{
+  "scenarios": [
+    {
+      "id": "single-item",
+      "input": {
+        "items": [
+          {
+            "sector": "HOME",
+            "model": "AJ060MXHNBC1",
+            "quantity": 2
+          }
+        ],
+        "options": "시트 기본값"
+      },
+      "configured": {
+        "model": "AJ060MXHNBC1",
+        "quantity": 2,
+        "unitPrice": 1611115
+      },
+      "selectedOptions": {
+        "home_rate": "45",
+        "home_remote": "기본",
+        "home_panel": "",
+        "home_hose_i": false,
+        "home_no_hose": false,
+        "home_no_branch": false,
+        "home_foot": false,
+        "home_round_unit": "0",
+        "home_round_mode": "ROUND",
+        "chkHomeInc": false,
+        "ss_disc_360": "0",
+        "ss_disc_4way": "0",
+        "ss_disc_1way": "0",
+        "ss_disc_stand": "0",
+        "ss_disc_deluxe": "0",
+        "ss_disc_grade1": "0",
+        "ss_remote": "",
+        "ss_remote_ex": false,
+        "ss_base": false,
+        "ss_panel": "",
+        "ss_p360": "원형",
+        "ss_mat": "별도",
+        "chkSingleInc": false,
+        "ss_expand": false,
+        "comm_rate": "45",
+        "comm_panel": "기본판넬",
+        "comm_p360": "원형",
+        "comm_remote": "무선",
+        "comm_hose_i": false,
+        "comm_ex_hose": false,
+        "comm_ex_base": false,
+        "comm_ext_out": false,
+        "comm_round_unit": "0",
+        "comm_round_mode": "ROUND",
+        "chkCommInc": false,
+        "payDuePre": false,
+        "chkCardPay": false,
+        "selCutUnit": "0",
+        "chkCardPayPv": false
+      },
+      "sections": [
+        {
+          "id": "HOME",
+          "title": "<홈멀티>",
+          "subLabel": "홈멀티 합계",
+          "rows": [
+            {
+              "type": "item",
+              "name": "실외기_6HP 단배관",
+              "originalName": "실외기_6HP 단배관",
+              "model": "AJ060MXHNBC1",
+              "unit": "대",
+              "qty": 2,
+              "price": 1611115,
+              "sub": 3222230,
+              "list": 2929300
+            }
+          ],
+          "total": 3222230
+        }
+      ],
+      "amounts": {
+        "vatRate": 0.1,
+        "supplyAmount": 2929300,
+        "vatAmount": 292930,
+        "grossTotal": 3222230
+      }
+    },
+    {
+      "id": "single-set-default",
+      "input": {
+        "items": [
+          {
+            "sector": "SINGLE",
+            "model": "AC060CS6PBH1SY",
+            "quantity": 1
+          }
+        ],
+        "options": "시트 기본값"
+      },
+      "configured": {
+        "id": "360 CST UV|15|4",
+        "model": "AC060CS6PBH1SY",
+        "quantity": 1,
+        "unitPrice": 1660000
+      },
+      "selectedOptions": {
+        "home_rate": "45",
+        "home_remote": "기본",
+        "home_panel": "",
+        "home_hose_i": false,
+        "home_no_hose": false,
+        "home_no_branch": false,
+        "home_foot": false,
+        "home_round_unit": "0",
+        "home_round_mode": "ROUND",
+        "chkHomeInc": false,
+        "ss_disc_360": "0",
+        "ss_disc_4way": "0",
+        "ss_disc_1way": "0",
+        "ss_disc_stand": "0",
+        "ss_disc_deluxe": "0",
+        "ss_disc_grade1": "0",
+        "ss_remote": "",
+        "ss_remote_ex": false,
+        "ss_base": false,
+        "ss_panel": "",
+        "ss_p360": "원형",
+        "ss_mat": "별도",
+        "chkSingleInc": false,
+        "ss_expand": false,
+        "comm_rate": "45",
+        "comm_panel": "기본판넬",
+        "comm_p360": "원형",
+        "comm_remote": "무선",
+        "comm_hose_i": false,
+        "comm_ex_hose": false,
+        "comm_ex_base": false,
+        "comm_ext_out": false,
+        "comm_round_unit": "0",
+        "comm_round_mode": "ROUND",
+        "chkCommInc": false,
+        "payDuePre": false,
+        "chkCardPay": false,
+        "selCutUnit": "0",
+        "chkCardPayPv": false
+      },
+      "sections": [
+        {
+          "id": "SINGLE",
+          "title": "<싱글중대형>",
+          "subLabel": "싱글중대형 합계",
+          "rows": [
+            {
+              "type": "set-head",
+              "name": "360 CST UV 15평형 2/3등급 (원형)",
+              "originalName": "360 CST UV",
+              "model": "AC060CS6PBH1SY",
+              "qty": 1,
+              "list": 2516800
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "360 CST UV 실내기",
+              "originalName": "360 CST UV 실내기",
+              "model": "AC060CN6PBH1",
+              "unit": "EA",
+              "qty": 1,
+              "price": 606000,
+              "sub": 606000,
+              "list": 935000
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "360 CST UV 실외기",
+              "originalName": "360 CST UV 실외기",
+              "model": "AC060CXAPBH1",
+              "unit": "EA",
+              "qty": 1,
+              "price": 910000,
+              "sub": 910000,
+              "list": 1331000
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "판넬 (360CST 원형 WIFI)",
+              "originalName": "판넬 (360CST 원형 WIFI)",
+              "model": "PC6NUNK1NW",
+              "unit": "EA",
+              "qty": 1,
+              "price": 128000,
+              "sub": 128000,
+              "list": 189200
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "무선리모컨",
+              "originalName": "무선리모컨",
+              "model": "AR-EH05",
+              "unit": "EA",
+              "qty": 1,
+              "price": 16000,
+              "sub": 16000,
+              "list": 25300
+            }
+          ],
+          "total": 1660000
+        }
+      ],
+      "amounts": {
+        "vatRate": 0.1,
+        "supplyAmount": 1509091,
+        "vatAmount": 150909,
+        "grossTotal": 1660000
+      }
+    },
+    {
+      "id": "single-set-options",
+      "input": {
+        "items": [
+          {
+            "sector": "SINGLE",
+            "model": "AC060CS6PBH1SY",
+            "quantity": 1
+          }
+        ],
+        "options": {
+          "panel": "블랙판넬",
+          "panelShape360": "사각",
+          "remote": "유선리모컨"
+        }
+      },
+      "configured": {
+        "id": "360 CST UV|15|4",
+        "model": "AC060CS6PBH1SY",
+        "quantity": 1,
+        "selected": {
+          "panel": "블랙판넬",
+          "panelShape360": "사각",
+          "remote": "유선리모컨"
+        },
+        "unitPrice": 1760000
+      },
+      "selectedOptions": {
+        "home_rate": "45",
+        "home_remote": "기본",
+        "home_panel": "",
+        "home_hose_i": false,
+        "home_no_hose": false,
+        "home_no_branch": false,
+        "home_foot": false,
+        "home_round_unit": "0",
+        "home_round_mode": "ROUND",
+        "chkHomeInc": false,
+        "ss_disc_360": "0",
+        "ss_disc_4way": "0",
+        "ss_disc_1way": "0",
+        "ss_disc_stand": "0",
+        "ss_disc_deluxe": "0",
+        "ss_disc_grade1": "0",
+        "ss_remote": "유선리모컨",
+        "ss_remote_ex": false,
+        "ss_base": false,
+        "ss_panel": "블랙판넬",
+        "ss_p360": "사각",
+        "ss_mat": "별도",
+        "chkSingleInc": false,
+        "ss_expand": false,
+        "comm_rate": "45",
+        "comm_panel": "기본판넬",
+        "comm_p360": "원형",
+        "comm_remote": "무선",
+        "comm_hose_i": false,
+        "comm_ex_hose": false,
+        "comm_ex_base": false,
+        "comm_ext_out": false,
+        "comm_round_unit": "0",
+        "comm_round_mode": "ROUND",
+        "chkCommInc": false,
+        "payDuePre": false,
+        "chkCardPay": false,
+        "selCutUnit": "0",
+        "chkCardPayPv": false
+      },
+      "sections": [
+        {
+          "id": "SINGLE",
+          "title": "<싱글중대형>",
+          "subLabel": "싱글중대형 합계",
+          "rows": [
+            {
+              "type": "set-head",
+              "name": "360 CST UV 15평형 2/3등급 (유선리모컨/블랙판넬/사각)",
+              "originalName": "360 CST UV",
+              "model": "AC060CS6PBH1SY",
+              "qty": 1,
+              "list": 2516800
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "360 CST UV 실내기",
+              "originalName": "360 CST UV 실내기",
+              "model": "AC060CN6PBH1",
+              "unit": "EA",
+              "qty": 1,
+              "price": 606000,
+              "sub": 606000,
+              "list": 935000
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "360 CST UV 실외기",
+              "originalName": "360 CST UV 실외기",
+              "model": "AC060CXAPBH1",
+              "unit": "EA",
+              "qty": 1,
+              "price": 910000,
+              "sub": 910000,
+              "list": 1331000
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "판넬 (360CST 사각 블랙 WIFI)",
+              "originalName": "판넬 (360CST 사각 블랙 WIFI)",
+              "model": "PC6NBDK1NW",
+              "unit": "EA",
+              "qty": 1,
+              "price": 188000,
+              "sub": 188000,
+              "list": 272800
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "유선리모컨(통합)",
+              "originalName": "유선리모컨(통합)",
+              "model": "AWR-WE13N",
+              "unit": "EA",
+              "qty": 1,
+              "price": 56000,
+              "sub": 56000,
+              "list": 82500
+            }
+          ],
+          "total": 1760000
+        }
+      ],
+      "amounts": {
+        "vatRate": 0.1,
+        "supplyAmount": 1600000,
+        "vatAmount": 160000,
+        "grossTotal": 1760000
+      }
+    },
+    {
+      "id": "single-set-discount",
+      "input": {
+        "items": [
+          {
+            "sector": "SINGLE",
+            "model": "AC060CS6PBH1SY",
+            "quantity": 2
+          }
+        ],
+        "options": {
+          "discount360WonPerSet": 50000
+        }
+      },
+      "configured": {
+        "id": "360 CST UV|15|4",
+        "model": "AC060CS6PBH1SY",
+        "quantity": 2,
+        "discount360WonPerSet": 50000,
+        "unitPrice": 1610000
+      },
+      "selectedOptions": {
+        "home_rate": "45",
+        "home_remote": "기본",
+        "home_panel": "",
+        "home_hose_i": false,
+        "home_no_hose": false,
+        "home_no_branch": false,
+        "home_foot": false,
+        "home_round_unit": "0",
+        "home_round_mode": "ROUND",
+        "chkHomeInc": false,
+        "ss_disc_360": "50000",
+        "ss_disc_4way": "0",
+        "ss_disc_1way": "0",
+        "ss_disc_stand": "0",
+        "ss_disc_deluxe": "0",
+        "ss_disc_grade1": "0",
+        "ss_remote": "",
+        "ss_remote_ex": false,
+        "ss_base": false,
+        "ss_panel": "",
+        "ss_p360": "원형",
+        "ss_mat": "별도",
+        "chkSingleInc": false,
+        "ss_expand": false,
+        "comm_rate": "45",
+        "comm_panel": "기본판넬",
+        "comm_p360": "원형",
+        "comm_remote": "무선",
+        "comm_hose_i": false,
+        "comm_ex_hose": false,
+        "comm_ex_base": false,
+        "comm_ext_out": false,
+        "comm_round_unit": "0",
+        "comm_round_mode": "ROUND",
+        "chkCommInc": false,
+        "payDuePre": false,
+        "chkCardPay": false,
+        "selCutUnit": "0",
+        "chkCardPayPv": false
+      },
+      "sections": [
+        {
+          "id": "SINGLE",
+          "title": "<싱글중대형>",
+          "subLabel": "싱글중대형 합계",
+          "rows": [
+            {
+              "type": "set-head",
+              "name": "360 CST UV 15평형 2/3등급 (원형)",
+              "originalName": "360 CST UV",
+              "model": "AC060CS6PBH1SY",
+              "qty": 2,
+              "list": 2516800
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "360 CST UV 실내기",
+              "originalName": "360 CST UV 실내기",
+              "model": "AC060CN6PBH1",
+              "unit": "EA",
+              "qty": 2,
+              "price": 586000,
+              "sub": 1172000,
+              "list": 935000
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "360 CST UV 실외기",
+              "originalName": "360 CST UV 실외기",
+              "model": "AC060CXAPBH1",
+              "unit": "EA",
+              "qty": 2,
+              "price": 880000,
+              "sub": 1760000,
+              "list": 1331000
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "판넬 (360CST 원형 WIFI)",
+              "originalName": "판넬 (360CST 원형 WIFI)",
+              "model": "PC6NUNK1NW",
+              "unit": "EA",
+              "qty": 2,
+              "price": 128000,
+              "sub": 256000,
+              "list": 189200
+            },
+            {
+              "type": "item",
+              "isChild": true,
+              "name": "무선리모컨",
+              "originalName": "무선리모컨",
+              "model": "AR-EH05",
+              "unit": "EA",
+              "qty": 2,
+              "price": 16000,
+              "sub": 32000,
+              "list": 25300
+            }
+          ],
+          "total": 3220000
+        }
+      ],
+      "amounts": {
+        "vatRate": 0.1,
+        "supplyAmount": 2927273,
+        "vatAmount": 292727,
+        "grossTotal": 3220000
+      }
+    },
+    {
+      "id": "freight-and-cutoff",
+      "input": {
+        "items": [
+          {
+            "sector": "HOME",
+            "model": "AJ060MXHNBC1",
+            "quantity": 1
+          },
+          {
+            "sector": "HOME",
+            "model": "운임",
+            "quantity": 1,
+            "manualUnitPrice": 120000
+          }
+        ],
+        "options": {
+          "automaticCutoffUnitWon": 1000
+        }
+      },
+      "configured": {
+        "items": [
+          {
+            "model": "AJ060MXHNBC1",
+            "quantity": 1,
+            "unitPrice": 1611115
+          },
+          {
+            "model": "운임",
+            "quantity": 1,
+            "unitPrice": 120000
+          }
+        ],
+        "automaticCutoffUnitWon": 1000
+      },
+      "selectedOptions": {
+        "home_rate": "45",
+        "home_remote": "기본",
+        "home_panel": "",
+        "home_hose_i": false,
+        "home_no_hose": false,
+        "home_no_branch": false,
+        "home_foot": false,
+        "home_round_unit": "0",
+        "home_round_mode": "ROUND",
+        "chkHomeInc": false,
+        "ss_disc_360": "0",
+        "ss_disc_4way": "0",
+        "ss_disc_1way": "0",
+        "ss_disc_stand": "0",
+        "ss_disc_deluxe": "0",
+        "ss_disc_grade1": "0",
+        "ss_remote": "",
+        "ss_remote_ex": false,
+        "ss_base": false,
+        "ss_panel": "",
+        "ss_p360": "원형",
+        "ss_mat": "별도",
+        "chkSingleInc": false,
+        "ss_expand": false,
+        "comm_rate": "45",
+        "comm_panel": "기본판넬",
+        "comm_p360": "원형",
+        "comm_remote": "무선",
+        "comm_hose_i": false,
+        "comm_ex_hose": false,
+        "comm_ex_base": false,
+        "comm_ext_out": false,
+        "comm_round_unit": "0",
+        "comm_round_mode": "ROUND",
+        "chkCommInc": false,
+        "payDuePre": false,
+        "chkCardPay": false,
+        "selCutUnit": "1000",
+        "chkCardPayPv": false
+      },
+      "sections": [
+        {
+          "id": "HOME",
+          "title": "<홈멀티>",
+          "subLabel": "홈멀티 합계",
+          "rows": [
+            {
+              "type": "item",
+              "name": "실외기_6HP 단배관",
+              "originalName": "실외기_6HP 단배관",
+              "model": "AJ060MXHNBC1",
+              "unit": "대",
+              "qty": 1,
+              "price": 1611000,
+              "sub": 1611000,
+              "list": 2929300
+            },
+            {
+              "type": "item",
+              "name": "운임",
+              "originalName": "운임",
+              "model": "운임",
+              "unit": "-",
+              "qty": 1,
+              "price": 120000,
+              "sub": 120000,
+              "source": "CATALOG_SPECIAL",
+              "list": 0
+            }
+          ],
+          "total": 1731000
+        }
+      ],
+      "amounts": {
+        "vatRate": 0.1,
+        "supplyAmount": 1573636,
+        "vatAmount": 157364,
+        "grossTotal": 1731000
+      }
+    }
+  ]
+}

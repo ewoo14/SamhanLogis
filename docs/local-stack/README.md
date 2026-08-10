@@ -56,6 +56,19 @@ Samhan Public backend role enum은 `MASTER / DEVELOPER / MANAGER / DISPATCH / SA
 
 ## 마이그레이션 검증 절차
 
+### 적용된 Flyway 마이그레이션 불변 규칙
+
+`origin/main`에 이미 존재하는 `**/db/migration/V*.sql`은 적용된 마이그레이션으로 취급한다. 기존 파일의 내용 수정(주석만 변경하는 경우 포함), 삭제, 이름변경은 Flyway 체크섬 또는 파일 식별자를 깨뜨려 기존 DB를 기동 불가로 만들 수 있으므로 금지한다. 변경이 필요하면 기존 파일을 편집하지 말고 새 `V*.sql` 마이그레이션을 추가한다.
+
+부득이하게 이미 적용된 파일을 변경한 경우에는 모든 환경에서 다음 복구 스크립트를 실행해야 한다. 이 작업은 체크섬 메타데이터를 복구하는 운영 조치이며, 새 변경의 대안이 아니다.
+
+```powershell
+.\scripts\repair-flyway-checksums.ps1 -WhatIf
+.\scripts\repair-flyway-checksums.ps1
+```
+
+CI의 `Applied Flyway Migration Guard`가 서비스명 목록 없이 레포 전체의 `**/db/migration/V*.sql`을 `origin/main`과 비교해 수정·삭제·이름변경을 차단한다. 신규 migration 추가는 허용한다.
+
 1. `.\scripts\seed-local-stack.ps1` 실행 후 MIG-1~11 reimport 결과에서 `processed` 또는 `skipped`가 출력되는지 확인한다.
 2. desktop 로그인: `master@samhan.test / Pa$$w0rd!`.
 3. 회계 관리자 메뉴에서 다음 화면을 순서대로 연다.

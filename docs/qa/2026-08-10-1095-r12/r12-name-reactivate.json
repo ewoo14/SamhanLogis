@@ -1,0 +1,15 @@
+{
+  "sameNameReactivate": {
+    "model": "AF17B6474GZRS",
+    "http": 204
+  },
+  "duplicateNameReactivate": {
+    "model": "AR07C9180HZS",
+    "http": 409,
+    "body": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"이미 사용 중인 품목명입니다: 냉난방 무풍 벽걸이 (충돌 품목 모델코드: AR60F07C12WS)\",\"data\":null,\"timestamp\":\"2026-08-09T17:30:14.815396297Z\"}"
+  },
+  "final": {
+    "unique": "DISCONTINUED",
+    "duplicate": "DISCONTINUED"
+  }
+}

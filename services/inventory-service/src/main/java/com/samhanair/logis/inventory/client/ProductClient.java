@@ -66,6 +66,24 @@ public class ProductClient {
      */
     @SuppressWarnings("unchecked")
     public List<ProductSummary> lookup(List<UUID> productIds) {
+        return lookupInternal(productIds, true);
+    }
+
+    /**
+     * seed 정합성 검사 전용 조회 — product-service가 반환한 활성 product만 돌려준다.
+     * 일반 업무 조회와 달리 부분 응답을 예외로 바꾸지 않아 호출자가 누락 UUID/modelName을
+     * 개발자 조치 메시지에 포함할 수 있다.
+     */
+    public List<ProductSummary> lookupForSeedIntegrity(List<UUID> productIds) {
+        return lookupInternal(productIds, false);
+    }
+
+    /** 안전재고 등 표시 보강용 — 존재하지 않는 ID가 섞여도 존재하는 항목은 반환한다. */
+    public List<ProductSummary> lookupAllowMissing(List<UUID> productIds) {
+        return lookupInternal(productIds, false);
+    }
+
+    private List<ProductSummary> lookupInternal(List<UUID> productIds, boolean requireAll) {
         if (productIds == null || productIds.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 제품 ID가 비어있습니다");
         }
@@ -111,7 +129,7 @@ public class ProductClient {
                 .map(item -> objectMapper.convertValue(item, ProductSummary.class))
                 .toList();
 
-        if (summaries.size() < productIds.size()) {
+        if (requireAll && summaries.size() < productIds.size()) {
             throw new BusinessException(ErrorCode.NOT_FOUND,
                     "일부 제품을 찾을 수 없습니다 (요청 " + productIds.size()
                             + ", 응답 " + summaries.size() + ")");

@@ -1,0 +1,25 @@
+{
+  "requestRows": 1000,
+  "requestBytes": 164211,
+  "directHttp": 200,
+  "directHeldRows": 1000,
+  "directHeldSampleLength": 20,
+  "accountingHttp": 200,
+  "accountingHeldRows": 0,
+  "accountingHeldSampleLength": 0,
+  "accountingErrorLength": 1,
+  "accountingResponseBytes": 2154,
+  "firstError": {
+    "target": "partner",
+    "fileName": "거래처-Excel다운로드_R15_BULK_1000.csv",
+    "errorCode": "MIG20_REIMPORT_FAILED",
+    "message": "외부 이카운트 import 호출 실패: service=partner-service, endpoint=/admin/partners/imports/ecount, message=Error while extracting response for type [java.lang.String] and content type [application/octet-stream]"
+  },
+  "lastError": {
+    "target": "partner",
+    "fileName": "거래처-Excel다운로드_R15_BULK_1000.csv",
+    "errorCode": "MIG20_REIMPORT_FAILED",
+    "message": "외부 이카운트 import 호출 실패: service=partner-service, endpoint=/admin/partners/imports/ecount, message=Error while extracting response for type [java.lang.String] and content type [application/octet-stream]"
+  },
+  "uuidExposed": false
+}

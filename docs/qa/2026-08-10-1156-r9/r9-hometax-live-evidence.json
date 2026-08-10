@@ -1,0 +1,95 @@
+{
+  "round": "R9",
+  "deployment": {
+    "gitHead": "19d7fe34b518925436e81c5986a3821d10008ac2",
+    "accountingApi": "127.0.0.1:28208",
+    "slipApi": "127.0.0.1:28206",
+    "renderer": "127.0.0.1:5330"
+  },
+  "samples": [
+    {
+      "slipNo": "2026/08/10-23",
+      "status": "CONFIRMED",
+      "partnerName": "(주)서울에어컨",
+      "partnerCode": "P-2026-0001",
+      "businessNumber": "113-07-10031",
+      "buyerRegNo": "1130710031"
+    },
+    {
+      "slipNo": "2026/08/10-24",
+      "status": "CONFIRMED",
+      "partnerName": "이상덕기사님(경기퀵)",
+      "partnerCode": "-",
+      "businessNumber": "-",
+      "buyerRegNo": ""
+    }
+  ],
+  "liveCalls": {
+    "salesQuery": {
+      "status": 200,
+      "path": "/internal/slips/sales-query",
+      "mock": false
+    },
+    "directPreview": {
+      "status": 200,
+      "path": "/accounting/hometax-export/preview",
+      "mock": false
+    },
+    "rendererNetwork": [
+      {
+        "method": "POST",
+        "status": 200,
+        "path": "/accounting/hometax-export/preview",
+        "destination": "ACCOUNTING-28208"
+      },
+      {
+        "method": "GET",
+        "status": 200,
+        "path": "/accounting/hometax-export/<redacted-uuid>/split",
+        "destination": "ACCOUNTING-28208"
+      }
+    ]
+  },
+  "uiCells": {
+    "normal": [
+      "",
+      "2026/08/10-23",
+      "—",
+      "（주）삼한공조시스템",
+      "",
+      "",
+      "",
+      "—",
+      "₩909",
+      "₩90",
+      "—",
+      "—",
+      "—",
+      "—",
+      "—",
+      "",
+      ""
+    ],
+    "missing": [
+      "",
+      "2026/08/10-24",
+      "—",
+      "（주）삼한공조시스템",
+      "",
+      "",
+      "",
+      "—",
+      "₩919",
+      "₩91",
+      "—",
+      "—",
+      "—",
+      "—",
+      "—",
+      "",
+      ""
+    ]
+  },
+  "ids": "<redacted-uuid>",
+  "credentials": "<redacted>"
+}

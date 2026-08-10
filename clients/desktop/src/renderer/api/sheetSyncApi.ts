@@ -23,20 +23,27 @@ import { apiClient, type ApiEnvelope } from './client'
  * 누적 처리 결과.
  */
 export interface TabSyncResult {
-  inserted: number
-  updated: number
-  unchanged: number
-  softDeleted: number
-  skipped: number
+  insertedRows: number
+  updatedRows: number
+  unchangedRows: number
+  softDeletedProductRows: number
+  skippedOccurrences: number
+  nameDriftOccurrences?: number
+  priceHistoryExposureSpecChangedRows?: number
+  preservedManualProductOccurrences?: number
+  preservedByRuleProductOccurrences?: number
+  deferredByEcountReservationProductOccurrences?: number
+  specsLinkedRows?: number
   error?: string | null
 }
 
 export interface ComponentSyncResult {
-  preservedManual?: number
-  linked?: number
-  bundlesMarked?: number
-  softDeleted?: number
-  skipped?: number
+  preservedManualComponentOccurrences?: number
+  linkedOccurrences?: number
+  bundlesMarkedProducts?: number
+  softDeletedComponentRows?: number
+  skippedOccurrences?: number
+  blockedByRuleOccurrences?: number
   error?: string | null
 }
 
@@ -44,16 +51,23 @@ export interface ComponentSyncResult {
  * 전체 sync 집계 — BE `ProductSheetSyncService.SyncSummary` 와 1:1.
  *
  * <p>byTab 의 key 는 시트 tab 이름 (예: "주방소도구", "음식점주방기구").
- * total* 4종은 byTab 합산 + skipped 누계.
+ * total* 카운터는 byTab 합산 + occurrence 누계.
  */
 export interface SyncSummary {
   byTab: Record<string, TabSyncResult>
   byComponentTab?: Record<string, ComponentSyncResult>
-  totalInserted: number
-  totalUpdated: number
-  totalSoftDeleted: number
-  totalSkipped: number
-  totalPreservedManual: number
+  totalInsertedRows: number
+  totalUpdatedRows: number
+  totalSoftDeletedRows: number
+  totalSoftDeletedComponentRows: number
+  totalSkippedOccurrences: number
+  totalPreservedManualProductOccurrences: number
+  totalPreservedManualComponentOccurrences: number
+  totalPreservedByRuleProductOccurrences: number
+  totalComponentLinkOccurrences: number
+  totalBundlesMarkedProducts: number
+  totalBlockedByRuleOccurrences: number
+  totalSpecsLinkedRows: number
   totalTabs: number
   successfulTabs: number
   failedTabs: number

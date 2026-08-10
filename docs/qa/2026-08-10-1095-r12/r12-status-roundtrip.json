@@ -1,0 +1,12 @@
+{
+  "model": "AM080AXVHHH1",
+  "estimateNo": "2026/08/10-9",
+  "discontinued": {
+    "editable": false,
+    "statusText": 1
+  },
+  "activeAgain": {
+    "editable": true
+  },
+  "finalProductStatus": "ACTIVE"
+}

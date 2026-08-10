@@ -1,0 +1,41 @@
+{
+  "round": "R7",
+  "renderer": "renderer-5330",
+  "createHttpStatus": "existing-r7-sample",
+  "initialPartnerCode": "P-2026-0001",
+  "putHttpStatus": 200,
+  "slipNo": "2026/08/10-2",
+  "slipId": "<redacted-uuid>",
+  "memo": "R7 GUI persistence HEAD partnerCode axis",
+  "selectedPartnerName": "(주)서울에어컨",
+  "requestPartnerCode": "P-2026-0001",
+  "requestBusinessNumber": "113-07-10031",
+  "responsePartnerCode": "P-2026-0001",
+  "responseBusinessNumber": "113-07-10031",
+  "network": [
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/<redacted-uuid>",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/admin/partners/search",
+      "destination": "gateway-8080"
+    },
+    {
+      "method": "POST",
+      "status": 200,
+      "path": "/slips/price-memory/bulk",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "PUT",
+      "status": 200,
+      "path": "/slips/<redacted-uuid>",
+      "destination": "SLIP-28206"
+    }
+  ]
+}

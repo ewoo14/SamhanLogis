@@ -34,11 +34,17 @@
 .PARAMETER SkipPortCheck
     Pre-flight port 점유 검사 생략 (외부 의존 서비스 사전 가동 인지 시).
 
+.PARAMETER RunSeed
+    표준 toggle를 덮어 product/inventory seed를 명시적으로 실행한다.
+
 .EXAMPLE
     .\infrastructure\scripts\start-local-full.ps1
 
 .EXAMPLE
     .\infrastructure\scripts\start-local-full.ps1 -SkipDocker
+
+.EXAMPLE
+    .\infrastructure\scripts\start-local-full.ps1 -RunSeed
 
 .NOTES
     - Windows PowerShell 5.1 / PowerShell 7+ 호환 (?? null-coalescing 미사용)
@@ -56,10 +62,19 @@ param(
     [switch] $SkipDocker,
     [switch] $SkipServices,
     [int]    $ServiceTimeoutSec = 300,
-    [switch] $SkipPortCheck
+    [switch] $SkipPortCheck,
+    [switch] $RunSeed
 )
 
 $ErrorActionPreference = 'Stop'
+
+# SAMHAN_SEED_TEST_DATA 는 호출자 PowerShell 프로세스에서 상속되는 공통 toggle 이다.
+# 스크립트가 .env.dev-seed 를 로드하거나 -RunSeed 로 덮어써도, 반환 시 진입 전 상태를
+# 복원해야 같은 셸에서 이어지는 표준 compose 가 명시적 seed 실행으로 오인되지 않는다.
+$seedEnvWasDefined = Test-Path 'env:SAMHAN_SEED_TEST_DATA'
+$seedEnvOriginalValue = [Environment]::GetEnvironmentVariable('SAMHAN_SEED_TEST_DATA', 'Process')
+
+try {
 
 # -----------------------------------------------------------------------------
 # 0. Pre-flight — 경로 + 환경 + port 충돌 검증
@@ -69,6 +84,8 @@ $InfraDir    = Join-Path $ProjectRoot 'infrastructure'
 $ComposeFile = Join-Path $InfraDir   'docker-compose.yml'
 $EnvSeedFile = Join-Path $InfraDir   'env-templates\.env.dev-seed'
 $LogsDir     = Join-Path $ProjectRoot '.local-logs'
+$portResolver = Join-Path $ProjectRoot 'scripts\lib\local-stack-port.ps1'
+. (Resolve-Path -LiteralPath $portResolver)
 
 if (-not (Test-Path $LogsDir)) { New-Item -ItemType Directory -Path $LogsDir -Force | Out-Null }
 
@@ -112,47 +129,22 @@ if (-not $SkipDocker) {
     }
 }
 
-Write-Host '[0/6] Pre-flight — port 점유 검사 (8080 ~ 8200, 8761)' -ForegroundColor Yellow
+Write-Host '[0/6] Pre-flight — local-stack service port 점유 검사' -ForegroundColor Yellow
 
 # 14 service + eureka 가 사용하는 port 범위.
 # 각 service 의 port 와 충돌 안내 메시지 사전 매핑.
-$expectedPorts = @{
-    8080 = 'api-gateway'
-    8081 = 'auth-service'
-    8083 = 'user-service'
-    8084 = 'product-service'
-    8085 = 'inventory-service'
-    8086 = 'slip-service          (주의: InfluxDB 기본 port — 충돌 시 SERVER_PORT=8186 권장)'
-    8087 = 'accounting-service'
-    8088 = 'partner-order-service'
-    8092 = 'groupware-service'
-    8093 = 'notification-service'
-    8094 = 'dashboard-service'
-    8095 = 'partner-service'
-    8089 = 'dc-config-service'
-    8097 = 'arologis-service'
-    8761 = 'eureka-server'
+$expectedPorts = @{}
+foreach ($serviceName in (Get-LocalStackPortDefinitions).Keys) {
+    $expectedPorts[(Get-LocalStackPort -Service $serviceName)] = $serviceName
 }
 
 # 점유 자동 우회 — port → SAMHAN_<X>_PORT 환경변수 매핑.
 # pre-flight 시점에 점유 발견된 default port 가 있으면 +100 으로 자동 export.
 # application.yml 의 ${SERVER_PORT:${SAMHAN_<X>_PORT:default}} chained-default 와 정합.
-$portToEnvVar = @{
-    8080 = 'SAMHAN_API_GATEWAY_PORT'
-    8081 = 'SAMHAN_AUTH_PORT'
-    8083 = 'SAMHAN_USER_PORT'
-    8084 = 'SAMHAN_PRODUCT_PORT'
-    8085 = 'SAMHAN_INVENTORY_PORT'
-    8086 = 'SAMHAN_SLIP_PORT'
-    8087 = 'SAMHAN_ACCOUNTING_PORT'
-    8088 = 'SAMHAN_PARTNER_ORDER_PORT'
-    8092 = 'SAMHAN_GROUPWARE_PORT'
-    8093 = 'SAMHAN_NOTIFICATION_PORT'
-    8094 = 'SAMHAN_DASHBOARD_PORT'
-    8095 = 'SAMHAN_PARTNER_PORT'
-    8089 = 'SAMHAN_DC_CONFIG_PORT'
-    8097 = 'SAMHAN_AROLOGIS_PORT'
-    8761 = 'SAMHAN_EUREKA_PORT'
+$portToEnvVar = @{}
+foreach ($serviceName in (Get-LocalStackPortDefinitions).Keys) {
+    $definition = (Get-LocalStackPortDefinitions)[$serviceName]
+    $portToEnvVar[(Get-LocalStackPort -Service $serviceName)] = $definition.Environment
 }
 
 if (-not $SkipPortCheck) {
@@ -321,6 +313,11 @@ Get-Content $EnvSeedFile | ForEach-Object {
 }
 Write-Host "   $loaded 개 환경변수 로드 완료" -ForegroundColor Green
 
+if ($RunSeed) {
+    $env:SAMHAN_SEED_TEST_DATA = 'true'
+    Write-Host '   -RunSeed 지정 — product/inventory seed를 실행합니다.' -ForegroundColor Yellow
+}
+
 # DB 연결 자격증명 (env 파일에 없는 표준 default)
 if (-not $env:DB_HOST)     { $env:DB_HOST     = 'localhost' }
 if (-not $env:DB_PORT)     { $env:DB_PORT     = '5432' }
@@ -372,40 +369,31 @@ foreach ($p in $dbAlias) {
 # (미준수 시 OrgChartSeeder 16명 모두 createAccount RPC fail).
 
 $services = @(
-    @{ name = 'eureka-server';         envVar = 'SAMHAN_EUREKA_PORT';        port = 8761; required = $true  },  # tier 0 — discovery 필수
-    @{ name = 'auth-service';          envVar = 'SAMHAN_AUTH_PORT';          port = 8081; required = $true  },  # tier 1 — user OrgChartSeeder 의 사전 의존
-    @{ name = 'user-service';          envVar = 'SAMHAN_USER_PORT';          port = 8083; required = $false },
-    @{ name = 'product-service';       envVar = 'SAMHAN_PRODUCT_PORT';       port = 8084; required = $false },
-    @{ name = 'partner-service';       envVar = 'SAMHAN_PARTNER_PORT';       port = 8095; required = $false },
-    @{ name = 'inventory-service';     envVar = 'SAMHAN_INVENTORY_PORT';     port = 8085; required = $false },
-    @{ name = 'accounting-service';    envVar = 'SAMHAN_ACCOUNTING_PORT';    port = 8087; required = $false },
-    @{ name = 'slip-service';          envVar = 'SAMHAN_SLIP_PORT';          port = 8086; required = $false },  # InfluxDB 충돌 시 SAMHAN_SLIP_PORT=8186 권장
-    @{ name = 'partner-order-service'; envVar = 'SAMHAN_PARTNER_ORDER_PORT'; port = 8088; required = $false },
-    @{ name = 'arologis-service';      envVar = 'SAMHAN_AROLOGIS_PORT';      port = 8097; required = $false },
-    @{ name = 'groupware-service';     envVar = 'SAMHAN_GROUPWARE_PORT';     port = 8092; required = $false },
-    @{ name = 'notification-service';  envVar = 'SAMHAN_NOTIFICATION_PORT';  port = 8093; required = $false },
-    @{ name = 'dashboard-service';     envVar = 'SAMHAN_DASHBOARD_PORT';     port = 8094; required = $false },
-    @{ name = 'dc-config-service';     envVar = 'SAMHAN_DC_CONFIG_PORT';     port = 8089; required = $false },
-    @{ name = 'api-gateway';           envVar = 'SAMHAN_API_GATEWAY_PORT';   port = 8080; required = $false }
+    @{ name = 'eureka-server'; required = $true  },  # tier 0 — discovery 필수
+    @{ name = 'auth-service'; required = $true  },   # tier 1 — user OrgChartSeeder 의 사전 의존
+    @{ name = 'user-service'; required = $false },
+    @{ name = 'product-service'; required = $false },
+    @{ name = 'partner-service'; required = $false },
+    @{ name = 'inventory-service'; required = $false },
+    @{ name = 'accounting-service'; required = $false },
+    @{ name = 'slip-service'; required = $false },
+    @{ name = 'partner-order-service'; required = $false },
+    @{ name = 'arologis-service'; required = $false },
+    @{ name = 'groupware-service'; required = $false },
+    @{ name = 'notification-service'; required = $false },
+    @{ name = 'dashboard-service'; required = $false },
+    @{ name = 'dc-config-service'; required = $false },
+    @{ name = 'api-gateway'; required = $false }
 )
-
-# 사용자 환경변수 SAMHAN_<SVC>_PORT override 반영 — application.yml chained-default 와 정합.
-# 예: setx SAMHAN_SLIP_PORT 8186 (InfluxDB 점유 우회) → 본 스크립트가 health check 도 8186 으로 폴링.
 foreach ($svc in $services) {
-    $override = [Environment]::GetEnvironmentVariable($svc.envVar)
-    if ($override) {
-        $portInt = 0
-        if ([int]::TryParse($override, [ref]$portInt) -and $portInt -gt 0) {
-            if ($portInt -ne $svc.port) {
-                Write-Host "   [override] $($svc.name) port $($svc.port) → $portInt ($($svc.envVar) 환경변수)" -ForegroundColor DarkCyan
-                $svc.port = $portInt
-            }
-        }
-    }
+    $svc.envVar = (Get-LocalStackPortDefinitions)[$svc.name].Environment
+    $svc.port = Get-LocalStackPort -Service $svc.name
 }
 
 $startupResults = @()
 $abortRemaining = $false
+$eurekaPort = ($services | Where-Object { $_.name -eq 'eureka-server' }).port
+$gatewayPort = ($services | Where-Object { $_.name -eq 'api-gateway' }).port
 
 if (-not $SkipServices) {
     Write-Host ''
@@ -501,6 +489,7 @@ foreach ($svc in $services) {
     }
 }
 $healthSummary | Format-Table -AutoSize
+$failedHealth = @($healthSummary | Where-Object { $_.Status -ne 'UP' })
 
 # -----------------------------------------------------------------------------
 # 5. 시드 row count psql 검증
@@ -558,12 +547,12 @@ Write-Host ''
 Write-Host '[6/6] 사용 가이드' -ForegroundColor Yellow
 Write-Host ''
 Write-Host ' 마스터 로그인 (CEO 김미선):' -ForegroundColor Cyan
-Write-Host '   POST http://localhost:8080/api/auth/login'
+Write-Host "   POST http://localhost:$gatewayPort/api/auth/login"
 Write-Host '   body: {"loginId":"kimmiseon","password":"<see services/user-service/.../OrgChartSeeder.java>"}'
 Write-Host ''
 Write-Host ' 모니터링:' -ForegroundColor Cyan
-Write-Host '   Eureka       → http://localhost:8761'
-Write-Host '   API Gateway  → http://localhost:8080'
+Write-Host "   Eureka       → http://localhost:$eurekaPort"
+Write-Host "   API Gateway  → http://localhost:$gatewayPort"
 Write-Host '   Prometheus   → http://localhost:9090'
 Write-Host '   Grafana      → http://localhost:3100  (admin / samhan_dev_pw)'
 Write-Host '   RabbitMQ UI  → http://localhost:15672 (samhan / samhan_dev_pw)'
@@ -577,17 +566,29 @@ Write-Host '   .\infrastructure\scripts\stop-local-full.ps1'
 Write-Host ''
 
 # 필수 service fail 시 종합 안내
-$failedRequired = $startupResults | Where-Object { $_.Required -and $_.Status -ne 'UP' }
-if ($failedRequired) {
+$failedRequired = @($startupResults | Where-Object { $_.Required -and $_.Status -ne 'UP' })
+if ($failedRequired -or $failedHealth.Count -gt 0) {
     Write-Host '==============================================================' -ForegroundColor Red
     Write-Host ' 경고 — 필수 service 기동 실패' -ForegroundColor Red
     Write-Host '==============================================================' -ForegroundColor Red
     foreach ($f in $failedRequired) {
         Write-Host "   $($f.Service) (port $($f.Port)): $($f.Status) — log: $($f.Log)" -ForegroundColor Red
     }
+    foreach ($f in $failedHealth) {
+        Write-Host "   health DOWN: $($f.Service) (port $($f.Port))" -ForegroundColor Red
+    }
     Write-Host ''
+    exit 1
 } else {
     Write-Host '==============================================================' -ForegroundColor Cyan
     Write-Host ' 완료' -ForegroundColor Green
     Write-Host '==============================================================' -ForegroundColor Cyan
+}
+
+} finally {
+    if ($seedEnvWasDefined) {
+        Set-Item 'env:SAMHAN_SEED_TEST_DATA' $seedEnvOriginalValue
+    } else {
+        Remove-Item 'env:SAMHAN_SEED_TEST_DATA' -ErrorAction SilentlyContinue
+    }
 }

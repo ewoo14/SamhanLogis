@@ -454,6 +454,19 @@ public class EstimateService {
         }
     }
 
+    /** 웹 표면 자기 담당 복원 — requester_id 불일치 시 403으로 차단한다. */
+    public EstimateDetailResponse restoreAssigned(UUID id, String requesterId) {
+        Estimate estimate = estimateRepository.findByIdIncludingDeleted(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "견적서를 찾을 수 없습니다"));
+        if (requesterId == null || requesterId.isBlank()
+                || !requesterId.equals(estimate.getRequesterId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "현재 담당인 견적서만 복원할 수 있습니다");
+        }
+        return restore(id);
+    }
+
     /** 단건 조회. */
     /**
      * 순수 QA797 잔재와 비정본 cleanup 산물을 일반 복원 경로에서 격리한다.
@@ -522,6 +535,32 @@ public class EstimateService {
         return estimateRepository.searchIncludingDeleted(
                         status == null ? null : status.name(), partnerId, startDate, endDate, includeDeleted, pageable)
                 .map(estimate -> EstimateResponse.from(estimate, isRestoreAvailable(estimate)));
+    }
+
+    /** 웹 표면 자기 담당 목록 — requester_id만으로 필터하고 역할 등급은 참조하지 않는다. */
+    @Transactional(readOnly = true)
+    public Page<EstimateResponse> listAssigned(String requesterId, EstimateStatus status, UUID partnerId,
+                                               LocalDate startDate, LocalDate endDate,
+                                               boolean includeDeleted, Pageable pageable) {
+        if (requesterId == null || requesterId.isBlank()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "담당자 식별자가 없습니다");
+        }
+        return estimateRepository.searchAssigned(requesterId,
+                        status == null ? null : status.name(), partnerId, startDate, endDate,
+                        includeDeleted, pageable)
+                .map(estimate -> EstimateResponse.from(estimate, isRestoreAvailable(estimate)));
+    }
+
+    /** 견적서 계열 담당 변경 — requesterId만 변경하고 createdBy는 BaseEntity auditing에 맡긴다. */
+    public EstimateDetailResponse changeOwner(UUID id, String requesterId, String documentType) {
+        if (documentType != null && !documentType.isBlank()
+                && !"ESTIMATE".equalsIgnoreCase(documentType)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "종합견적서 계열 외 문서의 담당은 견적서 서비스에서 변경할 수 없습니다");
+        }
+        Estimate estimate = loadOrThrow(id);
+        estimate.changeRequesterId(requesterId);
+        return EstimateDetailResponse.from(estimateRepository.save(estimate));
     }
 
     /**

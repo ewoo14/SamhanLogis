@@ -21,16 +21,29 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.io.ByteArrayOutputStream;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.jpa.JpaSystemException;
 
 /**
  * MIG-1 PoC — {@link EcountPartnerImporter} 단위 테스트.
@@ -42,6 +55,80 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
  */
 @ExtendWith(MockitoExtension.class)
 class EcountPartnerImporterTest {
+
+    @Test
+    void failureTaxonomy_제약위반과_JpaSystemException을_서로다른축으로분류한다() {
+        assertThat(EcountPartnerImporter.failureReason(
+                new DataIntegrityViolationException("constraint")))
+                .isEqualTo("DB_CONSTRAINT");
+        assertThat(EcountPartnerImporter.failureReason(
+                new JpaSystemException(new IllegalStateException("rollback connection"))))
+                .isEqualTo("DB_INFRASTRUCTURE");
+    }
+
+    @Test
+    void rejectionPage_CSV_ENCODING은_페이지응답에서도_읽을수없음으로_정규화한다() {
+        when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Long.class))).thenReturn(1L);
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class))).thenAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            assertThat(sql).contains("CASE WHEN reject_reason LIKE 'CSV_ENCODING%' THEN '읽을 수 없음'");
+            return List.of(new EcountPartnerImportResult.RejectedRow(
+                    3, "CSV_ENCODING", "SOL1154R24-ENC-BAD", "읽을 수 없음"));
+        });
+
+        EcountPartnerImportResult.RejectedRow row = importer
+                .findRejectionPage("A".repeat(64), 0, 100).items().get(0);
+
+        assertThat(row.rawName()).isEqualTo("읽을 수 없음");
+    }
+
+    @Test
+    void RED_A_기존행의_음수여신한도는_데이터축으로보류하고_뒤정상행을_계속적재한다() {
+        Partner existing = Partner.register("R12-NEGATIVE", "R12-NEGATIVE", "기존 거래처", null, null,
+                new BigDecimal("10"));
+        when(partnerRepository.findByPartnerCode("R12-NEGATIVE")).thenReturn(Optional.of(existing));
+        when(partnerRepository.findByPartnerCode("R12-BEFORE")).thenReturn(Optional.empty());
+        when(partnerRepository.findByPartnerCode("R12-AFTER")).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        EcountPartnerImportResult result = importer.importCsv(csvStream(
+                META_LINE + HEADER_LINE
+                        + row("R12-BEFORE", "20260809", "", "", "앞 정상", "", "", "", "", "", "", "", "YES", "", "0", "")
+                        + row("R12-NEGATIVE", "20260809", "", "", "기존 거래처", "", "", "", "", "", "", "", "YES", "", "-1", "")
+                        + row("R12-AFTER", "20260809", "", "", "뒤 정상", "", "", "", "", "", "", "", "YES", "", "0", "")),
+                "tester");
+
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.infrastructureFailureRows()).isZero();
+        assertThat(result.heldSample()).singleElement()
+                .extracting(EcountPartnerImportResult.RejectedRow::rawPartnerCode)
+                .isEqualTo("R12-NEGATIVE");
+    }
+
+    @Test
+    void RED_C_전용_입력검증_경계밖의_IllegalArgumentException은_전파한다() {
+        Partner existing = new BuggyPartner();
+        when(partnerRepository.findByPartnerCode("R12-BUG")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> importer.importCsv(csvStream(
+                META_LINE + HEADER_LINE
+                        + row("R12-BUG", "20260809", "", "", "버그 행", "", "", "", "", "", "", "", "YES", "", "0", "")),
+                "tester"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("예상치 못한 버그");
+    }
+
+    private static final class BuggyPartner extends Partner {
+        private BuggyPartner() {
+            super();
+        }
+
+        @Override
+        public void updateProfile(String name, String address, String phone) {
+            throw new IllegalArgumentException("예상치 못한 버그");
+        }
+    }
 
     private static final byte[] UTF8_BOM = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
 
@@ -127,6 +214,123 @@ class EcountPartnerImporterTest {
         importer.importCsv(csvStream(csv), "tester");
 
         verify(partnerRepository, times(1)).save(any(Partner.class));
+    }
+
+    @Test
+    void r17_cp949_name_is_loaded_without_replacement() {
+        String name = "주식회사 한글상호";
+        String csv = META_LINE + HEADER_LINE
+                + row("R17-CP949", "20260809", "", "", name, "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        when(partnerRepository.findByPartnerCode("R17-CP949")).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        EcountPartnerImportResult result = importer.importCsv(
+                new ByteArrayInputStream(csv.getBytes(Charset.forName("MS949"))), "tester");
+
+        ArgumentCaptor<Partner> captor = ArgumentCaptor.forClass(Partner.class);
+        verify(partnerRepository).save(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo(name);
+        assertThat(result.heldParseFailureRows()).isZero();
+    }
+
+    @Test
+    void r17_punctuation_preserves_backslash_parentheses_comma_and_slash() {
+        String name = "(주)삼한, 대리점/본점\\창고 \"A\"";
+        String csv = META_LINE + HEADER_LINE
+                + row("R17-PUNCT", "20260809", "", "", name.replace("\"", "\"\""), "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        when(partnerRepository.findByPartnerCode("R17-PUNCT")).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        importer.importCsv(csvStream(csv), "tester");
+
+        ArgumentCaptor<Partner> captor = ArgumentCaptor.forClass(Partner.class);
+        verify(partnerRepository).save(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo(name);
+    }
+
+    @Test
+    void r17_replacement_character_is_held_before_partner_upsert() {
+        String csv = META_LINE + HEADER_LINE
+                + row("R17-REPLACEMENT", "20260809", "", "", "깨진�상호", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+
+        EcountPartnerImportResult result = importer.importCsv(csvStream(csv), "tester");
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.heldSample()).singleElement().satisfies(sample -> {
+            assertThat(sample.reason()).isEqualTo("CSV_ENCODING");
+            assertThat(sample.rawPartnerCode()).isEqualTo("R17-REPLACEMENT");
+            assertThat(sample.rawName()).isEqualTo("읽을 수 없음");
+        });
+    }
+
+    @Test
+    void r17_invalid_utf8_bytes_are_held_instead_of_becoming_replacement_text() {
+        String csv = META_LINE + HEADER_LINE
+                + row("R17-BYTES", "20260809", "", "", "원문 sentinel", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
+        byte[] marker = "원문 sentinel".getBytes(StandardCharsets.UTF_8);
+        int markerOffset = indexOf(bytes, marker);
+        System.arraycopy(new byte[] {(byte) 0xB0, (byte) 0xA1, (byte) 0xB3, (byte) 0xAA},
+                0, bytes, markerOffset, 4);
+
+        EcountPartnerImportResult result = importer.importCsv(new ByteArrayInputStream(bytes), "tester");
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.heldSample()).singleElement()
+                .satisfies(sample -> {
+                    assertThat(sample.reason()).isEqualTo("CSV_ENCODING");
+                    assertThat(sample.rowNumber()).isEqualTo(3);
+                    assertThat(sample.rawPartnerCode()).isEqualTo("R17-BYTES");
+                    assertThat(sample.rawName()).isEqualTo("읽을 수 없음");
+                });
+    }
+
+    @Test
+    void r22_mixed_encoding_keeps_readable_rows_and_holds_only_the_unreadable_row() {
+        String readable = row("R22-READABLE", "20260810", "이성미", "", "정상 상호", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        String unreadable = row("R22-UNREADABLE", "20260810", "이성미", "", "깨진 상호", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        byte[] bytes = (META_LINE + HEADER_LINE + unreadable + readable).getBytes(StandardCharsets.UTF_8);
+        byte[] marker = "깨진 상호".getBytes(StandardCharsets.UTF_8);
+        int markerOffset = indexOf(bytes, marker);
+        System.arraycopy(new byte[] {(byte) 0xB0, (byte) 0xA1}, 0, bytes, markerOffset, 2);
+        when(partnerRepository.findByPartnerCode("R22-READABLE")).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        EcountPartnerImportResult result = importer.importCsv(new ByteArrayInputStream(bytes), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.heldParseFailureRows()).isEqualTo(1);
+        assertThat(result.heldSample()).singleElement().satisfies(sample -> {
+            assertThat(sample.rowNumber()).isEqualTo(3);
+            assertThat(sample.rawPartnerCode()).isEqualTo("R22-UNREADABLE");
+            assertThat(sample.rawName()).isEqualTo("읽을 수 없음");
+        });
+        ArgumentCaptor<Partner> captor = ArgumentCaptor.forClass(Partner.class);
+        verify(partnerRepository).save(captor.capture());
+        assertThat(captor.getValue().getPartnerCode()).isEqualTo("R22-READABLE");
+        assertThat(captor.getValue().getName()).isEqualTo("정상 상호");
+    }
+
+    private static int indexOf(byte[] source, byte[] target) {
+        for (int i = 0; i <= source.length - target.length; i++) {
+            boolean matched = true;
+            for (int j = 0; j < target.length; j++) {
+                if (source[i + j] != target[j]) {
+                    matched = false;
+                    break;
+                }
+            }
+            if (matched) return i;
+        }
+        throw new AssertionError("marker not found");
     }
 
     @Test
@@ -217,17 +421,26 @@ class EcountPartnerImporterTest {
 
     @Test
     void parseCreditLimit_빈_제로_콤마_숫자() {
-        assertThat(EcountPartnerImporter.parseCreditLimit("")).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(EcountPartnerImporter.parseCreditLimit(null)).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(EcountPartnerImporter.parseCreditLimit("-")).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(EcountPartnerImporter.parseCreditLimit("")).isNull();
+        assertThat(EcountPartnerImporter.parseCreditLimit(null)).isNull();
+        assertThat(EcountPartnerImporter.parseCreditLimit("-")).isNull();
         assertThat(EcountPartnerImporter.parseCreditLimit("1000000")).isEqualByComparingTo(new BigDecimal("1000000"));
         assertThat(EcountPartnerImporter.parseCreditLimit("1,000,000")).isEqualByComparingTo(new BigDecimal("1000000"));
-        assertThat(EcountPartnerImporter.parseCreditLimit("invalid")).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(EcountPartnerImporter.parseCreditLimit("1,000,000원")).isEqualByComparingTo(new BigDecimal("1000000"));
+        assertThat(EcountPartnerImporter.parseCreditLimit("invalid")).isNull();
     }
 
     @Test
-    void parseRegistrationDate_YYYYMMDD_임시_빈() {
+    void parseRegistrationDate_지원_형식과_실패는_null() {
         assertThat(EcountPartnerImporter.parseRegistrationDate("20230814"))
+                .isEqualTo(LocalDate.of(2023, 8, 14));
+        assertThat(EcountPartnerImporter.parseRegistrationDate("2023-08-14"))
+                .isEqualTo(LocalDate.of(2023, 8, 14));
+        assertThat(EcountPartnerImporter.parseRegistrationDate("2023.08.14"))
+                .isEqualTo(LocalDate.of(2023, 8, 14));
+        assertThat(EcountPartnerImporter.parseRegistrationDate("23.08.14"))
+                .isEqualTo(LocalDate.of(2023, 8, 14));
+        assertThat(EcountPartnerImporter.parseRegistrationDate("230814"))
                 .isEqualTo(LocalDate.of(2023, 8, 14));
         assertThat(EcountPartnerImporter.parseRegistrationDate("임시")).isNull();
         assertThat(EcountPartnerImporter.parseRegistrationDate("")).isNull();
@@ -266,6 +479,111 @@ class EcountPartnerImporterTest {
 
         assertThat(result.imported()).isEqualTo(0);
         assertThat(result.updated()).isEqualTo(1);
+    }
+
+    @Test
+    void 기존_status는_파일이_YES여도_되살리지_않고_credit_limit_빈칸은_null() {
+        Partner existing = Partner.register("CODE001", "CODE001", "기존거래처", null, null,
+                new BigDecimal("1000000"));
+        existing.suspend();
+        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.of(existing));
+        wireSaveEcho();
+
+        importer.importCsv(csvStream(META_LINE + HEADER_LINE
+                + row("CODE001", "20230814", "이성미", "", "기존거래처", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "", "")), "tester");
+
+        assertThat(existing.getStatus()).isEqualTo(PartnerStatus.SUSPENDED);
+        assertThat(existing.getCreditLimit()).isNull();
+    }
+
+    @Test
+    void 삭제행이_있으면_활성행을_새로_만들지_않고_같은_UUID로_부활한다() {
+        Partner deleted = Partner.register("CODE001", "CODE001", "삭제거래처", null, null,
+                BigDecimal.ZERO);
+        deleted.markDeleted("admin");
+        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.empty());
+        when(partnerRepository.findByPartnerCodeIncludingDeleted("CODE001"))
+                .thenReturn(Optional.of(deleted));
+        wireSaveEcho();
+
+        java.util.UUID originalId = deleted.getId();
+        importer.importCsv(csvStream(META_LINE + HEADER_LINE
+                + row("CODE001", "20230814", "이성미", "", "부활거래처", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")), "tester");
+
+        assertThat(deleted.getId()).isEqualTo(originalId);
+        assertThat(deleted.getIsDeleted()).isFalse();
+        verify(partnerRepository).findByPartnerCodeIncludingDeleted("CODE001");
+    }
+
+    @Test
+    void 활성행과_삭제행이_동시_존재하면_정상_활성행을_그대로_갱신한다() {
+        Partner active = Partner.register("CODE001", "CODE001", "활성거래처", null, null,
+                BigDecimal.ZERO);
+        Partner deleted = Partner.register("CODE001", "CODE001", "삭제거래처", null, null,
+                BigDecimal.ZERO);
+        deleted.markDeleted("admin");
+        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.of(active));
+        wireSaveEcho();
+
+        importer.importCsv(csvStream(META_LINE + HEADER_LINE
+                + row("CODE001", "20230814", "이성미", "", "활성거래처", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")), "tester");
+
+        verify(partnerRepository, times(1)).findByPartnerCode("CODE001");
+        verify(partnerRepository, org.mockito.Mockito.never())
+                .findByPartnerCodeIncludingDeleted("CODE001");
+        assertThat(active.getIsDeleted()).isFalse();
+        assertThat(deleted.getIsDeleted()).isTrue();
+    }
+
+    @Test
+    void 최초작성일자_오전오후_파싱규칙을_검증한다() {
+        assertThat(EcountPartnerImporter.parseFirstCreated("2023/08/17  오전 10:34:00"))
+                .isEqualTo(java.time.LocalDateTime.of(2023, 8, 17, 10, 34));
+        assertThat(EcountPartnerImporter.parseFirstCreated("2023/08/17 오후 1:05:00"))
+                .isEqualTo(java.time.LocalDateTime.of(2023, 8, 17, 13, 5));
+        assertThatThrownBy(() -> EcountPartnerImporter.parseFirstCreated("날짜 아님"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void xlsx_정본_적재는_trailer를_제외하고_실패행을_보류한다() throws Exception {
+        Partner existing = Partner.register("CODE001", "CODE001", "기존", null, null,
+                new BigDecimal("1000000"));
+        existing.suspend();
+        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.of(existing));
+        wireSaveEcho();
+
+        String[][] rows = {
+                {"CODE001", "20230814", "담당", "", "기존", "대표", "주소", "", "", "", "", "일반업체", "YES", "등록", "", "2023/08/17  오전 10:34:00"},
+                {"CODE002", "bad-date", "담당", "", "신규", "대표", "주소", "", "", "", "", "일반업체", "YES", "등록", "", ""},
+                {"2026/08/09 오후 12:59:06", "", "", "", "", "", "", "", "", "", "", "", "", "", ""}
+        };
+        byte[] xlsx;
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("거래처등록");
+            writeXlsxRow(sheet.createRow(0), new String[]{"회사명 : (주)삼한공조시스템"});
+            writeXlsxRow(sheet.createRow(1), new String[]{"거래처코드", "등록일자", "담당자명", "종사업장번호", "거래처명", "대표자명", "주소1", "전화번호", "핸드폰번호", "검색창내용", "특이사항", "그룹", "사용구분", "이체정보", "여신한도", "최초작성일자"});
+            for (int i = 0; i < rows.length; i++) writeXlsxRow(sheet.createRow(i + 2), rows[i]);
+            workbook.write(out);
+            xlsx = out.toByteArray();
+        }
+
+        EcountPartnerImportResult result = importer.importXlsx(new ByteArrayInputStream(xlsx), "tester");
+
+        assertThat(result.totalRows()).isEqualTo(2);
+        assertThat(result.updated()).isEqualTo(1);
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.registrationDateNullRows()).isEqualTo(1);
+        assertThat(result.heldParseFailureRows()).isZero();
+        assertThat(result.excludedTrailerRows()).isEqualTo(1);
+        assertThat(existing.getStatus()).isEqualTo(PartnerStatus.SUSPENDED);
+    }
+
+    private static void writeXlsxRow(Row row, String[] values) {
+        for (int i = 0; i < values.length; i++) row.createCell(i).setCellValue(values[i]);
     }
 
     @Test

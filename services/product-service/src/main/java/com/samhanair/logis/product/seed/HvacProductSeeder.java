@@ -37,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
  *         dev 환경 + samsung-test 단가 100건만 별도 가드</li>
  * </ul>
  *
- * <p><b>이중 가드</b>: {@code @Profile("dev")} + {@code app.product.seed-test-data=true} 둘 다 만족 시만 실행.
+ * <p><b>이중 가드</b>: {@code @Profile("dev")} + {@code app.seed-test-data=true} 둘 다 만족 시만 실행.
  * application.yml default false. ProductSeedRunner 의 {@code @Profile("seed")} 와는 직교 (서로 배타).
  *
  * <p><b>serial_managed 보장</b>: V9 Flyway SQL 이 이미 에어컨 계열 카테고리의
@@ -71,7 +71,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @Profile("dev")
-@ConditionalOnProperty(value = "app.product.seed-test-data", havingValue = "true")
+@ConditionalOnProperty(value = "app.seed-test-data", havingValue = "true")
 @Order(100)
 public class HvacProductSeeder implements CommandLineRunner {
 

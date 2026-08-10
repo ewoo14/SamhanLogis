@@ -87,6 +87,7 @@ class InventoryClientTest {
 
     @Test
     void deduct_sendsFromReservationFlag() {
+        UUID slipId = UUID.randomUUID();
         server.expect(requestTo("http://inventory-service/inventory/deduct"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
@@ -94,14 +95,26 @@ class InventoryClientTest {
                 .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.quantity").value(2))
                 .andExpect(jsonPath("$.fromReservation").value(true))
+                .andExpect(jsonPath("$.sourceContext.slipId").value(slipId.toString()))
+                .andExpect(jsonPath("$.sourceContext.slipRevision").value(7))
                 .andRespond(withSuccess());
 
-        client.deduct(UUID.randomUUID(), UUID.randomUUID(), 2, true, "SLIP", UUID.randomUUID());
+        client.deduct(UUID.randomUUID(), UUID.randomUUID(), 2, true, "SLIP", slipId,
+                new SourceOperationContext(UUID.randomUUID(), slipId, 7L));
         server.verify();
     }
 
     @Test
+    void legacyDeduct_withoutSourceContext_failsBeforeHttpCall() {
+        assertThatThrownBy(() -> client.deduct(UUID.randomUUID(), UUID.randomUUID(),
+                1, true, "SLIP", UUID.randomUUID()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sourceContext");
+    }
+
+    @Test
     void inbound_callsLotsInboundEndpoint_withUnitCost() {
+        UUID slipId = UUID.randomUUID();
         server.expect(requestTo("http://inventory-service/inventory/lots/inbound"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
@@ -110,25 +123,32 @@ class InventoryClientTest {
                 .andExpect(jsonPath("$.quantity").value(10))
                 .andExpect(jsonPath("$.lotNo").value("2026/05/04-1"))
                 .andExpect(jsonPath("$.unitCost").value(100.00))
+                .andExpect(jsonPath("$.sourceContext.slipId").value(slipId.toString()))
+                .andExpect(jsonPath("$.sourceContext.slipRevision").value(4))
                 .andRespond(withStatus(HttpStatus.CREATED));
 
         client.inbound(UUID.randomUUID(), UUID.randomUUID(), 10,
-                "2026/05/04-1", new BigDecimal("100.00"));
+                "2026/05/04-1", new BigDecimal("100.00"),
+                new SourceOperationContext(UUID.randomUUID(), slipId, 4L));
         server.verify();
     }
 
     @Test
     void inboundInstances_callsInstancesBatchEndpoint_withInternalToken() {
+        UUID slipId = UUID.randomUUID();
         server.expect(requestTo("http://inventory-service/inventory/instances/batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: master bypass 는 X-Is-System-Master 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
+                .andExpect(jsonPath("$.sourceContext.slipId").value(slipId.toString()))
+                .andExpect(jsonPath("$.sourceContext.slipRevision").value(5))
                 .andRespond(withStatus(HttpStatus.CREATED));
 
         client.inboundInstances(UUID.randomUUID(), "AC-S2", UUID.randomUUID(), 2,
-                "구매", "S2-INB-001", new BigDecimal("500000.00"));
+                "구매", "S2-INB-001", new BigDecimal("500000.00"),
+                new SourceOperationContext(UUID.randomUUID(), slipId, 5L));
         server.verify();
     }
 
@@ -154,6 +174,7 @@ class InventoryClientTest {
 
     @Test
     void shipInstances_callsShipBatchEndpoint_withInternalHeadersAndBody() {
+        UUID slipId = UUID.randomUUID();
         server.expect(requestTo("http://inventory-service/inventory/instances/ship-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
@@ -163,9 +184,12 @@ class InventoryClientTest {
                 .andExpect(jsonPath("$.outboundSlipNo").value("2026/06/02-2"))
                 .andExpect(jsonPath("$.productCode").value("AC-S3"))
                 .andExpect(jsonPath("$.partnerCode").value("P-2026-0001"))
+                .andExpect(jsonPath("$.sourceContext.slipId").value(slipId.toString()))
+                .andExpect(jsonPath("$.sourceContext.slipRevision").value(6))
                 .andRespond(withSuccess());
 
-        client.shipInstances("2026/06/02-2", "AC-S3", "P-2026-0001", null);
+        client.shipInstances("2026/06/02-2", "AC-S3", "P-2026-0001", null,
+                new SourceOperationContext(UUID.randomUUID(), slipId, 6L));
         server.verify();
     }
 
@@ -266,7 +290,8 @@ class InventoryClientTest {
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST));
 
         assertThatThrownBy(() -> client.deduct(UUID.randomUUID(), UUID.randomUUID(),
-                1, true, "SLIP", UUID.randomUUID()))
+                1, true, "SLIP", UUID.randomUUID(),
+                new SourceOperationContext(UUID.randomUUID(), UUID.randomUUID(), 1L)))
                 .isInstanceOf(BusinessException.class);
         server.verify();
     }
@@ -292,7 +317,8 @@ class InventoryClientTest {
                 .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
         assertThatThrownBy(() -> client.inbound(UUID.randomUUID(), UUID.randomUUID(),
-                1, "X", BigDecimal.ZERO))
+                1, "X", BigDecimal.ZERO,
+                new SourceOperationContext(UUID.randomUUID(), UUID.randomUUID(), 1L)))
                 .isInstanceOf(BusinessException.class);
         server.verify();
     }

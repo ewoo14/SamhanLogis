@@ -32,41 +32,80 @@ import { apiClient, type ApiEnvelope, type PageResponse } from './client'
  *
  * <p>컬럼은 국세청 홈택스 일괄등록 CSV 스펙 기준 (부가가치세법 시행규칙 별지 제38호).
  */
+/** 백엔드 HomtaxRow wire DTO — 필드명은 HomtaxRow record와 동일하게 유지한다. */
 export interface HometaxPreviewRow {
-  /** 행 순번 (1-based). 화면 표시 전용 — BE 가 부여. */
-  rowNo: number
-  /** 전표번호 — 사용자 노출 식별자. */
-  slipNo: string
-  /** 작성일자 (YYYY-MM-DD). */
-  issueDate: string
-  /** 공급자 상호. */
+  invoiceType: string
+  writeDate: string
+  supplierRegNo: string
+  supplierSubNo: string
   supplierName: string
-  /** 공급자 사업자등록번호. */
-  supplierBusinessNo: string
-  /** 공급받는자 상호. */
-  recipientName: string
-  /** 공급받는자 사업자등록번호. */
-  recipientBusinessNo: string
-  /** 공급받는자 이메일 (전자세금계산서 수신). */
-  recipientEmail: string | null
-  /** 공급가액 (KRW — string BigDecimal). */
-  supplyAmount: string
-  /** 세액 = supplyAmount × 0.1. */
-  vatAmount: string
-  /** 합계 = supplyAmount + vatAmount. */
-  totalAmount: string
-  /** 품목명. */
-  itemName: string | null
-  /** 규격. */
-  specification: string | null
-  /** 수량. */
-  quantity: string | null
-  /** 단가. */
-  unitPrice: string | null
-  /** 비고. */
-  remark: string | null
-  /** 거래처 코드 — 비즈니스 식별자 (UUID 비공개). */
+  supplierCeo: string
+  supplierAddress: string
+  supplierBizType: string
+  supplierBizItem: string
+  supplierEmail: string
+  buyerRegNo: string
+  buyerSubNo: string
+  buyerName: string
+  buyerCeo: string
+  buyerAddress: string
+  buyerBizType: string
+  buyerBizItem: string
+  buyerEmail1: string
+  buyerEmail2: string
+  supplyAmount: string | number | null
+  vatAmount: string | number | null
+  remark: string
+  itemDate1: string
+  itemName1: string
+  itemSpec1: string
+  itemQty1: string | number | null
+  itemPrice1: string | number | null
+  itemSupply1: string | number | null
+  itemVat1: string | number | null
+  itemRemark1: string
+  itemDate2: string
+  itemName2: string
+  itemSpec2: string
+  itemQty2: string | number | null
+  itemPrice2: string | number | null
+  itemSupply2: string | number | null
+  itemVat2: string | number | null
+  itemRemark2: string
+  itemDate3: string
+  itemName3: string
+  itemSpec3: string
+  itemQty3: string | number | null
+  itemPrice3: string | number | null
+  itemSupply3: string | number | null
+  itemVat3: string | number | null
+  itemRemark3: string
+  itemDate4: string
+  itemName4: string
+  itemSpec4: string
+  itemQty4: string | number | null
+  itemPrice4: string | number | null
+  itemSupply4: string | number | null
+  itemVat4: string | number | null
+  itemRemark4: string
+  cash: string | number | null
+  check: string | number | null
+  bill: string | number | null
+  credit: string | number | null
+  receiptType: string
+  slipNo: string
+  /** 내부용 정본 필드 — HomtaxRow 결과표 표시용. XLSX에는 포함하지 않는다. */
   partnerCode: string
+}
+
+/** 결과표 전용 파생 필드. 나머지 열은 HometaxRow wire 필드를 그대로 사용한다. */
+export type HometaxResultRow = HometaxPreviewRow & { rowNo: number; totalAmount: string }
+
+/** 백엔드 정본 필드에서 화면 결과표 행을 만든다. */
+export function toHometaxResultRow(row: HometaxPreviewRow, rowNo: number): HometaxResultRow {
+  const supply = Number(row.supplyAmount ?? 0)
+  const vat = Number(row.vatAmount ?? 0)
+  return { ...row, rowNo, totalAmount: String(supply + vat) }
 }
 
 /**

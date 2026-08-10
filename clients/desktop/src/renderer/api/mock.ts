@@ -976,6 +976,7 @@ const MOCK_SLIPS = [
     slipDate: '2026-05-04',
     seqNo: 1,
     status: 'PROCESSING',
+    lockFlag: false,
     partnerId: 'p001',
     partnerName: '주식회사 윌리-정현수',
     sourceWarehouseId: HQ_ID,
@@ -1010,6 +1011,7 @@ const MOCK_SLIPS = [
     slipDate: '2026-05-04',
     seqNo: 2,
     status: 'CONFIRMED',
+    lockFlag: true,
     partnerId: 'p002',
     partnerName: '○○종합건설',
     sourceWarehouseId: HQ_ID,
@@ -1291,7 +1293,9 @@ const MOCK_TRANSFERS = [
  * PR-3b: `productType` 추가 — "BUNDLE" 이면 세트 옵션 picker 노출.
  * `modelCode` 미지정 시 modelName 을 그대로 사용 (BE ProductSummary 기본값).
  */
-const MOCK_PRODUCT_AJ040_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa040'
+// 주문전환 fixture도 product-service dev seed의 실제 master UUID를 사용한다.
+// samhan-seed:product:AR07TXEAAWKNEU-03 (DB 간 참조가 필요한 경로의 synthetic UUID 금지)
+export const MOCK_PRODUCT_AJ040_ID = '2e40fa30-10b2-3a9b-a99c-570ac92287ad'
 const MOCK_PRODUCT_MWR10_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb010'
 
 const MOCK_PRODUCTS_BY_MODEL: Record<
@@ -1480,6 +1484,7 @@ type MockProductCatalogRow = {
   displayOrder: number | null
   releasePrice: number
   deliveryPrice: number
+  goodsType?: 'GOODS' | 'NON_GOODS'
   fixedDiscountRate: number | null
   hasVariableDiscount: boolean
   variableDiscountManual: boolean
@@ -1613,6 +1618,7 @@ let MOCK_PRODUCT_CATALOG_ROWS: MockProductCatalogRow[] = [
       displayOrder: null,
       releasePrice: Number(p.sellingPrice),
       deliveryPrice: Number(p.sellingPrice),
+      goodsType: p.goods === false ? 'NON_GOODS' : 'GOODS',
       fixedDiscountRate: index % 2 === 0 ? 0 : 10,
       hasVariableDiscount: false,
       variableDiscountManual: false,
@@ -1992,7 +1998,7 @@ const MOCK_PRODUCT_CATEGORIES = [
 const SAMPLE_LINES = [
   {
     id: 'line-001',
-    productId: 'p-aj040',
+    productId: MOCK_PRODUCT_AJ040_ID,
     productName: '시스템에어컨 4Way 4HP',
     modelName: 'AJ040RXH4BC1',
     specification: '4HP', // Slice A
@@ -2045,7 +2051,7 @@ const SAMPLE_LINES = [
 const SAMPLE_TRANSFER_LINES = [
   {
     id: 'tline-001',
-    productId: 'p-aj040',
+    productId: MOCK_PRODUCT_AJ040_ID,
     requestedQuantity: 5,
     shippedQuantity: 0,
     receivedQuantity: 0,
@@ -3177,6 +3183,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // PATCH /api/v1/products/{modelCode}/goods-type — 견적품목 상품/비상품 선언
+  const productGoodsTypeMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/goods-type(?:\?.*)?$/)
+  if (method === 'PATCH' && productGoodsTypeMatch) {
+    const denied = mockRequirePermission('products.admin', 'update')
+    if (denied) return denied
+    ensureMockProductCatalogRowsSeeded()
+    const modelCode = decodeURIComponent(productGoodsTypeMatch[1]!)
+    const body = parseMockBody(config)
+    const goodsType = String(body['goodsType'] ?? '')
+    if (goodsType !== 'GOODS' && goodsType !== 'NON_GOODS') {
+      return mockError(400, 'INVALID_INPUT', 'goodsType 은 GOODS 또는 NON_GOODS 이어야 합니다')
+    }
+    const row = MOCK_PRODUCT_CATALOG_ROWS.find((candidate) => candidate.modelCode === modelCode)
+    if (!row) return mockError(404, 'NOT_FOUND', '제품을 찾을 수 없습니다')
+    MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((candidate) =>
+      candidate.modelCode === modelCode ? { ...candidate, goodsType: goodsType as 'GOODS' | 'NON_GOODS' } : candidate)
+    const entry = Object.values(MOCK_PRODUCTS_BY_MODEL).find((candidate) => (candidate.modelCode ?? candidate.modelName) === modelCode)
+    if (entry) entry.goods = goodsType === 'GOODS'
+    return { ...row, goodsType }
+  }
+
   const productSpecReorderMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/specs\/reorder(?:\?.*)?$/)
   if (method === 'PATCH' && productSpecReorderMatch) {
     const denied = mockRequirePermission('products.admin', 'update')
@@ -3443,6 +3470,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           sellingPrice: p.sellingPrice,
           status: 'ACTIVE',
           goods: p.goods ?? true,
+          goodsType: p.goods === false ? 'NON_GOODS' : 'GOODS',
           modelCode: p.modelCode ?? p.modelName,
           productType: p.productType ?? 'SINGLE',
         })),
@@ -3483,6 +3511,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         sellingPrice: p.sellingPrice,
         status: 'ACTIVE',
         goods: p.goods ?? true,
+        goodsType: p.goods === false ? 'NON_GOODS' : 'GOODS',
         modelCode: p.modelCode ?? p.modelName,
         productType: p.productType ?? 'SINGLE',
       })).slice(0, size),
@@ -5133,6 +5162,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const id = slipTransitionMatch[1]!
     const action = slipTransitionMatch[2]!
     const found = MOCK_SLIPS.find((s) => s.id === id) ?? MOCK_SLIPS[0]!
+    if (found.lockFlag === true && (action === 'cancel' || action === 'reject')) {
+      return mockError(409, 'CONFLICT', '회계 마감으로 잠긴 전표는 취소·반려할 수 없습니다.')
+    }
     const nextStatus: Record<string, string> = {
       save: 'SAVED',
       send: 'SENT',
@@ -5356,7 +5388,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // 창고 코드 → { totalQty, reservedQty }. null/미존재 코드는 balances 에서 제외 (잔량 row 없음).
     // Phase 2.6c: reservedQty 필드 추가 — availableQty = totalQty - reservedQty.
     const mockPerProduct: Record<string, Record<string, { total: number; reserved: number }>> = {
-      'p-aj040': { 'HQ-001': { total: 12, reserved: 2 }, 'VH-001': { total: 3, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
+      [MOCK_PRODUCT_AJ040_ID]: { 'HQ-001': { total: 12, reserved: 2 }, 'VH-001': { total: 3, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
       'p-aj052': { 'HQ-001': { total: 5, reserved: 1 }, 'VH-001': { total: 2, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
       'p-aj036': { 'HQ-001': { total: 8, reserved: 0 }, 'VH-001': { total: 0, reserved: 0 }, 'CS-001': { total: 1, reserved: 0 } },
       'p-aj100': { 'HQ-001': { total: 2, reserved: 2 }, 'VH-001': { total: 0, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
@@ -5396,9 +5428,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && url.includes('/inventory/balances') && !url.includes('/batch')) {
     const mockRows = [
       // 본사창고 HQ: AJ040 — 예약 3건 (주문 전환 중)
-      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 9, reservedQty: 3, totalQty: 12 },
+      { productId: MOCK_PRODUCT_AJ040_ID, productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 9, reservedQty: 3, totalQty: 12 },
       // 차량창고 VH: AJ040 — 예약 1건 (당일 출고 전환 중)
-      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 2, reservedQty: 1, totalQty: 3 },
+      { productId: MOCK_PRODUCT_AJ040_ID, productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 2, reservedQty: 1, totalQty: 3 },
       // 본사창고 HQ: AJ052 — 예약 1건
       { productId: 'p-aj052', productCode: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 4, reservedQty: 1, totalQty: 5 },
       // 차량창고 VH: AJ052 — 예약 2건 (전환 대기)
@@ -8500,6 +8532,46 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       total: filtered.length,
       page: 0,
       size: 20,
+    })
+  }
+
+  // POST/GET /admin/partners/imports/ecount — 관리자 거래처 적재 결과/보류 패널.
+  // 실 API와 같은 ApiResponse 봉투를 반환해 mock 모드에서도 외부 gateway XHR이 나가지 않게 한다.
+  if (method === 'POST' && (url.endsWith('/admin/partners/imports/ecount')
+    || url.endsWith('/admin/partners/imports/ecount-xlsx'))) {
+    const sourceFileHash = url.endsWith('ecount-xlsx')
+      ? 'MOCK-PARTNER-XLSX-HASH'
+      : 'MOCK-PARTNER-CSV-HASH'
+    return envelope({
+      totalRows: 1,
+      imported: 1,
+      updated: 0,
+      rejectedNullName: 0,
+      skippedPlaceholder: 0,
+      activeCount: 1,
+      suspendedCount: 0,
+      sourceFileHash,
+      rejectedSample: [],
+      excludedTrailerRows: 0,
+      heldParseFailureRows: 0,
+      heldSample: [],
+      infrastructureFailureRows: 0,
+      infrastructureFailureSample: [],
+      infrastructureFailure: false,
+      registrationDateParsedCount: 0,
+      createdAtLoadTimeCount: 1,
+    })
+  }
+  if (method === 'GET' && url.includes('/admin/partners/imports/ecount/rejections')) {
+    const page = Number(config.params?.['page'] ?? 0)
+    const size = Number(config.params?.['size'] ?? 100)
+    return envelope({
+      sourceFileHash: String(config.params?.['sourceFileHash'] ?? 'MOCK-PARTNER-CSV-HASH'),
+      page,
+      size,
+      totalElements: 0,
+      totalPages: 0,
+      items: [],
     })
   }
 
@@ -12378,7 +12450,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       poId === 'ord-partially-converted'
         ? [
             {
-              productId: 'p-aj040',
+              productId: MOCK_PRODUCT_AJ040_ID,
               lineId: 'line-po-001',
               modelCode: 'AJ040RXH4BC1',
               productName: '실외기',
@@ -12410,7 +12482,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           ]
         : [
             {
-              productId: 'p-aj040',
+              productId: MOCK_PRODUCT_AJ040_ID,
               lineId: 'line-po-001',
               modelCode: 'AJ040RXH4BC1',
               productName: '실외기',
@@ -12740,7 +12812,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         expandedComponents: [],
       }
       const singleLine = {
-        productId: 'p-aj040',
+        productId: MOCK_PRODUCT_AJ040_ID,
         lineId: 'line-bundle-002',
         modelCode: 'AJ040RXH4BC1',
         productName: '실외기',
@@ -13228,8 +13300,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const header = '행번호,전표번호,작성일자,공급자상호,공급자사업자번호,공급받는자상호,공급받는자사업자번호,공급가액,세액,합계\n'
     const csv = pageRows
       .map((r) =>
-        [r.rowNo, r.slipNo, r.issueDate, r.supplierName, r.supplierBusinessNo,
-          r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
+        [r.rowNo, r.slipNo, r.writeDate, r.supplierName, r.supplierRegNo,
+          r.buyerName, r.buyerRegNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
       )
       .join('\n')
     // responseType:'blob' 소비자(downloadHometaxSplit)가 res.data 를 Blob 으로 사용하므로 실제 Blob 반환.
@@ -13329,8 +13401,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const header = '행번호,전표번호,작성일자,공급자상호,공급자사업자번호,공급받는자상호,공급받는자사업자번호,공급가액,세액,합계\n'
     const csv = pageRows
       .map((r) =>
-        [r.rowNo, r.slipNo, r.issueDate, r.supplierName, r.supplierBusinessNo,
-          r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
+        [r.rowNo, r.slipNo, r.writeDate, r.supplierName, r.supplierRegNo,
+          r.buyerName, r.buyerRegNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
       )
       .join('\n')
     // responseType:'blob' 소비자(downloadHometaxSplit)가 res.data 를 Blob 으로 사용하므로 실제 Blob 반환.
@@ -13858,11 +13930,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     !url.includes('/copy-from')
   ) {
     if (method === 'GET') {
-      const role =
-        url.includes('mock-account-sales') ? 'SALES'
-          : url.includes('mock-account-dispatch') ? 'DISPATCH'
-            : url.includes('mock-account-accountant') ? 'ACCOUNTANT'
-              : 'MANAGER'
+      const mockAccountRole = url.match(/mock-account-(master|manager|sales|dispatch|accountant|developer|driver|partner|staff|inventory|warehouse)/)?.[1]
+      const role = mockAccountRole
+        ? mockAccountRole.toUpperCase()
+        : 'MANAGER'
       const accountMatrix: Record<string, {
         view: boolean
         create: boolean
@@ -13872,31 +13943,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         download: boolean
         print: boolean
       }> = {}
-      for (const page of SP_D1_PAGES) {
-        const legacyCell = _mockPermissionCells.find((cell) => cell.roleCode === role && cell.pageCode === page)
-        const actionOnly = MOCK_ACTION_ONLY_PAGES[page]
-        if (actionOnly) {
-          const editable = legacyCell?.edit ?? false
+      if (role === 'MASTER') {
+        for (const page of SP_D1_PAGES) {
           accountMatrix[page] = {
-            view: legacyCell?.view ?? false,
-            create: editable && actionOnly.includes('CREATE'),
-            update: editable && actionOnly.includes('UPDATE'),
-            delete: editable && actionOnly.includes('DELETE'),
-            restore: editable && actionOnly.includes('RESTORE'),
-            download: editable && actionOnly.includes('DOWNLOAD'),
-            print: editable && actionOnly.includes('PRINT'),
+            view: true,
+            create: true,
+            update: true,
+            delete: true,
+            restore: true,
+            download: true,
+            print: true,
           }
-          continue
         }
-        accountMatrix[page] = {
-          view: legacyCell?.view ?? false,
-          create: legacyCell?.edit ?? false,
-          update: legacyCell?.edit ?? false,
-          delete: legacyCell?.edit ?? false,
-          restore: page === 'sales.slip.list' ? (legacyCell?.edit ?? false) : false,
-          download: legacyCell?.view ?? false,
-          print: legacyCell?.view ?? false,
-        }
+        return envelope(accountMatrix)
+      }
+      for (const page of SP_D1_PAGES) {
+        accountMatrix[page] = mockActionMatrixFromRole(role, page)
       }
       // system.permission-admin 는 MASTER 전용 이중 가드 (RoleGuard + PermissionGuard).
       // mock 계정(MANAGER/SALES/DISPATCH)에는 MASTER 가 없으므로 일괄 미부여(false) — 실 BE MASTER 전용 정책과 정합.
@@ -13946,6 +14008,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return envelope(permissions)
     }
     if (mockRole === 'MASTER') {
+      // MASTER 정본은 role_page_permission_templates가 아니라
+      // DynamicPermissionService.java:192-205의 런타임 전권 하드코딩이다.
       const permissions: Record<string, string[]> = {}
       for (const page of SP_D1_PAGES) permissions[page] = allActions
       permissions['system.permission-admin'] = allActions
@@ -13955,7 +14019,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const permissions: Record<string, string[]> = {}
     for (const cell of myCells) {
       const actions: string[] = []
-      if (cell.view) actions.push('VIEW')
+      const override = MOCK_ACTION_MATRIX_OVERRIDES[`${mockRole}:${cell.pageCode}`]
+      const matrix = override ? mockActionMatrixFromRole(mockRole, cell.pageCode) : null
+      if (matrix ? matrix.view : cell.view) actions.push('VIEW')
+      if (matrix) {
+        for (const action of allActions.slice(1)) {
+          const key = action.toLowerCase() as keyof MockActionMatrix
+          if (matrix[key]) actions.push(action)
+        }
+        permissions[cell.pageCode] = actions
+        continue
+      }
       // [C2c] 특수 page-code 는 action-only(seed 정합) — 일반 edit→CRUD 도출 대신 지정 액션만.
       // sales.partner-order.convert = create-only(V41) → update/delete 과다 grant 방지(Codex review P1).
       const actionOnly = MOCK_ACTION_ONLY_PAGES[cell.pageCode]
@@ -15575,7 +15649,7 @@ const MOCK_INVENTORY_AUDITS = [
     auditorName: '홍지수',
     note: '5월 정기 실사 (1차)',
     lines: [
-      { productId: 'p-aj040', modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 12, actualQty: 12, adjustQty: 0 },
+      { productId: MOCK_PRODUCT_AJ040_ID, modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 12, actualQty: 12, adjustQty: 0 },
       { productId: 'p-aj052', modelName: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', expectedQty: 5, actualQty: 4, adjustQty: -1 },
       { productId: 'p-mwr10', modelName: 'MWR-WE10N', productName: '유선 리모컨', expectedQty: 45, actualQty: 47, adjustQty: 2 },
     ],
@@ -15591,7 +15665,7 @@ const MOCK_INVENTORY_AUDITS = [
     auditorName: '김기철',
     note: '차량 재고 실사 — 진행 중',
     lines: [
-      { productId: 'p-aj040', modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 3, actualQty: 3, adjustQty: 0 },
+      { productId: MOCK_PRODUCT_AJ040_ID, modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 3, actualQty: 3, adjustQty: 0 },
       { productId: 'p-mwr10', modelName: 'MWR-WE10N', productName: '유선 리모컨', expectedQty: 10, actualQty: 9, adjustQty: -1 },
     ],
   },
@@ -17105,7 +17179,7 @@ const MOCK_ESTIMATE_DETAIL_LINES = [
   {
     id: 'eline-001',
     lineNo: 0,
-    productId: 'p-aj040',
+    productId: MOCK_PRODUCT_AJ040_ID,
     productName: '시스템에어컨 4Way 4HP',
     modelName: 'AJ040RXH4BC1',
     specification: '\u20604HP',
@@ -18570,21 +18644,21 @@ function generateMockBatchRows(count: number) {
     return {
       rowNo,
       slipNo: `2026/05/${day}-${rowNo}`,
-      issueDate: `2026-05-${day}`,
+      writeDate: `202605${day}`,
       supplierName: supplier.name,
-      supplierBusinessNo: supplier.bizNo,
-      recipientName: p.name,
-      recipientBusinessNo: p.bizNo,
-      recipientEmail: `billing@partner${(i % 5) + 1}.co.kr`,
+      supplierRegNo: supplier.bizNo.replace(/-/g, ''),
+      buyerName: p.name,
+      buyerRegNo: p.bizNo.replace(/-/g, ''),
+      buyerEmail1: `billing@partner${(i % 5) + 1}.co.kr`,
       supplyAmount,
       vatAmount,
       totalAmount,
-      itemName: i % 3 === 0 ? '냉난방 설비 운반' : i % 3 === 1 ? '자재 운송' : '물류 서비스',
-      specification: i % 2 === 0 ? '일식' : null,
-      quantity: '1',
-      unitPrice: supplyAmount,
+      itemName1: i % 3 === 0 ? '냉난방 설비 운반' : i % 3 === 1 ? '자재 운송' : '물류 서비스',
+      itemSpec1: i % 2 === 0 ? '일식' : '',
+      itemQty1: '1',
+      itemPrice1: supplyAmount,
       partnerCode: p.code,
-      remark: i % 5 === 0 ? '현장 배송 완료' : null,
+      remark: i % 5 === 0 ? '현장 배송 완료' : '',
     }
   })
 }
@@ -18602,7 +18676,7 @@ const MOCK_BATCH_ROWS = generateMockBatchRows(250)
  */
 const SP_D1_ROLES = [
   'MANAGER', 'DISPATCH', 'SALES', 'ACCOUNTANT', 'WAREHOUSE', 'INVENTORY',
-  'DEVELOPER', 'PARTNER',
+  'DEVELOPER', 'PARTNER', 'DRIVER', 'STAFF',
 ] as const
 
 /**
@@ -18618,8 +18692,13 @@ const SP_D1_PAGES = [
   'accounting.tax-invoice.cancel',
   'accounting.tax-invoice.batch-issue',
   'accounting.tax-invoice.inbound',
+  'accounting.tax-invoice.inbound.manage',
   'accounting.sales-slip.list',
   'accounting.purchase-slip.list',
+  // V37 정본: 회계전표 회계분개 권한은 MASTER/ACCOUNTANT 전용(1111).
+  // accounting.*.list 는 별도 소비처가 있으므로 유지한다.
+  'accounting.sales-slip.accounting',
+  'accounting.purchase-slip.accounting',
   'accounting.daily-closing',
   'accounting.daily-closing.run',
   'accounting.daily-closing.unlock',
@@ -18632,6 +18711,10 @@ const SP_D1_PAGES = [
   'dispatch.external-carriers',
   'admin.permissions',
   'admin.permission-groups',
+  // V29/V30/V27: 라우트·메뉴 소비처가 있는 기존 seed page-code.
+  'system.permission-admin',
+  'messenger.send',
+  'ecount.mig.ops-dashboard',
   'admin.approval-line-config',
   'admin.app-release',
   'dev.popup-notice',
@@ -18756,12 +18839,21 @@ const SP_D1_PAGES = [
  * seed 정합(예: V41 convert = create-only). 비-MASTER `/permissions/my` mock 도출에 적용.
  */
 const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
+  'inbound.inspection': ['CREATE', 'UPDATE', 'DELETE'],
   // V87: 입금자명 매핑은 VIEW + CREATE/UPDATE/DELETE만 허용한다.
   'accounting.deposit-mapping': ['CREATE', 'UPDATE', 'DELETE'],
   // V37: accounting.daily-closing.run 은 실행 CREATE endpoint 전용.
   'accounting.daily-closing.run': ['CREATE'],
   // V37: accounting.daily-closing.unlock 은 잠금 해제 UPDATE endpoint 전용.
   'accounting.daily-closing.unlock': ['UPDATE'],
+  // V99: 회계전표/수신 세금계산서/이관 운영 코드는 실 모델의 VIEW/CRUD만 허용하고
+  // DOWNLOAD/PRINT는 부여하지 않는다.
+  'accounting.tax-invoice.inbound.manage': ['CREATE', 'UPDATE', 'DELETE'],
+  'accounting.sales-slip.accounting': ['CREATE', 'UPDATE', 'DELETE'],
+  'accounting.purchase-slip.accounting': ['CREATE', 'UPDATE', 'DELETE'],
+  // V27/V30: 운영 대시보드·메신저도 seed의 VIEW/CRUD만 반영한다.
+  'ecount.mig.ops-dashboard': ['CREATE', 'UPDATE', 'DELETE'],
+  'messenger.send': ['CREATE', 'UPDATE', 'DELETE'],
   // V86(#17 S4b R1 fix) — products.price-schedule 은 VIEW+UPDATE 만(CREATE/DELETE/
   // DOWNLOAD/PRINT 없음). 미등재 시 mock /permissions/my 가 MANAGER/ACCOUNTANT 에
   // CREATE/DELETE/DOWNLOAD/PRINT 까지 과다부여한다.
@@ -18783,6 +18875,19 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   // cell.pageCode === 'sales.slip.list'만 하드코딩)에 estimates.list 가 걸리지 않아
   // mock 모드 MANAGER/SALES 의 canAccess('estimates.list','restore') 가 항상 false 였다.
   'estimates.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
+}
+
+/** V98: MANAGER 입고 검수는 canonical 권한에서 UPDATE만 additive grant 한다. */
+const MOCK_ACTION_MATRIX_OVERRIDES: Record<string, Partial<MockActionMatrix>> = {
+  'MANAGER:inbound.inspection': {
+    view: true,
+    create: false,
+    update: true,
+    delete: false,
+    restore: false,
+    download: false,
+    print: false,
+  },
 }
 
 /**
@@ -18816,8 +18921,11 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   MANAGER: [
     // SP-D1
     'accounting.tax-invoice.list', 'accounting.tax-invoice.cancel', 'accounting.tax-invoice.batch-issue',
-    'accounting.tax-invoice.inbound', 'accounting.sales-slip.list',
+    'accounting.tax-invoice.inbound.manage',
+    'accounting.sales-slip.list',
     'accounting.purchase-slip.list', 'accounting.daily-closing',
+    // V99: MANAGER 회계전표는 .list 1111 비트를 .accounting 으로 계승.
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run',
     'accounting.general-ledger',
     'purchases.slip.list', 'sales.slip.list',
@@ -18828,6 +18936,10 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.partner-ledger',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
+    // V30: MANAGER messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
+    // V27: MANAGER ecount.mig.ops-dashboard VIEW/CREATE/UPDATE/DELETE.
+    'ecount.mig.ops-dashboard',
     // SP-D4 22개 — MANAGER: 대부분 view 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
@@ -18884,6 +18996,9 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
     'sales.slip.list',
+    // V99: SALES 회계전표는 .list 1000 비트를 .accounting 으로 계승.
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
+    'messenger.send',
     // SP-D4 — SALES: 견적/주문/거래처/상품 view
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
@@ -18897,6 +19012,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
     // C5-2c: V36 seed 기반 SALES VIEW 추가
     'sales.slip.cancel',
+    // V30: SALES messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
     // §7 협업 — V36: SALES view+edit
     'slip.comments', 'slip.audit-overlay',
   ],
@@ -18904,8 +19021,10 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.tax-invoice.cancel',
-    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
+    // V37: MASTER/ACCOUNTANT 만 VIEW/CREATE/UPDATE/DELETE(1111).
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run', 'accounting.general-ledger',
     'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
@@ -18914,6 +19033,10 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.partner-ledger',
     // V37 supplier-profiles — ACCOUNTANT: view only
     'accounting.supplier-profiles',
+    // V30: ACCOUNTANT messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
+    // V27: ACCOUNTANT ecount.mig.ops-dashboard VIEW only.
+    'ecount.mig.ops-dashboard',
     // SP-D4 — ACCOUNTANT: 견적/주문 이력/재고/거래처/상품 view 만
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.history',
     'inventory.stock', 'inventory.list', 'inventory.detail', 'inventory.transfer',
@@ -18933,6 +19056,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   ],
   WAREHOUSE: [
     'purchases.slip.list', 'inbound.inspection',
+    'messenger.send',
     // SP-D4 — WAREHOUSE: 재고/창고/인쇄 view
     'sales.partner-order.print',
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
@@ -18950,6 +19074,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   ],
   INVENTORY: [
     'purchases.slip.list', 'sales.slip.list', 'inbound.inspection',
+    'messenger.send',
     // SP-D4 — INVENTORY: 재고/창고 view
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps', 'inventory.audit', 'inventory.list', 'inventory.detail',
@@ -18965,6 +19090,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   ],
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
+    'messenger.send',
     'products.list', 'products.admin',
     // DEV-1/2/3 — 개발 그룹 버전 관리 + 팝업공지 + 로그.
     'admin.app-release', 'dev.popup-notice', 'dev.activity-log',
@@ -19003,12 +19129,16 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
 const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   MANAGER: [
     'accounting.tax-invoice.cancel',
-    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
+    // V99: MANAGER .list 1111 → .accounting 1111.
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run',
     'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
+    'messenger.send',
+    'ecount.mig.ops-dashboard',
     // SP-D1 — MANAGER: edit 미허용 (view 전용)
     // SP-D4 — MANAGER: 대부분 edit 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
@@ -19074,6 +19204,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
     // C5-2c: V36 seed 기반 SALES EDIT 추가
     'sales.slip.cancel',
+    // V30: SALES messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
     // §7 협업 — V36: SALES can_edit=TRUE
     'slip.comments', 'slip.audit-overlay',
   ],
@@ -19081,9 +19213,13 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.tax-invoice.cancel',
-    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound.manage',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
+    // V37: MASTER/ACCOUNTANT 만 VIEW/CREATE/UPDATE/DELETE(1111).
+    'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
+    // V30: ACCOUNTANT messenger.send VIEW/CREATE/UPDATE/DELETE.
+    'messenger.send',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
     'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close',
     'accounting.statement-batch',
@@ -19097,6 +19233,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   ],
   WAREHOUSE: [
     'inbound.inspection',
+    'messenger.send',
     // SP-D4 — WAREHOUSE: 재고/창고 edit
     'inventory.warehouse', 'inventory.stock',
     'inventory.stock-transfer', 'inventory.dps',
@@ -19112,6 +19249,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   ],
   INVENTORY: [
     'inbound.inspection',
+    'messenger.send',
     // SP-D4 — INVENTORY: 재고/창고 edit
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps',
@@ -19125,6 +19263,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
+    'messenger.send',
     // DEV-1/2/3 — 개발 그룹 버전 관리 + 팝업공지 + 로그.
     'admin.app-release', 'dev.popup-notice', 'dev.activity-log',
   ],
@@ -19204,6 +19343,14 @@ const emptyMockActionMatrix = (): MockActionMatrix => ({
 
 const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix => {
   const cell = _mockPermissionCells.find((c) => c.roleCode === role && c.pageCode === page)
+  const override = MOCK_ACTION_MATRIX_OVERRIDES[`${role}:${page}`]
+  if (override) {
+    return {
+      ...emptyMockActionMatrix(),
+      view: cell?.view ?? false,
+      ...override,
+    }
+  }
   const actionOnly = MOCK_ACTION_ONLY_PAGES[page]
   if (actionOnly) {
     const editable = cell?.edit ?? false
@@ -19400,8 +19547,8 @@ const _mockPermissionGroupMatrices: Record<string, Record<string, MockActionMatr
   [BUILTIN_GROUP_ID_ACCOUNTANT]: Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('ACCOUNTANT', page)])) as Record<string, MockActionMatrix>,
   [BUILTIN_GROUP_ID_INVENTORY]:  Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('INVENTORY',  page)])) as Record<string, MockActionMatrix>,
   [BUILTIN_GROUP_ID_DISPATCH]:   Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DISPATCH',   page)])) as Record<string, MockActionMatrix>,
-  [BUILTIN_GROUP_ID_DRIVER]: {},
-  [BUILTIN_GROUP_ID_STAFF]: {},
+  [BUILTIN_GROUP_ID_DRIVER]:   Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DRIVER',   page)])) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_STAFF]:    Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('STAFF',    page)])) as Record<string, MockActionMatrix>,
   [BUILTIN_GROUP_ID_DEVELOPER]:  Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DEVELOPER',  page)])) as Record<string, MockActionMatrix>,
   'mock-group-custom-sales':      Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('SALES',      page)])) as Record<string, MockActionMatrix>,
   'mock-group-custom-dispatch':   Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DISPATCH',   page)])) as Record<string, MockActionMatrix>,

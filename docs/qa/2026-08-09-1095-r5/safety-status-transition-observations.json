@@ -1,0 +1,26 @@
+{
+  "activeTarget": {
+    "productCode": null,
+    "productName": null,
+    "threshold": 1,
+    "note": "R5-1095-SAFETY-TRANSITION"
+  },
+  "alertsHttp": 200,
+  "target": {
+    "productCode": null,
+    "productName": null,
+    "threshold": 1,
+    "currentQty": 0,
+    "shortage": 1,
+    "warehouseName": "전체",
+    "note": "R5-1095-SAFETY-TRANSITION"
+  },
+  "totalAlerts": 7,
+  "screenHasModel": 0,
+  "blankProductCodeCells": 7,
+  "cleanupProduct": {
+    "reactivateHttp": 204,
+    "tagsHttp": 200
+  },
+  "cleanupSafetyHttp": 201
+}

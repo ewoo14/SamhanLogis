@@ -9,6 +9,7 @@ import {
   type PurchaseAccountingSlipStatus,
 } from '../../api/purchaseAccountingSlipApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 import { today, firstDayOfMonth } from '../../utils/dateUtils'
 import { fmtKrw } from '../../utils/currencyUtils'
 
@@ -29,6 +30,9 @@ export function PurchaseAccountingSlipPage() {
   usePageTitle('매입전표')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
+  const canCreate = canAccess('accounting.purchase-slip.accounting', 'create')
+  const canPost = canAccess('accounting.purchase-slip.accounting', 'update')
   const [from, setFrom] = useState(firstDayOfMonth())
   const [to, setTo] = useState(today())
   const [partnerCode, setPartnerCode] = useState('')
@@ -90,7 +94,7 @@ export function PurchaseAccountingSlipPage() {
         width: '96px',
         mobilePriority: 'secondary',
         render: (row) =>
-          row.status === 'DRAFT' ? (
+          canPost && row.status === 'DRAFT' ? (
             <Button
               size="sm"
               variant="ghost"
@@ -102,7 +106,7 @@ export function PurchaseAccountingSlipPage() {
           ) : null,
       },
     ],
-    [postMutation],
+    [canPost, postMutation],
   )
 
   return (
@@ -110,9 +114,11 @@ export function PurchaseAccountingSlipPage() {
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>매입전표</h3>
-          <Button variant="primary" onClick={() => navigate('/accounting/purchase-slips/new')}>
-            작성
-          </Button>
+          {canCreate ? (
+            <Button variant="primary" onClick={() => navigate('/accounting/purchase-slips/new')}>
+              작성
+            </Button>
+          ) : null}
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inputStyle} />

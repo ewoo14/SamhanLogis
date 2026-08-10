@@ -139,6 +139,13 @@ app:
       secret-key: ${SAMHAN_SLIP_MINIO_SECRET_KEY:samhan_dev_pw}
       bucket: ${SAMHAN_SLIP_MINIO_BUCKET:slip-attachments}
       presigned-expiry-seconds: 3600
+    # feature/local-test-setup Stage 2 — Slip 100건 + SlipLine ~300건 + DeliveryBatch 30건 시드.
+    # SlipSeeder + DeliveryBatchSeeder 가 동일 toggle 공유 (slip → batch 순서, @Order 20/30).
+    # dev profile + true 시에만 활성. CI/prod 기본 OFF (idempotent — 안전 재실행).
+    # W10-5 회고 — env 변수 prefix 통일 (SAMHAN_SLIP_SEED_TEST_DATA 우선, SLIP_SEED_TEST_DATA legacy fallback).
+    seed-test-data: ${SAMHAN_SLIP_SEED_TEST_DATA:${SLIP_SEED_TEST_DATA:false}}
+    # 신규 개발자 full-seed 명시적 opt-in. 기본 OFF이며 기존 삭제행 포함 멱등성은 유지한다.
+    full-seed-test-data: ${SAMHAN_FULL_SEED_TEST_DATA:false}
   # P1 범용 사진 첨부 (samhan-attachments bucket, AttachmentService).
   # 입고 검수 / 배송 완료 / 영업 방문 현장 사진 단일 파일 ≤5MB — presigned URL 방식.
   # chained-default 패턴: SAMHAN_S3_* 표준 env. 빈 endpoint → AWS SDK default (Phase 11 cutover 자동 전환).
@@ -154,13 +161,6 @@ app:
     # path-style-access: MinIO = true (S3 호환 경로 스타일). AWS S3 cutover 시 false 로 전환.
     # Phase 11: SAMHAN_S3_PATH_STYLE_ACCESS=false (virtual-hosted-style — AWS S3 기본).
     path-style-access: ${SAMHAN_S3_PATH_STYLE_ACCESS:true}
-    # feature/local-test-setup Stage 2 — Slip 100건 + SlipLine ~300건 + DeliveryBatch 30건 시드.
-    # SlipSeeder + DeliveryBatchSeeder 가 동일 toggle 공유 (slip → batch 순서, @Order 20/30).
-    # dev profile + true 시에만 활성. CI/prod 기본 OFF (idempotent — 안전 재실행).
-    # W10-5 회고 — env 변수 prefix 통일 (SAMHAN_SLIP_SEED_TEST_DATA 우선, SLIP_SEED_TEST_DATA legacy fallback).
-    seed-test-data: ${SAMHAN_SLIP_SEED_TEST_DATA:${SLIP_SEED_TEST_DATA:false}}
-    # 신규 개발자 full-seed 명시적 opt-in. 기본 OFF이며 기존 삭제행 포함 멱등성은 유지한다.
-    full-seed-test-data: ${SAMHAN_FULL_SEED_TEST_DATA:false}
     # Phase 12 Step 3 (PR-H3) — 슬립 수정 요청 만료 시간 (시간 단위, default 24h).
     # 영업직원이 발행 후 슬립 수정 요청 발송 → 관리자 무응답 시 본 임계 초과 후 자동 EXPIRED.
     # SlipEditRequest.requestedAt + expires-hours < now() → status = EXPIRED 전환 (스케줄러).

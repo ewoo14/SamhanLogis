@@ -1,0 +1,53 @@
+{
+  "round": "R5",
+  "results": [
+    {
+      "round": "R5",
+      "slipType": "INBOUND",
+      "slipNo": "2026/08/09-2",
+      "slipId": "<redacted-uuid>",
+      "renderer": "r5-renderer-5330",
+      "requestPartnerCode": "P-2026-0001",
+      "requestBusinessNumber": "113-07-10031",
+      "putDisposition": "브라우저에서 200 synthetic fulfill — 공유 DB write 금지로 HEAD-28186에는 전달하지 않음",
+      "realNetworkBeforePut": [
+        {
+          "method": "GET",
+          "status": 200,
+          "path": "/slips/<redacted-uuid>",
+          "target": "HEAD-28186"
+        },
+        {
+          "method": "POST",
+          "status": 200,
+          "path": "/slips/price-memory/bulk",
+          "target": "HEAD-28186"
+        }
+      ]
+    },
+    {
+      "round": "R5",
+      "slipType": "OUTBOUND",
+      "slipNo": "2026/08/10-16",
+      "slipId": "<redacted-uuid>",
+      "renderer": "r5-renderer-5330",
+      "requestPartnerCode": "P-2026-0001",
+      "requestBusinessNumber": "113-07-10031",
+      "putDisposition": "브라우저에서 200 synthetic fulfill — 공유 DB write 금지로 HEAD-28186에는 전달하지 않음",
+      "realNetworkBeforePut": [
+        {
+          "method": "GET",
+          "status": 200,
+          "path": "/slips/<redacted-uuid>",
+          "target": "HEAD-28186"
+        },
+        {
+          "method": "POST",
+          "status": 200,
+          "path": "/slips/price-memory/bulk",
+          "target": "HEAD-28186"
+        }
+      ]
+    }
+  ]
+}

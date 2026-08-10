@@ -14,6 +14,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
+import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
@@ -202,7 +203,8 @@ public class EstimateCatalogInternalController {
             BigDecimal pyongSize,
             String capacity,
             String maxIndoor,
-            String productType) {
+            String productType,
+            ProductStatus status) {
     }
 
     /** 구성품 행 — legacy 싱글 구성품/상업멀티 구성 row 동등 (자체 단가는 product join). */
@@ -272,7 +274,8 @@ public class EstimateCatalogInternalController {
                             p.getPyongSize(),
                             spec.get(SPEC_CAPACITY),
                             spec.get(SPEC_MAX_INDOOR),
-                            p.getProductType() == null ? null : p.getProductType().name());
+                            p.getProductType() == null ? null : p.getProductType().name(),
+                            p.getStatus());
                 })
                 .toList();
         return ApiResponse.ok(rows);

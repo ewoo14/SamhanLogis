@@ -29,6 +29,7 @@ import com.samhanair.logis.product.web.dto.UpdateProductClassificationRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductFixedDiscountRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductVariableDiscountRequest;
+import com.samhanair.logis.product.web.dto.UpdateProductGoodsTypeRequest;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
@@ -281,6 +282,19 @@ public class ProductCatalogController {
     public ProductCatalogResponse changeVariableDiscount(@PathVariable @NotBlank String modelCode,
                                                          @Valid @RequestBody UpdateProductVariableDiscountRequest req) {
         Product product = productService.updateVariableDiscountAndReturn(modelCode, req);
+        ProductCatalogResponse response = ProductCatalogResponse.from(
+                product, exposureRepository.findByProductIdAndIsDeletedFalse(product.getId()));
+        catalogChangePublisher.publishCatalogChanged(modelCode);
+        return response;
+    }
+
+    /** 견적품목 메뉴의 상품/비상품 선언을 품목 마스터의 goodsType에 저장한다. */
+    @PatchMapping("/products/{modelCode}/goods-type")
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
+    @Transactional
+    public ProductCatalogResponse changeGoodsType(@PathVariable @NotBlank String modelCode,
+                                                  @Valid @RequestBody UpdateProductGoodsTypeRequest req) {
+        Product product = productService.updateGoodsTypeAndReturn(modelCode, req);
         ProductCatalogResponse response = ProductCatalogResponse.from(
                 product, exposureRepository.findByProductIdAndIsDeletedFalse(product.getId()));
         catalogChangePublisher.publishCatalogChanged(modelCode);

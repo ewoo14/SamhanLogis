@@ -239,4 +239,54 @@ describe('ProductAutocomplete', () => {
     expect(document.body.textContent).not.toContain('uuid-a')
     expect(document.body.textContent).not.toContain('uuid-b')
   })
+
+  it('절단된 A 검색은 경고하고 모달 Enter 재검색으로 50건 밖 품목을 선택한다', async () => {
+    const target: ProductOption = {
+      id: 'target-id',
+      modelCode: 'AP110BAPPBH2S',
+      modelName: 'AP110BAPPBH2S',
+      productName: '대상 품목',
+    }
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({
+      id: `page-${index}`,
+      modelCode: `A-${index}`,
+      modelName: `A-${index}`,
+      productName: '검색 품목',
+    })) as ProductOption[] & { totalElements: number; truncated: boolean }
+    firstPage.totalElements = 2686
+    firstPage.truncated = true
+    const searchProducts = vi.fn()
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([target])
+    const onAdd = vi.fn()
+
+    render(
+      <ProductMultiSelectAutocomplete
+        selected={[]}
+        onAdd={onAdd}
+        onRemove={vi.fn()}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    fireEvent.focus(screen.getByRole('combobox', { name: '품목' }))
+    fireEvent.change(screen.getByRole('combobox', { name: '품목' }), { target: { value: 'A' } })
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '품목 검색 결과' })).toBeTruthy())
+    expect(screen.getByTestId('product-search-truncation-notice').textContent)
+      .toContain('2,686건 중 50건 표시')
+
+    const filter = screen.getByRole('searchbox', { name: '검색 결과 필터' })
+    fireEvent.change(filter, { target: { value: 'AP110BAPPBH2S' } })
+    fireEvent.keyDown(filter, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'AP110BAPPBH2S' })).toBeTruthy())
+    fireEvent.click(screen.getByRole('checkbox', { name: 'AP110BAPPBH2S' }))
+    fireEvent.click(screen.getByRole('button', { name: '선택 확정' }))
+
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith(target))
+    expect(searchProducts).toHaveBeenCalledTimes(2)
+    expect(searchProducts).toHaveBeenNthCalledWith(1, 'A')
+    expect(searchProducts).toHaveBeenNthCalledWith(2, 'AP110BAPPBH2S')
+  })
 })

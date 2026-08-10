@@ -12,12 +12,14 @@ import com.samhanair.logis.accounting.repository.TaxInvoiceBatchExclusionReposit
 import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
+import com.samhanair.logis.accounting.web.dto.HomtaxRow;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.poi.ss.usermodel.Row;
@@ -62,6 +64,57 @@ class HometaxExportServiceTest {
 
     private static final LocalDate FROM = LocalDate.of(2026, 5, 1);
     private static final LocalDate TO = LocalDate.of(2026, 5, 31);
+
+    @Test
+    @DisplayName("홈택스 공급받는자 등록번호는 partnerCode가 아니라 businessNumber에서 읽는다")
+    void buyerRegistrationNumberUsesBusinessNumber() {
+        Map<String, Object> raw = new java.util.HashMap<>();
+        raw.put("partnerCode", "P-2026-0001");
+        raw.put("businessNumber", "113-07-10031");
+        raw.put("partnerName", "테스트 거래처");
+
+        HomtaxRow row = service.toHomtaxRow(raw, null);
+
+        assertThat(row.partnerCode()).isEqualTo("P-2026-0001");
+        assertThat(row.buyerRegNo()).isEqualTo("1130710031");
+        assertThat(row.buyerRegNo()).isNotEqualTo("20260001");
+    }
+
+    @Test
+    @DisplayName("홈택스 공급받는자 사업자번호가 없으면 가짜 등록번호를 만들지 않는다")
+    void buyerRegistrationNumberIsBlankWhenBusinessNumberMissing() {
+        Map<String, Object> raw = new java.util.HashMap<>();
+        raw.put("partnerCode", "P-2026-0001");
+        raw.put("partnerName", "사업자번호 없음");
+
+        HomtaxRow row = service.toHomtaxRow(raw, null);
+
+        assertThat(row.buyerRegNo()).isBlank();
+    }
+
+    @Test
+    @DisplayName("홈택스 화면 매퍼는 sales-query의 첫 라인 5개 값을 보존한다")
+    void toHomtaxRowPreservesSalesLineValues() {
+        Map<String, Object> raw = new java.util.HashMap<>();
+        raw.put("partnerCode", "P-2026-0001");
+        raw.put("partnerName", "테스트 거래처");
+        raw.put("email", "buyer@test.com");
+        raw.put("itemName", "에어컨");
+        raw.put("itemSpec", "0000098");
+        raw.put("itemQty", 1);
+        raw.put("itemPrice", 949);
+        raw.put("itemRemark", "현장 납품");
+        raw.put("supplyAmount", 949);
+        raw.put("vatAmount", 94);
+
+        HomtaxRow row = service.toHomtaxRow(raw, null);
+
+        assertThat(row.buyerEmail1()).isEqualTo("buyer@test.com");
+        assertThat(row.itemSpec1()).isEqualTo("0000098");
+        assertThat(row.itemQty1()).isEqualByComparingTo("1");
+        assertThat(row.itemPrice1()).isEqualByComparingTo("949");
+        assertThat(row.itemRemark1()).isEqualTo("현장 납품");
+    }
 
     @Test
     @DisplayName("POI workbook — sheet 1장 + 헤더 + 1 라인 (fallback supplierRegNo 사용)")

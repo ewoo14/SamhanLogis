@@ -110,6 +110,8 @@ export interface LineDraft {
   lookupLoading: boolean
   /** 품목 유형 (선택) — "SINGLE" | "BUNDLE". BUNDLE 일 때만 세트 옵션 노출. */
   productType?: string | null
+  /** 품목 상태 — OUT_OF_STOCK은 수량 입력을 잠근다. */
+  status?: string | null
   /** 품목코드 (선택) — 세트 전개 시 부모 modelCode. */
   modelCode?: string | null
   /** 저장 전표 DC 표시용 품목 카테고리/고정율 — 화면에는 UUID를 포함하지 않는다. */
@@ -299,6 +301,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
   const priceChangedStatusId = `${priceId}-changed`
 
   const hasError = !!line.lookupError
+  const isOutOfStock = line.status === 'OUT_OF_STOCK'
   const sumDisplay = computeLineSum(line.quantity, line.unitPrice)
   const vatBreakdown = vatInclusive ? computeVatBreakdown(line.quantity, line.unitPrice) : null
   const hasVatAmounts = vatInclusive && line.supplyAmount != null
@@ -490,6 +493,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
             min={1}
             className={`${styles['input']} ${styles['numInput']}`}
             value={line.quantity}
+            disabled={isOutOfStock}
             onChange={(e) => {
               // #902 R3 H7′(H7 대체, 개발책임자 회귀 지시 S5): 종전 D8 fix 는 문자 단위로
               // 숫자가 아닌 문자만 제거해 "2.7"→"27"(10배 오주문), "0.5"→"05"→5, "-3"→"3",
@@ -501,8 +505,9 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
               if (!/^\d*$/.test(e.target.value)) return
               onQuantityChange(e.target.value)
             }}
-            aria-label={`라인 ${lineNumber} 수량`}
+            aria-label={`라인 ${lineNumber} 수량${isOutOfStock ? ' 품절' : ''}`}
           />
+          {isOutOfStock ? <span role="status">품절</span> : null}
         </div>
 
         {/* 8. 단가 */}

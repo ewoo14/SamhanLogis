@@ -12,6 +12,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
+import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
@@ -22,9 +23,6 @@ import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -36,9 +34,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.hibernate.engine.spi.EntityEntry;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,9 +64,9 @@ import org.springframework.transaction.annotation.Transactional;
  *     <li>구형 → OLD, BOTH</li>
  * </ul>
  *
- * <p><b>변경 감지</b> — row 의 SHA-256 hash 를 Product.discountFlags + remark prefix 에
- * 저장하지 않고, 메모리 내 비교 (rowHash != stored hash 시만 update). 신규 row =
- * insert. DB 에 있으나 시트에 없는 row = soft delete (deletedAt 설정). 시트 재현 시 복구.
+ * <p><b>변경 감지</b> — 기존 row 에 writer를 적용한 뒤 Hibernate 영속 메타데이터의 dirty 판정으로
+ * 실제 Product 변경 여부를 계산한다. 신규 row = insert. DB 에 있으나 시트에 없는 row = soft delete
+ * (deletedAt 설정). 시트 재현 시 복구.
  *
  * <p><b>트랜잭션</b>: 시트 1 tab 씩 별도 트랜잭션 — 1 tab 실패가 전체 sync 무효화 방지.
  * row 단위 실패는 catch + log + skip (sync continuity 우선).
@@ -158,6 +159,7 @@ public class ProductSheetSyncService {
     private static final List<String> QTY_HEADERS = List.of("수량");
     private static final List<String> VARIANT_HEADERS = List.of("구성품특징", "특징");
     private static final List<String> SPEC_HEADERS = List.of("규격");
+    private static final List<String> STATUS_HEADERS = List.of("비고", "상태");
 
     private final GoogleSheetsClient sheetsClient;
     private final ProductRepository productRepository;
@@ -173,8 +175,8 @@ public class ProductSheetSyncService {
     private final EcountAliasReservationService ecountAliasReservationService;
     private final ProductSheetSyncService self;
 
-    /** rowHash 캐시 — JVM 메모리. (시트 row → SHA-256). 다음 sync 시 비교. */
-    private final Map<String, String> lastKnownRowHash = new ConcurrentHashMap<>();
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public ProductSheetSyncService(GoogleSheetsClient sheetsClient,
                                    ProductRepository productRepository,
@@ -221,7 +223,7 @@ public class ProductSheetSyncService {
      * 전체 시트 sync — scheduler / admin 양쪽 진입점.
      * tab 별 별도 트랜잭션 (per-tab) — 1 tab 실패가 전체 무효화 방지.
      *
-     * @return SyncResult — tab 별 inserted/updated/softDeleted/skipped 집계
+     * @return SyncResult — tab 별 insertedRows/updatedRows/softDeletedProductRows/skippedOccurrences 집계
      */
     public SyncSummary syncAll() {
         log.info("[ProductSheetSync] sync 시작: sheetId={}", sheetId);
@@ -244,13 +246,15 @@ public class ProductSheetSyncService {
             try {
                 TabSyncResult tabResult = self.syncTab(mapping, defaultCategory);
                 summary.byTab.put(mapping.tabName, tabResult);
-                summary.totalInserted += tabResult.inserted;
-                summary.totalUpdated += tabResult.updated;
-                summary.totalSoftDeleted += tabResult.softDeleted;
-                summary.totalSkipped += tabResult.skipped;
-                summary.totalPreservedManual += tabResult.preservedManual;
-                summary.totalPreservedByRule += tabResult.preservedByRule;
-                summary.totalSpecsLinked += tabResult.specsLinked;
+                summary.totalInsertedRows += tabResult.insertedRows;
+                summary.totalUpdatedRows += tabResult.updatedRows;
+                summary.totalNameDriftOccurrences += tabResult.nameDriftOccurrences;
+                summary.totalPriceHistoryExposureSpecChangedRows += tabResult.priceHistoryExposureSpecChangedRows;
+                summary.totalSoftDeletedRows += tabResult.softDeletedProductRows;
+                summary.totalSkippedOccurrences += tabResult.skippedOccurrences;
+                summary.totalPreservedManualProductOccurrences += tabResult.preservedManualProductOccurrences;
+                summary.totalPreservedByRuleProductOccurrences += tabResult.preservedByRuleProductOccurrences;
+                summary.totalSpecsLinkedRows += tabResult.specsLinkedRows;
                 summary.successfulTabs++;
             } catch (Exception e) {
                 log.error("[ProductSheetSync] tab '{}' sync 실패: {}", mapping.tabName, e.getMessage(), e);
@@ -267,9 +271,12 @@ public class ProductSheetSyncService {
             try {
                 ComponentSyncResult cr = self.syncComponentTab(cm);
                 summary.byComponentTab.put(cm.tabName, cr);
-                summary.totalComponentsLinked += cr.linked;
-                summary.totalBundlesMarked += cr.bundlesMarked;
-                summary.totalPreservedManual += cr.preservedManual;
+                summary.totalComponentLinkOccurrences += cr.linkedOccurrences;
+                summary.totalBundlesMarkedProducts += cr.bundlesMarkedProducts;
+                summary.totalPreservedManualComponentOccurrences += cr.preservedManualComponentOccurrences;
+                summary.totalSkippedOccurrences += cr.skippedOccurrences;
+                summary.totalSoftDeletedComponentRows += cr.softDeletedComponentRows;
+                summary.totalBlockedByRuleOccurrences += cr.blockedByRuleOccurrences;
                 summary.successfulTabs++;
             } catch (Exception e) {
                 log.error("[ProductSheetSync] 구성품 tab '{}' sync 실패: {}", cm.tabName, e.getMessage(), e);
@@ -281,12 +288,13 @@ public class ProductSheetSyncService {
         }
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
-        log.info("[ProductSheetSync] sync 완료: 총 inserted={}, updated={}, softDeleted={}, skipped={}, "
-                        + "preservedManual={}, 구성품 linked={}, bundle marked={}, 사양 linked={}, duration={}ms",
-                summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted,
-                summary.totalSkipped, summary.totalPreservedManual,
-                summary.totalComponentsLinked, summary.totalBundlesMarked,
-                summary.totalSpecsLinked, summary.durationMs);
+        log.info("[ProductSheetSync] sync 완료: 총 insertedRows={}, updatedRows={}, softDeletedProductRows={}, skippedOccurrences={}, "
+                        + "preservedManualProductOccurrences={}, preservedManualComponentOccurrences={}, 구성품 linkedOccurrences={}, bundle markedProducts={}, 사양 linkedRows={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
+                summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows,
+                summary.totalSkippedOccurrences, summary.totalPreservedManualProductOccurrences,
+                summary.totalPreservedManualComponentOccurrences, summary.totalComponentLinkOccurrences,
+                summary.totalBundlesMarkedProducts, summary.totalSpecsLinkedRows,
+                summary.totalPriceHistoryExposureSpecChangedRows, summary.durationMs);
         return summary;
     }
 
@@ -340,7 +348,7 @@ public class ProductSheetSyncService {
         // rule CRUD와 동일한 advisory lock 아래에서 세대 확인과 함께 수행한다.
         quantitySyncRuleService.lockGraphMutation();
         if (!quantitySyncRuleService.isCurrentSheetSyncGeneration(syncKey, syncGeneration)) {
-            log.info("[ProductSheetSync] component tab '{}' stale response skipped (generation={})",
+            log.info("[ProductSheetSync] component tab '{}' stale response ignored (generation={})",
                     mapping.tabName, syncGeneration);
             return result;
         }
@@ -357,7 +365,7 @@ public class ProductSheetSyncService {
             Optional<Product> childOpt = productRepository.findByModelCodeAndIsDeletedFalse(childModel);
             if (parentOpt.isEmpty() || childOpt.isEmpty()) {
                 // 부모/자식 미존재(시트 정합 이슈) — 조용히 skip(부모 sync 가 우선).
-                result.skipped++;
+                result.skippedOccurrences++;
                 continue;
             }
             Product parent = parentOpt.get();
@@ -373,7 +381,7 @@ public class ProductSheetSyncService {
             // 수기 편집 세트는 시트 sync 가 구성품 집합을 덮어쓰지 않는다.
             // seenByParent 에 넣지 않아 soft-delete 단계도 함께 건너뛴다.
             if (parent.isBundleComponentsManual()) {
-                result.preservedManual++;
+                result.preservedManualComponentOccurrences++;
                 continue;
             }
 
@@ -417,7 +425,7 @@ public class ProductSheetSyncService {
                     log.warn("[ProductSheetSync] 구성품 tab '{}' 부모='{}' 자식='{}' → 활성 수량 동기화"
                                     + " 규칙({}) 자기구성품 충돌로 연결 제외",
                             mapping.tabName, setModel, childModel, String.join(", ", brokenRuleKeys));
-                    result.blockedByRule++;
+                    result.blockedByRuleOccurrences++;
                     continue;
                 }
             }
@@ -430,7 +438,7 @@ public class ProductSheetSyncService {
                 parent.changeBundle(ProductType.BUNDLE, mode);
                 productRepository.save(parent);
                 markedBundles.add(parent.getId());
-                result.bundlesMarked++;
+                result.bundlesMarkedProducts++;
             }
             if (!setModel.equals(child.getParentBundleSetModel())) {
                 child.changeParentBundleSetModel(setModel);
@@ -443,7 +451,7 @@ public class ProductSheetSyncService {
                 match.changeAttributes(qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec));
                 bundleComponentRepository.save(match);
             }
-            result.linked++;
+            result.linkedOccurrences++;
             seenByParent.computeIfAbsent(parent.getId(), k -> new HashSet<>()).add(childModel);
         }
 
@@ -453,13 +461,14 @@ public class ProductSheetSyncService {
                 if (!e.getValue().contains(b.getComponentProductCode())) {
                     b.markDeleted("system-sheet-sync");
                     bundleComponentRepository.save(b);
-                    result.softDeleted++;
+                    result.softDeletedComponentRows++;
                 }
             }
         }
 
-        log.info("[ProductSheetSync] 구성품 tab '{}': linked={}, bundlesMarked={}, softDeleted={}, skipped={}",
-                mapping.tabName, result.linked, result.bundlesMarked, result.softDeleted, result.skipped);
+        log.info("[ProductSheetSync] 구성품 tab '{}': linkedOccurrences={}, bundlesMarkedProducts={}, softDeletedComponentRows={}, skippedOccurrences={}",
+                mapping.tabName, result.linkedOccurrences, result.bundlesMarkedProducts,
+                result.softDeletedComponentRows, result.skippedOccurrences);
         return result;
     }
 
@@ -469,24 +478,26 @@ public class ProductSheetSyncService {
      *
      * @return 이번 row 에 적재(upsert)한 spec 개수
      */
-    private int loadSpecsForProduct(UUID productId, List<String> header, List<String> cells, SheetTabMapping mapping) {
+    private int loadSpecsForProduct(UUID productId, List<String> header, List<String> cells,
+                                    SheetTabMapping mapping, SpecWriteObservation specWrites) {
+        Map<String, SpecState> beforeSpecs = captureSpecState(productId);
         Set<String> seenKeys = new HashSet<>();
         Set<Integer> consumedColumns = new HashSet<>();
-        int linked = 0;
+        int linkedSpecRows = 0;
         boolean specBearing = isSpecBearing(mapping.productCategory);
         String rowName = safeGet(cells, mapping.nameColumn);
         String rowModelCode = safeGet(cells, mapping.modelCodeColumn);
         if (mapping.estimateCategory == EstimateCategory.HOME_MULTI) {
-            linked += loadHomeSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
+            linkedSpecRows += loadHomeSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
         } else if (mapping.estimateCategory == EstimateCategory.SINGLE_SET) {
-            linked += loadSingleSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
+            linkedSpecRows += loadSingleSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
         } else if (mapping.estimateCategory == EstimateCategory.COMMERCIAL_MULTI) {
-            linked += loadCommercialSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
+            linkedSpecRows += loadCommercialSpecs(productId, header, cells, rowName, rowModelCode, seenKeys, consumedColumns);
         }
         if (specBearing) {
             logUnmappedSpecHeaders(mapping, header, cells, consumedColumns);
         } else {
-            linked += loadBlocklistSpecs(productId, header, cells, mapping, seenKeys, consumedColumns);
+            linkedSpecRows += loadBlocklistSpecs(productId, header, cells, mapping, seenKeys, consumedColumns);
         }
 
         // soft-delete: 이번 시트에 더 이상 없는 기존 spec 키. 매핑된 구키는 seenKeys 에 없으므로 여기서 정리된다.
@@ -496,22 +507,44 @@ public class ProductSheetSyncService {
                 productSpecRepository.save(s);
             }
         }
-        return linked;
+        specWrites.changedRows = changedRowCount(beforeSpecs, captureSpecState(productId));
+        return linkedSpecRows;
+    }
+
+    private static int changedRowCount(Map<String, SpecState> before, Map<String, SpecState> after) {
+        Set<String> keys = new HashSet<>(before.keySet());
+        keys.addAll(after.keySet());
+        int changed = 0;
+        for (String key : keys) {
+            if (!Objects.equals(before.get(key), after.get(key))) {
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    private Map<String, SpecState> captureSpecState(UUID productId) {
+        return productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId).stream()
+                .collect(java.util.stream.Collectors.toMap(ProductSpec::getSpecKey,
+                        s -> new SpecState(s.getSpecValue(), s.getUnit(), s.getDisplayOrder())));
+    }
+
+    private record SpecState(String value, String unit, Integer displayOrder) {
     }
 
     private int loadBlocklistSpecs(UUID productId, List<String> header, List<String> cells, SheetTabMapping mapping,
                                    Set<String> seenKeys, Set<Integer> consumedColumns) {
-        int linked = 0;
+        int linkedSpecRows = 0;
         for (int col = 0; col < header.size(); col++) {
             if (shouldSkipBlocklistSpecColumn(col, header, cells, mapping, consumedColumns)) continue;
             String h = normHeader(header.get(col));
             String key = h.length() > 50 ? h.substring(0, 50) : h;
             String value = safeGet(cells, col).trim();
             if (upsertSpec(productId, seenKeys, key, value, null, col)) {
-                linked++;
+                linkedSpecRows++;
             }
         }
-        return linked;
+        return linkedSpecRows;
     }
 
     private void logUnmappedSpecHeaders(SheetTabMapping mapping, List<String> header, List<String> cells,
@@ -572,46 +605,46 @@ public class ProductSheetSyncService {
                     9, 10, 11, 12, 16, 17, true);
         }
 
-        int linked = 0;
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
+        int linkedSpecRows = 0;
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
                 "배관경", null, 1, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKcal,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKcal,
                 "냉방능력, kcal/h", "kcal/h", 2, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKw,
                 "냉방능력, kW", "kW", 3, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowKw,
                 "냉방소비전력, kW", "kW", 4, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
                 "냉매가스", null, 5, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "에너지소비효율", "에너지소비효율등급"),
                 "에너지소비효율등급", null, 6, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "전원선"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "전원선"),
                 "전원선, mm²", "mm²", 7, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "차단기"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "차단기"),
                 "차단기, A", "A", 8, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
                 "제품크기, mm", "mm", 9, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
                 "제품중량, kg", "kg", 10, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
                 "포장치수, mm", "mm", 11, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
                 "포장중량, kg", "kg", 12, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, firstExistingIdx(H, "최대장배관", "최대장배관"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, firstExistingIdx(H, "최대장배관", "최대장배관"),
                 "배관길이, m", "m", 13, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, firstExistingIdx(H, "최대고저차", "최대고저차"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, firstExistingIdx(H, "최대고저차", "최대고저차"),
                 "고낙차, m", "m", 14, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "최대연결실내기대수", "최대연결실내기대수"),
                 "최대 연결 실내기 대수, 대", "대", 15, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "타공사이즈", "타공사이즈(mm)"),
                 "타공사이즈, mm", "mm", 16, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "전산볼트간격", "전산볼트간격(mm)"),
                 "전산볼트간격, mm", "mm", 17, SpecValueMode.NUMBER);
-        return linked;
+        return linkedSpecRows;
     }
 
     private int loadSingleSpecs(UUID productId, List<String> header, List<String> cells,
@@ -632,69 +665,69 @@ public class ProductSheetSyncService {
         Pair powerBreaker = splitSlash(cell(cells, firstExistingIdx(H, "전원(mm²)/차단(A)", "전원(mm²)/차단(A)")));
         Pair pipeDrop = splitSlash(cell(cells, firstExistingIdx(H, "배관길이/고낙차(m)", "배관길이/고낙차(m)")));
 
-        int linked = 0;
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
+        int linkedSpecRows = 0;
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
                 "배관경", null, 1, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iCapKcal,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iCapKcal,
                 "냉방능력, kcal/h", capKcal.a(), "kcal/h", 2, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iCapKcal,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iCapKcal,
                 "난방능력, kcal/h", capKcal.b(), "kcal/h", 3, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iCapKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iCapKw,
                 "냉방능력, kW", capKw.a(), "kW", 4, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iCapKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iCapKw,
                 "난방능력, kW", capKw.b(), "kW", 5, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iPowKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iPowKw,
                 "냉방소비전력, kW", pow.a(), "kW", 6, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, iPowKw,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, iPowKw,
                 "난방소비전력, kW", pow.b(), "kW", 7, SpecValueMode.RANGE);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
                 "냉매가스", null, 8, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "등급(냉방/난방)", "등급(냉방/난방)"),
                 "에너지소비효율등급", null, 9, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns,
                 firstExistingIdx(H, "전원(mm²)/차단(A)", "전원(mm²)/차단(A)"),
                 "전원선, mm²", powerBreaker.a(), "mm²", 10, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns,
                 firstExistingIdx(H, "전원(mm²)/차단(A)", "전원(mm²)/차단(A)"),
                 "차단기, A", powerBreaker.b(), "A", 11, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실내기크기(mm)", "실내기크기(mm)"),
                 "실내기크기, mm", "mm", 12, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실외기크기(mm)", "실외기크기(mm)"),
                 "실외기크기, mm", "mm", 13, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실내기중량(kg)", "실내기중량(kg)"),
                 "실내기중량, kg", "kg", 14, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실외기중량(kg)", "실외기중량(kg)"),
                 "실외기중량, kg", "kg", 15, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실내기포장(mm)", "실내기포장(mm)"),
                 "실내기포장, mm", "mm", 16, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실외기포장(mm)", "실외기포장(mm)"),
                 "실외기포장, mm", "mm", 17, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실내기포장중량(kg)", "실내기포장중량(kg)"),
                 "실내기포장중량, kg", "kg", 18, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "실외기포장중량(kg)", "실외기포장중량(kg)"),
                 "실외기포장중량, kg", "kg", 19, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns,
                 firstExistingIdx(H, "배관길이/고낙차(m)", "배관길이/고낙차(m)"),
                 "배관길이, m", pipeDrop.a(), "m", 20, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns,
                 firstExistingIdx(H, "배관길이/고낙차(m)", "배관길이/고낙차(m)"),
                 "고낙차, m", pipeDrop.b(), "m", 21, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "타공사이즈", "타공사이즈(mm)"),
                 "타공사이즈, mm", "mm", 22, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "전산볼트간격", "전산볼트간격(mm)"),
                 "전산볼트간격, mm", "mm", 23, SpecValueMode.NUMBER);
-        return linked;
+        return linkedSpecRows;
     }
 
     private int loadCommercialSpecs(UUID productId, List<String> header, List<String> cells,
@@ -722,17 +755,17 @@ public class ProductSheetSyncService {
                     12, 13, 14, 15, 19, 20, true);
         }
 
-        int linked = 0;
+        int linkedSpecRows = 0;
         if (isErvLayout) {
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, coolCapCols,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, coolCapCols,
                     "냉방능력, kcal/h", joinCols(cells, coolCapCols), "kcal/h", 2, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, heatCapCols,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, heatCapCols,
                     "난방능력, kcal/h", joinCols(cells, heatCapCols), "kcal/h", 3, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, coolPowCols,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, coolPowCols,
                     "냉방소비전력, kW", joinCols(cells, coolPowCols), "kW", 6, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, heatPowCols,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, heatPowCols,
                     "난방소비전력, kW", joinCols(cells, heatPowCols), "kW", 7, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iDuct >= 0 ? iDuct : idx(H, "냉매가스"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iDuct >= 0 ? iDuct : idx(H, "냉매가스"),
                     "냉매가스", null, 8, SpecValueMode.AS_IS);
         } else {
             int iCoolKcal = coolCols.size() > 0 ? coolCols.get(0) : -1;
@@ -742,79 +775,79 @@ public class ProductSheetSyncService {
             int iPowCool = powCols.size() > 0 ? powCols.get(0) : -1;
             int iPowHeat = powCols.size() >= 2 ? powCols.get(powCols.size() - 1) : (iPowCool >= 0 ? iPowCool + 1 : -1);
 
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "배관경"),
                     "배관경", null, 1, SpecValueMode.AS_IS);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKcal,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKcal,
                     "냉방능력, kcal/h", "kcal/h", 2, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iHeatKcal,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iHeatKcal,
                     "난방능력, kcal/h", "kcal/h", 3, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKw,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iCoolKw,
                     "냉방능력, kW", "kW", 4, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iHeatKw,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iHeatKw,
                     "난방능력, kW", "kW", 5, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowCool,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowCool,
                     "냉방소비전력, kW", "kW", 6, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowHeat,
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, iPowHeat,
                     "난방소비전력, kW", "kW", 7, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "냉매가스"),
                     "냉매가스", null, 8, SpecValueMode.AS_IS);
         }
 
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "소비효율등급", "에너지소비효율등급"),
                 "소비효율등급", null, 9, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "전원선"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "전원선"),
                 "전원선, mm²", "mm²", 10, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "차단기"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "차단기"),
                 "차단기, A", "A", 11, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
                 "제품크기, mm", "mm", 12, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
                 "제품중량, kg", "kg", 13, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
                 "포장치수, mm", "mm", 14, SpecValueMode.DIMENSION);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
                 "포장중량, kg", "kg", 15, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "최대장배관", "배관길이"),
                 "배관길이, m", "m", 16, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "최대고저차", "고낙차"),
                 "고낙차, m", "m", 17, SpecValueMode.AS_IS);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "최대연결실내기대수", "최대연결실내기대수"),
                 "최대 연결 실내기 대수, 대", "대", 18, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "타공사이즈", "타공사이즈(mm)"),
                 "타공사이즈, mm", "mm", 19, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells,
                 firstExistingIdx(H, "전산볼트간격", "전산볼트간격(mm)"),
                 "전산볼트간격, mm", "mm", 20, SpecValueMode.NUMBER);
-        return linked;
+        return linkedSpecRows;
     }
 
     private int loadPanelSpecs(UUID productId, Set<String> seenKeys, Set<Integer> consumedColumns,
                                List<String> cells, List<String> H, List<Integer> punchCols, int boltCol,
                                int sizeOrder, int weightOrder, int packageSizeOrder, int packageWeightOrder,
                                int punchOrder, int boltOrder, boolean includePhysicalSpecs) {
-        int linked = 0;
+        int linkedSpecRows = 0;
         int punchCol = firstNonBlankColumn(cells, punchCols);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, punchCols,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, punchCols,
                 "타공사이즈, mm", cell(cells, punchCol), "mm", punchOrder, SpecValueMode.NUMBER);
-        linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, boltCol,
+        linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, boltCol,
                 "전산볼트간격, mm", "mm", boltOrder, SpecValueMode.NUMBER);
 
         if (includePhysicalSpecs) {
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품크기"),
                     "제품크기, mm", "mm", sizeOrder, SpecValueMode.DIMENSION);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "제품중량"),
                     "제품중량, kg", "kg", weightOrder, SpecValueMode.NUMBER);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장치수"),
                     "포장치수, mm", "mm", packageSizeOrder, SpecValueMode.DIMENSION);
-            linked += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
+            linkedSpecRows += addMappedSpec(productId, seenKeys, consumedColumns, cells, idx(H, "포장중량"),
                     "포장중량, kg", "kg", packageWeightOrder, SpecValueMode.NUMBER);
         }
-        return linked;
+        return linkedSpecRows;
     }
 
     private int addMappedSpec(UUID productId, Set<String> seenKeys, Set<Integer> consumedColumns,
@@ -1108,18 +1141,25 @@ public class ProductSheetSyncService {
         if (mapping.productCategory != ProductCategory.SINGLE_SET) {
             return;
         }
+        BigDecimal pyongSize = sheetPyongSize(cells);
+        if (pyongSize != null) {
+            p.changePyongSize(pyongSize);
+        }
+    }
+
+    private static BigDecimal sheetPyongSize(List<String> cells) {
         String raw = safeGet(cells, 1); // 싱글 세트 B열 = 평형
         if (raw == null || raw.isBlank()) {
-            return;
+            return null;
         }
         String digits = raw.replaceAll("[^\\d.]", "");
         if (digits.isBlank()) {
-            return;
+            return null;
         }
         try {
-            p.changePyongSize(new BigDecimal(digits));
+            return new BigDecimal(digits);
         } catch (NumberFormatException ignored) {
-            // 비숫자 평형 표기 — skip
+            return null;
         }
     }
 
@@ -1131,24 +1171,24 @@ public class ProductSheetSyncService {
     /** 구성품 tab sync 결과. */
     public static class ComponentSyncResult {
         /** 수기 편집 보호로 건너뛴 구성품 행 수. */
-        public int preservedManual = 0;
-        public int linked = 0;
-        public int bundlesMarked = 0;
-        public int softDeleted = 0;
-        public int skipped = 0;
+        public int preservedManualComponentOccurrences = 0;
+        public int linkedOccurrences = 0;
+        public int bundlesMarkedProducts = 0;
+        public int softDeletedComponentRows = 0;
+        public int skippedOccurrences = 0;
         /**
          * 🚨 2026-07-28 재수렴 R6 결함 3 [MED] 계열 sweep — 이 부모(BUNDLE)를 source로
          * 갖는 활성 수량 동기화 규칙의 target을 자기 구성품으로 새로 연결하려다 거부된
          * (부모,자식) 행 수. {@link BundleComponentService#replaceComponents}와 같은
          * 불변식(I-3)을 시트 sync 경로에서도 지킨다.
          */
-        public int blockedByRule = 0;
+        public int blockedByRuleOccurrences = 0;
         public String error;
     }
 
     /**
      * tab 1개 sync — read sheet → upsert 매트릭스. 별도 트랜잭션.
-     * row hash 비교: 신규 / 변경 / 동일 / 시트에서 사라진 row 4-way 분기.
+     * DB 상태 비교: 신규 / 변경 / 동일 / 시트에서 사라진 row 4-way 분기.
      *
      * <p><b>render mode</b> (개발책임자 정정 2026-05-05 — legacy 1:1 보존):
      * legacy estimate Code.js + partner-order Code.js 의 모든 6 tab read 가
@@ -1209,9 +1249,11 @@ public class ProductSheetSyncService {
         int displaySeq = 0;
         // 고정DC 컬럼(홈멀티/상업멀티) — 헤더명 기반.
         int fixedDcColumn = -1;
+        int statusColumn = -1;
         {
             List<String> fullHeader = GoogleSheetsClient.toStringRow(rows.get(headerIdx), 30);
             fixedDcColumn = findColumnByHeader(fullHeader, List.of("고정DC"));
+            statusColumn = findColumnByHeader(fullHeader, STATUS_HEADERS);
         }
 
         // 🚨 2026-07-28 재수렴 R6 결함 4 [MED] fix (I-4) — 여기부터가 실제로 규칙
@@ -1219,7 +1261,7 @@ public class ProductSheetSyncService {
         // 순수 로컬 파싱은 이 락 없이 끝났다.
         quantitySyncRuleService.lockGraphMutation();
         if (!quantitySyncRuleService.isCurrentSheetSyncGeneration(syncKey, syncGeneration)) {
-            log.info("[ProductSheetSync] tab '{}' stale response skipped (generation={})",
+            log.info("[ProductSheetSync] tab '{}' stale response ignored (generation={})",
                     mapping.tabName, syncGeneration);
             return result;
         }
@@ -1233,16 +1275,16 @@ public class ProductSheetSyncService {
             String name = safeGet(cells, mapping.nameColumn).trim();
             String modelCode = safeGet(cells, mapping.modelCodeColumn).trim();
             if (name.isBlank() || modelCode.isBlank()) {
-                result.skipped++;
+            result.skippedOccurrences++;
                 continue;
             }
             sheetModelCodes.add(modelCode);
             int displayOrder = ++displaySeq; // 시트 노출 순서(유효 데이터 행 순번)
 
-            String rowHash = sha256(cells.subList(0, Math.min(8, cells.size())).toString());
-            String prevHash = lastKnownRowHash.get(modelCode);
             BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
             BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
+            ProductStatus sheetStatus = ProductStatus.fromSheetDisplay(
+                    statusColumn >= 0 ? safeGet(cells, statusColumn) : null).orElse(null);
 
             // #30 — 변동DC 판정. useK2/matKey/구형 isDisc 마커는 단가 수식에만 출현하므로
             // 행 전체 수식을 join 한다. FORMULA 행은 modelCode 매칭 우선, 인덱스 fallback.
@@ -1265,8 +1307,10 @@ public class ProductSheetSyncService {
             // 구성품 탭에만 존재하는 모델은 SINGLE_PART/NONE 으로 insert 됨이 정상(노출 비대상).
             // ※ 신규 탭 추가 시 견적 탭은 구성품 탭보다 앞에 둘 것.
             Optional<Product> existing = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
-            UUID productId;
-            Product productForExposure;
+            UUID productId = null;
+            Product productForExposure = null;
+            ExternalWriteTracker externalWrites = new ExternalWriteTracker();
+            boolean productChanged = false;
             if (existing.isEmpty()) {
                 Product p = Product.seedFromSheet(name, modelCode, defaultCategory,
                         releasePrice, deliveryPrice,
@@ -1275,19 +1319,33 @@ public class ProductSheetSyncService {
                         mapping.usageScope,
                         mapping.estimateCategory);
                 p.applyDiscountRules(hasVariableDiscount, materialKey, legacyDiscount, fixedRate);
+                if (sheetStatus != null) {
+                    p.changeStatus(sheetStatus);
+                }
                 p.changeDiscountFlags(discountFlags);
                 p.changeClassifications(classifications.catL(), classifications.catM(), classifications.catS());
                 applyAttributes(p, name, modelCode);
                 applyPyongSize(p, mapping, cells);
                 productRepository.save(p);
-                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
-                lastKnownRowHash.put(modelCode, rowHash);
+                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice,
+                        externalWrites);
                 productId = p.getId();
                 productForExposure = p;
-                result.inserted++;
-            } else if (prevHash == null || !prevHash.equals(rowHash)) {
+                result.insertedRows++;
+            } else {
+                if (!Objects.equals(existing.get().getName(), name)) {
+                    result.nameDriftOccurrences++;
+                    log.info("[ProductSheetSync] tab '{}' modelCode='{}' name drift observed (DB name retained)",
+                            mapping.tabName, modelCode);
+                }
+            }
+            if (existing.isPresent()) {
                 Product p = existing.get();
+                ProductMutationSnapshot before = ProductMutationSnapshot.capture(entityManager, p);
                 p.changePrices(releasePrice, deliveryPrice);
+                if (sheetStatus != null) {
+                    p.changeStatus(sheetStatus);
+                }
                 // ECOUNT-first 행은 최초 생성 시 productCategory/usageScope가 비어 있다.
                 // 시트에 같은 modelCode가 등장한 순간 시트를 정본으로 채택하고, 아래의
                 // 기존 홈 탭 분류·노출 갱신 경로를 그대로 태운다. MANUAL/SHEET 행은
@@ -1331,7 +1389,7 @@ public class ProductSheetSyncService {
                             log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
                                             + " 참조로 usageScope NONE 전환 보류",
                                     mapping.tabName, modelCode, String.join(", ", blockingRuleKeys));
-                            result.preservedByRule++;
+                            result.preservedByRuleProductOccurrences++;
                         } else {
                             p.changeUsage(mapping.usageScope);
                         }
@@ -1348,37 +1406,33 @@ public class ProductSheetSyncService {
                     applyPyongSize(p, mapping, cells);
                 }
                 productRepository.save(p);
-                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
-                lastKnownRowHash.put(modelCode, rowHash);
+                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice,
+                        externalWrites);
                 productId = p.getId();
                 productForExposure = p;
-                result.updated++;
-            } else {
-                Product p = existing.get();
-                if (p.getProductCategory() == mapping.productCategory && applyAttributes(p, name, modelCode)) {
-                    productRepository.save(p);
-                    lastKnownRowHash.put(modelCode, rowHash);
-                    productId = p.getId();
-                    productForExposure = p;
-                    upsertPriceHistory(productId, PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
-                    result.updated++;
+                productChanged = before.changed();
+                if (productChanged) {
+                    result.updatedRows++;
                 } else {
-                    productId = p.getId();
-                    productForExposure = p;
-                    upsertPriceHistory(productId, PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
-                    result.unchanged++;
+                    result.unchangedRows++;
                 }
             }
 
-            upsertSheetExposure(productForExposure, mapping.estimateCategory, displayOrder);
+            externalWrites.markIfChanged(upsertSheetExposure(productForExposure,
+                    mapping.estimateCategory, displayOrder));
 
             // 사양(ProductSpec) 적재 — 사양 보유 탭은 V17 매핑전용, 비사양 탭은 기존 blocklist 보존.
             if (headerCells != null) {
-                result.specsLinked += loadSpecsForProduct(productId, headerCells, cells, mapping);
+                SpecWriteObservation specWrites = new SpecWriteObservation();
+                result.specsLinkedRows += loadSpecsForProduct(productId, headerCells, cells, mapping, specWrites);
+                externalWrites.addChangedRows(specWrites.changedRows);
             }
+            result.priceHistoryExposureSpecChangedRows += externalWrites.changedRows();
         }
 
-        syncBeforeIncreasePriceHistory(mapping, sheetModelCodes);
+        ExternalWriteTracker beforeIncreaseWrites = new ExternalWriteTracker();
+        syncBeforeIncreasePriceHistory(mapping, sheetModelCodes, beforeIncreaseWrites);
+        result.priceHistoryExposureSpecChangedRows += beforeIncreaseWrites.changedRows();
 
         // soft-delete: DB 의 같은 productCategory row 중 시트에서 사라진 것.
         // usageScopeManual=true 인 품목은 시트 부재 시에도 soft-delete 제외 — 개발책임자 결정
@@ -1389,10 +1443,10 @@ public class ProductSheetSyncService {
             if (code == null) continue;
             if (!sheetModelCodes.contains(code)) {
                 if (p.isUsageScopeManual()) {
-                    // 수동 override 품목 — 시트에 없어도 삭제 보호 (별도 카운터 preservedManual 사용, 사이클2 지적 P3-6)
+                    // 수동 override 품목 — 시트에 없어도 삭제 보호 (별도 카운터 preservedManualProductOccurrences 사용, 사이클2 지적 P3-6)
                     log.debug("[ProductSheetSync] tab '{}' modelCode='{}' usageScopeManual=true → soft-delete 제외",
                             mapping.tabName, code);
-                    result.preservedManual++;
+                    result.preservedManualProductOccurrences++;
                     continue;
                 }
                 List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysReferencing(p.getId());
@@ -1404,7 +1458,7 @@ public class ProductSheetSyncService {
                 if (ecountAliasReservationService.hasActiveReservation(p.getId())) {
                     log.info("[ProductSheetSync] tab '{}' modelCode='{}' → MIG-8 alias reservation active; soft-delete 보류",
                             mapping.tabName, code);
-                    result.deferredByEcountReservation++;
+                    result.deferredByEcountReservationProductOccurrences++;
                     continue;
                 }
                 // BaseEntity.markDeleted: deletedAt + deletedBy + isDeleted=true 설정 (shared:common).
@@ -1412,14 +1466,14 @@ public class ProductSheetSyncService {
                 p.markDeleted(actor);
                 productRepository.save(p);
                 softDeleteExposures(p.getId(), actor);
-                lastKnownRowHash.remove(code);
-                result.softDeleted++;
+                result.softDeletedProductRows++;
             }
         }
 
-        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, softDeleted={}, skipped={}, preservedManual={}",
-                mapping.tabName, result.inserted, result.updated, result.unchanged,
-                result.softDeleted, result.skipped, result.preservedManual);
+        log.info("[ProductSheetSync] tab '{}': insertedRows={}, updatedRows={}, unchangedRows={}, nameDriftOccurrences={}, priceHistoryExposureSpecChangedRows={}, softDeletedProductRows={}, skippedOccurrences={}, preservedManualProductOccurrences={}",
+                mapping.tabName, result.insertedRows, result.updatedRows, result.unchangedRows,
+                result.nameDriftOccurrences, result.priceHistoryExposureSpecChangedRows, result.softDeletedProductRows,
+                result.skippedOccurrences, result.preservedManualProductOccurrences);
         return result;
     }
 
@@ -1429,23 +1483,84 @@ public class ProductSheetSyncService {
      * <p>수동 override 품목은 PATCH /usage 가 단일 권위이므로 sync 에서 노출을 변경하지 않는다.
      * sync 는 삭제를 절대 수행하지 않고, 탭에 등장한 카테고리 행을 보장하거나 displayOrder 만 갱신한다.
      */
-    private void upsertSheetExposure(Product product, EstimateCategory estimateCategory, int displayOrder) {
+    private boolean upsertSheetExposure(Product product, EstimateCategory estimateCategory, int displayOrder) {
         if (product == null || product.getId() == null || estimateCategory == null) {
-            return;
+            return false;
         }
         if (product.isUsageScopeManual()) {
-            return;
+            return false;
         }
-        exposureRepository.findByProductIdAndEstimateCategoryAndIsDeletedFalse(product.getId(), estimateCategory)
-                .ifPresentOrElse(
-                        exposure -> {
-                            // syncTab self-invocation 경로는 활성 트랜잭션이 없어 dirty checking 미적용 →
-                            // display_order 변경을 명시 save 로 flush (P1, [[self-invocation-transactional-bypass]]).
-                            exposure.changeDisplayOrder(displayOrder);
-                            exposureRepository.save(exposure);
-                        },
-                        () -> exposureRepository.save(ProductEstimateExposure.create(
-                                product.getId(), estimateCategory, displayOrder)));
+        Optional<ProductEstimateExposure> existing = exposureRepository
+                .findByProductIdAndEstimateCategoryAndIsDeletedFalse(product.getId(), estimateCategory);
+        if (existing.isEmpty()) {
+            exposureRepository.save(ProductEstimateExposure.create(product.getId(), estimateCategory, displayOrder));
+            return true;
+        }
+        ProductEstimateExposure exposure = existing.get();
+        boolean changed = !Objects.equals(exposure.getDisplayOrder(), displayOrder);
+        exposure.changeDisplayOrder(displayOrder);
+        exposureRepository.save(exposure);
+        return changed;
+    }
+
+    /**
+     * 기존 Product writer를 모두 적용한 뒤 Hibernate 영속 메타데이터로 실제 dirty 여부를 묻는다.
+     *
+     * <p>속성 목록을 이 서비스가 복제하지 않는다. Hibernate가 {@code Product}의 JPA 매핑에서
+     * property 배열을 만들고 dirty 비교를 수행하므로, writer에 새 영속 필드를 추가해도 판정기가
+     * 별도 목록을 놓쳐 양방향 차집합을 만들 수 없다. 이 스냅샷은 현재 트랜잭션의 DB 로딩 상태를
+     * 복사하므로 롤백된 변경은 다음 실행에서 다시 원래 DB 값과 비교된다.
+     */
+    private static final class ProductMutationSnapshot {
+        private final EntityEntry entry;
+        private final SessionImplementor session;
+        private final Object[] loadedState;
+        private final Product product;
+
+        private ProductMutationSnapshot(EntityEntry entry, SessionImplementor session,
+                                        Object[] loadedState, Product product) {
+            this.entry = entry;
+            this.session = session;
+            this.loadedState = loadedState;
+            this.product = product;
+        }
+
+        private static ProductMutationSnapshot capture(EntityManager entityManager, Product product) {
+            SessionImplementor session = entityManager.unwrap(SessionImplementor.class);
+            EntityEntry entry = session.getPersistenceContext().getEntry(product);
+            if (entry == null || entry.getLoadedState() == null) {
+                throw new IllegalStateException("Product must be a managed existing entity: " + product.getId());
+            }
+            return new ProductMutationSnapshot(entry, session, entry.getLoadedState().clone(), product);
+        }
+
+        private boolean changed() {
+            Object[] currentState = entry.getPersister().getPropertyValues(product);
+            int[] dirtyProperties = entry.getPersister().findDirty(
+                    currentState, loadedState, product, session);
+            return dirtyProperties != null && dirtyProperties.length > 0;
+        }
+    }
+
+    /** Product 변경 판정과 독립적으로 PriceHistory/Exposure/Spec 저장 상태를 관측한다. */
+    private static final class ExternalWriteTracker {
+        private int changedRows;
+
+        private void markIfChanged(boolean value) {
+            if (value) changedRows++;
+        }
+
+        private void addChangedRows(int count) {
+            changedRows += count;
+        }
+
+        private int changedRows() {
+            return changedRows;
+        }
+    }
+
+    private static final class SpecWriteObservation {
+        private int changedRows;
     }
 
     private boolean applyAttributes(Product product, String name, String modelCode) {
@@ -1470,7 +1585,8 @@ public class ProductSheetSyncService {
         }
     }
 
-    private void syncBeforeIncreasePriceHistory(SheetTabMapping mapping, Set<String> currentModelCodes) throws Exception {
+    private void syncBeforeIncreasePriceHistory(SheetTabMapping mapping, Set<String> currentModelCodes,
+                                                ExternalWriteTracker externalWrites) throws Exception {
         if (mapping.beforeIncreaseTabName == null || currentModelCodes.isEmpty()) {
             return;
         }
@@ -1504,20 +1620,25 @@ public class ProductSheetSyncService {
             BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
             BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
             upsertPriceHistory(product.get().getId(), BEFORE_INCREASE_EFFECTIVE_DATE,
-                    releasePrice, deliveryPrice);
+                    releasePrice, deliveryPrice, externalWrites);
         }
     }
 
     private void upsertPriceHistory(UUID productId, LocalDate effectiveDate,
-                                    BigDecimal releasePrice, BigDecimal deliveryPrice) {
+                                    BigDecimal releasePrice, BigDecimal deliveryPrice,
+                                    ExternalWriteTracker externalWrites) {
         PriceHistory row = priceHistoryRepository
                 .findByProductIdAndEffectiveDate(productId, effectiveDate)
                 .orElseGet(() -> PriceHistory.seed(productId, effectiveDate,
                         releasePrice, deliveryPrice, null));
+        boolean changed = row.getId() == null
+                || !Objects.equals(row.getReleasePrice(), releasePrice)
+                || !Objects.equals(row.getDeliveryPrice(), deliveryPrice);
         if (row.getId() != null) {
             row.changePrices(releasePrice, deliveryPrice);
         }
         priceHistoryRepository.save(row);
+        externalWrites.markIfChanged(changed);
     }
 
     private int findHeaderRow(List<List<Object>> rows) {
@@ -1954,45 +2075,6 @@ public class ProductSheetSyncService {
         }
     }
 
-    private static String sha256(String s) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(s.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : digest) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 always available on JVM
-            return Integer.toHexString(s.hashCode());
-        }
-    }
-
-    /**
-     * 특정 modelCode 의 rowHash 캐시 무효화 — 수동 override 해제 시 호출.
-     *
-     * <p>인메모리 {@link #lastKnownRowHash} 에서 해당 모델의 hash 를 제거하여
-     * 다음 sync 에서 {@code unchanged} 분기를 건너뛰고 usageScope/estimateCategory 를
-     * 시트 기준으로 재분류하도록 강제한다 (지적 [2], PR-B 2026-06-11).
-     *
-     * <p>시트 행 내용이 바뀌지 않았어도 override 해제 후 반드시 재분류가 필요하므로
-     * hash 자체를 제거한다. 제거 후 다음 sync = 신규 insert 가 아닌 hash miss → update 경로.
-     *
-     * @param modelCode override 해제된 품목의 modelCode
-     */
-    public void evictRowHash(String modelCode) {
-        if (modelCode != null) {
-            lastKnownRowHash.remove(modelCode);
-        }
-    }
-
-    /**
-     * 테스트 전용 — 메모리 hash 캐시 초기화.
-     * IT 에서 @BeforeEach 로 호출하여 테스트 간 격리 보장. 운영 코드에서 호출 금지.
-     */
-    public void clearHashCacheForTest() {
-        lastKnownRowHash.clear();
-    }
-
     private String sheetSyncKey(String scope) {
         return sheetId + ":" + scope;
     }
@@ -2040,48 +2122,59 @@ public class ProductSheetSyncService {
      *
      * <p><b>카운터 구분 (사이클2 지적 P3-6, 2026-06-11)</b>:
      * <ul>
-     *   <li>{@code skipped} — 파싱 불가(이름/modelCode 공백) 행 수</li>
-     *   <li>{@code preservedManual} — soft-delete 대상이나 {@code usageScopeManual=true} 로 보존된 품목 수</li>
+     *   <li>{@code skippedOccurrences} — 파싱 불가(이름/modelCode 공백) 행 occurrence 수</li>
+     *   <li>{@code preservedManualProductOccurrences} — soft-delete 대상이나 {@code usageScopeManual=true} 로 보존된 품목 occurrence 수</li>
      * </ul>
      * 두 카운터를 분리하여 sync 리포트에서 "파싱 skip"과 "수동 보존"을 독립적으로 확인 가능.
      */
     public static class TabSyncResult {
-        public int inserted = 0;
-        public int updated = 0;
-        public int unchanged = 0;
-        public int softDeleted = 0;
+        public int insertedRows = 0;
+        public int updatedRows = 0;
+        public int unchangedRows = 0;
+        /** 시트 행 occurrence와 DB 품명이 달라 DB 이름을 보존한 occurrence 수. */
+        public int nameDriftOccurrences = 0;
+        /** 실제로 변경된 PriceHistory/Exposure/ProductSpec 행 수. */
+        public int priceHistoryExposureSpecChangedRows = 0;
+        public int softDeletedProductRows = 0;
         /** 파싱 불가(이름/modelCode 공백) 행 수. */
-        public int skipped = 0;
+        public int skippedOccurrences = 0;
         /** soft-delete 대상이나 usageScopeManual=true 로 삭제 보호된 품목 수 (사이클2 지적 P3-6). */
-        public int preservedManual = 0;
+        public int preservedManualProductOccurrences = 0;
         /**
          * 🚨 2026-07-28 재수렴 R6 결함 5 [MED] fix (I-5) — 탭 매핑이 NONE으로 되돌리려
          * 했으나 활성 수량 동기화 규칙이 참조 중이라 usageScope 갱신을 보류한 품목 수.
-         * preservedManual과 원인이 다르므로(수동 override 보호 vs 규칙 무결성 보호)
+         * preservedManualProductOccurrences와 원인이 다르므로(수동 override 보호 vs 규칙 무결성 보호)
          * 별도 카운터로 집계한다.
          */
-        public int preservedByRule = 0;
+        public int preservedByRuleProductOccurrences = 0;
         /** MIG-8 변환이 잡고 있는 Product reservation 때문에 soft-delete를 보류한 품목 수. */
-        public int deferredByEcountReservation = 0;
-        public int specsLinked = 0;
+        public int deferredByEcountReservationProductOccurrences = 0;
+        public int specsLinkedRows = 0;
         public String error;
     }
 
     /**
      * 전체 sync 집계.
      *
-     * <p>{@code totalPreservedManual} — usageScopeManual=true 로 soft-delete 에서 보호된 품목 합계.
-     * {@code totalSkipped} 와 별도 집계하여 파싱 skip 과 혼용하지 않는다 (사이클2 지적 P3-6).
+     * <p>Product 행 occurrence, 구성품 행 occurrence, 링크 occurrence는 서로 다른 필드로
+     * 노출한다. {@code totalSkippedOccurrences}는 Product와 구성품 occurrence의 합이다.
      */
     public static class SyncSummary {
         public Map<String, TabSyncResult> byTab = new HashMap<>();
         public Map<String, ComponentSyncResult> byComponentTab = new HashMap<>();
-        public int totalInserted = 0;
-        public int totalUpdated = 0;
-        public int totalSoftDeleted = 0;
-        public int totalSkipped = 0;
-        /** usageScopeManual=true 로 soft-delete 보호된 품목 합계 (사이클2 지적 P3-6). */
-        public int totalPreservedManual = 0;
+        public int totalInsertedRows = 0;
+        public int totalUpdatedRows = 0;
+        /** 이름 불일치 occurrence 합계. updatedRows/unchangedRows와 별도로 집계한다. */
+        public int totalNameDriftOccurrences = 0;
+        /** 실제로 변경된 PriceHistory/Exposure/ProductSpec 행 수 합계. */
+        public int totalPriceHistoryExposureSpecChangedRows = 0;
+        public int totalSoftDeletedRows = 0;
+        public int totalSoftDeletedComponentRows = 0;
+        public int totalSkippedOccurrences = 0;
+        /** Product 행 occurrence 중 usageScopeManual=true 로 보존된 occurrence 합계. */
+        public int totalPreservedManualProductOccurrences = 0;
+        /** 구성품 행 occurrence 중 수기 구성품 집합 보호로 보존된 occurrence 합계. */
+        public int totalPreservedManualComponentOccurrences = 0;
         /** 실행을 시도한 전체 탭 수. */
         public int totalTabs = 0;
         /** 예외로 처리되지 못한 탭 수. */
@@ -2089,10 +2182,11 @@ public class ProductSheetSyncService {
         /** 예외 없이 처리된 탭 수. manual 보존/skip은 성공 탭에 포함한다. */
         public int successfulTabs = 0;
         /** 활성 수량 동기화 규칙 참조로 usageScope NONE 전환이 보류된 품목 합계(R6 결함 5). */
-        public int totalPreservedByRule = 0;
-        public int totalComponentsLinked = 0;
-        public int totalBundlesMarked = 0;
-        public int totalSpecsLinked = 0;
+        public int totalPreservedByRuleProductOccurrences = 0;
+        public int totalComponentLinkOccurrences = 0;
+        public int totalBundlesMarkedProducts = 0;
+        public int totalBlockedByRuleOccurrences = 0;
+        public int totalSpecsLinkedRows = 0;
         public long durationMs = 0;
         public String error;
     }

@@ -70,5 +70,29 @@ done
 - 굶은 세션은 **산출물이 0** 이라 `TaskStop` 해도 잃을 것이 없다 — 평소의 *"강제 종료 = 산출물 0"* 경고([[feedback_parallel_backend_tracks_share_docker_stack]])와 **반대 상황**이다. `git status --porcelain` 으로 먼저 확인하고 판단한다.
 - 정지 후 **남은 세션이 재개되는지** 90초 관측으로 확인한다(실측: 즉시 재개됐다).
 
+## 🆕 2026-08-08 — **Workflow 서브에이전트도 같은 부하다** (타임아웃 5건)
+
+codex 를 4개로 유지하면서 **Workflow 2건을 동시에** 돌렸다. Workflow 는 Claude 서브에이전트를
+여럿 띄우므로 같은 머신 CPU 를 놓고 codex 와 경합한다.
+
+```text
+동시    codex 4 + Workflow 2 (서브에이전트 다수)
+결과    7200초 타임아웃 5건 — 그중 4건 산출물 0
+        #1138 S9 는 "결함 하나만" 으로 좁혔는데도 0
+```
+
+🔑 **브리핑을 좁혀도 안 되면 폭이 아니라 부하다.** 좁은 브리핑이 0 을 냈다는 것이
+[[feedback_narrow_briefing_completes_wide_times_out]] 와 구분되는 신호다.
+
+```text
+✅ 동시 부하를 셀 때 Workflow 를 codex 와 같은 칸으로 센다
+   codex 3 + Workflow 1  또는  codex 2 + Workflow 2  정도까지
+🚫 codex 4 + Workflow 2 는 과부하
+✅ Workflow 가 도는 동안에는 codex 를 2~3 으로 낮춘다
+```
+
+⚠️ 이 환경에는 `~/.codex/sessions/**.jsonl` 이 없어 **assistant턴 카운트 진단을 쓸 수 없다.**
+   대신 **좁은 브리핑인데도 산출물 0** 을 굶음의 신호로 쓴다.
+
 ## 관련
 [[feedback_narrow_briefing_completes_wide_times_out]] · [[feedback_throughput_parallel_scope_freeze_batch]] · [[feedback_model_substitution_delegated_to_pm]] · [[feedback_pm_codex_progress_verification]]

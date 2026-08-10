@@ -5,8 +5,11 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductGoodsType;
 import com.samhanair.logis.product.domain.ProductStatus;
+import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -49,7 +52,9 @@ public record ProductSummaryResponse(
         BigDecimal deliveryPrice,
         Boolean hasVariableDiscount,
         String parentSetModelCode,
-        String specification) {
+        String specification,
+        List<EstimateCategory> estimateCategories,
+        ProductCategory productCategory) {
 
     /** parentSetModelCode 추가 전 canonical 호출 호환 생성자. */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
@@ -63,7 +68,7 @@ public record ProductSummaryResponse(
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, null, usageScope, estimateCategory, usageScopeManual, displayOrder,
                 categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
-                hasVariableDiscount, null, null);
+                hasVariableDiscount, null, null, null, null);
     }
 
     /**
@@ -76,7 +81,7 @@ public record ProductSummaryResponse(
                                   boolean usageScopeManual, Integer displayOrder) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, null, usageScope, estimateCategory, usageScopeManual, displayOrder,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -84,8 +89,7 @@ public record ProductSummaryResponse(
      */
     public ProductSummaryResponse(UUID id, String name, String modelName, UUID categoryId,
                                   BigDecimal sellingPrice, ProductStatus status) {
-        this(id, name, modelName, null, categoryId, sellingPrice, status, false, true, null, null,
-                null, null, null, false, null, null, null, null, null, null, null, null, null);
+        this(id, name, modelName, (String) null, categoryId, sellingPrice, status);
     }
 
     /**
@@ -93,8 +97,7 @@ public record ProductSummaryResponse(
      */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, true, null, null,
-                null, null, null, false, null, null, null, null, null, null, null, null, null);
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false);
     }
 
     /**
@@ -104,7 +107,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, true, null, null,
-                null, null, null, false, null, null, null, null, null, null, null, null, null);
+                null, null, null, false, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -114,7 +117,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged, String modelCode, String productType) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, true,
-                modelCode, productType, null, null, null, false, null, null, null, null, null, null, null, null, null);
+                modelCode, productType, null, null, null, false, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -124,7 +127,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged, boolean goods, String modelCode, String productType) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
-                modelCode, productType, null, null, null, false, null, null, null, null, null, null, null, null, null);
+                modelCode, productType, null, null, null, false, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -135,6 +138,11 @@ public record ProductSummaryResponse(
      * @return 경량 요약 응답 (serialManaged = category.isSerialManaged())
      */
     public static ProductSummaryResponse from(Product p) {
+        return from(p, List.of());
+    }
+
+    /** Product 검색 페이지의 활성 견적 노출을 벌크 조회 결과로 주입한다. */
+    public static ProductSummaryResponse from(Product p, List<ProductEstimateExposure> exposures) {
         return new ProductSummaryResponse(
                 p.getId(),
                 p.getName(),
@@ -159,7 +167,12 @@ public record ProductSummaryResponse(
                 p.getDeliveryPrice(),
                 p.getHasVariableDiscount(),
                 null,
-                p.getSpecification());
+                p.getSpecification(),
+                exposures == null ? List.of() : exposures.stream()
+                        .map(ProductEstimateExposure::getEstimateCategory)
+                        .distinct()
+                        .toList(),
+                p.getProductCategory());
     }
 
     /** 내부 소비자가 구성품의 레거시 세트 매칭명을 함께 보존할 때 사용하는 변환. */
@@ -171,7 +184,13 @@ public record ProductSummaryResponse(
                 base.productType(), base.bundleMode(), base.usageScope(), base.estimateCategory(), base.usageScopeManual(),
                 base.displayOrder(), base.categoryKey(), base.fixedDiscountRate(), base.discountFlags(),
                 base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode,
-                base.specification());
+                base.specification(), base.estimateCategories(), base.productCategory());
+    }
+
+    /** 검색 응답의 레거시 goods boolean을 견적 라인 계약인 goodsType으로 노출한다. */
+    @JsonProperty("goodsType")
+    public ProductGoodsType goodsType() {
+        return goods ? ProductGoodsType.GOODS : ProductGoodsType.NON_GOODS;
     }
 
     /**

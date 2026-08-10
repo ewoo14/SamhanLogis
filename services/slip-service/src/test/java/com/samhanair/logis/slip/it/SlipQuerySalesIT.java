@@ -408,6 +408,22 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.partnerName", is("SP0861-DETAIL-SALES")));
     }
 
+    @Test
+    @DisplayName("잠금된 전표 상세 응답은 상태와 무관하게 lockFlag=true 를 노출한다")
+    void testGetSalesDetailIncludesLockFlag() throws Exception {
+        String id = createSlip("OUTBOUND", TODAY, "SP0861-LOCK-FLAG");
+        var slip = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        slip.lock();
+        slipRepository.saveAndFlush(slip);
+
+        mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status", is("DRAFT")))
+                .andExpect(jsonPath("$.data.lockFlag", is(true)));
+    }
+
     /**
      * R2: 단건 GET 응답에 ownerFullName 이 포함된다 (B-01 회고 — SP-08-5-5 패턴).
      */

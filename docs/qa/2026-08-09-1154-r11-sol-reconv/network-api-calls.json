@@ -1,0 +1,146 @@
+[
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:8080/auth/login",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"token\":\"<redacted>\",\"userId\":\"a0000000-0000-0000-0000-000000000001\",\"role\":\"MASTER\",\"displayName\":\"[DEV-SEED] 개발마스터\",\"partnerCode\":null,\"groups\":[{\"id\":\"00000000-0000-0000-0000-000000000100\",\"name\":\"마스터\",\"builtin\":true}]},\"timestamp\":\"2026-08-09T11:50:05.883132623Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:48095/actuator/health",
+    "status": 200,
+    "body": "{\"status\":\"UP\"}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount-xlsx",
+    "status": 200,
+    "body": "{\"totalRows\":7253,\"imported\":0,\"updated\":7253,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":7253,\"suspendedCount\":0,\"sourceFileHash\":\"064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619\",\"rejectedSample\":[{\"rowNumber\":7256,\"reason\":\"EXCLUDED_TRAILER\",\"rawPartnerCode\":\"2026/08/09  오후 12:59:06\",\"rawName\":\"\"}],\"excludedTrailerRows\":1,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":2423,\"createdAtLoadTimeCount\":4830}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":1,\"imported\":0,\"updated\":1,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"ADC8A7FE84F2C98956518E2B6FFDBEB24D46C1D5268311F3ABF86D58AECA08D0\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 400,
+    "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"creditLimit 은 음수 불가\",\"data\":null,\"timestamp\":\"2026-08-09T11:50:41.798014923Z\"}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":1,\"imported\":0,\"updated\":0,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":0,\"suspendedCount\":0,\"sourceFileHash\":\"264D3B946483FB4930D19763073DBD3B339A1E91EDBFE314433B929B6DD3F478\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":1,\"infrastructureFailureSample\":[{\"rowNumber\":3,\"reason\":\"DB_INFRASTRUCTURE\",\"rawPartnerCode\":\"01\",\"rawName\":\"R9 transient infrastructure probe\"}],\"infrastructureFailure\":true,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount-xlsx",
+    "status": 200,
+    "body": "{\"totalRows\":7253,\"imported\":0,\"updated\":7253,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":7253,\"suspendedCount\":0,\"sourceFileHash\":\"064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619\",\"rejectedSample\":[{\"rowNumber\":7256,\"reason\":\"EXCLUDED_TRAILER\",\"rawPartnerCode\":\"2026/08/09  오후 12:59:06\",\"rawName\":\"\"}],\"excludedTrailerRows\":1,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":2423,\"createdAtLoadTimeCount\":4830}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":3,\"imported\":2,\"updated\":0,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":2,\"suspendedCount\":0,\"sourceFileHash\":\"88C380105A16EE8179CE715E835D571F1F4FDF596B2CB987BD79F44DABA4BD95\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":1,\"heldSample\":[{\"rowNumber\":4,\"reason\":\"DB_CONSTRAINT\",\"rawPartnerCode\":\"SOL1154R11-BAD\",\"rawName\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\"}],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":1,\"imported\":1,\"updated\":0,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"29803957C4103421E83B4BDBE04A55AE965AB003E918A50A6E1EA2E94FCE8322\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":2,\"imported\":0,\"updated\":1,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"F16F595176D2D2A667A4DAD556D6C317FE53F5C0736BDEC729AFBB44CF747B81\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":1,\"infrastructureFailureSample\":[{\"rowNumber\":3,\"reason\":\"DB_INFRASTRUCTURE\",\"rawPartnerCode\":\"01\",\"rawName\":\"R10 infra first\"}],\"infrastructureFailure\":true,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":3,\"imported\":0,\"updated\":1,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"DA21A2EB656AD39AE68831FBC1FFF38ECA744C8B27B586DEEB03239113072884\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":1,\"heldSample\":[{\"rowNumber\":4,\"reason\":\"DB_CONSTRAINT\",\"rawPartnerCode\":\"SOL1154R10BOTHBAD\",\"rawName\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\"}],\"infrastructureFailureRows\":1,\"infrastructureFailureSample\":[{\"rowNumber\":3,\"reason\":\"DB_INFRASTRUCTURE\",\"rawPartnerCode\":\"01\",\"rawName\":\"R10 both infra first\"}],\"infrastructureFailure\":true,\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/api/v1/partners/0004/shipping-addresses",
+    "status": 201,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"31dfaeed-7dda-4864-9b74-bd5956c929a1\",\"alias\":\"R9정본참조\",\"zipCode\":\"04524\",\"address\":\"서울특별시 중구\",\"phone\":\"02-0000-0000\",\"receiverName\":\"R9\",\"isDefault\":false,\"memo\":\"R9 UUID 참조 검증\"},\"timestamp\":\"2026-08-09T11:51:35.962762876Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/0004",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T11:51:35.981736076Z\"}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount-xlsx",
+    "status": 200,
+    "body": "{\"totalRows\":7253,\"imported\":0,\"updated\":7253,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":7253,\"suspendedCount\":0,\"sourceFileHash\":\"064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619\",\"rejectedSample\":[{\"rowNumber\":7256,\"reason\":\"EXCLUDED_TRAILER\",\"rawPartnerCode\":\"2026/08/09  오후 12:59:06\",\"rawName\":\"\"}],\"excludedTrailerRows\":1,\"heldParseFailureRows\":0,\"heldSample\":[],\"infrastructureFailureRows\":0,\"infrastructureFailureSample\":[],\"infrastructureFailure\":false,\"registrationDateParsedCount\":2423,\"createdAtLoadTimeCount\":4830}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/api/v1/partners/0004/shipping-addresses/31dfaeed-7dda-4864-9b74-bd5956c929a1",
+    "status": 204,
+    "body": ""
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R11-BEFORE",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:10.933995019Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R11-BAD",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:10.947773090Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R11-AFTER",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:10.959484524Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R11-NEGATIVE",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:10.970621401Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R11-NEG-BEFORE",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:10.980353884Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R11-NEG-AFTER",
+    "status": 404,
+    "body": "{\"success\":false,\"code\":\"NOT_FOUND\",\"message\":\"해당 코드의 거래처를 찾을 수 없습니다: SOL1154R11-NEG-AFTER\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:10.987789796Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R10INFRAFIRSTAFTER",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:10.998179465Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R10BOTHBAD",
+    "status": 404,
+    "body": "{\"success\":false,\"code\":\"NOT_FOUND\",\"message\":\"해당 코드의 거래처를 찾을 수 없습니다: SOL1154R10BOTHBAD\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:11.006004720Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R10BOTHAFTER",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T11:52:11.017730117Z\"}"
+  }
+]

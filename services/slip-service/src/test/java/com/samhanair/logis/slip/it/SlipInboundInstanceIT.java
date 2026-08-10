@@ -19,6 +19,7 @@ import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.SourceOperationContext;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.DeliveryTag;
@@ -118,8 +119,9 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
 
         verify(inventoryClient).inboundInstances(eq(productId), eq("AC-S2"),
                 eq(destinationWarehouseId), eq(2), eq("구매"), eq(slip.getSlipNo()),
-                eq(new BigDecimal("500000.00")));
-        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+                eq(new BigDecimal("500000.00")), any(SourceOperationContext.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -133,9 +135,10 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         slipService.complete(slip.getId());
 
         verify(inventoryClient).inbound(eq(productId), eq(destinationWarehouseId), eq(5),
-                eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")));
+                eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
+                anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
     }
 
     @Test
@@ -153,9 +156,10 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
 
         verify(inventoryClient, times(1)).inboundInstances(eq(serialProductId), eq("AC-S2"),
                 eq(destinationWarehouseId), eq(2), eq("구매"), eq(slip.getSlipNo()),
-                eq(new BigDecimal("500000.00")));
+                eq(new BigDecimal("500000.00")), any(SourceOperationContext.class));
         verify(inventoryClient, times(1)).inbound(eq(batchProductId), eq(destinationWarehouseId),
-                eq(5), eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")));
+                eq(5), eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -170,7 +174,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
 
         verify(inventoryClient).inboundInstances(eq(productId), eq("AC-S2"),
                 eq(destinationWarehouseId), eq(1), eq("차용"), eq(slip.getSlipNo()),
-                eq(new BigDecimal("500000.00")));
+                eq(new BigDecimal("500000.00")), any(SourceOperationContext.class));
     }
 
     @Test
@@ -184,9 +188,10 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         slipService.complete(slip.getId());
 
         verify(inventoryClient).inbound(eq(productId), eq(destinationWarehouseId), eq(3),
-                eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")));
+                eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
+                anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
     }
 
     @Test
@@ -204,8 +209,9 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         verify(inventoryClient).recallInstances(eq("P-S4-IT-001"), eq("AC-S2"),
                 eq(1), eq(slip.getSlipNo()));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
-        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+                anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -223,8 +229,9 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         verify(inventoryClient).recallInstances(eq("P-S4-IT-003"), eq("AC-S2"),
                 eq(1), eq(slip.getSlipNo()));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
-        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+                anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                any(SourceOperationContext.class));
     }
 
     @Test
@@ -246,7 +253,8 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
 
         Slip reloaded = slipRepository.findById(slip.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(SlipStatus.PROCESSING);
-        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
+                any(SourceOperationContext.class));
         verify(inventoryClient, never()).unrecallInstances(anyString(), anyString());
     }
 
@@ -264,7 +272,8 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         when(productClient.requireExists(batchProductId)).thenReturn(product(batchProductId, false));
         doThrow(new BusinessException(ErrorCode.CONFLICT, "batch inbound 실패"))
                 .when(inventoryClient).inbound(eq(batchProductId), eq(destinationWarehouseId), eq(5),
-                        eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")));
+                        eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")),
+                        any(SourceOperationContext.class));
 
         assertThatThrownBy(() -> slipService.complete(slip.getId()))
                 .isInstanceOf(BusinessException.class)
@@ -274,7 +283,8 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         inOrder.verify(inventoryClient).recallInstances(eq("P-S4-IT-004"), eq("AC-S2"),
                 eq(2), eq(slip.getSlipNo()));
         inOrder.verify(inventoryClient).inbound(eq(batchProductId), eq(destinationWarehouseId), eq(5),
-                eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")));
+                eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")),
+                any(SourceOperationContext.class));
         inOrder.verify(inventoryClient).unrecallInstances(eq(slip.getSlipNo()), eq("AC-S2"));
 
         Slip reloaded = slipRepository.findById(slip.getId()).orElseThrow();
@@ -291,7 +301,8 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         doThrow(new BusinessException(ErrorCode.INTERNAL_ERROR, "inventory 실패"))
                 .when(inventoryClient)
                 .inboundInstances(eq(productId), eq("AC-S2"), eq(destinationWarehouseId),
-                        eq(1), eq("구매"), eq(slip.getSlipNo()), eq(new BigDecimal("500000.00")));
+                        eq(1), eq("구매"), eq(slip.getSlipNo()), eq(new BigDecimal("500000.00")),
+                        any(SourceOperationContext.class));
 
         assertThatThrownBy(() -> slipService.complete(slip.getId()))
                 .isInstanceOf(BusinessException.class);

@@ -9,6 +9,7 @@ import {
   type EstimateItemsCatalogSuccessEffects,
 } from './EstimateItemsCatalogPage'
 import type { ProductCatalogRow } from '../api/productCatalogApi'
+import { searchMasterProducts } from './EstimateItemsCatalogPage'
 
 function effects(): EstimateItemsCatalogSuccessEffects & {
   clearMutationError: ReturnType<typeof vi.fn>
@@ -56,6 +57,42 @@ describe('EstimateItemsCatalogPage mutation success wiring', () => {
     expect(fns.clearPatchingCode).toHaveBeenCalledTimes(1)
     expect(fns.closeClassificationModal).not.toHaveBeenCalled()
     expect(fns.invalidateCatalogQueries).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('EstimateItemsCatalogPage master search', () => {
+  it('검색 1회 응답의 메타데이터만 사용하고 목록 API를 건별 재호출하지 않는다', async () => {
+    const searchProducts = vi.fn().mockResolvedValue([
+      {
+        id: 'p-1',
+        modelName: 'NON-GOODS-1',
+        productName: '비상품',
+        modelCode: 'NON-GOODS-1',
+        productCategory: 'SINGLE_PART',
+        usageScope: 'NONE',
+        estimateCategories: [],
+        goodsType: 'NON_GOODS',
+      },
+      {
+        id: 'p-2',
+        modelName: 'MATERIAL-1',
+        productName: '자재',
+        modelCode: 'MATERIAL-1',
+        productCategory: 'MATERIAL',
+        usageScope: 'NONE',
+        estimateCategories: [],
+        goodsType: 'GOODS',
+      },
+    ])
+    const listProducts = vi.fn()
+
+    const result = await searchMasterProducts(searchProducts, 'NON', 'HOME_MULTI')
+
+    expect(result).toHaveLength(1)
+    expect(result[0]?.goodsType).toBe('NON_GOODS')
+    expect(searchProducts).toHaveBeenCalledTimes(1)
+    expect(searchProducts).toHaveBeenCalledWith('NON', { size: 50 })
+    expect(listProducts).not.toHaveBeenCalled()
   })
 })
 

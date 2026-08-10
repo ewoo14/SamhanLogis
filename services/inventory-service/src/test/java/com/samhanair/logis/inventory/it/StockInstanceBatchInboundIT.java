@@ -226,6 +226,9 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
         body.put("inboundSlipNo", inboundSlipNo);
         body.put("unitCost", unitCost.toPlainString());
         body.put("receivedAt", LocalDateTime.of(2026, 6, 1, 9, 0).toString());
+        body.put("sourceContext", Map.of(
+                "sourceOperationId", UUID.randomUUID().toString(),
+                "slipId", productId.toString(), "slipRevision", 1));
         return body;
     }
 

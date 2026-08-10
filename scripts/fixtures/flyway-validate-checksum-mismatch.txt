@@ -1,0 +1,11 @@
+WARNING: Storing migrations in 'sql' is not recommended and default scanning of this location may be deprecated in a future release
+WARNING: This version of Flyway is out of date. Upgrade to Flyway 13.2.0: https://rd.gt/3rXiSlV
+Flyway OSS Edition 10.10.0 by Redgate
+See release notes here: https://rd.gt/416ObMi
+Database: jdbc:postgresql://127.0.0.1:5432/auth_db (PostgreSQL 16.13)
+ERROR: Validate failed: Migrations have failed validation
+Migration checksum mismatch for migration version 1
+-> Applied to database : 123
+-> Resolved locally    : 906221903
+Either revert the changes to the migration, or run repair to update the schema history.
+Need more flexibility with validation rules? Learn more: https://rd.gt/3AbJUZE

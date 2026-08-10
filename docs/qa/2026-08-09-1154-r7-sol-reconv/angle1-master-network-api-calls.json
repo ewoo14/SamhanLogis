@@ -1,0 +1,28 @@
+[
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://localhost:8080/auth/login",
+    "body": "<token redacted>"
+  },
+  {
+    "method": "POST",
+    "status": 201,
+    "url": "http://127.0.0.1:38095/api/v1/partners/00/shipping-addresses"
+  },
+  {
+    "method": "DELETE",
+    "status": 200,
+    "url": "http://127.0.0.1:38095/admin/partners/00"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:38095/admin/partners/imports/ecount-xlsx"
+  },
+  {
+    "method": "DELETE",
+    "status": 204,
+    "url": "http://127.0.0.1:38095/api/v1/partners/00/shipping-addresses/<redacted-id>"
+  }
+]

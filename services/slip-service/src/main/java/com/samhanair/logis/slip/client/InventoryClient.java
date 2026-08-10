@@ -107,10 +107,18 @@ public class InventoryClient {
      * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
      */
     public void deduct(UUID productId, UUID warehouseId, int quantity, boolean fromReservation,
-                       String refType, UUID refId) {
+                       String refType, UUID refId, SourceOperationContext sourceContext) {
         Map<String, Object> body = baseBody(productId, warehouseId, quantity, refType, refId);
         body.put("fromReservation", fromReservation);
+        putSourceContext(body, sourceContext);
         post("/inventory/deduct", body);
+    }
+
+    /** 컨텍스트 없는 구계약은 journal NULL을 만들지 않고 즉시 실패시킨다. */
+    @Deprecated
+    public void deduct(UUID productId, UUID warehouseId, int quantity, boolean fromReservation,
+                       String refType, UUID refId) {
+        throw new IllegalArgumentException("sourceContext 는 재고 mutation 호출에 필수입니다");
     }
 
     /**
@@ -125,13 +133,20 @@ public class InventoryClient {
      * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
      */
     public void inbound(UUID productId, UUID warehouseId, int quantity,
+                        String lotNo, BigDecimal unitCost, SourceOperationContext sourceContext) {
+        inbound(productId, warehouseId, quantity, lotNo, null, unitCost, sourceContext);
+    }
+
+    @Deprecated
+    public void inbound(UUID productId, UUID warehouseId, int quantity,
                         String lotNo, BigDecimal unitCost) {
-        inbound(productId, warehouseId, quantity, lotNo, null, unitCost);
+        throw new IllegalArgumentException("sourceContext 는 재고 mutation 호출에 필수입니다");
     }
 
     /** 입고전표 라인까지 전달하는 멱등 입고 호출. */
     public void inbound(UUID productId, UUID warehouseId, int quantity,
-                        String lotNo, UUID inboundLineId, BigDecimal unitCost) {
+                        String lotNo, UUID inboundLineId, BigDecimal unitCost,
+                        SourceOperationContext sourceContext) {
         Map<String, Object> body = new HashMap<>();
         body.put("productId", productId.toString());
         body.put("warehouseId", warehouseId.toString());
@@ -145,7 +160,14 @@ public class InventoryClient {
         if (unitCost != null) {
             body.put("unitCost", unitCost);
         }
+        putSourceContext(body, sourceContext);
         post("/inventory/lots/inbound", body);
+    }
+
+    @Deprecated
+    public void inbound(UUID productId, UUID warehouseId, int quantity,
+                        String lotNo, UUID inboundLineId, BigDecimal unitCost) {
+        throw new IllegalArgumentException("sourceContext 는 재고 mutation 호출에 필수입니다");
     }
 
     /**
@@ -162,7 +184,8 @@ public class InventoryClient {
      * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
      */
     public void inboundInstances(UUID productId, String productCode, UUID warehouseId, int quantity,
-                                 String inboundType, String inboundSlipNo, BigDecimal unitCost) {
+                                 String inboundType, String inboundSlipNo, BigDecimal unitCost,
+                                 SourceOperationContext sourceContext) {
         Map<String, Object> body = new HashMap<>();
         body.put("productId", productId.toString());
         body.put("productCode", productCode);
@@ -174,7 +197,14 @@ public class InventoryClient {
         if (unitCost != null) {
             body.put("unitCost", unitCost);
         }
+        putSourceContext(body, sourceContext);
         post("/inventory/instances/batch", body);
+    }
+
+    @Deprecated
+    public void inboundInstances(UUID productId, String productCode, UUID warehouseId, int quantity,
+                                 String inboundType, String inboundSlipNo, BigDecimal unitCost) {
+        throw new IllegalArgumentException("sourceContext 는 재고 mutation 호출에 필수입니다");
     }
 
     /**
@@ -207,7 +237,8 @@ public class InventoryClient {
      * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
      */
     public void shipInstances(String outboundSlipNo, String productCode,
-                              String partnerCode, LocalDateTime outboundAt) {
+                              String partnerCode, LocalDateTime outboundAt,
+                              SourceOperationContext sourceContext) {
         Map<String, Object> body = new HashMap<>();
         body.put("outboundSlipNo", outboundSlipNo);
         body.put("productCode", productCode);
@@ -217,7 +248,14 @@ public class InventoryClient {
         if (outboundAt != null) {
             body.put("outboundAt", outboundAt);
         }
+        putSourceContext(body, sourceContext);
         post("/inventory/instances/ship-batch", body);
+    }
+
+    @Deprecated
+    public void shipInstances(String outboundSlipNo, String productCode,
+                              String partnerCode, LocalDateTime outboundAt) {
+        throw new IllegalArgumentException("sourceContext 는 재고 mutation 호출에 필수입니다");
     }
 
     /**
@@ -282,6 +320,26 @@ public class InventoryClient {
             body.put("referenceId", refId.toString());
         }
         return body;
+    }
+
+    private static void putSourceContext(Map<String, Object> body, SourceOperationContext sourceContext) {
+        if (sourceContext == null) {
+            throw new IllegalArgumentException("sourceContext 는 재고 mutation 호출에 필수입니다");
+        }
+        Map<String, Object> source = new HashMap<>();
+        if (sourceContext.sourceOperationId() != null) {
+            source.put("sourceOperationId", sourceContext.sourceOperationId().toString());
+        }
+        if (sourceContext.slipId() != null) {
+            source.put("slipId", sourceContext.slipId().toString());
+        }
+        if (sourceContext.slipRevision() != null) {
+            source.put("slipRevision", sourceContext.slipRevision());
+        }
+        if (source.get("slipId") == null || source.get("slipRevision") == null) {
+            throw new IllegalArgumentException("sourceContext 의 slipId/slipRevision 은 필수입니다");
+        }
+        body.put("sourceContext", source);
     }
 
     private void post(String path, Map<String, Object> body) {

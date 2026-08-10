@@ -23,7 +23,7 @@
  *   <li>POST /inventory/balances/batch → warehouseType + availableQty/reservedQty/totalQty 포함.
  *       BK-001 창고는 응답에 없음 → FE 가 0/0/0 으로 채움.</li>
  *   <li>주문/슬립 상세 mock 라인 productId 포함 (Phase 2.6d mock 보강).</li>
- *   <li>Mock 기준 p-aj040/HQ-001: totalQty=12, reservedQty=2 → availableQty=10.</li>
+ *   <li>Mock 기준 AJ040/HQ-001: totalQty=12, reservedQty=2 → availableQty=10.</li>
  * </ul>
  *
  * <h2>no-fake-data 원칙 ([[feedback_no_fake_data_ever]])</h2>
@@ -162,7 +162,7 @@ test.describe('주문서 상세 — 재고조회 모달', () => {
     await expect(modal).toContainText('실')
     await expect(modal).toContainText('예약')
 
-    // B-1: HQ-001 셀 실수치 단언 (mock: p-aj040/HQ-001 → total=12, reserved=2, available=10)
+    // B-1: HQ-001 셀 실수치 단언 (mock: AJ040/HQ-001 → total=12, reserved=2, available=10)
     const hqCell = modal.getByTestId('inventory-lookup-cell-AJ040RXH4BC1-HQ-001')
     await expect(hqCell).toContainText('10')   // 가용
     await expect(hqCell).toContainText('12')   // 실
@@ -190,7 +190,7 @@ test.describe('주문서 상세 — 재고조회 모달', () => {
     // R-2: 0토글 OFF 기본값 — BK-001 미노출 (batch에 없으므로 총 0)
     await expect(modal).not.toContainText('BK-001')
 
-    // R-2: 0토글 OFF — total=0 창고(p-aj040/CS-001) 숨김 단언
+    // R-2: 0토글 OFF — total=0 창고(AJ040/CS-001) 숨김 단언
     await expect(modal).not.toContainText('CS-001')
 
     // 0수량 창고 토글 ON
@@ -432,7 +432,7 @@ test.describe('주문서 상세 — 세트(BUNDLE) 재고 가드', () => {
     page,
   }) => {
     await installAuthMock(page)
-    // ord-bundle-mixed: BUNDLE 1 + SINGLE(p-aj040) 1
+    // ord-bundle-mixed: BUNDLE 1 + SINGLE(AJ040) 1
     await gotoPartnerOrderDetail(page, 'ord-bundle-mixed')
 
     const btn = page.getByTestId('partner-order-inventory-lookup-btn')
@@ -454,7 +454,7 @@ test.describe('주문서 상세 — 세트(BUNDLE) 재고 가드', () => {
     await expect(mixedNotice).toContainText('세트 1건은 제외됨')
     await expect(page.getByTestId('inventory-lookup-bundle-only-notice')).toHaveCount(0)
 
-    // 단품(AJ040)은 매트릭스로 조회됨 — 셀 실수치 단언(mock: p-aj040/HQ-001 → 가용 10)
+    // 단품(AJ040)은 매트릭스로 조회됨 — 셀 실수치 단언(mock: AJ040/HQ-001 → 가용 10)
     const hqCell = modal.getByTestId('inventory-lookup-cell-AJ040RXH4BC1-HQ-001')
     await expect(hqCell).toContainText('10')
 

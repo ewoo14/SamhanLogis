@@ -1,0 +1,66 @@
+{
+  "safety": {
+    "http": 200,
+    "total": 7,
+    "identifiable": 1,
+    "stale": 6,
+    "rows": [
+      {
+        "productId": "<redacted-id>",
+        "productCode": null,
+        "productName": null
+      },
+      {
+        "productId": "<redacted-id>",
+        "productCode": null,
+        "productName": null
+      },
+      {
+        "productId": "<redacted-id>",
+        "productCode": null,
+        "productName": null
+      },
+      {
+        "productId": "<redacted-id>",
+        "productCode": null,
+        "productName": null
+      },
+      {
+        "productId": "<redacted-id>",
+        "productCode": null,
+        "productName": null
+      },
+      {
+        "productId": "<redacted-id>",
+        "productCode": null,
+        "productName": null
+      },
+      {
+        "productId": "<redacted-id>",
+        "productCode": "ACL-KORGHP07",
+        "productName": "ACL-KORGHP07"
+      }
+    ]
+  },
+  "collaboration": {
+    "estimateNo": "2026/08/10-8",
+    "runs": [
+      {
+        "run": 1,
+        "durationMs": 388,
+        "synced": true
+      },
+      {
+        "run": 2,
+        "durationMs": 383,
+        "synced": true
+      },
+      {
+        "run": 3,
+        "durationMs": 379,
+        "synced": true
+      }
+    ],
+    "restoredMemo": "R12-1095-STATUS 실제 사용자 저장 표본"
+  }
+}

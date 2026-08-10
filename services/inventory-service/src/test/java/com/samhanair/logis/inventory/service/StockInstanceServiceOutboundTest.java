@@ -38,6 +38,9 @@ class StockInstanceServiceOutboundTest {
     @Mock
     private ProductClient productClient;
 
+    @Mock
+    private SourceOperationJournalWriter sourceJournalWriter;
+
     @InjectMocks
     private StockInstanceService service;
 
@@ -52,6 +55,21 @@ class StockInstanceServiceOutboundTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
 
+        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("NON_GOODS 품목은 reserveBatch를 재고 없이 no-op 처리한다")
+    void reserveBatch_nonGoods_skipsWithoutReservation() {
+        UUID productId = UUID.randomUUID();
+        when(productClient.requireExistsByCode("FREIGHT-001"))
+                .thenReturn(product(productId, "FREIGHT-001", false, false));
+
+        List<StockInstance> result = service.reserveBatch(
+                "FREIGHT-001", UUID.randomUUID(), 1, "2026/08/09-1");
+
+        assertThat(result).isEmpty();
         verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
                 any(), any(), any(), any());
     }
@@ -416,8 +434,13 @@ class StockInstanceServiceOutboundTest {
     }
 
     private ProductSummary product(UUID productId, String productCode, boolean serialManaged) {
+        return product(productId, productCode, serialManaged, true);
+    }
+
+    private ProductSummary product(UUID productId, String productCode, boolean serialManaged,
+                                   boolean goods) {
         return new ProductSummary(productId, "테스트 품목", "MODEL-S3", productCode,
-                null, new BigDecimal("500000"), "ACTIVE", serialManaged);
+                null, new BigDecimal("500000"), "ACTIVE", serialManaged, goods, "SINGLE");
     }
 
     private StockInstance instance(UUID productId, String productCode, UUID warehouseId, LocalDateTime receivedAt) {

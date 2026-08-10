@@ -101,6 +101,7 @@ export interface ProductCatalogRow {
   releasePrice: number | null
   /** 배송 단가 */
   deliveryPrice: number | null
+  goodsType: ProductGoodsType | null
   /** 고정DC율(%) */
   fixedDiscountRate?: number | string | null
   /** 변동DC 적용 여부 */
@@ -528,6 +529,18 @@ export async function updateProductVariableDiscount(
   const res = await apiClient.patch<ProductCatalogRow>(
     `/api/v1/products/${encodeURIComponent(modelCode)}/variable-discount`,
     req,
+  )
+  return res.data
+}
+
+/** 견적품목 메뉴에서 상품/비상품 선언을 품목 마스터에 저장한다. */
+export async function updateProductGoodsType(
+  modelCode: string,
+  goodsType: ProductGoodsType,
+): Promise<ProductCatalogRow> {
+  const res = await apiClient.patch<ProductCatalogRow>(
+    `/api/v1/products/${encodeURIComponent(modelCode)}/goods-type`,
+    { goodsType },
   )
   return res.data
 }

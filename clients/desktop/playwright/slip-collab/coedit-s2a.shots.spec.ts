@@ -31,6 +31,8 @@
  *   node_modules/.bin/playwright test playwright/slip-collab/coedit-s2a.shots.spec.ts --reporter=line
  *   (기본 playwright.config.ts — VITE_MOCK_MODE=1 웹서버 자동 기동)
  */
+
+const MOCK_PRODUCT_AJ040_ID = '2e40fa30-10b2-3a9b-a99c-570ac92287ad'
 import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -143,7 +145,7 @@ function buildDocCoeditSeed(): CoeditSeedResult {
     // items (Y.Map per row — plain string 값, SAMPLE_LINES 3건 반영)
     const item0 = new Y.Map<unknown>()
     item0.set('lineId', 'line-001')
-    item0.set('productId', 'p-aj040')
+    item0.set('productId', MOCK_PRODUCT_AJ040_ID)
     item0.set('productName', '시스템에어컨 4Way 4HP')
     item0.set('modelName', 'AJ040RXH4BC1')
     item0.set('specification', '4HP')

@@ -23,7 +23,7 @@
  * - admin-partners-create-btn
  * - admin-partners-excel-export (P1-6 신규)
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
@@ -48,9 +48,11 @@ import { PARTNER_TYPE_LABEL, type PartnerType } from '../../api/partnerApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
 import { PartnerListRealtimeClient } from '../../realtime/PartnerListRealtimeClient'
+import { importPartnerFile, type PartnerImportResult } from '../../api/partnerImportApi'
 import { useCollectionRealtime } from '../../realtime/useCollectionRealtime'
 import { PartnerDetailDialog } from './PartnerDetailDialog'
 import styles from './PartnersPage.module.css'
+import { PartnerImportRejectionPanel } from './PartnerImportRejectionPanel'
 import {
   PARTNER_DELETED_ROW_TEXT_STYLE,
   deletedBadgeAriaLabel,
@@ -95,6 +97,7 @@ export function PartnersPage() {
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canExport = canAccess('partners.edit', 'download')
+  const canImport = canAccess('partners.edit', 'create')
   const canDelete = canAccess('partners.delete', 'delete')
   const canRestore = canAccess('partners.delete', 'restore')
   const canCreateFourTab = canAccess('partners.4tab', 'create')
@@ -116,6 +119,26 @@ export function PartnersPage() {
     null,
   )
   const [dialogOpen, setDialogOpen] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const [importResult, setImportResult] = useState<PartnerImportResult | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+
+  async function handlePartnerFile(file: File | undefined) {
+    if (!file) return
+    setImporting(true)
+    setImportError(null)
+    try {
+      const result = await importPartnerFile(file)
+      setImportResult(result)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'partners'] })
+    } catch {
+      setImportError('거래처 파일 적재에 실패했습니다. 파일 형식과 권한을 확인하세요.')
+    } finally {
+      setImporting(false)
+      if (importInputRef.current) importInputRef.current.value = ''
+    }
+  }
 
   const partnerListQueryKey = useMemo<QueryKey>(
     () => ['admin', 'partners', q, statusFilter, typeFilter, page],
@@ -372,6 +395,28 @@ export function PartnersPage() {
               Excel 다운로드
             </Button>
           ) : null}
+          {canImport ? (
+            <>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".csv,.xls,.xlsx"
+                hidden
+                data-testid="admin-partners-import-input"
+                onChange={(event) => void handlePartnerFile(event.target.files?.[0])}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={importing}
+                disabled={importing}
+                onClick={() => importInputRef.current?.click()}
+                data-testid="admin-partners-import-btn"
+              >
+                거래처 파일 적재
+              </Button>
+            </>
+          ) : null}
           {canCreateFourTab ? (
             <Button
               variant="primary"
@@ -450,6 +495,18 @@ export function PartnersPage() {
         </div>
       ) : null}
       <ExcelDownloadError error={downloadError} testId="admin-partners-excel-error" />
+      {importError ? <div role="alert" data-testid="admin-partners-import-error">{importError}</div> : null}
+      {importResult ? (
+        <section aria-label="거래처 적재 결과" data-testid="admin-partners-import-result">
+          <h4>거래처 적재 결과</h4>
+          <p>
+            전체 {importResult.totalRows.toLocaleString()}건 · 신규 {importResult.imported.toLocaleString()}건 · 갱신 {importResult.updated.toLocaleString()}건
+          </p>
+          {importResult.heldParseFailureRows + importResult.rejectedNullName + importResult.skippedPlaceholder > 0 ? (
+            <PartnerImportRejectionPanel sourceFileHash={importResult.sourceFileHash} />
+          ) : <p>보류·거부 행이 없습니다.</p>}
+        </section>
+      ) : null}
 
       {/* 테이블 */}
       <div data-testid="admin-partners-table">

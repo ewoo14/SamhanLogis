@@ -9,13 +9,22 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 거래처 마스터 저장소 — partnerCode lookup (M5 의존성 해소) + 관리자 검색. */
 @Repository
 public interface PartnerRepository extends JpaRepository<Partner, UUID> {
+
+    /** 이카운트 이관의 등록일자를 created_at에 보존한다 (partner 전용, 감사 전역 동작 비변경). */
+    @Transactional
+    @Modifying(flushAutomatically = true)
+    @Query(value = "UPDATE partners SET created_at = :createdAt WHERE id = :partnerId", nativeQuery = true)
+    int overrideCreatedAtForImport(@Param("partnerId") UUID partnerId,
+                                   @Param("createdAt") java.time.LocalDateTime createdAt);
 
     /** 거래처 코드 lookup — slip-service /internal/partners/{partnerCode} 호출의 핵심 query. */
     Optional<Partner> findByPartnerCode(String partnerCode);
