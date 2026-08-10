@@ -328,6 +328,14 @@ const FIELD_LABEL: Record<string, string> = {
 }
 
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** actorName 이 없거나 UUID 로 오염된 과거 값이면 사용자에게 식별자를 표시하지 않는다. */
+function displayWarehouseActor(actorId: string, actorName: string | null): string {
+  if (actorId === SYSTEM_ACTOR_ID) return '시스템'
+  if (!actorName || UUID_RE.test(actorName.trim())) return '변경자 미상'
+  return actorName
+}
 
 interface AuditTimelineProps {
   rows: WarehouseAuditLog[]
@@ -351,10 +359,7 @@ function AuditTimeline({ rows, onRevert, revertingRevision }: AuditTimelineProps
       {sortedRevisions.map((rev) => {
         const group = grouped.get(rev)!
         const head = group[0]!
-        const actorDisplay =
-          head.actorId === SYSTEM_ACTOR_ID
-            ? '시스템'
-            : (head.actorName ?? head.actorId.slice(0, 8))
+        const actorDisplay = displayWarehouseActor(head.actorId, head.actorName)
         // isDeleted revert 는 미지원 — group 내 isDeleted 필드만 있는 경우 버튼 숨김
         const revertable = group.some((r) => r.fieldName && r.fieldName !== 'isDeleted')
         const isReverting = revertingRevision === rev

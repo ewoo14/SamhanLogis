@@ -348,7 +348,7 @@ public class WarehouseService {
             return;
         }
         UUID actorId = parseCallerUuid(callerId);
-        String actorName = (callerId == null || callerId.isBlank()) ? "system" : callerId;
+        String actorName = (callerId == null || callerId.isBlank()) ? "system" : null;
         try {
             auditLogRecorder.recordBatch(warehouseId, actorId, actorName, null, changes);
         } catch (RuntimeException ex) {

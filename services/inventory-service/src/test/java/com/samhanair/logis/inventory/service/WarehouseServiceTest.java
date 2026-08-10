@@ -3,6 +3,10 @@ package com.samhanair.logis.inventory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
@@ -10,6 +14,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.inventory.realtime.service.InventoryAuditLogRecorder;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
@@ -29,6 +34,9 @@ class WarehouseServiceTest {
 
     @Mock
     private WarehouseRepository warehouseRepository;
+
+    @Mock
+    private InventoryAuditLogRecorder auditLogRecorder;
 
     @InjectMocks
     private WarehouseService service;
@@ -105,6 +113,19 @@ class WarehouseServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    void update_uuidCaller_doesNotPersistUuidAsActorName() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("감사 창고", null, null, null, null),
+                callerId.toString());
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), isNull(), isNull(), anyList());
     }
 
     @Test
