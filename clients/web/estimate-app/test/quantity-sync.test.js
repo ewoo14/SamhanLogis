@@ -76,7 +76,7 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
     expect(derived.indexOf('recomputeHomeRemotes();')).toBeGreaterThan(derived.indexOf('const serverOwnedTargets ='));
   });
 
-  test('규칙 적용 뒤 옵션 계약을 호스·리모컨·판넬 순서로 한 번 재수렴한다', () => {
+  test('규칙 적용 뒤 제외 계열만 재수렴하고 비제외 target은 보존한다', () => {
     const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
     const derived = source.slice(source.indexOf('function recomputeHomeDerived('));
     const apply = source.slice(source.indexOf('function applyServerHomeQuantitySync_()'), source.indexOf('/* 홈파생계산 */'));
@@ -84,9 +84,14 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
     const optionReconciliation = derived.slice(serverApply);
 
     expect(apply).not.toContain('recomputeHomeRemotes();');
-    expect(optionReconciliation).toContain('recomputeHomeHoses_();');
-    expect(optionReconciliation.indexOf('recomputeHomeHoses_();')).toBeLessThan(optionReconciliation.indexOf('recomputeHomeRemotes();'));
-    expect(optionReconciliation.indexOf('recomputeHomeRemotes();')).toBeLessThan(optionReconciliation.indexOf('recomputeHomePanels();'));
+    expect(optionReconciliation).toContain('reconcileExcludedHomeFamily');
+    expect(optionReconciliation).toContain("!!el('#home_no_hose')?.checked");
+    expect(optionReconciliation).toContain("el('#home_panel')?.value === '판넬제외'");
+    expect(optionReconciliation).toContain("el('#home_remote')?.value === '제외'");
+    expect(optionReconciliation).toContain('configuredRemoteQuantities.forEach');
+    expect((optionReconciliation.match(/recomputeHomeRemotes\(\);/g) || []).length).toBe(1);
+    expect(optionReconciliation).toContain('recomputeHomePanels,');
+    expect(source).toContain('const FOOT_FLAT_MODELS=HOMEMULTI');
   });
 
   test('유연호스 I형 옵션은 4WAY target도 I형으로 전환한다', () => {

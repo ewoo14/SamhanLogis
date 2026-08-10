@@ -27,6 +27,31 @@ function homeQuantitySyncRule(sourceCode, targetCode, multiplier = 1) {
   };
 }
 
+function realHomeQuantityInput({ family, sourceCode, targetCode, optionSelector, optionValue, quantitySyncRules }) {
+  const fixture = fixtures.find((item) => item.family === family);
+  const homeRows = fixture.catalog.home
+    .filter((row) => !['FH-LFHLF4W', 'FH-LFHIF4W'].includes(row.model));
+  const extraRows = [
+    { model: 'AJ020BN1PBC1', name: '실내기 1WAY WIFI 중형', unit: 'EA' },
+    { model: 'FH-LFHLN', name: '유연호스 L형 4WAY', unit: 'EA' },
+    { model: 'SI-AL600A', name: 'SI-AL600A 일자발', unit: 'EA' },
+  ];
+  const knownModels = new Set(homeRows.map((row) => row.model));
+  extraRows.forEach((row) => {
+    if (!knownModels.has(row.model)) homeRows.push(row);
+  });
+
+  return {
+    ...inputFor({
+      ...fixture,
+      catalog: { ...fixture.catalog, home: homeRows },
+      sourceQuantities: { [sourceCode]: 2 },
+      options: { ...fixture.options, dom: { ...fixture.options.dom, [optionSelector]: optionValue } },
+    }),
+    quantitySyncRules: quantitySyncRules ?? [homeQuantitySyncRule(sourceCode, targetCode)],
+  };
+}
+
 function replaceOnce(source, from, to) {
   if (!source.includes(from)) throw new Error(`뮤테이션 지점을 찾지 못했습니다: ${from}`);
   return source.replace(from, to);
@@ -321,6 +346,141 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     });
 
     expect(actual.quantities[targetCode] || 0).toBe(4);
+  });
+
+  test.each([
+    ['호스', 'AJ020BN1PBC1', 'FH-LFHLN', '#home_no_hose', true],
+    ['판넬', 'AJ020BN1PBC1', 'PC6NUDK1NW', '#home_panel', '판넬제외'],
+    ['리모컨', 'AJ020BN1PBC1', 'AWR-WE13N', '#home_remote', '제외'],
+    ['발통', 'AJ060MXHNBC1', 'SI-AL600A', '#home_foot', false],
+  ])('R17 RED-A: %s 제외 옵션은 실 규칙 target을 0으로 만든다', (label, sourceCode, targetCode, optionSelector, optionValue) => {
+    const family = targetCode === 'SI-AL600A' ? 'H-08' : 'H-01';
+    const actual = evaluateLegacyQuantityBoundary(realHomeQuantityInput({
+      family,
+      sourceCode,
+      targetCode,
+      optionSelector,
+      optionValue,
+    }));
+
+    expect(actual.quantities[targetCode] || 0).toBe(0);
+  });
+
+  test.each([
+    ['호스', 'AJ020BN1PBC1', 'FH-LFHLN', '#home_no_hose', false],
+    ['판넬', 'AJ020BN1PBC1', 'PC6NUDK1NW', '#home_panel', '기본'],
+    ['리모컨', 'AJ020BN1PBC1', 'AWR-WE13N', '#home_remote', '기본'],
+    ['발통', 'AJ060MXHNBC1', 'SI-AL600A', '#home_foot', true],
+  ])('R17 RED-B: %s 비제외 옵션은 실 규칙 target 2를 보존한다', (label, sourceCode, targetCode, optionSelector, optionValue) => {
+    const family = targetCode === 'SI-AL600A' ? 'H-08' : 'H-01';
+    const actual = evaluateLegacyQuantityBoundary(realHomeQuantityInput({
+      family,
+      sourceCode,
+      targetCode,
+      optionSelector,
+      optionValue,
+    }));
+
+    expect(actual.quantities[targetCode] || 0).toBe(2);
+  });
+
+  const r17FamilyMatrix = [
+    {
+      label: '호스', family: 'H-01', sourceCode: 'AJ020BN1PBC1', targetCode: 'FH-LFHLN',
+      nonOwnedTarget: 'PC6NUDK1NW', optionSelector: '#home_no_hose', options: [true, false],
+    },
+    {
+      label: '판넬', family: 'H-01', sourceCode: 'AJ020BN1PBC1', targetCode: 'PC6NUDK1NW',
+      nonOwnedTarget: 'FH-LFHLN', optionSelector: '#home_panel', options: ['판넬제외', '기본'],
+    },
+    {
+      label: '리모컨', family: 'H-01', sourceCode: 'AJ020BN1PBC1', targetCode: 'AWR-WE13N',
+      nonOwnedTarget: 'FH-LFHLN', optionSelector: '#home_remote', options: ['제외', '기본'],
+    },
+    {
+      label: '분기관', family: 'H-07', sourceCode: 'AM020BN1PBH1', targetCode: 'AXJ-YA1509N',
+      nonOwnedTarget: 'PC6NUDK1NW', optionSelector: '#home_no_branch', options: [true, false],
+    },
+    {
+      label: '발통', family: 'H-08', sourceCode: 'AJ060MXHNBC1', targetCode: 'SI-AL600A',
+      nonOwnedTarget: 'FH-LFHLN', optionSelector: '#home_foot', options: [false, true],
+    },
+  ];
+
+  test.each(r17FamilyMatrix.flatMap((familyCase) => familyCase.options.flatMap((optionValue) => [
+    [familyCase, optionValue, '0건'],
+    [familyCase, optionValue, '소유'],
+    [familyCase, optionValue, '비소유'],
+  ])))('R17 matrix: %s · 옵션=%s · 규칙=%s', (familyCase, optionValue, ruleState) => {
+    const ruleTarget = ruleState === '소유' ? familyCase.targetCode : familyCase.nonOwnedTarget;
+    const actual = evaluateLegacyQuantityBoundary(realHomeQuantityInput({
+      family: familyCase.family,
+      sourceCode: familyCase.sourceCode,
+      targetCode: ruleTarget,
+      optionSelector: familyCase.optionSelector,
+      optionValue,
+      quantitySyncRules: ruleState === '0건' ? [] : [homeQuantitySyncRule(familyCase.sourceCode, ruleTarget)],
+    }));
+    const legacy = evaluateLegacyQuantityBoundary(realHomeQuantityInput({
+      family: familyCase.family,
+      sourceCode: familyCase.sourceCode,
+      targetCode: familyCase.targetCode,
+      optionSelector: familyCase.optionSelector,
+      optionValue,
+      quantitySyncRules: [],
+    }));
+
+    if (ruleState === '소유') {
+      const excluded = familyCase.label === '발통' ? optionValue === false
+        : familyCase.label === '분기관' ? optionValue === true
+          : optionValue === true || optionValue === '판넬제외' || optionValue === '제외';
+      expect(actual.quantities[familyCase.targetCode] || 0).toBe(excluded ? 0 : 2);
+    } else {
+      expect(actual.quantities[familyCase.targetCode] || 0).toBe(legacy.quantities[familyCase.targetCode] || 0);
+    }
+  });
+
+  test('R17 guard: 리모컨 규칙 target은 재계산을 반복해도 2→4로 누적되지 않는다', () => {
+    const result = evaluateLegacyQuantityBoundary({
+      ...realHomeQuantityInput({
+        family: 'H-01',
+        sourceCode: 'AJ020BN1PBC1',
+        targetCode: 'AWR-WE13N',
+        optionSelector: '#home_remote',
+        optionValue: '기본',
+      }),
+      recomputeHomeDerivedCount: 3,
+    });
+
+    expect(result.detail.recomputeSequence.map((quantities) => quantities['AWR-WE13N'] || 0)).toEqual([2, 2, 2]);
+  });
+
+  test('R17 RED-B guard: 규칙 0건 golden과 분기관·발통 수동잠금 계약을 유지한다', () => {
+    fixtures.forEach((fixture) => {
+      expect(evaluateLegacyQuantityBoundary(inputFor(fixture)).quantities).toEqual(estimateGoldens[fixture.family]);
+    });
+    optionFixtures.forEach((fixture) => {
+      expect(evaluateLegacyQuantityBoundary(inputFor(fixture)).quantities).toEqual(estimateOptionGoldens[fixture.id]);
+    });
+
+    const branchFixture = fixtures.find((item) => item.family === 'H-07');
+    const branch = evaluateLegacyQuantityBoundary({
+      ...inputFor({
+        ...branchFixture,
+        sourceQuantities: { ...branchFixture.sourceQuantities, 'AXJ-YA1509N': 77 },
+      }),
+      manualLocks: { home: { branch: ['AXJ-YA1509N'] } },
+    });
+    const footFixture = fixtures.find((item) => item.family === 'H-08');
+    const foot = evaluateLegacyQuantityBoundary({
+      ...inputFor({
+        ...footFixture,
+        sourceQuantities: { ...footFixture.sourceQuantities, '발통세트': 77 },
+      }),
+      manualLocks: { home: { foot: ['발통세트'] } },
+    });
+    expect(branch.quantities['AXJ-YA1509N']).toBe(77);
+    expect(foot.quantities['발통세트']).toBe(77);
   });
 
   const mutation = process.env.LEGACY_MUTATION;

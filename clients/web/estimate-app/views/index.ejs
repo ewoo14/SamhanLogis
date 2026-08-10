@@ -4522,7 +4522,10 @@ const _HOSE_I_4W=(HOMEMULTI.find(r=>/유연호스.*(I형|아이형).*(4\s*-?\s*W
 const _HOSE_I_ANY=(HOMEMULTI.find(r=>/유연호스.*(I형|아이형)(?!.*(1\s*-?\s*WAY|4\s*-?\s*WAY|1WAY|4WAY))/i.test(r?.name||''))||{}).model||(HOMEMULTI.find(r=>/유연호스.*(I형|아이형)/i.test(r?.name||''))||{}).model||'';
 const HOSE_1W=_HOSE_L_1W,HOSE_4W=_HOSE_L_4W,HOSE_I_1W=_HOSE_I_1W||_HOSE_I_ANY,HOSE_I_4W=_HOSE_I_4W||'';
 const FOOT_ROUND=(HOMEMULTI.find(r=>/원형발통\s*세트|발통세트/i.test(r?.name||''))||{}).model||'';
-const FOOT_FLAT=(HOMEMULTI.find(r=>/SI-AL700a/i.test(r?.model||''))||{}).model||'';
+const FOOT_FLAT_MODELS=HOMEMULTI
+  .filter(r=>/^(SI-AL600A|SI-AL700a)$/i.test(String(r?.model||'')))
+  .map(r=>String(r.model||''));
+const FOOT_FLAT=FOOT_FLAT_MODELS[0]||'';
 const REMOTE_WIRED=(HOMEMULTI.find(r=>/유선\s*리모컨(?!.*컬러)/i.test(r?.name||''))||{}).model||null;
 const REMOTE_WIRED_COLOR=(HOMEMULTI.find(r=>/컬러\s*유선\s*리모컨/i.test(r?.name||''))||{}).model||null;
 const REMOTE_WIRED_KIT=(HOMEMULTI.find(r=>/(유선\s*리모컨\s*키트|유선\s*키트|리모컨\s*키트)/i.test(r?.name||''))||{}).model||null;
@@ -4547,7 +4550,7 @@ const SEND_AS_SET_IDS=new Set([SS_FOOT_ROUND_ID,SS_FOOT_FLAT_ID,SS_WIRED_BOARD_I
 const AUTO_HOME_MODELS=new Set();const AUTO_SINGLE_IDS=new Set();
 function markAutoHome(...m){m.filter(Boolean).forEach(x=>AUTO_HOME_MODELS.add(x));}
 function markAutoSingle(...ids){ids.filter(Boolean).forEach(x=>AUTO_SINGLE_IDS.add(x));}
-markAutoHome(HOSE_1W,HOSE_4W,HOSE_I_1W,HOSE_I_4W,BRANCH_2512,BRANCH_1509,FOOT_ROUND,FOOT_FLAT,REMOTE_WIRELESS,REMOTE_WIRED,REMOTE_WIRED_COLOR,REMOTE_WIRED_KIT,REMOTE_360_DEFAULT,REMOTE_INF_DEFAULT,REMOTE_COLOR_AIRCOMBO,...Object.values(PANEL_MODELS));
+markAutoHome(HOSE_1W,HOSE_4W,HOSE_I_1W,HOSE_I_4W,BRANCH_2512,BRANCH_1509,FOOT_ROUND,...FOOT_FLAT_MODELS,REMOTE_WIRELESS,REMOTE_WIRED,REMOTE_WIRED_COLOR,REMOTE_WIRED_KIT,REMOTE_360_DEFAULT,REMOTE_INF_DEFAULT,REMOTE_COLOR_AIRCOMBO,...Object.values(PANEL_MODELS));
 markAutoSingle(SS_FOOT_ROUND_ID,SS_FOOT_FLAT_ID,SS_WIRED_BOARD_ID,SS_CEILING_PUMP_ID);
 
 const homeQty=new Map(HOMEMULTI.map(r=>[r.model,0]));
@@ -7964,9 +7967,9 @@ function recomputeFootAll() {
   if (FOOT_ROUND && !HOME_MANUAL_FOOT.has(FOOT_ROUND)) {
     homeQty.set(FOOT_ROUND, want ? outQ : 0);
   }
-  if (FOOT_FLAT && !HOME_MANUAL_FOOT.has(FOOT_FLAT)) {
-    homeQty.set(FOOT_FLAT, 0);
-  }
+  FOOT_FLAT_MODELS.forEach(model => {
+    if (!HOME_MANUAL_FOOT.has(model)) homeQty.set(model, 0);
+  });
 }
 
 /* 싱글중대형 발통계산 */
@@ -8441,21 +8444,51 @@ function recomputeHomeDerived(updateUI) {
 
   // 규칙이 소유한 계열만 옵션 계약을 레거시 함수로 재수렴한다. 규칙 0건이면
   // 아래 분기들은 모두 건너뛰어 순수 legacy 결과를 보존한다.
-  const ownsHomeFamily = predicate => HOMEMULTI.some(row =>
+  const ownedHomeRows = predicate => HOMEMULTI.filter(row =>
     serverOwnedTargets.has(String(row?.model || '')) && predicate(row));
+  const ownsHomeFamily = predicate => ownedHomeRows(predicate).length > 0;
+  const reconcileExcludedHomeFamily = (predicate, excluded, recompute) => {
+    const ownedRows = ownedHomeRows(predicate);
+    if (!excluded || ownedRows.length === 0) return;
+    recompute();
+    // 레거시 함수가 알지 못하는 새 target도 제외 계약에서는 반드시 0으로 수렴한다.
+    ownedRows.forEach(row => homeQty.set(row.model, 0));
+  };
+
   if (ownsHomeFamily(row => row.model === BRANCH_1509 || row.model === BRANCH_2512) && el('#home_no_branch')?.checked) {
     recomputeHomeBranches();
   }
-  if (ownsHomeFamily(row => row.model === FOOT_ROUND || row.model === FOOT_FLAT) && !el('#home_foot')?.checked) {
+  if (ownsHomeFamily(row => row.model === FOOT_ROUND || FOOT_FLAT_MODELS.includes(String(row?.model || ''))) && !el('#home_foot')?.checked) {
     recomputeFootAll();
   }
-  if (ownsHomeFamily(row => /유연\s*호스|호스/i.test(String(row?.name || '')))) {
-    recomputeHomeHoses_();
-  }
+  reconcileExcludedHomeFamily(
+    row => /유연\s*호스|호스/i.test(String(row?.name || '')),
+    !!el('#home_no_hose')?.checked,
+    recomputeHomeHoses_,
+  );
+
+  const ownedRemoteRows = ownedHomeRows(row =>
+    isRemoteRow(row) || String(row?.catM || '').trim() === '리모컨');
+  const configuredRemoteQuantities = new Map(ownedRemoteRows.map(row => [
+    String(row.model || ''),
+    Number(homeQty.get(row.model)) || 0,
+  ]));
   recomputeHomeRemotes();
-  if (ownsHomeFamily(row => isPanelRow(row))) {
-    recomputeHomePanels();
+  if (ownedRemoteRows.length > 0) {
+    // 규칙 target이 있는 경우에도 다른 legacy 리모컨은 한 번 계산하되,
+    // 비제외 옵션에서는 규칙이 소유한 target 값을 복원한다.
+    if (el('#home_remote')?.value === '제외') {
+      ownedRemoteRows.forEach(row => homeQty.set(row.model, 0));
+    } else {
+      configuredRemoteQuantities.forEach((quantity, model) => homeQty.set(model, quantity));
+    }
   }
+
+  reconcileExcludedHomeFamily(
+    row => isPanelRow(row),
+    el('#home_panel')?.value === '판넬제외',
+    recomputeHomePanels,
+  );
 
   if (updateUI) {
     syncHomeUIFromState();

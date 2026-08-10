@@ -261,8 +261,17 @@ function runHome(source, input) {
     ${functions}
     const __manualInputs = ${JSON.stringify(Object.values(locks).flat())};
     __manualInputs.forEach((model) => onHomeQtyInput(model, homeQty.get(model) || 0));
-    recomputeHomeDerived(false);
-    globalThis.__result = { quantities: nonZeroMap(homeQty), allQuantities: mapObject(homeQty) };
+    const __recomputeCount = Math.max(1, Number(${JSON.stringify(input.recomputeHomeDerivedCount || 1)}) || 1);
+    const __recomputeSequence = [];
+    for (let __index = 0; __index < __recomputeCount; __index += 1) {
+      recomputeHomeDerived(false);
+      __recomputeSequence.push(mapObject(homeQty));
+    }
+    globalThis.__result = {
+      quantities: nonZeroMap(homeQty),
+      allQuantities: mapObject(homeQty),
+      recomputeSequence: __recomputeSequence,
+    };
   `;
   const context = {
     nonZeroMap,
