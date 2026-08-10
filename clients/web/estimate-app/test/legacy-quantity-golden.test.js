@@ -28,6 +28,10 @@ function homeQuantitySyncRule(sourceCode, targetCode, multiplier = 1) {
   };
 }
 
+function disabledHomeQuantitySyncRule(sourceCode, targetCode, multiplier = 1) {
+  return { ...homeQuantitySyncRule(sourceCode, targetCode, multiplier), enabled: false };
+}
+
 function realHomeQuantityInput({
   family,
   sourceCode,
@@ -153,7 +157,7 @@ const r25FiveFamilyRules = [
   homeQuantitySyncRule('AJ060MXHNBC1', 'SI-AL600A'),
 ];
 
-function r25FiveFamilyInput() {
+function r25FiveFamilyInput(quantitySyncRules = r25FiveFamilyRules) {
   return realHomeQuantityInput({
     family: 'H-08',
     sourceCode: 'AJ060MXHNBC1',
@@ -174,7 +178,27 @@ function r25FiveFamilyInput() {
       '#home_panel': '',
       '#home_remote': '기본',
     },
-    quantitySyncRules: r25FiveFamilyRules,
+    quantitySyncRules,
+    recomputeHomeDerivedCount: 3,
+  });
+}
+
+function r26MixedRuleInput(quantitySyncRules) {
+  return realHomeQuantityInput({
+    family: 'H-07',
+    sourceCode: 'AIM-H04N',
+    targetCode: 'AXJ-YA1509N',
+    catalogHome: r23HomeMultiCatalog,
+    sourceQuantities: { 'AIM-H04N': 2, AJ060MXHNBC1: 1 },
+    optionDom: {
+      '#home_no_branch': false,
+      '#home_foot': true,
+      '#home_hose_i': false,
+      '#home_no_hose': false,
+      '#home_panel': '',
+      '#home_remote': '기본',
+    },
+    quantitySyncRules,
     recomputeHomeDerivedCount: 3,
   });
 }
@@ -687,6 +711,63 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     fiveFamilyResults.slice(1).forEach((result) => {
       expect(pickFiveFamily(result.quantities)).toEqual(pickFiveFamily(fiveFamilyResults[0].quantities));
     });
+  });
+
+  test('R26 RED-A: 비활성 규칙만 있으면 다섯 계열 legacy 전체 Map이 규칙 0건과 같다', () => {
+    const baseline = evaluateLegacyQuantityBoundary(r25FiveFamilyInput([]));
+    const inactive = evaluateLegacyQuantityBoundary(r25FiveFamilyInput(
+      r25FiveFamilyRules.map((rule) => ({ ...rule, enabled: false })),
+    ));
+    const footBaseline = evaluateLegacyQuantityBoundary(r25FootRuleInput({ quantitySyncRules: [] }));
+    const footInactive = evaluateLegacyQuantityBoundary(r25FootRuleInput({
+      quantitySyncRules: [disabledHomeQuantitySyncRule('AJ060MXHNBC1', 'SI-AL600A')],
+      recomputeHomeDerivedCount: 7,
+    }));
+
+    const pickFoot = (quantities) => ({
+      source: quantities.AJ060MXHNBC1 || 0,
+      round: quantities['발통세트'] || 0,
+      flat: quantities['SI-AL600A'] || 0,
+    });
+    expect(inactive.detail.allQuantities).toEqual(baseline.detail.allQuantities);
+    expect(footInactive.detail.allQuantities).toEqual(footBaseline.detail.allQuantities);
+    expect(pickFoot(footInactive.detail.allQuantities)).toEqual({ source: 1, round: 1, flat: 0 });
+  });
+
+  test('R26 RED-B: 활성 규칙은 비활성 규칙과 섞여도 소비된다', () => {
+    const activeRule = homeQuantitySyncRule('AIM-H04N', 'AXJ-YA1509N');
+    const inactiveRule = disabledHomeQuantitySyncRule('AJ060MXHNBC1', 'SI-AL600A');
+    const active = evaluateLegacyQuantityBoundary(r26MixedRuleInput([activeRule]));
+    const mixed = evaluateLegacyQuantityBoundary(r26MixedRuleInput([activeRule, inactiveRule]));
+    const activeFive = evaluateLegacyQuantityBoundary(r25FiveFamilyInput(r25FiveFamilyRules));
+    const mixedFive = evaluateLegacyQuantityBoundary(r25FiveFamilyInput([
+      ...r25FiveFamilyRules,
+      ...r25FiveFamilyRules.map((rule) => ({ ...rule, enabled: false })),
+    ]));
+    const pick = (quantities) => ({
+      branch: quantities['AXJ-YA1509N'] || 0,
+      round: quantities['발통세트'] || 0,
+      flat: quantities['SI-AL600A'] || 0,
+    });
+    const pickFive = (quantities) => ({
+      branch: quantities['AXJ-YA1509N'] || 0,
+      hose: quantities['FH-LFHLN'] || 0,
+      panel: quantities['PC1NWSK3NW'] || 0,
+      remote: quantities['AWR-WE13N'] || 0,
+      flat: quantities['SI-AL600A'] || 0,
+      round: quantities['발통세트'] || 0,
+    });
+    const expected = { branch: 2, round: 1, flat: 0 };
+    const expectedFive = { branch: 5, hose: 4, panel: 3, remote: 2, flat: 1, round: 0 };
+
+    expect(active.detail.recomputeSequence.map(pick)).toEqual([expected, expected, expected]);
+    expect(mixed.detail.recomputeSequence.map(pick)).toEqual([expected, expected, expected]);
+    expect(mixed.detail.allQuantities).toEqual(active.detail.allQuantities);
+    expect(activeFive.detail.recomputeSequence.map(pickFive))
+      .toEqual([expectedFive, expectedFive, expectedFive]);
+    expect(mixedFive.detail.recomputeSequence.map(pickFive))
+      .toEqual([expectedFive, expectedFive, expectedFive]);
+    expect(mixedFive.detail.allQuantities).toEqual(activeFive.detail.allQuantities);
   });
 
   const r19FamilyMatrix = [

@@ -2264,6 +2264,9 @@ const PRICE_INC = J(PRICE_INC_RAW, {home:{}, comm:{}, single:{}});
 const PRICE_CHANGE_SCHEDULE = J(<%- priceChangeSchedule %>, {});
 const PRICE_DEFAULT_VARIANT = J(<%- priceDefaultVariant %>, {});
 const HOME_QUANTITY_SYNC_RULES = J(<%- quantitySyncRules || '[]' %>, []);
+const ACTIVE_HOME_QUANTITY_SYNC_RULES = Array.isArray(HOME_QUANTITY_SYNC_RULES)
+  ? HOME_QUANTITY_SYNC_RULES.filter(rule => rule?.enabled === true)
+  : [];
 
 // 출고가 보정
 function getBaseListPrice(type, model, defaultVal) {
@@ -7966,13 +7969,13 @@ function recomputeFootAll() {
   // 발통의 legacy source는 원시 품목만 읽는다. 자동 파생품과 규칙 target이
   // 품명에 '실외기'를 포함하더라도, 이전 계산 결과가 다음 계산의 입력이
   // 되지 않도록 모델 경계에서 제외한다.
-  const ruleTargetModels = new Set(Array.isArray(HOME_QUANTITY_SYNC_RULES)
-    ? HOME_QUANTITY_SYNC_RULES.flatMap(rule => Array.isArray(rule?.targets)
+  const ruleTargetModels = new Set(Array.isArray(ACTIVE_HOME_QUANTITY_SYNC_RULES)
+    ? ACTIVE_HOME_QUANTITY_SYNC_RULES.flatMap(rule => Array.isArray(rule?.targets)
       ? rule.targets.map(target => String(target?.productCode || '').trim())
       : [])
     : []);
-  const footRuleSourceModels = new Set(Array.isArray(HOME_QUANTITY_SYNC_RULES)
-    ? HOME_QUANTITY_SYNC_RULES
+  const footRuleSourceModels = new Set(Array.isArray(ACTIVE_HOME_QUANTITY_SYNC_RULES)
+    ? ACTIVE_HOME_QUANTITY_SYNC_RULES
       .filter(rule => Array.isArray(rule?.targets)
         && rule.targets.some(target => {
           const model = String(target?.productCode || '').trim();
@@ -8387,7 +8390,8 @@ function recomputeHomeHoses_() {
 
   const noHose = !!el('#home_no_hose')?.checked;
   const useIHose = !!el('#home_hose_i')?.checked;
-  const hasServerHomeRules = Array.isArray(HOME_QUANTITY_SYNC_RULES) && HOME_QUANTITY_SYNC_RULES.length > 0;
+  const hasServerHomeRules = Array.isArray(ACTIVE_HOME_QUANTITY_SYNC_RULES)
+    && ACTIVE_HOME_QUANTITY_SYNC_RULES.length > 0;
   const hoseI4Model = hasServerHomeRules ? (HOSE_I_4W || HOSE_I_1W) : '';
   const setH = (m, q) => {
     if (m && !HOME_MANUAL_HOSE.has(m)) homeQty.set(m, q);
@@ -8423,7 +8427,8 @@ function recomputeHomeHoses_() {
 
 /* 서버 규칙 기반 홈멀티 파생수량. 반환값은 규칙이 소유한 target 모델 집합이다. */
 function applyServerHomeQuantitySync_() {
-  if (!Array.isArray(HOME_QUANTITY_SYNC_RULES) || HOME_QUANTITY_SYNC_RULES.length === 0) return new Set();
+  if (!Array.isArray(ACTIVE_HOME_QUANTITY_SYNC_RULES)
+      || ACTIVE_HOME_QUANTITY_SYNC_RULES.length === 0) return new Set();
   const evaluator = window.SamhanQuantitySync && window.SamhanQuantitySync.evaluateQuantitySyncRules;
   if (typeof evaluator !== 'function') return new Set();
   // 서버 규칙 target은 카탈로그 분류로 홈 리모컨 계약 여부를 판정한다.
@@ -8431,10 +8436,10 @@ function applyServerHomeQuantitySync_() {
     return isRemoteRow(row) || String(row?.catM || '').trim() === '리모컨';
   }
 
-  const configured = evaluator(HOME_QUANTITY_SYNC_RULES, HOMEMULTI, homeQty);
+  const configured = evaluator(ACTIVE_HOME_QUANTITY_SYNC_RULES, HOMEMULTI, homeQty);
   if (!configured || typeof configured.forEach !== 'function') return new Set();
 
-  const targetCodes = new Set(HOME_QUANTITY_SYNC_RULES.flatMap(rule =>
+  const targetCodes = new Set(ACTIVE_HOME_QUANTITY_SYNC_RULES.flatMap(rule =>
     Array.isArray(rule?.targets) ? rule.targets.map(target => String(target?.productCode || '').trim()) : []));
   const isManual = model => HOME_MANUAL_PANEL.has(model) || HOME_MANUAL_HOSE.has(model)
     || HOME_MANUAL_REMOTE.has(model) || HOME_MANUAL_BRANCH.has(model) || HOME_MANUAL_FOOT.has(model);
@@ -8465,10 +8470,10 @@ function recomputeHomeDerived(updateUI) {
   const quantitySyncEvaluator = window.SamhanQuantitySync
     && window.SamhanQuantitySync.evaluateQuantitySyncRules;
   const evaluatedBeforeLegacy = typeof quantitySyncEvaluator === 'function'
-    ? quantitySyncEvaluator(HOME_QUANTITY_SYNC_RULES, HOMEMULTI, homeQty)
+    ? quantitySyncEvaluator(ACTIVE_HOME_QUANTITY_SYNC_RULES, HOMEMULTI, homeQty)
     : null;
   if (evaluatedBeforeLegacy && typeof evaluatedBeforeLegacy.forEach === 'function') {
-    const ruleSourceCodes = new Set(HOME_QUANTITY_SYNC_RULES.flatMap(rule =>
+    const ruleSourceCodes = new Set(ACTIVE_HOME_QUANTITY_SYNC_RULES.flatMap(rule =>
       Array.isArray(rule?.sources)
         ? rule.sources.map(source => String(source?.productCode || '').trim())
         : []));

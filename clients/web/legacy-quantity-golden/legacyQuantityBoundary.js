@@ -249,6 +249,9 @@ function runHome(source, input) {
     ${catalogPreludeScript(source, input)}
     const homeQty = new Map(Object.entries(${JSON.stringify(quantities)}));
     const HOME_QUANTITY_SYNC_RULES = ${JSON.stringify(input.quantitySyncRules || [])};
+    const ACTIVE_HOME_QUANTITY_SYNC_RULES = Array.isArray(HOME_QUANTITY_SYNC_RULES)
+      ? HOME_QUANTITY_SYNC_RULES.filter((rule) => rule?.enabled === true)
+      : [];
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
     let HOME_CATALOG_MISSING_MODELS = new Map();
     const HOME_MANUAL_PANEL = new Set();
