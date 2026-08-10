@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,6 +44,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class SlipRevisionServiceTest {
+
+    private static final UUID ACTOR_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
 
     @Mock
     private SlipRevisionRepository repository;
@@ -430,12 +433,59 @@ class SlipRevisionServiceTest {
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "550e8400-e29b-41d4-a716-446655440000",
+            "550E8400-E29B-41D4-A716-446655440000",
+            "  550e8400-e29b-41d4-a716-446655440000  ",
             "{550e8400-e29b-41d4-a716-446655440000}",
             "urn:uuid:550e8400-e29b-41d4-a716-446655440000",
             "550e8400e29b41d4a716446655440000"
     })
-    void safeActorName_hidesR15NonCanonicalUuidForms(String actorName) {
-        assertThat(service.safeActorName(actorName)).isNull();
+    void listWithSummary_hidesUuidActorNameOnlyWhenItEqualsActorId(String actorName) {
+        UUID slipId = UUID.randomUUID();
+        SlipRevision revision = SlipRevision.of(slipId, 1, SlipRevisionType.CREATE, null,
+                "2026/05/29-3", LocalDate.of(2026, 5, 29),
+                snapshot("원본", List.of()), ACTOR_ID, actorName, null);
+        when(repository.findBySlipIdOrderByRevisionNoDesc(slipId)).thenReturn(List.of(revision));
+
+        assertThat(service.listWithSummary(slipId).get(0).actorName()).isNull();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "cafebabecafebabecafebabecafebabe",
+            "{cafebabecafebabecafebabecafebabe}",
+            "urn:uuid:cafebabecafebabecafebabecafebabe"
+    })
+    void listWithSummary_preservesUuidShapedNameWhenItDiffersFromActorId(String actorName) {
+        UUID slipId = UUID.randomUUID();
+        SlipRevision revision = SlipRevision.of(slipId, 1, SlipRevisionType.CREATE, null,
+                "2026/05/29-3", LocalDate.of(2026, 5, 29),
+                snapshot("원본", List.of()), ACTOR_ID, actorName, null);
+        when(repository.findBySlipIdOrderByRevisionNoDesc(slipId)).thenReturn(List.of(revision));
+
+        assertThat(service.listWithSummary(slipId).get(0).actorName()).isEqualTo(actorName);
+    }
+
+    @Test
+    void listWithSummary_projectionPathPreservesUuidShapedNameWhenItDiffersFromActorId() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        SlipRevisionRepository.SlipRevisionSnapshotRow row = org.mockito.Mockito.mock(
+                SlipRevisionRepository.SlipRevisionSnapshotRow.class);
+        when(row.getRevisionNo()).thenReturn(1);
+        when(row.getRevisionType()).thenReturn("CREATE");
+        when(row.getSourceRevisionNo()).thenReturn(null);
+        when(row.getSlipNo()).thenReturn("2026/05/29-3");
+        when(row.getSlipDate()).thenReturn(LocalDate.of(2026, 5, 29));
+        when(row.getActorId()).thenReturn(ACTOR_ID);
+        when(row.getActorName()).thenReturn("cafebabecafebabecafebabecafebabe");
+        when(row.getActorColor()).thenReturn(null);
+        when(row.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 5, 29, 9, 0));
+        String snapshotJson = objectMapper.writeValueAsString(snapshot("원본", List.of()));
+        when(row.getSnapshotJson()).thenReturn(snapshotJson);
+        when(repository.findSnapshotRowsBySlipIdOrderByRevisionNoDesc(slipId)).thenReturn(List.of(row));
+
+        assertThat(service.listWithSummary(slipId).get(0).actorName())
+                .isEqualTo("cafebabecafebabecafebabecafebabe");
     }
 
     @Test
@@ -443,8 +493,8 @@ class SlipRevisionServiceTest {
         String koreanName = "가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허고노도";
         String alphaNumericName = "0000000000000000000000000000000G";
 
-        assertThat(service.safeActorName(koreanName)).isEqualTo(koreanName);
-        assertThat(service.safeActorName(alphaNumericName)).isEqualTo(alphaNumericName);
+        assertThat(service.safeActorName(koreanName, ACTOR_ID)).isEqualTo(koreanName);
+        assertThat(service.safeActorName(alphaNumericName, ACTOR_ID)).isEqualTo(alphaNumericName);
     }
 
     @Test

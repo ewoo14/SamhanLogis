@@ -214,6 +214,22 @@ describe('SlipVersionHistoryPanel', () => {
     expect(['#DB2777', 'rgb(219, 39, 119)']).toContain(color.style.background)
   })
 
+  it('BE identity guard가 보존한 UUID-shaped actorName을 버전 카드와 fieldChanges에 표시한다', async () => {
+    const actorName = 'cafebabecafebabecafebabecafebabe'
+    vi.mocked(slipRevisionApi.listRevisions).mockResolvedValue([{
+      ...HEADER_PREFIXED_REVISION[0],
+      actorName,
+      fieldChanges: [{ ...HEADER_PREFIXED_REVISION[0].fieldChanges[0], actorName }],
+    }])
+
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
+
+    expect((await screen.findByTestId('slip-version-history-row-2')).textContent).toContain(actorName)
+    expect((await screen.findByTestId('slip-version-history-change-header-memo')).textContent)
+      .toContain(actorName)
+  })
+
   // PR #747 재수렴 HIGH fix 회귀 가드 — SlipCollaborationPanel 의 코멘트 anchor(접두사 없음, 예:
   // "memo")와 BE fieldPath(접두사 있음, 예: "header.memo")가 이 컴포넌트를 거치지 않고 직접
   // 문자열 비교되면 11개 overlay 필드 전량이 매칭 실패한다. 아래 2건은 SlipCollaborationPanel을

@@ -43,7 +43,7 @@ describe('PR #1134 UUID actorName guard', () => {
         history={[{
           revisionNo: 1,
           beforeValue: '이전',
-          actorId: 'actor-1',
+          actorId: '550e8400-e29b-41d4-a716-446655440000',
           actorName,
           changedAt: '2026-08-10T09:01:00+09:00',
         }]}
@@ -63,7 +63,7 @@ describe('PR #1134 UUID actorName guard', () => {
         history={[{
           revisionNo: 1,
           beforeValue: '이전',
-          actorId: 'actor-1',
+          actorId: '550e8400-e29b-41d4-a716-446655440000',
           actorName,
           changedAt: '2026-08-10T09:01:00+09:00',
         }]}
@@ -81,7 +81,7 @@ describe('PR #1134 UUID actorName guard', () => {
         history={[{
           revisionNo: 1,
           beforeValue: '이전',
-          actorId: 'actor-1',
+          actorId: '550e8400-e29b-41d4-a716-446655440000',
           actorName: '  550E8400-E29B-41D4-A716-446655440000  ',
           changedAt: '2026-08-10T09:01:00+09:00',
         }]}
@@ -89,5 +89,27 @@ describe('PR #1134 UUID actorName guard', () => {
     )
 
     expect(screen.getByText('변경자 미상')).toBeTruthy()
+  })
+
+  it.each([
+    'cafebabecafebabecafebabecafebabe',
+    '{cafebabecafebabecafebabecafebabe}',
+    'urn:uuid:cafebabecafebabecafebabecafebabe',
+  ])('preserves a UUID-shaped actorName when it differs from actorId: %s', (actorName) => {
+    render(
+      <AuditOverlay
+        field="memo"
+        currentValue="이후"
+        history={[{
+          revisionNo: 1,
+          beforeValue: '이전',
+          actorId: '550e8400-e29b-41d4-a716-446655440000',
+          actorName,
+          changedAt: '2026-08-10T09:01:00+09:00',
+        }]}
+      />,
+    )
+
+    expect(screen.getByText(actorName)).toBeTruthy()
   })
 })

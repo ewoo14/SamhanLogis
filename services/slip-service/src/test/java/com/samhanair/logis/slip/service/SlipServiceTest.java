@@ -1047,11 +1047,11 @@ class SlipServiceTest {
         // 버전이력에 계정 UUID 가 노출되지 않는다 ([[uuid-no-user-visibility]]).
         Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
-        String uuidName = UUID.randomUUID().toString();
+        String uuidName = "550e8400-e29b-41d4-a716-446655440000";
 
         service.editHeader(slipId,
                 new EditHeaderRequest(null, "새거래처", null, "새메모", null, null, null),
-                UUID.randomUUID().toString(), uuidName);
+                uuidName, uuidName);
 
         verify(slipRevisionService, times(1)).capture(
                 eq(slip),
@@ -1094,12 +1094,31 @@ class SlipServiceTest {
         assertDisplayNamePreservedAcrossAllWritePaths("0000000000000000000000000000000G");
     }
 
+    @Test
+    void r17_different32CharacterHexDisplayNameRemainsVisibleAcrossAllWritePaths() {
+        assertDisplayNamePreservedAcrossAllWritePaths(
+                "cafebabecafebabecafebabecafebabe",
+                "550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    @Test
+    void r17_differentBracedAndUrnDisplayNamesRemainVisibleAcrossAllWritePaths() {
+        assertDisplayNamePreservedAcrossAllWritePaths(
+                "{cafebabecafebabecafebabecafebabe}",
+                "550e8400-e29b-41d4-a716-446655440000");
+        clearInvocations(auditLogService, slipRevisionService);
+        assertDisplayNamePreservedAcrossAllWritePaths(
+                "urn:uuid:cafebabecafebabecafebabecafebabe",
+                "550e8400-e29b-41d4-a716-446655440000");
+    }
+
     private void assertActualUuidHiddenAcrossAllWritePaths(String callerName) {
+        String actorId = "550e8400-e29b-41d4-a716-446655440000";
         Slip headerSlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(headerSlip));
         service.editHeader(slipId,
                 new EditHeaderRequest(null, null, null, "새메모", null, null, null),
-                UUID.randomUUID().toString(), callerName);
+                actorId, callerName);
         verify(auditLogService).recordOverlayPatch(
                 eq(slipId), any(UUID.class), eq("변경자 미상"), any(), eq("memo"), any(), any());
         verify(slipRevisionService).capture(eq(headerSlip),
@@ -1110,7 +1129,7 @@ class SlipServiceTest {
         Slip overlaySlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(overlaySlip));
         service.applyOverlayPatch(slipId, "memo", "새메모",
-                UUID.randomUUID().toString(), callerName);
+                actorId, callerName);
         verify(auditLogService).recordOverlayPatch(
                 eq(slipId), any(UUID.class), eq("변경자 미상"), any(), eq("memo"), any(), any());
         verify(slipRevisionService).capture(eq(overlaySlip),
@@ -1123,7 +1142,7 @@ class SlipServiceTest {
         Map<String, String> expectedBefore = new HashMap<>();
         expectedBefore.put("memo", null);
         service.applyOverlayPatchBatch(slipId, Map.of("memo", "새메모"), expectedBefore,
-                UUID.randomUUID().toString(), callerName);
+                actorId, callerName);
         verify(auditLogService).recordBatch(
                 eq(slipId), any(UUID.class), eq("변경자 미상"), any(), anyList());
         verify(slipRevisionService).capture(eq(batchSlip),
@@ -1132,11 +1151,15 @@ class SlipServiceTest {
     }
 
     private void assertDisplayNamePreservedAcrossAllWritePaths(String callerName) {
+        assertDisplayNamePreservedAcrossAllWritePaths(callerName, UUID.randomUUID().toString());
+    }
+
+    private void assertDisplayNamePreservedAcrossAllWritePaths(String callerName, String actorId) {
         Slip headerSlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(headerSlip));
         service.editHeader(slipId,
                 new EditHeaderRequest(null, null, null, "새메모", null, null, null),
-                UUID.randomUUID().toString(), callerName);
+                actorId, callerName);
         verify(auditLogService).recordOverlayPatch(
                 eq(slipId), any(UUID.class), eq(callerName), any(), eq("memo"), any(), any());
         verify(slipRevisionService).capture(eq(headerSlip),
@@ -1147,7 +1170,7 @@ class SlipServiceTest {
         Slip overlaySlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(overlaySlip));
         service.applyOverlayPatch(slipId, "memo", "새메모",
-                UUID.randomUUID().toString(), callerName);
+                actorId, callerName);
         verify(auditLogService).recordOverlayPatch(
                 eq(slipId), any(UUID.class), eq(callerName), any(), eq("memo"), any(), any());
         verify(slipRevisionService).capture(eq(overlaySlip),
@@ -1160,7 +1183,7 @@ class SlipServiceTest {
         Map<String, String> expectedBefore = new HashMap<>();
         expectedBefore.put("memo", null);
         service.applyOverlayPatchBatch(slipId, Map.of("memo", "새메모"), expectedBefore,
-                UUID.randomUUID().toString(), callerName);
+                actorId, callerName);
         verify(auditLogService).recordBatch(
                 eq(slipId), any(UUID.class), eq(callerName), any(), anyList());
         verify(slipRevisionService).capture(eq(batchSlip),

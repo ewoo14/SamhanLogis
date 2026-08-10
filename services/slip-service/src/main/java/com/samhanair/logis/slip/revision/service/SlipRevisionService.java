@@ -15,6 +15,7 @@ import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.ChangeSummary;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.FieldChange;
 import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
+import com.samhanair.logis.slip.security.ActorNameSanitizer;
 import com.samhanair.logis.shared.realtime.presence.PresenceColor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -52,12 +53,6 @@ public class SlipRevisionService {
     private final SlipRevisionRepository repository;
     private final ObjectMapper snapshotObjectMapper;
     private final SlipClosedDateGuard closedDateGuard;
-
-    private static final java.util.regex.Pattern UUID_PATTERN = java.util.regex.Pattern.compile(
-            "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-                    + "|\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}"
-                    + "|(?i:urn:uuid:)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-                    + "|[0-9a-fA-F]{32})$");
 
     private record HeaderField(String path, String label, java.util.function.Function<SlipSnapshot, Object> reader) {
     }
@@ -276,7 +271,7 @@ public class SlipRevisionService {
             }
             ChangeSummary summary = summarize(prev, cur);
             String actorColor = resolveActorColor(revision);
-            String actorName = safeActorName(revision.getActorName());
+            String actorName = safeActorName(revision.getActorName(), revision.getActorId());
             responses.add(new SlipRevisionResponse(
                     revision.getRevisionNo(),
                     revision.getRevisionType(),
@@ -308,7 +303,7 @@ public class SlipRevisionService {
             }
             ChangeSummary summary = summarize(prev, cur);
             String actorColor = resolveActorColor(revision);
-            String actorName = safeActorName(revision.getActorName());
+            String actorName = safeActorName(revision.getActorName(), revision.getActorId());
             responses.add(new SlipRevisionResponse(
                     revision.getRevisionNo(),
                     revision.getRevisionType() == null ? null : revision.getRevisionType().name(),
@@ -759,11 +754,11 @@ public class SlipRevisionService {
         return PresenceColor.fromUserId(revision.getActorId().toString()).hex();
     }
 
-    String safeActorName(String actorName) {
+    String safeActorName(String actorName, UUID actorId) {
         if (actorName == null || actorName.isBlank()) {
             return null;
         }
         String trimmed = actorName.trim();
-        return UUID_PATTERN.matcher(trimmed).matches() ? null : trimmed;
+        return ActorNameSanitizer.representsActorId(trimmed, actorId) ? null : trimmed;
     }
 }

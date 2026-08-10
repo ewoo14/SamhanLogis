@@ -84,9 +84,23 @@ function displayValue(v: string | null | undefined): string {
 const UNKNOWN_ACTOR_NAME = '변경자 미상'
 const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
 
-/** API 경계 밖에서 직접 주입된 legacy audit row 도 UUID 를 사용자 텍스트로 내보내지 않는다. */
-function displayActorName(actorName: string): string {
-  if (!actorName || !actorName.trim() || UUID_ACTOR_NAME.test(actorName.trim())) {
+function normalizeUuid(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!UUID_ACTOR_NAME.test(trimmed)) return null
+  if (trimmed.startsWith('{')) return trimmed.slice(1, -1).toLowerCase()
+  if (trimmed.toLowerCase().startsWith('urn:uuid:')) return trimmed.slice(9).toLowerCase()
+  if (trimmed.length === 32) {
+    return `${trimmed.slice(0, 8)}-${trimmed.slice(8, 12)}-${trimmed.slice(12, 16)}-${trimmed.slice(16, 20)}-${trimmed.slice(20)}`.toLowerCase()
+  }
+  return trimmed.toLowerCase()
+}
+
+/** API 경계 밖에서 직접 주입된 legacy audit row 도 actorId와 같은 UUID만 사용자 텍스트로 내보낸다. */
+function displayActorName(actorName: string, actorId: string): string {
+  const actorUuid = normalizeUuid(actorName)
+  const rowActorUuid = normalizeUuid(actorId)
+  if (!actorName || !actorName.trim() || (actorUuid !== null && actorUuid === rowActorUuid)) {
     return UNKNOWN_ACTOR_NAME
   }
   return actorName
@@ -145,7 +159,7 @@ export function AuditOverlay({
                 style={{ background: userIdToColor(latest.actorId) }}
                 aria-hidden="true"
               />
-              <span className={styles['actorName']}>{displayActorName(latest.actorName)}</span>
+              <span className={styles['actorName']}>{displayActorName(latest.actorName, latest.actorId)}</span>
               <span className={styles['timestamp']}>{formatHHmm(latest.changedAt)}</span>
             </span>
           </>
@@ -180,7 +194,7 @@ export function AuditOverlay({
                   style={{ background: userIdToColor(entry.actorId) }}
                   aria-hidden="true"
                 />
-                <span className={styles['actorName']}>{displayActorName(entry.actorName)}</span>
+                <span className={styles['actorName']}>{displayActorName(entry.actorName, entry.actorId)}</span>
                 <span className={styles['timestamp']}>{formatHHmm(entry.changedAt)}</span>
               </span>
             </li>

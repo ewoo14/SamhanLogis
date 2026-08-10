@@ -1,9 +1,9 @@
 package com.samhanair.logis.slip.audit.web.dto;
 
 import com.samhanair.logis.slip.audit.domain.SlipAuditLog;
+import com.samhanair.logis.slip.security.ActorNameSanitizer;
 import java.time.LocalDateTime;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 /**
  * 슬립 audit overlay log 응답 DTO — PR-H2.
@@ -37,19 +37,13 @@ public record SlipAuditLogResponse(
 ) {
 
     private static final String UNKNOWN_ACTOR_NAME = "변경자 미상";
-    private static final Pattern UUID_ACTOR_NAME = Pattern.compile(
-            "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-                    + "|\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}"
-                    + "|(?i:urn:uuid:)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-                    + "|[0-9a-fA-F]{32})$");
-
     public static SlipAuditLogResponse from(SlipAuditLog log) {
         return new SlipAuditLogResponse(
                 log.getId(),
                 log.getSlipId(),
                 log.getRevisionNo(),
                 log.getActorId(),
-                safeActorName(log.getActorName()),
+                safeActorName(log.getActorName(), log.getActorId()),
                 log.getActorColor(),
                 log.getFieldName(),
                 log.getOldValue(),
@@ -59,9 +53,9 @@ public record SlipAuditLogResponse(
     }
 
     /** 기존 오염 행의 UUID actorName 이 사용자 응답으로 나가지 않도록 최종 방어한다. */
-    private static String safeActorName(String actorName) {
+    private static String safeActorName(String actorName, UUID actorId) {
         if (actorName == null || actorName.isBlank()
-                || UUID_ACTOR_NAME.matcher(actorName.trim()).matches()) {
+                || ActorNameSanitizer.representsActorId(actorName, actorId)) {
             return UNKNOWN_ACTOR_NAME;
         }
         return actorName;

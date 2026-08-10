@@ -10,10 +10,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class SlipAuditLogResponseTest {
 
+    private static final UUID ACTOR_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+
     @Test
     void from_hidesLegacyUuidActorNameWithNeutralLabel() {
         SlipAuditLog log = SlipAuditLog.record(
-                UUID.randomUUID(), 1, UUID.randomUUID(),
+                UUID.randomUUID(), 1, ACTOR_ID,
                 "550e8400-e29b-41d4-a716-446655440000", null,
                 "memo", "이전", "이후");
 
@@ -28,7 +30,7 @@ class SlipAuditLogResponseTest {
     })
     void from_hidesR15NonCanonicalUuidActorNames(String actorName) {
         SlipAuditLog log = SlipAuditLog.record(
-                UUID.randomUUID(), 1, UUID.randomUUID(), actorName, null,
+                UUID.randomUUID(), 1, ACTOR_ID, actorName, null,
                 "memo", "이전", "이후");
 
         assertThat(SlipAuditLogResponse.from(log).actorName()).isEqualTo("변경자 미상");
@@ -37,7 +39,7 @@ class SlipAuditLogResponseTest {
     @Test
     void from_hidesUppercaseAndPaddedCanonicalUuidActorName() {
         SlipAuditLog log = SlipAuditLog.record(
-                UUID.randomUUID(), 1, UUID.randomUUID(),
+                UUID.randomUUID(), 1, ACTOR_ID,
                 "  550E8400-E29B-41D4-A716-446655440000  ", null,
                 "memo", "이전", "이후");
 
@@ -73,5 +75,19 @@ class SlipAuditLogResponseTest {
         assertThat(SlipAuditLogResponse.from(SlipAuditLog.record(
                 UUID.randomUUID(), 1, UUID.randomUUID(), alphaNumericName, null,
                 "memo", "이전", "이후")).actorName()).isEqualTo(alphaNumericName);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "cafebabecafebabecafebabecafebabe",
+            "{cafebabecafebabecafebabecafebabe}",
+            "urn:uuid:cafebabecafebabecafebabecafebabe"
+    })
+    void from_preservesUuidShapedDisplayNameWhenItDiffersFromActorId(String actorName) {
+        SlipAuditLog log = SlipAuditLog.record(
+                UUID.randomUUID(), 1, ACTOR_ID, actorName, null,
+                "memo", "이전", "이후");
+
+        assertThat(SlipAuditLogResponse.from(log).actorName()).isEqualTo(actorName);
     }
 }

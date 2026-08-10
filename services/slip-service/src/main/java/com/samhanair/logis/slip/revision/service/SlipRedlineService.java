@@ -65,7 +65,7 @@ public class SlipRedlineService {
         for (int i = 1; i < revisions.size(); i++) {
             SlipRevision prev = revisions.get(i - 1);
             SlipRevision cur = revisions.get(i);
-            String actorName = revisionService.safeActorName(cur.getActorName());
+            String actorName = revisionService.safeActorName(cur.getActorName(), cur.getActorId());
             String actorColor = revisionService.resolveActorColor(cur);
             List<FieldChange> changes = revisionService.fieldChanges(
                     prev.getSnapshot(), cur.getSnapshot(), actorName, actorColor, cur.getCreatedAt());
@@ -135,7 +135,7 @@ public class SlipRedlineService {
             }
             if (!Objects.equals(previousValue, value)) {
                 builder.layers.add(new Layer(value,
-                        revisionService.safeActorName(revision.getActorName()),
+                        revisionService.safeActorName(revision.getActorName(), revision.getActorId()),
                         revisionService.resolveActorColor(revision),
                         revision.getCreatedAt()));
                 previousValue = value;
