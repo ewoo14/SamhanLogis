@@ -9,6 +9,7 @@ import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidator;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
@@ -55,6 +56,7 @@ public record ProductCatalogResponse(
         BigDecimal releasePrice,
         BigDecimal deliveryPrice,
         ProductGoodsType goodsType,
+        boolean quantitySyncTargetEligible,
         BigDecimal fixedDiscountRate,
         boolean hasVariableDiscount,
         boolean variableDiscountManual,
@@ -107,6 +109,9 @@ public record ProductCatalogResponse(
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
                 p.getGoodsType(),
+                QuantitySyncRuleValidator.isValidTargetRole(
+                        p.getCatL() == null ? null : p.getCatL().getName(),
+                        p.getGoodsType() == null ? null : p.getGoodsType().name()),
                 p.getFixedDiscountRate(),
                 Boolean.TRUE.equals(p.getHasVariableDiscount()),
                 p.isVariableDiscountManual(),
@@ -132,7 +137,7 @@ public record ProductCatalogResponse(
         return new ProductCatalogResponse(
                 modelCode, name, usageScope, estimateCategory,
                 productCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
-                releasePrice, deliveryPrice, goodsType, fixedDiscountRate,
+                releasePrice, deliveryPrice, goodsType, quantitySyncTargetEligible, fixedDiscountRate,
                 hasVariableDiscount, variableDiscountManual, legacyDiscountFlag, status, discountFlags,
                 productType, count, token
         );
