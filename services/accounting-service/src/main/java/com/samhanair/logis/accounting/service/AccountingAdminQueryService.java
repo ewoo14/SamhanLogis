@@ -1,16 +1,6 @@
 package com.samhanair.logis.accounting.service;
 
-import com.samhanair.logis.accounting.domain.Order;
-import com.samhanair.logis.accounting.domain.OrderLine;
-import com.samhanair.logis.accounting.domain.OrderProgressStatus;
-import com.samhanair.logis.accounting.repository.OrderRepository;
-import com.samhanair.logis.accounting.util.DocumentNumberPathResolver;
 import com.samhanair.logis.accounting.web.dto.LedgerStagingResponse;
-import com.samhanair.logis.accounting.web.dto.OrderDetailResponse;
-import com.samhanair.logis.accounting.web.dto.OrderSummaryResponse;
-import com.samhanair.logis.common.exception.BusinessException;
-import com.samhanair.logis.common.exception.ErrorCode;
-import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -20,34 +10,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** MIG-14 admin 주문/원장 전용 읽기 service. */
+/** MIG-14 admin 원장 대조 전용 읽기 service. */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AccountingAdminQueryService {
 
-    private final OrderRepository orderRepository;
     private final NamedParameterJdbcTemplate jdbcTemplate;
-
-    public Page<OrderSummaryResponse> listOrders(
-            OrderProgressStatus progressStatus, String managerName, String partnerName, Pageable pageable) {
-        return orderRepository.findAll(orderSpec(progressStatus, managerName, partnerName), pageable)
-                .map(this::toOrderSummary);
-    }
-
-    public OrderDetailResponse getOrderDetail(String orderNo) {
-        Order order = orderRepository.findByOrderNo(orderNo)
-                .or(() -> orderRepository.findByOrderNo(DocumentNumberPathResolver.toSlashDocumentNo(orderNo)))
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "주문서를 찾을 수 없습니다: " + orderNo));
-        return toOrderDetail(order);
-    }
 
     public Page<LedgerStagingResponse> listSalesLedger(
             LocalDate from, LocalDate to, String partnerName, String transformStatus, Pageable pageable) {
@@ -121,66 +95,6 @@ public class AccountingAdminQueryService {
                   AND (CAST(:partnerName AS text) IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE CAST(:partnerName AS text) ESCAPE '\\')
                   AND (CAST(:transformStatus AS text) IS NULL OR transform_status = CAST(:transformStatus AS text))
                 """;
-    }
-
-    private static Specification<Order> orderSpec(
-            OrderProgressStatus progressStatus, String managerName, String partnerName) {
-        return (root, query, cb) -> {
-            List<Predicate> predicates = new java.util.ArrayList<>();
-            if (progressStatus != null) {
-                predicates.add(cb.equal(root.get("progressStatus"), progressStatus));
-            }
-            if (notBlank(managerName)) {
-                predicates.add(cb.like(cb.lower(root.get("managerName")), likeLiteral(managerName), '\\'));
-            }
-            if (notBlank(partnerName)) {
-                predicates.add(cb.like(cb.lower(root.get("partnerName")), likeLiteral(partnerName), '\\'));
-            }
-            return cb.and(predicates.toArray(Predicate[]::new));
-        };
-    }
-
-    private OrderSummaryResponse toOrderSummary(Order order) {
-        return new OrderSummaryResponse(
-                order.getOrderNo(),
-                order.getPartnerName(),
-                order.getManagerName(),
-                order.getProgressStatus().name(),
-                order.getLinkedSlipNo(),
-                order.getValidUntil(),
-                order.getTotalSupplyAmount(),
-                order.getTotalVatAmount(),
-                order.getTotalSupplyAmount().add(order.getTotalVatAmount()),
-                (int) order.getLines().stream().filter(line -> line.getProductId() == null).count());
-    }
-
-    private OrderDetailResponse toOrderDetail(Order order) {
-        List<OrderDetailResponse.LineResponse> lines = order.getLines().stream()
-                .sorted(java.util.Comparator.comparingInt(OrderLine::getLineNo))
-                .map(line -> new OrderDetailResponse.LineResponse(
-                        line.getLineNo(),
-                        line.getItemName(),
-                        line.getQuantity(),
-                        line.getUnitPrice(),
-                        line.getSupplyAmount(),
-                        line.getVatAmount(),
-                        line.getSupplyAmount().add(line.getVatAmount()),
-                        line.getItemDueDate(),
-                        line.getProductId() == null))
-                .toList();
-        return new OrderDetailResponse(
-                order.getOrderNo(),
-                order.getPartnerName(),
-                order.getManagerName(),
-                order.getProgressStatus().name(),
-                order.getLinkedSlipNo(),
-                order.getValidUntil(),
-                order.getPaymentTerms(),
-                order.getReference(),
-                order.getTotalSupplyAmount(),
-                order.getTotalVatAmount(),
-                order.getTotalSupplyAmount().add(order.getTotalVatAmount()),
-                lines);
     }
 
     private LedgerStagingResponse mapLedger(ResultSet rs, int rowNum) throws SQLException {

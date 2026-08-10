@@ -659,9 +659,6 @@ public enum PageCode {
     /** MIG-11 이카운트 매입장 마이그레이션. */
     ECOUNT_MIG11_PURCHASE_LEDGER("ecount.mig11.purchase-ledger", "이카운트 매입장 마이그레이션"),
 
-    /** MIG-14 Order admin 목록/상세 화면. */
-    ECOUNT_MIG14_ORDER_LIST("ecount.mig14.order-list", "이카운트 주문서 admin 조회"),
-
     /** MIG-14 Ledger admin 화면. */
     ECOUNT_MIG14_LEDGER("ecount.mig14.ledger", "이카운트 매출장/매입장 admin 조회"),
 

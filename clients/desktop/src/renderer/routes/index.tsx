@@ -273,8 +273,6 @@ import { PurchaseAccountingSlipPage } from './accounting/PurchaseAccountingSlipP
 import { PurchaseAccountingSlipFormPage } from './accounting/PurchaseAccountingSlipFormPage'
 import { TaxInvoiceBatchIssuePage } from './accounting/TaxInvoiceBatchIssuePage'
 import { TaxInvoiceInboundPage } from './accounting/TaxInvoiceInboundPage'
-import { OrderListPage } from './accounting/admin/OrderListPage'
-import { OrderDetailPage } from './accounting/admin/OrderDetailPage'
 import { SalesLedgerPage } from './accounting/admin/SalesLedgerPage'
 import { PurchaseLedgerPage } from './accounting/admin/PurchaseLedgerPage'
 import { MigOpsDashboardPage } from './accounting/admin/MigOpsDashboardPage'
@@ -1203,22 +1201,6 @@ const routes = [
         element: (
           <PermissionGuard pageCode="accounting.purchase-slip.accounting" action="create">
             <PurchaseAccountingSlipFormPage />
-          </PermissionGuard>
-        ),
-      },
-      {
-        path: '/accounting/admin/orders',
-        element: (
-          <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
-            <OrderListPage />
-          </PermissionGuard>
-        ),
-      },
-      {
-        path: '/accounting/admin/orders/:orderNo',
-        element: (
-          <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
-            <OrderDetailPage />
           </PermissionGuard>
         ),
       },
