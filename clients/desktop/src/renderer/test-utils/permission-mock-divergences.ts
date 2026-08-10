@@ -366,12 +366,6 @@ export const PERMISSION_MOCK_DIVERGENCES: readonly PermissionMockDivergence[] = 
   },
   {
     "role": "MANAGER",
-    "pageCode": "ecount.mig14.order-list",
-    "snapshotBits": "1111000",
-    "mockBits": "1111011"
-  },
-  {
-    "role": "MANAGER",
     "pageCode": "ecount.mig14.ledger",
     "snapshotBits": "1111000",
     "mockBits": "1111011"
@@ -969,12 +963,6 @@ export const PERMISSION_MOCK_DIVERGENCES: readonly PermissionMockDivergence[] = 
     "pageCode": "products.list",
     "snapshotBits": "1000000",
     "mockBits": "0000000"
-  },
-  {
-    "role": "ACCOUNTANT",
-    "pageCode": "ecount.mig14.order-list",
-    "snapshotBits": "1000000",
-    "mockBits": "1000011"
   },
   {
     "role": "ACCOUNTANT",

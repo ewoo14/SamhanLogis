@@ -3,7 +3,7 @@
 // Refresh: run the read-only snapshot query, review V99 deltas, then update this file with the same page/role set.
 export const PERMISSION_ROLES = ["MASTER","MANAGER","SALES","ACCOUNTANT","WAREHOUSE","INVENTORY","DISPATCH","DRIVER","STAFF","DEVELOPER","PARTNER"] as const
 export const PERMISSION_ACTIONS = ['view', 'create', 'update', 'delete', 'restore', 'download', 'print'] as const
-export const PERMISSION_PAGE_CODES = ["partners.delete","accounting.daily-closing.unlock","products.price-schedule","accounting.daily-closing.run","sales.partner-order.convert","products.sync","accounting.tax-invoice.inbound.manage","accounting.sales-slip.accounting","accounting.purchase-slip.accounting","messenger.send","ecount.mig.ops-dashboard","accounting.deposit-mapping","partners.4tab","accounting.tax-invoice.emit-nts","accounting.tax-invoice.list","accounting.tax-invoice.cancel","accounting.tax-invoice.batch-issue","accounting.tax-invoice.inbound","accounting.sales-slip.list","accounting.purchase-slip.list","accounting.daily-closing","accounting.general-ledger","purchases.slip.list","inbound.inspection","hr.carriers","admin.permissions","admin.permission-groups","admin.approval-line-config","admin.app-release","dev.popup-notice","dev.activity-log","hr.role-management","hr.slip-cutoff","accounting.accounts","accounting.journals","accounting.balances","accounting.reports","accounting.receivables","accounting.bank-card-admin","accounting.bank-matching","accounting.deposit-match","accounting.cash-receipts","accounting.period-close","accounting.statement-batch","accounting.partner-ledger","accounting.supplier-profiles","accounting.edit-requests","sales.partner-order.draft","sales.partner-order.confirm","sales.partner-order.history","sales.partner-order.print","inventory.warehouse","inventory.stock","inventory.stock-transfer","inventory.dps","inventory.audit","inventory.list","inventory.detail","inventory.adjust","inventory.transfer","inventory.stock-balance","inventory.safety-stock","inventory.edit-requests","inventory.edit-requests.decide","ecount.import.inventory","admin.employees","admin.users","partners.list","partners.detail","partners.search","partners.edit","partners.4tab.edit","partners.block","partners.edit-request","products.list","products.admin","arologis.admin","arologis.region","ecount.mig14.order-list","ecount.mig14.ledger","sales.slip.create","slip.delivery-batch","slip.print.next-day","slip.print.export","sales.partner-dc-config","sales.estimate-config","slip.cleanup","arologis.dispatch.admin","arologis.dispatch.ops","notification.dispatch-sms.display","dispatch.batch","aligo.address-book","groupware.approvals","groupware.approval-templates","messenger.admin","slip.edit-requests","slip.edit-requests.decide","slip.photo-audit","accounting.edit-requests.decide","purchases.slip.edit","purchases.slip.delete","sales.slip.edit","sales.partner-order.edit","slip.signature","partners.block.bulk","arologis.region.manage","slip.transfer.process","sales.slip.confirm","slip.reject","sales.slip.cancel","inventory.warehouse.admin","slip.comments","slip.audit-overlay","slip.audit-revert","accounting.period-close.reverse","dc-config.import","dispatch.board","dispatch.external-carriers","estimates.list","sales.partner-order.list","sales.slip.list","system.permission-admin"] as const
+export const PERMISSION_PAGE_CODES = ["partners.delete","accounting.daily-closing.unlock","products.price-schedule","accounting.daily-closing.run","sales.partner-order.convert","products.sync","accounting.tax-invoice.inbound.manage","accounting.sales-slip.accounting","accounting.purchase-slip.accounting","messenger.send","ecount.mig.ops-dashboard","accounting.deposit-mapping","partners.4tab","accounting.tax-invoice.emit-nts","accounting.tax-invoice.list","accounting.tax-invoice.cancel","accounting.tax-invoice.batch-issue","accounting.tax-invoice.inbound","accounting.sales-slip.list","accounting.purchase-slip.list","accounting.daily-closing","accounting.general-ledger","purchases.slip.list","inbound.inspection","hr.carriers","admin.permissions","admin.permission-groups","admin.approval-line-config","admin.app-release","dev.popup-notice","dev.activity-log","hr.role-management","hr.slip-cutoff","accounting.accounts","accounting.journals","accounting.balances","accounting.reports","accounting.receivables","accounting.bank-card-admin","accounting.bank-matching","accounting.deposit-match","accounting.cash-receipts","accounting.period-close","accounting.statement-batch","accounting.partner-ledger","accounting.supplier-profiles","accounting.edit-requests","sales.partner-order.draft","sales.partner-order.confirm","sales.partner-order.history","sales.partner-order.print","inventory.warehouse","inventory.stock","inventory.stock-transfer","inventory.dps","inventory.audit","inventory.list","inventory.detail","inventory.adjust","inventory.transfer","inventory.stock-balance","inventory.safety-stock","inventory.edit-requests","inventory.edit-requests.decide","ecount.import.inventory","admin.employees","admin.users","partners.list","partners.detail","partners.search","partners.edit","partners.4tab.edit","partners.block","partners.edit-request","products.list","products.admin","arologis.admin","arologis.region","ecount.mig14.ledger","sales.slip.create","slip.delivery-batch","slip.print.next-day","slip.print.export","sales.partner-dc-config","sales.estimate-config","slip.cleanup","arologis.dispatch.admin","arologis.dispatch.ops","notification.dispatch-sms.display","dispatch.batch","aligo.address-book","groupware.approvals","groupware.approval-templates","messenger.admin","slip.edit-requests","slip.edit-requests.decide","slip.photo-audit","accounting.edit-requests.decide","purchases.slip.edit","purchases.slip.delete","sales.slip.edit","sales.partner-order.edit","slip.signature","partners.block.bulk","arologis.region.manage","slip.transfer.process","sales.slip.confirm","slip.reject","sales.slip.cancel","inventory.warehouse.admin","slip.comments","slip.audit-overlay","slip.audit-revert","accounting.period-close.reverse","dc-config.import","dispatch.board","dispatch.external-carriers","estimates.list","sales.partner-order.list","sales.slip.list","system.permission-admin"] as const
 const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>> = {
   "MASTER": {
     "1001100": [
@@ -93,7 +93,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "products.admin",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",
@@ -228,7 +227,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "products.admin",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",
@@ -393,7 +391,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "partners.block",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "slip.delivery-batch",
       "slip.print.export",
@@ -448,7 +445,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "partners.list",
       "partners.detail",
       "partners.search",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "slip.edit-requests",
       "slip.comments",
@@ -659,7 +655,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "products.admin",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",
@@ -788,7 +783,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "partners.edit-request",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",
@@ -921,7 +915,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "partners.edit-request",
       "products.list",
       "products.admin",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",
@@ -1042,7 +1035,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "products.admin",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",
@@ -1168,7 +1160,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "products.admin",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",
@@ -1302,7 +1293,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "partners.edit-request",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",
@@ -1426,7 +1416,6 @@ const TEMPLATE_PERMISSION_BITS_BY_ROLE: Record<string, Record<string, string[]>>
       "products.admin",
       "arologis.admin",
       "arologis.region",
-      "ecount.mig14.order-list",
       "ecount.mig14.ledger",
       "sales.slip.create",
       "slip.delivery-batch",

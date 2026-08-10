@@ -359,8 +359,10 @@ function isTrackedEvidenceFile(file: string): boolean {
     const output = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-z'], {
       encoding: 'utf8', maxBuffer: 50 * 1024 * 1024,
     })
-    trackedEvidenceFiles = new Set(output.split('\0').filter(Boolean).map((entry) =>
-      fs.realpathSync.native(path.resolve(REPO_ROOT, entry))))
+    trackedEvidenceFiles = new Set(output.split('\0').filter(Boolean)
+      .map((entry) => path.resolve(REPO_ROOT, entry))
+      .filter((entry) => fs.existsSync(entry))
+      .map((entry) => fs.realpathSync.native(entry)))
   }
   return trackedEvidenceFiles.has(path.resolve(file))
 }

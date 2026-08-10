@@ -92,7 +92,6 @@ const GROUP_GATE_CODES: Record<(typeof GROUP_LABELS)[number], string[]> = {
     'accounting.tax-invoice.inbound',
     'accounting.daily-closing',
     'accounting.general-ledger',
-    'ecount.mig14.order-list',
     'ecount.mig14.ledger',
     'ecount.mig.ops-dashboard',
     'accounting.edit-requests.decide',

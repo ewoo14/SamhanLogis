@@ -285,8 +285,6 @@ export type PageCode =
   | 'arologis.accounting.summary'
   | 'arologis.admin.permissions'
   | 'arologis.accounting.accounts'
-  // MIG-14 admin UI
-  | 'ecount.mig14.order-list'
   | 'ecount.mig14.ledger'
   // MIG-21 migration ops dashboard
   | 'ecount.mig.ops-dashboard'
