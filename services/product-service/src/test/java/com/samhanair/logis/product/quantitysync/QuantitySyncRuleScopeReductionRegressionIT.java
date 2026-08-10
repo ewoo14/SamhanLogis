@@ -43,7 +43,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.annotation.DirtiesContext;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * 🚨 2026-07-28 범위 축소(PR #958 R5 이후 개발책임자 결정) — DB 강제층(6개 constraint
@@ -70,6 +73,7 @@ import org.springframework.test.annotation.DirtiesContext;
 })
 @DirtiesContext
 @WithMockUser(username = "test-sync")
+@ExtendWith(OutputCaptureExtension.class)
 class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
 
     private static final String CREATED_BY = "896-S2-SCOPEDOWN";
@@ -172,6 +176,81 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
                  WHERE product_id = (SELECT id FROM products WHERE model_code = ?)
                    AND estimate_category = 'HOME_MULTI'
                 """, Boolean.class, goneCode)).isFalse();
+    }
+
+    @Test
+    void R33_A1_활성_규칙_target_품목의_시트_역할변경을_보존하고_보고한다(CapturedOutput output) throws Exception {
+        String targetCode = "R33-ROLE-TARGET";
+        String sourceCode = "R33-ROLE-SOURCE";
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z"))
+                .thenReturn(homeMultiRows(
+                        row("분기관", targetCode, "", "100,000", "", "90,000"),
+                        row("벽걸이 실내기", sourceCode, "", "200,000", "", "180,000")));
+        syncService.syncAll();
+        quantitySyncRuleService.create(ruleRequestWithoutClassification(
+                "R33_ROLE_RULE", sourceCode, targetCode), "qa-r33");
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z"))
+                .thenReturn(homeMultiRows(
+                        row("벽걸이 실내기", targetCode, "", "100,000", "", "90,000"),
+                        row("벽걸이 실내기", sourceCode, "", "200,000", "", "180,000")));
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+        ProductSheetSyncService.TabSyncResult result = summary.byTab.get("홈멀티");
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT c.name FROM products p
+                JOIN classification c ON c.id = p.cat_l_id
+                WHERE p.model_code = ?
+                """, String.class, targetCode)).isEqualTo("부자재");
+        assertThat(result.preservedByRuleProductOccurrences).isEqualTo(1);
+        assertThat(result.preservedByRuleProductDetails).singleElement().satisfies(detail -> {
+            assertThat(detail.modelCode).isEqualTo(targetCode);
+            assertThat(detail.ruleKeys).containsExactly("R33_ROLE_RULE");
+        });
+        assertThat(output).contains("R33_ROLE_RULE");
+    }
+
+    @Test
+    void R33_A2_활성_규칙_참조_품목의_시트_상태변경을_보존하고_보고한다() throws Exception {
+        String targetCode = "R33-STATUS-TARGET";
+        String sourceCode = "R33-STATUS-SOURCE";
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z"))
+                .thenReturn(homeMultiRows(
+                        row("분기관", targetCode, "", "100,000", "", "90,000"),
+                        row("벽걸이 실내기", sourceCode, "", "200,000", "", "180,000")));
+        syncService.syncAll();
+        quantitySyncRuleService.create(ruleRequestWithoutClassification(
+                "R33_STATUS_RULE", sourceCode, targetCode), "qa-r33");
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z"))
+                .thenReturn(homeMultiRows(
+                        row("분기관", targetCode, "단종", "100,000", "", "90,000"),
+                        row("벽걸이 실내기", sourceCode, "", "200,000", "", "180,000")));
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+        ProductSheetSyncService.TabSyncResult result = summary.byTab.get("홈멀티");
+
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse(targetCode).orElseThrow()
+                .getStatus().name()).isEqualTo("ACTIVE");
+        assertThat(result.preservedByRuleProductOccurrences).isEqualTo(1);
+        assertThat(result.preservedByRuleProductDetails).singleElement().satisfies(detail -> {
+            assertThat(detail.modelCode).isEqualTo(targetCode);
+            assertThat(detail.ruleKeys).containsExactly("R33_STATUS_RULE");
+        });
+    }
+
+    private QuantitySyncRuleRequest ruleRequestWithoutClassification(String ruleKey,
+                                                                      String sourceCode,
+                                                                      String targetCode) throws Exception {
+        JsonNode condition = MAPPER.readTree("{}");
+        return new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,
+                ruleKey + " 이름", true, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,
+                QuantitySyncConflictPolicy.ADD, 10, LEGACY_REF,
+                List.of(new QuantitySyncRuleRequest.SourceRequest(sourceCode, new BigDecimal("1"))),
+                List.of(new QuantitySyncRuleRequest.TargetRequest(targetCode, new BigDecimal("1"), "NONE", 1)));
     }
 
     private QuantitySyncRuleRequest ruleRequest(String ruleKey, boolean enabled,
