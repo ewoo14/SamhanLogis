@@ -51,7 +51,7 @@ export interface AuditApi {
   revertToRevision: (entityId: string, revisionNo: number) => Promise<RevertResponse>
 }
 
-interface RawAuditLogEntry {
+export interface RawAuditLogEntry {
   revisionNo: number
   field?: string
   fieldName?: string
@@ -64,7 +64,7 @@ interface RawAuditLogEntry {
   changedAt: string
 }
 
-function normalizeAuditLogEntry(entry: RawAuditLogEntry): AuditLogEntry {
+export function normalizeAuditLogEntry(entry: RawAuditLogEntry): AuditLogEntry {
   return {
     revisionNo: entry.revisionNo,
     field: entry.field ?? entry.fieldName ?? '',
@@ -118,7 +118,7 @@ export const partnerOrderAuditApi = createAuditApi({
 
 export const dcConfigAuditApi = createAuditApi({
   listPath: (partnerCode) =>
-    `/api/v1/dc-configs/${encodeURIComponent(partnerCode)}/audit-logs`,
+    `/api/v1/partner-dc-configs/${encodeURIComponent(partnerCode)}/audit-logs`,
 })
 
 /**
