@@ -77,6 +77,7 @@ import com.samhanair.logis.inventory.web.dto.TransferResponse;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
 import com.samhanair.logis.security.HrAuthorizationHelper;
 import com.samhanair.logis.security.InternalSecurityAutoConfiguration;
+import com.samhanair.logis.security.UserHeaderDecodingFilter;
 import com.samhanair.logis.security.department.Department;
 import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
@@ -146,6 +147,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Import({
         PermissionSecurityAutoConfiguration.class,
         InternalSecurityAutoConfiguration.class,
+        UserHeaderDecodingFilter.class,
         InventoryPermissionControllerIT.TestSecurityConfig.class,
         InventoryPermissionControllerIT.TestMeterConfig.class
 })

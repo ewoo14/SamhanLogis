@@ -16,8 +16,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -155,7 +153,7 @@ public class WarehouseController {
                                                  @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
         return ApiResponse.ok(warehouseService.update(id, request, callerHeader,
-                decodeCallerName(callerNameHeader)));
+                callerNameHeader));
     }
 
     /**
@@ -211,7 +209,7 @@ public class WarehouseController {
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
         return ApiResponse.ok(warehouseService.revertToRevision(id, revisionNo, callerHeader,
-                decodeCallerName(callerNameHeader)));
+                callerNameHeader));
     }
 
     /**
@@ -230,7 +228,7 @@ public class WarehouseController {
                        @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerNameHeader,
                        @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
-        warehouseService.delete(id, callerHeader, decodeCallerName(callerNameHeader));
+        warehouseService.delete(id, callerHeader, callerNameHeader);
     }
 
     /**
@@ -267,18 +265,6 @@ public class WarehouseController {
                                                   @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
         return ApiResponse.ok(warehouseService.restore(id, callerHeader,
-                decodeCallerName(callerNameHeader)));
-    }
-
-    /** Gateway 가 UTF-8 URL-encode 한 표시명을 안전하게 복원한다. 잘못된 값은 미상으로 처리한다. */
-    private static String decodeCallerName(String encodedCallerName) {
-        if (encodedCallerName == null || encodedCallerName.isBlank()) {
-            return null;
-        }
-        try {
-            return URLDecoder.decode(encodedCallerName, StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
+                callerNameHeader));
     }
 }
