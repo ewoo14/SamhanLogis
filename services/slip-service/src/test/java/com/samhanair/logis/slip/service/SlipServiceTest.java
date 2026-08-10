@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -37,7 +38,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -1053,6 +1056,48 @@ class SlipServiceTest {
                 eq(slip),
                 eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
                 eq(null), any(UUID.class), eq(null), eq(null));
+    }
+
+    @Test
+    void solR13_uuidLikeButNonCanonicalDisplayName_isPreserved() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, null, null, "새메모", null, null, null),
+                UUID.randomUUID().toString(), "1-1-1-1-1");
+
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("1-1-1-1-1"), any(), eq("memo"), any(), any());
+        verify(slipRevisionService).capture(
+                eq(slip), eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("1-1-1-1-1"), eq(null));
+    }
+
+    @Test
+    void applyOverlayPatch_uuidLikeButNonCanonicalDisplayName_isPreserved() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.applyOverlayPatch(slipId, "memo", "새메모",
+                UUID.randomUUID().toString(), "1-1-1-1-1");
+
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("1-1-1-1-1"), any(), eq("memo"), any(), any());
+    }
+
+    @Test
+    void applyOverlayPatchBatch_uuidLikeButNonCanonicalDisplayName_isPreserved() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findByIdForCollabUpdate(slipId)).thenReturn(Optional.of(slip));
+        Map<String, String> expectedBefore = new HashMap<>();
+        expectedBefore.put("memo", null);
+
+        service.applyOverlayPatchBatch(slipId, Map.of("memo", "새메모"), expectedBefore,
+                UUID.randomUUID().toString(), "1-1-1-1-1");
+
+        verify(auditLogService).recordBatch(
+                eq(slipId), any(UUID.class), eq("1-1-1-1-1"), any(), anyList());
     }
 
     @Test

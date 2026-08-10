@@ -31,4 +31,16 @@ describe('PR #1134 R11 DC audit path contract', () => {
       changedAt: '2026-08-10T09:01:00+09:00',
     }).actorName).toBe('변경자 미상')
   })
+
+  it('preserves UUID-like but non-canonical actorName', () => {
+    expect(normalizeAuditLogEntry({
+      revisionNo: 1,
+      fieldName: 'memo',
+      oldValue: '이전',
+      newValue: '이후',
+      actorId: '550e8400-e29b-41d4-a716-446655440000',
+      actorName: '1-1-1-1-1',
+      changedAt: '2026-08-10T09:01:00+09:00',
+    }).actorName).toBe('1-1-1-1-1')
+  })
 })

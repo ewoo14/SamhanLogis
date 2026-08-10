@@ -26,4 +26,13 @@ class SlipAuditLogResponseTest {
 
         assertThat(SlipAuditLogResponse.from(log).actorName()).isEqualTo("[DEV-SEED] 개발영업");
     }
+
+    @Test
+    void from_preservesUuidLikeButNonCanonicalActorName() {
+        SlipAuditLog log = SlipAuditLog.record(
+                UUID.randomUUID(), 1, UUID.randomUUID(),
+                "1-1-1-1-1", null, "memo", "이전", "이후");
+
+        assertThat(SlipAuditLogResponse.from(log).actorName()).isEqualTo("1-1-1-1-1");
+    }
 }
