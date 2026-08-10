@@ -139,6 +139,7 @@ class QuantitySyncRuleKeyPathSafetyHttpIT extends AbstractPostgresIT {
     }
 
     private String ruleJson(String ruleKey, String sourceCode, String targetCode) throws Exception {
+        classifyQuantitySyncTarget(targetCode);
         JsonNode condition = MAPPER.readTree("{}");
         QuantitySyncRuleRequest request = new QuantitySyncRuleRequest(ruleKey,
                 QuantitySyncEstimateCategory.HOME_MULTI, "키 안전성 테스트", true, "SUM", condition,

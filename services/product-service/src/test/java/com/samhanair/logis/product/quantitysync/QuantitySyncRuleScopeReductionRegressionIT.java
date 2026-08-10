@@ -176,6 +176,7 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
 
     private QuantitySyncRuleRequest ruleRequest(String ruleKey, boolean enabled,
                                                 String sourceCode, String targetCode) throws Exception {
+        classifyQuantitySyncTarget(targetCode);
         JsonNode condition = MAPPER.readTree("{}");
         return new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,
                 ruleKey + " 이름", enabled, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,

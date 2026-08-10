@@ -1,9 +1,11 @@
 package com.samhanair.logis.product.quantitysync;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.product.domain.QuantitySyncConflictPolicy;
 import com.samhanair.logis.product.domain.QuantitySyncEstimateCategory;
@@ -83,7 +85,7 @@ class QuantitySyncRuleCrudIT extends AbstractPostgresIT {
     }
 
     @Test
-    void 기존_규칙의_source_target을_맞교환해도_순환으로_거부되지_않는다() throws Exception {
+    void 기존_규칙의_source_target을_맞교환하면_본체_부자재_역할위반으로_거부된다() throws Exception {
         // R1 결함 1 [HIGH] — 실 서비스 + 실 Postgres 양쪽을 통과하는 전체 스택 재현.
         // replace()가 validator.validate()를 호출한 뒤에야 옛 child를 soft-delete하므로
         // (QuantitySyncRuleService.java:116-126) 검증 시점에 옛 간선(A->B)과 새 간선(B->A)이
@@ -100,13 +102,13 @@ class QuantitySyncRuleCrudIT extends AbstractPostgresIT {
                 java.util.List.of(new QuantitySyncRuleRequest.TargetRequest(
                         "CRUD-SOURCE-A", new BigDecimal("1"), "NONE", 1)));
 
-        QuantitySyncRuleResponse replaced = service.replace("SWAP_RULE", swapped, "qa-crud");
-
-        assertThat(replaced.sources()).singleElement().extracting("productCode").isEqualTo("CRUD-TARGET-B");
-        assertThat(replaced.targets()).singleElement().extracting("productCode").isEqualTo("CRUD-SOURCE-A");
+        assertThatThrownBy(() -> service.replace("SWAP_RULE", swapped, "qa-crud"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("target");
     }
 
     private QuantitySyncRuleRequest request(String ruleKey, String targetCode) throws Exception {
+        classifyQuantitySyncTarget(targetCode);
         JsonNode condition = MAPPER.readTree("{}");
         return new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,
                 "CRUD 테스트 규칙", true, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,

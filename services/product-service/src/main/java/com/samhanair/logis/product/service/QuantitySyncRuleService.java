@@ -475,7 +475,9 @@ public class QuantitySyncRuleService {
                 product.getStatus() == ProductStatus.ACTIVE,
                 product.getUsageScope() != UsageScope.NONE,
                 product.getProductType() == ProductType.BUNDLE,
-                componentCodes, componentProductIds(componentCodes));
+                componentCodes, componentProductIds(componentCodes),
+                product.getCatL() == null ? null : product.getCatL().getName(),
+                product.getGoodsType() == null ? null : product.getGoodsType().name());
     }
 
     /**
