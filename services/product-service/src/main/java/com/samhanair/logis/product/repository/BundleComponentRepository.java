@@ -4,6 +4,7 @@ import com.samhanair.logis.product.domain.BundleComponent;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -41,6 +42,23 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
             ORDER BY bc.displayOrder ASC NULLS LAST, bc.createdAt ASC, bc.id ASC
             """)
     List<BundleComponent> findByBundleProductId(UUID bundleProductId);
+
+    /**
+     * PR #1132 V37이 지정한 기본값 — 시트 동기화가 마이그레이션 지정값을 덮어쓰지 않도록 조회한다.
+     * rollback 시 audit 행의 rolled_back_at 이 채워지므로 다시 보호하지 않는다.
+     */
+    @Query(value = """
+            SELECT bc.id
+              FROM bundle_component bc
+              JOIN bundle_component_default_backfill_audit a
+                ON a.bundle_component_id = bc.id
+             WHERE bc.bundle_product_id = :bundleProductId
+               AND bc.is_deleted = false
+               AND a.migration_key = 'PR1132-V37'
+               AND a.rolled_back_at IS NULL
+               AND a.is_deleted = false
+            """, nativeQuery = true)
+    Set<UUID> findActiveDefaultBackfillComponentIds(@Param("bundleProductId") UUID bundleProductId);
 
     /** 카탈로그 동의 발급용 단일 관측 — 목록에서 건수와 집합 토큰을 함께 파생한다. */
     @Query("""

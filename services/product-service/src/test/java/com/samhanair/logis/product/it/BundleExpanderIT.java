@@ -103,7 +103,30 @@ class BundleExpanderIT extends AbstractPostgresIT {
     }
 
     @Test
-    void RED_A_AM220AXVHHR1SY_기본구성품이_0건인_기존세트도_활성구성품으로_전개한다() {
+    void GREEN_A_3_V37_지정_후_기본_구성품_전부가_전개된다() {
+        Category cat = categoryRepository.save(Category.create("COMMERCIAL-RED-A3", "test", null, 21));
+        Product parent = Product.seedFromSheet("기본 0건 상용멀티 세트", "RED_A3_NO_DEFAULT", cat,
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                ProductType.BUNDLE, ProductCategory.COMMERCIAL_MULTI,
+                UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI);
+        parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        parent.markBundleComponentsManual();
+        parent = productRepository.save(parent);
+
+        product("RED-A3-INDOOR", "RED-A3 실내기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("100"));
+        product("RED-A3-OUTDOOR", "RED-A3 실외기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("200"));
+        comp(parent, "RED-A3-INDOOR", BundleComponent.ComponentKind.INDOOR, null, true, 1);
+        comp(parent, "RED-A3-OUTDOOR", BundleComponent.ComponentKind.OUTDOOR, null, true, 2);
+        flush();
+
+        var lines = expander.expand("RED_A3_NO_DEFAULT", BigDecimal.ONE);
+
+        assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("RED-A3-INDOOR", "RED-A3-OUTDOOR");
+    }
+
+    @Test
+    void R1_호환_예외_제거_기본구성품_0건이면_전개하지_않는다() {
         Category cat = categoryRepository.save(Category.create("COMMERCIAL-LEGACY-COMPAT", "test", null, 18));
         Product parent = Product.seedFromSheet("기존 상용멀티 세트", "AM220AXVHHR1SY", cat,
                 BigDecimal.ZERO, BigDecimal.ZERO,
@@ -120,8 +143,7 @@ class BundleExpanderIT extends AbstractPostgresIT {
 
         var lines = expander.expand("AM220AXVHHR1SY", BigDecimal.ONE);
 
-        assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
-                .containsExactly("AM220-INDOOR", "AM220-OUTDOOR");
+        assertThat(lines).isEmpty();
     }
 
     @Test
