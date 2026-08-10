@@ -58,6 +58,7 @@ import {
   deleteSalesSlip,
   duplicateSlip,
   expandBundleLine,
+  createBundleInstanceKey,
   emptyBundleSetOptions,
   getSlip,
   removeLine,
@@ -411,6 +412,8 @@ type PurchaseEditLine = SlipLineInput & {
   unitPriceWithVat?: string | null
   authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
   vatDirty?: boolean
+  /** Y.Doc에 보존하는 JSONB bundleSetOptions.instanceKey. */
+  bundleInstanceKey?: string | null
   isBundleComponent?: boolean
   /**
    * 재수렴 R-2(#937) 근본수정 — 이 라인의 supplyAmount/vatAmount 를 만든 함수(fromAmounts/
@@ -558,7 +561,18 @@ export function removeSalesEditLine(
 }
 
 export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
-  return slip.lines.map((line) => ({
+  return slip.lines.map((line) => {
+    const isBundleComponent = Boolean((line.parentSetModel ?? '').trim())
+    // 저장된 unitPriceDomain은 과거 직접 금액 편집의 명시적 결과다. 다만 V59 이전
+    // legacy 평면 행에는 domain 표식이 없으므로, 이미 저장된 S/V/T를 보수적으로 보존한다.
+    // BUNDLE 구성품은 표식 유무와 무관하게 서버 재계산 계약을 우선해 hydrate가 권위를 만들지 않는다.
+    const hasLegacyStoredAmounts = line.unitPriceDomain == null
+      && line.supplyAmount != null
+      && line.vatAmount != null
+      && line.lineTotal != null
+    const hasPersistedVatAuthority = !isBundleComponent
+      && (line.unitPriceDomain === 'VAT_INCLUSIVE' || hasLegacyStoredAmounts)
+    return ({
     key: createEditLineKey(),
     lineId: line.id,
     productId: line.productId,
@@ -612,13 +626,17 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
       line.supplyAmount ?? line.lineTotal,
       line.vatAmount ?? vatFromSupply(Number(line.lineTotal)),
     ),
-    authority: 'PRICE',
-    // Hydrated S/V/T are already authoritative server values. Keep them in
-    // every subsequent save payload, including header-only edits.
-    vatDirty: line.supplyAmount != null && line.vatAmount != null && line.lineTotal != null,
-    isBundleComponent: Boolean((line.parentSetModel ?? '').trim()),
+    authority: hasPersistedVatAuthority ? 'VAT' : 'PRICE',
+    // 서버가 보낸 S/V/T는 파생값이다. 직접 금액 셀을 편집한 경우에만 true가 된다.
+    vatDirty: hasPersistedVatAuthority,
+    parentSetModel: line.parentSetModel ?? undefined,
+    setHead: line.setHead ?? false,
+    isBundleComponent,
+    setOptions: line.setOptions ?? undefined,
+    bundleInstanceKey: line.setOptions?.instanceKey ?? null,
     note: line.note ?? '',
-  }))
+    })
+  })
 }
 
 /**
@@ -797,6 +815,7 @@ export function coeditLinesToEditLines(
     const rawLineTotal = provider.getItemValue(index, 'lineTotalWithVat')
     const rawAuthority = provider.getItemValue(index, 'authority')
     const rawVatDirty = provider.getItemValue(index, 'vatDirty')
+    const rawInstanceKey = provider.getItemValue(index, 'bundleInstanceKey')
     const supplyAmount = rawSupply || previous?.supplyAmount
     const vatAmount = rawVat || previous?.vatAmount
     const hasDerivedAmounts = supplyAmount != null
@@ -806,6 +825,7 @@ export function coeditLinesToEditLines(
     const lineTotalWithVat = hasDerivedAmounts
       ? String(Number(supplyAmount) + Number(vatAmount))
       : rawLineTotal || previous?.lineTotalWithVat
+    const bundleInstanceKey = rawInstanceKey || previous?.bundleInstanceKey
     const parentSetModel = provider.getItemValue(index, 'parentSetModel') || previous?.parentSetModel
     const bundleParentProductId = provider.getItemValue(index, 'bundleParentProductId')
       || previous?.bundleParentProductId
@@ -832,6 +852,10 @@ export function coeditLinesToEditLines(
       lineTotalWithVat,
       authority: (rawAuthority || previous?.authority) as PurchaseEditLine['authority'],
       vatDirty: rawVatDirty ? rawVatDirty === 'true' : previous?.vatDirty,
+      bundleInstanceKey: bundleInstanceKey || null,
+      setOptions: previous?.setOptions
+        ? { ...previous.setOptions, instanceKey: bundleInstanceKey || previous.setOptions.instanceKey }
+        : bundleInstanceKey ? { instanceKey: bundleInstanceKey } : undefined,
       parentSetModel: parentSetModel || undefined,
       setHead: rawSetHead ? rawSetHead === 'true' : previous?.setHead,
       bundleParentProductId: bundleParentProductId || undefined,
@@ -987,7 +1011,7 @@ export function computeDetailQuantityChange(
       vatAmount: '0',
       lineTotalWithVat: '0',
       authority: 'PRICE',
-      vatDirty: true,
+      vatDirty: false,
       vatWarning: false,
     }
   }
@@ -1006,7 +1030,7 @@ export function computeDetailQuantityChange(
     vatAmount: vatLine.vatAmount,
     lineTotalWithVat: vatLine.lineTotal,
     authority: 'PRICE',
-    vatDirty: true,
+    vatDirty: false,
     // 재수렴 R-2(#937): recalculateLineVat(PRICE) 가 fromAmounts 에서 이미 내린 판정(항상
     // false)을 그대로 승계한다 — 생성 화면과 같은 권위, 렌더는 재계산하지 않는다.
     vatWarning: vatLine.vatWarning,
@@ -1059,7 +1083,7 @@ export function computeDetailUnitPriceChange(
     vatAmount: vatLine.vatAmount,
     lineTotalWithVat: vatLine.lineTotal,
     authority: 'PRICE',
-    vatDirty: true,
+    vatDirty: false,
     // 재수렴 R-2(#937): 생성 화면과 같은 함수(recalculateLineVat PRICE)가 이미 내린 판정을
     // 그대로 승계한다 — 렌더가 hasVatWarning 으로 다시 계산하면 반올림 공식이 달라 거짓
     // 경고가 생긴다(11종 sweep 실측: 8/11 거짓 경고).
@@ -1293,6 +1317,7 @@ export async function expandSalesBundleProductSelection(
   const parentUnitPrice = line.unitPrice && line.unitPrice !== '0'
     ? String(line.unitPrice)
     : String(product.deliveryPrice ?? product.sellingPrice ?? line.unitPrice ?? '0')
+  const instanceKey = line.setOptions?.instanceKey ?? createBundleInstanceKey()
   const expanded: ExpandedSlipLine[] = await expandBundleLine({
     parentModelCode,
     quantity: Number(line.quantity) > 0 ? Number(line.quantity) : 1,
@@ -1320,6 +1345,7 @@ export async function expandSalesBundleProductSelection(
       setHead: Boolean(component.setHead),
       bundleParentProductId: product.id,
       bundleParentUnitPrice: parentUnitPrice,
+      bundleInstanceKey: instanceKey,
     }
     const coeditLineId = serverLineId ?? provider?.addItem(seed) ?? null
     if (provider && coeditLineId) {
@@ -1344,19 +1370,20 @@ export async function expandSalesBundleProductSelection(
       setHead: Boolean(component.setHead),
       bundleParentProductId: product.id,
       bundleParentUnitPrice: parentUnitPrice,
-      setOptions: line.setOptions ?? emptyBundleSetOptions(),
+      setOptions: { ...(line.setOptions ?? emptyBundleSetOptions()), instanceKey },
+      bundleInstanceKey: instanceKey,
       isBundleComponent: true,
       vatDirty: false,
     }
   })
 }
 
-/** 매출 수정 저장 projection — 품목·양수가 확정된 행만 BE payload로 보낸다. */
+/** 매출 수정 저장 projection — 기존 lineId 행은 수량 오류도 BE 가드까지 보존한다. */
 export function buildSalesEditLinePayloads(
   lines: ReadonlyArray<PurchaseEditLine>,
 ): SlipLineInput[] {
   return lines
-    .filter(isSalesEditLineSaved)
+    .filter((line) => Boolean(line.lineId) || isSalesEditLineSaved(line))
     .map(buildDetailLinePayload)
 }
 

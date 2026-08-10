@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 class BundleOptionRoundTripTest {
 
     private static final BundleSetOptions OPTIONS = new BundleSetOptions(
-            "REMOTE-01", true, "PANEL-02", "사각", false);
+            "REMOTE-01", true, "PANEL-02", "사각", false, "r7-instance-1");
 
     @Test
     void 전표_EXPAND_옵션과_계보는_revision_복원에도_동일하다() throws Exception {
@@ -43,6 +43,7 @@ class BundleOptionRoundTripTest {
         assertThat(SlipLineResponse.from(restored).setOptions()).isEqualTo(OPTIONS);
         assertThat(restored.getParentSetModel()).isEqualTo("SET-01");
         assertThat(restored.isSetHead()).isTrue();
+        assertThat(restored.getBundleSetOptions().instanceKey()).isEqualTo("r7-instance-1");
     }
 
     @Test

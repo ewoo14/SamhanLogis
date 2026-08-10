@@ -112,6 +112,18 @@ public class SalesSlipUpdateService {
                 .map(SlipUpdateRequest.LineRequest::lineId)
                 .toList());
         validateAndAssignNewBundleLineage(replacementLines, request.lines());
+        BundleLineageResolver.flattenHeadProductReplacements(
+                slip.getLines(), replacementLines, request.lines().stream()
+                        .map(SlipUpdateRequest.LineRequest::lineId)
+                        .toList());
+        BundleLineageResolver.requireSingleHeadPerRetainedBundleInstance(
+                slip.getLines(), replacementLines, request.lines().stream()
+                        .map(SlipUpdateRequest.LineRequest::lineId)
+                        .toList());
+        BundleLineageResolver.materializeLegacyInstanceKeys(
+                slip.getLines(), replacementLines, request.lines().stream()
+                        .map(SlipUpdateRequest.LineRequest::lineId)
+                        .toList());
         rejectAuthoritativeBundleComponents(replacementLines, request.lines());
         try {
             slip.updateSalesHeader(
@@ -139,6 +151,8 @@ public class SalesSlipUpdateService {
                 auditLogService.recordBatch(saved.getId(), actorId, actorName, null,
                         List.of(new SlipAuditLogService.ChangeEntry("SLIP_EDIT", before, after)));
             }
+            // auditLogService.recordBatch가 revisionCount/modifiedAt을 전진시킨 뒤의 최종 token을 만든다.
+            slipRepository.flush();
             priceMemoryService.rememberBatchAfterCommit(priceMemoryCommands, "slip.salesUpdate");
             return SlipDetailResponse.from(saved);
         } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
@@ -322,7 +336,7 @@ public class SalesSlipUpdateService {
                 rejectBundleLineage("세트 부모 단가가 구성품 행마다 일치하지 않습니다");
             }
 
-            BundleSetOptions setOptions = key.setOptions();
+            BundleSetOptions setOptions = ensureInstanceKey(key.setOptions());
             ExpandedLineDto.Options expandOptions = toExpandOptions(setOptions);
             List<ExpandedLineDto> expanded = componentLines(productClient.expand(
                     key.parentSetModel(), BigDecimal.ONE, expandOptions, parentUnitPrice));
@@ -360,6 +374,19 @@ public class SalesSlipUpdateService {
                 options.remoteOption(), Boolean.TRUE.equals(options.remoteExcluded()),
                 options.panelOption(), options.panelShape360(),
                 Boolean.TRUE.equals(options.materialIncluded()));
+    }
+
+    private BundleSetOptions ensureInstanceKey(BundleSetOptions options) {
+        if (options != null && options.instanceKey() != null && !options.instanceKey().isBlank()) {
+            return options;
+        }
+        return new BundleSetOptions(
+                options == null ? null : options.remoteOption(),
+                options == null ? null : options.remoteExcluded(),
+                options == null ? null : options.panelOption(),
+                options == null ? null : options.panelShape360(),
+                options == null ? null : options.materialIncluded(),
+                UUID.randomUUID().toString());
     }
 
     private List<ExpandedLineDto> componentLines(List<ExpandedLineDto> expanded) {

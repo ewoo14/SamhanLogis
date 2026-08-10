@@ -270,6 +270,16 @@ export interface BundleSetOptions {
   panelShape360?: string | null
   /** 자재 포함 여부 — true 면 자재류 구성품 포함. */
   materialIncluded?: boolean | null
+  /** 세트 구성품을 하나의 명시적 인스턴스로 묶는 안정 키. 기존 JSON에는 없을 수 있다. */
+  instanceKey?: string | null
+}
+
+/** 협업 세션에서 새로 추가한 BUNDLE 인스턴스의 충돌 방지용 key. */
+export function createBundleInstanceKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return Math.random().toString(36).slice(2)
 }
 
 /** 빈 세트 옵션 — 신규 라인 초기값. */
@@ -304,6 +314,7 @@ export function toApiBundleSetOptions(
     panelOption: isSinglePanelOption(panelOption) ? panelOption : null,
     panelShape360: trimOrNull(o.panelShape360),
     materialIncluded: Boolean(o.materialIncluded),
+    instanceKey: o.instanceKey ?? null,
   }
 }
 

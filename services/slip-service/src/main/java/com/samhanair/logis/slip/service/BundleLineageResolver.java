@@ -1,9 +1,12 @@
 package com.samhanair.logis.slip.service;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -144,6 +147,219 @@ public final class BundleLineageResolver {
     public static boolean isBundleComponent(EstimateLine line) {
         return line != null && line.getParentSetModel() != null
                 && !line.getParentSetModel().isBlank();
+    }
+
+    /**
+     * 저장에 남는 기존 BUNDLE 계보를 세트 인스턴스별로 검증한다.
+     *
+     * <p>세트 인스턴스의 정본은 JSONB {@code bundleSetOptions.instanceKey}와
+     * {@code parentSetModel}의 조합이다. 같은 model을 두 번 넣은 행도 key가 다르면 서로
+     * 다른 인스턴스로 판정된다. key가 없는 legacy 행은 하나의 model로만 안전하게 묶을 수
+     * 있으며, 그 model에 역사적 head가 둘 이상이면 경계를 추정하지 않고 저장을 거부한다.
+     * 단일 legacy 인스턴스는 저장 시 새 key를 materialize한다.
+     *
+     * <p>원본 인스턴스가 이미 0-head였던 경우는 legacy 상태로 인정한다. 새 검증이 기존 DB를
+     * 소급해 무효화하지 않도록 하는 경계이며, 원본 head가 1개였던 인스턴스의 head 삭제는
+     * 여전히 거부한다. 전체 인스턴스 삭제는 retained line이 없으므로 검증 대상이 아니다.
+     *
+     * @param originalLines 저장 전 활성 영속 라인
+     * @param retainedLines 전체교체 저장 후 남길 라인
+     * @param retainedLineIds retainedLines 각 행이 승계하는 원본 lineId
+     * @throws BusinessException 기존 인스턴스의 head가 새로 0개 또는 2개 이상이거나,
+     *                          key 없는 legacy 인스턴스 경계가 모호할 때
+     */
+    public static void requireSingleHeadPerRetainedBundleInstance(
+            List<SlipLine> originalLines, List<SlipLine> retainedLines,
+            List<UUID> retainedLineIds) {
+        if (retainedLines == null) {
+            return;
+        }
+        requireSameRetainedLineIds(retainedLines.size(), retainedLineIds);
+
+        Map<UUID, ExistingBundleInstance> instanceByLineId = indexExistingInstances(originalLines);
+        Map<Integer, Integer> retainedLineCounts = new HashMap<>();
+        Map<Integer, Integer> retainedHeadCounts = new HashMap<>();
+        Set<Integer> headChangedInstances = new HashSet<>();
+        for (int i = 0; i < retainedLines.size(); i++) {
+            UUID retainedLineId = retainedLineIds.get(i);
+            ExistingBundleInstance instance = instanceByLineId.get(retainedLineId);
+            if (instance == null) {
+                // 신규 익명 BUNDLE은 validateAndAssignNewBundleLineage가 별도로 검증한다.
+                continue;
+            }
+            requireExplicitKeyWhenLegacyInstanceIsAmbiguous(instance, retainedLines.get(i));
+            if (instance.originalHeadLineIds.contains(retainedLineId)
+                    && !Objects.equals(instance.originalProductIds.get(retainedLineId),
+                    retainedLines.get(i).getProductId())) {
+                headChangedInstances.add(instance.ordinal);
+            }
+            retainedLineCounts.merge(instance.ordinal, 1, Integer::sum);
+            if (retainedLines.get(i).isSetHead()) {
+                retainedHeadCounts.merge(instance.ordinal, 1, Integer::sum);
+            }
+        }
+
+        for (ExistingBundleInstance instance : instanceByLineId.values()) {
+            int retainedCount = retainedLineCounts.getOrDefault(instance.ordinal, 0);
+            if (retainedCount == 0 || instance.historicalHeadCount == 0
+                    || headChangedInstances.contains(instance.ordinal)) {
+                continue;
+            }
+            if (retainedHeadCounts.getOrDefault(instance.ordinal, 0) != 1) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "세트 head 구성품은 삭제할 수 없습니다");
+            }
+        }
+    }
+
+    /** head 교체는 그 head가 속한 명시적 인스턴스 전체를 평면화한다. */
+    public static void flattenHeadProductReplacements(
+            List<SlipLine> originalLines, List<SlipLine> retainedLines,
+            List<UUID> retainedLineIds) {
+        if (retainedLines == null) {
+            return;
+        }
+        requireSameRetainedLineIds(retainedLines.size(), retainedLineIds);
+        Map<UUID, ExistingBundleInstance> instanceByLineId = indexExistingInstances(originalLines);
+        Set<Integer> headChangedInstances = new HashSet<>();
+        for (int i = 0; i < retainedLines.size(); i++) {
+            ExistingBundleInstance instance = instanceByLineId.get(retainedLineIds.get(i));
+            if (instance == null || !instance.originalHeadLineIds.contains(retainedLineIds.get(i))) {
+                continue;
+            }
+            if (!Objects.equals(instance.originalProductIds.get(retainedLineIds.get(i)),
+                    retainedLines.get(i).getProductId())) {
+                headChangedInstances.add(instance.ordinal);
+            }
+        }
+        if (headChangedInstances.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < retainedLines.size(); i++) {
+            ExistingBundleInstance instance = instanceByLineId.get(retainedLineIds.get(i));
+            if (instance != null && headChangedInstances.contains(instance.ordinal)) {
+                retainedLines.get(i).clearBundleComponent();
+            }
+        }
+    }
+
+    /** keyless legacy 인스턴스를 첫 정상 저장에서 JSONB instanceKey로 승격한다. */
+    public static void materializeLegacyInstanceKeys(
+            List<SlipLine> originalLines, List<SlipLine> retainedLines,
+            List<UUID> retainedLineIds) {
+        if (retainedLines == null) {
+            return;
+        }
+        requireSameRetainedLineIds(retainedLines.size(), retainedLineIds);
+        Map<UUID, ExistingBundleInstance> instanceByLineId = indexExistingInstances(originalLines);
+        Map<Integer, String> generatedKeys = new HashMap<>();
+        for (int i = 0; i < retainedLines.size(); i++) {
+            ExistingBundleInstance instance = instanceByLineId.get(retainedLineIds.get(i));
+            SlipLine line = retainedLines.get(i);
+            if (instance == null || instance.instanceKey != null || !isBundleComponent(line)) {
+                continue;
+            }
+            String key = generatedKeys.computeIfAbsent(instance.ordinal,
+                    ignored -> UUID.randomUUID().toString());
+            line.assignBundleComponent(line.getParentSetModel(), line.isSetHead(),
+                    withInstanceKey(instance.bundleSetOptions, key));
+        }
+    }
+
+    private static Map<UUID, ExistingBundleInstance> indexExistingInstances(
+            List<SlipLine> originalLines) {
+        Map<UUID, ExistingBundleInstance> indexed = new HashMap<>();
+        if (originalLines == null) {
+            return indexed;
+        }
+        Map<String, ExistingBundleInstance> instancesByKey = new HashMap<>();
+        int[] ordinal = {0};
+        for (SlipLine line : originalLines) {
+            if (!isBundleComponent(line)) {
+                continue;
+            }
+            String parentSetModel = line.getParentSetModel().trim();
+            String instanceKey = instanceKey(line.getBundleSetOptions());
+            String groupingKey = instanceKey == null
+                    ? "legacy:" + parentSetModel
+                    : "keyed:" + instanceKey + ":" + parentSetModel;
+            ExistingBundleInstance current = instancesByKey.computeIfAbsent(
+                    groupingKey, ignored -> new ExistingBundleInstance(
+                            ordinal[0]++, parentSetModel, instanceKey,
+                            line.getBundleSetOptions()));
+            current.lineCount++;
+            current.originalProductIds.put(line.getId(), line.getProductId());
+            if (line.isSetHead()) {
+                current.historicalHeadCount++;
+                current.originalHeadLineIds.add(line.getId());
+            }
+            indexed.put(line.getId(), current);
+        }
+        Map<String, Integer> headCountsByLegacyModel = new HashMap<>();
+        for (ExistingBundleInstance instance : instancesByKey.values()) {
+            if (instance.instanceKey == null) {
+                headCountsByLegacyModel.merge(instance.parentSetModel,
+                        instance.historicalHeadCount, Integer::sum);
+            }
+        }
+        for (ExistingBundleInstance instance : instancesByKey.values()) {
+            instance.ambiguousLegacy = instance.instanceKey == null
+                    && headCountsByLegacyModel.getOrDefault(instance.parentSetModel, 0) > 1;
+        }
+        return indexed;
+    }
+
+    private static void requireExplicitKeyWhenLegacyInstanceIsAmbiguous(
+            ExistingBundleInstance instance, SlipLine retainedLine) {
+        if (instance.ambiguousLegacy && instance.instanceKey == null
+                && instance.historicalHeadCount > 0
+                && retainedLine.getBundleSetOptions() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "기존 세트 인스턴스의 경계가 불명확합니다. 최신 상세를 다시 열어 저장해 주세요");
+        }
+    }
+
+    private static String instanceKey(BundleSetOptions options) {
+        if (options == null || options.instanceKey() == null || options.instanceKey().isBlank()) {
+            return null;
+        }
+        return options.instanceKey().trim();
+    }
+
+    private static BundleSetOptions withInstanceKey(BundleSetOptions options, String key) {
+        return new BundleSetOptions(
+                options == null ? null : options.remoteOption(),
+                options == null ? null : options.remoteExcluded(),
+                options == null ? null : options.panelOption(),
+                options == null ? null : options.panelShape360(),
+                options == null ? null : options.materialIncluded(),
+                key);
+    }
+
+    private static void requireSameRetainedLineIds(int lineCount, List<UUID> lineIds) {
+        if (lineIds == null || lineIds.size() != lineCount) {
+            throw new IllegalArgumentException("라인과 lineId 목록의 크기가 일치하지 않습니다");
+        }
+    }
+
+    private static final class ExistingBundleInstance {
+        private final int ordinal;
+        private final String parentSetModel;
+        private final String instanceKey;
+        private final BundleSetOptions bundleSetOptions;
+        private final Map<UUID, UUID> originalProductIds = new HashMap<>();
+        private final Set<UUID> originalHeadLineIds = new HashSet<>();
+        private int lineCount;
+        private int historicalHeadCount;
+        private boolean ambiguousLegacy;
+
+        private ExistingBundleInstance(int ordinal, String parentSetModel, String instanceKey,
+                                       BundleSetOptions bundleSetOptions) {
+            this.ordinal = ordinal;
+            this.parentSetModel = parentSetModel;
+            this.instanceKey = instanceKey;
+            this.bundleSetOptions = bundleSetOptions;
+        }
     }
 
     private void assign(SlipLine line, UUID lineId) {

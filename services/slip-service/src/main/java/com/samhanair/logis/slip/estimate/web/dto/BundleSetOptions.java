@@ -9,5 +9,12 @@ public record BundleSetOptions(
         Boolean remoteExcluded,
         String panelOption,
         String panelShape360,
-        Boolean materialIncluded) {
+        Boolean materialIncluded,
+        String instanceKey) {
+
+    /** 기존 5-field JSON/호출자 호환 생성자. instanceKey가 없는 legacy 옵션을 표현한다. */
+    public BundleSetOptions(String remoteOption, Boolean remoteExcluded, String panelOption,
+                            String panelShape360, Boolean materialIncluded) {
+        this(remoteOption, remoteExcluded, panelOption, panelShape360, materialIncluded, null);
+    }
 }

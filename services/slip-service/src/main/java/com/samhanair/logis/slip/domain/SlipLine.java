@@ -405,6 +405,13 @@ public class SlipLine extends BaseEntity {
         this.bundleSetOptions = bundleSetOptions;
     }
 
+    /** 세트 head 품목 교체로 해당 인스턴스를 평면 단품으로 전환한다. */
+    public void clearBundleComponent() {
+        this.parentSetModel = null;
+        this.setHead = false;
+        this.bundleSetOptions = null;
+    }
+
     /**
      * 전표 복사용 라인 사본 생성 — 원본 라인의 금액 권위값과 세트 계보를 그대로 승계한다 (R6-H2).
      *

@@ -68,6 +68,7 @@ import {
 } from '../api/inventory'
 import {
   createSlip,
+  createBundleInstanceKey,
   expandBundleLine,
   getPriceMemory,
   lookupPartnerForAutoFill,
@@ -982,6 +983,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const parentProductId = context?.parentProductId ?? source.productId
     const parentModelCode = context?.parentModelCode ?? source.modelCode
     const parentUnitPrice = parentContextOverrides.unitPrice ?? context?.unitPrice ?? source.unitPrice
+    const bundleSetOptions = {
+      ...(context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions()),
+      instanceKey: context?.setOptions?.instanceKey
+        ?? source.setOptions?.instanceKey
+        ?? createBundleInstanceKey(),
+    }
     const bundleDiscountResult = calculateBundleParentDiscount({
       listPrice: Number(context?.parentCatalogUnitPrice ?? source.catalogUnitPrice ?? source.unitPrice),
       modelCode: parentModelCode,
@@ -1042,7 +1049,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               bundleParentProductId: parentProductId,
               bundleParentUnitPrice: parentUnitPrice,
             }),
-            setOptions: context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions(),
+            setOptions: bundleSetOptions,
           }), 'PRICE'),
           productId: component.productId,
           modelName: component.modelName ?? '',
@@ -1061,7 +1068,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             bundleParentProductId: parentProductId,
             bundleParentUnitPrice: parentUnitPrice,
           }),
-          setOptions: context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions(),
+          setOptions: bundleSetOptions,
           lookupError: null,
           lookupLoading: false,
         } satisfies LineDraft

@@ -158,6 +158,12 @@ describe('slip bundle expansion contract', () => {
       panelOption: null,
     }))
   })
+
+  it('세트 instanceKey는 기존 옵션 필드와 함께 API JSONB 문맥으로 왕복한다', () => {
+    expect(toApiBundleSetOptions('BUNDLE', { instanceKey: 'instance-1' })).toEqual(expect.objectContaining({
+      instanceKey: 'instance-1',
+    }))
+  })
 })
 
 describe('slip list soft-delete population', () => {

@@ -235,6 +235,7 @@ vi.mock('@dnd-kit/utilities', () => ({
 
 vi.mock('../api/slip', () => ({
   createSlip: harness.createSlip,
+  createBundleInstanceKey: () => 'test-instance-key',
   expandBundleLine: harness.expandBundleLine,
   getPriceMemories: harness.getPriceMemories,
   getPriceMemory: harness.getPriceMemory,

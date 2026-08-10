@@ -30,6 +30,7 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -48,6 +49,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -78,6 +81,9 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
 
     @Autowired
     private SlipRepository slipRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private SlipAuditLogRepository auditLogRepository;
@@ -159,8 +165,36 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.lines[0].quantity", is(5)))
                 .andExpect(jsonPath("$.data.lines[0].unitPrice", is(180000)))
                 .andExpect(jsonPath("$.data.updatedAt", notNullValue()))
-                // @Version 낙관적 잠금: saveAndFlush 후 version +1 보장 (초기 0 → 1)
-                .andExpect(jsonPath("$.data.version").value(1));
+                // audit 최종 flush까지 포함한 최종 상태 token: 저장 flush + audit flush (초기 0 → 2)
+                .andExpect(jsonPath("$.data.version").value(2));
+    }
+
+    @Test
+    @DisplayName("RED-A-3: 성공 PUT 응답 token을 그대로 재사용한 두 번째 PUT도 200이다")
+    void testUpdateSalesResponseTokenIsUsableForImmediateSecondPut() throws Exception {
+        String id = createSlip("OUTBOUND", "SP1131-r7-version-token");
+        String initialUpdatedAt = updatedAt(id);
+        Map<String, Object> firstBody = updateBody(initialUpdatedAt, "SP1131-r7-first", 5, "180000");
+
+        MvcResult first = mockMvc.perform(put(SLIPS_PATH + "/" + id + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "영업담당자")
+                        .header(USER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(firstBody)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String responseUpdatedAt = objectMapper.readTree(first.getResponse().getContentAsByteArray())
+                .path("data").path("updatedAt").asText();
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + id + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "영업담당자")
+                        .header(USER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                updateBody(responseUpdatedAt, "SP1131-r7-second", 6, "190000"))))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -324,6 +358,65 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("R9 RED-A GREEN: 명시 이관 후 keyless 8행 두 인스턴스의 첫 head 수량 편집은 200이다")
+    void testR9MigratedKeylessMultiInstancePositiveEdit() throws Exception {
+        Slip fixture = persistR9KeylessTargetFixture();
+        applyR9MigrationFixturePath();
+
+        MvcResult detail = mockMvc.perform(get(SLIPS_PATH + "/" + fixture.getId())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode data = objectMapper.readTree(detail.getResponse().getContentAsString()).path("data");
+        String updatedAt = data.path("updatedAt").asText();
+        List<Map<String, Object>> lines = new java.util.ArrayList<>();
+        for (JsonNode line : data.path("lines")) {
+            Map<String, Object> requestLine = objectMapper.convertValue(line, Map.class);
+            requestLine.put("lineId", requestLine.remove("id"));
+            if (line.path("setHead").asBoolean() && lines.isEmpty()) {
+                requestLine.put("quantity", 2);
+            }
+            lines.add(requestLine);
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("updatedAt", updatedAt);
+        body.put("partnerName", "R9 keyless 이관 전표");
+        body.put("lines", lines);
+        body.put("lineIdContract", true);
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + fixture.getId() + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "개발책임자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines", hasSize(8)));
+
+        List<Map<String, Object>> saved = jdbcTemplate.queryForList(
+                "SELECT bundle_set_options FROM slip_lines WHERE slip_id = ? "
+                        + "AND is_deleted = false AND parent_set_model = 'AC060CS6PBH1SY'",
+                fixture.getId());
+        assertThat(saved).hasSize(8);
+        assertThat(saved).allMatch(row -> row.get("bundle_set_options").toString().contains("instanceKey"));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT bundle_set_options->>'instanceKey') FROM slip_lines "
+                        + "WHERE slip_id = ? AND is_deleted = false AND parent_set_model = 'AC060CS6PBH1SY'",
+                Integer.class, fixture.getId())).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM slip_lines WHERE slip_id = ? AND is_deleted = false "
+                        + "AND parent_set_model = 'AC060CS6PBH1SY' AND set_head = true",
+                Integer.class, fixture.getId())).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT quantity FROM slip_lines WHERE slip_id = ? AND set_head = true "
+                        + "AND is_deleted = false AND parent_set_model = 'AC060CS6PBH1SY' "
+                        + "ORDER BY created_at LIMIT 1",
+                Integer.class, fixture.getId())).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("S2b: 매출 direct PUT 저장은 EDIT revision 을 추가하고 헤더/품목 셀 diff 를 버전 이력에 노출한다")
     void testUpdateSalesAppendsRevisionFieldChanges() throws Exception {
         String id = createSlip("OUTBOUND", "SP0862-diff-before");
@@ -459,6 +552,79 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateBody(updatedAt, "SP0862-" + role, 2, "200000"))))
                 .andExpect(status().isForbidden());
+    }
+
+    private Slip persistR9KeylessTargetFixture() {
+        UUID slipId = UUID.fromString("a1131a9e-0000-4000-8000-000000000119");
+        List<UUID> lineIds = List.of(
+                UUID.fromString("ff5b90ed-21b4-465c-b463-a050d3b93c99"),
+                UUID.fromString("f8a7f65d-b1e7-4c1c-99aa-40194e555cf3"),
+                UUID.fromString("de3ff7c0-5354-4c4a-a29d-35231629bd89"),
+                UUID.fromString("7da4e3cd-420c-4035-991b-5cad02cae3e4"),
+                UUID.fromString("bdabf372-7b4f-4847-acdb-3bb62d23e4fc"),
+                UUID.fromString("866aae3a-7e91-49da-9755-bd1651d4ec01"),
+                UUID.fromString("6d3f40e3-dc2b-44c4-ae4e-65834cec1c70"),
+                UUID.fromString("c38aed6e-250f-43ef-8661-b8ea0496fb7a"));
+        List<UUID> productIds = List.of(
+                UUID.fromString("699ea2b8-825a-4451-b4e3-56abf6dcde1f"),
+                UUID.fromString("03f6f413-a559-44d0-a202-097b647f0d45"),
+                UUID.fromString("910a1efe-fa11-4bbf-9442-ee4f8acd01be"),
+                UUID.fromString("4affd72c-0638-468c-8f06-14c5e6185663"),
+                UUID.fromString("699ea2b8-825a-4451-b4e3-56abf6dcde1f"),
+                UUID.fromString("03f6f413-a559-44d0-a202-097b647f0d45"),
+                UUID.fromString("910a1efe-fa11-4bbf-9442-ee4f8acd01be"),
+                UUID.fromString("4affd72c-0638-468c-8f06-14c5e6185663"));
+        jdbcTemplate.update(
+                "INSERT INTO slips (id, slip_type, slip_no, slip_date, seq_no, status, "
+                        + "partner_id, partner_name, source_warehouse_id, destination_warehouse_id, "
+                        + "requester_id, created_at, created_by) "
+                        + "VALUES (?, 'OUTBOUND', '2026/08/07-20', '2026-08-07', 20, 'DRAFT', "
+                        + "?, 'R9 keyless 이관 전표', ?, ?, ?, ?, 'R9 IT')",
+                slipId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), java.sql.Timestamp.valueOf("2026-08-07 17:30:35"));
+        for (int i = 0; i < lineIds.size(); i++) {
+            jdbcTemplate.update(
+                    "INSERT INTO slip_lines (id, slip_id, product_id, product_name, model_name, "
+                            + "quantity, unit_price, line_total, created_at, created_by, set_head, "
+                            + "parent_set_model, bundle_set_options) "
+                            + "VALUES (?, ?, ?, ?, ?, 1, 1000, 1000, ?, 'R9 IT', ?, "
+                            + "'AC060CS6PBH1SY', ?::jsonb)",
+                    lineIds.get(i), slipId, productIds.get(i), "R9 구성품 " + i, "R9-COMP-" + i,
+                    java.sql.Timestamp.valueOf("2026-08-07 17:30:35").toLocalDateTime()
+                            .plusNanos(i * 100_000),
+                    i == 0 || i == 4,
+                    "{\"remoteExcluded\":false,\"materialIncluded\":false}");
+        }
+        return slipRepository.findById(slipId).orElseThrow();
+    }
+
+    private void applyR9MigrationFixturePath() throws Exception {
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT id::text FROM slip_lines WHERE parent_set_model = 'AC060CS6PBH1SY' "
+                        + "AND is_deleted = false ORDER BY created_at", String.class))
+                .as("R9 fixture line ids")
+                .containsExactly(
+                        "ff5b90ed-21b4-465c-b463-a050d3b93c99",
+                        "f8a7f65d-b1e7-4c1c-99aa-40194e555cf3",
+                        "de3ff7c0-5354-4c4a-a29d-35231629bd89",
+                        "7da4e3cd-420c-4035-991b-5cad02cae3e4",
+                        "bdabf372-7b4f-4847-acdb-3bb62d23e4fc",
+                        "866aae3a-7e91-49da-9755-bd1651d4ec01",
+                        "6d3f40e3-dc2b-44c4-ae4e-65834cec1c70",
+                        "c38aed6e-250f-43ef-8661-b8ea0496fb7a");
+        ClassPathResource migration = new ClassPathResource(
+                "db/migration/V119__materialize_r9_keyless_bundle_instances.sql");
+        try (var input = migration.getInputStream()) {
+            jdbcTemplate.execute(new String(input.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        assertThat(jdbcTemplate.queryForObject(
+                "WITH groups AS (SELECT s.id, l.parent_set_model, COUNT(*) AS heads "
+                        + "FROM slips s JOIN slip_lines l ON l.slip_id=s.id "
+                        + "WHERE s.is_deleted=false AND l.is_deleted=false "
+                        + "AND NULLIF(BTRIM(l.bundle_set_options->>'instanceKey'),'') IS NULL "
+                        + "GROUP BY s.id,l.parent_set_model) "
+                        + "SELECT COUNT(*) FROM groups WHERE heads > 1", Integer.class))
+                .isZero();
     }
 
     private String createSlip(String slipType, String partnerName) throws Exception {
