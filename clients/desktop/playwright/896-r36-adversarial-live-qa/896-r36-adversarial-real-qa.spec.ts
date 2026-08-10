@@ -193,8 +193,9 @@ async function addOnlyEligibleTarget(page: Page, source: string, expectedTarget:
 
 test.beforeAll(() => fs.mkdirSync(SHOTS, { recursive: true }))
 
-test.describe.serial('PR #1126 R35 fix 이후 2차 적대검증 — HEAD 프런트 실 조작', () => {
-  test('현재 라이브 product-service 503 원문을 브라우저에서 보존한다', async ({ page }) => {
+// 라이브 상태 probe는 장애를 RED로 남기되 정적 회귀 케이스까지 did not run으로
+// 막지 않도록 serial 그룹 밖에 둔다. D15 두 케이스의 순서는 아래 serial 그룹에서 유지한다.
+test('현재 라이브 product-service 응답과 활성 규칙을 브라우저에서 검증한다', async ({ page }) => {
     await login(page)
     const productsResponse = page.waitForResponse((response) =>
       response.url().includes('/api/v1/products?') && response.request().method() === 'GET',
@@ -207,14 +208,34 @@ test.describe.serial('PR #1126 R35 fix 이후 2차 적대검증 — HEAD 프런�
     const rules = await rulesResponse
     const productsBody = await products.text()
     const rulesBody = await rules.text()
-    expect(products.status()).toBe(503)
-    expect(rules.status()).toBe(503)
-    await expect(page.getByTestId('estimate-items-list-error')).toBeVisible()
-    await page.screenshot({ path: path.join(SHOTS, '00-live-product-service-503.png'), fullPage: false })
     console.log(`R36_LIVE_PRODUCTS http=${products.status()} body=${productsBody}`)
     console.log(`R36_LIVE_RULES http=${rules.status()} body=${rulesBody}`)
+    await page.screenshot({ path: path.join(SHOTS, '00-live-product-service-503.png'), fullPage: false })
+    expect(products.status(), `R36 products live response body=${productsBody}`).toBe(200)
+    expect(rules.status(), `R36 quantity-sync-rules live response body=${rulesBody}`).toBe(200)
+    await expect(page.getByTestId('estimate-items-list-error')).toHaveCount(0)
+
+    const liveRules = JSON.parse(rulesBody) as Rule[]
+    expect(liveRules.filter((rule) => rule.enabled)).toHaveLength(1)
+    expect(liveRules.find((rule) => rule.ruleKey === HOME_RULE)).toEqual(
+      expect.objectContaining({ enabled: true }),
+    )
+
+    for (const [code, expectedEligible] of [[HOME_TARGET, true], [HOME_SOURCE, false]] as const) {
+      const productResponse = await page.request.get(`${API_BASE}/api/v1/products`, {
+        params: { q: code, category: 'HOME_MULTI', page: 0, size: 20 },
+      })
+      const productBody = await productResponse.text()
+      expect(productResponse.status(), `R36 product ${code} response body=${productBody}`).toBe(200)
+      const content = (JSON.parse(productBody) as { content?: Array<{ modelCode?: string; quantitySyncTargetEligible?: boolean }> }).content ?? []
+      const row = content.find((item) => item.modelCode === code)
+      expect(row, `R36 product ${code} must be present`).toBeDefined()
+      expect(row?.quantitySyncTargetEligible, `R36 product ${code} eligibility`).toBe(expectedEligible)
+    }
+    console.log('R36_LIVE_HEALTH products=200 rules=200 active=1 PC6NUDK1NW=true AM052BN6PBH1=false')
   })
 
+test.describe.serial('PR #1126 R35 fix 이후 2차 적대검증 — HEAD 프런트 실 조작', () => {
   test('역방향 표시와 picker 과노출 방지, 일반 picker MATERIAL 가드를 사용자 경로로 밟는다', async ({ page }) => {
     await login(page)
     const rows = [
