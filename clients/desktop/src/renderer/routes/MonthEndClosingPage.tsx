@@ -57,6 +57,7 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
+import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { today } from '../utils/dateUtils'
@@ -166,6 +167,7 @@ export function MonthEndClosingPage() {
   const [description, setDescription] = useState<string>('')
   // PR-H4c: row 클릭으로 audit overlay panel 표시.
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(null)
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   /** 역마감 확인 Modal 상태 */
   const [reverseConfirmRow, setReverseConfirmRow] = useState<AccountingPeriod | null>(null)
@@ -736,6 +738,14 @@ export function MonthEndClosingPage() {
               <AuditRevisionBadge
                 logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                 isError={auditQuery.isError}
+                testIdPrefix="closing-audit"
+              />
+              <AuditVersionHistory
+                logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="closing-audit"
               />
               <Button

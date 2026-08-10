@@ -63,6 +63,7 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
+import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -155,6 +156,7 @@ export function TaxInvoiceDetailPage() {
   /** 세금계산서 발행 confirm modal 표시 여부 (SP-09-1). */
   const [showEmitNtsModal, setShowEmitNtsModal] = useState<boolean>(false)
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   const issueMutation = useMutation({
     mutationFn: () => issueTaxInvoice(id),
@@ -531,6 +533,14 @@ export function TaxInvoiceDetailPage() {
                 isError={auditQuery.isError}
                 reverting={revertMutation.isPending}
                 onRevert={isDraft ? (rev) => revertMutation.mutate(rev) : undefined}
+                testIdPrefix="tax-invoice-detail"
+              />
+              <AuditVersionHistory
+                logs={auditLogs}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="tax-invoice-detail"
               />
             </div>

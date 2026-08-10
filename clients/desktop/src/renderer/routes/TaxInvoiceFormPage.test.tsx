@@ -23,6 +23,12 @@ vi.mock('@samhan/design-system', () => ({
     <button {...props}>{children}</button>
   ),
   Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
+  Modal: ({ open, title, children }: { open: boolean; title?: React.ReactNode; children?: React.ReactNode }) => open ? (
+    <div role="dialog">
+      {title ? <h2>{title}</h2> : null}
+      {children}
+    </div>
+  ) : null,
   Input: ({ label, error, ...props }: any) => (
     <div>
       {label ? <span>{label}</span> : null}

@@ -30,6 +30,7 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
+import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
@@ -45,6 +46,7 @@ export function SalesPartnerDcConfigPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   // PR-H4c: 선택 거래처 audit panel.
   const [selectedPartnerCode, setSelectedPartnerCode] = useState<string | null>(null)
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   // [C5-2b] import CTA는 dc-config.import CREATE page-code/action 기준.
@@ -382,6 +384,14 @@ export function SalesPartnerDcConfigPage() {
                 <AuditRevisionBadge
                   logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                   isError={auditQuery.isError}
+                  testIdPrefix="partner-dc-config-audit"
+                />
+                <AuditVersionHistory
+                  logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+                  isLoading={auditQuery.isLoading}
+                  isError={auditQuery.isError}
+                  open={auditHistoryOpen}
+                  onOpenChange={setAuditHistoryOpen}
                   testIdPrefix="partner-dc-config-audit"
                 />
                 <button

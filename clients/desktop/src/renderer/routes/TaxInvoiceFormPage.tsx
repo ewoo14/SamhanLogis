@@ -31,6 +31,7 @@ import { extractApiErrorMessage as extractErrorMessage } from '../api/apiError'
 import { taxInvoiceAuditApi } from '../api/createAuditApi'
 import { TaxInvoiceRealtimeClient } from '../realtime/AccountingRealtimeClient'
 import { AuditRevisionBadge } from '../components/audit/AuditOverlaySection'
+import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
 import { searchPartners } from '../api/partnerApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -265,6 +266,7 @@ export function TaxInvoiceFormPage() {
   const [description, setDescription] = useState<string>('')
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()])
   const [topError, setTopError] = useState<string>('')
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   // #831-hydrate — detailQuery.data 하이드레이션을 useEffect 대신 렌더 중 파생으로 처리한다
   // (같은 계열, CashReceiptFormPage #831-hydrate 수단 1과 동일). useEffect 로 하면
@@ -530,13 +532,23 @@ export function TaxInvoiceFormPage() {
         </div>
         {/* PR-H4c: 편집 모드 — 수정 횟수 + 복원 dropdown */}
         {isEdit ? (
-          <AuditRevisionBadge
-            logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
-            isError={auditQuery.isError}
-            reverting={revertMutation.isPending}
-            onRevert={(rev) => revertMutation.mutate(rev)}
-            testIdPrefix="tax-invoice-form"
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <AuditRevisionBadge
+              logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+              isError={auditQuery.isError}
+              reverting={revertMutation.isPending}
+              onRevert={(rev) => revertMutation.mutate(rev)}
+              testIdPrefix="tax-invoice-form"
+            />
+            <AuditVersionHistory
+              logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+              isLoading={auditQuery.isLoading}
+              isError={auditQuery.isError}
+              open={auditHistoryOpen}
+              onOpenChange={setAuditHistoryOpen}
+              testIdPrefix="tax-invoice-form"
+            />
+          </div>
         ) : null}
       </div>
 

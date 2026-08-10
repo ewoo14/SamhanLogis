@@ -61,6 +61,7 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
+import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -112,6 +113,7 @@ export function InventoryAuditDetailPage() {
   const { canAccess } = usePermissions()
   const isMobile = useIsMobile()
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   const detailQuery = useQuery({
     queryKey: ['inventory', 'audit', id],
@@ -310,6 +312,14 @@ export function InventoryAuditDetailPage() {
               <AuditRevisionBadge
                 logs={auditLogs}
                 isError={auditQuery.isError}
+                testIdPrefix="audit-detail"
+              />
+              <AuditVersionHistory
+                logs={auditLogs}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="audit-detail"
               />
             </div>

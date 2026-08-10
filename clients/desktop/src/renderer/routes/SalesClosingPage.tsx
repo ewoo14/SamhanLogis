@@ -60,6 +60,7 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
+import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -165,6 +166,7 @@ export function SalesClosingPage() {
   const [periodDate, setPeriodDate] = useState<string>(today())
   const [description, setDescription] = useState<string>('')
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(null)
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   /** 역마감 확인 Modal 상태 */
   const [reverseConfirmRow, setReverseConfirmRow] = useState<AccountingPeriod | null>(null)
@@ -640,6 +642,14 @@ export function SalesClosingPage() {
               <AuditRevisionBadge
                 logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                 isError={auditQuery.isError}
+                testIdPrefix="sales-closing-audit"
+              />
+              <AuditVersionHistory
+                logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="sales-closing-audit"
               />
               <Button variant="ghost" size="sm" onClick={() => setSelectedClosingId(null)}>
