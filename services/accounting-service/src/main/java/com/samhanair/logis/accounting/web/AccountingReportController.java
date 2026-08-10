@@ -187,6 +187,16 @@ public class AccountingReportController {
         return ApiResponse.ok(partnerLedgerReadService.read(partnerCode, from, to));
     }
 
+    /** 판매전표 상세가 소비하는 전잔·후잔 read 계약 — 판매전표 조회 권한만 요구한다. */
+    @GetMapping("/accounting/journals/sales-slip-ledger")
+    @RequirePermission(page = "sales.slip.list", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
+    public ApiResponse<PartnerLedgerResponse> salesSlipLedger(
+            @RequestParam String partnerCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ApiResponse.ok(partnerLedgerReadService.read(partnerCode, from, to));
+    }
+
     /** 거래처별 원장 저장 이력 — 날짜 범위와 거래처 코드로 조회한다. */
     @GetMapping("/accounting/journals/ledger-history")
     @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)

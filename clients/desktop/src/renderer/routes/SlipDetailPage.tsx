@@ -69,6 +69,13 @@ import {
   type SlipTransitionAction,
   type SlipType,
 } from '../api/slip'
+import {
+  buildSalesSlipLedgerRequest,
+  formatSalesSlipLedgerAmount,
+  resolveSalesSlipPartnerHeader,
+  toSalesSlipLedgerDisplay,
+} from './salesSlipLedger'
+import { getSalesSlipLedgerData } from '../api/partnerLedgerApi'
 // D-R8-7: 전표 수정 거래처 자동완성 — 견적(EstimateFormPage)과 동일 소스로 통일한다.
 import { searchPartners, type PartnerSummary } from '../api/sales'
 import { getApiErrorInfo } from '../api/apiError'
@@ -1670,6 +1677,27 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     queryFn: () => getSlip(id),
     enabled: !!id,
   })
+  const salesSlipLedgerRequest = detailQuery.data
+    ? buildSalesSlipLedgerRequest(detailQuery.data)
+    : null
+  const salesSlipLedgerQuery = useQuery({
+    queryKey: [
+      'sales-slip-ledger',
+      id,
+      salesSlipLedgerRequest?.partnerCode ?? '',
+      salesSlipLedgerRequest?.from ?? '',
+    ],
+    queryFn: () => {
+      if (!salesSlipLedgerRequest) throw new Error('판매전표 거래처 코드 없음')
+      return getSalesSlipLedgerData(
+        salesSlipLedgerRequest.partnerCode,
+        salesSlipLedgerRequest.from,
+        salesSlipLedgerRequest.to,
+      )
+    },
+    enabled: isOutbound && salesSlipLedgerRequest !== null,
+    retry: false,
+  })
   const productPresenceQuery = useQuery({
     queryKey: ['slip-product-presence', id, detailQuery.data?.updatedAt],
     queryFn: () => lookupProductPresence(detailQuery.data?.lines.map((line) => line.productId) ?? []),
@@ -2177,10 +2205,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   // SP-08-6-2: 매출 수정 폼 동기화 + 충돌 reload 핸들러
   const syncSalesFormFromData = useCallback((data: SlipDetail) => {
     const nextLines = toPurchaseEditLines(data)
+    const partnerHeader = resolveSalesSlipPartnerHeader(data)
     setSalesPartnerId(data.partnerId ?? '')
-    setSalesPartnerName(data.partnerName ?? '')
-    setSalesPartnerCode(data.partnerCode ?? '')
-    setSalesBusinessNumber(data.businessNumber ?? '')
+    setSalesPartnerName(partnerHeader.name)
+    setSalesPartnerCode(partnerHeader.partnerCode)
+    setSalesBusinessNumber(partnerHeader.businessNumber)
     setSalesMemo(data.memo ?? '')
     setSalesDeliveryAddress(data.deliveryAddress ?? '')
     setSalesSupervisionAddress(data.supervisionAddress ?? '')
@@ -2433,6 +2462,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   const slip = detailQuery.data
+  const salesSlipPartnerHeader = resolveSalesSlipPartnerHeader(slip)
+  const salesSlipLedgerDisplay = !salesSlipLedgerRequest
+    ? { status: 'unavailable' as const, message: '거래처가 지정되지 않아 전잔·후잔을 조회할 수 없습니다.' }
+    : toSalesSlipLedgerDisplay({
+      status: salesSlipLedgerQuery.isPending
+        ? 'loading'
+        : salesSlipLedgerQuery.isError
+          ? 'error'
+          : 'success',
+      openingBalance: salesSlipLedgerQuery.data?.openingBalance,
+      closingBalance: salesSlipLedgerQuery.data?.closingBalance,
+    })
   const possibleActions = actionsForStatus(slip.status, mode, slip.sourceType ?? 'MANUAL')
   const canRejectSlip = possibleActions.includes('reject')
     && canAccessSlipAction('reject', mode, canAccess)
@@ -4232,7 +4273,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <div>
             <span className="detail-label">거래처</span>
             <span className="detail-value">
-              {renderRedlineCell('header.partnerName', slip.partnerName ?? '-')}
+              {renderRedlineCell('header.partnerName', salesSlipPartnerHeader.name || '-')}
             </span>
           </div>
           <div>
@@ -4300,6 +4341,35 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </div>
       </Card>
 
+      {isOutbound ? (
+        <Card padding={4} shadow="sm" style={{ marginTop: 16 }} data-testid="sales-slip-ledger-balance">
+          <h4 style={{ marginTop: 0 }}>거래처 잔액</h4>
+          {salesSlipLedgerDisplay.status === 'success' ? (
+            <div className="detail-grid">
+              <div data-testid="sales-slip-opening-balance">
+                <span className="detail-label">전잔</span>
+                <span className="detail-value">
+                  {formatSalesSlipLedgerAmount(salesSlipLedgerDisplay.openingBalance)}
+                </span>
+              </div>
+              <div data-testid="sales-slip-closing-balance">
+                <span className="detail-label">후잔</span>
+                <span className="detail-value">
+                  {formatSalesSlipLedgerAmount(salesSlipLedgerDisplay.closingBalance)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div
+              role={salesSlipLedgerDisplay.status === 'error' ? 'alert' : 'status'}
+              data-testid="sales-slip-ledger-balance-state"
+            >
+              {salesSlipLedgerDisplay.message}
+            </div>
+          )}
+        </Card>
+      ) : null}
+
       {/*
         V20 신규 필드 표시 카드 — 배송주소 / 감리주소 / 프로젝트명 / 인수자 번호 / 입금예정일
         + businessNumber (거래처 자동 표시) + printed (인쇄 여부).
@@ -4343,7 +4413,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <DetailGridItem value={slip.businessNumber} testId="slip-detail-business-number">
             <span className="detail-label">사업자번호</span>
             <span className="detail-value">
-              {renderRedlineCell('header.businessNumber', slip.businessNumber ?? '—')}
+              {renderRedlineCell('header.businessNumber', salesSlipPartnerHeader.businessNumber || '—')}
             </span>
           </DetailGridItem>
           <DetailGridItem value={slip.printed == null ? null : slip.printed} testId="slip-detail-printed">

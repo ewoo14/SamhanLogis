@@ -310,6 +310,19 @@ export async function getLedgerData(
   return mapPartnerLedgerResponse(res.data.data, partnerCode)
 }
 
+/** 판매전표 상세의 전잔·후잔 read 계약 — SALES 역할이 사용할 전용 accounting endpoint. */
+export async function getSalesSlipLedgerData(
+  partnerCode: string,
+  from: string,
+  to: string,
+): Promise<LedgerData> {
+  const res = await apiClient.get<ApiEnvelope<PartnerLedgerResponse>>(
+    '/accounting/journals/sales-slip-ledger',
+    { params: { partnerCode, from, to } },
+  )
+  return mapPartnerLedgerResponse(res.data.data, partnerCode)
+}
+
 /** 사용자가 현재 원장 결과를 명시적으로 snapshot 저장한다. 조회 자체는 저장하지 않는다. */
 export async function captureLedger(
   partnerCode: string,
