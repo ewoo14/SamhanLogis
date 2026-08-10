@@ -42,8 +42,10 @@ function realHomeQuantityInput({
     .filter((row) => !['FH-LFHLF4W', 'FH-LFHIF4W'].includes(row.model));
   const extraRows = [
     { model: 'AJ020BN1PBC1', name: '실내기 1WAY WIFI 중형', unit: 'EA' },
+    { model: 'AJ020FERPBC1', name: '에어콤보', unit: 'EA' },
     { model: 'FH-LFHLN', name: '유연호스 L형 4WAY', unit: 'EA' },
     { model: 'SI-AL600A', name: 'SI-AL600A 일자발', unit: 'EA' },
+    { model: 'AWR-WV00N', name: 'AWR-WV00N 에어콤보 리모컨', unit: 'EA' },
   ];
   const knownModels = new Set(homeRows.map((row) => row.model));
   extraRows.forEach((row) => {
@@ -432,6 +434,52 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     expect(actual.quantities['AR-EC05'] || 0).toBe(0);
   });
 
+  test.each([
+    {
+      label: '호스', family: 'H-01', sourceCode: 'AJ020BN1PBC1', targetCode: 'FH-LFHLF',
+      sourceQuantities: { AJ020BN1PBC1: 2, AM052BN4DBH1: 3 },
+      expected: { 'FH-LFHLF': 2, 'FH-LFHLN': 3 },
+    },
+    {
+      label: '판넬', family: 'H-01', sourceCode: 'AJ020BN1PBC1', targetCode: 'PC1NWSK3NW',
+      optionDom: { '#home_panel': '' },
+      sourceQuantities: { AJ020BN1PBC1: 2, AM052BN4DBH1: 3 },
+      expected: { PC1NWSK3NW: 2, PC4NUFK1NW: 3 },
+    },
+    {
+      label: '리모컨', family: 'H-01', sourceCode: 'AJ020BN1PBC1', targetCode: 'AWR-WE13N',
+      optionDom: { '#home_remote': '기본' },
+      sourceQuantities: { AJ020BN1PBC1: 2, AJ020FERPBC1: 3 },
+      expected: { 'AWR-WE13N': 2, 'AR-EC05': 0, 'AWR-WV00N': 3 },
+    },
+    {
+      label: '분기관', family: 'H-07', sourceCode: 'AJ020BN1PBC1', targetCode: 'AXJ-YA1509N',
+      optionDom: { '#home_no_branch': false },
+      sourceQuantities: { AJ020BN1PBC1: 5, AJ060MXHNBC1: 1 },
+      expected: { 'AXJ-YA1509N': 5, 'AXJ-YA2512N': 1 },
+    },
+    {
+      label: '발통', family: 'H-08', sourceCode: 'AJ060MXHNBC1', targetCode: 'SI-AL600A',
+      optionDom: { '#home_foot': true },
+      sourceQuantities: { AJ060MXHNBC1: 2, AJ040MXHNBC1: 3 },
+      expected: { 'SI-AL600A': 2, '발통세트': 3 },
+    },
+  ])('R21 RED-A: 부분 source 소유에서도 %s 비소유 legacy 수량을 보존한다', ({
+    family, sourceCode, targetCode, optionDom, sourceQuantities, expected,
+  }) => {
+    const actual = evaluateLegacyQuantityBoundary(realHomeQuantityInput({
+      family,
+      sourceCode,
+      targetCode,
+      optionDom,
+      sourceQuantities,
+    }));
+
+    Object.entries(expected).forEach(([modelCode, quantity]) => {
+      expect(actual.quantities[modelCode] || 0).toBe(quantity);
+    });
+  });
+
   const r19FamilyMatrix = [
     {
       label: '호스', family: 'H-01', sourceCode: 'AJ020BN1PBC1',
@@ -442,10 +490,11 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
         { label: '제외', dom: { '#home_hose_i': false, '#home_no_hose': true } },
       ],
       singleTarget: 'FH-LFHLN', multipleTargets: ['FH-LFHLN', 'FH-LFHIF'], nonOwnedTarget: 'PC1NWSK3NW',
+      partialSourceCode: 'AM052BN4DBH1', partialSourceQuantity: 3,
     },
     {
       label: '판넬', family: 'H-01', sourceCode: 'AJ020BN1PBC1',
-      familyModels: ['PC1NWSK3NW', 'PC1NWCK3NW', 'PC1YNRK1NW', 'PC1YNWK1NW', 'PC6NUDK1NW', 'PC6NUCK1NW'],
+      familyModels: ['PC1NWSK3NW', 'PC1NWCK3NW', 'PC4NUFK1NW', 'PC1YNRK1NW', 'PC1YNWK1NW', 'PC6NUDK1NW'],
       options: [
         { label: '', dom: { '#home_panel': '' }, neutral: true },
         { label: '판넬제외', dom: { '#home_panel': '판넬제외' } },
@@ -454,10 +503,11 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
         { label: '인피니트 공청+동작감지 AI', dom: { '#home_panel': '인피니트 공청+동작감지 AI' }, sourceCode: 'AJ020CN1UBC1', singleTarget: 'PC1YNRK1NW', multipleTargets: ['PC1YNRK1NW', 'PC1YNWK1NW'] },
       ],
       singleTarget: 'PC1NWSK3NW', multipleTargets: ['PC1NWSK3NW', 'PC1NWCK3NW'], nonOwnedTarget: 'FH-LFHLN',
+      partialSourceCode: 'AM052BN4DBH1', partialSourceQuantity: 3,
     },
     {
       label: '리모컨', family: 'H-01', sourceCode: 'AJ020BN1PBC1',
-      familyModels: ['AWR-WE13N', 'AR-EC05', 'AIM-A01N', 'AWR-WG00N'],
+      familyModels: ['AWR-WE13N', 'AR-EC05', 'AIM-A01N', 'AWR-WG00N', 'AWR-WV00N'],
       options: [
         { label: '기본', dom: { '#home_remote': '기본' }, neutral: true, singleTarget: 'AWR-WE13N', multipleTargets: ['AWR-WE13N', 'AWR-WG00N'] },
         { label: '유선', dom: { '#home_remote': '유선' }, singleTarget: 'AR-EC05', multipleTargets: ['AR-EC05', 'AWR-WE13N'] },
@@ -465,6 +515,7 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
         { label: '제외', dom: { '#home_remote': '제외' }, singleTarget: 'AWR-WE13N', multipleTargets: ['AWR-WE13N', 'AWR-WG00N'] },
       ],
       singleTarget: 'AWR-WE13N', multipleTargets: ['AWR-WE13N', 'AWR-WG00N'], nonOwnedTarget: 'FH-LFHLN',
+      partialSourceCode: 'AJ020FERPBC1', partialSourceQuantity: 3,
     },
     {
       label: '분기관', family: 'H-07', sourceCode: 'AM020BN1PBH1',
@@ -474,56 +525,100 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
         { label: '비제외', dom: { '#home_no_branch': false }, neutral: true },
       ],
       singleTarget: 'AXJ-YA1509N', multipleTargets: ['AXJ-YA1509N', 'AXJ-YA2512N'], nonOwnedTarget: 'PC1NWSK3NW',
+      partialRuleSourceCode: 'AJ020BN1PBC1', partialRuleSourceQuantity: 5,
+      partialSourceCode: 'AJ060MXHNBC1', partialSourceQuantity: 1,
     },
     {
       label: '발통', family: 'H-08', sourceCode: 'AJ060MXHNBC1',
-      familyModels: ['발통세트', 'SI-AL600A', 'SI-AL700a'],
+      familyModels: ['발통세트', 'SI-AL600A'],
       options: [
         { label: '미포함', dom: { '#home_foot': false } },
         { label: '포함', dom: { '#home_foot': true }, neutral: true },
       ],
       singleTarget: 'SI-AL600A', multipleTargets: ['SI-AL600A', '발통세트'], nonOwnedTarget: 'FH-LFHLN',
+      partialSourceCode: 'AJ040MXHNBC1', partialSourceQuantity: 3,
     },
   ];
 
-  const r19RuleStates = ['0건', '단일소유', '복수소유', '비소유'];
-  const r19RulesFor = (familyCase, optionCase, ruleState) => {
-    const sourceCode = optionCase.sourceCode || familyCase.sourceCode;
+  const r21RuleStates = ['0건', '단일소유', '복수소유', '비소유', '부분 source 소유'];
+  const r21RuleSourceFor = (familyCase, optionCase, ruleState) => {
+    if (ruleState === '부분 source 소유') {
+      return optionCase.partialRuleSourceCode || familyCase.partialRuleSourceCode
+        || optionCase.sourceCode || familyCase.sourceCode;
+    }
+    return optionCase.sourceCode || familyCase.sourceCode;
+  };
+  const r21RulesFor = (familyCase, optionCase, ruleState) => {
+    const sourceCode = r21RuleSourceFor(familyCase, optionCase, ruleState);
     const singleTarget = optionCase.singleTarget || familyCase.singleTarget;
     const multipleTargets = optionCase.multipleTargets || familyCase.multipleTargets;
     if (ruleState === '0건') return [];
     if (ruleState === '단일소유') return [homeQuantitySyncRule(sourceCode, singleTarget)];
     if (ruleState === '복수소유') return multipleTargets.map((target) => homeQuantitySyncRule(sourceCode, target));
+    if (ruleState === '부분 source 소유') return [homeQuantitySyncRule(sourceCode, singleTarget)];
     return [homeQuantitySyncRule(sourceCode, familyCase.nonOwnedTarget)];
   };
 
   test.each(r19FamilyMatrix.flatMap((familyCase) => familyCase.options.flatMap((optionCase) =>
-    r19RuleStates.map((ruleState) => [familyCase, optionCase, ruleState]))))(
-    'R19 분모: %s · 옵션=%s · 규칙=%s',
+    r21RuleStates.map((ruleState) => [familyCase, optionCase, ruleState]))))(
+    'R21 분모: %s · 옵션=%s · 규칙=%s',
     (familyCase, optionCase, ruleState) => {
-      const sourceCode = optionCase.sourceCode || familyCase.sourceCode;
+      const sourceCode = r21RuleSourceFor(familyCase, optionCase, ruleState);
       const singleTarget = optionCase.singleTarget || familyCase.singleTarget;
       const multipleTargets = optionCase.multipleTargets || familyCase.multipleTargets;
+      const sourceQuantities = ruleState === '부분 source 소유'
+        ? {
+            [sourceCode]: familyCase.partialRuleSourceQuantity || 2,
+            [familyCase.partialSourceCode]: familyCase.partialSourceQuantity,
+          }
+        : undefined;
       const input = {
         family: familyCase.family,
         sourceCode,
         targetCode: singleTarget,
         optionDom: optionCase.dom,
-        quantitySyncRules: r19RulesFor(familyCase, optionCase, ruleState),
+        sourceQuantities,
+        quantitySyncRules: r21RulesFor(familyCase, optionCase, ruleState),
       };
       const actual = evaluateLegacyQuantityBoundary(realHomeQuantityInput(input));
       const baseline = evaluateLegacyQuantityBoundary(realHomeQuantityInput({ ...input, quantitySyncRules: [] }));
       const expected = {};
       familyCase.familyModels.forEach((model) => { expected[model] = baseline.quantities[model] || 0; });
 
-      if (optionCase.neutral && (ruleState === '단일소유' || ruleState === '복수소유')) {
+      if (ruleState === '부분 source 소유') {
+        const sourceOnly = evaluateLegacyQuantityBoundary(realHomeQuantityInput({
+          ...input,
+          sourceQuantities: { [sourceCode]: familyCase.partialRuleSourceQuantity || 2 },
+          quantitySyncRules: [],
+        }));
+        const optionBaseline = optionCase.neutral ? baseline : evaluateLegacyQuantityBoundary(realHomeQuantityInput({
+          ...input,
+          quantitySyncRules: [homeQuantitySyncRule(sourceCode, familyCase.nonOwnedTarget)],
+        }));
+        if (optionCase.neutral) {
+          familyCase.familyModels.forEach((model) => {
+            expected[model] = Math.max(0,
+              (baseline.quantities[model] || 0) - (sourceOnly.quantities[model] || 0));
+          });
+        } else {
+          familyCase.familyModels.forEach((model) => {
+            expected[model] = optionBaseline.quantities[model] || 0;
+          });
+        }
+        const ownedTargets = [singleTarget];
+        const ruleQuantity = familyCase.partialRuleSourceQuantity || 2;
+        ownedTargets.forEach((model) => {
+          if (optionCase.neutral || (optionBaseline.quantities[model] || 0) > 0) expected[model] = ruleQuantity;
+        });
+      } else if (optionCase.neutral && (ruleState === '단일소유' || ruleState === '복수소유')) {
         familyCase.familyModels.forEach((model) => { expected[model] = 0; });
         const ownedTargets = ruleState === '단일소유' ? [singleTarget] : multipleTargets;
         ownedTargets.forEach((model) => { expected[model] = 2; });
       }
 
-      expect(Object.fromEntries(familyCase.familyModels.map((model) => [model, actual.quantities[model] || 0])))
-        .toEqual(expected);
+      const actualFamily = Object.fromEntries(familyCase.familyModels
+        .map((model) => [model, actual.quantities[model] || 0]));
+      expect(actualFamily).toEqual(expected);
     },
   );
 

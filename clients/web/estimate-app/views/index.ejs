@@ -8430,11 +8430,66 @@ function recomputeHomeDerived(updateUI) {
   /* 서버 규칙을 읽지 못한 구버전/장애 fallback — legacy 계산은 항상 먼저 실행한다. */
   // 기존 환경 호환 경계(typeof applyServerHomeQuantitySync_ === 'function')는 유지한다.
 
+  // source별 legacy 기여를 계산할 수 있도록 규칙 source의 원수량을
+  // snapshot한다. 전체 legacy 계산은 모든 source로 먼저 실행해 source 간
+  // 상호작용 결과를 보존하고, 중립 계열 병합에서 단독 기여만 차감한다.
+  const ruleSourceQuantities = new Map();
+  const quantitySyncEvaluator = window.SamhanQuantitySync
+    && window.SamhanQuantitySync.evaluateQuantitySyncRules;
+  const evaluatedBeforeLegacy = typeof quantitySyncEvaluator === 'function'
+    ? quantitySyncEvaluator(HOME_QUANTITY_SYNC_RULES, HOMEMULTI, homeQty)
+    : null;
+  if (evaluatedBeforeLegacy && typeof evaluatedBeforeLegacy.forEach === 'function') {
+    const ruleSourceCodes = new Set(HOME_QUANTITY_SYNC_RULES.flatMap(rule =>
+      Array.isArray(rule?.sources)
+        ? rule.sources.map(source => String(source?.productCode || '').trim())
+        : []));
+    HOMEMULTI.forEach(row => {
+      const model = String(row?.model || '');
+      if (ruleSourceCodes.has(model)) {
+        ruleSourceQuantities.set(model, homeQty.get(row.model));
+      }
+    });
+  }
+
   // 하위계산호출
   recomputeHomeHoses_();
   recomputeHomeBranches();
   recomputeFootAll();
   recomputeHomePanels();
+  recomputeHomeRemotes();
+
+  // 서버 적용 전 snapshot은 source별 legacy 결과다. 규칙이 소유하지 않은
+  // 같은 계열 모델은 이 값을 끝까지 보존해야 하므로 계열 전체를 초기화하지 않는다.
+  const legacyHomeQuantities = new Map(HOMEMULTI.map(row => [
+    String(row?.model || ''),
+    Number(homeQty.get(row.model)) || 0,
+  ]));
+
+  ruleSourceQuantities.forEach((quantity, model) => homeQty.set(model, quantity));
+
+  // 레거시 함수에는 source provenance가 없으므로, 규칙 source를 하나씩
+  // 단독 입력한 결과만 해당 source의 legacy 기여로 간주해 중립 결과에서
+  // 차감한다. 여러 source가 함께 있어야 생기는 분기관 같은 상호작용은
+  // 단독 실행에서 나오지 않으므로 그대로 보존된다.
+  const legacyHomeQuantitiesWithoutRuleSources = (predicate, recompute) => {
+    const adjusted = new Map(legacyHomeQuantities);
+    if (ruleSourceQuantities.size === 0) return adjusted;
+
+    ruleSourceQuantities.forEach((sourceQuantity, sourceModel) => {
+      legacyHomeQuantities.forEach((quantity, model) => homeQty.set(model, 0));
+      homeQty.set(sourceModel, Number(sourceQuantity) || 0);
+      recompute();
+      HOMEMULTI.filter(predicate).forEach(row => {
+        const model = String(row?.model || '');
+        adjusted.set(model, Math.max(0,
+          (adjusted.get(model) || 0) - (Number(homeQty.get(row.model)) || 0)));
+      });
+    });
+
+    legacyHomeQuantities.forEach((quantity, model) => homeQty.set(model, quantity));
+    return adjusted;
+  };
 
   // 서버 규칙은 레거시 파생계산을 모두 실행한 뒤 소유 target만 덮어쓴다.
   // 규칙이 없거나 읽히지 않으면 빈 Set이므로 순수 legacy 결과가 유지된다.
@@ -8442,27 +8497,54 @@ function recomputeHomeDerived(updateUI) {
     ? applyServerHomeQuantitySync_()
     : new Set();
 
-  // 규칙이 소유한 계열만 옵션 계약을 레거시 함수로 재수렴한다. 규칙 0건이면
-  // 아래 분기들은 모두 건너뛰어 순수 legacy 결과를 보존한다.
-  const ownedHomeRows = predicate => HOMEMULTI.filter(row =>
-    serverOwnedTargets.has(String(row?.model || '')) && predicate(row));
-  const reconcileHomeFamily = (predicate, manualSet, ownedRows, useOptionResult, recompute) => {
+  // 규칙이 소유한 target이 있는 계열만 재수렴한다. 중립 옵션은 target별로
+  // 규칙값/legacy snapshot을 병합하고, 치환·제외 옵션은 옵션 결과를 계열
+  // 전체에 적용한 뒤 선택 모델에 남은 규칙 target만 규칙값을 유지한다.
+  const reconcileHomeFamily = (predicate, manualSet, useOptionResult, recompute) => {
+    const familyRows = HOMEMULTI.filter(predicate);
+    const ownedRows = familyRows.filter(row =>
+      serverOwnedTargets.has(String(row?.model || '')) && !manualSet.has(row.model));
     if (ownedRows.length === 0) return;
 
-    const ownedQuantities = new Map(ownedRows.map(row => [
+    const ruleQuantities = new Map(ownedRows.map(row => [
       String(row.model || ''),
       Number(homeQty.get(row.model)) || 0,
     ]));
-    let desiredQuantities = ownedQuantities;
+    let desiredQuantities;
     if (useOptionResult) {
       recompute();
-      desiredQuantities = new Map(HOMEMULTI
-        .filter(row => predicate(row) && !manualSet.has(row.model))
+      const optionQuantities = new Map(familyRows
+        .filter(row => !manualSet.has(row.model))
         .map(row => [String(row.model || ''), Number(homeQty.get(row.model)) || 0]));
+      const optionModels = new Set([...optionQuantities]
+        .filter(([, quantity]) => quantity > 0)
+        .map(([model]) => model));
+      desiredQuantities = new Map(familyRows
+        .filter(row => !manualSet.has(row.model))
+        .map(row => {
+          const model = String(row.model || '');
+          const optionQuantity = optionQuantities.get(model) || 0;
+          // 치환에서 선택 전 모델은 규칙 소유라도 0이어야 한다. 선택 모델에
+          // 남은 규칙 target은 규칙값을 사용해 target 단위 계약을 보존한다.
+          const quantity = ruleQuantities.has(model) && optionModels.has(model)
+            ? ruleQuantities.get(model)
+            : optionQuantity;
+          return [model, quantity];
+        }));
+    } else {
+      const legacyQuantities = legacyHomeQuantitiesWithoutRuleSources(predicate, recompute);
+      desiredQuantities = new Map(familyRows
+        .filter(row => !manualSet.has(row.model))
+        .map(row => {
+          const model = String(row.model || '');
+          return [model, ruleQuantities.has(model)
+            ? ruleQuantities.get(model)
+            : legacyQuantities.get(model) || 0];
+        }));
     }
 
-    // 한 계열의 비수동 결과를 먼저 비우고, 중립 옵션이면 규칙 소유 target만,
-    // 치환·제외 옵션이면 옵션 함수가 만든 결과만 다시 반영한다.
+    // 계열을 비우는 것은 옵션 결과를 재수렴할 때도 비수동 행에 한정한다.
+    // 규칙 0건이면 이 함수가 호출되지 않아 순수 legacy 결과가 그대로 남는다.
     HOMEMULTI.forEach(row => {
       if (predicate(row) && !manualSet.has(row.model)) homeQty.set(row.model, 0);
     });
@@ -8471,49 +8553,37 @@ function recomputeHomeDerived(updateUI) {
     });
   };
 
-  const branchRows = ownedHomeRows(row => row.model === BRANCH_1509 || row.model === BRANCH_2512);
   reconcileHomeFamily(
     row => row.model === BRANCH_1509 || row.model === BRANCH_2512,
     HOME_MANUAL_BRANCH,
-    branchRows,
     !!el('#home_no_branch')?.checked,
     recomputeHomeBranches,
   );
 
-  const footRows = ownedHomeRows(row => row.model === FOOT_ROUND || FOOT_FLAT_MODELS.includes(String(row?.model || '')));
   reconcileHomeFamily(
     row => row.model === FOOT_ROUND || FOOT_FLAT_MODELS.includes(String(row?.model || '')),
     HOME_MANUAL_FOOT,
-    footRows,
     !el('#home_foot')?.checked,
     recomputeFootAll,
   );
 
-  const hoseRows = ownedHomeRows(row => /유연\s*호스|호스/i.test(String(row?.name || '')));
   reconcileHomeFamily(
     row => /유연\s*호스|호스/i.test(String(row?.name || '')),
     HOME_MANUAL_HOSE,
-    hoseRows,
     !!el('#home_no_hose')?.checked || !!el('#home_hose_i')?.checked,
     recomputeHomeHoses_,
   );
 
-  const ownedRemoteRows = ownedHomeRows(row =>
-    isRemoteRow(row) || String(row?.catM || '').trim() === '리모컨');
   reconcileHomeFamily(
     row => isRemoteRow(row) || String(row?.catM || '').trim() === '리모컨',
     HOME_MANUAL_REMOTE,
-    ownedRemoteRows,
     (el('#home_remote')?.value || '기본') !== '기본',
     recomputeHomeRemotes,
   );
-  if (ownedRemoteRows.length === 0) recomputeHomeRemotes();
 
-  const panelRows = ownedHomeRows(row => isPanelRow(row));
   reconcileHomeFamily(
     row => isPanelRow(row),
     HOME_MANUAL_PANEL,
-    panelRows,
     (el('#home_panel')?.value || '') !== '',
     recomputeHomePanels,
   );

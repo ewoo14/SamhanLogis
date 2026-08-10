@@ -73,7 +73,8 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
     expect(derived.indexOf('recomputeHomeBranches();')).toBeGreaterThan(derived.indexOf('recomputeHomeHoses_();'));
     expect(derived.indexOf('recomputeFootAll();')).toBeGreaterThan(derived.indexOf('recomputeHomeBranches();'));
     expect(derived.indexOf('recomputeHomePanels();')).toBeGreaterThan(derived.indexOf('recomputeFootAll();'));
-    expect(derived.indexOf('recomputeHomeRemotes();')).toBeGreaterThan(derived.indexOf('const serverOwnedTargets ='));
+    expect(derived.indexOf('recomputeHomeRemotes();')).toBeGreaterThan(-1);
+    expect(derived.indexOf('recomputeHomeRemotes();')).toBeLessThan(derived.indexOf('const serverOwnedTargets ='));
   });
 
   test('R19 UI 분모는 실제 select·checkbox 선언값을 사용한다', () => {
@@ -86,7 +87,7 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
     expect(source).toContain("'home_foot'");
   });
 
-  test('규칙 적용 뒤 각 소유 계열을 옵션 결과 또는 규칙 target으로 재수렴한다', () => {
+  test('규칙 적용 뒤 target별 규칙·legacy 결과와 옵션 계약을 재수렴한다', () => {
     const source = fs.readFileSync(path.join(__dirname, '../views/index.ejs'), 'utf8');
     const derived = source.slice(source.indexOf('function recomputeHomeDerived('));
     const apply = source.slice(source.indexOf('function applyServerHomeQuantitySync_()'), source.indexOf('/* 홈파생계산 */'));
@@ -100,7 +101,8 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
     expect(optionReconciliation).toContain("(el('#home_panel')?.value || '') !== ''");
     expect(optionReconciliation).toContain("(el('#home_remote')?.value || '기본') !== '기본'");
     expect(optionReconciliation).toContain('HOME_MANUAL_REMOTE');
-    expect((optionReconciliation.match(/recomputeHomeRemotes\(\);/g) || []).length).toBe(1);
+    expect(optionReconciliation).toContain('recomputeHomeRemotes,');
+    expect(optionReconciliation).toContain('legacyHomeQuantitiesWithoutRuleSources');
     expect(optionReconciliation).toContain('recomputeHomePanels,');
     expect(source).toContain('const FOOT_FLAT_MODELS=HOMEMULTI');
   });
