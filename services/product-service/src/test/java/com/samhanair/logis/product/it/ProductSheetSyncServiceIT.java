@@ -31,6 +31,7 @@ import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
+import com.samhanair.logis.product.service.BundleExpander;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.service.EcountAliasReservationService;
@@ -107,6 +108,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private BundleComponentRepository bundleComponentRepository;
+
+    @Autowired
+    private BundleExpander bundleExpander;
 
     @Autowired
     private ProductSpecRepository productSpecRepository;
@@ -625,7 +629,13 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                 });
         assertThat(comps).filteredOn(c -> c.getComponentProductCode().equals("OUT_360_A"))
                 .singleElement()
-                .satisfies(c -> assertThat(c.getComponentKind()).isEqualTo(BundleComponent.ComponentKind.OUTDOOR));
+                .satisfies(c -> {
+                    assertThat(c.getComponentKind()).isEqualTo(BundleComponent.ComponentKind.OUTDOOR);
+                    assertThat(c.getIsDefault()).isFalse();
+                });
+        assertThat(bundleExpander.expand("AC060CS6PBH1SY", BigDecimal.ONE))
+                .extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("IN_360_A");
 
         // 자식 parentBundleSetModel
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("IN_360_A").orElseThrow()
@@ -635,6 +645,114 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         Product keepSet = productRepository.findByModelCodeAndIsDeletedFalse("FOOT_SET_001").orElseThrow();
         assertThat(keepSet.getProductType()).isEqualTo(ProductType.BUNDLE);
         assertThat(keepSet.getBundleMode()).isEqualTo(BundleMode.KEEP);
+    }
+
+    @Test
+    void RED_A_V37_감사_부모의_시트_교체_신규행도_기본으로_전개한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "대분류", "출고가", "비고", "납품가"),
+                row("V37 상업멀티 세트", "AM240AXVHHR1SY_RED_A", "SET", "세트", "9,000,000", "", "5,000,000"),
+                row("기존 실외기", "AM120AXVHHR1_RED_A", "대", "실외기", "4,000,000", "", "2,000,000"),
+                row("교체 실외기", "AM100AXVHHR1_RED_A", "대", "실외기", "3,000,000", "", "1,500,000")
+        ));
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "규격", "세트", "구분"),
+                row("기존 실외기", "AM120AXVHHR1_RED_A", "대", "4,000,000", "Q", "2,000,000", "", "", "AM240AXVHHR1SY_RED_A", "실외기 기본")
+        ));
+
+        syncService.syncAll();
+        Product parent = productRepository.findByModelCodeAndIsDeletedFalse("AM240AXVHHR1SY_RED_A").orElseThrow();
+        BundleComponent original = bundleComponentRepository.findByBundleProductId(parent.getId()).get(0);
+        jdbcTemplate.update("""
+                INSERT INTO bundle_component_default_backfill_audit (
+                    id, migration_key, bundle_component_id, bundle_product_id, component_product_code,
+                    previous_is_default, applied_is_default, reason, created_by, is_deleted
+                ) VALUES (?, 'PR1132-V37', ?, ?, ?, false, true, 'RED-A fixture', 'test', false)
+                """, UUID.randomUUID(), original.getId(), parent.getId(), original.getComponentProductCode());
+
+        // 기존 감사행 유지 + 신규행 추가: 시트 raw에 '기본'이 없어도 둘 다 부모 정책으로 true.
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "규격", "세트", "구분"),
+                row("기존 실외기", "AM120AXVHHR1_RED_A", "대", "4,000,000", "Q", "2,000,000", "", "", "AM240AXVHHR1SY_RED_A", "실외기"),
+                row("교체 실외기", "AM100AXVHHR1_RED_A", "대", "3,000,000", "Q", "1,500,000", "", "", "AM240AXVHHR1SY_RED_A", "실외기")
+        ));
+        syncService.syncAll();
+        assertThat(bundleComponentRepository.findByBundleProductId(parent.getId()))
+                .hasSize(2)
+                .allSatisfy(component -> assertThat(component.getIsDefault()).isTrue());
+
+        // 기존 감사행 제거 + 신규행 교체: 삭제 감사행을 되살리지 않고 신규행만 true로 전개.
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "규격", "세트", "구분"),
+                row("교체 실외기", "AM100AXVHHR1_RED_A", "대", "3,000,000", "Q", "1,500,000", "", "", "AM240AXVHHR1SY_RED_A", "실외기")
+        ));
+
+        syncService.syncAll();
+
+        List<BundleComponent> active = bundleComponentRepository.findByBundleProductId(parent.getId());
+        assertThat(active).singleElement().satisfies(component -> {
+            assertThat(component.getComponentProductCode()).isEqualTo("AM100AXVHHR1_RED_A");
+            assertThat(component.getIsDefault()).isTrue();
+        });
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM bundle_component WHERE id = ?", Boolean.class, original.getId())).isTrue();
+        assertThat(bundleExpander.expand("AM240AXVHHR1SY_RED_A", BigDecimal.ONE))
+                .extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("AM100AXVHHR1_RED_A");
+
+        // 관리자 PUT과 같은 manual=true + false 선택: 후속 시트가 '기본'이어도 덮지 않고 0행 전개 허용.
+        BundleComponent manuallyDisabled = active.get(0);
+        manuallyDisabled.changeAttributes(manuallyDisabled.getDefaultQty(), manuallyDisabled.getQtyMode(),
+                manuallyDisabled.getComponentKind(), manuallyDisabled.getComponentVariant(), false,
+                manuallyDisabled.getSpecText());
+        bundleComponentRepository.save(manuallyDisabled);
+        parent.markBundleComponentsManual();
+        productRepository.save(parent);
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "규격", "세트", "구분"),
+                row("교체 실외기", "AM100AXVHHR1_RED_A", "대", "3,000,000", "Q", "1,500,000", "", "", "AM240AXVHHR1SY_RED_A", "실외기 기본")
+        ));
+        syncService.syncAll();
+        assertThat(bundleComponentRepository.findByBundleProductId(parent.getId()))
+                .singleElement()
+                .satisfies(component -> assertThat(component.getIsDefault()).isFalse());
+        assertThat(bundleExpander.expand("AM240AXVHHR1SY_RED_A", BigDecimal.ONE)).isEmpty();
+    }
+
+    @Test
+    void RED_B_V37_rollback_완료_부모는_시트의_기본_문자열_규칙으로_복귀한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "대분류", "출고가", "비고", "납품가"),
+                row("rollback 상업멀티 세트", "V37_ROLLBACK_PARENT", "SET", "세트", "9,000,000", "", "5,000,000"),
+                row("기존 실외기", "V37_ROLLBACK_OLD", "대", "실외기", "4,000,000", "", "2,000,000"),
+                row("신규 실외기", "V37_ROLLBACK_NEW", "대", "실외기", "3,000,000", "", "1,500,000")
+        ));
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "규격", "세트", "구분"),
+                row("기존 실외기", "V37_ROLLBACK_OLD", "대", "4,000,000", "Q", "2,000,000", "", "", "V37_ROLLBACK_PARENT", "실외기 기본")
+        ));
+        syncService.syncAll();
+        Product parent = productRepository.findByModelCodeAndIsDeletedFalse("V37_ROLLBACK_PARENT").orElseThrow();
+        BundleComponent original = bundleComponentRepository.findByBundleProductId(parent.getId()).get(0);
+        jdbcTemplate.update("""
+                INSERT INTO bundle_component_default_backfill_audit (
+                    id, migration_key, bundle_component_id, bundle_product_id, component_product_code,
+                    previous_is_default, applied_is_default, reason, rolled_back_at, rolled_back_by,
+                    created_by, is_deleted
+                ) VALUES (?, 'PR1132-V37', ?, ?, ?, false, true, 'RED-B fixture', now(), 'test', 'test', false)
+                """, UUID.randomUUID(), original.getId(), parent.getId(), original.getComponentProductCode());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "규격", "세트", "구분"),
+                row("신규 실외기", "V37_ROLLBACK_NEW", "대", "3,000,000", "Q", "1,500,000", "", "", "V37_ROLLBACK_PARENT", "실외기")
+        ));
+
+        syncService.syncAll();
+
+        assertThat(bundleComponentRepository.findByBundleProductId(parent.getId()))
+                .singleElement()
+                .satisfies(component -> assertThat(component.getIsDefault()).isFalse());
     }
 
     @Test

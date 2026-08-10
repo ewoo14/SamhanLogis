@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type {
+  BundleComponentItem,
   ProductCategoryNode,
   ProductDetailResponse,
   ProductSummaryResponse,
@@ -136,11 +137,11 @@ function seedFor(modelCode: string): {
   return { summary, detail }
 }
 
-function renderPage(path = '/products/new') {
+function renderPage(path = '/products/new', bundleComponents: BundleComponentItem[] = []) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.listProductCategories.mockResolvedValue(categories)
   mocks.listSpecKeyTemplates.mockResolvedValue([])
-  mocks.listBundleComponents.mockResolvedValue([])
+  mocks.listBundleComponents.mockResolvedValue(bundleComponents)
   return {
     client,
     ...render(
@@ -244,7 +245,7 @@ describe('ProductFormPage', () => {
     mocks.searchProductSummaries.mockResolvedValue([seed.summary])
     mocks.getProductByModelName.mockResolvedValue(seed.detail)
     mocks.listProducts.mockResolvedValue(emptyPage())
-    mocks.listBundleComponents.mockResolvedValue([
+    const components: BundleComponentItem[] = [
       {
         id: 'component-1',
         componentProductCode: 'IDU-001',
@@ -257,11 +258,84 @@ describe('ProductFormPage', () => {
         specText: null,
         displayOrder: 1,
       },
-    ])
+    ]
 
-    renderPage('/products/SET-2000/edit')
+    renderPage('/products/SET-2000/edit', components)
 
     expect(await screen.findByTestId('product-form-components-editor')).not.toBeNull()
+  })
+
+  it('RED-A 구성품 기본 checkbox를 해제하면 기존 PUT 계약에 isDefault=false를 보낸다', async () => {
+    const seed = seedFor('SET-V37-TOGGLE')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    const components: BundleComponentItem[] = [{
+      id: 'component-v37',
+      componentProductCode: 'AM100AXVHHR1',
+      componentName: '교체 실외기',
+      defaultQty: 1,
+      qtyMode: 'FOLLOW_SET',
+      componentKind: 'OUTDOOR',
+      componentVariant: null,
+      isDefault: true,
+      specText: null,
+      displayOrder: 1,
+    }]
+    mocks.updateBundleComponents.mockImplementation(async (_modelCode, items) => items)
+
+    renderPage('/products/SET-V37-TOGGLE/edit', components)
+
+    const checkbox = await screen.findByRole('checkbox', { name: '기본 구성품' })
+    expect(checkbox).toHaveProperty('checked', true)
+    fireEvent.click(checkbox)
+    fireEvent.click(screen.getByTestId('product-form-components-save'))
+
+    await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
+    expect(mocks.updateBundleComponents).toHaveBeenCalledWith('SET-V37-TOGGLE', [expect.objectContaining({
+      componentProductCode: 'AM100AXVHHR1',
+      isDefault: false,
+    })])
+  })
+
+  it('RED-B GET true/false 혼합을 rehydrate하고 수량만 저장하면 isDefault를 그대로 보존한다', async () => {
+    const seed = seedFor('SET-V37-MIXED')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    const components: BundleComponentItem[] = [
+      {
+        id: 'component-default', componentProductCode: 'BASE', componentName: '기본 패널',
+        defaultQty: 1, qtyMode: 'FOLLOW_SET', componentKind: 'PANEL', componentVariant: null,
+        isDefault: true, specText: null, displayOrder: 1,
+      },
+      {
+        id: 'component-option', componentProductCode: 'OPTION', componentName: '옵션 패널',
+        defaultQty: 1, qtyMode: 'FOLLOW_SET', componentKind: 'PANEL', componentVariant: null,
+        isDefault: false, specText: null, displayOrder: 2,
+      },
+    ]
+    mocks.updateBundleComponents.mockImplementation(async (_modelCode, items) => items)
+
+    renderPage('/products/SET-V37-MIXED/edit', components)
+
+    const checkboxes = await screen.findAllByRole('checkbox', { name: '기본 구성품' })
+    expect(checkboxes.map((checkbox) => (checkbox as HTMLInputElement).checked)).toEqual([true, false])
+    const optionQuantity = screen.getByTestId('product-form-component-row-1')
+      .querySelector('input[type="number"]')
+    if (!optionQuantity) throw new Error('옵션 구성품 수량 입력을 찾을 수 없습니다.')
+    fireEvent.change(optionQuantity, { target: { value: '2' } })
+    fireEvent.click(screen.getByTestId('product-form-components-save'))
+
+    await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
+    expect(mocks.updateBundleComponents).toHaveBeenCalledWith('SET-V37-MIXED', [
+      expect.objectContaining({ componentProductCode: 'BASE', defaultQty: 1, isDefault: true }),
+      expect.objectContaining({ componentProductCode: 'OPTION', defaultQty: 2, isDefault: false }),
+    ])
   })
 
   it('편집 모드는 기존 품목을 hydrate하고 PATCH 저장을 호출한다', async () => {

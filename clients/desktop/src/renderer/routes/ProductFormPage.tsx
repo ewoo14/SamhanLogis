@@ -949,12 +949,22 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
       {error ? <div role="alert" style={errorBannerStyle}>{error}</div> : null}
       {query.isLoading ? <p>구성품을 불러오는 중입니다.</p> : null}
       {drafts.map((item, index) => (
-        <div key={item.localId} data-testid={`product-form-component-row-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 130px auto', gap: 8, alignItems: 'end' }}>
+        <div key={item.localId} data-testid={`product-form-component-row-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 130px 110px auto', gap: 8, alignItems: 'end' }}>
           <Input label={item.componentName ? `${item.componentName} · 모델코드` : '모델코드'} value={item.componentProductCode} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentProductCode: event.target.value })} />
           <Input label="수량" type="number" min="0.01" value={String(item.defaultQty)} disabled={!canEdit} onChange={(event) => updateDraft(index, { defaultQty: Number(event.target.value) || 1 })} />
           <Select label="종류" value={item.componentKind} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentKind: event.target.value as ComponentKind })}>
             {COMPONENT_KINDS.map((kind) => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
           </Select>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36 }}>
+            <input
+              type="checkbox"
+              aria-label="기본 구성품"
+              checked={item.isDefault}
+              disabled={!canEdit}
+              onChange={(event) => updateDraft(index, { isDefault: event.target.checked })}
+            />
+            기본 구성품
+          </label>
           {canEdit ? <Button variant="secondary" onClick={() => remove(index)} data-testid={`product-form-component-delete-${index}`}>삭제</Button> : null}
         </div>
       ))}
