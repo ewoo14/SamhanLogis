@@ -81,6 +81,17 @@ function displayValue(v: string | null | undefined): string {
   return v
 }
 
+const UNKNOWN_ACTOR_NAME = '변경자 미상'
+const UUID_ACTOR_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** API 경계 밖에서 직접 주입된 legacy audit row 도 UUID 를 사용자 텍스트로 내보내지 않는다. */
+function displayActorName(actorName: string): string {
+  if (!actorName || !actorName.trim() || UUID_ACTOR_NAME.test(actorName.trim())) {
+    return UNKNOWN_ACTOR_NAME
+  }
+  return actorName
+}
+
 /**
  * AuditOverlay — 한 필드의 현재값 + 과거 변경 이력 overlay.
  *
@@ -134,7 +145,7 @@ export function AuditOverlay({
                 style={{ background: userIdToColor(latest.actorId) }}
                 aria-hidden="true"
               />
-              <span className={styles['actorName']}>{latest.actorName}</span>
+              <span className={styles['actorName']}>{displayActorName(latest.actorName)}</span>
               <span className={styles['timestamp']}>{formatHHmm(latest.changedAt)}</span>
             </span>
           </>
@@ -169,7 +180,7 @@ export function AuditOverlay({
                   style={{ background: userIdToColor(entry.actorId) }}
                   aria-hidden="true"
                 />
-                <span className={styles['actorName']}>{entry.actorName}</span>
+                <span className={styles['actorName']}>{displayActorName(entry.actorName)}</span>
                 <span className={styles['timestamp']}>{formatHHmm(entry.changedAt)}</span>
               </span>
             </li>

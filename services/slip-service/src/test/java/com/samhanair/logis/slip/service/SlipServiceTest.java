@@ -1071,6 +1071,30 @@ class SlipServiceTest {
                 eq(null), any(UUID.class), eq(null), eq(null));
     }
 
+    @Test
+    void editHeader_withoutCallerName_recordsNeutralAuditActorName() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, null, null, "새메모", null, null, null),
+                UUID.randomUUID().toString(), null);
+
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("변경자 미상"), any(), eq("memo"), any(), any());
+    }
+
+    @Test
+    void applyOverlayPatch_withoutCallerName_recordsNeutralAuditActorName() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.applyOverlayPatch(slipId, "memo", "새메모", UUID.randomUUID().toString(), null);
+
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("변경자 미상"), any(), eq("memo"), any(), any());
+    }
+
     // ---------- reject memo 변경 revision 캡처 (Phase 2.1) ----------
 
     @Test

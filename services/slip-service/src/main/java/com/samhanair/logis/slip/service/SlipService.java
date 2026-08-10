@@ -419,7 +419,7 @@ public class SlipService {
         String newMemo = slip.getMemo();
         if (req.memo() != null && !java.util.Objects.equals(oldMemo, newMemo)) {
             UUID actorId = parseActorId(callerId);
-            String actorName = callerId == null || callerId.isBlank() ? "system" : callerId;
+            String actorName = resolveAuditActorName(callerName, callerId);
             auditLogService.recordOverlayPatch(id, actorId, actorName, null,
                     "memo", oldMemo, newMemo);
         }
@@ -535,7 +535,7 @@ public class SlipService {
      * @param fieldName 필드 식별자 (memo/shippingAddress/...)
      * @param newValue 새 값 (null 가능 — 필드 clear)
      * @param callerId 호출자 user-id (audit actor)
-     * @param callerName 호출자 표시명 (UUID 비공개 가드, null 이면 callerId 사용)
+     * @param callerName 호출자 표시명 (UUID 비공개 가드, 없으면 변경자 미상)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      * @throws BusinessException(INVALID_INPUT) 미지원 필드 또는 길이 초과
@@ -552,9 +552,7 @@ public class SlipService {
         String actualNew = slip.readOverlayField(fieldName);
         if (!java.util.Objects.equals(oldValue, actualNew)) {
             UUID actorId = parseActorId(callerId);
-            String actorName = (callerName != null && !callerName.isBlank())
-                    ? callerName
-                    : (callerId == null || callerId.isBlank() ? "system" : callerId);
+            String actorName = resolveAuditActorName(callerName, callerId);
             auditLogService.recordOverlayPatch(id, actorId, actorName, null,
                     fieldName, oldValue, actualNew);
         }
@@ -589,7 +587,7 @@ public class SlipService {
      * @param patches 필드명 → 새 값 (순서 보존)
      * @param expectedBefore 필드명 → 편집 시작 시 클라이언트가 캡처한 baseline
      * @param callerId 호출자 user-id (audit actor)
-     * @param callerName 호출자 표시명 (UUID 비공개 가드, null 이면 callerId 사용)
+     * @param callerName 호출자 표시명 (UUID 비공개 가드, 없으면 변경자 미상)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      * @throws BusinessException(INVALID_INPUT) 미지원 필드 또는 길이 초과
@@ -614,9 +612,7 @@ public class SlipService {
             }
         }
         UUID actorId = parseActorId(callerId);
-        String auditActorName = (callerName != null && !callerName.isBlank())
-                ? callerName
-                : (callerId == null || callerId.isBlank() ? "system" : callerId);
+        String auditActorName = resolveAuditActorName(callerName, callerId);
         // 루프에서는 변경분 수집만 — audit 기록/SSE 발화는 모든 mutation·검증 통과 후 1회 (phantom 차단)
         List<SlipAuditLogService.ChangeEntry> changes = new ArrayList<>(patches.size());
         for (Map.Entry<String, String> patch : patches.entrySet()) {
@@ -677,7 +673,7 @@ public class SlipService {
      * @param slipId 복원 대상 전표 UUID
      * @param revisionNo 복원할 시점의 revisionNo (복원 출처)
      * @param callerId 복원 수행자 user-id (감사용 actor)
-     * @param callerName 복원 수행자 표시명 (UUID 비공개 가드, null 이면 callerId 폴백)
+     * @param callerName 복원 수행자 표시명 (UUID 비공개 가드, 없으면 null)
      * @return 복원된 전표의 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 또는 대상 revision 미발견
      * @throws BusinessException(CONFLICT) 마감 정책 위반 또는 lock_flag=true 슬립
@@ -820,6 +816,12 @@ public class SlipService {
         } catch (IllegalArgumentException notUuid) {
             return callerName;
         }
+    }
+
+    /** audit row 는 actorName 이 필수이므로 이름 부재 시 UUID 대신 중립 표시명을 저장한다. */
+    private String resolveAuditActorName(String callerName, String callerId) {
+        return java.util.Optional.ofNullable(resolveActorName(callerName, callerId))
+                .orElse("변경자 미상");
     }
 
     /**

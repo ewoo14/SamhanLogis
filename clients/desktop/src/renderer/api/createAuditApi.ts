@@ -45,6 +45,16 @@ export interface AuditApiConfig {
   revertPath?: (entityId: string, revisionNo: number) => string
 }
 
+const UNKNOWN_ACTOR_NAME = '변경자 미상'
+const UUID_ACTOR_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function normalizeActorName(actorName: string | null | undefined): string {
+  if (!actorName || !actorName.trim() || UUID_ACTOR_NAME.test(actorName.trim())) {
+    return UNKNOWN_ACTOR_NAME
+  }
+  return actorName
+}
+
 export interface AuditApi {
   listAuditLogs: (entityId: string) => Promise<AuditLogEntry[]>
   /** revertPath 미설정 시 reject. */
@@ -60,7 +70,7 @@ export interface RawAuditLogEntry {
   afterValue?: string | null
   newValue?: string | null
   actorId: string
-  actorName: string
+  actorName: string | null
   changedAt: string
 }
 
@@ -71,7 +81,7 @@ export function normalizeAuditLogEntry(entry: RawAuditLogEntry): AuditLogEntry {
     beforeValue: entry.beforeValue ?? entry.oldValue ?? null,
     afterValue: entry.afterValue ?? entry.newValue ?? null,
     actorId: entry.actorId,
-    actorName: entry.actorName,
+    actorName: normalizeActorName(entry.actorName),
     changedAt: entry.changedAt,
   }
 }
