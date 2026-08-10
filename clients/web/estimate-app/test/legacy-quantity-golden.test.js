@@ -15,6 +15,18 @@ function inputFor(fixture) {
   return { ...fixture, app: 'estimate' };
 }
 
+function homeQuantitySyncRule(sourceCode, targetCode, multiplier = 1) {
+  return {
+    ruleKey: `HOME_MULTI_${sourceCode}_${targetCode}`,
+    estimateCategory: 'HOME_MULTI',
+    enabled: true,
+    aggregation: 'SUM',
+    inactiveBehavior: 'ZERO',
+    sources: [{ productCode: sourceCode, factor: 1 }],
+    targets: [{ productCode: targetCode, multiplier, roundingMode: 'NONE', displayOrder: 1 }],
+  };
+}
+
 function replaceOnce(source, from, to) {
   if (!source.includes(from)) throw new Error(`뮤테이션 지점을 찾지 못했습니다: ${from}`);
   return source.replace(from, to);
@@ -269,6 +281,46 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     expect(estimateGoldens['H-01']['AR-EC05']).toBe(4);
     expect(estimateGoldens['H-07']['AXJ-YA1509N']).toBe(1);
     expect(estimateGoldens['C-07']['AF-R09A']).toBe(2);
+  });
+
+  test.each([
+    ['분기관 제외', 'H-01', 'AM020BN1PBH1', 'AXJ-YA1509N', '#home_no_branch', true],
+    ['발통 미포함', 'H-08', 'AJ060MXHNBC1', '발통세트', '#home_foot', false],
+    ['일자발통 미포함', 'H-08', 'AJ060MXHNBC1', 'SI-AL700a', '#home_foot', false],
+  ])('RED-A: %s 옵션은 HOME_MULTI 규칙 target보다 우선해 0을 만든다', (label, family, sourceCode, targetCode, option, optionValue) => {
+    const fixture = fixtures.find((item) => item.family === family);
+    const sourceQuantities = { ...fixture.sourceQuantities, [sourceCode]: 2 };
+    if (family === 'H-01') sourceQuantities.AJ040MXHNBC1 = 1;
+    const actual = evaluateLegacyQuantityBoundary({
+      ...inputFor({
+        ...fixture,
+        sourceQuantities,
+        options: { ...fixture.options, dom: { ...fixture.options.dom, [option]: optionValue } },
+      }),
+      quantitySyncRules: [homeQuantitySyncRule(sourceCode, targetCode)],
+    });
+
+    expect(actual.quantities[targetCode] || 0).toBe(0);
+  });
+
+  test.each([
+    ['분기관 포함', 'H-01', 'AM020BN1PBH1', 'AXJ-YA1509N', '#home_no_branch', false],
+    ['발통 포함', 'H-08', 'AJ060MXHNBC1', '발통세트', '#home_foot', true],
+    ['일자발통 포함', 'H-08', 'AJ060MXHNBC1', 'SI-AL700a', '#home_foot', true],
+  ])('RED-B: %s에서는 규칙 target 계산값을 소비한다', (label, family, sourceCode, targetCode, option, optionValue) => {
+    const fixture = fixtures.find((item) => item.family === family);
+    const sourceQuantities = { ...fixture.sourceQuantities, [sourceCode]: 2 };
+    if (family === 'H-01') sourceQuantities.AJ040MXHNBC1 = 1;
+    const actual = evaluateLegacyQuantityBoundary({
+      ...inputFor({
+        ...fixture,
+        sourceQuantities,
+        options: { ...fixture.options, dom: { ...fixture.options.dom, [option]: optionValue } },
+      }),
+      quantitySyncRules: [homeQuantitySyncRule(sourceCode, targetCode, 2)],
+    });
+
+    expect(actual.quantities[targetCode] || 0).toBe(4);
   });
 
   const mutation = process.env.LEGACY_MUTATION;

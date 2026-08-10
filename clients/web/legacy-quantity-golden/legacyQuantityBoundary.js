@@ -172,8 +172,9 @@ function commonContextScript(input) {
       SHOW_I_HOSE: ${JSON.stringify(!!options.showIHose)},
       ABSOLUTE_LOCK: new Set(${JSON.stringify(input.absoluteLocks || [])}),
       SamhanQuantitySync: { evaluateQuantitySyncRules: (...args) => {
-        const result = evaluateQuantitySyncRules(...args);
-        return result instanceof Map ? new Map(result) : result;
+        // evaluator는 VM 바깥의 native Map을 요구한다. VM 안에서 만든 Map을
+        // 그대로 넘기면 cross-realm instanceof 검사에 걸려 규칙 주입이 null이 된다.
+        return evaluateQuantitySyncRules(args[0], args[1], toNativeMap(args[2]));
       } },
     };
     const CSS = { escape: (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, '_') };
@@ -268,6 +269,7 @@ function runHome(source, input) {
     mapObject,
     evaluateQuantitySyncRules,
     console: { log: () => {} },
+    toNativeMap: (entries) => new Map(entries),
   };
   vm.runInNewContext(script, context, { filename: SOURCE_PATH[input.app || 'estimate'] });
   return context.__result;

@@ -8440,9 +8440,15 @@ function recomputeHomeDerived(updateUI) {
     : new Set();
 
   // 규칙이 소유한 계열만 옵션 계약을 레거시 함수로 재수렴한다. 규칙 0건이면
-  // 호스·판넬은 위의 단일 레거시 계산만, 리모컨은 여기서 단 한 번만 실행한다.
+  // 아래 분기들은 모두 건너뛰어 순수 legacy 결과를 보존한다.
   const ownsHomeFamily = predicate => HOMEMULTI.some(row =>
     serverOwnedTargets.has(String(row?.model || '')) && predicate(row));
+  if (ownsHomeFamily(row => row.model === BRANCH_1509 || row.model === BRANCH_2512) && el('#home_no_branch')?.checked) {
+    recomputeHomeBranches();
+  }
+  if (ownsHomeFamily(row => row.model === FOOT_ROUND || row.model === FOOT_FLAT) && !el('#home_foot')?.checked) {
+    recomputeFootAll();
+  }
   if (ownsHomeFamily(row => /유연\s*호스|호스/i.test(String(row?.name || '')))) {
     recomputeHomeHoses_();
   }
