@@ -103,6 +103,8 @@ describe('종합견적서 HOME_MULTI 서버 규칙 수량 동기화', () => {
     expect(optionReconciliation).toContain('HOME_MANUAL_REMOTE');
     expect(optionReconciliation).toContain('recomputeHomeRemotes,');
     expect(optionReconciliation).toContain('legacyHomeQuantitiesWithoutRuleSources');
+    expect(derived).toContain('const currentHomeQuantities');
+    expect(derived).toContain('predicate(row)');
     expect(optionReconciliation).toContain('recomputeHomePanels,');
     expect(source).toContain('const FOOT_FLAT_MODELS=HOMEMULTI');
   });
