@@ -259,6 +259,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     List<Product> findByProductCategoryAndIsDeletedFalse(ProductCategory productCategory);
 
+    /** L분류명 변경 시 해당 분류를 직접 사용하는 품목의 수량 동기화 역할을 재검증한다. */
+    List<Product> findByCatL_IdAndIsDeletedFalse(UUID classificationId);
+
     /** Classification 삭제 차단용 — catL/catM/catS 중 하나라도 참조하는 활성 품목 수. */
     @Query("""
             SELECT COUNT(p)

@@ -85,13 +85,15 @@ class QuantitySyncRuleExistingRuleAliasIntegrityIT extends AbstractPostgresIT {
         assertThatThrownBy(() -> quantitySyncRuleService.create(
                 request("ALIAS_RULE_B_CTRL", "ALIAS-TGT-B", "ALIAS-SRC-A"), "qa-alias"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("source는 부자재 역할 품목일 수 없습니다");
+                .hasMessageContaining("수량 동기화")
+                .hasMessageContaining("ALIAS_RULE_A");
 
         // 공격 — modelName(별칭 표기)로 같은 역방향을 시도해도 같은 품목이므로 순환이어야 한다.
         assertThatThrownBy(() -> quantitySyncRuleService.create(
                 request("ALIAS_RULE_B_ATTACK", "ALIAS-TGT-B-RENAMED", "ALIAS-SRC-A"), "qa-alias"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("source는 부자재 역할 품목일 수 없습니다");
+                .hasMessageContaining("수량 동기화")
+                .hasMessageContaining("ALIAS_RULE_A");
     }
 
     // ---- 결함 2 [MED] — cross-rule REPLACE 중복 검사가 draft ↔ 기존 규칙을 문자열로만 비교한다 ----

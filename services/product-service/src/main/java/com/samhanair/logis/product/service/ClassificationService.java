@@ -23,6 +23,7 @@ public class ClassificationService {
 
     private final ClassificationRepository classificationRepository;
     private final ProductRepository productRepository;
+    private final QuantitySyncRuleService quantitySyncRuleService;
 
     @Transactional(readOnly = true)
     public List<ClassificationResponse> list(EstimateCategory estimateCategory, UUID parentId) {
@@ -59,6 +60,17 @@ public class ClassificationService {
     public ClassificationResponse update(UUID id, UpdateClassificationRequest request) {
         Classification target = load(id);
         if (request.name() != null) {
+            if (target.getCatLevel() == Classification.CatLevel.L
+                    && !request.name().trim().equals(target.getName())) {
+                quantitySyncRuleService.lockGraphMutation();
+                List<String> ruleKeys = quantitySyncRuleService
+                        .findEnabledRuleKeysBrokenByClassificationName(id, request.name().trim());
+                if (!ruleKeys.isEmpty()) {
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "
+                                    + String.join(", ", ruleKeys));
+                }
+            }
             target.rename(request.name());
         }
         if (request.parentId() != null) {

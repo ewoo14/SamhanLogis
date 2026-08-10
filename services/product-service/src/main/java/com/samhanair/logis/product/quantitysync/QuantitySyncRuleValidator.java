@@ -408,9 +408,18 @@ public class QuantitySyncRuleValidator {
         }
     }
 
+    /** source/target 역할 판정에 쓰는 허용 부자재 분류명인지 판정한다. */
+    public static boolean isMaterialClassificationName(String classificationName) {
+        return classificationName != null && MATERIAL_CLASSIFICATIONS.contains(classificationName);
+    }
+
+    /** 현재 역할 상태가 수량 동기화 target 계약을 만족하는지 판정한다. */
+    public static boolean isValidTargetRole(String classificationName, String goodsType) {
+        return GOODS_TYPE.equals(goodsType) && isMaterialClassificationName(classificationName);
+    }
+
     private boolean isMaterialClassification(ProductSnapshot product) {
-        return product.classificationName() != null
-                && MATERIAL_CLASSIFICATIONS.contains(product.classificationName());
+        return isMaterialClassificationName(product.classificationName());
     }
 
     /**
