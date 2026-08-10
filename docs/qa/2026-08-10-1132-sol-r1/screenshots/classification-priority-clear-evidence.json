@@ -1,0 +1,122 @@
+{
+  "head": "f829946fc",
+  "treePath": [
+    "실내기",
+    "1-Way WIFI",
+    "소형"
+  ],
+  "initialInputs": {
+    "L": "",
+    "M": "",
+    "S": ""
+  },
+  "writes": [
+    {
+      "action": "set",
+      "level": "L",
+      "status": 200,
+      "responseRate": 5
+    },
+    {
+      "action": "set",
+      "level": "M",
+      "status": 200,
+      "responseRate": 10
+    },
+    {
+      "action": "set",
+      "level": "S",
+      "status": 200,
+      "responseRate": 15
+    },
+    {
+      "action": "clear",
+      "level": "S",
+      "status": 200,
+      "responseRate": null
+    },
+    {
+      "action": "clear",
+      "level": "M",
+      "status": 200,
+      "responseRate": null
+    },
+    {
+      "action": "clear",
+      "level": "L",
+      "status": 200,
+      "responseRate": null
+    }
+  ],
+  "observations": [
+    {
+      "modelCode": "AJ020FERPBC2",
+      "expectedSource": "품목 개별",
+      "expectedRate": "45",
+      "source": "품목 개별",
+      "rate": "45",
+      "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/04-source-product.png"
+    },
+    {
+      "modelCode": "AJ012BN1PBC2",
+      "expectedSource": "미지정",
+      "expectedRate": "",
+      "source": "미지정",
+      "rate": "",
+      "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/05-source-none-before.png"
+    },
+    {
+      "modelCode": "AJ012BN1PBC2",
+      "expectedSource": "L",
+      "expectedRate": "5",
+      "source": "L",
+      "rate": "5",
+      "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/06-source-l.png"
+    },
+    {
+      "modelCode": "AJ012BN1PBC2",
+      "expectedSource": "M",
+      "expectedRate": "10",
+      "source": "M",
+      "rate": "10",
+      "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/07-source-m.png"
+    },
+    {
+      "modelCode": "AJ012BN1PBC2",
+      "expectedSource": "S",
+      "expectedRate": "15",
+      "source": "S",
+      "rate": "15",
+      "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/08-source-s.png"
+    },
+    {
+      "modelCode": "AJ012BN1PBC2",
+      "expectedSource": "M",
+      "expectedRate": "10",
+      "source": "M",
+      "rate": "10",
+      "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/09-source-m-after-s-clear.png"
+    },
+    {
+      "modelCode": "AJ012BN1PBC2",
+      "expectedSource": "L",
+      "expectedRate": "5",
+      "source": "L",
+      "rate": "5",
+      "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/10-source-l-after-m-clear.png"
+    },
+    {
+      "modelCode": "AJ012BN1PBC2",
+      "expectedSource": "미지정",
+      "expectedRate": "",
+      "source": "미지정",
+      "rate": "",
+      "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/11-source-none-after-clear.png"
+    }
+  ],
+  "finalRates": {
+    "L": null,
+    "M": null,
+    "S": null
+  }
+}

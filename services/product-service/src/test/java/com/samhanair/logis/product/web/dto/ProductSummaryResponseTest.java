@@ -5,11 +5,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.product.domain.Category;
-import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductGoodsType;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
+import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.UsageScope;
 import java.util.List;
 import java.util.UUID;
@@ -112,5 +112,20 @@ class ProductSummaryResponseTest {
 
         assertThat(response.categoryKey()).isEqualTo("homemulti");
         assertThat(response.hasVariableDiscount()).isFalse();
+    }
+
+    @Test
+    void from_includesResolvedFixedDiscountSourceForEstimateLookup() {
+        Product product = mock(Product.class);
+        Category category = mock(Category.class);
+        when(product.getCategory()).thenReturn(category);
+        when(category.getId()).thenReturn(UUID.randomUUID());
+        when(product.resolveFixedDiscount()).thenReturn(
+                new Product.FixedDiscountResolution(new java.math.BigDecimal("15"), Product.FixedDiscountSource.S));
+
+        ProductSummaryResponse response = ProductSummaryResponse.from(product);
+
+        assertThat(response.fixedDiscountRate()).isEqualByComparingTo("15");
+        assertThat(response.fixedDiscountSource()).isEqualTo("S");
     }
 }

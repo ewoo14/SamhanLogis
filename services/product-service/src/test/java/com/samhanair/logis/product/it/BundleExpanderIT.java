@@ -16,7 +16,10 @@ import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.BundleExpander;
+import com.samhanair.logis.product.service.BundleComponentService;
+import com.samhanair.logis.product.web.dto.BundleComponentRequest;
 import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -46,6 +49,9 @@ class BundleExpanderIT extends AbstractPostgresIT {
 
     @Autowired
     private BundleExpander expander;
+
+    @Autowired
+    private BundleComponentService bundleComponentService;
 
     @Test
     void EXPAND_모드_component_펼침_FOLLOW_SET_qty_곱() {
@@ -94,6 +100,80 @@ class BundleExpanderIT extends AbstractPostgresIT {
 
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
                 .containsExactly("DEFAULT_INDOOR");
+    }
+
+    @Test
+    void RED_A_AM220AXVHHR1SY_기본구성품이_0건인_기존세트도_활성구성품으로_전개한다() {
+        Category cat = categoryRepository.save(Category.create("COMMERCIAL-LEGACY-COMPAT", "test", null, 18));
+        Product parent = Product.seedFromSheet("기존 상용멀티 세트", "AM220AXVHHR1SY", cat,
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                ProductType.BUNDLE, ProductCategory.COMMERCIAL_MULTI,
+                UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI);
+        parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        parent = productRepository.save(parent);
+
+        product("AM220-INDOOR", "기존 실내기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("100"));
+        product("AM220-OUTDOOR", "기존 실외기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("200"));
+        comp(parent, "AM220-INDOOR", BundleComponent.ComponentKind.INDOOR, null, false, 1);
+        comp(parent, "AM220-OUTDOOR", BundleComponent.ComponentKind.OUTDOOR, null, false, 2);
+        flush();
+
+        var lines = expander.expand("AM220AXVHHR1SY", BigDecimal.ONE);
+
+        assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("AM220-INDOOR", "AM220-OUTDOOR");
+    }
+
+    @Test
+    void RED_A_수기편집_기본구성품이_0건이면_활성구성품을_전개하지_않는다() {
+        Category cat = categoryRepository.save(Category.create("COMMERCIAL-MANUAL-NO-DEFAULT", "test", null, 19));
+        Product parent = Product.seedFromSheet("수기 편집 상용멀티 세트", "MANUAL_NO_DEFAULT", cat,
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                ProductType.BUNDLE, ProductCategory.COMMERCIAL_MULTI,
+                UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI);
+        parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        parent.markBundleComponentsManual();
+        parent = productRepository.save(parent);
+
+        product("MANUAL-INDOOR", "수기 필수 실내기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("100"));
+        product("MANUAL-OPTIONAL", "수기 선택 실외기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("200"));
+        comp(parent, "MANUAL-INDOOR", BundleComponent.ComponentKind.INDOOR, null, false, 1);
+        comp(parent, "MANUAL-OPTIONAL", BundleComponent.ComponentKind.OUTDOOR, null, false, 2);
+        flush();
+
+        var lines = expander.expand("MANUAL_NO_DEFAULT", BigDecimal.ONE);
+
+        assertThat(lines).isEmpty();
+    }
+
+    @Test
+    void RED_A_뮤테이션_PUT_전부_비기본이면_수기표식_후_전개하지_않는다() {
+        Category cat = categoryRepository.save(Category.create("COMMERCIAL-MUTATION-NO-DEFAULT", "test", null, 20));
+        Product parent = Product.seedFromSheet("수기 mutation 상용멀티 세트", "MUTATION_NO_DEFAULT", cat,
+                BigDecimal.ZERO, BigDecimal.ZERO,
+                ProductType.BUNDLE, ProductCategory.COMMERCIAL_MULTI,
+                UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI);
+        parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        parent = productRepository.save(parent);
+        product("MUTATION-REQUIRED", "mutation 필수 실내기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("100"));
+        product("MUTATION-OPTIONAL", "mutation 선택 실외기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("200"));
+        flush();
+
+        var saved = bundleComponentService.replaceComponents("MUTATION_NO_DEFAULT", List.of(
+                new BundleComponentRequest("MUTATION-REQUIRED", BigDecimal.ONE,
+                        BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.INDOOR,
+                        null, false, null),
+                new BundleComponentRequest("MUTATION-OPTIONAL", BigDecimal.ONE,
+                        BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR,
+                        null, false, null)
+        ), "test-user");
+        flush();
+
+        assertThat(saved).hasSize(2)
+                .allSatisfy(component -> assertThat(component.isDefault()).isFalse());
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("MUTATION_NO_DEFAULT"))
+                .get().extracting(Product::isBundleComponentsManual).isEqualTo(true);
+        assertThat(expander.expand("MUTATION_NO_DEFAULT", BigDecimal.ONE)).isEmpty();
     }
 
     @Test

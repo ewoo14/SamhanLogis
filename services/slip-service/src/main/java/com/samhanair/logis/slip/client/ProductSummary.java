@@ -24,7 +24,17 @@ public record ProductSummary(
         String categoryKey,
         String bundleMode,
         BigDecimal fixedDiscountRate,
-        String specification) {
+        String specification,
+        String fixedDiscountSource) {
+
+    /** product-service의 유효 정액DC 출처 추가 전 canonical 호출 호환 생성자. */
+    public ProductSummary(UUID id, String name, String modelName, String productCode,
+                          UUID categoryId, BigDecimal sellingPrice, String status, boolean serialManaged,
+                          String modelCode, String productType, String categoryKey, String bundleMode,
+                          BigDecimal fixedDiscountRate, String specification) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged,
+                modelCode, productType, categoryKey, bundleMode, fixedDiscountRate, specification, null);
+    }
 
     /**
      * 기존 테스트/호출자 호환 생성자 — serialManaged 미제공 시 batch 품목(false)으로 간주한다.

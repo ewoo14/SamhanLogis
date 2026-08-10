@@ -95,8 +95,17 @@ public class BundleExpander {
         }
 
         // ── EXPAND ──────────────────────────────────────────────
-        List<BundleComponent> components = componentRepository.findByBundleProductId(parent.getId()).stream()
-                .filter(c -> Boolean.TRUE.equals(c.getIsDefault()))
+        List<BundleComponent> activeComponents = componentRepository.findByBundleProductId(parent.getId());
+        // 신규·수기 편집 세트의 기본 0건은 운영자가 선택 구성품을 제외한 의도일 수 있으므로
+        // 전체 전개 fallback을 적용하지 않는다. V36 이전 시트 정본 세트(manual=false)만
+        // 기본 지정이 없는 레거시 상태를 호환한다. 기본이 하나라도 있으면 두 경로 모두
+        // 기존 의도대로 기본 구성품만 전개한다(B4 역방향 가드).
+        boolean hasDefaultComponent = activeComponents.stream()
+                .anyMatch(c -> Boolean.TRUE.equals(c.getIsDefault()));
+        boolean allowLegacyNoDefaultFallback = !parent.isBundleComponentsManual();
+        List<BundleComponent> components = activeComponents.stream()
+                .filter(c -> (allowLegacyNoDefaultFallback && !hasDefaultComponent)
+                        || Boolean.TRUE.equals(c.getIsDefault()))
                 .toList();
         Map<String, Product> productsByModelCode = components.isEmpty()
                 ? Map.of()
