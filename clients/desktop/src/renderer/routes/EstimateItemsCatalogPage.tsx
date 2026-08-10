@@ -75,6 +75,7 @@ import {
   listQuantitySyncRules,
   replaceQuantitySyncRule,
   type QuantitySyncCategory,
+  type QuantitySyncProductRef,
   type QuantitySyncRule,
   type QuantitySyncRuleRequest,
 } from '../api/quantitySyncApi'
@@ -229,6 +230,64 @@ function quantitySyncRuleForSource(
   modelCode: string,
 ): QuantitySyncRule | undefined {
   return rules.find((rule) => rule.enabled && rule.sources.some((source) => source.productCode === modelCode))
+}
+
+function quantitySyncSharedRuleForCategory(
+  rules: QuantitySyncRule[],
+  category: QuantitySyncCategory,
+): QuantitySyncRule | undefined {
+  return rules.find((rule) => rule.enabled && rule.estimateCategory === category && rule.ruleKey.startsWith(`UI_${category}_`))
+}
+
+type QuantitySyncTargetDraft = ProductOption & {
+  multiplier: string
+  roundingMode: 'NONE' | 'FLOOR'
+}
+
+function quantitySyncTargetDraft(target: QuantitySyncProductRef): QuantitySyncTargetDraft {
+  return {
+    id: target.productCode,
+    modelCode: target.productCode,
+    modelName: target.productCode,
+    productName: target.productName || target.productCode,
+    multiplier: String(target.multiplier ?? 1),
+    roundingMode: target.roundingMode ?? 'NONE',
+  }
+}
+
+function isValidQuantitySyncMultiplier(value: string): boolean {
+  const multiplier = Number(value)
+  return Number.isFinite(multiplier) && multiplier > 0 && multiplier <= 1000
+}
+
+function quantitySyncRequest(
+  rule: QuantitySyncRule | undefined,
+  category: QuantitySyncCategory,
+  ruleKey: string,
+  name: string,
+  legacyRef: string,
+  sources: Array<{ productCode: string; factor: number }>,
+  targetDrafts: QuantitySyncTargetDraft[],
+): QuantitySyncRuleRequest {
+  return {
+    ruleKey,
+    estimateCategory: category,
+    name,
+    enabled: rule?.enabled ?? true,
+    aggregation: rule?.aggregation ?? 'SUM',
+    when: rule?.when ?? {},
+    inactiveBehavior: rule?.inactiveBehavior ?? 'ZERO',
+    conflictPolicy: rule?.conflictPolicy ?? 'REPLACE',
+    priority: rule?.priority ?? 1000,
+    legacyRef,
+    sources,
+    targets: targetDrafts.map((target, index) => ({
+      productCode: target.modelCode ?? target.modelName,
+      multiplier: Number(target.multiplier),
+      roundingMode: target.roundingMode ?? 'NONE',
+      displayOrder: index + 1,
+    })),
+  }
 }
 
 interface ToggleCellProps {
@@ -590,7 +649,7 @@ interface CategoryCellProps {
   onPatch: (modelCode: string, scope: UsageScope, estimateCategories: EstimateCategory[]) => void
   patchLoading: boolean
   quantitySyncRule: QuantitySyncRule | undefined
-  onQuantitySyncSave: (modelCode: string, targetCodes: string[]) => void
+  onQuantitySyncSave: (modelCode: string, targetDrafts: QuantitySyncTargetDraft[]) => void
   searchQuantitySyncProducts: (q: string) => Promise<ProductOption[]>
 }
 
@@ -609,22 +668,12 @@ function CategoryCell({
     (opt) => !selectedCategories.includes(opt.value),
   )
   const showEstimateCategory = estimate && (row.usageScope === 'ESTIMATE' || row.usageScope === 'BOTH')
-  const [selectedQuantityTargets, setSelectedQuantityTargets] = useState<ProductOption[]>(() =>
-    (quantitySyncRule?.targets ?? []).map((target) => ({
-      id: target.productCode,
-      modelCode: target.productCode,
-      modelName: target.productCode,
-      productName: target.productName,
-    })),
+  const [selectedQuantityTargets, setSelectedQuantityTargets] = useState<QuantitySyncTargetDraft[]>(() =>
+    (quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft),
   )
 
   useEffect(() => {
-    setSelectedQuantityTargets((quantitySyncRule?.targets ?? []).map((target) => ({
-      id: target.productCode,
-      modelCode: target.productCode,
-      modelName: target.productCode,
-      productName: target.productName,
-    })))
+    setSelectedQuantityTargets((quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft))
   }, [quantitySyncRule])
 
   const handleCategoryAdd = (value: string) => {
@@ -704,7 +753,27 @@ function CategoryCell({
             style={quantitySyncChipStyle}
             data-testid={`estimate-items-quantity-sync-${row.modelCode}-chip-${product.modelCode ?? product.modelName}`}
           >
-            <span>{product.modelCode ?? product.modelName}</span>
+            <span>{product.productName || product.modelCode || product.modelName}:</span>
+            {canEdit && !patchLoading ? (
+              <input
+                type="number"
+                min="0.0001"
+                max="1000"
+                step="0.0001"
+                value={product.multiplier}
+                onChange={(event) => {
+                  const multiplier = event.target.value
+                  setSelectedQuantityTargets((current) => current.map((item) => item.id === product.id
+                    ? { ...item, multiplier }
+                    : item))
+                }}
+                aria-label={`${product.productName || product.modelCode || product.modelName} 수량`}
+                data-testid={`estimate-items-quantity-sync-${row.modelCode}-multiplier-${product.modelCode ?? product.modelName}`}
+                style={quantitySyncMultiplierInputStyle}
+              />
+            ) : (
+              <span>{product.multiplier}</span>
+            )}
             {canEdit && !patchLoading ? (
               <button
                 type="button"
@@ -721,10 +790,11 @@ function CategoryCell({
           <ProductMultiSelectAutocomplete
             selected={selectedQuantityTargets}
             onAdd={(product) => {
-              if (product.modelCode === row.modelCode) return
-              setSelectedQuantityTargets((current) => current.some((item) => item.id === product.id)
+              const productCode = product.modelCode ?? product.modelName
+              if (productCode === row.modelCode) return
+              setSelectedQuantityTargets((current) => current.some((item) => (item.modelCode ?? item.modelName) === productCode)
                 ? current
-                : [...current, product])
+                : [...current, { ...product, id: productCode, multiplier: '1', roundingMode: 'NONE' }])
             }}
             onRemove={(product) => setSelectedQuantityTargets((current) => current.filter((item) => item.id !== product.id))}
             searchProducts={searchQuantitySyncProducts}
@@ -739,8 +809,8 @@ function CategoryCell({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => onQuantitySyncSave(row.modelCode, selectedQuantityTargets.map((item) => item.modelCode ?? item.modelName))}
-            disabled={patchLoading}
+            onClick={() => onQuantitySyncSave(row.modelCode, selectedQuantityTargets)}
+            disabled={patchLoading || selectedQuantityTargets.some((target) => !isValidQuantitySyncMultiplier(target.multiplier))}
             data-testid={`estimate-items-quantity-sync-${row.modelCode}-save`}
           >
             수량 동기화 저장
@@ -1002,33 +1072,48 @@ export function EstimateItemsCatalogPage() {
   })
 
   const quantitySyncMutation = useMutation({
-    mutationFn: async ({ modelCode, targetCodes }: { modelCode: string; targetCodes: string[] }) => {
+    mutationFn: async ({ modelCode, targetDrafts }: { modelCode: string; targetDrafts: QuantitySyncTargetDraft[] }) => {
       if (!quantitySyncCategory) throw new Error('수량 동기화가 지원되지 않는 견적 카테고리입니다.')
-      const existing = quantitySyncRuleForSource(quantitySyncRulesQuery.data ?? [], modelCode)
-      if (targetCodes.length === 0) {
-        if (existing) await deleteQuantitySyncRule(existing.ruleKey)
+      const rules = quantitySyncRulesQuery.data ?? []
+      const existing = quantitySyncRuleForSource(rules, modelCode)
+      if (targetDrafts.length === 0) {
+        if (!existing) return
+        const remainingSources = existing.sources
+          .filter((source) => source.productCode !== modelCode)
+          .map((source) => ({ productCode: source.productCode, factor: Number(source.factor ?? 1) }))
+        if (remainingSources.length === 0) {
+          await deleteQuantitySyncRule(existing.ruleKey)
+          return
+        }
+        const request = quantitySyncRequest(
+          existing,
+          quantitySyncCategory,
+          existing.ruleKey,
+          existing.name,
+          existing.legacyRef,
+          remainingSources,
+          existing.targets.map(quantitySyncTargetDraft),
+        )
+        await replaceQuantitySyncRule(existing.ruleKey, request)
         return
       }
-      const request: QuantitySyncRuleRequest = {
-        ruleKey: existing?.ruleKey ?? `UI_${quantitySyncCategory}_${modelCode}`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 100),
-        estimateCategory: quantitySyncCategory,
-        name: `수량 동기화 - ${modelCode}`,
-        enabled: true,
-        aggregation: 'SUM',
-        when: {},
-        inactiveBehavior: 'ZERO',
-        conflictPolicy: 'REPLACE',
-        priority: 1000,
-        legacyRef: `UI:${modelCode}`.slice(0, 255),
-        sources: [{ productCode: modelCode, factor: 1 }],
-        targets: targetCodes.map((productCode, index) => ({
-          productCode,
-          multiplier: 1,
-          roundingMode: 'NONE',
-          displayOrder: index + 1,
-        })),
-      }
-      if (existing) return replaceQuantitySyncRule(existing.ruleKey, request)
+      const shared = existing ?? quantitySyncSharedRuleForCategory(rules, quantitySyncCategory)
+      const sources = (shared?.sources ?? [])
+        .filter((source) => source.productCode !== modelCode)
+        .map((source) => ({ productCode: source.productCode, factor: Number(source.factor ?? 1) }))
+      sources.push({ productCode: modelCode, factor: 1 })
+      const ruleKey = shared?.ruleKey
+        ?? `UI_${quantitySyncCategory}_SHARED`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 100)
+      const request = quantitySyncRequest(
+        shared,
+        quantitySyncCategory,
+        ruleKey,
+        shared?.name ?? `수량 동기화 - ${quantitySyncCategory}`,
+        shared?.legacyRef ?? `UI:${quantitySyncCategory}`,
+        sources,
+        targetDrafts,
+      )
+      if (shared) return replaceQuantitySyncRule(shared.ruleKey, request)
       return createQuantitySyncRule(request)
     },
     onSuccess: () => {
@@ -1142,10 +1227,10 @@ export function EstimateItemsCatalogPage() {
   )
 
   const handleQuantitySyncSave = useCallback(
-    (modelCode: string, targetCodes: string[]) => {
+    (modelCode: string, targetDrafts: QuantitySyncTargetDraft[]) => {
       setPatchingCode(modelCode)
       setMutationError(null)
-      quantitySyncMutation.mutate({ modelCode, targetCodes })
+      quantitySyncMutation.mutate({ modelCode, targetDrafts })
     },
     [quantitySyncMutation],
   )
@@ -1154,7 +1239,9 @@ export function EstimateItemsCatalogPage() {
     const products = await searchProductsApi(q, { size: 10000 })
     return products.filter((product) => {
       const code = product.modelCode ?? product.modelName
-      return Boolean(code) && product.productName.trim().length > 0
+      return product.productCategory === 'MATERIAL'
+        && Boolean(code)
+        && product.productName.trim().length > 0
     })
   }, [])
 
@@ -1799,6 +1886,17 @@ const quantitySyncChipStyle: CSSProperties = {
   borderColor: 'var(--color-success-200, #BBF7D0)',
   background: 'var(--color-success-50, #F0FDF4)',
   color: 'var(--color-success-700, #15803D)',
+}
+
+const quantitySyncMultiplierInputStyle: CSSProperties = {
+  width: 56,
+  border: '1px solid var(--color-success-300, #86EFAC)',
+  borderRadius: 4,
+  background: 'var(--color-bg, #FFFFFF)',
+  color: 'inherit',
+  fontSize: 12,
+  fontWeight: 600,
+  padding: '1px 3px',
 }
 
 const variableDiscountGroupStyle: CSSProperties = {

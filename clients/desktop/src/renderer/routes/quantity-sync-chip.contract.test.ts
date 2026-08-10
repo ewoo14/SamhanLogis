@@ -13,4 +13,16 @@ describe('#896 RED-A — 견적품목 수량 동기화 칩 UI', () => {
     expect(source).toContain('label="수량 동기화 품목"')
     expect(source).toContain('수량 동기화 저장')
   })
+
+  it('D15 RED-A: 본체가 공용 규칙의 source로 들어가고 target multiplier가 품목명:수량 칩에 반영된다', () => {
+    const source = read('./EstimateItemsCatalogPage.tsx')
+
+    expect(source).toContain('target.multiplier')
+    expect(source).toContain('multiplier: Number(target.multiplier)')
+    expect(source).toContain('product.productName')
+    expect(source).toContain('existing.sources')
+    expect(source).toContain('sources.push({ productCode: modelCode, factor: 1 })')
+    expect(source).toContain('targets: targetDrafts.map')
+    expect(source).toContain("product.productCategory === 'MATERIAL'")
+  })
 })
