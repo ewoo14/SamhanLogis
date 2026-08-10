@@ -118,6 +118,7 @@ export function SalesPartnerDcConfigPage() {
         return rest
       })
       void queryClient.invalidateQueries({ queryKey: ['partner-dc-configs'] })
+      void queryClient.invalidateQueries({ queryKey: ['partner-dc-config'] })
     },
   })
 
