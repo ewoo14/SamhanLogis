@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const require = createRequire(import.meta.url)
 const { resolveQaCredential } = require('../../../../scripts/lib/qa-credentials.cjs') as {
@@ -13,7 +14,7 @@ const DESKTOP_BASE = process.env['QA_DESKTOP_BASE'] ?? 'http://127.0.0.1:5316'
 const API_BASE = process.env['API_BASE'] ?? 'http://127.0.0.1:8080'
 const CREDENTIAL_FILE = process.env['QA_CREDENTIAL_FILE']
 const dirname = path.dirname(fileURLToPath(import.meta.url))
-const SHOTS = path.resolve(dirname, '../../../../docs/qa/2026-08-10-896-r36-adversarial')
+const SHOTS = resolveQaShotsDir(path.resolve(dirname, '../../../../docs/qa/2026-08-10-896-r36-adversarial'))
 
 const HOME_SOURCE = 'AM052BN6PBH1'
 const HOME_SECOND_SOURCE = 'AJ060MXHNBC1'
