@@ -7961,14 +7961,42 @@ function renderSingleOptions() {
 
 /* 홈발통계산 */
 function recomputeFootAll() {
-  const outQ = HOMEMULTI.reduce((t, r) => t + (/실외기/i.test(r?.name) ? (homeQty.get(r.model) || 0) : 0), 0);
   const want = !!el('#home_foot')?.checked;
-  
-  if (FOOT_ROUND && !HOME_MANUAL_FOOT.has(FOOT_ROUND)) {
+
+  // 발통의 legacy source는 원시 품목만 읽는다. 자동 파생품과 규칙 target이
+  // 품명에 '실외기'를 포함하더라도, 이전 계산 결과가 다음 계산의 입력이
+  // 되지 않도록 모델 경계에서 제외한다.
+  const ruleTargetModels = new Set(Array.isArray(HOME_QUANTITY_SYNC_RULES)
+    ? HOME_QUANTITY_SYNC_RULES.flatMap(rule => Array.isArray(rule?.targets)
+      ? rule.targets.map(target => String(target?.productCode || '').trim())
+      : [])
+    : []);
+  const footRuleSourceModels = new Set(Array.isArray(HOME_QUANTITY_SYNC_RULES)
+    ? HOME_QUANTITY_SYNC_RULES
+      .filter(rule => Array.isArray(rule?.targets)
+        && rule.targets.some(target => {
+          const model = String(target?.productCode || '').trim();
+          return model === FOOT_ROUND || FOOT_FLAT_MODELS.includes(model);
+        }))
+      .flatMap(rule => Array.isArray(rule?.sources)
+        ? rule.sources.map(source => String(source?.productCode || '').trim())
+        : [])
+    : []);
+  const isDerivedFootSource = model => AUTO_HOME_MODELS.has(String(model || ''))
+    || ruleTargetModels.has(String(model || ''))
+    || footRuleSourceModels.has(String(model || ''));
+  const outQ = HOMEMULTI.reduce((t, r) => t
+    + (/실외기/i.test(r?.name) && !isDerivedFootSource(r?.model)
+      ? (homeQty.get(r.model) || 0)
+      : 0), 0);
+
+  if (FOOT_ROUND && !HOME_MANUAL_FOOT.has(FOOT_ROUND)
+      && !(want && ruleTargetModels.has(String(FOOT_ROUND)))) {
     homeQty.set(FOOT_ROUND, want ? outQ : 0);
   }
   FOOT_FLAT_MODELS.forEach(model => {
-    if (!HOME_MANUAL_FOOT.has(model)) homeQty.set(model, 0);
+    if (!HOME_MANUAL_FOOT.has(model)
+        && !(want && ruleTargetModels.has(String(model)))) homeQty.set(model, 0);
   });
 }
 

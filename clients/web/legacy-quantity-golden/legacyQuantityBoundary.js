@@ -262,9 +262,10 @@ function runHome(source, input) {
     const __manualInputs = ${JSON.stringify(Object.values(locks).flat())};
     __manualInputs.forEach((model) => onHomeQtyInput(model, homeQty.get(model) || 0));
     const __recomputeCount = Math.max(1, Number(${JSON.stringify(input.recomputeHomeDerivedCount || 1)}) || 1);
+    const __recomputeUpdateUI = ${JSON.stringify(input.recomputeHomeDerivedUpdateUI === true)};
     const __recomputeSequence = [];
     for (let __index = 0; __index < __recomputeCount; __index += 1) {
-      recomputeHomeDerived(false);
+      recomputeHomeDerived(__recomputeUpdateUI);
       __recomputeSequence.push(mapObject(homeQty));
     }
     globalThis.__result = {

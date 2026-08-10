@@ -107,6 +107,78 @@ function reverseHomeReconciliationOrder(source) {
   return `${source.slice(0, start)}${calls.reverse().join('\n\n')}\n\n${source.slice(end)}`;
 }
 
+function reorderHomeReconciliationOrder(order) {
+  return (source) => {
+    const start = source.indexOf('  reconcileHomeFamily(\n    row => row.model === BRANCH_1509');
+    const end = source.indexOf('  if (updateUI)', start);
+    if (start < 0 || end < 0) throw new Error('계열 재수렴 호출 블록을 찾지 못했습니다');
+    const calls = source.slice(start, end).trimEnd().split('\n\n');
+    return `${source.slice(0, start)}${order.map((index) => calls[index]).join('\n\n')}\n\n${source.slice(end)}`;
+  };
+}
+
+function appendFootRecomputeAfterHomeDerived(source) {
+  const marker = '  }\n}\n\n/* 상업파생계산 */';
+  if (!source.includes(marker)) throw new Error('recomputeHomeDerived 종료 지점을 찾지 못했습니다');
+  return source.replace(marker, '  }\n  recomputeFootAll();\n}\n\n/* 상업파생계산 */');
+}
+
+function r25FootRuleInput({
+  quantitySyncRules = [homeQuantitySyncRule('AJ060MXHNBC1', 'SI-AL600A')],
+  sourceQuantities = { AJ060MXHNBC1: 1 },
+  manualLocks,
+  recomputeHomeDerivedCount = 1,
+  optionDom = { '#home_foot': true },
+} = {}) {
+  return {
+    ...realHomeQuantityInput({
+      family: 'H-08',
+      sourceCode: 'AJ060MXHNBC1',
+      targetCode: 'SI-AL600A',
+      catalogHome: r23HomeMultiCatalog,
+      sourceQuantities,
+      optionDom,
+      quantitySyncRules,
+      recomputeHomeDerivedCount,
+    }),
+    manualLocks,
+  };
+}
+
+const r25FiveFamilyRules = [
+  homeQuantitySyncRule('AJ020BN1PBC1', 'AXJ-YA1509N'),
+  homeQuantitySyncRule('AJ023BN1PBC1', 'FH-LFHLN'),
+  homeQuantitySyncRule('AJ020CN1UBC1', 'PC1NWSK3NW'),
+  homeQuantitySyncRule('AJ060CN1UBC1', 'AWR-WE13N'),
+  homeQuantitySyncRule('AJ060MXHNBC1', 'SI-AL600A'),
+];
+
+function r25FiveFamilyInput() {
+  return realHomeQuantityInput({
+    family: 'H-08',
+    sourceCode: 'AJ060MXHNBC1',
+    targetCode: 'SI-AL600A',
+    catalogHome: r23HomeMultiCatalog,
+    sourceQuantities: {
+      AJ020BN1PBC1: 5,
+      AJ023BN1PBC1: 4,
+      AJ020CN1UBC1: 3,
+      AJ060CN1UBC1: 2,
+      AJ060MXHNBC1: 1,
+    },
+    optionDom: {
+      '#home_no_branch': false,
+      '#home_foot': true,
+      '#home_hose_i': false,
+      '#home_no_hose': false,
+      '#home_panel': '',
+      '#home_remote': '기본',
+    },
+    quantitySyncRules: r25FiveFamilyRules,
+    recomputeHomeDerivedCount: 3,
+  });
+}
+
 function replaceOnce(source, from, to) {
   if (!source.includes(from)) throw new Error(`뮤테이션 지점을 찾지 못했습니다: ${from}`);
   return source.replace(from, to);
@@ -546,6 +618,75 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     expect(pick(reverseRules.quantities)).toEqual(expected);
     expect(pick(reverseFamilies.quantities)).toEqual(expected);
     expect(pick(reverseFamilies.quantities)).toEqual(pick(forward.quantities));
+  });
+
+  test('R24 RED-A: 발통 규칙 target은 반복 계산·후속 발통 호출에서도 source로 재집계되지 않는다', () => {
+    const expected = { SI: 1, round: 0 };
+    const pick = (quantities) => ({
+      SI: quantities['SI-AL600A'] || 0,
+      round: quantities['발통세트'] || 0,
+    });
+    const actual = evaluateLegacyQuantityBoundary(r25FootRuleInput({ recomputeHomeDerivedCount: 3 }));
+    const followup = evaluateLegacyQuantityBoundary({
+      ...r25FootRuleInput(),
+      recomputeHomeDerivedUpdateUI: true,
+    }, {
+      sourceMutator: appendFootRecomputeAfterHomeDerived,
+    });
+    const locked = evaluateLegacyQuantityBoundary(r25FootRuleInput({
+      sourceQuantities: { AJ060MXHNBC1: 1, 'SI-AL600A': 77 },
+      manualLocks: { home: { foot: ['SI-AL600A'] } },
+    }));
+
+    expect(actual.detail.recomputeSequence.map(pick)).toEqual([expected, expected, expected]);
+    expect(pick(followup.quantities)).toEqual(expected);
+    expect(pick(locked.quantities)).toEqual({ SI: 77, round: 0 });
+  });
+
+  test('R24 RED-B: 규칙 0건·제외 옵션과 기존 R23 다섯 계열 순열 계약을 유지한다', () => {
+    const legacy = evaluateLegacyQuantityBoundary(r25FootRuleInput({ quantitySyncRules: [] }));
+    const excluded = evaluateLegacyQuantityBoundary(r25FootRuleInput({
+      quantitySyncRules: [homeQuantitySyncRule('AJ060MXHNBC1', 'SI-AL600A')],
+      optionDom: { '#home_foot': false },
+    }));
+    const expectedFiveFamily = {
+      branch: 5,
+      hose: 4,
+      panel: 3,
+      remote: 2,
+      flat: 1,
+      round: 0,
+    };
+    const pickFiveFamily = (quantities) => ({
+      branch: quantities['AXJ-YA1509N'] || 0,
+      hose: quantities['FH-LFHLN'] || 0,
+      panel: quantities.PC1NWSK3NW || 0,
+      remote: quantities['AWR-WE13N'] || 0,
+      flat: quantities['SI-AL600A'] || 0,
+      round: quantities['발통세트'] || 0,
+    });
+    const pickFoot = (quantities) => ({
+      SI: quantities['SI-AL600A'] || 0,
+      round: quantities['발통세트'] || 0,
+    });
+    const variants = [
+      ['기본', undefined],
+      ['PBRHF', reorderHomeReconciliationOrder([4, 0, 3, 2, 1])],
+      ['HPFBR', reorderHomeReconciliationOrder([2, 4, 1, 0, 3])],
+      ['RFHPB', reorderHomeReconciliationOrder([3, 1, 2, 4, 0])],
+    ];
+    const fiveFamilyResults = variants.map(([, sourceMutator]) =>
+      evaluateLegacyQuantityBoundary(r25FiveFamilyInput(), sourceMutator ? { sourceMutator } : undefined));
+
+    expect(pickFoot(legacy.quantities)).toEqual({ SI: 0, round: 1 });
+    expect(pickFoot(excluded.quantities)).toEqual({ SI: 0, round: 0 });
+    fiveFamilyResults.forEach((result) => {
+      expect(result.detail.recomputeSequence.map(pickFiveFamily))
+        .toEqual([expectedFiveFamily, expectedFiveFamily, expectedFiveFamily]);
+    });
+    fiveFamilyResults.slice(1).forEach((result) => {
+      expect(pickFiveFamily(result.quantities)).toEqual(pickFiveFamily(fiveFamilyResults[0].quantities));
+    });
   });
 
   const r19FamilyMatrix = [
