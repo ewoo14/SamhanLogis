@@ -3,6 +3,7 @@
 const { evaluateLegacyQuantityBoundary } = require('../../legacy-quantity-golden/legacyQuantityBoundary');
 const { fixtures, optionFixtures } = require('../../legacy-quantity-golden/fixtures');
 const { estimateGoldens, estimateOptionGoldens, orderGoldens, orderOptionGoldens } = require('../../legacy-quantity-golden/goldens');
+const { r23HomeMultiCatalog } = require('../../legacy-quantity-golden/r23HomeMultiCatalog');
 
 const FAMILY_ORDER = ['H-01', 'H-02', 'H-03', 'H-04', 'H-05', 'H-06', 'H-07', 'H-08', 'S-01', 'S-02', 'S-03', 'C-01', 'C-02', 'C-03', 'C-04', 'C-05', 'C-06', 'C-07', 'C-08', 'C-09'];
 
@@ -36,10 +37,12 @@ function realHomeQuantityInput({
   optionDom,
   sourceQuantities,
   quantitySyncRules,
+  catalogHome,
+  recomputeHomeDerivedCount,
 }) {
   const fixture = fixtures.find((item) => item.family === family);
-  const homeRows = fixture.catalog.home
-    .filter((row) => !['FH-LFHLF4W', 'FH-LFHIF4W'].includes(row.model));
+  const homeRows = (catalogHome || fixture.catalog.home)
+    .filter((row) => catalogHome || !['FH-LFHLF4W', 'FH-LFHIF4W'].includes(row.model));
   const extraRows = [
     { model: 'AJ020BN1PBC1', name: '실내기 1WAY WIFI 중형', unit: 'EA' },
     { model: 'AJ020FERPBC1', name: '에어콤보', unit: 'EA' },
@@ -48,15 +51,18 @@ function realHomeQuantityInput({
     { model: 'AWR-WV00N', name: 'AWR-WV00N 에어콤보 리모컨', unit: 'EA' },
   ];
   const knownModels = new Set(homeRows.map((row) => row.model));
-  extraRows.forEach((row) => {
-    if (!knownModels.has(row.model)) homeRows.push(row);
-  });
+  if (!catalogHome) {
+    extraRows.forEach((row) => {
+      if (!knownModels.has(row.model)) homeRows.push(row);
+    });
+  }
 
   return {
     ...inputFor({
       ...fixture,
       catalog: { ...fixture.catalog, home: homeRows },
       sourceQuantities: sourceQuantities || { [sourceCode]: 2 },
+      recomputeHomeDerivedCount,
       options: {
         ...fixture.options,
         dom: {
@@ -68,6 +74,37 @@ function realHomeQuantityInput({
     }),
     quantitySyncRules: quantitySyncRules ?? [homeQuantitySyncRule(sourceCode, targetCode)],
   };
+}
+
+function r23CrossFamilyInput(quantitySyncRules = [
+  homeQuantitySyncRule('AJ020BN1PBC1', 'AXJ-YA1509N'),
+  homeQuantitySyncRule('AJ060MXHNBC1', 'PC1NWSK3NW'),
+]) {
+  return realHomeQuantityInput({
+    family: 'H-07',
+    sourceCode: 'AJ020BN1PBC1',
+    targetCode: 'AXJ-YA1509N',
+    catalogHome: r23HomeMultiCatalog,
+    sourceQuantities: { AJ020BN1PBC1: 5, AJ060MXHNBC1: 1 },
+    optionDom: {
+      '#home_no_branch': false,
+      '#home_panel': '',
+      '#home_remote': '기본',
+      '#home_foot': true,
+      '#home_hose_i': false,
+      '#home_no_hose': false,
+    },
+    quantitySyncRules,
+    recomputeHomeDerivedCount: 3,
+  });
+}
+
+function reverseHomeReconciliationOrder(source) {
+  const start = source.indexOf('  reconcileHomeFamily(\n    row => row.model === BRANCH_1509');
+  const end = source.indexOf('  if (updateUI)', start);
+  if (start < 0 || end < 0) throw new Error('R23 계열 재수렴 호출 블록을 찾지 못했습니다');
+  const calls = source.slice(start, end).trimEnd().split('\n\n');
+  return `${source.slice(0, start)}${calls.reverse().join('\n\n')}\n\n${source.slice(end)}`;
 }
 
 function replaceOnce(source, from, to) {
@@ -478,6 +515,37 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     Object.entries(expected).forEach(([modelCode, quantity]) => {
       expect(actual.quantities[modelCode] || 0).toBe(quantity);
     });
+  });
+
+  test('R22 RED-A: 실 카탈로그 119행 교차계열 규칙 target은 evaluator 값과 끝까지 같다', () => {
+    expect(r23HomeMultiCatalog).toHaveLength(119);
+    const expected = { 'AXJ-YA1509N': 5, 'AXJ-YA2512N': 1, PC1NWSK3NW: 1 };
+    const pick = (quantities) => Object.fromEntries(Object.keys(expected)
+      .map((model) => [model, quantities[model] || 0]));
+    const actual = evaluateLegacyQuantityBoundary(r23CrossFamilyInput());
+
+    expect(pick(actual.quantities)).toEqual(expected);
+    expect(actual.detail.recomputeSequence.map(pick)).toEqual([expected, expected, expected]);
+  });
+
+  test('R22 RED-B: 실 카탈로그 교차계열 결과는 rule·계열 처리 순서와 무관하다', () => {
+    const expected = { 'AXJ-YA1509N': 5, 'AXJ-YA2512N': 1, PC1NWSK3NW: 1 };
+    const pick = (quantities) => Object.fromEntries(Object.keys(expected)
+      .map((model) => [model, quantities[model] || 0]));
+    const reversedRules = [
+      homeQuantitySyncRule('AJ060MXHNBC1', 'PC1NWSK3NW'),
+      homeQuantitySyncRule('AJ020BN1PBC1', 'AXJ-YA1509N'),
+    ];
+    const forward = evaluateLegacyQuantityBoundary(r23CrossFamilyInput());
+    const reverseRules = evaluateLegacyQuantityBoundary(r23CrossFamilyInput(reversedRules));
+    const reverseFamilies = evaluateLegacyQuantityBoundary(r23CrossFamilyInput(), {
+      sourceMutator: reverseHomeReconciliationOrder,
+    });
+
+    expect(pick(forward.quantities)).toEqual(expected);
+    expect(pick(reverseRules.quantities)).toEqual(expected);
+    expect(pick(reverseFamilies.quantities)).toEqual(expected);
+    expect(pick(reverseFamilies.quantities)).toEqual(pick(forward.quantities));
   });
 
   const r19FamilyMatrix = [
