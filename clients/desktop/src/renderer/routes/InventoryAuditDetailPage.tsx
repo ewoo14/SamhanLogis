@@ -127,6 +127,7 @@ export function InventoryAuditDetailPage() {
     queryFn: () => inventoryAuditAuditApi.listAuditLogs(id),
     enabled: !!id,
     retry: false,
+    staleTime: Infinity,
   })
 
   // PR-H4c FE-B: SSE 구독 — inventory:edit 수신 시 본문 + audit cache invalidate
@@ -286,7 +287,13 @@ export function InventoryAuditDetailPage() {
           </div>
 
           <MobileCollapsible title="실사 상세 정보" className="mobile-section-card">
-            <DetailGrid audit={audit} auditByField={auditByField} isError={auditQuery.isError} />
+            <DetailGrid
+              audit={audit}
+              auditByField={auditByField}
+              isError={auditQuery.isError}
+              isFetched={auditQuery.isFetched}
+              isLoading={auditQuery.isLoading}
+            />
           </MobileCollapsible>
         </>
       ) : null}
@@ -313,12 +320,15 @@ export function InventoryAuditDetailPage() {
               <AuditRevisionBadge
                 logs={auditLogs}
                 isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                isLoading={auditQuery.isLoading}
                 testIdPrefix="audit-detail"
               />
               <AuditVersionHistory
                 logs={auditLogs}
                 isLoading={auditQuery.isLoading}
                 isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
                 error={auditQuery.error}
                 open={auditHistoryOpen}
                 onOpenChange={setAuditHistoryOpen}
@@ -333,7 +343,13 @@ export function InventoryAuditDetailPage() {
               message="차이 분개가 확정되어 본문 변경이 잠금 처리됩니다. 변경 필요 시 수정 요청을 사용하세요."
             />
           ) : null}
-          <DetailGrid audit={audit} auditByField={auditByField} isError={auditQuery.isError} />
+          <DetailGrid
+            audit={audit}
+            auditByField={auditByField}
+            isError={auditQuery.isError}
+            isFetched={auditQuery.isFetched}
+            isLoading={auditQuery.isLoading}
+          />
         </div>
 
         <div
@@ -445,9 +461,11 @@ interface DetailGridProps {
   /** PR-H4c FE-B: field 별 audit log group — totalDiffAmount overlay 표시. */
   auditByField: Record<string, AuditLogEntry[]>
   isError: boolean
+  isFetched: boolean
+  isLoading: boolean
 }
 
-function DetailGrid({ audit, auditByField, isError }: DetailGridProps) {
+function DetailGrid({ audit, auditByField, isError, isFetched, isLoading }: DetailGridProps) {
   return (
     <dl className="audit-detail-meta">
       <dt style={dtStyle}>창고</dt>
@@ -463,6 +481,8 @@ function DetailGrid({ audit, auditByField, isError }: DetailGridProps) {
           currentValue={formatKrw(audit.totalDiffAmount)}
           history={auditByField['totalDiffAmount'] ?? []}
           isError={isError}
+          isFetched={isFetched}
+          isLoading={isLoading}
         />
       </dd>
       <dt style={dtStyle}>시작</dt>

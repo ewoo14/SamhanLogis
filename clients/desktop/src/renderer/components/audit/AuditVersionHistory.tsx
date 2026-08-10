@@ -21,6 +21,11 @@ export function classifyAuditHistoryError(error: unknown): AuditHistoryErrorKind
   return 'temporary'
 }
 
+/** 확정된 404 endpoint 부재인지 판별해 화면 query gate가 기억할 수 있게 한다. */
+export function isAuditHistoryEndpointUnavailable(error: unknown): boolean {
+  return classifyAuditHistoryError(error) === 'not-supported'
+}
+
 export interface AuditVersionHistoryProps {
   /** createAuditApi 가 반환한 flat audit log 전체. */
   logs: AuditLogEntry[]
@@ -28,6 +33,8 @@ export interface AuditVersionHistoryProps {
   isLoading?: boolean
   /** audit log 조회 실패 여부. */
   isError?: boolean
+  /** query가 한 번이라도 완료됐는지 여부. */
+  isFetched?: boolean
   /** React Query가 보관한 원본 조회 오류. */
   error?: unknown
   /** 버전이력 모달 상태. */
@@ -125,6 +132,7 @@ export function AuditVersionHistory({
   logs,
   isLoading = false,
   isError = false,
+  isFetched = true,
   error,
   open,
   onOpenChange,
@@ -186,6 +194,14 @@ export function AuditVersionHistory({
             }}
           >
             {errorMessage}
+          </p>
+        ) : !isFetched ? (
+          <p
+            role="status"
+            data-testid={`${modalTestId}-unqueried`}
+            style={{ margin: 0, color: 'var(--color-neutral-500)' }}
+          >
+            버전 이력 조회를 시작합니다.
           </p>
         ) : revisions.length === 0 ? (
           <p

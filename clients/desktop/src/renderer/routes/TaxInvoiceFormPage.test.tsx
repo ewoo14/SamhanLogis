@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
+import { AxiosError } from 'axios'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -23,9 +24,15 @@ vi.mock('@samhan/design-system', () => ({
     <button {...props}>{children}</button>
   ),
   Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-  Modal: ({ open, title, children }: { open: boolean; title?: React.ReactNode; children?: React.ReactNode }) => open ? (
+  Modal: ({ open, title, children, onClose }: {
+    open: boolean
+    title?: React.ReactNode
+    children?: React.ReactNode
+    onClose?: () => void
+  }) => open ? (
     <div role="dialog">
       {title ? <h2>{title}</h2> : null}
+      {onClose ? <button type="button" data-testid="mock-modal-close" onClick={onClose}>닫기</button> : null}
       {children}
     </div>
   ) : null,
@@ -191,6 +198,69 @@ describe('TaxInvoiceFormPage', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBe('선택한 거래처의 식별자를 확인할 수 없습니다. 거래처를 다시 검색해 선택하세요.')
     expect(mocks.createTaxInvoice).not.toHaveBeenCalled()
+  })
+
+  it('미조회 상태를 0회로 표시하지 않고, endpoint 부재 404는 모달 재개방 때 재요청하지 않는다', async () => {
+    const id = 'tax-invoice-audit-404'
+    mocks.getTaxInvoice.mockResolvedValue(detailFor(id))
+    const error = new AxiosError('HTTP 404', undefined, undefined, undefined, {
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config: {},
+      data: {},
+    })
+    renderPage(`/accounting/tax-invoices/${id}/edit`)
+    mocks.listAuditLogs.mockRejectedValue(error)
+    await screen.findByTestId('tax-invoice-form-partner-name')
+
+    expect(mocks.listAuditLogs).not.toHaveBeenCalled()
+    expect(screen.getByTestId('tax-invoice-form-revision-count').textContent).toContain('수정 이력 미조회')
+
+    fireEvent.click(screen.getByTestId('tax-invoice-form-version-history-open'))
+    await screen.findByTestId('tax-invoice-form-version-history-error')
+    expect(mocks.listAuditLogs).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByTestId('mock-modal-close'))
+    fireEvent.click(screen.getByTestId('tax-invoice-form-version-history-open'))
+    await screen.findByTestId('tax-invoice-form-version-history-error')
+    expect(mocks.listAuditLogs).toHaveBeenCalledTimes(1)
+  })
+
+  it('정상 이력은 모달 재개방 때 재요청하지 않고 무효화 후 최신 이력을 다시 읽는다', async () => {
+    const id = 'tax-invoice-audit-cache'
+    mocks.getTaxInvoice.mockResolvedValue(detailFor(id))
+
+    const { client } = renderPage(`/accounting/tax-invoices/${id}/edit`)
+    mocks.listAuditLogs
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        revisionNo: 2,
+        field: 'description',
+        beforeValue: '기존 세금계산서 비고',
+        afterValue: '최신 비고',
+        actorId: 'actor-2',
+        actorName: '회계담당자',
+        changedAt: '2026-08-10T17:00:00+09:00',
+      }])
+    await screen.findByTestId('tax-invoice-form-partner-name')
+
+    fireEvent.click(screen.getByTestId('tax-invoice-form-version-history-open'))
+    await screen.findByTestId('tax-invoice-form-version-history-empty')
+    expect(mocks.listAuditLogs).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByTestId('mock-modal-close'))
+    fireEvent.click(screen.getByTestId('tax-invoice-form-version-history-open'))
+    await screen.findByTestId('tax-invoice-form-version-history-empty')
+    expect(mocks.listAuditLogs).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByTestId('mock-modal-close'))
+    await client.invalidateQueries({
+      queryKey: ['accounting', 'tax-invoice', id, 'audit-logs'],
+    })
+    fireEvent.click(screen.getByTestId('tax-invoice-form-version-history-open'))
+    await screen.findByTestId('tax-invoice-form-version-history-row-2')
+    expect(mocks.listAuditLogs).toHaveBeenCalledTimes(2)
   })
 
   it('SSE 재조회(refetch)는 로컬 편집을 리셋한다(#825 R1 M1 기존 시맨틱 보존 — K4)', async () => {

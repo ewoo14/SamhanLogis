@@ -4,7 +4,11 @@ import { AxiosError } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { AuditOverlay } from '@samhan/design-system'
-import { AuditVersionHistory, classifyAuditHistoryError } from './AuditVersionHistory'
+import {
+  AuditVersionHistory,
+  classifyAuditHistoryError,
+  isAuditHistoryEndpointUnavailable,
+} from './AuditVersionHistory'
 import { AuditRevisionBadge } from './AuditOverlaySection'
 import type { AuditLogEntry } from '../../api/createAuditApi'
 
@@ -147,6 +151,65 @@ describe('AuditVersionHistory', () => {
     )
     expect(screen.getByTestId('audit-overlay-description').textContent).toContain('변경 이력 조회 실패')
     expect(screen.getByTestId('audit-overlay-description').textContent).not.toContain('이전 값')
+  })
+
+  it('미조회·로딩중은 정상 빈 이력과 다른 상태로 표시한다', () => {
+    const { unmount } = render(
+      <AuditRevisionBadge
+        logs={[]}
+        isFetched={false}
+        testIdPrefix="audit-state"
+      />,
+    )
+    expect(screen.getByTestId('audit-state-revision-count').textContent).toContain('수정 이력 미조회')
+    expect(screen.getByTestId('audit-state-revision-count').getAttribute('data-audit-state')).toBe('unqueried')
+
+    unmount()
+    render(
+      <AuditRevisionBadge
+        logs={[]}
+        isFetched
+        isLoading
+        testIdPrefix="audit-state"
+      />,
+    )
+    expect(screen.getByTestId('audit-state-revision-count').textContent).toContain('수정 이력 불러오는 중')
+    expect(screen.getByTestId('audit-state-revision-count').getAttribute('data-audit-state')).toBe('loading')
+
+    cleanup()
+    render(
+      <AuditOverlay
+        field="description"
+        currentValue="현재 값"
+        history={[]}
+        isFetched={false}
+      />,
+    )
+    expect(screen.getByTestId('audit-overlay-description').textContent).toContain('변경 이력 미조회')
+
+    cleanup()
+    renderHistory({ logs: [], open: true, isFetched: false })
+    expect(screen.getByTestId('audit-test-version-history-unqueried').textContent).toContain(
+      '버전 이력 조회를 시작합니다.',
+    )
+
+    cleanup()
+    renderHistory({
+      logs: [],
+      open: true,
+      isFetched: false,
+      isError: true,
+      error: axiosError(500),
+    })
+    expect(screen.getByTestId('audit-test-version-history-error').textContent).toContain(
+      '버전 이력을 불러오지 못했습니다.',
+    )
+  })
+
+  it('404만 endpoint 부재 gate 대상이고 403·500은 일시 상태로 남긴다', () => {
+    expect(isAuditHistoryEndpointUnavailable(axiosError(404))).toBe(true)
+    expect(isAuditHistoryEndpointUnavailable(axiosError(403))).toBe(false)
+    expect(isAuditHistoryEndpointUnavailable(axiosError(500))).toBe(false)
   })
 
   it.each([

@@ -3827,9 +3827,15 @@ describe('#1091 audit history mock routing', () => {
     }) as MockEnvelope<Array<Record<string, unknown>>>
     expect(inventory.data.length).toBeGreaterThan(0)
     expect(inventory.data[0]).toMatchObject({
-      field: 'totalDiffAmount',
+      entityId: '11111111-1111-4111-8111-000000000001',
+      fieldName: 'totalDiffAmount',
+      oldValue: '120000',
+      newValue: '95000',
+      actorColor: '#2563EB',
       revisionNo: 2,
     })
+    expect(inventory.data[0]).not.toHaveProperty('field')
+    expect(inventory.data[0]).not.toHaveProperty('beforeValue')
     expect(Array.isArray(inventory.data)).toBe(true)
   })
 

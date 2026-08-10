@@ -19,6 +19,10 @@ export interface AuditRevisionBadgeProps {
   logs: AuditLogEntry[]
   /** 로딩/에러 표시 — true 시 횟수 회색 처리 + tooltip. */
   isError?: boolean
+  /** 첫 조회가 아직 시작되지 않았는지 여부. */
+  isFetched?: boolean
+  /** 첫 audit 조회가 진행 중인지 여부. */
+  isLoading?: boolean
   /** 복원 진행 중 — dropdown disabled. */
   reverting?: boolean
   /** 복원 콜백 — null 이면 dropdown 미노출 (read-only 페이지). */
@@ -42,6 +46,8 @@ export interface AuditRevisionBadgeProps {
 export function AuditRevisionBadge({
   logs,
   isError,
+  isFetched = true,
+  isLoading = false,
   reverting,
   onRevert,
   testIdPrefix,
@@ -50,12 +56,26 @@ export function AuditRevisionBadge({
   const revertCandidates = Array.from(
     new Set(logs.map((l) => l.revisionNo)),
   ).sort((a, b) => b - a)
+  const displayState = isError
+    ? 'error'
+    : isLoading
+      ? 'loading'
+      : isFetched
+        ? 'ready'
+        : 'unqueried'
+  const revisionLabel = displayState === 'error'
+    ? '수정 이력 조회 실패'
+    : displayState === 'loading'
+      ? '수정 이력 불러오는 중'
+      : displayState === 'unqueried'
+        ? '수정 이력 미조회'
+        : `수정 ${revisionCount}회`
 
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
       <span
         data-testid={`${testIdPrefix}-revision-count`}
-        data-audit-state={isError ? 'error' : 'ready'}
+        data-audit-state={displayState}
         style={{
           fontSize: 13,
           color: 'var(--color-neutral-600)',
@@ -63,11 +83,19 @@ export function AuditRevisionBadge({
           borderRadius: 12,
           background: 'var(--color-neutral-100)',
         }}
-        title={isError ? '수정 이력을 불러오지 못했습니다' : '본 entity 변경 누적 횟수'}
+        title={
+          displayState === 'error'
+            ? '수정 이력을 불러오지 못했습니다'
+            : displayState === 'loading'
+              ? '수정 이력을 불러오는 중입니다'
+              : displayState === 'unqueried'
+                ? '버전이력 버튼을 누르면 조회합니다'
+                : '본 entity 변경 누적 횟수'
+        }
       >
-        {isError ? '수정 이력 조회 실패' : `수정 ${revisionCount}회`}
+        {revisionLabel}
       </span>
-      {onRevert && revertCandidates.length > 0 ? (
+      {displayState === 'ready' && onRevert && revertCandidates.length > 0 ? (
         <select
           data-testid={`${testIdPrefix}-revert-select`}
           defaultValue=""

@@ -63,6 +63,10 @@ export interface AuditOverlayProps {
   history: AuditLogEntry[]
   /** 조회 실패 시 빈 이력으로 오해하지 않도록 실패 상태를 표시한다. */
   isError?: boolean
+  /** 첫 조회가 아직 시작되지 않았는지 여부. */
+  isFetched?: boolean
+  /** 첫 audit 조회가 진행 중인지 여부. */
+  isLoading?: boolean
 }
 
 /** "2026-05-09T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4 동일 로직. */
@@ -83,7 +87,14 @@ function displayValue(v: string | null | undefined): string {
  * - history 가 비어 있으면 현재 값만 표시 (no overlay)
  * - history 가 1건 이상이면 최근 1건 inline + (2건 이상 시) "이력 N개" expand
  */
-export function AuditOverlay({ field, currentValue, history, isError = false }: AuditOverlayProps) {
+export function AuditOverlay({
+  field,
+  currentValue,
+  history,
+  isError = false,
+  isFetched = true,
+  isLoading = false,
+}: AuditOverlayProps) {
   const [expanded, setExpanded] = useState(false)
 
   // 최신 → 과거 정렬 (revisionNo 내림차순). 원본 mutate 금지를 위해 slice 후 sort.
@@ -92,7 +103,8 @@ export function AuditOverlay({ field, currentValue, history, isError = false }: 
     [history],
   )
   const latest = sorted[0]
-  const olderCount = sorted.length > 1 ? sorted.length - 1 : 0
+  const canShowHistory = !isError && !isLoading && isFetched
+  const olderCount = canShowHistory && sorted.length > 1 ? sorted.length - 1 : 0
 
   return (
     <div
@@ -104,6 +116,10 @@ export function AuditOverlay({ field, currentValue, history, isError = false }: 
         <span className={styles['current']}>{displayValue(currentValue)}</span>
         {isError ? (
           <span className={styles['empty']}>변경 이력 조회 실패</span>
+        ) : isLoading ? (
+          <span className={styles['empty']}>변경 이력 불러오는 중</span>
+        ) : !isFetched ? (
+          <span className={styles['empty']}>변경 이력 미조회</span>
         ) : latest ? (
           <>
             <span

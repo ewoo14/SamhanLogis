@@ -63,7 +63,10 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
-import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
+import {
+  AuditVersionHistory,
+  isAuditHistoryEndpointUnavailable,
+} from '../components/audit/AuditVersionHistory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -107,6 +110,7 @@ export function TaxInvoiceDetailPage() {
   const { canAccess } = usePermissions()
   const isMobile = useIsMobile()
   const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
+  const [auditEndpointUnavailableFor, setAuditEndpointUnavailableFor] = useState<string | null>(null)
 
   const query = useQuery({
     queryKey: ['accounting', 'tax-invoice', id],
@@ -117,9 +121,15 @@ export function TaxInvoiceDetailPage() {
   const auditQuery = useQuery({
     queryKey: ['accounting', 'tax-invoice', id, 'audit-logs'],
     queryFn: () => taxInvoiceAuditApi.listAuditLogs(id),
-    enabled: !!id && auditHistoryOpen,
+    enabled: !!id && auditHistoryOpen && auditEndpointUnavailableFor !== id,
     retry: false,
+    staleTime: Infinity,
   })
+
+  useEffect(() => {
+    if (!id || !auditQuery.isError || !isAuditHistoryEndpointUnavailable(auditQuery.error)) return
+    setAuditEndpointUnavailableFor((current) => current === id ? current : id)
+  }, [id, auditQuery.error, auditQuery.isError])
 
   // PR-H4c: SSE 구독 — accounting:edit 수신 시 본문 + audit cache invalidate.
   useEffect(() => {
@@ -532,6 +542,8 @@ export function TaxInvoiceDetailPage() {
               <AuditRevisionBadge
                 logs={auditLogs}
                 isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                isLoading={auditQuery.isLoading}
                 reverting={revertMutation.isPending}
                 onRevert={isDraft ? (rev) => revertMutation.mutate(rev) : undefined}
                 testIdPrefix="tax-invoice-detail"
@@ -540,6 +552,7 @@ export function TaxInvoiceDetailPage() {
                 logs={auditLogs}
                 isLoading={auditQuery.isLoading}
                 isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
                 error={auditQuery.error}
                 open={auditHistoryOpen}
                 onOpenChange={setAuditHistoryOpen}
@@ -603,6 +616,8 @@ export function TaxInvoiceDetailPage() {
                   currentValue={t.description}
                   history={auditByField['description'] ?? []}
                   isError={auditQuery.isError}
+                  isFetched={auditQuery.isFetched}
+                  isLoading={auditQuery.isLoading}
                 />
               </div>
             </div>

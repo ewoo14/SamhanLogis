@@ -30,7 +30,11 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
-import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
+import {
+  AuditVersionHistory,
+  classifyAuditHistoryError,
+  isAuditHistoryEndpointUnavailable,
+} from '../components/audit/AuditVersionHistory'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
@@ -47,6 +51,7 @@ export function SalesPartnerDcConfigPage() {
   // PR-H4c: 선택 거래처 audit panel.
   const [selectedPartnerCode, setSelectedPartnerCode] = useState<string | null>(null)
   const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
+  const [auditEndpointUnavailableFor, setAuditEndpointUnavailableFor] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   // [C5-2b] import CTA는 dc-config.import CREATE page-code/action 기준.
@@ -70,9 +75,25 @@ export function SalesPartnerDcConfigPage() {
     queryKey: ['partner-dc-config', selectedPartnerCode, 'audit-logs'],
     queryFn: () =>
       dcConfigAuditApi.listAuditLogs(selectedPartnerCode!),
-    enabled: !!selectedPartnerCode && auditHistoryOpen,
+    enabled:
+      !!selectedPartnerCode
+      && auditHistoryOpen
+      && auditEndpointUnavailableFor !== selectedPartnerCode,
     retry: false,
+    staleTime: Infinity,
   })
+  const auditErrorKind = auditQuery.isError
+    ? classifyAuditHistoryError(auditQuery.error)
+    : undefined
+
+  useEffect(() => {
+    if (!selectedPartnerCode
+      || !auditQuery.isError
+      || !isAuditHistoryEndpointUnavailable(auditQuery.error)) return
+    setAuditEndpointUnavailableFor((current) =>
+      current === selectedPartnerCode ? current : selectedPartnerCode,
+    )
+  }, [selectedPartnerCode, auditQuery.error, auditQuery.isError])
 
   useEffect(() => {
     if (!selectedPartnerCode) return
@@ -385,12 +406,15 @@ export function SalesPartnerDcConfigPage() {
                 <AuditRevisionBadge
                   logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                   isError={auditQuery.isError}
+                  isFetched={auditQuery.isFetched}
+                  isLoading={auditQuery.isLoading}
                   testIdPrefix="partner-dc-config-audit"
                 />
                 <AuditVersionHistory
                   logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                   isLoading={auditQuery.isLoading}
                   isError={auditQuery.isError}
+                  isFetched={auditQuery.isFetched}
                   error={auditQuery.error}
                   open={auditHistoryOpen}
                   onOpenChange={setAuditHistoryOpen}
@@ -428,13 +452,27 @@ export function SalesPartnerDcConfigPage() {
                       currentValue={cur == null ? null : String(cur)}
                       history={history}
                       isError={auditQuery.isError}
+                      isFetched={auditQuery.isFetched}
+                      isLoading={auditQuery.isLoading}
                     />
                   </div>
                 )
               })}
               {auditQuery.isError ? (
                 <p style={{ margin: 0, fontSize: 12, color: '#b91c1c', gridColumn: '1 / -1' }}>
-                  변경 이력 조회에 실패했습니다.
+                  {auditErrorKind === 'not-supported'
+                    ? '변경 이력 조회 기능이 아직 제공되지 않습니다.'
+                    : auditErrorKind === 'forbidden'
+                      ? '변경 이력을 조회할 권한이 없습니다.'
+                      : '변경 이력을 불러오지 못했습니다.'}
+                </p>
+              ) : auditQuery.isLoading ? (
+                <p style={{ margin: 0, fontSize: 12, color: '#6b7280', gridColumn: '1 / -1' }}>
+                  변경 이력을 불러오는 중입니다.
+                </p>
+              ) : !auditQuery.isFetched ? (
+                <p style={{ margin: 0, fontSize: 12, color: '#6b7280', gridColumn: '1 / -1' }}>
+                  변경 이력 미조회
                 </p>
               ) : (Array.isArray(auditQuery.data) ? auditQuery.data : []).length === 0 ? (
                 <p style={{ margin: 0, fontSize: 12, color: '#6b7280', gridColumn: '1 / -1' }}>
