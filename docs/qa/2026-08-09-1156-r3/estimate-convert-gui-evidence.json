@@ -1,0 +1,35 @@
+{
+  "createEstimateHttpStatus": 201,
+  "estimateNo": "2026/08/09-6",
+  "convertHttpStatus": 200,
+  "convertedSlipNo": "2026/08/09-19",
+  "convertedSlipStatus": "DRAFT",
+  "partnerId": "<redacted-uuid>",
+  "partnerCode": "00",
+  "network": [
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/estimates/<redacted-uuid>",
+      "destination": "HEAD-18206"
+    },
+    {
+      "method": "POST",
+      "status": 200,
+      "path": "/slips/estimates/<redacted-uuid>/convert",
+      "destination": "HEAD-18206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/estimates/<redacted-uuid>",
+      "destination": "HEAD-18206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/<redacted-uuid>",
+      "destination": "HEAD-18206"
+    }
+  ]
+}

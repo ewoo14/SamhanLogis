@@ -86,6 +86,8 @@ class SafetyStockServiceTest {
 
         // Sprint 4 — findAlerts() 의 batch lookup 기본 stub. 개별 test 가 override.
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
+        lenient().when(productClient.lookupForSeedIntegrity(anyList())).thenReturn(List.of());
+        lenient().when(productClient.lookupAllowMissing(anyList())).thenReturn(List.of());
         lenient().when(warehouseRepository.findAllById(any())).thenReturn(List.of());
     }
 
@@ -264,7 +266,7 @@ class SafetyStockServiceTest {
                 .thenReturn(Optional.of(balance));
 
         // ProductClient.lookup 응답 (productCode 채움, 7-arg)
-        when(productClient.lookup(anyList()))
+        when(productClient.lookupAllowMissing(anyList()))
                 .thenReturn(List.of(new ProductSummary(productId, "테스트 제품", "AJ040RXH4BC1",
                         "AJ040-CODE", UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE")));
 
@@ -297,7 +299,7 @@ class SafetyStockServiceTest {
         when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(any(), any()))
                 .thenReturn(Optional.of(balance));
 
-        when(productClient.lookup(anyList())).thenAnswer(invocation -> {
+        when(productClient.lookupAllowMissing(anyList())).thenAnswer(invocation -> {
             List<UUID> ids = invocation.getArgument(0);
             if (ids.size() > 100) {
                 throw new BusinessException(
@@ -327,10 +329,33 @@ class SafetyStockServiceTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<UUID>> lookupCaptor = ArgumentCaptor.forClass(List.class);
-        verify(productClient, org.mockito.Mockito.times(2)).lookup(lookupCaptor.capture());
+        verify(productClient, org.mockito.Mockito.times(2)).lookupAllowMissing(lookupCaptor.capture());
         assertThat(lookupCaptor.getAllValues())
                 .extracting(List::size)
                 .containsExactly(100, 1);
+    }
+
+    @Test
+    @DisplayName("findAlerts: stale 품목 하나가 같은 batch 정상 품목 식별자를 지우지 않는다")
+    void findAlerts_partialLookup_keepsHealthyProductIdentity() {
+        UUID healthyId = UUID.randomUUID();
+        UUID staleId = UUID.randomUUID();
+        SafetyStockConfig healthy = SafetyStockConfig.create(healthyId, warehouseId, 100, null);
+        SafetyStockConfig stale = SafetyStockConfig.create(staleId, warehouseId, 100, null);
+        when(safetyStockConfigRepository.findAll()).thenReturn(List.of(healthy, stale));
+        when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(any(), any()))
+                .thenReturn(Optional.of(mockBalance(30)));
+        when(productClient.lookupAllowMissing(anyList())).thenReturn(List.of(
+                new ProductSummary(healthyId, "정상 품목", "ACTIVE-MODEL", "ACTIVE-CODE",
+                        UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE")));
+
+        List<SafetyStockAlertResponse> alerts = safetyStockService.findAlerts();
+
+        assertThat(alerts).hasSize(2);
+        assertThat(alerts.get(0).productCode()).isEqualTo("ACTIVE-CODE");
+        assertThat(alerts.get(0).productName()).isEqualTo("ACTIVE-MODEL");
+        assertThat(alerts.get(1).productCode()).isNull();
+        assertThat(alerts.get(1).productName()).isNull();
     }
 
     @Test
@@ -345,7 +370,7 @@ class SafetyStockServiceTest {
                 .thenReturn(Optional.of(balance));
 
         // ProductClient 다운 (RuntimeException) — fail-soft
-        when(productClient.lookup(anyList()))
+        when(productClient.lookupAllowMissing(anyList()))
                 .thenThrow(new RuntimeException("product-service connection refused"));
 
         Warehouse warehouse = org.mockito.Mockito.mock(Warehouse.class);
@@ -374,7 +399,7 @@ class SafetyStockServiceTest {
         when(stockBalanceRepository.findAllByProductIdInAndIsDeletedFalse(anyList()))
                 .thenReturn(List.of(b1));
 
-        when(productClient.lookup(anyList()))
+        when(productClient.lookupAllowMissing(anyList()))
                 .thenReturn(List.of(new ProductSummary(productId, "테스트 제품", "AJ040",
                         "AJ040-CODE", UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE")));
 
@@ -395,7 +420,7 @@ class SafetyStockServiceTest {
                 productId, warehouseId))
                 .thenReturn(Optional.of(balance));
 
-        when(productClient.lookup(anyList()))
+        when(productClient.lookupAllowMissing(anyList()))
                 .thenReturn(List.of(new ProductSummary(productId, "테스트 제품", "AJ040",
                         "AJ040-CODE", UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE")));
 

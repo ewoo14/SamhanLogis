@@ -421,7 +421,7 @@ class TaxInvoiceBatchIT extends AbstractPostgresIT {
                     "", "", "", null, null, null, null, "",
                     "", "", "", null, null, null, null, "",
                     null, null, null, null, "02",
-                    "SLP-" + rowNo
+                    "SLP-" + rowNo, "P-TEST-" + rowNo
             ));
         }
         return rows;

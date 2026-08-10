@@ -1,0 +1,59 @@
+{
+  "qaRound": "R7-1095-SAVED-REOPEN",
+  "http": 200,
+  "total": 7,
+  "identifiable": 1,
+  "stale": 6,
+  "rows": [
+    {
+      "productId": "<redacted-id>",
+      "productCode": null,
+      "productName": null,
+      "threshold": 100,
+      "note": "[DEV-SEED] AJ040 싱글 HQ 안전재고 — 정상 상태"
+    },
+    {
+      "productId": "<redacted-id>",
+      "productCode": null,
+      "productName": null,
+      "threshold": 50,
+      "note": "[DEV-SEED] AJ056 멀티 HQ 안전재고 — 부족 상태"
+    },
+    {
+      "productId": "<redacted-id>",
+      "productCode": null,
+      "productName": null,
+      "threshold": 30,
+      "note": "[DEV-SEED] AM100 실외기 HQ 안전재고 — 부족 상태"
+    },
+    {
+      "productId": "<redacted-id>",
+      "productCode": null,
+      "productName": null,
+      "threshold": 10,
+      "note": "[DEV-SEED] AJ040 싱글 VH 안전재고 — 부족 상태"
+    },
+    {
+      "productId": "<redacted-id>",
+      "productCode": null,
+      "productName": null,
+      "threshold": 3,
+      "note": "[DEV-SEED] AJ056 멀티 VH 안전재고 — 정상 상태"
+    },
+    {
+      "productId": "<redacted-id>",
+      "productCode": null,
+      "productName": null,
+      "threshold": 0,
+      "note": "R5-1095-RESIDUE-THRESHOLD-0"
+    },
+    {
+      "productId": "<redacted-id>",
+      "productCode": "ACL-KORGHP07",
+      "productName": "ACL-KORGHP07",
+      "threshold": 0,
+      "note": "R5-1095-RESIDUE-THRESHOLD-0"
+    }
+  ],
+  "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"productId\":\"<redacted-id>\",\"productCode\":null,\"productName\":null,\"warehouseId\":\"<redacted-id>\",\"warehouseName\":\"본사창고\",\"threshold\":100,\"currentQty\":0,\"shortage\":100,\"note\":\"[DEV-SEED] AJ040 싱글 HQ 안전재고 — 정상 상태\"},{\"productId\":\"<redacted-id>\",\"productCode\":null,\"productName\":null,\"warehouseId\":\"<redacted-id>\",\"warehouseName\":\"본사창고\",\"threshold\":50,\"currentQty\":0,\"shortage\":50,\"note\":\"[DEV-SEED] AJ056 멀티 HQ 안전재고 — 부족 상태\"},{\"productId\":\"<redacted-id>\",\"productCode\":null,\"productName\":null,\"warehouseId\":\"<redacted-id>\",\"warehouseName\":\"본사창고\",\"threshold\":30,\"currentQty\":0,\"shortage\":30,\"note\":\"[DEV-SEED] AM100 실외기 HQ 안전재고 — 부족 상태\"},{\"productId\":\"<redacted-id>\",\"productCode\":null,\"productName\":null,\"warehouseId\":\"<redacted-id>\",\"warehouseName\":\"1호차 차량재고\",\"threshold\":10,\"currentQty\":0,\"shortage\":10,\"note\":\"[DEV-SEED] AJ040 싱글 VH 안전재고 — 부족 상태\"},{\"productId\":\"<redacted-id>\",\"productCode\":null,\"productName\":null,\"warehouseId\":\"<redacted-id>\",\"warehouseName\":\"1호차 차량재고\",\"threshold\":3,\"currentQty\":0,\"shortage\":3,\"note\":\"[DEV-SEED] AJ056 멀티 VH 안전재고 — 정상 상태\"},{\"productId\":\"<redacted-id>\",\"productCode\":null,\"productName\":null,\"warehouseId\":null,\"warehouseName\":\"전체\",\"threshold\":0,\"currentQty\":0,\"shortage\":0,\"note\":\"R5-1095-RESIDUE-THRESHOLD-0\"},{\"productId\":\"<redacted-id>\",\"productCode\":\"ACL-KORGHP07\",\"productName\":\"ACL-KORGHP07\",\"warehouseId\":null,\"warehouseName\":\"전체\",\"threshold\":0,\"currentQty\":0,\"shortage\":0,\"note\":\"R5-1095-RESIDUE-THRESHOLD-0\"}],\"timestamp\":\"2026-08-09T16:28:16.036444353Z\"}"
+}

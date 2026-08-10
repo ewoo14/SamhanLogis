@@ -153,23 +153,21 @@ npm run build:print-renderer
 
 ## MIG-14 — 회계 마이그레이션 admin UI (2026-05-21)
 
-MIG-14는 Order / Ledger 조회 화면을 `clients/desktop/src/renderer/routes/accounting/admin/` 아래에 통합한다.
+MIG-14는 원장 대조 조회 화면을 `clients/desktop/src/renderer/routes/accounting/admin/` 아래에 통합한다.
 
 > ⚠️ **이카운트 네이티브 편입 슬1: 잔액 스냅샷 silo 폐기(PR #518)** — `PartnerAgingSnapshotPage.tsx`(page-code `ecount.mig14.aging-snapshot`)는 제거됨. 거래처 미수/미지급은 네이티브 보고서 `/accounting/reports/partner-aging`(재무 보고서 메뉴)로 대체된다.
 >
-> ⚠️ **이카운트 네이티브 편입 슬2: 현금 지출/입금 silo 폐기(PR #520)** — `CashDisbursementListPage.tsx`·`CashReceiptListPage.tsx`·`CashTransactionList.tsx`(page-code `ecount.mig14.cash-list`)와 `accountingAdminApi` cash 함수·타입은 제거됨. 현금 자료는 MIG-9 가 이미 네이티브 회계 journals 에 편입했으므로 분개장(`/accounting/journals`)·입금매칭(`/accounting/deposit-match`)·원장으로 노출된다. 슬1·슬2 누적으로 admin UI 는 4 화면 → **2 화면**(Order / Ledger)으로 축소됐다.
+> ⚠️ **이카운트 네이티브 편입 슬2: 현금 지출/입금 silo 폐기(PR #520)** — `CashDisbursementListPage.tsx`·`CashReceiptListPage.tsx`·`CashTransactionList.tsx`(page-code `ecount.mig14.cash-list`)와 `accountingAdminApi` cash 함수·타입은 제거됨. 현금 자료는 MIG-9 가 이미 네이티브 회계 journals 에 편입했으므로 분개장(`/accounting/journals`)·입금매칭(`/accounting/deposit-match`)·원장으로 노출된다. 슬1·슬2 및 #826 누적으로 admin UI 는 4 화면 → **2 화면**(매출 원장 대조 / 매입 원장 대조)으로 축소됐다.
 
 | route/page | 목적 |
 |---|---|
-| `OrderListPage.tsx` | 주문 목록 + 진행상태/담당자/거래처 필터 |
-| `OrderDetailPage.tsx` | `orderNo` 기반 주문 상세 + 라인 조회 |
 | `SalesLedgerPage.tsx` | 매출장 staging + DailyClosing 대조 조회 |
 | `PurchaseLedgerPage.tsx` | 매입장 staging + DailyClosing 대조 조회 |
 
 공통 UI 계약:
 
 - `PermissionGuard`로 MIG14 PageCode를 적용한다.
-- 화면과 `data-testid`는 내부 UUID를 포함하지 않는다. 사용자 식별자는 `slipNo`, `journalNo`, `orderNo`, `partnerName`, `managerName` 중심으로 둔다.
+- 화면과 `data-testid`는 내부 UUID를 포함하지 않는다. 사용자 식별자는 `transactionRef`, `journalNo`, `partnerName` 중심으로 둔다.
 - Playwright fixture는 placeholder만 사용한다. 실 계정, API key, token, 사업자등록번호, Sheet ID를 추가하지 않으며 CI `credential-plaintext-guard` 기준을 따른다.
 - desktop CI는 `.github/workflows/ci.yml`의 `frontend-desktop` job에서 `npm run typecheck`, `npm run lint`, `npm run build`로 검증된다.
 
@@ -192,7 +190,7 @@ MIG-14는 Order / Ledger 조회 화면을 `clients/desktop/src/renderer/routes/a
 
 - `components/AppLayout.tsx` 좌측 메뉴 IA 를 **상단 고정 2(홈·알림 내역) + 7 그룹**(① 판매 ② 구매 ③ 회계 ④ 그룹웨어 ⑤ 인사 ⑥ 배차(arologis) ⑦ 창고 운영)으로 재편했다. 기존 비정규 평면/그룹(대시보드/창고관리/판매관리/구매관리/영수증OCR/재고이동/링크발송/배차 top-level + 비정규 그룹)을 7그룹으로 이동·그룹핑한 **IA 재배치(컴포넌트 이동·라벨)만**이며 라우트·page-code·권한 로직은 무변경이다. '홈'은 기존 '대시보드' 리라벨(`NavLink to="/" end`), 배차 그룹 라벨은 코드명 `arologis`→업무 라벨 '배차'다.
 - 모든 항목/그룹 노출은 기성 `usePermissions().canAccess(pageCode, action)`(동적 RBAC, SP-D1~D4) 단일 소스를 보존한다. 신규 `SidebarCategory({label, show, activeTargets, testId, children})` 는 그룹 자식 권한이 1개라도 있으면(`show`) 헤더+자식을 노출하고 전무 시 완전 미렌더한다. 그룹 OR 보정: `showAccounting`에 세금계산서 batch/inbound, `showArologisGroup = showDispatchBoard ‖ showArologis ‖ showRegionMgmt`(배차지역 단독 권한자 그룹 숨김 갭 해소), `showAdminHrGroup`에서 고아 `admin.users` 제거(빈 인사그룹 방지).
-- **접기/펼치기**: `SidebarCategory` 헤더를 토글 버튼(`SidebarGroupToggle`)으로 일반화했다. 기본은 접힘(과도 메뉴 최소화), 활성 라우트가 속한 그룹만 `useEffect(activeByRoute)` 로 자동 펼침, 사용자 토글 상태는 `localStorage['samhan.sidebar.group.<label>']`(`readSidebarGroupOpen`/`writeSidebarGroupOpen`, 접근 차단 환경 try/catch 세션 폴백)로 영속한다. 접근성 = `role=heading`/`aria-level=2` + `aria-expanded`/`aria-controls` + `role=group`/`aria-labelledby`. ~~회계 관리자 중첩 토글은 유지.~~ → **이카운트 네이티브 편입 슬4(PR #521)에서 '회계 관리자' 중첩 토글 그룹 폐기** — 멤버를 회계(원장대조·운영대시보드·회계수정요청)/판매(주문서 관리 (이관)) 카테고리 flat 으로 편입(route·page-code·롤 무변경).
+- **접기/펼치기**: `SidebarCategory` 헤더를 토글 버튼(`SidebarGroupToggle`)으로 일반화했다. 기본은 접힘(과도 메뉴 최소화), 활성 라우트가 속한 그룹만 `useEffect(activeByRoute)` 로 자동 펼침, 사용자 토글 상태는 `localStorage['samhan.sidebar.group.<label>']`(`readSidebarGroupOpen`/`writeSidebarGroupOpen`, 접근 차단 환경 try/catch 세션 폴백)로 영속한다. 접근성 = `role=heading`/`aria-level=2` + `aria-expanded`/`aria-controls` + `role=group`/`aria-labelledby`. ~~회계 관리자 중첩 토글은 유지.~~ → **이카운트 네이티브 편입 슬4(PR #521)에서 '회계 관리자' 중첩 토글 그룹 폐기** — 멤버를 회계(원장대조·운영대시보드·회계수정요청) 카테고리 flat 으로 편입했다. 네이티브 주문서 관리만 판매 카테고리 flat 항목으로 유지하고, 이전 주문 메뉴·route·page-code·롤은 #826에서 제거했다.
 - **단톡방 매핑 그룹웨어 단일화**: `components/AdminLayout.tsx` 의 단톡방 `AdminNav`(`admin-nav-chat-rooms`)를 제거하고(인사 사이드바 7→6 entry) 그룹웨어 단일 노출(`show={showChatRoomAdmin}`, MASTER 포함)로 통일했다. 라우트(`/admin/chat-rooms`)·권한 가드(`messenger.admin`)는 유지.
 - **주문서 승인 라우트 가드**: `routes/index.tsx` 에서 `/sales/order-approvals` 를 `PermissionGuard pageCode="sales.partner-order.list" action="view"` 로 래핑했다(사이드바 노출 `showPartnerOrderList` 와 동일 page-code → 노출↔진입 역전 갭 차단). BE 측 `PartnerApprovalsController` @RequirePermission 동반 게이트는 partner-auth-service 에 신설(fail-open 차단).
 - 검증: typecheck 0, eslint 0, Playwright mock 전체 468 pass / 0 fail / 0 skip. 신규 spec `menu-relocate/menu-ia-contract.spec.ts`(CI 수집 IA 단언) + `menu-5category-real-qa/{menu-5category-real-qa, roundB-targeted-real-qa, roundC-collapsible-real-qa}.spec.ts`(Docker 실서버 실 권한 매트릭스/접기·펼치기). QA 13컷 `docs/qa/menu-5category/`.

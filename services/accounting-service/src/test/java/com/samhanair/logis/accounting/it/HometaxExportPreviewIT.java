@@ -367,7 +367,7 @@ class HometaxExportPreviewIT extends AbstractPostgresIT {
                     "", "", "", null, null, null, null, "",
                     "", "", "", null, null, null, null, "",
                     null, null, null, null, "02",
-                    "SLP-" + i
+                    "SLP-" + i, "P-TEST-" + i
             ));
         }
         return rows;

@@ -1,34 +1,48 @@
 package com.samhanair.logis.partner.service;
 
+import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvValidationException;
+import com.samhanair.logis.common.ecount.io.EcountXlsxSupport;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
+import com.samhanair.logis.partner.dto.EcountPartnerRejectionPage;
 import com.samhanair.logis.partner.realtime.PartnerListRealtime;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.input.BOMInputStream;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -50,7 +64,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>흐름 (row 단위):
  * <ol>
  *   <li>{@link #computeFileHash(byte[])} — SHA-256(file content) → 멱등 키</li>
- *   <li>CSV 파싱 (OpenCSV + BOMInputStream)</li>
+ *   <li>CSV 인코딩 strict 판별 (UTF-8 우선, MS949 fallback) 후 OpenCSV 파싱</li>
  *   <li>{@link #stagingUpsert} — staging.ecount_partner_raw 17 raw 컬럼 적재 (멱등)</li>
  *   <li>{@link #classify} — REJECT_NAME_NULL / SKIPPED_PLACEHOLDER / NORMAL 분류</li>
  *   <li>NORMAL → Partner UPSERT (partner_code 기준)</li>
@@ -93,14 +107,24 @@ public class EcountPartnerImporter {
 
     /** 등록일자 YYYYMMDD 파서. */
     private static final DateTimeFormatter REGISTRATION_DATE_FORMAT =
-            DateTimeFormatter.ofPattern("yyyyMMdd", Locale.KOREAN);
+            DateTimeFormatter.ofPattern("uuuuMMdd", Locale.KOREAN)
+                    .withResolverStyle(java.time.format.ResolverStyle.STRICT);
+    private static final Pattern FIRST_CREATED_PATTERN = Pattern.compile(
+            "^(\\d{4}/\\d{2}/\\d{2})\\s+(오전|오후)\\s+(\\d{1,2}):(\\d{2}):(\\d{2})$");
 
     /** reject sample 최대 건수 (응답 페이로드 가드). */
     private static final int REJECT_SAMPLE_MAX = 20;
 
+    private static final String[] XLSX_HEADERS = EXPECTED_HEADERS;
+
     private final PartnerRepository partnerRepository;
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final CollectionRealtimePublisher collectionRealtimePublisher;
+
+    /** 행 단위 UPSERT를 Spring 트랜잭션 프록시로 호출하기 위한 자기 참조. */
+    @Lazy
+    @Autowired
+    private EcountPartnerImporter transactionalProxy;
 
     /**
      * CSV 스트림을 적재한다.
@@ -125,6 +149,13 @@ public class EcountPartnerImporter {
         }
 
         String sourceFileHash = computeFileHash(content);
+        String decodedCsv;
+        try {
+            decodedCsv = decodeCsv(content);
+        } catch (CharacterCodingException ex) {
+            log.warn("MIG-1 CSV 인코딩 판별 실패 — 파일을 보류한다. hash={}", sourceFileHash, ex);
+            return encodingHeldResult(sourceFileHash, content, actorUserId);
+        }
 
         int totalRows = 0;
         int imported = 0;
@@ -133,13 +164,17 @@ public class EcountPartnerImporter {
         int skippedPlaceholder = 0;
         int activeCount = 0;
         int suspendedCount = 0;
+        int heldParseFailureRows = 0;
+        int infrastructureFailureRows = 0;
         List<EcountPartnerImportResult.RejectedRow> rejectedSample = new ArrayList<>();
+        List<EcountPartnerImportResult.RejectedRow> heldSample = new ArrayList<>();
+        List<EcountPartnerImportResult.RejectedRow> infrastructureFailureSample = new ArrayList<>();
 
-        try (BOMInputStream bomFree = BOMInputStream.builder()
-                .setInputStream(new ByteArrayInputStream(content)).get();
-             InputStreamReader isr = new InputStreamReader(bomFree, StandardCharsets.UTF_8);
-             BufferedReader br = new BufferedReader(isr);
-             CSVReader reader = new CSVReader(br)) {
+        try (CSVReader reader = new CSVReaderBuilder(new BufferedReader(new StringReader(decodedCsv)))
+                .withCSVParser(new CSVParserBuilder()
+                        .withEscapeChar(com.opencsv.CSVParser.NULL_CHARACTER)
+                        .build())
+                .build()) {
 
             // row 1: 메타데이터 ("데이터관리>거래처-Excel다운로드") — skip
             String[] meta = reader.readNext();
@@ -169,6 +204,14 @@ public class EcountPartnerImporter {
                 // staging 적재 (모든 row, 멱등)
                 stagingUpsert(sourceFileHash, rowNo, cells, actorUserId);
 
+                if (rawName.indexOf('\uFFFD') >= 0) {
+                    heldParseFailureRows++;
+                    addRejectSample(heldSample, rowNo, "CSV_ENCODING", rawPartnerCode, "읽을 수 없음");
+                    updateStagingStatus(sourceFileHash, rowNo, "PENDING",
+                            "CSV_ENCODING: 거래처명에 치환문자(U+FFFD)가 포함됨", null);
+                    continue;
+                }
+
                 // 분류
                 Classification c = classify(rawPartnerCode, rawName);
                 switch (c.kind) {
@@ -187,7 +230,30 @@ public class EcountPartnerImporter {
                                 rawPartnerCode, rawName);
                     }
                     case NORMAL -> {
-                        UpsertResult ur = upsertPartner(cells, c.effectiveCode);
+                        UpsertResult ur;
+                        try {
+                            ur = upsertPartnerInRowTransaction(cells, c.effectiveCode);
+                        } catch (Partner.InvalidImportedCreditLimitException ex) {
+                            heldParseFailureRows++;
+                            addRejectSample(heldSample, rowNo, "INPUT_VALIDATION", rawPartnerCode, rawName);
+                            updateStagingStatus(sourceFileHash, rowNo, "PENDING", "INPUT_VALIDATION", null);
+                            log.warn("MIG-1 import 행 입력 검증 실패 — row={} partnerCode={} reason=INPUT_VALIDATION",
+                                    rowNo, rawPartnerCode, ex);
+                            continue;
+                        } catch (DataAccessException ex) {
+                            String reason = failureReason(ex);
+                            if ("DB_CONSTRAINT".equals(reason)) {
+                                heldParseFailureRows++;
+                                addRejectSample(heldSample, rowNo, reason, rawPartnerCode, rawName);
+                            } else {
+                                infrastructureFailureRows++;
+                                addRejectSample(infrastructureFailureSample, rowNo, reason, rawPartnerCode, rawName);
+                            }
+                            updateStagingStatus(sourceFileHash, rowNo, "PENDING", reason, null);
+                            log.warn("MIG-1 import 행 DB 적재 실패 — row={} partnerCode={} reason={}",
+                                    rowNo, rawPartnerCode, reason, ex);
+                            continue;
+                        }
                         if (ur.isNew) {
                             imported++;
                         } else {
@@ -217,12 +283,185 @@ public class EcountPartnerImporter {
         }
 
         log.info("MIG-1 import 완료 — total={} imported={} updated={} rejectedNullName={} "
-                        + "skippedPlaceholder={} ACTIVE={} SUSPENDED={} hash={} actor={}",
+                        + "skippedPlaceholder={} heldParseFailureRows={} ACTIVE={} SUSPENDED={} hash={} actor={}",
                 totalRows, imported, updated, rejectedNullName, skippedPlaceholder,
-                activeCount, suspendedCount, sourceFileHash, actorUserId);
+                heldParseFailureRows, activeCount, suspendedCount, sourceFileHash, actorUserId);
 
         return new EcountPartnerImportResult(totalRows, imported, updated, rejectedNullName,
-                skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample);
+                skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample,
+                0, heldParseFailureRows, heldSample, infrastructureFailureRows,
+                infrastructureFailureSample, infrastructureFailureRows > 0, 0, 0);
+    }
+
+    /**
+     * CSV 바이트를 무손실로 문자화한다. UTF-8을 먼저 strict 판별하고 실패할 때만
+     * 한국 실무 CSV의 대표 인코딩인 MS949(CP949)를 strict 판별한다. 두 판별이
+     * 모두 실패하면 호출자가 파일을 보류하여 치환문자를 저장하지 않게 한다.
+     */
+    private static String decodeCsv(byte[] content) throws CharacterCodingException {
+        int offset = content.length >= 3
+                && (content[0] & 0xFF) == 0xEF
+                && (content[1] & 0xFF) == 0xBB
+                && (content[2] & 0xFF) == 0xBF ? 3 : 0;
+        byte[] bytes = java.util.Arrays.copyOfRange(content, offset, content.length);
+        try {
+            // 파일 전체를 strict decode하면 한 행의 훼손 때문에 정상 행까지 함께
+            // 보류된다. UTF-8 헤더가 온전하면 파일 인코딩은 UTF-8로 확정하고,
+            // 이후 행별 U+FFFD 판정이 실제 훼손 행만 보류하도록 replacement decode한다.
+            strictDecode(firstPhysicalLines(bytes, 2), StandardCharsets.UTF_8);
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (CharacterCodingException utf8Failure) {
+            String ms949 = strictDecode(bytes, Charset.forName("MS949"));
+            // UTF-8 파일 일부만 훼손된 경우 MS949 전체 fallback은 헤더까지 깨진다.
+            // 헤더가 복원되지 않으면 인코딩 판별 실패로 파일을 보류한다.
+            if (!ms949.contains("거래처코드")) {
+                throw new CharacterCodingException();
+            }
+            return ms949;
+        }
+    }
+
+    private static byte[] firstPhysicalLines(byte[] bytes, int lineCount) {
+        int lines = 0;
+        int end = bytes.length;
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] == '\n' && ++lines >= lineCount) {
+                end = i + 1;
+                break;
+            }
+        }
+        return java.util.Arrays.copyOf(bytes, end);
+    }
+
+    private static String strictDecode(byte[] bytes, Charset charset) throws CharacterCodingException {
+        return charset.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes))
+                .toString();
+    }
+
+    private EcountPartnerImportResult encodingHeldResult(
+            String sourceFileHash, byte[] content, String actorUserId) {
+        int dataRows = Math.max(1, countPhysicalDataRows(content));
+        List<EcountPartnerImportResult.RejectedRow> held = new ArrayList<>();
+        String[] unreadableCells = new String[EXPECTED_HEADERS.length];
+        java.util.Arrays.fill(unreadableCells, "");
+        for (int rowNumber = 3; rowNumber < 3 + dataRows; rowNumber++) {
+            stagingUpsert(sourceFileHash, rowNumber, unreadableCells, actorUserId);
+            updateStagingStatus(sourceFileHash, rowNumber, "PENDING",
+                    "CSV_ENCODING: 행 내용을 읽을 수 없음", null);
+            addRejectSample(held, rowNumber, "CSV_ENCODING", "읽을 수 없음", "읽을 수 없음");
+        }
+        return new EcountPartnerImportResult(dataRows, 0, 0, 0, 0, 0, 0, sourceFileHash,
+                List.of(), 0, dataRows, held, 0, List.of(), false, 0, 0);
+    }
+
+    /** 디코딩 전에도 줄바꿈은 바이트 단위로 셀 수 있으므로, 보류 행의 CSV 실제 줄을 보존한다. */
+    private static int countPhysicalDataRows(byte[] content) {
+        int lineCount = 1;
+        for (byte value : content) {
+            if (value == '\n') lineCount++;
+        }
+        // 마지막 개행은 빈 trailing 행을 뜻하므로 데이터 행 수에서 제외한다.
+        boolean endsWithLineBreak = content.length > 0
+                && (content[content.length - 1] == '\n' || content[content.length - 1] == '\r');
+        return Math.max(1, lineCount - 2 - (endsWithLineBreak ? 1 : 0));
+    }
+
+    /**
+     * 이카운트 정본 XLSX를 관리자 적재 경로로 반영한다.
+     * 메타 1행/헤더 1행은 공통 XLSX 파서가 처리하고, A열 timestamp만 있는 trailer와
+     * 변환 실패 행은 partners에 쓰지 않고 staging에 증거로 남긴다.
+     */
+    public EcountPartnerImportResult importXlsx(InputStream xlsx, String actorUserId) {
+        EcountXlsxSupport.ParsedXlsx parsed = EcountXlsxSupport.parse(xlsx, XLSX_HEADERS);
+        int imported = 0;
+        int updated = 0;
+        int rejectedNullName = 0;
+        int skippedPlaceholder = 0;
+        int activeCount = 0;
+        int suspendedCount = 0;
+        int excludedTrailer = 0;
+        int registrationDateParsedCount = 0;
+        int createdAtLoadTimeCount = 0;
+        int heldParseFailureRows = 0;
+        int infrastructureFailureRows = 0;
+        List<EcountPartnerImportResult.RejectedRow> rejected = new ArrayList<>();
+        List<EcountPartnerImportResult.RejectedRow> held = new ArrayList<>();
+        List<EcountPartnerImportResult.RejectedRow> infrastructureFailures = new ArrayList<>();
+        LocalDateTime loadTimestamp = LocalDateTime.now();
+
+        for (EcountXlsxSupport.ParsedRow parsedRow : parsed.rows()) {
+            int rowNo = parsedRow.sourceRowNo();
+            String[] cells = parsedRow.cells();
+            if (isTrailerRow(cells)) {
+                excludedTrailer++;
+                addRejectSample(rejected, rowNo, "EXCLUDED_TRAILER", cells[0], "");
+                continue;
+            }
+
+            stagingUpsert(parsed.sourceFileHash(), rowNo, cells, actorUserId);
+            // 기초거래처 정본은 '-'와 비숫자 partner_code도 업무 식별자로 유효하다.
+            Classification classification = classifyMasterRow(cells[0], cells[4]);
+            if (classification.kind == Kind.REJECT_NAME_NULL) {
+                rejectedNullName++;
+                updateStagingStatus(parsed.sourceFileHash(), rowNo, "REJECT_NAME_NULL",
+                        "거래처명 빈값", null);
+                addRejectSample(rejected, rowNo, "REJECT_NAME_NULL", cells[0], cells[4]);
+                continue;
+            }
+            if (classification.kind == Kind.SKIPPED_PLACEHOLDER) {
+                skippedPlaceholder++;
+                updateStagingStatus(parsed.sourceFileHash(), rowNo, "SKIPPED_PLACEHOLDER",
+                        "거래처코드 placeholder (" + cells[0] + ")", null);
+                addRejectSample(rejected, rowNo, "SKIPPED_PLACEHOLDER", cells[0], cells[4]);
+                continue;
+            }
+            LocalDate registrationDate = parseRegistrationDate(cells[1]);
+            if (registrationDate == null) createdAtLoadTimeCount++;
+            else registrationDateParsedCount++;
+            // 유효한 등록일자는 created_at과 registration_date에 함께 보존한다.
+            // 공란/실패는 registration_date=null, created_at=이번 배치의 단일 적재 시각이다.
+            UpsertResult result;
+            try {
+                result = upsertPartnerInRowTransaction(cells, classification.effectiveCode,
+                        registrationDate, registrationDate == null ? loadTimestamp : registrationDate.atStartOfDay());
+            } catch (Partner.InvalidImportedCreditLimitException ex) {
+                heldParseFailureRows++;
+                addRejectSample(held, rowNo, "INPUT_VALIDATION", cells[0], cells[4]);
+                updateStagingStatus(parsed.sourceFileHash(), rowNo, "PENDING", "INPUT_VALIDATION", null);
+                log.warn("MIG-1 XLSX import 행 입력 검증 실패 — row={} partnerCode={} reason=INPUT_VALIDATION",
+                        rowNo, cells[0], ex);
+                continue;
+            } catch (DataAccessException ex) {
+                String reason = failureReason(ex);
+                if ("DB_CONSTRAINT".equals(reason)) {
+                    heldParseFailureRows++;
+                    addRejectSample(held, rowNo, reason, cells[0], cells[4]);
+                } else {
+                    infrastructureFailureRows++;
+                    addRejectSample(infrastructureFailures, rowNo, reason, cells[0], cells[4]);
+                }
+                updateStagingStatus(parsed.sourceFileHash(), rowNo, "PENDING", reason, null);
+                log.warn("MIG-1 XLSX import 행 DB 적재 실패 — row={} partnerCode={} reason={}",
+                        rowNo, cells[0], reason, ex);
+                continue;
+            }
+            if (result.isNew) imported++; else updated++;
+            if (result.status == PartnerStatus.ACTIVE) activeCount++; else if (result.status == PartnerStatus.SUSPENDED) suspendedCount++;
+            updateStagingStatus(parsed.sourceFileHash(), rowNo, result.isNew ? "IMPORTED" : "UPDATED",
+                    null, result.partnerId);
+        }
+        if (imported + updated > 0) {
+            collectionRealtimePublisher.publishChange(PartnerListRealtime.CHANNEL_ID,
+                    PartnerListRealtime.EVENT_CHANGED, Map.of("changeType", "BULK_UPDATED"));
+        }
+        return new EcountPartnerImportResult(parsed.dataRowCount() - excludedTrailer, imported, updated,
+                rejectedNullName, skippedPlaceholder, activeCount, suspendedCount, parsed.sourceFileHash(),
+                rejected, excludedTrailer, heldParseFailureRows, held, infrastructureFailureRows,
+                infrastructureFailures, infrastructureFailureRows > 0,
+                registrationDateParsedCount, createdAtLoadTimeCount);
     }
 
     // ============================================================
@@ -300,28 +539,77 @@ public class EcountPartnerImporter {
     }
 
     static BigDecimal parseCreditLimit(String raw) {
-        if (raw == null || raw.isEmpty() || "-".equals(raw)) {
-            return BigDecimal.ZERO;
+        if (raw == null || raw.isBlank() || "-".equals(raw.strip())) {
+            return null;
         }
-        String cleaned = raw.replace(",", "").replace(" ", "");
+        String cleaned = raw.replace(",", "").replace(" ", "").replace("원", "");
         try {
             return new BigDecimal(cleaned);
         } catch (NumberFormatException ex) {
-            log.warn("MIG-1 여신한도 파싱 실패 — raw='{}' → 0 fallback", raw);
-            return BigDecimal.ZERO;
+            // 필드 단위 실패: 거래처 행은 적재하고 여신한도만 null로 둔다.
+            return null;
         }
     }
 
+    /**
+     * 등록일자 자유 입력 파서.
+     * 지원 형식은 YYYYMMDD, YYYY-MM-DD, YYYY.MM.DD, YY.MM.DD, YYMMDD이다.
+     * YY는 업무 데이터의 관행에 따라 2000년대로 해석한다(26 -> 2026).
+     * 해석이 틀린 경우에도 staging의 raw_registration 원문으로 규칙 변경 후 재파싱할 수 있다.
+     */
     static LocalDate parseRegistrationDate(String raw) {
-        if (raw == null || raw.isEmpty() || "임시".equals(raw)) {
-            return null;
-        }
+        if (raw == null || raw.isBlank() || "임시".equals(raw.strip())) return null;
+        String digits = raw.strip().replace("-", "").replace(".", "");
         try {
-            return LocalDate.parse(raw, REGISTRATION_DATE_FORMAT);
-        } catch (Exception ex) {
-            log.debug("MIG-1 등록일자 파싱 실패 — raw='{}' → null", raw);
+            if (digits.matches("\\d{8}")) {
+                return LocalDate.parse(digits, REGISTRATION_DATE_FORMAT);
+            }
+            if (digits.matches("\\d{6}")) {
+                int year = 2000 + Integer.parseInt(digits.substring(0, 2));
+                return LocalDate.of(year, Integer.parseInt(digits.substring(2, 4)),
+                        Integer.parseInt(digits.substring(4, 6)));
+            }
+        } catch (RuntimeException ex) {
             return null;
         }
+        return null;
+    }
+
+    /** 최초작성일자는 audit created_at에 넣지 않고 형식만 검증하며 raw는 staging에 보존한다. */
+    static LocalDateTime parseFirstCreated(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        Matcher matcher = FIRST_CREATED_PATTERN.matcher(raw.strip().replaceAll("\\s+", " "));
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("최초작성일자 파싱 실패: raw='" + raw + "'");
+        }
+        LocalDate date;
+        try {
+            date = LocalDate.parse(matcher.group(1).replace("/", "-"));
+            int hour = Integer.parseInt(matcher.group(3));
+            if (hour < 1 || hour > 12) throw new IllegalArgumentException("시각 범위 오류");
+            if ("오후".equals(matcher.group(2)) && hour < 12) hour += 12;
+            if ("오전".equals(matcher.group(2)) && hour == 12) hour = 0;
+            return LocalDateTime.of(date, LocalTime.of(hour, Integer.parseInt(matcher.group(4)), Integer.parseInt(matcher.group(5))));
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("최초작성일자 파싱 실패: raw='" + raw + "'", ex);
+        }
+    }
+
+    static boolean isTrailerRow(String[] cells) {
+        if (cells.length < 16 || cells[0].isBlank()) return false;
+        if (!cells[0].matches("\\d{4}/\\d{2}/\\d{2}\\s+(오전|오후)\\s+\\d{1,2}:\\d{2}:\\d{2}")) return false;
+        for (int i = 1; i < cells.length; i++) if (!cells[i].isBlank()) return false;
+        return true;
+    }
+
+    static Classification classifyMasterRow(String rawCode, String rawName) {
+        if (rawName == null || rawName.isBlank()) {
+            return new Classification(Kind.REJECT_NAME_NULL, null);
+        }
+        if (rawCode == null || rawCode.isBlank()) {
+            return new Classification(Kind.SKIPPED_PLACEHOLDER, null);
+        }
+        return new Classification(Kind.NORMAL, rawCode);
     }
 
     static String nullIfBlank(String s) {
@@ -402,12 +690,38 @@ public class EcountPartnerImporter {
     // partner UPSERT
     // ============================================================
 
+    /** 적재 진입점에서 호출하는 행 단위 트랜잭션 경계. 단위 테스트의 직접 인스턴스도 지원한다. */
+    private UpsertResult upsertPartnerInRowTransaction(String[] cells, String effectiveCode) {
+        EcountPartnerImporter target = transactionalProxy == null ? this : transactionalProxy;
+        return target.upsertPartner(cells, effectiveCode);
+    }
+
+    /** 적재 진입점에서 호출하는 행 단위 트랜잭션 경계. 단위 테스트의 직접 인스턴스도 지원한다. */
+    private UpsertResult upsertPartnerInRowTransaction(String[] cells, String effectiveCode,
+                                                       LocalDate registrationDate,
+                                                       LocalDateTime createdAt) {
+        EcountPartnerImporter target = transactionalProxy == null ? this : transactionalProxy;
+        return target.upsertPartner(cells, effectiveCode, registrationDate, createdAt);
+    }
+
     /**
      * 거래처 UPSERT — partner_code 기준 (= 거래처코드 = bizNo).
+     * 이카운트 적재 갱신 정책: name/대표자/주소/연락처/검색어/메모/담당자/그룹1/
+     * registration_date/transfer_info/credit_limit만 원천으로 덮어쓴다. status는 기존 행 보존,
+     * outstanding_balance 및 partner_group2 등 운영·거래 결과 필드는 덮어쓰지 않는다.
      * 동일 transaction 내에서 staging 적재와 묶이지 않도록 row 단위 진행 (대량 import 의 부분 성공 허용).
      */
     @Transactional
     public UpsertResult upsertPartner(String[] cells, String effectiveCode) {
+        LocalDate registrationDate = parseRegistrationDate(cells[1]);
+        LocalDateTime createdAt = registrationDate == null
+                ? LocalDateTime.now() : registrationDate.atStartOfDay();
+        return upsertPartner(cells, effectiveCode, registrationDate, createdAt);
+    }
+
+    @Transactional
+    public UpsertResult upsertPartner(String[] cells, String effectiveCode,
+                                      LocalDate registrationDate, LocalDateTime createdAt) {
         String name = cells[4];
         String managerName = nullIfBlank(cells[2]);
         String subBizNo = nullIfBlank(cells[3]);
@@ -421,15 +735,20 @@ public class EcountPartnerImporter {
         String rawUsageFlag = cells[12];
         String transferInfo = nullIfBlank(cells[13]);
         BigDecimal creditLimit = parseCreditLimit(cells[14]);
-        LocalDate registrationDate = parseRegistrationDate(cells[1]);
         PartnerStatus status = mapStatus(rawUsageFlag);
 
         Optional<Partner> existing = partnerRepository.findByPartnerCode(effectiveCode);
+        if (existing.isEmpty()) {
+            existing = partnerRepository.findByPartnerCodeIncludingDeleted(effectiveCode);
+        }
 
         Partner partner;
         boolean isNew;
         if (existing.isPresent()) {
             partner = existing.get();
+            if (Boolean.TRUE.equals(partner.getIsDeleted())) {
+                partner.markRestored();
+            }
             partner.updateProfile(name, address1, phone);
             partner.updateBusinessProfile(representative, partner.getBusinessType(),
                     partner.getIndustry(), subBizNo);
@@ -440,15 +759,21 @@ public class EcountPartnerImporter {
             partner.updateSearchKeyword(searchKeyword);
             partner.updateClassification(partnerGroup1, partner.getPartnerGroup2(),
                     partner.getWebsite());
-            partner.changeCreditLimit(creditLimit);
+            // 이관 정책: credit_limit은 원천 숫자/빈칸(null)을 그대로 반영한다.
+            // outstanding_balance, status, partner_group2 등 운영/거래 결과 필드는 덮어쓰지 않는다.
+            partner.replaceCreditLimitFromImport(creditLimit);
             partner.changeRegistrationDate(registrationDate);
+            if (registrationDate != null) {
+                partner.overrideCreatedAtForImport(registrationDate.atStartOfDay());
+            }
             partner.updateTransferInfo(transferInfo);
             partner.updateNote(note);
             partner.updateManagerName(managerName);
-            partner.changeStatus(status);
+            // 기존 비활성 거래처를 파일 YES만으로 되살리지 않는다.
             isNew = false;
         } else {
             partner = Partner.register(effectiveCode, effectiveCode, name, address1, phone, creditLimit);
+            partner.overrideCreatedAtForImport(createdAt);
             partner.updateBusinessProfile(representative, null, null, subBizNo);
             partner.updateContactChannels(null, null, null, mobile);
             partner.updateAddresses(null, address1, null, null);
@@ -462,12 +787,56 @@ public class EcountPartnerImporter {
             isNew = true;
         }
         partner = partnerRepository.save(partner);
-        return new UpsertResult(partner.getId(), isNew, status);
+        if (registrationDate != null) {
+            partnerRepository.overrideCreatedAtForImport(partner.getId(), registrationDate.atStartOfDay());
+        }
+        return new UpsertResult(partner.getId(), isNew, partner.getStatus());
     }
 
     // ============================================================
     // 보조
     // ============================================================
+
+    /** 대량 거부·보류 행을 응답 본문과 분리해 페이지 단위로 조회한다. */
+    public EcountPartnerRejectionPage findRejectionPage(String sourceFileHash, int page, int size) {
+        if (sourceFileHash == null || !sourceFileHash.matches("[0-9A-Fa-f]{64}")) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "sourceFileHash 형식이 올바르지 않습니다");
+        }
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        MapSqlParameterSource params = new MapSqlParameterSource("hash", sourceFileHash)
+                .addValue("limit", safeSize).addValue("offset", safePage * safeSize);
+        long total = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM staging.ecount_partner_raw "
+                        + "WHERE source_file_hash = :hash AND reject_reason IS NOT NULL",
+                params, Long.class);
+        List<EcountPartnerImportResult.RejectedRow> items = jdbcTemplate.query(
+                "SELECT source_row_no, reject_reason, raw_partner_code, "
+                        + "CASE WHEN reject_reason LIKE 'CSV_ENCODING%' THEN '읽을 수 없음' "
+                        + "ELSE raw_name END AS raw_name "
+                        + "FROM staging.ecount_partner_raw "
+                        + "WHERE source_file_hash = :hash AND reject_reason IS NOT NULL "
+                        + "ORDER BY source_row_no LIMIT :limit OFFSET :offset",
+                params, (rs, rowNum) -> new EcountPartnerImportResult.RejectedRow(
+                        rs.getInt("source_row_no"), rs.getString("reject_reason"),
+                        rs.getString("raw_partner_code"), rs.getString("raw_name")));
+        int totalPages = (int) Math.ceil((double) total / safeSize);
+        return new EcountPartnerRejectionPage(sourceFileHash, safePage, safeSize, total,
+                totalPages, items);
+    }
+
+    /**
+     * 행 적재 예외를 데이터 축과 인프라 축으로 나눈다.
+     *
+     * <p>Spring의 명시적 제약 위반 타입만 데이터 오류로 인정한다. {@link
+     * org.springframework.orm.jpa.JpaSystemException}처럼 제약 타입이 아닌
+     * {@link DataAccessException}은 원인이 값인지 단정할 수 없으므로 인프라 오류로
+     * 보고하여 사용자가 재시도 대상으로 판단할 수 있게 한다. 문자열 메시지는 사용하지 않는다.
+     */
+    static String failureReason(DataAccessException ex) {
+        return ex instanceof DataIntegrityViolationException
+                ? "DB_CONSTRAINT" : "DB_INFRASTRUCTURE";
+    }
 
     private static void addRejectSample(List<EcountPartnerImportResult.RejectedRow> sample,
                                         int rowNo, String reason, String code, String name) {
@@ -481,10 +850,10 @@ public class EcountPartnerImporter {
     }
 
     /** 분류 결과. */
-    record Classification(Kind kind, String effectiveCode) {
+    public record Classification(Kind kind, String effectiveCode) {
     }
 
-    enum Kind {
+    public enum Kind {
         REJECT_NAME_NULL, SKIPPED_PLACEHOLDER, NORMAL
     }
 

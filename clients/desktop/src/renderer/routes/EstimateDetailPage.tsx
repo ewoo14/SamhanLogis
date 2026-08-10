@@ -29,6 +29,7 @@ import {
   Button,
   Card,
   DataTable,
+  AsyncAutocomplete,
   Spinner,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -39,9 +40,12 @@ import {
   getEstimate,
   rejectEstimate,
   sendEstimate,
+  changeEstimateOwner,
   type EstimateLine,
   type EstimateStatus,
 } from '../api/estimateApi'
+import { searchApprovalLineUsers, type ApprovalLineUserOption } from '../api/approvalLineConfigApi'
+import { extractApiErrorResponseMessage } from '../api/apiError'
 import { EstimateCollaborationPanel } from '../components/collab/EstimateCollaborationPanel'
 import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
@@ -93,11 +97,34 @@ export function EstimateDetailPage() {
     queryFn: () => getEstimate(id),
   })
 
+  const ownerDirectoryQuery = useQuery({
+    queryKey: ['estimate-owner-directory'],
+    queryFn: () => searchApprovalLineUsers('', 100),
+    enabled: Boolean(query.data?.requesterId),
+    staleTime: 5 * 60 * 1000,
+  })
+
   usePageTitle('견적서 상세', query.data?.estimateNo)
 
   const [topError, setTopError] = useState<string>('')
   const [collabEditMode, setCollabEditMode] = useState(false)
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
+
+  const ownerMutation = useMutation({
+    mutationFn: (owner: ApprovalLineUserOption) =>
+      changeEstimateOwner(id, { requesterId: owner.id, documentType: 'ESTIMATE' }),
+    onSuccess: async () => {
+      setTopError('')
+      await queryClient.invalidateQueries({ queryKey: ['estimate', id] })
+      await queryClient.invalidateQueries({ queryKey: ['estimates'] })
+    },
+    onError: (error) => {
+      setTopError(
+        extractApiErrorResponseMessage(error)
+          ?? '담당 변경에 실패했습니다. 견적서 계열만 담당을 변경할 수 있습니다.',
+      )
+    },
+  })
 
   const sendMutation = useMutation({
     mutationFn: () => sendEstimate(id),
@@ -168,6 +195,10 @@ export function EstimateDetailPage() {
   const canMutate = canAccess('estimates.list', 'update')
   // PR-H4c: 변환/거절 단계 본문 잠금
   const isLocked = e.status === 'QUOTE_CONVERTED' || e.status === 'QUOTE_REJECTED'
+  const currentOwner = e.requesterId
+    ? ownerDirectoryQuery.data?.find((user) => user.id === e.requesterId) ??
+      (e.requesterName ? { id: e.requesterId, displayName: e.requesterName } : null)
+    : null
 
   const handleSend = () => {
     setTopError('')
@@ -530,6 +561,27 @@ export function EstimateDetailPage() {
                 data-testid="estimate-detail-memo"
               >
                 <strong>비고</strong>: {e.memo || '(빈 값)'}
+              </div>
+              <div style={{ marginTop: 10, maxWidth: 360 }} data-testid="estimate-owner-control">
+                <AsyncAutocomplete<ApprovalLineUserOption>
+                  label="담당"
+                  value={currentOwner}
+                  onChange={(owner) => {
+                    if (owner) ownerMutation.mutate(owner)
+                  }}
+                  search={(keyword) => searchApprovalLineUsers(keyword, 20)}
+                  getKey={(user) => user.id}
+                  getInputLabel={(user) => user.displayName}
+                  renderOption={(user) => user.displayName}
+                  listboxLabel="담당자 검색 결과"
+                  inputTestId="estimate-owner-search"
+                  placeholder="담당자 이름 검색"
+                  disabled={!canMutate || ownerMutation.isPending}
+                  ariaLabel="담당자 이름 검색"
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: '#6B7280' }}>
+                  담당 변경은 견적서에만 적용되며 작성 기록은 보존됩니다.
+                </div>
               </div>
             </div>
           </div>

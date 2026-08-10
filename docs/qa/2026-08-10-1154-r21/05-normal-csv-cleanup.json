@@ -1,0 +1,105 @@
+{
+  "normalCsv": [
+    {
+      "code": "SOL1154R21-NORMAL-UTF8",
+      "inputName": "R21 정상 한글 상호",
+      "storedName": "R21 정상 한글 상호",
+      "upload": {
+        "totalRows": 1,
+        "imported": 0,
+        "updated": 1,
+        "rejectedNullName": 0,
+        "skippedPlaceholder": 0,
+        "activeCount": 1,
+        "suspendedCount": 0,
+        "sourceFileHash": "B7DD3334E363A636B2F8E87EC123A61E6F924F2B557F6C2459B8A338C63622BB",
+        "rejectedSample": [],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 0,
+        "heldSample": [],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      }
+    },
+    {
+      "code": "SOL1154R21-NORMAL-ASCII",
+      "inputName": "R21 Normal Partner 123",
+      "storedName": "R21 Normal Partner 123",
+      "upload": {
+        "totalRows": 1,
+        "imported": 0,
+        "updated": 1,
+        "rejectedNullName": 0,
+        "skippedPlaceholder": 0,
+        "activeCount": 1,
+        "suspendedCount": 0,
+        "sourceFileHash": "35D2491CD67E68A88001DCA896777C0BE5EE756BBCF0A7F8249B4A1F18F9E73E",
+        "rejectedSample": [],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 0,
+        "heldSample": [],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      }
+    },
+    {
+      "code": "SOL1154R21-NORMAL-CP949",
+      "inputName": "R21 정상 CP949 한글상호",
+      "storedName": "R21 정상 CP949 한글상호",
+      "upload": {
+        "totalRows": 1,
+        "imported": 0,
+        "updated": 1,
+        "rejectedNullName": 0,
+        "skippedPlaceholder": 0,
+        "activeCount": 1,
+        "suspendedCount": 0,
+        "sourceFileHash": "2E6AD240EDA4848F686B7AEEC8AFA5FA62BACA48889E62DFFE368279095B7C6D",
+        "rejectedSample": [],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 0,
+        "heldSample": [],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      }
+    },
+    {
+      "code": "SOL1154R21-NORMAL-PUNCT",
+      "inputName": "R21 \"따옴표\" (주)삼한, 대리점/본점\\창고",
+      "storedName": "R21 \"따옴표\" (주)삼한, 대리점/본점\\창고",
+      "upload": {
+        "totalRows": 1,
+        "imported": 0,
+        "updated": 1,
+        "rejectedNullName": 0,
+        "skippedPlaceholder": 0,
+        "activeCount": 1,
+        "suspendedCount": 0,
+        "sourceFileHash": "D5B9FA1C15A70CFC9BBD6FD6AE54118156F07542D1567675F66695EABCDC2BE8",
+        "rejectedSample": [],
+        "excludedTrailerRows": 0,
+        "heldParseFailureRows": 0,
+        "heldSample": [],
+        "infrastructureFailureRows": 0,
+        "infrastructureFailureSample": [],
+        "infrastructureFailure": false,
+        "registrationDateParsedCount": 0,
+        "createdAtLoadTimeCount": 0
+      }
+    }
+  ],
+  "cleanup": {
+    "active": 0,
+    "softDeleted": 5,
+    "staging": 1408
+  }
+}

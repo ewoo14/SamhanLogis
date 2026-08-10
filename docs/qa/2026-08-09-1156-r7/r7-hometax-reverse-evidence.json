@@ -1,0 +1,16 @@
+{
+  "round": "R7",
+  "slipNo": "2026/08/10-20",
+  "status": "CONFIRMED",
+  "partnerCode": "P-2026-0001",
+  "businessNumber": "113-07-10031",
+  "currentCodeDerivedBuyerRegNo": "20260001",
+  "expectedBuyerRegNo": "1130710031",
+  "lifecycle": [],
+  "salesQuery": {
+    "status": 200,
+    "path": "/internal/slips/sales-query",
+    "mock": false
+  },
+  "ids": "<redacted-uuid>"
+}

@@ -92,9 +92,7 @@ class PageCodeTest {
     }
 
     @Test
-    void mig14_adminPageCodes_3종_V25_seed와_동기화() {
-        assertThat(PageCode.ECOUNT_MIG14_ORDER_LIST.getCode())
-                .isEqualTo("ecount.mig14.order-list");
+    void mig14_adminPageCodes_2종_V25_seed와_동기화() {
         assertThat(PageCode.ECOUNT_MIG14_LEDGER.getCode())
                 .isEqualTo("ecount.mig14.ledger");
         assertThat(PageCode.isValid("ecount.mig14.cash-list")).isFalse();

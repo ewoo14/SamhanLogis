@@ -236,9 +236,6 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
     expect(activeTargetsBody, "판매 activeTargets 에 '/sales/partner-orders' 보존").toContain(
       "'/sales/partner-orders'",
     )
-    expect(activeTargetsBody, "판매 activeTargets 에 eCount 주문 silo route 포함").toContain(
-      "'/accounting/admin/orders'",
-    )
   })
 
   // [Round C P3 #12] 그룹 가시성 OR 구성원 정적 단언 — Round A/B 의 OR fix(단독 권한자 그룹 누락
@@ -247,9 +244,6 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
   test('그룹 가시성 OR 구성원 정적 박제 — showSales/showAccounting/showArologisGroup/showAdminHrGroup', () => {
     const salesVisibility = constBlock(appLayout, 'showSales', 'showPurchase')
     const accountingVisibility = constBlock(appLayout, 'showAccounting', 'showDeliveryBatch')
-
-    // (판매) eCount 주문 silo 는 네이티브 판매 ▸ 주문서 대체 전까지 판매 flat 항목으로 노출한다.
-    expect(salesVisibility, '판매 OR 식에 주문서 관리 권한 포함').toContain('showAccountingAdminOrder')
 
     // (회계) Round B 보강: 세금계산서 발행 묶음(batch-issue)·수신 세금계산서(inbound) 단독 권한자도
     //   회계 그룹을 얻어야 한다 → OR 식에 두 변수가 포함되어야 한다.
@@ -290,10 +284,7 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
     const salesBlock = categoryBlock(appLayout, '판매')
     assertSidebarLink(salesBlock, 'sidebar-sales', '/sales', '판매관리')
     assertSidebarLink(salesBlock, 'sidebar-sales-partner-orders', '/sales/partner-orders', '주문서 관리')
-    assertSidebarLink(salesBlock, 'sidebar-accounting-admin-orders', '/accounting/admin/orders', '주문서 관리 (이관)')
-    // 슬6에서 이관 링크 제거 시 아래 양방향 라벨 잠금도 함께 정리한다.
     assertSidebarLinkExactLabel(salesBlock, 'sidebar-sales-partner-orders', '주문서 관리')
-    assertSidebarLinkExactLabel(salesBlock, 'sidebar-accounting-admin-orders', '주문서 관리 (이관)')
     assertSidebarLink(salesBlock, 'sidebar-products-catalog', '/products/catalog', '기초품목 관리')
     assertSidebarLink(
       salesBlock,

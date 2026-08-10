@@ -1,0 +1,18 @@
+{
+  "pageErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "httpFailures": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5183/fonts/PretendardVariable.woff2",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8080/app/version?clientType=SAMHAN_ESTIMATE_WEB&currentVersion=0.1.0-dev",
+      "status": 404
+    }
+  ],
+  "capturedAtUtc": "2026-08-08T13:06:38.503Z"
+}

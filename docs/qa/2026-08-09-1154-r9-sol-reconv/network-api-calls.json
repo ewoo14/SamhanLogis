@@ -1,0 +1,86 @@
+[
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:8080/auth/login",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"token\":\"<redacted>\",\"userId\":\"a0000000-0000-0000-0000-000000000001\",\"role\":\"MASTER\",\"displayName\":\"[DEV-SEED] 개발마스터\",\"partnerCode\":null,\"groups\":[{\"id\":\"00000000-0000-0000-0000-000000000100\",\"name\":\"마스터\",\"builtin\":true}]},\"timestamp\":\"2026-08-09T10:57:12.462870179Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:48095/actuator/health",
+    "status": 200,
+    "body": "{\"status\":\"UP\"}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount-xlsx",
+    "status": 200,
+    "body": "{\"totalRows\":7253,\"imported\":0,\"updated\":7253,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":7253,\"suspendedCount\":0,\"sourceFileHash\":\"064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619\",\"rejectedSample\":[{\"rowNumber\":7256,\"reason\":\"EXCLUDED_TRAILER\",\"rawPartnerCode\":\"2026/08/09  오후 12:59:06\",\"rawName\":\"\"}],\"excludedTrailerRows\":1,\"heldParseFailureRows\":0,\"heldSample\":[],\"registrationDateParsedCount\":2423,\"createdAtLoadTimeCount\":4830}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":1,\"imported\":0,\"updated\":0,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":0,\"suspendedCount\":0,\"sourceFileHash\":\"99903CABBE6CB7AB94FBDCAE234542A977A5F89DC3C81CC7262A802582C59C09\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":1,\"heldSample\":[{\"rowNumber\":3,\"reason\":\"DB_CONSTRAINT\",\"rawPartnerCode\":\"01\",\"rawName\":\"R9 transient infrastructure probe\"}],\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount-xlsx",
+    "status": 200,
+    "body": "{\"totalRows\":7253,\"imported\":0,\"updated\":7253,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":7253,\"suspendedCount\":0,\"sourceFileHash\":\"064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619\",\"rejectedSample\":[{\"rowNumber\":7256,\"reason\":\"EXCLUDED_TRAILER\",\"rawPartnerCode\":\"2026/08/09  오후 12:59:06\",\"rawName\":\"\"}],\"excludedTrailerRows\":1,\"heldParseFailureRows\":0,\"heldSample\":[],\"registrationDateParsedCount\":2423,\"createdAtLoadTimeCount\":4830}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":3,\"imported\":2,\"updated\":0,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":2,\"suspendedCount\":0,\"sourceFileHash\":\"1283938FE696436D243D8F9463CEA59FD342C6266BF5D35191718B96A9DB27D0\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":1,\"heldSample\":[{\"rowNumber\":4,\"reason\":\"DB_CONSTRAINT\",\"rawPartnerCode\":\"SOL1154R9BAD\",\"rawName\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\"}],\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount",
+    "status": 200,
+    "body": "{\"totalRows\":1,\"imported\":1,\"updated\":0,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":1,\"suspendedCount\":0,\"sourceFileHash\":\"99265AB4221F8E7A777340C11890B1629151EFC1BFB9F863AB97453798E66666\",\"rejectedSample\":[],\"excludedTrailerRows\":0,\"heldParseFailureRows\":0,\"heldSample\":[],\"registrationDateParsedCount\":0,\"createdAtLoadTimeCount\":0}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/api/v1/partners/0004/shipping-addresses",
+    "status": 201,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"be7e9ffa-398d-4c41-b839-5ca25d5adceb\",\"alias\":\"R9정본참조\",\"zipCode\":\"04524\",\"address\":\"서울특별시 중구\",\"phone\":\"02-0000-0000\",\"receiverName\":\"R9\",\"isDefault\":false,\"memo\":\"R9 UUID 참조 검증\"},\"timestamp\":\"2026-08-09T10:58:09.477868431Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/0004",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T10:58:09.500008473Z\"}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:48095/admin/partners/imports/ecount-xlsx",
+    "status": 200,
+    "body": "{\"totalRows\":7253,\"imported\":0,\"updated\":7253,\"rejectedNullName\":0,\"skippedPlaceholder\":0,\"activeCount\":7253,\"suspendedCount\":0,\"sourceFileHash\":\"064770396F5586EC7D49E8219DD19086EF48C072F4BA4FF7B1BABB0EC14D4619\",\"rejectedSample\":[{\"rowNumber\":7256,\"reason\":\"EXCLUDED_TRAILER\",\"rawPartnerCode\":\"2026/08/09  오후 12:59:06\",\"rawName\":\"\"}],\"excludedTrailerRows\":1,\"heldParseFailureRows\":0,\"heldSample\":[],\"registrationDateParsedCount\":2423,\"createdAtLoadTimeCount\":4830}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/api/v1/partners/0004/shipping-addresses/be7e9ffa-398d-4c41-b839-5ca25d5adceb",
+    "status": 204,
+    "body": ""
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R9BEFORE",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T10:58:37.288392547Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R9BAD",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T10:58:37.301597357Z\"}"
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:48095/admin/partners/SOL1154R9AFTER",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-09T10:58:37.312924776Z\"}"
+  }
+]

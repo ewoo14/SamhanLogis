@@ -1,0 +1,8 @@
+{
+  "deleteRequests": 1004,
+  "deleteHttp200": 1004,
+  "deleteHttp404": 0,
+  "active": 0,
+  "softDeleted": 1004,
+  "staging": 4018
+}

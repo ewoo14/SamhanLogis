@@ -1,0 +1,57 @@
+{
+  "physicalRows": [
+    {
+      "rowNumber": 3,
+      "code": "SOL1154R23-ENC-BAD",
+      "name": "<invalid-bytes>"
+    },
+    {
+      "rowNumber": 4,
+      "code": "SOL1154R23-ENC-GOOD",
+      "name": "R23 읽을 수 있는 정상 상호"
+    }
+  ],
+  "response": {
+    "success": true,
+    "code": "OK",
+    "message": "성공",
+    "data": {
+      "totalRows": 2,
+      "imported": 0,
+      "updated": 1,
+      "rejectedNullName": 0,
+      "skippedPlaceholder": 0,
+      "activeCount": 1,
+      "suspendedCount": 0,
+      "sourceFileHash": "47422664831CB1FEA347E9699262C86A7F04E55CBD7F695A6FD1A8922C7546F9",
+      "rejectedSample": [],
+      "excludedTrailerRows": 0,
+      "heldParseFailureRows": 1,
+      "heldSample": [
+        {
+          "rowNumber": 3,
+          "reason": "CSV_ENCODING",
+          "rawPartnerCode": "SOL1154R23-ENC-BAD",
+          "rawName": "읽을 수 없음"
+        }
+      ],
+      "infrastructureFailureRows": 0,
+      "infrastructureFailureSample": [],
+      "infrastructureFailure": false,
+      "registrationDateParsedCount": 0,
+      "createdAtLoadTimeCount": 0
+    },
+    "timestamp": "2026-08-09T18:34:08.558819680Z"
+  },
+  "visibleRows": [
+    "3CSV_ENCODING: 거래처명에 치환문자(U+FFFD)가 포함됨SOL1154R23-ENC-BAD����"
+  ],
+  "readableRowVisibleInPartnerList": {
+    "code": "SOL1154R23-ENC-GOOD",
+    "name": "R23 읽을 수 있는 정상 상호"
+  },
+  "unreadableLabelVisible": false,
+  "unreadableCellActual": "����",
+  "credentials": "<redacted>",
+  "transportAdapterBypass": false
+}

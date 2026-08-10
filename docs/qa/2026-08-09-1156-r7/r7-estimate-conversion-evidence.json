@@ -1,0 +1,67 @@
+{
+  "round": "R7",
+  "createEstimateHttpStatus": 201,
+  "estimateNo": "2026/08/10-5",
+  "estimateId": "<redacted-uuid>",
+  "convertHttpStatus": 200,
+  "convertedSlipNo": "2026/08/10-21",
+  "convertedSlipId": "<redacted-uuid>",
+  "partnerCode": "P-2026-0001",
+  "businessNumber": "113-07-10031",
+  "network": [
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/admin/partners/search",
+      "destination": "gateway-8080"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/price-memory",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/lookup-product",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/price-memory",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "POST",
+      "status": 201,
+      "path": "/slips/estimates",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/estimates/<redacted-uuid>",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "POST",
+      "status": 200,
+      "path": "/slips/estimates/<redacted-uuid>/convert",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/estimates/<redacted-uuid>",
+      "destination": "SLIP-28206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/<redacted-uuid>",
+      "destination": "SLIP-28206"
+    }
+  ]
+}

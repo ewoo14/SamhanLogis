@@ -104,7 +104,6 @@ export type PageCode =
   | 'accounting.general-ledger'
   | 'accounting.hometax-export'
   | 'notifications.admin'
-  | 'notification.dispatch-sms.send-audit'
   | 'notification.dispatch-sms.display'
   | 'notifications.center'
   | 'aligo.address-book'
@@ -144,6 +143,10 @@ export type PageCode =
   | 'slip.mobile-sales'
   | 'slip.publish.from-estimate'
   | 'slip.publish.from-partner-order'
+  // internal endpoint로 이관되어 일반 카탈로그에는 숨기되, 기존 보유 grant 회수에는 사용한다.
+  | 'slip.period-lock'
+  | 'slip.closed-date-exception'
+  | 'slip.closed-date-admin'
   | 'inbound.inspection'
   | 'dispatch.board'
   | 'hr.carriers'
@@ -282,8 +285,6 @@ export type PageCode =
   | 'arologis.accounting.summary'
   | 'arologis.admin.permissions'
   | 'arologis.accounting.accounts'
-  // MIG-14 admin UI
-  | 'ecount.mig14.order-list'
   | 'ecount.mig14.ledger'
   // MIG-21 migration ops dashboard
   | 'ecount.mig.ops-dashboard'

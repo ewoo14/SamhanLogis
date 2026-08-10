@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>활성 조건 (StockBalanceSeeder 와 동일 toggle):
  * <ul>
  *   <li>{@link Profile @Profile("dev")}</li>
- *   <li>{@link ConditionalOnProperty}({@code app.inventory.seed-test-data=true})</li>
+ *   <li>{@link ConditionalOnProperty}({@code app.seed-test-data=true})</li>
  * </ul>
  *
  * <p>{@link Order} 20 — StockBalanceSeeder(10) 완료 후 실행 (창고/재고 데이터 의존).
@@ -49,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @Profile("dev")
-@ConditionalOnProperty(value = "app.inventory.seed-test-data", havingValue = "true")
+@ConditionalOnProperty(value = "app.seed-test-data", havingValue = "true")
 @Order(20)
 public class InventoryAuditSeeder implements CommandLineRunner {
 

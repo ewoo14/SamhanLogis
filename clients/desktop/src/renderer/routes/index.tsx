@@ -273,8 +273,6 @@ import { PurchaseAccountingSlipPage } from './accounting/PurchaseAccountingSlipP
 import { PurchaseAccountingSlipFormPage } from './accounting/PurchaseAccountingSlipFormPage'
 import { TaxInvoiceBatchIssuePage } from './accounting/TaxInvoiceBatchIssuePage'
 import { TaxInvoiceInboundPage } from './accounting/TaxInvoiceInboundPage'
-import { OrderListPage } from './accounting/admin/OrderListPage'
-import { OrderDetailPage } from './accounting/admin/OrderDetailPage'
 import { SalesLedgerPage } from './accounting/admin/SalesLedgerPage'
 import { PurchaseLedgerPage } from './accounting/admin/PurchaseLedgerPage'
 import { MigOpsDashboardPage } from './accounting/admin/MigOpsDashboardPage'
@@ -1177,7 +1175,7 @@ const routes = [
       {
         path: '/accounting/sales-slips',
         element: (
-          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
+          <PermissionGuard pageCode="accounting.sales-slip.accounting" action="view">
             <SalesAccountingSlipPage />
           </PermissionGuard>
         ),
@@ -1185,7 +1183,7 @@ const routes = [
       {
         path: '/accounting/sales-slips/new',
         element: (
-          <PermissionGuard pageCode="accounting.sales-slip.list" action="edit">
+          <PermissionGuard pageCode="accounting.sales-slip.accounting" action="create">
             <SalesAccountingSlipFormPage />
           </PermissionGuard>
         ),
@@ -1193,7 +1191,7 @@ const routes = [
       {
         path: '/accounting/purchase-slips',
         element: (
-          <PermissionGuard pageCode="accounting.purchase-slip.list" action="view">
+          <PermissionGuard pageCode="accounting.purchase-slip.accounting" action="view">
             <PurchaseAccountingSlipPage />
           </PermissionGuard>
         ),
@@ -1201,24 +1199,8 @@ const routes = [
       {
         path: '/accounting/purchase-slips/new',
         element: (
-          <PermissionGuard pageCode="accounting.purchase-slip.list" action="edit">
+          <PermissionGuard pageCode="accounting.purchase-slip.accounting" action="create">
             <PurchaseAccountingSlipFormPage />
-          </PermissionGuard>
-        ),
-      },
-      {
-        path: '/accounting/admin/orders',
-        element: (
-          <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
-            <OrderListPage />
-          </PermissionGuard>
-        ),
-      },
-      {
-        path: '/accounting/admin/orders/:orderNo',
-        element: (
-          <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
-            <OrderDetailPage />
           </PermissionGuard>
         ),
       },
@@ -1389,7 +1371,7 @@ const routes = [
       {
         path: '/accounting/tax-invoices/inbound',
         element: (
-          <PermissionGuard pageCode="accounting.tax-invoice.inbound" action="view">
+          <PermissionGuard pageCode="accounting.tax-invoice.inbound.manage" action="view">
             <TaxInvoiceInboundPage />
           </PermissionGuard>
         ),

@@ -1,0 +1,34 @@
+{
+  "httpStatus": 201,
+  "slipNo": "2026/08/09-18",
+  "status": "DRAFT",
+  "partnerId": "<redacted-uuid>",
+  "partnerCode": "00",
+  "finalUrl": "http://127.0.0.1:5316/#/purchases",
+  "network": [
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/admin/partners/search",
+      "destination": "gateway-8080"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/price-memory",
+      "destination": "HEAD-18206"
+    },
+    {
+      "method": "POST",
+      "status": 201,
+      "path": "/slips",
+      "destination": "HEAD-18206"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "path": "/slips/query",
+      "destination": "HEAD-18206"
+    }
+  ]
+}

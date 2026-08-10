@@ -18,6 +18,7 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
@@ -93,6 +94,31 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[*].modelCode", hasItem("IT_SCOPE_PO")))
                 .andExpect(jsonPath("$.data[*].modelCode", hasItem("IT_SCOPE_BOTH")))
                 .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_SCOPE_EST')]").doesNotExist());
+    }
+
+    @Test
+    void products_excludesDiscontinuedAndNotForSale_butKeepsOutOfStock() throws Exception {
+        Product discontinued = seedCatalogProduct("IT_STATUS_DISCONTINUED", UsageScope.ESTIMATE);
+        Product notForSale = seedCatalogProduct("IT_STATUS_NOT_FOR_SALE", UsageScope.ESTIMATE);
+        Product outOfStock = seedCatalogProduct("IT_STATUS_OUT_OF_STOCK", UsageScope.ESTIMATE);
+        discontinued.changeStatus(ProductStatus.DISCONTINUED);
+        notForSale.changeStatus(ProductStatus.NOT_FOR_SALE);
+        outOfStock.changeStatus(ProductStatus.OUT_OF_STOCK);
+        exposureRepository.save(ProductEstimateExposure.create(
+                discontinued.getId(), EstimateCategory.HOME_MULTI, 1));
+        exposureRepository.save(ProductEstimateExposure.create(
+                notForSale.getId(), EstimateCategory.HOME_MULTI, 2));
+        exposureRepository.save(ProductEstimateExposure.create(
+                outOfStock.getId(), EstimateCategory.HOME_MULTI, 3));
+        productRepository.flush();
+        exposureRepository.flush();
+
+        mockMvc.perform(get("/products/internal/estimate-catalog/products?category=HOME_MULTI")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_STATUS_DISCONTINUED')]").doesNotExist())
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_STATUS_NOT_FOR_SALE')]").doesNotExist())
+                .andExpect(jsonPath("$.data[*].modelCode", hasItem("IT_STATUS_OUT_OF_STOCK")));
     }
 
     /** 상업멀티 구성품 조회 시 구성품 ProductSpec 목록을 additive specs 필드로 반환한다. */

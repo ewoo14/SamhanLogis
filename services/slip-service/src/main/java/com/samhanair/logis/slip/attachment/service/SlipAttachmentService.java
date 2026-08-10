@@ -216,7 +216,11 @@ public class SlipAttachmentService {
         if (value == null || value.isBlank()) {
             return null;
         }
-        return value.trim();
+        return escapeLikeLiteral(value.trim());
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private String buildStorageKey(UUID slipId, String fileName) {

@@ -17,11 +17,17 @@ public record InboundRequest(
         @NotNull @Positive Integer quantity,
         LocalDateTime receivedAt,
         @DecimalMin("0.00") BigDecimal unitCost,
-        @Size(max = 500) String note) {
+        @Size(max = 500) String note,
+        @NotNull(message = "sourceContext 는 필수입니다") SourceOperationContext sourceContext) {
 
-    /** 기존 외부 입고 호출과의 소스 호환용 생성자. */
+    /** source journal 없는 구형 직접 호출을 위한 생성자 — 서비스 경계에서 거부된다. */
     public InboundRequest(UUID productId, UUID warehouseId, String lotNo, Integer quantity,
                           LocalDateTime receivedAt, BigDecimal unitCost, String note) {
         this(productId, warehouseId, lotNo, null, quantity, receivedAt, unitCost, note);
+    }
+
+    public InboundRequest(UUID productId, UUID warehouseId, String lotNo, UUID inboundLineId,
+                          Integer quantity, LocalDateTime receivedAt, BigDecimal unitCost, String note) {
+        this(productId, warehouseId, lotNo, inboundLineId, quantity, receivedAt, unitCost, note, null);
     }
 }

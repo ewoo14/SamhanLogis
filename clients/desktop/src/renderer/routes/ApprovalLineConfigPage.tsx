@@ -800,6 +800,9 @@ function ApprovalRoleApproverChips({
         inputTestId={`approval-role-approver-search-${role.label}`}
         placeholder="그룹 또는 사원 검색"
         minChars={1}
+        resultSelectionMode="multiple"
+        autoSelectSingleResult
+        resultSelectionTitle={`${role.label} 결재자 검색 결과`}
         disabled={saving}
         renderChip={(approver, _index, onRemove) => (
           <TagChip

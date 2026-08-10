@@ -1,0 +1,30 @@
+{
+  "qaRound": "R10-1095-SINGLE-STATUS",
+  "outOfStockBundleModel": "AR60F07D11WS",
+  "bundleProduct": {
+    "http": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<redacted-id>\",\"name\":\"냉전 무풍 벽걸이\",\"modelName\":\"AR60F07D11WS\",\"modelCode\":\"AR60F07D11WS\",\"categoryId\":\"<redacted-id>\",\"categoryName\":\"벽걸이형\",\"sellingPrice\":1100001.00,\"purchasePrice\":700000.00,\"currency\":\"KRW\",\"status\":\"OUT_OF_STOCK\",\"tags\":{},\"description\":null,\"productCategory\":\"SINGLE_SET\",\"catL\":{\"id\":\"<redacted-id>\",\"name\":\"냉전 벽걸이\"},\"catM\":{\"id\":\"<redacted-id>\",\"name\":\"무풍\"},\"catS\":null,\"itemKind\":\"SET\",\"bundleMode\":\"EXPAND\",\"parentSetModelCode\":null,\"componentKind\":null,\"unit\":\"EA\",\"releasePrice\":1100001.00,\"deliveryPrice\":700000.00,\"fixedDiscountRate\":null,\"goodsType\":\"GOODS\",\"usageScope\":\"BOTH\",\"estimateCategory\":null,\"usageScopeManual\":false,\"displayOrder\":null,\"createdAt\":\"2026-07-28T20:33:44.015371\",\"createdBy\":\"<redacted-id>\",\"modifiedAt\":\"2026-08-09T15:30:36.476209\",\"modifiedBy\":\"<redacted-id>\",\"specs\":[{\"id\":\"<redacted-id>\",\"specKey\":\"배관경\",\"specValue\":\"6/9\",\"unit\":null,\"displayOrder\":1},{\"id\":\"<redacted-id>\",\"specKey\":\"냉방능력, kcal/h\",\"specValue\":\"860/2580/3440\",\"unit\":\"kcal/h\",\"displayOrder\":2},{\"id\":\"<redacted-id>\",\"specKey\":\"냉방능력, kW\",\"specValue\":\"1.00/3.00/4.00\",\"unit\":\"kW\",\"displayOrder\":4},{\"id\":\"<redacted-id>\",\"specKey\":\"냉방소비전력, kW\",\"specValue\":\"0.16/0.70\",\"unit\":\"kW\",\"displayOrder\":6},{\"id\":\"<redacted-id>\",\"specKey\":\"냉매가스\",\"specValue\":\"R32\",\"unit\":null,\"displayOrder\":8},{\"id\":\"<redacted-id>\",\"specKey\":\"에너지소비효율등급\",\"specValue\":\"1등급\",\"unit\":null,\"displayOrder\":9},{\"id\":\"<redacted-id>\",\"specKey\":\"전원선, mm²\",\"specValue\":\"1.5\",\"unit\":\"mm²\",\"displayOrder\":10},{\"id\":\"<redacted-id>\",\"specKey\":\"실내기크기, mm\",\"specValue\":\"820x299x215\",\"unit\":\"mm\",\"displayOrder\":12},{\"id\":\"<redacted-id>\",\"specKey\":\"실외기크기, mm\",\"specValue\":\"790x548x285\",\"unit\":\"mm\",\"displayOrder\":13},{\"id\":\"<redacted-id>\",\"specKey\":\"실내기중량, kg\",\"specValue\":\"8\",\"unit\":\"kg\",\"displayOrder\":14},{\"id\":\"<redacted-id>\",\"specKey\":\"실외기중량, kg\",\"specValue\":\"9.5\",\"unit\":\"kg\",\"displayOrder\":15},{\"id\":\"<redacted-id>\",\"specKey\":\"실내기포장, mm\",\"specValue\":\"1115x375x290\",\"unit\":\"mm\",\"displayOrder\":16},{\"id\":\"<redacted-id>\",\"specKey\":\"실외기포장, mm\",\"specValue\":\"836x542x324\",\"unit\":\"mm\",\"displayOrder\":17},{\"id\":\"<redacted-id>\",\"specKey\":\"실내기포장중량, kg\",\"specValue\":\"23\",\"unit\":\"kg\",\"displayOrder\":18},{\"id\":\"<redacted-id>\",\"specKey\":\"배관길이, m\",\"specValue\":\"15\",\"unit\":\"m\",\"displayOrder\":20},{\"id\":\"<redacted-id>\",\"specKey\":\"고낙차, m\",\"specValue\":\"8\",\"unit\":\"m\",\"displayOrder\":21}]},\"timestamp\":\"2026-08-09T16:18:03.152972623Z\"}"
+  },
+  "guiObservation": {
+    "optionText": "\tAR60F07D11WS\t냉전 무풍 벽걸이\t—\t1,100,001원",
+    "lineModels": [
+      "AR60F07D11WS",
+      ""
+    ],
+    "quantities": [
+      {
+        "index": 0,
+        "value": "1",
+        "editable": false,
+        "ariaLabel": "라인 1 수량 품절"
+      },
+      {
+        "index": 1,
+        "value": "1",
+        "editable": true,
+        "ariaLabel": "라인 2 수량"
+      }
+    ],
+    "outOfStockBadges": 1
+  }
+}

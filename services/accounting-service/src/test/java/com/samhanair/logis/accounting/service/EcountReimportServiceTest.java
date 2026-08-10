@@ -131,6 +131,93 @@ class EcountReimportServiceTest {
     }
 
     @Test
+    void RED_B_원격_인프라_실패_필드와_건수를_관리자_상세응답까지_전달한다() throws Exception {
+        write("품목-Excel다운로드_202605.csv", "item");
+        write("품목관계-Excel다운로드_202605.csv", "relation");
+        write("품목계층그룹-Excel다운로드_202605.csv", "group");
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(0);
+        when(jdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+        when(remoteImportClient.importFile(eq("product-service"), eq("/admin/products/imports/ecount"),
+                any(), eq("tester"))).thenReturn(new EcountRemoteImportClient.RemoteImportResult(
+                        0, 0, null, 1, 2, true));
+
+        EcountReimportResult result = service().reimportSlice("mig-2", "tester");
+
+        assertThat(result.details()).singleElement().satisfies(detail -> {
+            assertThat(detail.heldParseFailureRows()).isEqualTo(1);
+            assertThat(detail.infrastructureFailureRows()).isEqualTo(2);
+            assertThat(detail.infrastructureFailure()).isTrue();
+        });
+    }
+
+    @Test
+    void RED_A_입력검증_held의_사유와_행이_상세와_errors에_도달한다() throws Exception {
+        write("거래처-Excel다운로드_R14_INPUT.csv", "input");
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(0);
+        when(jdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+        when(remoteImportClient.importFile(eq("partner-service"), eq("/admin/partners/imports/ecount"),
+                any(), eq("tester"))).thenReturn(new EcountRemoteImportClient.RemoteImportResult(
+                        2, 0, null, 1,
+                        List.of(new EcountReimportResult.HeldSample(
+                                4, "INPUT_VALIDATION", "R14-NEG", "음수")),
+                        0, false));
+
+        EcountReimportResult result = service().reimportSlice("mig-1", "tester");
+
+        assertThat(result.details()).singleElement().satisfies(detail -> {
+            assertThat(detail.message()).contains("INPUT_VALIDATION", "row=4", "R14-NEG");
+            assertThat(detail.heldSample()).containsExactly(
+                    new EcountReimportResult.HeldSample(4, "INPUT_VALIDATION", "R14-NEG", "음수"));
+        });
+        assertThat(result.errors()).singleElement().satisfies(error -> {
+            assertThat(error.errorCode()).isEqualTo("INPUT_VALIDATION");
+            assertThat(error.message()).contains("row=4", "R14-NEG");
+        });
+    }
+
+    @Test
+    void RED_C_DB_CONSTRAINT와_INPUT_VALIDATION이_함께_관리자_errors에_도달한다() throws Exception {
+        write("거래처-Excel다운로드_R14_MIXED.csv", "mixed");
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(0);
+        when(jdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+        when(remoteImportClient.importFile(eq("partner-service"), eq("/admin/partners/imports/ecount"),
+                any(), eq("tester"))).thenReturn(new EcountRemoteImportClient.RemoteImportResult(
+                        1, 0, null, 2,
+                        List.of(new EcountReimportResult.HeldSample(4, "INPUT_VALIDATION", "R14-NEG", "음수"),
+                                new EcountReimportResult.HeldSample(5, "DB_CONSTRAINT", "R14-DUP", "중복")),
+                        0, false));
+
+        EcountReimportResult result = service().reimportSlice("mig-1", "tester");
+
+        assertThat(result.errors()).extracting(EcountReimportResult.ErrorSample::errorCode)
+                .containsExactly("INPUT_VALIDATION", "DB_CONSTRAINT");
+        assertThat(result.details()).singleElement().extracting(EcountReimportResult.SliceResult::imported)
+                .isEqualTo(1);
+    }
+
+    @Test
+    void RED_B_held가_없으면_사유와_표본이_응답에_끼어들지_않는다() throws Exception {
+        write("거래처-Excel다운로드_R14_EMPTY.csv", "empty");
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(0);
+        when(jdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+        when(remoteImportClient.importFile(eq("partner-service"), eq("/admin/partners/imports/ecount"),
+                any(), eq("tester"))).thenReturn(new EcountRemoteImportClient.RemoteImportResult(
+                        2, 0, null));
+
+        EcountReimportResult result = service().reimportSlice("mig-1", "tester");
+
+        assertThat(result.details()).singleElement().satisfies(detail -> {
+            assertThat(detail.message()).isNull();
+            assertThat(detail.heldSample()).isEmpty();
+        });
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
     void mig8_거부_sample이_관리자_응답의_errors로_전달되고_상세상태가_남는다() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         EcountMig8TransformResult transform = new EcountMig8TransformResult(

@@ -79,7 +79,6 @@ const SCREENS = [
   ['acc-partner-ledger', '/accounting/partner-ledger'],
   ['acc-tax-invoices', '/accounting/tax-invoices'],
   ['acc-period-close', '/accounting/period-close'],
-  ['acc-orders', '/accounting/admin/orders'],
   // 아로로지스
   ['arologis-pre-classify', '/arologis/pre-classify'],
   ['arologis-unassigned', '/arologis/unassigned'],

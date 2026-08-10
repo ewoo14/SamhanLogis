@@ -1,0 +1,6 @@
+{
+  "viteApiBaseUrl": "http://127.0.0.1:1",
+  "mockMode": true,
+  "actualExternalXhrCount": 0,
+  "actualExternalXhr": []
+}

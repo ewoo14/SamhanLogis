@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "code": "OK",
+  "message": "성공",
+  "data": {
+    "token": "<redacted>",
+    "userId": "a0000000-0000-0000-0000-000000000003",
+    "role": "MANAGER",
+    "displayName": "[DEV-SEED] 개발매니저",
+    "partnerCode": null,
+    "groups": [
+      {
+        "id": "00000000-0000-0000-0000-000000000101",
+        "name": "매니저",
+        "builtin": false
+      }
+    ]
+  },
+  "timestamp": "2026-08-09T08:38:14.457294797Z"
+}

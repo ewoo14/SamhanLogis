@@ -58,6 +58,8 @@ import {
   updateProductClassificationSettings,
   updateProductFixedDiscount,
   updateProductVariableDiscount,
+  updateProductGoodsType,
+  type ProductGoodsType,
   type EstimateCategory,
   type ProductCatalogRow,
   type UsageScope,
@@ -66,7 +68,7 @@ import {
   listClassifications,
   type Classification,
 } from '../api/classificationApi'
-import { searchProducts as searchProductsApi } from '../api/productApi'
+import { isSelectableProductStatus, searchProducts as searchProductsApi } from '../api/productApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePermissions } from '../hooks/usePermissions'
 import { usePageTitleStore } from '../stores/pageTitle'
@@ -87,6 +89,24 @@ import {
 
 const DISPLAY_ORDER_FULL_SIZE = 999
 const PAGE_SIZE = 50
+
+type MasterProductSearch = (
+  q: string,
+  options?: { size?: number; usageScope?: UsageScope },
+) => Promise<ProductOption[]>
+
+/** 검색 응답의 원천 메타데이터만으로 견적품목 후보를 걸러낸다. */
+export async function searchMasterProducts(
+  searchProducts: MasterProductSearch,
+  q: string,
+  committedCategory: EstimateCategory,
+): Promise<ProductOption[]> {
+  const products = await searchProducts(q, { size: PAGE_SIZE })
+  return products.filter((product) => {
+    if (!isSelectableProductStatus(product.status) || product.productCategory === 'MATERIAL') return false
+    return !(product.estimateCategories ?? []).includes(committedCategory)
+  })
+}
 
 const ESTIMATE_CATEGORY_LABEL: Record<EstimateCategory, string> = {
   HOME_MULTI: '홈멀티',
@@ -278,6 +298,32 @@ export function VariableDiscountCell({
         />
       </label>
     </span>
+  )
+}
+
+function GoodsTypeCell({
+  row,
+  canEdit,
+  patchLoading,
+  onPatch,
+}: {
+  row: ProductCatalogRow
+  canEdit: boolean
+  patchLoading: boolean
+  onPatch: (modelCode: string, goodsType: ProductGoodsType) => void
+}) {
+  return (
+    <Select
+      value={row.goodsType ?? 'GOODS'}
+      disabled={!canEdit || patchLoading}
+      onChange={(event) => onPatch(row.modelCode, event.target.value as ProductGoodsType)}
+      data-testid={`estimate-items-goods-type-${row.modelCode}`}
+      aria-label="상품/비상품"
+      selectSize="sm"
+    >
+      <option value="GOODS">상품</option>
+      <option value="NON_GOODS">비상품</option>
+    </Select>
   )
 }
 
@@ -796,6 +842,21 @@ export function EstimateItemsCatalogPage() {
     },
   })
 
+  const goodsTypeMutation = useMutation({
+    mutationFn: ({ modelCode, goodsType }: { modelCode: string; goodsType: ProductGoodsType }) =>
+      updateProductGoodsType(modelCode, goodsType),
+    onSuccess: () => {
+      setMutationError(null)
+      setPatchingCode(null)
+      void queryClient.invalidateQueries({ queryKey: ['estimate-items-catalog'] })
+      void queryClient.invalidateQueries({ queryKey: ['product-catalog'] })
+    },
+    onError: (err) => {
+      setMutationError(errorMsg(err))
+      setPatchingCode(null)
+    },
+  })
+
   const fixedDiscountMutation = useMutation({
     mutationFn: ({
       modelCode,
@@ -836,19 +897,17 @@ export function EstimateItemsCatalogPage() {
   const addProductMutation = useMutation({
     mutationFn: async (product: ProductOption) => {
       const modelCode = product.modelCode ?? product.modelName
-      const detail = await listProducts({ q: modelCode, page: 0, size: 20 })
-      const existing = detail.content.find((row) => row.modelCode === modelCode)
-      if (!existing || existing.productCategory === 'MATERIAL') {
+      if (product.productCategory === 'MATERIAL') {
         throw new Error('견적품목으로 추가할 수 없는 기초품목입니다.')
       }
-      if (estimateCategoryValues(existing).includes(committedCategory)) {
+      if ((product.estimateCategories ?? []).includes(committedCategory)) {
         throw new Error('이미 현재 카테고리에 노출 중인 품목입니다.')
       }
       const nextCategories = Array.from(new Set([
-        ...(existing ? estimateCategoryValues(existing) : []),
+        ...(product.estimateCategories ?? []),
         committedCategory,
       ]))
-      const nextScope = nextScopeForEstimateAppend(existing?.usageScope ?? 'NONE')
+      const nextScope = nextScopeForEstimateAppend(product.usageScope ?? 'NONE')
       return updateProductUsage(modelCode, {
         usageScope: nextScope,
         estimateCategories: nextCategories,
@@ -905,6 +964,15 @@ export function EstimateItemsCatalogPage() {
       variableDiscountMutation.mutate({ modelCode, hasVariableDiscount })
     },
     [variableDiscountMutation],
+  )
+
+  const handleGoodsTypePatch = useCallback(
+    (modelCode: string, goodsType: ProductGoodsType) => {
+      setPatchingCode(modelCode)
+      setMutationError(null)
+      goodsTypeMutation.mutate({ modelCode, goodsType })
+    },
+    [goodsTypeMutation],
   )
 
   const handleFixedDiscountPatch = useCallback(
@@ -989,23 +1057,10 @@ export function EstimateItemsCatalogPage() {
     }
   }, [sortableRows, queryClient, committedCategory, isDragEnabled])
 
-  const searchMasterProducts = useCallback(async (q: string): Promise<ProductOption[]> => {
-    const products = await searchProductsApi(q, { size: 10000 })
-    const checked = await Promise.all(
-      products.map(async (product) => {
-        const modelCode = product.modelCode ?? product.modelName
-        if (!modelCode) return null
-        const detail = await listProducts({ q: modelCode, page: 0, size: 20 })
-        const catalogRow = detail.content.find((row) => row.modelCode === modelCode)
-        if (!catalogRow || catalogRow.productCategory === 'MATERIAL') return null
-        if (estimateCategoryValues(catalogRow).includes(committedCategory)) {
-          return null
-        }
-        return product
-      }),
-    )
-    return checked.filter((product): product is ProductOption => product != null)
-  }, [committedCategory])
+  const searchMasterProductOptions = useCallback(
+    (q: string) => searchMasterProducts(searchProductsApi, q, committedCategory),
+    [committedCategory],
+  )
 
   const { totalElements, totalPages } = resolveEstimateItemsPageTotals(listQuery.data)
   const selectedProductCodes = selectedProducts.map((product) => product.modelCode ?? product.modelName)
@@ -1079,6 +1134,20 @@ export function EstimateItemsCatalogPage() {
           canEdit={canEdit}
           onPatch={handlePatch}
           patchLoading={patchingCode === row.modelCode}
+        />
+      ),
+    },
+    {
+      key: 'goodsType',
+      header: '상품/비상품',
+      width: '120px',
+      mobilePriority: 'secondary',
+      render: (row) => (
+        <GoodsTypeCell
+          row={row}
+          canEdit={canEdit}
+          patchLoading={patchingCode === row.modelCode}
+          onPatch={handleGoodsTypePatch}
         />
       ),
     },
@@ -1252,7 +1321,7 @@ export function EstimateItemsCatalogPage() {
             selected={selectedProducts}
             onAdd={(product) => setSelectedProducts((current) => [...current, product])}
             onRemove={(product) => setSelectedProducts((current) => current.filter((item) => item.id !== product.id))}
-            searchProducts={searchMasterProducts}
+            searchProducts={searchMasterProductOptions}
             label="기초품목 선택"
             placeholder="모델명 또는 품목명 입력"
             minChars={1}

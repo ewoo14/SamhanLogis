@@ -1,40 +1,48 @@
-export interface SheetSyncResult {
-  inserted?: number
-  updated?: number
-  unchanged?: number
-  softDeleted?: number
-  skipped?: number
+import type { ComponentSyncResult, TabSyncResult } from '../../api/sheetSyncApi'
+
+export interface SheetSyncResult extends Partial<TabSyncResult>, Partial<ComponentSyncResult> {}
+
+export interface SheetSyncRowResult {
+  insertedRows?: number
+  updatedRows?: number
+  unchangedRows?: number
+  softDeletedProductRows?: number
+  softDeletedComponentRows?: number
+  skippedOccurrences?: number
+  linkedOccurrences?: number
+  bundlesMarkedProducts?: number
   error?: string | null
-  linked?: number
-  bundlesMarked?: number
 }
 
 export interface SheetSyncSummary {
-  byTab: Record<string, SheetSyncResult>
-  byComponentTab?: Record<string, SheetSyncResult>
+  byTab: Record<string, TabSyncResult>
+  byComponentTab?: Record<string, ComponentSyncResult>
   failedTabs: number
 }
 
 export interface SheetSyncRow {
   tabName: string
-  result: Required<Pick<SheetSyncResult, 'inserted' | 'updated' | 'unchanged' | 'softDeleted' | 'skipped'>> & Pick<SheetSyncResult, 'error'>
+  kind: 'product' | 'component'
+  result: SheetSyncRowResult
 }
 
 export function buildSheetSyncRows(summary: SheetSyncSummary): SheetSyncRow[] {
-  const rows = Object.entries(summary.byTab ?? {}).map(([tabName, result]) => ({
+  const rows: SheetSyncRow[] = Object.entries(summary.byTab ?? {}).map(([tabName, result]) => ({
     tabName,
+    kind: 'product' as const,
     result: normalizeResult(result),
   }))
 
   for (const [tabName, result] of Object.entries(summary.byComponentTab ?? {})) {
     rows.push({
       tabName: `구성품 · ${tabName}`,
+      kind: 'component' as const,
       result: normalizeResult({
-        inserted: result.linked,
-        updated: result.bundlesMarked,
-        unchanged: 0,
-        softDeleted: result.softDeleted,
-        skipped: result.skipped,
+        linkedOccurrences: result.linkedOccurrences,
+        bundlesMarkedProducts: result.bundlesMarkedProducts,
+        unchangedRows: 0,
+        softDeletedComponentRows: result.softDeletedComponentRows,
+        skippedOccurrences: result.skippedOccurrences,
         error: result.error,
       }),
     })
@@ -43,13 +51,16 @@ export function buildSheetSyncRows(summary: SheetSyncSummary): SheetSyncRow[] {
   return rows
 }
 
-function normalizeResult(result: SheetSyncResult): SheetSyncRow['result'] {
+function normalizeResult(result: SheetSyncResult): SheetSyncRowResult {
   return {
-    inserted: result.inserted ?? 0,
-    updated: result.updated ?? 0,
-    unchanged: result.unchanged ?? 0,
-    softDeleted: result.softDeleted ?? 0,
-    skipped: result.skipped ?? 0,
+    insertedRows: result.insertedRows ?? 0,
+    updatedRows: result.updatedRows ?? 0,
+    unchangedRows: result.unchangedRows ?? 0,
+    softDeletedProductRows: result.softDeletedProductRows ?? 0,
+    softDeletedComponentRows: result.softDeletedComponentRows ?? 0,
+    skippedOccurrences: result.skippedOccurrences ?? 0,
+    linkedOccurrences: result.linkedOccurrences ?? 0,
+    bundlesMarkedProducts: result.bundlesMarkedProducts ?? 0,
     error: result.error,
   }
 }

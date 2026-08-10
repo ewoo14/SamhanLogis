@@ -186,6 +186,10 @@ public enum PageCode {
 
     /** 매출/수동 전표 생성 API — SP-D6-6. */
     SALES_SLIP_CREATE("sales.slip.create", "매출 전표 생성"),
+    /** 마감된 전표일 예외 생성 권한 — 기본 MASTER/MANAGER, 권한 설정에서 동적 조절. */
+    SLIP_CLOSED_DATE_EXCEPTION("slip.closed-date-exception", "마감 전표일 예외 생성"),
+    /** 전표 종류별 마감 기준선 관리자 API. */
+    SLIP_CLOSED_DATE_ADMIN("slip.closed-date-admin", "전표 마감 기준선 관리"),
 
     /** 매출 전표 수정/저장/전송 API — SP-D6-6. */
     SALES_SLIP_EDIT("sales.slip.edit", "매출 전표 수정"),
@@ -654,9 +658,6 @@ public enum PageCode {
 
     /** MIG-11 이카운트 매입장 마이그레이션. */
     ECOUNT_MIG11_PURCHASE_LEDGER("ecount.mig11.purchase-ledger", "이카운트 매입장 마이그레이션"),
-
-    /** MIG-14 Order admin 목록/상세 화면. */
-    ECOUNT_MIG14_ORDER_LIST("ecount.mig14.order-list", "이카운트 주문서 admin 조회"),
 
     /** MIG-14 Ledger admin 화면. */
     ECOUNT_MIG14_LEDGER("ecount.mig14.ledger", "이카운트 매출장/매입장 admin 조회"),

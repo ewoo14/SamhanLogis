@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -730,6 +731,24 @@ class ProductServiceTest {
 
         service.reactivate(productId);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+    }
+
+    @Test
+    void reactivate_existingDuplicateName_isRejected_even_whenNameWasNotChanged() {
+        Product existingActiveDuplicate = Product.create("스마트 벽걸이", "SHA-W16K",
+                category, BigDecimal.ONE, BigDecimal.ONE, "KRW", null, null);
+        ReflectionTestUtils.setField(existingActiveDuplicate, "id", UUID.randomUUID());
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        lenient().when(productRepository.findByNameAndStatusAndIsDeletedFalse("스마트 벽걸이", ProductStatus.ACTIVE))
+                .thenReturn(List.of(existingActiveDuplicate));
+
+        product.discontinue();
+
+        assertThatThrownBy(() -> service.reactivate(productId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DISCONTINUED);
     }
 
     @Test

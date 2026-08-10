@@ -1,0 +1,37 @@
+{
+  "qaRound": "R8-1095-REVERT-COLLAB",
+  "estimateId": "<redacted-id>",
+  "runs": [
+    {
+      "run": 1,
+      "durationMs": 405,
+      "calls": [
+        {
+          "actor": "A",
+          "http": 200,
+          "at": 1786287733462,
+          "url": "http://localhost:8080/api/products/lookup"
+        },
+        {
+          "actor": "B",
+          "http": 200,
+          "at": 1786287733525,
+          "url": "http://localhost:8080/api/products/lookup"
+        }
+      ],
+      "syncedValue": "R8-1095-REVERT-COLLAB-1"
+    },
+    {
+      "run": 2,
+      "durationMs": 389,
+      "calls": [],
+      "syncedValue": "R8-1095-REVERT-COLLAB-2"
+    },
+    {
+      "run": 3,
+      "durationMs": 397,
+      "calls": [],
+      "syncedValue": "R8-1095-REVERT-COLLAB-3"
+    }
+  ]
+}

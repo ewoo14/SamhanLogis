@@ -28,7 +28,7 @@ const MANUAL_DIR = path.join(ROOT, 'docs', 'manual');
 // 정규식이 .screenshot/.pdf/writeFileSync/appendFileSync/mkdirSync/.saveAs 만 인식했다).
 // 기본 실행은 docs/manual/screenshots/_local/ 로 복사하고, 실제 매뉴얼을 갱신하려면
 // QA_SHOTS_DIR 로 docs/manual/screenshots 자체를 명시적으로 opt-in 해야 한다.
-const SCREENSHOTS_DIR = resolveQaShotsDir(path.join(MANUAL_DIR, 'screenshots'));
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.join(MANUAL_DIR, 'screenshots'), { protect: false });
 const OUTPUT_DIR = path.join(__dirname, 'output');
 const PLACEHOLDER = path.join(OUTPUT_DIR, '_placeholder-screenshot-pending.png');
 

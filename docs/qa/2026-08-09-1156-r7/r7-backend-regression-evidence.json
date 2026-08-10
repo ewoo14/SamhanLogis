@@ -1,0 +1,26 @@
+{
+  "round": "R7",
+  "headApi": "127.0.0.1:28206",
+  "timeoutApi": "127.0.0.1:28207",
+  "mutation": {
+    "slipNo": "2026/08/10-3",
+    "create": { "status": 201, "partnerCode": "00" },
+    "samePartner": { "status": 200, "partnerCode": "00" },
+    "partnerOmitted": { "status": 200, "partnerCode": "00" },
+    "partnerChanged": { "status": 200, "partnerCode": "P-2026-0001" }
+  },
+  "timeout": {
+    "slipNo": "2026/08/10-4",
+    "lifecycle": [
+      { "action": "save", "status": 200, "elapsedMs": 117, "state": "SAVED", "partnerCode": null },
+      { "action": "send", "status": 200, "elapsedMs": 2058, "state": "SENT", "partnerCode": null },
+      { "action": "accept", "status": 200, "elapsedMs": 116, "state": "ACCEPTED", "partnerCode": null },
+      { "action": "process", "status": 200, "elapsedMs": 30, "state": "PROCESSING", "partnerCode": null },
+      { "action": "complete", "status": 200, "elapsedMs": 249, "state": "INSPECTING", "partnerCode": null },
+      { "action": "inspect", "status": 200, "elapsedMs": 75, "state": "COMPLETED", "partnerCode": null },
+      { "action": "confirm", "status": 200, "elapsedMs": 2067, "state": "CONFIRMED", "partnerCode": null }
+    ]
+  },
+  "backfill": { "slipNo": "2026/08/10-5", "status": "SENT", "partnerCode": "00" },
+  "ids": "<redacted-uuid>"
+}

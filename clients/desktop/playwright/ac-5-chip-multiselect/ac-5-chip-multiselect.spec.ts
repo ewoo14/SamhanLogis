@@ -178,15 +178,9 @@ test.describe('AC-5 결재선설정·결재양식', () => {
     const groupInput = page.getByTestId('approval-role-approver-search-출고자')
     await expect(groupInput).toBeVisible({ timeout: 10_000 })
     await groupInput.fill('매니저')
-    const groupList = page.getByRole('listbox', { name: '출고자 결재자 검색 결과' })
-    await expect(groupList).toBeVisible({ timeout: 10_000 })
-    await groupList.getByRole('option').filter({ hasText: '매니저' }).first().click()
     await expect(page.getByTestId('approval-role-approver-chip')).toContainText('매니저')
 
     await groupInput.fill('김기철')
-    const userList = page.getByRole('listbox', { name: '출고자 결재자 검색 결과' })
-    await expect(userList).toBeVisible({ timeout: 10_000 })
-    await userList.getByRole('option').filter({ hasText: '김기철' }).first().click()
     await expect(page.getByTestId('approval-role-approver-chip')).toHaveCount(2)
 
     const userRemove = page.getByRole('button', { name: '김기철 제거' })

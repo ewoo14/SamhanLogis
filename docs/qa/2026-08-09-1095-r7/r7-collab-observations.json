@@ -1,0 +1,39 @@
+{
+  "qaRound": "R7-1095-SAVED-REOPEN",
+  "estimateNo": "2026/08/07-12",
+  "lineCount": 4,
+  "calls": [
+    {
+      "actor": "A",
+      "http": 200,
+      "at": 1786285672511,
+      "url": "http://127.0.0.1:5296/api/products/lookup"
+    },
+    {
+      "actor": "B",
+      "http": 200,
+      "at": 1786285672534,
+      "url": "http://127.0.0.1:5296/api/products/lookup"
+    }
+  ],
+  "initialLookupCalls": 2,
+  "initialQuantityFromCoedit": "13",
+  "lookupCallsAfterSixSyncs": 2,
+  "lookupCallsAddedBySixSyncs": 0,
+  "syncDurationsMs": [
+    413,
+    402,
+    390,
+    394,
+    391,
+    398
+  ],
+  "maxSyncDurationMs": 413,
+  "quantityAfterSixSyncsA": "13",
+  "quantityAfterSixSyncsB": "13",
+  "cleanup": {
+    "memo": "restored",
+    "quantityA": "1",
+    "quantityB": "1"
+  }
+}

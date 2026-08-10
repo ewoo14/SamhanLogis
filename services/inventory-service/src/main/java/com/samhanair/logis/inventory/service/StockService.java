@@ -8,6 +8,7 @@ import com.samhanair.logis.inventory.domain.MovementType;
 import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.domain.StockLot;
 import com.samhanair.logis.inventory.domain.StockMovement;
+import com.samhanair.logis.inventory.domain.SourceOperationOutcome;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
@@ -55,13 +56,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class StockService {
 
-    private static final String PRODUCT_TYPE_BUNDLE = "BUNDLE";
-
     private final StockLotRepository stockLotRepository;
     private final StockBalanceRepository stockBalanceRepository;
     private final StockMovementRepository stockMovementRepository;
     private final WarehouseRepository warehouseRepository;
     private final ProductClient productClient;
+
+    private final SourceOperationJournalWriter sourceJournalWriter;
 
     /**
      * 재고 현황 페이지를 조회하고 페이지에 포함된 품목 메타데이터를 bulk 병합한다.
@@ -187,6 +188,7 @@ public class StockService {
         if (isInventoryExcluded(product)) {
             // 비상품/세트 SKU — 재고(lot/balance/movement) 미생성 no-op.
             // 세트는 구성품(SINGLE)만 재고 대상이며, 직접 inventory 호출로 세트가 도달해도 graceful skip.
+            recordSource(req.sourceContext(), product, SourceOperationOutcome.NO_OP_EXCLUDED, List.of(), List.of());
             return null;
         }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
@@ -200,6 +202,7 @@ public class StockService {
                     .orElse(null);
             if (existingLot != null) {
                 // 검수 완료 경로가 먼저 만든 동일 전표 lot — 전표 경로는 중복 반영하지 않는다.
+                recordSource(req.sourceContext(), product, SourceOperationOutcome.NO_OP_EXISTING, List.of(), List.of());
                 return StockLotResponse.from(existingLot);
             }
         }
@@ -216,6 +219,8 @@ public class StockService {
                 MovementType.INBOUND, req.quantity(),
                 "INBOUND", null, req.note(), actorUserId));
 
+        recordSource(req.sourceContext(), product, SourceOperationOutcome.APPLIED,
+                lot.getId() == null ? List.of() : List.of(lot.getId()), List.of());
         return StockLotResponse.from(lot);
     }
 
@@ -233,6 +238,11 @@ public class StockService {
      * @throws BusinessException(CONFLICT) 가용 재고 부족 또는 낙관적 락 1회 재시도 후에도 실패할 때
      */
     public ReservationResponse reserve(ReserveRequest req, String actorUserId) {
+        if (isInventoryExcluded(productClient.requireExists(req.productId()))) {
+            // 비상품/세트 SKU — balance/reserve movement 를 만들지 않고 no-op skip.
+            return new ReservationResponse(req.productId(), req.warehouseId(), 0,
+                    0, 0, actorUserId);
+        }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
         // 가용 재고가 없거나(balance 미존재) 부족한 경우 모두 CONFLICT(409) 사전차단 —
         // Phase 2.6c §0 도메인 규칙: 입고된 적 없는 제품에 대한 예약도 동일하게 차단.
@@ -280,6 +290,11 @@ public class StockService {
      * @throws BusinessException(CONFLICT) 예약 재고 부족 또는 낙관적 락 1회 재시도 후에도 실패할 때
      */
     public ReservationResponse release(ReleaseRequest req, String actorUserId) {
+        if (isInventoryExcluded(productClient.requireExists(req.productId()))) {
+            // 예약되지 않은 비상품/세트 SKU의 보상 해제도 재고를 만들지 않고 no-op skip.
+            return new ReservationResponse(req.productId(), req.warehouseId(), 0,
+                    0, 0, actorUserId);
+        }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
         StockBalance balance = loadBalanceOrThrow(req.productId(), req.warehouseId());
 
@@ -327,7 +342,9 @@ public class StockService {
      *         1회 재시도 후에도 실패할 때
      */
     public DeductionResponse deduct(DeductRequest req, String actorUserId) {
-        if (isInventoryExcluded(productClient.requireExists(req.productId()))) {
+        ProductSummary product = productClient.requireExists(req.productId());
+        if (isInventoryExcluded(product)) {
+            recordSource(req.sourceContext(), product, SourceOperationOutcome.NO_OP_EXCLUDED, List.of(), List.of());
             return new DeductionResponse(req.productId(), req.warehouseId(), 0, 0, 0, 0, 0, List.of());
         }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
@@ -362,10 +379,19 @@ public class StockService {
 
         applyWithRetry(() -> balance.deduct(requested, fromReservation));
 
+        recordSource(req.sourceContext(), product, SourceOperationOutcome.APPLIED, List.of(), List.of());
         return new DeductionResponse(
                 req.productId(), req.warehouseId(), requested, requested,
                 balance.getAvailableQty(), balance.getReservedQty(), balance.getTotalQty(),
                 affected);
+    }
+
+    private void recordSource(com.samhanair.logis.inventory.web.dto.SourceOperationContext context,
+                              ProductSummary product, SourceOperationOutcome outcome,
+                              List<UUID> createdLotIds, List<UUID> createdInstanceIds) {
+        if (sourceJournalWriter != null) {
+            sourceJournalWriter.record(context, product, outcome, createdLotIds, createdInstanceIds);
+        }
     }
 
     /**
@@ -495,7 +521,7 @@ public class StockService {
      * 세트가 들어와도 비상품과 동일하게 no-op skip 한다.
      */
     private boolean isInventoryExcluded(ProductSummary product) {
-        return !product.goods() || PRODUCT_TYPE_BUNDLE.equals(product.productType());
+        return InventoryProductGate.isExcluded(product);
     }
 
     /**

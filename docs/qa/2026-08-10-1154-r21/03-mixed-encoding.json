@@ -1,0 +1,65 @@
+{
+  "physicalLines": [
+    {
+      "lineNumber": 1,
+      "text": "<metadata-or-header>"
+    },
+    {
+      "lineNumber": 2,
+      "text": "<metadata-or-header>"
+    },
+    {
+      "lineNumber": 3,
+      "text": "SOL1154R21-ENC-BAD / <invalid-bytes-in-name>"
+    },
+    {
+      "lineNumber": 4,
+      "text": "SOL1154R21-ENC-GOOD / R21 읽을 수 있는 정상 상호"
+    },
+    {
+      "lineNumber": 5,
+      "text": "<metadata-or-header>"
+    }
+  ],
+  "response": {
+    "totalRows": 2,
+    "imported": 0,
+    "updated": 0,
+    "rejectedNullName": 0,
+    "skippedPlaceholder": 0,
+    "activeCount": 0,
+    "suspendedCount": 0,
+    "sourceFileHash": "54344E845D1ED49224EEA22482C5ACCBBD1B10C34542C49A7AE31061689D1DE8",
+    "rejectedSample": [],
+    "excludedTrailerRows": 0,
+    "heldParseFailureRows": 2,
+    "heldSample": [
+      {
+        "rowNumber": 3,
+        "reason": "CSV_ENCODING",
+        "rawPartnerCode": "읽을 수 없음",
+        "rawName": "읽을 수 없음"
+      },
+      {
+        "rowNumber": 4,
+        "reason": "CSV_ENCODING",
+        "rawPartnerCode": "읽을 수 없음",
+        "rawName": "읽을 수 없음"
+      }
+    ],
+    "infrastructureFailureRows": 0,
+    "infrastructureFailureSample": [],
+    "infrastructureFailure": false,
+    "registrationDateParsedCount": 0,
+    "createdAtLoadTimeCount": 0
+  },
+  "visibleRows": [
+    "3CSV_ENCODING: 행 내용을 읽을 수 없음읽을 수 없음읽을 수 없음",
+    "4CSV_ENCODING: 행 내용을 읽을 수 없음읽을 수 없음읽을 수 없음"
+  ],
+  "expectedReadableRow": {
+    "rowNumber": 4,
+    "rawPartnerCode": "SOL1154R21-ENC-GOOD",
+    "rawName": "R21 읽을 수 있는 정상 상호"
+  }
+}

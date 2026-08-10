@@ -1,0 +1,83 @@
+{
+  "round": "R5",
+  "listHttpStatus": 200,
+  "detailHttpStatus": 200,
+  "sample": {
+    "id": "<redacted-uuid>",
+    "slipNo": "2026/08/09-2",
+    "status": "DRAFT",
+    "slipType": "INBOUND",
+    "memo": "R4 GUI direct PUT partnerCode code-fix"
+  },
+  "observations": [
+    {
+      "round": "R5",
+      "renderer": "fix-before-5316",
+      "requestedUrl": "http://127.0.0.1:5316/#/purchases/<redacted-uuid>",
+      "finalUrl": "http://127.0.0.1:5316/#/purchases/<redacted-uuid>",
+      "servedCurrentMapping": false,
+      "servedOldMapping": true,
+      "expectedNewMapping": false,
+      "editButtonCount": 1,
+      "dashboardVisible": 0,
+      "detailStatus": "DRAFT",
+      "slipType": "INBOUND",
+      "sessionRole": "MASTER",
+      "network": [
+        {
+          "method": "GET",
+          "status": 200,
+          "path": "/slips/<redacted-uuid>",
+          "target": "HEAD-28186"
+        }
+      ],
+      "bodyText": "업데이트 실패: 업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요.\n다시 확인\n닫기\nSamhan Public\n홈\n알림 내역\n판매\n구매\n구매관리\n재고이동 관리\n입고 검수\n재고 실사\nDPS 입고 비교\n품목별 DPS 분석\n회계\n그룹웨어\n인사\n개발\n배차\n창고 운영\n0.1.0-dev · 사내 전용\n입고전표 상세\n[2026/08/09-2]\n1\n[DEV-SEED] 개발마스터 · MASTER▼\n2026/08/09 - 2\n수정 0회\n매입 전표 인쇄\n직접 수정\n협업 수정\n전표 삭제\n목록으로\n전표 진행 단계\n작성 중\n창고 전송\n출고 중\n검수 중\n배송 중\n배송완료\n거래처\n파인씨엔디\n일자\n2026-08-09\n배송 태그\n-\n메모\nR4 GUI direct PUT partnerCode code-fix\n변경 이력 없음\n배송 · 정산 정보 (V20)\n배송주소\n—\n감리주소\n—\n프로젝트명\n—\n인수자 번호\n—\n입금예정일\n—\n사업자번호\n00\n인쇄 여부\n미인쇄\n검수 상태\n검수 대기\n전표 라인\n선택 품목 재고조회\n\n좌측 번호를 클릭하면 해당 라인을 선택할 수 있습니다 (순서 수정 / 추가 / 삭제).\n\n\t#\t모델명\t품목명\t규격\t수량\t단가(VAT포함)\t공급가액\t부가세\t합계(VAT포함)\n\t1\tAJ060MXHNBC1\t실외기_6HP 단배관\t-\t1\t999.9\t909\t90\t999\n결재 정보\n출고자\n미수락\n검수자\n미검수\n담당부서\n-\n담당자\n[DEV-SEED] 개발마스터\n전자서명 정보\n\n아직 서명되지 않았습니다.\n배송기사가 모바일 페이지에서 인수자 서명을 받으면 표시됩니다.\n\n코멘트\n\n코멘트를 불러오지 못했습니다.\n\n연결 필드\n전체 코멘트\n메모\n배송지\n검수지\n수령자 연락처\n거래처 연락처\n거래처 주소\n거래처 대표자\n결제 만기\n할인 정보\n회수 조건\n약정 조건\n등록\n버전이력\n전표 복사\n전표 취소\n완료 (저장)"
+    },
+    {
+      "round": "R5",
+      "renderer": "r4-web-5328",
+      "requestedUrl": "http://127.0.0.1:5328/#/purchases/<redacted-uuid>",
+      "finalUrl": "http://127.0.0.1:5328/#/purchases/<redacted-uuid>",
+      "servedCurrentMapping": true,
+      "servedOldMapping": false,
+      "expectedNewMapping": true,
+      "editButtonCount": 0,
+      "dashboardVisible": 1,
+      "detailStatus": "DRAFT",
+      "slipType": "INBOUND",
+      "sessionRole": "MASTER",
+      "network": [
+        {
+          "method": "GET",
+          "status": 200,
+          "path": "/slips",
+          "target": "HEAD-28186"
+        }
+      ],
+      "bodyText": "업데이트 실패: 업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요.\n다시 확인\n닫기\nSamhan Public\n홈\n알림 내역\n판매\n구매\n회계\n그룹웨어\n인사\n개발\n배차\n창고 운영\n0.1.0-dev · 사내 전용\n대시보드\n1\n[DEV-SEED] 개발마스터 · MASTER▼\n\n환영합니다, [DEV-SEED] 개발마스터 님.\n\n처리중 판매전표\n\n6\n\n저재고 알림\n\n준비중\n\n미확인 메시지\n\n준비중\n\n결재 대기\n\n준비중\n\n빠른 액션\n새 판매전표\n판매관리\n구매관리\n재고이동 관리\n창고관리"
+    },
+    {
+      "round": "R5",
+      "renderer": "r5-renderer-5330",
+      "requestedUrl": "http://127.0.0.1:5330/#/purchases/<redacted-uuid>",
+      "finalUrl": "http://127.0.0.1:5330/#/purchases/<redacted-uuid>",
+      "servedCurrentMapping": true,
+      "servedOldMapping": false,
+      "expectedNewMapping": true,
+      "editButtonCount": 1,
+      "dashboardVisible": 0,
+      "detailStatus": "DRAFT",
+      "slipType": "INBOUND",
+      "sessionRole": "MASTER",
+      "network": [
+        {
+          "method": "GET",
+          "status": 200,
+          "path": "/slips/<redacted-uuid>",
+          "target": "HEAD-28186"
+        }
+      ],
+      "bodyText": "업데이트 실패: 업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요.\n다시 확인\n닫기\nSamhan Public\n홈\n알림 내역\n판매\n구매\n구매관리\n재고이동 관리\n입고 검수\n재고 실사\nDPS 입고 비교\n품목별 DPS 분석\n회계\n그룹웨어\n인사\n개발\n배차\n창고 운영\n2026/08/09-1156 · 사내 전용\n입고전표 상세\n[2026/08/09-2]\n1\n[DEV-SEED] 개발마스터 · MASTER▼\n2026/08/09 - 2\n수정 0회\n매입 전표 인쇄\n직접 수정\n협업 수정\n전표 삭제\n목록으로\n전표 진행 단계\n작성 중\n창고 전송\n출고 중\n검수 중\n배송 중\n배송완료\n거래처\n파인씨엔디\n일자\n2026-08-09\n배송 태그\n-\n메모\nR4 GUI direct PUT partnerCode code-fix\n변경 이력 없음\n배송 · 정산 정보 (V20)\n배송주소\n—\n감리주소\n—\n프로젝트명\n—\n인수자 번호\n—\n입금예정일\n—\n사업자번호\n00\n인쇄 여부\n미인쇄\n검수 상태\n검수 대기\n전표 라인\n선택 품목 재고조회\n\n좌측 번호를 클릭하면 해당 라인을 선택할 수 있습니다 (순서 수정 / 추가 / 삭제).\n\n\t#\t모델명\t품목명\t규격\t수량\t단가(VAT포함)\t공급가액\t부가세\t합계(VAT포함)\n\t1\tAJ060MXHNBC1\t실외기_6HP 단배관\t-\t1\t999.9\t909\t90\t999\n결재 정보\n출고자\n미수락\n검수자\n미검수\n담당부서\n-\n담당자\n[DEV-SEED] 개발마스터\n전자서명 정보\n\n아직 서명되지 않았습니다.\n배송기사가 모바일 페이지에서 인수자 서명을 받으면 표시됩니다.\n\n코멘트\n\n코멘트를 불러오지 못했습니다.\n\n연결 필드\n전체 코멘트\n메모\n배송지\n검수지\n수령자 연락처\n거래처 연락처\n거래처 주소\n거래처 대표자\n결제 만기\n할인 정보\n회수 조건\n약정 조건\n등록\n버전이력\n전표 복사\n전표 취소\n완료 (저장)"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
@@ -13,6 +14,7 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.BundleModePolicy;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -45,10 +47,12 @@ public class EstimateToSlipConverter {
     private final SlipNumberService slipNumberService;
     /** 출고전표 마감 게이트 — 견적 변환 생성 경로(게이트②). */
     private final OutboundCutoffGuard cutoffGuard;
+    private final SlipClosedDateGuard closedDateGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
     private final Clock clock;
     /** 레거시/비공식 견적이 BUNDLE 부모를 전표로 우회시키지 않도록 변환 경계에서 재검증한다. */
     private final ProductClient productClient;
+    private final PartnerInternalClient partnerInternalClient;
 
     /**
      * 견적 → Slip(OUTBOUND DRAFT) 변환.
@@ -62,6 +66,8 @@ public class EstimateToSlipConverter {
     public Slip convert(Estimate estimate) {
         rejectBundleParents(estimate);
         LocalDate slipDate = LocalDate.now(clock);
+        closedDateGuard.assertCreatable(com.samhanair.logis.slip.domain.SlipType.OUTBOUND,
+                slipDate, estimate.getRequesterId());
         String slipNo = slipNumberService.next(slipDate, com.samhanair.logis.slip.domain.SlipType.OUTBOUND);
         int seqNo = slipNumberService.extractSeqNo(slipNo);
 
@@ -79,12 +85,17 @@ public class EstimateToSlipConverter {
                 null,
                 buildSlipMemo(estimate),
                 estimate.getRequesterId());
+        if (estimate.getPartnerId() != null) {
+            partnerInternalClient.resolvePartnerCode(estimate.getPartnerId())
+                    .ifPresent(slip::setPartnerCode);
+        }
         slip.withProjectInfo(estimate.getPartnerBusinessNo(), null, null, null, null, null);
 
         // [게이트②] 견적→출고전표 변환 마감 게이트 — createOutbound 직후.
         // deliveryTag null(견적 변환 시 항상 null) 이므로 assertWithinCutoff 내부에서 즉시 통과.
         // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦이 잡는다.
-        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
+        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate(),
+                com.samhanair.logis.slip.domain.SlipType.OUTBOUND, estimate.getRequesterId());
 
         // estimate_lines → slip_lines 1:1 copy (lineNo 순). 옵션 A: 세트는 이미 견적에서 구성품으로
         // 전개돼 있으므로 1:1 복사면 전표에 구성품으로 올라간다. 세트 구성품 메타(setHead/부모세트)도 복사.

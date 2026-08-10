@@ -1,0 +1,43 @@
+[
+  {
+    "method": "GET",
+    "status": "FAILED",
+    "url": "http://127.0.0.1:5195/fonts/PretendardVariable.woff2",
+    "error": "net::ERR_ABORTED"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:5195/rpc/getGateImages"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:5195/rpc/getCustomerDataAsync"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:5195/rpc/getAllManagers"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:5195/rpc/checkUserAuth"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:5195/rpc/logFrontEvent"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:5195/rpc/logFrontEvent"
+  },
+  {
+    "method": "POST",
+    "status": 200,
+    "url": "http://127.0.0.1:5195/rpc/logFrontEvent"
+  }
+]

@@ -66,8 +66,12 @@ public class QuoteSnapshotService {
     @Transactional(readOnly = true)
     public List<QuoteSnapshotResponse> historyByCustomer(String userEmail, String custName) {
         return repository.findByCustomer(userEmail == null || userEmail.isBlank() ? null : userEmail.trim(),
-                        custName == null ? "" : custName.trim(), org.springframework.data.domain.PageRequest.of(0, 30))
+                        custName == null ? "" : escapeLikeLiteral(custName.trim()), org.springframework.data.domain.PageRequest.of(0, 30))
                 .stream().map(QuoteSnapshotResponse::full).toList();
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /** 신규 JSON 계약을 적용하고, 기존 클라이언트의 base64 입력은 DB 저장 전에 JSON으로 변환한다. */

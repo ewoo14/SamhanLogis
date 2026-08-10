@@ -40,6 +40,13 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class Partner extends BaseEntity {
 
+    /** 이카운트 적재 중 원천 입력값이 도메인 검증을 통과하지 못했음을 나타낸다. */
+    public static class InvalidImportedCreditLimitException extends IllegalArgumentException {
+        public InvalidImportedCreditLimitException(String message) {
+            super(message);
+        }
+    }
+
     @Id
     @GeneratedValue
     @UuidGenerator
@@ -68,8 +75,8 @@ public class Partner extends BaseEntity {
     @Column(name = "phone", length = 50)
     private String phone;
 
-    /** 신용한도 (원). 0 이면 신용거래 불가. */
-    @Column(name = "credit_limit", precision = 15, scale = 2, nullable = false)
+    /** 신용한도 (원). null 이면 미설정(한도 제한 없음), 0 은 명시적 한도 0원이다. */
+    @Column(name = "credit_limit", precision = 15, scale = 2)
     private BigDecimal creditLimit;
 
     /** 현재 미수금 잔액 (원). {@link PartnerCreditHistory} 누적 값과 일관. */
@@ -236,7 +243,7 @@ public class Partner extends BaseEntity {
         this.name = name;
         this.address = address;
         this.phone = phone;
-        this.creditLimit = creditLimit == null ? BigDecimal.ZERO : creditLimit;
+        this.creditLimit = creditLimit;
         this.outstandingBalance = BigDecimal.ZERO;
         this.status = PartnerStatus.ACTIVE;
     }
@@ -249,7 +256,7 @@ public class Partner extends BaseEntity {
      * @param name 거래처 상호
      * @param address 주소 (nullable)
      * @param phone 연락처 (nullable)
-     * @param creditLimit 신용한도 (null → 0)
+     * @param creditLimit 신용한도 (null → 미설정)
      * @return 영속화 전 신규 Partner
      */
     public static Partner register(String partnerCode, String bizNo, String name, String address,
@@ -284,6 +291,17 @@ public class Partner extends BaseEntity {
         BigDecimal delta = newLimit.subtract(this.creditLimit);
         this.creditLimit = newLimit;
         return delta;
+    }
+
+    /**
+     * 이카운트 마스터 적재 전용 한도 반영. 빈 여신한도는 null(미설정)로 보존하며,
+     * 거래 결과 필드인 outstandingBalance에는 손대지 않는다.
+     */
+    public void replaceCreditLimitFromImport(BigDecimal newLimit) {
+        if (newLimit != null && newLimit.signum() < 0) {
+            throw new InvalidImportedCreditLimitException("creditLimit 은 음수 불가");
+        }
+        this.creditLimit = newLimit;
     }
 
     /**
@@ -364,7 +382,9 @@ public class Partner extends BaseEntity {
         if (additional == null || additional.signum() < 0) {
             return false;
         }
-        return this.outstandingBalance.add(additional).compareTo(this.creditLimit) <= 0;
+        // null = 여신한도 미설정: 향후 제한 기능이 붙기 전까지 출고를 막지 않는다.
+        return this.creditLimit == null
+                || this.outstandingBalance.add(additional).compareTo(this.creditLimit) <= 0;
     }
 
     private static void requirePositiveAmount(BigDecimal amount) {

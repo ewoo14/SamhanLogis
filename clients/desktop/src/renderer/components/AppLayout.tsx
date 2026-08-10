@@ -520,10 +520,10 @@ export function AppLayout() {
   const showAccountingPeriodClose = dynamicCanAccess('accounting.period-close',    'view')
   const showAccountingStatBatch   = dynamicCanAccess('accounting.statement-batch', 'view')
   const showAccountingPartnerLedger = dynamicCanAccess('accounting.partner-ledger', 'view')
-  const showAccountingSalesSlip   = dynamicCanAccess('accounting.sales-slip.list', 'view')
-  const showAccountingPurchaseSlip = dynamicCanAccess('accounting.purchase-slip.list', 'view')
+  const showAccountingSalesSlip   = dynamicCanAccess('accounting.sales-slip.accounting', 'view')
+  const showAccountingPurchaseSlip = dynamicCanAccess('accounting.purchase-slip.accounting', 'view')
   const showAccountingTaxInvoiceBatch = dynamicCanAccess('accounting.tax-invoice.batch-issue', 'view')
-  const showAccountingTaxInvoiceInbound = dynamicCanAccess('accounting.tax-invoice.inbound', 'view')
+  const showAccountingTaxInvoiceInbound = dynamicCanAccess('accounting.tax-invoice.inbound.manage', 'view')
   const showAccountingTaxInvoice  = dynamicCanAccess('accounting.tax-invoice.list', 'view')
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
@@ -531,7 +531,6 @@ export function AppLayout() {
   const showAccountingDepositMapping = dynamicCanAccess('accounting.deposit-mapping', 'view')
   const showAccountingCashReceipts = dynamicCanAccess('accounting.cash-receipts', 'view')
   const showAccountingBankCardAdmin = dynamicCanAccess('accounting.bank-card-admin',  'view')
-  const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
   const showAccountingAdminMigOps = dynamicCanAccess('ecount.mig.ops-dashboard', 'view')
   const showAccountingEditRequests = dynamicCanAccess('accounting.edit-requests.decide', 'view')
@@ -653,7 +652,7 @@ export function AppLayout() {
     showSalesSlipList || showEstimatesList || showPartnerOrderList
     || showPartnerDcConfig || showEstimateConfig || showPartnerManagement || showSlipCleanup
     || showNextDaySlip || showBlockedPartners
-    || showAccountingAdminOrder || showProductsList || showSheetSync
+    || showProductsList || showSheetSync
   const showPurchase =
     showPurchaseSlipList || showInventoryStockTransfer
     || showInboundInspection || showAudit || showDpsCompare || showDpsByProduct
@@ -706,12 +705,11 @@ export function AppLayout() {
             activeTargets={[
               '/sales/estimates',
               '/sales/partner-orders',
-              '/accounting/admin/orders',
-                '/sales/order-approvals',
-                '/admin/partners',
-                '/sales/partner-dc-config',
-                '/sales/estimate-config',
-                '/admin/blocked-partners',
+              '/sales/order-approvals',
+              '/admin/partners',
+              '/sales/partner-dc-config',
+              '/sales/estimate-config',
+              '/admin/blocked-partners',
               '/sales/slip-cleanup',
               '/sales/next-day-slip',
               '/products/catalog',
@@ -743,15 +741,6 @@ export function AppLayout() {
               data-testid="sidebar-sales-partner-orders"
             >
               주문서 관리
-            </SidebarLink>
-            {/* [이카운트 네이티브 편입 슬4→슬6] eCount 이관 주문(MIG-8) silo — 네이티브 '주문서 관리'(/sales/partner-orders)와
-                구분 위해 '(이관)' 표기. 슬6 에서 partner_orders 로 이식 후 본 링크/route 제거 예정. */}
-            <SidebarLink
-              to="/accounting/admin/orders"
-              show={showAccountingAdminOrder}
-              data-testid="sidebar-accounting-admin-orders"
-            >
-              주문서 관리 (이관)
             </SidebarLink>
             <SidebarLink
               to="/sales/order-approvals"

@@ -365,8 +365,7 @@ public class TaxInvoiceBatchService {
         String supplierEmail  = supplier != null && supplier.getEmail() != null
                                 ? supplier.getEmail() : FALLBACK_EMAIL;
 
-        String partnerCode = safeStr(raw.get("partnerCode"));
-        String buyerRegNo = partnerCode.replaceAll("[^0-9]", "");
+        String buyerRegNo = safeStr(raw.get("businessNumber")).replaceAll("[^0-9]", "");
         String buyerName = cleanCustomerName(safeStr(raw.get("partnerName")));
         String buyerCeo = safeStr(raw.get("representativeName"));
         String buyerAddress = safeStr(raw.get("address"));
@@ -377,8 +376,14 @@ public class TaxInvoiceBatchService {
         BigDecimal supplyAmount = toBigDecimal(raw.get("supplyAmount"));
         BigDecimal vatAmount = toBigDecimal(raw.get("vatAmount"));
         String remark = safeStr(raw.get("deliveryAddress"));
-        String itemName1 = safeStr(raw.get("itemName"));
+       String itemName1 = safeStr(raw.get("itemName"));
+        String itemSpec1 = safeStr(raw.get("itemSpec"));
+        BigDecimal itemQty1 = raw.get("itemQty") == null ? null : toBigDecimal(raw.get("itemQty"));
+        BigDecimal itemPrice1 = raw.get("itemPrice") == null ? null : toBigDecimal(raw.get("itemPrice"));
+        String itemRemark1 = safeStr(raw.get("itemRemark"));
+        if (remark.isBlank() && !itemRemark1.isBlank()) remark = itemRemark1;
         String slipNo = safeStr(raw.get("slipNo"));
+        String partnerCode = safeStr(raw.get("partnerCode"));
 
         return new HomtaxRow(
                 "01",           // invoiceType: 일반
@@ -405,19 +410,20 @@ public class TaxInvoiceBatchService {
                 remark,         // col21
                 day2,           // col22: 일자1
                 itemName1,      // col23: 품목1
-                "",             // 규격1
-                null,           // 수량1
-                null,           // 단가1
+                itemSpec1,
+                itemQty1,
+                itemPrice1,
                 supplyAmount,   // 공급가액1
-                vatAmount,      // 세액1
-                "",             // 품목비고1
+                vatAmount,
+                itemRemark1,
                 // 품목2~4 빈값
                 "", "", "", null, null, null, null, "",
                 "", "", "", null, null, null, null, "",
                 "", "", "", null, null, null, null, "",
                 null, null, null, null,  // 현금/수표/어음/외상미수금
                 "02",           // 영수(01),청구(02)
-                slipNo          // 내부용 전표번호
+                slipNo,         // 내부용 전표번호
+                partnerCode     // 내부용 거래처 코드 (홈택스 양식에는 미포함)
         );
     }
 

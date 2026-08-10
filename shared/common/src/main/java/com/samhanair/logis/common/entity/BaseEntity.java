@@ -42,6 +42,14 @@ public abstract class BaseEntity {
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = Boolean.FALSE;
 
+    /** 일회성 마스터 이관에서 원천 등록일 또는 이관 시각을 created_at으로 보존한다. */
+    public void overrideCreatedAtForImport(LocalDateTime createdAt) {
+        if (createdAt == null) {
+            throw new IllegalArgumentException("createdAt은 null일 수 없습니다");
+        }
+        this.createdAt = createdAt;
+    }
+
     public void markDeleted(String userId) {
         markDeleted(userId, LocalDateTime.now());
     }

@@ -5,8 +5,8 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  *
  * 대상(개발책임자 확정): 회계 관리자 중첩 토글 그룹 완전 삭제.
  *   - 매출/매입 원장 대조 + 운영 대시보드 + 회계 수정 요청 → 회계 카테고리 flat 항목
- *   - 주문서 관리(eCount 주문 silo) → 판매 카테고리 flat 항목(판매 도메인, 슬6에서 네이티브 이식)
- *   - route/page-code/롤 무변경(cutover 전 폐기 금지)
+ *   - 주문서 관리 → 판매 카테고리 flat 항목(네이티브 거래처 주문 화면)
+ *   - MIG-14 이전 주문 silo 메뉴·route·page-code 제거
  *
  * 실서버: api-gateway :8080, FE renderer dev :5175(mock OFF). dev_master.
  * 산출: docs/qa/ecount-fold-slice4/*.png
@@ -64,15 +64,16 @@ test('MASTER — 회계 관리자 그룹 해체: 원장대조·운영·수정요
   await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'T1-master-accounting-flat-no-admin-group.png'), fullPage: false })
 })
 
-test('MASTER — 주문서 관리(eCount 주문 silo)는 판매 카테고리 flat (회계 아님)', async ({ page }) => {
+test('MASTER — 네이티브 주문서 관리는 판매 카테고리 flat으로 유지되고 이전 메뉴는 없다', async ({ page }) => {
   const login = await realLogin(page, 'dev_master')
   await installAuthStub(page, login)
   await page.goto(`${BASE_URL}/#/`, { waitUntil: 'domcontentloaded' })
   await page.waitForLoadState('networkidle')
   await openCategory(page, '판매')
-  await expect(page.getByTestId('sidebar-accounting-admin-orders'), '주문서 관리(판매 flat)').toBeVisible()
-  await expect(page.getByTestId('sidebar-accounting-admin-orders'), '이관 주문서 라벨 구분').toContainText('주문서 관리 (이관)')
-  await page.getByTestId('sidebar-accounting-admin-orders').scrollIntoViewIfNeeded()
+  await expect(page.getByTestId('sidebar-sales-partner-orders'), '네이티브 주문서 관리(판매 flat)').toBeVisible()
+  await expect(page.getByTestId('sidebar-sales-partner-orders'), '네이티브 주문서 라벨').toHaveText('주문서 관리')
+  await expect(page.getByTestId('sidebar-accounting-admin-orders'), '이전 주문서 메뉴 제거').toHaveCount(0)
+  await page.getByTestId('sidebar-sales-partner-orders').scrollIntoViewIfNeeded()
   await page.waitForTimeout(300)
   await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'T2-master-orders-under-sales.png'), fullPage: false })
 })

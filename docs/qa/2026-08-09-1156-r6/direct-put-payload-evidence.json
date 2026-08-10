@@ -1,0 +1,49 @@
+{
+  "round": "R6",
+  "results": [
+    {
+      "round": "R6",
+      "slipType": "INBOUND",
+      "slipNo": "2026/08/09-2",
+      "slipId": "<redacted-uuid>",
+      "renderer": "renderer-5330",
+      "requestPartnerCode": "P-2026-0001",
+      "requestBusinessNumber": "113-07-10031",
+      "putDisposition": "200 synthetic fulfill; 공유 DB write 없음",
+      "realNetworkBeforePut": [
+        {
+          "method": "GET",
+          "status": 200,
+          "path": "/slips/<redacted-uuid>"
+        },
+        {
+          "method": "POST",
+          "status": 200,
+          "path": "/slips/price-memory/bulk"
+        }
+      ]
+    },
+    {
+      "round": "R6",
+      "slipType": "OUTBOUND",
+      "slipNo": "2026/08/10-16",
+      "slipId": "<redacted-uuid>",
+      "renderer": "renderer-5330",
+      "requestPartnerCode": "P-2026-0001",
+      "requestBusinessNumber": "113-07-10031",
+      "putDisposition": "200 synthetic fulfill; 공유 DB write 없음",
+      "realNetworkBeforePut": [
+        {
+          "method": "GET",
+          "status": 200,
+          "path": "/slips/<redacted-uuid>"
+        },
+        {
+          "method": "POST",
+          "status": 200,
+          "path": "/slips/price-memory/bulk"
+        }
+      ]
+    }
+  ]
+}

@@ -55,7 +55,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 /** 스크린샷 저장 디렉토리 — 커밋 캡처 오염 방지(_local, gitignore). */
 const QA_DIR = resolveQaShotsDir(
-  path.resolve(_dirname, '../../../../docs/qa/supplier-profile-and-grid-ux'),
+  path.resolve(_dirname, '../../../../docs/qa/2026-08-10-1156-r12'),
 )
 
 /** mock 미리보기(생성기 generateMockBatchRows) 고정 상수 — 검증 기대값의 근거. */
@@ -68,7 +68,7 @@ const HOMETAX = {
   filterName: '○○종합건설',
   filterMatch: 20,
   /** col index: 0=rowNo, 1=slipNo, 2=issueDate, 3=supplierName. */
-  firstSlipNo: '2026/05/01-1',
+      firstSlipNo: '2026/05/01-1',
   supplierName: '(주)삼한로지스',
 } as const
 
@@ -330,7 +330,7 @@ test.describe('DataGrid Excel-like 인터랙션 (TC-DG-1~7)', () => {
     }
     // mock 1행 고정값 — 전표번호 / 발행일자 / 공급자
     expect(lines[0], 'TSV 1행 셀 값 불일치').toBe(
-      `${HOMETAX.firstSlipNo}\t2026-05-01\t${HOMETAX.supplierName}`,
+      `${HOMETAX.firstSlipNo}\t20260501\t${HOMETAX.supplierName}`,
     )
 
     await page.screenshot({
@@ -357,7 +357,7 @@ test.describe('DataGrid Excel-like 인터랙션 (TC-DG-1~7)', () => {
     await openHometaxResultGrid(page)
     await expect(gridRows(page), '필터 전 100행').toHaveCount(HOMETAX.pageRows)
 
-    await page.getByTestId('dg-filter-btn-recipientName').click()
+    await page.getByTestId('dg-filter-btn-buyerName').click()
     await expect(
       page.getByTestId('dg-filter-popover'),
       '열 필터 팝오버 미표시',

@@ -57,6 +57,11 @@ async function getDcConfig(pathAndQuery) {
 
 const num = (v) => (v == null ? 0 : Number(v) || 0);
 const numOrNull = (v) => (v == null || v === '' ? 0 : Number(v) || 0);
+const statusNote = (status) => ({
+  DISCONTINUED: '단종',
+  NOT_FOR_SALE: '미판매',
+  OUT_OF_STOCK: '품절',
+}[String(status || '')] || '');
 
 /**
  * 홈멀티/상업멀티 카탈로그.
@@ -80,7 +85,7 @@ async function multiCatalog(category, classify) {
       catL: cls.catL, catM: cls.catM, catS: cls.catS,
       disp: cls.disp || '',
       '고정DC': r.fixedDiscountRate == null ? '' : String(r.fixedDiscountRate),
-      note: r.remark || '',
+      note: r.remark || statusNote(r.status),
       maxIndoor: numOrNull(r.maxIndoor),
     };
   });
@@ -112,7 +117,7 @@ async function singleSets(classifyLM, normalizeSize, sanitizeDisp) {
       matKey: r.materialKey || 'D4',
       catL: cls.L,
       catM: cls.M,
-      note: r.remark || '',
+      note: r.remark || statusNote(r.status),
     };
   });
 }
@@ -127,7 +132,7 @@ async function oldProducts() {
     price: num(r.releasePrice), // 구형: 출고가(할인 기준액)
     sheetPrice: num(r.deliveryPrice), // 납품가
     isDisc: r.legacyDiscountFlag === true,
-    remarks: r.remark || '',
+    remarks: r.remark || statusNote(r.status),
     spec: r.specText || '',
   }));
 }

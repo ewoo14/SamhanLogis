@@ -1,0 +1,15 @@
+{
+  "exact": {
+    "total": 200,
+    "pageAfterNext": "2 / 2",
+    "lastPageRows": 100
+  },
+  "nonExact": {
+    "total": 201,
+    "pageImmediatelyAfterNewUpload": "2 / 3",
+    "firstVisibleRowAfterUpload": "103",
+    "lastPage": "3 / 3",
+    "lastPageRows": 1,
+    "lastRowNumber": "203"
+  }
+}

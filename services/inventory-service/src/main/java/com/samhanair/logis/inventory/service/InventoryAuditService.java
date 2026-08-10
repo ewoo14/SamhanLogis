@@ -131,6 +131,9 @@ public class InventoryAuditService {
         List<AuditLineSnapshot> snapshots = new ArrayList<>();
         for (StockBalance balance : balances) {
             ProductSummary product = productMap.get(balance.getProductId());
+            if (product != null && InventoryProductGate.isExcluded(product)) {
+                continue;
+            }
             String name = product == null ? "(미상)" : product.name();
             BigDecimal unitCost = resolveUnitCost(balance.getProductId(), warehouse.getId(), product);
             int expected = balance.getTotalQty();
@@ -242,16 +245,17 @@ public class InventoryAuditService {
         // PR-H4b: status 변경 audit overlay + SSE broadcast
         recordStatusAudit(id, "status", oldStatus.name(), audit.getStatus().name());
 
-        // Stock 조정 — 각 라인 차이 만큼 stock_balance.adjust + ADJUST movement
+        // 실제로 조정된 라인만 누적한다. 이 값이 재고 조정과 분개의 유일한 게이트다.
+        BigDecimal adjustedDiffAmount = BigDecimal.ZERO;
         for (InventoryAuditLine line : audit.getLines()) {
             if (line.getActualQty() == null || line.getDiffQty() == 0) {
                 continue;
             }
-            adjustStockForLine(audit, line, actorUserId);
+            adjustedDiffAmount = adjustedDiffAmount.add(adjustStockForLine(audit, line, actorUserId));
         }
 
-        // 차이 자동 분개 trigger
-        BigDecimal total = audit.getTotalDiffAmount();
+        // 실제 재고 조정이 일어난 차이만 자동 분개한다.
+        BigDecimal total = adjustedDiffAmount;
         if (total != null && total.signum() != 0) {
             try {
                 accountingClient.createAuditAdjustmentJournal(
@@ -358,7 +362,13 @@ public class InventoryAuditService {
                 .orElseThrow(() -> new IllegalStateException("재고 실사번호 시퀀스 생성 실패"));
     }
 
-    private void adjustStockForLine(InventoryAudit audit, InventoryAuditLine line, String actorUserId) {
+    private BigDecimal adjustStockForLine(InventoryAudit audit, InventoryAuditLine line, String actorUserId) {
+        ProductSummary product = productClient.requireExists(line.getProductId());
+        if (InventoryProductGate.isExcluded(product)) {
+            log.info("비상품/세트 품목 실사 조정 생략 — auditNo={}, productId={}",
+                    audit.getAuditNo(), line.getProductId());
+            return BigDecimal.ZERO;
+        }
         StockBalance balance = stockBalanceRepository
                 .findByProductIdAndWarehouse_IdAndIsDeletedFalse(
                         line.getProductId(), audit.getWarehouse().getId())
@@ -367,7 +377,7 @@ public class InventoryAuditService {
             // snapshot 이후 row 가 사라진 케이스 — 이 슬라이스에서는 신규 생성하지 않고 skip + log
             log.warn("실사 완료 시 stock_balance 누락 — auditNo={}, productId={} (skip)",
                     audit.getAuditNo(), line.getProductId());
-            return;
+            return BigDecimal.ZERO;
         }
         try {
             balance.adjust(line.getDiffQty());
@@ -380,6 +390,7 @@ public class InventoryAuditService {
                 "AUDIT", audit.getId(),
                 "재고 실사 조정 (" + audit.getAuditNo() + ")",
                 actorUserId));
+        return line.getDiffAmount();
     }
 
     /**
