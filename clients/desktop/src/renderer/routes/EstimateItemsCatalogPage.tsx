@@ -214,6 +214,40 @@ function errorMsg(err: unknown): string {
   return '처리 중 오류가 발생했습니다. 다시 시도해 주세요.'
 }
 
+const QUANTITY_SYNC_RULE_BLOCK_MESSAGE =
+  '수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다:'
+const QUANTITY_SYNC_RULE_KEY_PATTERN = /^[A-Za-z0-9_-]+$/
+
+/** 409 차단 문구의 rule key만 추출한다. 서버 문구·규칙 계약은 변경하지 않는다. */
+export function extractQuantitySyncRuleKeys(message: string): string[] {
+  if (!message.startsWith(QUANTITY_SYNC_RULE_BLOCK_MESSAGE)) return []
+  return message
+    .slice(QUANTITY_SYNC_RULE_BLOCK_MESSAGE.length)
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => QUANTITY_SYNC_RULE_KEY_PATTERN.test(key))
+}
+
+export interface QuantitySyncRuleEditTarget {
+  ruleKey: string
+  modelCode: string
+}
+
+/** 활성 규칙 key를 본체(source) 행의 수량 동기화 편집 지점으로 해석한다. */
+export function resolveQuantitySyncRuleEditTarget(
+  ruleKey: string,
+  rules: QuantitySyncRule[],
+): QuantitySyncRuleEditTarget | undefined {
+  const rule = rules.find((candidate) => candidate.enabled && candidate.ruleKey === ruleKey)
+  const source = rule?.sources.find((candidate) => candidate.productCode.trim().length > 0)
+  if (!rule || !source) return undefined
+  return { ruleKey: rule.ruleKey, modelCode: source.productCode }
+}
+
+function quantitySyncRuleEditAnchorId(ruleKey: string): string {
+  return `estimate-items-quantity-sync-rule-${ruleKey}`
+}
+
 function nextScopeForEstimateAppend(scope: UsageScope): UsageScope {
   return scope === 'PARTNER_ORDER' || scope === 'BOTH' ? 'BOTH' : 'ESTIMATE'
 }
@@ -649,6 +683,7 @@ interface CategoryCellProps {
   onPatch: (modelCode: string, scope: UsageScope, estimateCategories: EstimateCategory[]) => void
   patchLoading: boolean
   quantitySyncRule: QuantitySyncRule | undefined
+  focusedQuantitySyncRuleKey: string | null
   onQuantitySyncSave: (modelCode: string, targetDrafts: QuantitySyncTargetDraft[]) => void
   searchQuantitySyncProducts: (q: string) => Promise<ProductOption[]>
 }
@@ -659,6 +694,7 @@ function CategoryCell({
   onPatch,
   patchLoading,
   quantitySyncRule,
+  focusedQuantitySyncRuleKey,
   onQuantitySyncSave,
   searchQuantitySyncProducts,
 }: CategoryCellProps) {
@@ -744,7 +780,11 @@ function CategoryCell({
         </Select>
       ) : null}
       <div
-        style={quantitySyncCellStyle}
+        id={quantitySyncRule ? quantitySyncRuleEditAnchorId(quantitySyncRule.ruleKey) : undefined}
+        tabIndex={quantitySyncRule && quantitySyncRule.ruleKey === focusedQuantitySyncRuleKey ? -1 : undefined}
+        style={quantitySyncRule?.ruleKey === focusedQuantitySyncRuleKey
+          ? { ...quantitySyncCellStyle, ...quantitySyncFocusedCellStyle }
+          : quantitySyncCellStyle}
         data-testid={`estimate-items-quantity-sync-${row.modelCode}`}
       >
         {selectedQuantityTargets.map((product) => (
@@ -883,6 +923,7 @@ export function EstimateItemsCatalogPage() {
   const [selectedProducts, setSelectedProducts] = useState<ProductOption[]>([])
   const [patchingCode, setPatchingCode] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
+  const [focusedQuantitySyncRuleKey, setFocusedQuantitySyncRuleKey] = useState<string | null>(null)
   const [sortableRows, setSortableRows] = useState<ProductCatalogRow[]>([])
   const [orderDirty, setOrderDirty] = useState(false)
   const [orderSaving, setOrderSaving] = useState(false)
@@ -954,6 +995,32 @@ export function EstimateItemsCatalogPage() {
     enabled: quantitySyncCategory != null,
     staleTime: 30_000,
   })
+
+  const quantitySyncRuleKeys = extractQuantitySyncRuleKeys(mutationError ?? '')
+
+  const handleQuantitySyncRuleNavigate = useCallback(async (ruleKey: string) => {
+    if (!quantitySyncCategory) return
+    const rules = await queryClient.fetchQuery({
+      queryKey: ['quantity-sync-rules', quantitySyncCategory],
+      queryFn: () => listQuantitySyncRules(quantitySyncCategory),
+      staleTime: 30_000,
+    })
+    const editTarget = resolveQuantitySyncRuleEditTarget(ruleKey, rules)
+    if (!editTarget) return
+    setSearchInput(editTarget.modelCode)
+    setCommittedSearch(editTarget.modelCode)
+    setCurrentPage(0)
+    setOrderDirty(false)
+    setFocusedQuantitySyncRuleKey(editTarget.ruleKey)
+  }, [quantitySyncCategory, queryClient])
+
+  useEffect(() => {
+    if (!focusedQuantitySyncRuleKey || listQuery.isFetching) return
+    const editPoint = document.getElementById(quantitySyncRuleEditAnchorId(focusedQuantitySyncRuleKey))
+    if (!editPoint) return
+    editPoint.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    editPoint.focus({ preventScroll: true })
+  }, [focusedQuantitySyncRuleKey, listQuery.isFetching, sortableRows])
 
   const rawRows = listQuery.data?.content ?? []
   const rows = rawRows.filter((row) => row.usageScope !== 'NONE')
@@ -1373,6 +1440,7 @@ export function EstimateItemsCatalogPage() {
           onPatch={handlePatch}
           patchLoading={patchingCode === row.modelCode}
           quantitySyncRule={quantitySyncRuleForSource(quantitySyncRulesQuery.data ?? [], row.modelCode)}
+          focusedQuantitySyncRuleKey={focusedQuantitySyncRuleKey}
           onQuantitySyncSave={handleQuantitySyncSave}
           searchQuantitySyncProducts={searchQuantitySyncProducts}
         />
@@ -1607,6 +1675,21 @@ export function EstimateItemsCatalogPage() {
       {mutationError ? (
         <div role="alert" style={errorBannerStyle} data-testid="estimate-items-mutation-error">
           {mutationError}
+          {quantitySyncRuleKeys.length > 0 ? (
+            <span style={quantitySyncRuleLinkGroupStyle}>
+              {quantitySyncRuleKeys.map((ruleKey) => (
+                <button
+                  key={ruleKey}
+                  type="button"
+                  onClick={() => { void handleQuantitySyncRuleNavigate(ruleKey) }}
+                  data-testid={`estimate-items-mutation-error-rule-${ruleKey}`}
+                  style={quantitySyncRuleLinkStyle}
+                >
+                  규칙 편집 지점으로 이동: {ruleKey}
+                </button>
+              ))}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
@@ -1879,6 +1962,30 @@ const quantitySyncCellStyle: CSSProperties = {
   flexBasis: '100%',
   paddingTop: 4,
   borderTop: '1px dashed var(--color-border, #E5E7EB)',
+}
+
+const quantitySyncFocusedCellStyle: CSSProperties = {
+  outline: '2px solid var(--color-primary-400, #60A5FA)',
+  outlineOffset: 2,
+  borderRadius: 4,
+}
+
+const quantitySyncRuleLinkGroupStyle: CSSProperties = {
+  display: 'inline-flex',
+  gap: 6,
+  flexWrap: 'wrap',
+  marginLeft: 8,
+}
+
+const quantitySyncRuleLinkStyle: CSSProperties = {
+  appearance: 'none',
+  border: 0,
+  padding: 0,
+  background: 'transparent',
+  color: 'var(--color-danger-800, #991B1B)',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+  font: 'inherit',
 }
 
 const quantitySyncChipStyle: CSSProperties = {
