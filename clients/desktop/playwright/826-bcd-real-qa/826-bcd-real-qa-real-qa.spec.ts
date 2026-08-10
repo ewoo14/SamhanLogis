@@ -93,17 +93,19 @@ test('B-C-D 실 QA: 기본 주문 목록, 첫 행 상세, 제거 경로 NotFound
   const firstRowText = (await firstRow.innerText()).trim()
   await firstRow.click()
   await expect(page).toHaveURL(/#\/sales\/partner-orders\/[^/?#]+/, { timeout: 30_000 })
-  await expect(page.getByText('주문서 상세', { exact: true })).toBeVisible({ timeout: 30_000 })
+  // URL 이동 직후 실제 상세 화면을 먼저 캡처한다. 제목 텍스트의 DOM 합성 방식에 의존하지 않는다.
+  await page.screenshot({
+    path: path.join(SCREENSHOTS_DIR, '2026-08-10-826-real-qa-C-detail.png'),
+    fullPage: true,
+  })
+  // 상세 페이지에 실제로 렌더링되는 편집 버튼을 데이터 로딩 완료 신호로 사용한다.
+  await expect(page.getByTestId('partner-order-edit-open'), '실제 상세 화면의 편집 버튼').toBeVisible({ timeout: 30_000 })
   const detailText = await page.locator('body').innerText()
   expect(detailText.length, '상세 화면 내용').toBeGreaterThan(250)
   expect(detailText, '상세 화면에 첫 행의 주문 식별 정보').toContain(firstRowText.split(/\s+/)[0] ?? '')
   console.log(`C_DETAIL_URL=${page.url()}`)
   console.log(`C_DETAIL_TEXT_PREVIEW=${detailText.replace(/\s+/g, ' ').slice(0, 240)}`)
   console.log(`REAL_API_RESPONSES_AFTER_C=${relevantResponses.join(' | ')}`)
-  await page.screenshot({
-    path: path.join(SCREENSHOTS_DIR, '2026-08-10-826-real-qa-C-detail.png'),
-    fullPage: true,
-  })
 
   // D 이동 전: C에서 확인한 상세 화면을 보존한다.
   await page.screenshot({
