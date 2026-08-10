@@ -70,7 +70,8 @@ export function SalesPartnerDcConfigPage() {
     queryKey: ['partner-dc-config', selectedPartnerCode, 'audit-logs'],
     queryFn: () =>
       dcConfigAuditApi.listAuditLogs(selectedPartnerCode!),
-    enabled: !!selectedPartnerCode,
+    enabled: !!selectedPartnerCode && auditHistoryOpen,
+    retry: false,
   })
 
   useEffect(() => {
@@ -391,7 +392,6 @@ export function SalesPartnerDcConfigPage() {
                   isLoading={auditQuery.isLoading}
                   isError={auditQuery.isError}
                   error={auditQuery.error}
-                  treat404AsNotSupported
                   open={auditHistoryOpen}
                   onOpenChange={setAuditHistoryOpen}
                   testIdPrefix="partner-dc-config-audit"
@@ -427,11 +427,16 @@ export function SalesPartnerDcConfigPage() {
                       field={String(c.key)}
                       currentValue={cur == null ? null : String(cur)}
                       history={history}
+                      isError={auditQuery.isError}
                     />
                   </div>
                 )
               })}
-              {(Array.isArray(auditQuery.data) ? auditQuery.data : []).length === 0 ? (
+              {auditQuery.isError ? (
+                <p style={{ margin: 0, fontSize: 12, color: '#b91c1c', gridColumn: '1 / -1' }}>
+                  변경 이력 조회에 실패했습니다.
+                </p>
+              ) : (Array.isArray(auditQuery.data) ? auditQuery.data : []).length === 0 ? (
                 <p style={{ margin: 0, fontSize: 12, color: '#6b7280', gridColumn: '1 / -1' }}>
                   변경 이력이 없습니다.
                 </p>

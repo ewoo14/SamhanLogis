@@ -55,6 +55,7 @@ export function AuditRevisionBadge({
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
       <span
         data-testid={`${testIdPrefix}-revision-count`}
+        data-audit-state={isError ? 'error' : 'ready'}
         style={{
           fontSize: 13,
           color: 'var(--color-neutral-600)',
@@ -64,7 +65,7 @@ export function AuditRevisionBadge({
         }}
         title={isError ? '수정 이력을 불러오지 못했습니다' : '본 entity 변경 누적 횟수'}
       >
-        수정 {revisionCount}회
+        {isError ? '수정 이력 조회 실패' : `수정 ${revisionCount}회`}
       </span>
       {onRevert && revertCandidates.length > 0 ? (
         <select

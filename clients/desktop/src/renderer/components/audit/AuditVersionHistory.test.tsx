@@ -3,7 +3,9 @@ import React, { useState, type ComponentProps } from 'react'
 import { AxiosError } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { AuditOverlay } from '@samhan/design-system'
 import { AuditVersionHistory, classifyAuditHistoryError } from './AuditVersionHistory'
+import { AuditRevisionBadge } from './AuditOverlaySection'
 import type { AuditLogEntry } from '../../api/createAuditApi'
 
 afterEach(() => {
@@ -101,6 +103,52 @@ describe('AuditVersionHistory', () => {
     )
   })
 
+  it('정상 빈 이력은 0회지만 조회 실패는 Badge와 Overlay에서 실패로 표시한다', () => {
+    const { unmount } = render(
+      <AuditRevisionBadge
+        logs={[]}
+        isError
+        testIdPrefix="audit-test"
+      />,
+    )
+
+    expect(screen.getByTestId('audit-test-revision-count').textContent).toContain('수정 이력 조회 실패')
+    expect(screen.getByTestId('audit-test-revision-count').textContent).not.toContain('수정 0회')
+
+    unmount()
+    render(
+      <AuditRevisionBadge
+        logs={[]}
+        testIdPrefix="audit-test"
+      />,
+    )
+    expect(screen.getByTestId('audit-test-revision-count').textContent).toContain('수정 0회')
+
+    cleanup()
+    render(
+      <AuditOverlay
+        field="description"
+        currentValue="현재 값"
+        history={[]}
+        isError
+      />,
+    )
+    expect(screen.getByTestId('audit-overlay-description').textContent).toContain('변경 이력 조회 실패')
+    expect(screen.getByTestId('audit-overlay-description').textContent).not.toContain('변경 이력 없음')
+
+    cleanup()
+    render(
+      <AuditOverlay
+        field="description"
+        currentValue="현재 값"
+        history={logs.slice(0, 1)}
+        isError
+      />,
+    )
+    expect(screen.getByTestId('audit-overlay-description').textContent).toContain('변경 이력 조회 실패')
+    expect(screen.getByTestId('audit-overlay-description').textContent).not.toContain('이전 값')
+  })
+
   it.each([
     [403, 'forbidden', '버전 이력을 조회할 권한이 없습니다.'],
     [500, 'temporary', '버전 이력을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'],
@@ -115,12 +163,11 @@ describe('AuditVersionHistory', () => {
     expect(screen.queryByTestId('audit-test-version-history-empty')).toBeNull()
   })
 
-  it('endpoint 미제공 여부에 따라 404를 대상 부재와 구분한다', () => {
+  it('현재 A 계열 계약에서 404는 endpoint 미제공 상태로 표시한다', () => {
     renderHistory({
       logs: [],
       isError: true,
       error: axiosError(404),
-      treat404AsNotSupported: true,
     })
 
     fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
@@ -128,17 +175,6 @@ describe('AuditVersionHistory', () => {
     const error = screen.getByTestId('audit-test-version-history-error')
     expect(error.getAttribute('data-error-kind')).toBe('not-supported')
     expect(error.textContent).toContain('아직 제공되지 않습니다.')
-
-    cleanup()
-    renderHistory({ logs: [], isError: true, error: axiosError(404) })
-    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
-
-    expect(screen.getByTestId('audit-test-version-history-error').getAttribute('data-error-kind')).toBe(
-      'not-found',
-    )
-    expect(screen.getByTestId('audit-test-version-history-error').textContent).toContain(
-      '해당 대상의 버전 이력을 찾을 수 없습니다.',
-    )
   })
 
   it('네트워크 오류도 화면을 깨뜨리지 않고 일시 실패로 표시한다', () => {

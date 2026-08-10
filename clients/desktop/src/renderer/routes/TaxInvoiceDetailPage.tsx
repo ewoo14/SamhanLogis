@@ -106,6 +106,7 @@ export function TaxInvoiceDetailPage() {
   const id = params['id']!
   const { canAccess } = usePermissions()
   const isMobile = useIsMobile()
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   const query = useQuery({
     queryKey: ['accounting', 'tax-invoice', id],
@@ -116,7 +117,8 @@ export function TaxInvoiceDetailPage() {
   const auditQuery = useQuery({
     queryKey: ['accounting', 'tax-invoice', id, 'audit-logs'],
     queryFn: () => taxInvoiceAuditApi.listAuditLogs(id),
-    enabled: !!id,
+    enabled: !!id && auditHistoryOpen,
+    retry: false,
   })
 
   // PR-H4c: SSE 구독 — accounting:edit 수신 시 본문 + audit cache invalidate.
@@ -156,7 +158,6 @@ export function TaxInvoiceDetailPage() {
   /** 세금계산서 발행 confirm modal 표시 여부 (SP-09-1). */
   const [showEmitNtsModal, setShowEmitNtsModal] = useState<boolean>(false)
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
-  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   const issueMutation = useMutation({
     mutationFn: () => issueTaxInvoice(id),
@@ -540,7 +541,6 @@ export function TaxInvoiceDetailPage() {
                 isLoading={auditQuery.isLoading}
                 isError={auditQuery.isError}
                 error={auditQuery.error}
-                treat404AsNotSupported
                 open={auditHistoryOpen}
                 onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="tax-invoice-detail"
@@ -602,6 +602,7 @@ export function TaxInvoiceDetailPage() {
                   field="description"
                   currentValue={t.description}
                   history={auditByField['description'] ?? []}
+                  isError={auditQuery.isError}
                 />
               </div>
             </div>

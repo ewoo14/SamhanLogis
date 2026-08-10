@@ -61,6 +61,8 @@ export interface AuditOverlayProps {
   currentValue: string | null | undefined
   /** 변경 이력 — 가장 최근(revisionNo 큰) 항목이 inline 노출. 빈 배열이면 현재 값만 표시. */
   history: AuditLogEntry[]
+  /** 조회 실패 시 빈 이력으로 오해하지 않도록 실패 상태를 표시한다. */
+  isError?: boolean
 }
 
 /** "2026-05-09T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4 동일 로직. */
@@ -81,7 +83,7 @@ function displayValue(v: string | null | undefined): string {
  * - history 가 비어 있으면 현재 값만 표시 (no overlay)
  * - history 가 1건 이상이면 최근 1건 inline + (2건 이상 시) "이력 N개" expand
  */
-export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps) {
+export function AuditOverlay({ field, currentValue, history, isError = false }: AuditOverlayProps) {
   const [expanded, setExpanded] = useState(false)
 
   // 최신 → 과거 정렬 (revisionNo 내림차순). 원본 mutate 금지를 위해 slice 후 sort.
@@ -100,7 +102,9 @@ export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps
     >
       <div className={styles['row']}>
         <span className={styles['current']}>{displayValue(currentValue)}</span>
-        {latest ? (
+        {isError ? (
+          <span className={styles['empty']}>변경 이력 조회 실패</span>
+        ) : latest ? (
           <>
             <span
               className={styles['before']}

@@ -8,18 +8,15 @@ import {
 import { getApiErrorInfo } from '../../api/apiError'
 import type { AuditLogEntry } from '../../api/createAuditApi'
 
-export type AuditHistoryErrorKind = 'not-supported' | 'not-found' | 'forbidden' | 'temporary'
+export type AuditHistoryErrorKind = 'not-supported' | 'forbidden' | 'temporary'
 
 /**
  * 조회 실패와 정상적인 빈 응답을 구분하기 위한 오류 분류.
- * 404는 현재 화면에 audit-logs 조회가 제공되지 않는 상태로 별도 안내한다.
+ * 현재 A 계열의 404는 audit-logs endpoint 미제공 상태로 분류한다.
  */
-export function classifyAuditHistoryError(
-  error: unknown,
-  { treat404AsNotSupported = false }: { treat404AsNotSupported?: boolean } = {},
-): AuditHistoryErrorKind {
+export function classifyAuditHistoryError(error: unknown): AuditHistoryErrorKind {
   const { status } = getApiErrorInfo(error)
-  if (status === 404) return treat404AsNotSupported ? 'not-supported' : 'not-found'
+  if (status === 404) return 'not-supported'
   if (status === 403) return 'forbidden'
   return 'temporary'
 }
@@ -33,8 +30,6 @@ export interface AuditVersionHistoryProps {
   isError?: boolean
   /** React Query가 보관한 원본 조회 오류. */
   error?: unknown
-  /** endpoint 미제공 화면에서 404를 “아직 제공되지 않음”으로 안내할지 여부. */
-  treat404AsNotSupported?: boolean
   /** 버전이력 모달 상태. */
   open: boolean
   /** 버튼/닫기 상태를 소유하는 화면 callback. */
@@ -131,7 +126,6 @@ export function AuditVersionHistory({
   isLoading = false,
   isError = false,
   error,
-  treat404AsNotSupported = false,
   open,
   onOpenChange,
   testIdPrefix,
@@ -140,16 +134,14 @@ export function AuditVersionHistory({
   const revisions = groupAuditLogs(logs)
   const modalTestId = `${testIdPrefix}-version-history`
   const errorKind = isError
-    ? classifyAuditHistoryError(error, { treat404AsNotSupported })
+    ? classifyAuditHistoryError(error)
     : undefined
   const errorMessage =
     errorKind === 'not-supported'
       ? '버전 이력 조회 기능이 아직 제공되지 않습니다.'
-      : errorKind === 'not-found'
-        ? '해당 대상의 버전 이력을 찾을 수 없습니다.'
-        : errorKind === 'forbidden'
-          ? '버전 이력을 조회할 권한이 없습니다.'
-          : '버전 이력을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
+      : errorKind === 'forbidden'
+        ? '버전 이력을 조회할 권한이 없습니다.'
+        : '버전 이력을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
 
   return (
     <Fragment>
@@ -182,13 +174,13 @@ export function AuditVersionHistory({
           </div>
         ) : isError ? (
           <p
-            role={errorKind === 'not-supported' || errorKind === 'not-found' ? 'status' : 'alert'}
+            role={errorKind === 'not-supported' ? 'status' : 'alert'}
             data-testid={`${modalTestId}-error`}
             data-error-kind={errorKind}
             style={{
               margin: 0,
               color:
-                errorKind === 'not-supported' || errorKind === 'not-found'
+                errorKind === 'not-supported'
                   ? 'var(--color-neutral-600)'
                   : 'var(--color-danger-600)',
             }}

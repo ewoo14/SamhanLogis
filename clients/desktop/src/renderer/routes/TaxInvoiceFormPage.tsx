@@ -208,6 +208,7 @@ export function TaxInvoiceFormPage() {
   const editId = params['id']
   const isEdit = Boolean(editId)
   const isMobile = useIsMobile()
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   usePageTitle(isEdit ? '세금계산서 편집' : '세금계산서 작성')
 
@@ -222,7 +223,8 @@ export function TaxInvoiceFormPage() {
   const auditQuery = useQuery({
     queryKey: ['accounting', 'tax-invoice', editId, 'audit-logs'],
     queryFn: () => taxInvoiceAuditApi.listAuditLogs(editId!),
-    enabled: isEdit && !!editId,
+    enabled: isEdit && !!editId && auditHistoryOpen,
+    retry: false,
   })
 
   // PR-H4c: edit 모드 SSE 구독
@@ -266,7 +268,6 @@ export function TaxInvoiceFormPage() {
   const [description, setDescription] = useState<string>('')
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()])
   const [topError, setTopError] = useState<string>('')
-  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   // #831-hydrate — detailQuery.data 하이드레이션을 useEffect 대신 렌더 중 파생으로 처리한다
   // (같은 계열, CashReceiptFormPage #831-hydrate 수단 1과 동일). useEffect 로 하면
@@ -540,16 +541,15 @@ export function TaxInvoiceFormPage() {
               onRevert={(rev) => revertMutation.mutate(rev)}
               testIdPrefix="tax-invoice-form"
             />
-            <AuditVersionHistory
-              logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
-              isLoading={auditQuery.isLoading}
-              isError={auditQuery.isError}
-              error={auditQuery.error}
-              treat404AsNotSupported
-              open={auditHistoryOpen}
-              onOpenChange={setAuditHistoryOpen}
-              testIdPrefix="tax-invoice-form"
-            />
+              <AuditVersionHistory
+                logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                error={auditQuery.error}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
+                testIdPrefix="tax-invoice-form"
+              />
           </div>
         ) : null}
       </div>

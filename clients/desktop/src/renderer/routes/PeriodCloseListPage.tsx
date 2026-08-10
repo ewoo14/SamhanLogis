@@ -142,7 +142,8 @@ export function PeriodCloseListPage() {
   const auditQuery = useQuery({
     queryKey: ['period-closings', selectedClosingId, 'audit-logs'],
     queryFn: () => closingAuditApi.listAuditLogs(selectedClosingId!),
-    enabled: !!selectedClosingId,
+    enabled: !!selectedClosingId && auditHistoryOpen,
+    retry: false,
   })
 
   useEffect(() => {
@@ -475,7 +476,6 @@ export function PeriodCloseListPage() {
                 isLoading={auditQuery.isLoading}
                 isError={auditQuery.isError}
                 error={auditQuery.error}
-                treat404AsNotSupported
                 open={auditHistoryOpen}
                 onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="period-close-audit"
@@ -504,6 +504,7 @@ export function PeriodCloseListPage() {
               field="description"
               currentValue={selectedClosing.description ?? null}
               history={groupAuditLogsByField(Array.isArray(auditQuery.data) ? auditQuery.data : [])['description'] ?? []}
+              isError={auditQuery.isError}
             />
           </div>
         </Card>
