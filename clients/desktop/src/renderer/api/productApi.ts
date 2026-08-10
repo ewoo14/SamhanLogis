@@ -38,6 +38,7 @@ interface ProductSummaryResponse {
   productType?: string | null
   categoryKey?: string | null
   fixedDiscountRate?: number | null
+  fixedDiscountSource?: string | null
   hasVariableDiscount?: boolean | null
   status?: string | null
   goodsType?: 'GOODS' | 'NON_GOODS' | null
@@ -110,6 +111,7 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
       specification: p.specification ?? undefined,
       categoryKey: p.categoryKey ?? undefined,
       fixedDiscountRate: p.fixedDiscountRate ?? null,
+      fixedDiscountSource: p.fixedDiscountSource ?? null,
       hasVariableDiscount: p.hasVariableDiscount ?? null,
       status: p.status ?? null,
       goodsType: p.goodsType ?? undefined,
