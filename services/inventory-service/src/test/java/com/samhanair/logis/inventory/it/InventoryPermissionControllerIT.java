@@ -89,6 +89,8 @@ import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.lang.reflect.Method;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -227,9 +229,12 @@ class InventoryPermissionControllerIT {
         lenient().when(warehouseService.getOne(any())).thenReturn(warehouse());
         lenient().when(warehouseService.create(any())).thenReturn(warehouse());
         lenient().when(warehouseService.update(any(), any(), any())).thenReturn(warehouse());
+        lenient().when(warehouseService.update(any(), any(), any(), any())).thenReturn(warehouse());
         lenient().when(warehouseService.revertToRevision(any(), any(Integer.class), any())).thenReturn(warehouse());
+        lenient().when(warehouseService.revertToRevision(any(), any(Integer.class), any(), any())).thenReturn(warehouse());
         lenient().when(warehouseService.listDeleted()).thenReturn(List.of());
         lenient().when(warehouseService.restore(any(), any())).thenReturn(warehouse());
+        lenient().when(warehouseService.restore(any(), any(), any())).thenReturn(warehouse());
         lenient().when(warehouseService.listAuditLogs(any())).thenReturn(List.of());
 
         lenient().when(dpsCompareService.compare(any(), any(), any(), any()))
@@ -360,11 +365,41 @@ class InventoryPermissionControllerIT {
                 UUID.class,
                 com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest.class,
                 String.class,
+                String.class,
                 String.class);
-        assertDepartmentGate("revertAudit", UUID.class, int.class, String.class, String.class);
-        assertDepartmentGate("delete", UUID.class, String.class, String.class);
+        assertDepartmentGate("revertAudit", UUID.class, int.class, String.class, String.class, String.class);
+        assertDepartmentGate("delete", UUID.class, String.class, String.class, String.class);
         assertDepartmentGate("listDeleted");
-        assertDepartmentGate("restore", UUID.class, String.class, String.class);
+        assertDepartmentGate("restore", UUID.class, String.class, String.class, String.class);
+    }
+
+    @Test
+    void warehouseWriteEndpoints_forwardEncodedDisplayNameToService() throws Exception {
+        String callerId = ID.toString();
+        String callerName = "김감사";
+        String encodedCallerName = URLEncoder.encode(callerName, StandardCharsets.UTF_8);
+
+        mockMvc.perform(withActor(patch("/inventory/warehouses/{id}", ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(warehouseBody()), "MANAGER",
+                        HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME, encodedCallerName))
+                .andExpect(status().isOk());
+        verify(warehouseService).update(eq(ID), any(), eq(callerId), eq(callerName));
+
+        mockMvc.perform(withActor(delete("/inventory/warehouses/{id}", ID), "MANAGER",
+                        HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME, encodedCallerName))
+                .andExpect(status().isNoContent());
+        verify(warehouseService).delete(eq(ID), eq(callerId), eq(callerName));
+
+        mockMvc.perform(withActor(post("/inventory/warehouses/{id}/restore", ID), "MANAGER",
+                        HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME, encodedCallerName))
+                .andExpect(status().isOk());
+        verify(warehouseService).restore(eq(ID), eq(callerId), eq(callerName));
+
+        mockMvc.perform(withActor(post("/inventory/warehouses/{id}/audit/revert/{revisionNo}", ID, 1), "MANAGER",
+                        HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME, encodedCallerName))
+                .andExpect(status().isOk());
+        verify(warehouseService).revertToRevision(eq(ID), eq(1), eq(callerId), eq(callerName));
     }
 
     /**
@@ -603,9 +638,17 @@ class InventoryPermissionControllerIT {
             MockHttpServletRequestBuilder request,
             String role,
             String department) {
+        return withActor(request, role, department, "테스터");
+    }
+
+    private static MockHttpServletRequestBuilder withActor(
+            MockHttpServletRequestBuilder request,
+            String role,
+            String department,
+            String callerName) {
         return request
                 .header(USER_ID_HEADER, ID.toString())
-                .header(USER_NAME_HEADER, "테스터")
+                .header(USER_NAME_HEADER, callerName)
                 .header(ROLE_HEADER, role)
                 .header(DEPARTMENT_HEADER, department);
     }

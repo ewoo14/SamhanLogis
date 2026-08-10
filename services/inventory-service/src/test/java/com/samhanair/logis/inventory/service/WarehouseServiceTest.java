@@ -13,6 +13,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
+import com.samhanair.logis.inventory.realtime.domain.InventoryAuditLog;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.realtime.service.InventoryAuditLogRecorder;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
@@ -126,6 +127,82 @@ class WarehouseServiceTest {
 
         verify(auditLogRecorder).recordBatch(
                 eq(mainId), eq(callerId), isNull(), isNull(), anyList());
+    }
+
+    @Test
+    void update_authenticatedCaller_persistsDisplayNameInAudit() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("표시명 보존 창고", null, null, null, null),
+                callerId.toString(), "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+    }
+
+    @Test
+    void delete_authenticatedCaller_persistsDisplayNameInAudit() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.delete(mainId, callerId.toString(), "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+    }
+
+    @Test
+    void restore_authenticatedCaller_persistsDisplayNameInAudit() {
+        mainWarehouse.markDeleted("삭제자");
+        when(warehouseRepository.findDeletedById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        when(warehouseRepository.existsByCodeAndIsDeletedFalse(mainWarehouse.getCode())).thenReturn(false);
+        UUID callerId = UUID.randomUUID();
+
+        service.restore(mainId, callerId.toString(), "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+    }
+
+    @Test
+    void revert_authenticatedCaller_persistsDisplayNameInAudit() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        when(auditLogRecorder.listByEntity(mainId)).thenReturn(List.of(
+                InventoryAuditLog.record(mainId, 1, UUID.randomUUID(), "기존 사용자", null,
+                        "name", "되돌릴 창고명", "현재 창고명")));
+        UUID callerId = UUID.randomUUID();
+
+        service.revertToRevision(mainId, 1, callerId.toString(), "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+    }
+
+    @Test
+    void authenticatedCaller_uuidDisplayName_isNotPersistedAsActorName() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("UUID 이름 차단", null, null, null, null),
+                callerId.toString(), callerId.toString());
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), isNull(), isNull(), anyList());
+    }
+
+    @Test
+    void systemCaller_alwaysUsesSystemActorName() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("시스템 변경", null, null, null, null),
+                null, "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(new UUID(0L, 0L)), eq("system"), isNull(), anyList());
     }
 
     @Test
