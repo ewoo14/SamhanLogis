@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import React, { useState, type ComponentProps } from 'react'
+import { AxiosError } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { AuditVersionHistory } from './AuditVersionHistory'
+import { AuditVersionHistory, classifyAuditHistoryError } from './AuditVersionHistory'
 import type { AuditLogEntry } from '../../api/createAuditApi'
 
 afterEach(() => {
@@ -58,6 +59,16 @@ function renderHistory(
   return render(<Harness />)
 }
 
+function axiosError(status: number): AxiosError {
+  return new AxiosError(`HTTP ${status}`, undefined, undefined, undefined, {
+    status,
+    statusText: 'Error',
+    headers: {},
+    config: {},
+    data: {},
+  })
+}
+
 describe('AuditVersionHistory', () => {
   it('버전이력 버튼으로 모달을 열고 최신 revision을 위에 두며 변경항목은 접는다', () => {
     renderHistory()
@@ -90,13 +101,56 @@ describe('AuditVersionHistory', () => {
     )
   })
 
-  it('권한/조회 오류는 기존 화면을 깨뜨리지 않고 모달에 오류를 표시한다', () => {
-    renderHistory({ logs: [], isError: true })
+  it.each([
+    [403, 'forbidden', '버전 이력을 조회할 권한이 없습니다.'],
+    [500, 'temporary', '버전 이력을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'],
+  ] as const)('%s 응답은 빈 이력과 구분되는 상태를 표시한다', (status, kind, message) => {
+    renderHistory({ logs: [], isError: true, error: axiosError(status) })
 
     fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
-    expect(screen.getByTestId('audit-test-version-history-error').textContent).toContain(
-      '버전 이력을 불러오지 못했습니다.',
+    const error = screen.getByTestId('audit-test-version-history-error')
+    expect(error.getAttribute('data-error-kind')).toBe(kind)
+    expect(error.textContent).toContain(message)
+    expect(screen.queryByTestId('audit-test-version-history-empty')).toBeNull()
+  })
+
+  it('endpoint 미제공 여부에 따라 404를 대상 부재와 구분한다', () => {
+    renderHistory({
+      logs: [],
+      isError: true,
+      error: axiosError(404),
+      treat404AsNotSupported: true,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
+
+    const error = screen.getByTestId('audit-test-version-history-error')
+    expect(error.getAttribute('data-error-kind')).toBe('not-supported')
+    expect(error.textContent).toContain('아직 제공되지 않습니다.')
+
+    cleanup()
+    renderHistory({ logs: [], isError: true, error: axiosError(404) })
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
+
+    expect(screen.getByTestId('audit-test-version-history-error').getAttribute('data-error-kind')).toBe(
+      'not-found',
     )
+    expect(screen.getByTestId('audit-test-version-history-error').textContent).toContain(
+      '해당 대상의 버전 이력을 찾을 수 없습니다.',
+    )
+  })
+
+  it('네트워크 오류도 화면을 깨뜨리지 않고 일시 실패로 표시한다', () => {
+    const networkError = new Error('network disconnected')
+    renderHistory({ logs: [], isError: true, error: networkError })
+
+    fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
+
+    expect(classifyAuditHistoryError(networkError)).toBe('temporary')
+    expect(screen.getByTestId('audit-test-version-history-error').getAttribute('data-error-kind')).toBe(
+      'temporary',
+    )
+    expect(screen.queryByTestId('audit-test-version-history-empty')).toBeNull()
   })
 })

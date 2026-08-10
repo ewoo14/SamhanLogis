@@ -221,7 +221,7 @@ export function TaxInvoiceFormPage() {
   // PR-H4c: edit 모드 audit log 백필
   const auditQuery = useQuery({
     queryKey: ['accounting', 'tax-invoice', editId, 'audit-logs'],
-    queryFn: () => taxInvoiceAuditApi.listAuditLogs(editId!).catch(() => []),
+    queryFn: () => taxInvoiceAuditApi.listAuditLogs(editId!),
     enabled: isEdit && !!editId,
   })
 
@@ -544,6 +544,8 @@ export function TaxInvoiceFormPage() {
               logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
               isLoading={auditQuery.isLoading}
               isError={auditQuery.isError}
+              error={auditQuery.error}
+              treat404AsNotSupported
               open={auditHistoryOpen}
               onOpenChange={setAuditHistoryOpen}
               testIdPrefix="tax-invoice-form"

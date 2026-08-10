@@ -112,10 +112,10 @@ export function TaxInvoiceDetailPage() {
     queryFn: () => getTaxInvoice(id),
   })
 
-  // PR-H4c: audit log 백필 — BE 미구현 시 빈 배열 fallback (catch).
+  // PR-H4c: audit log 조회. 실패는 빈 이력으로 바꾸지 않고 모달에서 상태를 안내한다.
   const auditQuery = useQuery({
     queryKey: ['accounting', 'tax-invoice', id, 'audit-logs'],
-    queryFn: () => taxInvoiceAuditApi.listAuditLogs(id).catch(() => []),
+    queryFn: () => taxInvoiceAuditApi.listAuditLogs(id),
     enabled: !!id,
   })
 
@@ -539,6 +539,8 @@ export function TaxInvoiceDetailPage() {
                 logs={auditLogs}
                 isLoading={auditQuery.isLoading}
                 isError={auditQuery.isError}
+                error={auditQuery.error}
+                treat404AsNotSupported
                 open={auditHistoryOpen}
                 onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="tax-invoice-detail"

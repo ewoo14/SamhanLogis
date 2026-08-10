@@ -121,10 +121,10 @@ export function InventoryAuditDetailPage() {
     enabled: !!id,
   })
 
-  // PR-H4c FE-B: audit log 백필 — BE 미구현 시 빈 배열 fallback
+  // PR-H4c FE-B: audit log 조회. 실패는 빈 이력으로 바꾸지 않고 모달에서 상태를 안내한다.
   const auditQuery = useQuery({
     queryKey: ['inventory', 'audit', id, 'audit-logs'],
-    queryFn: () => inventoryAuditAuditApi.listAuditLogs(id).catch(() => []),
+    queryFn: () => inventoryAuditAuditApi.listAuditLogs(id),
     enabled: !!id,
   })
 
@@ -318,6 +318,7 @@ export function InventoryAuditDetailPage() {
                 logs={auditLogs}
                 isLoading={auditQuery.isLoading}
                 isError={auditQuery.isError}
+                error={auditQuery.error}
                 open={auditHistoryOpen}
                 onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="audit-detail"

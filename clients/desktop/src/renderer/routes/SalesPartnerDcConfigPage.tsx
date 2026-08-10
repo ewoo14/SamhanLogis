@@ -69,7 +69,7 @@ export function SalesPartnerDcConfigPage() {
   const auditQuery = useQuery({
     queryKey: ['partner-dc-config', selectedPartnerCode, 'audit-logs'],
     queryFn: () =>
-      dcConfigAuditApi.listAuditLogs(selectedPartnerCode!).catch(() => []),
+      dcConfigAuditApi.listAuditLogs(selectedPartnerCode!),
     enabled: !!selectedPartnerCode,
   })
 
@@ -390,6 +390,8 @@ export function SalesPartnerDcConfigPage() {
                   logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                   isLoading={auditQuery.isLoading}
                   isError={auditQuery.isError}
+                  error={auditQuery.error}
+                  treat404AsNotSupported
                   open={auditHistoryOpen}
                   onOpenChange={setAuditHistoryOpen}
                   testIdPrefix="partner-dc-config-audit"

@@ -182,7 +182,7 @@ export function MonthEndClosingPage() {
   // PR-H4c: 선택 마감 audit log + SSE.
   const auditQuery = useQuery({
     queryKey: ['closings', selectedClosingId, 'audit-logs'],
-    queryFn: () => closingAuditApi.listAuditLogs(selectedClosingId!).catch(() => []),
+    queryFn: () => closingAuditApi.listAuditLogs(selectedClosingId!),
     enabled: !!selectedClosingId,
   })
 
@@ -744,6 +744,8 @@ export function MonthEndClosingPage() {
                 logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                 isLoading={auditQuery.isLoading}
                 isError={auditQuery.isError}
+                error={auditQuery.error}
+                treat404AsNotSupported
                 open={auditHistoryOpen}
                 onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="closing-audit"
