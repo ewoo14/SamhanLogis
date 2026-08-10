@@ -267,7 +267,7 @@ public class EstimateCatalogInternalController {
                             p.getCatS() == null ? null : p.getCatS().getName(),
                             p.getHasVariableDiscount(),
                             p.getSetMaterialKey() == null ? null : p.getSetMaterialKey().name(),
-                            p.getFixedDiscountRate(),
+                            p.resolveFixedDiscount().rate(),
                             p.getLegacyDiscountFlag(),
                             p.getRemark(),
                             p.getSpecText() != null ? p.getSpecText() : p.getSpecification(),

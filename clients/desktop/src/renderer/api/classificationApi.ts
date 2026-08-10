@@ -8,6 +8,7 @@ export {
   deleteClassification,
   listClassifications,
   updateClassification,
+  updateClassificationFixedDiscount,
 } from './productCatalogApi'
 
 export type {
@@ -15,4 +16,5 @@ export type {
   ClassificationLevel,
   CreateClassificationRequest,
   UpdateClassificationRequest,
+  UpdateClassificationFixedDiscountRequest,
 } from './productCatalogApi'

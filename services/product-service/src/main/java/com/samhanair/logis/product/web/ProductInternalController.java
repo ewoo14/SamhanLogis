@@ -285,7 +285,8 @@ public class ProductInternalController {
         Map<UUID, FixedDiscountResponse> out = new LinkedHashMap<>();
         for (UUID productId : request.productIds()) {
             productRepository.findById(productId)
-                    .ifPresent(product -> out.put(productId, new FixedDiscountResponse(product.getFixedDiscountRate())));
+                    .ifPresent(product -> out.put(productId,
+                            new FixedDiscountResponse(product.resolveFixedDiscount().rate())));
         }
         return ApiResponse.ok(out);
     }
@@ -368,6 +369,6 @@ public class ProductInternalController {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "고정DC율 조회 대상 품목을 찾을 수 없습니다"));
-        return new FixedDiscountResponse(product.getFixedDiscountRate());
+        return new FixedDiscountResponse(product.resolveFixedDiscount().rate());
     }
 }

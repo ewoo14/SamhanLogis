@@ -161,7 +161,7 @@ public record ProductSummaryResponse(
                 p.isUsageScopeManual(),
                 null,
                 categoryKey(p),
-                p.getFixedDiscountRate(),
+                p.resolveFixedDiscount().rate(),
                 p.getDiscountFlags(),
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),

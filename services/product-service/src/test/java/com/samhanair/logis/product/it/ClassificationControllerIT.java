@@ -128,4 +128,17 @@ class ClassificationControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("사용 중")));
     }
+
+    @Test
+    void 분류에_정액할인율을_지정하면_응답에_반영된다() throws Exception {
+        Classification catL = classificationRepository.save(Classification.create(
+                EstimateCategory.HOME_MULTI, Classification.CatLevel.L, null, "정액 정책", 1, true));
+
+        mvc.perform(patch("/api/v1/classifications/{id}/fixed-discount", catL.getId())
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fixedDiscountRate\":\"5\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fixedDiscountRate").value(5));
+    }
 }

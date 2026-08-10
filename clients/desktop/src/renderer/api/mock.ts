@@ -1502,6 +1502,7 @@ type MockClassification = {
   name: string
   displayOrder: number
   active: boolean
+  fixedDiscountRate?: number | null
 }
 
 let MOCK_CLASSIFICATIONS: MockClassification[] = [
@@ -2664,6 +2665,24 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // PATCH/DELETE /api/v1/classifications/{id}
+  const classificationFixedDiscountMatch = url.match(/\/api\/v1\/classifications\/([^/?]+)\/fixed-discount(?:\?.*)?$/)
+  if (classificationFixedDiscountMatch && method === 'PATCH') {
+    const denied = mockRequirePermission('products.admin', 'update')
+    if (denied) return denied
+    const id = decodeURIComponent(classificationFixedDiscountMatch[1]!)
+    const idx = MOCK_CLASSIFICATIONS.findIndex((item) => item.id === id)
+    if (idx < 0) return mockError(404, 'NOT_FOUND', '분류를 찾을 수 없습니다.')
+    const body = parseMockBody(config)
+    const raw = body['fixedDiscountRate']
+    const rate = raw == null || String(raw).trim() === '' ? null : Number(raw)
+    if (rate != null && (!Number.isFinite(rate) || rate < 0 || rate > 100)) {
+      return mockError(400, 'INVALID_INPUT', '고정DC율은 0 이상 100 이하이어야 합니다.')
+    }
+    const updated = { ...MOCK_CLASSIFICATIONS[idx]!, fixedDiscountRate: rate }
+    MOCK_CLASSIFICATIONS = MOCK_CLASSIFICATIONS.map((item, i) => (i === idx ? updated : item))
+    return updated
+  }
+
   const classificationItemMatch = url.match(/\/api\/v1\/classifications\/([^/?]+)(?:\?.*)?$/)
   if (classificationItemMatch) {
     const id = decodeURIComponent(classificationItemMatch[1]!)
