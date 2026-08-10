@@ -5,10 +5,20 @@ import { createDocCoeditProvider, type DocCoeditProvider } from '../realtime/cre
 import {
   buildSalesEditLinePayloads,
   coeditLinesToEditLines,
+  expandSalesBundleProductSelection,
   promoteSalesProductSelection,
   removeSalesEditLine,
   syncDetailAmountToDoc,
 } from './SlipDetailPage'
+
+const harness = vi.hoisted(() => ({
+  expandBundleLine: vi.fn(),
+}))
+
+vi.mock('../api/slip', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('../api/slip')
+  return { ...actual, expandBundleLine: harness.expandBundleLine }
+})
 
 const SERVER_LINE_ID = 'server-line-1'
 
@@ -42,12 +52,184 @@ function line(overrides: Record<string, unknown> = {}) {
 }
 
 describe('S2 #1071 매출 수정 품목 추가 RED-A', () => {
+  it('활성 BUNDLE 선택은 작성 화면과 같은 구성품 payload로 전개되고 기존 행을 보존한다', async () => {
+    harness.expandBundleLine.mockResolvedValueOnce([
+      {
+        productId: 'bundle-component-1',
+        modelCode: 'COMP-1',
+        modelName: 'COMP-1',
+        name: '구성품 1',
+        quantity: 2,
+        unitPrice: 500,
+        componentKind: 'DEFAULT',
+        setHead: true,
+        specification: '규격 1',
+      },
+      {
+        productId: 'bundle-component-2',
+        modelCode: 'COMP-2',
+        modelName: 'COMP-2',
+        name: '구성품 2',
+        quantity: 1,
+        unitPrice: 300,
+        componentKind: 'DEFAULT',
+        setHead: false,
+        specification: '규격 2',
+      },
+    ])
+    const provider = await providerWithRows([{
+      lineId: SERVER_LINE_ID,
+      productId: 'existing-product',
+      productName: '기존 품목',
+      modelName: 'EXISTING',
+      quantity: 2,
+      unitPrice: '9000',
+    }])
+
+    const expanded = await expandSalesBundleProductSelection(
+      provider,
+      line({ key: 'bundle-draft', quantity: 1, unitPrice: '10000' }),
+      {
+        id: 'bundle-parent',
+        modelName: 'SET-1',
+        productName: '세트 1',
+        modelCode: 'SET-1',
+        productType: 'BUNDLE',
+      },
+    )
+    const payload = buildSalesEditLinePayloads([
+      line({
+        key: 'existing',
+        lineId: SERVER_LINE_ID,
+        productId: 'existing-product',
+        productName: '기존 품목',
+        modelName: 'EXISTING',
+        quantity: 2,
+        unitPrice: '9000',
+      }),
+      ...expanded,
+    ])
+
+    expect(harness.expandBundleLine).toHaveBeenCalledWith({
+      parentModelCode: 'SET-1',
+      quantity: 1,
+      unitPrice: '10000',
+      specification: undefined,
+    })
+    expect(payload).toHaveLength(3)
+    expect(payload[0]).toEqual(expect.objectContaining({
+      lineId: SERVER_LINE_ID,
+      productId: 'existing-product',
+    }))
+    expect(payload.slice(1)).toEqual([
+      expect.objectContaining({
+        lineId: null,
+        productId: 'bundle-component-1',
+        parentSetModel: 'SET-1',
+        setHead: true,
+        bundleParentProductId: 'bundle-parent',
+        bundleParentUnitPrice: '10000',
+      }),
+      expect.objectContaining({
+        lineId: null,
+        productId: 'bundle-component-2',
+        parentSetModel: 'SET-1',
+        setHead: false,
+        bundleParentProductId: 'bundle-parent',
+        bundleParentUnitPrice: '10000',
+      }),
+    ])
+    expect(payload.some((item) => item.productId === 'bundle-parent')).toBe(false)
+    const projected = coeditLinesToEditLines(
+      provider,
+      [
+        line({
+          key: 'existing',
+          lineId: SERVER_LINE_ID,
+          productId: 'existing-product',
+          productName: '기존 품목',
+          modelName: 'EXISTING',
+          quantity: 2,
+          unitPrice: '9000',
+        }),
+        ...expanded,
+      ],
+      new Set([SERVER_LINE_ID]),
+    )
+    expect(projected.slice(1)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ parentSetModel: 'SET-1', isBundleComponent: true }),
+    ]))
+    provider.destroy()
+  })
+
+  it('BUNDLE 전개가 거부돼도 같은 저장의 기존 행 payload는 사라지지 않는다', async () => {
+    harness.expandBundleLine.mockRejectedValueOnce(new Error('bundle expansion rejected'))
+    const provider = await providerWithRows([])
+
+    await expect(expandSalesBundleProductSelection(
+      provider,
+      line({ key: 'bundle-draft', quantity: 1, unitPrice: '10000' }),
+      {
+        id: 'bundle-parent',
+        modelName: 'SET-1',
+        productName: '세트 1',
+        modelCode: 'SET-1',
+        productType: 'BUNDLE',
+      },
+    )).rejects.toThrow('bundle expansion rejected')
+
+    expect(buildSalesEditLinePayloads([
+      line({
+        key: 'existing',
+        lineId: SERVER_LINE_ID,
+        productId: 'existing-product',
+        productName: '기존 품목',
+        modelName: 'EXISTING',
+        quantity: 2,
+        unitPrice: '9000',
+      }),
+    ])).toEqual([
+      expect.objectContaining({ lineId: SERVER_LINE_ID, productId: 'existing-product' }),
+    ])
+    provider.destroy()
+  })
+
+  it('KEEP 부모만 반환된 BUNDLE은 수정 payload에 BUNDLE 원본을 남기지 않는다', async () => {
+    harness.expandBundleLine.mockResolvedValueOnce([{
+      productId: 'bundle-parent',
+      modelCode: 'SET-1',
+      modelName: 'SET-1',
+      name: '세트 1',
+      quantity: 1,
+      unitPrice: 10000,
+      componentKind: null,
+      setHead: false,
+    }])
+    const provider = await providerWithRows([])
+
+    await expect(expandSalesBundleProductSelection(
+      provider,
+      line({ key: 'bundle-draft', quantity: 1, unitPrice: '10000' }),
+      {
+        id: 'bundle-parent',
+        modelName: 'SET-1',
+        productName: '세트 1',
+        modelCode: 'SET-1',
+        productType: 'BUNDLE',
+      },
+    )).rejects.toThrow('세트 구성품을 찾을 수 없습니다.')
+    expect(provider.items).toHaveLength(0)
+    provider.destroy()
+  })
+
   it('품목 선택기와 승격 중 저장 write fence가 실제 수정 화면에 연결된다', () => {
     const source = readFileSync(fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)), 'utf8')
 
     expect(source).toContain('<ProductAutocomplete')
     expect(source).toContain('provider={lineProvider}')
     expect(source).toContain('if (salesEditPromotionPendingRef.current)')
+    expect(source).toContain("if (product.productType === 'BUNDLE')")
+    expect(source).toContain('await expandSalesBundleProductSelection')
     expect(source).toContain('lines: buildSalesEditLinePayloads(salesEditLines)')
   })
 

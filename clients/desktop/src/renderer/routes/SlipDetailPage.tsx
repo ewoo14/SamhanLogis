@@ -57,12 +57,15 @@ import {
   deletePurchaseSlip,
   deleteSalesSlip,
   duplicateSlip,
+  expandBundleLine,
+  emptyBundleSetOptions,
   getSlip,
   removeLine,
   transitionSlip,
   updatePurchaseSlip,
   updateSalesSlip,
   updateSlipDriver,
+  type ExpandedSlipLine,
   type SlipDetail,
   type SlipLineInput,
   type SlipSourceType,
@@ -803,6 +806,12 @@ export function coeditLinesToEditLines(
     const lineTotalWithVat = hasDerivedAmounts
       ? String(Number(supplyAmount) + Number(vatAmount))
       : rawLineTotal || previous?.lineTotalWithVat
+    const parentSetModel = provider.getItemValue(index, 'parentSetModel') || previous?.parentSetModel
+    const bundleParentProductId = provider.getItemValue(index, 'bundleParentProductId')
+      || previous?.bundleParentProductId
+    const bundleParentUnitPrice = provider.getItemValue(index, 'bundleParentUnitPrice')
+      || previous?.bundleParentUnitPrice
+    const rawSetHead = provider.getItemValue(index, 'setHead')
     return {
       key: previous?.key ?? createEditLineKey(),
       lineId: resolveServerLineId(provider, index, knownServerLineIds),
@@ -823,6 +832,11 @@ export function coeditLinesToEditLines(
       lineTotalWithVat,
       authority: (rawAuthority || previous?.authority) as PurchaseEditLine['authority'],
       vatDirty: rawVatDirty ? rawVatDirty === 'true' : previous?.vatDirty,
+      parentSetModel: parentSetModel || undefined,
+      setHead: rawSetHead ? rawSetHead === 'true' : previous?.setHead,
+      bundleParentProductId: bundleParentProductId || undefined,
+      bundleParentUnitPrice: bundleParentUnitPrice || undefined,
+      isBundleComponent: Boolean(parentSetModel?.trim()),
       // 재수렴 3차(#937) 근본수정 — U2: R-2(직전 라운드)는 vatWarning 을 "재계산하지 않고
       // 이전 상태 승계"로 닫았는데, 원격 피어의 첫 렌더에서 previous 는 REST 하이드레이션
       // 스냅샷이고 그 vatWarning 은 (구) 무조건 false 였다 — 원격 피어는 이후로도 이 필드가
@@ -1210,6 +1224,15 @@ export function buildDetailLinePayload(line: PurchaseEditLine): SlipLineInput {
           lineTotalWithVat: line.lineTotalWithVat,
         }
       : {}),
+    ...(line.parentSetModel
+      ? {
+          parentSetModel: line.parentSetModel,
+          setHead: Boolean(line.setHead),
+          bundleParentProductId: line.bundleParentProductId,
+          bundleParentUnitPrice: line.bundleParentUnitPrice,
+          setOptions: line.setOptions,
+        }
+      : {}),
   }
 }
 
@@ -1247,6 +1270,85 @@ export function promoteSalesProductSelection(
     })
   }
   return nextLine
+}
+
+/**
+ * 매출 수정 화면의 BUNDLE 선택을 작성 화면과 같은 서버 전개 결과로 승격한다.
+ *
+ * <p>부모 BUNDLE은 PUT payload에 남기지 않는다. 신규 구성품은 협업 내부키만 새로
+ * 발급하고 서버 {@code lineId}는 null로 유지하며, 기존 행을 교체한 경우 첫 구성품이
+ * 기존 서버 lineId를 계승한다. 실제 구성품 계산은 작성 화면과 동일한
+ * {@link expandBundleLine} 엔드포인트(서버 BundleExpander)를 사용한다.
+ */
+export async function expandSalesBundleProductSelection(
+  provider: DocCoeditProvider | null,
+  line: PurchaseEditLine,
+  product: ProductOption,
+): Promise<PurchaseEditLine[]> {
+  if (product.productType !== 'BUNDLE') {
+    return [promoteSalesProductSelection(provider, line, product)]
+  }
+
+  const parentModelCode = product.modelCode ?? product.modelName
+  const parentUnitPrice = line.unitPrice && line.unitPrice !== '0'
+    ? String(line.unitPrice)
+    : String(product.deliveryPrice ?? product.sellingPrice ?? line.unitPrice ?? '0')
+  const expanded: ExpandedSlipLine[] = await expandBundleLine({
+    parentModelCode,
+    quantity: Number(line.quantity) > 0 ? Number(line.quantity) : 1,
+    unitPrice: parentUnitPrice,
+    specification: line.specification?.trim() || undefined,
+  })
+  // 작성 화면의 KEEP 응답(componentKind=null)은 BUNDLE 부모 자체다. 수정 PUT은
+  // BUNDLE 제품을 거부하므로 부모를 보내지 않고, 실제 구성품만 저장 가능한 행으로 쓴다.
+  const components = expanded.filter((component) => component.productId && component.componentKind !== null)
+  if (components.length === 0) {
+    throw new Error('세트 구성품을 찾을 수 없습니다.')
+  }
+
+  return components.map((component, index) => {
+    const serverLineId = index === 0 ? line.lineId ?? null : null
+    const seed = {
+      productId: component.productId!,
+      productName: component.name ?? '',
+      modelName: component.modelName ?? '',
+      specification: component.specification ?? line.specification ?? '',
+      quantity: String(Math.max(1, Math.round(Number(component.quantity)))),
+      unitPrice: String(component.unitPrice ?? '0'),
+      note: line.note ?? '',
+      parentSetModel: parentModelCode,
+      setHead: Boolean(component.setHead),
+      bundleParentProductId: product.id,
+      bundleParentUnitPrice: parentUnitPrice,
+    }
+    const coeditLineId = serverLineId ?? provider?.addItem(seed) ?? null
+    if (provider && coeditLineId) {
+      provider.doc.transact(() => {
+        for (const [field, value] of Object.entries(seed)) {
+          provider.setItemValueById(coeditLineId, field, String(value))
+        }
+      })
+    }
+    return {
+      ...line,
+      key: index === 0 ? line.key : createEditLineKey(),
+      lineId: serverLineId,
+      coeditLineId: coeditLineId && !serverLineId ? coeditLineId : undefined,
+      productId: component.productId!,
+      productName: component.name ?? '',
+      modelName: component.modelName ?? '',
+      specification: component.specification ?? line.specification ?? '',
+      quantity: Math.max(1, Math.round(Number(component.quantity))),
+      unitPrice: String(component.unitPrice ?? '0'),
+      parentSetModel: parentModelCode,
+      setHead: Boolean(component.setHead),
+      bundleParentProductId: product.id,
+      bundleParentUnitPrice: parentUnitPrice,
+      setOptions: line.setOptions ?? emptyBundleSetOptions(),
+      isBundleComponent: true,
+      vatDirty: false,
+    }
+  })
 }
 
 /** 매출 수정 저장 projection — 품목·양수가 확정된 행만 BE payload로 보낸다. */
@@ -5588,7 +5690,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     })
   }
 
-  function handleSalesProductSelection(index: number, product: ProductOption | null) {
+  async function handleSalesProductSelection(index: number, product: ProductOption | null) {
     const current = salesEditLinesRef.current[index]
     if (!current) return
     salesEditPromotionPendingRef.current = true
@@ -5601,6 +5703,24 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         setSalesEditLines((prev) => removeSalesEditLine(prev, current.key))
         return
       }
+      if (product.productType === 'BUNDLE') {
+        const expanded = await expandSalesBundleProductSelection(
+          slipFormCoeditProvider,
+          current,
+          product,
+        )
+        setSalesEditLines((prev) => {
+          const currentIndex = prev.findIndex((line) => line.key === current.key)
+          if (currentIndex < 0) return prev
+          const next = [
+            ...prev.slice(0, currentIndex),
+            ...expanded,
+            ...prev.slice(currentIndex + 1),
+          ]
+          return ensureSalesTrailingDraft(next)
+        })
+        return
+      }
       const promoted = promoteSalesProductSelection(slipFormCoeditProvider, current, product)
       setSalesEditLines((prev) => {
         const currentIndex = prev.findIndex((line) => line.key === current.key)
@@ -5608,6 +5728,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         const next = prev.map((line, lineIndex) => lineIndex === currentIndex ? promoted : line)
         return ensureSalesTrailingDraft(next)
       })
+    } catch (error) {
+      setEditSurfaceNotice(error instanceof Error
+        ? error.message
+        : '세트 구성품을 불러오지 못했습니다. 다시 선택해 주세요.')
     } finally {
       salesEditPromotionPendingRef.current = false
       setSalesEditPromotionPending(false)
