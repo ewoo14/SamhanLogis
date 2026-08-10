@@ -186,6 +186,83 @@ done
 
 ---
 
+### 5.1 V31 오삭제로 V33에서 기동이 막힌 기존 DB 복구
+
+#### 증상
+
+```text
+product-service 부팅 실패
+NON_GOODS 후보 수가 0 또는 34가 아닙니다: N
+```
+
+#### 원인
+
+기존 `product_db`에 `created_by IN ('system','qa-seed')` 레거시 시드가 남아 있는 상태에서
+V31이 적용되면, V31의 `products` 술어가 101개 UUID 밖의 정상 품목까지 soft-delete 한다.
+그 결과 V33의 비상품 후보 수가 34 미만이 되어 Flyway가 V35까지 도달하지 못한다.
+
+#### 조치
+
+이 절차는 V33 실패로 서비스가 기동하지 않는 경우에만 수행한다. DB 직접 수정은 이 장애 복구의
+명시적 예외이며, 임의의 `created_by` 기준 복구를 하지 않는다.
+
+1. 복구 전 활성 품목 수와 cleanup actor 표식을 **읽기 전용 SQL**로 기록한다.
+
+   ```sql
+   SELECT COUNT(*) AS active_products_before
+   FROM products
+   WHERE is_deleted = FALSE;
+
+   SELECT COUNT(*) AS cleanup_tagged_products
+   FROM products
+   WHERE is_deleted = TRUE
+     AND deleted_by = 'issue-1096-test-seed-cleanup';
+   ```
+
+2. 서비스 소스와 같은 릴리스의 `V35__repair_issue_1096_product_cleanup.sql`을 그대로 실행한다.
+   이 파일은 cleanup actor가 붙은 행 중 V31의 101개 UUID 밖인 제품·alias·bundle·estimate exposure만
+   되살리고, 복구된 비상품 후보에 V33 전환을 재적용한다. 101개 UUID는 되살리지 않는다.
+
+   ```powershell
+   psql "$env:PRODUCT_DB_URL" --set=ON_ERROR_STOP=1 `
+     --file services/product-service/src/main/resources/db/migration/V35__repair_issue_1096_product_cleanup.sql
+   ```
+
+   이 수동 실행은 `flyway_schema_history`를 기록하지 않는다. 따라서 재기동 후 Flyway가 V33 → V34 →
+   V35를 정상 순서로 적용하며, V35 재실행은 멱등하게 통과한다.
+
+3. 복구 후 같은 SQL로 활성 품목 수를 다시 기록한다.
+
+   ```sql
+   SELECT COUNT(*) AS active_products_after
+   FROM products
+   WHERE is_deleted = FALSE;
+   ```
+
+   PM 회사 PC 실측 원문 수치는 **3,061 → 1,947 → 복구 후 3,061**이다. 이 숫자를 다른 DB의
+   기대값으로 사용하지 말고, 해당 DB에서 실제 출력한 값을 함께 보관한다.
+
+4. product-service를 재기동하고 V33이 통과했는지 확인한다. 이후 V35 적용 후 다음을 확인한다.
+
+   ```sql
+   SELECT goods_type, inventory_qty_mgmt, COUNT(*)
+   FROM products
+   WHERE is_deleted = FALSE
+     AND model_code IN (
+       '00101','01018','AAAA-00026','AAAA-00027','AAAA-00028','AAAA-00029',
+       'AAAA-00030','AAAA-00032','AAAA-00033','ZENG-00001','ZENG-00003',
+       'ZENG-00004','ZENG-00005','설치비1','설치비10','설치비11','설치비12',
+       '설치비13','설치비14','설치비15','설치비2','설치비3','설치비4',
+       '설치비5','설치비6','설치비7','설치비8','설치비9','영업수수료',
+       '운임','절삭','조달수수료','카드수수료','판매수수료'
+     )
+   GROUP BY goods_type, inventory_qty_mgmt;
+   ```
+
+   운임·절삭을 포함한 34개가 `NON_GOODS`, `inventory_qty_mgmt = FALSE`여야 한다.
+
+---
+
 ## 6. QA 잔재 — 결함으로 오인하지 말 것
 
 공유 DB 에 QA 라운드가 남긴 행이 있습니다. **가르는 근거는 `created_by`·`created_at`·이름**입니다.
