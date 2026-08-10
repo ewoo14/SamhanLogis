@@ -6,7 +6,9 @@
 -- V33의 전환 의도를 다시 적용한다. 모든 UPDATE는 현재 상태를 함께 검사하므로
 -- 이미 복구된 DB에서도 멱등하게 통과한다.
 
-CREATE TEMP TABLE _issue_1096_test_product_ids (id UUID PRIMARY KEY) ON COMMIT DROP;
+-- Flyway transaction과 런북의 psql AUTOCOMMIT=on 양쪽에서 INSERT 이후에도 유지해야 한다.
+-- psql --file은 문장마다 commit하므로 ON COMMIT DROP을 사용하면 첫 문장 직후 표가 사라진다.
+CREATE TEMP TABLE _issue_1096_test_product_ids (id UUID PRIMARY KEY) ON COMMIT PRESERVE ROWS;
 INSERT INTO _issue_1096_test_product_ids (id) VALUES
     ('b0000000-0000-0000-0000-000000000001'::uuid),
     ('01949ab7-e922-35c6-b289-5337d867a0ee'::uuid),
@@ -153,6 +155,8 @@ UPDATE product_estimate_exposure e
 
 -- V33이 V31 이전에 후보 0건으로 통과한 경우에도 복구된 34개 후보를 전환한다.
 -- 운임·절삭은 정상 견적 품목이므로 이 목록에서 제외하지 않는다.
+-- 현재는 값이 이미 올바른 34행에도 같은 SET을 다시 적용한다. 이 UPDATE에 trigger가
+-- 추가되면 재실행 부작용이 결함이 되므로, trigger 도입 시 별도 범위로 전환해야 한다.
 UPDATE products
    SET goods_type = 'NON_GOODS',
        inventory_qty_mgmt = FALSE

@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -9,6 +10,7 @@ import java.sql.ResultSet;
 import java.util.Arrays;
 import java.util.List;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -42,18 +44,31 @@ class Issue1096ProductCleanupMigrationIT {
             .withDatabaseName("issue_1096_product_cleanup_db")
             .withUsername("samhan")
             .withPassword("samhan_dev_pw");
+    private static final PostgreSQLContainer<?> MIXED_POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName("issue_1096_product_cleanup_mixed_db")
+            .withUsername("samhan")
+            .withPassword("samhan_dev_pw");
 
     @BeforeAll
     static void seedBeforeV31() throws Exception {
         POSTGRES.start();
-        migrateTo(30);
-        try (Connection connection = connection()) {
+        MIXED_POSTGRES.start();
+        seedBeforeV31(POSTGRES, false);
+        seedBeforeV31(MIXED_POSTGRES, true);
+    }
+
+    private static void seedBeforeV31(PostgreSQLContainer<?> postgres, boolean leaveThirtyTwoCandidates)
+            throws Exception {
+        migrateTo(postgres, 30);
+        try (Connection connection = connection(postgres)) {
             insertProduct(connection, TARGET_PRODUCT_ID, null, "V31-target-product");
             insertProduct(connection, REGULAR_PRODUCT_ID, null, "V31-regular-product");
             for (String modelCode : NON_GOODS_MODEL_CODES) {
+                String createdBy = leaveThirtyTwoCandidates
+                        && NON_GOODS_MODEL_CODES.indexOf(modelCode) < 2 ? "system" : "operator";
                 insertProduct(connection, "f4000000-0000-0000-0000-"
                         + String.format("%012d", NON_GOODS_MODEL_CODES.indexOf(modelCode) + 1),
-                        modelCode, "V31-non-goods-" + modelCode);
+                        modelCode, "V31-non-goods-" + modelCode, createdBy);
             }
             insertAlias(connection, TARGET_ALIAS_ID, TARGET_PRODUCT_ID, "V31-TARGET-ALIAS");
             insertAlias(connection, REGULAR_ALIAS_ID, REGULAR_PRODUCT_ID, "V31-REGULAR-ALIAS");
@@ -68,6 +83,9 @@ class Issue1096ProductCleanupMigrationIT {
     static void stopContainer() {
         if (POSTGRES.isRunning()) {
             POSTGRES.stop();
+        }
+        if (MIXED_POSTGRES.isRunning()) {
+            MIXED_POSTGRES.stop();
         }
     }
 
@@ -87,13 +105,8 @@ class Issue1096ProductCleanupMigrationIT {
         assertThat(nonGoodsCount()).isEqualTo(34);
         assertThat(nonGoodsWithInventoryManagement()).isZero();
 
-        // V35 SQL 자체를 한 번 더 실행해 이미 수동 복구된 DB 경로의 멱등성도 검증한다.
-        try (Connection connection = connection()) {
-            connection.setAutoCommit(false);
-            ScriptUtils.executeSqlScript(connection,
-                    new ClassPathResource("db/migration/V35__repair_issue_1096_product_cleanup.sql"));
-            connection.commit();
-        }
+        // V35 SQL 자체를 psql 기본값과 같은 autoCommit=true 경계로 한 번 더 실행한다.
+        executeV35WithDefaultAutoCommit(POSTGRES);
 
         assertThat(productState(REGULAR_PRODUCT_ID)).containsExactly(false, null);
         assertThat(productState(TARGET_PRODUCT_ID)).containsExactly(true, CLEANUP_ACTOR);
@@ -101,9 +114,30 @@ class Issue1096ProductCleanupMigrationIT {
         assertThat(nonGoodsWithInventoryManagement()).isZero();
     }
 
+    @Test
+    @DisplayName("V33 차단 DB도 런북 V35 실행 후 Flyway를 재개할 수 있다")
+    void manualRunbookRepairResumesBlockedFlywayPath() throws Exception {
+        assertThatThrownBy(() -> migrateToLatest(MIXED_POSTGRES))
+                .isInstanceOf(FlywayException.class);
+
+        executeV35WithDefaultAutoCommit(MIXED_POSTGRES);
+        assertThat(productState(MIXED_POSTGRES, REGULAR_PRODUCT_ID)).containsExactly(false, null);
+        assertThat(productState(MIXED_POSTGRES, TARGET_PRODUCT_ID)).containsExactly(true, CLEANUP_ACTOR);
+        assertThat(nonGoodsCount(MIXED_POSTGRES)).isEqualTo(34);
+
+        migrateToLatest(MIXED_POSTGRES);
+        assertThat(productState(MIXED_POSTGRES, REGULAR_PRODUCT_ID)).containsExactly(false, null);
+        assertThat(productState(MIXED_POSTGRES, TARGET_PRODUCT_ID)).containsExactly(true, CLEANUP_ACTOR);
+        assertThat(nonGoodsCount(MIXED_POSTGRES)).isEqualTo(34);
+    }
+
     private static void migrateTo(int target) {
+        migrateTo(POSTGRES, target);
+    }
+
+    private static void migrateTo(PostgreSQLContainer<?> postgres, int target) {
         Flyway.configure()
-                .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .target(String.valueOf(target))
                 .load()
@@ -111,31 +145,53 @@ class Issue1096ProductCleanupMigrationIT {
     }
 
     private static void migrateToLatest() {
+        migrateToLatest(POSTGRES);
+    }
+
+    private static void migrateToLatest(PostgreSQLContainer<?> postgres) {
         Flyway.configure()
-                .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load()
                 .migrate();
     }
 
     private static Connection connection() throws Exception {
-        return DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        return connection(POSTGRES);
+    }
+
+    private static Connection connection(PostgreSQLContainer<?> postgres) throws Exception {
+        return DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
     }
 
     private static void insertProduct(Connection connection, String id, String modelCode, String modelName)
             throws Exception {
+        insertProduct(connection, id, modelCode, modelName, "system");
+    }
+
+    private static void insertProduct(
+            Connection connection, String id, String modelCode, String modelName, String createdBy) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement("""
                 INSERT INTO products (
                     id, name, model_name, category_id, selling_price, purchase_price,
                     model_code, created_at, created_by, is_deleted
-                ) VALUES (?::uuid, ?, ?, ?::uuid, 0, 0, ?, NOW(), 'system', FALSE)
+                ) VALUES (?::uuid, ?, ?, ?::uuid, 0, 0, ?, NOW(), ?, FALSE)
                 """)) {
             statement.setString(1, id);
             statement.setString(2, modelName);
             statement.setString(3, modelName);
             statement.setString(4, HVAC_CATEGORY_ID);
             statement.setString(5, modelCode);
+            statement.setString(6, createdBy);
             statement.executeUpdate();
+        }
+    }
+
+    private static void executeV35WithDefaultAutoCommit(PostgreSQLContainer<?> postgres) throws Exception {
+        try (Connection connection = connection(postgres)) {
+            assertThat(connection.getAutoCommit()).isTrue();
+            ScriptUtils.executeSqlScript(connection,
+                    new ClassPathResource("db/migration/V35__repair_issue_1096_product_cleanup.sql"));
         }
     }
 
@@ -179,7 +235,11 @@ class Issue1096ProductCleanupMigrationIT {
     }
 
     private static List<Object> productState(String productId) throws Exception {
-        try (Connection connection = connection();
+        return productState(POSTGRES, productId);
+    }
+
+    private static List<Object> productState(PostgreSQLContainer<?> postgres, String productId) throws Exception {
+        try (Connection connection = connection(postgres);
                 PreparedStatement statement = connection.prepareStatement("""
                         SELECT is_deleted, deleted_by FROM products WHERE id = ?::uuid
                         """)) {
@@ -192,9 +252,15 @@ class Issue1096ProductCleanupMigrationIT {
     }
 
     private static int count(String table, String productColumn, String productId, boolean deleted) throws Exception {
+        return count(POSTGRES, table, productColumn, productId, deleted);
+    }
+
+    private static int count(
+            PostgreSQLContainer<?> postgres, String table, String productColumn, String productId, boolean deleted)
+            throws Exception {
         String sql = "SELECT count(*) FROM " + table + " WHERE " + productColumn
                 + " = ?::uuid AND is_deleted = ?";
-        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection connection = connection(postgres); PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, productId);
             statement.setBoolean(2, deleted);
             try (ResultSet result = statement.executeQuery()) {
@@ -205,7 +271,11 @@ class Issue1096ProductCleanupMigrationIT {
     }
 
     private static int nonGoodsCount() throws Exception {
-        try (Connection connection = connection();
+        return nonGoodsCount(POSTGRES);
+    }
+
+    private static int nonGoodsCount(PostgreSQLContainer<?> postgres) throws Exception {
+        try (Connection connection = connection(postgres);
                 PreparedStatement statement = connection.prepareStatement("""
                         SELECT count(*) FROM products
                          WHERE is_deleted = FALSE
@@ -221,7 +291,11 @@ class Issue1096ProductCleanupMigrationIT {
     }
 
     private static int nonGoodsWithInventoryManagement() throws Exception {
-        try (Connection connection = connection();
+        return nonGoodsWithInventoryManagement(POSTGRES);
+    }
+
+    private static int nonGoodsWithInventoryManagement(PostgreSQLContainer<?> postgres) throws Exception {
+        try (Connection connection = connection(postgres);
                 PreparedStatement statement = connection.prepareStatement("""
                         SELECT count(*) FROM products
                          WHERE is_deleted = FALSE
