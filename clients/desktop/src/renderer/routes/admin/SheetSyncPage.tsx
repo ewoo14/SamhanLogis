@@ -281,6 +281,11 @@ function SummaryTotals({ summary }: SummaryTotalsProps) {
         tone="warning"
       />
       <TotalChip label="총 skip occurrence" value={summary.totalSkippedOccurrences} tone="neutral" />
+      <TotalChip
+        label="규칙 보존 Product"
+        value={summary.totalPreservedByRuleProductOccurrences}
+        tone="warning"
+      />
       <TotalChip label="수동 보존 Product occurrence" value={summary.totalPreservedManualProductOccurrences} tone="neutral" />
       <TotalChip label="수동 보존 구성품 occurrence" value={summary.totalPreservedManualComponentOccurrences} tone="neutral" />
       <TotalChip
@@ -338,6 +343,17 @@ export function formatTabRemark(result: SheetSyncRowResult): string {
   if (result.error) parts.push(result.error)
   if (result.unchangedRows) parts.push(`변경 없음 ${result.unchangedRows}`)
   if (result.skippedOccurrences) parts.push(`skip occurrence ${result.skippedOccurrences}`)
+  if (result.preservedByRuleProductOccurrences) {
+    const details = result.preservedByRuleProductDetails ?? []
+    const detailText = details
+      .map((detail) => `${detail.modelCode} (${detail.ruleKeys.join(', ')})`)
+      .join(', ')
+    parts.push(
+      detailText
+        ? `규칙 보존 ${result.preservedByRuleProductOccurrences}: ${detailText}`
+        : `규칙 보존 ${result.preservedByRuleProductOccurrences}`,
+    )
+  }
   return parts.length === 0 ? '—' : parts.join(' / ')
 }
 

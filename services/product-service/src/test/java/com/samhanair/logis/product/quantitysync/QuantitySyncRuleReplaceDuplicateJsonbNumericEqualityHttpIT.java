@@ -217,6 +217,7 @@ class QuantitySyncRuleReplaceDuplicateJsonbNumericEqualityHttpIT extends Abstrac
     }
 
     private String ruleJson(String ruleKey, String sourceCode, String conditionRaw) throws Exception {
+        classifyQuantitySyncTarget("R4JEQ-TGT");
         QuantitySyncRuleRequest request = new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,
                 ruleKey + " 이름", true, "SUM", MAPPER.readTree(conditionRaw), QuantitySyncInactiveBehavior.ZERO,
                 QuantitySyncConflictPolicy.REPLACE, 10, LEGACY_REF,

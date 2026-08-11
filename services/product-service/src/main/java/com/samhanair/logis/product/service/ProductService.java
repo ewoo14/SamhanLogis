@@ -620,7 +620,8 @@ public class ProductService {
         // product.changeUsage(...)를 도메인 객체에 반영했으므로 product.getUsageScope()가
         // 곧 "쓰기 이후" 값이다.
         boolean usageForcedNone = applyUpdateFields(product, req);
-        if (usageForcedNone || req.usageScope() != null || req.estimateCategories() != null) {
+        if (usageForcedNone || req.usageScope() != null || req.estimateCategories() != null
+                || req.goodsType() != null) {
             assertResultingStateSatisfiesQuantitySyncRules(product, product.getUsageScope(), req.estimateCategories());
             syncEstimateExposures(product, product.getUsageScope(), req.estimateCategories(), "product-update");
         }
@@ -737,7 +738,11 @@ public class ProductService {
     /** 견적품목 메뉴에서 상품/비상품 선언을 변경한다. */
     public Product updateGoodsTypeAndReturn(String modelCode,
                                             UpdateProductGoodsTypeRequest req) {
+        quantitySyncRuleService.lockGraphMutation();
         Product product = loadByModelCodeOrThrow(modelCode);
+        assertResultingRoleSatisfiesQuantitySyncRules(product,
+                product.getCatL() == null ? null : product.getCatL().getName(),
+                req.goodsType() == null ? ProductGoodsType.GOODS.name() : req.goodsType().name());
         product.changeGoodsType(req.goodsType());
         product.changeInventoryQtyMgmt(req.goodsType() == ProductGoodsType.GOODS);
         return product;
@@ -746,11 +751,15 @@ public class ProductService {
     /** 품목별 L/M/S 분류를 FE F1-b PATCH body 계약 그대로 저장한다. */
     public Product updateClassificationAndFixedDiscount(String modelCode,
                                                         UpdateProductClassificationRequest req) {
+        quantitySyncRuleService.lockGraphMutation();
         Product product = loadByModelCodeOrThrow(modelCode);
         Classification catL = loadClassification(req.catLId(), Classification.CatLevel.L, "대분류");
         Classification catM = loadClassification(req.catMId(), Classification.CatLevel.M, "중분류");
         Classification catS = loadClassification(req.catSId(), Classification.CatLevel.S, "소분류");
         validateClassificationTree(product, catL, catM, catS);
+        assertResultingRoleSatisfiesQuantitySyncRules(product,
+                catL == null ? null : catL.getName(),
+                product.getGoodsType() == null ? null : product.getGoodsType().name());
 
         product.markClassificationManual(catL, catM, catS);
 
@@ -866,7 +875,30 @@ public class ProductService {
         Set<EstimateCategory> resultingCategories =
                 resolveResultingExposedCategories(product, effectiveScope, requestedCategories);
         List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysBrokenByResultingState(
-                product.getId(), product.getStatus() == ProductStatus.ACTIVE, resultingVisible, resultingCategories);
+                product.getId(), product.getStatus() == ProductStatus.ACTIVE, resultingVisible, resultingCategories,
+                product.getCatL() == null ? null : product.getCatL().getName(),
+                product.getGoodsType() == null ? null : product.getGoodsType().name());
+        throwIfQuantitySyncRuleRoleViolation(ruleKeys);
+    }
+
+    /** 상품/비상품·L분류 변경 후 역할 계약을 깨는 활성 규칙을 기존 충돌 방식으로 차단한다. */
+    private void assertResultingRoleSatisfiesQuantitySyncRules(
+            Product product, String resultingClassificationName, String resultingGoodsType) {
+        if (product.getId() == null) {
+            return;
+        }
+        String currentClassificationName = product.getCatL() == null ? null : product.getCatL().getName();
+        String currentGoodsType = product.getGoodsType() == null ? null : product.getGoodsType().name();
+        if (Objects.equals(currentClassificationName, resultingClassificationName)
+                && Objects.equals(currentGoodsType, resultingGoodsType)) {
+            return;
+        }
+        List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysBrokenByResultingRole(
+                product.getId(), resultingClassificationName, resultingGoodsType);
+        throwIfQuantitySyncRuleRoleViolation(ruleKeys);
+    }
+
+    private void throwIfQuantitySyncRuleRoleViolation(List<String> ruleKeys) {
         if (!ruleKeys.isEmpty()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "

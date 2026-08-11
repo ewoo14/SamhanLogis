@@ -45,13 +45,37 @@ export interface AuditApiConfig {
   revertPath?: (entityId: string, revisionNo: number) => string
 }
 
+const UNKNOWN_ACTOR_NAME = '변경자 미상'
+const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
+
+function normalizeUuid(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!UUID_ACTOR_NAME.test(trimmed)) return null
+  if (trimmed.startsWith('{')) return trimmed.slice(1, -1).toLowerCase()
+  if (trimmed.toLowerCase().startsWith('urn:uuid:')) return trimmed.slice(9).toLowerCase()
+  if (trimmed.length === 32) {
+    return `${trimmed.slice(0, 8)}-${trimmed.slice(8, 12)}-${trimmed.slice(12, 16)}-${trimmed.slice(16, 20)}-${trimmed.slice(20)}`.toLowerCase()
+  }
+  return trimmed.toLowerCase()
+}
+
+function normalizeActorName(actorName: string | null | undefined, actorId: string): string {
+  const actorUuid = normalizeUuid(actorName)
+  const rowActorUuid = normalizeUuid(actorId)
+  if (!actorName || !actorName.trim() || (actorUuid !== null && actorUuid === rowActorUuid)) {
+    return UNKNOWN_ACTOR_NAME
+  }
+  return actorName
+}
+
 export interface AuditApi {
   listAuditLogs: (entityId: string) => Promise<AuditLogEntry[]>
   /** revertPath 미설정 시 reject. */
   revertToRevision: (entityId: string, revisionNo: number) => Promise<RevertResponse>
 }
 
-interface RawAuditLogEntry {
+export interface RawAuditLogEntry {
   revisionNo: number
   field?: string
   fieldName?: string
@@ -60,18 +84,18 @@ interface RawAuditLogEntry {
   afterValue?: string | null
   newValue?: string | null
   actorId: string
-  actorName: string
+  actorName: string | null
   changedAt: string
 }
 
-function normalizeAuditLogEntry(entry: RawAuditLogEntry): AuditLogEntry {
+export function normalizeAuditLogEntry(entry: RawAuditLogEntry): AuditLogEntry {
   return {
     revisionNo: entry.revisionNo,
     field: entry.field ?? entry.fieldName ?? '',
     beforeValue: entry.beforeValue ?? entry.oldValue ?? null,
     afterValue: entry.afterValue ?? entry.newValue ?? null,
     actorId: entry.actorId,
-    actorName: entry.actorName,
+    actorName: normalizeActorName(entry.actorName, entry.actorId),
     changedAt: entry.changedAt,
   }
 }
@@ -118,7 +142,7 @@ export const partnerOrderAuditApi = createAuditApi({
 
 export const dcConfigAuditApi = createAuditApi({
   listPath: (partnerCode) =>
-    `/api/v1/dc-configs/${encodeURIComponent(partnerCode)}/audit-logs`,
+    `/api/v1/partner-dc-configs/${encodeURIComponent(partnerCode)}/audit-logs`,
 })
 
 /**

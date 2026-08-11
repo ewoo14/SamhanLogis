@@ -520,6 +520,9 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     private QuantitySyncRuleRequest ruleRequest(String ruleKey, boolean enabled,
                                                  String sourceCode, String targetCode,
                                                  QuantitySyncEstimateCategory category) throws Exception {
+        EstimateCategory classificationCategory = category == QuantitySyncEstimateCategory.COMM_MULTI
+                ? EstimateCategory.COMMERCIAL_MULTI : EstimateCategory.valueOf(category.name());
+        classifyQuantitySyncTarget(targetCode, classificationCategory);
         JsonNode condition = MAPPER.readTree("{}");
         return new QuantitySyncRuleRequest(ruleKey, category,
                 ruleKey + " name", enabled, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,

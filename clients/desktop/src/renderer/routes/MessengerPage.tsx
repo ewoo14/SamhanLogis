@@ -253,6 +253,7 @@ export function MessengerPage() {
                 label="수신자"
                 ariaLabel="메신저 수신자 이름 검색"
                 inputTestId="messenger-recipient-search"
+                chipCountTestId="multiselect-chip-count"
                 placeholder="사원 이름 검색"
                 minChars={1}
                 required

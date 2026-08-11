@@ -1,5 +1,10 @@
 package com.samhanair.logis.product.it;
 
+import com.samhanair.logis.product.domain.EstimateCategory;
+import com.samhanair.logis.product.service.ClassificationService;
+import com.samhanair.logis.product.service.ProductService;
+import com.samhanair.logis.product.quantitysync.QuantitySyncRuleTestCatalog;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -22,12 +27,30 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
 public abstract class AbstractPostgresIT {
 
+    @Autowired
+    protected ClassificationService quantitySyncClassificationService;
+
+    @Autowired
+    protected ProductService quantitySyncProductService;
+
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("product_db")
                     .withUsername("samhan")
                     .withPassword("samhan_dev_pw");
+
+    /** 통합 fixture가 target 역할을 관리자 분류 경로로 구성한다. */
+    protected final void classifyQuantitySyncTarget(String modelCode) {
+        classifyQuantitySyncTarget(modelCode, EstimateCategory.HOME_MULTI);
+    }
+
+    /** 지정한 견적 카테고리의 부자재 분류를 관리자 서비스 경로로 지정한다. */
+    protected final void classifyQuantitySyncTarget(String modelCode, EstimateCategory estimateCategory) {
+        QuantitySyncRuleTestCatalog.classifyAsMaterial(quantitySyncProductService, modelCode,
+                QuantitySyncRuleTestCatalog.ensureMaterialClassification(quantitySyncClassificationService,
+                        estimateCategory));
+    }
 
     static {
         try {

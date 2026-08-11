@@ -1,0 +1,89 @@
+PR #1126 R35 SOL 2차 적대검증 실행 원문 요약
+HEAD=cfe00f408b57c7aaf38219f1075702dacf3c24d4
+
+[발화 조건]
+RULE_COUNT total=1 active=1
+RULE_COUNT_HOME_MULTI http=200 count=1
+RULE_COUNT_SINGLE_SET http=200 count=0
+RULE_COUNT_COMM_MULTI http=200 count=0
+ACTIVE_RULE key=UI_HOME_MULTI_AM052BN6PBH1 category=HOME_MULTI sources=1 targets=3
+
+[D15 B-2]
+B2_TARGET queryHttp=200 code=PC6NUDK1NW row=VISIBLE apiRows=1
+apiProductCategory=HOME_MULTI apiUsage=BOTH
+expectedSources=AM052BN6PBH1 visibleSources=NONE
+
+D15_SOURCE queryHttp=200 code=AM052BN6PBH1 goodsType=GOODS
+target chips=PC6NUDK1NW:1,AWR-WE13N:1,FH-LFHLN:1
+
+[D15 target picker]
+CANDIDATES sample=AJ060MXHNBC1 status=ACTIVE productCategory=HOME_MULTI
+PICKER_SOURCE code=AJ060MXHNBC1 productCategory=HOME_MULTI
+PICKER_TARGET http=200 apiRows=1 code=PC6NUDK1NW productCategory=HOME_MULTI goodsType=GOODS status=ACTIVE
+PICKER_UI input=PC6NUDK1NW chipCount=0 optionCount=0 dialogCount=0
+
+[D15 B-3]
+명령: npx jest test/legacy-quantity-golden.test.js --runInBand
+PASS test/legacy-quantity-golden.test.js
+Test Suites: 1 passed, 1 total
+Tests: 194 passed, 194 total
+
+[MED — 정확한 target 역할 변경 경로]
+BEFORE_SELECT target=PC6NUDK1NW value=GOODS
+GOODS_RESPONSE_SEEN method=PATCH http=409 url=http://localhost:8080/api/v1/products/PC6NUDK1NW/goods-type
+MED_409 http=409 response={"success":false,"code":"CONFLICT","message":"수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: UI_HOME_MULTI_AM052BN6PBH1"}
+MED_BANNER text="수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: UI_HOME_MULTI_AM052BN6PBH1 규칙 편집 지점으로 이동: UI_HOME_MULTI_AM052BN6PBH1"
+MED_BRIDGE search=AM052BN6PBH1 focused=true
+
+[R33 — 실 관리자 UI]
+최초 환경 실패 원문:
+SHEET_SYNC_HTTP http=502
+failedTabs=11 successfulTabs=0 durationMs=72
+error="Service Account JSON 키가 존재하지 않습니다: /etc/samhan/sa-key.json — GOOGLE_SERVICE_ACCOUNT_KEY 환경변수 확인"
+
+저장소 밖 기존 SA 키 경로만 로컬 product-service 프로세스에 주입 후 같은 UI 버튼 재실행.
+Playwright response 대기는 240000ms timeout. 백엔드는 요청을 계속 처리해 완료했고 UI last-sync로 회수.
+
+1회차 UI last-sync:
+lastSyncAt=2026-08-10 22:20:06
+totalInsertedRows=0 totalUpdatedRows=123 totalDelete=0 totalSkippedOccurrences=130
+totalPreservedByRuleProductOccurrences=0 totalBlockedByRuleOccurrences=0
+successfulTabs=11 failedTabs=0 durationMs=75017
+
+2회차 UI last-sync:
+lastSyncAt=2026-08-10 22:33:03
+totalInsertedRows=0 totalUpdatedRows=121 totalDelete=0 totalSkippedOccurrences=130
+totalPreservedByRuleProductOccurrences=0 totalBlockedByRuleOccurrences=0
+successfulTabs=11 failedTabs=0 durationMs=77059
+
+R33 발화 건수는 양 회차 모두 preservedByRule=0, blockedByRule=0이다.
+전체 skip 130은 lookup 94 + 구성품 36이며 규칙 보존/차단 카운터에 흡수되지 않았다.
+
+[자동 검증]
+clients/desktop D15+MED: Test Files 2 passed, Tests 12 passed
+clients/desktop R33: Test Files 2 passed, Tests 8 passed
+estimate-app legacy golden: Test Suites 1 passed, Tests 194 passed
+product-service 전체: files=68 tests=739 failures=0 errors=0 skipped=0
+QuantitySyncRuleScopeReductionRegressionIT + QuantitySyncRuleProductRoleMutationIT: BUILD SUCCESSFUL
+
+[throwaway 정리]
+아래 품목은 모두 관리자 UI DELETE http=204 후 활성 검색 0건 확인:
+QA_R35_1786366573744
+QA_R35_1786366726895
+QA_R35_SA_1786366975258
+QA_R35_SB_1786366975258
+QA_R35_T_1786366975258
+QA_R35_SA_1786367083781
+QA_R35_SB_1786367083781
+QA_R35_T_1786367083781
+QA_R35_SA_1786367188158
+QA_R35_SB_1786367188158
+QA_R35_SA_1786367289016
+QA_R35_SB_1786367289016
+QA_R35_T_1786367289016
+
+최종 audit:
+FINAL_THROWAWAYS http=200 activeRows=0
+FINAL_SINGLE_RULES http=200 count=0
+FINAL_HOME_RULE key=UI_HOME_MULTI_AM052BN6PBH1 enabled=true sources=1 targets=3
+FINAL_PRODUCTS sourceGoodsType=GOODS targetGoodsType=GOODS

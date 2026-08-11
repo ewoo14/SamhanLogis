@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.audit.web.dto;
 
 import com.samhanair.logis.slip.audit.domain.SlipAuditLog;
+import com.samhanair.logis.slip.security.ActorNameSanitizer;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -35,18 +36,28 @@ public record SlipAuditLogResponse(
         LocalDateTime changedAt
 ) {
 
+    private static final String UNKNOWN_ACTOR_NAME = "변경자 미상";
     public static SlipAuditLogResponse from(SlipAuditLog log) {
         return new SlipAuditLogResponse(
                 log.getId(),
                 log.getSlipId(),
                 log.getRevisionNo(),
                 log.getActorId(),
-                log.getActorName(),
+                safeActorName(log.getActorName(), log.getActorId()),
                 log.getActorColor(),
                 log.getFieldName(),
                 log.getOldValue(),
                 log.getNewValue(),
                 log.getChangedAt()
         );
+    }
+
+    /** 기존 오염 행의 UUID actorName 이 사용자 응답으로 나가지 않도록 최종 방어한다. */
+    private static String safeActorName(String actorName, UUID actorId) {
+        if (actorName == null || actorName.isBlank()
+                || ActorNameSanitizer.representsActorId(actorName, actorId)) {
+            return UNKNOWN_ACTOR_NAME;
+        }
+        return actorName;
     }
 }

@@ -287,6 +287,7 @@ class QuantitySyncRuleReconvergenceR7IT extends AbstractPostgresIT {
 
     private QuantitySyncRuleRequest ruleRequest(String key, String sourceCode, String targetCode)
             throws Exception {
+        classifyQuantitySyncTarget(targetCode);
         JsonNode condition = MAPPER.readTree("{}");
         return new QuantitySyncRuleRequest(key, QuantitySyncEstimateCategory.HOME_MULTI,
                 key, true, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,

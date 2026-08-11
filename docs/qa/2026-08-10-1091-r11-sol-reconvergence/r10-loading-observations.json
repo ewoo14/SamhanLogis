@@ -1,0 +1,13 @@
+{
+  "document": "2026/08/10-13",
+  "loading": {
+    "memo": "S33-concurrency-fixture 변경 이력 불러오는 중",
+    "address": "(빈 값) 변경 이력 불러오는 중"
+  },
+  "empty": {
+    "status": 200,
+    "rows": 0,
+    "memo": "S33-concurrency-fixture 변경 이력 없음",
+    "address": "(빈 값) 변경 이력 없음"
+  }
+}

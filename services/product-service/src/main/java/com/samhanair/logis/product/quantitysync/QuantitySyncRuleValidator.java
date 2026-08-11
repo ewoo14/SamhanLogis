@@ -29,6 +29,10 @@ public class QuantitySyncRuleValidator {
     private static final BigDecimal MAX_MULTIPLIER = new BigDecimal("1000");
     private static final String S03_RULE_KEY = "SINGLE_S03_CEILING_DRAIN_PUMP";
     private static final Set<String> CATEGORIES = Set.of("HOME_MULTI", "SINGLE_SET", "COMM_MULTI");
+    /** 수량 동기화 target으로 허용되는 부자재 역할의 대분류명. */
+    private static final Set<String> MATERIAL_CLASSIFICATIONS = Set.of(
+            "부자재", "판넬", "실외기 받침", "실외기 받침대");
+    private static final String GOODS_TYPE = "GOODS";
     private static final Set<String> CONDITION_OPERATORS = Set.of(
             "optionEquals", "optionIn", "all", "any", "not");
 
@@ -149,10 +153,16 @@ public class QuantitySyncRuleValidator {
      * 비교해, target을 별칭(modelName)으로 지정하면 통과했다. componentProductIds는
      * {@code QuantitySyncRuleService.toSnapshot()}이 componentProductCode를 modelCode로
      * 재해소(BundleExpander와 동일 관례)해 채운다.
+     *
+     * <p>target 역할 검증을 위해 Product의 최종 대분류명({@code classificationName})과
+     * 상품/비상품 유형({@code goodsType})도 함께 보존한다. 대분류가 없는 품목은 target
+     * 허용 역할로 간주하지 않으며, source는 허용된 부자재 대분류 집합에 속하지 않는지만
+     * 판정한다.
      */
     public record ProductSnapshot(UUID productId, String productCode, String productName,
                                   Set<String> categories, boolean active, boolean visible, boolean bundle,
-                                  Set<String> componentCodes, Set<UUID> componentProductIds) {
+                                  Set<String> componentCodes, Set<UUID> componentProductIds,
+                                  String classificationName, String goodsType) {
         public ProductSnapshot {
             categories = Set.copyOf(categories == null ? Set.of() : categories);
             componentCodes = Set.copyOf(componentCodes == null ? Set.of() : componentCodes);
@@ -228,7 +238,7 @@ public class QuantitySyncRuleValidator {
         }
         for (TargetDraft target : draft.targets()) {
             ProductSnapshot product = product(draft, target.productCode());
-            validateProduct(product);
+            validateTargetProduct(product);
             validateMultiplier(target.multiplier(), "multiplier");
             if (!"NONE".equals(target.roundingMode()) && !"FLOOR".equals(target.roundingMode())) {
                 invalid("rounding_mode가 허용 목록에 없습니다.");
@@ -256,6 +266,12 @@ public class QuantitySyncRuleValidator {
         productOverlap.retainAll(targetProductIds);
         if (!overlap.isEmpty() || !productOverlap.isEmpty()) {
             invalid("source와 target은 같을 수 없습니다.");
+        }
+        for (SourceDraft source : draft.sources()) {
+            ProductSnapshot sourceProduct = product(draft, source.productCode());
+            if (isMaterialClassification(sourceProduct)) {
+                invalid("source는 부자재 역할 품목일 수 없습니다.");
+            }
         }
         for (SourceDraft source : draft.sources()) {
             ProductSnapshot sourceProduct = product(draft, source.productCode());
@@ -380,6 +396,30 @@ public class QuantitySyncRuleValidator {
         if (!product.visible()) {
             invalid("삭제되었거나 비노출인 Product는 연결할 수 없습니다.");
         }
+    }
+
+    private void validateTargetProduct(ProductSnapshot product) {
+        validateProduct(product);
+        if (!GOODS_TYPE.equals(product.goodsType())) {
+            invalid("target은 GOODS 상품이어야 합니다.");
+        }
+        if (!isMaterialClassification(product)) {
+            invalid("target은 허용된 부자재 역할이어야 합니다.");
+        }
+    }
+
+    /** source/target 역할 판정에 쓰는 허용 부자재 분류명인지 판정한다. */
+    public static boolean isMaterialClassificationName(String classificationName) {
+        return classificationName != null && MATERIAL_CLASSIFICATIONS.contains(classificationName);
+    }
+
+    /** 현재 역할 상태가 수량 동기화 target 계약을 만족하는지 판정한다. */
+    public static boolean isValidTargetRole(String classificationName, String goodsType) {
+        return GOODS_TYPE.equals(goodsType) && isMaterialClassificationName(classificationName);
+    }
+
+    private boolean isMaterialClassification(ProductSnapshot product) {
+        return isMaterialClassificationName(product.classificationName());
     }
 
     /**

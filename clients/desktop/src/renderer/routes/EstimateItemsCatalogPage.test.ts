@@ -5,11 +5,14 @@ import {
   applyClassificationSettingsSuccessEffects,
   applyFixedDiscountPatchSuccessEffects,
   applyUsagePatchSuccessEffects,
+  extractQuantitySyncRuleKeys,
+  resolveQuantitySyncRuleEditTarget,
   VariableDiscountCell,
   FixedDiscountCell,
   type EstimateItemsCatalogSuccessEffects,
 } from './EstimateItemsCatalogPage'
 import type { ProductCatalogRow } from '../api/productCatalogApi'
+import type { QuantitySyncRule } from '../api/quantitySyncApi'
 import { searchMasterProducts } from './EstimateItemsCatalogPage'
 
 function effects(): EstimateItemsCatalogSuccessEffects & {
@@ -143,5 +146,37 @@ describe('FixedDiscountCell 적용 출처', () => {
 
     expect(markup).toContain('data-testid="estimate-items-fixed-dc-source-AC-VDC-1000"')
     expect(markup).toContain('>S</span>')
+  })
+})
+
+describe('EstimateItemsCatalogPage quantity-sync 409 navigation', () => {
+  const activeRule: QuantitySyncRule = {
+    ruleKey: 'UI_HOME_MULTI_R32',
+    estimateCategory: 'HOME_MULTI',
+    name: 'R32 테스트 규칙',
+    enabled: true,
+    aggregation: 'SUM',
+    when: {},
+    inactiveBehavior: 'ZERO',
+    conflictPolicy: 'REPLACE',
+    priority: 1000,
+    legacyRef: 'UI:R32',
+    sources: [{ productCode: 'R32-MAIN', productName: 'R32 본체' }],
+    targets: [{ productCode: 'R32-MATERIAL', productName: 'R32 부자재', multiplier: 1 }],
+  }
+
+  it('409 차단 문구에서 rule key 목록을 보존하고 무관한 문구는 연결하지 않는다', () => {
+    expect(extractQuantitySyncRuleKeys(
+      '수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: UI_HOME_MULTI_R32, UI_HOME_MULTI_OTHER',
+    )).toEqual(['UI_HOME_MULTI_R32', 'UI_HOME_MULTI_OTHER'])
+    expect(extractQuantitySyncRuleKeys('일반 오류: UI_HOME_MULTI_R32')).toEqual([])
+  })
+
+  it('활성 rule key를 본체 source 모델코드 편집 지점으로 해석한다', () => {
+    expect(resolveQuantitySyncRuleEditTarget(activeRule.ruleKey, [activeRule])).toEqual({
+      ruleKey: activeRule.ruleKey,
+      modelCode: 'R32-MAIN',
+    })
+    expect(resolveQuantitySyncRuleEditTarget(activeRule.ruleKey, [{ ...activeRule, enabled: false }])).toBeUndefined()
   })
 })

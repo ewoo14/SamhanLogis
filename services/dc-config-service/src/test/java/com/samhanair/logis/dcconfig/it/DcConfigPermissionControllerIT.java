@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.dcconfig.config.HeaderAuthenticationFilter;
+import com.samhanair.logis.dcconfig.audit.service.DcConfigAuditLogService;
 import com.samhanair.logis.dcconfig.domain.DcConfig;
 import com.samhanair.logis.dcconfig.domain.DcConfigSource;
 import com.samhanair.logis.dcconfig.domain.EstimateConfig;
@@ -109,6 +110,7 @@ class DcConfigPermissionControllerIT {
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private DcConfigRepository dcConfigRepository;
     @MockBean private DcConfigService dcConfigService;
+    @MockBean private DcConfigAuditLogService dcConfigAuditLogService;
     @MockBean private EstimateConfigService estimateConfigService;
     @MockBean private DcConfigImportService importService;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
@@ -127,8 +129,12 @@ class DcConfigPermissionControllerIT {
                 .thenReturn(new PageImpl<>(List.of(dcConfig), PageRequest.of(0, 50), 1));
         lenient().when(dcConfigService.updatePartnerDcConfig(anyString(), any()))
                 .thenReturn(dcConfig);
+        lenient().when(dcConfigService.updatePartnerDcConfig(anyString(), any(), any(), anyString()))
+                .thenReturn(dcConfig);
         lenient().when(dcConfigService.getByPartnerCode(anyString()))
                 .thenReturn(dcConfig);
+        lenient().when(dcConfigAuditLogService.listByEntity(any()))
+                .thenReturn(List.of());
         lenient().when(estimateConfigService.getOrSeedDefault())
                 .thenReturn(EstimateConfig.defaults());
         lenient().when(estimateConfigService.update(any()))
@@ -166,6 +172,24 @@ class DcConfigPermissionControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.partnerCode").value(PARTNER_CODE));
+    }
+
+    @Test
+    @DisplayName("嫄곕옒泥?DC 蹂寃쎌씠?μ? VIEW 沅뚰븳?대㈃ 200")
+    void partnerDcAuditGet_withViewGrant_returns200() throws Exception {
+        mockMvc.perform(withActor(get("/api/v1/partner-dc-configs/{partnerCode}/audit-logs", PARTNER_CODE), "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @DisplayName("嫄곕옒泥?DC 蹂寃쎌씠?μ? VIEW 沅뚰븳 ?놁쑝硫?403")
+    void partnerDcAuditGet_withoutViewGrant_returns403() throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(PARTNER_DC_PAGE), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+
+        mockMvc.perform(withActor(get("/api/v1/partner-dc-configs/{partnerCode}/audit-logs", PARTNER_CODE), "SALES"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

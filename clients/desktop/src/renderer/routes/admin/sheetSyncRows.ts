@@ -9,6 +9,8 @@ export interface SheetSyncRowResult {
   softDeletedProductRows?: number
   softDeletedComponentRows?: number
   skippedOccurrences?: number
+  preservedByRuleProductOccurrences?: number
+  preservedByRuleProductDetails?: TabSyncResult['preservedByRuleProductDetails']
   linkedOccurrences?: number
   bundlesMarkedProducts?: number
   error?: string | null
@@ -59,6 +61,8 @@ function normalizeResult(result: SheetSyncResult): SheetSyncRowResult {
     softDeletedProductRows: result.softDeletedProductRows ?? 0,
     softDeletedComponentRows: result.softDeletedComponentRows ?? 0,
     skippedOccurrences: result.skippedOccurrences ?? 0,
+    preservedByRuleProductOccurrences: result.preservedByRuleProductOccurrences ?? 0,
+    preservedByRuleProductDetails: result.preservedByRuleProductDetails ?? [],
     linkedOccurrences: result.linkedOccurrences ?? 0,
     bundlesMarkedProducts: result.bundlesMarkedProducts ?? 0,
     error: result.error,

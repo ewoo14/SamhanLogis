@@ -108,6 +108,30 @@ function mockError(status: number, code: string, message: string) {
   }
 }
 
+/**
+ * #1091 audit 상태 fixture.
+ *
+ * `mockAuditState`는 캡처/단위 테스트에서 성공·빈 이력·HTTP 실패를 선택한다.
+ * 제공되지 않은 audit endpoint는 호출부가 실제 미제공 상태를 검증할 수 있도록
+ * 기본 404를 반환한다. 핸들러가 null을 반환하지 않으므로 mock 모드에서 실 HTTP로
+ * fallthrough하지 않는다.
+ */
+function mockAuditResponse<T>(url: string, successData: T, defaultResponse: unknown = envelope(successData)) {
+  const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+  switch (urlObj.searchParams.get('mockAuditState')) {
+    case 'empty':
+      return envelope([])
+    case '404':
+      return mockError(404, 'AUDIT_HISTORY_NOT_SUPPORTED', '버전 이력 조회 기능이 아직 제공되지 않습니다.')
+    case '403':
+      return mockError(403, 'FORBIDDEN', '버전 이력을 조회할 권한이 없습니다.')
+    case '500':
+      return mockError(500, 'AUDIT_HISTORY_TEMPORARY', '버전 이력을 불러오지 못했습니다.')
+    default:
+      return defaultResponse
+  }
+}
+
 /** 실 BE partnerId LIKE '%입력%' 계약을 mock에서도 재현한다. SQL wildcard는 의도적으로 보존한다. */
 function matchesPartnerLike(value: string, input: string): boolean {
   const pattern = `%${input.trim().toLowerCase()}%`
@@ -2247,6 +2271,40 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const method = (config.method ?? 'get').toUpperCase()
   const url = config.url ?? ''
   const body = parseMockBody(config)
+
+  // #1091 audit-logs는 broad domain handler보다 먼저 분기한다.
+  // audit URL이 목록/상세 mock에 가로채이지 않도록 flat audit row 계약을 고정한다.
+  const auditPath = new URL(url.startsWith('http') ? url : `http://mock${url}`).pathname
+  const taxInvoiceAuditMatch = auditPath.match(/\/accounting\/tax-invoices\/([^/?]+)\/audit-logs$/)
+  if (method === 'GET' && taxInvoiceAuditMatch) {
+    const sample = MOCK_AUDIT_LOGS_BY_DOMAIN['tax-invoices'] ?? []
+    return mockAuditResponse(url, sample)
+  }
+
+  const closingAuditMatch = auditPath.match(/\/accounting\/closings\/([^/?]+)\/audit-logs$/)
+  if (method === 'GET' && closingAuditMatch) {
+    return mockAuditResponse(
+      url,
+      [],
+      mockError(404, 'AUDIT_HISTORY_NOT_SUPPORTED', '버전 이력 조회 기능이 아직 제공되지 않습니다.'),
+    )
+  }
+
+  const dcConfigAuditMatch = auditPath.match(/\/api\/v1\/dc-configs\/([^/?]+)\/audit-logs$/)
+  if (method === 'GET' && dcConfigAuditMatch) {
+    return mockAuditResponse(
+      url,
+      [],
+      mockError(404, 'AUDIT_HISTORY_NOT_SUPPORTED', '버전 이력 조회 기능이 아직 제공되지 않습니다.'),
+    )
+  }
+
+  const inventoryAuditLogsMatch = auditPath.match(/\/inventory\/audits\/([^/?]+)\/audit-logs$/)
+  if (method === 'GET' && inventoryAuditLogsMatch) {
+    const id = inventoryAuditLogsMatch[1]!
+    const logs = id === 'ia-001' ? MOCK_INVENTORY_AUDIT_LOGS : []
+    return mockAuditResponse(url, logs)
+  }
 
   // POST /auth/login → 토큰 응답
   if (method === 'POST' && url.endsWith('/auth/login')) {
@@ -12953,11 +13011,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // ==========================================================================
   // audit-logs 추가 (slip 외 — journal / tax-invoice / dispatch / user)
   // ==========================================================================
-  const otherAuditLogsMatch = url.match(/\/(journals|tax-invoices|dispatches|users)\/([^/]+)\/audit-logs/)
+  const otherAuditLogsMatch = url.match(/\/(journals|dispatches|users)\/([^/]+)\/audit-logs/)
   if (method === 'GET' && otherAuditLogsMatch) {
     const domain = otherAuditLogsMatch[1]!
     const sample = MOCK_AUDIT_LOGS_BY_DOMAIN[domain] ?? []
-    return envelope(sample)
+    return mockAuditResponse(url, sample)
   }
 
   // ==========================================================================
@@ -17377,6 +17435,33 @@ const MOCK_AUDIT_LOGS_BY_DOMAIN: Record<string, Array<{
     { revisionNo: 1, field: 'role', beforeValue: 'SALES', afterValue: 'SALES', actorId: 'user-001', actorName: '김미선', changedAt: '2026-01-05T09:00:00+09:00' },
   ],
 }
+
+const MOCK_INVENTORY_AUDIT_LOGS = [
+  {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+    entityId: '11111111-1111-4111-8111-000000000001',
+    revisionNo: 2,
+    actorId: '33333333-3333-4333-8333-000000000003',
+    actorName: '재고담당자',
+    actorColor: '#2563EB',
+    fieldName: 'totalDiffAmount',
+    oldValue: '120000',
+    newValue: '95000',
+    changedAt: '2026-05-08T16:42:00+09:00',
+  },
+  {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    entityId: '11111111-1111-4111-8111-000000000001',
+    revisionNo: 1,
+    actorId: '33333333-3333-4333-8333-000000000003',
+    actorName: '재고담당자',
+    actorColor: '#2563EB',
+    fieldName: 'totalDiffAmount',
+    oldValue: '0',
+    newValue: '120000',
+    changedAt: '2026-05-08T15:30:00+09:00',
+  },
+]
 
 // ==========================================================================
 // P0-1 Slice A: 재무 보고서 fixture (손익계산서 / 재무상태표)

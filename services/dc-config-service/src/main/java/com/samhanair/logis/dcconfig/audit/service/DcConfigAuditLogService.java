@@ -65,4 +65,10 @@ public class DcConfigAuditLogService implements AuditLogRecorder {
                     entityId, broadcastFailure.getMessage());
         }
     }
+
+    /** 거래처 DC 설정별 audit timeline — 최신 revision 우선. */
+    @Transactional(readOnly = true)
+    public List<DcConfigAuditLog> listByEntity(UUID entityId) {
+        return repository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(entityId);
+    }
 }

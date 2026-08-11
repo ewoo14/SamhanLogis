@@ -3,12 +3,13 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://127.0.0.1:8080'
 const BUNDLE_CODE = 'AM240AXVHHR1SY'
-const SHOTS = path.resolve(dirname, '../../../../docs/qa/2026-08-11-1132-r2')
+const SHOTS = resolveQaShotsDir(path.resolve(dirname, '../../../../docs/qa/2026-08-11-1132-r2'))
 
 fs.mkdirSync(SHOTS, { recursive: true })
 
@@ -60,7 +61,7 @@ test('V37 대상 세트 관리자 화면에서 isDefault를 조작할 수 있다
   const components = await response.json() as Array<{ isDefault?: boolean }>
   expect(components.length, 'V37 대상 실 구성품이 비어 있음').toBeGreaterThan(0)
 
-  await page.goto(`${BASE_URL}/products/${encodeURIComponent(BUNDLE_CODE)}/edit`)
+  await page.goto(`${BASE_URL}/#/products/${encodeURIComponent(BUNDLE_CODE)}/edit`)
   const editor = page.getByTestId('product-form-components-editor')
   await expect(editor).toBeVisible({ timeout: 30_000 })
   await expect

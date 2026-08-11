@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -254,6 +255,7 @@ public class ProductSheetSyncService {
                 summary.totalSkippedOccurrences += tabResult.skippedOccurrences;
                 summary.totalPreservedManualProductOccurrences += tabResult.preservedManualProductOccurrences;
                 summary.totalPreservedByRuleProductOccurrences += tabResult.preservedByRuleProductOccurrences;
+                summary.preservedByRuleProductDetails.addAll(tabResult.preservedByRuleProductDetails);
                 summary.totalSpecsLinkedRows += tabResult.specsLinkedRows;
                 summary.successfulTabs++;
             } catch (Exception e) {
@@ -289,9 +291,10 @@ public class ProductSheetSyncService {
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
         log.info("[ProductSheetSync] sync 완료: 총 insertedRows={}, updatedRows={}, softDeletedProductRows={}, skippedOccurrences={}, "
-                        + "preservedManualProductOccurrences={}, preservedManualComponentOccurrences={}, 구성품 linkedOccurrences={}, bundle markedProducts={}, 사양 linkedRows={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
+                        + "preservedManualProductOccurrences={}, preservedByRuleProductOccurrences={}, preservedManualComponentOccurrences={}, 구성품 linkedOccurrences={}, bundle markedProducts={}, 사양 linkedRows={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
                 summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows,
                 summary.totalSkippedOccurrences, summary.totalPreservedManualProductOccurrences,
+                summary.totalPreservedByRuleProductOccurrences,
                 summary.totalPreservedManualComponentOccurrences, summary.totalComponentLinkOccurrences,
                 summary.totalBundlesMarkedProducts, summary.totalSpecsLinkedRows,
                 summary.totalPriceHistoryExposureSpecChangedRows, summary.durationMs);
@@ -1347,9 +1350,20 @@ public class ProductSheetSyncService {
             if (existing.isPresent()) {
                 Product p = existing.get();
                 ProductMutationSnapshot before = ProductMutationSnapshot.capture(entityManager, p);
+                Set<String> preservedRuleKeys = new LinkedHashSet<>();
                 p.changePrices(releasePrice, deliveryPrice);
                 if (sheetStatus != null) {
-                    p.changeStatus(sheetStatus);
+                    List<String> blockingRuleKeys = sheetStatus == ProductStatus.ACTIVE
+                            ? List.of()
+                            : quantitySyncRuleService.findEnabledRuleKeysReferencing(p.getId());
+                    if (blockingRuleKeys.isEmpty()) {
+                        p.changeStatus(sheetStatus);
+                    } else {
+                        log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
+                                        + " 참조로 상태 {} 전환 보류",
+                                mapping.tabName, modelCode, String.join(", ", blockingRuleKeys), sheetStatus);
+                        preservedRuleKeys.addAll(blockingRuleKeys);
+                    }
                 }
                 // ECOUNT-first 행은 최초 생성 시 productCategory/usageScope가 비어 있다.
                 // 시트에 같은 modelCode가 등장한 순간 시트를 정본으로 채택하고, 아래의
@@ -1394,7 +1408,7 @@ public class ProductSheetSyncService {
                             log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
                                             + " 참조로 usageScope NONE 전환 보류",
                                     mapping.tabName, modelCode, String.join(", ", blockingRuleKeys));
-                            result.preservedByRuleProductOccurrences++;
+                            preservedRuleKeys.addAll(blockingRuleKeys);
                         } else {
                             p.changeUsage(mapping.usageScope);
                         }
@@ -1405,10 +1419,27 @@ public class ProductSheetSyncService {
                         p.changeDiscountFlags(discountFlags);
                     }
                     if (!p.isClassificationManual()) {
-                        p.changeClassifications(classifications.catL(), classifications.catM(), classifications.catS());
+                        String resultingClassificationName = classifications.catL() == null
+                                ? null : classifications.catL().getName();
+                        String resultingGoodsType = p.getGoodsType() == null ? null : p.getGoodsType().name();
+                        List<String> blockingRuleKeys = quantitySyncRuleService.findEnabledRuleKeysBrokenByResultingRole(
+                                p.getId(), resultingClassificationName, resultingGoodsType);
+                        if (blockingRuleKeys.isEmpty()) {
+                            p.changeClassifications(classifications.catL(), classifications.catM(), classifications.catS());
+                        } else {
+                            log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
+                                            + " 참조로 역할 분류 전환 보류",
+                                    mapping.tabName, modelCode, String.join(", ", blockingRuleKeys));
+                            preservedRuleKeys.addAll(blockingRuleKeys);
+                        }
                     }
                     applyAttributes(p, name, modelCode);
                     applyPyongSize(p, mapping, cells);
+                }
+                if (!preservedRuleKeys.isEmpty()) {
+                    result.preservedByRuleProductOccurrences++;
+                    result.preservedByRuleProductDetails.add(
+                            new PreservedByRuleProductDetail(modelCode, preservedRuleKeys));
                 }
                 productRepository.save(p);
                 upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice,
@@ -2152,6 +2183,8 @@ public class ProductSheetSyncService {
          * 별도 카운터로 집계한다.
          */
         public int preservedByRuleProductOccurrences = 0;
+        /** 규칙 무결성 보호로 갱신을 보류한 품목의 사용자 식별자·위반 ruleKey 목록. */
+        public List<PreservedByRuleProductDetail> preservedByRuleProductDetails = new ArrayList<>();
         /** MIG-8 변환이 잡고 있는 Product reservation 때문에 soft-delete를 보류한 품목 수. */
         public int deferredByEcountReservationProductOccurrences = 0;
         public int specsLinkedRows = 0;
@@ -2188,11 +2221,27 @@ public class ProductSheetSyncService {
         public int successfulTabs = 0;
         /** 활성 수량 동기화 규칙 참조로 usageScope NONE 전환이 보류된 품목 합계(R6 결함 5). */
         public int totalPreservedByRuleProductOccurrences = 0;
+        /** 전체 tab에서 규칙 무결성 보호로 갱신을 보류한 품목 상세. */
+        public List<PreservedByRuleProductDetail> preservedByRuleProductDetails = new ArrayList<>();
         public int totalComponentLinkOccurrences = 0;
         public int totalBundlesMarkedProducts = 0;
         public int totalBlockedByRuleOccurrences = 0;
         public int totalSpecsLinkedRows = 0;
         public long durationMs = 0;
         public String error;
+    }
+
+    /** 시트 sync가 수량 동기화 규칙 때문에 특정 품목 갱신을 보류한 상세. */
+    public static class PreservedByRuleProductDetail {
+        public String modelCode;
+        public List<String> ruleKeys;
+
+        public PreservedByRuleProductDetail() {
+        }
+
+        PreservedByRuleProductDetail(String modelCode, Set<String> ruleKeys) {
+            this.modelCode = modelCode;
+            this.ruleKeys = List.copyOf(ruleKeys);
+        }
     }
 }

@@ -4203,6 +4203,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     deliveryTagLabel(slip.deliveryTag),
                   )}
                   history={auditByField['memo'] ?? []}
+                  isError={auditLogsQuery.isError}
+                  isFetched={auditLogsQuery.isFetched}
+                  isLoading={auditLogsQuery.isLoading}
                 />,
               )}
             </span>
@@ -4218,6 +4221,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     field="shippingAddress"
                     currentValue={slip.shippingAddress}
                     history={auditByField['shippingAddress'] ?? []}
+                    isError={auditLogsQuery.isError}
+                    isFetched={auditLogsQuery.isFetched}
+                    isLoading={auditLogsQuery.isLoading}
                   />,
                 )}
               </span>

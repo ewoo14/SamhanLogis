@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { evaluateQuantitySyncRules } = require('../estimate-app/public/quantitySync');
 
 const SOURCE_PATH = {
   estimate: path.resolve(__dirname, '../estimate-app/views/index.ejs'),
@@ -102,10 +103,18 @@ const ORDER_ONLY_QUANTITY_HELPERS = new Set([
   'setSingleDerivedQty_',
 ]);
 
+// R12 홈 수량 서버 규칙 헬퍼는 견적 정본에만 추가됐다. 주문 실행에서는
+// 이 두 이름만 선택적으로 제외하고, 나머지 필수 함수는 계속 즉시 추출한다.
+const ESTIMATE_ONLY_QUANTITY_HELPERS = new Set([
+  'recomputeHomeHoses_',
+  'applyServerHomeQuantitySync_',
+]);
+
 function sourceFunctionBundleForApp(source, app, names) {
-  const selected = app === 'order'
-    ? names
-    : names.filter((name) => !ORDER_ONLY_QUANTITY_HELPERS.has(name));
+  const excluded = app === 'order'
+    ? ESTIMATE_ONLY_QUANTITY_HELPERS
+    : ORDER_ONLY_QUANTITY_HELPERS;
+  const selected = names.filter((name) => !excluded.has(name));
   return sourceFunctionBundle(source, selected);
 }
 
@@ -162,6 +171,11 @@ function commonContextScript(input) {
     const window = {
       SHOW_I_HOSE: ${JSON.stringify(!!options.showIHose)},
       ABSOLUTE_LOCK: new Set(${JSON.stringify(input.absoluteLocks || [])}),
+      SamhanQuantitySync: { evaluateQuantitySyncRules: (...args) => {
+        // evaluator는 VM 바깥의 native Map을 요구한다. VM 안에서 만든 Map을
+        // 그대로 넘기면 cross-realm instanceof 검사에 걸려 규칙 주입이 null이 된다.
+        return evaluateQuantitySyncRules(args[0], args[1], toNativeMap(args[2]));
+      } },
     };
     const CSS = { escape: (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, '_') };
     const fmt = (value) => String(value);
@@ -217,6 +231,8 @@ function runHome(source, input) {
     'clearAllRemotes',
     'pickPanelBy',
     'recomputeFootAll',
+    'recomputeHomeHoses_',
+    'applyServerHomeQuantitySync_',
     'recomputeHomeBranches',
     'recomputeHomeRemotes',
     'recomputeHomePanels',
@@ -232,6 +248,10 @@ function runHome(source, input) {
     ${domScript(input.options?.dom)}
     ${catalogPreludeScript(source, input)}
     const homeQty = new Map(Object.entries(${JSON.stringify(quantities)}));
+    const HOME_QUANTITY_SYNC_RULES = ${JSON.stringify(input.quantitySyncRules || [])};
+    const ACTIVE_HOME_QUANTITY_SYNC_RULES = Array.isArray(HOME_QUANTITY_SYNC_RULES)
+      ? HOME_QUANTITY_SYNC_RULES.filter((rule) => rule?.enabled === true)
+      : [];
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
     let HOME_CATALOG_MISSING_MODELS = new Map();
     const HOME_MANUAL_PANEL = new Set();
@@ -244,13 +264,25 @@ function runHome(source, input) {
     ${functions}
     const __manualInputs = ${JSON.stringify(Object.values(locks).flat())};
     __manualInputs.forEach((model) => onHomeQtyInput(model, homeQty.get(model) || 0));
-    recomputeHomeDerived(false);
-    globalThis.__result = { quantities: nonZeroMap(homeQty), allQuantities: mapObject(homeQty) };
+    const __recomputeCount = Math.max(1, Number(${JSON.stringify(input.recomputeHomeDerivedCount || 1)}) || 1);
+    const __recomputeUpdateUI = ${JSON.stringify(input.recomputeHomeDerivedUpdateUI === true)};
+    const __recomputeSequence = [];
+    for (let __index = 0; __index < __recomputeCount; __index += 1) {
+      recomputeHomeDerived(__recomputeUpdateUI);
+      __recomputeSequence.push(mapObject(homeQty));
+    }
+    globalThis.__result = {
+      quantities: nonZeroMap(homeQty),
+      allQuantities: mapObject(homeQty),
+      recomputeSequence: __recomputeSequence,
+    };
   `;
   const context = {
     nonZeroMap,
     mapObject,
+    evaluateQuantitySyncRules,
     console: { log: () => {} },
+    toNativeMap: (entries) => new Map(entries),
   };
   vm.runInNewContext(script, context, { filename: SOURCE_PATH[input.app || 'estimate'] });
   return context.__result;

@@ -22,4 +22,13 @@ describe('formatTabRemark', () => {
     expect(formatTabRemark({ unchangedRows: 32, skippedOccurrences: 1 })).toBe('변경 없음 32 / skip occurrence 1')
     expect(formatTabRemark({ unchangedRows: 0, skippedOccurrences: 0 })).toBe('—')
   })
+
+  it('R33 A3: 규칙으로 보존한 품목의 모델코드와 rule key를 표시한다', () => {
+    expect(formatTabRemark({
+      unchangedRows: 0,
+      skippedOccurrences: 0,
+      preservedByRuleProductOccurrences: 1,
+      preservedByRuleProductDetails: [{ modelCode: 'R33-TARGET', ruleKeys: ['R33_RULE'] }],
+    })).toBe('규칙 보존 1: R33-TARGET (R33_RULE)')
+  })
 })

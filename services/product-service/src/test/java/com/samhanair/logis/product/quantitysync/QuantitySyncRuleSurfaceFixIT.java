@@ -230,6 +230,7 @@ class QuantitySyncRuleSurfaceFixIT extends AbstractPostgresIT {
 
     private QuantitySyncRuleRequest ruleRequest(String ruleKey, String sourceCode, String targetCode,
                                                 BigDecimal factor, BigDecimal multiplier) {
+        classifyQuantitySyncTarget(targetCode, EstimateCategory.SINGLE_SET);
         return new QuantitySyncRuleRequest(
                 ruleKey, QuantitySyncEstimateCategory.SINGLE_SET, "S-03 shadow 규칙", true,
                 "SUM", MAPPER.createObjectNode(), QuantitySyncInactiveBehavior.ZERO,

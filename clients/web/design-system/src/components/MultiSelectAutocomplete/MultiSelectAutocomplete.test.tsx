@@ -5,13 +5,54 @@ import { MultiSelectAutocomplete } from './MultiSelectAutocomplete'
 
 interface Option {
   id: string
-  name: string
+  label: string
 }
 
 describe('MultiSelectAutocomplete', () => {
+  it('inputTestId가 있으면 칩 카운트도 인스턴스별 testid를 사용한다', () => {
+    render(
+      <MultiSelectAutocomplete<Option, Option>
+        selected={[{ id: 'selected', label: '선택 품목' }]}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+        search={vi.fn().mockResolvedValue([])}
+        getOptionKey={(option) => option.id}
+        getSelectedKey={(option) => option.id}
+        getInputLabel={(option) => option.label}
+        renderOption={(option) => <span>{option.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        inputTestId="row-quantity-sync-input"
+      />,
+    )
+
+    expect(screen.getByTestId('row-quantity-sync-input-chip-count').textContent).toBe('1개 선택됨')
+  })
+
+  it('chipCountTestId가 있으면 검색 input testid와 별도로 칩 카운트 testid를 지정한다', () => {
+    render(
+      <MultiSelectAutocomplete<Option, Option>
+        selected={[{ id: 'selected', label: '선택 품목' }]}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+        search={vi.fn().mockResolvedValue([])}
+        getOptionKey={(option) => option.id}
+        getSelectedKey={(option) => option.id}
+        getInputLabel={(option) => option.label}
+        renderOption={(option) => <span>{option.label}</span>}
+        listboxLabel="품목 목록"
+        ariaLabel="품목"
+        inputTestId="messenger-recipient-search"
+        chipCountTestId="multiselect-chip-count"
+      />,
+    )
+
+    expect(screen.getByTestId('multiselect-chip-count').textContent).toBe('1개 선택됨')
+  })
+
   it('opt-in contract: one candidate becomes a chip without opening a modal', async () => {
     const onAdd = vi.fn()
-    const option = { id: 'U-001', name: '김하나' }
+    const option: Option = { id: 'U-001', label: '김하나' }
 
     render(
       <MultiSelectAutocomplete<Option, Option>
@@ -21,13 +62,13 @@ describe('MultiSelectAutocomplete', () => {
         search={vi.fn().mockResolvedValue([option])}
         getOptionKey={(item) => item.id}
         getSelectedKey={(item) => item.id}
-        getInputLabel={(item) => item.name}
-        renderOption={(item) => <span>{item.name}</span>}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
         listboxLabel="담당자 목록"
         ariaLabel="담당자"
         resultSelectionMode="multiple"
         autoSelectSingleResult
-        getChipProps={(item) => ({ label: '사원', value: item.name })}
+        getChipProps={(item) => ({ label: '사원', value: item.label })}
         debounceMs={0}
       />,
     )
@@ -37,8 +78,8 @@ describe('MultiSelectAutocomplete', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
   it('이미 선택한 key를 검색 결과에서 제외하고 후보 선택을 add delta로 전달한다', async () => {
-    const selected: Option = { id: 'u-1', name: '김민수' }
-    const next: Option = { id: 'u-2', name: '이서윤' }
+    const selected: Option = { id: 'u-1', label: '김민수' }
+    const next: Option = { id: 'u-2', label: '이서윤' }
     const onAdd = vi.fn()
     const search = vi.fn<(query: string) => Promise<Option[]>>().mockResolvedValue([selected, next])
 
@@ -50,12 +91,12 @@ describe('MultiSelectAutocomplete', () => {
         search={search}
         getOptionKey={(option) => option.id}
         getSelectedKey={(item) => item.id}
-        getInputLabel={(option) => option.name}
-        renderOption={(option) => <span>{option.name}</span>}
+        getInputLabel={(option) => option.label}
+        renderOption={(option) => <span>{option.label}</span>}
         listboxLabel="사원 검색 결과"
         ariaLabel="사원 검색"
         debounceMs={0}
-        getChipProps={(item) => ({ label: '사원', value: item.name })}
+        getChipProps={(item) => ({ label: '사원', value: item.label })}
       />,
     )
 
@@ -74,8 +115,8 @@ describe('MultiSelectAutocomplete', () => {
 
   it('두 후보를 연속으로 추가하고 각 선택 뒤 입력에 포커스를 돌려준다', async () => {
     const options: Option[] = [
-      { id: 'u-1', name: '김민수' },
-      { id: 'u-2', name: '이서윤' },
+      { id: 'u-1', label: '김민수' },
+      { id: 'u-2', label: '이서윤' },
     ]
     function Harness() {
       const [selected, setSelected] = useState<Option[]>([])
@@ -87,12 +128,12 @@ describe('MultiSelectAutocomplete', () => {
           search={async () => options}
           getOptionKey={(option) => option.id}
           getSelectedKey={(item) => item.id}
-          getInputLabel={(option) => option.name}
-          renderOption={(option) => <span>{option.name}</span>}
+          getInputLabel={(option) => option.label}
+          renderOption={(option) => <span>{option.label}</span>}
           listboxLabel="사원 검색 결과"
           ariaLabel="사원 검색"
           debounceMs={0}
-          getChipProps={(item) => ({ label: '사원', value: item.name })}
+          getChipProps={(item) => ({ label: '사원', value: item.label })}
         />
       )
     }
@@ -104,8 +145,8 @@ describe('MultiSelectAutocomplete', () => {
 
     for (const option of options) {
       fireEvent.focus(input)
-      fireEvent.change(input, { target: { value: option.name.slice(0, 1) } })
-      await screen.findByRole('option', { name: option.name })
+      fireEvent.change(input, { target: { value: option.label.slice(0, 1) } })
+      await screen.findByRole('option', { name: option.label })
       fireEvent.keyDown(input, { key: 'ArrowDown' })
       fireEvent.keyDown(input, { key: 'Enter' })
       await waitFor(() => expect(document.activeElement).toBe(input))
@@ -117,10 +158,10 @@ describe('MultiSelectAutocomplete', () => {
   })
 
   it('max 도달 시 새 검색은 호출하지 않고 기존 칩 제거는 허용한다', async () => {
-    const selected: Option = { id: 'u-1', name: '김민수' }
+    const selected: Option = { id: 'u-1', label: '김민수' }
     const onRemove = vi.fn()
     const search = vi.fn<(query: string) => Promise<Option[]>>().mockResolvedValue([
-      { id: 'u-2', name: '이서윤' },
+      { id: 'u-2', label: '이서윤' },
     ])
 
     render(
@@ -131,13 +172,13 @@ describe('MultiSelectAutocomplete', () => {
         search={search}
         getOptionKey={(option) => option.id}
         getSelectedKey={(item) => item.id}
-        getInputLabel={(option) => option.name}
-        renderOption={(option) => <span>{option.name}</span>}
+        getInputLabel={(option) => option.label}
+        renderOption={(option) => <span>{option.label}</span>}
         listboxLabel="사원 검색 결과"
         ariaLabel="사원 검색"
         debounceMs={0}
         max={1}
-        getChipProps={(item) => ({ label: '사원', value: item.name, removeLabel: item.name })}
+        getChipProps={(item) => ({ label: '사원', value: item.label, removeLabel: item.label })}
       />,
     )
 
@@ -154,7 +195,7 @@ describe('MultiSelectAutocomplete', () => {
   })
 
   it('disabled 시 입력과 칩 제거를 함께 비활성화한다', () => {
-    const selected: Option = { id: 'u-1', name: '김민수' }
+    const selected: Option = { id: 'u-1', label: '김민수' }
     const onRemove = vi.fn()
 
     render(
@@ -165,12 +206,12 @@ describe('MultiSelectAutocomplete', () => {
         search={async () => []}
         getOptionKey={(option) => option.id}
         getSelectedKey={(item) => item.id}
-        getInputLabel={(option) => option.name}
-        renderOption={(option) => <span>{option.name}</span>}
+        getInputLabel={(option) => option.label}
+        renderOption={(option) => <span>{option.label}</span>}
         listboxLabel="사원 검색 결과"
         ariaLabel="사원 검색"
         disabled
-        getChipProps={(item) => ({ label: '사원', value: item.name, removeLabel: item.name })}
+        getChipProps={(item) => ({ label: '사원', value: item.label, removeLabel: item.label })}
       />,
     )
 
@@ -180,7 +221,7 @@ describe('MultiSelectAutocomplete', () => {
   })
 
   it('blur 자동선택 add 가 컴포넌트 밖 포커스 상태서 일어나면 입력 포커스를 훔치지 않는다 (M3)', async () => {
-    const options: Option[] = [{ id: 'u-1', name: '김민수' }]
+    const options: Option[] = [{ id: 'u-1', label: '김민수' }]
 
     function Harness() {
       const [selected, setSelected] = useState<Option[]>([])
@@ -193,12 +234,12 @@ describe('MultiSelectAutocomplete', () => {
             search={async () => options}
             getOptionKey={(option) => option.id}
             getSelectedKey={(item) => item.id}
-            getInputLabel={(option) => option.name}
-            renderOption={(option) => <span>{option.name}</span>}
+            getInputLabel={(option) => option.label}
+            renderOption={(option) => <span>{option.label}</span>}
             listboxLabel="사원 검색 결과"
             ariaLabel="사원 검색"
             debounceMs={0}
-            getChipProps={(item) => ({ label: '사원', value: item.name })}
+            getChipProps={(item) => ({ label: '사원', value: item.label })}
           />
           <input data-testid="other-field" aria-label="다른 필드" />
         </div>
@@ -225,8 +266,8 @@ describe('MultiSelectAutocomplete', () => {
 
   it('선택 개수를 단일 aria-live region 으로 고지한다 (C1)', () => {
     const selected: Option[] = [
-      { id: 'u-1', name: '김민수' },
-      { id: 'u-2', name: '이서윤' },
+      { id: 'u-1', label: '김민수' },
+      { id: 'u-2', label: '이서윤' },
     ]
 
     render(
@@ -237,11 +278,11 @@ describe('MultiSelectAutocomplete', () => {
         search={async () => []}
         getOptionKey={(option) => option.id}
         getSelectedKey={(item) => item.id}
-        getInputLabel={(option) => option.name}
-        renderOption={(option) => <span>{option.name}</span>}
+        getInputLabel={(option) => option.label}
+        renderOption={(option) => <span>{option.label}</span>}
         listboxLabel="사원 검색 결과"
         ariaLabel="사원 검색"
-        getChipProps={(item) => ({ label: '사원', value: item.name })}
+        getChipProps={(item) => ({ label: '사원', value: item.label })}
       />,
     )
 
