@@ -27,6 +27,13 @@ class ActorDisplayNameTest {
     }
 
     @Test
+    void decomposed_hangul_name_is_preserved_verbatim() {
+        String decomposedHangul = "김감사";
+        assertThat(ActorDisplayName.resolve(ACTOR_UUID, decomposedHangul))
+                .isEqualTo(decomposedHangul);
+    }
+
+    @Test
     void system_actor_keeps_system_display_even_when_name_header_is_present() {
         assertThat(ActorDisplayName.resolve("00000000-0000-0000-0000-000000000000", "김감사"))
                 .isEqualTo("시스템");
@@ -66,6 +73,12 @@ class ActorDisplayNameTest {
                     .as("variant=%s", variant)
                     .isEqualTo("변경자 미상");
         }
+    }
+
+    @Test
+    void combining_mark_inserted_inside_uuid_is_not_accepted_as_a_display_name() {
+        assertThat(ActorDisplayName.resolve(null, "c\u0301afebabecafebabecafebabecafebabe"))
+                .isEqualTo("변경자 미상");
     }
 
     @Test

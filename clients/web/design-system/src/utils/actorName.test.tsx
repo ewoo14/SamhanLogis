@@ -17,6 +17,7 @@ describe('safeActorName', () => {
     `\u200C{${UUID32}}\u200D`,
     `\uFEFFurn:uuid:${UUID32}\u2060`,
     `\u2063${CANONICAL_UUID}\u2063`,
+    `c\u0301afebabecafebabecafebabecafebabe`,
     'urn：uuid：ＣＡＦＥＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥＣＡＦＥＢＡＢＥ',
     'ｕｒｎ：ｕｕｉｄ：ＣＡＦＥＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥＣＡＦＥＢＡＢＥ',
   ])('UUID 변형 %s 를 unknown 처리한다', (actorName) => {
@@ -25,6 +26,7 @@ describe('safeActorName', () => {
 
   it('정상 이름은 원문을 보존한다', () => {
     expect(safeActorName('김감사')).toBe('김감사')
+    expect(safeActorName('김감사')).toBe('김감사')
     expect(safeActorName('Α팀')).toBe('Α팀')
   })
 

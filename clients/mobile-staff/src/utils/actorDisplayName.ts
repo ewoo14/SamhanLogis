@@ -5,6 +5,7 @@
  * RN 번들은 web 패키지를 직접 의존하지 않으므로 순수 문자열 경계만 동기화한다.
  */
 const FORMAT_ACTOR_CHARACTERS = /\p{Cf}+/gu
+const COMPARISON_MARKS = /[\p{M}\p{Cf}]+/gu
 const UUID_DASHES = /[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/gu
 const UUID_FORM = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})\}|urn:uuid:(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})|[0-9a-f]{32})$/i
 
@@ -22,7 +23,7 @@ function foldConfusables(value: string): string {
 }
 
 function normalizeForComparison(value: string): string {
-  return foldConfusables(value.normalize('NFKC').replace(FORMAT_ACTOR_CHARACTERS, '').replace(UUID_DASHES, '-')).trim()
+  return foldConfusables(value.normalize('NFKD').replace(COMPARISON_MARKS, '').replace(UUID_DASHES, '-')).trim()
 }
 
 export function resolveActorDisplayName(value: string | null | undefined): string | null {

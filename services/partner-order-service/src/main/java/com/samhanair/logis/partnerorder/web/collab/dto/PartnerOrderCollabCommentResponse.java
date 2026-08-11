@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.web.collab.dto;
 
 import com.samhanair.logis.collab.CollabCommentStatus;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabComment;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -25,7 +26,7 @@ public record PartnerOrderCollabCommentResponse(
         return new PartnerOrderCollabCommentResponse(
                 comment.getId(),
                 comment.getAnchor(),
-                comment.getAuthorName(),
+                ActorDisplayName.resolve(comment.getAuthorId() == null ? null : comment.getAuthorId().toString(), comment.getAuthorName()),
                 comment.getBody(),
                 comment.getParentId(),
                 comment.getStatus(),

@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.audit.web.dto;
 
 import com.samhanair.logis.partnerorder.audit.domain.PartnerOrderAuditLog;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -40,7 +41,7 @@ public record PartnerOrderAuditLogResponse(
                 log.getPartnerOrderId(),
                 log.getRevisionNo(),
                 log.getActorId(),
-                log.getActorName(),
+                ActorDisplayName.resolve(log.getActorId() == null ? null : log.getActorId().toString(), log.getActorName()),
                 log.getActorColor(),
                 log.getFieldName(),
                 log.getOldValue(),

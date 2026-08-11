@@ -1,5 +1,6 @@
 /** 표시 경계에서 비교할 UUID 문자열을 닫힌 문자 목록이 아닌 Unicode 정규화로 만든다. */
 const FORMAT_ACTOR_CHARACTERS = /\p{Cf}+/gu
+const COMPARISON_MARKS = /[\p{M}\p{Cf}]+/gu
 const UUID_DASHES = /[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/gu
 const UUID_FORM = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})\}|urn:uuid:(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})|[0-9a-f]{32})$/i
 
@@ -18,7 +19,7 @@ function foldConfusables(value: string): string {
 
 function normalizeForComparison(value: string): string {
   return foldConfusables(
-    value.normalize('NFKC').replace(FORMAT_ACTOR_CHARACTERS, '').replace(UUID_DASHES, '-'),
+    value.normalize('NFKD').replace(COMPARISON_MARKS, '').replace(UUID_DASHES, '-'),
   ).trim()
 }
 

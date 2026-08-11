@@ -1,6 +1,7 @@
 package com.samhanair.logis.inventory.realtime.web.dto;
 
 import com.samhanair.logis.inventory.realtime.domain.InventoryAuditLog;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -27,7 +28,7 @@ public record InventoryAuditLogResponse(
                 row.getEntityId(),
                 row.getRevisionNo(),
                 row.getActorId(),
-                row.getActorName(),
+                ActorDisplayName.resolve(row.getActorId() == null ? null : row.getActorId().toString(), row.getActorName()),
                 row.getActorColor(),
                 row.getFieldName(),
                 row.getOldValue(),

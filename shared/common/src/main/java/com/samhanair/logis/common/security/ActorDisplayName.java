@@ -14,7 +14,7 @@ public final class ActorDisplayName {
     public static final String UNKNOWN = "변경자 미상";
     private static final String SYSTEM_ACTOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final String SYSTEM_DISPLAY_NAME = "시스템";
-    private static final Pattern FORMAT_CHARACTERS = Pattern.compile("\\p{Cf}+");
+    private static final Pattern COMPARISON_MARKS = Pattern.compile("[\\p{M}\\p{Cf}]+");
     private static final Pattern UUID_DASHES = Pattern.compile("[\\u2010-\\u2015\\u2212\\uFE58\\uFE63\\uFF0D]");
     private static final Pattern UUID_FORM = Pattern.compile(
             "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
@@ -77,8 +77,8 @@ public final class ActorDisplayName {
         if (value == null) {
             return "";
         }
-        String normalized = Normalizer.normalize(value, Normalizer.Form.NFKC);
-        normalized = FORMAT_CHARACTERS.matcher(normalized).replaceAll("");
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFKD);
+        normalized = COMPARISON_MARKS.matcher(normalized).replaceAll("");
         normalized = UUID_DASHES.matcher(normalized).replaceAll("-");
         return foldConfusables(normalized).trim();
     }

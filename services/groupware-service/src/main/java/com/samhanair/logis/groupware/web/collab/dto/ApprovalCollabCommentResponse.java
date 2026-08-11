@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.web.collab.dto;
 
 import com.samhanair.logis.collab.CollabCommentStatus;
 import com.samhanair.logis.groupware.collab.ApprovalCollabComment;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -24,7 +25,7 @@ public record ApprovalCollabCommentResponse(
         return new ApprovalCollabCommentResponse(
                 comment.getId(),
                 comment.getAnchor(),
-                comment.getAuthorName(),
+                ActorDisplayName.resolve(comment.getAuthorId() == null ? null : comment.getAuthorId().toString(), comment.getAuthorName()),
                 comment.getBody(),
                 comment.getParentId(),
                 comment.getStatus(),

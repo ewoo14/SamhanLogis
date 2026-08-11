@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.web.collab.dto;
 
 import com.samhanair.logis.collab.CollabSuggestionStatus;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabSuggestion;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
@@ -28,9 +29,9 @@ public record PartnerOrderCollabSuggestionResponse(
                 suggestion.getId(),
                 suggestion.getChangeSet(),
                 suggestion.getReason(),
-                suggestion.getProposerName(),
+                ActorDisplayName.resolve(suggestion.getProposerId() == null ? null : suggestion.getProposerId().toString(), suggestion.getProposerName()),
                 suggestion.getStatus(),
-                suggestion.getDecidedByName(),
+                ActorDisplayName.resolve(suggestion.getDecidedById() == null ? null : suggestion.getDecidedById().toString(), suggestion.getDecidedByName()),
                 suggestion.getDecidedAt() == null ? null
                         : LocalDateTime.ofInstant(suggestion.getDecidedAt(), ZoneId.systemDefault()),
                 suggestion.getCreatedAt());

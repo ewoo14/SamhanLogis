@@ -1,6 +1,7 @@
 package com.samhanair.logis.dcconfig.audit.web.dto;
 
 import com.samhanair.logis.dcconfig.audit.domain.DcConfigAuditLog;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -24,7 +25,7 @@ public record DcConfigAuditLogResponse(
                 log.getEntityId(),
                 log.getRevisionNo(),
                 log.getActorId(),
-                log.getActorName(),
+                ActorDisplayName.resolve(log.getActorId() == null ? null : log.getActorId().toString(), log.getActorName()),
                 log.getActorColor(),
                 log.getFieldName(),
                 log.getOldValue(),

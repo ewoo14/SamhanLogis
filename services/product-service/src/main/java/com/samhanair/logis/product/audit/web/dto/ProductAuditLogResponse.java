@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.audit.web.dto;
 
 import com.samhanair.logis.product.audit.domain.ProductAuditLog;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -29,7 +30,7 @@ public record ProductAuditLogResponse(
                 log.getProductId(),
                 log.getRevisionNo(),
                 log.getActorId(),
-                log.getActorName(),
+                ActorDisplayName.resolve(log.getActorId() == null ? null : log.getActorId().toString(), log.getActorName()),
                 log.getActorColor(),
                 log.getFieldName(),
                 log.getOldValue(),

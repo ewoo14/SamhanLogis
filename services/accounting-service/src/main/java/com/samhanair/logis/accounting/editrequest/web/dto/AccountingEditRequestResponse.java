@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.editrequest.web.dto;
 
 import com.samhanair.logis.accounting.editrequest.domain.AccountingEditRequest;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestStatus;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
@@ -37,10 +38,10 @@ public record AccountingEditRequestResponse(
                 req.getStatus(),
                 req.getReason(),
                 req.getRequesterId(),
-                req.getRequesterName(),
+                ActorDisplayName.resolve(req.getRequesterId() == null ? null : req.getRequesterId().toString(), req.getRequesterName()),
                 req.getTargetRole(),
                 req.getDecidedById(),
-                req.getDecidedByName(),
+                ActorDisplayName.resolve(req.getDecidedById() == null ? null : req.getDecidedById().toString(), req.getDecidedByName()),
                 req.getDecisionReason(),
                 req.getRequestedAt(),
                 req.getDecidedAt(),
