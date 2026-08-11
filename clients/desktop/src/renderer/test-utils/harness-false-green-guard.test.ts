@@ -846,7 +846,7 @@ const MOCK_GATE_TS = ALL_PW_TS.filter(isMockGateFile)
  *
  * 아래 WEB_DEPLOY_REAL_QA 는 vite.web.config.ts(BrowserRouter) 하네스를 쓴다고 각 파일 자체
  * 근거(포트 상속·config 상속·npm 실행 커맨드 주석·845-ds2 는 docs/qa 커밋 스크린샷)로 확정된
- * real-qa 스펙 28개다(PR #938 fix 라운드 — 1차 적대검증 A-1 블라스트 반경 정정 19개 +
+ * real-qa 스펙 29개다(PR #938 fix 라운드 — 1차 적대검증 A-1 블라스트 반경 정정 19개 +
  * 2026-07-26 재수렴 라운드 G6 에서 자기진술("BrowserRouter") vs 미등재 불일치로 찾은 3개:
  * 825-s4-chip-real-qa·877-opus-review-real-qa(둘 다 PM 1차 적대검증 원 지적)·
  * 832-mock-parity-real-qa(같은 grep 으로 이번에 추가 발견)). 그 외 전부(mock 게이트 +
@@ -884,6 +884,7 @@ const WEB_DEPLOY_REAL_QA = new Set<string>([
   '937-fix7-history-total-domain-real-qa/937-fix7-history-total-domain-real-qa.spec.ts',
   '937-r3-vat-domain-real-qa/937-r3-vat-domain-real-qa.spec.ts',
   '937-r4-unit-price-domain-real-qa/937-r4-unit-price-domain-real-qa.spec.ts',
+  '1163-fix3-real-qa/1163-fix3-live-real-qa.spec.ts',
 ])
 
 // 스캔 대상이 실제로 잡혔는지부터 확인한다 — 경로가 어긋나 0건이면 이 가드 전체가
