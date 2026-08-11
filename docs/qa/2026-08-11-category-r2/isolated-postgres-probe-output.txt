@@ -1,0 +1,25 @@
+PR #1166 SOL R2 격리 PostgreSQL probe 결과
+실행: Testcontainers PostgreSQL 16, 공유 DB write 없음
+
+테스트 3개 중 2 passed / 1 failed
+
+PASS 동적 물리 제품구분 count + 미선택 불변 + 검색어 AND
+R2_DYNAMIC total=1->1 unregistered=1->0 and=1->0
+
+PASS rollback 4조건 혼합 batch + 재실행 안전성
+R2_ROLLBACK first=1 second=0
+
+FAIL 백필 재실행의 사후 수동분류 불가침
+R2_BACKFILL_MANUAL expected=INDOOR actual=OUTDOOR
+org.opentest4j.AssertionFailedError:
+expected: "INDOOR"
+ but was: "OUTDOOR"
+
+재현 순서:
+1. INDOOR_WALL / classification_manual=false 제품("실외기") 생성
+2. V38 apply -> OUTDOOR, 감사행 생성
+3. 담당자 사후 변경: category=INDOOR, classification_manual=true
+4. 같은 V38 apply 재실행
+5. 기대 INDOOR 보존, 실제 OUTDOOR 재적용
+
+검토용 test source는 실행 후 제거해 실제 HEAD 전체 테스트에 포함하지 않았다.
