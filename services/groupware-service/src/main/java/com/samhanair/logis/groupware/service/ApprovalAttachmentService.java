@@ -7,12 +7,15 @@ import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.ApprovalReferenceDocType;
 import com.samhanair.logis.groupware.dto.ApprovalAttachmentRequest;
+import com.samhanair.logis.groupware.dto.ApprovalReferenceLookupResponse;
 import com.samhanair.logis.groupware.repository.ApprovalAttachmentRepository;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.storage.ApprovalAttachmentStorage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -80,6 +83,7 @@ public class ApprovalAttachmentService {
             case TAX_INVOICE -> "세금계산서";
             case STATEMENT -> "거래명세서";
             case PARTNER_LEDGER -> "거래처 원장";
+            case SALES_COMMISSION_SETTLEMENT -> "영업수수료 정산서";
         };
         String refDocNo = request.refDocNo() == null || request.refDocNo().isBlank()
                 ? request.refSlipNo()
@@ -114,6 +118,24 @@ public class ApprovalAttachmentService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "결재 문서를 찾을 수 없습니다: " + approvalId);
         }
         return attachmentRepository.findAllByApprovalIdOrderByDisplayOrderAscCreatedAtAsc(approvalId);
+    }
+
+    /** 업무문서 유형·번호로 연결된 활성 결재 목록과 상태를 역방향 조회한다. */
+    @Transactional(readOnly = true)
+    public List<ApprovalReferenceLookupResponse> listByReference(
+            ApprovalReferenceDocType refDocType, String refDocNo) {
+        if (refDocType == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "참조 문서 유형은 필수입니다");
+        }
+        if (refDocNo == null || refDocNo.isBlank() || refDocNo.trim().length() > 40) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "참조 문서 번호는 1~40자 필수입니다");
+        }
+        Map<java.util.UUID, ApprovalReferenceLookupResponse> uniqueApprovals = new LinkedHashMap<>();
+        attachmentRepository.findAllByReference(refDocType, refDocNo.trim())
+                .forEach(attachment -> uniqueApprovals.putIfAbsent(
+                        attachment.getApproval().getId(),
+                        ApprovalReferenceLookupResponse.from(attachment.getApproval())));
+        return List.copyOf(uniqueApprovals.values());
     }
 
     /** 첨부 파일 다운로드 객체 조회. */

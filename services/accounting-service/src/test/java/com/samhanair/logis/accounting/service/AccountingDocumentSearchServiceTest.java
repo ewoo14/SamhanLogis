@@ -7,7 +7,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.repository.JournalRepository;
+import com.samhanair.logis.accounting.repository.SalesCommissionSettlementRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
+import com.samhanair.logis.accounting.domain.SalesCommissionSettlement;
+import com.samhanair.logis.accounting.domain.SalesCommissionSettlementStatus;
+import com.samhanair.logis.accounting.web.dto.AccountingSalesCommissionSettlementSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingJournalSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingLedgerPartnerSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingStatementSearchResponse;
@@ -29,6 +33,7 @@ class AccountingDocumentSearchServiceTest {
 
     @Mock private JournalRepository journalRepository;
     @Mock private TaxInvoiceRepository taxInvoiceRepository;
+    @Mock private SalesCommissionSettlementRepository salesCommissionSettlementRepository;
 
     @InjectMocks private AccountingDocumentSearchService service;
 
@@ -74,6 +79,22 @@ class AccountingDocumentSearchServiceTest {
                 .thenReturn(List.of(row));
 
         assertThat(service.searchLedgerPartners("P-", 10)).containsExactly(row);
+    }
+
+    @Test
+    void searchSalesCommissionSettlements_returnsConfirmedRowsWithoutUuid() {
+        SalesCommissionSettlement settlement = SalesCommissionSettlement.createDraft(LocalDate.of(2026, 8, 11))
+                .confirm("2026/08/11-1");
+        when(salesCommissionSettlementRepository.searchApprovalReferences(
+                eq("2026/08"), eq(SalesCommissionSettlementStatus.CONFIRMED), any(Pageable.class)))
+                .thenReturn(List.of(settlement));
+
+        List<AccountingSalesCommissionSettlementSearchResponse> result =
+                service.searchSalesCommissionSettlements("2026/08", 10);
+
+        assertThat(result).extracting(AccountingSalesCommissionSettlementSearchResponse::settlementNo)
+                .containsExactly("2026/08/11-1");
+        assertThat(result.get(0).status()).isEqualTo("CONFIRMED");
     }
 
     @Test

@@ -52,6 +52,21 @@ afterEach(() => {
 })
 
 describe('DocumentReferencePicker 요청 세대 (#837)', () => {
+  it('영업수수료 정산서를 기존 지출결의서 참조 유형으로 선택할 수 있다', () => {
+    const onChange = vi.fn()
+    render(<DocumentReferencePicker value={emptyValue} onChange={onChange} />)
+
+    expect(screen.getByRole('option', { name: '영업수수료 정산서' })).toBeTruthy()
+    fireEvent.change(screen.getByTestId('doc-ref-type-select'), {
+      target: { value: 'SALES_COMMISSION_SETTLEMENT' },
+    })
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      refDocType: 'SALES_COMMISSION_SETTLEMENT',
+      refDocNo: null,
+    }))
+  })
+
   it('A/B 응답이 역순으로 도착해도 최신 옵션과 loading owner만 유지한다', async () => {
     vi.useFakeTimers()
     let resolveA!: (value: unknown[]) => void

@@ -33,6 +33,7 @@ const DOCUMENT_REFERENCE_TYPES: ApprovalReferenceDocType[] = [
   'TAX_INVOICE',
   'STATEMENT',
   'PARTNER_LEDGER',
+  'SALES_COMMISSION_SETTLEMENT',
 ]
 
 function currentMonth(): string {

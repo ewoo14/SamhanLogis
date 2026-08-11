@@ -13,6 +13,7 @@ export type ApprovalReferenceDocType =
   | 'TAX_INVOICE'
   | 'STATEMENT'
   | 'PARTNER_LEDGER'
+  | 'SALES_COMMISSION_SETTLEMENT'
 
 export const APPROVAL_REFERENCE_DOC_TYPE_LABEL: Record<ApprovalReferenceDocType, string> = {
   OUTBOUND_SLIP: '출고전표',
@@ -21,6 +22,7 @@ export const APPROVAL_REFERENCE_DOC_TYPE_LABEL: Record<ApprovalReferenceDocType,
   TAX_INVOICE: '세금계산서',
   STATEMENT: '거래명세서',
   PARTNER_LEDGER: '거래처원장',
+  SALES_COMMISSION_SETTLEMENT: '영업수수료 정산서',
 }
 
 export interface AccountingJournalSearchResult {
@@ -49,12 +51,20 @@ export interface AccountingLedgerPartnerSearchResult {
   partnerName: string
 }
 
+export interface AccountingSalesCommissionSettlementSearchResult {
+  settlementNo: string
+  settlementDate: string
+  status: string
+  payoutAmount: string | number | null
+}
+
 export type DocumentReferenceSearchResult =
   | SlipSearchResult
   | AccountingJournalSearchResult
   | AccountingTaxInvoiceSearchResult
   | AccountingStatementSearchResult
   | AccountingLedgerPartnerSearchResult
+  | AccountingSalesCommissionSettlementSearchResult
 
 export interface DocumentReferenceOption {
   type: ApprovalReferenceDocType
@@ -100,6 +110,10 @@ export async function searchByType(
       return searchAccounting<AccountingStatementSearchResult>('/admin/accounting/statements/search', keyword, limit)
     case 'PARTNER_LEDGER':
       return searchAccounting<AccountingLedgerPartnerSearchResult>('/admin/accounting/ledgers/partners/search', keyword, limit)
+    case 'SALES_COMMISSION_SETTLEMENT':
+      return searchAccounting<AccountingSalesCommissionSettlementSearchResult>(
+        '/admin/accounting/sales-commission-settlements/search', keyword, limit,
+      )
     default:
       return []
   }
@@ -159,6 +173,19 @@ export function normalizeDocumentReferenceOption(
       date: row.date,
       amount: row.amount,
       summary: row.partnerName,
+    }
+  }
+  if (type === 'SALES_COMMISSION_SETTLEMENT') {
+    const row = result as AccountingSalesCommissionSettlementSearchResult
+    return {
+      type,
+      refDocNo: row.settlementNo,
+      refDocLabel: row.status,
+      partnerCode: null,
+      partnerName: null,
+      date: row.settlementDate,
+      amount: row.payoutAmount,
+      summary: row.status,
     }
   }
   const row = result as AccountingLedgerPartnerSearchResult

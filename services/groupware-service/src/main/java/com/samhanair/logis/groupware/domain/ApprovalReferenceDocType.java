@@ -13,5 +13,7 @@ public enum ApprovalReferenceDocType {
     /** 거래명세서. */
     STATEMENT,
     /** 거래처원장. */
-    PARTNER_LEDGER
+    PARTNER_LEDGER,
+    /** 영업수수료 정산서. */
+    SALES_COMMISSION_SETTLEMENT
 }

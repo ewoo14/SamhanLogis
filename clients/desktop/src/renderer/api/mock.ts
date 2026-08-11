@@ -4511,7 +4511,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /admin/accounting/*/search — 그룹웨어 결재 통합 문서 참조 자동완성.
-  if (method === 'GET' && /\/admin\/accounting\/(?:journals|tax-invoices|statements|ledgers\/partners)\/search(?:\?|$)/.test(url)) {
+  if (method === 'GET' && /\/admin\/accounting\/(?:journals|tax-invoices|statements|ledgers\/partners|sales-commission-settlements)\/search(?:\?|$)/.test(url)) {
     const params = new URLSearchParams(url.split('?')[1] ?? '')
     const q = (params.get('q') ?? '').trim().toLowerCase()
     const rawLimit = Number(params.get('limit') ?? '10')
@@ -4561,6 +4561,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             partnerName: invoice.partnerName,
             amount: invoice.totalAmount,
           })),
+      )
+    }
+
+    if (url.includes('/admin/accounting/sales-commission-settlements/search')) {
+      return envelope(
+        [
+          {
+            settlementNo: '2026/08/11-1',
+            settlementDate: '2026-08-11',
+            status: 'CONFIRMED',
+            payoutAmount: 1320000,
+          },
+        ]
+          .filter((settlement) => contains(settlement.settlementNo))
+          .slice(0, limit),
       )
     }
 

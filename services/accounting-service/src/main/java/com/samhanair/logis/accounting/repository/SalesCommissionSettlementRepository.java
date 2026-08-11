@@ -1,10 +1,14 @@
 package com.samhanair.logis.accounting.repository;
 
 import com.samhanair.logis.accounting.domain.SalesCommissionSettlement;
+import com.samhanair.logis.accounting.domain.SalesCommissionSettlementStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** 영업수수료 정산서 repository. */
 public interface SalesCommissionSettlementRepository
@@ -13,4 +17,18 @@ public interface SalesCommissionSettlementRepository
     /** 활성 정산서를 문서번호로 되찾는다. */
     @EntityGraph(attributePaths = "rateContract")
     Optional<SalesCommissionSettlement> findByDocumentNoAndIsDeletedFalse(String documentNo);
+
+    /** 그룹웨어 결재 첨부에서 선택할 확정 정산서 후보를 문서번호로 검색한다. */
+    @Query("""
+            SELECT settlement
+            FROM SalesCommissionSettlement settlement
+            WHERE settlement.status = :status
+              AND settlement.documentNo IS NOT NULL
+              AND settlement.documentNo LIKE CONCAT('%', :keyword, '%') ESCAPE '\\'
+            ORDER BY settlement.settlementDate DESC, settlement.documentNo DESC
+            """)
+    List<SalesCommissionSettlement> searchApprovalReferences(
+            @Param("keyword") String keyword,
+            @Param("status") SalesCommissionSettlementStatus status,
+            org.springframework.data.domain.Pageable pageable);
 }
