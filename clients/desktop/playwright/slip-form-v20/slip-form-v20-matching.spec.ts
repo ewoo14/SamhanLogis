@@ -389,8 +389,12 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
     await expect(saveBtn, '저장 버튼이 활성화돼야 함(창고+품목 선택 완료)').toBeEnabled({ timeout: 8000 })
     await saveBtn.click()
 
-    // 저장 성공 시 목록(/sales)으로 navigate — 요청이 실제로 나갔음을 간접 확인.
-    await expect(page, '저장 후 판매관리 목록으로 이동해야 함').toHaveURL(/\/#\/sales(\?|$)/, { timeout: 10000 })
+    // 저장 성공 시 생성된 전표 상세(/sales/:id)로 navigate — 새 전표를 바로 확인하는
+    // 기존 SlipForm/EstimateForm 저장 후 동작 및 #1094 상세 진입 규약과 일치한다.
+    await expect(page, '저장 후 생성된 판매전표 상세로 이동해야 함').toHaveURL(
+      /\/#\/sales\/[^/?#]+(?:\?.*)?$/,
+      { timeout: 10000 },
+    )
 
     const captured = await page.evaluate(
       () => (globalThis as Record<string, unknown>)['__SAMHAN_LAST_SLIP_CREATE'],
