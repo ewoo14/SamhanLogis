@@ -42,7 +42,7 @@ expect(dbSnapshot).toContain('PERMISSION_ROLES × PERMISSION_PAGE_CODES')
 PR의 추적 스펙은 다음 경로다.
 
 ```text
-clients/desktop/playwright/dg1-s4a-sales-commission-settlement/dg1-s4a.spec.ts
+clients/desktop/playwright/dg1-s4a-sales-commission-settlement-real-qa/dg1-s4a-sales-commission-settlement-real-qa.spec.ts
 ```
 
 디렉터리와 파일명 어느 쪽도 `-real-qa` 접미사가 없다. 이 파일은 실제 화면 QA와 증거 PNG 생성을 수행하지만, 이름 때문에 `playwright.real-qa.config.ts`의 `**/*-real-qa.spec.ts` 집합에 들어가지 않고 real-QA scope/cleanup 규약의 분류를 우회한다. `resolveQaShotsDir()` 사용 자체는 정상이다.
@@ -174,4 +174,3 @@ QA 증거:
 2. 추적 S4a live spec의 디렉터리·파일명 `-real-qa` 정규화 및 scope/cleanup GREEN.
 3. PowerShell 5.1 2회 SHA 동일, LF 413, no BOM과 9종 mutation RED 재보존.
 4. desktop/accounting/typecheck/V101 및 본 라이브 QA 재실행.
-

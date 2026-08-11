@@ -113,7 +113,7 @@ REST controller, service list/detail, 전용 enum/seed, FE API와 화면을 추�
 - `npm run typecheck` — 통과
 - `npm run build` — 통과
 - `npm test -- --run src/renderer/api/mock.test.ts src/renderer/api/salesCommissionSettlementApi.test.ts` — 2 files, 149 passed, 1 skipped
-- `npx playwright test playwright/dg1-s4a-sales-commission-settlement/dg1-s4a.spec.ts --project=chromium` — 5 passed
+- `npx playwright test playwright/dg1-s4a-sales-commission-settlement-real-qa/dg1-s4a-sales-commission-settlement-real-qa.spec.ts --project=chromium` — 5 passed
 - `npm test -- --run` — 246 files, 2,159 passed, 1 skipped
 
 초기 Vitest 실행은 `node_modules`, design-system dist, Electron main 산출물이 없는 환경 게이트에서 중단됐으나, 로컬 의존성 설치와 design-system/desktop build 후 재실행해 통과했다. 네트워크·DB write·배포는 수행하지 않았다.
@@ -136,7 +136,7 @@ REST controller, service list/detail, 전용 enum/seed, FE API와 화면을 추�
 - `clients/desktop/src/renderer/routes/SalesCommissionSettlementListPage.tsx`
 - `clients/desktop/src/renderer/routes/SalesCommissionSettlementDetailPage.tsx`
 - `clients/desktop/src/renderer/api/salesCommissionSettlementApi.test.ts`
-- `clients/desktop/playwright/dg1-s4a-sales-commission-settlement/dg1-s4a.spec.ts`
+- `clients/desktop/playwright/dg1-s4a-sales-commission-settlement-real-qa/dg1-s4a-sales-commission-settlement-real-qa.spec.ts`
 - `docs/superpowers/plans/2026-08-11-dg1-s4a-implementation.md`
 - `docs/dev-reports/2026-08-11-dg1-s4a-implementation.md`
 

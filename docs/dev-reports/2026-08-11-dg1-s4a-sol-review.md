@@ -262,7 +262,7 @@ fix 전 기준은 별도 main checkout의 `AppLayout.tsx`, fix 후는 이 워크
 - desktop API/mock: `api/accounting.ts`, `api/mock.ts`, `api/mock.test.ts`, `api/salesCommissionSettlementApi.test.ts`
 - UI/route: `SalesCommissionSettlementListPage.tsx`, `SalesCommissionSettlementDetailPage.tsx`, `routes/index.tsx`
 - 메뉴/권한 관리: `AppLayout.tsx`, `PermissionMatrixPage.tsx`
-- QA: `playwright/dg1-s4a-sales-commission-settlement/dg1-s4a.spec.ts`
+- QA: `playwright/dg1-s4a-sales-commission-settlement-real-qa/dg1-s4a-sales-commission-settlement-real-qa.spec.ts`
 
 ### 7.3 재현 데이터
 

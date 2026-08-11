@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { TextDecoder } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { getMockResponse } from '../api/mock'
 import { PERMISSION_BITS_BY_ROLE } from './accounting-slip-permission-snapshot'
@@ -9,11 +10,9 @@ const workspace = resolve(__dirname, '../../..')
 const routes = readFileSync(resolve(workspace, 'src/renderer/routes/index.tsx'), 'utf8')
 const layout = readFileSync(resolve(workspace, 'src/renderer/components/AppLayout.tsx'), 'utf8')
 const mock = readFileSync(resolve(workspace, 'src/renderer/api/mock.ts'), 'utf8')
-const dbSnapshot = readFileSync(
-  resolve(workspace, 'src/renderer/test-utils/accounting-slip-permission-db-snapshot.ts'),
-  'utf8',
-)
-const refreshScript = readFileSync(resolve(workspace, '../../scripts/refresh-accounting-permission-db-snapshot.ps1'), 'utf8')
+const dbSnapshot = readStrictUtf8('src/renderer/test-utils/accounting-slip-permission-db-snapshot.ts')
+const refreshScript = readStrictUtf8('../../scripts/refresh-accounting-permission-db-snapshot.ps1')
+const permissionChecker = readStrictUtf8('src/renderer/test-utils/permission-contract-checker.ts')
 const salesAccountingSlipPage = readFileSync(resolve(workspace, 'src/renderer/routes/accounting/SalesAccountingSlipPage.tsx'), 'utf8')
 const purchaseAccountingSlipPage = readFileSync(resolve(workspace, 'src/renderer/routes/accounting/PurchaseAccountingSlipPage.tsx'), 'utf8')
 const taxInvoiceController = readFileSync(
@@ -25,6 +24,51 @@ const migrationPath = resolve(
   '../../services/auth-service/src/main/resources/db/migration/V99__align_accounting_slip_permissions.sql',
 )
 const migration = existsSync(migrationPath) ? readFileSync(migrationPath, 'utf8') : ''
+
+const canonicalNonAsciiLines = {
+  generator: [
+    "  throw 'DB 파생 스냅샷 갱신 중단: docker 명령이 없습니다.'",
+    "if (-not $pageMatch.Success) { throw 'PERMISSION_PAGE_CODES를 찾지 못했습니다.' }",
+    '# 공유 auth_db의 적용 여부에 의존하지 않는다. 매번 일회성 PostgreSQL에 저장소의',
+    '# migration 전체를 Flyway로 적용한 뒤 그 결과만 SELECT한다. 이 컨테이너/네트워크는',
+    '# finally에서 제거되므로 운영 DB에는 쓰기가 발생하지 않는다.',
+    "  if ($LASTEXITCODE -ne 0) { throw '임시 Docker 네트워크 생성에 실패했습니다.' }",
+    "  if ($LASTEXITCODE -ne 0) { throw '임시 PostgreSQL 컨테이너 생성에 실패했습니다.' }",
+    "  if (-not $databaseReady) { throw '임시 PostgreSQL이 준비되지 않았습니다.' }",
+    "  if ($LASTEXITCODE -ne 0) { throw '전체 migration 적용에 실패했습니다. projection을 갱신하지 않습니다.' }",
+    "    throw 'DB 파생 스냅샷 갱신 중단: 전체 migration DB SELECT가 실패했거나 결과가 비었습니다. 기존 체크인 산출물로 조용히 대체하지 않습니다.'",
+    "    throw \"DB 파생 스냅샷 갱신 중단: 잘못된 projection row '$row'\"",
+    "    throw \"DB 파생 스냅샷 갱신 중단: duplicate projection cell $cell first/second bits cannot be represented\"",
+    "$lines.Add('// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES. Missing DB rows are 0000000.')",
+  ],
+  dbSnapshot: [
+    '// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES. Missing DB rows are 0000000.',
+  ],
+  checker: [
+    "  expect([...mockPageCodes].sort(), 'mock ↔ snapshot page-code catalog').toEqual([...snapshotPageCodes].sort())",
+    "  expect([...mockRoles].sort(), 'mock ↔ snapshot role catalog').toEqual([...snapshotRoles].sort())",
+    ' * Mock account endpoint와 auth_db role_page_permission_templates 스냅샷의',
+    ' * 역할 × page code × 7-action 전체 곱을 비교한다. 누락 셀도 0000000으로',
+    ' * 묵인하지 않고 page/role 집합 자체를 먼저 비교한다.',
+    "      expect(cell, `${role} × ${pageCode} cell`).toBeDefined()",
+    "      expect(actualBits, `${role} × ${pageCode}`).toBe(frozenDivergence?.mockBits ?? expectedBits)",
+  ],
+} as const
+
+function readStrictUtf8(relativePath: string): string {
+  return new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(resolve(workspace, relativePath)))
+}
+
+function nonAsciiLines(source: string): string[] {
+  return source
+    .split(/\r?\n/)
+    .filter((line) => /[^\x00-\x7F]/u.test(line))
+    .map((line) => line.replace(/^\uFEFF/u, ''))
+}
+
+function assertCanonicalNonAsciiInventory(label: keyof typeof canonicalNonAsciiLines, source: string): void {
+  expect(nonAsciiLines(source), `${label} non-ASCII inventory`).toEqual(canonicalNonAsciiLines[label])
+}
 
 type PermissionCell = {
   view: boolean
@@ -86,11 +130,22 @@ describe('accounting slip permission contract', () => {
     expect(refreshScript).toContain('exit 1')
   })
 
-  it('preserves the committed UTF-8 multiplication sign in the generator and snapshot comments', () => {
-    expect(refreshScript).not.toContain('횞')
-    expect(refreshScript).toContain('PERMISSION_ROLES × PERMISSION_PAGE_CODES')
-    expect(dbSnapshot).not.toContain('횞')
-    expect(dbSnapshot).toContain('PERMISSION_ROLES × PERMISSION_PAGE_CODES')
+  it('strictly decodes and pins every non-ASCII generator, snapshot, and checker line', () => {
+    assertCanonicalNonAsciiInventory('generator', refreshScript)
+    assertCanonicalNonAsciiInventory('dbSnapshot', dbSnapshot)
+    assertCanonicalNonAsciiInventory('checker', permissionChecker)
+
+    const mutations = [
+      ['generator multiplication sign', 'generator', refreshScript.replace('×', '�')],
+      ['generator Korean error text', 'generator', refreshScript.replace('DB 파생 스냅샷 갱신 중단', 'DB ?뚯깮 스냅샷 갱신 중단')],
+      ['checker arrow symbol', 'checker', permissionChecker.replace('↔', '→')],
+      ['checker Korean JSDoc', 'checker', permissionChecker.replace('역할', '役割')],
+      ['snapshot multiplication sign', 'dbSnapshot', dbSnapshot.replace('×', '…')],
+    ] as const
+
+    for (const [name, label, mutatedSource] of mutations) {
+      expect(() => assertCanonicalNonAsciiInventory(label, mutatedSource), name).toThrow()
+    }
   })
 
   it('gates every accounting slip write CTA by the canonical accounting permission action', () => {
