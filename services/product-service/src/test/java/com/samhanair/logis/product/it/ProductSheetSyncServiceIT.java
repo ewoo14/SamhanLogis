@@ -15,6 +15,7 @@ import com.samhanair.logis.product.client.GoogleSheetsClient;
 import com.samhanair.logis.product.client.GoogleSheetsClient.ValueRenderMode;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
+import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Classification;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
@@ -22,10 +23,12 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductLineage;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
+import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ClassificationRepository;
 import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
@@ -95,6 +98,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -1487,6 +1493,56 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(homeTab.softDeletedProductRows).isZero();
         assertThat(homeTab.preservedManualProductOccurrences).isEqualTo(1);
         assertThat(homeTab.skippedOccurrences).isZero();
+    }
+
+    @Test
+    void sync_실외기_신규품목은_OUTDOOR_카테고리로_생성한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("실외기", "CATEGORY_OUTDOOR_NEW", "", "1,500,000", "", "1,200,000")
+        ));
+
+        syncService.syncAll();
+
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("CATEGORY_OUTDOOR_NEW").orElseThrow()
+                .getCategory().getCode()).isEqualTo("OUTDOOR");
+    }
+
+    @Test
+    void sync_미일치_신규품목은_UNCLASSIFIED_카테고리로_생성한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("AM180NXVUHH1", "CATEGORY_UNCLASSIFIED_NEW", "", "1,500,000", "", "1,200,000")
+        ));
+
+        syncService.syncAll();
+
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("CATEGORY_UNCLASSIFIED_NEW").orElseThrow()
+                .getCategory().getCode()).isEqualTo("UNCLASSIFIED");
+    }
+
+    @Test
+    void sync_softDelete후_재등장한_수동카테고리품목은_기존카테고리를_보존한다() throws Exception {
+        Category outdoor = categoryRepository.findByCode("OUTDOOR").orElseThrow();
+        Product deleted = productRepository.saveAndFlush(Product.seedFromSheet(
+                "수동 분류 품목", "CATEGORY_REAPPEAR", outdoor,
+                new BigDecimal("1000000"), new BigDecimal("800000"),
+                ProductType.SINGLE, ProductCategory.HOME_MULTI, UsageScope.BOTH, EstimateCategory.HOME_MULTI));
+        jdbcTemplate.update("UPDATE products SET classification_manual = TRUE WHERE id = ?", deleted.getId());
+        deleted.markDeleted("test-soft-delete");
+        productRepository.saveAndFlush(deleted);
+        entityManager.clear();
+
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("수동 분류 품목", "CATEGORY_REAPPEAR", "", "1,500,000", "", "1,200,000")
+        ));
+
+        syncService.syncAll();
+
+        Product restored = productRepository.findByModelCodeAndIsDeletedFalse("CATEGORY_REAPPEAR").orElseThrow();
+        assertThat(restored.getId()).isEqualTo(deleted.getId());
+        assertThat(restored.getCategory().getCode()).isEqualTo("OUTDOOR");
     }
 
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */

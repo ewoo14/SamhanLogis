@@ -84,8 +84,10 @@ public class ProductSheetSyncService {
     @Value("${google.sheets.sheet-id:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}")
     private String sheetId;
 
-    /** sync 시 default category — V2 시드의 INDOOR_WALL (BaseEntity FK 강제 충족용). */
-    private static final String DEFAULT_CATEGORY_CODE = "INDOOR_WALL";
+    /** 시트 신규 적재와 V38 백필이 공유하는 제품구분 카테고리 코드 집합. */
+    private static final Set<String> PRODUCT_CATEGORY_CODES = Set.of(
+            "SERVICE", "CONTROL", "PIPING", "OUTDOOR", "HVAC",
+            "INDOOR_WALL", "INDOOR_CEILING", "INDOOR", ProductNameCategoryClassifier.UNCLASSIFIED_CODE);
 
     /** PriceHistory 기준일 — legacy 시드와 동일하게 인상본은 2026-04-01부터 적용한다. */
     private static final LocalDate PRICE_INCREASE_EFFECTIVE_DATE = LocalDate.of(2026, 4, 1);
@@ -231,12 +233,10 @@ public class ProductSheetSyncService {
         Instant started = Instant.now();
         SyncSummary summary = new SyncSummary();
 
-        Category defaultCategory = categoryRepository.findByCode(DEFAULT_CATEGORY_CODE)
-                .orElse(null);
-        if (defaultCategory == null) {
-            log.error("[ProductSheetSync] default category {} 미존재 — V2 시드 누락 가능. sync 중단.",
-                    DEFAULT_CATEGORY_CODE);
-            summary.error = "default category " + DEFAULT_CATEGORY_CODE + " not found";
+        Map<String, Category> categoryByCode = resolveProductCategories();
+        if (categoryByCode.size() != PRODUCT_CATEGORY_CODES.size()) {
+            log.error("[ProductSheetSync] 제품구분 카테고리 시드 누락 — 현재={}", categoryByCode.keySet());
+            summary.error = "product categories missing";
             summary.totalTabs = TAB_MAPPINGS.size() + COMPONENT_TAB_MAPPINGS.size();
             summary.failedTabs = summary.totalTabs;
             return summary;
@@ -245,7 +245,7 @@ public class ProductSheetSyncService {
         for (SheetTabMapping mapping : TAB_MAPPINGS) {
             summary.totalTabs++;
             try {
-                TabSyncResult tabResult = self.syncTab(mapping, defaultCategory);
+                TabSyncResult tabResult = self.syncTab(mapping, categoryByCode);
                 summary.byTab.put(mapping.tabName, tabResult);
                 summary.totalInsertedRows += tabResult.insertedRows;
                 summary.totalUpdatedRows += tabResult.updatedRows;
@@ -1202,7 +1202,7 @@ public class ProductSheetSyncService {
      * {@link GoogleSheetsClient#readSheetDisplay} ({@code FORMATTED_VALUE}) 사용.
      */
     @Transactional
-    public TabSyncResult syncTab(SheetTabMapping mapping, Category defaultCategory) throws Exception {
+    public TabSyncResult syncTab(SheetTabMapping mapping, Map<String, Category> categoryByCode) throws Exception {
         TabSyncResult result = new TabSyncResult();
         String syncKey = sheetSyncKey("product:" + mapping.currentTabName);
         long syncGeneration = quantitySyncRuleService.reserveSheetSyncGeneration(syncKey);
@@ -1310,12 +1310,17 @@ public class ProductSheetSyncService {
             // 구성품 탭에만 존재하는 모델은 SINGLE_PART/NONE 으로 insert 됨이 정상(노출 비대상).
             // ※ 신규 탭 추가 시 견적 탭은 구성품 탭보다 앞에 둘 것.
             Optional<Product> existing = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
+            if (existing.isEmpty()) {
+                existing = productRepository.findLatestDeletedByModelCode(modelCode);
+                existing.ifPresent(Product::markRestored);
+            }
             UUID productId = null;
             Product productForExposure = null;
             ExternalWriteTracker externalWrites = new ExternalWriteTracker();
             boolean productChanged = false;
             if (existing.isEmpty()) {
-                Product p = Product.seedFromSheet(name, modelCode, defaultCategory,
+                Category classifiedCategory = categoryByCode.get(ProductNameCategoryClassifier.classify(name));
+                Product p = Product.seedFromSheet(name, modelCode, classifiedCategory,
                         releasePrice, deliveryPrice,
                         ProductType.SINGLE,
                         mapping.productCategory,
@@ -2108,6 +2113,15 @@ public class ProductSheetSyncService {
 
     private String sheetSyncKey(String scope) {
         return sheetId + ":" + scope;
+    }
+
+    /** 제품구분 필수 카테고리를 sync 시작 시 한 번만 해소한다. */
+    private Map<String, Category> resolveProductCategories() {
+        Map<String, Category> categories = new HashMap<>();
+        for (String code : PRODUCT_CATEGORY_CODES) {
+            categoryRepository.findByCode(code).ifPresent(category -> categories.put(code, category));
+        }
+        return categories;
     }
 
     /** 시트 tab → 도메인 매핑 record. */

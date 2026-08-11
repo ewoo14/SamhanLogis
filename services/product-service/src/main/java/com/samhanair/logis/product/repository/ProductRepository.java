@@ -140,6 +140,22 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findByModelCodeAndIsDeletedFalse(String modelCode);
 
     /**
+     * 시트에서 soft-delete된 품목이 같은 모델 코드로 재등장할 때 기존 행을 복원하기 위한 조회다.
+     *
+     * <p>엔티티의 {@code @SQLRestriction}은 삭제행을 감추므로 native query로 가장 최근 삭제행을
+     * 명시적으로 조회한다. 새 행을 만들면 수동으로 정한 제품구분이 초기화되므로 이 경로를 우선한다.
+     */
+    @Query(value = """
+            SELECT *
+              FROM products
+             WHERE model_code = CAST(:modelCode AS text)
+               AND is_deleted = TRUE
+             ORDER BY deleted_at DESC NULLS LAST, created_at DESC
+             LIMIT 1
+            """, nativeQuery = true)
+    Optional<Product> findLatestDeletedByModelCode(@Param("modelCode") String modelCode);
+
+    /**
      * 구성품 replace-all 직렬화용 PESSIMISTIC_WRITE 잠금 단건 조회 (#2 동시성 가드).
      *
      * <p>{@code BundleComponentService.replaceComponents} 시작부에서 부모 BUNDLE 을
