@@ -3,11 +3,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['REAL_QA_RENDERER_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://127.0.0.1:8080'
 const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
-const SHOTS = path.resolve(dirname, '../../../../docs/qa/2026-08-11-1051-real-qa')
+const SHOTS = resolveQaShotsDir(path.resolve(dirname, '../../../../docs/qa/2026-08-11-1051-real-qa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 async function installAuth(page: Page): Promise<void> {
@@ -47,6 +48,9 @@ test('끊긴 품목 참조가 있어도 재고 잔고 화면이 행과 수량을
   // 화면 도달 증명: 이 페이지 전용 제목과 조회 버튼을 캡처 전에 단정한다.
   await expect(page.getByTestId('header-page-title')).toHaveText('재고 현황', { timeout: 30_000 })
   await expect(page.getByTestId('inventory-balance-query-button')).toBeVisible()
+  const warehouseSelect = page.getByTestId('inventory-balance-warehouse-select')
+  await expect(warehouseSelect.locator('option', { hasText: '본사창고' })).toHaveCount(1, { timeout: 30_000 })
+  await warehouseSelect.selectOption({ label: '본사창고' })
 
   await page.getByTestId('inventory-balance-query-button').click()
   const grid = page.getByTestId('inventory-balance-grid')
