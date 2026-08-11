@@ -92,17 +92,63 @@ async function openReferencePicker(page: Page): Promise<void> {
   await page.getByRole('button', { name: '문서 참조 추가' }).click()
 }
 
-async function waitForDropdownAligned(page: Page): Promise<void> {
-  await expect.poll(async () => page.evaluate(() => {
+async function readScrollFrame(page: Page) {
+  return page.evaluate(() => {
     const listbox = document.querySelector('[role="listbox"]')
     const input = document.querySelector('[data-testid="doc-ref-search-input"]')
     const picker = input?.closest('[class*="picker"]')
-    if (!(listbox instanceof HTMLElement) || !(picker instanceof HTMLElement)) return false
+    const scrollOwner = document.scrollingElement
+    if (!(listbox instanceof HTMLElement) || !(picker instanceof HTMLElement)) {
+      return {
+        closed: true,
+        aligned: true,
+        gap: null,
+        scrollY: window.scrollY,
+        scrollOwner: scrollOwner?.tagName ?? null,
+        scrollTop: scrollOwner?.scrollTop ?? null,
+        maxScrollTop: scrollOwner ? scrollOwner.scrollHeight - scrollOwner.clientHeight : null,
+      }
+    }
+    if (getComputedStyle(listbox).visibility === 'hidden') {
+      return {
+        closed: true,
+        aligned: true,
+        gap: null,
+        scrollY: window.scrollY,
+        scrollOwner: document.scrollingElement?.tagName ?? null,
+        scrollTop: document.scrollingElement?.scrollTop ?? null,
+        maxScrollTop: document.scrollingElement
+          ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight
+          : null,
+      }
+    }
+
     const listRect = listbox.getBoundingClientRect()
     const pickerRect = picker.getBoundingClientRect()
-    return Math.abs(listRect.left - pickerRect.left) <= 2
-      && Math.abs(listRect.width - pickerRect.width) <= 4
-  })).toBe(true)
+    const belowGap = listRect.top - pickerRect.bottom
+    const aboveGap = pickerRect.top - listRect.bottom
+    const belowAligned = Math.abs(belowGap - 4) <= 2
+    const aboveAligned = Math.abs(aboveGap - 4) <= 2
+    return {
+      closed: false,
+      aligned: belowAligned || aboveAligned,
+      gap: belowAligned ? belowGap : aboveGap,
+      scrollY: window.scrollY,
+      scrollOwner: scrollOwner?.tagName ?? null,
+      scrollTop: scrollOwner?.scrollTop ?? null,
+      maxScrollTop: scrollOwner ? scrollOwner.scrollHeight - scrollOwner.clientHeight : null,
+    }
+  })
+}
+
+async function addJournalReference(page: Page): Promise<void> {
+  await openReferencePicker(page)
+  await page.getByTestId('doc-ref-type-select').first().selectOption({ value: 'JOURNAL' })
+  const searchInput = page.getByTestId('doc-ref-search-input').first()
+  await searchInput.fill('2026/')
+  const option = page.getByTestId('doc-ref-search-option').first()
+  await expect(option).toBeVisible({ timeout: 10_000 })
+  await option.click()
 }
 
 test('지출결의서 정산서 검색·선택은 isolated mock에서 결과와 refDocNo를 유지한다', async ({ page }) => {
@@ -224,11 +270,11 @@ test('문서 참조 7유형은 공통 picker에서 모두 visible·hit-test 가�
 })
 
 test('문서 참조 dropdown은 0건에서 닫히고 하단·창 축소·뒤 화면 scroll에서도 anchor와 함께 동작한다', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 480 })
   await page.goto(`${BASE_URL}/?mockRole=MASTER#/groupware/approvals/new`, { waitUntil: 'domcontentloaded' })
   await expect(page.locator('main.app-main')).toBeVisible({ timeout: 15_000 })
   await selectExpenseTemplate(page)
   await openReferencePicker(page)
-  await page.setViewportSize({ width: 1280, height: 480 })
 
   const typeSelect = page.getByTestId('doc-ref-type-select').first()
   const searchInput = page.getByTestId('doc-ref-search-input').first()
@@ -241,15 +287,6 @@ test('문서 참조 dropdown은 0건에서 닫히고 하단·창 축소·뒤 화
   const option = page.getByTestId('doc-ref-search-option').first()
   await expect(option).toBeVisible({ timeout: 10_000 })
   await searchInput.scrollIntoViewIfNeeded()
-  await page.evaluate(() => {
-    const input = document.querySelector('[data-testid="doc-ref-search-input"]')
-    const main = document.querySelector('main.app-main')
-    if (!(input instanceof HTMLElement) || !(main instanceof HTMLElement)) return
-    const rect = input.getBoundingClientRect()
-    main.scrollTop = Math.max(0, main.scrollTop + rect.top - 350)
-    main.dispatchEvent(new Event('scroll'))
-  })
-  await waitForDropdownAligned(page)
   await expectVisibleAndHitTestable(option)
 
   const aboveEvidence = await page.evaluate(() => {
@@ -269,27 +306,59 @@ test('문서 참조 dropdown은 0건에서 닫히고 하단·창 축소·뒤 화
 
   await page.evaluate(() => {
     const main = document.querySelector('main.app-main')
-    if (main instanceof HTMLElement) {
-      main.scrollTop += 80
-      main.dispatchEvent(new Event('scroll'))
-    }
+    if (!(main instanceof HTMLElement)) return
+    main.style.height = '100vh'
+    main.style.minHeight = '0'
+    const scrollSentinel = document.createElement('div')
+    scrollSentinel.setAttribute('data-testid', 'container-scroll-sentinel')
+    scrollSentinel.style.height = '160px'
+    scrollSentinel.style.pointerEvents = 'none'
+    main.appendChild(scrollSentinel)
   })
-  await waitForDropdownAligned(page)
-  const scrollEvidence = await page.evaluate(() => {
-    const optionNode = document.querySelector('[data-testid="doc-ref-search-option"]')
-    const input = document.querySelector('[data-testid="doc-ref-search-input"]')
-    const picker = input?.closest('[class*="picker"]')
-    if (!(optionNode instanceof HTMLElement) || !(picker instanceof HTMLElement)) {
-      return { closed: true, aligned: true }
+  const containerFrames = await page.evaluate(async () => {
+    const main = document.querySelector('main.app-main')
+    if (!(main instanceof HTMLElement)) return null
+    const read = () => {
+      const listbox = document.querySelector('[role="listbox"]')
+      const input = document.querySelector('[data-testid="doc-ref-search-input"]')
+      const picker = input?.closest('[class*="picker"]')
+      if (!(listbox instanceof HTMLElement) || !(picker instanceof HTMLElement)
+        || getComputedStyle(listbox).visibility === 'hidden') {
+        return { closed: true, aligned: true, gap: null, scrollTop: main.scrollTop }
+      }
+      const listRect = listbox.getBoundingClientRect()
+      const pickerRect = picker.getBoundingClientRect()
+      const belowGap = listRect.top - pickerRect.bottom
+      const aboveGap = pickerRect.top - listRect.bottom
+      return {
+        closed: false,
+        aligned: Math.abs(belowGap - 4) <= 2 || Math.abs(aboveGap - 4) <= 2,
+        gap: Math.abs(belowGap - 4) <= 2 ? belowGap : aboveGap,
+        scrollTop: main.scrollTop,
+      }
     }
-    const listboxRect = optionNode.parentElement?.getBoundingClientRect()
-    const pickerRect = picker.getBoundingClientRect()
-    if (!listboxRect) return { closed: true, aligned: true }
-    const below = Math.abs(listboxRect.top - pickerRect.bottom - 4) <= 2
-    const above = Math.abs(listboxRect.bottom - pickerRect.top + 4) <= 2
-    return { closed: false, aligned: below || above }
+    main.scrollTo(0, 0)
+    main.scrollBy(0, 80)
+    const frame1 = await new Promise<ReturnType<typeof read>>((resolve) => {
+      requestAnimationFrame(() => resolve(read()))
+    })
+    const frame2 = await new Promise<ReturnType<typeof read>>((resolve) => {
+      requestAnimationFrame(() => resolve(read()))
+    })
+    return { frame1, frame2, scrollHeight: main.scrollHeight, clientHeight: main.clientHeight }
   })
-  expect(scrollEvidence.closed || scrollEvidence.aligned).toBe(true)
+  console.log(`CONTAINER_SCROLL_FIRST_PAINT=${JSON.stringify(containerFrames)}`)
+  expect(containerFrames?.scrollHeight).toBeGreaterThan(containerFrames?.clientHeight ?? 0)
+  expect(containerFrames?.frame1.scrollTop).toBe(80)
+  expect(containerFrames?.frame1.closed || containerFrames?.frame1.aligned).toBe(true)
+
+  await page.evaluate(() => {
+    document.querySelector('main.app-main')?.scrollTo(0, 0)
+  })
+  await searchInput.fill('2026')
+  await searchInput.fill('2026/')
+  await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 })
+  await expectVisibleAndHitTestable(page.getByTestId('doc-ref-search-option').first())
 
   await page.setViewportSize({ width: 480, height: 640 })
   await page.evaluate(() => window.dispatchEvent(new Event('resize')))
@@ -307,6 +376,155 @@ test('문서 참조 dropdown은 0건에서 닫히고 하단·창 축소·뒤 화
     clientWidth: document.documentElement.clientWidth,
   }))
   expect(narrowLayout.scrollWidth).toBeLessThanOrEqual(narrowLayout.clientWidth)
+})
+
+test('실제 window scroll의 첫 paint에서도 문서 참조 dropdown은 닫히거나 anchor와 정렬된다', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.goto(`${BASE_URL}/?mockRole=MASTER#/groupware/approvals/new`, { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('main.app-main')).toBeVisible({ timeout: 15_000 })
+  await selectExpenseTemplate(page)
+
+  for (let index = 0; index < 4; index += 1) await addJournalReference(page)
+
+  await openReferencePicker(page)
+  await page.getByTestId('doc-ref-type-select').first().selectOption({ value: 'JOURNAL' })
+  const searchInput = page.getByTestId('doc-ref-search-input').first()
+  await searchInput.fill('2026/')
+  await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 })
+  await page.evaluate(() => {
+    const scrollSentinel = document.createElement('div')
+    scrollSentinel.setAttribute('data-testid', 'window-scroll-sentinel')
+    scrollSentinel.style.height = '160px'
+    scrollSentinel.style.pointerEvents = 'none'
+    document.body.appendChild(scrollSentinel)
+  })
+
+  const before = await readScrollFrame(page)
+  const metrics = await page.evaluate(() => ({
+    innerHeight: window.innerHeight,
+    scrollingElement: document.scrollingElement?.tagName ?? null,
+    document: {
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight,
+    },
+    main: (() => {
+      const main = document.querySelector('main.app-main')
+      return main instanceof HTMLElement
+        ? { scrollHeight: main.scrollHeight, clientHeight: main.clientHeight, scrollTop: main.scrollTop }
+        : null
+    })(),
+    attachmentChips: document.querySelectorAll('[data-testid="attachment-chip"]').length,
+    bodyTextLength: document.body.innerText.length,
+  }))
+  console.log(`WINDOW_SCROLL_SETUP_METRICS=${JSON.stringify(metrics)}`)
+  expect(before.scrollOwner).toBe('HTML')
+  expect(before.scrollTop).toBe(0)
+  expect(before.maxScrollTop).toBeGreaterThanOrEqual(80)
+  expect(before.closed || before.aligned).toBe(true)
+
+  const frames = await page.evaluate(async () => {
+    const events: string[] = []
+    window.addEventListener('scroll', () => events.push('scroll'), { once: true })
+    const read = () => {
+      const listbox = document.querySelector('[role="listbox"]')
+      const input = document.querySelector('[data-testid="doc-ref-search-input"]')
+      const picker = input?.closest('[class*="picker"]')
+      if (!(listbox instanceof HTMLElement) || !(picker instanceof HTMLElement)) {
+        return { closed: true, aligned: true, gap: null, scrollY: window.scrollY }
+      }
+      if (getComputedStyle(listbox).visibility === 'hidden') {
+        return { closed: true, aligned: true, gap: null, scrollY: window.scrollY }
+      }
+      const listRect = listbox.getBoundingClientRect()
+      const pickerRect = picker.getBoundingClientRect()
+      const belowGap = listRect.top - pickerRect.bottom
+      const aboveGap = pickerRect.top - listRect.bottom
+      const belowAligned = Math.abs(belowGap - 4) <= 2
+      const aboveAligned = Math.abs(aboveGap - 4) <= 2
+      return {
+        closed: false,
+        aligned: belowAligned || aboveAligned,
+        gap: belowAligned ? belowGap : aboveGap,
+        scrollY: window.scrollY,
+      }
+    }
+    window.scrollTo(0, 0)
+    window.scrollBy(0, 80)
+    const frame1 = await new Promise<ReturnType<typeof read>>((resolve) => {
+      requestAnimationFrame(() => {
+        events.push('raf1')
+        resolve(read())
+      })
+    })
+    const frame2 = await new Promise<ReturnType<typeof read>>((resolve) => {
+      requestAnimationFrame(() => {
+        events.push('raf2')
+        resolve(read())
+      })
+    })
+    return { frame1, frame2, events }
+  })
+  console.log(`WINDOW_SCROLL_FIRST_PAINT=${JSON.stringify({ before, ...frames })}`)
+  expect(frames.frame1.scrollY).toBe(80)
+  expect(frames.frame1.closed || frames.frame1.aligned).toBe(true)
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await searchInput.fill('2026')
+  await searchInput.fill('2026/')
+  await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 })
+  const rapidFrames = await page.evaluate(async () => {
+    const read = () => {
+      const listbox = document.querySelector('[role="listbox"]')
+      return !(listbox instanceof HTMLElement) || getComputedStyle(listbox).visibility === 'hidden'
+    }
+    const frames: boolean[] = []
+    for (let index = 0; index < 6; index += 1) {
+      window.scrollBy(0, 20)
+      frames.push(await new Promise<boolean>((resolve) => {
+        requestAnimationFrame(() => resolve(read()))
+      }))
+    }
+    return { frames, scrollY: window.scrollY }
+  })
+  console.log(`WINDOW_SCROLL_RAPID_FRAMES=${JSON.stringify(rapidFrames)}`)
+  expect(rapidFrames.scrollY).toBe(120)
+  expect(rapidFrames.frames).toEqual([true, true, true, true, true, true])
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await searchInput.fill('2026')
+  await searchInput.fill('2026/')
+  await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 })
+  const resizeDuringScroll = await page.evaluate(async () => {
+    window.scrollBy(0, 20)
+    window.dispatchEvent(new Event('resize'))
+    return new Promise<boolean>((resolve) => {
+      requestAnimationFrame(() => {
+        const listbox = document.querySelector('[role="listbox"]')
+        resolve(!(listbox instanceof HTMLElement) || getComputedStyle(listbox).visibility === 'hidden')
+      })
+    })
+  })
+  console.log(`WINDOW_SCROLL_RESIZE_FIRST_PAINT=${JSON.stringify({ closed: resizeDuringScroll })}`)
+  expect(resizeDuringScroll).toBe(true)
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await searchInput.fill('2026')
+  await searchInput.fill('2026/')
+  await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 })
+  const clickOption = page.getByTestId('doc-ref-search-option').first()
+  await page.evaluate(() => {
+    const option = document.querySelector('[data-testid="doc-ref-search-option"]')
+    option?.addEventListener('mousedown', () => window.scrollBy(0, 20), { once: true })
+  })
+  await clickOption.click()
+  const clickDuringScroll = await page.evaluate(() => new Promise<boolean>((resolve) => {
+    requestAnimationFrame(() => {
+      const listbox = document.querySelector('[role="listbox"]')
+      resolve(!(listbox instanceof HTMLElement) || getComputedStyle(listbox).visibility === 'hidden')
+    })
+  }))
+  console.log(`WINDOW_SCROLL_DURING_CLICK_FIRST_PAINT=${JSON.stringify({ closed: clickDuringScroll })}`)
+  expect(clickDuringScroll).toBe(true)
 })
 
 test('480px 좁은 창에서 새로 연 문서 참조 dropdown도 visible·hit-test 가능하다', async ({ page }) => {

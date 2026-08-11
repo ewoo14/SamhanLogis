@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { Input, Select, Spinner, splitHighlightMatches } from '@samhan/design-system'
 import {
   APPROVAL_REFERENCE_DOC_TYPE_LABEL,
@@ -109,6 +109,7 @@ export function DocumentReferencePicker({
 }: DocumentReferencePickerProps) {
   const listboxId = useId()
   const pickerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLUListElement>(null)
   const debounceRef = useRef<number | undefined>(undefined)
   const blurTimerRef = useRef<number | undefined>(undefined)
   const suppressNextSearchRef = useRef<string | null>(null)
@@ -165,6 +166,17 @@ export function DocumentReferencePicker({
     })
   }, [open])
 
+  const closeDropdownOnScroll = useCallback(() => {
+    if (!open) return
+    // 스크롤 이벤트 직후 React state commit만 기다리면 첫 paint에 낡은 fixed 좌표가 남을 수 있다.
+    // portal을 즉시 숨긴 뒤 state도 닫아, 첫 paint와 이후 DOM 상태를 함께 안전하게 만든다.
+    dropdownRef.current?.style.setProperty('visibility', 'hidden')
+    flushSync(() => {
+      setDropdownPosition(null)
+      setOpen(false)
+    })
+  }, [open])
+
   useLayoutEffect(() => {
     if (!open) {
       setDropdownPosition(null)
@@ -186,7 +198,7 @@ export function DocumentReferencePicker({
 
     window.addEventListener('resize', handleViewportChange)
     window.visualViewport?.addEventListener('resize', handleViewportChange)
-    for (const container of scrollContainers) container.addEventListener('scroll', handleViewportChange)
+    for (const container of scrollContainers) container.addEventListener('scroll', closeDropdownOnScroll)
     const anchor = pickerRef.current
     const resizeObserver = typeof ResizeObserver === 'undefined' || !anchor
       ? null
@@ -195,10 +207,10 @@ export function DocumentReferencePicker({
     return () => {
       window.removeEventListener('resize', handleViewportChange)
       window.visualViewport?.removeEventListener('resize', handleViewportChange)
-      for (const container of scrollContainers) container.removeEventListener('scroll', handleViewportChange)
+      for (const container of scrollContainers) container.removeEventListener('scroll', closeDropdownOnScroll)
       resizeObserver?.disconnect()
     }
-  }, [open, updateDropdownPosition])
+  }, [closeDropdownOnScroll, open, updateDropdownPosition])
 
   const cancelDebounce = useCallback(() => {
     if (debounceRef.current !== undefined) {
@@ -472,6 +484,7 @@ export function DocumentReferencePicker({
         dropdownPosition
           ? createPortal(
             <ul
+              ref={dropdownRef}
               id={listboxId}
               role="listbox"
               className={styles['dropdown']}
