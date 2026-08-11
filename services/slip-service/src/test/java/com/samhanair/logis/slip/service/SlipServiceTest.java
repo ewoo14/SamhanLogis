@@ -18,6 +18,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.SourceOperationContext;
@@ -157,6 +158,42 @@ class SlipServiceTest {
         assertThat(res.lines()).hasSize(1);
         assertThat(res.lines().get(0).lineTotal()).isEqualByComparingTo(new BigDecimal("200.00"));
         verify(productClient).lookup(any());
+    }
+
+    @Test
+    void create_bundleWithNullOptions_assignsOneKeyWithoutChangingExpandOptions() {
+        UUID childOne = UUID.randomUUID();
+        UUID childTwo = UUID.randomUUID();
+        when(productClient.lookup(List.of(productId))).thenReturn(List.of(
+                new ProductSummary(productId, "세트", "SET-DIRECT", "SET-DIRECT", null,
+                        new BigDecimal("1000"), "ACTIVE", false, "SET-DIRECT", "BUNDLE")));
+        when(productClient.expand("SET-DIRECT", BigDecimal.ONE, null, new BigDecimal("1000")))
+                .thenReturn(List.of(
+                        new ExpandedLineDto(childOne, "COMP-1", "구성품 1", "구성품 1",
+                                BigDecimal.ONE, new BigDecimal("600"), "COMPONENT", true),
+                        new ExpandedLineDto(childTwo, "COMP-2", "구성품 2", "구성품 2",
+                                BigDecimal.ONE, new BigDecimal("400"), "COMPONENT", false)));
+        when(slipNumberService.next(any(LocalDate.class), eq(SlipType.OUTBOUND)))
+                .thenReturn("2026/08/11-1");
+        when(slipNumberService.extractSeqNo("2026/08/11-1")).thenReturn(1);
+        when(slipRepository.save(any(Slip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CreateSlipRequest req = new CreateSlipRequest(
+                SlipType.OUTBOUND, LocalDate.of(2026, 8, 11), sourceWh, destWh, partnerId,
+                "삼한공조", DeliveryTag.DAY, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null,
+                List.of(new CreateSlipRequest.SlipLineRequest(
+                        productId, "세트", "SET-DIRECT", null, 1, new BigDecimal("1000"), null, null)));
+
+        SlipDetailResponse response = service.create(req, "user-1", "홍길동");
+
+        assertThat(response.lines()).hasSize(2).allSatisfy(line -> {
+            assertThat(line.setOptions()).isNotNull();
+            assertThat(line.setOptions().instanceKey()).isNotBlank();
+        });
+        assertThat(response.lines().stream().map(line -> line.setOptions().instanceKey()).distinct()).hasSize(1);
+        verify(productClient).expand("SET-DIRECT", BigDecimal.ONE, null, new BigDecimal("1000"));
     }
 
     @Test

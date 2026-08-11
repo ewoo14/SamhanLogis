@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
@@ -111,6 +112,35 @@ class EstimateToSlipConverterAuthoritativeAmountsTest {
         Slip converted = convert(estimate);
 
         assertThat(converted.getPartnerCode()).isEqualTo("P-ESTIMATE-001");
+    }
+
+    @Test
+    @DisplayName("견적의 두 BUNDLE instanceKey를 전표 8행에 그대로 보존한다")
+    void preservesTwoBundleInstanceKeys() {
+        Estimate estimate = estimate();
+        for (int instance = 1; instance <= 2; instance++) {
+            BundleSetOptions options = new BundleSetOptions(
+                    null, false, null, null, false, "server-key-" + instance);
+            for (int component = 1; component <= 4; component++) {
+                EstimateLine line = EstimateLine.create(
+                        estimate, estimate.getLines().size() + 1, UUID.randomUUID(),
+                        "구성품 " + component, "COMP-" + component, null, 1,
+                        new BigDecimal("100"), null);
+                line.assignBundleComponent("AC060CS6PBH1SY", component == 1, options);
+                estimate.addLine(line);
+            }
+        }
+
+        Slip converted = convert(estimate);
+
+        assertThat(converted.getLines()).hasSize(8);
+        assertThat(converted.getLines()).filteredOn(SlipLine::isSetHead).hasSize(2);
+        assertThat(converted.getLines().stream()
+                .map(line -> line.getBundleSetOptions().instanceKey())
+                .distinct())
+                .containsExactlyInAnyOrder("server-key-1", "server-key-2");
+        assertThat(converted.getLines()).allSatisfy(line ->
+                assertThat(line.getParentSetModel()).isEqualTo("AC060CS6PBH1SY"));
     }
 
     private Slip convert(Estimate estimate) {

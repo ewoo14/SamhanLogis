@@ -24,6 +24,7 @@ import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.realtime.EstimateListRealtime;
 import com.samhanair.logis.slip.service.BundleLineageResolver;
 import com.samhanair.logis.slip.service.BundleModePolicy;
+import com.samhanair.logis.slip.service.BundleSetInstanceKeyPolicy;
 import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.service.LineIdContractGate;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
@@ -137,6 +138,7 @@ public class EstimateService {
                 Boolean.TRUE.equals(setOptions.materialIncluded()));
         List<ExpandedLineDto> expanded = productClient.expand(
                 summary.modelCode(), BigDecimal.valueOf(quantity), opts, unitPrice);
+        BundleSetOptions persistedSetOptions = BundleSetInstanceKeyPolicy.ensure(setOptions);
         int added = 0;
         for (ExpandedLineDto el : expanded) {
             if (el.productId() == null) {
@@ -160,7 +162,7 @@ public class EstimateService {
                     ? (el.specification() != null && !el.specification().isBlank()
                         ? "CATALOG" : specificationSource)
                     : null);
-            line.assignBundleComponent(summary.modelCode(), el.setHead(), setOptions);
+            line.assignBundleComponent(summary.modelCode(), el.setHead(), persistedSetOptions);
             estimate.addLine(line);
             added++;
         }

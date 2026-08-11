@@ -210,6 +210,8 @@ public class SlipService {
         // 세트 base 단가도 VAT 포함 그대로 expand 에 전달 → 구성품 단가도 VAT 포함으로 재배분.
         List<ExpandedLineDto> expanded = productClient.expand(
                 summary.modelCode(), java.math.BigDecimal.valueOf(quantity), opts, unitPrice);
+        com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions persistedSetOptions =
+                BundleSetInstanceKeyPolicy.ensure(setOptions);
         int added = 0;
         for (ExpandedLineDto el : expanded) {
             if (el.productId() == null) {
@@ -229,7 +231,7 @@ public class SlipService {
                             compSpec, q, compUnit, note, null)
                     : SlipLine.create(slip, el.productId(), el.name(), el.modelName(),
                             compSpec, q, compUnit, note);
-            line.assignBundleComponent(summary.modelCode(), el.setHead(), setOptions);
+            line.assignBundleComponent(summary.modelCode(), el.setHead(), persistedSetOptions);
             slip.addLine(line);
             added++;
         }

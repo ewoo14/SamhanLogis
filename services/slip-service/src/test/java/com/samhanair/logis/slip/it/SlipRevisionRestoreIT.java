@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -233,6 +234,97 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].revisionNo").value(4))
                 .andExpect(jsonPath("$.data[0].revisionType").value("RESTORE"))
                 .andExpect(jsonPath("$.data[0].sourceRevisionNo").value(1));
+    }
+
+    @Test
+    void r10Probe_restoreLegacyRevisionReintroducesKeylessMultiInstanceAndBlocksNextEdit() throws Exception {
+        UUID slipId = createOutboundSlipAsSales(1);
+        Slip current = slipRepository.findById(slipId).orElseThrow();
+        slipRevisionService.capture(current,
+                com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT,
+                null, UUID.randomUUID(), "R10 현재상태", null);
+
+        List<UUID> products = List.of(UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID());
+        List<Map<String, Object>> legacyLines = new java.util.ArrayList<>();
+        for (int instance = 0; instance < 2; instance++) {
+            for (int component = 0; component < 4; component++) {
+                Map<String, Object> line = new HashMap<>();
+                line.put("productId", products.get(component).toString());
+                line.put("productName", "R10 구성품 " + component);
+                line.put("modelName", "R10-COMP-" + component);
+                line.put("quantity", 1);
+                line.put("unitPrice", 1000);
+                line.put("lineTotal", 1000);
+                line.put("setHead", component == 0);
+                line.put("parentSetModel", "AC060CS6PBH1SY");
+                line.put("bundleSetOptions", Map.of(
+                        "remoteExcluded", false, "materialIncluded", false));
+                legacyLines.add(line);
+            }
+        }
+        jdbcTemplate.update(
+                "UPDATE slip_revisions SET snapshot=jsonb_set(snapshot,'{lines}',?::jsonb) "
+                        + "WHERE slip_id=? AND revision_no=1",
+                objectMapper.writeValueAsString(legacyLines), slipId);
+
+        Integer before = jdbcTemplate.queryForObject(
+                "WITH g AS (SELECT parent_set_model, count(*) FILTER (WHERE set_head) heads "
+                        + "FROM slip_lines WHERE slip_id=? AND is_deleted=false "
+                        + "AND NULLIF(BTRIM(bundle_set_options->>'instanceKey'),'') IS NULL "
+                        + "GROUP BY parent_set_model) SELECT count(*) FROM g WHERE heads>1",
+                Integer.class, slipId);
+        assertThat(before).isZero();
+
+        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "R10 복원 사용자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk());
+
+        Map<String, Object> restored = jdbcTemplate.queryForMap(
+                "SELECT count(*) rows, count(*) FILTER (WHERE set_head) heads, "
+                        + "count(DISTINCT NULLIF(BTRIM(bundle_set_options->>'instanceKey'),'')) keys "
+                        + "FROM slip_lines WHERE slip_id=? AND is_deleted=false "
+                        + "AND parent_set_model='AC060CS6PBH1SY'",
+                slipId);
+        System.out.println("R10-RESTORE-REINTRO|restore=HTTP200|beforeGroups=" + before
+                + "|rows=" + restored.get("rows") + "|heads=" + restored.get("heads")
+                + "|instanceKeys=" + restored.get("keys"));
+        assertThat(((Number) restored.get("rows")).intValue()).isEqualTo(8);
+        assertThat(((Number) restored.get("heads")).intValue()).isEqualTo(2);
+        assertThat(((Number) restored.get("keys")).intValue()).isZero();
+
+        JsonNode detail = getDetail(slipId);
+        List<Map<String, Object>> updateLines = new java.util.ArrayList<>();
+        boolean changed = false;
+        for (JsonNode line : detail.path("lines")) {
+            Map<String, Object> requestLine = objectMapper.convertValue(line, Map.class);
+            requestLine.put("lineId", requestLine.remove("id"));
+            if (!changed && line.path("setHead").asBoolean()) {
+                requestLine.put("quantity", 2);
+                changed = true;
+            }
+            updateLines.add(requestLine);
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("updatedAt", jdbcTemplate.queryForObject(
+                "SELECT modified_at::text FROM slips WHERE id=?", String.class, slipId)
+                .replace(' ', 'T'));
+        body.put("partnerName", detail.path("partnerName").asText());
+        body.put("lines", updateLines);
+        body.put("lineIdContract", true);
+
+        MvcResult rejected = mockMvc.perform(put("/slips/{id}/sales", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "R10 편집 사용자")
+                        .header(ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+        System.out.println("R10-RESTORE-EDIT|HTTP=" + rejected.getResponse().getStatus()
+                + "|body=" + rejected.getResponse().getContentAsString());
     }
 
     // =========================================================================

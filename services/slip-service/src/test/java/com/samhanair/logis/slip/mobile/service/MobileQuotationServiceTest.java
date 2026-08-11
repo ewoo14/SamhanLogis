@@ -43,24 +43,30 @@ class MobileQuotationServiceTest {
     @DisplayName("모바일 BUNDLE 견적은 부모가 아닌 구성품 라인으로 저장한다")
     void expandsBundleBeforePersistingEstimateLines() {
         UUID parentId = UUID.randomUUID();
-        UUID componentId = UUID.randomUUID();
+        UUID headId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
         ProductSummary bundle = product(parentId, "BUNDLE", "SET-MOBILE");
         when(partnerInternalClient.verifyPartnerCode("P-1"))
                 .thenReturn(PartnerInternalClient.PartnerVerifyResult.found(Optional.of(UUID.randomUUID())));
         when(productClient.lookup(List.of(parentId))).thenReturn(List.of(bundle));
         when(productClient.expand("SET-MOBILE", BigDecimal.valueOf(2), null, new BigDecimal("1000")))
-                .thenReturn(List.of(new ExpandedLineDto(componentId, "C-1", "구성품", "구성품", 
-                        BigDecimal.valueOf(2), new BigDecimal("600"), "COMPONENT", true)));
+                .thenReturn(List.of(
+                        new ExpandedLineDto(headId, "C-1", "구성품 1", "구성품 1",
+                                BigDecimal.valueOf(2), new BigDecimal("600"), "COMPONENT", true),
+                        new ExpandedLineDto(childId, "C-2", "구성품 2", "구성품 2",
+                                BigDecimal.valueOf(2), new BigDecimal("400"), "COMPONENT", false)));
         when(estimateNumberService.next(any(LocalDate.class))).thenReturn("2026/08/06-1");
         when(estimateNumberService.extractSeqNo("2026/08/06-1")).thenReturn(1);
         when(estimateRepository.save(any(Estimate.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = service.createQuotation(request(parentId, 2, new BigDecimal("1000")), "actor");
 
-        assertThat(response.lines()).singleElement().satisfies(line -> {
-            assertThat(line.productId()).isEqualTo(componentId);
+        assertThat(response.lines()).hasSize(2).allSatisfy(line -> {
             assertThat(line.productId()).isNotEqualTo(parentId);
+            assertThat(line.setOptions()).isNotNull();
+            assertThat(line.setOptions().instanceKey()).isNotBlank();
         });
+        assertThat(response.lines().stream().map(line -> line.setOptions().instanceKey()).distinct()).hasSize(1);
         verify(productClient).expand("SET-MOBILE", BigDecimal.valueOf(2), null, new BigDecimal("1000"));
     }
 
@@ -77,7 +83,11 @@ class MobileQuotationServiceTest {
 
         var response = service.createQuotation(request(productId, 1, new BigDecimal("1000")), "actor");
 
-        assertThat(response.lines()).singleElement().extracting(line -> line.productId()).isEqualTo(productId);
+        assertThat(response.lines()).singleElement().satisfies(line -> {
+            assertThat(line.productId()).isEqualTo(productId);
+            assertThat(line.parentSetModel()).isNull();
+            assertThat(line.setOptions()).isNull();
+        });
     }
 
     @Test
