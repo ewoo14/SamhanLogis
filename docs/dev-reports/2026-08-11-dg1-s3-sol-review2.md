@@ -39,7 +39,7 @@ DOM 존재·텍스트 보유만으로는 부족하다. 후보 중앙점이 실�
   - `.dropdown`은 `position: absolute; top: 100%`이고 자체 `overflow-y: auto`다.
 - `clients/desktop/src/renderer/components/groupware/DocumentReferencePicker.tsx:387-412`
   - 후보 `<ul>/<li>`는 위 picker의 절대배치 자식이다.
-- `clients/desktop/playwright/2026-08-11-dg1-s3-fix/s3-fix-live.spec.ts:56-59`
+- `clients/desktop/playwright/2026-08-11-dg1-s3-fix-real-qa/s3-fix-real-qa.spec.ts:56-59`
   - `toContainText()` → full-page 캡처 → `click()` 순서다. 후보의 가시성·viewport·hit-test를 단언하지 않는다.
 - 같은 spec `:90-91`
   - 두 번째 흐름도 텍스트만 확인한 뒤 바로 클릭한다.

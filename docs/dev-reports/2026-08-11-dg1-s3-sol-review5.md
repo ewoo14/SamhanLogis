@@ -54,7 +54,7 @@ scroll event    scrollY=3  visible=false belowGap=7  closed=true
   - click 시 기존 fixed 좌표와 현재 anchor 좌표가 0.5px보다 다르면 재열기 표식을 세운다.
 - 같은 파일 `:485`
   - focus가 남은 input의 실제 click 진입점이다.
-- `clients/desktop/playwright/2026-08-11-dg1-s3-fix/s3-fix-live.spec.ts:530-558`
+- `clients/desktop/playwright/2026-08-11-dg1-s3-fix-real-qa/s3-fix-real-qa.spec.ts:530-558`
   - 신규 onClick gate는 실제 `page.mouse.click`을 쓰지만 최종 visible/count/value만 단언한다.
   - scroll event와 재열기 사이 첫 rAF의 geometry/visibility는 읽지 않는다.
 
@@ -253,7 +253,7 @@ Locator: getByRole('listbox')
 Expected: visible
 Timeout: 10000ms
 element(s) not found
-s3-fix-live.spec.ts:555
+s3-fix-real-qa.spec.ts:555
 1 failed
 ```
 

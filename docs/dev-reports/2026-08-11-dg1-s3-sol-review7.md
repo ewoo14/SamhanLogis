@@ -38,7 +38,7 @@ F5A954F8CBF1922A49A7399583C354F37523D4E7C8FFAB8C6D445F2B401AB4C3
 $env:PLAYWRIGHT_SKIP_WEB_SERVER='1'
 $env:AUDIT_BASE_URL='http://127.0.0.1:5193'
 npx playwright test `
-  'playwright/2026-08-11-dg1-s3-fix/s3-fix-live.spec.ts' `
+  'playwright/2026-08-11-dg1-s3-fix-real-qa/s3-fix-real-qa.spec.ts' `
   --grep 'scroll 0→3 직후 재클릭은 첫 rAF부터 anchor와 정렬된다' `
   --repeat-each=10 --workers=1 --project=chromium --reporter=line
 ```
@@ -85,7 +85,7 @@ FIX5_FIRST_RAF={"visible":true,"aligned":true,"belowGap":4,"scrollY":3}
 
 ```powershell
 npx playwright test `
-  'playwright/2026-08-11-dg1-s3-fix/s3-fix-live.spec.ts' `
+  'playwright/2026-08-11-dg1-s3-fix-real-qa/s3-fix-real-qa.spec.ts' `
   --workers=1 --project=chromium --reporter=line
 ```
 

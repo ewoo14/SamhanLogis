@@ -46,7 +46,7 @@
   - `ArrowDown`은 `options.length > 0`이면 `open=true`로 재열어, 후보가 실제로 보존됐음을 확인할 수 있다.
 - 같은 파일 `:450-467`
   - 검색 input에는 `onFocus`, `onBlur`, `onKeyDown`만 있고, focus가 유지된 mouse click/pointer 경로의 재열기 handler가 없다.
-- `clients/desktop/playwright/2026-08-11-dg1-s3-fix/s3-fix-live.spec.ts:471-474,493-496,510-513`
+- `clients/desktop/playwright/2026-08-11-dg1-s3-fix-real-qa/s3-fix-real-qa.spec.ts:471-474,493-496,510-513`
   - 기존 “재열기”는 매번 `fill('2026')` 뒤 `fill('2026/')`로 query를 변경해 새 검색을 강제한다. 검색어를 그대로 둔 재클릭을 검증하지 않는다.
 
 ### 재현 데이터
@@ -137,7 +137,7 @@ WINDOW_SCROLL_FIRST_PAINT={
 
 Expected frames.frame1.closed || frames.frame1.aligned: true
 Received: false
-s3-fix-live.spec.ts:469
+s3-fix-real-qa.spec.ts:469
 1 failed
 ```
 
@@ -153,7 +153,7 @@ CONTAINER_SCROLL_FIRST_PAINT={
 
 Expected containerFrames.frame1.closed || containerFrames.frame1.aligned: true
 Received: false
-s3-fix-live.spec.ts:353
+s3-fix-real-qa.spec.ts:353
 1 failed
 ```
 

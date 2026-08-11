@@ -40,7 +40,7 @@ dropdown을 연 채 사용자가 뒤 화면을 스크롤할 때 다음 중 하�
   - `window`와 overflow 조상에 scroll listener를 등록하지만, listener가 호출한 state update는 다음 React commit에서 반영된다.
 - 같은 파일 `:473-530`
   - listbox는 `document.body` portal의 `position:fixed` 요소다.
-- `clients/desktop/playwright/2026-08-11-dg1-s3-fix/s3-fix-live.spec.ts:249,273`
+- `clients/desktop/playwright/2026-08-11-dg1-s3-fix-real-qa/s3-fix-real-qa.spec.ts:249,273`
   - 구현자 test는 `main.scrollTop`만 바꾼다.
 - 같은 spec `:95-104,252,277`
   - `waitForDropdownAligned()`은 X축(left/width)만 확인한다. 실제 Y축 scroll 이동 여부와 첫 paint를 보지 않는다.

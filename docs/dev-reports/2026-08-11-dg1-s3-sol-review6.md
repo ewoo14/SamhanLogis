@@ -32,7 +32,7 @@ visible한 첫 측정은 모두 gap 4px 정렬 및 hit-test를 만족했다.
 
 ### 2.1 원인 좌표
 
-- `clients/desktop/playwright/2026-08-11-dg1-s3-fix/s3-fix-live.spec.ts:571-586`
+- `clients/desktop/playwright/2026-08-11-dg1-s3-fix-real-qa/s3-fix-real-qa.spec.ts:571-586`
   - `pointerdown`에서 3px scroll을 만들고 click microtask에서 수동 scroll event를 dispatch한다.
 - 같은 파일 `:588-590`
   - 실제 `page.mouse.click()`이 완전히 끝날 때까지 기다린다.
