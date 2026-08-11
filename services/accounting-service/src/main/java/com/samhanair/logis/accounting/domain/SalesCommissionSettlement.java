@@ -9,9 +9,14 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -56,6 +61,69 @@ public class SalesCommissionSettlement extends BaseEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
+    /** 이 정산서가 계산에 사용한 versioned 요율 계약. S1 미계산 draft에서는 null일 수 있다. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rate_contract_id")
+    private SalesCommissionRateContract rateContract;
+
+    @Column(name = "total_amount", precision = 24, scale = 6)
+    private BigDecimal totalAmount;
+
+    @Column(name = "equipment_amount", precision = 24, scale = 6)
+    private BigDecimal equipmentAmount;
+
+    @Column(name = "prepaid_amount", precision = 24, scale = 6)
+    private BigDecimal prepaidAmount;
+
+    @Column(name = "install_input_amount", precision = 24, scale = 6)
+    private BigDecimal installInputAmount;
+
+    @Column(name = "safety_input_amount", precision = 24, scale = 6)
+    private BigDecimal safetyInputAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private SalesCommissionPaymentMethod paymentMethod;
+
+    @Column(name = "withholding_applied")
+    private Boolean withholdingApplied;
+
+    @Column(name = "manual_expense_rate", precision = 19, scale = 8)
+    private BigDecimal manualExpenseRate;
+
+    @Column(name = "applied_expense_rate", precision = 19, scale = 8)
+    private BigDecimal appliedExpenseRate;
+
+    @Column(name = "card_amount", precision = 24, scale = 6)
+    private BigDecimal cardAmount;
+
+    @Column(name = "sales_amount", precision = 24, scale = 6)
+    private BigDecimal salesAmount;
+
+    @Column(name = "expense_amount", precision = 24, scale = 6)
+    private BigDecimal expenseAmount;
+
+    @Column(name = "withholding_amount", precision = 24, scale = 6)
+    private BigDecimal withholdingAmount;
+
+    @Column(name = "install_amount", precision = 24, scale = 6)
+    private BigDecimal installAmount;
+
+    @Column(name = "safety_amount", precision = 24, scale = 6)
+    private BigDecimal safetyAmount;
+
+    @Column(name = "subtotal_amount", precision = 24, scale = 6)
+    private BigDecimal subtotalAmount;
+
+    @Column(name = "payout_amount", precision = 24, scale = 6)
+    private BigDecimal payoutAmount;
+
+    @Column(name = "supply_amount", precision = 24, scale = 6)
+    private BigDecimal supplyAmount;
+
+    @Column(name = "vat_amount", precision = 24, scale = 6)
+    private BigDecimal vatAmount;
+
     private SalesCommissionSettlement(LocalDate settlementDate) {
         if (settlementDate == null) {
             throw new IllegalArgumentException("settlementDate 는 필수입니다");
@@ -86,6 +154,37 @@ public class SalesCommissionSettlement extends BaseEntity {
         }
         this.documentNo = documentNo.trim();
         this.status = SalesCommissionSettlementStatus.CONFIRMED;
+        return this;
+    }
+
+    /** 계약 버전과 계산 입력·결과를 정산서에 snapshot으로 기록한다. */
+    public SalesCommissionSettlement recordCalculation(
+            SalesCommissionRateContract rateContract,
+            SalesCommissionSettlementCalculationInput input,
+            SalesCommissionSettlementCalculationResult result) {
+        this.rateContract = Objects.requireNonNull(rateContract, "rateContract 는 필수입니다");
+        Objects.requireNonNull(input, "input 은 필수입니다");
+        Objects.requireNonNull(result, "result 는 필수입니다");
+
+        this.totalAmount = input.total();
+        this.equipmentAmount = input.equipment();
+        this.prepaidAmount = input.prepaid();
+        this.installInputAmount = input.install();
+        this.safetyInputAmount = input.safety();
+        this.paymentMethod = input.paymentMethod();
+        this.withholdingApplied = input.withholdingApplied();
+        this.manualExpenseRate = input.manualExpenseRate();
+        this.appliedExpenseRate = result.expenseRate();
+        this.cardAmount = result.card();
+        this.salesAmount = result.sales();
+        this.expenseAmount = result.expense();
+        this.withholdingAmount = result.withholding();
+        this.installAmount = result.install();
+        this.safetyAmount = result.safety();
+        this.subtotalAmount = result.subtotal();
+        this.payoutAmount = result.payout();
+        this.supplyAmount = result.supply();
+        this.vatAmount = result.vat();
         return this;
     }
 }
