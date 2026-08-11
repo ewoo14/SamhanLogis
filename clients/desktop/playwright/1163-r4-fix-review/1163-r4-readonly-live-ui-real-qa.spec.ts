@@ -1,3 +1,5 @@
+// Shared real-QA harness scope: the -real-qa suffix keeps this live-login spec
+// out of the mock gate while preserving it for explicit real-QA execution.
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 import { expect, test, type Page } from '@playwright/test'

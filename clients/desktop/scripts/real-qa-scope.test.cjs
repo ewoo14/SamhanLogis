@@ -46,6 +46,15 @@ const F2_FILES = [
   'clients/desktop/playwright/dispatch-collab-real-qa/dispatch-collab-real-qa.spec.ts',
 ]
 
+const PR_1164_REAL_QA_SPEC =
+  'clients/desktop/playwright/1163-r4-fix-review/1163-r4-readonly-live-ui-real-qa.spec.ts'
+
+test('PR #1164 live-login spec is registered in the shared real-QA disk scope', () => {
+  const scope = getRealQaScope({ repoRoot })
+
+  assert.ok(scope.diskFiles.includes(PR_1164_REAL_QA_SPEC), `${PR_1164_REAL_QA_SPEC} is not collected as real-QA`)
+})
+
 test('real-QA 공식 수집 집합은 현재 Git 추적 집합과 이름 단위로 일치한다(.gitignore 가 허용한 로컬 스펙은 예외)', () => {
   const scope = getRealQaScope({ repoRoot })
 
