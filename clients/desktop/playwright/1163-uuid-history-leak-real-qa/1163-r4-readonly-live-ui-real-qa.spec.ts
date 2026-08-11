@@ -12,7 +12,7 @@ const APP_BASE = process.env['REAL_QA_RENDERER_BASE_URL'] ?? 'http://127.0.0.1:4
 const API_BASE = 'http://127.0.0.1:8080'
 const SHOTS = resolveQaShotsDir(path.resolve(
   HERE,
-  '../../../../docs/qa/2026-08-11-1163-r4/screenshots',
+  '../../../../docs/qa/2026-08-12-1163-uuid-history-leak/screenshots',
 ))
 
 type Warehouse = { id: string; code: string; name: string }

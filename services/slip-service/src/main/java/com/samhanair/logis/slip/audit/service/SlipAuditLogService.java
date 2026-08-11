@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.audit.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.audit.domain.SlipAuditLog;
 import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.domain.Slip;
@@ -81,12 +82,13 @@ public class SlipAuditLogService {
         Slip slip = slipRepository.findById(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "슬립을 찾을 수 없습니다: " + slipId));
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = slip.incrementRevision();
         SlipAuditLog saved = auditLogRepository.save(SlipAuditLog.record(
-                slipId, revisionNo, actorId, actorName, actorColor,
+                slipId, revisionNo, actorId, safeActorName, actorColor,
                 fieldName, oldValue, newValue));
         broker.publish(slipId, EVENT_SLIP_EDIT, buildEventPayload(
-                revisionNo, actorId, actorName, actorColor,
+                revisionNo, actorId, safeActorName, actorColor,
                 List.of(new ChangeEntry(fieldName, oldValue, newValue))));
         return saved;
     }
@@ -118,15 +120,16 @@ public class SlipAuditLogService {
         Slip slip = slipRepository.findById(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "슬립을 찾을 수 없습니다: " + slipId));
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = slip.incrementRevision();
         List<SlipAuditLog> saved = new ArrayList<>(changes.size());
         for (ChangeEntry change : changes) {
             saved.add(auditLogRepository.save(SlipAuditLog.record(
-                    slipId, revisionNo, actorId, actorName, actorColor,
+                    slipId, revisionNo, actorId, safeActorName, actorColor,
                     change.fieldName(), change.oldValue(), change.newValue())));
         }
         broker.publish(slipId, EVENT_SLIP_EDIT, buildEventPayload(
-                revisionNo, actorId, actorName, actorColor, changes));
+                revisionNo, actorId, safeActorName, actorColor, changes));
         return saved;
     }
 

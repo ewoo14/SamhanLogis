@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.audit.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.partnerorder.audit.domain.PartnerOrderAuditLog;
 import com.samhanair.logis.partnerorder.audit.repository.PartnerOrderAuditLogRepository;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
@@ -82,11 +83,12 @@ public class PartnerOrderAuditLogService implements AuditLogRecorder {
         PartnerOrder order = partnerOrderRepository.findById(partnerOrderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "거래처 주문을 찾을 수 없습니다: " + partnerOrderId));
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = order.incrementRevision();
         auditLogRepository.save(PartnerOrderAuditLog.record(
-                partnerOrderId, revisionNo, actorId, actorName, actorColor,
+                partnerOrderId, revisionNo, actorId, safeActorName, actorColor,
                 fieldName, oldValue, newValue));
-        Map<String, Object> payload = AuditEventPayloadBuilder.build(revisionNo, actorId, actorName,
+        Map<String, Object> payload = AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName,
                 actorColor, List.of(new ChangeEntry(fieldName, oldValue, newValue)));
         broker.publish(partnerOrderId, EVENT_PARTNER_ORDER_EDIT, payload);
     }
@@ -136,14 +138,15 @@ public class PartnerOrderAuditLogService implements AuditLogRecorder {
                     "changes 가 비어있습니다 — audit 기록할 변경이 없습니다");
         }
         UUID partnerOrderId = order.getId();
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = order.incrementRevision();
         List<PartnerOrderAuditLog> saved = new ArrayList<>(changes.size());
         for (ChangeEntry change : changes) {
             saved.add(auditLogRepository.save(PartnerOrderAuditLog.record(
-                    partnerOrderId, revisionNo, actorId, actorName, actorColor,
+                    partnerOrderId, revisionNo, actorId, safeActorName, actorColor,
                     change.fieldName(), change.oldValue(), change.newValue())));
         }
-        Map<String, Object> payload = AuditEventPayloadBuilder.build(revisionNo, actorId, actorName,
+        Map<String, Object> payload = AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName,
                 actorColor, changes);
         broker.publish(partnerOrderId, EVENT_PARTNER_ORDER_EDIT, payload);
         log.info("[PR-H4b] partner-order {} audit batch — revision={} ({} 필드)",

@@ -225,9 +225,9 @@ describe('SlipVersionHistoryPanel', () => {
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: '버전이력' }))
 
-    expect((await screen.findByTestId('slip-version-history-row-2')).textContent).toContain(actorName)
+    expect((await screen.findByTestId('slip-version-history-row-2')).textContent).not.toContain(actorName)
     expect((await screen.findByTestId('slip-version-history-change-header-memo')).textContent)
-      .toContain(actorName)
+      .not.toContain(actorName)
   })
 
   // PR #747 재수렴 HIGH fix 회귀 가드 — SlipCollaborationPanel 의 코멘트 anchor(접두사 없음, 예:

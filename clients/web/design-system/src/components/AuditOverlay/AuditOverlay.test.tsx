@@ -45,7 +45,7 @@ describe('AuditOverlay actorName 표시', () => {
     }
   })
 
-  it('actorId와 다른 UUID-shaped actorName은 과잉 은닉하지 않는다', () => {
+  it('actorId와 다른 UUID-shaped actorName도 화면에 노출하지 않는다', () => {
     const differentActorId = '550e8400-e29b-41d4-a716-446655440000'
     render(
       <AuditOverlay
@@ -55,7 +55,6 @@ describe('AuditOverlay actorName 표시', () => {
       />,
     )
 
-    expect(screen.getByTestId('audit-overlay-memo').textContent).toContain(ACTOR_UUID)
-    expect(screen.getByTestId('audit-overlay-memo').textContent).not.toContain('변경자 미상')
+    expect(screen.getByTestId('audit-overlay-memo').textContent).toContain('변경자 미상')
   })
 })

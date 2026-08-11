@@ -2,6 +2,7 @@ package com.samhanair.logis.product.audit.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.product.audit.domain.ProductAuditLog;
 import com.samhanair.logis.product.audit.repository.ProductAuditLogRepository;
 import com.samhanair.logis.product.domain.Product;
@@ -67,11 +68,12 @@ public class ProductAuditLogService implements AuditLogRecorder {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "제품을 찾을 수 없습니다: " + productId));
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = product.incrementRevision();
         auditLogRepository.save(ProductAuditLog.record(
-                productId, revisionNo, actorId, actorName, actorColor,
+                productId, revisionNo, actorId, safeActorName, actorColor,
                 fieldName, oldValue, newValue));
-        Map<String, Object> payload = AuditEventPayloadBuilder.build(revisionNo, actorId, actorName,
+        Map<String, Object> payload = AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName,
                 actorColor, List.of(new ChangeEntry(fieldName, oldValue, newValue)));
         broker.publish(productId, EVENT_PRODUCT_EDIT, payload);
     }
@@ -93,14 +95,15 @@ public class ProductAuditLogService implements AuditLogRecorder {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "제품을 찾을 수 없습니다: " + productId));
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = product.incrementRevision();
         List<ProductAuditLog> saved = new ArrayList<>(changes.size());
         for (ChangeEntry change : changes) {
             saved.add(auditLogRepository.save(ProductAuditLog.record(
-                    productId, revisionNo, actorId, actorName, actorColor,
+                    productId, revisionNo, actorId, safeActorName, actorColor,
                     change.fieldName(), change.oldValue(), change.newValue())));
         }
-        Map<String, Object> payload = AuditEventPayloadBuilder.build(revisionNo, actorId, actorName,
+        Map<String, Object> payload = AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName,
                 actorColor, changes);
         broker.publish(productId, EVENT_PRODUCT_EDIT, payload);
         log.info("[PR-H4b] product {} audit batch — revision={} ({} 필드)",

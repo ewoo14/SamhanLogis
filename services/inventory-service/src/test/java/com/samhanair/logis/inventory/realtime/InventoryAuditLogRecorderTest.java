@@ -116,6 +116,19 @@ class InventoryAuditLogRecorderTest {
     }
 
     @Test
+    void recordBatch_uuidActorName_isNotPersistedWhileActorIdRemains() {
+        when(auditLogRepository.countByEntityId(entityId)).thenReturn(0L);
+        ArgumentCaptor<InventoryAuditLog> rowCaptor = ArgumentCaptor.forClass(InventoryAuditLog.class);
+
+        recorder.recordBatch(entityId, actorId, actorId.toString(), null,
+                List.of(new ChangeEntry("status", "A", "B")));
+
+        verify(auditLogRepository).save(rowCaptor.capture());
+        assertThat(rowCaptor.getValue().getActorId()).isEqualTo(actorId);
+        assertThat(rowCaptor.getValue().getActorName()).isEqualTo("변경자 미상");
+    }
+
+    @Test
     void recordOverlayPatch_savesViaBatch_singleEntry() {
         when(auditLogRepository.countByEntityId(entityId)).thenReturn(5L);
         ArgumentCaptor<InventoryAuditLog> rowCaptor = ArgumentCaptor.forClass(InventoryAuditLog.class);

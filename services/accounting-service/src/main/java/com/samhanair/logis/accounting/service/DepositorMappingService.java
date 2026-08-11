@@ -513,7 +513,9 @@ public class DepositorMappingService {
                                     String newRaw, String newNormalized, String newPartnerCode,
                                     UUID actorId, String actorName, String reason) {
         UUID safeActor = actorId == null ? SYSTEM_ACTOR : actorId;
-        String safeActorName = actorName == null || actorName.isBlank() ? "SYSTEM" : actorName;
+        String safeActorName = safeActor.equals(SYSTEM_ACTOR)
+                ? "SYSTEM"
+                : com.samhanair.logis.common.security.ActorDisplayName.resolve(safeActor.toString(), actorName);
         // #810 적대검증 R1: partner lookup 실패(stale 거래처) 시 partnerCode old/new 가 둘 다 null 이 되어
         // audit validator 가 400 으로 거부 → stale 매핑일수록 삭제가 필요한데 삭제가 막히는 결함.
         // 양쪽 null 엔트리는 의미가 없으므로 제외한다(reason 엔트리가 항상 남아 batch 는 비지 않는다).

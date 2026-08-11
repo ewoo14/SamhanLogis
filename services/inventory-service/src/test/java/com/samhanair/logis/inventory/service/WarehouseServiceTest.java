@@ -184,7 +184,7 @@ class WarehouseServiceTest {
     }
 
     @Test
-    void authenticatedCaller_uuidDisplayName_isPersistedUnchanged() {
+    void authenticatedCaller_uuidDisplayName_usesUnknownAuditName() {
         when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
         UUID callerId = UUID.randomUUID();
 
@@ -193,7 +193,7 @@ class WarehouseServiceTest {
                 callerId.toString(), callerId.toString());
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), eq(callerId.toString()), eq(null), anyList());
+                eq(mainId), eq(callerId), eq("변경자 미상"), eq(null), anyList());
     }
 
     @ParameterizedTest(name = "보이지 않는 문자 actorName {0} 은 원문을 저장한다")
@@ -207,7 +207,7 @@ class WarehouseServiceTest {
             "\u00AD",
             "\u2060"
     })
-    void invisibleOrWrappedUuidDisplayName_isPersistedUnchanged(String actorName) {
+    void invisibleOrWrappedUuidDisplayName_usesUnknownAuditName(String actorName) {
         when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
         UUID callerId = UUID.randomUUID();
 
@@ -216,7 +216,7 @@ class WarehouseServiceTest {
                 callerId.toString(), actorName);
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), eq(actorName), eq(null), anyList());
+                eq(mainId), eq(callerId), eq("변경자 미상"), eq(null), anyList());
     }
 
     @ParameterizedTest(name = "이름 부재 {0} 은 감사 fallback으로 저장한다")

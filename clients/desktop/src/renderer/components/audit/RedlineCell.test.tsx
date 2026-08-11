@@ -65,8 +65,8 @@ describe('RedlineCell', () => {
     )
 
     expect(screen.getByTestId('redline-cell-current').getAttribute('aria-label'))
-      .toBe(`현재값: ${actorName}, 수정`)
-    expect(screen.getByTestId('redline-cell-current').textContent).toContain(actorName)
+      .toBe('현재값: 수정')
+    expect(screen.getByTestId('redline-cell-current').textContent).not.toContain(actorName)
   })
 
   it('format prop으로 각 layer 값을 포맷한다(수량 천단위)', () => {

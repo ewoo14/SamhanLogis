@@ -2,6 +2,7 @@ package com.samhanair.logis.inventory.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.realtime.domain.InventoryAuditLog;
@@ -34,8 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class WarehouseService {
-
-    private static final String UNKNOWN_ACTOR_NAME = "변경자 미상";
 
     private final WarehouseRepository warehouseRepository;
     /** 4b 후속 — 창고 변경 이력 audit overlay 기록 / 조회. */
@@ -388,10 +387,7 @@ public class WarehouseService {
     /** system sentinel은 system으로, 이름이 없는 호출자는 감사 계약용 fallback으로 기록한다.
      * 그 외 actor 이름은 표시 층에서 처리할 수 있도록 입력 원문을 그대로 보존한다. */
     private static String resolveActorName(UUID actorId, String callerName) {
-        if (actorId.equals(new UUID(0L, 0L))) {
-            return "system";
-        }
-        return callerName == null || callerName.isBlank() ? UNKNOWN_ACTOR_NAME : callerName;
+        return ActorDisplayName.resolve(actorId.toString(), callerName);
     }
 
     /** X-User-Id 헤더가 UUID 형식이면 그대로, 아니면 system sentinel (0/0). */

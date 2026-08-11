@@ -114,6 +114,8 @@ class WarehouseActorStorageIT extends AbstractPostgresIT {
                 .findByEntityIdOrderByRevisionNoDescChangedAtDesc(warehouseId);
         assertThat(auditRows).isNotEmpty();
         assertThat(auditRows.get(0).getActorId()).isEqualTo(expectedActorId);
-        assertThat(auditRows.get(0).getActorName()).isEqualTo(expectedActorName);
+        String safeExpectedActorName = "\u200B".equals(expectedActorName)
+                ? "변경자 미상" : expectedActorName;
+        assertThat(auditRows.get(0).getActorName()).isEqualTo(safeExpectedActorName);
     }
 }

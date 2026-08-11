@@ -83,7 +83,7 @@ function displayValue(v: string | null | undefined): string {
 }
 
 const UNKNOWN_ACTOR_NAME = '변경자 미상'
-const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
+const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})\}|urn:uuid:(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})|[0-9a-f]{32})$/i
 
 function normalizeUuid(value: string | null | undefined): string | null {
   if (!value) return null
@@ -97,12 +97,11 @@ function normalizeUuid(value: string | null | undefined): string | null {
   return trimmed.toLowerCase()
 }
 
-/** 정규화 후 actorId와 같은 UUID만 사용자 텍스트에서 숨긴다. */
-function displayActorName(actorName: string | null | undefined, actorId: string): string {
+/** 정규화 후 UUID 모양의 actorName은 사용자 텍스트에서 숨긴다. */
+function displayActorName(actorName: string | null | undefined): string {
   const normalizedActorName = normalizeActorName(actorName)
   const actorUuid = normalizeUuid(normalizedActorName)
-  const rowActorUuid = normalizeUuid(actorId)
-  if (!normalizedActorName || (actorUuid !== null && actorUuid === rowActorUuid)) {
+  if (!normalizedActorName || actorUuid !== null) {
     return UNKNOWN_ACTOR_NAME
   }
   return normalizedActorName
@@ -161,7 +160,7 @@ export function AuditOverlay({
                 style={{ background: userIdToColor(latest.actorId) }}
                 aria-hidden="true"
               />
-              <span className={styles['actorName']}>{displayActorName(latest.actorName, latest.actorId)}</span>
+              <span className={styles['actorName']}>{displayActorName(latest.actorName)}</span>
               <span className={styles['timestamp']}>{formatHHmm(latest.changedAt)}</span>
             </span>
           </>
@@ -196,7 +195,7 @@ export function AuditOverlay({
                   style={{ background: userIdToColor(entry.actorId) }}
                   aria-hidden="true"
                 />
-                <span className={styles['actorName']}>{displayActorName(entry.actorName, entry.actorId)}</span>
+                <span className={styles['actorName']}>{displayActorName(entry.actorName)}</span>
                 <span className={styles['timestamp']}>{formatHHmm(entry.changedAt)}</span>
               </span>
             </li>

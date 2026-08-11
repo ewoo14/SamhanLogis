@@ -3,6 +3,7 @@ package com.samhanair.logis.notification.audit.service;
 import com.samhanair.logis.notification.audit.domain.NotificationAuditLog;
 import com.samhanair.logis.notification.audit.repository.NotificationAuditLogRepository;
 import com.samhanair.logis.notification.realtime.NotificationRealtimeBroker;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.audit.AuditEventPayloadBuilder;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
@@ -50,16 +51,17 @@ public class NotificationAuditLogService implements AuditLogRecorder {
         if (changes == null || changes.isEmpty()) {
             return;
         }
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int nextRevision = repository.findMaxRevisionByEntityId(entityId) + 1;
 
         for (ChangeEntry c : changes) {
             NotificationAuditLog row = NotificationAuditLog.record(entityId, nextRevision, actorId,
-                    actorName, actorColor, c.fieldName(), c.oldValue(), c.newValue());
+                    safeActorName, actorColor, c.fieldName(), c.oldValue(), c.newValue());
             repository.save(row);
         }
 
         Map<String, Object> payload = AuditEventPayloadBuilder.build(
-                nextRevision, actorId, actorName, actorColor, changes);
+                nextRevision, actorId, safeActorName, actorColor, changes);
 
         try {
             broker.publish(entityId, NotificationRealtimeBroker.EVENT_EDIT, payload);

@@ -95,7 +95,7 @@ describe('PR #1134 UUID actorName guard', () => {
     'cafebabecafebabecafebabecafebabe',
     '{cafebabecafebabecafebabecafebabe}',
     'urn:uuid:cafebabecafebabecafebabecafebabe',
-  ])('preserves a UUID-shaped actorName when it differs from actorId: %s', (actorName) => {
+  ])('hides a UUID-shaped actorName when it differs from actorId: %s', (actorName) => {
     render(
       <AuditOverlay
         field="memo"
@@ -110,6 +110,6 @@ describe('PR #1134 UUID actorName guard', () => {
       />,
     )
 
-    expect(screen.getByText(actorName)).toBeTruthy()
+    expect(screen.getByText('변경자 미상')).toBeTruthy()
   })
 })

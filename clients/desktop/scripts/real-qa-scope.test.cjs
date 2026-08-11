@@ -47,7 +47,7 @@ const F2_FILES = [
 ]
 
 const PR_1164_REAL_QA_SPEC =
-  'clients/desktop/playwright/1163-r4-fix-review/1163-r4-readonly-live-ui-real-qa.spec.ts'
+  'clients/desktop/playwright/1163-uuid-history-leak-real-qa/1163-r4-readonly-live-ui-real-qa.spec.ts'
 
 test('PR #1164 live-login spec is registered in the shared real-QA disk scope', () => {
   const scope = getRealQaScope({ repoRoot })

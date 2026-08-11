@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.audit.service;
 
 import com.samhanair.logis.accounting.audit.domain.AccountingAuditLog;
 import com.samhanair.logis.accounting.audit.repository.AccountingAuditLogRepository;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.audit.AuditEventPayloadBuilder;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
@@ -56,12 +57,13 @@ public class AccountingAuditLogService implements AuditLogRecorder {
                                    String actorColor, String fieldName,
                                    String oldValue, String newValue) {
         Objects.requireNonNull(entityId, "entityId 는 필수입니다");
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = nextRevisionNo(entityId);
         auditLogRepository.save(AccountingAuditLog.record(
-                entityId, revisionNo, actorId, actorName, actorColor,
+                entityId, revisionNo, actorId, safeActorName, actorColor,
                 fieldName, oldValue, newValue));
         broker.publish(entityId, EVENT_ACCOUNTING_EDIT,
-                AuditEventPayloadBuilder.build(revisionNo, actorId, actorName, actorColor,
+                AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName, actorColor,
                         List.of(new ChangeEntry(fieldName, oldValue, newValue))));
         log.debug("[PR-H4b] accounting audit overlay 기록 — entityId={} revisionNo={} field={}",
                 entityId, revisionNo, fieldName);
@@ -88,16 +90,17 @@ public class AccountingAuditLogService implements AuditLogRecorder {
         if (changes == null || changes.isEmpty()) {
             throw new IllegalArgumentException("changes 가 비어있습니다 — audit 기록할 변경이 없습니다");
         }
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = nextRevisionNo(entityId);
         java.time.LocalDateTime operationChangedAt = java.time.LocalDateTime.now();
         List<AccountingAuditLog> saved = new ArrayList<>(changes.size());
         for (ChangeEntry change : changes) {
             saved.add(auditLogRepository.save(AccountingAuditLog.record(
-                    entityId, revisionNo, actorId, actorName, actorColor,
+                    entityId, revisionNo, actorId, safeActorName, actorColor,
                     change.fieldName(), change.oldValue(), change.newValue(), operationChangedAt)));
         }
         broker.publish(entityId, EVENT_ACCOUNTING_EDIT,
-                AuditEventPayloadBuilder.build(revisionNo, actorId, actorName, actorColor, changes));
+                AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName, actorColor, changes));
         log.debug("[PR-H4b] accounting audit batch 기록 — entityId={} revisionNo={} {}건",
                 entityId, revisionNo, changes.size());
         return saved;

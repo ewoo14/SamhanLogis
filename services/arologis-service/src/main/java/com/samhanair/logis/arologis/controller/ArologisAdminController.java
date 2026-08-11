@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -508,9 +509,6 @@ public class ArologisAdminController {
     }
 
     private String resolveActorName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        return (callerId == null || callerId.isBlank()) ? "system" : callerId;
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 }

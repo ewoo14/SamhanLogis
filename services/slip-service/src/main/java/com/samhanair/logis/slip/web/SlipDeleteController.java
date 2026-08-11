@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.service.SlipDeleteService;
 import com.samhanair.logis.slip.web.dto.SlipDeleteRequest;
@@ -80,12 +81,6 @@ public class SlipDeleteController {
     }
 
     private String resolveName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            return callerId;
-        }
-        return "system";
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 }

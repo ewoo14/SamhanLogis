@@ -3,6 +3,7 @@ package com.samhanair.logis.partner.revision.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import com.samhanair.logis.partner.revision.service.PartnerRevisionService;
@@ -144,12 +145,6 @@ public class PartnerRevisionController {
      * actorName 결정 — X-User-Name 우선, 없으면 X-User-Id 문자열, 둘 다 없으면 null.
      */
     private String resolveName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            return callerId;
-        }
-        return null;
+        return ActorDisplayName.resolveNullable(callerId, callerName);
     }
 }

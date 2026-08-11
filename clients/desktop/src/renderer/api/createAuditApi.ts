@@ -46,7 +46,7 @@ export interface AuditApiConfig {
 }
 
 const UNKNOWN_ACTOR_NAME = '변경자 미상'
-const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
+const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})\}|urn:uuid:(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})|[0-9a-f]{32})$/i
 
 function normalizeUuid(value: string | null | undefined): string | null {
   if (!value) return null
@@ -62,8 +62,7 @@ function normalizeUuid(value: string | null | undefined): string | null {
 
 function normalizeActorName(actorName: string | null | undefined, actorId: string): string {
   const actorUuid = normalizeUuid(actorName)
-  const rowActorUuid = normalizeUuid(actorId)
-  if (!actorName || !actorName.trim() || (actorUuid !== null && actorUuid === rowActorUuid)) {
+  if (!actorName || !actorName.trim() || actorUuid !== null) {
     return UNKNOWN_ACTOR_NAME
   }
   return actorName

@@ -1,5 +1,6 @@
 package com.samhanair.logis.user.audit.service;
 
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.audit.AuditEventPayloadBuilder;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
@@ -61,16 +62,17 @@ public class UserAuditLogService implements AuditLogRecorder {
         if (changes == null || changes.isEmpty()) {
             return;
         }
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int nextRevision = repository.findMaxRevisionByEntityId(entityId) + 1;
 
         for (ChangeEntry c : changes) {
-            UserAuditLog row = UserAuditLog.record(entityId, nextRevision, actorId, actorName,
+            UserAuditLog row = UserAuditLog.record(entityId, nextRevision, actorId, safeActorName,
                     actorColor, c.fieldName(), c.oldValue(), c.newValue());
             repository.save(row);
         }
 
         Map<String, Object> payload = AuditEventPayloadBuilder.build(
-                nextRevision, actorId, actorName, actorColor, changes);
+                nextRevision, actorId, safeActorName, actorColor, changes);
 
         try {
             broker.publish(entityId, UserRealtimeBroker.EVENT_EDIT, payload);

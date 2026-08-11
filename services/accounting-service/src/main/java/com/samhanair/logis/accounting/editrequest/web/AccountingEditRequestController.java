@@ -8,6 +8,7 @@ import com.samhanair.logis.accounting.editrequest.web.dto.ApproveAccountingReque
 import com.samhanair.logis.accounting.editrequest.web.dto.CreateAccountingEditRequestRequest;
 import com.samhanair.logis.accounting.editrequest.web.dto.RejectAccountingRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -145,12 +146,6 @@ public class AccountingEditRequestController {
     }
 
     private String resolveName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            return callerId;
-        }
-        return "system";
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 }

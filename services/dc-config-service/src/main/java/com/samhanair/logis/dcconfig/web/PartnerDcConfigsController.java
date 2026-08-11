@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
+import com.samhanair.logis.common.security.ActorDisplayName;
 
 /**
  * 데스크탑 영업 "거래처 DC 설정" 화면(`/sales/partner-dc-config`) 외부 노출 endpoints.
@@ -116,20 +117,6 @@ public class PartnerDcConfigsController {
     }
 
     private String resolveActorName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            try {
-                UUID.fromString(callerName.trim());
-            } catch (IllegalArgumentException ex) {
-                return callerName;
-            }
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            try {
-                UUID.fromString(callerId.trim());
-            } catch (IllegalArgumentException ex) {
-                return callerId;
-            }
-        }
-        return "system";
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 }

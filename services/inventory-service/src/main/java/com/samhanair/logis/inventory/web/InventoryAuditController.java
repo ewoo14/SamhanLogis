@@ -21,6 +21,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -320,10 +321,7 @@ public class InventoryAuditController {
     }
 
     private String resolveActorName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        return (callerId == null || callerId.isBlank()) ? "system" : callerId;
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 
     private String callerOrSystem(String header) {

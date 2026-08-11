@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.editrequest.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.partnerorder.editrequest.domain.PartnerOrderEditRequest;
 import com.samhanair.logis.partnerorder.editrequest.service.PartnerOrderEditRequestService;
 import com.samhanair.logis.partnerorder.editrequest.web.dto.ApproveRequest;
@@ -180,12 +181,6 @@ public class PartnerOrderEditRequestController {
     }
 
     private String resolveName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            return callerId;
-        }
-        return "system";
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 }
