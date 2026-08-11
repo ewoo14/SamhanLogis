@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 // Real QA: dedicated services are required; the *-real-qa name keeps this out of the mock hard gate.
 import { expect, test, type Page, type Route } from '@playwright/test'
@@ -12,7 +13,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../../docs/qa/2026-08-11-order40-sol3'))
 const PRODUCT_ID = '22222222-2222-2222-2222-222222222222'
 const USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
-const INTERNAL_TOKEN = 'qa-isolated-internal-token'
+const INTERNAL_TOKEN = process.env['SAMHAN_QA_INTERNAL_TOKEN']?.trim()
+if (!INTERNAL_TOKEN) throw new Error('SAMHAN_QA_INTERNAL_TOKEN 환경변수가 필요합니다')
+const ISOLATED_BROWSER_TOKEN = randomBytes(32).toString('base64url')
 
 const masterHeaders = {
   'X-User-Id': USER_ID,
@@ -27,12 +30,12 @@ const partnerHeaders = {
 }
 
 async function installDesktopAuth(page: Page): Promise<void> {
-  await page.addInitScript(({ userId }) => {
+  await page.addInitScript(({ userId, token }) => {
     Object.defineProperty(window, 'samhanAuth', {
       configurable: true,
       value: {
         getToken: async () => ({
-          token: 'isolated-live-qa-token',
+          token,
           userId,
           role: 'MASTER',
           fullName: 'SOL3 QA',
@@ -42,7 +45,7 @@ async function installDesktopAuth(page: Page): Promise<void> {
         clearToken: async () => undefined,
       },
     })
-  }, { userId: USER_ID })
+  }, { userId: USER_ID, token: ISOLATED_BROWSER_TOKEN })
 }
 
 async function proxy(route: Route, target: string, headers: Record<string, string>): Promise<void> {

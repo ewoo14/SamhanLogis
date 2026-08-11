@@ -8,7 +8,8 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 const API = 'http://127.0.0.1:28080'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../../docs/qa/2026-08-11-order40-sol2'))
-const SECRET = 'qa-isolated-jwt-secret-2026-08-11-at-least-32-bytes'
+const SECRET = process.env['SAMHAN_QA_JWT']?.trim()
+if (!SECRET) throw new Error('SAMHAN_QA_JWT 환경변수가 필요합니다')
 const PRODUCT_ID = '22222222-2222-2222-2222-222222222222'
 
 function jwt(claims: Record<string, unknown>): string {
