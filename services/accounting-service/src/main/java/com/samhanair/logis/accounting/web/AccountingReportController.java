@@ -147,7 +147,8 @@ public class AccountingReportController {
         for (PartnerLedgerResponse.Document document : source.documents()) {
             if ("SALE".equals(document.type()) && !document.lines().isEmpty()) {
                 for (PartnerLedgerResponse.Line line : document.lines()) {
-                    BigDecimal debit = line.lineAmount();
+                    boolean authoritative = !"NONE".equals(document.effect());
+                    BigDecimal debit = authoritative ? line.lineAmount() : BigDecimal.ZERO;
                     BigDecimal credit = BigDecimal.ZERO;
                     balance = balance.add(debit).subtract(credit);
                     lines.add(new LedgerImageResponse.LedgerLine(document.date(), document.documentNo(),
