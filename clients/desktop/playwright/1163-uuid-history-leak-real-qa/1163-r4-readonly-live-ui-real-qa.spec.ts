@@ -9,7 +9,13 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const APP_BASE = process.env['REAL_QA_RENDERER_BASE_URL'] ?? 'http://127.0.0.1:4174'
-const API_BASE = 'http://127.0.0.1:8080'
+const API_BASE = process.env['REAL_QA_ISOLATED_API_BASE_URL'] ?? ''
+if (!API_BASE || new URL(API_BASE).port === '8080') {
+  throw new Error(
+    '이번 real-QA는 격리 DB API만 허용합니다. REAL_QA_ISOLATED_API_BASE_URL을 지정하십시오. ' +
+    '공유 API 로그인은 금지됩니다(로그인이 write입니다).',
+  )
+}
 const SHOTS = resolveQaShotsDir(path.resolve(
   HERE,
   '../../../../docs/qa/2026-08-12-1163-uuid-history-leak/screenshots',
@@ -26,7 +32,8 @@ type AuditRow = {
 }
 
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const INVISIBLE_ACTOR_CHARACTERS = /[\u00ad\u200b-\u200d\u2060\ufeff]/g
+const UUID_RE = /(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})\}|urn:uuid:(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})|[0-9a-f]{32}|[0-9a-f]{8})/i
 const FIELD_LABELS: Record<string, string> = {
   name: '창고명',
   type: '분류',
@@ -38,9 +45,11 @@ const FIELD_LABELS: Record<string, string> = {
 
 function expectedActorLabel(row: AuditRow): string {
   if (row.actorId === SYSTEM_ACTOR_ID) return '시스템'
-  const actorName = row.actorName?.trim() ?? ''
-  if (!actorName || UUID_RE.test(actorName)) return '변경자 미상'
-  return row.actorName!
+  const actorName = (row.actorName ?? '').replace(INVISIBLE_ACTOR_CHARACTERS, '').trim()
+  if (!actorName || actorName.toLowerCase() === 'system' || UUID_RE.test(actorName)) {
+    return actorName.toLowerCase() === 'system' ? '시스템' : '변경자 미상'
+  }
+  return actorName
 }
 
 function buildWarehouseUrl(baseUrl: string): string {
@@ -78,8 +87,13 @@ async function login(page: Page) {
   }
 }
 
-test('PR #1164 R4 — 구배포본 read-only 실 로그인·실 창고 이력 UI', async ({ page }) => {
+test('PR #1174 fix1 — 격리 DB read-only 실 로그인·실 창고 이력 UI', async ({ page }) => {
   fs.mkdirSync(SHOTS, { recursive: true })
+  const inventoryProbe = await page.request.get(`${API_BASE}/inventory/warehouses/search`, {
+    params: { page: 0, size: 1 },
+  })
+  expect(inventoryProbe.status(), 'inventory 서비스가 HTTP 503입니다. 서비스 기동 후 QA를 재실행하십시오.')
+    .not.toBe(503)
   const session = await login(page)
   const headers = { Authorization: `Bearer ${session.token}` }
 
@@ -144,7 +158,8 @@ test('PR #1164 R4 — 구배포본 read-only 실 로그인·실 창고 이력 UI
     if (row.newValue !== null) expect(revisionText).toContain(row.newValue)
   }
   const panelText = await panel.innerText()
-  expect(panelText).not.toMatch(UUID_RE)
+  expect(panelText.replace(INVISIBLE_ACTOR_CHARACTERS, ''), '화면에 UUID 변형이 남음')
+    .not.toMatch(UUID_RE)
   await page.screenshot({
     path: path.join(SHOTS, 'warehouse-audit-readonly-live-ui.png'),
     fullPage: true,

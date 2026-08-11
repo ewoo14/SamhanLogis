@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import * as Y from 'yjs'
+import { safeActorName } from '@samhan/design-system'
 import {
   EDIT_HIGHLIGHT_MS,
   createCoeditProvider,
@@ -358,7 +359,7 @@ export function CollaborativeTextField({
               lineHeight: 1.4,
             }}
           >
-            {editHighlight.displayName} 수정
+            {safeActorName(editHighlight.displayName) ?? '변경자 미상'} 수정
           </span>
         ) : null}
       </label>
@@ -493,7 +494,7 @@ export function CollaborativeTextField({
                 lineHeight: 1.4,
               }}
             >
-              {overlay.displayName}
+              {safeActorName(overlay.displayName) ?? '변경자 미상'}
             </span>
           </div>
         ))}

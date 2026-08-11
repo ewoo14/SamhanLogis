@@ -9,6 +9,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabComment;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabEditService;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabSuggestionRepository;
@@ -34,7 +35,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -66,9 +66,6 @@ public class PartnerOrderCollabController {
     private static final String CALLER_NAME_HEADER = "X-User-Name";
     private static final String READ_PAGE_CODE = PartnerOrderDocumentCollaborationPort.PARTNER_ORDER_COLLAB_READ_PAGE_CODE;
     private static final String WRITE_PAGE_CODE = PartnerOrderDocumentCollaborationPort.PARTNER_ORDER_COLLAB_WRITE_PAGE_CODE;
-    private static final Pattern UUID_SHAPE = Pattern.compile(
-            "(?i)^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$");
-
     private final CollabCommentService<PartnerOrderCollabComment> commentService;
     private final PartnerOrderCollabEditService editService;
     private final PartnerOrderCollabSuggestionRepository suggestionRepository;
@@ -262,13 +259,10 @@ public class PartnerOrderCollabController {
     }
 
     private String resolveActorName(String callerName) {
-        if (callerName == null || callerName.isBlank()) {
-            return "system";
-        }
-        String normalized = callerName.trim();
-        if (UUID_SHAPE.matcher(normalized).matches()) {
-            return "system";
-        }
+        String normalized = callerName == null ? null : callerName.trim();
+        String resolved = ActorDisplayName.resolve(null, normalized);
+        if ("system".equals(resolved)) return resolved;
+        normalized = resolved;
         return normalized.length() <= CollabCommentRecord.MAX_AUTHOR_NAME_LENGTH
                 ? normalized
                 : normalized.substring(0, CollabCommentRecord.MAX_AUTHOR_NAME_LENGTH);
@@ -378,7 +372,8 @@ public class PartnerOrderCollabController {
             String resolved = resolveActorName(callerName);
             return "system".equals(resolved) ? null : resolved;
         }
-        return request == null ? null : request.displayName();
+        String resolved = request == null ? null : resolveActorName(request.displayName());
+        return "system".equals(resolved) ? null : resolved;
     }
 
     /**

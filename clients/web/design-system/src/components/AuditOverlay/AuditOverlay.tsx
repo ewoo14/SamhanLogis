@@ -38,7 +38,7 @@
  */
 import { useMemo, useState } from 'react'
 import { userIdToColor } from '../../utils/userColorHash'
-import { normalizeActorName } from '../../utils/actorName'
+import { safeActorName } from '../../utils/actorName'
 import styles from './AuditOverlay.module.css'
 
 /** 한 revision 변경의 audit 레코드 — BE {@code SlipAuditLogResponse} 와 1:1. */
@@ -83,28 +83,9 @@ function displayValue(v: string | null | undefined): string {
 }
 
 const UNKNOWN_ACTOR_NAME = '변경자 미상'
-const UUID_ACTOR_NAME = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})\}|urn:uuid:(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})|[0-9a-f]{32})$/i
-
-function normalizeUuid(value: string | null | undefined): string | null {
-  if (!value) return null
-  const trimmed = value.trim()
-  if (!UUID_ACTOR_NAME.test(trimmed)) return null
-  if (trimmed.startsWith('{')) return trimmed.slice(1, -1).toLowerCase()
-  if (trimmed.toLowerCase().startsWith('urn:uuid:')) return trimmed.slice(9).toLowerCase()
-  if (trimmed.length === 32) {
-    return `${trimmed.slice(0, 8)}-${trimmed.slice(8, 12)}-${trimmed.slice(12, 16)}-${trimmed.slice(16, 20)}-${trimmed.slice(20)}`.toLowerCase()
-  }
-  return trimmed.toLowerCase()
-}
-
 /** 정규화 후 UUID 모양의 actorName은 사용자 텍스트에서 숨긴다. */
 function displayActorName(actorName: string | null | undefined): string {
-  const normalizedActorName = normalizeActorName(actorName)
-  const actorUuid = normalizeUuid(normalizedActorName)
-  if (!normalizedActorName || actorUuid !== null) {
-    return UNKNOWN_ACTOR_NAME
-  }
-  return normalizedActorName
+  return safeActorName(actorName) ?? UNKNOWN_ACTOR_NAME
 }
 
 /**

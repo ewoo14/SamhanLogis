@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@samhan/design-system', () => ({
+  safeActorName: (value: string | null | undefined) =>
+    value === 'system' ? '시스템' : value,
   Button: ({ children, variant: _variant, ...props }: any) => (
     <button {...props}>{children}</button>
   ),

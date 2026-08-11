@@ -9,6 +9,7 @@ import type {
 } from '../api/groupwareApproval'
 import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
 import type { ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
+import { safeActorName } from '@samhan/design-system'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import type { PrintApprovalStep, PrintDocHeader } from './PrintLayout'
 
@@ -24,8 +25,7 @@ export function buildApprovalStep(label: string, name: string, decidedAt?: strin
 
 /** 빈 이름을 화면 표시용 `-` 로 치환한다. */
 function displayNameOrFallback(value: string | null | undefined): string {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : '-'
+  return safeActorName(value) ?? '-'
 }
 
 /** 결재 요청자 작성칸과 결재선을 출력 순서대로 구성한다. */

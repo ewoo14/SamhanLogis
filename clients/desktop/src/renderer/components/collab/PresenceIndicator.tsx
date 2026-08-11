@@ -1,4 +1,4 @@
-import { Badge } from '@samhan/design-system'
+import { Badge, safeActorName } from '@samhan/design-system'
 import type { PresenceColor, PresenceEntry } from '../../realtime/createPresenceClient'
 import { presenceColorToHex } from '../../utils/presenceColor'
 
@@ -48,7 +48,9 @@ export function PresenceIndicator({ entries, size = 'md' }: PresenceIndicatorPro
   )
   const visible = deduped.slice(0, 3)
   const hiddenCount = Math.max(deduped.length - visible.length, 0)
-  const hiddenNames = deduped.slice(3).map((entry) => entry.displayName).join(', ')
+  const displayEntryName = (entry: PresenceEntry): string =>
+    safeActorName(entry.displayName) ?? '변경자 미상'
+  const hiddenNames = deduped.slice(3).map(displayEntryName).join(', ')
   if (deduped.length === 0) return null
 
   return (
@@ -78,8 +80,8 @@ export function PresenceIndicator({ entries, size = 'md' }: PresenceIndicatorPro
       {visible.map((entry) => (
         <span
           key={entry.sessionId}
-          title={`${entry.displayName} 현재 보고 있음`}
-          aria-label={`${entry.displayName} 현재 보고 있음`}
+          title={`${displayEntryName(entry)} 현재 보고 있음`}
+          aria-label={`${displayEntryName(entry)} 현재 보고 있음`}
           style={{
             borderRadius: 999,
             display: 'inline-flex',
@@ -112,7 +114,7 @@ export function PresenceIndicator({ entries, size = 'md' }: PresenceIndicatorPro
               whiteSpace: 'nowrap',
             }}
           >
-            {entry.displayName}
+            {displayEntryName(entry)}
           </span>
         </span>
       ))}

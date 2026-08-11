@@ -6,6 +6,7 @@ import com.samhanair.logis.auth.repository.RolePagePermissionRepository;
 import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.auth.web.dto.PermissionBatchUpdateRequest;
 import com.samhanair.logis.auth.web.dto.PermissionUpdateRequest;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.Arrays;
@@ -262,9 +263,9 @@ public class DynamicPermissionService {
             RolePagePermission perm = existing.get();
             perm.updatePermissions(request.canView(), request.canEdit());
             saved = repository.save(perm);
-            log.info("[SP-D1] 권한 갱신 — roleCode={} pageCode={} canView={} canEdit={} actor={}",
+            log.info("[SP-D1] 권한 갱신 — roleCode={} pageCode={} canView={} canEdit={} actorName={}",
                     request.roleCode(), request.pageCode(),
-                    request.canView(), request.canEdit(), actorId);
+                    request.canView(), request.canEdit(), ActorDisplayName.resolve(actorId, null));
         } else {
             RolePagePermission newPerm = RolePagePermission.create(
                     request.roleCode(), request.pageCode(),
@@ -273,9 +274,9 @@ public class DynamicPermissionService {
             // create 이후 도메인 메서드로 재확인
             newPerm.updatePermissions(request.canView(), request.canEdit());
             saved = repository.save(newPerm);
-            log.info("[SP-D1] 권한 신규 등록 — roleCode={} pageCode={} canView={} canEdit={} actor={}",
+            log.info("[SP-D1] 권한 신규 등록 — roleCode={} pageCode={} canView={} canEdit={} actorName={}",
                     request.roleCode(), request.pageCode(),
-                    request.canView(), request.canEdit(), actorId);
+                    request.canView(), request.canEdit(), ActorDisplayName.resolve(actorId, null));
         }
 
         return new PermissionDto(
@@ -356,8 +357,8 @@ public class DynamicPermissionService {
                         "권한 override 행을 찾을 수 없습니다: roleCode=" + roleCode + ", pageCode=" + pageCode));
         perm.markDeleted(actorId);
         repository.save(perm);
-        log.info("[SP-D1] 권한 override 삭제 — roleCode={} pageCode={} actor={}",
-                roleCode, pageCode, actorId);
+        log.info("[SP-D1] 권한 override 삭제 — roleCode={} pageCode={} actorName={}",
+                roleCode, pageCode, ActorDisplayName.resolve(actorId, null));
     }
 
     // -----------------------------------------------------------------------

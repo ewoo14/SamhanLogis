@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Modal,
+  safeActorName,
   Spinner,
 } from '@samhan/design-system'
 import { getApiErrorInfo } from '../../api/apiError'
@@ -267,7 +268,7 @@ export function AuditVersionHistory({
                             <ChangeValue label="변경 후" value={log.afterValue} />
                           </div>
                           <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
-                            {log.actorName} · {formatChangedAt(log.changedAt)}
+                            {safeActorName(log.actorName) ?? '변경자 미상'} · {formatChangedAt(log.changedAt)}
                           </span>
                         </div>
                       ))}

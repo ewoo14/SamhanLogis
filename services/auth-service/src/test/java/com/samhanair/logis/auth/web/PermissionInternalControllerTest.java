@@ -3,6 +3,9 @@ package com.samhanair.logis.auth.web;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.samhanair.logis.auth.domain.RolePagePermission;
 import com.samhanair.logis.auth.repository.RolePagePermissionRepository;
 import com.samhanair.logis.auth.service.AccountPermissionService;
@@ -15,6 +18,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
@@ -204,5 +208,38 @@ class PermissionInternalControllerTest {
         assertThat(response.getContentAsString()).contains("\"canEdit\":true", "arologis.region");
         Mockito.verify(dynamicPermissionService)
                 .updatePermission(ArgumentMatchers.any(), ArgumentMatchers.eq("tester"));
+    }
+
+    @Test
+    void roleGrant_log_hides_uuid_but_service_receives_original_actor_id() throws Exception {
+        String actorId = "cafebabe-cafe-babe-cafe-babecafebabe";
+        Mockito.when(dynamicPermissionService.updatePermission(
+                        ArgumentMatchers.any(), ArgumentMatchers.eq(actorId)))
+                .thenReturn(new PermissionDto("MANAGER", "arologis.region",
+                        "아로로지스 지역/구역 관리", true, true, true));
+        Logger logger = (Logger) LoggerFactory.getLogger(PermissionInternalController.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            MockHttpServletResponse response = mockMvc.perform(
+                            MockMvcRequestBuilders.put("/auth/internal/permissions/role-grant")
+                                    .header("X-User-Id", actorId)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content("{\"roleCode\":\"MANAGER\",\"pageCode\":\"arologis.region\","
+                                            + "\"canView\":true,\"canEdit\":true}"))
+                    .andReturn().getResponse();
+
+            assertThat(response.getStatus()).isEqualTo(200);
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list)
+                .anySatisfy(event -> assertThat(event.getFormattedMessage())
+                        .contains("변경자 미상")
+                        .doesNotContain(actorId));
+        Mockito.verify(dynamicPermissionService)
+                .updatePermission(ArgumentMatchers.any(), ArgumentMatchers.eq(actorId));
     }
 }

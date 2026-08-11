@@ -39,6 +39,22 @@ class ActorDisplayNameTest {
     }
 
     @Test
+    void uuid_variants_are_not_accepted_as_display_names() {
+        String raw32 = "123e4567e89b12d3a456426614174000";
+        for (String variant : new String[] {
+                raw32,
+                "{" + raw32 + "}",
+                "urn:uuid:" + raw32,
+                "\u200B{" + raw32 + "}\u200B",
+                "\u200Burn:uuid:" + raw32 + "\u200B",
+        }) {
+            assertThat(ActorDisplayName.resolve(null, variant))
+                    .as("variant=%s", variant)
+                    .isEqualTo("변경자 미상");
+        }
+    }
+
+    @Test
     void legacy_non_uuid_caller_id_remains_available_when_name_is_missing() {
         assertThat(ActorDisplayName.resolve("employee-17", null))
                 .isEqualTo("employee-17");

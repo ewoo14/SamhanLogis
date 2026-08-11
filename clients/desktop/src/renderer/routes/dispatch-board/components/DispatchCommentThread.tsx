@@ -5,7 +5,7 @@
  */
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button } from '@samhan/design-system'
+import { Button, safeActorName } from '@samhan/design-system'
 import {
   addDispatchComment,
   deleteDispatchComment,
@@ -37,7 +37,7 @@ function formatDateTime(value: string): string {
 }
 
 function displayAuthorName(authorName: string): string {
-  return authorName === 'system' ? '시스템' : authorName
+  return safeActorName(authorName) ?? '변경자 미상'
 }
 
 export function DispatchCommentThread({ taskId, readOnly = false }: DispatchCommentThreadProps) {

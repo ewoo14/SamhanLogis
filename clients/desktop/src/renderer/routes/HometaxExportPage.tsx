@@ -34,7 +34,7 @@
  */
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Input, DataGrid, type DataGridColumn } from '@samhan/design-system'
+import { Button, Card, Input, DataGrid, safeActorName, type DataGridColumn } from '@samhan/design-system'
 import {
   buildHometaxExportFilename,
   downloadHometaxExport,
@@ -925,7 +925,7 @@ function Tab3Exclusions() {
                     <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--color-neutral-500)', fontVariantNumeric: 'tabular-nums' }}>
                       {ex.createdAt.replace('T', ' ').slice(0, 16)}
                     </td>
-                    <td style={{ padding: '8px 12px', fontSize: 12 }}>{ex.createdBy}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 12 }}>{safeActorName(ex.createdBy) ?? '변경자 미상'}</td>
                     <td style={{ padding: '8px 12px' }}>
                       <Button
                         variant="danger"
@@ -1048,7 +1048,7 @@ function Tab4History({
                     <td style={{ padding: '8px 12px', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
                       {h.processedAt.replace('T', ' ').slice(0, 16)}
                     </td>
-                    <td style={{ padding: '8px 12px' }}>{h.processedBy}</td>
+                    <td style={{ padding: '8px 12px' }}>{safeActorName(h.processedBy) ?? '변경자 미상'}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right' }}>
                       {h.totalRowCount.toLocaleString('ko-KR')}건
                     </td>
