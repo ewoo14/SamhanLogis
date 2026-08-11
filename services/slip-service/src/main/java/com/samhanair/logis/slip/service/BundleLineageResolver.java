@@ -244,6 +244,44 @@ public final class BundleLineageResolver {
         }
     }
 
+    /**
+     * 경계를 증명할 수 없는 keyless 다중 인스턴스에서 원본 head가 삭제되면 남은 행을
+     * 평면 단품으로 전환한다.
+     *
+     * <p>같은 signature의 legacy 행은 어느 child가 삭제된 head에 속했는지 알 수 없다.
+     * 이때 남은 행을 임의 인스턴스에 재귀속하면 head 없는 계보를 만들 수 있으므로, 기존
+     * head 품목 교체와 같은 {@link SlipLine#clearBundleComponent()} 의미론을 적용한다.
+     * 가격·수량·금액은 변경하지 않으며, 이후 가격기억 수집은 일반 라인으로 처리한다.
+     * key가 있는 인스턴스와 head 품목 교체(원본 head ID 유지)는 이 경로의 대상이 아니다.
+     */
+    public static void flattenAmbiguousLegacyLineageAfterHeadDeletion(
+            List<SlipLine> originalLines, List<SlipLine> retainedLines,
+            List<UUID> retainedLineIds) {
+        if (retainedLines == null) {
+            return;
+        }
+        requireSameRetainedLineIds(retainedLines.size(), retainedLineIds);
+        Map<UUID, ExistingBundleInstance> instanceByLineId = indexExistingInstances(originalLines);
+        Set<UUID> retainedIds = new HashSet<>(retainedLineIds);
+        Set<Integer> instancesToFlatten = new HashSet<>();
+        for (ExistingBundleInstance instance : new HashSet<>(instanceByLineId.values())) {
+            boolean hasRetainedLine = retainedLineIds.stream()
+                    .map(instanceByLineId::get)
+                    .anyMatch(instance::equals);
+            boolean headWasDeleted = instance.ambiguousLegacy && instance.instanceKey == null
+                    && instance.originalHeadLineIds.stream().anyMatch(id -> !retainedIds.contains(id));
+            if (hasRetainedLine && headWasDeleted) {
+                instancesToFlatten.add(instance.ordinal);
+            }
+        }
+        for (int i = 0; i < retainedLines.size(); i++) {
+            ExistingBundleInstance instance = instanceByLineId.get(retainedLineIds.get(i));
+            if (instance != null && instancesToFlatten.contains(instance.ordinal)) {
+                retainedLines.get(i).clearBundleComponent();
+            }
+        }
+    }
+
     /** keyless legacy 인스턴스를 첫 정상 저장에서 JSONB instanceKey로 승격한다. */
     public static void materializeLegacyInstanceKeys(
             List<SlipLine> originalLines, List<SlipLine> retainedLines,

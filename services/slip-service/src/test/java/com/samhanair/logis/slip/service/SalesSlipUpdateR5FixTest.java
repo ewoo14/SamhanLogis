@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /** PR #1131 R5 RED-A — 기존 0-head와 동일 모델 다중 인스턴스의 정상 편집. */
@@ -122,6 +123,67 @@ class SalesSlipUpdateR5FixTest {
         verify(fixture.repository()).saveAndFlush(any(Slip.class));
         assertThat(fixture.slip().getLines()).hasSize(8)
                 .allMatch(line -> line.getBundleSetOptions() == null);
+    }
+
+    @Test
+    @DisplayName("RED-A R16: keyless 다중 인스턴스에서 head 삭제 뒤 재편집은 평면 라인으로 저장된다")
+    void keylessMultiInstanceHeadDeletionDropsAmbiguousLineageBeforeFollowUpEdit() {
+        List<PersistedLine> persisted = List.of(
+                persistedLine(true, false), persistedLine(false, false),
+                persistedLine(true, false), persistedLine(false, false));
+        Fixture fixture = fixture(persisted, false, true);
+        List<PersistedLine> afterHeadDeletion = List.of(
+                persisted.get(1), persisted.get(2), persisted.get(3));
+
+        assertThatCode(() -> fixture.service().update(
+                fixture.slipId(), request(fixture, afterHeadDeletion, 1, 200),
+                UUID.randomUUID(), "R16 사용자"))
+                .doesNotThrowAnyException();
+
+        assertThatCode(() -> fixture.service().update(
+                fixture.slipId(), requestForCurrentLines(fixture.slip().getLines(), 3, 333),
+                UUID.randomUUID(), "R16 사용자"))
+                .doesNotThrowAnyException();
+
+        verify(fixture.repository(), org.mockito.Mockito.times(2)).saveAndFlush(any(Slip.class));
+        ArgumentCaptor<List<com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand>>
+                priceMemoryCaptor = ArgumentCaptor.forClass(List.class);
+        verify(fixture.priceMemory(), org.mockito.Mockito.times(2))
+                .rememberBatchAfterCommit(priceMemoryCaptor.capture(), anyString());
+        assertThat(priceMemoryCaptor.getAllValues().get(0))
+                .extracting(com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand::productId,
+                        com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand::unitPrice)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(persisted.get(1).productId(), new BigDecimal("220.00")),
+                        org.assertj.core.groups.Tuple.tuple(persisted.get(2).productId(), new BigDecimal("110.00")),
+                        org.assertj.core.groups.Tuple.tuple(persisted.get(3).productId(), new BigDecimal("220.00")));
+        assertThat(fixture.slip().getLines()).hasSize(3)
+                .allMatch(line -> line.getParentSetModel() == null
+                        && !line.isSetHead()
+                        && line.getBundleSetOptions() == null);
+        assertThat(fixture.slip().getLines().get(0).getQuantity()).isEqualTo(3);
+        assertThat(fixture.slip().getLines().get(0).getUnitPrice())
+                .isEqualByComparingTo("333");
+    }
+
+    @Test
+    @DisplayName("RED-B R16: keyless 세 인스턴스 중 한 head 삭제도 잔존 모호 계보를 평면화한다")
+    void keylessThreeInstancesHeadDeletionDropsAllRemainingAmbiguousLineage() {
+        List<PersistedLine> persisted = List.of(
+                persistedLine(true, false), persistedLine(false, false),
+                persistedLine(true, false), persistedLine(false, false),
+                persistedLine(true, false), persistedLine(false, false));
+        Fixture fixture = fixture(persisted, false, true);
+
+        assertThatCode(() -> fixture.service().update(
+                fixture.slipId(), request(fixture, persisted.subList(1, persisted.size()), 1, 200),
+                UUID.randomUUID(), "R16 사용자"))
+                .doesNotThrowAnyException();
+
+        assertThat(fixture.slip().getLines()).hasSize(5)
+                .allMatch(line -> line.getParentSetModel() == null
+                        && !line.isSetHead()
+                        && line.getBundleSetOptions() == null);
     }
 
     @Test
@@ -302,12 +364,21 @@ class SalesSlipUpdateR5FixTest {
 
         SlipRepository repository = mock(SlipRepository.class);
         ProductClient productClient = mock(ProductClient.class);
+        PartnerProductPriceMemoryService priceMemoryService = mock(PartnerProductPriceMemoryService.class);
         SalesSlipUpdateService service = new SalesSlipUpdateService(
                 repository, mock(SlipAuditLogService.class), mock(SlipRevisionService.class),
-                mock(PartnerProductPriceMemoryService.class), productClient,
+                priceMemoryService, productClient,
                 mock(SlipClosedDateGuard.class));
         when(repository.findById(slipId)).thenReturn(Optional.of(slip));
-        when(repository.saveAndFlush(any(Slip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.saveAndFlush(any(Slip.class))).thenAnswer(invocation -> {
+            Slip saved = invocation.getArgument(0);
+            for (SlipLine savedLine : saved.getLines()) {
+                if (savedLine.getId() == null) {
+                    ReflectionTestUtils.setField(savedLine, "id", UUID.randomUUID());
+                }
+            }
+            return saved;
+        });
         when(productClient.lookup(anyList())).thenAnswer(invocation -> {
             List<UUID> productIds = invocation.getArgument(0);
             return productIds.stream()
@@ -315,7 +386,7 @@ class SalesSlipUpdateR5FixTest {
                             null, UUID.randomUUID(), new BigDecimal("100"), "ACTIVE", false))
                     .toList();
         });
-        return new Fixture(service, repository, slip, slipId, persisted);
+        return new Fixture(service, repository, priceMemoryService, slip, slipId, persisted);
     }
 
     private void materializeExplicitR9Mapping(Slip slip) {
@@ -352,6 +423,20 @@ class SalesSlipUpdateR5FixTest {
                 null, null, null, null, null, null, null, lines, true);
     }
 
+    private SlipUpdateRequest requestForCurrentLines(List<SlipLine> currentLines,
+                                                     int quantity, int unitPrice) {
+        List<SlipUpdateRequest.LineRequest> lines = new ArrayList<>();
+        for (int i = 0; i < currentLines.size(); i++) {
+            SlipLine line = currentLines.get(i);
+            lines.add(new SlipUpdateRequest.LineRequest(
+                    line.getProductId(), line.getProductName(), line.getModelName(),
+                    line.getSpecification(), i == 0 ? quantity : line.getQuantity(),
+                    i == 0 ? BigDecimal.valueOf(unitPrice) : line.getUnitPrice(),
+                    null, line.getId()));
+        }
+        return requestForLines(lines);
+    }
+
     private PersistedLine persistedLine(boolean setHead, boolean uniqueProduct) {
         return new PersistedLine(UUID.randomUUID(), UUID.randomUUID(),
                 uniqueProduct ? "R5-MODEL-" + UUID.randomUUID() : "R5-MODEL", setHead);
@@ -360,7 +445,8 @@ class SalesSlipUpdateR5FixTest {
     private record PersistedLine(UUID lineId, UUID productId, String modelName, boolean setHead) {
     }
 
-    private record Fixture(SalesSlipUpdateService service, SlipRepository repository, Slip slip,
+    private record Fixture(SalesSlipUpdateService service, SlipRepository repository,
+                           PartnerProductPriceMemoryService priceMemory, Slip slip,
                            UUID slipId, List<PersistedLine> persisted) {
     }
 }

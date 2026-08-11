@@ -116,6 +116,10 @@ public class SalesSlipUpdateService {
                 slip.getLines(), replacementLines, request.lines().stream()
                         .map(SlipUpdateRequest.LineRequest::lineId)
                         .toList());
+        BundleLineageResolver.flattenAmbiguousLegacyLineageAfterHeadDeletion(
+                slip.getLines(), replacementLines, request.lines().stream()
+                        .map(SlipUpdateRequest.LineRequest::lineId)
+                        .toList());
         BundleLineageResolver.requireSingleHeadPerRetainedBundleInstance(
                 slip.getLines(), replacementLines, request.lines().stream()
                         .map(SlipUpdateRequest.LineRequest::lineId)
