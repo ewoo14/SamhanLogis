@@ -169,7 +169,7 @@ class DcConfigClientTest {
     }
 
     @Test
-    void envelope_success_false는_오계산을_숨기지_않고_empty_fail_soft로_반환한다() {
+    void envelope_success_false는_가격계산불가_available_false로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
@@ -177,35 +177,38 @@ class DcConfigClientTest {
                         {"success":false,"code":"DC_CONFIG_NOT_FOUND","message":"미설정","data":null}
                         """, MediaType.APPLICATION_JSON));
 
-        Map<String, BigDecimal> prices = client.calculatePrices("P-DC-001", lines());
+        DcConfigClient.CalculationResult result = client.calculateDetailed("P-DC-001", lines());
 
-        assertThat(prices).isEmpty();
+        assertThat(result.prices()).isEmpty();
+        assertThat(result.available()).isFalse();
         server.verify();
     }
 
     @Test
-    void price_calculations_5xx는_empty_fail_soft로_반환한다() {
+    void price_calculations_5xx는_available_false로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withServerError());
 
-        Map<String, BigDecimal> prices = client.calculatePrices("P-DC-001", lines());
+        DcConfigClient.CalculationResult result = client.calculateDetailed("P-DC-001", lines());
 
-        assertThat(prices).isEmpty();
+        assertThat(result.prices()).isEmpty();
+        assertThat(result.available()).isFalse();
         server.verify();
     }
 
     @Test
-    void price_calculations_network_error도_empty_fail_soft로_반환한다() {
+    void price_calculations_network_error도_available_false로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withException(new IOException("dc-config 연결 실패")));
 
-        Map<String, BigDecimal> prices = client.calculatePrices("P-DC-001", lines());
+        DcConfigClient.CalculationResult result = client.calculateDetailed("P-DC-001", lines());
 
-        assertThat(prices).isEmpty();
+        assertThat(result.prices()).isEmpty();
+        assertThat(result.available()).isFalse();
         server.verify();
     }
 

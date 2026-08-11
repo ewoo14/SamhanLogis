@@ -38,10 +38,10 @@ import org.springframework.transaction.annotation.Transactional;
  *   POST /confirm
  *     ① 멱등 가드 (findByIdempotencyKey)
  *     ② dc-config price-calc (POST /internal/price-calculations) 로 라인별 finalPrice 계산
- *        └ 실패/404/5xx → fail-soft (listPrice 사용)
+ *        └ 실패/404/5xx/부분응답 → PRICE_CALCULATION_UNAVAILABLE(503), 저장하지 않음
  *     ③ M1a product 카탈로그 스냅샷
  *     ④ PartnerOrder.createFromConfirm → status=DRAFT, slipPublishStatus=NOT_REQUIRED
- *     ⑤ 라인 INSERT (priceVat=finalPrice else listPrice) + recomputeTotal + save
+ *     ⑤ 서버 계산 결과가 모든 라인에 있음을 확인한 뒤 라인 INSERT + recomputeTotal + save
  *     ⑥ history(CONFIRMED=주문접수) + revision CREATE 캡처
  *     ⑦ (slip 발행 없음)
  *   → ConfirmResponse{ orderNo, status=DRAFT, slipNo=null }
@@ -86,7 +86,8 @@ public class PartnerOrderConfirmService {
      * 생성하며 slip-service 를 호출하지 않는다. 출고전표는 명시적 convert 액션으로만 발행.
      *
      * <p>DC 단가 계산: {@link DcConfigClient#calculatePrices} (POST /internal/price-calculations) 로
-     * 라인별 finalPrice 를 받아 priceVat 에 적용한다. fail-soft 적용 — price-calc 실패 시 listPrice 사용.
+     * 라인별 finalPrice 를 받아 priceVat 에 적용한다. 계산 실패/부분 응답이면 정상가로 대체하지 않고
+     * 사용자에게 재시도 가능한 503을 반환한다.
      *
      * <p>주문 저장 성공 후 {@link PartnerOrderRevisionService#capture} 로 CREATE 유형 revision 을
      * 트랜잭션 내에서 캡처한다 (Phase 2.4 버전이력 훅).
@@ -131,6 +132,12 @@ public class PartnerOrderConfirmService {
         PartnerOrderPriceCalculationService.Calculation calculation =
                 effectivePriceCalculationService().calculate(partnerCode, request);
         List<ConfirmLineRequest> reqLines = request.lines();
+        if (!calculation.available() || calculation.lines().size() != reqLines.size()
+                || calculation.lines().stream().anyMatch(line -> line.finalPrice() == null
+                        || line.finalPrice().signum() <= 0)) {
+            throw new BusinessException(ErrorCode.PRICE_CALCULATION_UNAVAILABLE,
+                    ErrorCode.PRICE_CALCULATION_UNAVAILABLE.getDefaultMessage());
+        }
 
         // 4) inventory reserve 제거 (Phase 2.6c — 주문 무영향 원칙)
         // confirm 단계에서는 재고 예약을 하지 않는다. 재고 예약은 "출고전표로 전환(convert)" 시점에만 발생.

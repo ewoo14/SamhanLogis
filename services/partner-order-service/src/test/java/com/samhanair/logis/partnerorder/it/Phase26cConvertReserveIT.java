@@ -110,7 +110,17 @@ class Phase26cConvertReserveIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.check(
                 any(UUID.class), anyString(), any(PermissionAction.class))).thenReturn(true);
 
-        lenient().when(dcConfigClient.calculatePrices(anyString(), anyList())).thenReturn(Map.of());
+        // confirm 은 dc-config 결과가 완전해야만 저장한다. 이 클래스의 reserve 회귀는
+        // 가격 장애가 표적이 아니므로 서버 계산 성공 결과를 기본 대역으로 제공한다.
+        lenient().when(dcConfigClient.calculateDetailed(anyString(), anyList()))
+                .thenAnswer(invocation -> {
+                    List<DcConfigClient.PriceLine> lines = invocation.getArgument(1);
+                    Map<String, DcConfigClient.CalculatedLine> prices = new java.util.LinkedHashMap<>();
+                    for (DcConfigClient.PriceLine line : lines) {
+                        prices.put(line.lineId(), new DcConfigClient.CalculatedLine(line.listPrice(), null));
+                    }
+                    return new DcConfigClient.CalculationResult(prices, true);
+                });
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
         lenient().when(partnerLookupClient.findByPartnerCodeForIdentity(anyString()))
                 .thenAnswer(invocation -> java.util.Optional.of(

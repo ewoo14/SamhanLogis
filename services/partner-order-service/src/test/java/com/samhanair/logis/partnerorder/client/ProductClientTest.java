@@ -157,6 +157,19 @@ class ProductClientTest {
     }
 
     @Test
+    void lookupFixedDiscountRates_원격장애는_가격계산불가로_표면화한다() {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        server.expect(once(), requestTo(FIXED_DISCOUNT_ENDPOINT))
+                .andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.lookupFixedDiscountRates(List.of(productId)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.PRICE_CALCULATION_UNAVAILABLE));
+        server.verify();
+    }
+
+    @Test
     void lookup_응답_data가_누락되면_INTERNAL_ERROR로_매핑한다() {
         server.expect(once(), requestTo(LOOKUP_ENDPOINT))
                 .andExpect(method(HttpMethod.POST))

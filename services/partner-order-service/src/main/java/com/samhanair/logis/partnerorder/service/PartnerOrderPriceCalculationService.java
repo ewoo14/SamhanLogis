@@ -44,7 +44,7 @@ public class PartnerOrderPriceCalculationService {
      *
      * @param partnerCode 거래처 코드
      * @param request 주문/미리보기 라인
-     * @return 서버 계산 결과. dc-config 장애 시 available=false, finalPrice는 정상가
+     * @return 서버 계산 결과. dc-config 장애/부분 응답 시 available=false
      */
     public Calculation calculate(String partnerCode, ConfirmRequest request) {
         if (partnerCode == null || partnerCode.isBlank()) {
@@ -165,7 +165,16 @@ public class PartnerOrderPriceCalculationService {
             totalList = totalList.add(listPrices.get(i).multiply(quantity));
             totalFinal = totalFinal.add(finalPrice.multiply(quantity));
         }
-        return new Calculation(resultLines, serverResult.available(), totalList, totalFinal);
+        boolean allLineIdsPresent = calculated.size() == requestLines.size();
+        for (int i = 0; allLineIdsPresent && i < requestLines.size(); i++) {
+            allLineIdsPresent = calculated.containsKey(String.valueOf(i));
+        }
+        boolean complete = serverResult.available()
+                && allLineIdsPresent
+                && resultLines.size() == requestLines.size()
+                && resultLines.stream().allMatch(line -> line.finalPrice() != null
+                        && line.finalPrice().signum() > 0);
+        return new Calculation(resultLines, complete, totalList, totalFinal);
     }
 
     private ProductSummary resolveProduct(ConfirmLineRequest line,

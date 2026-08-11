@@ -30,10 +30,11 @@ import org.springframework.web.client.RestClient;
  * 로 직접 역직렬화한다. 기존 {@code Map<String,Object>} 경로에서 Double 경유 부동소수 위험을 제거하고
  * BigDecimal 정밀도를 보존한다.
  *
- * <p><b>fail-soft</b>: 404(DC 미설정)/5xx/연결실패 시 빈 Map 반환 → 호출자가 listPrice 그대로 사용
- * (회계 critical path 보호 + 기존 "DC 미적용 시 정상가" 사상 보존).
+ * <p><b>장애 표면화</b>: 404(DC 미설정)/5xx/연결실패 시 빈 결과와 {@code available=false}를 반환한다.
+ * 주문 확정 호출자는 이를 정상가로 대체하지 않고 503으로 차단한다.
  *
- * <p><b>timeout</b>: connect 2s / read 3s — dc-config hang 시 confirm thread block 방지(fail-soft 보강).
+ * <p><b>timeout</b>: connect 2s / read 3s — dc-config hang 시 confirm thread block을 제한하고
+ * 장애를 정상가로 숨기지 않는다.
  */
 @Component
 public class DcConfigClient {
@@ -133,15 +134,16 @@ public class DcConfigClient {
     public record CalculatedLine(BigDecimal finalPrice, BigDecimal appliedRate) {}
 
     /**
-     * 라인별 DC 적용 단가 계산. 실패 시 빈 Map(fail-soft) — 호출자는 listPrice 사용.
+     * 라인별 DC 적용 단가 계산. 실패 시 빈 Map과 {@code available=false}를 반환한다.
      *
      * <p>P0-1 typed 역직렬화: {@code ApiResponse<PriceCalcResult>} 로 직접 역직렬화하여
      * Double 경유 부동소수 위험을 제거한다. envelope {@code success=false} 또는 data/lines null 시
-     * 빈 Map 반환(fail-soft).
+     * 빈 결과와 {@code available=false}를 반환한다.
      *
      * @param partnerCode 거래처 코드
      * @param lines 정상가+카테고리+수량 라인 (lineId 는 호출자 임의 키)
-     * @return lineId → finalPrice. 실패/미설정 시 빈 Map.
+     * @return lineId → finalPrice. 실패/미설정 시 빈 Map. {@link #calculateDetailed}의
+     * {@code available=false}를 함께 확인해야 한다.
      */
     public Map<String, BigDecimal> calculatePrices(String partnerCode, List<PriceLine> lines) {
         return calculateDetailed(partnerCode, lines).prices();
@@ -151,7 +153,7 @@ public class DcConfigClient {
      * 단가와 적용 할인율을 함께 반환하는 계산 호출.
      *
      * <p>미리보기와 확정은 이 메서드를 통해 동일한 dc-config 계산기를 통과한다. 실패 시
-     * {@code available=false}를 반환하며 호출자는 자체 할인율 계산으로 대체하지 않는다.
+     * {@code available=false}를 반환하며 호출자는 자체 할인율/정상가로 대체하지 않는다.
      */
     public CalculationResult calculateDetailed(String partnerCode, List<PriceLine> lines) {
         if (partnerCode == null || partnerCode.isBlank() || lines == null || lines.isEmpty()) {
@@ -188,14 +190,14 @@ public class DcConfigClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .onStatus(HttpStatusCode::isError, (req, res) -> { /* fail-soft — no throw */ })
+                    .onStatus(HttpStatusCode::isError, (req, res) -> { /* 결과에서 available=false로 표면화 */ })
                     .body(new ParameterizedTypeReference<ApiResponse<PriceCalcResult>>() {});
 
             return extractFromTyped(envelope);
         } catch (BusinessException ex) {
             throw ex; // token 미설정 등
         } catch (RuntimeException ex) {
-            log.warn("DcConfigClient calculateDetailed fail-soft: {}", ex.getMessage());
+            log.warn("DcConfigClient calculateDetailed unavailable: {}", ex.getMessage());
             return new CalculationResult(Map.of(), false);
         }
     }
@@ -203,7 +205,8 @@ public class DcConfigClient {
     /**
      * typed ApiResponse 에서 lineId → finalPrice Map 을 추출한다.
      *
-     * <p>envelope 가 null 이거나 {@code success=false} 또는 data/lines null 이면 빈 Map 반환(fail-soft).
+     * <p>envelope 가 null 이거나 {@code success=false} 또는 data/lines null 이면 빈 결과와
+     * {@code available=false}를 반환한다.
      *
      * @param envelope ApiResponse&lt;PriceCalcResult&gt; — null 허용
      * @return lineId → finalPrice Map (비어 있을 수 있음)
