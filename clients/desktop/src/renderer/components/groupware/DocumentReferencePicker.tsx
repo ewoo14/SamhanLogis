@@ -110,6 +110,7 @@ export function DocumentReferencePicker({
   const listboxId = useId()
   const pickerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLUListElement>(null)
+  const ignoreNextScrollRef = useRef(false)
   const debounceRef = useRef<number | undefined>(undefined)
   const blurTimerRef = useRef<number | undefined>(undefined)
   const suppressNextSearchRef = useRef<string | null>(null)
@@ -136,16 +137,12 @@ export function DocumentReferencePicker({
 
   const { options, resolvedQuery } = searchState
 
-  const updateDropdownPosition = useCallback(() => {
+  const calculateDropdownPosition = useCallback((): DropdownPosition | null => {
     const picker = pickerRef.current
-    if (!picker || !open) return
+    if (!picker) return null
 
     const rect = picker.getBoundingClientRect()
-    if (rect.bottom < 0 || rect.top > window.innerHeight) {
-      setDropdownPosition(null)
-      setOpen(false)
-      return
-    }
+    if (rect.bottom < 0 || rect.top > window.innerHeight) return null
 
     const belowSpace = window.innerHeight - rect.bottom - DROPDOWN_GAP - DROPDOWN_VIEWPORT_INSET
     const aboveSpace = rect.top - DROPDOWN_GAP - DROPDOWN_VIEWPORT_INSET
@@ -156,7 +153,7 @@ export function DocumentReferencePicker({
     const maxLeft = Math.max(DROPDOWN_VIEWPORT_INSET, window.innerWidth - DROPDOWN_VIEWPORT_INSET - width)
     const left = Math.min(Math.max(rect.left, DROPDOWN_VIEWPORT_INSET), maxLeft)
 
-    setDropdownPosition({
+    return {
       position: 'fixed',
       left,
       width,
@@ -164,32 +161,45 @@ export function DocumentReferencePicker({
       ...(opensAbove
         ? { bottom: window.innerHeight - rect.top + DROPDOWN_GAP }
         : { top: rect.bottom + DROPDOWN_GAP }),
-    })
-  }, [open])
+    }
+  }, [])
+
+  const updateDropdownPosition = useCallback(() => {
+    if (!open) return
+    const nextPosition = calculateDropdownPosition()
+    if (!nextPosition) {
+      setDropdownPosition(null)
+      setOpen(false)
+      return
+    }
+    setDropdownPosition(nextPosition)
+  }, [calculateDropdownPosition, open])
 
   const closeDropdownOnScroll = useCallback(() => {
     if (!open) return
+    // click 경합으로 동기 재열기한 직후 중복 전달되는 같은 scroll event만 소비한다.
+    // 실제 다음 scroll은 이 ref가 비워진 뒤 기존 close 경로를 그대로 탄다.
+    if (ignoreNextScrollRef.current) {
+      ignoreNextScrollRef.current = false
+      return
+    }
     const reopenAfterScroll = reopenAfterScrollRef.current
     reopenAfterScrollRef.current = false
     // 스크롤 이벤트 직후 React state commit만 기다리면 첫 paint에 낡은 fixed 좌표가 남을 수 있다.
-    // portal을 즉시 숨긴 뒤 state도 닫아, 첫 paint와 이후 DOM 상태를 함께 안전하게 만든다.
+    // portal을 숨긴 뒤 실제 anchor 좌표를 같은 commit에 적용하고, paint 전에 visibility를 되돌린다.
     dropdownRef.current?.style.setProperty('visibility', 'hidden')
+    const nextPosition = reopenAfterScroll ? calculateDropdownPosition() : null
+    ignoreNextScrollRef.current = nextPosition !== null
     flushSync(() => {
-      setDropdownPosition(null)
-      setOpen(false)
+      setDropdownPosition(nextPosition)
+      setOpen(nextPosition !== null)
     })
-    if (reopenAfterScroll) {
-      window.requestAnimationFrame(() => {
-        dropdownRef.current?.style.removeProperty('visibility')
-        setOpen(true)
-        updateDropdownPosition()
-      })
-    }
-  }, [open, updateDropdownPosition])
+    if (nextPosition !== null) dropdownRef.current?.style.removeProperty('visibility')
+  }, [calculateDropdownPosition, open])
 
   useLayoutEffect(() => {
     if (!open) {
-      setDropdownPosition(null)
+      if (!reopenAfterScrollRef.current) setDropdownPosition(null)
       return undefined
     }
 
@@ -392,7 +402,9 @@ export function DocumentReferencePicker({
         }
       }
     }
-    setOpen(true)
+    const nextPosition = calculateDropdownPosition()
+    setDropdownPosition(nextPosition)
+    setOpen(nextPosition !== null)
   }
 
   const handleBlur = () => {

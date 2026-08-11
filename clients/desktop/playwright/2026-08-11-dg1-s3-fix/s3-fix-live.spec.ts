@@ -557,6 +557,63 @@ test('실제 window scroll 직후 같은 검색 input을 mouse click하면 후�
   await expect(searchInput).toHaveValue('2026/')
 })
 
+test('scroll 0→3 직후 재클릭은 첫 rAF부터 anchor와 정렬된다', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.goto(`${BASE_URL}/?mockRole=MASTER#/groupware/approvals/new`, { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('main.app-main')).toBeVisible({ timeout: 15_000 })
+  await selectExpenseTemplate(page)
+  await openReferencePicker(page)
+  await page.getByTestId('doc-ref-type-select').first().selectOption({ value: 'JOURNAL' })
+
+  const searchInput = page.getByTestId('doc-ref-search-input').first()
+  await searchInput.fill('2026/')
+  await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 })
+  await page.evaluate(() => {
+    const sentinel = document.createElement('div')
+    sentinel.setAttribute('data-testid', 'fix5-window-click-sentinel')
+    sentinel.style.height = '160px'
+    sentinel.style.pointerEvents = 'none'
+    document.body.appendChild(sentinel)
+    const input = document.querySelector('[data-testid="doc-ref-search-input"]')
+    window.scrollTo(0, 0)
+    const blockNativeScroll = (event: Event) => event.stopImmediatePropagation()
+    window.addEventListener('scroll', blockNativeScroll, true)
+    input?.addEventListener('pointerdown', () => window.scrollBy(0, 3), { once: true })
+    input?.addEventListener('click', () => queueMicrotask(() => {
+      window.removeEventListener('scroll', blockNativeScroll, true)
+      window.dispatchEvent(new Event('scroll'))
+    }), { once: true })
+  })
+
+  const box = await searchInput.boundingBox()
+  expect(box).not.toBeNull()
+  await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2)
+
+  const firstRaf = await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      const listbox = document.querySelector('[role="listbox"]')
+      const input = document.querySelector('[data-testid="doc-ref-search-input"]')
+      const picker = input?.closest('[class*="picker"]')
+      if (!(listbox instanceof HTMLElement) || !(picker instanceof HTMLElement)) {
+        resolve({ visible: false, aligned: true, belowGap: null, scrollY: window.scrollY })
+        return
+      }
+      const listRect = listbox.getBoundingClientRect()
+      const pickerRect = picker.getBoundingClientRect()
+      const belowGap = listRect.top - pickerRect.bottom
+      const aboveGap = pickerRect.top - listRect.bottom
+      resolve({
+        visible: listbox.getBoundingClientRect().height > 0,
+        aligned: Math.abs(belowGap - 4) <= 2 || Math.abs(aboveGap - 4) <= 2,
+        belowGap,
+        scrollY: window.scrollY,
+      })
+    })
+  }))
+  console.log(`FIX5_FIRST_RAF=${JSON.stringify(firstRaf)}`)
+  expect(firstRaf).toMatchObject({ visible: true, aligned: true, scrollY: 3 })
+})
+
 test('480px 좁은 창에서 새로 연 문서 참조 dropdown도 visible·hit-test 가능하다', async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 640 })
   await page.goto(`${BASE_URL}/?mockRole=MASTER#/groupware/approvals/new`, { waitUntil: 'domcontentloaded' })
@@ -575,4 +632,71 @@ test('480px 좁은 창에서 새로 연 문서 참조 dropdown도 visible·hit-t
     clientWidth: document.documentElement.clientWidth,
   }))
   expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth)
+})
+
+test('fix5 새 surface 조합은 내부 wheel·키보드·큰 scroll·결과 변경·resize에서 좌표를 보존한다', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.goto(`${BASE_URL}/?mockRole=MASTER#/groupware/approvals/new`, { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('main.app-main')).toBeVisible({ timeout: 15_000 })
+  await selectExpenseTemplate(page)
+  await openReferencePicker(page)
+  await page.getByTestId('doc-ref-type-select').first().selectOption({ value: 'JOURNAL' })
+
+  const searchInput = page.getByTestId('doc-ref-search-input').first()
+  await searchInput.fill('2026/')
+  const listbox = page.getByRole('listbox')
+  await expect(listbox).toBeVisible({ timeout: 10_000 })
+
+  const listBox = await listbox.boundingBox()
+  expect(listBox).not.toBeNull()
+  await page.mouse.move((listBox?.x ?? 0) + (listBox?.width ?? 0) / 2, (listBox?.y ?? 0) + 40)
+  await page.mouse.wheel(0, 21)
+  await expect.poll(() => listbox.evaluate((node) => node.scrollTop)).toBe(21)
+  console.log(`FIX5_COMBO_WHEEL=${JSON.stringify({ scrollTop: await listbox.evaluate((node) => node.scrollTop), open: await listbox.isVisible() })}`)
+
+  await page.evaluate(() => {
+    window.scrollTo(0, 0)
+    window.dispatchEvent(new Event('scroll'))
+  })
+  await expect(listbox).toHaveCount(0)
+  await searchInput.press('ArrowDown')
+  await expect(listbox).toBeVisible()
+  console.log(`FIX5_COMBO_KEYBOARD=${JSON.stringify(await readScrollFrame(page))}`)
+
+  await page.evaluate(() => {
+    const sentinel = document.createElement('div')
+    sentinel.setAttribute('data-testid', 'fix5-large-scroll-sentinel')
+    sentinel.style.height = '240px'
+    sentinel.style.pointerEvents = 'none'
+    document.body.appendChild(sentinel)
+    window.scrollBy(0, 80)
+  })
+  await expect(listbox).toHaveCount(0)
+  const largeScrollBox = await searchInput.boundingBox()
+  expect(largeScrollBox).not.toBeNull()
+  await page.mouse.click(
+    (largeScrollBox?.x ?? 0) + (largeScrollBox?.width ?? 0) / 2,
+    (largeScrollBox?.y ?? 0) + (largeScrollBox?.height ?? 0) / 2,
+  )
+  await expect(listbox).toBeVisible()
+  console.log(`FIX5_COMBO_LARGE_SCROLL=${JSON.stringify({ scrollY: await page.evaluate(() => window.scrollY), ...(await readScrollFrame(page)) })}`)
+
+  await page.getByTestId('doc-ref-type-select').first().selectOption({ value: 'SALES_COMMISSION_SETTLEMENT' })
+  await searchInput.fill('2026/08/11-1')
+  await expect(page.getByTestId('doc-ref-search-option')).toHaveCount(1, { timeout: 10_000 })
+  await page.evaluate(() => {
+    window.scrollTo(0, 0)
+    window.dispatchEvent(new Event('scroll'))
+  })
+  await expect(listbox).toHaveCount(0)
+  const resultReopenBox = await searchInput.boundingBox()
+  expect(resultReopenBox).not.toBeNull()
+  await page.mouse.click(
+    (resultReopenBox?.x ?? 0) + (resultReopenBox?.width ?? 0) / 2,
+    (resultReopenBox?.y ?? 0) + (resultReopenBox?.height ?? 0) / 2,
+  )
+  await page.setViewportSize({ width: 1024, height: 800 })
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')))
+  await expect(listbox).toBeVisible()
+  console.log(`FIX5_COMBO_RESULT_RESIZE=${JSON.stringify({ options: await page.getByTestId('doc-ref-search-option').count(), ...(await readScrollFrame(page)) })}`)
 })
