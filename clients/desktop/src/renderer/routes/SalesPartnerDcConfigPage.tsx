@@ -168,7 +168,7 @@ export function SalesPartnerDcConfigPage() {
   )
 
   return (
-    <div className={styles['salesScope']}>
+    <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
       <SalesSubNav />
       <div className={styles['wrap']}>
         {/* PR-H4c FE-A: DC 설정 변경은 거래처 단위 SSE + audit log 기록 */}

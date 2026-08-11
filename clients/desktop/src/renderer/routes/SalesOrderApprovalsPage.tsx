@@ -233,7 +233,7 @@ export function SalesOrderApprovalsPage() {
   ]
 
   return (
-    <div className={styles['salesScope']}>
+    <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
       <SalesSubNav />
       <div className={styles['wrap']}>
         {/* PR-H4c FE-A: 승인 변경 audit 안내 — 변경 시 BE audit log 자동 기록 */}

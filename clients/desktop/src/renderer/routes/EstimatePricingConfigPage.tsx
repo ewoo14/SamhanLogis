@@ -324,7 +324,7 @@ export function EstimatePricingConfigPage() {
   )
 
   return (
-    <div className={styles['salesScope']}>
+    <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
       <SalesSubNav />
       <div className={styles['wrap']}>
         {canViewEstimateConfig ? (

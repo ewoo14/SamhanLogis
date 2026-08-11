@@ -17,6 +17,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@samhan/design-system', () => ({
   Badge: ({ children, ...props }: any) => <span {...props}>{children}</span>,
+  Card: ({ children, ...props }: any) => <section {...props}>{children}</section>,
+  CopyButton: ({ label }: any) => <button type="button">{label}</button>,
+  OrderNumberDisplay: ({ orderNumber, ...props }: any) => <span {...props}>{orderNumber}</span>,
+  OrderStatusBadge: ({ status, ...props }: any) => <span {...props} data-status={status}>{status}</span>,
+  Spinner: ({ label }: any) => <span>{label}</span>,
   Button: ({ children, variant: _variant, size: _size, ...props }: any) => (
     <button {...props}>{children}</button>
   ),

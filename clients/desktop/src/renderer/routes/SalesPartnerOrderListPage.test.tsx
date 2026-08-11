@@ -18,6 +18,12 @@ vi.mock('@samhan/design-system', () => ({
   Badge: ({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => (
     <span {...props}>{children}</span>
   ),
+  OrderNumberDisplay: ({ orderNumber, ...props }: { orderNumber: string } & Record<string, unknown>) => (
+    <span {...props}>{orderNumber}</span>
+  ),
+  OrderStatusBadge: ({ status, ...props }: { status: string } & Record<string, unknown>) => (
+    <span {...props} data-status={status}>{status}</span>
+  ),
   Button: ({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => (
     <button {...props}>{children}</button>
   ),

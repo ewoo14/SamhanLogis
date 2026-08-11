@@ -10,7 +10,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
+import {
+  Badge,
+  Button,
+  DataTable,
+  Input,
+  OrderNumberDisplay,
+  OrderStatusBadge,
+  Select,
+  type DataTableColumn,
+} from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   SLIP_PUBLISH_STATUS_DISPLAY,
@@ -36,15 +45,6 @@ import {
 } from '../realtime/deletedRowDisplay'
 import { serverErrorMessage } from './dispatch-board/dispatchErrorMessage'
 import styles from '../components/sales/sales.module.css'
-
-const STATUS_CLASS: Record<PartnerOrderStatus, string> = {
-  DRAFT: styles['statusDraft']!,
-  ON_HOLD: styles['statusOnHold']!,
-  CONFIRMING: styles['statusSent']!,
-  CONFIRMED: styles['statusConfirmed']!,
-  CANCELED: styles['statusCanceled']!,
-  CONVERTED: styles['statusConverted']!,
-}
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 // v2 §정정 8 — 'YYYY/MM/DD' 통일.
@@ -232,9 +232,11 @@ export function SalesPartnerOrderListPage() {
         const deleted = o.isDeleted === true
         return (
           <span className={styles['partnerOrderNumberCell']}>
-            <span style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}>
-              {o.orderNumber}
-            </span>
+            <OrderNumberDisplay
+              orderNumber={o.orderNumber}
+              size="sm"
+              style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}
+            />
             {deleted ? (
               <span
                 className={styles['partnerOrderDeletedBadge']}
@@ -300,12 +302,16 @@ export function SalesPartnerOrderListPage() {
         const publishMeta = SLIP_PUBLISH_STATUS_DISPLAY[o.slipPublishStatus]
         return (
           <span className={styles['partnerOrderNumberCell']}>
-            <span
-              className={`${styles['statusBadge']} ${deleted ? styles['statusDeletedNeutral'] : STATUS_CLASS[o.status]}`}
-              style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}
-            >
-              {PARTNER_ORDER_STATUS_LABEL[o.status]}
-            </span>
+            {deleted ? (
+              <Badge
+                variant="neutral"
+                style={DELETED_ROW_TEXT_STYLE}
+              >
+                {PARTNER_ORDER_STATUS_LABEL[o.status]}
+              </Badge>
+            ) : (
+              <OrderStatusBadge status={o.status} />
+            )}
             {publishMeta ? (
               <Badge
                 variant={publishMeta.variant}
@@ -383,7 +389,7 @@ export function SalesPartnerOrderListPage() {
   }
 
   return (
-    <div className={styles['salesScope']}>
+    <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
       <SalesSubNav />
       <div className={styles['wrap']}>
         {/* [3a 데스크탑 ↔ 웹 분리] 본 화면은 내부 영업/관리자가 거래처가 보낸 주문을 조회·승인하는

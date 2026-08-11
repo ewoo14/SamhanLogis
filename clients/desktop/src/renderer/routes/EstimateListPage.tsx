@@ -413,7 +413,7 @@ export function EstimateListPage() {
   const canCreate = canAccess('estimates.list', 'create')
 
   return (
-    <div className={styles['salesScope']}>
+    <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
       <SalesSubNav />
       <div className={styles['wrap']}>
         {/* [3a 데스크탑 ↔ 웹 분리] 본 화면은 내부 영업/관리자용 견적 관리 UI 임을 명시.
