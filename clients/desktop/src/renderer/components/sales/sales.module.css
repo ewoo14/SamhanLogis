@@ -50,6 +50,20 @@
   align-items: center;
 }
 
+/* 설정 화면의 검색·저장·이력 등 기존 소형 액션 버튼 크기 계약을 보존한다. */
+.btnMini {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  background: #11182710;
+  color: #111827;
+  padding: 6px 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+
 .btnGhost {
   appearance: none;
   background: transparent;

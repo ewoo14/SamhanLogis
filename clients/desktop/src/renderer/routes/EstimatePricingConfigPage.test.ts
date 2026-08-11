@@ -6,6 +6,16 @@ const root = process.cwd()
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
 
 describe('EstimatePricingConfigPage contract', () => {
+  test('설정 화면의 두 버튼이 실제 sales CSS module의 btnMini 스타일을 사용한다', () => {
+    const css = read('src/renderer/components/sales/sales.module.css')
+    const pricingPage = read('src/renderer/routes/EstimatePricingConfigPage.tsx')
+    const dcPage = read('src/renderer/routes/SalesPartnerDcConfigPage.tsx')
+
+    expect(css).toMatch(/\.btnMini\s*\{/)
+    expect(pricingPage.match(/styles\[['"]btnMini['"]\]/g)).toHaveLength(2)
+    expect(dcPage.match(/styles\[['"]btnMini['"]\]/g)).toHaveLength(5)
+  })
+
   test('판매 전역 견적 설정 route/menu/API/page-code 계약을 등록한다', () => {
     const route = read('src/renderer/routes/index.tsx')
     const subNav = read('src/renderer/components/sales/SalesSubNav.tsx')
