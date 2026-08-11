@@ -457,6 +457,7 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data[?(@.refDocNo == '" + refDocNo + "')].refDocNo").value(refDocNo));
         }
+    }
 
     /** TF-3 A: accounting 참조 실패 시 결재 row도 함께 rollback되어 PENDING 고아가 남지 않는다. */
     @Test

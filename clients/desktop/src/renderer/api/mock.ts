@@ -11599,6 +11599,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         approverIds?: string[]
         templateId?: string | null
         fieldValues?: Record<string, string>
+        references?: Array<Partial<ApprovalAttachment>>
       }
       const title = String(body.title ?? '').trim()
       const requesterId = String(body.requesterId ?? '').trim()
@@ -11670,6 +11671,40 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         fieldValues: { ...fieldValues },
         status: 'PENDING',
         steps,
+      }
+      const references = Array.isArray(body.references) ? body.references : []
+      if (references.length > 0) {
+        const attachmentStore = getMockGroupwareApprovalAttachmentsStore()
+        attachmentStore[created.approvalId] = references.map((reference, index) => {
+          const type = reference.attachmentType === 'PARTNER_LEDGER_REF'
+            ? 'PARTNER_LEDGER_REF'
+            : 'SLIP_REF'
+          const nextSequence = mockGroupwareApprovalAttachmentSequence++
+          return {
+            id: `77777777-eeee-4eee-8eee-${String(nextSequence).padStart(12, '0')}`,
+            attachmentType: type,
+            label: reference.label ?? null,
+            displayOrder: Number(reference.displayOrder ?? index + 1),
+            refSlipNo: reference.refSlipNo ?? null,
+            refSlipType: reference.refSlipType ?? null,
+            refPartnerCode: reference.refPartnerCode ?? null,
+            refPartnerName: reference.refPartnerName ?? null,
+            refPeriod: reference.refPeriod ?? null,
+            refDocType: reference.refDocType ?? (
+              type === 'PARTNER_LEDGER_REF'
+                ? 'PARTNER_LEDGER'
+                : reference.refSlipType === 'SLIP_INBOUND' || reference.refSlipType === 'INBOUND'
+                  ? 'INBOUND_SLIP'
+                  : 'OUTBOUND_SLIP'
+            ),
+            refDocNo: reference.refDocNo ?? reference.refSlipNo ?? null,
+            refDocLabel: reference.refDocLabel ?? reference.refPartnerName ?? reference.label ?? null,
+            fileName: null,
+            contentType: null,
+            fileSize: null,
+            downloadUrl: null,
+          } satisfies ApprovalAttachment
+        })
       }
       approvals.unshift(created)
       return envelope(created)

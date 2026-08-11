@@ -269,6 +269,40 @@ describe('거래처 적재 mock handler 계약', () => {
 })
 
 describe('mock 그룹웨어 결재 생성 요청 관찰', () => {
+  it('원자 생성 references를 첨부 저장소에 보존해 생성 직후 상세 조회에서도 반환한다', () => {
+    const created = mockRequest({
+      method: 'POST',
+      url: '/admin/groupware/approvals',
+      data: {
+        requesterId: '00000000-0000-0000-0000-000000010001',
+        title: '원자 정산 참조 보존',
+        approverIds: ['00000000-0000-0000-0000-000000010002'],
+        references: [{
+          attachmentType: 'SLIP_REF',
+          label: '영업수수료 정산서',
+          displayOrder: 1,
+          refDocType: 'SALES_COMMISSION_SETTLEMENT',
+          refDocNo: '2026/08/11-1',
+          refDocLabel: '영업수수료 정산서',
+        }],
+      },
+    }) as MockEnvelope<{ approvalId: string }>
+
+    const attachments = mockRequest({
+      method: 'GET',
+      url: `/admin/groupware/approvals/${created.data.approvalId}/attachments`,
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+
+    expect(attachments.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        attachmentType: 'SLIP_REF',
+        label: '영업수수료 정산서',
+        refDocType: 'SALES_COMMISSION_SETTLEMENT',
+        refDocNo: '2026/08/11-1',
+      }),
+    ]))
+  })
+
   it('POST handler가 받은 approverIds 순서를 QA 캡처에 그대로 보존한다', () => {
     const approverIds = [
       '00000000-0000-0000-0000-000000010003',

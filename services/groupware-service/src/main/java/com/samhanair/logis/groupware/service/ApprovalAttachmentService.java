@@ -210,6 +210,7 @@ public class ApprovalAttachmentService {
                         attachment.getApproval().getId(),
                         ApprovalReferenceLookupResponse.from(attachment.getApproval())));
         return List.copyOf(uniqueApprovals.values());
+    }
 
     /** 정산서 확정 취소를 막아야 하는 활성 결재가 있는지 조회한다. */
     @Transactional(readOnly = true)
