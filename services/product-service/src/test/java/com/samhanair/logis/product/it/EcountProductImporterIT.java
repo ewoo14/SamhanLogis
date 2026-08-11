@@ -145,6 +145,34 @@ class EcountProductImporterIT extends AbstractPostgresIT {
     }
 
     @Test
+    void importCsv_soft_delete된_수동분류행은_복원해도_category_id를_보존한다() {
+        Category humanCategory = categoryRepository.findByCode("INDOOR").orElseThrow();
+        Product product = productRepository.saveAndFlush(Product.seedFromSheet(
+                "수동 soft-delete 품목", "EC-MANUAL-RESTORE", humanCategory,
+                new BigDecimal("100000"), new BigDecimal("70000"),
+                ProductType.SINGLE, ProductCategory.HOME_MULTI, UsageScope.BOTH,
+                EstimateCategory.HOME_MULTI));
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET product_code = ?, classification_manual = TRUE,
+                       is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP,
+                       deleted_by = 'test', modified_by = 'human'
+                 WHERE id = ?
+                """, "EC-MANUAL-RESTORE", product.getId());
+
+        EcountProductImportResult result = importer.importCsv(
+                itemCsv("EC-MANUAL-RESTORE", "복원 품목", "120,000", "80,000"),
+                null, null, "t7-manual-restore");
+
+        Product restored = productRepository.findById(product.getId()).orElseThrow();
+        assertThat(result.imported()).isZero();
+        assertThat(result.updated()).isEqualTo(1);
+        assertThat(restored.getIsDeleted()).isFalse();
+        assertThat(restored.isClassificationManual()).isTrue();
+        assertThat(restored.getCategory().getId()).isEqualTo(humanCategory.getId());
+    }
+
+    @Test
     void sameNameSequenceCodes_are_all_aliases_and_lookupable() {
         String[][] groups = {
                 {"AR-EH03", "00131", "SAR-00006"},

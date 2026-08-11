@@ -98,6 +98,78 @@ class V38__ProductCategoryBackfillTest extends AbstractPostgresIT {
     }
 
     @Test
+    void apply_재실행은_감사후_수동변경한_제품구분을_덮어쓰지_않는다() throws Exception {
+        Category wall = categoryRepository.findByCode("INDOOR_WALL").orElseThrow();
+        Category indoor = categoryRepository.findByCode("INDOOR").orElseThrow();
+        Product product = saveProduct("실외기", "BACKFILL-MANUAL-RERUN", wall);
+
+        Connection connection = DataSourceUtils.getConnection(jdbcTemplate.getDataSource());
+        V38__ProductCategoryBackfill.apply(connection);
+        assertCategory(product.getId(), "OUTDOOR");
+
+        java.sql.Timestamp humanModifiedAt = java.sql.Timestamp.valueOf("2026-08-11 12:34:56");
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET category_id = ?, classification_manual = TRUE,
+                       modified_at = ?, modified_by = 'human'
+                 WHERE id = ?
+                """, indoor.getId(), humanModifiedAt, product.getId());
+
+        V38__ProductCategoryBackfill.apply(connection);
+
+        assertCategory(product.getId(), "INDOOR");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT classification_manual FROM products WHERE id = ?", Boolean.class, product.getId()))
+                .isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT modified_at FROM products WHERE id = ?", java.sql.Timestamp.class, product.getId()))
+                .isEqualTo(humanModifiedAt);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT modified_by FROM products WHERE id = ?", String.class, product.getId()))
+                .isEqualTo("human");
+        assertThat(auditRollbackAt(product.getId())).isNull();
+    }
+
+    @Test
+    void apply_재실행은_수동행을_정상자동행과_섞어도_수동행만_건너뛴다() throws Exception {
+        Category wall = categoryRepository.findByCode("INDOOR_WALL").orElseThrow();
+        Category outdoor = categoryRepository.findByCode("OUTDOOR").orElseThrow();
+        Category indoor = categoryRepository.findByCode("INDOOR").orElseThrow();
+        Product manualApplied = saveProduct("실외기", "BACKFILL-MANUAL-APPLIED", wall);
+        Product manualThirdCategory = saveProduct("실외기", "BACKFILL-MANUAL-THIRD", wall);
+        Product automatic = saveProduct("실외기", "BACKFILL-AUTOMATIC-RERUN", wall);
+
+        Connection connection = DataSourceUtils.getConnection(jdbcTemplate.getDataSource());
+        V38__ProductCategoryBackfill.apply(connection);
+
+        java.sql.Timestamp sameCategoryModifiedAt = java.sql.Timestamp.valueOf("2026-08-11 12:35:00");
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET category_id = ?, classification_manual = TRUE,
+                       modified_at = ?, modified_by = 'human-same'
+                 WHERE id = ?
+                """, outdoor.getId(), sameCategoryModifiedAt, manualApplied.getId());
+        java.sql.Timestamp thirdCategoryModifiedAt = java.sql.Timestamp.valueOf("2026-08-11 12:35:01");
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET category_id = ?, classification_manual = TRUE,
+                       modified_at = ?, modified_by = 'human-third'
+                 WHERE id = ?
+                """, indoor.getId(), thirdCategoryModifiedAt, manualThirdCategory.getId());
+
+        V38__ProductCategoryBackfill.apply(connection);
+
+        assertCategory(manualApplied.getId(), "OUTDOOR");
+        assertCategory(manualThirdCategory.getId(), "INDOOR");
+        assertCategory(automatic.getId(), "OUTDOOR");
+        assertProductModified(manualApplied.getId(), sameCategoryModifiedAt, "human-same");
+        assertProductModified(manualThirdCategory.getId(), thirdCategoryModifiedAt, "human-third");
+        assertThat(auditRollbackAt(manualApplied.getId())).isNull();
+        assertThat(auditRollbackAt(manualThirdCategory.getId())).isNull();
+        assertThat(auditRollbackAt(automatic.getId())).isNull();
+    }
+
+    @Test
     void rollback은_V38_적용값을_사후_수정한_행을_보존한다() throws Exception {
         Category wall = categoryRepository.findByCode("INDOOR_WALL").orElseThrow();
         Category outdoor = categoryRepository.findByCode("OUTDOOR").orElseThrow();
@@ -122,6 +194,24 @@ class V38__ProductCategoryBackfillTest extends AbstractPostgresIT {
                  WHERE migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
                    AND product_id = ?
         """, java.sql.Timestamp.class, product.getId())).isNull();
+    }
+
+    @Test
+    void rollback_후_apply는_이미_rollback된_감사행을_다시_적용하지_않는다() throws Exception {
+        Category wall = categoryRepository.findByCode("INDOOR_WALL").orElseThrow();
+        Product product = saveProduct("실외기", "BACKFILL-ROLLBACK-APPLY", wall);
+        Connection connection = DataSourceUtils.getConnection(jdbcTemplate.getDataSource());
+
+        V38__ProductCategoryBackfill.apply(connection);
+        assertCategory(product.getId(), "OUTDOOR");
+        assertThat(V38__ProductCategoryBackfill.rollback(connection, "test-rollback-apply"))
+                .isGreaterThan(0);
+        assertCategory(product.getId(), "INDOOR_WALL");
+
+        V38__ProductCategoryBackfill.apply(connection);
+
+        assertCategory(product.getId(), "INDOOR_WALL");
+        assertThat(auditRollbackAt(product.getId())).isNotNull();
     }
 
     @Test
@@ -208,6 +298,16 @@ class V38__ProductCategoryBackfillTest extends AbstractPostgresIT {
                  WHERE p.id = ?
                 """, String.class, productId);
         assertThat(actual).isEqualTo(expectedCode);
+    }
+
+    private void assertProductModified(UUID productId, java.sql.Timestamp expectedModifiedAt,
+                                       String expectedModifiedBy) {
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT modified_at FROM products WHERE id = ?", java.sql.Timestamp.class, productId))
+                .isEqualTo(expectedModifiedAt);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT modified_by FROM products WHERE id = ?", String.class, productId))
+                .isEqualTo(expectedModifiedBy);
     }
 
     private java.sql.Timestamp auditRollbackAt(UUID productId) {

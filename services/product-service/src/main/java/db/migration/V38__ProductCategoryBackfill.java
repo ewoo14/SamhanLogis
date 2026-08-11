@@ -242,6 +242,7 @@ public class V38__ProductCategoryBackfill extends BaseJavaMigration {
                    AND a.rolled_back_at IS NULL
                    AND a.is_deleted = FALSE
                    AND p.is_deleted = FALSE
+                   AND p.classification_manual = FALSE
                    AND p.category_id IS DISTINCT FROM a.applied_category_id
                 """)) {
             statement.setString(1, ACTOR);
