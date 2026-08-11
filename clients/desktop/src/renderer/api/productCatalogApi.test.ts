@@ -3,6 +3,7 @@ import { apiClient } from './client'
 import {
   type PriceChangeScheduleCategory,
   getPriceChangeScheduleAdmin,
+  listProducts,
   updateClassificationFixedDiscount,
   updatePriceChangeSchedule,
   updateProductFixedDiscount,
@@ -43,6 +44,35 @@ describe('productCatalogApi fixed discount contract', () => {
       '/api/v1/products/AC%2F100/fixed-discount',
       { fixedDiscountRate: '12.50' },
     )
+  })
+})
+
+describe('productCatalogApi 물리 제품구분 필터 계약', () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset()
+  })
+
+  it('기존 category와 별도로 categoryId를 전송한다', async () => {
+    const page = { content: [], totalElements: 0 }
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: page })
+
+    await expect(listProducts({
+      q: '실외기',
+      category: 'COMMERCIAL_MULTI',
+      categoryId: 'category-physical-1',
+      page: 0,
+      size: 50,
+    })).resolves.toBe(page)
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/products', {
+      params: {
+        q: '실외기',
+        category: 'COMMERCIAL_MULTI',
+        categoryId: 'category-physical-1',
+        page: 0,
+        size: 50,
+      },
+    })
   })
 })
 

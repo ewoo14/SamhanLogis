@@ -26,7 +26,9 @@ import {
 } from '@samhan/design-system'
 import {
   listProducts,
+  listProductCategories,
   type ProductCatalogRow,
+  type ProductCategoryNode,
   type ProductCategory,
 } from '../api/productCatalogApi'
 import { usePageTitleStore } from '../stores/pageTitle'
@@ -58,6 +60,11 @@ const PRODUCT_CATEGORY_LABEL: Record<ProductCategory, string> = {
   COMMERCIAL_PART: '상업 구성품',
   OLD: '구형',
   MATERIAL: '자재',
+}
+
+/** 물리 제품구분 트리를 필터용 평면 목록으로 변환한다. */
+function flattenProductCategories(nodes: ProductCategoryNode[]): ProductCategoryNode[] {
+  return nodes.flatMap((node) => [node, ...flattenProductCategories(node.children ?? [])])
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +104,7 @@ export function ProductCatalogPage() {
 
   const [searchInput, setSearchInput] = useState('')
   const [committedSearch, setCommittedSearch] = useState('')
+  const [selectedPhysicalCategoryId, setSelectedPhysicalCategoryId] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
 
   useEffect(() => {
@@ -118,11 +126,18 @@ export function ProductCatalogPage() {
     return () => ctrl.abort()
   }, [queryClient])
 
+  const categoriesQuery = useQuery({
+    queryKey: ['product-categories-tree'],
+    queryFn: listProductCategories,
+    staleTime: 60_000,
+  })
+
   const listQuery = useQuery({
-    queryKey: ['product-catalog', committedSearch, currentPage],
+    queryKey: ['product-catalog', committedSearch, selectedPhysicalCategoryId, currentPage],
     queryFn: () =>
       listProducts({
         q: committedSearch || undefined,
+        categoryId: selectedPhysicalCategoryId || undefined,
         page: currentPage,
         size: PAGE_SIZE,
       }),
@@ -130,6 +145,10 @@ export function ProductCatalogPage() {
   })
 
   const rows = listQuery.data?.content ?? []
+  const categoryOptions = flattenProductCategories(categoriesQuery.data ?? [])
+  const selectedPhysicalCategory = categoryOptions.find(
+    (category) => category.id === selectedPhysicalCategoryId,
+  )
 
   const handleQuery = useCallback(() => {
     setCurrentPage(0)
@@ -165,6 +184,22 @@ export function ProductCatalogPage() {
       header: '품목명',
       width: '220px',
       mobilePriority: 'secondary',
+    },
+    {
+      key: 'physicalCategory',
+      header: '제품구분',
+      width: '140px',
+      mobilePriority: 'secondary',
+      render: (row) => row.physicalCategory ? (
+        <span
+          style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}
+          data-testid={`product-catalog-physical-category-${row.modelCode}`}
+        >
+          {row.physicalCategory.name}
+        </span>
+      ) : (
+        <span style={{ color: 'var(--color-neutral-400)' }}>—</span>
+      ),
     },
     {
       key: 'estimateCategory',
@@ -258,6 +293,30 @@ export function ProductCatalogPage() {
             style={{ minWidth: 220 }}
           />
         </div>
+        <div style={fieldStyle}>
+          <label htmlFor="product-catalog-physical-category" style={filterLabelStyle}>
+            제품구분
+          </label>
+          <select
+            id="product-catalog-physical-category"
+            aria-label="제품구분"
+            value={selectedPhysicalCategoryId}
+            onChange={(e) => {
+              setCurrentPage(0)
+              setSelectedPhysicalCategoryId(e.target.value)
+            }}
+            disabled={categoriesQuery.isLoading || listQuery.isFetching}
+            data-testid="product-catalog-physical-category-filter"
+            style={selectStyle}
+          >
+            <option value="">전체</option>
+            {categoryOptions.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name} ({category.code})
+              </option>
+            ))}
+          </select>
+        </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
           <Button
             variant="primary"
@@ -298,6 +357,14 @@ export function ProductCatalogPage() {
         <div style={summaryStyle} data-testid="product-catalog-summary">
           <span>
             총 <strong>{totalElements.toLocaleString('ko-KR')}</strong>건
+            {selectedPhysicalCategory ? (
+              <span
+                style={{ marginLeft: 10, color: 'var(--color-brand-700, #1D4ED8)' }}
+                data-testid="product-catalog-physical-category-count"
+              >
+                {selectedPhysicalCategory.name} {totalElements.toLocaleString('ko-KR')}건
+              </span>
+            ) : null}
             {listQuery.isFetching ? <span style={{ marginLeft: 6, color: 'var(--color-neutral-400)' }}>갱신 중…</span> : null}
           </span>
           {totalPages > 1 ? (
@@ -381,6 +448,23 @@ const fieldStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
+}
+
+const filterLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: 'var(--color-neutral-700, #363D49)',
+  fontWeight: 600,
+}
+
+const selectStyle: CSSProperties = {
+  minWidth: 190,
+  height: 32,
+  padding: '0 8px',
+  border: '1px solid var(--color-border, #E5E7EB)',
+  borderRadius: 4,
+  background: 'var(--color-bg, #FFFFFF)',
+  color: 'var(--color-neutral-700, #363D49)',
+  fontSize: 13,
 }
 
 const tableSectionStyle: CSSProperties = {

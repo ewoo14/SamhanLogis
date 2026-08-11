@@ -231,6 +231,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                      OR (CAST(:usageScope AS text) NOT IN ('ESTIMATE', 'PARTNER_ORDER')
                          AND p.usage_scope = CAST(:usageScope AS text))
                    )
+               AND (CAST(:physicalCategoryId AS text) IS NULL
+                    OR p.category_id = CAST(:physicalCategoryId AS uuid))
                AND (CAST(:estimateCategory AS text) IS NULL OR e.id IS NOT NULL)
                AND (CAST(:q AS text) IS NULL
                     OR LOWER(p.model_code) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\'
@@ -254,6 +256,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                      OR (CAST(:usageScope AS text) NOT IN ('ESTIMATE', 'PARTNER_ORDER')
                          AND p.usage_scope = CAST(:usageScope AS text))
                    )
+               AND (CAST(:physicalCategoryId AS text) IS NULL
+                    OR p.category_id = CAST(:physicalCategoryId AS uuid))
                AND (CAST(:estimateCategory AS text) IS NULL OR e.id IS NOT NULL)
                AND (CAST(:q AS text) IS NULL
                     OR LOWER(p.model_code) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\'
@@ -263,11 +267,18 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
            nativeQuery = true)
     Page<Product> searchByUsageScope(@Param("usageScope") String usageScope,
                                      @Param("estimateCategory") String estimateCategory,
+                                     @Param("physicalCategoryId") String physicalCategoryId,
                                      @Param("q") String q,
                                      Pageable pageable);
 
+    /** 기존 호출자 호환용 물리 제품구분 미선택 조회. */
+    default Page<Product> searchByUsageScope(String usageScope, String estimateCategory,
+                                             String q, Pageable pageable) {
+        return searchByUsageScope(usageScope, estimateCategory, null, q, pageable);
+    }
+
     /** 카탈로그 응답 변환용 catL/catM/catS 선로딩 — native Page 조회 후 순서 보존 재매핑에 사용. */
-    @EntityGraph(attributePaths = {"catL", "catM", "catS"})
+    @EntityGraph(attributePaths = {"category", "catL", "catM", "catS"})
     @Query("SELECT p FROM Product p WHERE p.id IN :ids")
     List<Product> findAllWithClassificationsByIdIn(@Param("ids") Collection<UUID> ids);
 

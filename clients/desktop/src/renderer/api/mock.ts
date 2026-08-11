@@ -1497,6 +1497,8 @@ const MOCK_BRANCH_PIPE_ROWS = [
 type MockProductCatalogRow = {
   modelCode: string
   name: string
+  categoryId?: string | null
+  physicalCategory?: { code: string; name: string } | null
   usageScope: string
   estimateCategories: Array<{ category: string; displayOrder: number | null }>
   estimateCategory: string | null
@@ -1628,6 +1630,8 @@ let MOCK_PRODUCT_CATALOG_ROWS: MockProductCatalogRow[] = [
       ...mockDefaultClassificationRefs(primaryCategory),
       modelCode: p.modelName,
       name: p.productName,
+      categoryId: 'cat-home',
+      physicalCategory: { code: 'HOME_MULTI', name: '홈멀티' },
       // BUNDLE(세트)은 판매 가능 품목 → 전표 라인 자동완성(usageScope=PARTNER_ORDER, BE IN-확장 {PARTNER_ORDER,BOTH})에
       // 노출되어야 하므로 항상 BOTH. (index-parity 로 ESTIMATE 가 되면 슬립 라인 검색에서 제외돼 bundle-set-options 회귀.)
       usageScope: isBundle || index % 2 === 0 ? 'BOTH' : 'ESTIMATE',
@@ -1724,6 +1728,8 @@ function ensureMockProductCatalogRowsSeeded() {
         ...deriveLegacyExposureFields({
         modelCode,
         name: String(row.name ?? modelCode),
+        categoryId: row.categoryId == null ? null : String(row.categoryId),
+        physicalCategory: row.physicalCategory ?? null,
         usageScope: String(row.usageScope ?? 'BOTH'),
         estimateCategories: normalizeMockExposures(row),
         estimateCategory: null,
@@ -3438,6 +3444,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ?? urlObj.searchParams.get('usageScope')
     const category = (config.params?.['category'] as string | undefined)
       ?? urlObj.searchParams.get('category')
+    const physicalCategoryId = (config.params?.['categoryId'] as string | undefined)
+      ?? urlObj.searchParams.get('categoryId')
     // usageScope IN-확장 시멘틱 (BE 계약 동형, PR-B 사이클1):
     //   PARTNER_ORDER → PARTNER_ORDER | BOTH
     //   ESTIMATE      → ESTIMATE | BOTH
@@ -3453,7 +3461,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const filtered = MOCK_PRODUCT_CATALOG_ROWS.filter((row) =>
       (!q || row.modelCode.toLowerCase().includes(q) || row.name.toLowerCase().includes(q))
       && (!usageScope || matchesUsageScope(row.usageScope, usageScope))
-      && (!category || exposureForCategory(row, category) != null),
+      && (!category || exposureForCategory(row, category) != null)
+      && (!physicalCategoryId || row.categoryId === physicalCategoryId),
     )
     // [#9] BE 정렬 동형 — displayOrder asc(null=맨뒤), 동률 시 modelCode 사전순.
     //   순서 저장(PUT /display-orders) 후 displayOrder 가 갱신되면 재조회 시 그 순서로 보여야

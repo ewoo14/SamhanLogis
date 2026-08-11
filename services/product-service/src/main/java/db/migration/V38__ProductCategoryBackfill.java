@@ -48,6 +48,53 @@ public class V38__ProductCategoryBackfill extends BaseJavaMigration {
         applyAuditedChanges(connection);
     }
 
+    /**
+     * V38 감사행의 조건부 rollback을 실행한다.
+     *
+     * <p>V38 적용값과 현재값이 다르면 사후 변경으로 간주한다. 수동분류 플래그가 켜진 행,
+     * soft-delete 행, 이미 rollback된 감사행도 대상에서 제외한다. 제품 갱신과 감사 완료 표시는
+     * 하나의 CTE 문장에서 {@code RETURNING} 결과로 연결해 실제 복원된 행만 완료 처리한다.
+     *
+     * @param connection rollback 대상 DB 연결
+     * @param actor       rollback 수행자 식별자
+     * @return 실제 복원·완료 처리된 감사행 수
+     */
+    static int rollback(Connection connection, String actor) throws SQLException {
+        if (actor == null || actor.isBlank()) {
+            throw new SQLException("V38 rollback 수행자 식별자가 비어 있습니다.");
+        }
+        try (PreparedStatement statement = connection.prepareStatement("""
+                WITH restored AS (
+                    UPDATE products p
+                       SET category_id = a.previous_category_id,
+                           modified_at = CURRENT_TIMESTAMP,
+                           modified_by = ?
+                      FROM product_category_backfill_audit a
+                     WHERE a.migration_key = ?
+                       AND a.product_id = p.id
+                       AND a.rolled_back_at IS NULL
+                       AND a.is_deleted = FALSE
+                       AND p.is_deleted = FALSE
+                       AND p.classification_manual = FALSE
+                       AND p.category_id = a.applied_category_id
+                     RETURNING a.id
+                )
+                UPDATE product_category_backfill_audit a
+                   SET rolled_back_at = CURRENT_TIMESTAMP,
+                       rolled_back_by = ?,
+                       modified_at = CURRENT_TIMESTAMP,
+                       modified_by = ?
+                  FROM restored r
+                 WHERE a.id = r.id
+                """)) {
+            statement.setString(1, actor);
+            statement.setString(2, MIGRATION_KEY);
+            statement.setString(3, actor);
+            statement.setString(4, actor);
+            return statement.executeUpdate();
+        }
+    }
+
     private static void createAuditTable(Connection connection) throws SQLException {
         execute(connection, """
                 CREATE TABLE IF NOT EXISTS product_category_backfill_audit (

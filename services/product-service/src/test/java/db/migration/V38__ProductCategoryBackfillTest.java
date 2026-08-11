@@ -97,6 +97,93 @@ class V38__ProductCategoryBackfillTest extends AbstractPostgresIT {
         assertCategory(classifiedOutdoor.getId(), "INDOOR_WALL");
     }
 
+    @Test
+    void rollback은_V38_적용값을_사후_수정한_행을_보존한다() throws Exception {
+        Category wall = categoryRepository.findByCode("INDOOR_WALL").orElseThrow();
+        Category outdoor = categoryRepository.findByCode("OUTDOOR").orElseThrow();
+        Product product = saveProduct("실외기", "ROLLBACK-MANUAL-EDIT", wall);
+
+        Connection connection = DataSourceUtils.getConnection(jdbcTemplate.getDataSource());
+        V38__ProductCategoryBackfill.apply(connection);
+        assertCategory(product.getId(), "OUTDOOR");
+
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET category_id = ?, classification_manual = TRUE, modified_by = 'human-after-v38'
+                 WHERE id = ?
+                """, outdoor.getId(), product.getId());
+
+        V38__ProductCategoryBackfill.rollback(connection, "test-rollback");
+
+        assertCategory(product.getId(), "OUTDOOR");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT rolled_back_at
+                  FROM product_category_backfill_audit
+                 WHERE migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
+                   AND product_id = ?
+        """, java.sql.Timestamp.class, product.getId())).isNull();
+    }
+
+    @Test
+    void rollback은_혼합_batch에서_실제로_복원한_행만_감사완료한다() throws Exception {
+        Category wall = categoryRepository.findByCode("INDOOR_WALL").orElseThrow();
+        Category outdoor = categoryRepository.findByCode("OUTDOOR").orElseThrow();
+        Product applied = saveProduct("실외기", "ROLLBACK-BATCH-APPLIED", wall);
+        Product manuallyChanged = saveProduct("실외기", "ROLLBACK-BATCH-MANUAL", wall);
+        Product softDeleted = saveProduct("실외기", "ROLLBACK-BATCH-DELETED", wall);
+        Product alreadyRolledBack = saveProduct("실외기", "ROLLBACK-BATCH-DONE", wall);
+        Product auditDeleted = saveProduct("실외기", "ROLLBACK-BATCH-AUDIT-DELETED", wall);
+
+        Connection connection = DataSourceUtils.getConnection(jdbcTemplate.getDataSource());
+        V38__ProductCategoryBackfill.apply(connection);
+
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET category_id = ?, classification_manual = TRUE, modified_by = 'human-after-v38'
+                 WHERE id = ?
+                """, outdoor.getId(), manuallyChanged.getId());
+        jdbcTemplate.update("""
+                UPDATE products
+                   SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP, deleted_by = 'test'
+                 WHERE id = ?
+                """, softDeleted.getId());
+        jdbcTemplate.update("""
+                UPDATE products p
+                   SET category_id = a.previous_category_id, modified_by = 'prior-rollback'
+                  FROM product_category_backfill_audit a
+                 WHERE a.migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
+                   AND a.product_id = p.id
+                   AND p.id = ?
+                """, alreadyRolledBack.getId());
+        jdbcTemplate.update("""
+                UPDATE product_category_backfill_audit
+                   SET rolled_back_at = CURRENT_TIMESTAMP, rolled_back_by = 'prior-rollback'
+                 WHERE migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
+                   AND product_id = ?
+                """, alreadyRolledBack.getId());
+        jdbcTemplate.update("""
+                UPDATE product_category_backfill_audit
+                   SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP, deleted_by = 'test'
+                 WHERE migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
+                   AND product_id = ?
+                """, auditDeleted.getId());
+
+        int expectedRollbackCount = rollbackCandidateCount();
+        assertThat(expectedRollbackCount).isGreaterThan(0);
+        assertThat(V38__ProductCategoryBackfill.rollback(connection, "batch-rollback"))
+                .isEqualTo(expectedRollbackCount);
+        assertCategory(applied.getId(), "INDOOR_WALL");
+        assertCategory(manuallyChanged.getId(), "OUTDOOR");
+        assertCategoryIncludingDeleted(softDeleted.getId(), "OUTDOOR");
+        assertCategory(alreadyRolledBack.getId(), "INDOOR_WALL");
+        assertCategory(auditDeleted.getId(), "OUTDOOR");
+        assertThat(auditRollbackAt(applied.getId())).isNotNull();
+        assertThat(auditRollbackAt(manuallyChanged.getId())).isNull();
+        assertThat(auditRollbackAt(softDeleted.getId())).isNull();
+        assertThat(auditRollbackAt(alreadyRolledBack.getId())).isNotNull();
+        assertThat(auditRollbackAt(auditDeleted.getId())).isNull();
+    }
+
     private Product saveProduct(String name, String modelCode, Category category) {
         return productRepository.saveAndFlush(Product.seedFromSheet(
                 name, modelCode, category, BigDecimal.TEN, BigDecimal.TEN,
@@ -111,6 +198,39 @@ class V38__ProductCategoryBackfillTest extends AbstractPostgresIT {
                  WHERE p.id = ?
                 """, String.class, productId);
         assertThat(actual).isEqualTo(expectedCode);
+    }
+
+    private void assertCategoryIncludingDeleted(UUID productId, String expectedCode) {
+        String actual = jdbcTemplate.queryForObject("""
+                SELECT c.code
+                  FROM products p
+                  JOIN categories c ON c.id = p.category_id
+                 WHERE p.id = ?
+                """, String.class, productId);
+        assertThat(actual).isEqualTo(expectedCode);
+    }
+
+    private java.sql.Timestamp auditRollbackAt(UUID productId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT rolled_back_at
+                  FROM product_category_backfill_audit
+                 WHERE migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
+                   AND product_id = ?
+                """, java.sql.Timestamp.class, productId);
+    }
+
+    private int rollbackCandidateCount() {
+        return jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                  FROM products p
+                  JOIN product_category_backfill_audit a ON a.product_id = p.id
+                 WHERE a.migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
+                   AND a.rolled_back_at IS NULL
+                   AND a.is_deleted = FALSE
+                   AND p.is_deleted = FALSE
+                   AND p.classification_manual = FALSE
+                   AND p.category_id = a.applied_category_id
+                """, Integer.class);
     }
 
     private int auditCount(UUID productId) {

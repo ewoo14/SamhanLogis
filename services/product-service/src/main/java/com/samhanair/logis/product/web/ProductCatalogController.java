@@ -74,7 +74,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>endpoint:
  * <ul>
- *     <li>GET /api/v1/products?usageScope&amp;category — products.list VIEW</li>
+ *     <li>GET /api/v1/products?usageScope&amp;category&amp;categoryId — products.list VIEW</li>
  *     <li>PATCH /api/v1/products/{code}/usage — products.admin UPDATE</li>
  *     <li>DELETE /api/v1/products/{code}/usage — products.admin UPDATE</li>
  *     <li>PATCH /api/v1/products/{code}/variable-discount — products.admin UPDATE</li>
@@ -138,7 +138,9 @@ public class ProductCatalogController {
     /**
      * 카탈로그 목록 조회 — productType/componentCount 포함 (§1b 2026-06-11).
      *
-     * <p>GET /api/v1/products?usageScope=BOTH&amp;category=HOME_MULTI&amp;q=AJ040&amp;page=0&amp;size=20
+     * <p>GET /api/v1/products?usageScope=BOTH&amp;category=HOME_MULTI&amp;categoryId=&lt;physical-category-uuid&gt;&amp;q=AJ040&amp;page=0&amp;size=20
+     * <p>{@code category} is the estimate/quote classification axis. {@code categoryId} is the
+     * physical product-category filter and is independent of the existing quote axis.
      *
      * <p><b>usageScope IN 확장 시멘틱 (PR-B 2026-06-11, 지적 [10][3])</b>:
      * ESTIMATE → IN (ESTIMATE, BOTH), PARTNER_ORDER → IN (PARTNER_ORDER, BOTH),
@@ -157,20 +159,24 @@ public class ProductCatalogController {
     public Page<ProductCatalogResponse> listProducts(
             @RequestParam(required = false) UsageScope usageScope,
             @RequestParam(required = false, name = "category") EstimateCategory estimateCategory,
+            @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         Pageable pageable = PageRequest.of(page, size);
         String usageScopeName = usageScope == null ? null : usageScope.name();
         String estimateCategoryName = estimateCategory == null ? null : estimateCategory.name();
+        String physicalCategoryId = categoryId == null ? null : categoryId.toString();
         // LIKE 와일드카드(\, %, _) 이스케이프 후 바인딩 (사이클2 지적 P3-4, 2026-06-11)
         String qNormalized = (q == null || q.isBlank()) ? null : escapeLikeWildcards(q.trim());
 
         // P2-2 N+1 방지: searchByUsageScope 가 반환한 Page<Product> 의 id 순서를 유지한다.
         // 기존 코드는 page.getContent() 의 각 BUNDLE 행마다 findByCatalogExposedModelCodeAndIsDeletedFalse 를
         // 2회 호출하여 N+1 을 유발했다. 여기서는 id 집합 기준 catL/M/S 선로딩 + 구성품 count 벌크로 대체한다.
-        Page<Product> productPage = productRepository
-                .searchByUsageScope(usageScopeName, estimateCategoryName, qNormalized, pageable);
+        Page<Product> productPage = categoryId == null
+                ? productRepository.searchByUsageScope(usageScopeName, estimateCategoryName, qNormalized, pageable)
+                : productRepository.searchByUsageScope(
+                        usageScopeName, estimateCategoryName, physicalCategoryId, qNormalized, pageable);
         List<Product> products = loadProductsWithClassifications(productPage.getContent());
 
         // BUNDLE UUID 집합 → 벌크 count 1쿼리 (재조회 없음)
@@ -206,6 +212,12 @@ public class ProductCatalogController {
 
         return new org.springframework.data.domain.PageImpl<>(enriched,
                 productPage.getPageable(), productPage.getTotalElements());
+    }
+
+    /** 기존 Java 호출자 호환용 — 물리 제품구분 미선택 조회. */
+    public Page<ProductCatalogResponse> listProducts(
+            UsageScope usageScope, EstimateCategory estimateCategory, String q, int page, int size) {
+        return listProducts(usageScope, estimateCategory, null, q, page, size);
     }
 
     private List<Product> loadProductsWithClassifications(List<Product> products) {

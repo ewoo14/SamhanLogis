@@ -70,10 +70,15 @@ async function installApiFixture(page: Page): Promise<void> {
       return
     }
     if (url.pathname === '/api/v1/products') {
+      const categoryId = url.searchParams.get('categoryId')
+      const isUnregistered = categoryId === '00000000-0000-0000-0000-000000001100'
       await fulfillJson(route, {
         content: [{
-          modelCode: 'AM180AXVUHH1',
-          name: 'DVM S2 프레스티지 18HP',
+          modelCode: isUnregistered ? 'UNREGISTERED-001' : 'AM180AXVUHH1',
+          name: isUnregistered ? '미등록 품목' : 'DVM S2 프레스티지 18HP',
+          physicalCategory: isUnregistered
+            ? { code: 'UNREGISTERED', name: '미등록' }
+            : { code: 'COMMERCIAL_MULTI', name: '상업 멀티' },
           usageScope: 'BOTH',
           estimateCategories: [{ category: 'COMMERCIAL_MULTI', displayOrder: 1 }],
           productCategory: 'COMMERCIAL_MULTI',
@@ -86,8 +91,8 @@ async function installApiFixture(page: Page): Promise<void> {
           productType: 'SINGLE',
           componentCount: 0,
         }],
-        totalElements: 3_084,
-        totalPages: 62,
+        totalElements: isUnregistered ? 2_126 : 3_084,
+        totalPages: isUnregistered ? 43 : 62,
         number: 0,
         size: 50,
         first: true,
@@ -134,16 +139,18 @@ test('기초품목 화면에서 미등록 필터와 2,126건 카운트를 제공
   await dismissUnrelatedUpdateBanner(page)
   await expect(page.getByTestId('product-catalog-table')).toBeVisible()
   await expect(page.getByTestId('product-catalog-summary')).toContainText('총 3,084건')
-  await page.screenshot({ path: path.join(SHOTS, '02-catalog-missing-category-filter.png'), fullPage: true })
-  await page.getByTestId('product-catalog-summary').scrollIntoViewIfNeeded()
-  await page.screenshot({ path: path.join(SHOTS, '03-catalog-total-only.png'), fullPage: false })
+  await page.screenshot({ path: path.join(SHOTS, '02-catalog-before-category-filter.png'), fullPage: true })
 
-  await expect.soft(
-    page.getByRole('combobox', { name: /카테고리|제품구분/ }),
-    '기초품목 화면에 제품구분 필터가 없습니다.',
-  ).toBeVisible()
-  await expect.soft(
-    page.getByText(/미등록\s*2,126건/),
-    '기초품목 화면에 미등록 카운트가 없습니다.',
-  ).toBeVisible()
+  const categoryFilter = page.getByRole('combobox', { name: '제품구분' })
+  await expect(categoryFilter, '기초품목 화면에 제품구분 필터가 없습니다.').toBeVisible()
+  await categoryFilter.selectOption('00000000-0000-0000-0000-000000001100')
+  await expect(page.getByTestId('product-catalog-summary')).toContainText('총 2,126건')
+  await expect(page.getByText(/미등록\s*2,126건/)).toBeVisible()
+  await expect(page.getByTestId('product-catalog-physical-category-UNREGISTERED-001'))
+    .toContainText('미등록')
+  await page.screenshot({ path: path.join(SHOTS, '03-catalog-unregistered-filtered.png'), fullPage: true })
+
+  await categoryFilter.selectOption('')
+  await expect(page.getByTestId('product-catalog-summary')).toContainText('총 3,084건')
+  await page.screenshot({ path: path.join(SHOTS, '04-catalog-filter-cleared.png'), fullPage: true })
 })

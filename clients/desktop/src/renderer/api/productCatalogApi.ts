@@ -87,6 +87,8 @@ export interface ProductCatalogRow {
   /** @deprecated BE 하위호환 파생값. 신규 코드는 estimateCategories 를 사용한다. */
   estimateCategory?: EstimateCategory | null
   productCategory: ProductCategory | null
+  /** 물리 제품구분 — 견적 productCategory 축과 별도. */
+  physicalCategory?: PhysicalCategoryRef | null
   /** F1-a 품목별 대분류 */
   catL?: ClassificationRef | null
   /** F1-a 품목별 중분류 */
@@ -120,6 +122,12 @@ export interface ProductCatalogRow {
   componentCount?: number
   /** 서버가 계산한 활성 구성품 집합 결박 토큰(구성품 UUID 자체는 노출하지 않음). */
   componentSetToken?: string
+}
+
+/** 물리 제품구분 표시 정보 — UUID는 화면에 노출하지 않는다. */
+export interface PhysicalCategoryRef {
+  code: string
+  name: string
 }
 
 /** Classification 단계 — BE Classification.CatLevel enum 과 동일 */
@@ -392,6 +400,8 @@ export interface ListProductsParams {
   q?: string
   usageScope?: UsageScope | ''
   category?: EstimateCategory | ''
+  /** 물리 products.category_id 필터. 기존 category(견적 축)와 별도. */
+  categoryId?: string
   page?: number
   size?: number
 }
@@ -416,6 +426,7 @@ export async function listProducts(
         ...(params.q ? { q: params.q } : {}),
         ...(params.usageScope ? { usageScope: params.usageScope } : {}),
         ...(params.category ? { category: params.category } : {}),
+        ...(params.categoryId ? { categoryId: params.categoryId } : {}),
         page: params.page ?? 0,
         size: params.size ?? 50,
       },

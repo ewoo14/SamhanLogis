@@ -95,6 +95,7 @@ V38은 루트 `UNREGISTERED`를 기존 활성 루트의 `MAX(display_order)+1`�
 rollback은 다음 순서로 운영자가 명시 실행할 수 있다.
 
 ```sql
+/* 역사적으로 조건부 검증 없이 제품만 갱신한 SQL — 사용하지 않는다.
 UPDATE products p
    SET category_id = a.previous_category_id,
        modified_at = CURRENT_TIMESTAMP,
@@ -104,8 +105,12 @@ UPDATE products p
    AND a.product_id = p.id
    AND a.rolled_back_at IS NULL
    AND a.is_deleted = FALSE
-   AND p.is_deleted = FALSE;
+   AND p.is_deleted = FALSE
+   AND p.classification_manual = FALSE
+   AND p.category_id = a.applied_category_id;
+*/
 
+/* 역사적으로 잘못된 전건 완료 처리 SQL — 사용하지 않는다.
 UPDATE product_category_backfill_audit
    SET rolled_back_at = CURRENT_TIMESTAMP,
        rolled_back_by = '운영자식별자',
@@ -113,7 +118,39 @@ UPDATE product_category_backfill_audit
  WHERE migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
    AND rolled_back_at IS NULL
    AND is_deleted = FALSE;
+*/
 ```
+
+현재 rollback은 다음 CTE SQL을 사용한다. `:actor`는 공백이 아닌 수행자 식별자로 바인딩한다.
+제품 갱신과 감사 완료 표시는 `RETURNING` 결과로 연결되어 실제 복원된 행만 완료 처리한다.
+
+```sql
+WITH restored AS (
+    UPDATE products p
+       SET category_id = a.previous_category_id,
+           modified_at = CURRENT_TIMESTAMP,
+           modified_by = :actor
+      FROM product_category_backfill_audit a
+     WHERE a.migration_key = 'V38-PRODUCT-CATEGORY-BACKFILL'
+       AND a.product_id = p.id
+       AND a.rolled_back_at IS NULL
+       AND a.is_deleted = FALSE
+       AND p.is_deleted = FALSE
+       AND p.classification_manual = FALSE
+       AND p.category_id = a.applied_category_id
+     RETURNING a.id
+)
+UPDATE product_category_backfill_audit a
+   SET rolled_back_at = CURRENT_TIMESTAMP,
+       rolled_back_by = :actor,
+       modified_at = CURRENT_TIMESTAMP,
+       modified_by = :actor
+  FROM restored r
+ WHERE a.id = r.id;
+```
+
+구현 클래스의 `V38__ProductCategoryBackfill.rollback(connection, actor)`도 동일한
+조건·원자성·`RETURNING` 연결을 사용한다.
 
 ## 6. RED와 조합 검증
 

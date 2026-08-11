@@ -113,6 +113,33 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GET_products_physicalCategoryId와_검색어를_AND로_필터하고_물리제품구분을_반환한다() throws Exception {
+        Category targetCategory = categoryRepository.save(
+                Category.create("CAT-PHYSICAL-TARGET", "물리 대상", null, 90));
+        Category otherCategory = categoryRepository.save(
+                Category.create("CAT-PHYSICAL-OTHER", "물리 다른 대상", null, 91));
+        productRepository.save(Product.seedFromSheet(
+                "물리 필터 대상", "PHYSICAL_FILTER_TARGET", targetCategory,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, null));
+        productRepository.save(Product.seedFromSheet(
+                "물리 필터 다른 대상", "PHYSICAL_FILTER_OTHER", otherCategory,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, null));
+        productRepository.flush();
+
+        mvc.perform(get("/api/v1/products")
+                        .param("categoryId", targetCategory.getId().toString())
+                        .param("q", "PHYSICAL_FILTER")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].modelCode").value("PHYSICAL_FILTER_TARGET"))
+                .andExpect(jsonPath("$.content[0].physicalCategory.code").value("CAT-PHYSICAL-TARGET"))
+                .andExpect(jsonPath("$.content[0].physicalCategory.name").value("물리 대상"));
+    }
+
+    @Test
     void POST_products_단종된_이름은_재사용할_수_있다() throws Exception {
         Category cat = categoryRepository.save(Category.create("CAT-DISCONTINUED-NAME", "단종 이름 재사용", null, 2));
         String userId = UUID.randomUUID().toString();

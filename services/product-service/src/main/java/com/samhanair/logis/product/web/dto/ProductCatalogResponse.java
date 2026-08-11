@@ -47,6 +47,7 @@ public record ProductCatalogResponse(
         UsageScope usageScope,
         EstimateCategory estimateCategory,
         ProductCategory productCategory,
+        PhysicalCategoryView physicalCategory,
         ClassificationView catL,
         ClassificationView catM,
         ClassificationView catS,
@@ -101,6 +102,7 @@ public record ProductCatalogResponse(
                 p.getUsageScope(),
                 firstCategory,
                 p.getProductCategory(),
+                PhysicalCategoryView.from(p.getCategory()),
                 ClassificationView.from(p.getCatL()),
                 ClassificationView.from(p.getCatM()),
                 ClassificationView.from(p.getCatS()),
@@ -138,7 +140,7 @@ public record ProductCatalogResponse(
     public ProductCatalogResponse withComponentCount(int count, String token) {
         return new ProductCatalogResponse(
                 modelCode, name, usageScope, estimateCategory,
-                productCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
+                productCategory, physicalCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
                 releasePrice, deliveryPrice, goodsType, quantitySyncTargetEligible, fixedDiscountRate,
                 hasVariableDiscount, variableDiscountManual, legacyDiscountFlag, status, discountFlags,
                 productType, count, token, fixedDiscountSource
@@ -169,6 +171,16 @@ public record ProductCatalogResponse(
                 return null;
             }
             return new ClassificationView(classification.getId().toString(), classification.getName());
+        }
+    }
+
+    /** 물리 제품구분 표시 정보 — 견적 {@link ProductCategory} 축과 분리한다. */
+    public record PhysicalCategoryView(String code, String name) {
+        public static PhysicalCategoryView from(com.samhanair.logis.product.domain.Category category) {
+            if (category == null) {
+                return null;
+            }
+            return new PhysicalCategoryView(category.getCode(), category.getName());
         }
     }
 }
