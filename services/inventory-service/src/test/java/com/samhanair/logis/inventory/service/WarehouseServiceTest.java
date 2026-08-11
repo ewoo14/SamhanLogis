@@ -270,7 +270,7 @@ class WarehouseServiceTest {
                 null, "김감사");
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(new UUID(0L, 0L)), eq("system"), isNull(), anyList());
+                eq(mainId), eq(new UUID(0L, 0L)), eq("시스템"), isNull(), anyList());
     }
 
     @Test
