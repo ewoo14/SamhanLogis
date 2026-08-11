@@ -315,10 +315,11 @@ export async function getSalesSlipLedgerData(
   partnerCode: string,
   from: string,
   to: string,
+  slipNo?: string,
 ): Promise<LedgerData> {
   const res = await apiClient.get<ApiEnvelope<PartnerLedgerResponse>>(
     '/accounting/journals/sales-slip-ledger',
-    { params: { partnerCode, from, to } },
+    { params: { partnerCode, from, to, ...(slipNo ? { slipNo } : {}) } },
   )
   return mapPartnerLedgerResponse(res.data.data, partnerCode)
 }
@@ -349,11 +350,11 @@ export function mapPartnerLedgerResponse(
     chatRoomNames: [],
     periodFrom: source.periodFrom,
     periodTo: source.periodTo,
-    openingBalance: source.openingBalance ?? '0',
+    openingBalance: source.openingBalance,
     salesTotal: source.salesTotal ?? '0',
     paymentTotal: source.paymentTotal ?? '0',
     adjustmentTotal: source.adjustmentTotal ?? '0',
-    closingBalance: source.closingBalance ?? source.openingBalance ?? '0',
+    closingBalance: source.closingBalance,
     lines: buildPartnerLedgerLines(source.documents ?? [], source.openingBalance ?? '0'),
   }
 }

@@ -33,6 +33,18 @@ describe('PR #1131 S1 판매전표 헤더·전잔·후잔', () => {
     })).toEqual({ status: 'success', openingBalance: '120000', closingBalance: '175000' })
   })
 
+  it('저장 후 상세 원장 조회에는 대상 slipNo가 포함된다', () => {
+    expect(buildSalesSlipLedgerRequest({ ...salesSlip, slipNo: '2026/08/10-7' })).toEqual({
+      partnerCode: 'P-001', from: '2026-08-10', to: '2026-08-10', slipNo: '2026/08/10-7',
+    })
+  })
+
+  it('성공 응답이어도 잔액 필드가 없으면 조회 실패로 표시한다', () => {
+    expect(toSalesSlipLedgerDisplay({ status: 'success' })).toEqual({
+      status: 'error', message: '전잔·후잔 잔액 정보가 없습니다.',
+    })
+  })
+
   it('RED-B B-1 거래처가 비어 있는 기존 전표도 원장 조회 없이 안전하게 표시한다', () => {
     expect(buildSalesSlipLedgerRequest({ ...salesSlip, partnerCode: null })).toBeNull()
     expect(resolveSalesSlipPartnerHeader({

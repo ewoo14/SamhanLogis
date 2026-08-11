@@ -3,7 +3,7 @@ import type { SlipDetail } from '../api/slip'
 export type SalesSlipLedgerSource = Pick<
   SlipDetail,
   'partnerName' | 'partnerCode' | 'businessNumber' | 'slipDate'
->
+> & { slipNo?: string | null }
 
 export interface SalesSlipPartnerHeader {
   name: string
@@ -15,6 +15,7 @@ export interface SalesSlipLedgerRequest {
   partnerCode: string
   from: string
   to: string
+  slipNo?: string
 }
 
 export type SalesSlipLedgerDisplay =
@@ -41,7 +42,10 @@ export function buildSalesSlipLedgerRequest(
   const partnerCode = source.partnerCode?.trim() ?? ''
   const slipDate = source.slipDate?.trim() ?? ''
   if (!partnerCode || !slipDate) return null
-  return { partnerCode, from: slipDate, to: slipDate }
+  const slipNo = source.slipNo?.trim() ?? ''
+  return slipNo
+    ? { partnerCode, from: slipDate, to: slipDate, slipNo }
+    : { partnerCode, from: slipDate, to: slipDate }
 }
 
 /** 조회 상태를 화면 표시 계약으로 변환한다. 실패 상태에는 금액을 넣지 않는다. */
@@ -56,10 +60,13 @@ export function toSalesSlipLedgerDisplay(input: {
   if (input.status === 'error') {
     return { status: 'error', message: '전잔·후잔을 불러오지 못했습니다.' }
   }
+  if (input.openingBalance == null || input.closingBalance == null) {
+    return { status: 'error', message: '전잔·후잔 잔액 정보가 없습니다.' }
+  }
   return {
     status: 'success',
-    openingBalance: input.openingBalance ?? '0',
-    closingBalance: input.closingBalance ?? '0',
+    openingBalance: input.openingBalance,
+    closingBalance: input.closingBalance,
   }
 }
 

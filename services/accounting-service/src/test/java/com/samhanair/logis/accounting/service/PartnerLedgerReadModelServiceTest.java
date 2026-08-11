@@ -66,6 +66,32 @@ class PartnerLedgerReadModelServiceTest {
     }
 
     @Test
+    void targetDraftSaleIsIncludedExactlyOnceInSalesSlipClosingBalance() {
+        UUID partnerId = UUID.randomUUID();
+        String partnerCode = "P-TARGET-001";
+        String slipNo = "2026/01/01-99";
+        PartnerSummary partner = new PartnerSummary(partnerId, partnerCode, "저장 대상", "", "");
+        PartnerLedgerSalesClient.Sale target = new PartnerLedgerSalesClient.Sale(
+                slipNo, FROM, "DRAFT", partnerCode, partnerId, "저장 대상", "", "",
+                List.of(new PartnerLedgerSalesClient.Line(
+                        "저장 품목", null, 1, new BigDecimal("1100"), new BigDecimal("1100"))));
+        when(partnerLookupClient.findByPartnerCodeResult(partnerCode))
+                .thenReturn(PartnerLookupClient.LookupResult.found(partner));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of());
+        lenient().when(salesClient.find(FROM, TO, partnerCode, partnerId)).thenReturn(List.of());
+        when(salesClient.findBySlipNo(slipNo)).thenReturn(target);
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read(partnerCode, FROM, TO, slipNo);
+
+        assertThat(result.selected().salesTotal()).isEqualByComparingTo("1100");
+        assertThat(result.selected().receivableBalance()).isEqualByComparingTo("1100");
+        assertThat(result.selected().documents()).extracting(PartnerLedgerReadModel.Document::documentNo)
+                .containsExactly(slipNo);
+    }
+
+    @Test
     void vatIncludedDocumentAmountWinsWhenLegacyRevenueJournalUsesNetAmount() {
         UUID partnerId = UUID.randomUUID();
         PartnerSummary partner = new PartnerSummary(partnerId, "P-VAT-001", "VAT 교차 거래처", "1234567890", "");

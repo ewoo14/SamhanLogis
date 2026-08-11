@@ -5919,6 +5919,35 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(filtered.slice(0, Number(config.params?.['limit'] ?? 20)))
   }
 
+  // GET /accounting/journals/sales-slip-ledger — SlipFormPage 전잔/후잔 표시 계약.
+  // 일반 /accounting/journals 페이지 핸들러보다 먼저 처리해야 한다.
+  if (method === 'GET' && url.includes('/accounting/journals/sales-slip-ledger')) {
+    if (typeof window !== 'undefined' && window.location.hash.includes('mockAccountingFailure=1')) {
+      return mockError(503, 'ACCOUNTING_UNAVAILABLE', '회계 원장 조회에 실패했습니다')
+    }
+    return envelope({
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      partnerBusinessNo: '123-45-67890',
+      periodFrom: '2026-05-04',
+      periodTo: '2026-05-04',
+      openingBalance: '4250000',
+      salesTotal: '3700000',
+      paymentTotal: '0',
+      closingBalance: '7950000',
+      documents: [{
+        type: 'SALE',
+        documentNo: '2026/05/04-99',
+        date: '2026-05-04',
+        partnerCode: '1234567890',
+        partnerName: '엘에이시스템에어',
+        amount: '3700000',
+        lines: [],
+      }],
+      adjustmentTotal: '0',
+    })
+  }
+
   // GET /accounting/journals/partner-ledger — PartnerLedgerResponse VIEW read model.
   // Must precede the generic /accounting/journals/{id} and page handlers below.
   if (method === 'GET' && url.includes('/accounting/journals/partner-ledger')) {
@@ -8893,7 +8922,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       name: String(row['partnerName'] ?? row['name'] ?? ''),
       phone: (row['phone'] as string | null | undefined) ?? null,
       address: (row['address'] as string | null | undefined) ?? null,
+      address1: (row['address1'] as string | null | undefined) ?? null,
+      address2: (row['address2'] as string | null | undefined) ?? null,
       representative: (row['representative'] as string | null | undefined) ?? null,
+      note: (row['note'] as string | null | undefined) ?? null,
+      managerName: (row['managerName'] as string | null | undefined) ?? null,
       bizNo: String(row['businessNumber'] ?? row['bizNo'] ?? ''),
       status: row['status'] ?? 'ACTIVE',
     })
@@ -9901,6 +9934,38 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         { date: '2026-04-19', journalNo: '2026/04/19-1', accountCode: '110', description: '4월 3주 출고', debit: '4750000', credit: '0', balance: '6450000' },
         { date: '2026-04-26', journalNo: '2026/04/26-1', accountCode: '110', description: '계좌이체 입금', debit: '0', credit: '2200000', balance: '4250000' },
       ],
+    })
+  }
+
+  // GET /accounting/journals/sales-slip-ledger — SlipFormPage 전잔/후잔 표시 계약.
+  // 실 원장 왕복은 격리 서비스 QA에서 검증하고, 이 mock은 화면의 성공/실패 상태를
+  // headless renderer에서도 재현하기 위한 고정 응답이다.
+  if (method === 'GET' && url.includes('/accounting/journals/sales-slip-ledger')) {
+    if (typeof window !== 'undefined' && window.location.hash.includes('mockAccountingFailure=1')) {
+      return mockError(503, 'ACCOUNTING_UNAVAILABLE', '회계 원장 조회에 실패했습니다')
+    }
+    return envelope({
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      partnerBusinessNo: '123-45-67890',
+      periodFrom: '2026-05-04',
+      periodTo: '2026-05-04',
+      openingBalance: '4250000',
+      salesTotal: '3700000',
+      paymentTotal: '0',
+      closingBalance: '7950000',
+      documents: [
+        {
+          type: 'SALE',
+          documentNo: '2026/05/04-99',
+          date: '2026-05-04',
+          partnerCode: '1234567890',
+          partnerName: '엘에이시스템에어',
+          amount: '3700000',
+          lines: [],
+        },
+      ],
+      adjustmentTotal: '0',
     })
   }
 
@@ -15024,7 +15089,11 @@ const MOCK_ADMIN_PARTNERS: Array<Record<string, unknown>> = [
     representative: '이엘에이',
     businessNumber: '123-45-67890',
     address: '서울특별시 강남구 테헤란로 152',
+    address1: '서울특별시 강남구 테헤란로 152',
+    address2: '삼성빌딩 8층',
     phone: '02-1234-5678',
+    note: '납품 전 담당자 확인',
+    managerName: '박담당',
     status: 'ACTIVE' as const,
     creditLimit: '50000000',
     currentBalance: '4250000',

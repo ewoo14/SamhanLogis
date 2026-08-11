@@ -1,0 +1,57 @@
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-08-11T23:49:31.765+09:00  INFO 89336 --- [product-service] [           main] c.s.l.product.ProductServiceApplication  : Starting ProductServiceApplication v0.1.0-SNAPSHOT using Java 17.0.18 with PID 89336 (C:\dev\Samhan-Public\.claude\worktrees\w1068\services\product-service\build\libs\product-service.jar started by user in C:\dev\Samhan-Public\.claude\worktrees\w1068\services\product-service)
+2026-08-11T23:49:31.770+09:00  INFO 89336 --- [product-service] [           main] c.s.l.product.ProductServiceApplication  : The following 1 profile is active: "dev"
+2026-08-11T23:49:33.949+09:00  INFO 89336 --- [product-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-08-11T23:49:34.155+09:00  INFO 89336 --- [product-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 189 ms. Found 18 JPA repository interfaces.
+2026-08-11T23:49:34.540+09:00  INFO 89336 --- [product-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=10520cfc-e0b2-3b12-8f30-af98da53c70f
+2026-08-11T23:49:35.360+09:00  WARN 89336 --- [product-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig' of type [org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [lbRestClientPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-11T23:49:35.366+09:00  WARN 89336 --- [product-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'deferringLoadBalancerInterceptor' of type [org.springframework.cloud.client.loadbalancer.DeferringLoadBalancerInterceptor] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [lbRestClientPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-11T23:49:36.543+09:00  INFO 89336 --- [product-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8284 (http)
+2026-08-11T23:49:36.614+09:00  INFO 89336 --- [product-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-11T23:49:36.616+09:00  INFO 89336 --- [product-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.31]
+2026-08-11T23:49:36.800+09:00  INFO 89336 --- [product-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-08-11T23:49:36.803+09:00  INFO 89336 --- [product-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 4970 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2026-08-11T23:49:38.438+09:00  INFO 89336 --- [product-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-08-11T23:49:39.078+09:00  INFO 89336 --- [product-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@50013a15
+2026-08-11T23:49:39.086+09:00  INFO 89336 --- [product-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-08-11T23:49:39.208+09:00  INFO 89336 --- [product-service] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:5432/product_db (PostgreSQL 16.14)
+2026-08-11T23:49:39.522+09:00  INFO 89336 --- [product-service] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 37 migrations (execution time 00:00.205s)
+2026-08-11T23:49:39.589+09:00  INFO 89336 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 37
+2026-08-11T23:49:39.594+09:00  INFO 89336 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+2026-08-11T23:49:39.728+09:00  INFO 89336 --- [product-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-08-11T23:49:39.780+09:00  INFO 89336 --- [product-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-08-11T23:49:39.814+09:00  INFO 89336 --- [product-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-08-11T23:49:40.088+09:00  INFO 89336 --- [product-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-08-11T23:49:40.133+09:00  WARN 89336 --- [product-service] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-08-11T23:49:41.648+09:00  INFO 89336 --- [product-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-08-11T23:49:41.713+09:00  INFO 89336 --- [product-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-08-11T23:49:42.350+09:00  INFO 89336 --- [product-service] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-08-11T23:49:45.577+09:00  WARN 89336 --- [product-service] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 7d15499e-31b6-4c75-a431-ac64a46545e6
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-08-11T23:49:45.607+09:00  INFO 89336 --- [product-service] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-08-11T23:49:46.805+09:00  INFO 89336 --- [product-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 3 endpoints beneath base path '/actuator'
+2026-08-11T23:49:47.186+09:00  WARN 89336 --- [product-service] [           main] c.s.logis.security.InternalTokenGuard    : [보안] app.security.internal.token 가 dev 기본값입니다. 비프로덕션이면 무시. 배포 전 INTERNAL_AUTH_TOKEN 환경변수로 교체 필요.
+2026-08-11T23:49:49.390+09:00  INFO 89336 --- [product-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-11T23:49:49.403+09:00  INFO 89336 --- [product-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-08-11T23:49:49.558+09:00  INFO 89336 --- [product-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8284 (http) with context path '/'
+2026-08-11T23:49:51.259+09:00  INFO 89336 --- [product-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-11T23:49:51.275+09:00  INFO 89336 --- [product-service] [           main] c.s.l.product.ProductServiceApplication  : Started ProductServiceApplication in 21.738 seconds (process running for 22.736)
+2026-08-11T23:49:51.319+09:00  INFO 89336 --- [product-service] [           main] c.s.l.p.s.ProductSheetSyncScheduler      : [ProductSheetSyncScheduler] cron-enabled=false ? 부팅 sync skip (수동 trigger 전용)
+2026-08-11T23:56:55.268+09:00  INFO 89336 --- [product-service] [nio-8284-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-11T23:56:55.269+09:00  INFO 89336 --- [product-service] [nio-8284-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-11T23:56:55.272+09:00  INFO 89336 --- [product-service] [nio-8284-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 3 ms

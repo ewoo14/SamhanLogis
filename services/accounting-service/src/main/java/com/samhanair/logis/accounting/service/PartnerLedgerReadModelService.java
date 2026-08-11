@@ -79,11 +79,26 @@ public class PartnerLedgerReadModelService {
     }
 
     public PartnerLedgerReadModel read(String partnerCode, LocalDate from, LocalDate to) {
+        return read(partnerCode, from, to, null);
+    }
+
+    /**
+     * 판매전표 상세용 원장 read — 아직 canonical 상태가 아닌 저장 대상 slipNo를 선택적으로 포함한다.
+     *
+     * <p>대상 전표가 이미 기간 원장에 있으면 slipNo로 중복 제거하고, DRAFT/SAVED라서 기간
+     * 조회에서 빠졌으면 대상 projection을 한 번만 추가한다. 따라서 저장 직후 후잔은 누락과
+     * 이중 계상을 모두 피한다.
+     */
+    public PartnerLedgerReadModel read(String partnerCode, LocalDate from, LocalDate to,
+                                       String targetSlipNo) {
         if (from == null || to == null || to.isBefore(from)) {
             throw new IllegalArgumentException("from/to 기간이 올바르지 않습니다");
         }
         PartnerFilterResolution filter = resolvePartner(partnerCode);
         if (filter.kind() == PartnerFilterKind.NOT_FOUND) {
+            if (targetSlipNo != null && !targetSlipNo.isBlank()) {
+                throw new IllegalStateException("저장 대상 전표의 거래처 원장 조회에 실패했습니다");
+            }
             return new PartnerLedgerReadModel(List.of(), null);
         }
         PartnerSummary selectedSummary = filter.summary();
@@ -96,6 +111,10 @@ public class PartnerLedgerReadModelService {
         List<JournalLineRepository.PartnerAccountTotal> journalTotals =
                 journalLineRepository.aggregatePostedByPartnerAccount(from, to);
         Map<UUID, MutablePartner> groups = new LinkedHashMap<>();
+        if (selectedId != null) {
+            // 활동이 없는 거래처도 실제 0원 잔액으로 표시할 수 있도록 선택 거래처를 유지한다.
+            groups.put(selectedId, new MutablePartner(selectedId));
+        }
         openingBalances.forEach((id, balance) -> {
             if (balance.signum() != 0 && (selectedId == null || selectedId.equals(id))) {
                 groups.computeIfAbsent(id, MutablePartner::new);
@@ -129,6 +148,7 @@ public class PartnerLedgerReadModelService {
         }
 
         List<PartnerLedgerSalesClient.Sale> sales = findSales(from, to, selectedSummary, selectedId);
+        sales = includeTargetSale(sales, targetSlipNo, partnerCode, selectedId, from, to);
         for (PartnerLedgerSalesClient.Sale sale : openingSales) {
             if (sale == null || selectedId != null && sale.partnerId() != null
                     && !selectedId.equals(sale.partnerId())) continue;
@@ -465,6 +485,37 @@ public class PartnerLedgerReadModelService {
         List<PartnerLedgerSalesClient.Sale> found = salesClient.find(from, to,
                 selectedSummary == null ? null : selectedSummary.partnerCode(), selectedId);
         return found == null ? List.of() : found;
+    }
+
+    private List<PartnerLedgerSalesClient.Sale> includeTargetSale(
+            List<PartnerLedgerSalesClient.Sale> sales,
+            String targetSlipNo,
+            String partnerCode,
+            UUID selectedId,
+            LocalDate from,
+            LocalDate to) {
+        if (targetSlipNo == null || targetSlipNo.isBlank()) return sales;
+        String normalizedSlipNo = targetSlipNo.trim();
+        PartnerLedgerSalesClient.Sale target = salesClient.findBySlipNo(normalizedSlipNo);
+        if (target == null || target.slipNo() == null) {
+            throw new IllegalStateException("저장 대상 판매전표 원장 projection이 없습니다: " + normalizedSlipNo);
+        }
+        boolean samePartner = partnerCode == null
+                || partnerCode.equals(target.partnerCode())
+                || selectedId != null && selectedId.equals(target.partnerId());
+        if (!samePartner) {
+            throw new IllegalArgumentException("대상 판매전표의 거래처가 조회 거래처와 다릅니다");
+        }
+        if (target.slipDate() == null || target.slipDate().isBefore(from) || target.slipDate().isAfter(to)) {
+            throw new IllegalArgumentException("대상 판매전표 일자가 원장 조회 기간과 다릅니다");
+        }
+        boolean alreadyIncluded = sales.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(sale -> normalizedSlipNo.equals(sale.slipNo()));
+        if (alreadyIncluded) return sales;
+        List<PartnerLedgerSalesClient.Sale> result = new ArrayList<>(sales);
+        result.add(target);
+        return result;
     }
 
     private static List<PartnerLedgerReadModel.Document> documentsFromAggregateContract(

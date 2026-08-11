@@ -50,8 +50,16 @@ public class PartnerLedgerReadService {
 
     @Transactional(readOnly = true)
     public PartnerLedgerResponse read(String partnerCode, LocalDate from, LocalDate to) {
+        return read(partnerCode, from, to, null);
+    }
+
+    /** 판매전표 상세가 지정한 저장 대상 slipNo를 read model에 전달한다. */
+    @Transactional(readOnly = true)
+    public PartnerLedgerResponse read(String partnerCode, LocalDate from, LocalDate to,
+                                      String targetSlipNo) {
         if (readModelService != null) {
-            PartnerLedgerReadModel.Partner partner = readModelService.read(partnerCode, from, to).selected();
+            PartnerLedgerReadModel.Partner partner = readModelService.read(
+                    partnerCode, from, to, targetSlipNo).selected();
             if (partner == null) {
                 return new PartnerLedgerResponse(partnerCode, null, null, from, to, List.of());
             }

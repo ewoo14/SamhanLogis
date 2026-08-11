@@ -193,8 +193,9 @@ public class AccountingReportController {
     public ApiResponse<PartnerLedgerResponse> salesSlipLedger(
             @RequestParam String partnerCode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ApiResponse.ok(partnerLedgerReadService.read(partnerCode, from, to));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String slipNo) {
+        return ApiResponse.ok(partnerLedgerReadService.read(partnerCode, from, to, slipNo));
     }
 
     /** 거래처별 원장 저장 이력 — 날짜 범위와 거래처 코드로 조회한다. */

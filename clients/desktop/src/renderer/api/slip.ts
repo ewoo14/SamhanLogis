@@ -879,7 +879,11 @@ export interface PartnerAutoFillResult {
   name: string
   phone: string | null
   address: string | null
+  address1?: string | null
+  address2?: string | null
   representative: string | null
+  note?: string | null
+  managerName?: string | null
 }
 
 /**
@@ -903,7 +907,11 @@ export async function lookupPartnerForAutoFill(
     name: d.name,
     phone: d.phone ?? null,
     address: d.address ?? null,
+    address1: d.address1 ?? null,
+    address2: d.address2 ?? null,
     representative: d.representative ?? null,
+    note: d.note ?? null,
+    managerName: d.managerName ?? null,
   }
 }
 

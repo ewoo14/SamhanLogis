@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -108,7 +109,6 @@ public class PartnerLookupClient {
 
     private static final Logger log = LoggerFactory.getLogger(PartnerLookupClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
-    private static final String PARTNER_SERVICE_BASE = "http://partner-service";
 
     /**
      * 연결/응답 제한시간(#831 R-6) — partner-service 가 응답하지 않을 때(docker pause 라이브 실측:
@@ -139,8 +139,16 @@ public class PartnerLookupClient {
     @Autowired
     public PartnerLookupClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                                InternalAuthProperties internalAuthProperties,
-                               ObjectMapper objectMapper) {
-        this.restClient = builder.baseUrl(PARTNER_SERVICE_BASE)
+                               ObjectMapper objectMapper,
+                               @Value("${app.services.partner-service.base-url:http://partner-service}")
+                               String partnerServiceBaseUrl) {
+        // 운영 기본값은 Eureka LoadBalancer를 사용하고, localhost 격리/테스트 주소는
+        // LoadBalancer가 서비스 ID로 재해석하지 않도록 일반 RestClient를 사용한다.
+        RestClient.Builder resolvedBuilder = partnerServiceBaseUrl.startsWith("http://localhost:")
+                || partnerServiceBaseUrl.startsWith("http://127.0.0.1:")
+                ? RestClient.builder()
+                : builder;
+        this.restClient = resolvedBuilder.baseUrl(partnerServiceBaseUrl)
                 .requestFactory(timeoutRequestFactory())
                 .build();
         this.internalAuthProperties = internalAuthProperties;

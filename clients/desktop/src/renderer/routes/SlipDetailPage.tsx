@@ -1873,6 +1873,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         salesSlipLedgerRequest.partnerCode,
         salesSlipLedgerRequest.from,
         salesSlipLedgerRequest.to,
+        salesSlipLedgerRequest.slipNo,
       )
     },
     enabled: isOutbound && salesSlipLedgerRequest !== null,

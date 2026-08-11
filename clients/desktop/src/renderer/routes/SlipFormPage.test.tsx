@@ -10,6 +10,7 @@ const harness = vi.hoisted(() => ({
   getPriceMemories: vi.fn(),
   getPartnerDcConfig: vi.fn(),
   lookupPartnerForAutoFill: vi.fn(),
+  getSalesSlipLedgerData: vi.fn(),
   createSlip: vi.fn(),
   expandBundleLine: vi.fn(),
   listWarehouses: vi.fn(),
@@ -257,6 +258,10 @@ vi.mock('../api/sales', () => ({
   getPartnerDcConfig: harness.getPartnerDcConfig,
 }))
 
+vi.mock('../api/partnerLedgerApi', () => ({
+  getSalesSlipLedgerData: harness.getSalesSlipLedgerData,
+}))
+
 vi.mock('../api/productApi', () => ({
   searchProducts: harness.searchProducts,
 }))
@@ -322,11 +327,114 @@ beforeEach(() => {
   harness.isMobile = false
   harness.listWarehouses.mockResolvedValue([])
   harness.lookupPartnerForAutoFill.mockResolvedValue({})
+  harness.getSalesSlipLedgerData.mockResolvedValue({
+    openingBalance: '12000',
+    closingBalance: '12000',
+  })
   harness.createSlip.mockResolvedValue({})
   harness.expandBundleLine.mockResolvedValue([])
   harness.getPriceMemory.mockResolvedValue(null)
   harness.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
   harness.getPartnerDcConfig.mockResolvedValue(null)
+})
+
+describe('SlipFormPage partner header autofill', () => {
+  it('거래처 선택 시 전화·주소·대표자·특이사항·담당자를 헤더에 표시한다', async () => {
+    harness.getSalesSlipLedgerData.mockResolvedValue({
+      openingBalance: '123000',
+      closingBalance: '123000',
+    })
+    harness.lookupPartnerForAutoFill.mockResolvedValue({
+      partnerCode: 'P-A',
+      name: 'Partner A',
+      phone: harness.partnerA.phone,
+      address: '서울시 중구',
+      address1: '1층',
+      address2: '101호',
+      representative: '홍길동',
+      note: '현금 선입금 거래처',
+      managerName: '김담당',
+    })
+
+    renderPage()
+    await selectPartnerA()
+
+    expect((screen.getByTestId('slip-customer-tel') as HTMLInputElement).value).toBe(harness.partnerA.phone)
+    expect((screen.getByTestId('slip-customer-address') as HTMLInputElement).value).toBe('서울시 중구 1층 101호')
+    expect((screen.getByTestId('slip-customer-representative') as HTMLInputElement).value).toBe('홍길동')
+    expect(screen.getByTestId('slip-partner-note').textContent).toContain('현금 선입금 거래처')
+    expect(screen.getByTestId('slip-partner-manager').textContent).toContain('김담당')
+    expect(screen.getByTestId('slip-form-opening-balance').textContent).toBe('123,000원')
+    expect(harness.getSalesSlipLedgerData).toHaveBeenCalledWith('P-A', expect.any(String), expect.any(String))
+  })
+
+  it('거래처 변경 시 사용자가 편집한 전화번호는 유지하고 나머지는 새 거래처 값으로 갱신한다', async () => {
+    harness.lookupPartnerForAutoFill
+      .mockResolvedValueOnce({
+        partnerCode: 'P-A',
+        name: 'Partner A',
+        phone: '02-1111-2222',
+        address: 'A 주소',
+        representative: 'A 대표',
+        note: 'A 특이사항',
+        managerName: 'A 담당',
+      })
+      .mockResolvedValueOnce({
+        partnerCode: 'P-B',
+        name: 'Partner B',
+        phone: '02-3333-4444',
+        address: 'B 주소',
+        representative: 'B 대표',
+        note: 'B 특이사항',
+        managerName: 'B 담당',
+      })
+
+    renderPage()
+    await selectPartnerA()
+    fireEvent.change(screen.getByTestId('slip-customer-tel'), {
+      target: { value: '직접 입력한 번호' },
+    })
+
+    await selectPartnerB()
+
+    expect((screen.getByTestId('slip-customer-tel') as HTMLInputElement).value).toBe('직접 입력한 번호')
+    expect((screen.getByTestId('slip-customer-address') as HTMLInputElement).value).toBe('B 주소')
+    expect((screen.getByTestId('slip-customer-representative') as HTMLInputElement).value).toBe('B 대표')
+    expect(screen.getByTestId('slip-partner-note').textContent).toContain('B 특이사항')
+    expect(screen.getByTestId('slip-partner-manager').textContent).toContain('B 담당')
+  })
+
+  it('accounting 장애 시 전잔만 조회 실패로 표시하고 전표 저장은 허용한다', async () => {
+    harness.getSalesSlipLedgerData.mockRejectedValue(new Error('accounting down'))
+
+    renderPage()
+    await selectPartnerA()
+    await waitFor(() => expect(screen.getByTestId('slip-form-opening-balance').textContent).toBe('조회 실패'))
+
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
+    await waitFor(() => expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('slip-form-closing-balance').textContent).toBe('저장 후 산출')
+  })
+
+  it('전표 저장 실패 시 후잔을 계산하지 않고 작성 화면에 남는다', async () => {
+    harness.createSlip.mockRejectedValue(new Error('save failed'))
+
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
+    await waitFor(() => expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('알 수 없는 오류'))
+    expect(screen.getByTestId('slip-form-closing-balance').textContent).toBe('저장 후 산출')
+    expect(screen.getByTestId('slip-form-ledger-balance')).toBeTruthy()
+  })
 })
 
 describe('SlipFormPage price memory autofill', () => {
