@@ -5,8 +5,10 @@ import com.samhanair.logis.accounting.domain.SalesCommissionSettlementStatus;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,4 +33,15 @@ public interface SalesCommissionSettlementRepository
             @Param("keyword") String keyword,
             @Param("status") SalesCommissionSettlementStatus status,
             org.springframework.data.domain.Pageable pageable);
+
+    /** 결재 claim 예약·취소가 공유하는 정산 행 비관적 쓰기 잠금. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from SalesCommissionSettlement s where s.documentNo = :documentNo")
+    Optional<SalesCommissionSettlement> findByDocumentNoAndIsDeletedFalseForUpdate(
+            @Param("documentNo") String documentNo);
+
+    /** 정산 claim 해제·취소가 공유하는 정산 행 비관적 쓰기 잠금. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from SalesCommissionSettlement s where s.id = :id")
+    Optional<SalesCommissionSettlement> findByIdAndIsDeletedFalseForUpdate(@Param("id") UUID id);
 }

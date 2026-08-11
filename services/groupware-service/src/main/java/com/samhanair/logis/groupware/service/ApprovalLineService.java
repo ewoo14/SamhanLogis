@@ -5,6 +5,7 @@ import com.samhanair.logis.approval.StepType;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.client.GroupwareApprovalLineConfigClient;
+import com.samhanair.logis.groupware.client.AccountingSettlementApprovalClaimClient;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.ResolvedRole;
@@ -21,7 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,7 +39,6 @@ import org.springframework.transaction.annotation.Transactional;
  * </ol>
  */
 @Service
-@RequiredArgsConstructor
 public class ApprovalLineService {
 
     private final ApprovalLineRepository repository;
@@ -48,6 +48,36 @@ public class ApprovalLineService {
     private final GroupwareApprovalLineConfigClient configClient;
     private final DocumentTemplateRepository documentTemplateRepository;
     private final DocumentTemplateRevisionService documentTemplateRevisionService;
+    private final AccountingSettlementApprovalClaimClient claimClient;
+
+    @Autowired
+    public ApprovalLineService(ApprovalLineRepository repository, UserClient userClient,
+                               ApprovalNumberService approvalNumberService,
+                               ApprovalTemplateService approvalTemplateService,
+                               GroupwareApprovalLineConfigClient configClient,
+                               DocumentTemplateRepository documentTemplateRepository,
+                               DocumentTemplateRevisionService documentTemplateRevisionService,
+                               AccountingSettlementApprovalClaimClient claimClient) {
+        this.repository = repository;
+        this.userClient = userClient;
+        this.approvalNumberService = approvalNumberService;
+        this.approvalTemplateService = approvalTemplateService;
+        this.configClient = configClient;
+        this.documentTemplateRepository = documentTemplateRepository;
+        this.documentTemplateRevisionService = documentTemplateRevisionService;
+        this.claimClient = claimClient;
+    }
+
+    /** claim client 도입 전 단위 테스트 호환 생성 경계. */
+    public ApprovalLineService(ApprovalLineRepository repository, UserClient userClient,
+                               ApprovalNumberService approvalNumberService,
+                               ApprovalTemplateService approvalTemplateService,
+                               GroupwareApprovalLineConfigClient configClient,
+                               DocumentTemplateRepository documentTemplateRepository,
+                               DocumentTemplateRevisionService documentTemplateRevisionService) {
+        this(repository, userClient, approvalNumberService, approvalTemplateService, configClient,
+                documentTemplateRepository, documentTemplateRevisionService, null);
+    }
 
     /**
      * 신규 결재선 생성 + chain 등록. 요청자 본인 차단 / 결재자 0명 차단 / 사용자 미존재 차단 가드.
@@ -310,6 +340,7 @@ public class ApprovalLineService {
         ApprovalLine line = findById(approvalId);
         try {
             line.reject(approverId, reason);
+            releaseClaims(line);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -330,6 +361,7 @@ public class ApprovalLineService {
         ApprovalLine line = findById(approvalId);
         try {
             line.reject(actorUserId, reason, actorGroupIds == null ? Set.of() : actorGroupIds, Set.of());
+            releaseClaims(line);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -342,6 +374,7 @@ public class ApprovalLineService {
         ApprovalLine line = findById(approvalId);
         try {
             line.withdraw(actorUserId);
+            releaseClaims(line);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -365,5 +398,15 @@ public class ApprovalLineService {
         // revision INSERT와 APPROVED + pin UPDATE를 같은 flush에서 처리한다. V15는 OLD.status가
         // PENDING인 승인 당시 각인만 허용하므로, 승인 상태만 먼저 flush되는 중간 상태를 만들면 안 된다.
         repository.flush();
+    }
+
+    private void releaseClaims(ApprovalLine line) {
+        if (claimClient != null) {
+            try {
+                claimClient.releaseByApproval(line.getId());
+            } catch (RuntimeException ignored) {
+                // terminal 상태 전이는 정상 경로를 막지 않는다. accounting claim은 expires_at으로 자가 치유된다.
+            }
+        }
     }
 }

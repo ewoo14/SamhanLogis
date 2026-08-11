@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.groupware.client.AccountingSettlementApprovalClaimClient;
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.groupware.domain.ApprovalAttachment;
 import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
@@ -19,9 +20,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -31,8 +34,10 @@ import org.springframework.web.multipart.MultipartFile;
  * APPROVED/REJECTED/WITHDRAWN 결재는 {@link ApprovalLine#guardCollabModifiable()} 로 변경을 막는다.
  */
 @Service
-@RequiredArgsConstructor
 public class ApprovalAttachmentService {
+
+    /** claim ACTIVE lease(300초)보다 짧게 groupware 첨부 transaction을 종료시켜 stale commit을 막는다. */
+    private static final int SETTLEMENT_ATTACHMENT_TRANSACTION_TIMEOUT_SECONDS = 120;
 
     /** 단일 파일 최대 크기. */
     public static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
@@ -50,9 +55,28 @@ public class ApprovalAttachmentService {
     private final ApprovalLineRepository approvalLineRepository;
     private final ApprovalAttachmentRepository attachmentRepository;
     private final ApprovalAttachmentStorage storage;
+    private final AccountingSettlementApprovalClaimClient claimClient;
+
+    @Autowired
+    public ApprovalAttachmentService(ApprovalLineRepository approvalLineRepository,
+                                     ApprovalAttachmentRepository attachmentRepository,
+                                     ApprovalAttachmentStorage storage,
+                                     AccountingSettlementApprovalClaimClient claimClient) {
+        this.approvalLineRepository = approvalLineRepository;
+        this.attachmentRepository = attachmentRepository;
+        this.storage = storage;
+        this.claimClient = claimClient;
+    }
+
+    /** 기존 비정산 첨부 단위 테스트와 호환되는 생성 경계. 정산 첨부는 fail-closed 처리한다. */
+    public ApprovalAttachmentService(ApprovalLineRepository approvalLineRepository,
+                                     ApprovalAttachmentRepository attachmentRepository,
+                                     ApprovalAttachmentStorage storage) {
+        this(approvalLineRepository, attachmentRepository, storage, null);
+    }
 
     /** 결재 참조 첨부를 추가한다. */
-    @Transactional
+    @Transactional(timeout = SETTLEMENT_ATTACHMENT_TRANSACTION_TIMEOUT_SECONDS)
     public ApprovalAttachment addReference(UUID approvalId, ApprovalAttachmentRequest request) {
         ApprovalLine approval = loadApproval(approvalId);
         approval.guardCollabModifiable();
@@ -68,7 +92,25 @@ public class ApprovalAttachmentService {
         } else {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "참조 첨부 endpoint 에서는 FILE 을 사용할 수 없습니다");
         }
-        return attachmentRepository.save(attachment);
+        if (request.refDocType() != ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT) {
+            return attachmentRepository.save(attachment);
+        }
+        String documentNo = attachment.getRefDocNo();
+        if (claimClient == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "accounting settlement claim client가 구성되지 않았습니다");
+        }
+        UUID claimToken = claimClient.reserve(documentNo, approvalId);
+        registerRollbackCompensation(claimToken);
+        try {
+            ApprovalAttachment saved = attachmentRepository.save(attachment);
+            // 로컬 row가 현재 transaction에 준비된 뒤 accounting claim을 ACTIVE로 승격한다.
+            claimClient.activate(claimToken);
+            return saved;
+        } catch (RuntimeException ex) {
+            releaseQuietly(claimToken);
+            throw ex;
+        }
     }
 
     private ApprovalAttachment addUnifiedDocumentReference(ApprovalLine approval, ApprovalAttachmentRequest request) {
@@ -167,6 +209,16 @@ public class ApprovalAttachmentService {
         approval.guardCollabModifiable();
         ApprovalAttachment attachment = loadAttachmentForApproval(approvalId, attachmentId);
         attachment.softDelete(actor);
+        if (attachment.getRefDocType() == ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT
+                && claimClient != null
+                && !attachmentRepository.existsOtherActiveReference(
+                        approvalId, attachment.getRefDocType(), attachment.getRefDocNo(), attachmentId)) {
+            try {
+                claimClient.releaseByApproval(approvalId);
+            } catch (RuntimeException ignored) {
+                // 삭제는 정상 처리하고 accounting claim의 expires_at 자가 치유에 맡긴다.
+            }
+        }
         if (attachment.getAttachmentType() == ApprovalAttachmentType.FILE) {
             storage.delete(attachment.getStorageKey());
         }
@@ -227,5 +279,27 @@ public class ApprovalAttachmentService {
             return "";
         }
         return fileName.substring(idx).toLowerCase();
+    }
+
+    private void registerRollbackCompensation(UUID claimToken) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    releaseQuietly(claimToken);
+                }
+            }
+        });
+    }
+
+    private void releaseQuietly(UUID claimToken) {
+        try {
+            claimClient.release(claimToken);
+        } catch (RuntimeException ignored) {
+            // accounting claim의 expires_at이 유실된 보상 호출을 자가 치유한다.
+        }
     }
 }

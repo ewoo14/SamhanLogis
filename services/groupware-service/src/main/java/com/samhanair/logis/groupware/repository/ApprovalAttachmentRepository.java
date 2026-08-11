@@ -34,4 +34,13 @@ public interface ApprovalAttachmentRepository extends JpaRepository<ApprovalAtta
     /** 업무문서 참조번호에 활성 결재가 붙었는지 역조회한다. */
     boolean existsByRefDocTypeAndRefDocNoAndApproval_StatusIn(
             ApprovalReferenceDocType refDocType, String refDocNo, Set<ApprovalStatus> statuses);
+
+    /** 같은 결재선·문서의 다른 활성 참조가 남아 있는지 확인한다. */
+    @Query("select count(a) > 0 from ApprovalAttachment a "
+            + "where a.approval.id = :approvalId and a.refDocType = :refDocType "
+            + "and a.refDocNo = :refDocNo and a.id <> :attachmentId")
+    boolean existsOtherActiveReference(@Param("approvalId") UUID approvalId,
+                                       @Param("refDocType") ApprovalReferenceDocType refDocType,
+                                       @Param("refDocNo") String refDocNo,
+                                       @Param("attachmentId") UUID attachmentId);
 }

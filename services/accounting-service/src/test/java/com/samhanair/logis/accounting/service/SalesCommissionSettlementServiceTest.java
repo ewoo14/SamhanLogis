@@ -38,6 +38,7 @@ class SalesCommissionSettlementServiceTest {
     @Mock SalesCommissionSettlementNumberService numberService;
     @Mock SalesCommissionSettlementSnapshotHistoryRepository historyRepository;
     @Mock GroupwareSettlementApprovalClient groupwareApprovalClient;
+    @Mock SalesCommissionSettlementApprovalClaimService claimService;
 
     @Test
     void createDraft_doesNotAllocateNumber() {
@@ -151,6 +152,25 @@ class SalesCommissionSettlementServiceTest {
 
         verifyNoInteractions(historyRepository);
         verify(repository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void cancelConfirmation_withClaim_isRejectedEvenWhenGroupwareReadWasEmpty() {
+        UUID id = UUID.randomUUID();
+        SalesCommissionSettlement settlement = SalesCommissionSettlement.createDraft(
+                LocalDate.of(2026, 8, 11)).confirm("2026/08/11-1");
+        when(repository.findByIdAndIsDeletedFalseForUpdate(id)).thenReturn(Optional.of(settlement));
+        when(groupwareApprovalClient.hasActiveSettlementApproval("2026/08/11-1")).thenReturn(false);
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.CONFLICT, "claim active"))
+                .when(claimService).assertNoActiveClaimsForLockedSettlement(settlement);
+        SalesCommissionSettlementService service = new SalesCommissionSettlementService(
+                repository, rateContractRepository, numberService, new SalesCommissionSettlementCalculator(),
+                historyRepository, groupwareApprovalClient, claimService);
+
+        assertThatThrownBy(() -> service.cancelConfirmation(id))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+        verifyNoInteractions(historyRepository);
     }
 
     @Test

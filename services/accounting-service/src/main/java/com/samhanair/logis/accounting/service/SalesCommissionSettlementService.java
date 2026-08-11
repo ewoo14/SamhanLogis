@@ -29,6 +29,7 @@ public class SalesCommissionSettlementService {
     private final SalesCommissionSettlementCalculator calculator;
     private final SalesCommissionSettlementSnapshotHistoryRepository historyRepository;
     private final GroupwareSettlementApprovalClient groupwareApprovalClient;
+    private final SalesCommissionSettlementApprovalClaimService claimService;
 
     /** Spring이 repository·채번기·BigDecimal 계산기를 함께 주입하는 생성 경계. */
     @Autowired
@@ -37,13 +38,26 @@ public class SalesCommissionSettlementService {
                                             SalesCommissionSettlementNumberService numberService,
                                             SalesCommissionSettlementCalculator calculator,
                                             SalesCommissionSettlementSnapshotHistoryRepository historyRepository,
-                                            GroupwareSettlementApprovalClient groupwareApprovalClient) {
+                                            GroupwareSettlementApprovalClient groupwareApprovalClient,
+                                            SalesCommissionSettlementApprovalClaimService claimService) {
         this.repository = repository;
         this.rateContractRepository = rateContractRepository;
         this.numberService = numberService;
         this.calculator = calculator;
         this.historyRepository = historyRepository;
         this.groupwareApprovalClient = groupwareApprovalClient;
+        this.claimService = claimService;
+    }
+
+    /** 결재 claim wiring 전 기존 단위 호출자와의 호환 생성 경계. */
+    public SalesCommissionSettlementService(SalesCommissionSettlementRepository repository,
+                                            SalesCommissionRateContractRepository rateContractRepository,
+                                            SalesCommissionSettlementNumberService numberService,
+                                            SalesCommissionSettlementCalculator calculator,
+                                            SalesCommissionSettlementSnapshotHistoryRepository historyRepository,
+                                            GroupwareSettlementApprovalClient groupwareApprovalClient) {
+        this(repository, rateContractRepository, numberService, calculator, historyRepository,
+                groupwareApprovalClient, null);
     }
 
     /** S1 호환 생성 경계. 계산기 연결 전 호출자도 동일한 번호·확정 경로를 사용한다. */
@@ -83,7 +97,11 @@ public class SalesCommissionSettlementService {
 
     /** 결재가 붙지 않은 CONFIRMED 정산서의 확정을 취소하고 과거 snapshot을 이력화한다. */
     public SalesCommissionSettlement cancelConfirmation(UUID settlementId) {
-        SalesCommissionSettlement settlement = findSettlement(settlementId);
+        SalesCommissionSettlement settlement = claimService == null
+                ? findSettlement(settlementId)
+                : repository.findByIdAndIsDeletedFalseForUpdate(settlementId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                                "영업수수료 정산서를 찾을 수 없습니다: " + settlementId));
         if (settlement.getStatus() != SalesCommissionSettlementStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "CONFIRMED 상태에서만 영업수수료 정산 확정을 취소할 수 있습니다");
@@ -92,6 +110,9 @@ public class SalesCommissionSettlementService {
                 .hasActiveSettlementApproval(settlement.getDocumentNo())) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "결재가 올라가 있어 영업수수료 정산 확정을 취소할 수 없습니다. 결재를 먼저 회수·반려해 주세요");
+        }
+        if (claimService != null) {
+            claimService.assertNoActiveClaimsForLockedSettlement(settlement);
         }
         if (historyRepository == null) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
