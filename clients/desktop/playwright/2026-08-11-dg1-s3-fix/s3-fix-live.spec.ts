@@ -5,7 +5,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5193'
 const screenshotDir = resolveQaShotsDir(
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../docs/qa/2026-08-11-dg1-s3-fix2'),
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../docs/qa/2026-08-11-dg1-s3-fix6'),
 )
 
 async function capture(page: Page, name: string): Promise<void> {
@@ -516,13 +516,20 @@ test('실제 window scroll의 첫 paint에서도 문서 참조 dropdown은 닫�
     const option = document.querySelector('[data-testid="doc-ref-search-option"]')
     option?.addEventListener('mousedown', () => window.scrollBy(0, 20), { once: true })
   })
-  await clickOption.click()
-  const clickDuringScroll = await page.evaluate(() => new Promise<boolean>((resolve) => {
-    requestAnimationFrame(() => {
-      const listbox = document.querySelector('[role="listbox"]')
-      resolve(!(listbox instanceof HTMLElement) || getComputedStyle(listbox).visibility === 'hidden')
+
+  await page.evaluate(() => {
+    ;(window as Window & { __dg1ClickDuringScrollFirstRaf?: Promise<boolean> }).__dg1ClickDuringScrollFirstRaf = new Promise<boolean>((resolve) => {
+      window.addEventListener('scroll', () => {
+        requestAnimationFrame(() => {
+          const listbox = document.querySelector('[role="listbox"]')
+          resolve(!(listbox instanceof HTMLElement) || getComputedStyle(listbox).visibility === 'hidden')
+        })
+      }, { once: true })
     })
-  }))
+  })
+
+  await clickOption.click()
+  const clickDuringScroll = await page.evaluate(() => (window as Window & { __dg1ClickDuringScrollFirstRaf?: Promise<boolean> }).__dg1ClickDuringScrollFirstRaf)
   console.log(`WINDOW_SCROLL_DURING_CLICK_FIRST_PAINT=${JSON.stringify({ closed: clickDuringScroll })}`)
   expect(clickDuringScroll).toBe(true)
 })
@@ -587,29 +594,36 @@ test('scroll 0→3 직후 재클릭은 첫 rAF부터 anchor와 정렬된다', as
 
   const box = await searchInput.boundingBox()
   expect(box).not.toBeNull()
+
+  await page.evaluate(() => {
+    ;(window as Window & { __dg1FirstRaf?: Promise<unknown> }).__dg1FirstRaf = new Promise((resolve) => {
+      window.addEventListener('scroll', () => {
+        requestAnimationFrame(() => {
+          const listbox = document.querySelector('[role="listbox"]')
+          const input = document.querySelector('[data-testid="doc-ref-search-input"]')
+          const picker = input?.closest('[class*="picker"]')
+          if (!(listbox instanceof HTMLElement) || !(picker instanceof HTMLElement)) {
+            resolve({ visible: false, aligned: true, belowGap: null, scrollY: window.scrollY })
+            return
+          }
+          const listRect = listbox.getBoundingClientRect()
+          const pickerRect = picker.getBoundingClientRect()
+          const belowGap = listRect.top - pickerRect.bottom
+          const aboveGap = pickerRect.top - listRect.bottom
+          resolve({
+            visible: listbox.getBoundingClientRect().height > 0,
+            aligned: Math.abs(belowGap - 4) <= 2 || Math.abs(aboveGap - 4) <= 2,
+            belowGap,
+            scrollY: window.scrollY,
+          })
+        })
+      }, { once: true })
+    })
+  })
+
   await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2)
 
-  const firstRaf = await page.evaluate(() => new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      const listbox = document.querySelector('[role="listbox"]')
-      const input = document.querySelector('[data-testid="doc-ref-search-input"]')
-      const picker = input?.closest('[class*="picker"]')
-      if (!(listbox instanceof HTMLElement) || !(picker instanceof HTMLElement)) {
-        resolve({ visible: false, aligned: true, belowGap: null, scrollY: window.scrollY })
-        return
-      }
-      const listRect = listbox.getBoundingClientRect()
-      const pickerRect = picker.getBoundingClientRect()
-      const belowGap = listRect.top - pickerRect.bottom
-      const aboveGap = pickerRect.top - listRect.bottom
-      resolve({
-        visible: listbox.getBoundingClientRect().height > 0,
-        aligned: Math.abs(belowGap - 4) <= 2 || Math.abs(aboveGap - 4) <= 2,
-        belowGap,
-        scrollY: window.scrollY,
-      })
-    })
-  }))
+  const firstRaf = await page.evaluate(() => (window as Window & { __dg1FirstRaf?: Promise<unknown> }).__dg1FirstRaf)
   console.log(`FIX5_FIRST_RAF=${JSON.stringify(firstRaf)}`)
   expect(firstRaf).toMatchObject({ visible: true, aligned: true, scrollY: 3 })
 })
