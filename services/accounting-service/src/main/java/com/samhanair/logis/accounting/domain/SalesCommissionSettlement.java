@@ -162,6 +162,10 @@ public class SalesCommissionSettlement extends BaseEntity {
             SalesCommissionRateContract rateContract,
             SalesCommissionSettlementCalculationInput input,
             SalesCommissionSettlementCalculationResult result) {
+        if (this.status != SalesCommissionSettlementStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "DRAFT 상태에서만 영업수수료 정산을 재계산할 수 있습니다");
+        }
         this.rateContract = Objects.requireNonNull(rateContract, "rateContract 는 필수입니다");
         Objects.requireNonNull(input, "input 은 필수입니다");
         Objects.requireNonNull(result, "result 는 필수입니다");

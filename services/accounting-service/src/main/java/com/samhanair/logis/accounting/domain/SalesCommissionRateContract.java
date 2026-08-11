@@ -12,7 +12,6 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /** 영업수수료 정산에 사용하는 불변 요율 계약의 버전. */
@@ -20,7 +19,6 @@ import org.hibernate.annotations.UuidGenerator;
 @Getter
 @Table(name = "sales_commission_rate_contracts")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@SQLRestriction("is_deleted = false")
 public class SalesCommissionRateContract extends BaseEntity {
 
     @Id

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.domain.SalesCommissionSettlement;
 import com.samhanair.logis.accounting.domain.SalesCommissionSettlementStatus;
+import com.samhanair.logis.accounting.repository.SalesCommissionRateContractRepository;
 import com.samhanair.logis.accounting.repository.SalesCommissionSettlementRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -27,6 +28,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class SalesCommissionSettlementServiceTest {
 
     @Mock SalesCommissionSettlementRepository repository;
+    @Mock SalesCommissionRateContractRepository rateContractRepository;
     @Mock SalesCommissionSettlementNumberService numberService;
 
     @Test
@@ -35,7 +37,7 @@ class SalesCommissionSettlementServiceTest {
         when(repository.save(any(SalesCommissionSettlement.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         SalesCommissionSettlementService service =
-                new SalesCommissionSettlementService(repository, numberService);
+                new SalesCommissionSettlementService(repository, rateContractRepository, numberService);
 
         SalesCommissionSettlement saved = service.createDraft(date);
 
@@ -52,7 +54,7 @@ class SalesCommissionSettlementServiceTest {
         when(numberService.next(date)).thenReturn("2026/08/11-1");
         when(repository.save(draft)).thenReturn(draft);
         SalesCommissionSettlementService service =
-                new SalesCommissionSettlementService(repository, numberService);
+                new SalesCommissionSettlementService(repository, rateContractRepository, numberService);
 
         SalesCommissionSettlement confirmed = service.confirm(id);
 
@@ -67,7 +69,7 @@ class SalesCommissionSettlementServiceTest {
     @ValueSource(strings = {"", "   "})
     void findByDocumentNo_rejectsNullOrBlank_beforeRepository(String documentNo) {
         SalesCommissionSettlementService service =
-                new SalesCommissionSettlementService(repository, numberService);
+                new SalesCommissionSettlementService(repository, rateContractRepository, numberService);
 
         assertThatThrownBy(() -> service.findByDocumentNo(documentNo))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
@@ -84,7 +86,7 @@ class SalesCommissionSettlementServiceTest {
         when(repository.findByDocumentNoAndIsDeletedFalse("2026/08/11-1"))
                 .thenReturn(Optional.of(settlement));
         SalesCommissionSettlementService service =
-                new SalesCommissionSettlementService(repository, numberService);
+                new SalesCommissionSettlementService(repository, rateContractRepository, numberService);
 
         SalesCommissionSettlement loaded = service.findByDocumentNo("  2026/08/11-1  ");
 
@@ -97,7 +99,7 @@ class SalesCommissionSettlementServiceTest {
         when(repository.findByDocumentNoAndIsDeletedFalse("2099/12/28-999"))
                 .thenReturn(Optional.empty());
         SalesCommissionSettlementService service =
-                new SalesCommissionSettlementService(repository, numberService);
+                new SalesCommissionSettlementService(repository, rateContractRepository, numberService);
 
         assertThatThrownBy(() -> service.findByDocumentNo("2099/12/28-999"))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
