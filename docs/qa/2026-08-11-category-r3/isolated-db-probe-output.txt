@@ -1,0 +1,13 @@
+격리 환경: Testcontainers PostgreSQL 16-alpine
+검토 전용 임시 JUnit: db.migration.SolR3TemporaryProbeTest
+실행 후 임시 소스 제거, 최종 full suite에 포함되지 않음
+
+Tests    : 3
+Failures : 0
+Errors   : 0
+Skipped  : 0
+
+R3 UI-MANUAL category=INDOOR classificationManual=true afterSecondApply=INDOOR
+R3 ROLLBACK-APPLY category=INDOOR classificationManual=true auditRolledBack=true
+R3 IDEMPOTENCY firstChanged=2 firstAudits=2 secondChangedDelta=0 secondAuditDelta=0 manual=INDOOR_WALL
+

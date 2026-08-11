@@ -1,0 +1,12 @@
+실행 위치: clients/desktop
+서버: npx vite src/renderer --config vite.config.ts --host 127.0.0.1 --port 5416 --strictPort
+격리 API: VITE_API_BASE_URL=http://127.0.0.1:1
+브라우저: headless Chromium-1217
+
+Running 2 tests using 1 worker
+
+[1/2] [chromium] 등록 폼의 필수 카테고리 선택에서 미등록을 선택할 수 있다
+[2/2] [chromium] 기초품목 화면에서 미등록 필터와 2,126건 카운트를 제공한다
+
+2 passed (4.1s)
+
