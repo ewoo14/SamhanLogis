@@ -101,8 +101,8 @@ class PartnerMasterLoadIT extends AbstractPostgresIT {
         EcountPartnerImportResult second = importer.importXlsx(
                 new java.io.ByteArrayInputStream(source), "896-it");
         Map<String, String> secondSnapshot = snapshot();
-        assertThat(first.totalRows()).isEqualTo(7253);
-        assertThat(first.imported() + first.updated()).isEqualTo(7253);
+        assertThat(first.totalRows()).isEqualTo(7255);
+        assertThat(first.imported() + first.updated()).isEqualTo(7255);
         assertThat(first.heldParseFailureRows()).isZero();
         assertThat(first.updated()).isZero();
         assertThat(first.excludedTrailerRows()).isEqualTo(1);
@@ -110,12 +110,12 @@ class PartnerMasterLoadIT extends AbstractPostgresIT {
         assertThat(second.updated()).isEqualTo(first.imported());
         assertThat(secondSnapshot).isEqualTo(firstSnapshot);
         assertThat(count("partners")).isEqualTo(first.imported());
-        assertThat(count("staging.ecount_partner_raw")).isEqualTo(7253);
+        assertThat(count("staging.ecount_partner_raw")).isEqualTo(7255);
         assertThat(countWhere("partners", "outstanding_balance = 0")).isEqualTo(first.imported());
-        assertThat(first.registrationDateParsedCount()).isEqualTo(2423);
+        assertThat(first.registrationDateParsedCount()).isEqualTo(2425);
         assertThat(first.createdAtLoadTimeCount()).isEqualTo(4830);
-        assertThat(first.registrationDateParsedCount() + first.createdAtLoadTimeCount()).isEqualTo(7253);
-        assertThat(countWhere("partners", "created_at IS NOT NULL")).isEqualTo(7253);
+        assertThat(first.registrationDateParsedCount() + first.createdAtLoadTimeCount()).isEqualTo(7255);
+        assertThat(countWhere("partners", "created_at IS NOT NULL")).isEqualTo(7255);
     }
 
     @Test

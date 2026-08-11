@@ -1,4 +1,5 @@
 import path from 'node:path'
+// Real QA: dedicated services are required; the *-real-qa name keeps this out of the mock hard gate.
 import { expect, test, type Page, type Route } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'

@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,9 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class PartnerOrderPriceCalculationService {
+
+    private static final Set<String> RESOLVED_FIXED_DISCOUNT_SOURCES =
+            Set.of("NONE", "PRODUCT", "S", "M", "L");
 
     private final ProductClient productClient;
     private final DcConfigClient dcConfigClient;
@@ -99,13 +103,15 @@ public class PartnerOrderPriceCalculationService {
             lineProducts.add(product);
         }
 
-        List<UUID> resolvedProductIds = lineProducts.stream()
+        List<UUID> legacyFixedDiscountProductIds = lineProducts.stream()
+                .filter(product -> !hasResolvedFixedDiscountSource(product))
                 .map(ProductSummary::id)
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
-        Map<UUID, BigDecimal> fixedDiscountRates =
-                productClient.lookupFixedDiscountRates(resolvedProductIds);
+        Map<UUID, BigDecimal> fixedDiscountRates = legacyFixedDiscountProductIds.isEmpty()
+                ? Map.of()
+                : productClient.lookupFixedDiscountRates(legacyFixedDiscountProductIds);
         if (fixedDiscountRates == null) {
             fixedDiscountRates = Map.of();
         }
@@ -276,5 +282,16 @@ public class PartnerOrderPriceCalculationService {
 
     private boolean variableDiscountEnabled(ProductSummary product) {
         return product.hasVariableDiscount() == null || product.hasVariableDiscount();
+    }
+
+    /**
+     * 현재 product-service lookup이 고정DC 해석 결과를 명시했는지 판정한다.
+     * {@code NONE}은 고정DC 미설정이라는 유효한 정상 결과이며, marker가 없거나 알 수 없으면
+     * 구형 product-service 호환 보조 조회가 필요하다.
+     */
+    private boolean hasResolvedFixedDiscountSource(ProductSummary product) {
+        String source = product.fixedDiscountSource();
+        return source != null
+                && RESOLVED_FIXED_DISCOUNT_SOURCES.contains(source.trim().toUpperCase(java.util.Locale.ROOT));
     }
 }

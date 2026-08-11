@@ -24,7 +24,7 @@
 - Modify: `services/product-service/src/test/java/com/samhanair/logis/product/service/ProductNameCategoryClassifierTest.java`
 - Modify: `services/product-service/src/test/java/db/migration/V38__ProductCategoryBackfillTest.java`
 - Modify: `services/product-service/src/test/java/com/samhanair/logis/product/it/ProductSheetSyncServiceIT.java`
-- Modify: `clients/desktop/playwright/1166-product-category-sol-review/1166-product-category-sol-review.spec.ts`
+- Modify: `clients/desktop/playwright/1166-product-category-sol-review-real-qa/1166-product-category-sol-review-real-qa.spec.ts`
 
 - [x] **Step 1: 테스트의 제품구분 전용 `UNCLASSIFIED`/`미분류` 기대값·fixture·테스트명을 `UNCLASSIFIED`/`미분류`로 바꾼다.** UUID와 수량 3,084/2,126은 그대로 둔다.
 - [x] **Step 2: product-service 분류기·V38·시트 IT의 관련 테스트를 실행해 변경 전 구현이 새 기대값에서 실패하는지 확인한다.**
@@ -61,7 +61,7 @@ Expected: 제품구분 테스트가 모두 통과하고 V38의 감사·rollback�
 - Modify: `docs/dev-reports/2026-08-11-product-category-sol-review2.md`
 - Modify: `docs/dev-reports/2026-08-11-product-category-sol-review3.md`
 - Modify: `docs/dev-reports/2026-08-11-order-40-rule-implementation.md`
-- Modify: `clients/desktop/playwright/1166-product-category-sol-review/1166-product-category-sol-review.spec.ts`
+- Modify: `clients/desktop/playwright/1166-product-category-sol-review-real-qa/1166-product-category-sol-review-real-qa.spec.ts`
 
 - [x] **Step 1: 제품구분 문서 code block/table/문장을 `UNCLASSIFIED`/`미분류`로 동기화한다.** 일반 타 도메인 표현과 과거 QA 실패 원문은 별도 보존 대상으로 분류한다.
 - [x] **Step 2: Playwright mock의 category code/name, option label, filter/count assertion, screenshot 파일명을 새 명칭으로 동기화한다.** 카운트와 해제 흐름은 그대로 둔다.

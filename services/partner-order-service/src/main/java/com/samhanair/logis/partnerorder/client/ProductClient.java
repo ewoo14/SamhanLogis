@@ -220,6 +220,7 @@ public class ProductClient {
                 m.get("fixedDiscountRate") == null
                         ? null
                         : new java.math.BigDecimal(m.get("fixedDiscountRate").toString()),
+                (String) m.get("fixedDiscountSource"),
                 (String) m.get("discountFlags"),
                 m.get("releasePrice") == null
                         ? null

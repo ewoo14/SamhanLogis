@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto'
+// Real QA: dedicated services are required; the *-real-qa name keeps this out of the mock hard gate.
 import path from 'node:path'
 import { expect, test, type Page, type Route } from '@playwright/test'
 import { fileURLToPath } from 'node:url'

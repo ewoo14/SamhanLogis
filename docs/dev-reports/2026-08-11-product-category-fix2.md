@@ -137,7 +137,7 @@ END
 `clients/desktop`에서 별도 Vite renderer를 띄우고 Playwright 1.59.1, 설치된 Chromium-1217, headless로 다음 스펙을 직접 실행했다.
 
 ```text
-playwright/1166-product-category-sol-review/1166-product-category-sol-review.spec.ts
+playwright/1166-product-category-sol-review-real-qa/1166-product-category-sol-review-real-qa.spec.ts
 
 Running 2 tests using 1 worker
 2 passed (3.6s)

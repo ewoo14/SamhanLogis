@@ -1,4 +1,5 @@
 import path from 'node:path'
+// Real QA: dedicated services are required; the *-real-qa name keeps this out of the mock hard gate.
 import { execFileSync } from 'node:child_process'
 import { expect, test } from '@playwright/test'
 import { fileURLToPath } from 'node:url'

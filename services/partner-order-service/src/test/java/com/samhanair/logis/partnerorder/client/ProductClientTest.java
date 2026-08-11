@@ -75,6 +75,7 @@ class ProductClientTest {
                           "displayOrder":10,
                           "categoryKey":"singleSets",
                           "fixedDiscountRate":45.0,
+                          "fixedDiscountSource":"PRODUCT",
                           "discountFlags":"100000",
                           "releasePrice":3121800.00,
                           "deliveryPrice":1840000.00,
@@ -96,6 +97,7 @@ class ProductClientTest {
         assertThat(product.productType()).isEqualTo("SINGLE");
         assertThat(product.categoryKey()).isEqualTo("singleSets");
         assertThat(product.fixedDiscountRate()).isEqualByComparingTo("45.0");
+        assertThat(product.fixedDiscountSource()).isEqualTo("PRODUCT");
         assertThat(product.discountFlags()).isEqualTo("100000");
         assertThat(product.releasePrice()).isEqualByComparingTo("3121800.00");
         assertThat(product.deliveryPrice()).isEqualByComparingTo("1840000.00");

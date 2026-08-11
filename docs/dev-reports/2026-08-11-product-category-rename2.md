@@ -15,7 +15,7 @@
 
 | 파일 | 초기 HEAD의 `UNREGISTERED` 또는 제품구분 `미등록` 좌표 | 처리 |
 |---|---:|---|
-| `clients/desktop/playwright/1166-product-category-sol-review/1166-product-category-sol-review.spec.ts` | 59,60,77,78,80,125,131,132,137,148,149,150 | 제품구분 mock/Playwright의 코드·표시명·assertion·fixture를 UNCLASSIFIED/미분류로 변경. 모델코드 접두어는 mock 식별자일 뿐 분류 로직에 추가하지 않음. |
+| `clients/desktop/playwright/1166-product-category-sol-review-real-qa/1166-product-category-sol-review-real-qa.spec.ts` | 59,60,77,78,80,125,131,132,137,148,149,150 | 제품구분 mock/Playwright의 코드·표시명·assertion·fixture를 UNCLASSIFIED/미분류로 변경. 모델코드 접두어는 mock 식별자일 뿐 분류 로직에 추가하지 않음. |
 | `docs/dev-reports/2026-08-11-order-40-rule-implementation.md` | 17,22,29,30,43,68 | 제품구분 보고서 코드블록/표현만 변경. 주문 40% 규칙 구현은 변경하지 않음. |
 | `docs/dev-reports/2026-08-11-product-category-backfill.md` | 12,16,32,35,89,93,160,163,164,170,186,200,210,217 | 제품구분 V38/분류 결과 보고서의 명칭만 변경. |
 | `docs/dev-reports/2026-08-11-product-category-fix.md` | 119,120,128,147,149 | 제품구분 QA 보고서의 표시명·링크 설명만 변경. |
@@ -477,4 +477,3 @@ Error: element(s) not found
 - 모델코드 접두 분류: production classifier에 추가하지 않음
 - S2 주문 40% 규칙: 변경 없음
 - 카테고리 수치: 위 대조표와 UI 흐름에서 전후 동일
-

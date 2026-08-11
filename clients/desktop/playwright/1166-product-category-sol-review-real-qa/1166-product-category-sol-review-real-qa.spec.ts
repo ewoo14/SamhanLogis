@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
+// Real QA: dedicated services are required; the *-real-qa name keeps this out of the mock hard gate.
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'

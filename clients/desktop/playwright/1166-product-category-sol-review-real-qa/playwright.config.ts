@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: '.',
-  testMatch: ['1166-product-category-sol-review.spec.ts'],
+  testMatch: ['1166-product-category-sol-review-real-qa.spec.ts'],
   timeout: 60_000,
   retries: 0,
   workers: 1,

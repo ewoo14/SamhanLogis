@@ -176,7 +176,7 @@ Detected applied migration not resolved locally: 37.
 
 ```powershell
 .\node_modules\.bin\playwright.cmd test `
-  --config=playwright/1166-product-category-sol-review/playwright.config.ts
+  --config=playwright/1166-product-category-sol-review-real-qa/playwright.config.ts
 ```
 
 결과: **1 passed, 1 failed (12.5s)**.

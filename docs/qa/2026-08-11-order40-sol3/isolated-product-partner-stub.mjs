@@ -14,6 +14,7 @@ const product = {
   productType: 'SINGLE',
   categoryKey: 'homemulti',
   fixedDiscountRate: null,
+  fixedDiscountSource: 'NONE',
   discountFlags: '000000',
   releasePrice: 1000000,
   deliveryPrice: 1000000,
