@@ -1,13 +1,16 @@
 package com.samhanair.logis.auth.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -84,9 +87,16 @@ class AccountingPermissionProjectionFreshnessIT {
                 """,
                 rows -> {
                     Map<String, String> result = new LinkedHashMap<>();
+                    Set<String> seenCells = new HashSet<>();
                     while (rows.next()) {
-                        result.put(key(rows.getString("role_code"), rows.getString("page_code")),
-                                rows.getString("bits"));
+                        String role = rows.getString("role_code");
+                        String page = rows.getString("page_code");
+                        String bits = rows.getString("bits");
+                        String cell = key(role, page);
+                        assertThat(seenCells.add(cell))
+                                .as("duplicate auth_db cell %s bits=%s", cell, bits)
+                                .isTrue();
+                        result.put(cell, bits);
                     }
                     return result;
                 });
@@ -120,6 +130,24 @@ class AccountingPermissionProjectionFreshnessIT {
                 .isEmpty();
     }
 
+    @Test
+    void projectionParserRejectsDuplicateRolePageCellsBeforeMapOverwrite() {
+        String source = """
+                const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE = {
+                  'ACCOUNTANT': {
+                    'accounting.sales-commission-settlement': '0000000',
+                    'accounting.sales-commission-settlement': '1110000',
+                  },
+                }
+                """;
+
+        assertThatThrownBy(() -> parseProjection(source))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("ACCOUNTANT|accounting.sales-commission-settlement")
+                .hasMessageContaining("firstBits=0000000")
+                .hasMessageContaining("secondBits=1110000");
+    }
+
     private static List<String> quotedValues(String source, String constant) {
         Matcher assignment = Pattern.compile(
                 "(?s)" + Pattern.quote(constant) + "\\s*=\\s*\\[(.*?)\\]\\s+as const")
@@ -135,12 +163,23 @@ class AccountingPermissionProjectionFreshnessIT {
 
     private static Map<String, String> parseProjection(String source) {
         Map<String, String> result = new LinkedHashMap<>();
+        Set<String> seenRoles = new HashSet<>();
         Matcher roles = ROLE_BLOCK.matcher(source);
         while (roles.find()) {
             String role = roles.group(1);
+            assertThat(seenRoles.add(role))
+                    .as("duplicate projection role block %s", role)
+                    .isTrue();
             Matcher cells = CELL.matcher(roles.group(2));
             while (cells.find()) {
-                result.put(key(role, cells.group(1)), cells.group(2));
+                String page = cells.group(1);
+                String bits = cells.group(2);
+                String cell = key(role, page);
+                String firstBits = result.get(cell);
+                assertThat(firstBits)
+                        .as("duplicate projection cell %s firstBits=%s secondBits=%s", cell, firstBits, bits)
+                        .isNull();
+                result.put(cell, bits);
             }
         }
         return result;

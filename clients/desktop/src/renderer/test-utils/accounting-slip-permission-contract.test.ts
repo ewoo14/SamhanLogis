@@ -2,12 +2,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { getMockResponse } from '../api/mock'
+import { PERMISSION_BITS_BY_ROLE } from './accounting-slip-permission-snapshot'
 import { assertExactPermissionMatrix } from './permission-contract-checker'
 
 const workspace = resolve(__dirname, '../../..')
 const routes = readFileSync(resolve(workspace, 'src/renderer/routes/index.tsx'), 'utf8')
 const layout = readFileSync(resolve(workspace, 'src/renderer/components/AppLayout.tsx'), 'utf8')
 const mock = readFileSync(resolve(workspace, 'src/renderer/api/mock.ts'), 'utf8')
+const dbSnapshot = readFileSync(
+  resolve(workspace, 'src/renderer/test-utils/accounting-slip-permission-db-snapshot.ts'),
+  'utf8',
+)
 const refreshScript = readFileSync(resolve(workspace, '../../scripts/refresh-accounting-permission-db-snapshot.ps1'), 'utf8')
 const salesAccountingSlipPage = readFileSync(resolve(workspace, 'src/renderer/routes/accounting/SalesAccountingSlipPage.tsx'), 'utf8')
 const purchaseAccountingSlipPage = readFileSync(resolve(workspace, 'src/renderer/routes/accounting/PurchaseAccountingSlipPage.tsx'), 'utf8')
@@ -68,6 +73,8 @@ describe('accounting slip permission contract', () => {
     expect(refreshScript).toContain("$lines.Add('const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE")
     expect(refreshScript).toContain("$lines.Add('// DynamicPermissionService bypasses role templates for MASTER")
     expect(refreshScript).toContain("MASTER: Object.fromEntries(PERMISSION_PAGE_CODES.map((pageCode) => [pageCode, '1111111']))")
+    expect(refreshScript).toContain('$seenCells = [System.Collections.Generic.HashSet[string]]::new()')
+    expect(refreshScript).toContain('duplicate projection cell')
   })
 
   it('gates every accounting slip write CTA by the canonical accounting permission action', () => {
@@ -226,6 +233,62 @@ describe('accounting slip permission contract', () => {
   })
 
   it('R8: every mock page and every role matches the canonical 7-bit matrix', () => {
-    assertExactPermissionMatrix({ getMockResponse, mockSource: mock })
+    assertExactPermissionMatrix({ getMockResponse, mockSource: mock, snapshotSource: dbSnapshot })
+  })
+
+  it('RED-A: rejects a snapshot page duplicated across two bit buckets', () => {
+    const duplicatedSnapshot = structuredClone(PERMISSION_BITS_BY_ROLE)
+    duplicatedSnapshot.ACCOUNTANT['1000000'] = [
+      ...duplicatedSnapshot.ACCOUNTANT['1000000'],
+      'accounting.sales-commission-settlement',
+    ]
+
+    expect(() => (assertExactPermissionMatrix as (options: Record<string, unknown>) => void)({
+      getMockResponse,
+      mockSource: mock,
+      snapshotBitsByRole: duplicatedSnapshot,
+    })).toThrow(/ACCOUNTANT\|accounting\.sales-commission-settlement/)
+  })
+
+  it('RED-A: rejects duplicate keys in the raw DB projection source before import', () => {
+    const marker = [
+      "    'accounting.bank-matching': '1110000',",
+      "    'accounting.deposit-match': '1000000',",
+      "    'accounting.cash-receipts': '1111000',",
+      "    'accounting.sales-commission-settlement': '1110000',",
+      "    'accounting.period-close': '1000000',",
+    ].join('\n')
+    const duplicatedSource = dbSnapshot.replace(marker, [
+      "    'accounting.bank-matching': '1110000',",
+      "    'accounting.deposit-match': '1000000',",
+      "    'accounting.cash-receipts': '1111000',",
+      "    'accounting.sales-commission-settlement': '0000000',",
+      "    'accounting.sales-commission-settlement': '1110000',",
+      "    'accounting.period-close': '1000000',",
+    ].join('\n'))
+
+    expect(duplicatedSource).not.toBe(dbSnapshot)
+    expect(() => (assertExactPermissionMatrix as (options: Record<string, unknown>) => void)({
+      getMockResponse,
+      mockSource: mock,
+      snapshotSource: duplicatedSource,
+    })).toThrow(/MANAGER\|accounting\.sales-commission-settlement/)
+  })
+
+  it('rejects duplicate page rows in the mock role edit source before membership lookup', () => {
+    const editSource = mock.match(/const SP_D1_DEFAULT_EDIT[\s\S]*?= \{([\s\S]*?)\n\}\n\n/)?.[1]
+    expect(editSource, 'SP_D1_DEFAULT_EDIT source').toBeTruthy()
+    const duplicateCells: string[] = []
+    const roles = /([A-Z]+): \[([\s\S]*?)\n  \],/g
+    let roleMatch: RegExpExecArray | null
+    while ((roleMatch = roles.exec(editSource ?? '')) !== null) {
+      const pages = Array.from(roleMatch[2].matchAll(/'([^']+)'/g), (match) => match[1])
+      const seen = new Set<string>()
+      for (const page of pages) {
+        if (seen.has(page)) duplicateCells.push(`${roleMatch[1]}|${page}`)
+        seen.add(page)
+      }
+    }
+    expect(duplicateCells, 'mock role/page source must be duplicate-free').toEqual([])
   })
 })

@@ -67,9 +67,17 @@ try {
   & docker network rm $network *> $null
 }
 $byRole = @{}
+$seenCells = [System.Collections.Generic.HashSet[string]]::new()
 foreach ($row in $rows) {
   if ($row -notmatch '\|') { continue }
   $parts = $row.Split('|')
+  if ($parts.Count -ne 3 -or $parts[2] -notmatch '^[01]{7}$') {
+    throw "DB 파생 스냅샷 갱신 중단: 잘못된 projection row '$row'"
+  }
+  $cell = "$($parts[0])|$($parts[1])"
+  if (-not $seenCells.Add($cell)) {
+    throw "DB 파생 스냅샷 갱신 중단: duplicate projection cell $cell first/second bits cannot be represented"
+  }
   if (-not $byRole.ContainsKey($parts[0])) { $byRole[$parts[0]] = @{} }
   $byRole[$parts[0]][$parts[1]] = $parts[2]
 }

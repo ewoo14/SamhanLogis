@@ -19527,7 +19527,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'messenger.send',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
     'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.sales-commission-settlement',
-    'accounting.statement-batch', 'accounting.sales-commission-settlement',
+    'accounting.statement-batch',
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
     'inventory.edit-requests', 'inventory.edit-requests.decide',
     // C2b PermissionGuard 전환 — ACCOUNTANT: 12개 모두 edit 없음 (V36/V29 seed 확인)
