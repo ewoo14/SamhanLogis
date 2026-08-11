@@ -133,6 +133,10 @@ public enum PageCode {
     /** 입금보고서 수기 CRUD API — E3 S1. */
     ACCOUNTING_CASH_RECEIPTS("accounting.cash-receipts", "입금보고서"),
 
+    /** 영업수수료 정산서 목록·상세·생성·확정 화면/API — D-G1 S4a. */
+    ACCOUNTING_SALES_COMMISSION_SETTLEMENT(
+            "accounting.sales-commission-settlement", "영업수수료 정산"),
+
     // ---- 알림 / SMS (notification) ----
 
     /** 알림 발송 admin 화면/API — SP-D6-3. */

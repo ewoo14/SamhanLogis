@@ -28,6 +28,72 @@ import { collabHeaders } from '../auth/collabHeaders'
 export type { Account } from '@samhan/design-system'
 export type Page<T> = PageResponse<T>
 
+/** 영업수수료 정산서 상태. BE SalesCommissionSettlementStatus와 동일하다. */
+export type SalesCommissionSettlementStatus = 'DRAFT' | 'CONFIRMED'
+
+/** 영업수수료 정산서 응답. id는 mutation path용이며 화면에는 표시하지 않는다. */
+export interface SalesCommissionSettlement {
+  id: string
+  documentNo: string | null
+  settlementDate: string
+  status: SalesCommissionSettlementStatus
+  totalAmount: string | null
+  payoutAmount: string | null
+  supplyAmount: string | null
+  vatAmount: string | null
+  rateContractVersion: number | null
+}
+
+/** 영업수수료 정산서 목록 조회 조건. */
+export interface ListSalesCommissionSettlementsOptions {
+  page?: number
+  size?: number
+}
+
+/** 번호 없는 DRAFT 정산서 생성 요청. */
+export interface CreateSalesCommissionSettlementRequest {
+  settlementDate: string
+}
+
+/** 영업수수료 정산서 목록을 조회한다. */
+export async function listSalesCommissionSettlements(
+  options: ListSalesCommissionSettlementsOptions = {},
+): Promise<Page<SalesCommissionSettlement>> {
+  const res = await apiClient.get<ApiEnvelope<Page<SalesCommissionSettlement>>>(
+    '/accounting/sales-commission-settlements',
+    { params: { page: options.page ?? 0, size: options.size ?? 20 } },
+  )
+  return res.data.data
+}
+
+/** 영업수수료 정산서 상세를 조회한다. */
+export async function getSalesCommissionSettlement(id: string): Promise<SalesCommissionSettlement> {
+  const res = await apiClient.get<ApiEnvelope<SalesCommissionSettlement>>(
+    `/accounting/sales-commission-settlements/${id}`,
+  )
+  return res.data.data
+}
+
+/** 번호 없는 DRAFT 정산서를 생성한다. */
+export async function createSalesCommissionSettlement(
+  body: CreateSalesCommissionSettlementRequest,
+): Promise<SalesCommissionSettlement> {
+  const res = await apiClient.post<ApiEnvelope<SalesCommissionSettlement>>(
+    '/accounting/sales-commission-settlements',
+    body,
+  )
+  return res.data.data
+}
+
+/** DRAFT 정산서를 확정한다. */
+export async function confirmSalesCommissionSettlement(id: string): Promise<SalesCommissionSettlement> {
+  const res = await apiClient.post<ApiEnvelope<SalesCommissionSettlement>>(
+    `/accounting/sales-commission-settlements/${id}/confirm`,
+    {},
+  )
+  return res.data.data
+}
+
 /**
  * 분개 라인 단건 (BE `JournalLineResponse`).
  *

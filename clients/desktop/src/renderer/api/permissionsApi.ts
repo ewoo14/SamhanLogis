@@ -184,6 +184,7 @@ export type PageCode =
   | 'accounting.partner-ledger'
   | 'accounting.supplier-profiles'
   | 'accounting.cash-receipts'
+  | 'accounting.sales-commission-settlement'
   | 'accounting.edit-requests'
   | 'accounting.edit-requests.decide'
   | 'ecount.mig2.product'

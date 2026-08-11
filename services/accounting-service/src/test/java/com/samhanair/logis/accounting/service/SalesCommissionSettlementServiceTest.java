@@ -22,6 +22,9 @@ import java.time.LocalDate;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -39,6 +42,32 @@ class SalesCommissionSettlementServiceTest {
     @Mock SalesCommissionSettlementSnapshotHistoryRepository historyRepository;
     @Mock GroupwareSettlementApprovalClient groupwareApprovalClient;
     @Mock SalesCommissionSettlementApprovalClaimService claimService;
+
+    @Test
+    void list_returns_saved_settlements_without_exposing_deleted_rows() {
+        LocalDate date = LocalDate.of(2026, 8, 11);
+        SalesCommissionSettlement draft = SalesCommissionSettlement.createDraft(date);
+        PageRequest pageRequest = PageRequest.of(0, 20);
+        when(repository.findAll(pageRequest)).thenReturn(new PageImpl<>(java.util.List.of(draft)));
+        SalesCommissionSettlementService service =
+                new SalesCommissionSettlementService(repository, rateContractRepository, numberService);
+
+        Page<SalesCommissionSettlement> result = service.list(pageRequest);
+
+        assertThat(result.getContent()).containsExactly(draft);
+        verify(repository).findAll(pageRequest);
+    }
+
+    @Test
+    void getOne_returns_settlement_by_internal_id() {
+        UUID id = UUID.randomUUID();
+        SalesCommissionSettlement draft = SalesCommissionSettlement.createDraft(LocalDate.of(2026, 8, 11));
+        when(repository.findById(id)).thenReturn(Optional.of(draft));
+        SalesCommissionSettlementService service =
+                new SalesCommissionSettlementService(repository, rateContractRepository, numberService);
+
+        assertThat(service.getOne(id)).isSameAs(draft);
+    }
 
     @Test
     void createDraft_doesNotAllocateNumber() {

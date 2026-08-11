@@ -100,6 +100,8 @@ import { JournalListPage } from './JournalListPage'
 import { JournalFormPage } from './JournalFormPage'
 import { JournalDetailPage } from './JournalDetailPage'
 import { TrialBalancePage } from './TrialBalancePage'
+import { SalesCommissionSettlementListPage } from './SalesCommissionSettlementListPage'
+import { SalesCommissionSettlementDetailPage } from './SalesCommissionSettlementDetailPage'
 // P0-4 세금계산서 라우트 3종 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
 // BE: accounting-service `/accounting/tax-invoices/*` (commit f8b8b49).
 import { TaxInvoiceListPage } from './TaxInvoiceListPage'
@@ -714,6 +716,22 @@ const routes = [
         element: (
           <PermissionGuard pageCode="accounting.balances" action="view">
             <TrialBalancePage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/sales-commission-settlements',
+        element: (
+          <PermissionGuard pageCode="accounting.sales-commission-settlement" action="view">
+            <SalesCommissionSettlementListPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/sales-commission-settlements/:id',
+        element: (
+          <PermissionGuard pageCode="accounting.sales-commission-settlement" action="view">
+            <SalesCommissionSettlementDetailPage />
           </PermissionGuard>
         ),
       },

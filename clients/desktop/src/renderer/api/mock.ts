@@ -6933,6 +6933,63 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(created)
   }
 
+  // D-G1 S4a — 영업수수료 정산 목록/상세/생성/확정 mock.
+  if (url.includes('/accounting/sales-commission-settlements')) {
+    const pathname = new URL(url, 'http://mock.local').pathname
+    const settlementId = pathname.match(/\/accounting\/sales-commission-settlements\/([^/]+)/)?.[1] ?? null
+    if (method === 'GET' && settlementId) {
+      const denied = mockRequirePermission('accounting.sales-commission-settlement', 'view')
+      if (denied) return denied
+      const row = MOCK_SALES_COMMISSION_SETTLEMENTS.find((item) => item.id === settlementId)
+      return row ? envelope(row) : mockError(404, 'NOT_FOUND', '영업수수료 정산서를 찾을 수 없습니다.')
+    }
+    if (method === 'GET') {
+      const denied = mockRequirePermission('accounting.sales-commission-settlement', 'view')
+      if (denied) return denied
+      const page = Number(config.params?.['page'] ?? 0)
+      const size = Number(config.params?.['size'] ?? 20)
+      const content = MOCK_SALES_COMMISSION_SETTLEMENTS.slice(page * size, page * size + size)
+      return envelope({
+        content,
+        totalElements: MOCK_SALES_COMMISSION_SETTLEMENTS.length,
+        totalPages: Math.max(1, Math.ceil(MOCK_SALES_COMMISSION_SETTLEMENTS.length / size)),
+        number: page,
+        size,
+        first: page === 0,
+        last: (page + 1) * size >= MOCK_SALES_COMMISSION_SETTLEMENTS.length,
+      })
+    }
+    if (method === 'POST' && pathname.endsWith('/confirm')) {
+      const denied = mockRequirePermission('accounting.sales-commission-settlement', 'update')
+      if (denied) return denied
+      const row = settlementId ? MOCK_SALES_COMMISSION_SETTLEMENTS.find((item) => item.id === settlementId) : null
+      if (!row) return mockError(404, 'NOT_FOUND', '영업수수료 정산서를 찾을 수 없습니다.')
+      if (row.status !== 'DRAFT') return mockError(409, 'CONFLICT', 'DRAFT 상태만 확정할 수 있습니다.')
+      row.status = 'CONFIRMED'
+      row.documentNo = `${row.settlementDate.replace(/-/g, '/')}-${MOCK_SALES_COMMISSION_SETTLEMENTS.length}`
+      return envelope(row)
+    }
+    if (method === 'POST' && pathname === '/accounting/sales-commission-settlements') {
+      const denied = mockRequirePermission('accounting.sales-commission-settlement', 'create')
+      if (denied) return denied
+      const body = parseMockBody(config) as { settlementDate?: string }
+      if (!body.settlementDate) return mockError(400, 'INVALID_INPUT', 'settlementDate 는 필수입니다.')
+      const row: MockSalesCommissionSettlement = {
+        id: `00000000-0000-4000-8000-${String(930000 + MOCK_SALES_COMMISSION_SETTLEMENTS.length + 1).padStart(12, '0')}`,
+        documentNo: null,
+        settlementDate: body.settlementDate,
+        status: 'DRAFT',
+        totalAmount: null,
+        payoutAmount: null,
+        supplyAmount: null,
+        vatAmount: null,
+        rateContractVersion: null,
+      }
+      MOCK_SALES_COMMISSION_SETTLEMENTS.push(row)
+      return envelope(row)
+    }
+  }
+
   if (method === 'GET' && /\/accounting\/cash-receipts\/[0-9a-zA-Z-]{6,36}$/.test(new URL(url, 'http://mock.local').pathname)) {
     const denied = mockRequirePermission('accounting.cash-receipts', 'view')
     if (denied) return denied
@@ -14176,7 +14233,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const permissions: Record<string, string[]> = {}
       for (const p of mockPerms) {
         const actions: string[] = []
-        if (p.view) actions.push('VIEW', 'DOWNLOAD', 'PRINT')
+        if (p.view) {
+          actions.push('VIEW')
+          if (!MOCK_NO_EXPORT_PAGES.has(p.pageCode)) actions.push('DOWNLOAD', 'PRINT')
+        }
         // action-only page(복원 지원 페이지 포함)는 role-cell 경로(아래)와 동일하게 지정
         // 액션 집합을 부여 — 기존 CRUD 고정 도출은 RESTORE 미부여(#757 R2 LOW)·convert
         // 과다 grant 를 만들었다.
@@ -14218,7 +14278,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
         if (cell.pageCode === 'sales.slip.list' && cell.edit) actions.push('RESTORE')
         // download/print 는 BE read-side export 계약을 따르므로 view 권한에서 파생한다.
-        if (cell.view) actions.push('DOWNLOAD', 'PRINT')
+        if (cell.view && !MOCK_NO_EXPORT_PAGES.has(cell.pageCode)) actions.push('DOWNLOAD', 'PRINT')
       }
       permissions[cell.pageCode] = actions
     }
@@ -15670,6 +15730,43 @@ type MockCashReceiptRow = {
   debitAccountCode: string
   creditAccountCode: string
 }
+
+type MockSalesCommissionSettlement = {
+  id: string
+  documentNo: string | null
+  settlementDate: string
+  status: 'DRAFT' | 'CONFIRMED'
+  totalAmount: string | null
+  payoutAmount: string | null
+  supplyAmount: string | null
+  vatAmount: string | null
+  rateContractVersion: number | null
+}
+
+const MOCK_SALES_COMMISSION_SETTLEMENTS: MockSalesCommissionSettlement[] = [
+  {
+    id: '00000000-0000-4000-8000-000000000931',
+    documentNo: '2026/08/11-1',
+    settlementDate: '2026-08-11',
+    status: 'CONFIRMED',
+    totalAmount: '12500000',
+    payoutAmount: '10875000',
+    supplyAmount: '9875000',
+    vatAmount: '987500',
+    rateContractVersion: 1,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000932',
+    documentNo: null,
+    settlementDate: '2026-08-12',
+    status: 'DRAFT',
+    totalAmount: null,
+    payoutAmount: null,
+    supplyAmount: null,
+    vatAmount: null,
+    rateContractVersion: null,
+  },
+]
 
 const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
   {
@@ -18938,6 +19035,7 @@ const SP_D1_PAGES = [
   'accounting.deposit-mapping',
   'accounting.deposit-match',
   'accounting.cash-receipts',
+  'accounting.sales-commission-settlement',
   'accounting.period-close',
   'accounting.statement-batch',
   'accounting.partner-ledger',
@@ -19063,6 +19161,8 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   // DOWNLOAD/PRINT 없음). 미등재 시 mock /permissions/my 가 MANAGER/ACCOUNTANT 에
   // CREATE/DELETE/DOWNLOAD/PRINT 까지 과다부여한다.
   'products.price-schedule': ['UPDATE'],
+  // D-G6/S4a: 정산서는 조회·생성·수정만 허용하며 export 권한은 별도 seed가 없다.
+  'accounting.sales-commission-settlement': ['CREATE', 'UPDATE'],
   // #836: 4탭 신규 등록/수정/삭제 action만 허용하고 DOWNLOAD/PRINT는 부여하지 않는다.
   'partners.4tab': ['CREATE', 'UPDATE', 'DELETE'],
   'sales.partner-order.convert': ['CREATE'],
@@ -19081,6 +19181,9 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   // mock 모드 MANAGER/SALES 의 canAccess('estimates.list','restore') 가 항상 false 였다.
   'estimates.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
 }
+
+/** seed의 can_download/can_print=false 를 mock에서도 보존하는 페이지. */
+const MOCK_NO_EXPORT_PAGES = new Set(['accounting.sales-commission-settlement'])
 
 /** V98: MANAGER 입고 검수는 canonical 권한에서 UPDATE만 additive grant 한다. */
 const MOCK_ACTION_MATRIX_OVERRIDES: Record<string, Partial<MockActionMatrix>> = {
@@ -19138,7 +19241,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D2 회계 7개 — MANAGER: view 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
-    'accounting.partner-ledger',
+    'accounting.partner-ledger', 'accounting.sales-commission-settlement',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
     // V30: MANAGER messenger.send VIEW/CREATE/UPDATE/DELETE.
@@ -19234,7 +19337,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
-    'accounting.partner-ledger',
+    'accounting.partner-ledger', 'accounting.sales-commission-settlement',
     // V37 supplier-profiles — ACCOUNTANT: view only
     'accounting.supplier-profiles',
     // V30: ACCOUNTANT messenger.send VIEW/CREATE/UPDATE/DELETE.
@@ -19337,7 +19440,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // V99: MANAGER .list 1111 → .accounting 1111.
     'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run',
-    'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts',
+    'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts', 'accounting.sales-commission-settlement',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
     'messenger.send',
@@ -19423,8 +19526,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // V30: ACCOUNTANT messenger.send VIEW/CREATE/UPDATE/DELETE.
     'messenger.send',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
-    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close',
-    'accounting.statement-batch',
+    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.sales-commission-settlement',
+    'accounting.statement-batch', 'accounting.sales-commission-settlement',
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
     'inventory.edit-requests', 'inventory.edit-requests.decide',
     // C2b PermissionGuard 전환 — ACCOUNTANT: 12개 모두 edit 없음 (V36/V29 seed 확인)

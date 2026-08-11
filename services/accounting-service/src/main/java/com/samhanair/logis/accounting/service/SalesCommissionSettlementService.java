@@ -14,6 +14,8 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
 import java.util.UUID;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -78,6 +80,20 @@ public class SalesCommissionSettlementService {
     /** 번호를 소비하지 않는 DRAFT 정산서를 생성한다. */
     public SalesCommissionSettlement createDraft(LocalDate settlementDate) {
         return repository.save(SalesCommissionSettlement.createDraft(settlementDate));
+    }
+
+    /** 활성 정산서를 페이지 단위로 조회한다. soft-delete 행은 repository restriction으로 제외된다. */
+    @Transactional(readOnly = true)
+    public Page<SalesCommissionSettlement> list(Pageable pageable) {
+        return repository.findAll(pageable);
+    }
+
+    /** 내부 식별자로 정산서 상세를 조회한다. UUID는 화면 표시용이 아니다. */
+    @Transactional(readOnly = true)
+    public SalesCommissionSettlement getOne(UUID settlementId) {
+        return repository.findById(settlementId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "영업수수료 정산서를 찾을 수 없습니다: " + settlementId));
     }
 
     /** DRAFT 정산서를 정산 기준일 번호와 함께 확정한다. */

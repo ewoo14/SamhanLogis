@@ -78,6 +78,40 @@ function amount(raw: string | number): number {
   return typeof raw === 'number' ? raw : Number(raw)
 }
 
+describe('영업수수료 정산 권한 enforcement mock 계약', () => {
+  it('권한 없는 SALES 역할은 목록·생성·확정 API를 모두 403으로 거절한다', () => {
+    const originalRole = MOCK_AUTH.role
+    MOCK_AUTH.role = 'SALES'
+    try {
+      for (const request of [
+        { method: 'GET', url: '/accounting/sales-commission-settlements' },
+        { method: 'POST', url: '/accounting/sales-commission-settlements', data: JSON.stringify({ settlementDate: '2026-08-13' }) },
+        { method: 'POST', url: '/accounting/sales-commission-settlements/settlement-1/confirm' },
+      ] as AxiosRequestConfig[]) {
+        const response = mockRequest(request) as { __mockStatus: number; body: MockEnvelope<null> }
+        expect(response.__mockStatus).toBe(403)
+        expect(response.body.success).toBe(false)
+      }
+    } finally {
+      MOCK_AUTH.role = originalRole
+    }
+  })
+
+  it('ACCOUNTANT 기본 권한은 VIEW·CREATE·UPDATE만이고 export/delete/restore는 과다 부여되지 않는다', () => {
+    const originalRole = MOCK_AUTH.role
+    MOCK_AUTH.role = 'ACCOUNTANT'
+    try {
+      const response = mockRequest({
+        method: 'GET',
+        url: '/auth/admin/permissions/my',
+      }) as MockEnvelope<Record<string, string[]>>
+      expect(response.data['accounting.sales-commission-settlement']).toEqual(['VIEW', 'CREATE', 'UPDATE'])
+    } finally {
+      MOCK_AUTH.role = originalRole
+    }
+  })
+})
+
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllEnvs()

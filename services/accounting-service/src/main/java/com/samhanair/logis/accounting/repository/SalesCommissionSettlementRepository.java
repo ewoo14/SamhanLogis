@@ -2,10 +2,11 @@ package com.samhanair.logis.accounting.repository;
 
 import com.samhanair.logis.accounting.domain.SalesCommissionSettlement;
 import com.samhanair.logis.accounting.domain.SalesCommissionSettlementStatus;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -15,6 +16,16 @@ import org.springframework.data.repository.query.Param;
 /** 영업수수료 정산서 repository. */
 public interface SalesCommissionSettlementRepository
         extends JpaRepository<SalesCommissionSettlement, UUID> {
+
+    /** 목록의 요율 계약 snapshot 을 함께 읽는다. */
+    @Override
+    @EntityGraph(attributePaths = "rateContract")
+    Page<SalesCommissionSettlement> findAll(org.springframework.data.domain.Pageable pageable);
+
+    /** 상세의 요율 계약 snapshot 을 함께 읽는다. */
+    @Override
+    @EntityGraph(attributePaths = "rateContract")
+    Optional<SalesCommissionSettlement> findById(UUID id);
 
     /** 활성 정산서를 문서번호로 되찾는다. */
     @EntityGraph(attributePaths = "rateContract")

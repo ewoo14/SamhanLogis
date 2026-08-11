@@ -530,6 +530,7 @@ export function AppLayout() {
   const showAccountingBankMatching = dynamicCanAccess('accounting.bank-matching',  'view')
   const showAccountingDepositMapping = dynamicCanAccess('accounting.deposit-mapping', 'view')
   const showAccountingCashReceipts = dynamicCanAccess('accounting.cash-receipts', 'view')
+  const showAccountingSalesCommissionSettlement = dynamicCanAccess('accounting.sales-commission-settlement', 'view')
   const showAccountingBankCardAdmin = dynamicCanAccess('accounting.bank-card-admin',  'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
   const showAccountingAdminMigOps = dynamicCanAccess('ecount.mig.ops-dashboard', 'view')
@@ -543,6 +544,7 @@ export function AppLayout() {
     || showAccountingSalesSlip || showAccountingPurchaseSlip
     || showAccountingPartnerLedger || showAccountingTaxInvoice
     || showAccountingTaxInvoiceBatch || showAccountingTaxInvoiceInbound
+    || showAccountingSalesCommissionSettlement
     || showAccountingDailyClose
     || showAccountingLedger || showAccountingBankMatching || showAccountingDepositMapping || showAccountingCashReceipts || showAccountingBankCardAdmin
     || showAccountingAdminLedger
@@ -929,6 +931,7 @@ export function AppLayout() {
               '/accounting/funds/status',
               '/sales/closing',
               '/accounting/period-close',
+              '/accounting/sales-commission-settlements',
               '/accounting/statement-batch',
               '/accounting/partner-ledger',
               '/accounting/hometax-export',
@@ -1169,6 +1172,13 @@ export function AppLayout() {
                 data-testid="sidebar-accounting-period-close"
               >
                 월말 마감
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/sales-commission-settlements"
+                show={showAccountingSalesCommissionSettlement}
+                data-testid="sidebar-accounting-sales-commission-settlements"
+              >
+                영업수수료 정산
               </SidebarLink>
               {/* [PR-E2 FE-8] 거래명세서 일괄 — accounting.statement-batch 동적 RBAC. */}
               <SidebarLink
