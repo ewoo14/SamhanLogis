@@ -35,3 +35,29 @@ Task failed: Selected model is at capacity. Please try a different model.
 - 대체했으면 **PR 에 어느 모델로 돌렸는지 기록**한다. 나중에 산출물 품질을 대조할 근거가 된다.
 
 관련: [[feedback_codex_plugin_setup]] · [[feedback_pm_delegate_to_codex_conserve_tokens]] · [[feedback_canonical_workflow]]
+
+---
+
+## 🆕 2026-08-11 재확인 — **범위가 넓어졌다**
+
+> *"LUNA가 모델 용량 한계라면 TERRA로 진행해봐."*
+> *"앞으로 **LUNA로 어려운 것은 TERRA로** 진행해."*
+
+```text
+기존   용량 초과(at capacity) 로 세션 생성이 거부될 때만 대체
+🆕     **LUNA 로 어려운 것 전반**이 TERRA 대상이다. 용량 오류가 아니어도 된다
+```
+
+## 🚨 폴백을 SOL 로 하지 마라 — 리뷰어/구현자 분리가 깨진다
+
+2026-08-11 실측: LUNA 용량 초과로 `#1164` R12(구현)를 **SOL** 에 보냈는데,
+**SOL 은 같은 PR 의 R11 리뷰어**였다. 캐논의 *"리뷰어/구현자 분리 유지"* 를 어긴 것이다.
+
+```text
+✅ 구현 폴백 = TERRA        (SOL 은 그 PR 을 리뷰한 적이 있으면 특히 금지)
+✅ 진단·검증 폴백 = SOL      (원래 역할이므로 문제없다)
+🔑 판별문 — "이 모델이 이 PR 에서 **판정을 내린 적이 있는가**"
+   있으면 구현을 맡기지 않는다. 자기 판정을 자기가 구현하면 검증이 사라진다
+```
+
+⚠️ 이미 SOL 이 구현해 버렸다면 버리지 말고, **다른 모델의 독립 검증을 붙여** 분리의 취지를 회복한다.
