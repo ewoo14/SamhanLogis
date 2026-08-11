@@ -1,0 +1,20 @@
+PR #1166 S2 SOL Live QA — 최초 실행 실패 원문
+실행일: 2026-08-11
+작업 위치: clients/desktop
+브라우저: Playwright headless Chromium, chromium-1217
+
+원문:
+
+Test timeout of 60000ms exceeded.
+
+Error: locator.scrollIntoViewIfNeeded: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for getByText('주문서 상세', { exact: true })
+
+판정:
+- 제품 결함이 아니라 임시 SOL 하네스의 locator 결함이었다.
+- 실제 제목 DOM은 `주문서 상세`와 상태 badge를 같은 요소에 포함해 exact text가 성립하지 않았다.
+- 실패 시점 page snapshot에는 주문 상세와 금액이 이미 렌더링돼 있었다.
+- locator를 실제 DOM 계약에 맞춰 수정하고 update banner를 닫은 뒤 동일 시나리오 3건을 재실행했다.
+- 실패 후 남은 Vite/Playwright process tree를 종료하고 포트 5516 종료를 확인했다.
+

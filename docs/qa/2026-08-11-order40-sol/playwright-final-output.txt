@@ -1,0 +1,26 @@
+PR #1166 S2 SOL Live QA — 최종 실행 결과
+실행일: 2026-08-11
+작업 위치: clients/desktop
+실행 방식: Playwright headless
+브라우저 실행 파일 검증: executablePath에 chromium-1217 포함
+
+시나리오:
+1. 메인 장비 없음 + 변동DC 대상(HVAC): 1,000,000원 → 600,000원, 화면 가시성 통과
+2. 실외기 포함: 기존 7% 유지, 1,000,000원 → 930,000원, 화면 가시성 통과
+3. 미분류 + 변동DC 혼합: 기존 7% 유지, 1,000,000원 → 930,000원, 화면 가시성 통과
+
+최종 원문:
+Running 3 tests using 1 worker
+  3 passed (3.5s)
+
+가시성 검증:
+- 제목, 주문 상태 badge, 품목 행, 메모를 각각 toBeVisible로 검증했다.
+- 각 대상의 bounding box가 0보다 크고 viewport와 교차하는지 검증했다.
+- 화면 body에 UUID 형식 문자열이 없는지 검증했다.
+- 최종 캡처 3장을 원본 해상도로 다시 열어 금액과 상태가 실제로 보이는지 육안 확인했다.
+
+종료 확인:
+- QA Vite 서버(port 5516) 종료 확인
+- 잔존 Playwright process 없음 확인
+- 공유 서비스 및 공유 DB는 재시작하거나 변경하지 않음
+
