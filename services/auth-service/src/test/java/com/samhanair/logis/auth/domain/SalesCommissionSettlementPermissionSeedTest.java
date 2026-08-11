@@ -1,14 +1,17 @@
 package com.samhanair.logis.auth.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -108,17 +111,47 @@ class SalesCommissionSettlementPermissionSeedTest {
                 .isEqualTo(2);
     }
 
+    @Test
+    void duplicateGrantRowsAreRejectedEvenWhenTheFirstRowHasOnlyZeroBits() {
+        for (String role : ALL_ROLES) {
+            assertThatThrownBy(() -> bitsMap(List.of(
+                    new SeedRow(role, List.of(false, false, false)),
+                    new SeedRow(role, List.of(true, true, true))), 3, 7))
+                    .as("duplicate 7-bit grant for %s", role)
+                    .isInstanceOf(AssertionError.class)
+                    .hasMessageContaining("duplicate grant row for " + role);
+
+            assertThatThrownBy(() -> bitsMap(List.of(
+                    new SeedRow(role, List.of(false, false)),
+                    new SeedRow(role, List.of(true, true))), 2, 2))
+                    .as("duplicate 2-bit grant for %s", role)
+                    .isInstanceOf(AssertionError.class)
+                    .hasMessageContaining("duplicate grant row for " + role);
+        }
+    }
+
+    @Test
+    void duplicateGrantRowsAreRejectedWhenTheSecondGrantIsNonZero() {
+        assertThatThrownBy(() -> bitsMap(List.of(
+                new SeedRow("MASTER", List.of(false, false, false)),
+                new SeedRow("MASTER", List.of(true, true, true))), 3, 7))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("duplicate grant row for MASTER");
+    }
+
     private static Map<String, String> bitsMap(List<SeedRow> rows, int grantWidth, int outputWidth) {
         Map<String, String> actual = new LinkedHashMap<>();
+        Set<String> seenRoles = new HashSet<>();
         for (String role : ALL_ROLES) {
             actual.put(role, "0".repeat(outputWidth));
         }
         for (SeedRow row : rows) {
             assertThat(row.bits()).as("grant row %s must define exactly %d role bits", row.role(), grantWidth)
                     .hasSize(grantWidth);
-            String existing = actual.put(row.role(), bits(row.bits(), outputWidth));
-            assertThat(existing).as("duplicate grant row for %s", row.role())
-                    .isEqualTo("0".repeat(outputWidth));
+            assertThat(seenRoles.add(row.role()))
+                    .as("duplicate grant row for %s", row.role())
+                    .isTrue();
+            actual.put(row.role(), bits(row.bits(), outputWidth));
         }
         return actual;
     }
