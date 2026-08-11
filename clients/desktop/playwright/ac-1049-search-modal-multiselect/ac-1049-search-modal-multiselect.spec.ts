@@ -36,11 +36,18 @@ function input(page: Page) {
 
 test.describe('#1049 부분 검색 모달 복수선택', () => {
   test('A — 결과 1건은 모달 없이 바로 칩으로 확정된다', async ({ page }) => {
+    const leakedQuantitySyncRequests: string[] = []
+    page.on('request', (request) => {
+      if (request.url().includes('/api/v1/quantity-sync-rules')) {
+        leakedQuantitySyncRequests.push(request.url())
+      }
+    })
     await gotoEstimateItems(page)
     await input(page).fill('AJ040RXH4BC1')
     await expect(page.getByText('AJ040RXH4BC1').first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(page.getByRole('option', { name: /검색 중/ })).toHaveCount(0)
+    expect(leakedQuantitySyncRequests, 'quantity-sync-rules가 mock adapter를 벗어남').toEqual([])
   })
 
   test('B·C·D·F — 2건 이상은 모달에서 키보드 복수 선택하고 UUID 없이 확정한다', async ({ page }) => {

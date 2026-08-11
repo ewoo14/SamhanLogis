@@ -2678,6 +2678,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // GET /api/v1/quantity-sync-rules — 견적품목 화면의 병행 규칙 조회.
+  // 이 경로가 mock adapter를 빠져나가면 로컬의 실제 8080이 401을 반환하는 환경에서
+  // 전역 auth interceptor가 로그인 화면으로 이동시켜 mock hard gate가 환경 의존적으로 깨진다.
+  if (method === 'GET' && url.match(/\/api\/v1\/quantity-sync-rules(?:\?.*)?$/)) {
+    return []
+  }
+
   const productCategoryTreeMatch = url.match(/\/api\/products\/categories(?:\?.*)?$/)
   if (method === 'GET' && productCategoryTreeMatch) {
     const denied = mockRequirePermission('products.list', 'view')
