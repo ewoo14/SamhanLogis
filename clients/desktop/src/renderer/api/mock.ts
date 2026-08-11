@@ -5925,6 +5925,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (typeof window !== 'undefined' && window.location.hash.includes('mockAccountingFailure=1')) {
       return mockError(503, 'ACCOUNTING_UNAVAILABLE', '회계 원장 조회에 실패했습니다')
     }
+    if (typeof window !== 'undefined' && window.location.hash.includes('mockAccountingZero=1')) {
+      return envelope({
+        partnerCode: '1234567890',
+        partnerName: '엘에이시스템에어',
+        partnerBusinessNo: '123-45-67890',
+        periodFrom: '2026-05-04',
+        periodTo: '2026-05-04',
+        openingBalance: '0',
+        salesTotal: '0',
+        paymentTotal: '0',
+        closingBalance: '0',
+        documents: [],
+        adjustmentTotal: '0',
+      })
+    }
     return envelope({
       partnerCode: '1234567890',
       partnerName: '엘에이시스템에어',
@@ -8912,6 +8927,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // 주의: /admin/partners/search 보다 반드시 뒤에 배치 (search 가 더 specific 하므로 먼저 매칭됨)
   const adminPartnerDetailMatch = url.match(/\/admin\/partners\/([^/?]+)$/)
   if (method === 'GET' && adminPartnerDetailMatch) {
+    if (typeof window !== 'undefined' && window.location.hash.includes('mockPartnerDetailFailure=1')) {
+      return mockError(503, 'PARTNER_UNAVAILABLE', '거래처 상세 조회에 실패했습니다')
+    }
     const code = decodeURIComponent(adminPartnerDetailMatch[1] ?? '')
     const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
     if (!row) {
