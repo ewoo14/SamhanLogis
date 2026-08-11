@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -160,6 +161,54 @@ class SlipRestoreTest {
         assertThat(head.getParentSetModel()).isEqualTo("SET-809");
         assertThat(component.isSetHead()).isFalse();
         assertThat(component.getParentSetModel()).isEqualTo("SET-809");
+    }
+
+    @Test
+    @DisplayName("R14 RED-A: 교차 배치 legacy BUNDLE 복원은 Slip에서도 signature 소속을 보존한다")
+    void restoreCrossedLegacyBundleLinesBySignature() {
+        Slip slip = sampleSlip();
+        BundleSetOptions optionA = new BundleSetOptions("REMOTE-A", false, null, null, false);
+        BundleSetOptions optionB = new BundleSetOptions("REMOTE-B", false, null, null, false);
+        SlipSnapshot snapshot = new SlipSnapshot(
+                "2026/05/29-1", LocalDate.of(2026, 5, 29), PARTNER, "삼한물산", null, null,
+                "교차 복원", null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
+                List.of(bundleLine(true, "head-A", optionA), bundleLine(true, "head-B", optionB),
+                        bundleLine(false, "child-A", optionA), bundleLine(false, "child-B", optionB)));
+
+        slip.restoreFromSnapshot(snapshot);
+
+        assertThat(slip.getLines()).extracting(line -> line.getBundleSetOptions().instanceKey())
+                .doesNotContainNull()
+                .containsExactly(slip.getLines().get(0).getBundleSetOptions().instanceKey(),
+                        slip.getLines().get(1).getBundleSetOptions().instanceKey(),
+                        slip.getLines().get(2).getBundleSetOptions().instanceKey(),
+                        slip.getLines().get(3).getBundleSetOptions().instanceKey());
+        assertThat(slip.getLines().get(0).getBundleSetOptions().instanceKey())
+                .isNotEqualTo(slip.getLines().get(1).getBundleSetOptions().instanceKey());
+    }
+
+    @Test
+    @DisplayName("R14: 동일 signature legacy BUNDLE 복원은 잘못된 키를 만들지 않고 성공한다")
+    void restoreAmbiguousLegacyBundleWithoutBlocking() {
+        Slip slip = sampleSlip();
+        BundleSetOptions duplicate = new BundleSetOptions("REMOTE-SAME", false, null, null, false);
+        SlipSnapshot snapshot = new SlipSnapshot(
+                "2026/05/29-1", LocalDate.of(2026, 5, 29), PARTNER, "삼한물산", null, null,
+                "중복 signature", null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
+                List.of(bundleLine(true, "head-A", duplicate), bundleLine(true, "head-B", duplicate),
+                        bundleLine(false, "child-A", duplicate), bundleLine(false, "child-B", duplicate)));
+
+        slip.restoreFromSnapshot(snapshot);
+
+        assertThat(slip.getLines()).allMatch(line -> line.getBundleSetOptions().instanceKey() == null);
+    }
+
+    private SlipSnapshot.Line bundleLine(boolean head, String model, BundleSetOptions options) {
+        return new SlipSnapshot.Line(UUID.randomUUID(), model, model, null, 1,
+                new BigDecimal("1000"), new BigDecimal("1100"), null, null, new BigDecimal("100"),
+                new BigDecimal("1000"), head, "SET-SAME", null, null, options);
     }
 
     @Test

@@ -2230,6 +2230,16 @@ public class Slip extends BaseEntity {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "거래처 없는 이력으로 커밋 전표를 복원할 수 없습니다");
         }
+        // 레거시 BUNDLE 정책은 mutation 전에 계산한다. signature가 확정되지 않는 정책으로
+        // 바뀌더라도 헤더/기존 라인이 먼저 변경되지 않도록 복원 입력을 선행 검증한다.
+        List<SlipSnapshot.Line> snapshotLines = snapshot.lines();
+        List<com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions> restoredSetOptions =
+                snapshotLines == null
+                        ? List.of()
+                        : BundleSetInstanceKeyPolicy.materializeLegacyMultiInstanceKeys(snapshotLines,
+                                SlipSnapshot.Line::parentSetModel,
+                                line -> Boolean.TRUE.equals(line.setHead()),
+                                snapLine -> snapLine.bundleSetOptions());
         // 헤더 필드 역적용 — toSnapshot() 이 캡처한 동일 필드 집합 (스냅샷 값 그대로 덮어씀)
         this.slipNo = snapshot.slipNo();
         this.slipDate = snapshot.slipDate();
@@ -2274,13 +2284,7 @@ public class Slip extends BaseEntity {
             line.markDeleted("system");
         }
         this.lines.clear();
-        List<SlipSnapshot.Line> snapshotLines = snapshot.lines();
         if (snapshotLines != null) {
-            List<com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions> restoredSetOptions =
-                    BundleSetInstanceKeyPolicy.materializeLegacyMultiInstanceKeys(snapshotLines,
-                            SlipSnapshot.Line::parentSetModel,
-                            line -> Boolean.TRUE.equals(line.setHead()),
-                            snapLine -> snapLine.bundleSetOptions());
             for (int index = 0; index < snapshotLines.size(); index++) {
                 SlipSnapshot.Line snapLine = snapshotLines.get(index);
                 SlipLine restored = SlipLine.create(this,

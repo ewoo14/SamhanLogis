@@ -107,8 +107,8 @@ class SalesSlipUpdateR5FixTest {
     }
 
     @Test
-    @DisplayName("RED-B R9 mutation: 미이관 keyless 다중 인스턴스의 경계는 계속 거부한다")
-    void unmigratedKeylessMultiInstanceBoundaryRemainsRejected() {
+    @DisplayName("R14: 미이관 keyless 다중 인스턴스의 정상 왕복 편집은 차단하지 않는다")
+    void unmigratedKeylessMultiInstanceBoundaryRemainsKeylessButEditable() {
         List<PersistedLine> persisted = List.of(
                 persistedLine(true, false), persistedLine(false, false),
                 persistedLine(false, false), persistedLine(false, false),
@@ -116,13 +116,12 @@ class SalesSlipUpdateR5FixTest {
                 persistedLine(false, false), persistedLine(false, false));
         Fixture fixture = fixture(persisted, false, true);
 
-        assertThatThrownBy(() -> fixture.service().update(
-                fixture.slipId(), request(fixture, 2, 222), UUID.randomUUID(), "R9 공격자"))
-                .isInstanceOfSatisfying(BusinessException.class, ex -> {
-                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
-                    assertThat(ex.getMessage()).contains("경계가 불명확합니다");
-                });
-        verify(fixture.repository(), never()).saveAndFlush(any(Slip.class));
+        assertThatCode(() -> fixture.service().update(
+                fixture.slipId(), request(fixture, 2, 222), UUID.randomUUID(), "R14 사용자"))
+                .doesNotThrowAnyException();
+        verify(fixture.repository()).saveAndFlush(any(Slip.class));
+        assertThat(fixture.slip().getLines()).hasSize(8)
+                .allMatch(line -> line.getBundleSetOptions() == null);
     }
 
     @Test

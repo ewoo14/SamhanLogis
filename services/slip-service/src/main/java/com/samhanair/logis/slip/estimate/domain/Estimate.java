@@ -524,6 +524,15 @@ public class Estimate extends BaseEntity {
         if (snapshot == null) {
             throw new IllegalArgumentException("복원 스냅샷은 null 일 수 없습니다");
         }
+        // 레거시 BUNDLE 정책은 mutation 전에 계산한다. signature가 확정되지 않는 정책으로
+        // 바뀌더라도 헤더/기존 라인이 먼저 변경되지 않도록 복원 입력을 선행 검증한다.
+        List<EstimateSnapshot.Line> snapshotLines = snapshot.lines();
+        List<BundleSetOptions> restoredSetOptions = snapshotLines == null
+                ? List.of()
+                : BundleSetInstanceKeyPolicy.materializeLegacyMultiInstanceKeys(snapshotLines,
+                        EstimateSnapshot.Line::parentSetModel,
+                        line -> Boolean.TRUE.equals(line.setHead()),
+                        EstimateSnapshot.Line::bundleSetOptions);
         // 헤더 8필드 역적용 — toSnapshot() 이 캡처한 동일 필드 집합 (스냅샷 값 그대로 덮어씀)
         this.estimateNo = snapshot.estimateNo();
         this.estimateDate = snapshot.estimateDate();
@@ -539,13 +548,7 @@ public class Estimate extends BaseEntity {
         //  요소별 requireEditable/recalculateTotals 중복을 피하려고 컬렉션을 직접 조작한 뒤
         //  마지막에 recalculateTotals() 1회만 호출한다.)
         this.lines.clear();
-        List<EstimateSnapshot.Line> snapshotLines = snapshot.lines();
         if (snapshotLines != null) {
-            List<BundleSetOptions> restoredSetOptions =
-                    BundleSetInstanceKeyPolicy.materializeLegacyMultiInstanceKeys(snapshotLines,
-                            EstimateSnapshot.Line::parentSetModel,
-                            line -> Boolean.TRUE.equals(line.setHead()),
-                            EstimateSnapshot.Line::bundleSetOptions);
             int lineNo = 1;
             for (int index = 0; index < snapshotLines.size(); index++) {
                 EstimateSnapshot.Line snapLine = snapshotLines.get(index);

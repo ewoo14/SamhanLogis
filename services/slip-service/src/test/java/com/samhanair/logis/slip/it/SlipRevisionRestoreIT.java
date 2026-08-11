@@ -239,7 +239,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    void restoreLegacyMultiInstanceRevision_materializesKeysAndAllowsNextEdit() throws Exception {
+    void restoreLegacyMultiInstanceRevisionPreservesAmbiguousRowsAndAllowsNextEdit() throws Exception {
         UUID slipId = createOutboundSlipAsSales(1);
         Slip current = slipRepository.findById(slipId).orElseThrow();
         slipRevisionService.capture(current,
@@ -300,7 +300,9 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                 + "|instanceKeys=" + restored.get("keys"));
         assertThat(((Number) restored.get("rows")).intValue()).isEqualTo(8);
         assertThat(((Number) restored.get("heads")).intValue()).isEqualTo(2);
-        assertThat(((Number) restored.get("keys")).intValue()).isEqualTo(2);
+        // 두 legacy 인스턴스가 모든 비-key 옵션을 공유하면 snapshot만으로 소속을 증명할 수
+        // 없다. 복원은 HTTP 200으로 계속하되 잘못된 키를 만들지 않고 keyless를 보존한다.
+        assertThat(((Number) restored.get("keys")).intValue()).isZero();
 
         JsonNode detail = getDetail(slipId);
         entityManager.clear();

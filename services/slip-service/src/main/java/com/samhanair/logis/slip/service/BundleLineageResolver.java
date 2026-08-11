@@ -155,8 +155,8 @@ public final class BundleLineageResolver {
      * <p>세트 인스턴스의 정본은 JSONB {@code bundleSetOptions.instanceKey}와
      * {@code parentSetModel}의 조합이다. 같은 model을 두 번 넣은 행도 key가 다르면 서로
      * 다른 인스턴스로 판정된다. key가 없는 legacy 행은 하나의 model로만 안전하게 묶을 수
-     * 있으며, 그 model에 역사적 head가 둘 이상이면 경계를 추정하지 않고 저장을 거부한다.
-     * 단일 legacy 인스턴스는 저장 시 새 key를 materialize한다.
+     * 있으며, 그 model에 역사적 head가 둘 이상이면 경계를 추정하지 않고 keyless 상태로
+     * 왕복 저장한다. 단일 legacy 인스턴스는 저장 시 새 key를 materialize한다.
      *
      * <p>원본 인스턴스가 이미 0-head였던 경우는 legacy 상태로 인정한다. 새 검증이 기존 DB를
      * 소급해 무효화하지 않도록 하는 경계이며, 원본 head가 1개였던 인스턴스의 head 삭제는
@@ -165,8 +165,7 @@ public final class BundleLineageResolver {
      * @param originalLines 저장 전 활성 영속 라인
      * @param retainedLines 전체교체 저장 후 남길 라인
      * @param retainedLineIds retainedLines 각 행이 승계하는 원본 lineId
-     * @throws BusinessException 기존 인스턴스의 head가 새로 0개 또는 2개 이상이거나,
-     *                          key 없는 legacy 인스턴스 경계가 모호할 때
+     * @throws BusinessException 기존 인스턴스의 head가 새로 0개 또는 2개 이상일 때
      */
     public static void requireSingleHeadPerRetainedBundleInstance(
             List<SlipLine> originalLines, List<SlipLine> retainedLines,
@@ -185,6 +184,12 @@ public final class BundleLineageResolver {
             ExistingBundleInstance instance = instanceByLineId.get(retainedLineId);
             if (instance == null) {
                 // 신규 익명 BUNDLE은 validateAndAssignNewBundleLineage가 별도로 검증한다.
+                continue;
+            }
+            // 동일 signature가 중복된 legacy 다중 인스턴스는 snapshot만으로 소속을 증명할 수
+            // 없다. 행 순서나 저장 시점의 임의 키로 경계를 만들지 않고, 기존 라인을 왕복하는
+            // 정상 편집은 keyless 상태로 허용한다.
+            if (instance.ambiguousLegacy && instance.instanceKey == null) {
                 continue;
             }
             requireExplicitKeyWhenLegacyInstanceIsAmbiguous(instance, retainedLines.get(i));
@@ -252,7 +257,8 @@ public final class BundleLineageResolver {
         for (int i = 0; i < retainedLines.size(); i++) {
             ExistingBundleInstance instance = instanceByLineId.get(retainedLineIds.get(i));
             SlipLine line = retainedLines.get(i);
-            if (instance == null || instance.instanceKey != null || !isBundleComponent(line)) {
+            if (instance == null || instance.instanceKey != null || instance.ambiguousLegacy
+                    || !isBundleComponent(line)) {
                 continue;
             }
             String key = generatedKeys.computeIfAbsent(instance.ordinal,
