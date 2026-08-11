@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -119,7 +120,7 @@ class WarehouseServiceTest {
     }
 
     @Test
-    void update_uuidCaller_doesNotPersistUuidAsActorName() {
+    void update_withoutCallerName_usesAuditFallbackName() {
         when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
         UUID callerId = UUID.randomUUID();
 
@@ -128,7 +129,7 @@ class WarehouseServiceTest {
                 callerId.toString());
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), isNull(), isNull(), anyList());
+                eq(mainId), eq(callerId), eq("변경자 미상"), eq(null), anyList());
     }
 
     @Test
@@ -141,7 +142,7 @@ class WarehouseServiceTest {
                 callerId.toString(), "김감사");
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+                eq(mainId), eq(callerId), eq("김감사"), eq(null), anyList());
     }
 
     @Test
@@ -152,7 +153,7 @@ class WarehouseServiceTest {
         service.delete(mainId, callerId.toString(), "김감사");
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+                eq(mainId), eq(callerId), eq("김감사"), eq(null), anyList());
     }
 
     @Test
@@ -165,7 +166,7 @@ class WarehouseServiceTest {
         service.restore(mainId, callerId.toString(), "김감사");
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+                eq(mainId), eq(callerId), eq("김감사"), eq(null), anyList());
     }
 
     @Test
@@ -179,11 +180,11 @@ class WarehouseServiceTest {
         service.revertToRevision(mainId, 1, callerId.toString(), "김감사");
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+                eq(mainId), eq(callerId), eq("김감사"), eq(null), anyList());
     }
 
     @Test
-    void authenticatedCaller_uuidDisplayName_isNotPersistedAsActorName() {
+    void authenticatedCaller_uuidDisplayName_isPersistedUnchanged() {
         when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
         UUID callerId = UUID.randomUUID();
 
@@ -192,13 +193,12 @@ class WarehouseServiceTest {
                 callerId.toString(), callerId.toString());
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), isNull(), isNull(), anyList());
+                eq(mainId), eq(callerId), eq(callerId.toString()), eq(null), anyList());
     }
 
-    @ParameterizedTest(name = "보이지 않는 문자 오염 actorName {0} 은 저장하지 않는다")
+    @ParameterizedTest(name = "보이지 않는 문자 actorName {0} 은 원문을 저장한다")
     @ValueSource(strings = {
             "\u200B",
-            "   ",
             "\u200B123e4567-e89b-12d3-a456-426614174000",
             "123e4567-e89b-12d3-a456-426614174000\u200B",
             "\u200C",
@@ -207,7 +207,7 @@ class WarehouseServiceTest {
             "\u00AD",
             "\u2060"
     })
-    void invisibleOrWrappedUuidDisplayName_isNotPersistedAsActorName(String actorName) {
+    void invisibleOrWrappedUuidDisplayName_isPersistedUnchanged(String actorName) {
         when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
         UUID callerId = UUID.randomUUID();
 
@@ -216,7 +216,22 @@ class WarehouseServiceTest {
                 callerId.toString(), actorName);
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), isNull(), isNull(), anyList());
+                eq(mainId), eq(callerId), eq(actorName), eq(null), anyList());
+    }
+
+    @ParameterizedTest(name = "이름 부재 {0} 은 감사 fallback으로 저장한다")
+    @NullSource
+    @ValueSource(strings = {"", "   ", "\t", "\n"})
+    void missingDisplayName_usesAuditFallback(String actorName) {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("이름 부재 창고", null, null, null, null),
+                callerId.toString(), actorName);
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("변경자 미상"), eq(null), anyList());
     }
 
     @ParameterizedTest(name = "정상 actorName {0} 은 원문을 보존한다")
@@ -230,11 +245,11 @@ class WarehouseServiceTest {
                 callerId.toString(), actorName);
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), eq(actorName), isNull(), anyList());
+                eq(mainId), eq(callerId), eq(actorName), eq(null), anyList());
     }
 
     @Test
-    void mixedInvisibleCharacterDisplayName_isNormalizedBeforePersisting() {
+    void mixedInvisibleCharacterDisplayName_isPersistedUnchanged() {
         when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
         UUID callerId = UUID.randomUUID();
 
@@ -243,7 +258,7 @@ class WarehouseServiceTest {
                 callerId.toString(), "김\u200B감사");
 
         verify(auditLogRecorder).recordBatch(
-                eq(mainId), eq(callerId), eq("김감사"), isNull(), anyList());
+                eq(mainId), eq(callerId), eq("김\u200B감사"), eq(null), anyList());
     }
 
     @Test

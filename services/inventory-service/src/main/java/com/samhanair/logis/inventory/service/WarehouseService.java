@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -36,8 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class WarehouseService {
 
-    private static final Pattern INVISIBLE_ACTOR_CHARACTERS =
-            Pattern.compile("[\\u00AD\\u200B-\\u200D\\u2060\\uFEFF]");
+    private static final String UNKNOWN_ACTOR_NAME = "변경자 미상";
 
     private final WarehouseRepository warehouseRepository;
     /** 4b 후속 — 창고 변경 이력 audit overlay 기록 / 조회. */
@@ -387,27 +385,13 @@ public class WarehouseService {
         }
     }
 
-    /** 정상 UUID 사용자 이름만 저장하고, UUID/blank/시스템 호출은 화면용 이름으로 저장하지 않는다. */
+    /** system sentinel은 system으로, 이름이 없는 호출자는 감사 계약용 fallback으로 기록한다.
+     * 그 외 actor 이름은 표시 층에서 처리할 수 있도록 입력 원문을 그대로 보존한다. */
     private static String resolveActorName(UUID actorId, String callerName) {
         if (actorId.equals(new UUID(0L, 0L))) {
             return "system";
         }
-        if (callerName == null) {
-            return null;
-        }
-        String normalized = INVISIBLE_ACTOR_CHARACTERS.matcher(callerName).replaceAll("").trim();
-        if (normalized.isEmpty()) {
-            return null;
-        }
-        try {
-            UUID parsedName = UUID.fromString(normalized);
-            if (parsedName.toString().equalsIgnoreCase(normalized)) {
-                return null;
-            }
-        } catch (IllegalArgumentException ignored) {
-            // 표시명은 UUID가 아닌 정상 문자열로 취급한다.
-        }
-        return normalized;
+        return callerName == null || callerName.isBlank() ? UNKNOWN_ACTOR_NAME : callerName;
     }
 
     /** X-User-Id 헤더가 UUID 형식이면 그대로, 아니면 system sentinel (0/0). */

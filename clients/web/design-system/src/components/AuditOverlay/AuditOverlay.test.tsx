@@ -5,7 +5,7 @@ import { AuditOverlay, type AuditLogEntry } from './AuditOverlay'
 
 const ACTOR_UUID = '123e4567-e89b-12d3-a456-426614174000'
 
-function entry(actorName: string): AuditLogEntry {
+function entry(actorName: string | null): AuditLogEntry {
   return {
     revisionNo: 1,
     beforeValue: '이전 값',
@@ -17,6 +17,7 @@ function entry(actorName: string): AuditLogEntry {
 
 describe('AuditOverlay actorName 표시', () => {
   it.each([
+    null,
     '\u200B',
     '\u200C',
     '\u200D',

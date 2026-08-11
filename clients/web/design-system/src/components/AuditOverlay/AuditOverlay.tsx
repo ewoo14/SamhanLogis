@@ -49,8 +49,8 @@ export interface AuditLogEntry {
   beforeValue: string | null
   /** 변경자 UUID — userIdToColor 입력 전용. 화면 텍스트 노출 금지. */
   actorId: string
-  /** 변경자 풀네임 — 화면 표시. */
-  actorName: string
+  /** 변경자 풀네임 — 화면 표시. 감사 데이터가 없으면 null. */
+  actorName: string | null
   /** 변경 시각 ISO-8601. */
   changedAt: string
 }
