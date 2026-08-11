@@ -157,6 +157,8 @@ services:
   # dependency: the existing shared RabbitMQ and Elasticsearch containers are
   # its only data-plane dependencies, while Eureka provides gateway discovery.
   logging-service:
+    profiles:
+      - logging
     build:
       <<: *spring-build
       args:

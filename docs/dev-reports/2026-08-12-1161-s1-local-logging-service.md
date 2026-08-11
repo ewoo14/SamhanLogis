@@ -1,17 +1,25 @@
 # #1161 S1 — logging-service 로컬 opt-in 기동 보고
 
-실행일: 2026-08-12  
-범위: S1만 — 로컬 compose에 logging-service를 선택 기동 가능하게 추가  
+실행일: 2026-08-12
+범위: S1만 — 로컬 compose에 logging-service를 선택 기동 가능하게 추가
 제외: S2 공통 발행 지점, S3 서비스별 배선, S4 서비스별 audit 정책
+
+> **2026-08-12 fix1 정정** — 이 보고서는 1차 구현 당시의 기록이다. 당시의
+> `base + local-all` 기본 런처 경로를 검증하지 않아 “local-all overlay 자체가 opt-in”이라고
+> 결론낸 부분, 기존 healthy 절대값을 기준선처럼 사용한 부분, 기존 문서 1건이 남아 있는
+> `/logs/activity` 응답을 빈 결과 근거로 해석한 부분, `git diff --check PASS` 기록은
+> `docs/dev-reports/2026-08-12-1161-s1-fix1.md`에서 실제 재측정 결과로 정정한다.
 
 ## 1. 결론
 
-기존 로컬 제외 결정은 유지했다. 저장소에는 Docker Compose `profiles` 사용 사례가
-없으므로, 이미 존재하는 명시적 `docker-compose.local-all.yml` overlay를 opt-in 수단으로
-사용했다.
+기존 로컬 제외 결정은 유지했다. 다만 저장소의 기본 런처가
+`docker-compose.yml + docker-compose.local-all.yml`을 항상 합성하므로 overlay 자체는
+opt-in 수단이 아니었다. fix1에서 logging-service에만 Compose `logging` profile을
+부여하고, 기존의 명시적 서비스 대상 지정 기동을 opt-in 수단으로 유지한다.
 
 - 기본 `docker-compose.yml`: logging-service 없음
-- `docker-compose.yml + docker-compose.local-all.yml`: logging-service 포함
+- 기본 `docker-compose.yml + docker-compose.local-all.yml`: logging-service 제외
+- `--profile logging` 또는 명시적 `logging-service` 대상 지정: logging-service 포함
 - prod compose: 변경 없음
 - opt-in host port: `127.0.0.1:8082 -> 8082`
 - 이 PC의 `8086`은 influxd가 점유 중이며 기존 slip-service는 `8186 -> 8086`으로 우회 중이다.
@@ -32,7 +40,8 @@ docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-com
 | 항목 | prod | local opt-in |
 |---|---|---|
 | 이미지 | ECR `samhanlogis-production-logging-service:${IMAGE_TAG}` | repo에서 bootJar 후 local Docker build |
-| Profile | `production` | 기존 local-all의 `dev` anchor 재사용 |
+| Spring Profile | `production` | 기존 local-all의 `dev` anchor 재사용 |
+| Compose Profile | 미적용 | `logging` (fix1) |
 | ES 주소 | `http://elasticsearch:9200` | `ES_URI=http://elasticsearch:9200` |
 | Rabbit 자격 | `${RABBIT_PASSWORD}` | 기존 local dev 환경 anchor 재사용, 신규 자격 문자열 없음 |
 | Eureka | `http://eureka-server:8761/eureka/` | 동일한 local network 주소 |
@@ -106,7 +115,11 @@ GET 응답에는 UUID가 사용자 필드로 노출되지 않았다. `QA_MASTER_
 
 ### 4-3. 기본 기동 회귀 원문
 
-제가 새로 만든 logging-service 컨테이너만 정리한 뒤 다음을 실행했다.
+제가 새로 만든 logging-service 컨테이너만 정리한 뒤 base compose만 실행했다.
+
+이 검사는 base 파일에 logging-service가 없는 좁은 경로만 확인하며, 기본 런처의
+`base + local-all` 합성을 증명하지 못한다. 따라서 이 결과를 기본 런처의 증거로
+사용할 수 없다는 것이 fix1의 핵심 정정이다.
 
 ```powershell
 docker compose -f infrastructure/docker-compose.yml up -d --no-recreate
@@ -162,10 +175,10 @@ check 양쪽에서 확인했고, 공유 스택의 기존 healthy 서비스도 �
 Gradle :services:logging-service:bootJar       BUILD SUCCESSFUL
 Gradle :services:logging-service:test         BUILD SUCCESSFUL
 validate-config-audit.ps1                     165 URL/template checks passed
-docker compose base config                   logging-service absent
-docker compose base+local-all config         logging-service present
+docker compose base config                   logging-service absent (좁은 경로)
+docker compose base+local-all config         logging-service present (fix 전)
 docker compose config --quiet                 PASS
-git diff --check                              PASS
+git diff --check 72cab52e..b2d45df4           exit 2 (trailing whitespace 2건)
 prod compose diff                             없음
 ```
 
@@ -180,3 +193,14 @@ cleanup 명령을 실행하지 않았다.
 - `docs/dev-reports/2026-08-12-1161-s1-local-logging-service.md`
 
 prod compose와 S2~S4 관련 서비스 코드는 변경하지 않았다.
+
+## 7. fix1 정정 대상
+
+- 기본 런처의 실제 `base + local-all` 무필터 호출 때문에 logging-service가 자동
+  생성된다는 사실을 반영한다.
+- 검토 시작 시 healthy 컨테이너는 21개였고, `samhan-inventory-service`가
+  `Exited (143)`라 22개를 기준선으로 삼지 않는다.
+- 기존 `GET /logs/activity`의 QA 문서 1건은 빈 결과가 아니다. S2 발행자 부재의
+  근거는 별도 고유 event의 전후 비교가 아니라 logging-service 코드의 publish
+  호출 0건을 정적 확인하는 방식으로 다시 제시한다.
+- 위 정정의 fresh evidence와 fix 후 RED-A/B 결과는 fix1 보고서에만 기록한다.
