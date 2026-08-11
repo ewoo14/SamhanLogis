@@ -2,6 +2,8 @@ package com.samhanair.logis.partnerorder.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
@@ -27,6 +29,8 @@ import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -38,9 +42,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * confirm 흐름 D1 — slip 미발행 DRAFT 주문 생성 검증 (슬라이스 D1).
@@ -59,10 +68,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * </ol>
  */
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
+@AutoConfigureMockMvc
 class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private PartnerOrderConfirmService confirmService;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private PartnerOrderDraftService draftService;
@@ -103,8 +119,18 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
     @MockBean
     private PartnerLookupClient partnerLookupClient;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     @BeforeEach
     void setUpPartnerLookup() {
+        Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
         Mockito.lenient().when(partnerLookupClient.findByPartnerCodeForIdentity(Mockito.anyString()))
                 .thenAnswer(invocation -> {
                     String partnerCode = invocation.getArgument(0);
@@ -176,6 +202,79 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
 
         assertThat(response.status()).isEqualTo("DRAFT");
         assertThat(outboxRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    void confirm_forwards_physical_category_to_the_single_price_calculation_path() {
+        UUID productId = UUID.randomUUID();
+        Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of());
+        Mockito.when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "전열교환기", "ERV-ORDER-001", null,
+                        new BigDecimal("1000000"), "ACTIVE", "ERV-ORDER-001", "SINGLE",
+                        "commercialParts", null, "000000", new BigDecimal("1000000"),
+                        new BigDecimal("900000"), true, "HVAC")));
+
+        confirmService.confirm(
+                "P-PHYSICAL-CATEGORY", "1234567890", "user-physical-category", null, null,
+                new ConfirmRequest(List.of(
+                        new ConfirmLineRequest(productId, "commercialParts", 1, null))));
+
+        ArgumentCaptor<List<DcConfigClient.PriceLine>> priceLines = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(dcConfigClient).calculatePrices(Mockito.eq("P-PHYSICAL-CATEGORY"), priceLines.capture());
+        assertThat(priceLines.getValue()).hasSize(1);
+        assertThat(priceLines.getValue().get(0).physicalCategoryCode()).isEqualTo("HVAC");
+    }
+
+    @Test
+    @WithMockUser(username = "s2-api-master", authorities = {"ROLE_MASTER"})
+    void confirm_api_creates_isolated_order_through_the_real_order_route() throws Exception {
+        String partnerCode = "P-S2-HTTP";
+        String bizCode = "1234567890";
+        UUID productId = UUID.randomUUID();
+
+        String draftJson = mockMvc.perform(post("/api/v1/partner-orders/drafts")
+                        .header("X-Partner-Code", partnerCode)
+                        .header("X-User-Id", "s2-api-master")
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"label\":\"S2 격리 API 표본\",\"payloadJson\":\"{}\"}"))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String draftId = objectMapper.readTree(draftJson).path("data").path("draftId").asText();
+        assertThat(draftId).isNotBlank();
+        Mockito.when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "전열교환기", "ERV-ORDER-API-001", null,
+                        new BigDecimal("1000000"), "ACTIVE", "ERV-ORDER-API-001", "SINGLE",
+                        "commercialParts", null, "000000", new BigDecimal("1000000"),
+                        new BigDecimal("900000"), true, "HVAC")));
+        Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of("0", new BigDecimal("600000")));
+
+        mockMvc.perform(post("/api/v1/partner-orders/{draftId}/confirm", draftId)
+                        .header("X-Partner-Code", partnerCode)
+                        .header("X-Biz-Code", bizCode)
+                        .header("X-User-Id", "s2-api-master")
+                        .header("X-User-Name", "S2 격리 테스트")
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lines\":[{\"productId\":\"" + productId
+                                + "\",\"categoryKey\":\"commercialParts\",\"quantity\":1,\"remark\":null}]}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<List<DcConfigClient.PriceLine>> priceLines = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(dcConfigClient).calculatePrices(Mockito.eq(partnerCode), priceLines.capture());
+        assertThat(priceLines.getValue()).singleElement()
+                .extracting(DcConfigClient.PriceLine::physicalCategoryCode)
+                .isEqualTo("HVAC");
+        assertThat(orderRepository.findAll().stream()
+                .anyMatch(order -> partnerCode.equals(order.getPartnerCode()))).isTrue();
     }
 
     /**

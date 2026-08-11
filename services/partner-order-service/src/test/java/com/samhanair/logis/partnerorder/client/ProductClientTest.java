@@ -78,7 +78,8 @@ class ProductClientTest {
                           "discountFlags":"100000",
                           "releasePrice":3121800.00,
                           "deliveryPrice":1840000.00,
-                          "hasVariableDiscount":true
+                          "hasVariableDiscount":true,
+                          "physicalCategoryCode":"INDOOR_WALL"
                         }]}""", MediaType.APPLICATION_JSON));
 
         List<ProductSummary> products = client.lookup(List.of(productId));
@@ -99,6 +100,7 @@ class ProductClientTest {
         assertThat(product.releasePrice()).isEqualByComparingTo("3121800.00");
         assertThat(product.deliveryPrice()).isEqualByComparingTo("1840000.00");
         assertThat(product.hasVariableDiscount()).isTrue();
+        assertThat(product.physicalCategoryCode()).isEqualTo("INDOOR_WALL");
         server.verify();
     }
 

@@ -204,7 +204,7 @@ public class PartnerOrderConfirmService {
                     discountFlag(discountFlags, 0), discountFlag(discountFlags, 1),
                     discountFlag(discountFlags, 2), discountFlag(discountFlags, 3),
                     discountFlag(discountFlags, 4), discountFlag(discountFlags, 5),
-                    fixedDiscountRate, variableDiscountEnabled(p)));
+                    fixedDiscountRate, variableDiscountEnabled(p), p.physicalCategoryCode()));
         }
         Map<String, BigDecimal> finalPrices = dcConfigClient.calculatePrices(partnerCode, priceLines);
 

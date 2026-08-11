@@ -112,6 +112,21 @@ class DcConfigClientTest {
     }
 
     @Test
+    void physical_category_code를_가격계산서비스에_전달한다() {
+        server.expect(once(), requestTo(ENDPOINT))
+                .andExpect(content().string(containsString("\"physicalCategoryCode\":\"HVAC\"")))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"lines":[{"lineId":"ERV","finalPrice":600000}]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        client.calculatePrices("P-DC-ERV", List.of(new PriceLine(
+                "ERV", "ERV-001", new BigDecimal("1000000"), "HOMEMULTI", 1,
+                false, false, false, false, false, false, null, true, "HVAC")));
+
+        server.verify();
+    }
+
+    @Test
     void dc_config_응답은_가격을_보정하지_않고_그대로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andRespond(withSuccess("""

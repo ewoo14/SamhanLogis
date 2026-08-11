@@ -126,6 +126,126 @@ class PriceCalculationServiceTest {
     }
 
     @Test
+    void order_without_main_equipment_applies_40_percent_only_to_variable_discount_items() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationRequest req = new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(
+                        new PriceCalculationRequest.Line(
+                                "L1", "ERV-001", new BigDecimal("1000000"),
+                                "HOMEMULTI", 1,
+                                false, false, false, false, false, false,
+                                null, true, "HVAC"),
+                        new PriceCalculationRequest.Line(
+                                "L2", "MAT-001", new BigDecimal("500000"),
+                                "HOMEMULTI", 1,
+                                false, false, false, false, false, false,
+                                null, false, "PIPING")));
+
+        PriceCalculationResponse res = service.calculate(req);
+
+        assertThat(res.lines().get(0).appliedRate()).isEqualByComparingTo("0.40");
+        assertThat(res.lines().get(0).finalPrice()).isEqualByComparingTo("600000");
+        assertThat(res.lines().get(1).appliedRate()).isEqualByComparingTo("0");
+        assertThat(res.lines().get(1).finalPrice()).isEqualByComparingTo("500000");
+    }
+
+    @Test
+    void order_with_outdoor_or_indoor_does_not_apply_40_percent() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationRequest outdoorReq = new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(new PriceCalculationRequest.Line(
+                        "L1", "OUT-001", new BigDecimal("1000000"),
+                        "HOMEMULTI", 1,
+                        false, false, false, false, false, false,
+                        null, true, "OUTDOOR")));
+        PriceCalculationRequest indoorReq = new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(new PriceCalculationRequest.Line(
+                        "L1", "IND-001", new BigDecimal("1000000"),
+                        "HOMEMULTI", 1,
+                        false, false, false, false, false, false,
+                        null, true, "INDOOR_WALL")));
+
+        assertThat(service.calculate(outdoorReq).lines().get(0).appliedRate())
+                .isEqualByComparingTo("0.0700");
+        assertThat(service.calculate(indoorReq).lines().get(0).appliedRate())
+                .isEqualByComparingTo("0.0700");
+    }
+
+    @Test
+    void order_with_unclassified_item_does_not_apply_40_percent() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationRequest req = new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(
+                        new PriceCalculationRequest.Line(
+                                "L1", "ERV-001", new BigDecimal("1000000"),
+                                "HOMEMULTI", 1,
+                                false, false, false, false, false, false,
+                                null, true, "HVAC"),
+                        new PriceCalculationRequest.Line(
+                                "L2", "UNKNOWN-001", new BigDecimal("500000"),
+                                "HOMEMULTI", 1,
+                                false, false, false, false, false, false,
+                                null, true, "UNCLASSIFIED")));
+
+        PriceCalculationResponse res = service.calculate(req);
+
+        assertThat(res.lines().get(0).appliedRate()).isEqualByComparingTo("0.0700");
+        assertThat(res.lines().get(1).appliedRate()).isEqualByComparingTo("0.0700");
+    }
+
+    @Test
+    void order_with_unknown_physical_category_does_not_apply_40_percent() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationResponse res = service.calculate(new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(line("FUTURE_UNKNOWN", true))));
+
+        assertThat(res.lines().get(0).appliedRate()).isEqualByComparingTo("0.0700");
+    }
+
+    @Test
+    void order_without_main_equipment_does_not_override_fixed_discount() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationRequest req = new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(new PriceCalculationRequest.Line(
+                        "L1", "ERV-001", new BigDecimal("1000000"),
+                        "HOMEMULTI", 1,
+                        false, false, false, false, false, false,
+                        new BigDecimal("0.25"), true, "HVAC")));
+
+        PriceCalculationResponse res = service.calculate(req);
+
+        assertThat(res.lines().get(0).appliedRate()).isEqualByComparingTo("0.25");
+        assertThat(res.lines().get(0).finalPrice()).isEqualByComparingTo("750000");
+    }
+
+    @Test
+    void fixed_dc_495000_to_420750_remains_unchanged_with_order_rule_input() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationResponse res = service.calculate(new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(new PriceCalculationRequest.Line(
+                        "FIXED-S-15", "FIXED-S-15", new BigDecimal("495000"),
+                        "HOMEMULTI", 1,
+                        false, false, false, false, false, false,
+                        new BigDecimal("0.15"), true, "HVAC"))));
+
+        assertThat(res.lines().get(0).appliedRate()).isEqualByComparingTo("0.15");
+        assertThat(res.lines().get(0).finalPrice()).isEqualByComparingTo("420750");
+    }
+
+    @Test
     void nonVariableMulti_usesDeliveryPriceWithoutGlobalDiscount() {
         config.changeRounding(0, UnitRoundMode.ROUND);
 
@@ -224,5 +344,40 @@ class PriceCalculationServiceTest {
 
         // 10,000 - (50000+60000+40000+30000+20000+10000) = negative → clamp 0
         assertThat(res.lines().get(0).finalPrice()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void order_rule_combination_matrix_preserves_expected_rates() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        assertRate(List.of(line("OUTDOOR", true)), "0.0700");
+        assertRate(List.of(line("INDOOR_WALL", true)), "0.0700");
+        assertRate(List.of(line("OUTDOOR", true), line("INDOOR", true)), "0.0700");
+        assertRate(List.of(line("HVAC", true)), "0.40");
+        assertRate(List.of(line("PIPING", false)), "0");
+        assertRate(List.of(line("UNCLASSIFIED", true)), "0.0700");
+        assertRate(List.of(line("UNCLASSIFIED", true), line("HVAC", true)), "0.0700");
+        assertRate(List.of(line("UNCLASSIFIED", true), line("OUTDOOR", true)), "0.0700");
+        assertRate(List.of(line("HVAC", true)), "0.40");
+
+        PriceCalculationResponse empty = service.calculate(new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service", List.of()));
+        assertThat(empty.lines()).isEmpty();
+        assertThat(empty.totalDiscountAmount()).isEqualByComparingTo("0");
+    }
+
+    private void assertRate(List<PriceCalculationRequest.Line> lines, String expectedRate) {
+        PriceCalculationResponse response = service.calculate(new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service", lines));
+        assertThat(response.lines()).isNotEmpty();
+        assertThat(response.lines().get(0).appliedRate()).isEqualByComparingTo(expectedRate);
+    }
+
+    private PriceCalculationRequest.Line line(String physicalCategoryCode, boolean variableDiscount) {
+        return new PriceCalculationRequest.Line(
+                physicalCategoryCode, physicalCategoryCode, new BigDecimal("1000000"),
+                "HOMEMULTI", 1,
+                false, false, false, false, false, false,
+                null, variableDiscount, physicalCategoryCode);
     }
 }

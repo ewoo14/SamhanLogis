@@ -224,7 +224,8 @@ public class ProductClient {
                         : new BigDecimal(m.get("deliveryPrice").toString()),
                 m.get("hasVariableDiscount") == null
                         ? null
-                        : Boolean.valueOf(m.get("hasVariableDiscount").toString()));
+                        : Boolean.valueOf(m.get("hasVariableDiscount").toString()),
+                (String) m.get("physicalCategoryCode"));
     }
 
     private String requireToken() {
