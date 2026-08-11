@@ -18,7 +18,7 @@ import java.util.List;
 @Schema(description = "DC 적용 가격 계산 요청")
 public record PriceCalculationRequest(
         @Schema(description = "거래처 코드") @NotBlank String partnerCode,
-        @Schema(description = "호출자 서비스명 (감사 로그용)") @NotBlank String callerService,
+        @Schema(description = "호출자 서비스명 — 계산 행위 경계 및 감사 로그용") @NotBlank String callerService,
         @Schema(description = "라인 항목") @NotEmpty @Valid List<Line> lines
 ) {
 

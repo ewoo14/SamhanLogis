@@ -51,6 +51,7 @@ http.interceptors.request.use((cfg) => {
  * - `saveOrderSnapshot(payload)` → `POST /api/v1/partner-orders/drafts` (M4, 30일 expiry)
  * - `getOrderSnapshotHistory(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?from=&to=`
  * - `sendOrderFromUi(items, order)` → draft 생성 후 `POST /api/v1/partner-orders/{draftId}/confirm` (M4)
+ * - `pricePreview(items, order)` → `POST /api/v1/partner-orders/price-preview` (서버 권위 단가)
  * - `saveTutorialState(state)` → `PATCH /api/v1/auth/partner-tutorial`
  *
  * 추가 (legacy index.html 외부 호출 대응 — Code.js 분석 §1):
@@ -259,6 +260,15 @@ function confirmHeaders(order: unknown): { headers: { 'X-Biz-Code': string } } {
   return { headers: { 'X-Biz-Code': bizCode } }
 }
 
+function previewHeaders(order: unknown): { headers: { 'X-Partner-Code': string } } {
+  const partnerCode = order && typeof order === 'object'
+    ? String((order as { partnerCode?: unknown; bizno?: unknown }).partnerCode
+      ?? (order as { bizno?: unknown }).bizno ?? '').trim()
+    : ''
+  if (!partnerCode) throw new Error('가격 미리보기 거래처 코드가 없습니다')
+  return { headers: { 'X-Partner-Code': partnerCode } }
+}
+
 const RPC_MAP: Record<string, RpcHandler> = {
   // ─── 인증 / 등록 / 잠금 (RPC §S 카테고리) ───────────────────────────────
   checkAuthStatus: ([bizNo]) =>
@@ -390,6 +400,17 @@ const RPC_MAP: Record<string, RpcHandler> = {
         orderNo: null,
         error: apiErrorMessage(error),
       })),
+
+  // ─── 서버 권위 가격 미리보기 ────────────────────────────────────────────
+  // 40% 규칙을 브라우저에서 재현하지 않는다. 서버 오류는 throw 하여 화면이
+  // 명시적 미리보기 실패 상태를 보여 주고, 정상가/기존율로 폴백하지 않는다.
+  pricePreview: ([itemsArg, orderArg]) =>
+    Promise.resolve().then(() => {
+      const lines = confirmLines(Array.isArray(itemsArg) ? itemsArg : [])
+      return http
+        .post('/partner-orders/price-preview', { lines }, previewHeaders(orderArg))
+        .then((r) => unwrapApiResponse(r.data))
+    }),
 
   // ─── 튜토리얼 상태 (RPC §W 카테고리) ──────────────────────────────────
   saveTutorialState: ([bizNo, mobile]) =>

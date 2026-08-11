@@ -127,6 +127,25 @@ class DcConfigClientTest {
     }
 
     @Test
+    void detailed_result는_미리보기용_실제_적용율을_가격과_함께_반환한다() {
+        server.expect(once(), requestTo(ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"lines":[
+                          {"lineId":"ERV","finalPrice":600000,"appliedRate":0.40}
+                        ]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        DcConfigClient.CalculationResult result = client.calculateDetailed("P-DC-ERV", List.of(
+                new PriceLine("ERV", "ERV-001", new BigDecimal("1000000"), "HOMEMULTI", 1,
+                        false, false, false, false, false, false, null, true, "HVAC")));
+
+        assertThat(result.available()).isTrue();
+        assertThat(result.lines().get("ERV").finalPrice()).isEqualByComparingTo("600000");
+        assertThat(result.lines().get("ERV").appliedRate()).isEqualByComparingTo("0.40");
+        server.verify();
+    }
+
+    @Test
     void dc_config_응답은_가격을_보정하지_않고_그대로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andRespond(withSuccess("""

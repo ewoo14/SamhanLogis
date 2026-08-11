@@ -84,6 +84,39 @@ class PriceCalculationServiceTest {
     }
 
     @Test
+    void estimate_caller_never_receives_order_only_40_percent_rule() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationResponse response = service.calculate(new PriceCalculationRequest(
+                "P-CALC-001", "estimate-service",
+                List.of(new PriceCalculationRequest.Line(
+                        "ESTIMATE-HVAC", "ERV-001", new BigDecimal("1000000"),
+                        "HOMEMULTI", 1,
+                        false, false, false, false, false, false,
+                        null, true, "HVAC"))));
+
+        assertThat(response.lines().get(0).appliedRate()).isEqualByComparingTo("0.0700");
+        assertThat(response.lines().get(0).finalPrice()).isEqualByComparingTo("930000");
+    }
+
+    @Test
+    void only_partner_order_caller_can_open_40_percent_gate() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+        for (String caller : List.of("estimate-service", "slip-service", "other-service")) {
+            PriceCalculationResponse response = service.calculate(new PriceCalculationRequest(
+                    "P-CALC-001", caller,
+                    List.of(new PriceCalculationRequest.Line(
+                            "NON-ORDER-" + caller, "ERV-001", new BigDecimal("1000000"),
+                            "HOMEMULTI", 1,
+                            false, false, false, false, false, false,
+                            null, true, "HVAC"))));
+
+            assertThat(response.lines().get(0).appliedRate())
+                    .as("callerService=%s", caller).isEqualByComparingTo("0.0700");
+        }
+    }
+
+    @Test
     void other_withOptions_subtractsBoth() {
         PriceCalculationRequest req = new PriceCalculationRequest(
                 "P-CALC-001", "partner-order-service",

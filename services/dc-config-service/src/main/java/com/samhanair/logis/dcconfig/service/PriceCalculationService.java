@@ -39,6 +39,7 @@ public class PriceCalculationService {
     private static final String CAT_COMMERCIAL = "COMMERCIAL_MULTI";
     private static final BigDecimal NO_MAIN_EQUIPMENT_RATE = new BigDecimal("0.40");
     private static final String UNCLASSIFIED = "UNCLASSIFIED";
+    private static final String ORDER_CALLER_SERVICE = "partner-order-service";
 
     private final PartnerService partnerService;
     private final DcConfigService dcConfigService;
@@ -58,7 +59,8 @@ public class PriceCalculationService {
         List<PriceCalculationResponse.Line> lines = new ArrayList<>();
         BigDecimal totalList = BigDecimal.ZERO;
         BigDecimal totalFinal = BigDecimal.ZERO;
-        boolean applyNoMainEquipmentRule = qualifiesForNoMainEquipmentRule(request.lines());
+        boolean applyNoMainEquipmentRule = ORDER_CALLER_SERVICE.equals(request.callerService())
+                && qualifiesForNoMainEquipmentRule(request.lines());
 
         for (PriceCalculationRequest.Line line : request.lines()) {
             BigDecimal listPrice = line.listPrice();

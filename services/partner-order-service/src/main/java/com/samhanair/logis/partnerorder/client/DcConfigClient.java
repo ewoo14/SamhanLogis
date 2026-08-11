@@ -98,7 +98,7 @@ public class DcConfigClient {
      *
      * <p>{@code @JsonIgnoreProperties(ignoreUnknown=true)} 로 응답에 다른 필드가 있어도 무시한다.
      *
-     * @param lines 라인별 lineId + finalPrice 목록
+     * @param lines 라인별 lineId + finalPrice + appliedRate 목록
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PriceCalcResult(List<Line> lines) {
@@ -108,10 +108,29 @@ public class DcConfigClient {
          *
          * @param lineId  호출 측 임의 키 (라인 인덱스 문자열)
          * @param finalPrice DC 적용 최종 단가 (BigDecimal 정밀도 보존)
+         * @param appliedRate 실제 적용된 변동DC율 (고정DC/미적용은 null일 수 있음)
          */
         @JsonIgnoreProperties(ignoreUnknown = true)
-        public record Line(String lineId, BigDecimal finalPrice) {}
+        public record Line(String lineId, BigDecimal finalPrice, BigDecimal appliedRate) {}
     }
+
+    /** 사용자용 미리보기와 확정 경로가 공유하는 서버 계산 결과. */
+    public record CalculationResult(Map<String, CalculatedLine> lines, boolean available) {
+        public Map<String, BigDecimal> prices() {
+            Map<String, BigDecimal> result = new HashMap<>();
+            if (lines != null) {
+                lines.forEach((lineId, line) -> {
+                    if (lineId != null && line != null && line.finalPrice() != null) {
+                        result.put(lineId, line.finalPrice());
+                    }
+                });
+            }
+            return result;
+        }
+    }
+
+    /** 서버가 실제로 적용한 단가와 할인율. */
+    public record CalculatedLine(BigDecimal finalPrice, BigDecimal appliedRate) {}
 
     /**
      * 라인별 DC 적용 단가 계산. 실패 시 빈 Map(fail-soft) — 호출자는 listPrice 사용.
@@ -125,8 +144,18 @@ public class DcConfigClient {
      * @return lineId → finalPrice. 실패/미설정 시 빈 Map.
      */
     public Map<String, BigDecimal> calculatePrices(String partnerCode, List<PriceLine> lines) {
+        return calculateDetailed(partnerCode, lines).prices();
+    }
+
+    /**
+     * 단가와 적용 할인율을 함께 반환하는 계산 호출.
+     *
+     * <p>미리보기와 확정은 이 메서드를 통해 동일한 dc-config 계산기를 통과한다. 실패 시
+     * {@code available=false}를 반환하며 호출자는 자체 할인율 계산으로 대체하지 않는다.
+     */
+    public CalculationResult calculateDetailed(String partnerCode, List<PriceLine> lines) {
         if (partnerCode == null || partnerCode.isBlank() || lines == null || lines.isEmpty()) {
-            return Map.of();
+            return new CalculationResult(Map.of(), false);
         }
         try {
             Map<String, Object> body = new HashMap<>();
@@ -166,8 +195,8 @@ public class DcConfigClient {
         } catch (BusinessException ex) {
             throw ex; // token 미설정 등
         } catch (RuntimeException ex) {
-            log.warn("DcConfigClient calculatePrices fail-soft: {}", ex.getMessage());
-            return Map.of();
+            log.warn("DcConfigClient calculateDetailed fail-soft: {}", ex.getMessage());
+            return new CalculationResult(Map.of(), false);
         }
     }
 
@@ -179,21 +208,21 @@ public class DcConfigClient {
      * @param envelope ApiResponse&lt;PriceCalcResult&gt; — null 허용
      * @return lineId → finalPrice Map (비어 있을 수 있음)
      */
-    private Map<String, BigDecimal> extractFromTyped(ApiResponse<PriceCalcResult> envelope) {
+    private CalculationResult extractFromTyped(ApiResponse<PriceCalcResult> envelope) {
         if (envelope == null || !envelope.isSuccess()) {
-            return Map.of();
+            return new CalculationResult(Map.of(), false);
         }
         PriceCalcResult data = envelope.getData();
         if (data == null || data.lines() == null) {
-            return Map.of();
+            return new CalculationResult(Map.of(), false);
         }
-        Map<String, BigDecimal> result = new HashMap<>();
+        Map<String, CalculatedLine> result = new HashMap<>();
         for (PriceCalcResult.Line line : data.lines()) {
             if (line.lineId() != null && line.finalPrice() != null) {
-                result.put(line.lineId(), line.finalPrice());
+                result.put(line.lineId(), new CalculatedLine(line.finalPrice(), line.appliedRate()));
             }
         }
-        return result;
+        return new CalculationResult(result, true);
     }
 
     private String requireToken() {
