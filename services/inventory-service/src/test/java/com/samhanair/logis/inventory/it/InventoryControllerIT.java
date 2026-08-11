@@ -7,9 +7,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
+import com.samhanair.logis.inventory.domain.Warehouse;
+import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.io.ByteArrayInputStream;
@@ -96,6 +100,14 @@ class InventoryControllerIT extends AbstractPostgresIT {
                         inv.getArgument(0), "테스트 제품", "TEST-001",
                         UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"));
         Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+                .thenAnswer(inv -> {
+                    List<UUID> ids = inv.getArgument(0);
+                    return ids.stream()
+                            .map(id -> new ProductSummary(id, "테스트 제품", "TEST-001",
+                                    UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"))
+                            .toList();
+                });
+        Mockito.lenient().when(productClient.lookupAllowMissing(Mockito.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);
                     return ids.stream()
@@ -364,7 +376,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
         UUID productA = UUID.randomUUID();
         String productCodeMarker = "PRD-OPUS-9";
         String productNameMarker = "OPUS재수렴R재고품목9";
-        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+        Mockito.lenient().when(productClient.lookupAllowMissing(Mockito.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);
                     return ids.stream()
@@ -410,7 +422,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
     @Test
     void exportStocksXlsx_doesNotExposeProductIdUuid() throws Exception {
         UUID productA = UUID.randomUUID();
-        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+        Mockito.lenient().when(productClient.lookupAllowMissing(Mockito.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);
                     return ids.stream()
@@ -449,6 +461,100 @@ class InventoryControllerIT extends AbstractPostgresIT {
         }
     }
 
+    @Test
+    void exportStocksXlsx_partialMissing_keepsFoundMetadataAndMarksOnlyMissingRow() throws Exception {
+        Warehouse warehouse = createIsolatedWarehouse("PARTIAL");
+        UUID existingProductId = UUID.randomUUID();
+        UUID missingProductId = UUID.randomUUID();
+        inboundBalance(existingProductId, warehouse.getId(), 7, "SOL1051-PARTIAL-EXISTING");
+        inboundBalance(missingProductId, warehouse.getId(), 4, "SOL1051-PARTIAL-MISSING");
+
+        Mockito.when(productClient.lookupAllowMissing(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        existingProductId, "정상 품목 P1", "MODEL-P1", "SOL1051-P1",
+                        UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE")));
+
+        MvcResult result = exportWarehouse(warehouse.getId(), status().isOk());
+
+        try (Workbook wb = new XSSFWorkbook(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            Sheet sheet = wb.getSheetAt(0);
+            org.assertj.core.api.Assertions.assertThat(sheet.getLastRowNum()).isEqualTo(2);
+
+            Row existingRow = findRowByCellText(sheet, 0, "SOL1051-P1");
+            org.assertj.core.api.Assertions.assertThat(existingRow.getCell(1).getStringCellValue())
+                    .isEqualTo("정상 품목 P1");
+            assertQuantities(existingRow, 7);
+
+            Row missingRow = findRowByCellText(sheet, 0, "참조 끊김");
+            org.assertj.core.api.Assertions.assertThat(missingRow.getCell(1).getStringCellValue())
+                    .isEqualTo("제품 마스터 없음");
+            assertQuantities(missingRow, 4);
+            org.assertj.core.api.Assertions.assertThat(sheetContainsText(sheet, existingProductId.toString()))
+                    .isFalse();
+            org.assertj.core.api.Assertions.assertThat(sheetContainsText(sheet, missingProductId.toString()))
+                    .isFalse();
+        }
+    }
+
+    @Test
+    void exportStocksXlsx_allMissing_marksEveryRowAndKeepsActualQuantities() throws Exception {
+        Warehouse warehouse = createIsolatedWarehouse("ALL-MISSING");
+        inboundBalance(UUID.randomUUID(), warehouse.getId(), 11, "SOL1051-ALL-MISSING-1");
+        inboundBalance(UUID.randomUUID(), warehouse.getId(), 13, "SOL1051-ALL-MISSING-2");
+        Mockito.when(productClient.lookupAllowMissing(Mockito.anyList())).thenReturn(List.of());
+
+        MvcResult result = exportWarehouse(warehouse.getId(), status().isOk());
+
+        try (Workbook wb = new XSSFWorkbook(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            Sheet sheet = wb.getSheetAt(0);
+            org.assertj.core.api.Assertions.assertThat(sheet.getLastRowNum()).isEqualTo(2);
+            List<Double> totalQuantities = IntStream.rangeClosed(1, sheet.getLastRowNum())
+                    .mapToObj(sheet::getRow)
+                    .peek(row -> {
+                        org.assertj.core.api.Assertions.assertThat(row.getCell(0).getStringCellValue())
+                                .isEqualTo("참조 끊김");
+                        org.assertj.core.api.Assertions.assertThat(row.getCell(1).getStringCellValue())
+                                .isEqualTo("제품 마스터 없음");
+                    })
+                    .map(row -> row.getCell(6).getNumericCellValue())
+                    .sorted()
+                    .toList();
+            org.assertj.core.api.Assertions.assertThat(totalQuantities).containsExactly(11.0, 13.0);
+        }
+    }
+
+    @Test
+    void exportStocksXlsx_productServiceFailure_returnsInternalErrorInsteadOfBlankWorkbook()
+            throws Exception {
+        Warehouse warehouse = createIsolatedWarehouse("SERVICE-FAILURE");
+        inboundBalance(UUID.randomUUID(), warehouse.getId(), 5, "SOL1051-SERVICE-FAILURE");
+        Mockito.when(productClient.lookupAllowMissing(Mockito.anyList()))
+                .thenThrow(new BusinessException(ErrorCode.INTERNAL_ERROR, "product-service 호출 실패"));
+
+        MvcResult result = exportWarehouse(warehouse.getId(), status().isInternalServerError());
+
+        org.assertj.core.api.Assertions.assertThat(objectMapper.readTree(
+                        result.getResponse().getContentAsByteArray()).path("code").asText())
+                .isEqualTo("INTERNAL_ERROR");
+    }
+
+    @Test
+    void exportStocksXlsx_productService4xx_returnsInvalidInputInsteadOfMissingMarker()
+            throws Exception {
+        Warehouse warehouse = createIsolatedWarehouse("INVALID-INPUT");
+        inboundBalance(UUID.randomUUID(), warehouse.getId(), 6, "SOL1051-INVALID-INPUT");
+        Mockito.when(productClient.lookupAllowMissing(Mockito.anyList()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT, "존재하지 않는 제품 ID"));
+
+        MvcResult result = exportWarehouse(warehouse.getId(), status().isBadRequest());
+
+        org.assertj.core.api.Assertions.assertThat(objectMapper.readTree(
+                        result.getResponse().getContentAsByteArray()).path("code").asText())
+                .isEqualTo("INVALID_INPUT");
+    }
+
     /** 시트 전체(모든 row/cell)에서 문자열 셀 값이 정확히 일치하는 셀이 있는지 확인. */
     private boolean sheetContainsText(Sheet sheet, String text) {
         for (Row row : sheet) {
@@ -460,6 +566,64 @@ class InventoryControllerIT extends AbstractPostgresIT {
         }
         return false;
     }
+
+    private Warehouse createIsolatedWarehouse(String suffix) {
+        String token = UUID.randomUUID().toString().substring(0, 8);
+        return warehouseRepository.saveAndFlush(Warehouse.create(
+                "SOL1051-" + token,
+                "SOL1051 " + suffix + " 창고",
+                WarehouseType.HEADQUARTERS,
+                null,
+                9_999,
+                null));
+    }
+
+    private void inboundBalance(UUID productId, UUID warehouseId, int quantity, String lotNo)
+            throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("productId", productId.toString());
+        body.put("warehouseId", warehouseId.toString());
+        body.put("quantity", quantity);
+        body.put("unitCost", 100000);
+        body.put("lotNo", lotNo);
+        body.put("sourceContext", sourceContext());
+
+        mockMvc.perform(post("/inventory/lots/inbound")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated());
+    }
+
+    private MvcResult exportWarehouse(
+            UUID warehouseId,
+            org.springframework.test.web.servlet.ResultMatcher expectedStatus) throws Exception {
+        return mockMvc.perform(get("/inventory/stocks/export.xlsx")
+                        .param("warehouseId", warehouseId.toString())
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(expectedStatus)
+                .andReturn();
+    }
+
+    private Row findRowByCellText(Sheet sheet, int cellIndex, String text) {
+        return IntStream.rangeClosed(1, sheet.getLastRowNum())
+                .mapToObj(sheet::getRow)
+                .filter(row -> text.equals(row.getCell(cellIndex).getStringCellValue()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("시트에서 값을 찾을 수 없음: " + text));
+    }
+
+    private void assertQuantities(Row row, int expected) {
+        org.assertj.core.api.Assertions.assertThat(row.getCell(4).getNumericCellValue())
+                .isEqualTo(expected);
+        org.assertj.core.api.Assertions.assertThat(row.getCell(5).getNumericCellValue())
+                .isZero();
+        org.assertj.core.api.Assertions.assertThat(row.getCell(6).getNumericCellValue())
+                .isEqualTo(expected);
+    }
+
     private static Map<String, Object> sourceContext() {
         return Map.of("sourceOperationId", UUID.randomUUID().toString(),
                 "slipId", UUID.randomUUID().toString(), "slipRevision", 1);

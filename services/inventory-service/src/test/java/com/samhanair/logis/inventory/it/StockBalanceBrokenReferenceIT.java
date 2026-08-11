@@ -99,6 +99,35 @@ class StockBalanceBrokenReferenceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void balances_withAllMissingReferences_returnsEveryRowAndActualQuantities() throws Exception {
+        Warehouse warehouse = warehouseRepository.saveAndFlush(Warehouse.create(
+                "QA-1051-ALL-" + UUID.randomUUID().toString().substring(0, 8),
+                "#1051 전부 누락 격리 창고", WarehouseType.HEADQUARTERS, null, 901,
+                "#1051 RED-A 전부 누락"));
+        saveBalance(UUID.randomUUID(), warehouse, 11);
+        saveBalance(UUID.randomUUID(), warehouse, 13);
+        productLookupHttpStub.respondWith(List.of());
+
+        mockMvc.perform(get("/inventory/balances")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .param("warehouseId", warehouse.getId().toString())
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(2)))
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content[?(@.productCode=='참조 끊김')]", hasSize(2)))
+                .andExpect(jsonPath("$.data.content[?(@.productName=='제품 마스터 없음')]", hasSize(2)))
+                .andExpect(jsonPath(
+                        "$.data.content[?(@.availableQty==11 && @.reservedQty==0 && @.totalQty==11)]",
+                        hasSize(1)))
+                .andExpect(jsonPath(
+                        "$.data.content[?(@.availableQty==13 && @.reservedQty==0 && @.totalQty==13)]",
+                        hasSize(1)));
+    }
+
+    @Test
     void inbound_withMissingProduct_staysStrictAndReturnsNotFound() throws Exception {
         UUID missing = UUID.randomUUID();
         UUID warehouseId = warehouseRepository.findByCode("HQ-001")

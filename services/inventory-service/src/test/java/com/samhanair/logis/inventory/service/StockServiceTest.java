@@ -350,6 +350,24 @@ class StockServiceTest {
     }
 
     @Test
+    void deduct_missingProduct_staysStrictAndMutatesNothing() {
+        when(productClient.requireExists(productId))
+                .thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 제품 ID"));
+
+        assertThatThrownBy(() -> service.deduct(
+                new DeductRequest(productId, warehouseId, 1, false, null, null, null,
+                        sourceContext(productId)), "u1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.NOT_FOUND));
+
+        verify(stockLotRepository, never()).findAvailableLotsForFifo(any(), any());
+        verify(stockBalanceRepository, never())
+                .findByProductIdAndWarehouse_IdAndIsDeletedFalse(any(), any());
+        verify(stockMovementRepository, never()).save(any());
+    }
+
+    @Test
     void deduct_bundleGoodsProduct_skipsAndReturnsZero() {
         when(productClient.requireExists(productId)).thenReturn(
                 new ProductSummary(productId, "벽걸이 세트", "SET-W15K", "SET-W15K",

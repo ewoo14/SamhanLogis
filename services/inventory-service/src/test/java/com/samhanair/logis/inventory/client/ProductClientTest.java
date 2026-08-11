@@ -157,6 +157,124 @@ class ProductClientTest {
     }
 
     @Test
+    void lookupAllowMissing_allMissing_returnsEmptyList() {
+        UUID missing = UUID.randomUUID();
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess(
+                        "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[]}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(client.lookupAllowMissing(List.of(missing))).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void lookupAllowMissing_acceptsExactlyOneHundredIds() {
+        List<UUID> ids = java.util.stream.IntStream.range(0, 100)
+                .mapToObj(ignored -> UUID.randomUUID())
+                .toList();
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess(
+                        "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[]}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(client.lookupAllowMissing(ids)).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void lookupAllowMissing_exactlyOneHundredIdsWithMissing_keepsFoundSummary() {
+        UUID existing = UUID.randomUUID();
+        List<UUID> ids = new java.util.ArrayList<>();
+        ids.add(existing);
+        java.util.stream.IntStream.range(1, 100)
+                .mapToObj(ignored -> UUID.randomUUID())
+                .forEach(ids::add);
+        String json = "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\","
+                + "\"data\":[{"
+                + "\"id\":\"" + existing + "\","
+                + "\"name\":\"100건 경계 정상 품목\","
+                + "\"modelName\":\"MODEL-BOUNDARY-100\","
+                + "\"productCode\":\"BOUNDARY-100\","
+                + "\"categoryId\":\"" + UUID.randomUUID() + "\","
+                + "\"sellingPrice\":1000,"
+                + "\"status\":\"ACTIVE\""
+                + "}]}";
+
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
+
+        List<ProductSummary> result = client.lookupAllowMissing(ids);
+
+        assertThat(result).singleElement().satisfies(product -> {
+            assertThat(product.id()).isEqualTo(existing);
+            assertThat(product.productCode()).isEqualTo("BOUNDARY-100");
+            assertThat(product.name()).isEqualTo("100건 경계 정상 품목");
+        });
+        server.verify();
+    }
+
+    @Test
+    void lookupAllowMissing_rejectsOneHundredOneIdsBeforeCallingServer() {
+        List<UUID> ids = java.util.stream.IntStream.range(0, 101)
+                .mapToObj(ignored -> UUID.randomUUID())
+                .toList();
+
+        assertThatThrownBy(() -> client.lookupAllowMissing(ids))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        server.verify();
+    }
+
+    @Test
+    void lookupAllowMissing_4xxStillMapsToInvalidInput() {
+        UUID id = UUID.randomUUID();
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> client.lookupAllowMissing(List.of(id)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        server.verify();
+    }
+
+    @Test
+    void lookupAllowMissing_5xxStillMapsToInternalError() {
+        UUID id = UUID.randomUUID();
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.lookupAllowMissing(List.of(id)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
+    }
+
+    @Test
+    void lookupAllowMissing_connectionFailureStillMapsToInternalError() {
+        UUID id = UUID.randomUUID();
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andRespond(request -> {
+                    throw new java.io.IOException("connection reset");
+                });
+
+        assertThatThrownBy(() -> client.lookupAllowMissing(List.of(id)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
+    }
+
+    @Test
     void lookup_emptyList_throwsInvalidInputBeforeCallingServer() {
         assertThatThrownBy(() -> client.lookup(List.of()))
                 .isInstanceOf(BusinessException.class)
