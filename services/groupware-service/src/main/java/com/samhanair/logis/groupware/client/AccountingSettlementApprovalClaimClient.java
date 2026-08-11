@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import com.samhanair.logis.groupware.policy.SettlementApprovalReferencePolicy;
 import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
@@ -20,8 +21,10 @@ import org.springframework.web.client.RestClient;
 @Component
 public class AccountingSettlementApprovalClaimClient {
 
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
-    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(
+            SettlementApprovalReferencePolicy.CLAIM_CONNECT_TIMEOUT_SECONDS);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(
+            SettlementApprovalReferencePolicy.CLAIM_READ_TIMEOUT_SECONDS);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String ACCOUNTING_SERVICE_BASE = "http://accounting-service";
     private static final String CLAIM_PATH = "/internal/accounting/settlement-approval-claims";

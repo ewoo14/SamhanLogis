@@ -1,9 +1,10 @@
 package com.samhanair.logis.groupware.dto;
 
+import com.samhanair.logis.groupware.policy.SettlementApprovalReferencePolicy;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +27,10 @@ public record ApprovalLineCreateRequest(
         List<@NotNull UUID> approverIds,
         UUID templateId,
         Map<String, String> fieldValues,
+        @Size(max = SettlementApprovalReferencePolicy.MAX_ATOMIC_REFERENCES,
+                message = "결재 생성 시 참조는 최대 "
+                        + SettlementApprovalReferencePolicy.MAX_ATOMIC_REFERENCES
+                        + "건까지 가능합니다. 초과분은 결재 생성 후 상세 화면에서 나누어 추가해 주세요")
         List<@Valid ApprovalAttachmentRequest> references
 ) {
     /** 레거시 자유형 결재 생성 요청과의 source 호환 생성자. */

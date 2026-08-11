@@ -20,6 +20,7 @@ import com.samhanair.logis.groupware.repository.ApprovalAttachmentRepository;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.storage.ApprovalAttachmentStorage;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -72,6 +73,16 @@ class ApprovalAttachmentSettlementClaimTest {
                 .isInstanceOf(BusinessException.class);
 
         verifyNoInteractions(attachmentRepository);
+    }
+
+    @Test
+    void atomicSettlementReference_expiredDeadlineDoesNotOpenAnotherClaim() {
+        assertThatThrownBy(() -> service().addReferencesAtomically(
+                approval, List.of(request("2026/08/11-3")), System.nanoTime() - 1))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("결재 생성 시간이 제한을 초과했습니다");
+
+        verifyNoInteractions(claimClient, attachmentRepository);
     }
 
     @Test

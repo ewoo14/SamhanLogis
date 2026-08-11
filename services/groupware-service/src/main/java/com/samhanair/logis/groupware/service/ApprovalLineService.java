@@ -11,6 +11,7 @@ import com.samhanair.logis.groupware.domain.ResolvedRole;
 import com.samhanair.logis.groupware.domain.DocumentTemplateStatus;
 import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
+import com.samhanair.logis.groupware.policy.SettlementApprovalReferencePolicy;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.repository.DocumentTemplateRepository;
 import java.util.ArrayList;
@@ -94,7 +95,7 @@ public class ApprovalLineService {
      *             IT 테스트·내부 호출에서만 허용.
      */
     @Deprecated
-    @Transactional
+    @Transactional(timeout = SettlementApprovalReferencePolicy.TRANSACTION_TIMEOUT_SECONDS)
     public ApprovalLine create(ApprovalLineCreateRequest req) {
         return createInternal(req, req.requesterId());
     }
@@ -110,12 +111,15 @@ public class ApprovalLineService {
      * @param actorRequesterId 게이트웨이 주입 {@code X-User-Id} 헤더 값
      * @return 영속화된 결재선
      */
-    @Transactional
+    @Transactional(timeout = SettlementApprovalReferencePolicy.TRANSACTION_TIMEOUT_SECONDS)
     public ApprovalLine createWithActor(ApprovalLineCreateRequest req, UUID actorRequesterId) {
         return createInternal(req, actorRequesterId);
     }
 
     private ApprovalLine createInternal(ApprovalLineCreateRequest req, UUID requesterId) {
+        long atomicDeadlineNanos = SettlementApprovalReferencePolicy.deadlineNanos();
+        SettlementApprovalReferencePolicy.validateAtomicReferenceCount(
+                req.references() == null ? 0 : req.references().size());
         List<UUID> overrideApproverIds = safeApproverIds(req.approverIds());
         String documentType = documentTypeFor(req.templateId());
         GroupwareApprovalLineConfigClient.ConfigLine configLine =
@@ -167,7 +171,8 @@ public class ApprovalLineService {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                         "결재 참조 첨부 서비스가 구성되지 않았습니다");
             }
-            approvalAttachmentService.addReferencesAtomically(saved, req.references());
+            approvalAttachmentService.addReferencesAtomically(
+                    saved, req.references(), atomicDeadlineNanos);
         }
         return saved;
     }

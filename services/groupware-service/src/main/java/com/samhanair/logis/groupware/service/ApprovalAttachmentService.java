@@ -10,6 +10,7 @@ import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.ApprovalReferenceDocType;
 import com.samhanair.logis.groupware.dto.ApprovalAttachmentRequest;
 import com.samhanair.logis.groupware.dto.ApprovalReferenceLookupResponse;
+import com.samhanair.logis.groupware.policy.SettlementApprovalReferencePolicy;
 import com.samhanair.logis.groupware.repository.ApprovalAttachmentRepository;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.storage.ApprovalAttachmentStorage;
@@ -35,9 +36,6 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @Service
 public class ApprovalAttachmentService {
-
-    /** claim ACTIVE lease(300초)보다 짧게 groupware 첨부 transaction을 종료시켜 stale commit을 막는다. */
-    private static final int SETTLEMENT_ATTACHMENT_TRANSACTION_TIMEOUT_SECONDS = 120;
 
     /** 단일 파일 최대 크기. */
     public static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
@@ -76,25 +74,36 @@ public class ApprovalAttachmentService {
     }
 
     /** 결재 참조 첨부를 추가한다. */
-    @Transactional(timeout = SETTLEMENT_ATTACHMENT_TRANSACTION_TIMEOUT_SECONDS)
+    @Transactional(timeout = SettlementApprovalReferencePolicy.TRANSACTION_TIMEOUT_SECONDS)
     public ApprovalAttachment addReference(UUID approvalId, ApprovalAttachmentRequest request) {
         ApprovalLine approval = loadApproval(approvalId);
-        return addReferenceForApproval(approval, approvalId, request);
+        return addReferenceForApproval(approval, approvalId, request,
+                SettlementApprovalReferencePolicy.deadlineNanos());
     }
 
     /** 결재 생성 transaction 안에서 참조 첨부와 결재 row를 함께 저장한다. */
     public void addReferencesAtomically(ApprovalLine approval, List<ApprovalAttachmentRequest> requests) {
+        addReferencesAtomically(approval, requests, SettlementApprovalReferencePolicy.deadlineNanos());
+    }
+
+    /** 결재 생성 transaction의 deadline을 공유하며 참조 첨부와 결재 row를 함께 저장한다. */
+    public void addReferencesAtomically(ApprovalLine approval, List<ApprovalAttachmentRequest> requests,
+                                        long deadlineNanos) {
         if (requests == null || requests.isEmpty()) {
             return;
         }
+        SettlementApprovalReferencePolicy.validateAtomicReferenceCount(requests.size());
         approval.guardCollabModifiable();
         for (ApprovalAttachmentRequest request : requests) {
-            addReferenceForApproval(approval, approval.getId(), request);
+            SettlementApprovalReferencePolicy.ensureWithinDeadline(deadlineNanos);
+            addReferenceForApproval(approval, approval.getId(), request, deadlineNanos);
         }
     }
 
     private ApprovalAttachment addReferenceForApproval(
-            ApprovalLine approval, UUID approvalId, ApprovalAttachmentRequest request) {
+            ApprovalLine approval, UUID approvalId, ApprovalAttachmentRequest request,
+            long deadlineNanos) {
+        SettlementApprovalReferencePolicy.ensureWithinDeadline(deadlineNanos);
         approval.guardCollabModifiable();
         ApprovalAttachment attachment;
         if (request.refDocType() != null) {
@@ -109,19 +118,25 @@ public class ApprovalAttachmentService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "참조 첨부 endpoint 에서는 FILE 을 사용할 수 없습니다");
         }
         if (request.refDocType() != ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT) {
-            return attachmentRepository.save(attachment);
+            ApprovalAttachment saved = attachmentRepository.save(attachment);
+            SettlementApprovalReferencePolicy.ensureWithinDeadline(deadlineNanos);
+            return saved;
         }
         String documentNo = attachment.getRefDocNo();
         if (claimClient == null) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "accounting settlement claim client가 구성되지 않았습니다");
         }
+        SettlementApprovalReferencePolicy.ensureClaimCallFits(deadlineNanos);
         UUID claimToken = reserveClaim(documentNo, approvalId);
         registerRollbackCompensation(claimToken);
         try {
+            SettlementApprovalReferencePolicy.ensureWithinDeadline(deadlineNanos);
             ApprovalAttachment saved = attachmentRepository.save(attachment);
             // 로컬 row가 현재 transaction에 준비된 뒤 accounting claim을 ACTIVE로 승격한다.
+            SettlementApprovalReferencePolicy.ensureClaimCallFits(deadlineNanos);
             claimClient.activate(claimToken);
+            SettlementApprovalReferencePolicy.ensureWithinDeadline(deadlineNanos);
             return saved;
         } catch (RuntimeException ex) {
             releaseQuietly(claimToken);

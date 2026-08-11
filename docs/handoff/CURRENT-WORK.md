@@ -173,3 +173,19 @@ D-G8  제품구분 정비 — 품목명 자동분류 + 미등록
 📄 docs/dev-reports/2026-08-11-dg7-toctou-fix2.md
 📁 docs/qa/2026-08-11-dg7-fix2/README.md
 ```
+
+## 2026-08-11 Codex Update — D-G7 TOCTOU fix3
+
+```text
+✅ TF-4 원자 생성 transaction timeout 120초 전파
+✅ accounting claim connect/read timeout과 monotonic deadline 공유
+✅ 원자 생성 참조 상한 7건 — 7 × reserve/activate 2회 × 7초 = 98초 + 22초 여유
+✅ timeout/상한 사용자 메시지와 즉시 claim release 보상 처리
+✅ RED-A 격리 Testcontainers PostgreSQL + Flyway 2/2 PASS
+✅ groupware 전체 257 tests, failure/error/skipped 0
+✅ Desktop 단위 9 / 통합 5 / typecheck PASS
+✅ 실제 격리 서비스 왕복: 1건 settlement 201, 7건 201, 8건 400
+✅ Playwright Chromium-1217 live QA 및 스크린샷 3장
+📄 docs/dev-reports/2026-08-11-dg7-toctou-fix3.md
+📁 docs/qa/2026-08-11-dg7-fix3/
+```
