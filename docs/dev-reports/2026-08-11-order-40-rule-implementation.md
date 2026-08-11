@@ -1,5 +1,74 @@
 # 주문 40% 규칙 이식 — 착수 전 검증 및 중단 보고
 
+## 0. 2026-08-11 S2 재실측 정정 — 이 블록이 기존 본문보다 우선한다
+
+> 재측정 시각: 2026-08-11 KST
+> HEAD: `0f96558dd`
+> 범위: 주문 경로만. 공유 DB 조회는 모두 `BEGIN; SET TRANSACTION READ ONLY; ... COMMIT;`으로 수행했다.
+> 결론: **판정 불가 — 구현 중단.** S1 코드와 격리 검증은 존재하지만, 현재 공유 실행 환경에는 S1의 V38 백필이 적용되지 않아 실제 주문 조합을 안전하게 만들고 밟을 수 없다.
+
+### 0.1 발화 조건 카운트
+
+| 항목 | S1 격리 검증/코드 기준 | 현재 공유 DB 실측 | 판정 |
+|---|---:|---:|---|
+| 활성 품목 | 3,084 | 3,084 | 분모 일치 |
+| 실외기 | 201 | 0 (V38 미적용) | 공유 환경 판정 불가 |
+| 실내기 계열 | 516 (`INDOOR` 415 + `INDOOR_WALL` 40 + `INDOOR_CEILING` 61) | 0 (V38 미적용) | 공유 환경 판정 불가 |
+| 미등록 | 2,126 | 0 (V38 미적용) | 공유 환경 판정 불가 |
+| `has_variable_discount=true` | 803 | 803 | 통과 |
+| `has_variable_discount=false` | 2,281 | 2,281 | 통과 |
+| `has_variable_discount IS NULL` | 0 | 0 | 통과 |
+
+공유 `product_db.flyway_schema_history`의 최대 성공 버전은 **V37**이다. 현재 활성 제품의 `category_id` 연결은 `ECOUNT_MIG2` 1,963건과 `INDOOR_WALL` 1,121건뿐이며, `OUTDOOR`, `INDOOR`, `INDOOR_CEILING`, `UNREGISTERED` 연결은 0건이다. 따라서 공유 DB에서 S1 카테고리 축을 기준으로 실외기·실내기·미등록을 세는 것은 불가능하다. 개발책임자가 제시한 212/417/2,126은 이 공유 DB의 실측값으로 사용하지 않는다.
+
+### 0.2 실제 주문 경로 표본
+
+공유 `partner_order_db`에는 활성 주문 4건, 활성 라인 8건만 있다. 라인 카테고리 키는 `homemulti` 6건, `singleSets` 2건이다. 기존 라인 중 이름상 실외기인 2라인도 공유 제품 DB에서는 `INDOOR_WALL`로 연결되어 있어 현재 카테고리 축을 신뢰할 수 없다. 이 표본으로는 다음의 발화 조합을 실제 주문 경로에서 판정할 수 없다.
+
+```text
+둘 다 없음+변동DC 대상 · 둘 다 없음+변동DC 비대상 · 미등록만 ·
+미등록+변동DC · 미등록+실외기 · 전열교환기만 · 빈 주문
+```
+
+표본 0 또는 판정 불가를 결함 없음으로 세지 않는다. V38을 공유 DB에 적용하거나 관리자 화면에서 분류·주문을 생성하면 게이트를 진행할 수 있지만, 이 트랙의 **공유 DB write·배포 금지**와 충돌하므로 실행하지 않았다. DB 직접 INSERT도 하지 않았다.
+
+### 0.3 현행 미적용 원문
+
+현재 주문 가격 계산의 실제 입력과 분기에는 40% 또는 물리 제품구분 판정이 없다.
+
+```text
+services/dc-config-service/.../dto/PriceCalculationRequest.java
+  Line: lineId, modelCode, listPrice, category, quantity, option flags,
+        fixedDiscountRate, hasVariableDiscount
+  → OUTDOOR / INDOOR / UNREGISTERED 필드 없음
+
+services/dc-config-service/.../service/PriceCalculationService.java
+  pickCategoryRate(...)
+  → fixedDiscountRate 우선
+  → hasVariableDiscount=false 이면 0
+  → HOMEMULTI / COMMERCIAL_MULTI 전역율
+  → 그 외 0
+  → 40% 분기 없음
+
+services/partner-order-service/.../PartnerOrderConfirmService.java:201-207
+  → 위 PriceLine 을 만들 때 categoryKey와 hasVariableDiscount만 전달
+  → S1 물리 제품구분 전달 없음
+```
+
+이는 RED-A의 “현행에서 둘 다 없음+변동DC 대상 주문에 40%가 적용되지 않는다”를 소스상 재현하는 원문이다. 다만 공유 실행 환경에서 해당 주문을 안전하게 생성할 제품분류 축이 V38 미적용 상태이므로, 이 시점에 RED-A를 실제 가격값으로 밟았다고 주장하지 않는다.
+
+### 0.4 이번 재실측의 결론과 신규 파일
+
+- **구현 중단:** 제품 마스터의 S1 물리 축이 공유 주문 경로에 실측 가능한 상태가 아니다.
+- **견적 경로:** 코드·API·화면을 변경하지 않았다.
+- **기존 할인 계산·정액DC:** 변경하지 않았다. `495,000 → 420,750` 계산도 변경하지 않았다.
+- **라이브 Playwright:** 40% 적용/미적용 주문을 실제로 만들 수 없어 실행하지 않았다. 실패 원문이 아니라 **판정 불가 사유**를 기록한다.
+- **신규 파일:** 없음. 이 기존 보고서만 재실측 정정 블록을 추가했다.
+
+재개 조건은 (1) V38이 실제 제품 DB에 적용되어 S1 카테고리 분포가 복원되고, (2) 관리자 실 경로로 미등록·실외기·실내기·변동DC 조합을 만들 수 있으며, (3) 그 주문을 공유 DB에 남기지 않고 회수할 수 있는 QA 격리 경로가 확보되는 것이다. 그 뒤에만 단일 규칙 지점 설계와 구현 승인을 진행한다.
+
+> 이하 기존 본문은 V38 적용 전 정찰 기록이다. 현재 재실측 결과와 충돌하는 수치는 이 0장 표를 정본으로 한다.
+
 > 측정 일시: 2026-08-11 KST  
 > 범위: 주문 경로만. 모든 DB 조회는 `BEGIN TRANSACTION READ ONLY`로 실행했다.  
 > 결론: 개발책임자 지정 착수 전 확인 2·3이 불일치하므로 **구현하지 않고 중단**한다.
