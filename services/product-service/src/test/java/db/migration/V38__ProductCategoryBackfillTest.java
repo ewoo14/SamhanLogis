@@ -39,7 +39,7 @@ class V38__ProductCategoryBackfillTest extends AbstractPostgresIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void backfill_수동분류행을_제외하고_감사후_자동및미분류카테고리를_적용하며_rollback할수있다() throws Exception {
+    void backfill_수동분류행을_제외하고_감사후_자동및미등록카테고리를_적용하며_rollback할수있다() throws Exception {
         Category wall = categoryRepository.findByCode("INDOOR_WALL").orElseThrow();
         Category indoor = categoryRepository.findByCode("INDOOR").orElseThrow();
 
@@ -64,7 +64,7 @@ class V38__ProductCategoryBackfillTest extends AbstractPostgresIT {
 
         assertCategory(classifiedOutdoor.getId(), "OUTDOOR");
         assertCategory(classifiedWall.getId(), "INDOOR");
-        assertCategory(unclassified.getId(), "UNCLASSIFIED");
+        assertCategory(unclassified.getId(), "UNREGISTERED");
         assertCategory(componentInferred.getId(), "OUTDOOR");
         assertCategory(manual.getId(), "INDOOR_WALL");
 

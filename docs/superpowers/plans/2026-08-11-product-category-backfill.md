@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Flyway는 product-service `origin/main` 최대 V37의 다음인 V38이다.
-- `UNCLASSIFIED`는 루트(`parent_id=NULL`), 코드 `UNCLASSIFIED`, 명칭 `미분류`, 기존 루트의 마지막 다음 `display_order`다.
+- `UNREGISTERED`는 루트(`parent_id=NULL`), 코드 `UNREGISTERED`, 명칭 `미등록`, 기존 루트의 마지막 다음 `display_order`다.
 - 자동분류 키워드·우선순위를 확장하지 않는다.
 - `classification_manual=true` 행, 정액DC 분류 축, 견적·전표·세트 전개는 변경하지 않는다.
 - BaseEntity 7 audit 및 soft-delete만 사용한다. 공유 DB에는 쓰지 않는다.
@@ -25,7 +25,7 @@
 - Create: `services/product-service/src/test/java/com/samhanair/logis/product/service/ProductNameCategoryClassifierTest.java`
 
 **Interfaces:**
-- Produces: `String ProductNameCategoryClassifier.classify(String productName)` — `SERVICE`, `CONTROL`, `PIPING`, `OUTDOOR`, `HVAC`, `INDOOR_WALL`, `INDOOR_CEILING`, `INDOOR`, `UNCLASSIFIED` 중 하나.
+- Produces: `String ProductNameCategoryClassifier.classify(String productName)` — `SERVICE`, `CONTROL`, `PIPING`, `OUTDOOR`, `HVAC`, `INDOOR_WALL`, `INDOOR_CEILING`, `INDOOR`, `UNREGISTERED` 중 하나.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -42,7 +42,7 @@ private static Stream<Arguments> cases() {
         arguments("벽걸이 리모컨", "CONTROL"),
         arguments("실외기", "OUTDOOR"),
         arguments("벽걸이 실내기", "INDOOR_WALL"),
-        arguments("판정불가 모델", "UNCLASSIFIED"));
+        arguments("판정불가 모델", "UNREGISTERED"));
 }
 ```
 
@@ -78,14 +78,14 @@ Expected: PASS.
 
 **Interfaces:**
 - Consumes: `ProductNameCategoryClassifier.classify(String)`.
-- Produces: `product_category_backfill_audit`와 `UNCLASSIFIED` 루트 카테고리.
+- Produces: `product_category_backfill_audit`와 `UNREGISTERED` 루트 카테고리.
 
 - [ ] **Step 1: Write the failing integration test**
 
 ```java
 @Test
-void backfill_수동분류행을_제외하고_감사후_자동및미분류카테고리를_적용한다() throws Exception {
-    // OUTDOOR, INDOOR_WALL, UNCLASSIFIED, classification_manual=true fixture를 적재
+void backfill_수동분류행을_제외하고_감사후_자동및미등록카테고리를_적용한다() throws Exception {
+    // OUTDOOR, INDOOR_WALL, UNREGISTERED, classification_manual=true fixture를 적재
     ProductCategoryBackfillMigration.apply(jdbcTemplate.getDataSource().getConnection());
     // 수동행의 category_id 불변, 나머지 세 코드 및 감사 이전/적용값 검증
 }
@@ -107,7 +107,7 @@ public final class V38__ProductCategoryBackfill extends BaseJavaMigration {
 }
 ```
 
-`apply(Connection)`은 `UNCLASSIFIED` 루트를 `MAX(display_order)+1`로 멱등 생성하고, 감사행을 먼저 `ON CONFLICT (migration_key, product_id) DO NOTHING`으로 삽입한다. 이후 rollback되지 않은 감사행만으로 `products.category_id`를 갱신한다.
+`apply(Connection)`은 `UNREGISTERED` 루트를 `MAX(display_order)+1`로 멱등 생성하고, 감사행을 먼저 `ON CONFLICT (migration_key, product_id) DO NOTHING`으로 삽입한다. 이후 rollback되지 않은 감사행만으로 `products.category_id`를 갱신한다.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -124,13 +124,13 @@ Expected: PASS.
 
 **Interfaces:**
 - Consumes: `ProductNameCategoryClassifier.classify(String)`, 코드별 `CategoryRepository.findByCode`.
-- Produces: 신규 시트 행의 자동/미분류 카테고리와 재등장 행의 기존 카테고리 보존.
+- Produces: 신규 시트 행의 자동/미등록 카테고리와 재등장 행의 기존 카테고리 보존.
 
 - [ ] **Step 1: Write failing integration tests**
 
 ```java
 @Test void sync_실외기_신규품목은_OUTDOOR_카테고리로_생성한다() { }
-@Test void sync_미일치_신규품목은_UNCLASSIFIED_카테고리로_생성한다() { }
+@Test void sync_미일치_신규품목은_UNREGISTERED_카테고리로_생성한다() { }
 @Test void sync_softDelete후_재등장한_수동카테고리품목은_기존카테고리를_보존한다() { }
 ```
 
@@ -165,7 +165,7 @@ Expected: PASS.
 
 Run the V38 test fixture against its Testcontainers database; do not use `samhan-postgres` or any shared database.
 
-Expected: 916 auto-classified, 2,168 `UNCLASSIFIED`, manual rows unchanged, audit and rollback verified.
+Expected: manual rows unchanged, audit and rollback verified.
 
 - [ ] **Step 3: Record evidence**
 

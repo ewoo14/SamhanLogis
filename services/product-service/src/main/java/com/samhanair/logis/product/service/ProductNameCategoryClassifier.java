@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 public final class ProductNameCategoryClassifier {
 
     /** 품목명 자동분류 실패 시에도 category_id 필수 계약을 지키는 루트 카테고리 코드. */
-    public static final String UNCLASSIFIED_CODE = "UNCLASSIFIED";
+    public static final String UNREGISTERED_CODE = "UNREGISTERED";
 
     private static final List<Rule> RULES = List.of(
             new Rule("PIPING", "일자발|받침|거치|브라켓|앵글"),
@@ -37,7 +37,7 @@ public final class ProductNameCategoryClassifier {
     /**
      * 공백을 제거한 품목명에 보수 규칙을 위에서부터 적용한다.
      *
-     * @param productName 품목명. null 또는 미일치면 미분류로 반환한다.
+     * @param productName 품목명. null 또는 미일치면 미등록으로 반환한다.
      * @return 유효한 제품구분 카테고리 코드
      */
     public static String classify(String productName) {
@@ -48,7 +48,7 @@ public final class ProductNameCategoryClassifier {
      * 품목명 우선 판정 뒤에만 세트 구성품 역할을 보조 신호로 사용한다.
      *
      * <p>구성품 역할은 그 구성품 품목에만 전달해야 하며 세트 자신에게 역방향으로 적용하지 않는다.
-     * OUTDOOR와 INDOOR가 동시에 온 경우에는 보수적으로 미분류로 남긴다.
+     * OUTDOOR와 INDOOR가 동시에 온 경우에는 보수적으로 미등록으로 남긴다.
      *
      * @param productName 품목명
      * @param componentKinds 이 품목을 가리키는 활성 구성품 행의 역할
@@ -61,8 +61,8 @@ public final class ProductNameCategoryClassifier {
                 .filter(rule -> rule.pattern().matcher(normalized).find())
                 .map(Rule::categoryCode)
                 .findFirst()
-                .orElse(UNCLASSIFIED_CODE);
-        if (!UNCLASSIFIED_CODE.equals(byName)) {
+                .orElse(UNREGISTERED_CODE);
+        if (!UNREGISTERED_CODE.equals(byName)) {
             return byName;
         }
         return classifyFromComponentKinds(componentKinds);
@@ -70,7 +70,7 @@ public final class ProductNameCategoryClassifier {
 
     private static String classifyFromComponentKinds(Collection<ComponentKind> componentKinds) {
         if (componentKinds == null || componentKinds.isEmpty()) {
-            return UNCLASSIFIED_CODE;
+            return UNREGISTERED_CODE;
         }
         EnumSet<ComponentKind> kinds = EnumSet.copyOf(componentKinds);
         if (kinds.contains(ComponentKind.OUTDOOR) && !kinds.contains(ComponentKind.INDOOR)) {
@@ -80,7 +80,7 @@ public final class ProductNameCategoryClassifier {
             return "INDOOR";
         }
         if (kinds.contains(ComponentKind.OUTDOOR) || kinds.contains(ComponentKind.INDOOR)) {
-            return UNCLASSIFIED_CODE;
+            return UNREGISTERED_CODE;
         }
         if (kinds.contains(ComponentKind.REMOTE)) {
             return "CONTROL";
@@ -89,7 +89,7 @@ public final class ProductNameCategoryClassifier {
                 || kind == ComponentKind.PANEL || kind == ComponentKind.MATERIAL || kind == ComponentKind.FOOT)) {
             return "PIPING";
         }
-        return UNCLASSIFIED_CODE;
+        return UNREGISTERED_CODE;
     }
 
     private record Rule(String categoryCode, Pattern pattern) {

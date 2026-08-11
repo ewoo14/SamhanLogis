@@ -1509,16 +1509,16 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void sync_미일치_신규품목은_UNCLASSIFIED_카테고리로_생성한다() throws Exception {
+    void sync_미일치_신규품목은_UNREGISTERED_카테고리로_생성한다() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
-                row("AM180NXVUHH1", "CATEGORY_UNCLASSIFIED_NEW", "", "1,500,000", "", "1,200,000")
+                row("AM180NXVUHH1", "CATEGORY_UNREGISTERED_NEW", "", "1,500,000", "", "1,200,000")
         ));
 
         syncService.syncAll();
 
-        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("CATEGORY_UNCLASSIFIED_NEW").orElseThrow()
-                .getCategory().getCode()).isEqualTo("UNCLASSIFIED");
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("CATEGORY_UNREGISTERED_NEW").orElseThrow()
+                .getCategory().getCode()).isEqualTo("UNREGISTERED");
     }
 
     @Test

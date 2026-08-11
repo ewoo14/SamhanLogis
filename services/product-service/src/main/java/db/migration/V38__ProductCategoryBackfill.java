@@ -26,7 +26,7 @@ public class V38__ProductCategoryBackfill extends BaseJavaMigration {
 
     static final String MIGRATION_KEY = "V38-PRODUCT-CATEGORY-BACKFILL";
     private static final String ACTOR = "V38__PRODUCT_CATEGORY_BACKFILL";
-    private static final UUID UNCLASSIFIED_ID = UUID.fromString("00000000-0000-0000-0000-000000001100");
+    private static final UUID UNREGISTERED_ID = UUID.fromString("00000000-0000-0000-0000-000000001100");
 
     @Override
     public void migrate(Context context) throws Exception {
@@ -40,7 +40,7 @@ public class V38__ProductCategoryBackfill extends BaseJavaMigration {
      */
     static void apply(Connection connection) throws SQLException {
         createAuditTable(connection);
-        ensureUnclassifiedRoot(connection);
+        ensureUnregisteredRoot(connection);
 
         Map<String, UUID> categoryIds = loadCategoryIds(connection);
         List<Candidate> candidates = loadCandidates(connection);
@@ -79,13 +79,13 @@ public class V38__ProductCategoryBackfill extends BaseJavaMigration {
                 """);
     }
 
-    private static void ensureUnclassifiedRoot(Connection connection) throws SQLException {
+    private static void ensureUnregisteredRoot(Connection connection) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
                 INSERT INTO categories (
                     id, code, name, parent_id, display_order, serial_managed,
                     created_at, created_by, is_deleted
                 )
-                SELECT ?, 'UNCLASSIFIED', '미분류', NULL,
+                SELECT ?, 'UNREGISTERED', '미등록', NULL,
                        COALESCE(MAX(display_order), 0) + 1, FALSE,
                        CURRENT_TIMESTAMP, ?, FALSE
                   FROM categories
@@ -93,7 +93,7 @@ public class V38__ProductCategoryBackfill extends BaseJavaMigration {
                    AND is_deleted = FALSE
                 ON CONFLICT DO NOTHING
                 """)) {
-            statement.setObject(1, UNCLASSIFIED_ID);
+            statement.setObject(1, UNREGISTERED_ID);
             statement.setString(2, ACTOR);
             statement.executeUpdate();
         }
@@ -106,7 +106,7 @@ public class V38__ProductCategoryBackfill extends BaseJavaMigration {
                   FROM categories
                  WHERE is_deleted = FALSE
                    AND code IN ('SERVICE', 'CONTROL', 'PIPING', 'OUTDOOR', 'HVAC',
-                                'INDOOR_WALL', 'INDOOR_CEILING', 'INDOOR', 'UNCLASSIFIED')
+                                'INDOOR_WALL', 'INDOOR_CEILING', 'INDOOR', 'UNREGISTERED')
                 """);
              ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
@@ -173,8 +173,8 @@ public class V38__ProductCategoryBackfill extends BaseJavaMigration {
                 statement.setString(5, candidate.categoryCode());
                 statement.setObject(6, appliedCategoryId);
                 statement.setString(7, appliedCode);
-                statement.setString(8, appliedCode.equals(ProductNameCategoryClassifier.UNCLASSIFIED_CODE)
-                        ? "품목명 보수 규칙 미일치 → 미분류"
+                statement.setString(8, appliedCode.equals(ProductNameCategoryClassifier.UNREGISTERED_CODE)
+                        ? "품목명 보수 규칙 미일치 → 미등록"
                         : "품목명 보수 규칙 자동분류 → " + appliedCode);
                 statement.setString(9, ACTOR);
                 statement.addBatch();
