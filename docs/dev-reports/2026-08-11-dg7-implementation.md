@@ -145,3 +145,131 @@ CONFIRMED(snapshot V2)
 - `docs/dev-reports/2026-08-11-dg7-implementation.md` — 본 조사 보고서
 
 생산 코드·migration·테스트 파일은 변경하지 않았다. 개발책임자께서 결재 상태 연동 규칙, 재확정 번호 정책, 취소 후 snapshot 처리 정책을 결정해 주신 뒤에만 D-G7 설계와 RED 테스트를 다시 상정해야 한다.
+
+---
+
+# D-G7 구현 재개 보고
+
+> 정책 확정일: 2026-08-11
+
+## 10. 확정 정책과 구현 근거
+
+조사 중단 후 개발책임자께서 다음 세 정책을 확정했다. 기존 6종에 동일한 역조회 전례는 없었으므로, 아래는 새 규칙을 임의로 만든 것이 아니라 상정된 정책을 현재 결재 모델에 최소 연결한 구현이다.
+
+| 정책 | 구현 | 근거 |
+|---|---|---|
+| 결재가 올라간 정산서 확정 취소 불가 | `SALES_COMMISSION_SETTLEMENT` 참조 첨부 중 결재 상태가 `PENDING/IN_PROGRESS/APPROVED`인 행이 있으면 accounting 취소를 `CONFLICT`로 거부하고 사용자 메시지를 반환 | 결재 문서가 가리키는 금액 변경 방지. `REJECTED/WITHDRAWN`은 결재가 끝난 상태이므로 취소 허용 |
+| 재확정 번호 유지 | 취소된 DRAFT의 기존 `documentNo`를 보존하고, 재확정 때 채번기를 다시 호출하지 않음 | `ApprovalAttachment.ref_doc_no` 참조 보존. 기준일을 바꾸면 번호의 날짜와 기준일이 달라질 수 있으므로 조회 응답의 두 필드를 함께 확인 |
+| 취소 snapshot 이력화 후 재계산 | 취소 트랜잭션에서 기존 rate/입력/계산값을 history 행으로 복사하고 현재 snapshot은 비움. 취소 후 계산이 성공해야 재확정 가능 | CONFIRMED 행의 조용한 mutation은 여전히 금지되고, 과거 확정본과 현재 재확정본을 분리 |
+
+번호 정책과 S1의 충돌은 명시적 예외로 다룬다. 최초 생성 DRAFT는 계속 무번호지만, 확정 취소로 되돌아간 DRAFT는 `documentNo`를 보존한다. 이 예외가 있어야 번호 유지와 `ref_doc_no` 보존을 동시에 만족한다.
+
+## 11. 구현 전 RED 원문
+
+```java
+SalesCommissionSettlement confirmed = settlement.confirm("2026/08/11-1");
+
+// RED-A: 현행에는 메서드가 없어 컴파일/동작하지 않는다.
+confirmed.cancelConfirmation();
+confirmed.changeSettlementDate(LocalDate.of(2026, 8, 12));
+confirmed.confirm("2026/08/11-1");
+
+// RED-B: 현행 CONFIRMED 재계산은 거부되어야 하며, snapshot은 그대로여야 한다.
+service.calculate(confirmedId, newerRateVersion, input);
+
+// 결재 첨부가 있으면 취소는 사용자 사유와 함께 거부되어야 한다.
+service.cancelConfirmation(confirmedId);
+```
+
+기존 구현에서는 `cancelConfirmation/changeSettlementDate`가 없고, CONFIRMED의 `confirm/recordCalculation`은 DRAFT guard에서 `CONFLICT`를 발생시킨다. 이 원문은 정책 확정 전 조사본의 RED를 정책 확정 후 테스트 대상으로 승격한 것이다.
+
+## 12. snapshot 이력 설계
+
+- `sales_commission_settlement_snapshot_histories`는 정산서와 `ManyToOne`으로 연결되는 append-only 감사 행이다.
+- 이력 행에는 확정 당시 문서번호·기준일·요율 계약 버전과 입력/계산 BigDecimal 전 필드를 복사한다. `BaseEntity.createdAt`을 취소 시각으로 사용한다.
+- 취소 시 이력 저장과 상태 전환은 같은 transaction에서 수행한다. 현재 정산서의 snapshot은 비우고 `recalculationRequired=true`로 한다.
+- `calculate()`는 DRAFT에서만 계속 허용된다. 최초 DRAFT의 기존 confirm 동작은 유지하되, 취소로 되돌아온 DRAFT는 새 계산 없이는 재확정할 수 없다.
+- 조회는 현재 정산서의 `settlementDate/documentNo`와 history의 `confirmedSettlementDate/confirmedDocumentNo`를 구분해 노출한다. 번호 날짜와 현재 기준일이 다른 경우에도 번호를 정렬 키로 재해석하지 않는다.
+
+## 13. 정책 확정 후 조합표
+
+| 조합 | 기대 결과 | 확인 |
+|---|---|---|
+| 결재 없는 취소 | CONFIRMED→DRAFT, 번호·과거 snapshot 보존 | 구현 테스트 |
+| 결재 진행 중 취소 | `CONFLICT`, “결재가 올라가 있어…” 사유 전달 | 구현 테스트 |
+| 결재 완료 후 취소 | `CONFLICT`, APPROVED도 차단 | 구현 테스트 |
+| 결재 반려 후 취소 | REJECTED는 활성 결재가 아니므로 취소 허용 | 구현 테스트 |
+| 취소→기준일 수정→재확정 | 새 기준일, 기존 번호, 새 요율 snapshot | 구현 테스트 |
+| 취소→수정 없이 재확정 | 재계산 전 재확정 거부 | 구현 테스트 |
+| 취소 두 번 | 두 번째는 CONFIRMED가 아니므로 `CONFLICT` | 구현 테스트 |
+| 재확정 두 번 | 두 번째는 CONFIRMED이므로 `CONFLICT` | 기존 상태 guard 회귀 |
+| 같은 날 다른 번호 채번→기준일 변경→재확정 | 번호는 기존 번호 유지, 날짜 불일치가 조회에 보이며 목록/집계 값은 기준일 필드로 유지 | 구현 테스트 |
+
+## 14. 상태 사용처 전수표 및 테스트 결과
+
+실행 명령은 아래와 같다.
+
+```text
+git grep -n 'SalesCommissionSettlement' -- services/accounting-service/src/main/java services/accounting-service/src/test/java
+git grep -n 'SALES_COMMISSION_SETTLEMENT' -- services/groupware-service/src/main services/groupware-service/src/test
+```
+
+| 분류 | 실제 사용처 | 새 전이에 대한 판정 |
+|---|---|---|
+| 생성 | `SalesCommissionSettlementService.createDraft` → `createDraft` | O — 번호를 소비하지 않는 기존 DRAFT 유지 |
+| 확정/재확정 | `SalesCommissionSettlementService.confirm`, `SalesCommissionSettlement.confirm` | O — 최초 DRAFT만 새 번호, 취소 후에는 기존 번호 유지, CONFIRMED 재호출 거부 |
+| 확정 취소 | `SalesCommissionSettlementService.cancelConfirmation`, `SalesCommissionSettlement.cancelConfirmation` | O — CONFIRMED만 허용하고 결재 역조회 후 history 저장→DRAFT 전이 |
+| 기준일 수정 | `changeSettlementDate` 서비스/도메인 메서드 | O — DRAFT에서만 허용; CONFIRMED는 CONFLICT |
+| 재계산·계약 조회 | `SalesCommissionSettlementService.calculate`, `recordCalculation` | O — DRAFT만 허용; CONFIRMED snapshot에 접근하지 않음. 취소 후 `recalculationRequired`를 해제 |
+| 문서번호 채번 | `SalesCommissionSettlementNumberService.next` | O — 신규 DRAFT 확정 때만 호출. 기존 번호가 있으면 호출하지 않음 |
+| 문서번호 조회 | `findByDocumentNo` + `findByDocumentNoAndIsDeletedFalse` | O — 보존된 번호로 조회 가능. 현재 `settlementDate`와 번호 문자열을 별도 필드로 읽어 날짜 불일치를 숨기지 않음 |
+| snapshot 이력 조회 | `listSnapshotHistory` + `SalesCommissionSettlementSnapshotHistoryRepository` | O — 과거 확정번호·기준일·요율 버전·BigDecimal 금액을 현재 snapshot과 분리해 생성 시각순 조회 |
+| 목록 | settlement 전용 목록 API/소비자는 전수 검색에서 발견되지 않음 | O — 신규 목록 분기 없음 |
+| 집계 | settlement 전용 집계 소비자는 전수 검색에서 발견되지 않음 | O — 신규 상태를 제외하는 집계 코드가 없음 |
+| 권한 | settlement 전용 controller/permission 사용처는 전수 검색에서 발견되지 않음 | O — 권한 우회 경로를 만들지 않음. groupware 역조회는 기존 internal token + MASTER 보호 |
+| 결재 연동 | `ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT`, 역조회 repository/controller, accounting client | O — PENDING/IN_PROGRESS/APPROVED는 거부, REJECTED/WITHDRAWN은 허용 |
+| 요율 계약 | `findByVersionNoAndIsDeletedFalse` | O — 취소 후 계산 시 새 version을 새 snapshot에 기록하고 history는 변경하지 않음 |
+| 기존 수수료 품목 4행 | settlement와 별도인 기존 견적·전표 경로 | O — settlement 상태/테이블/enum을 참조하지 않음 |
+
+번호와 기준일이 어긋나는 취소 후 DRAFT는 정책 ②에 따른 명시적 예외다. 최초 생성 DRAFT는 계속 무번호이고, 확정 취소로 되돌아온 DRAFT만 `documentNo`를 보존한다.
+
+## 15. 테스트 결과
+
+RED 확인:
+
+```text
+구현 전 신규 SalesCommissionSettlementTest는 cancelConfirmation/changeSettlementDate 메서드 부재로 compileTestJava 실패
+```
+
+표적 테스트 및 회귀:
+
+```text
+:services:accounting-service:test --tests SalesCommissionSettlementTest --tests SalesCommissionSettlementServiceTest
+결과: BUILD SUCCESSFUL
+
+:services:accounting-service:test --tests GroupwareSettlementApprovalClientTest
+결과: BUILD SUCCESSFUL
+
+:services:groupware-service:test --tests ApprovalAttachmentSettlementPolicyTest
+결과: BUILD SUCCESSFUL
+
+:services:groupware-service:test --tests GroupwareInternalControllerIT
+결과: BUILD SUCCESSFUL (4 tests)
+
+:services:accounting-service:test --no-daemon --console=plain
+결과: BUILD SUCCESSFUL — tests=1,875, failures=0, errors=0, skipped=10
+```
+
+직전 실측 1,867건 대비 D-G7 표적 테스트 8건이 추가되어 1,875건이다. skip 10건은 기존 Testcontainers/환경 가드이며 실패가 아니다.
+
+조합 결과: 결재 없음 취소 성공, 진행/완료 결재 취소 거부, 반려/회수 결재는 허용, 취소 후 기준일 변경·새 요율 재계산·기존 번호 재확정, 재계산 없는 재확정 거부, 취소/재확정 중복 호출 거부, 같은 날 다른 채번 뒤 기준일 변경 시 번호 유지와 별도 기준일 조회가 모두 확인됐다.
+
+## 16. 신규 파일 목록
+
+- `services/accounting-service/src/main/java/com/samhanair/logis/accounting/client/GroupwareSettlementApprovalClient.java`
+- `services/accounting-service/src/main/java/com/samhanair/logis/accounting/domain/SalesCommissionSettlementSnapshotHistory.java`
+- `services/accounting-service/src/main/java/com/samhanair/logis/accounting/repository/SalesCommissionSettlementSnapshotHistoryRepository.java`
+- `services/accounting-service/src/main/resources/db/migration/V99__add_sales_commission_settlement_snapshot_history.sql`
+- `services/accounting-service/src/test/java/com/samhanair/logis/accounting/client/GroupwareSettlementApprovalClientTest.java`
+- `services/groupware-service/src/main/resources/db/migration/V19__allow_settlement_approval_reference.sql`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/service/ApprovalAttachmentSettlementPolicyTest.java`

@@ -27,8 +27,8 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * 영업수수료 정산서의 문서 생명주기와 업무 식별자를 보관하는 S1 aggregate.
  *
- * <p>계산 금액·요율·품목·그룹웨어 참조는 후속 슬라이스의 책임이다. DRAFT 단계에서는
- * 문서번호를 발급하지 않고, 확정 시 정산 기준일을 사용해 번호를 한 번만 연결한다.
+ * <p>계산 snapshot은 DRAFT에서만 기록한다. 확정 취소는 명시적 상태 전이이며,
+ * 취소된 확정본은 별도 history aggregate로 보관하고 재확정 전 새 계산을 요구한다.
  */
 @Entity
 @Getter
@@ -45,7 +45,7 @@ public class SalesCommissionSettlement extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** 그룹웨어 참조에도 사용하는 사용자 노출 문서번호. DRAFT에서는 null이다. */
+    /** 그룹웨어 참조에도 사용하는 사용자 노출 문서번호. 최초 DRAFT는 null이며 취소 반환 DRAFT는 보존한다. */
     @Column(name = "document_no", length = DOCUMENT_NO_MAX_LENGTH)
     private String documentNo;
 
@@ -60,6 +60,10 @@ public class SalesCommissionSettlement extends BaseEntity {
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
+
+    /** 확정 취소 후 새 요율·금액 계산이 아직 필요한지 여부. 최초 DRAFT에서는 false다. */
+    @Column(name = "recalculation_required", nullable = false)
+    private boolean recalculationRequired;
 
     /** 이 정산서가 계산에 사용한 versioned 요율 계약. S1 미계산 draft에서는 null일 수 있다. */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -133,7 +137,7 @@ public class SalesCommissionSettlement extends BaseEntity {
         this.version = 0L;
     }
 
-    /** 번호 없는 DRAFT 정산서를 만든다. */
+    /** 번호 없는 최초 DRAFT 정산서를 만든다. */
     public static SalesCommissionSettlement createDraft(LocalDate settlementDate) {
         return new SalesCommissionSettlement(settlementDate);
     }
@@ -149,12 +153,51 @@ public class SalesCommissionSettlement extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "DRAFT 상태에서만 영업수수료 정산서를 확정할 수 있습니다");
         }
+        if (this.recalculationRequired) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "확정 취소 후 재확정하려면 최신 요율로 먼저 재계산해야 합니다");
+        }
         if (documentNo == null || documentNo.isBlank() || documentNo.length() > DOCUMENT_NO_MAX_LENGTH) {
             throw new IllegalArgumentException("documentNo 는 1~40자 필수입니다");
         }
-        this.documentNo = documentNo.trim();
+        String normalizedDocumentNo = documentNo.trim();
+        if (this.documentNo != null && !this.documentNo.equals(normalizedDocumentNo)) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "확정 취소 후 재확정은 기존 문서번호를 유지해야 합니다");
+        }
+        this.documentNo = normalizedDocumentNo;
         this.status = SalesCommissionSettlementStatus.CONFIRMED;
         return this;
+    }
+
+    /** 확정 취소로 정산서를 DRAFT로 되돌리고 기존 문서번호를 보존한다. */
+    public SalesCommissionSettlement cancelConfirmation() {
+        if (this.status != SalesCommissionSettlementStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "CONFIRMED 상태에서만 영업수수료 정산 확정을 취소할 수 있습니다");
+        }
+        clearCalculationSnapshot();
+        this.recalculationRequired = true;
+        this.status = SalesCommissionSettlementStatus.DRAFT;
+        return this;
+    }
+
+    /** DRAFT에서만 정산 기준일을 변경한다. */
+    public SalesCommissionSettlement changeSettlementDate(LocalDate settlementDate) {
+        if (this.status != SalesCommissionSettlementStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "DRAFT 상태에서만 영업수수료 정산 기준일을 변경할 수 있습니다");
+        }
+        if (settlementDate == null) {
+            throw new IllegalArgumentException("settlementDate 는 필수입니다");
+        }
+        this.settlementDate = settlementDate;
+        return this;
+    }
+
+    /** 확정 취소 후 새 계산이 필요한지 반환한다. */
+    public boolean isRecalculationRequired() {
+        return recalculationRequired;
     }
 
     /** 계약 버전과 계산 입력·결과를 정산서에 snapshot으로 기록한다. */
@@ -189,6 +232,30 @@ public class SalesCommissionSettlement extends BaseEntity {
         this.payoutAmount = result.payout();
         this.supplyAmount = result.supply();
         this.vatAmount = result.vat();
+        this.recalculationRequired = false;
         return this;
+    }
+
+    private void clearCalculationSnapshot() {
+        this.rateContract = null;
+        this.totalAmount = null;
+        this.equipmentAmount = null;
+        this.prepaidAmount = null;
+        this.installInputAmount = null;
+        this.safetyInputAmount = null;
+        this.paymentMethod = null;
+        this.withholdingApplied = null;
+        this.manualExpenseRate = null;
+        this.appliedExpenseRate = null;
+        this.cardAmount = null;
+        this.salesAmount = null;
+        this.expenseAmount = null;
+        this.withholdingAmount = null;
+        this.installAmount = null;
+        this.safetyAmount = null;
+        this.subtotalAmount = null;
+        this.payoutAmount = null;
+        this.supplyAmount = null;
+        this.vatAmount = null;
     }
 }

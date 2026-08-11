@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineInternalResponse;
 import com.samhanair.logis.groupware.dto.UnreadCountResponse;
 import com.samhanair.logis.groupware.service.ApprovalLineService;
+import com.samhanair.logis.groupware.service.ApprovalAttachmentService;
 import com.samhanair.logis.groupware.service.MessageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class GroupwareInternalController {
 
     private final ApprovalLineService approvalLineService;
+    private final ApprovalAttachmentService approvalAttachmentService;
     private final MessageService messageService;
 
     /**
@@ -64,5 +66,13 @@ public class GroupwareInternalController {
     public ApiResponse<UnreadCountResponse> unreadCount(@RequestParam UUID userId) {
         long count = messageService.unreadCount(userId);
         return ApiResponse.ok(new UnreadCountResponse(userId, count));
+    }
+
+    /** accounting-service가 정산 확정 취소 전에 활성 결재 첨부를 확인한다. */
+    @Operation(summary = "정산서 활성 결재 여부")
+    @GetMapping("/settlement-approvals/active")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<Boolean> hasActiveSettlementApproval(@RequestParam String documentNo) {
+        return ApiResponse.ok(approvalAttachmentService.hasActiveSettlementApproval(documentNo));
     }
 }

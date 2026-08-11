@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.groupware.domain.ApprovalAttachment;
 import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
@@ -136,6 +137,17 @@ public class ApprovalAttachmentService {
                         attachment.getApproval().getId(),
                         ApprovalReferenceLookupResponse.from(attachment.getApproval())));
         return List.copyOf(uniqueApprovals.values());
+
+    /** 정산서 확정 취소를 막아야 하는 활성 결재가 있는지 조회한다. */
+    @Transactional(readOnly = true)
+    public boolean hasActiveSettlementApproval(String documentNo) {
+        if (documentNo == null || documentNo.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "documentNo 는 필수입니다");
+        }
+        return attachmentRepository.existsByRefDocTypeAndRefDocNoAndApproval_StatusIn(
+                ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT,
+                documentNo.trim(),
+                Set.of(ApprovalStatus.PENDING, ApprovalStatus.IN_PROGRESS, ApprovalStatus.APPROVED));
     }
 
     /** 첨부 파일 다운로드 객체 조회. */

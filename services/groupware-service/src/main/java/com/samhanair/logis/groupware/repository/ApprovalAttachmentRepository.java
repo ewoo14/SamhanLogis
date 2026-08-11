@@ -2,7 +2,9 @@ package com.samhanair.logis.groupware.repository;
 
 import com.samhanair.logis.groupware.domain.ApprovalAttachment;
 import com.samhanair.logis.groupware.domain.ApprovalReferenceDocType;
+import com.samhanair.logis.approval.ApprovalStatus;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -28,4 +30,8 @@ public interface ApprovalAttachmentRepository extends JpaRepository<ApprovalAtta
     List<ApprovalAttachment> findAllByReference(
             @Param("refDocType") ApprovalReferenceDocType refDocType,
             @Param("refDocNo") String refDocNo);
+
+    /** 업무문서 참조번호에 활성 결재가 붙었는지 역조회한다. */
+    boolean existsByRefDocTypeAndRefDocNoAndApproval_StatusIn(
+            ApprovalReferenceDocType refDocType, String refDocNo, Set<ApprovalStatus> statuses);
 }
