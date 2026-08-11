@@ -64,7 +64,7 @@ class StockServiceVirtualWarehouseVisibilityTest {
             existingBalances.add(balance(productId, vehicle, 20));
         }
 
-        when(productClient.lookup(any())).thenAnswer(invocation ->
+        when(productClient.lookupAllowMissing(any())).thenAnswer(invocation ->
                 ((List<?>) invocation.getArgument(0)).stream()
                         .map(UUID.class::cast)
                         .map(productId -> new ProductSummary(productId, "테스트 품목", "MODEL-TEST",

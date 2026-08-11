@@ -128,6 +128,35 @@ class ProductClientTest {
     }
 
     @Test
+    void lookupAllowMissing_partialResponse_returnsFoundProductsWithoutThrowing() {
+        UUID existing = UUID.randomUUID();
+        UUID missing = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        String json = "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\"," +
+                "\"data\":[{"
+                + "\"id\":\"" + existing + "\","
+                + "\"name\":\"정상 품목\","
+                + "\"modelName\":\"MODEL-ALLOW-MISSING\","
+                + "\"categoryId\":\"" + categoryId + "\","
+                + "\"sellingPrice\":1000,"
+                + "\"status\":\"ACTIVE\""
+                + "}]}";
+
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
+
+        List<ProductSummary> result = client.lookupAllowMissing(List.of(existing, missing));
+
+        assertThat(result).singleElement().satisfies(product -> {
+            assertThat(product.id()).isEqualTo(existing);
+            assertThat(product.modelName()).isEqualTo("MODEL-ALLOW-MISSING");
+        });
+        server.verify();
+    }
+
+    @Test
     void lookup_emptyList_throwsInvalidInputBeforeCallingServer() {
         assertThatThrownBy(() -> client.lookup(List.of()))
                 .isInstanceOf(BusinessException.class)

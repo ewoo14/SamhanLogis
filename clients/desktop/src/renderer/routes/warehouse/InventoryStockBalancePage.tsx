@@ -240,6 +240,11 @@ export function InventoryStockBalancePage() {
   }, [selectedWarehouseId])
 
   const rows = balancesQuery.data?.content ?? []
+  // product-service 누락 행은 같은 표시 문구를 공유할 수 있으므로 품목 UUID를 화면 key로
+  // 되살리지 않는다. 페이지 내 순번을 붙여 React key 충돌만 방지한다.
+  const rowKeyByRow = new Map(
+    rows.map((row, index) => [row, `${row.productCode}-${row.warehouseCode}-${index}`] as const),
+  )
   const totalElements = balancesQuery.data?.totalElements ?? 0
   const totalPages = balancesQuery.data?.totalPages ?? 1
   const zeroAvailableCount = rows.filter(
@@ -322,7 +327,7 @@ export function InventoryStockBalancePage() {
         <DataGrid<StockBalanceListRow>
           columns={COLUMNS}
           rows={rows}
-          rowKey={(row) => `${row.productCode}-${row.warehouseCode}`}
+          rowKey={(row) => rowKeyByRow.get(row) ?? `${row.productCode}-${row.warehouseCode}`}
           loading={balancesQuery.isFetching}
           emptyMessage={
             !queried

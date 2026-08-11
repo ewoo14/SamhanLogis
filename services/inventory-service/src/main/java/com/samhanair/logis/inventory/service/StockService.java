@@ -36,6 +36,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -55,6 +57,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class StockService {
+
+    private static final Logger log = LoggerFactory.getLogger(StockService.class);
 
     private final StockLotRepository stockLotRepository;
     private final StockBalanceRepository stockBalanceRepository;
@@ -118,7 +122,20 @@ public class StockService {
                 .toList();
         for (int from = 0; from < productIds.size(); from += 100) {
             int to = Math.min(from + 100, productIds.size());
-            for (ProductSummary product : productClient.lookup(productIds.subList(from, to))) {
+            List<UUID> chunkIds = productIds.subList(from, to);
+            List<ProductSummary> summaries = productClient.lookupAllowMissing(chunkIds);
+            Set<UUID> foundIds = summaries.stream()
+                    .map(ProductSummary::id)
+                    .collect(java.util.stream.Collectors.toSet());
+            List<UUID> missingIds = chunkIds.stream()
+                    .filter(id -> !foundIds.contains(id))
+                    .toList();
+            if (!missingIds.isEmpty()) {
+                log.warn("재고 잔고 품목 마스터 누락 — 정상 잔고 행은 계속 반환합니다. "
+                                + "요청={}, 응답={}, missingProductIds={}",
+                        chunkIds.size(), summaries.size(), missingIds);
+            }
+            for (ProductSummary product : summaries) {
                 productsById.put(product.id(), product);
             }
         }
