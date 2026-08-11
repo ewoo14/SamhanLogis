@@ -28,7 +28,20 @@ step 0~6 자동 수행:
 
 start-local-full.ps1 에 포함되지 않은 service:
 - dc-config-service (port 8089) — 항목 4 (DC CSV import) 사전 의존
-- logging-service / partner-auth-service — 본 검증 단계에서는 선택
+- logging-service (port 8082) / partner-auth-service — 본 검증 단계에서는 선택
+
+logging-service 선택 기동 (기본 `docker-compose.yml`에는 계속 포함되지 않음):
+
+```powershell
+./gradlew.bat :services:logging-service:bootJar
+docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d --build --no-deps logging-service
+```
+
+위 명령은 이미 기동 중인 RabbitMQ·Elasticsearch·Eureka를 재생성하지 않고
+logging-service만 올린다. local-all overlay를 명시하지 않은 기본 기동은 기존과
+동일하게 logging-service를 생성하지 않는다. 이 PC에서는 influxd가 host 8086을
+점유하므로 slip-service는 기존 local portfix로 host 8186을 사용하며, logging-service는
+host 8082가 미점유여서 내부 포트와 같은 8082를 사용한다.
 
 수동 기동 (필요 시):
 
