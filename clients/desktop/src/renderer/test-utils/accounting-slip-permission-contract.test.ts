@@ -77,6 +77,15 @@ describe('accounting slip permission contract', () => {
     expect(refreshScript).toContain('duplicate projection cell')
   })
 
+  it('writes a PowerShell 5.1 refresh artifact with LF and one readable error line', () => {
+    expect(refreshScript).not.toContain('[Environment]::NewLine')
+    expect(refreshScript).toContain('($lines -join "`n") + "`n"')
+    expect(refreshScript).toContain('[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)')
+    expect(refreshScript).toContain('$OutputEncoding = [Text.UTF8Encoding]::new($false)')
+    expect(refreshScript).toContain('[Console]::Error.WriteLine($_.Exception.Message)')
+    expect(refreshScript).toContain('exit 1')
+  })
+
   it('gates every accounting slip write CTA by the canonical accounting permission action', () => {
     for (const [page, source, path] of [
       ['sales', salesAccountingSlipPage, 'accounting.sales-slip.accounting'],

@@ -1,0 +1,7 @@
+{
+  "accountantList": true,
+  "accountantDraft": true,
+  "accountantConfirmed": true,
+  "salesDenied": true,
+  "backScroll": "720->720"
+}

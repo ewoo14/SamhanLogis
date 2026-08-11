@@ -1,11 +1,14 @@
-param(
+﻿param(
   [string]$Database = 'auth_db',
   [string]$User = 'samhan',
   [string]$PostgresImage = 'postgres:16-alpine',
   [string]$FlywayImage = 'flyway/flyway:10.10.0'
 )
 
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Text.UTF8Encoding]::new($false)
 $ErrorActionPreference = 'Stop'
+try {
 $randomPasswordBytes = New-Object byte[] 32
 $randomNumberGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
 try { $randomNumberGenerator.GetBytes($randomPasswordBytes) } finally { $randomNumberGenerator.Dispose() }
@@ -85,7 +88,7 @@ $lines = [System.Collections.Generic.List[string]]::new()
 $lines.Add("import { PERMISSION_PAGE_CODES } from './accounting-slip-permission-snapshot'")
 $lines.Add('')
 $lines.Add('// auth_db role_page_permission_templates projection, derived from all Flyway migrations in this repository.')
-$lines.Add('// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES. Missing DB rows are 0000000.')
+$lines.Add('// Scope: PERMISSION_ROLES 횞 PERMISSION_PAGE_CODES. Missing DB rows are 0000000.')
 $lines.Add('const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {')
 foreach ($role in $roles) {
   $lines.Add("  '$role': {")
@@ -103,6 +106,10 @@ $lines.Add('export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<strin
 $lines.Add('  ...TEMPLATE_PERMISSION_DB_BITS_BY_ROLE,')
 $lines.Add("  MASTER: Object.fromEntries(PERMISSION_PAGE_CODES.map((pageCode) => [pageCode, '1111111'])),")
 $lines.Add('}')
-[IO.File]::WriteAllText($outputPath, ($lines -join [Environment]::NewLine) + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText($outputPath, ($lines -join "`n") + "`n", [Text.UTF8Encoding]::new($false))
 Write-Output "Wrote DB-derived projection: $outputPath"
 Write-Output 'Next: run the contract test; any changed divergence set must update permission-mock-divergences.ts in the same change.'
+} catch {
+  [Console]::Error.WriteLine($_.Exception.Message)
+  exit 1
+}
