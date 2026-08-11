@@ -126,8 +126,8 @@ class SalesSlipUpdateR5FixTest {
     }
 
     @Test
-    @DisplayName("RED-A-1: head 품목 교체는 같은 인스턴스 잔존 구성품까지 평면화한다")
-    void headProductSwapFlattensTheWholeBundleInstance() {
+    @DisplayName("RED-A-1: head 품목 교체는 교체 행만 평면화하고 잔존 구성품 계보는 보존한다")
+    void headProductSwapFlattensOnlyTheReplacedLine() {
         Fixture fixture = fixture(List.of(
                 persistedLine(true, false), persistedLine(false, false), persistedLine(false, false)));
         UUID replacementProductId = UUID.randomUUID();
@@ -143,13 +143,18 @@ class SalesSlipUpdateR5FixTest {
                 fixture.slipId(), requestForLines(lines), UUID.randomUUID(), "R7 사용자"))
                 .doesNotThrowAnyException();
 
-        assertThat(fixture.slip().getLines())
-                .allMatch(line -> line.getParentSetModel() == null && !line.isSetHead());
+        assertThat(fixture.slip().getLines()).first().satisfies(line -> {
+            assertThat(line.getParentSetModel()).isNull();
+            assertThat(line.isSetHead()).isFalse();
+        });
+        assertThat(fixture.slip().getLines().subList(1, 3))
+                .allMatch(line -> PARENT_MODEL.equals(line.getParentSetModel())
+                        && !line.isSetHead());
     }
 
     @Test
-    @DisplayName("RED-A-1: 명시적 instanceKey가 있는 동일 세트 3개 중 교체 인스턴스만 평면화한다")
-    void headProductSwapFlattensOnlyTheTargetInstance() {
+    @DisplayName("RED-A-1: 명시적 instanceKey가 있는 동일 세트 3개 중 교체 행만 평면화한다")
+    void headProductSwapFlattensOnlyTheReplacedLineInTargetInstance() {
         List<PersistedLine> persisted = List.of(
                 persistedLine(true, true), persistedLine(false, true),
                 persistedLine(true, true), persistedLine(false, true),
@@ -170,8 +175,15 @@ class SalesSlipUpdateR5FixTest {
                 .doesNotThrowAnyException();
 
         assertThat(fixture.slip().getLines()).hasSize(6);
-        assertThat(fixture.slip().getLines().subList(0, 2))
-                .allMatch(line -> line.getParentSetModel() == null && !line.isSetHead());
+        assertThat(fixture.slip().getLines()).first().satisfies(line -> {
+            assertThat(line.getParentSetModel()).isNull();
+            assertThat(line.isSetHead()).isFalse();
+        });
+        assertThat(fixture.slip().getLines().get(1))
+                .satisfies(line -> {
+                    assertThat(line.getParentSetModel()).isEqualTo(PARENT_MODEL);
+                    assertThat(line.isSetHead()).isFalse();
+                });
         assertThat(fixture.slip().getLines().subList(2, 6))
                 .filteredOn(SlipLine::isSetHead).hasSize(2)
                 .allMatch(line -> line.getBundleSetOptions() != null

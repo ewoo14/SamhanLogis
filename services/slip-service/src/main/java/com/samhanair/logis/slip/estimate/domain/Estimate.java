@@ -4,6 +4,8 @@ import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
+import com.samhanair.logis.slip.service.BundleSetInstanceKeyPolicy;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -539,8 +541,14 @@ public class Estimate extends BaseEntity {
         this.lines.clear();
         List<EstimateSnapshot.Line> snapshotLines = snapshot.lines();
         if (snapshotLines != null) {
+            List<BundleSetOptions> restoredSetOptions =
+                    BundleSetInstanceKeyPolicy.materializeLegacyMultiInstanceKeys(snapshotLines,
+                            EstimateSnapshot.Line::parentSetModel,
+                            line -> Boolean.TRUE.equals(line.setHead()),
+                            EstimateSnapshot.Line::bundleSetOptions);
             int lineNo = 1;
-            for (EstimateSnapshot.Line snapLine : snapshotLines) {
+            for (int index = 0; index < snapshotLines.size(); index++) {
+                EstimateSnapshot.Line snapLine = snapshotLines.get(index);
                 // #824 — 신규 권위 금액 snapshot은 S/V/T와 VAT 포함 단가(provenance)가 함께 있다.
                 // unitPriceWithVat가 없는 구 JSONB는 S/V/T 필드가 있어도 종전 공급 semantics를 유지한다.
                 boolean hasAuthoritativeAmounts = snapLine.unitPriceWithVat() != null
@@ -575,7 +583,7 @@ public class Estimate extends BaseEntity {
                 if (snapLine.parentSetModel() != null && !snapLine.parentSetModel().isBlank()) {
                     restored.assignBundleComponent(
                             snapLine.parentSetModel(), Boolean.TRUE.equals(snapLine.setHead()),
-                            snapLine.bundleSetOptions());
+                            restoredSetOptions.get(index));
                 }
                 this.lines.add(restored);
             }

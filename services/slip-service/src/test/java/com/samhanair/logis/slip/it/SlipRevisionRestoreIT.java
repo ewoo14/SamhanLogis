@@ -38,6 +38,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.persistence.EntityManager;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -90,6 +91,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
     @Autowired private SlipRepository slipRepository;
     @Autowired private SlipRevisionService slipRevisionService;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private EntityManager entityManager;
 
     @MockBean private InventoryClient inventoryClient;
     @MockBean private ProductClient productClient;
@@ -237,7 +239,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    void r10Probe_restoreLegacyRevisionReintroducesKeylessMultiInstanceAndBlocksNextEdit() throws Exception {
+    void restoreLegacyMultiInstanceRevision_materializesKeysAndAllowsNextEdit() throws Exception {
         UUID slipId = createOutboundSlipAsSales(1);
         Slip current = slipRepository.findById(slipId).orElseThrow();
         slipRevisionService.capture(current,
@@ -282,25 +284,39 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                         .header(ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isOk());
 
+        // MockMvc가 테스트 트랜잭션의 1차 캐시를 공유하므로, 복원 flush 이후 DB의
+        // 최종 modified_at을 다시 읽어 optimistic-lock 토큰을 구성한다.
+        entityManager.flush();
+        entityManager.clear();
+
         Map<String, Object> restored = jdbcTemplate.queryForMap(
                 "SELECT count(*) rows, count(*) FILTER (WHERE set_head) heads, "
                         + "count(DISTINCT NULLIF(BTRIM(bundle_set_options->>'instanceKey'),'')) keys "
                         + "FROM slip_lines WHERE slip_id=? AND is_deleted=false "
                         + "AND parent_set_model='AC060CS6PBH1SY'",
                 slipId);
-        System.out.println("R10-RESTORE-REINTRO|restore=HTTP200|beforeGroups=" + before
+        System.out.println("R12-RESTORE-MATERIALIZE|restore=HTTP200|beforeGroups=" + before
                 + "|rows=" + restored.get("rows") + "|heads=" + restored.get("heads")
                 + "|instanceKeys=" + restored.get("keys"));
         assertThat(((Number) restored.get("rows")).intValue()).isEqualTo(8);
         assertThat(((Number) restored.get("heads")).intValue()).isEqualTo(2);
-        assertThat(((Number) restored.get("keys")).intValue()).isZero();
+        assertThat(((Number) restored.get("keys")).intValue()).isEqualTo(2);
 
         JsonNode detail = getDetail(slipId);
+        entityManager.clear();
         List<Map<String, Object>> updateLines = new java.util.ArrayList<>();
         boolean changed = false;
         for (JsonNode line : detail.path("lines")) {
             Map<String, Object> requestLine = objectMapper.convertValue(line, Map.class);
             requestLine.put("lineId", requestLine.remove("id"));
+            // 상세 응답의 금액 파생 필드는 direct PUT 권위 금액 계약 필드가 아니다.
+            // 특히 복원된 legacy bundle 구성품은 공급가액·부가세·VAT 포함 합계를 함께
+            // 왕복하면 구성품 개별 금액 편집으로 거부된다. 수량/단가 입력만 왕복한다.
+            requestLine.remove("supplyAmount");
+            requestLine.remove("vatAmount");
+            requestLine.remove("lineTotalWithVat");
+            requestLine.remove("unitPriceWithVat");
+            requestLine.remove("lineTotal");
             if (!changed && line.path("setHead").asBoolean()) {
                 requestLine.put("quantity", 2);
                 changed = true;
@@ -308,23 +324,24 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
             updateLines.add(requestLine);
         }
         Map<String, Object> body = new HashMap<>();
-        body.put("updatedAt", jdbcTemplate.queryForObject(
-                "SELECT modified_at::text FROM slips WHERE id=?", String.class, slipId)
-                .replace(' ', 'T'));
+        // 복원 응답과 동일한 직렬화 경계를 사용한다. DB modified_at 문자열을 수동 조립하면
+        // timestamp 정밀도/표현이 API updatedAt과 달라져 계보 검증 전에 409 optimistic lock으로
+        // 끝나는 probe가 된다.
+        body.put("updatedAt", detail.path("updatedAt").asText());
         body.put("partnerName", detail.path("partnerName").asText());
         body.put("lines", updateLines);
         body.put("lineIdContract", true);
 
-        MvcResult rejected = mockMvc.perform(put("/slips/{id}/sales", slipId)
+        MvcResult updated = mockMvc.perform(put("/slips/{id}/sales", slipId)
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_NAME_HEADER, "R10 편집 사용자")
                         .header(ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isOk())
                 .andReturn();
-        System.out.println("R10-RESTORE-EDIT|HTTP=" + rejected.getResponse().getStatus()
-                + "|body=" + rejected.getResponse().getContentAsString());
+        System.out.println("R12-RESTORE-EDIT|HTTP=" + updated.getResponse().getStatus()
+                + "|body=" + updated.getResponse().getContentAsString());
     }
 
     // =========================================================================

@@ -14,6 +14,7 @@ import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevision;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
 import com.samhanair.logis.slip.estimate.revision.repository.EstimateRevisionRepository;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -247,6 +248,37 @@ class EstimateRestoreTest {
 
         assertThat(estimate.getLines().get(0).getSpecificationSource()).isEqualTo("CATALOG");
         assertThat(estimate.getLines().get(1).getSpecificationSource()).isEqualTo("USER");
+    }
+
+    @Test
+    @DisplayName("restoreFromSnapshot: keyless 다중 BUNDLE 인스턴스는 인스턴스별 키를 복원한다")
+    void restoreFromSnapshotMaterializesKeysForLegacyMultiInstanceBundle() throws Exception {
+        Estimate estimate = rev1Estimate(UUID.randomUUID());
+        java.util.List<EstimateSnapshot.Line> lines = new java.util.ArrayList<>();
+        for (int instance = 0; instance < 2; instance++) {
+            for (int component = 0; component < 2; component++) {
+                lines.add(new EstimateSnapshot.Line(UUID.randomUUID(), "구성품" + component,
+                        "COMP-" + component, null, 1, new BigDecimal("1000"),
+                        new BigDecimal("1000"), new BigDecimal("100"), new BigDecimal("1100"),
+                        null, null, component == 0, "SET-RESTORE", null,
+                        new BundleSetOptions(null, false, null, null, false, null)));
+            }
+        }
+        EstimateSnapshot snapshot = new EstimateSnapshot("2026/08/11-1", LocalDate.of(2026, 8, 11),
+                estimate.getPartnerId(), "삼한물산", "123-45-67890", "서울", LocalDate.of(2026, 9, 11),
+                "legacy multi instance", lines);
+
+        estimate.restoreFromSnapshot(snapshot);
+
+        assertThat(estimate.getLines()).hasSize(4);
+        assertThat(estimate.getLines()).extracting(line -> line.getBundleSetOptions().instanceKey())
+                .doesNotContainNull()
+                .containsExactly(estimate.getLines().get(0).getBundleSetOptions().instanceKey(),
+                        estimate.getLines().get(0).getBundleSetOptions().instanceKey(),
+                        estimate.getLines().get(2).getBundleSetOptions().instanceKey(),
+                        estimate.getLines().get(2).getBundleSetOptions().instanceKey());
+        assertThat(estimate.getLines().get(0).getBundleSetOptions().instanceKey())
+                .isNotEqualTo(estimate.getLines().get(2).getBundleSetOptions().instanceKey());
     }
 
     @Test

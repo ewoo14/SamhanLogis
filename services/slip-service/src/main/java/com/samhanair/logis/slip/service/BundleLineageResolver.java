@@ -212,7 +212,7 @@ public final class BundleLineageResolver {
         }
     }
 
-    /** head 교체는 그 head가 속한 명시적 인스턴스 전체를 평면화한다. */
+    /** head 교체는 교체된 head 행만 평면화하고, 남은 구성품 계보는 보존한다. */
     public static void flattenHeadProductReplacements(
             List<SlipLine> originalLines, List<SlipLine> retainedLines,
             List<UUID> retainedLineIds) {
@@ -221,7 +221,7 @@ public final class BundleLineageResolver {
         }
         requireSameRetainedLineIds(retainedLines.size(), retainedLineIds);
         Map<UUID, ExistingBundleInstance> instanceByLineId = indexExistingInstances(originalLines);
-        Set<Integer> headChangedInstances = new HashSet<>();
+        Set<UUID> headChangedLineIds = new HashSet<>();
         for (int i = 0; i < retainedLines.size(); i++) {
             ExistingBundleInstance instance = instanceByLineId.get(retainedLineIds.get(i));
             if (instance == null || !instance.originalHeadLineIds.contains(retainedLineIds.get(i))) {
@@ -229,15 +229,11 @@ public final class BundleLineageResolver {
             }
             if (!Objects.equals(instance.originalProductIds.get(retainedLineIds.get(i)),
                     retainedLines.get(i).getProductId())) {
-                headChangedInstances.add(instance.ordinal);
+                headChangedLineIds.add(retainedLineIds.get(i));
             }
         }
-        if (headChangedInstances.isEmpty()) {
-            return;
-        }
         for (int i = 0; i < retainedLines.size(); i++) {
-            ExistingBundleInstance instance = instanceByLineId.get(retainedLineIds.get(i));
-            if (instance != null && headChangedInstances.contains(instance.ordinal)) {
+            if (headChangedLineIds.contains(retainedLineIds.get(i))) {
                 retainedLines.get(i).clearBundleComponent();
             }
         }
@@ -262,7 +258,7 @@ public final class BundleLineageResolver {
             String key = generatedKeys.computeIfAbsent(instance.ordinal,
                     ignored -> UUID.randomUUID().toString());
             line.assignBundleComponent(line.getParentSetModel(), line.isSetHead(),
-                    withInstanceKey(instance.bundleSetOptions, key));
+                    BundleSetInstanceKeyPolicy.withInstanceKey(instance.bundleSetOptions, key));
         }
     }
 
@@ -324,16 +320,6 @@ public final class BundleLineageResolver {
             return null;
         }
         return options.instanceKey().trim();
-    }
-
-    private static BundleSetOptions withInstanceKey(BundleSetOptions options, String key) {
-        return new BundleSetOptions(
-                options == null ? null : options.remoteOption(),
-                options == null ? null : options.remoteExcluded(),
-                options == null ? null : options.panelOption(),
-                options == null ? null : options.panelShape360(),
-                options == null ? null : options.materialIncluded(),
-                key);
     }
 
     private static void requireSameRetainedLineIds(int lineCount, List<UUID> lineIds) {

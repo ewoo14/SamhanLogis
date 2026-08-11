@@ -4,11 +4,12 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const APP_BASE = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:51131'
 const API_BASE = process.env['API_BASE'] ?? 'http://127.0.0.1:8080'
-const SHOTS = path.resolve(HERE, '../../../../docs/qa/1131-r6-fix/screenshots')
+const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../../docs/qa/1131-r6-fix/screenshots'))
 const ZERO_HEAD_SOURCES = [
   '2026/07/16-115', '2026/07/16-116', '2026/07/16-57', '2026/07/16-58',
   '2026/07/16-79', '2026/07/16-80', '2026/07/16-92', '2026/07/16-93',

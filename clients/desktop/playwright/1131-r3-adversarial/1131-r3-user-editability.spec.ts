@@ -2,10 +2,11 @@ import { expect, test } from '@playwright/test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const APP_BASE = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5174'
-const SHOTS = path.resolve(HERE, '../../../../docs/qa/1131-r3-adversarial/screenshots')
+const APP_BASE = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
+const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../../docs/qa/1131-r3-adversarial/screenshots'))
 
 test('R3 BUNDLE 전개행의 수량·단가·삭제가 사용자 입력으로 실제 도달한다', async ({ page }) => {
   fs.mkdirSync(SHOTS, { recursive: true })

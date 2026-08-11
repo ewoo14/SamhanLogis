@@ -46,6 +46,8 @@ export interface BundleSetOptions {
   panelShape360?: string | null
   /** 자재 포함 여부. */
   materialIncluded?: boolean | null
+  /** 동일 parentSetModel 안에서 세트 인스턴스를 구분하는 안정 키. */
+  instanceKey?: string | null
 }
 
 /**

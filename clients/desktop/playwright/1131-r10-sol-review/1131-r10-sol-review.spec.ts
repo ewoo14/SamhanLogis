@@ -3,12 +3,13 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const APP_BASE = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:51131'
 const GATEWAY = process.env['API_BASE'] ?? 'http://127.0.0.1:8080'
 const ISOLATED_SLIP = process.env['ISOLATED_SLIP_API'] ?? 'http://127.0.0.1:18186'
-const SHOTS = path.resolve(HERE, '../../../../docs/qa/2026-08-11-1131-r10')
+const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../../docs/qa/2026-08-11-1131-r10'))
 const TARGET_NO = '2026/08/07-20'
 const TARGET_ID = 'fe0a9968-0a0f-4fef-b0fd-f5671d261434'
 const TARGET_PARENT = 'AC060CS6PBH1SY'

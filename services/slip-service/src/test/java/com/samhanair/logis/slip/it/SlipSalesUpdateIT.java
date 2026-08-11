@@ -618,7 +618,8 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
             jdbcTemplate.execute(new String(input.readAllBytes(), StandardCharsets.UTF_8));
         }
         assertThat(jdbcTemplate.queryForObject(
-                "WITH groups AS (SELECT s.id, l.parent_set_model, COUNT(*) AS heads "
+                "WITH groups AS (SELECT s.id, l.parent_set_model, "
+                        + "COUNT(*) FILTER (WHERE COALESCE(l.set_head, false)) AS heads "
                         + "FROM slips s JOIN slip_lines l ON l.slip_id=s.id "
                         + "WHERE s.is_deleted=false AND l.is_deleted=false "
                         + "AND NULLIF(BTRIM(l.bundle_set_options->>'instanceKey'),'') IS NULL "

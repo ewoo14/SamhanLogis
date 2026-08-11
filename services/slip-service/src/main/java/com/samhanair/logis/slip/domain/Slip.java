@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.schedule.DeliverySchedule;
 import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
+import com.samhanair.logis.slip.service.BundleSetInstanceKeyPolicy;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -2275,7 +2276,13 @@ public class Slip extends BaseEntity {
         this.lines.clear();
         List<SlipSnapshot.Line> snapshotLines = snapshot.lines();
         if (snapshotLines != null) {
-            for (SlipSnapshot.Line snapLine : snapshotLines) {
+            List<com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions> restoredSetOptions =
+                    BundleSetInstanceKeyPolicy.materializeLegacyMultiInstanceKeys(snapshotLines,
+                            SlipSnapshot.Line::parentSetModel,
+                            line -> Boolean.TRUE.equals(line.setHead()),
+                            snapLine -> snapLine.bundleSetOptions());
+            for (int index = 0; index < snapshotLines.size(); index++) {
+                SlipSnapshot.Line snapLine = snapshotLines.get(index);
                 SlipLine restored = SlipLine.create(this,
                         snapLine.productId(),
                         snapLine.productName(),
@@ -2289,7 +2296,7 @@ public class Slip extends BaseEntity {
                 if (snapLine.parentSetModel() != null && !snapLine.parentSetModel().isBlank()) {
                     restored.assignBundleComponent(
                             snapLine.parentSetModel(), Boolean.TRUE.equals(snapLine.setHead()),
-                            snapLine.bundleSetOptions());
+                            restoredSetOptions.get(index));
                 }
                 // #822 계열 sweep — 스냅샷 캡처 금액 권위값 승계. create 는 공급단가에서
                 // vat/withVat 를 재계산하므로 VAT 포함 입력 라인(11의 배수가 아닌 단가)에서

@@ -183,7 +183,8 @@ test.describe('§7 입출고전표 협업 패널', () => {
 
     await expect(page.getByTestId('slip-coedit-field-header-partnerName')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-header-memo')).toBeVisible()
-    await expect(page.getByTestId('slip-coedit-field-items-0-productName')).toBeVisible()
+    await expect(inlineForm.getByRole('combobox', { name: '라인 1 품목' })).toBeVisible()
+    await expect(page.getByTestId('slip-coedit-field-items-0-productName')).not.toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-items-0-quantity')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-items-0-unitPrice')).toBeVisible()
 

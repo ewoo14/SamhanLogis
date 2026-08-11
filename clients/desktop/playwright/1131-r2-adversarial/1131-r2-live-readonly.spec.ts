@@ -3,11 +3,12 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const APP_BASE = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 const API_BASE = process.env['API_BASE'] ?? 'http://127.0.0.1:8080'
-const SHOTS = path.resolve(HERE, '../../../../docs/qa/1131-r2-adversarial/screenshots')
+const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../../docs/qa/1131-r2-adversarial/screenshots'))
 
 test('라이브 대표 DRAFT 2026/08/07-41 읽기 전용 화면', async ({ context, page }) => {
   fs.mkdirSync(SHOTS, { recursive: true })

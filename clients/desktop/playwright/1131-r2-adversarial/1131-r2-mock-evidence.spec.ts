@@ -2,10 +2,11 @@ import { expect, test } from '@playwright/test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const APP_BASE = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5174'
-const SHOTS = path.resolve(HERE, '../../../../docs/qa/1131-r2-adversarial/screenshots')
+const APP_BASE = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
+const SHOTS = resolveQaShotsDir(path.resolve(HERE, '../../../../docs/qa/1131-r2-adversarial/screenshots'))
 
 test('HEAD 수정 화면에서 BUNDLE 선택이 구성품 여러 행으로 전개되는 사용자 표면', async ({ page }) => {
   fs.mkdirSync(SHOTS, { recursive: true })
