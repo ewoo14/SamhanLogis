@@ -527,6 +527,36 @@ test('실제 window scroll의 첫 paint에서도 문서 참조 dropdown은 닫�
   expect(clickDuringScroll).toBe(true)
 })
 
+test('실제 window scroll 직후 같은 검색 input을 mouse click하면 후보 dropdown을 다시 연다', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.goto(`${BASE_URL}/?mockRole=MASTER#/groupware/approvals/new`, { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('main.app-main')).toBeVisible({ timeout: 15_000 })
+  await selectExpenseTemplate(page)
+  await openReferencePicker(page)
+  await page.getByTestId('doc-ref-type-select').first().selectOption({ value: 'JOURNAL' })
+
+  const searchInput = page.getByTestId('doc-ref-search-input').first()
+  await searchInput.fill('2026/')
+  await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 })
+  await page.evaluate(() => {
+    const sentinel = document.createElement('div')
+    sentinel.setAttribute('data-testid', 'fix4-window-click-sentinel')
+    sentinel.style.height = '160px'
+    sentinel.style.pointerEvents = 'none'
+    document.body.appendChild(sentinel)
+    const input = document.querySelector('[data-testid="doc-ref-search-input"]')
+    input?.addEventListener('pointerdown', () => window.scrollBy(0, 1), { once: true })
+  })
+
+  const box = await searchInput.boundingBox()
+  expect(box).not.toBeNull()
+  await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2)
+
+  await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('doc-ref-search-option')).toHaveCount(7)
+  await expect(searchInput).toHaveValue('2026/')
+})
+
 test('480px 좁은 창에서 새로 연 문서 참조 dropdown도 visible·hit-test 가능하다', async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 640 })
   await page.goto(`${BASE_URL}/?mockRole=MASTER#/groupware/approvals/new`, { waitUntil: 'domcontentloaded' })

@@ -113,6 +113,7 @@ export function DocumentReferencePicker({
   const debounceRef = useRef<number | undefined>(undefined)
   const blurTimerRef = useRef<number | undefined>(undefined)
   const suppressNextSearchRef = useRef<string | null>(null)
+  const reopenAfterScrollRef = useRef(false)
   const requestIdRef = useRef(0)
   const refocusSearchRef = useRef(false)
   const [selectedType, setSelectedType] = useState<ApprovalReferenceDocType>(value.refDocType)
@@ -168,6 +169,8 @@ export function DocumentReferencePicker({
 
   const closeDropdownOnScroll = useCallback(() => {
     if (!open) return
+    const reopenAfterScroll = reopenAfterScrollRef.current
+    reopenAfterScrollRef.current = false
     // 스크롤 이벤트 직후 React state commit만 기다리면 첫 paint에 낡은 fixed 좌표가 남을 수 있다.
     // portal을 즉시 숨긴 뒤 state도 닫아, 첫 paint와 이후 DOM 상태를 함께 안전하게 만든다.
     dropdownRef.current?.style.setProperty('visibility', 'hidden')
@@ -175,7 +178,14 @@ export function DocumentReferencePicker({
       setDropdownPosition(null)
       setOpen(false)
     })
-  }, [open])
+    if (reopenAfterScroll) {
+      window.requestAnimationFrame(() => {
+        dropdownRef.current?.style.removeProperty('visibility')
+        setOpen(true)
+        updateDropdownPosition()
+      })
+    }
+  }, [open, updateDropdownPosition])
 
   useLayoutEffect(() => {
     if (!open) {
@@ -366,6 +376,25 @@ export function DocumentReferencePicker({
     scheduleSearch(keyword, selectedType, requestId)
   }
 
+  const handleClick = () => {
+    reopenAfterScrollRef.current = false
+    if (disabled || options.length === 0) return
+    if (open && dropdownPosition) {
+      const picker = pickerRef.current
+      if (picker) {
+        const rect = picker.getBoundingClientRect()
+        const expectedPosition = dropdownPosition.top !== undefined
+          ? rect.bottom + DROPDOWN_GAP
+          : window.innerHeight - rect.top + DROPDOWN_GAP
+        const actualPosition = dropdownPosition.top ?? dropdownPosition.bottom
+        if (actualPosition !== undefined && Math.abs(actualPosition - expectedPosition) > 0.5) {
+          reopenAfterScrollRef.current = true
+        }
+      }
+    }
+    setOpen(true)
+  }
+
   const handleBlur = () => {
     refocusSearchRef.current = true
     cancelDebounce()
@@ -453,6 +482,7 @@ export function DocumentReferencePicker({
         onChange={(event) => handleQueryChange(event.target.value)}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onClick={handleClick}
         onKeyDown={handleKeyDown}
         inputSize={inputSize}
         disabled={disabled}

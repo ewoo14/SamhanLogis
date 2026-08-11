@@ -53,6 +53,63 @@ afterEach(() => {
 })
 
 describe('DocumentReferencePicker 요청 세대 (#837)', () => {
+  it('외부 scroll로 닫힌 뒤 focus를 유지한 입력을 클릭하면 기존 후보 dropdown을 다시 연다', async () => {
+    vi.useFakeTimers()
+    searchByTypeMock.mockResolvedValue([journal('J-RECLICK')])
+    renderPicker()
+
+    const input = screen.getByTestId('doc-ref-search-input')
+    input.focus()
+    fireEvent.change(input, { target: { value: 'J-RECLICK' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(screen.getByRole('listbox')).toBeTruthy()
+
+    fireEvent.scroll(window)
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(document.activeElement).toBe(input)
+
+    fireEvent.click(input)
+
+    expect(screen.getByRole('listbox')).toBeTruthy()
+    expect(screen.getByText('J-RECLICK')).toBeTruthy()
+  })
+
+  it('scroll close와 같은 paint 경계의 클릭도 후보 dropdown을 다시 연다', async () => {
+    vi.useFakeTimers()
+    searchByTypeMock.mockResolvedValue([journal('J-RACE')])
+    renderPicker()
+
+    const input = screen.getByTestId('doc-ref-search-input')
+    input.focus()
+    fireEvent.change(input, { target: { value: 'J-RACE' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(screen.getByRole('listbox')).toBeTruthy()
+
+    act(() => {
+      fireEvent.scroll(window)
+      fireEvent.click(input)
+    })
+
+    expect(screen.getByRole('listbox')).toBeTruthy()
+    expect(screen.getByText('J-RACE')).toBeTruthy()
+  })
+
+  it('검색 결과가 0건이면 클릭해도 기존 계약대로 빈 surface를 만들지 않는다', async () => {
+    vi.useFakeTimers()
+    searchByTypeMock.mockResolvedValue([])
+    renderPicker()
+
+    const input = screen.getByTestId('doc-ref-search-input')
+    input.focus()
+    fireEvent.change(input, { target: { value: 'NO_MATCHING_DOCUMENT' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+
+    expect(screen.queryByRole('listbox')).toBeNull()
+    fireEvent.click(input)
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByText('검색 결과 없음')).toBeNull()
+  })
+
   it('검색 dropdown은 body portal로 렌더되고 하단 공간이 부족하면 위로 열린다', async () => {
     vi.useFakeTimers()
     searchByTypeMock.mockResolvedValue([journal('J-PORTAL')])
