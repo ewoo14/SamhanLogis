@@ -75,17 +75,30 @@ class SalesCommissionSettlementApprovalClaimServiceTest {
     }
 
     @Test
-    void releaseByApproval_isIdempotentAndPersistsReleasedState() {
+    void reserve_rejectsAnUnexpiredClaimOwnedByAnotherInFlightTransaction() {
         UUID approvalId = UUID.randomUUID();
         SalesCommissionSettlementApprovalClaim claim = SalesCommissionSettlementApprovalClaim.reserve(
                 settlement, approvalId, java.time.LocalDateTime.of(2026, 8, 11, 12, 0));
-        when(claimRepository.findAllByApprovalIdAndStatusIn(eq(approvalId), any())).thenReturn(List.of(claim));
+        when(claimRepository.findBySettlementIdAndApprovalId(any(), eq(approvalId)))
+                .thenReturn(Optional.of(claim));
 
-        service.releaseByApproval(approvalId);
-        service.releaseByApproval(approvalId);
+        assertThatThrownBy(() -> service.reserve("2026/08/11-3", approvalId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미 다른 첨부 요청이 진행 중");
+    }
+
+    @Test
+    void releaseByApprovalReference_releasesOnlyTheRequestedSettlementClaim() {
+        UUID approvalId = UUID.randomUUID();
+        SalesCommissionSettlementApprovalClaim claim = SalesCommissionSettlementApprovalClaim.reserve(
+                settlement, approvalId, java.time.LocalDateTime.of(2026, 8, 11, 12, 0));
+        when(claimRepository.findBySettlementIdAndApprovalId(any(), eq(approvalId)))
+                .thenReturn(Optional.of(claim));
+
+        service.releaseByApprovalReference(approvalId, "2026/08/11-3");
 
         assertThat(claim.getStatus()).isEqualTo(SalesCommissionSettlementApprovalClaimStatus.RELEASED);
-        verify(claimRepository, org.mockito.Mockito.atLeastOnce()).save(claim);
+        verify(claimRepository).save(claim);
     }
 
 }

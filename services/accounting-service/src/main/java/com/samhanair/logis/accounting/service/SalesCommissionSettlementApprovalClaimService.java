@@ -80,14 +80,19 @@ public class SalesCommissionSettlementApprovalClaimService {
         claimRepository.save(claim);
     }
 
-    /** 반려·회수 시 해당 결재선이 보유한 모든 정산 claim을 해제한다. */
-    public void releaseByApproval(UUID approvalId) {
-        for (SalesCommissionSettlementApprovalClaim claim : claimRepository
-                .findAllByApprovalIdAndStatusIn(approvalId, LIVE_STATUSES)) {
-            lockSettlement(claim);
-            claim.release();
-            claimRepository.save(claim);
-        }
+    /** 특정 결재·정산 참조 하나만 해제한다. 결재 단위 광역 release는 허용하지 않는다. */
+    public void releaseByApprovalReference(UUID approvalId, String documentNo) {
+        String normalized = normalizeDocumentNo(documentNo);
+        SalesCommissionSettlement settlement = settlementRepository
+                .findByDocumentNoAndIsDeletedFalseForUpdate(normalized)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "영업수수료 정산서를 찾을 수 없습니다: " + documentNo));
+        claimRepository.findBySettlementIdAndApprovalId(settlement.getId(), approvalId)
+                .filter(claim -> LIVE_STATUSES.contains(claim.getStatus()))
+                .ifPresent(claim -> {
+                    claim.release();
+                    claimRepository.save(claim);
+                });
     }
 
     /** 잠긴 정산 행에 유효한 claim이 없는지 검사하고 만료 claim을 자가 치유한다. */
@@ -120,7 +125,8 @@ public class SalesCommissionSettlementApprovalClaimService {
         if (claim.getStatus() == SalesCommissionSettlementApprovalClaimStatus.RESERVED
                 || claim.getStatus() == SalesCommissionSettlementApprovalClaimStatus.ACTIVE) {
             if (claim.getExpiresAt() != null && claim.getExpiresAt().isAfter(now)) {
-                return claim;
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "이미 다른 첨부 요청이 진행 중인 정산 참조입니다");
             }
             claim.expire(now);
         }

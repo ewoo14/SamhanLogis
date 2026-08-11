@@ -3,7 +3,9 @@ package com.samhanair.logis.groupware.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -15,6 +17,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
+import com.samhanair.logis.groupware.client.AccountingSettlementApprovalClaimClient;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
 import com.samhanair.logis.groupware.domain.ApprovalFieldType;
@@ -24,6 +27,8 @@ import com.samhanair.logis.groupware.domain.ApprovalTemplate;
 import com.samhanair.logis.groupware.domain.ApprovalTemplateField;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.dto.ApprovalAttachmentRequest;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.dto.ApprovalTemplateRequest;
 import com.samhanair.logis.groupware.repository.ApprovalAttachmentRepository;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
@@ -46,6 +51,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -72,6 +78,7 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
 
     @MockBean private UserClient userClient;
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean private AccountingSettlementApprovalClaimClient claimClient;
 
     @BeforeEach
     void setUp() {
@@ -450,6 +457,31 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data[?(@.refDocNo == '" + refDocNo + "')].refDocNo").value(refDocNo));
         }
+
+    /** TF-3 A: accounting 참조 실패 시 결재 row도 함께 rollback되어 PENDING 고아가 남지 않는다. */
+    @Test
+    void createApproval_settlementReferenceFailure_rollsBackApprovalAndAttachmentTogether() {
+        UUID requesterId = UUID.randomUUID();
+        UUID approverId = UUID.randomUUID();
+        when(claimClient.reserve(eq("2099/12/27-1"), org.mockito.ArgumentMatchers.any(UUID.class)))
+                .thenThrow(new BusinessException(ErrorCode.CONFLICT,
+                        "정산 참조가 이미 처리 중이거나 정산 상태가 변경되었습니다"));
+
+        ApprovalAttachmentRequest reference = new ApprovalAttachmentRequest(
+                ApprovalAttachmentType.SLIP_REF, "영업수수료 정산서", 1, null, null,
+                null, null, null, ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT,
+                "2099/12/27-1", "영업수수료 정산서");
+        ApprovalLineCreateRequest request = new ApprovalLineCreateRequest(
+                requesterId, "정산 결재", "본문", List.of(approverId), null, null, List.of(reference));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> approvalLineService.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("정산 참조");
+        TestTransaction.flagForRollback();
+        TestTransaction.end();
+        TestTransaction.start();
+        assertThat(approvalLineRepository.findAll()).noneMatch(line -> "정산 결재".equals(line.getTitle()));
+        assertThat(attachmentRepository.findAll()).isEmpty();
     }
 
     /** collab 수정완료는 field.{key} overlay 를 허용하고 템플릿 스키마 위반은 400 으로 거부한다. */

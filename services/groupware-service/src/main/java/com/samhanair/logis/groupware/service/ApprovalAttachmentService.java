@@ -79,6 +79,22 @@ public class ApprovalAttachmentService {
     @Transactional(timeout = SETTLEMENT_ATTACHMENT_TRANSACTION_TIMEOUT_SECONDS)
     public ApprovalAttachment addReference(UUID approvalId, ApprovalAttachmentRequest request) {
         ApprovalLine approval = loadApproval(approvalId);
+        return addReferenceForApproval(approval, approvalId, request);
+    }
+
+    /** 결재 생성 transaction 안에서 참조 첨부와 결재 row를 함께 저장한다. */
+    public void addReferencesAtomically(ApprovalLine approval, List<ApprovalAttachmentRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return;
+        }
+        approval.guardCollabModifiable();
+        for (ApprovalAttachmentRequest request : requests) {
+            addReferenceForApproval(approval, approval.getId(), request);
+        }
+    }
+
+    private ApprovalAttachment addReferenceForApproval(
+            ApprovalLine approval, UUID approvalId, ApprovalAttachmentRequest request) {
         approval.guardCollabModifiable();
         ApprovalAttachment attachment;
         if (request.refDocType() != null) {
@@ -100,7 +116,7 @@ public class ApprovalAttachmentService {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "accounting settlement claim client가 구성되지 않았습니다");
         }
-        UUID claimToken = claimClient.reserve(documentNo, approvalId);
+        UUID claimToken = reserveClaim(documentNo, approvalId);
         registerRollbackCompensation(claimToken);
         try {
             ApprovalAttachment saved = attachmentRepository.save(attachment);
@@ -213,11 +229,7 @@ public class ApprovalAttachmentService {
                 && claimClient != null
                 && !attachmentRepository.existsOtherActiveReference(
                         approvalId, attachment.getRefDocType(), attachment.getRefDocNo(), attachmentId)) {
-            try {
-                claimClient.releaseByApproval(approvalId);
-            } catch (RuntimeException ignored) {
-                // 삭제는 정상 처리하고 accounting claim의 expires_at 자가 치유에 맡긴다.
-            }
+            registerReleaseAfterCommit(approvalId, attachment.getRefDocNo());
         }
         if (attachment.getAttachmentType() == ApprovalAttachmentType.FILE) {
             storage.delete(attachment.getStorageKey());
@@ -295,11 +307,46 @@ public class ApprovalAttachmentService {
         });
     }
 
+    /** 삭제 transaction이 실제 commit된 뒤에만 보호 claim을 해제한다. */
+    private void registerReleaseAfterCommit(UUID approvalId, String documentNo) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            releaseReferenceQuietly(approvalId, documentNo);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    releaseReferenceQuietly(approvalId, documentNo);
+                }
+            }
+        });
+    }
+
+    private void releaseReferenceQuietly(UUID approvalId, String documentNo) {
+        try {
+            claimClient.releaseByApprovalReference(approvalId, documentNo);
+        } catch (RuntimeException ignored) {
+            // 삭제는 정상 처리하고 accounting claim의 expires_at 자가 치유에 맡긴다.
+        }
+    }
+
     private void releaseQuietly(UUID claimToken) {
         try {
             claimClient.release(claimToken);
         } catch (RuntimeException ignored) {
             // accounting claim의 expires_at이 유실된 보상 호출을 자가 치유한다.
+        }
+    }
+
+    private UUID reserveClaim(String documentNo, UUID approvalId) {
+        try {
+            return claimClient.reserve(documentNo, approvalId);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "정산 참조 확인에 실패했습니다. 회계 서비스가 정상화된 뒤 다시 시도해 주세요", ex);
         }
     }
 }

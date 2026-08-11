@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -54,12 +55,13 @@ public class AccountingInternalSettlementApprovalClaimController {
         return ApiResponse.ok(null);
     }
 
-    /** 반려·회수 시 결재선 소유 claim 일괄 해제. */
-    @Operation(summary = "결재선의 정산 결재 참조 claim 일괄 해제 (internal)")
-    @DeleteMapping("/by-approval/{approvalId}")
+    /** 특정 결재·정산 참조 하나만 해제. */
+    @Operation(summary = "특정 정산 결재 참조 claim 해제 (internal)")
+    @DeleteMapping("/by-approval/{approvalId}/reference")
     @PreAuthorize("hasRole('MASTER')")
-    public ApiResponse<Void> releaseByApproval(@PathVariable UUID approvalId) {
-        claimService.releaseByApproval(approvalId);
+    public ApiResponse<Void> releaseByApprovalReference(
+            @PathVariable UUID approvalId, @RequestParam String documentNo) {
+        claimService.releaseByApprovalReference(approvalId, documentNo);
         return ApiResponse.ok(null);
     }
 }

@@ -74,6 +74,25 @@ class ApprovalAttachmentSettlementClaimTest {
         verifyNoInteractions(attachmentRepository);
     }
 
+    @Test
+    void settlementReference_delete_releasesOnlyThatSettlementClaim() {
+        ApprovalLine approvalForDelete = mock(ApprovalLine.class);
+        when(approvalForDelete.getId()).thenReturn(approvalId);
+        ApprovalAttachment attachment = ApprovalAttachment.documentRef(
+                approvalForDelete, "정산서", 0, ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT,
+                "2026/08/11-3", "정산서");
+        when(approvalRepository.findFlatById(approvalId)).thenReturn(Optional.of(approvalForDelete));
+        when(attachmentRepository.findById(any())).thenReturn(Optional.of(attachment));
+        UUID attachmentId = UUID.randomUUID();
+        when(attachmentRepository.existsOtherActiveReference(
+                approvalId, ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT, "2026/08/11-3", attachmentId))
+                .thenReturn(false);
+
+        service().delete(approvalId, attachmentId, "tester");
+
+        verify(claimClient).releaseByApprovalReference(approvalId, "2026/08/11-3");
+    }
+
     private ApprovalAttachmentService service() {
         return new ApprovalAttachmentService(approvalRepository, attachmentRepository, storage, claimClient);
     }

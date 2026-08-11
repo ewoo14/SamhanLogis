@@ -2,7 +2,7 @@
  * 그룹웨어 결재 작성 — `/groupware/approvals/new`.
  *
  * 생성 본문은 ApprovalLineCreateRequest 계약(templateId/fieldValues/title/content/approverIds)과
- * 일치한다. 첨부는 결재 생성 후 전용 endpoint 로 순차 등록한다.
+ * 일치한다. 문서 참조는 생성 요청에 포함하고, 파일만 생성 후 전용 endpoint 로 등록한다.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
@@ -15,7 +15,6 @@ import {
   type ApproverOption,
 } from '../api/groupwareApprovalApprover'
 import {
-  addApprovalAttachmentReference,
   uploadApprovalAttachmentFile,
   type ApprovalAttachmentReferenceInput,
 } from '../api/groupwareApprovalAttachment'
@@ -115,6 +114,13 @@ export function mapDefaultApproversToApproverOptions(defaultApprovers: ApprovalL
 export function buildGroupwareApprovalDocumentType(templateCode: string | null | undefined): string | null {
   const code = templateCode?.trim()
   return code ? `GROUPWARE_${code}` : null
+}
+
+/** 문서 참조를 결재 생성 요청의 원자 첨부 계약으로 변환한다. */
+export function buildGroupwareApprovalReferenceInputs(
+  references: ReferenceDraft[],
+): ApprovalAttachmentReferenceInput[] {
+  return references.map((reference, index) => buildReferenceInput(reference, index + 1))
 }
 
 export function shouldRequireManualApprover(
@@ -275,6 +281,7 @@ export function GroupwareApprovalCreatePage() {
   const [references, setReferences] = useState<ReferenceDraft[]>([])
   const [files, setFiles] = useState<FileDraft[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [partialApprovalId, setPartialApprovalId] = useState<string | null>(null)
   const approverEditVersionRef = useRef(0)
   const approverTemplateCodeRef = useRef('')
   const defaultApproverEditVersionRef = useRef(0)
@@ -384,24 +391,34 @@ export function GroupwareApprovalCreatePage() {
         approverIds,
         templateId: selectedTemplate.id,
         fieldValues,
+        references: buildGroupwareApprovalReferenceInputs(references),
       })
-      let displayOrder = 1
-      for (const ref of references) {
-        await addApprovalAttachmentReference(created.approvalId, buildReferenceInput(ref, displayOrder))
-        displayOrder += 1
+      let displayOrder = references.length + 1
+      try {
+        for (const fileDraft of files) {
+          await uploadApprovalAttachmentFile(created.approvalId, fileDraft.file, fileDraft.label, displayOrder)
+          displayOrder += 1
+        }
+      } catch (error) {
+        return { created, fileError: serverErrorMessage(error) }
       }
-      for (const fileDraft of files) {
-        await uploadApprovalAttachmentFile(created.approvalId, fileDraft.file, fileDraft.label, displayOrder)
-        displayOrder += 1
-      }
-      return created
+      return { created }
     },
-    onSuccess: (created) => {
-      setErrorMessage(null)
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['groupwareApprovals'] })
-      navigate(`/groupware/approvals/${created.approvalId}`)
+      if (result.fileError) {
+        setErrorMessage(`결재는 생성됐지만 파일 첨부에 실패했습니다: ${result.fileError} 생성된 결재 상세에서 파일 첨부를 다시 시도해 주세요.`)
+        setPartialApprovalId(result.created.approvalId)
+        return
+      }
+      setErrorMessage(null)
+      setPartialApprovalId(null)
+      navigate(`/groupware/approvals/${result.created.approvalId}`)
     },
-    onError: (error) => setErrorMessage(serverErrorMessage(error)),
+    onError: (error) => {
+      setPartialApprovalId(null)
+      setErrorMessage(serverErrorMessage(error))
+    },
   })
 
   const addReference = () => {
@@ -673,6 +690,15 @@ export function GroupwareApprovalCreatePage() {
       ) : null}
       {errorMessage ? (
         <p role="alert" style={{ color: 'var(--color-danger-700)', fontSize: 13 }}>{errorMessage}</p>
+      ) : null}
+      {partialApprovalId ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => navigate(`/groupware/approvals/${partialApprovalId}`)}
+        >
+          생성된 결재 상세에서 첨부 이어서 하기
+        </Button>
       ) : null}
       {!canWrite ? (
         <p style={{ color: 'var(--color-neutral-500)', fontSize: 13 }}>결재 작성 권한이 없습니다.</p>

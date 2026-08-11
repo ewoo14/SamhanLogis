@@ -50,7 +50,7 @@ public class SalesCommissionSettlementApprovalClaim extends BaseEntity {
     @Column(name = "approval_id", nullable = false, updatable = false)
     private UUID approvalId;
 
-    @Column(name = "claim_token", nullable = false, unique = true, updatable = false)
+    @Column(name = "claim_token", nullable = false, unique = true)
     private UUID claimToken;
 
     @Enumerated(EnumType.STRING)
@@ -119,6 +119,9 @@ public class SalesCommissionSettlementApprovalClaim extends BaseEntity {
         if (settlement.getStatus() != SalesCommissionSettlementStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "CONFIRMED 정산서만 결재 참조 claim을 만들 수 있습니다");
+        }
+        if (now == null) {
+            throw new IllegalArgumentException("now는 필수입니다");
         }
         claimToken = UUID.randomUUID();
         status = SalesCommissionSettlementApprovalClaimStatus.RESERVED;

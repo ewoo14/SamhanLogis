@@ -8,6 +8,9 @@ import type { ApprovalLineDefaultApprover, ApprovalLineStructure } from '../api/
 import type { ApprovalTemplate } from '../api/groupwareApprovalTemplate'
 
 const mocks = vi.hoisted(() => ({
+  createGroupwareApproval: vi.fn(),
+  addApprovalAttachmentReference: vi.fn(),
+  uploadApprovalAttachmentFile: vi.fn(),
   fetchApprovalLineStructure: vi.fn(),
   fetchDefaultApprovers: vi.fn(),
   listActiveApprovalTemplates: vi.fn(),
@@ -114,6 +117,19 @@ vi.mock('@samhan/design-system', () => ({
   },
 }))
 
+vi.mock('../api/groupwareApproval', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/groupwareApproval')>()
+  return { ...actual, createGroupwareApproval: mocks.createGroupwareApproval }
+})
+vi.mock('../api/groupwareApprovalAttachment', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/groupwareApprovalAttachment')>()
+  return {
+    ...actual,
+    addApprovalAttachmentReference: mocks.addApprovalAttachmentReference,
+    uploadApprovalAttachmentFile: mocks.uploadApprovalAttachmentFile,
+  }
+})
+
 vi.mock('../api/approvalLineConfigApi', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/approvalLineConfigApi')>()
   return {
@@ -130,6 +146,11 @@ vi.mock('../api/groupwareApprovalApprover', () => ({ searchApprovers: mocks.sear
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }))
 vi.mock('../hooks/usePermissions', () => ({
   usePermissions: () => ({ canAccess: () => true }),
+}))
+vi.mock('../auth/authProvider', () => ({
+  getAuthProvider: () => ({ getSession: vi.fn().mockResolvedValue({ userId: 'requester-1' }) }),
+  isElectronPlatform: false,
+  isCapacitorPlatform: false,
 }))
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
@@ -302,6 +323,26 @@ describe('GroupwareApprovalCreatePage 결재자 prefill 경합', () => {
 
     await waitFor(() => expect(screen.getByTestId('approver-chip').textContent).toContain('휴가기본결재자'))
     expect(screen.getByTestId('approver-chip').textContent).not.toContain('김은지')
+    client.clear()
+  })
+})
+
+describe('GroupwareApprovalCreatePage 원자적 참조 생성', () => {
+  it('참조 목록을 결재 생성 요청에 포함하고 생성 후 정산 참조 endpoint를 순차 호출하지 않는다', async () => {
+    mocks.fetchApprovalLineStructure.mockResolvedValue([])
+    mocks.fetchDefaultApprovers.mockResolvedValue([])
+    mocks.createGroupwareApproval.mockResolvedValue({ approvalId: 'approval-1' })
+    const { client } = renderPage()
+
+    await selectTemplate('template-expense')
+    const title = await screen.findByTestId('groupware-approval-create-title')
+    fireEvent.change(title, { target: { value: '정산 결재' } })
+    await addApprover('김은지')
+    fireEvent.click(await screen.findByTestId('groupware-approval-create-submit'))
+
+    await waitFor(() => expect(mocks.createGroupwareApproval).toHaveBeenCalledTimes(1))
+    expect(mocks.createGroupwareApproval).toHaveBeenCalledWith(expect.objectContaining({ references: [] }))
+    expect(mocks.addApprovalAttachmentReference).not.toHaveBeenCalled()
     client.clear()
   })
 })

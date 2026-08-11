@@ -5,7 +5,6 @@ import com.samhanair.logis.approval.StepType;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.client.GroupwareApprovalLineConfigClient;
-import com.samhanair.logis.groupware.client.AccountingSettlementApprovalClaimClient;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.ResolvedRole;
@@ -48,7 +47,7 @@ public class ApprovalLineService {
     private final GroupwareApprovalLineConfigClient configClient;
     private final DocumentTemplateRepository documentTemplateRepository;
     private final DocumentTemplateRevisionService documentTemplateRevisionService;
-    private final AccountingSettlementApprovalClaimClient claimClient;
+    private final ApprovalAttachmentService approvalAttachmentService;
 
     @Autowired
     public ApprovalLineService(ApprovalLineRepository repository, UserClient userClient,
@@ -57,7 +56,7 @@ public class ApprovalLineService {
                                GroupwareApprovalLineConfigClient configClient,
                                DocumentTemplateRepository documentTemplateRepository,
                                DocumentTemplateRevisionService documentTemplateRevisionService,
-                               AccountingSettlementApprovalClaimClient claimClient) {
+                               ApprovalAttachmentService approvalAttachmentService) {
         this.repository = repository;
         this.userClient = userClient;
         this.approvalNumberService = approvalNumberService;
@@ -65,7 +64,7 @@ public class ApprovalLineService {
         this.configClient = configClient;
         this.documentTemplateRepository = documentTemplateRepository;
         this.documentTemplateRevisionService = documentTemplateRevisionService;
-        this.claimClient = claimClient;
+        this.approvalAttachmentService = approvalAttachmentService;
     }
 
     /** claim client 도입 전 단위 테스트 호환 생성 경계. */
@@ -162,7 +161,15 @@ public class ApprovalLineService {
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
         }
-        return repository.save(line);
+        ApprovalLine saved = repository.save(line);
+        if (req.references() != null && !req.references().isEmpty()) {
+            if (approvalAttachmentService == null) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "결재 참조 첨부 서비스가 구성되지 않았습니다");
+            }
+            approvalAttachmentService.addReferencesAtomically(saved, req.references());
+        }
+        return saved;
     }
 
     private List<UUID> userIdsToVerify(UUID requesterId, List<UUID> overrideApproverIds,
@@ -340,7 +347,6 @@ public class ApprovalLineService {
         ApprovalLine line = findById(approvalId);
         try {
             line.reject(approverId, reason);
-            releaseClaims(line);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -361,7 +367,6 @@ public class ApprovalLineService {
         ApprovalLine line = findById(approvalId);
         try {
             line.reject(actorUserId, reason, actorGroupIds == null ? Set.of() : actorGroupIds, Set.of());
-            releaseClaims(line);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -374,7 +379,6 @@ public class ApprovalLineService {
         ApprovalLine line = findById(approvalId);
         try {
             line.withdraw(actorUserId);
-            releaseClaims(line);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -400,13 +404,4 @@ public class ApprovalLineService {
         repository.flush();
     }
 
-    private void releaseClaims(ApprovalLine line) {
-        if (claimClient != null) {
-            try {
-                claimClient.releaseByApproval(line.getId());
-            } catch (RuntimeException ignored) {
-                // terminal 상태 전이는 정상 경로를 막지 않는다. accounting claim은 expires_at으로 자가 치유된다.
-            }
-        }
-    }
 }

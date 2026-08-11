@@ -158,3 +158,18 @@ D-G8  제품구분 정비 — 품목명 자동분류 + 미등록
 · product_code NULL 388건 (전부 SHEET 계보 · 실제 도달 2제품·DRAFT 23건)
 · 메인장비 판정이 견적앱·주문앱에서 정반대 (실거래 표본 0 — 판정 불가)
 ```
+
+---
+
+## 2026-08-11 Codex Update — D-G7 TOCTOU fix2
+
+```text
+✅ TF-1 renew token JPA 영속화
+✅ TF-2 claim owner 단일화 + approval/documentNo exact release
+✅ TF-3 결재 생성 요청에 references 포함, 정산 참조 실패 시 전체 rollback (정책 A)
+✅ accounting 격리 PostgreSQL/Flyway IT 및 groupware 원자성 IT 통과
+✅ accounting 전체 1,891 testcase / groupware 전체 254 testcase, failure/error 0
+⚠️ 라이브 QA는 in-app Browser 원문 "No browser is available"로 BLOCKED
+📄 docs/dev-reports/2026-08-11-dg7-toctou-fix2.md
+📁 docs/qa/2026-08-11-dg7-fix2/README.md
+```

@@ -412,6 +412,17 @@ export function DocumentReferencePicker({
     cancelDebounce()
     requestIdRef.current += 1
     if (blurTimerRef.current !== undefined) window.clearTimeout(blurTimerRef.current)
+    if (selectedType === 'SALES_COMMISSION_SETTLEMENT' && query.trim()) {
+      onChange({
+        ...value,
+        refDocType: selectedType,
+        refDocNo: query.trim(),
+        refDocLabel: '영업수수료 정산서',
+        refPartnerCode: null,
+        refPartnerName: null,
+        refPeriod: null,
+      })
+    }
     blurTimerRef.current = window.setTimeout(() => {
       blurTimerRef.current = undefined
       requestIdRef.current += 1

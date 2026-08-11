@@ -19,6 +19,4 @@ public interface SalesCommissionSettlementApprovalClaimRepository
     List<SalesCommissionSettlementApprovalClaim> findAllBySettlementIdAndStatusIn(
             UUID settlementId, List<SalesCommissionSettlementApprovalClaimStatus> statuses);
 
-    List<SalesCommissionSettlementApprovalClaim> findAllByApprovalIdAndStatusIn(
-            UUID approvalId, List<SalesCommissionSettlementApprovalClaimStatus> statuses);
 }

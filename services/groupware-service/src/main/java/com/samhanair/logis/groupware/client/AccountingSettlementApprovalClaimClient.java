@@ -88,10 +88,13 @@ public class AccountingSettlementApprovalClaimClient {
                 .toBodilessEntity();
     }
 
-    /** 반려·회수 시 결재선의 모든 정산 claim을 해제한다. */
-    public void releaseByApproval(UUID approvalId) {
+    /** 특정 결재·정산 참조 하나만 해제한다. */
+    public void releaseByApprovalReference(UUID approvalId, String documentNo) {
         restClient.delete()
-                .uri(CLAIM_PATH + "/by-approval/{approvalId}", approvalId)
+                .uri(uriBuilder -> uriBuilder
+                        .path(CLAIM_PATH + "/by-approval/{approvalId}/reference")
+                        .queryParam("documentNo", documentNo)
+                        .build(approvalId))
                 .header(INTERNAL_TOKEN_HEADER, token())
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (request, response) -> throwRemote(response.getStatusCode()))
@@ -122,7 +125,11 @@ public class AccountingSettlementApprovalClaimClient {
     }
 
     private void throwRemote(HttpStatusCode status) {
-        ErrorCode code = status.value() == 409 ? ErrorCode.CONFLICT : ErrorCode.INTERNAL_ERROR;
-        throw new BusinessException(code, "accounting-service 결재 claim 호출 실패: " + status);
+        if (status.value() == 409) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "정산 참조가 이미 처리 중이거나 정산 상태가 변경되었습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요");
+        }
+        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                "정산 참조 확인에 실패했습니다. 회계 서비스가 정상화된 뒤 다시 시도해 주세요");
     }
 }
