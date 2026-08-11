@@ -355,6 +355,7 @@ public class ApprovalLineService {
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
+        releaseSettlementClaimsAfterCompletion(line);
         return line;
     }
 
@@ -375,6 +376,7 @@ public class ApprovalLineService {
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
+        releaseSettlementClaimsAfterCompletion(line);
         return line;
     }
 
@@ -387,7 +389,15 @@ public class ApprovalLineService {
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
+        releaseSettlementClaimsAfterCompletion(line);
         return line;
+    }
+
+    /** 종료 전이의 결재 참조 수명을 accounting claim 수명과 함께 닫는다. */
+    private void releaseSettlementClaimsAfterCompletion(ApprovalLine line) {
+        if (approvalAttachmentService != null) {
+            approvalAttachmentService.releaseSettlementClaimsAfterApprovalCompletion(line.getId());
+        }
     }
 
     /**

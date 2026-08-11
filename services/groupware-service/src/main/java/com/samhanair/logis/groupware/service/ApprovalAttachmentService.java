@@ -16,8 +16,9 @@ import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.storage.ApprovalAttachmentStorage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -222,6 +223,29 @@ public class ApprovalAttachmentService {
                 ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT,
                 documentNo.trim(),
                 Set.of(ApprovalStatus.PENDING, ApprovalStatus.IN_PROGRESS, ApprovalStatus.APPROVED));
+    }
+
+    /**
+     * 결재가 종료되어 더 이상 정산서를 참조하지 않게 된 뒤 claim을 commit 후 해제한다.
+     *
+     * <p>상태별 호출자가 claim 수명을 따로 관리하지 않도록 결재 ID를 기준으로 활성 정산 참조를
+     * 다시 수집한다. 따라서 REJECTED/WITHDRAWN 외에 종료 전이 경로가 추가되어도 같은 경계를
+     * 재사용할 수 있고, 동일 문서의 중복 첨부는 accounting release를 한 번만 호출한다.
+     * rollback 중에는 callback이 실행되지 않아 claim이 결재보다 먼저 풀리지 않는다.
+     */
+    public void releaseSettlementClaimsAfterApprovalCompletion(UUID approvalId) {
+        if (approvalId == null || claimClient == null) {
+            return;
+        }
+        Set<String> documentNumbers = new LinkedHashSet<>();
+        attachmentRepository.findAllByApprovalIdOrderByDisplayOrderAscCreatedAtAsc(approvalId).stream()
+                .filter(attachment -> attachment.getRefDocType()
+                        == ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT)
+                .map(ApprovalAttachment::getRefDocNo)
+                .filter(documentNo -> documentNo != null && !documentNo.isBlank())
+                .map(String::trim)
+                .forEach(documentNumbers::add);
+        documentNumbers.forEach(documentNo -> registerReleaseAfterCommit(approvalId, documentNo));
     }
 
     /** 첨부 파일 다운로드 객체 조회. */
