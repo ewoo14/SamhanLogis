@@ -31,6 +31,7 @@ import {
   deleteClassification,
   listClassifications,
   updateClassification,
+  updateClassificationFixedDiscount,
   type Classification,
   type ClassificationLevel,
 } from '../api/classificationApi'
@@ -116,6 +117,7 @@ export function ProductClassificationsPage() {
   const [draftName, setDraftName] = useState('')
   const [draftActive, setDraftActive] = useState(true)
   const [draftParentId, setDraftParentId] = useState<string | null>(null)
+  const [draftFixedDiscountRate, setDraftFixedDiscountRate] = useState('')
   const [newName, setNewName] = useState('')
   const [newLevel, setNewLevel] = useState<ClassificationLevel>('L')
   const [newParentId, setNewParentId] = useState<string | null>(null)
@@ -146,11 +148,13 @@ export function ProductClassificationsPage() {
       setDraftName('')
       setDraftActive(true)
       setDraftParentId(null)
+      setDraftFixedDiscountRate('')
       return
     }
     setDraftName(selected.name)
     setDraftActive(selected.active)
     setDraftParentId(selected.parentId)
+    setDraftFixedDiscountRate(selected.fixedDiscountRate == null ? '' : String(selected.fixedDiscountRate))
   }, [selected])
 
   useEffect(() => {
@@ -203,11 +207,14 @@ export function ProductClassificationsPage() {
   const updateMutation = useMutation({
     mutationFn: () => {
       if (!selected) throw new Error('선택된 분류가 없습니다.')
-      return updateClassification(selected.id, {
-        name: draftName.trim(),
-        parentId: selected.catLevel === 'L' ? null : draftParentId,
-        active: draftActive,
-      })
+      return Promise.all([
+        updateClassification(selected.id, {
+          name: draftName.trim(),
+          parentId: selected.catLevel === 'L' ? null : draftParentId,
+          active: draftActive,
+        }),
+        updateClassificationFixedDiscount(selected.id, draftFixedDiscountRate.trim() || null),
+      ])
     },
     onSuccess: () => {
       setMessage('분류를 저장했습니다.')
@@ -268,6 +275,13 @@ export function ProductClassificationsPage() {
       width: '70px',
       mobilePriority: 'hidden',
       render: (row) => String(row.displayOrder),
+    },
+    {
+      key: 'fixedDiscountRate',
+      header: '정액DC%',
+      width: '90px',
+      mobilePriority: 'secondary',
+      render: (row) => row.fixedDiscountRate == null ? '미지정' : `${row.fixedDiscountRate}%`,
     },
     {
       key: 'active',
@@ -497,6 +511,18 @@ export function ProductClassificationsPage() {
                     ))}
                   </Select>
                 ) : null}
+                <Input
+                  label="정액DC율(%)"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={draftFixedDiscountRate}
+                  onChange={(e) => setDraftFixedDiscountRate(e.target.value)}
+                  inputSize="sm"
+                  disabled={!canEdit}
+                  data-testid="classification-detail-fixed-discount"
+                />
                 <div style={{ display: 'flex', gap: 8 }}>
                   {canEdit ? (
                     <Button

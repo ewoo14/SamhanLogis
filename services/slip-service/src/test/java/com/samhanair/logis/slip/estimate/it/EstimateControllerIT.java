@@ -578,6 +578,40 @@ class EstimateControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("GREEN-A-1: V37 기본 지정 세트 견적 저장")
+    void createEstimate_backfilledBundle_savesExpandedLines() throws Exception {
+        UUID setId = UUID.randomUUID();
+        ProductSummary setSummary = new ProductSummary(setId, "상업멀티 22HP 세트", "AM220AXVHHR1SY", null,
+                null, new BigDecimal("15242370"), null, false, "AM220AXVHHR1SY", "BUNDLE");
+        Mockito.when(productClient.lookup(ArgumentMatchers.anyList())).thenReturn(List.of(setSummary));
+        Mockito.when(productClient.expand(ArgumentMatchers.eq("AM220AXVHHR1SY"), ArgumentMatchers.any(),
+                        ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of(
+                        new ExpandedLineDto(UUID.randomUUID(), "AM100AXVHHR1", "AM100AXVHHR1", "실내기",
+                                BigDecimal.ONE, new BigDecimal("4560050"), "INDOOR", true),
+                        new ExpandedLineDto(UUID.randomUUID(), "AM120AXVHHR1", "AM120AXVHHR1", "실외기",
+                                BigDecimal.ONE, new BigDecimal("5280000"), "OUTDOOR", false)));
+
+        Map<String, Object> lineReq = new HashMap<>();
+        lineReq.put("productId", setId.toString());
+        lineReq.put("quantity", 1);
+        lineReq.put("unitPrice", "15242370");
+        Map<String, Object> body = new HashMap<>();
+        body.put("partnerName", "GREEN-A 견적 거래처");
+        body.put("lines", List.of(lineReq));
+
+        mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines.length()").value(2))
+                .andExpect(jsonPath("$.data.lines[0].productName").value("실내기"))
+                .andExpect(jsonPath("$.data.lines[1].productName").value("실외기"));
+    }
+
+    @Test
     @DisplayName("견적 단가 부가세포함 → 라인 단위 공급가액/부가세 분리(원 단위)")
     void createEstimate_priceVatInclusive_splitsPerLine() throws Exception {
         // qty=1, 단가(VAT포함)=1000 → 합계 1000, 공급가액=round(1000/1.1)=909, 부가세=91.

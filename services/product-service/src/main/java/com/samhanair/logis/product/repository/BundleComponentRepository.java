@@ -4,6 +4,7 @@ import com.samhanair.logis.product.domain.BundleComponent;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -41,6 +42,25 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
             ORDER BY bc.displayOrder ASC NULLS LAST, bc.createdAt ASC, bc.id ASC
             """)
     List<BundleComponent> findByBundleProductId(UUID bundleProductId);
+
+    /**
+     * PR #1132 V37 시트 관리 부모인지 판정한다.
+     *
+     * <p>감사 당시 구성품 UUID가 아니라 부모 UUID를 정책 키로 사용한다. 따라서 시트에서 구성품이
+     * 추가·교체되어도 같은 부모의 활성 구성행은 기본 구성품 정책을 이어받는다. rollback 시에는
+     * {@code rolled_back_at}이 채워지므로 다시 적용하지 않는다.
+     */
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1
+                  FROM bundle_component_default_backfill_audit a
+                 WHERE a.bundle_product_id = :bundleProductId
+                   AND a.migration_key = 'PR1132-V37'
+                   AND a.rolled_back_at IS NULL
+                   AND a.is_deleted = false
+            )
+            """, nativeQuery = true)
+    boolean isActiveDefaultBackfillBundle(@Param("bundleProductId") UUID bundleProductId);
 
     /** 카탈로그 동의 발급용 단일 관측 — 목록에서 건수와 집합 토큰을 함께 파생한다. */
     @Query("""

@@ -52,7 +52,7 @@ export interface LegacyRecommendation {
 
 export interface LegacyAnalysis {
   trend: LegacyAnalysisPoint[]
-  forecast: { month: number; quantity: number }[]
+  forecast: { month: number; quantity: number | null }[]
   top3: LegacyRankedModel[]
   bottom3: LegacyRankedModel[]
   recommendations: LegacyRecommendation[]
@@ -90,8 +90,12 @@ export function deriveLegacyAnalysis(rows: readonly InOutAnalysisRow[]): LegacyA
   const previousYear = currentYear === null ? null : currentYear - 1
   const previous = Array(12).fill(0) as number[]
   const current = Array(12).fill(0) as number[]
+  const previousHasData = Array(12).fill(false) as boolean[]
   for (const point of points) {
-    if (point.year === previousYear) previous[point.month - 1] = (previous[point.month - 1] ?? 0) + point.outboundQuantity
+    if (point.year === previousYear) {
+      previousHasData[point.month - 1] = true
+      previous[point.month - 1] = (previous[point.month - 1] ?? 0) + point.outboundQuantity
+    }
     if (point.year === currentYear) current[point.month - 1] = (current[point.month - 1] ?? 0) + point.outboundQuantity
   }
 
@@ -113,7 +117,12 @@ export function deriveLegacyAnalysis(rows: readonly InOutAnalysisRow[]): LegacyA
   const forecastRate = totalPrevious > 0 ? totalCurrent / totalPrevious : 1
   const forecast = Array.from({ length: 12 - (lastMonth + 1) }, (_, offset) => {
     const monthIndex = lastMonth + 1 + offset
-    return { month: monthIndex + 1, quantity: Math.round((previous[monthIndex] ?? 0) * forecastRate) }
+    return {
+      month: monthIndex + 1,
+      quantity: previousYear !== null && previousHasData[monthIndex]
+        ? Math.round((previous[monthIndex] ?? 0) * forecastRate)
+        : null,
+    }
   })
 
   const aggregate = new Map<string, LegacyRankedModel & { inboundQuantity: number }>()

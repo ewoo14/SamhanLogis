@@ -3,6 +3,7 @@ import { apiClient } from './client'
 import {
   type PriceChangeScheduleCategory,
   getPriceChangeScheduleAdmin,
+  updateClassificationFixedDiscount,
   updatePriceChangeSchedule,
   updateProductFixedDiscount,
 } from './productCatalogApi'
@@ -41,6 +42,24 @@ describe('productCatalogApi fixed discount contract', () => {
     expect(apiClient.patch).toHaveBeenCalledWith(
       '/api/v1/products/AC%2F100/fixed-discount',
       { fixedDiscountRate: '12.50' },
+    )
+  })
+})
+
+describe('productCatalogApi classification fixed discount contract', () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.patch).mockReset()
+  })
+
+  it('분류 단계 정액DC율 PATCH는 ID를 인코딩하고 null 해제를 전송한다', async () => {
+    const classification = { id: 'cat/1', fixedDiscountRate: null }
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({ data: classification })
+
+    await expect(updateClassificationFixedDiscount('cat/1', null)).resolves.toBe(classification)
+
+    expect(apiClient.patch).toHaveBeenCalledWith(
+      '/api/v1/classifications/cat%2F1/fixed-discount',
+      { fixedDiscountRate: null },
     )
   })
 })

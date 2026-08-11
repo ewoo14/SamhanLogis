@@ -1,4 +1,5 @@
 import React from 'react'
+import { safeActorName } from '@samhan/design-system'
 import type { SlipRedlineLayer } from '../../api/slipRedline'
 import { presenceColorToHex } from '../../utils/presenceColor'
 
@@ -25,6 +26,7 @@ export function RedlineCell({ layers, format }: RedlineCellProps) {
   const reversed = layers.slice().reverse()
   const current = reversed[0]!
   const currentColor = presenceColorToHex(current.actorColor)
+  const currentActorName = safeActorName(current.actorName)
 
   return (
     <span
@@ -39,12 +41,12 @@ export function RedlineCell({ layers, format }: RedlineCellProps) {
     >
       <span
         data-testid="redline-cell-current"
-        aria-label={`현재값: ${current.actorName ? `${current.actorName}, ` : ''}${formatValue(current.value, format)}`}
+        aria-label={`현재값: ${currentActorName ? `${currentActorName}, ` : ''}${formatValue(current.value, format)}`}
         style={{ color: currentColor, fontWeight: 700, overflowWrap: 'anywhere' }}
       >
-        {current.actorName ? (
+        {currentActorName ? (
           <>
-            <strong style={{ color: currentColor }}>{current.actorName}</strong>
+            <strong style={{ color: currentColor }}>{currentActorName}</strong>
             <span aria-hidden="true" style={{ marginRight: 6 }}>: </span>
           </>
         ) : null}
@@ -52,12 +54,13 @@ export function RedlineCell({ layers, format }: RedlineCellProps) {
       </span>
       {reversed.slice(1).map((layer, index) => {
         const actorColor = presenceColorToHex(layer.actorColor)
+        const actorName = safeActorName(layer.actorName)
         const isBase = index === reversed.length - 2
         return (
           <span
             key={`${index}-${layer.changedAt ?? 'base'}-${layer.value ?? 'null'}`}
             data-testid="redline-cell-struck"
-            aria-label={`${isBase ? '기준값' : '이전값'}: ${layer.actorName ? `${layer.actorName}, ` : ''}${formatValue(layer.value, format)}`}
+            aria-label={`${isBase ? '기준값' : '이전값'}: ${actorName ? `${actorName}, ` : ''}${formatValue(layer.value, format)}`}
             style={{
               color: isBase ? 'var(--color-neutral-500)' : actorColor,
               textDecoration: 'line-through',
@@ -65,9 +68,9 @@ export function RedlineCell({ layers, format }: RedlineCellProps) {
               fontSize: 12,
             }}
           >
-            {layer.actorName ? (
+            {actorName ? (
               <>
-                <strong style={{ color: actorColor }}>{layer.actorName}</strong>
+                <strong style={{ color: actorColor }}>{actorName}</strong>
                 <span aria-hidden="true" style={{ marginRight: 6 }}>: </span>
               </>
             ) : null}

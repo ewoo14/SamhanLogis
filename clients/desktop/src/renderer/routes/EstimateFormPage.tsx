@@ -50,6 +50,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
+import { resolveEstimateCatalogPrice } from '../utils/estimatePrice'
 import {
   changeLineQuantity,
   editLineVat,
@@ -1153,6 +1154,8 @@ export function EstimateFormPage() {
         sellingPrice: Number(legacy.sellingPrice),
         modelCode: legacy.modelCode,
         productType: legacy.productType,
+        fixedDiscountRate: legacy.fixedDiscountRate,
+        fixedDiscountSource: legacy.fixedDiscountSource,
         status: legacy.status,
       }]
     } catch {
@@ -1491,6 +1494,12 @@ export function EstimateFormPage() {
         productName: rawResult.productName,
         specification: 'specification' in rawResult ? rawResult.specification : null,
         sellingPrice: String(rawResult.sellingPrice ?? ''),
+        fixedDiscountRate: 'fixedDiscountRate' in rawResult
+          ? rawResult.fixedDiscountRate == null ? null : Number(rawResult.fixedDiscountRate)
+          : null,
+        fixedDiscountSource: 'fixedDiscountSource' in rawResult
+          ? rawResult.fixedDiscountSource ?? null
+          : null,
         productType: rawResult.productType,
         goodsType: rawResult.goodsType,
         status: rawResult.status ?? null,
@@ -1503,7 +1512,11 @@ export function EstimateFormPage() {
       // R4-F1: 전표(applyProductSelection)와 동일 semantics(공유 헬퍼) — 빈 단가뿐 아니라 이전
       // 품목의 자동채움(CATALOG/REMEMBERED) 단가도 새 품목 기준으로 재채움 + 가격기억 재조회.
       const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
-      let nextUnitPrice = String(result.sellingPrice)
+      const catalogPrice = resolveEstimateCatalogPrice(
+        Number(result.sellingPrice),
+        result.fixedDiscountRate,
+      )
+      let nextUnitPrice = String(catalogPrice.unitPrice)
       let nextPriceSource: DraftLine['priceSource'] = 'CATALOG'
       let nextPriceMemoryUpdatedAt: string | null = null
       let resolvedPartnerId = selectedPartnerIdRef.current
@@ -1511,7 +1524,7 @@ export function EstimateFormPage() {
         // 품목 lookup 중 거래처가 바뀌면 새 거래처는 아직 productId 를 보지 못해 bulk 후보가 0건이다.
         // 현재 거래처가 응답 동안 다시 바뀌면 최신 partnerId 로 반복 resolve하고 busy 를 유지한다.
         while (true) {
-          nextUnitPrice = String(result.sellingPrice)
+          nextUnitPrice = String(catalogPrice.unitPrice)
           nextPriceSource = 'CATALOG'
           nextPriceMemoryUpdatedAt = null
           if (resolvedPartnerId) {
@@ -1585,7 +1598,7 @@ export function EstimateFormPage() {
         specificationSource: nextSpecificationSource,
         productType: result.productType ?? 'SINGLE',
         goodsType: result.goodsType ?? current.goodsType,
-        catalogUnitPrice: result.sellingPrice,
+        catalogUnitPrice: String(catalogPrice.unitPrice),
         unitPrice: applyPrice ? nextUnitPrice : current.unitPrice,
         priceSource: applyPrice ? nextPriceSource : current.priceSource,
         priceMemoryUpdatedAt: applyPrice ? nextPriceMemoryUpdatedAt : current.priceMemoryUpdatedAt,

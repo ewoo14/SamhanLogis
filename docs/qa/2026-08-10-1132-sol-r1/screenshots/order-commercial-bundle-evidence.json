@@ -1,0 +1,62 @@
+{
+  "head": "f829946fc",
+  "modelCode": "AM260AXVHHH1SY",
+  "runtime": {
+    "commercialCatalogCount": 382,
+    "commercialPartCount": 137,
+    "setParts": [
+      {
+        "model": "AM100AXVHHH1",
+        "qty": 1,
+        "isDefault": false
+      },
+      {
+        "model": "AM160AXVHHH1",
+        "qty": 1,
+        "isDefault": false
+      }
+    ]
+  },
+  "previewModels": [
+    "AM260AXVHHH1SY",
+    "AXJ-TA3419M",
+    "방진가대S2소",
+    "방진가대S2중"
+  ],
+  "finalModels": [
+    "AM260AXVHHH1SY",
+    "AXJ-TA3419M",
+    "방진가대S2소",
+    "방진가대S2중"
+  ],
+  "parentModelSent": true,
+  "confirm": {
+    "status": 200,
+    "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"orderNo\":\"2026/08/11-1\",\"slipNo\":null,\"status\":\"DRAFT\",\"slipPublishStatus\":\"NOT_REQUIRED\",\"totalAmount\":24687200.00,\"confirmedAt\":null},\"timestamp\":\"2026-08-10T15:09:41.394143800Z\"}"
+  },
+  "network": [
+    {
+      "method": "GET",
+      "url": "/api/v1/partner-orders/bootstrap",
+      "status": 200,
+      "raw": "<omitted: runtime catalog counts captured separately>"
+    },
+    {
+      "method": "POST",
+      "url": "/api/v1/partner-orders/drafts",
+      "status": 201,
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"draftId\":\"<redacted-uuid>\",\"draftSeq\":1,\"label\":\"주문서 확정 임시저장\",\"expiresAt\":\"2026-09-10T00:07:24.245373\",\"createdAt\":\"2026-08-11T00:07:24.247432\"},\"timestamp\":\"2026-08-10T15:09:41.379862400Z\"}"
+    },
+    {
+      "method": "POST",
+      "url": "/api/v1/partner-orders/<redacted-uuid>/confirm",
+      "status": 200,
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"orderNo\":\"2026/08/11-1\",\"slipNo\":null,\"status\":\"DRAFT\",\"slipPublishStatus\":\"NOT_REQUIRED\",\"totalAmount\":24687200.00,\"confirmedAt\":null},\"timestamp\":\"2026-08-10T15:09:41.394143800Z\"}"
+    }
+  ],
+  "screenshots": [
+    "docs/qa/2026-08-10-1132-sol-r1/screenshots/18-order-commercial-bundle-preview.png",
+    "docs/qa/2026-08-10-1132-sol-r1/screenshots/19-order-commercial-bundle-final-confirm.png",
+    "docs/qa/2026-08-10-1132-sol-r1/screenshots/20-order-commercial-bundle-success.png"
+  ]
+}

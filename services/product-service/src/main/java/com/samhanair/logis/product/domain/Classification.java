@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -65,6 +66,10 @@ public class Classification extends BaseEntity {
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
+    /** 품목 분류별 정액DC율(퍼센트). null 이면 해당 단계에서 미지정이다. */
+    @Column(name = "fixed_discount_rate", precision = 5, scale = 2)
+    private BigDecimal fixedDiscountRate;
+
     private Classification(EstimateCategory estimateCategory, CatLevel catLevel, Classification parent,
                            String name, int displayOrder, boolean active) {
         this.estimateCategory = estimateCategory;
@@ -112,6 +117,16 @@ public class Classification extends BaseEntity {
 
     public void changeActive(boolean active) {
         this.active = active;
+    }
+
+    /** 분류별 정액DC율을 변경한다. null 은 해당 단계의 정책을 해제한다. */
+    public void changeFixedDiscountRate(BigDecimal fixedDiscountRate) {
+        if (fixedDiscountRate != null
+                && (fixedDiscountRate.compareTo(BigDecimal.ZERO) < 0
+                || fixedDiscountRate.compareTo(new BigDecimal("100.00")) > 0)) {
+            throw new IllegalArgumentException("고정DC율은 0 이상 100 이하이어야 합니다");
+        }
+        this.fixedDiscountRate = fixedDiscountRate;
     }
 
     private static String normalizeName(String name) {

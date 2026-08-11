@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Modal, Spinner } from '@samhan/design-system'
+import { Badge, Button, Card, Modal, Spinner, safeActorName } from '@samhan/design-system'
 import {
   listRevisions,
   restoreRevision,
@@ -115,6 +115,7 @@ function renderFieldChange(
   },
 ) {
   const actorColor = presenceColorToHex(change.actorColor)
+  const actorName = safeActorName(change.actorName)
   return (
     <div
       key={change.fieldPath}
@@ -161,8 +162,8 @@ function renderFieldChange(
         }}
       />
       <span style={{ minWidth: 0 }}>
-        {change.actorName ? (
-          <strong style={{ color: actorColor, marginRight: 6 }}>{change.actorName}</strong>
+        {actorName ? (
+          <strong style={{ color: actorColor, marginRight: 6 }}>{actorName}</strong>
         ) : null}
         <strong>{change.label}</strong>
         <span
@@ -411,9 +412,11 @@ export function SlipVersionHistoryPanel({
                         ? ` (버전 ${rev.sourceRevisionNo})`
                         : ''}
                     </Badge>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: rev.actorColor ? presenceColorToHex(rev.actorColor) : 'var(--color-neutral-600)' }}>
-                      {rev.actorName}
-                    </span>
+                    {safeActorName(rev.actorName) ? (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: rev.actorColor ? presenceColorToHex(rev.actorColor) : 'var(--color-neutral-600)' }}>
+                        {safeActorName(rev.actorName)}
+                      </span>
+                    ) : null}
                     <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
                       {formatLocalDateTime(rev.createdAt)}
                     </span>

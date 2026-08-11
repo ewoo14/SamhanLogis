@@ -1,0 +1,24 @@
+{
+  "head": "f829946fc",
+  "modelCode": "AJ020FERPBC2",
+  "productFixedDiscountRate": 45,
+  "listPrice": 1980000,
+  "expectedPrice": 1089000,
+  "estimate": {
+    "displayedPrice": "1980000",
+    "status": 201,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<redacted-uuid>\",\"estimateNo\":\"2026/08/10-14\",\"estimateDate\":\"2026-08-10\",\"seqNo\":14,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"<redacted-uuid>\",\"partnerName\":\"프라임(Prime)ENG-임성희\",\"partnerBusinessNo\":\"5284800096\",\"partnerAddress\":null,\"validUntil\":\"2026-09-09\",\"totalSupply\":1800000.00,\"totalVat\":180000.00,\"totalAmount\":1980000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":\"SOL1132 R1 existing fixed DC estimate throwaway\",\"requesterId\":\"<redacted-uuid>\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"<redacted-uuid>\",\"lineNo\":1,\"productId\":\"<redacted-uuid>\",\"productName\":\"비스포크 AI 에어콤보 토출 좌측\",\"modelName\":\"AJ020FERPBC2\",\"specification\":\"에어콤보(좌)\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":1800000.00,\"supplyAmount\":1800000.00,\"vatAmount\":180000.00,\"lineTotal\":1980000.00,\"note\":null,\"unitPriceWithVat\":1980000.00,\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-10T14:30:40.505951300Z\"}",
+    "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/12-estimate-existing-fixed-dc-amount.png"
+  },
+  "order": {
+    "displayedPrice": "1089000",
+    "status": 200,
+    "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/03-order-existing-product-fixed-dc-invariant.png"
+  },
+  "sales": {
+    "displayedPrice": "1,089,000",
+    "status": 201,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<redacted-uuid>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-19\",\"slipDate\":\"2026-08-10\",\"seqNo\":19,\"status\":\"DRAFT\",\"lockFlag\":false,\"sourceType\":\"MANUAL\",\"partnerId\":\"<redacted-uuid>\",\"partnerName\":\"프라임(Prime)ENG-임성희\",\"partnerCode\":null,\"sourceWarehouseId\":\"<redacted-uuid>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"SOL1132 R1 existing fixed DC sales throwaway\",\"requesterId\":\"<redacted-uuid>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-10T23:30:43.3384549\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":\"010-2381-4925\",\"customerAddress\":\"경기도 부천시 소사구 양지로 237 (옥길동) 622호\",\"customerRepresentative\":\"임성희\",\"paymentDueLabel\":null,\"discountInfo\":\"품목 고정DC 45% 적용\",\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<redacted-uuid>\",\"productId\":\"<redacted-uuid>\",\"productName\":\"비스포크 AI 에어콤보 토출 좌측\",\"modelName\":\"AJ020FERPBC2\",\"specification\":null,\"quantity\":1,\"unitPrice\":990000.00,\"lineTotal\":990000,\"note\":null,\"unitPriceWithVat\":1089000.00,\"supplyAmount\":990000,\"vatAmount\":99000,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-10T14:30:43.366319Z\"}",
+    "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/13-sales-existing-fixed-dc-amount.png"
+  }
+}

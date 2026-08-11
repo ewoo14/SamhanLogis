@@ -1,0 +1,28 @@
+{
+  "head": "f829946fc",
+  "modelCode": "AJ012BN1PBC2",
+  "fixedDiscountSource": "S",
+  "fixedDiscountRate": 15,
+  "sellingPrice": null,
+  "releasePrice": 524700,
+  "deliveryPrice": 288585,
+  "estimate": {
+    "displayed": 420750,
+    "status": 201,
+    "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<redacted-uuid>\",\"estimateNo\":\"2026/08/10-12\",\"estimateDate\":\"2026-08-10\",\"seqNo\":12,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"<redacted-uuid>\",\"partnerName\":\"프라임(Prime)ENG-임성희\",\"partnerBusinessNo\":\"5284800096\",\"partnerAddress\":null,\"validUntil\":\"2026-09-09\",\"totalSupply\":382500.00,\"totalVat\":38250.00,\"totalAmount\":420750.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":\"SOL1132 R1 classification S=15 estimate throwaway\",\"requesterId\":\"<redacted-uuid>\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"<redacted-uuid>\",\"lineNo\":1,\"productId\":\"<redacted-uuid>\",\"productName\":\"실내기(1-Way) 무풍 소형 WIFI 내장 3평형\",\"modelName\":\"AJ012BN1PBC2\",\"specification\":\"소형 내장형\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":382500.00,\"supplyAmount\":382500.00,\"vatAmount\":38250.00,\"lineTotal\":420750.00,\"note\":null,\"unitPriceWithVat\":420750.00,\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-10T14:23:22.652391100Z\"}",
+    "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/14-class-s-estimate-amount.png"
+  },
+  "sales": {
+    "displayed": 420750,
+    "status": 201,
+    "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<redacted-uuid>\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/10-18\",\"slipDate\":\"2026-08-10\",\"seqNo\":18,\"status\":\"DRAFT\",\"lockFlag\":false,\"sourceType\":\"MANUAL\",\"partnerId\":\"<redacted-uuid>\",\"partnerName\":\"프라임(Prime)ENG-임성희\",\"partnerCode\":null,\"sourceWarehouseId\":\"<redacted-uuid>\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"memo\":\"SOL1132 R1 classification S=15 sales throwaway\",\"requesterId\":\"<redacted-uuid>\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-10T23:23:25.3910157\",\"shippingAddress\":null,\"inspectionAddress\":null,\"receiverPhone\":null,\"customerTel\":\"010-2381-4925\",\"customerAddress\":\"경기도 부천시 소사구 양지로 237 (옥길동) 622호\",\"customerRepresentative\":\"임성희\",\"paymentDueLabel\":null,\"discountInfo\":\"품목 고정DC 15% 적용\",\"collectTerm\":null,\"agreeTerm\":null,\"dispatcherUserId\":null,\"dispatcherSignedAt\":null,\"inspectorUserId\":null,\"inspectorSignedAt\":null,\"driverName\":null,\"driverPhone\":null,\"deliveryBatchId\":null,\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"inspectionStatus\":null,\"canInspect\":false,\"ownerFullName\":null,\"dispatcherFullName\":null,\"inspectorFullName\":null,\"acceptedByFullName\":null,\"destinationWarehouseName\":null,\"unloadDate\":null,\"deliveryScheduleLabel\":null,\"lines\":[{\"id\":\"<redacted-uuid>\",\"productId\":\"<redacted-uuid>\",\"productName\":\"실내기(1-Way) 무풍 소형 WIFI 내장 3평형\",\"modelName\":\"AJ012BN1PBC2\",\"specification\":null,\"quantity\":1,\"unitPrice\":382500.00,\"lineTotal\":382500,\"note\":null,\"unitPriceWithVat\":420750.00,\"supplyAmount\":382500,\"vatAmount\":38250,\"unitPriceDomain\":\"VAT_INCLUSIVE\",\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-10T14:23:25.407352Z\"}",
+    "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/15-class-s-sales-amount.png"
+  },
+  "order": {
+    "total": 445995,
+    "status": 200,
+    "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"orderNo\":\"2026/08/10-5\",\"slipNo\":null,\"status\":\"DRAFT\",\"slipPublishStatus\":\"NOT_REQUIRED\",\"totalAmount\":445995,\"confirmedAt\":null},\"timestamp\":\"2026-08-10T14:23:25.565639400Z\"}",
+    "orderNo": "2026/08/10-5",
+    "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/16-class-s-order-amount.png"
+  }
+}

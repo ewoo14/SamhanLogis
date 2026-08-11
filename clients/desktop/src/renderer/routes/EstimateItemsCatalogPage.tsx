@@ -490,7 +490,17 @@ interface FixedDiscountCellProps {
   patchLoading: boolean
 }
 
-function FixedDiscountCell({
+function fixedDiscountSourceLabel(source: ProductCatalogRow['fixedDiscountSource']): string {
+  switch (source) {
+    case 'PRODUCT': return '품목 개별'
+    case 'S': return 'S'
+    case 'M': return 'M'
+    case 'L': return 'L'
+    default: return '미지정'
+  }
+}
+
+export function FixedDiscountCell({
   row,
   canEdit,
   onFixedDiscountPatch,
@@ -540,6 +550,13 @@ function FixedDiscountCell({
           style={{ width: 72 }}
         />
         <span style={fixedDiscountSuffixStyle}>%</span>
+      </span>
+      <span
+        style={fixedDiscountSourceStyle}
+        title="현재 고정DC율이 결정된 출처"
+        data-testid={`estimate-items-fixed-dc-source-${row.modelCode}`}
+      >
+        {fixedDiscountSourceLabel(row.fixedDiscountSource)}
       </span>
       {localError ? (
         <span
@@ -2098,6 +2115,12 @@ const fixedDiscountInputWrapStyle: CSSProperties = {
 const fixedDiscountSuffixStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--color-neutral-500, #6B7280)',
+}
+
+const fixedDiscountSourceStyle: CSSProperties = {
+  fontSize: 11,
+  color: 'var(--color-neutral-500, #6B7280)',
+  whiteSpace: 'nowrap',
 }
 
 const fixedDiscountErrorStyle: CSSProperties = {

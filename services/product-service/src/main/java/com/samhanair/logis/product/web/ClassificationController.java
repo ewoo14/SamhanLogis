@@ -5,6 +5,7 @@ import com.samhanair.logis.product.service.ClassificationService;
 import com.samhanair.logis.product.web.dto.ClassificationResponse;
 import com.samhanair.logis.product.web.dto.CreateClassificationRequest;
 import com.samhanair.logis.product.web.dto.UpdateClassificationRequest;
+import com.samhanair.logis.product.web.dto.UpdateClassificationFixedDiscountRequest;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
@@ -54,6 +55,14 @@ public class ClassificationController {
     public ClassificationResponse update(@PathVariable UUID id,
                                          @Valid @RequestBody UpdateClassificationRequest request) {
         return classificationService.update(id, request);
+    }
+
+    @PatchMapping("/{id}/fixed-discount")
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
+    public ClassificationResponse updateFixedDiscount(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateClassificationFixedDiscountRequest request) {
+        return classificationService.updateFixedDiscount(id, request);
     }
 
     @DeleteMapping("/{id}")

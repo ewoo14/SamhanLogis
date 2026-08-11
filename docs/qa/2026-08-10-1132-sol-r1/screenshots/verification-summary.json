@@ -1,0 +1,83 @@
+{
+  "head": "f829946fc",
+  "deployment": {
+    "container": "samhan-product-service",
+    "containerCreatedUtc": "2026-08-09T12:46:56.412898382Z",
+    "imageCreatedUtc": "2026-08-09T11:14:37.70981377Z",
+    "liveFlywayLatest": "34",
+    "headCommitKst": "2026-08-10T21:59:54+09:00",
+    "redeployedSharedStack": false,
+    "observedAgainAtCleanup": {
+      "containerCreatedUtc": "2026-08-10T14:54:42.709102288Z",
+      "imageCreatedUtc": "2026-08-10T14:51:10.683078999Z",
+      "status": "running",
+      "changedByThisReview": false
+    }
+  },
+  "triggerCountsBeforeUiWrite": {
+    "activeProducts": 3084,
+    "productsWithFixedDiscountRate": 167,
+    "productsWithFixedDiscountManual": 0,
+    "activeClassifications": 125,
+    "classificationsWithFixedDiscountRate": 0
+  },
+  "productFixedDiscountInvariant": {
+    "databaseCountBefore": 167,
+    "databaseCountAfter": 167,
+    "effectiveRateApiCount": 167,
+    "mismatchCount": 0,
+    "sha256": "1f996c7501c29c5ecee052d530c946604bec1ce1189d4e5b1733555568a47cf1"
+  },
+  "bundleImpact": {
+    "commercialSetsWithOnlyNonDefaultComponents": 72,
+    "nonDefaultComponentRows": 137,
+    "estimateDocumentRefs": 0,
+    "orderDocumentRefs": 0,
+    "salesSlipDocumentRefs": 2,
+    "salesSlipLineRefs": 3,
+    "oldExpandedTotal": "1011452502.5000",
+    "headExpandedTotal": "0",
+    "delta": "1011452502.5000",
+    "actualUserPaths": {
+      "estimate": "AM220AXVHHR1SY save 404",
+      "salesSlip": "AM220AXVHHR1SY expand 200 with empty data and 0 won",
+      "order": "AM260AXVHHH1SY parent plus 3 accessories, confirm 200, total 24687200",
+      "orderUsesBundleExpander": false
+    }
+  },
+  "classificationUi": {
+    "tree": "실내기 > 1-Way WIFI > 소형",
+    "priorityObserved": ["S", "M", "L", "NONE"],
+    "sourceLabelsObserved": ["PRODUCT", "S", "M", "L", "NONE"],
+    "clearResponseRate": null,
+    "fixedRateRowsAfterCleanup": 0
+  },
+  "migration": {
+    "mainV35EqualsBranchV35": true,
+    "isolatedApplyV35V36": "success",
+    "rollbackMethod": "manual drop constraint, drop column, delete V36 flyway row",
+    "columnCountAfterRollback": 0,
+    "latestVersionAfterRollback": "35",
+    "productFixedDiscountCountAfterRollback": 167,
+    "productFixedDiscountMd5BeforeAndAfter": "a85b2505ae31ac4a588a257f6ed75775",
+    "officialDownMigrationPresent": false
+  },
+  "evidenceIntegrity": {
+    "headChecksRanOn": "isolated real-data clones at f829946fc",
+    "sharedProductAtStartWasHead": false,
+    "sharedStackRestartedOrRedeployedByThisReview": false,
+    "sharedPostgresAndProductChangedByAnotherTrackDuringQa": true,
+    "earlySharedQaAuthProbes": "QA account login/status only; no business document write; excluded from successful evidence",
+    "successfulBusinessWrites": "isolated clones only",
+    "excludedRuns": [
+      "failed template clone with active connections",
+      "PowerShell-piped dump with corrupted Korean indexes",
+      "proxy route without path stripping",
+      "zero-actor sales request",
+      "invalid-partner discount probe",
+      "order bootstrap with empty service registry/cache",
+      "order confirm before isolated internal-token alignment"
+    ],
+    "uuidEvidenceRedacted": true
+  }
+}

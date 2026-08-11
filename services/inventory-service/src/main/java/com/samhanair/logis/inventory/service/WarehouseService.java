@@ -35,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class WarehouseService {
 
+    private static final String UNKNOWN_ACTOR_NAME = "변경자 미상";
+
     private final WarehouseRepository warehouseRepository;
     /** 4b 후속 — 창고 변경 이력 audit overlay 기록 / 조회. */
     private final InventoryAuditLogRecorder auditLogRecorder;
@@ -147,10 +149,12 @@ public class WarehouseService {
      * @param id 창고 UUID
      * @param req UpdateWarehouseRequest (name/type/address/displayOrder/description, 모두 null 가능)
      * @param callerId 수정자 user-id ('X-User-Id' 헤더 — null/blank 시 system sentinel)
+     * @param callerName 수정자 표시명 ('X-User-Name' 헤더 — URL decode 후 전달)
      * @return 갱신된 창고 응답
      * @throws BusinessException(NOT_FOUND) 창고 미발견
      */
-    public WarehouseResponse update(UUID id, UpdateWarehouseRequest req, String callerId) {
+    public WarehouseResponse update(UUID id, UpdateWarehouseRequest req,
+                                    String callerId, String callerName) {
         Warehouse w = loadOrThrow(id);
         List<ChangeEntry> changes = new ArrayList<>();
         if (req.name() != null && !Objects.equals(req.name(), w.getName())) {
@@ -177,8 +181,13 @@ public class WarehouseService {
             changes.add(new ChangeEntry("description", w.getDescription(), req.description()));
             w.editDescription(req.description());
         }
-        recordAuditSafe(id, callerId, changes);
+        recordAuditSafe(id, callerId, callerName, changes);
         return WarehouseResponse.from(w);
+    }
+
+    /** 기존 호출 호환 — 표시명 미공급 시 UUID를 actorName으로 복사하지 않는다. */
+    public WarehouseResponse update(UUID id, UpdateWarehouseRequest req, String callerId) {
+        return update(id, req, callerId, null);
     }
 
     /**
@@ -195,13 +204,19 @@ public class WarehouseService {
      *
      * @param id 창고 UUID
      * @param callerId 삭제자 user-id (null 이면 "system")
+     * @param callerName 삭제자 표시명 ('X-User-Name' 헤더 — URL decode 후 전달)
      * @throws BusinessException(NOT_FOUND) 창고 미발견
      */
-    public void delete(UUID id, String callerId) {
+    public void delete(UUID id, String callerId, String callerName) {
         Warehouse w = loadOrThrow(id);
         w.markDeleted(callerId == null ? "system" : callerId);
-        recordAuditSafe(id, callerId,
+        recordAuditSafe(id, callerId, callerName,
                 List.of(new ChangeEntry("isDeleted", "false", "true")));
+    }
+
+    /** 기존 호출 호환 — 표시명 미공급 시 UUID를 actorName으로 복사하지 않는다. */
+    public void delete(UUID id, String callerId) {
+        delete(id, callerId, null);
     }
 
     /**
@@ -215,11 +230,12 @@ public class WarehouseService {
      *
      * @param id 창고 UUID
      * @param callerId 복구자 user-id ('X-User-Id' 헤더 — null/blank 시 system sentinel)
+     * @param callerName 복구자 표시명 ('X-User-Name' 헤더 — URL decode 후 전달)
      * @return 복구된 창고 응답
      * @throws BusinessException(NOT_FOUND) 비활성화된 창고 미발견
      * @throws BusinessException(CONFLICT) 동일 code 의 활성 창고가 이미 존재
      */
-    public WarehouseResponse restore(UUID id, String callerId) {
+    public WarehouseResponse restore(UUID id, String callerId, String callerName) {
         Warehouse w = warehouseRepository.findDeletedById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "비활성화된 창고를 찾을 수 없습니다"));
@@ -228,9 +244,14 @@ public class WarehouseService {
                     "동일 코드의 활성 창고가 이미 존재합니다: " + w.getCode());
         }
         w.markRestored();
-        recordAuditSafe(id, callerId,
+        recordAuditSafe(id, callerId, callerName,
                 List.of(new ChangeEntry("isDeleted", "true", "false")));
         return WarehouseResponse.from(w);
+    }
+
+    /** 기존 호출 호환 — 표시명 미공급 시 UUID를 actorName으로 복사하지 않는다. */
+    public WarehouseResponse restore(UUID id, String callerId) {
+        return restore(id, callerId, null);
     }
 
     /**
@@ -265,7 +286,8 @@ public class WarehouseService {
      * @throws BusinessException(NOT_FOUND) 창고 또는 해당 revision 미존재
      * @throws BusinessException(INVALID_INPUT) targetRevisionNo &lt; 1 또는 isDeleted revert 시도
      */
-    public WarehouseResponse revertToRevision(UUID id, int targetRevisionNo, String callerId) {
+    public WarehouseResponse revertToRevision(UUID id, int targetRevisionNo,
+                                              String callerId, String callerName) {
         if (targetRevisionNo < 1) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "targetRevisionNo 는 1 이상이어야 합니다: " + targetRevisionNo);
@@ -287,8 +309,13 @@ public class WarehouseService {
             applyWarehouseField(w, fieldName, restoreTo);
             revertedChanges.add(new ChangeEntry(fieldName, currentValue, restoreTo));
         }
-        recordAuditSafe(id, callerId, revertedChanges);
+        recordAuditSafe(id, callerId, callerName, revertedChanges);
         return WarehouseResponse.from(w);
+    }
+
+    /** 기존 호출 호환 — 표시명 미공급 시 UUID를 actorName으로 복사하지 않는다. */
+    public WarehouseResponse revertToRevision(UUID id, int targetRevisionNo, String callerId) {
+        return revertToRevision(id, targetRevisionNo, callerId, null);
     }
 
     private static String readWarehouseField(Warehouse w, String fieldName) {
@@ -343,18 +370,28 @@ public class WarehouseService {
     }
 
     /** ChangeEntry 가 비어있으면 no-op. audit 실패는 graceful fallback (도메인 진행). */
-    private void recordAuditSafe(UUID warehouseId, String callerId, List<ChangeEntry> changes) {
+    private void recordAuditSafe(UUID warehouseId, String callerId,
+                                 String callerName, List<ChangeEntry> changes) {
         if (changes == null || changes.isEmpty()) {
             return;
         }
         UUID actorId = parseCallerUuid(callerId);
-        String actorName = (callerId == null || callerId.isBlank()) ? "system" : callerId;
+        String actorName = resolveActorName(actorId, callerName);
         try {
             auditLogRecorder.recordBatch(warehouseId, actorId, actorName, null, changes);
         } catch (RuntimeException ex) {
             log.warn("[warehouse-audit] audit 기록 실패 — warehouseId={} cause={}",
                     warehouseId, ex.getMessage());
         }
+    }
+
+    /** system sentinel은 system으로, 이름이 없는 호출자는 감사 계약용 fallback으로 기록한다.
+     * 그 외 actor 이름은 표시 층에서 처리할 수 있도록 입력 원문을 그대로 보존한다. */
+    private static String resolveActorName(UUID actorId, String callerName) {
+        if (actorId.equals(new UUID(0L, 0L))) {
+            return "system";
+        }
+        return callerName == null || callerName.isBlank() ? UNKNOWN_ACTOR_NAME : callerName;
     }
 
     /** X-User-Id 헤더가 UUID 형식이면 그대로, 아니면 system sentinel (0/0). */

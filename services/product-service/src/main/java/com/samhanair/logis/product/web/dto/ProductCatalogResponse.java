@@ -65,7 +65,8 @@ public record ProductCatalogResponse(
         String discountFlags,
         ProductType productType,
         int componentCount,
-        String componentSetToken
+        String componentSetToken,
+        String fixedDiscountSource
 ) {
     /**
      * {@link Product} → 카탈로그 응답 변환 (componentCount=0 기본).
@@ -112,7 +113,7 @@ public record ProductCatalogResponse(
                 QuantitySyncRuleValidator.isValidTargetRole(
                         p.getCatL() == null ? null : p.getCatL().getName(),
                         p.getGoodsType() == null ? null : p.getGoodsType().name()),
-                p.getFixedDiscountRate(),
+                p.resolveFixedDiscount().rate(),
                 Boolean.TRUE.equals(p.getHasVariableDiscount()),
                 p.isVariableDiscountManual(),
                 Boolean.TRUE.equals(p.getLegacyDiscountFlag()),
@@ -120,7 +121,8 @@ public record ProductCatalogResponse(
                 p.getDiscountFlags(),
                 p.getProductType(),
                 0,
-                null
+                null,
+                p.resolveFixedDiscount().source().name()
         );
     }
 
@@ -139,7 +141,7 @@ public record ProductCatalogResponse(
                 productCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
                 releasePrice, deliveryPrice, goodsType, quantitySyncTargetEligible, fixedDiscountRate,
                 hasVariableDiscount, variableDiscountManual, legacyDiscountFlag, status, discountFlags,
-                productType, count, token
+                productType, count, token, fixedDiscountSource
         );
     }
 

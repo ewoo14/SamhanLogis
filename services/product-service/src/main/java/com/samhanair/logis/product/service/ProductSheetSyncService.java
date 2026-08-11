@@ -346,6 +346,9 @@ public class ProductSheetSyncService {
         Set<UUID> lockedParents = new HashSet<>();
         // 부모 Product.id → 이미 BUNDLE 마킹했는지(중복 마킹 회피).
         Set<UUID> markedBundles = new HashSet<>();
+        // 부모 Product.id → rollback되지 않은 V37 시트 관리 정책 여부.
+        // 감사 당시 구성품 UUID가 아니라 부모 단위로 판정해 신규·교체 행도 같은 정책을 따른다.
+        Map<UUID, Boolean> v37ManagedParents = new HashMap<>();
 
         // 외부 Sheets read는 잠금 밖에서 끝낸다. 이후 graph mutation 전체는
         // rule CRUD와 동일한 advisory lock 아래에서 세대 확인과 함께 수행한다.
@@ -397,8 +400,6 @@ public class ProductSheetSyncService {
                     && child.getProductCategory() == ProductCategory.COMMERCIAL_MULTI) {
                 kind = BundleComponent.ComponentKind.OUTDOOR;
             }
-            boolean isDefault = (variant + " " + kindRaw).contains("기본");
-
             QtyAndMode qm = resolveQty(mapping.hasQtyColumn, qtyRaw);
 
             // ① 부모 BUNDLE 마킹(중복 회피).
@@ -408,6 +409,10 @@ public class ProductSheetSyncService {
             BundleComponent match = existing.stream()
                     .filter(b -> b.getComponentProductCode().equals(childModel))
                     .findFirst().orElse(null);
+            boolean v37Managed = v37ManagedParents.computeIfAbsent(parent.getId(),
+                    bundleComponentRepository::isActiveDefaultBackfillBundle);
+            boolean isDefault = (variant + " " + kindRaw).contains("기본")
+                    || v37Managed;
             if (match == null) {
                 // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] 계열 sweep (I-3) — 신규 (부모,자식)
                 // 링크만 검사한다(기존 match 갱신은 구성품 집합 자체를 바꾸지 않으므로 대상

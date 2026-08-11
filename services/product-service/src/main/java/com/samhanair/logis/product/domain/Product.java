@@ -48,6 +48,19 @@ import org.hibernate.type.SqlTypes;
 @SQLRestriction("is_deleted = false")
 public class Product extends BaseEntity {
 
+    /** 유효 정액DC율의 적용 출처. */
+    public enum FixedDiscountSource {
+        PRODUCT,
+        S,
+        M,
+        L,
+        NONE
+    }
+
+    /** 정액DC율과 그 적용 출처를 함께 반환한다. */
+    public record FixedDiscountResolution(BigDecimal rate, FixedDiscountSource source) {
+    }
+
     @Id
     @GeneratedValue
     @UuidGenerator
@@ -626,6 +639,28 @@ public class Product extends BaseEntity {
     public void markFixedDiscountManual(BigDecimal fixedDiscountRate) {
         changeFixedDiscountRate(fixedDiscountRate);
         this.fixedDiscountManual = true;
+    }
+
+    /**
+     * 품목별 수동값을 우선하고, 이후 S > M > L 순으로 유효 정액DC율을 계산한다.
+     * 분류 정책이 모두 비어 있으면 기존 품목값을 그대로 사용한다.
+     */
+    public FixedDiscountResolution resolveFixedDiscount() {
+        if (fixedDiscountManual) {
+            return new FixedDiscountResolution(fixedDiscountRate, FixedDiscountSource.PRODUCT);
+        }
+        if (catS != null && catS.getFixedDiscountRate() != null) {
+            return new FixedDiscountResolution(catS.getFixedDiscountRate(), FixedDiscountSource.S);
+        }
+        if (catM != null && catM.getFixedDiscountRate() != null) {
+            return new FixedDiscountResolution(catM.getFixedDiscountRate(), FixedDiscountSource.M);
+        }
+        if (catL != null && catL.getFixedDiscountRate() != null) {
+            return new FixedDiscountResolution(catL.getFixedDiscountRate(), FixedDiscountSource.L);
+        }
+        return new FixedDiscountResolution(
+                fixedDiscountRate,
+                fixedDiscountRate == null ? FixedDiscountSource.NONE : FixedDiscountSource.PRODUCT);
     }
 
     /** F1.5 품목 attribute 갱신. blank 는 null 로 정규화한다. */

@@ -107,7 +107,7 @@ public record ProductResponse(
                 p.getUnit(),
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
-                p.getFixedDiscountRate(),
+                p.resolveFixedDiscount().rate(),
                 p.getGoodsType(),
                 p.getUsageScope(),
                 null,

@@ -1,0 +1,20 @@
+{
+  "head": "f829946fc",
+  "modelCode": "AJ012BN1PBC2",
+  "partner": "이앤공조-정종출",
+  "precondition": {
+    "partnerProductPriceMemoryCount": 0
+  },
+  "product": {
+    "fixedDiscountSource": "S",
+    "fixedDiscountRate": 15,
+    "sellingPrice": 495000
+  },
+  "expectedFromClassification": 420750,
+  "estimate": {
+    "displayed": 495000,
+    "status": 201,
+    "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"<redacted-uuid>\",\"estimateNo\":\"2026/08/10-13\",\"estimateDate\":\"2026-08-10\",\"seqNo\":13,\"status\":\"QUOTE_DRAFT\",\"partnerId\":\"<redacted-uuid>\",\"partnerName\":\"이앤공조-정종출\",\"partnerBusinessNo\":\"2290664626\",\"partnerAddress\":null,\"validUntil\":\"2026-09-09\",\"totalSupply\":450000.00,\"totalVat\":45000.00,\"totalAmount\":495000.00,\"convertedSlipId\":null,\"sentAt\":null,\"acceptedAt\":null,\"rejectedAt\":null,\"convertedAt\":null,\"memo\":\"SOL1132 R1 clean-partner S=15 estimate throwaway\",\"requesterId\":\"<redacted-uuid>\",\"version\":0,\"isDeleted\":false,\"deletedAt\":null,\"deletedByName\":null,\"lines\":[{\"id\":\"<redacted-uuid>\",\"lineNo\":1,\"productId\":\"<redacted-uuid>\",\"productName\":\"실내기(1-Way) 무풍 소형 WIFI 내장 3평형\",\"modelName\":\"AJ012BN1PBC2\",\"specification\":\"소형 내장형\",\"specificationSource\":\"CATALOG\",\"quantity\":1,\"unitPrice\":450000.00,\"supplyAmount\":450000.00,\"vatAmount\":45000.00,\"lineTotal\":495000.00,\"note\":null,\"unitPriceWithVat\":495000.00,\"setHead\":false,\"parentSetModel\":null,\"setOptions\":null}]},\"timestamp\":\"2026-08-10T14:28:54.634850800Z\"}",
+    "screenshot": "docs/qa/2026-08-10-1132-sol-r1/screenshots/17-class-s-estimate-clean-partner.png"
+  }
+}

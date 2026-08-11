@@ -8,6 +8,7 @@ import {
   extractQuantitySyncRuleKeys,
   resolveQuantitySyncRuleEditTarget,
   VariableDiscountCell,
+  FixedDiscountCell,
   type EstimateItemsCatalogSuccessEffects,
 } from './EstimateItemsCatalogPage'
 import type { ProductCatalogRow } from '../api/productCatalogApi'
@@ -129,6 +130,22 @@ describe('VariableDiscountCell', () => {
     expect(visibleText).not.toContain('변동DC')
     expect(markup).toContain('aria-label="변동DC"')
     expect(markup).toContain('title="변동DC: 전역할인율 영향 없이 기초 납품가 그대로 표시"')
+  })
+})
+
+describe('FixedDiscountCell 적용 출처', () => {
+  it('유효 정액DC율의 출처를 화면에 표시한다', () => {
+    const markup = renderToStaticMarkup(
+      createElement(FixedDiscountCell, {
+        row: { ...variableDiscountRow, fixedDiscountRate: 15, fixedDiscountSource: 'S' },
+        canEdit: false,
+        patchLoading: false,
+        onFixedDiscountPatch: vi.fn(),
+      }),
+    )
+
+    expect(markup).toContain('data-testid="estimate-items-fixed-dc-source-AC-VDC-1000"')
+    expect(markup).toContain('>S</span>')
   })
 })
 

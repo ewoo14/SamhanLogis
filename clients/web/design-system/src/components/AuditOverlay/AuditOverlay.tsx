@@ -38,6 +38,7 @@
  */
 import { useMemo, useState } from 'react'
 import { userIdToColor } from '../../utils/userColorHash'
+import { normalizeActorName } from '../../utils/actorName'
 import styles from './AuditOverlay.module.css'
 
 /** 한 revision 변경의 audit 레코드 — BE {@code SlipAuditLogResponse} 와 1:1. */
@@ -48,8 +49,8 @@ export interface AuditLogEntry {
   beforeValue: string | null
   /** 변경자 UUID — userIdToColor 입력 전용. 화면 텍스트 노출 금지. */
   actorId: string
-  /** 변경자 풀네임 — 화면 표시. */
-  actorName: string
+  /** 변경자 풀네임 — 화면 표시. 감사 데이터가 없으면 null. */
+  actorName: string | null
   /** 변경 시각 ISO-8601. */
   changedAt: string
 }
@@ -96,14 +97,15 @@ function normalizeUuid(value: string | null | undefined): string | null {
   return trimmed.toLowerCase()
 }
 
-/** API 경계 밖에서 직접 주입된 legacy audit row 도 actorId와 같은 UUID만 사용자 텍스트로 내보낸다. */
-function displayActorName(actorName: string, actorId: string): string {
-  const actorUuid = normalizeUuid(actorName)
+/** 정규화 후 actorId와 같은 UUID만 사용자 텍스트에서 숨긴다. */
+function displayActorName(actorName: string | null | undefined, actorId: string): string {
+  const normalizedActorName = normalizeActorName(actorName)
+  const actorUuid = normalizeUuid(normalizedActorName)
   const rowActorUuid = normalizeUuid(actorId)
-  if (!actorName || !actorName.trim() || (actorUuid !== null && actorUuid === rowActorUuid)) {
+  if (!normalizedActorName || (actorUuid !== null && actorUuid === rowActorUuid)) {
     return UNKNOWN_ACTOR_NAME
   }
-  return actorName
+  return normalizedActorName
 }
 
 /**

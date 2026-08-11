@@ -108,6 +108,8 @@ export interface ProductCatalogRow {
   quantitySyncTargetEligible?: boolean
   /** 고정DC율(%) */
   fixedDiscountRate?: number | string | null
+  /** 고정DC율 적용 출처: PRODUCT/S/M/L/NONE */
+  fixedDiscountSource?: 'PRODUCT' | 'S' | 'M' | 'L' | 'NONE' | string | null
   /** 변동DC 적용 여부 */
   hasVariableDiscount: boolean
   /** 변동DC 수동 override 여부 — true 이면 시트 sync 가 덮어쓰지 않는다. */
@@ -138,6 +140,7 @@ export interface Classification {
   name: string
   displayOrder: number
   active: boolean
+  fixedDiscountRate?: number | string | null
 }
 
 /** POST /api/v1/classifications 요청 */
@@ -156,6 +159,11 @@ export interface UpdateClassificationRequest {
   name?: string | null
   displayOrder?: number | null
   active?: boolean | null
+}
+
+/** `PATCH /api/v1/classifications/{id}/fixed-discount` 요청 */
+export interface UpdateClassificationFixedDiscountRequest {
+  fixedDiscountRate: string | null
 }
 
 /** 카테고리 트리 노드 — BE CategoryResponse record 와 1:1 대응 */
@@ -608,6 +616,19 @@ export async function updateClassification(
 ): Promise<Classification> {
   const res = await apiClient.patch<Classification>(
     `/api/v1/classifications/${encodeURIComponent(id)}`,
+    req,
+  )
+  return res.data
+}
+
+/** 분류 단계별 정액DC율 수정 — null/빈 값은 해당 단계 정책 해제. */
+export async function updateClassificationFixedDiscount(
+  id: string,
+  fixedDiscountRate: string | null,
+): Promise<Classification> {
+  const req: UpdateClassificationFixedDiscountRequest = { fixedDiscountRate }
+  const res = await apiClient.patch<Classification>(
+    `/api/v1/classifications/${encodeURIComponent(id)}/fixed-discount`,
     req,
   )
   return res.data
