@@ -4,6 +4,7 @@ import { Badge, Button, Card, Spinner } from '@samhan/design-system'
 import { confirmSalesCommissionSettlement, getSalesCommissionSettlement } from '../api/accounting'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { getReturnTo } from '../utils/returnContract'
 
 const PAGE_CODE = 'accounting.sales-commission-settlement'
 const LIST_PATH = '/accounting/sales-commission-settlements'
@@ -52,10 +53,11 @@ export function SalesCommissionSettlementDetailPage() {
 
   const settlement = query.data
   const isDraft = settlement.status === 'DRAFT'
-  const returnTo = typeof location.state === 'object' && location.state !== null
-    && 'returnTo' in location.state && typeof location.state.returnTo === 'string'
-    ? location.state.returnTo
-    : LIST_PATH
+  const returnTo = getReturnTo(location.state, { pathname: LIST_PATH, search: '' })
+  const returnEntryKey = location.state && typeof location.state === 'object'
+    ? (location.state as { returnEntryKey?: unknown }).returnEntryKey
+    : undefined
+  const hasReturnEntry = typeof returnEntryKey === 'string' && returnEntryKey.length > 0
 
   return (
     <Card>
@@ -70,7 +72,12 @@ export function SalesCommissionSettlementDetailPage() {
           </p>
         </div>
         <div className="detail-action-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button type="button" variant="ghost" onClick={() => navigate(returnTo)} data-testid="sales-commission-settlement-back">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => hasReturnEntry ? navigate(-1) : navigate(returnTo, { replace: true })}
+            data-testid="sales-commission-settlement-back"
+          >
             뒤로 가기
           </Button>
           {isDraft && canAccess(PAGE_CODE, 'update') ? (

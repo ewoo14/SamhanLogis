@@ -31,7 +31,7 @@ WITH roles(role_code) AS (
 ), grants(role_code, can_view, can_create, can_update) AS (
     VALUES ('MASTER', TRUE, TRUE, TRUE),
            ('MANAGER', TRUE, TRUE, TRUE),
-           ('ACCOUNTANT', TRUE, TRUE, TRUE)
+            ('ACCOUNTANT', TRUE, TRUE, TRUE)
 )
 INSERT INTO role_page_permission_templates
     (id, role_code, page_code, can_view, can_create, can_update, can_delete,

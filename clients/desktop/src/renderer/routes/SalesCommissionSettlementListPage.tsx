@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Card, DataTable, type DataTableColumn } from '@samhan/design-system'
 import {
   createSalesCommissionSettlement,
@@ -9,6 +9,7 @@ import {
 } from '../api/accounting'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { getScrollAnchor, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 
 const PAGE_CODE = 'accounting.sales-commission-settlement'
 const LIST_PATH = '/accounting/sales-commission-settlements'
@@ -26,12 +27,22 @@ const amountLabel = (value: string | null): string => {
 
 export function SalesCommissionSettlementListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [settlementDate, setSettlementDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [formError, setFormError] = useState('')
 
   usePageTitle('영업수수료 정산')
+
+  const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+
+  useEffect(() => {
+    const anchor = getScrollAnchor(location.key)
+    if (anchor == null) return
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [location.key])
 
   const query = useQuery({
     queryKey: ['accounting', 'sales-commission-settlements'],
@@ -54,16 +65,18 @@ export function SalesCommissionSettlementListPage() {
       width: '180px',
       mobilePriority: 'primary',
       render: (row) => {
-        if (!row.documentNo) return '문서번호 없음'
+        const linkLabel = row.documentNo ?? `${STATUS_LABEL[row.status] ?? row.status} · ${row.settlementDate}`
         return (
-          <button
-            type="button"
-            onClick={() => navigate(`${LIST_PATH}/${row.id}`)}
-            style={{ border: 0, padding: 0, background: 'transparent', color: 'var(--color-primary-700, #1D4ED8)', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}
-            data-testid={`sales-commission-settlement-document-${row.documentNo}`}
+          <Link
+            to={`${LIST_PATH}/${row.id}`}
+            state={{ returnTo, returnEntryKey: location.key }}
+            onClick={() => saveScrollAnchor(location.key)}
+            aria-label={`${linkLabel} 상세 보기`}
+            style={{ fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}
+            data-testid={`sales-commission-settlement-document-${row.documentNo ?? `draft-${row.settlementDate}`}`}
           >
-            {row.documentNo}
-          </button>
+            {linkLabel}
+          </Link>
         )
       },
     },
