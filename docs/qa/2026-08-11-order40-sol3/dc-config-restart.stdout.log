@@ -1,0 +1,56 @@
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-08-11T21:14:10.900+09:00  INFO 45296 --- [dc-config-service] [           main] c.s.l.d.DcConfigServiceApplication       : Starting DcConfigServiceApplication v0.1.0-SNAPSHOT using Java 17.0.18 with PID 45296 (C:\dev\Samhan-Public\.claude\worktrees\wdg2\services\dc-config-service\build\libs\dc-config-service.jar started by user in C:\dev\Samhan-Public\.claude\worktrees\wdg2)
+2026-08-11T21:14:10.906+09:00  INFO 45296 --- [dc-config-service] [           main] c.s.l.d.DcConfigServiceApplication       : No active profile set, falling back to 1 default profile: "default"
+2026-08-11T21:14:13.036+09:00  INFO 45296 --- [dc-config-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-08-11T21:14:13.210+09:00  INFO 45296 --- [dc-config-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 164 ms. Found 7 JPA repository interfaces.
+2026-08-11T21:14:13.573+09:00  INFO 45296 --- [dc-config-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=1cfce5a5-88ec-3adb-a714-b36c4d9cb51b
+2026-08-11T21:14:14.409+09:00  WARN 45296 --- [dc-config-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig' of type [org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [lbRestClientPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-11T21:14:14.416+09:00  WARN 45296 --- [dc-config-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'deferringLoadBalancerInterceptor' of type [org.springframework.cloud.client.loadbalancer.DeferringLoadBalancerInterceptor] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [lbRestClientPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-11T21:14:15.273+09:00  INFO 45296 --- [dc-config-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 28085 (http)
+2026-08-11T21:14:15.287+09:00  INFO 45296 --- [dc-config-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-11T21:14:15.287+09:00  INFO 45296 --- [dc-config-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.31]
+2026-08-11T21:14:15.340+09:00  INFO 45296 --- [dc-config-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-08-11T21:14:15.341+09:00  INFO 45296 --- [dc-config-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 4363 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2026-08-11T21:14:16.229+09:00  INFO 45296 --- [dc-config-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-08-11T21:14:16.461+09:00  INFO 45296 --- [dc-config-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@6a6a2fdd
+2026-08-11T21:14:16.464+09:00  INFO 45296 --- [dc-config-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-08-11T21:14:16.534+09:00  INFO 45296 --- [dc-config-service] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://127.0.0.1:55432/dc_config_db (PostgreSQL 16.14)
+2026-08-11T21:14:16.648+09:00  INFO 45296 --- [dc-config-service] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 5 migrations (execution time 00:00.075s)
+2026-08-11T21:14:16.673+09:00  INFO 45296 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 5
+2026-08-11T21:14:16.680+09:00  INFO 45296 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+2026-08-11T21:14:16.841+09:00  INFO 45296 --- [dc-config-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-08-11T21:14:16.899+09:00  INFO 45296 --- [dc-config-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-08-11T21:14:16.927+09:00  INFO 45296 --- [dc-config-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-08-11T21:14:17.160+09:00  INFO 45296 --- [dc-config-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-08-11T21:14:17.201+09:00  WARN 45296 --- [dc-config-service] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-08-11T21:14:18.106+09:00  INFO 45296 --- [dc-config-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-08-11T21:14:18.139+09:00  INFO 45296 --- [dc-config-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-08-11T21:14:18.527+09:00  INFO 45296 --- [dc-config-service] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-08-11T21:14:19.992+09:00  WARN 45296 --- [dc-config-service] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 16906177-6a79-466d-9180-3e1a3c6d73a5
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-08-11T21:14:20.013+09:00  INFO 45296 --- [dc-config-service] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-08-11T21:14:20.657+09:00  INFO 45296 --- [dc-config-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 3 endpoints beneath base path '/actuator'
+2026-08-11T21:14:22.954+09:00  INFO 45296 --- [dc-config-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-11T21:14:22.968+09:00  INFO 45296 --- [dc-config-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-08-11T21:14:23.019+09:00  WARN 45296 --- [dc-config-service] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-08-11T21:14:23.087+09:00  INFO 45296 --- [dc-config-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 28085 (http) with context path '/'
+2026-08-11T21:14:24.511+09:00  INFO 45296 --- [dc-config-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-11T21:14:24.527+09:00  INFO 45296 --- [dc-config-service] [           main] c.s.l.d.DcConfigServiceApplication       : Started DcConfigServiceApplication in 15.781 seconds (process running for 16.646)
+2026-08-11T21:14:27.590+09:00  INFO 45296 --- [dc-config-service] [io-28085-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-11T21:14:27.591+09:00  INFO 45296 --- [dc-config-service] [io-28085-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-11T21:14:27.592+09:00  INFO 45296 --- [dc-config-service] [io-28085-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
