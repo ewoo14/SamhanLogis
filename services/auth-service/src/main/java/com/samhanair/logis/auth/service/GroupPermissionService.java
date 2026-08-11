@@ -86,6 +86,15 @@ public class GroupPermissionService {
             UUID groupId,
             List<AccountPermissionService.AccountPermissionUpdate> updates,
             String isSystemMaster) {
+        return updateGroupMatrix(groupId, updates, isSystemMaster, null);
+    }
+
+    @Transactional
+    public int updateGroupMatrix(
+            UUID groupId,
+            List<AccountPermissionService.AccountPermissionUpdate> updates,
+            String isSystemMaster,
+            String actorId) {
         PermissionGroup group = permissionGroupService.requireGroup(groupId);
         rejectBuiltinMutation(group);
         if (updates == null || updates.isEmpty()) {
@@ -106,6 +115,7 @@ public class GroupPermissionService {
                     .findByGroupIdAndPageCodeAndIsDeletedFalse(groupId, entry.getKey())
                     .orElseGet(() -> GroupPagePermission.of(groupId, entry.getKey()));
             entry.getValue().applyTo(permission);
+            permission.setActorId(actorId);
             groupPagePermissionRepository.save(permission);
         }
         materializer.materializeForGroup(groupId);
@@ -148,13 +158,19 @@ public class GroupPermissionService {
      */
     @Transactional
     public DelegationMatrix updateDelegations(UUID groupId, DelegationUpdateRequest request, String isSystemMaster) {
+        return updateDelegations(groupId, request, isSystemMaster, null);
+    }
+
+    @Transactional
+    public DelegationMatrix updateDelegations(
+            UUID groupId, DelegationUpdateRequest request, String isSystemMaster, String actorId) {
         PermissionGroup group = permissionGroupService.requireGroup(groupId);
         rejectBuiltinMutation(group);
         requireMaster(isSystemMaster);
         DelegationUpdateRequest normalized = request == null ? DelegationUpdateRequest.none() : request;
-        upsertDelegation(groupId, PageCode.SYSTEM_PERMISSION_ADMIN.getCode(), normalized.permissionAdmin());
-        upsertDelegation(groupId, PageCode.HR_ROLE_MANAGEMENT.getCode(), normalized.hrRoleManagement());
-        upsertDelegation(groupId, PageCode.ADMIN_PERMISSION_GROUPS.getCode(), normalized.permissionGroups());
+        upsertDelegation(groupId, PageCode.SYSTEM_PERMISSION_ADMIN.getCode(), normalized.permissionAdmin(), actorId);
+        upsertDelegation(groupId, PageCode.HR_ROLE_MANAGEMENT.getCode(), normalized.hrRoleManagement(), actorId);
+        upsertDelegation(groupId, PageCode.ADMIN_PERMISSION_GROUPS.getCode(), normalized.permissionGroups(), actorId);
         materializer.materializeForGroup(groupId);
         return getDelegations(groupId);
     }
@@ -184,11 +200,12 @@ public class GroupPermissionService {
      * <p>회수는 all-false 활성 행을 남기지 않고 soft-delete 하여, 활성 관리 page-code 존재 여부를
      * 사용하는 배속 가드가 회수된 그룹을 일반 그룹으로 판정하게 한다.
      */
-    private void upsertDelegation(UUID groupId, String pageCode, boolean grant) {
+    private void upsertDelegation(UUID groupId, String pageCode, boolean grant, String actorId) {
         if (!grant) {
             groupPagePermissionRepository.findByGroupIdAndPageCodeAndIsDeletedFalse(groupId, pageCode)
                     .ifPresent(permission -> {
-                        permission.markDeleted(DELEGATION_ACTOR);
+                        permission.markDeleted(actorId == null ? DELEGATION_ACTOR : actorId);
+                        permission.setActorId(actorId);
                         groupPagePermissionRepository.save(permission);
                     });
             return;
@@ -198,6 +215,7 @@ public class GroupPermissionService {
                 .findByGroupIdAndPageCodeAndIsDeletedFalse(groupId, pageCode)
                 .orElseGet(() -> GroupPagePermission.of(groupId, pageCode));
         permission.setActions(true, false, true, false, false, false, false);
+        permission.setActorId(actorId);
         groupPagePermissionRepository.save(permission);
     }
 

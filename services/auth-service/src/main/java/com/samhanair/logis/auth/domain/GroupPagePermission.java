@@ -41,6 +41,9 @@ public class GroupPagePermission extends BaseEntity {
     @Column(name = "page_code", nullable = false, length = 100)
     private String pageCode;
 
+    @Column(name = "actor_id", length = 100)
+    private String actorId;
+
     @Column(name = "can_view", nullable = false)
     private boolean canView;
 
@@ -96,6 +99,11 @@ public class GroupPagePermission extends BaseEntity {
         this.canRestore = canRestore;
         this.canDownload = canDownload;
         this.canPrint = canPrint;
+        return this;
+    }
+
+    public GroupPagePermission setActorId(String actorId) {
+        this.actorId = actorId;
         return this;
     }
 }

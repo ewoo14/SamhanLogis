@@ -57,6 +57,10 @@ public class RolePagePermission extends BaseEntity {
     @Column(name = "page_code", nullable = false, length = 100)
     private String pageCode;
 
+    /** 화면 표시와 분리된 권한 변경 요청자 역추적 키. */
+    @Column(name = "actor_id", length = 100)
+    private String actorId;
+
     /**
      * 페이지 진입(조회) 가능 여부.
      * {@code false} = 메뉴 비활성화 + API 403.
@@ -161,6 +165,11 @@ public class RolePagePermission extends BaseEntity {
             this.canView = canView;
             this.canEdit = false;
         }
+        return this;
+    }
+
+    public RolePagePermission setActorId(String actorId) {
+        this.actorId = actorId;
         return this;
     }
 }

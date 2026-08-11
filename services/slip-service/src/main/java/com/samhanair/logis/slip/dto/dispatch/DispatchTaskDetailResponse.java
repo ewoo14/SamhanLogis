@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.dto.dispatch;
 
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
@@ -82,7 +83,7 @@ public record DispatchTaskDetailResponse(
                     group.getSequence(),
                     Boolean.TRUE.equals(group.getIsDeleted()),
                     group.getDeletedAt(),
-                    group.getDeletedByName(),
+                    ActorDisplayName.resolveNullable(null, group.getDeletedByName()),
                     slips
             );
         }
@@ -104,7 +105,7 @@ public record DispatchTaskDetailResponse(
                     mapping.getSequence(),
                     Boolean.TRUE.equals(mapping.getIsDeleted()),
                     mapping.getDeletedAt(),
-                    mapping.getDeletedByName(),
+                    ActorDisplayName.resolveNullable(null, mapping.getDeletedByName()),
                     SlipHeader.from(slip)
             );
         }

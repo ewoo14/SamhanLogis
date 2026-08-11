@@ -40,6 +40,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { resolveActorDisplayName } from '../utils/actorDisplayName';
 import {
   ActivityIndicator,
   Alert,
@@ -745,7 +746,7 @@ function CommentItem({ item, onDelete }: CommentItemProps): JSX.Element {
   return (
     <View style={styles.commentCard} testID={`slip-detail-comment-item-mobile-${item.id}`}>
       <View style={styles.commentHead}>
-        <Text style={styles.commentAuthor}>{item.authorFullName}</Text>
+        <Text style={styles.commentAuthor}>{resolveActorDisplayName(item.authorFullName) ?? '변경자 미상'}</Text>
         <Text style={badgeStyle('info')}>{item.authorRole}</Text>
         <Text style={styles.commentTime}>{time}</Text>
       </View>

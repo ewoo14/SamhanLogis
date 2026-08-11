@@ -30,6 +30,7 @@ import {
   Card,
   DataTable,
   AsyncAutocomplete,
+  safeActorName,
   Spinner,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -197,7 +198,7 @@ export function EstimateDetailPage() {
   const isLocked = e.status === 'QUOTE_CONVERTED' || e.status === 'QUOTE_REJECTED'
   const currentOwner = e.requesterId
     ? ownerDirectoryQuery.data?.find((user) => user.id === e.requesterId) ??
-      (e.requesterName ? { id: e.requesterId, displayName: e.requesterName } : null)
+      (e.requesterName ? { id: e.requesterId, displayName: safeActorName(e.requesterName) ?? '변경자 미상' } : null)
     : null
 
   const handleSend = () => {

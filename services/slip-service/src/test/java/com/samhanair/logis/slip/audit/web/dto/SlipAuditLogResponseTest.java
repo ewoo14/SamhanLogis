@@ -47,6 +47,25 @@ class SlipAuditLogResponseTest {
     }
 
     @Test
+    void from_hidesFormatWrappedAndUnicodeConfusableUuidActorName() {
+        SlipAuditLog log = SlipAuditLog.record(
+                UUID.randomUUID(), 1, ACTOR_ID,
+                "urn：uuid：ＣＡＦＥＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥＣＡＦＥＢＡＢＥ", null,
+                "memo", "이전", "이후");
+
+        assertThat(SlipAuditLogResponse.from(log).actorName()).isEqualTo("변경자 미상");
+    }
+
+    @Test
+    void from_localizesSystemActorName() {
+        SlipAuditLog log = SlipAuditLog.record(
+                UUID.randomUUID(), 1, ACTOR_ID, "system", null,
+                "memo", "이전", "이후");
+
+        assertThat(SlipAuditLogResponse.from(log).actorName()).isEqualTo("시스템");
+    }
+
+    @Test
     void from_preservesNormalActorName() {
         SlipAuditLog log = SlipAuditLog.record(
                 UUID.randomUUID(), 1, UUID.randomUUID(),
@@ -83,11 +102,11 @@ class SlipAuditLogResponseTest {
             "{cafebabecafebabecafebabecafebabe}",
             "urn:uuid:cafebabecafebabecafebabecafebabe"
     })
-    void from_preservesUuidShapedDisplayNameWhenItDiffersFromActorId(String actorName) {
+    void from_hidesAnyUuidShapedDisplayNameEvenWhenItDiffersFromActorId(String actorName) {
         SlipAuditLog log = SlipAuditLog.record(
                 UUID.randomUUID(), 1, ACTOR_ID, actorName, null,
                 "memo", "이전", "이후");
 
-        assertThat(SlipAuditLogResponse.from(log).actorName()).isEqualTo(actorName);
+        assertThat(SlipAuditLogResponse.from(log).actorName()).isEqualTo("변경자 미상");
     }
 }

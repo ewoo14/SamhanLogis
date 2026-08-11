@@ -7,6 +7,7 @@ import {
   Modal,
   type BadgeVariant,
 } from '@samhan/design-system'
+import { safeActorName } from '@samhan/design-system'
 import {
   ACCOUNTING_EDIT_REQUEST_TYPE_LABEL,
   approveAccountingEditRequest,
@@ -96,7 +97,7 @@ export function AccountingEditRequestsPage() {
     const typeLabel = ACCOUNTING_EDIT_REQUEST_TYPE_LABEL[req.requestType]
     if (
       !window.confirm(
-        `${req.requesterName}님의 ${typeLabel} 요청을 수락합니다.\n\n진행하시겠습니까?`,
+        `${safeActorName(req.requesterName) ?? '변경자 미상'}님의 ${typeLabel} 요청을 수락합니다.\n\n진행하시겠습니까?`,
       )
     ) {
       return
@@ -193,7 +194,7 @@ export function AccountingEditRequestsPage() {
                     key={req.id}
                     data-testid={`admin-accounting-edit-requests-row-${testIdSlice}`}
                   >
-                    <td>{req.requesterName}</td>
+                    <td>{safeActorName(req.requesterName) ?? '변경자 미상'}</td>
                     <td>
                       <Badge variant={TYPE_VARIANT[req.requestType]}>
                         {ACCOUNTING_EDIT_REQUEST_TYPE_LABEL[req.requestType]}
@@ -288,7 +289,7 @@ export function AccountingEditRequestsPage() {
         >
           {rejectTarget ? (
             <p style={{ margin: 0, fontSize: 13 }}>
-              {rejectTarget.requesterName}님의{' '}
+              {safeActorName(rejectTarget.requesterName) ?? '변경자 미상'}님의{' '}
               <strong>
                 {ACCOUNTING_EDIT_REQUEST_TYPE_LABEL[rejectTarget.requestType]}
               </strong>{' '}

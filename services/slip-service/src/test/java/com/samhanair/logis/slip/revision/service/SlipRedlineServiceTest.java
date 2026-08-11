@@ -97,7 +97,7 @@ class SlipRedlineServiceTest {
             "{cafebabecafebabecafebabecafebabe}",
             "urn:uuid:cafebabecafebabecafebabecafebabe"
     })
-    void computeRedline_preservesUuidShapedNameWhenItDiffersFromActorId(String actorName) throws Exception {
+    void computeRedline_hidesAnyUuidShapedNameWhenItDiffersFromActorId(String actorName) throws Exception {
         SlipRedlineResponse response = computeRedlineForActor(
                 actorName, UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
 
@@ -105,7 +105,7 @@ class SlipRedlineServiceTest {
                 .filter(field -> field.fieldPath().equals("header.memo"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(memo.layers().get(1).actorName()).isEqualTo(actorName);
+        assertThat(memo.layers().get(1).actorName()).isNull();
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult;
@@ -32,7 +33,6 @@ import com.samhanair.logis.slip.service.dispatchgroup.DispatchGroupSlipReference
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
-import com.samhanair.logis.slip.security.ActorNameSanitizer;
 import com.samhanair.logis.slip.web.dto.AddLineRequest;
 import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
@@ -814,10 +814,7 @@ public class SlipService {
         if (callerName == null || callerName.isBlank()) {
             return null;
         }
-        if (ActorNameSanitizer.representsActorId(callerName, parseActorId(callerId))) {
-            return null; // 해당 행의 actorId를 표현하는 UUID 직렬화 형태 → 비공개
-        }
-        return callerName;
+        return ActorDisplayName.resolveNullable(callerId, callerName);
     }
 
     /** audit row 는 actorName 이 필수이므로 이름 부재 시 UUID 대신 중립 표시명을 저장한다. */

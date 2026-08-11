@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.web.dto;
 
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
@@ -184,7 +185,7 @@ public record SlipResponse(
                 DeliverySchedule.scheduleLabel(slip.getSlipDate(), slip.getUnloadDate(), slip.getDeliveryTag()),
                 Boolean.TRUE.equals(slip.getIsDeleted()),
                 slip.getDeletedAt(),
-                slip.getDeletedByName());
+                ActorDisplayName.resolveNullable(null, slip.getDeletedByName()));
     }
 
     private static LocalDateTime updatedAtOf(Slip slip) {

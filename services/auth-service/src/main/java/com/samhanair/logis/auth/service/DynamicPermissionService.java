@@ -262,6 +262,7 @@ public class DynamicPermissionService {
         if (existing.isPresent()) {
             RolePagePermission perm = existing.get();
             perm.updatePermissions(request.canView(), request.canEdit());
+            perm.setActorId(actorId);
             saved = repository.save(perm);
             log.info("[SP-D1] 권한 갱신 — roleCode={} pageCode={} canView={} canEdit={} actorName={}",
                     request.roleCode(), request.pageCode(),
@@ -273,6 +274,7 @@ public class DynamicPermissionService {
             // canEdit=true 시 canView 자동 보장은 도메인 메서드에서 처리
             // create 이후 도메인 메서드로 재확인
             newPerm.updatePermissions(request.canView(), request.canEdit());
+            newPerm.setActorId(actorId);
             saved = repository.save(newPerm);
             log.info("[SP-D1] 권한 신규 등록 — roleCode={} pageCode={} canView={} canEdit={} actorName={}",
                     request.roleCode(), request.pageCode(),
@@ -356,6 +358,7 @@ public class DynamicPermissionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "권한 override 행을 찾을 수 없습니다: roleCode=" + roleCode + ", pageCode=" + pageCode));
         perm.markDeleted(actorId);
+        perm.setActorId(actorId);
         repository.save(perm);
         log.info("[SP-D1] 권한 override 삭제 — roleCode={} pageCode={} actorName={}",
                 roleCode, pageCode, ActorDisplayName.resolve(actorId, null));

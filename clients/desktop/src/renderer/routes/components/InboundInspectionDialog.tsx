@@ -34,6 +34,7 @@ import {
   Button,
   Input,
   Modal,
+  safeActorName,
   Spinner,
 } from '@samhan/design-system'
 import {
@@ -334,7 +335,7 @@ export function InboundInspectionDialog({
               </div>
               <div>
                 <span style={{ color: 'var(--color-neutral-500)', marginRight: 8 }}>검수자</span>
-                {detail.inspectorName ?? '—'}
+                {safeActorName(detail.inspectorName) ?? '—'}
               </div>
             </div>
 
@@ -751,7 +752,7 @@ function InspectionPhotoViewer({
               <MetaRow label="유형" value={ATTACHMENT_TYPE_LABEL[lightboxAttachment.attachmentType] ?? lightboxAttachment.attachmentType} />
               <MetaRow label="크기" value={formatBytes(lightboxAttachment.fileSize)} />
               <MetaRow label="촬영 시각" value={fmtDateKo(lightboxAttachment.capturedAt)} />
-              <MetaRow label="업로드" value={lightboxAttachment.uploadedBy} />
+              <MetaRow label="업로드" value={safeActorName(lightboxAttachment.uploadedBy) ?? '업로더 확인 필요'} />
               <MetaRow label="업로드 시각" value={fmtDateKo(lightboxAttachment.uploadedAt)} />
               {lightboxAttachment.exifGpsLat && lightboxAttachment.exifGpsLng ? (
                 <MetaRow

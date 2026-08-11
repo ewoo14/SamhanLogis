@@ -1132,21 +1132,18 @@ class SlipServiceTest {
     }
 
     @Test
-    void r17_different32CharacterHexDisplayNameRemainsVisibleAcrossAllWritePaths() {
-        assertDisplayNamePreservedAcrossAllWritePaths(
-                "cafebabecafebabecafebabecafebabe",
-                "550e8400-e29b-41d4-a716-446655440000");
+    void r17_different32CharacterHexDisplayNameIsHiddenAcrossAllWritePaths() {
+        assertActualUuidHiddenAcrossAllWritePaths(
+                "cafebabecafebabecafebabecafebabe");
     }
 
     @Test
-    void r17_differentBracedAndUrnDisplayNamesRemainVisibleAcrossAllWritePaths() {
-        assertDisplayNamePreservedAcrossAllWritePaths(
-                "{cafebabecafebabecafebabecafebabe}",
-                "550e8400-e29b-41d4-a716-446655440000");
+    void r17_differentBracedAndUrnDisplayNamesAreHiddenAcrossAllWritePaths() {
+        assertActualUuidHiddenAcrossAllWritePaths(
+                "{cafebabecafebabecafebabecafebabe}");
         clearInvocations(auditLogService, slipRevisionService);
-        assertDisplayNamePreservedAcrossAllWritePaths(
-                "urn:uuid:cafebabecafebabecafebabecafebabe",
-                "550e8400-e29b-41d4-a716-446655440000");
+        assertActualUuidHiddenAcrossAllWritePaths(
+                "urn:uuid:cafebabecafebabecafebabecafebabe");
     }
 
     private void assertActualUuidHiddenAcrossAllWritePaths(String callerName) {

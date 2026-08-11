@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
@@ -201,11 +202,6 @@ public class SlipDuplicateService {
         if (callerName == null || callerName.isBlank()) {
             return null;
         }
-        try {
-            UUID.fromString(callerName.trim());
-            return null;
-        } catch (IllegalArgumentException notUuid) {
-            return callerName;
-        }
+        return ActorDisplayName.resolveNullable(null, callerName);
     }
 }

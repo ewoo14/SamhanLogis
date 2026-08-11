@@ -25,6 +25,7 @@ import {
   Button,
   DataTable,
   JournalStatusBadge,
+  safeActorName,
   type DataTableColumn,
   type JournalStatus,
 } from '@samhan/design-system'
@@ -123,7 +124,7 @@ export function JournalListPage() {
       header: '작성자',
       width: '100px',
       mobilePriority: 'hidden',
-      render: (row) => row.createdByName ?? '—',
+      render: (row) => safeActorName(row.createdByName) ?? '—',
     },
   ]
 

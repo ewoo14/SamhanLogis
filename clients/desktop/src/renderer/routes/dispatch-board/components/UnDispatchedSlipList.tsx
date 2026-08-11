@@ -21,6 +21,7 @@
 import { useMemo, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { safeActorName } from '@samhan/design-system'
 import {
   SLIP_DISPATCH_STATUS_LABEL,
   SLIP_DISPATCH_STATUS_OPTIONS,
@@ -81,12 +82,16 @@ function nullableText(value: string | null | undefined): string {
   return value && value.trim() ? value : DASH
 }
 
+function nullableInspectorName(value: string | null | undefined): string {
+  return safeActorName(value) ?? DASH
+}
+
 /**
  * 미배차 row 의 보조 정보 셀. 검수 완료 게이트 이후 운영자가 확인해야 하는 필드를 한 곳에 모은다.
  */
 export function DispatchSlipSummaryCells({ slip }: { slip: SlipBoardResponse }) {
   const cells = [
-    ['검수자', nullableText(slip.inspectorName)],
+    ['검수자', nullableInspectorName(slip.inspectorName)],
     ['검수일시', formatInspectorSignedAtKst(slip.inspectorSignedAt)],
     ['배송지', nullableText(slip.deliveryAddress)],
     ['수령자', nullableText(slip.recipientPhone)],

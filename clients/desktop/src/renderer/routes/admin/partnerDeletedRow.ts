@@ -2,6 +2,7 @@
  * 거래처 삭제행(취소선) 공용 표시/파생 유틸 — E2.
  */
 import type { CSSProperties } from 'react'
+import { safeActorName } from '@samhan/design-system'
 
 /** 삭제행 텍스트 스타일 — 배차 취소선 표시와 동일 톤. */
 export const PARTNER_DELETED_ROW_TEXT_STYLE: CSSProperties = {
@@ -11,8 +12,8 @@ export const PARTNER_DELETED_ROW_TEXT_STYLE: CSSProperties = {
 
 /** 삭제자 배지 라벨. 표시명이 없으면 이름을 추정하지 않는다. */
 export function deletedBadgeLabel(deletedByName: string | null | undefined): string {
-  const trimmed = deletedByName?.trim()
-  return trimmed ? `삭제: ${trimmed}` : '삭제됨'
+  const displayName = safeActorName(deletedByName)
+  return displayName ? `삭제: ${displayName}` : '삭제됨'
 }
 
 /** 삭제 시각 툴팁 텍스트 (KST 로캘 표기). */

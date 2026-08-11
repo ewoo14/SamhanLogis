@@ -29,6 +29,7 @@
  * UUID 비공개 가드 — 본 컴포넌트는 status enum + 라벨만 표시. UUID 노출 X.
  */
 import { forwardRef } from 'react'
+import { safeActorName } from '../../utils/actorName'
 import styles from './ProgressBar.module.css'
 import type { SlipStatus } from '../SlipStatusBadge/SlipStatusBadge'
 
@@ -215,11 +216,12 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
                     aria-label={`${step.label} — ${stateLabel}`}
                     onClick={() => onStepClick?.(step.status)}
                     onKeyDown={(e) => handleNodeKey(e, step.status)}
-                    title={
-                      history?.find((h) => step.statuses.includes(h.status))?.actorFullName
-                        ? `${step.label} — ${history.find((h) => step.statuses.includes(h.status))?.actorFullName}`
-                        : step.label
-                    }
+                    title={(() => {
+                      const actorName = safeActorName(
+                        history?.find((h) => step.statuses.includes(h.status))?.actorFullName,
+                      )
+                      return actorName ? `${step.label} — ${actorName}` : step.label
+                    })()}
                   >
                     {state === 'done' || state === 'current' ? (
                       <span className={styles['nodeFilled']} aria-hidden="true" />

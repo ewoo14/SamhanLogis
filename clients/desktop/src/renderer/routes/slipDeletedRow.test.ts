@@ -7,6 +7,8 @@ import {
 describe('slipDeletedRow', () => {
   it('formats deleted slip badge with actor name only', () => {
     expect(deletedSlipBadgeLabel(' 김영업 ')).toBe('삭제: 김영업')
+    expect(deletedSlipBadgeLabel('\u2063cafebabe-cafe-babe-cafe-babecafebabe\u2063')).toBe('삭제됨')
+    expect(deletedSlipBadgeLabel('system')).toBe('삭제: 시스템')
   })
 
   it('does not guess a deleted actor name when it is absent', () => {

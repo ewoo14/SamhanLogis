@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.estimate.web.collab.dto;
 
 import com.samhanair.logis.collab.CollabCommentStatus;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabComment;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -25,7 +26,9 @@ public record EstimateCollabCommentResponse(
         return new EstimateCollabCommentResponse(
                 comment.getId(),
                 comment.getAnchor(),
-                comment.getAuthorName(),
+                ActorDisplayName.resolveNullable(
+                        comment.getAuthorId() == null ? null : comment.getAuthorId().toString(),
+                        comment.getAuthorName()),
                 comment.getBody(),
                 comment.getParentId(),
                 comment.getStatus(),

@@ -30,6 +30,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { SlipAuditLogResponse } from '../api/slipAudit';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 import { userIdToColor } from '../utils/userColorHash';
+import { resolveActorDisplayName } from '../utils/actorDisplayName';
 
 export interface AuditOverlayProps {
   /** 필드 식별자 (예: 'partnerName'). testID 접미사로도 사용. */
@@ -73,7 +74,7 @@ export default function AuditOverlay({ field, currentValue, history }: AuditOver
           </Text>
           <View style={[styles.actorDot, { backgroundColor: dotColor }]} />
           <Text style={styles.actor} testID={`audit-overlay-mobile-${field}-actor`}>
-            {latest.actorFullName} ({latest.actorRole})
+            {resolveActorDisplayName(latest.actorFullName) ?? '변경자 미상'} ({latest.actorRole})
           </Text>
           {moreCount > 0 ? (
             <Text style={styles.more} testID={`audit-overlay-mobile-${field}-more`}>

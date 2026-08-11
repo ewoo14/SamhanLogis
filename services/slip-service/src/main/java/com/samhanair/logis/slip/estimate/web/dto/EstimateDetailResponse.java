@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.estimate.web.dto;
 
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import java.math.BigDecimal;
@@ -61,7 +62,7 @@ public record EstimateDetailResponse(
                 estimate.getVersion(),
                 estimate.getIsDeleted(),
                 estimate.getDeletedAt(),
-                estimate.getDeletedByName(),
+                ActorDisplayName.resolveNullable(null, estimate.getDeletedByName()),
                 estimate.getLines().stream()
                         .map(EstimateLineResponse::from)
                         .toList());

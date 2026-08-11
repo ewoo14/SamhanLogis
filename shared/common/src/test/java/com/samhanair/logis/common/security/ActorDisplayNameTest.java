@@ -29,7 +29,7 @@ class ActorDisplayNameTest {
     @Test
     void system_actor_keeps_system_display_even_when_name_header_is_present() {
         assertThat(ActorDisplayName.resolve("00000000-0000-0000-0000-000000000000", "김감사"))
-                .isEqualTo("system");
+                .isEqualTo("시스템");
     }
 
     @Test
@@ -52,6 +52,25 @@ class ActorDisplayNameTest {
                     .as("variant=%s", variant)
                     .isEqualTo("변경자 미상");
         }
+    }
+
+    @Test
+    void format_wrapped_and_unicode_confusable_uuid_are_not_accepted_as_display_names() {
+        String fullwidthConfusableUrn = "urn：uuid：ＣＡＦＥＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥＣＡＦＥＢＡＢＥ";
+        for (String variant : new String[] {
+                "\u2063" + ACTOR_UUID + "\u2063",
+                fullwidthConfusableUrn,
+                "ｕｒｎ：ｕｕｉｄ：ＣＡＦＥＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥ‐ＣＡＦＥ‐ＢＡＢＥＣＡＦＥＢＡＢＥ",
+        }) {
+            assertThat(ActorDisplayName.resolve(null, variant))
+                    .as("variant=%s", variant)
+                    .isEqualTo("변경자 미상");
+        }
+    }
+
+    @Test
+    void system_display_is_localized_at_the_display_boundary() {
+        assertThat(ActorDisplayName.resolve(null, "system")).isEqualTo("시스템");
     }
 
     @Test

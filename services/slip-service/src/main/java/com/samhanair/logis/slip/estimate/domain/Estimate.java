@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.estimate.domain;
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
 import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import com.samhanair.logis.slip.service.BundleSetInstanceKeyPolicy;
@@ -26,7 +27,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -72,8 +72,6 @@ public class Estimate extends BaseEntity {
 
     private static final int MEMO_MAX_LENGTH = 1000;
     private static final int LINE_NOTE_MAX_LENGTH = 200;
-    private static final Pattern UUID_PATTERN = Pattern.compile(
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     @Id
     @GeneratedValue
@@ -604,13 +602,7 @@ public class Estimate extends BaseEntity {
     }
 
     private static String safeActorName(String actorName) {
-        if (actorName == null || actorName.isBlank()) {
-            return null;
-        }
-        String trimmed = actorName.trim();
-        if (UUID_PATTERN.matcher(trimmed).matches()) {
-            return null;
-        }
-        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
+        String resolved = ActorDisplayName.resolveNullable(null, actorName);
+        return resolved == null ? null : resolved.substring(0, Math.min(resolved.length(), 100));
     }
 }

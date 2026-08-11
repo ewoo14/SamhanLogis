@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.domain;
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.domain.schedule.DeliverySchedule;
 import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.service.BundleSetInstanceKeyPolicy;
@@ -1887,11 +1888,8 @@ public class Slip extends BaseEntity {
     }
 
     private static String sanitizeDeletedByName(String actorName) {
-        if (actorName == null || actorName.isBlank()) {
-            return null;
-        }
-        String trimmed = actorName.trim();
-        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
+        String resolved = ActorDisplayName.resolveNullable(null, actorName);
+        return resolved == null ? null : resolved.substring(0, Math.min(resolved.length(), 100));
     }
 
     // ---------- PR-H2 (Phase 12 Step 2) — audit overlay 보조 ----------

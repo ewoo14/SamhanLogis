@@ -15,7 +15,7 @@ import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.ChangeSummary;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.FieldChange;
 import com.samhanair.logis.slip.service.closing.SlipClosedDateGuard;
-import com.samhanair.logis.slip.security.ActorNameSanitizer;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.presence.PresenceColor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -755,10 +755,7 @@ public class SlipRevisionService {
     }
 
     String safeActorName(String actorName, UUID actorId) {
-        if (actorName == null || actorName.isBlank()) {
-            return null;
-        }
-        String trimmed = actorName.trim();
-        return ActorNameSanitizer.representsActorId(trimmed, actorId) ? null : trimmed;
+        return ActorDisplayName.resolveNullable(
+                actorId == null ? null : actorId.toString(), actorName);
     }
 }

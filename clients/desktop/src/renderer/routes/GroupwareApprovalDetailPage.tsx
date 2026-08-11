@@ -14,6 +14,7 @@ import {
   DataTable,
   FormField,
   Spinner,
+  safeActorName,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -75,8 +76,7 @@ function formatDateTime(value: string | null | undefined): string {
 }
 
 function displayNameOrFallback(value: string | null | undefined, fallback: string): string {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : fallback
+  return safeActorName(value) ?? fallback
 }
 
 function serverErrorMessage(error: unknown): string {

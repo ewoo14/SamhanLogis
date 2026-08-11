@@ -1,5 +1,6 @@
 package com.samhanair.logis.common.security;
 
+import java.text.Normalizer;
 import java.util.regex.Pattern;
 
 /**
@@ -12,7 +13,9 @@ public final class ActorDisplayName {
 
     public static final String UNKNOWN = "변경자 미상";
     private static final String SYSTEM_ACTOR_ID = "00000000-0000-0000-0000-000000000000";
-    private static final Pattern INVISIBLE_ACTOR_CHARACTERS = Pattern.compile("[\\u00AD\\u200B-\\u200D\\u2060\\uFEFF]");
+    private static final String SYSTEM_DISPLAY_NAME = "시스템";
+    private static final Pattern FORMAT_CHARACTERS = Pattern.compile("\\p{Cf}+");
+    private static final Pattern UUID_DASHES = Pattern.compile("[\\u2010-\\u2015\\u2212\\uFE58\\uFE63\\uFF0D]");
     private static final Pattern UUID_FORM = Pattern.compile(
             "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
                     + "|\\{(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})\\}"
@@ -25,16 +28,16 @@ public final class ActorDisplayName {
     /** 사용자 표시명이 필요한 경로의 이름을 결정한다. */
     public static String resolve(String callerId, String callerName) {
         if (isSystemActor(callerId)) {
-            return "system";
+            return SYSTEM_DISPLAY_NAME;
         }
         String knownName = knownName(callerName);
         if (knownName != null) {
             return knownName;
         }
         if (hasText(callerId) && !isUuid(callerId)) {
-            return callerId;
+            return isSystemToken(callerId) ? SYSTEM_DISPLAY_NAME : callerId;
         }
-        return hasText(callerName) || hasText(callerId) ? UNKNOWN : "system";
+        return hasText(callerName) || hasText(callerId) ? UNKNOWN : SYSTEM_DISPLAY_NAME;
     }
 
     /** 버전 이력처럼 이름 부재를 nullable로 표현하는 기존 계약용 resolver. */
@@ -52,7 +55,10 @@ public final class ActorDisplayName {
     }
 
     private static String knownName(String value) {
-        return hasText(value) && !isUuid(value) ? value : null;
+        if (!hasText(value) || isUuid(value)) {
+            return null;
+        }
+        return isSystemToken(value) ? SYSTEM_DISPLAY_NAME : value;
     }
 
     private static boolean hasText(String value) {
@@ -63,7 +69,33 @@ public final class ActorDisplayName {
         return SYSTEM_ACTOR_ID.equalsIgnoreCase(normalizeForComparison(value));
     }
 
+    private static boolean isSystemToken(String value) {
+        return "system".equalsIgnoreCase(normalizeForComparison(value));
+    }
+
     private static String normalizeForComparison(String value) {
-        return value == null ? "" : INVISIBLE_ACTOR_CHARACTERS.matcher(value).replaceAll("").trim();
+        if (value == null) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFKC);
+        normalized = FORMAT_CHARACTERS.matcher(normalized).replaceAll("");
+        normalized = UUID_DASHES.matcher(normalized).replaceAll("-");
+        return foldConfusables(normalized).trim();
+    }
+
+    /** UUID에 자주 섞이는 라틴/그리스/키릴 유사문자를 비교용 ASCII로 접는다. */
+    private static String foldConfusables(String value) {
+        StringBuilder result = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            result.append(switch (value.charAt(i)) {
+                case '\u0391', '\u0410', '\u0430' -> 'a';
+                case '\u0392', '\u0412', '\u0432' -> 'b';
+                case '\u03A7', '\u0421', '\u0441' -> 'c';
+                case '\u0395', '\u0415', '\u0435' -> 'e';
+                case '\u03A6' -> 'f';
+                default -> value.charAt(i);
+            });
+        }
+        return result.toString();
     }
 }

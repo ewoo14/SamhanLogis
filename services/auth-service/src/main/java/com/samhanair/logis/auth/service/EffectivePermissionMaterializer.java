@@ -137,10 +137,11 @@ public class EffectivePermissionMaterializer {
             boolean delete,
             boolean restore,
             boolean download,
-            boolean print) {
+            boolean print,
+            String actorId) {
 
         static PermissionMatrix none() {
-            return new PermissionMatrix(false, false, false, false, false, false, false);
+            return new PermissionMatrix(false, false, false, false, false, false, false, null);
         }
 
         static PermissionMatrix from(AccountPermissionOverride override) {
@@ -151,7 +152,8 @@ public class EffectivePermissionMaterializer {
                     override.isCanDelete(),
                     override.isCanRestore(),
                     override.isCanDownload(),
-                    override.isCanPrint());
+                    override.isCanPrint(),
+                    override.getActorId());
         }
 
         PermissionMatrix or(GroupPagePermission permission) {
@@ -162,12 +164,14 @@ public class EffectivePermissionMaterializer {
                     delete || permission.isCanDelete(),
                     restore || permission.isCanRestore(),
                     download || permission.isCanDownload(),
-                    print || permission.isCanPrint());
+                    print || permission.isCanPrint(),
+                    actorId != null ? actorId : permission.getActorId());
         }
 
         AccountPagePermission toAccountPagePermission(UUID accountId, String pageCode) {
             return AccountPagePermission.of(accountId, pageCode)
-                    .setActions(view, create, update, delete, restore, download, print);
+                    .setActions(view, create, update, delete, restore, download, print)
+                    .setActorId(actorId);
         }
     }
 }

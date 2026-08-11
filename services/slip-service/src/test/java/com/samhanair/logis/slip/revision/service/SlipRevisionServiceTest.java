@@ -456,18 +456,18 @@ class SlipRevisionServiceTest {
             "{cafebabecafebabecafebabecafebabe}",
             "urn:uuid:cafebabecafebabecafebabecafebabe"
     })
-    void listWithSummary_preservesUuidShapedNameWhenItDiffersFromActorId(String actorName) {
+    void listWithSummary_hidesAnyUuidShapedNameWhenItDiffersFromActorId(String actorName) {
         UUID slipId = UUID.randomUUID();
         SlipRevision revision = SlipRevision.of(slipId, 1, SlipRevisionType.CREATE, null,
                 "2026/05/29-3", LocalDate.of(2026, 5, 29),
                 snapshot("원본", List.of()), ACTOR_ID, actorName, null);
         when(repository.findBySlipIdOrderByRevisionNoDesc(slipId)).thenReturn(List.of(revision));
 
-        assertThat(service.listWithSummary(slipId).get(0).actorName()).isEqualTo(actorName);
+        assertThat(service.listWithSummary(slipId).get(0).actorName()).isNull();
     }
 
     @Test
-    void listWithSummary_projectionPathPreservesUuidShapedNameWhenItDiffersFromActorId() throws Exception {
+    void listWithSummary_projectionPathHidesUuidShapedNameWhenItDiffersFromActorId() throws Exception {
         UUID slipId = UUID.randomUUID();
         SlipRevisionRepository.SlipRevisionSnapshotRow row = org.mockito.Mockito.mock(
                 SlipRevisionRepository.SlipRevisionSnapshotRow.class);
@@ -484,8 +484,7 @@ class SlipRevisionServiceTest {
         when(row.getSnapshotJson()).thenReturn(snapshotJson);
         when(repository.findSnapshotRowsBySlipIdOrderByRevisionNoDesc(slipId)).thenReturn(List.of(row));
 
-        assertThat(service.listWithSummary(slipId).get(0).actorName())
-                .isEqualTo("cafebabecafebabecafebabecafebabe");
+        assertThat(service.listWithSummary(slipId).get(0).actorName()).isNull();
     }
 
     @Test

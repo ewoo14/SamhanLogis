@@ -44,6 +44,7 @@ public class PermissionGroupController {
 
     /** C5-4: X-User-Role 제거 — actor MASTER 판정은 X-Is-System-Master 헤더로만 수행. */
     private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
+    private static final String USER_ID_HEADER = "X-User-Id";
 
     private final PermissionGroupService permissionGroupService;
     private final GroupPermissionService groupPermissionService;
@@ -129,8 +130,9 @@ public class PermissionGroupController {
     public ApiResponse<ChangedCountResponse> updateGroupMatrix(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateGroupMatrixRequest request,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
-        int changed = groupPermissionService.updateGroupMatrix(id, request.rows(), isSystemMaster);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+        int changed = groupPermissionService.updateGroupMatrix(id, request.rows(), isSystemMaster, actorId);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -163,8 +165,9 @@ public class PermissionGroupController {
     public ApiResponse<GroupPermissionService.DelegationMatrix> updateDelegations(
             @PathVariable UUID id,
             @RequestBody GroupPermissionService.DelegationUpdateRequest request,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
-        return ApiResponse.ok(groupPermissionService.updateDelegations(id, request, isSystemMaster));
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+        return ApiResponse.ok(groupPermissionService.updateDelegations(id, request, isSystemMaster, actorId));
     }
 
     /**

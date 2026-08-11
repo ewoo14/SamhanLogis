@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web.collab.dto;
 
 import com.samhanair.logis.collab.CollabSuggestionStatus;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.collab.SlipCollabSuggestion;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -32,9 +33,13 @@ public record SlipCollabSuggestionResponse(
                 suggestion.getId(),
                 suggestion.getChangeSet(),
                 suggestion.getReason(),
-                suggestion.getProposerName(),
+                ActorDisplayName.resolveNullable(
+                        suggestion.getProposerId() == null ? null : suggestion.getProposerId().toString(),
+                        suggestion.getProposerName()),
                 suggestion.getStatus(),
-                suggestion.getDecidedByName(),
+                ActorDisplayName.resolveNullable(
+                        suggestion.getDecidedById() == null ? null : suggestion.getDecidedById().toString(),
+                        suggestion.getDecidedByName()),
                 suggestion.getDecidedAt() == null ? null
                         : LocalDateTime.ofInstant(suggestion.getDecidedAt(), ZoneId.systemDefault()),
                 suggestion.getCreatedAt());

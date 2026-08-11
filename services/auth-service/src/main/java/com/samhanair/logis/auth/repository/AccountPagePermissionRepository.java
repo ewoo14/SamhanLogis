@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 /** 계정 단위 페이지 권한 저장소. */
 public interface AccountPagePermissionRepository extends JpaRepository<AccountPagePermission, UUID> {
 
+    List<AccountPagePermission> findByActorId(String actorId);
+
     List<AccountPagePermission> findByAccountId(UUID accountId);
 
     List<AccountPagePermission> findByAccountIdOrderByPageCodeAsc(UUID accountId);
