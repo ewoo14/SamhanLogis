@@ -1886,6 +1886,7 @@ async function bootstrap(userEmail) {
     try { t.commercialMulti = JSON.stringify(await dbCatalog.multiCatalog('COMMERCIAL_MULTI', classifyCommercialDisp_)); } catch (e) { Logger.log('[bootstrap] db commMulti: ' + e.message); t.commercialMulti = '[]'; }
     try { t.commercialParts = JSON.stringify(await dbCatalog.components('COMMERCIAL_MULTI', sanitizeDisp_)); } catch (e) { Logger.log('[bootstrap] db commParts: ' + e.message); t.commercialParts = '[]'; }
     try { t.oldProducts = JSON.stringify(await dbCatalog.oldProducts()); } catch (e) { Logger.log('[bootstrap] db old: ' + e.message); t.oldProducts = '[]'; }
+    try { t.quantitySyncRules = JSON.stringify(await dbCatalog.quantitySyncRules()); } catch (e) { Logger.log('[bootstrap] db quantitySyncRules: ' + e.message); t.quantitySyncRules = '[]'; }
     try { t.recommendData = JSON.stringify(await dbCatalog.recommendOduData()); } catch (e) { Logger.log('[bootstrap] db recommend: ' + e.message); t.recommendData = '{"comm":[],"home":[],"homeEx":[]}'; }
     try { t.priceInc = JSON.stringify(await dbCatalog.priceIncData()); } catch (e) { Logger.log('[bootstrap] db priceInc: ' + e.message); t.priceInc = '{"home":{},"comm":{},"single":{}}'; }
     try { t.priceChangeSchedule = JSON.stringify(await dbCatalog.priceChangeSchedule()); } catch (e) { Logger.log('[bootstrap] db priceChangeSchedule: ' + e.message); t.priceChangeSchedule = '{}'; }
@@ -1898,6 +1899,7 @@ async function bootstrap(userEmail) {
     try { t.commercialMulti = JSON.stringify(getCommercialMulti()); } catch (_) { t.commercialMulti = '[]'; }
     try { t.commercialParts = JSON.stringify(getCommercialParts()); } catch (_) { t.commercialParts = '[]'; }
     try { t.oldProducts = JSON.stringify(getOldProducts_()); } catch (_) { t.oldProducts = '[]'; }
+    t.quantitySyncRules = '[]';
     try { t.recommendData = JSON.stringify(getRecommendOduData()); } catch (_) { t.recommendData = '{"comm":[],"home":[],"homeEx":[]}'; }
     try { t.priceInc = JSON.stringify(getPriceIncData_()); } catch (_) { t.priceInc = '{"home":{},"comm":{},"single":{}}'; }
     t.priceChangeSchedule = '{}';

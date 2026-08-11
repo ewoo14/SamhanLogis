@@ -78,7 +78,7 @@ import {
 } from '../realtime/coeditLineIds'
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
-import { quantityAfterDeliveryPriceInput } from './estimateLineModel'
+import { resolvePriceInputQuantitySync } from './estimateLineModel'
 import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
@@ -1255,7 +1255,11 @@ export function EstimateFormPage() {
   const updatePrice = (index: number, unitPrice: string) => {
     const current = linesRef.current[index]
     if (!current) return
-    const quantity = quantityAfterDeliveryPriceInput(current.goodsType, current.quantity, unitPrice)
+    const { quantity, shouldSyncQuantity } = resolvePriceInputQuantitySync(
+      current.goodsType,
+      current.quantity,
+      unitPrice,
+    )
     updateLine(index, {
       ...recalculateLineVat(asVatLine({ ...current, unitPrice, quantity }), 'PRICE'),
       unitPrice,
@@ -1269,6 +1273,13 @@ export function EstimateFormPage() {
       legacyPriceUntouched: false,
       vatDirty: false,
     }, true)
+    if (shouldSyncQuantity && estimateFormCoeditProvider) {
+      try {
+        estimateFormCoeditProvider.setItemValue(index, 'quantity', quantity)
+      } catch {
+        // provider가 해제되는 순간에는 로컬 라인을 권위로 유지한다.
+      }
+    }
   }
 
   const updateQuantity = (index: number, quantity: string) => {
@@ -2324,7 +2335,10 @@ export function EstimateFormPage() {
                   // doc-sync 유래 값 반영은 분류(priceSource) 를 건드리지 않는다 — 자동채움 provider
                   // write 가 pending REMEMBERED/CATALOG 분류를 USER 로 덮는 마커 소멸 차단(R4-F6).
                   // 분류 판정은 페이지 구독(coeditLinesToDraftLines + localAutoPriceWrites)이 단일 소스.
-                  onDocSyncValueChange={(value) => updateLine(i, { unitPrice: value })}
+                  onDocSyncValueChange={(value) => updateLine(i, {
+                    unitPrice: value,
+                    quantity: resolvePriceInputQuantitySync(line.goodsType, line.quantity, value).quantity,
+                  })}
                   readOnly={Boolean(isReadOnly)}
                   inputMode="decimal"
                   inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}

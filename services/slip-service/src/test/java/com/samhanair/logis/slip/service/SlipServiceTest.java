@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,7 +39,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -1043,16 +1047,190 @@ class SlipServiceTest {
         // 버전이력에 계정 UUID 가 노출되지 않는다 ([[uuid-no-user-visibility]]).
         Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
-        String uuidName = UUID.randomUUID().toString();
+        String uuidName = "550e8400-e29b-41d4-a716-446655440000";
 
         service.editHeader(slipId,
                 new EditHeaderRequest(null, "새거래처", null, "새메모", null, null, null),
-                UUID.randomUUID().toString(), uuidName);
+                uuidName, uuidName);
 
         verify(slipRevisionService, times(1)).capture(
                 eq(slip),
                 eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
                 eq(null), any(UUID.class), eq(null), eq(null));
+    }
+
+    @Test
+    void r15_bracedUuid_isHiddenAcrossAllWritePaths() {
+        assertActualUuidHiddenAcrossAllWritePaths(
+                "{550e8400-e29b-41d4-a716-446655440000}");
+    }
+
+    @Test
+    void r15_urnUuid_isHiddenAcrossAllWritePaths() {
+        assertActualUuidHiddenAcrossAllWritePaths(
+                "urn:uuid:550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    @Test
+    void r15_compactUuid_isHiddenAcrossAllWritePaths() {
+        assertActualUuidHiddenAcrossAllWritePaths(
+                "550e8400e29b41d4a716446655440000");
+    }
+
+    @Test
+    void r15_canonicalCaseAndPaddingRemainHidden() {
+        assertActualUuidHiddenAcrossAllWritePaths(
+                "  550E8400-E29B-41D4-A716-446655440000  ");
+    }
+
+    @Test
+    void r15_normalDisplayNamesRemainVisibleAcrossAllWritePaths() {
+        assertDisplayNamePreservedAcrossAllWritePaths("[DEV-SEED] 개발영업");
+    }
+
+    @Test
+    void r15_32CharacterNonUuidNamesRemainVisibleAcrossAllWritePaths() {
+        assertDisplayNamePreservedAcrossAllWritePaths("가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허고노도루");
+        assertDisplayNamePreservedAcrossAllWritePaths("0000000000000000000000000000000G");
+    }
+
+    @Test
+    void r17_different32CharacterHexDisplayNameRemainsVisibleAcrossAllWritePaths() {
+        assertDisplayNamePreservedAcrossAllWritePaths(
+                "cafebabecafebabecafebabecafebabe",
+                "550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    @Test
+    void r17_differentBracedAndUrnDisplayNamesRemainVisibleAcrossAllWritePaths() {
+        assertDisplayNamePreservedAcrossAllWritePaths(
+                "{cafebabecafebabecafebabecafebabe}",
+                "550e8400-e29b-41d4-a716-446655440000");
+        clearInvocations(auditLogService, slipRevisionService);
+        assertDisplayNamePreservedAcrossAllWritePaths(
+                "urn:uuid:cafebabecafebabecafebabecafebabe",
+                "550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    private void assertActualUuidHiddenAcrossAllWritePaths(String callerName) {
+        String actorId = "550e8400-e29b-41d4-a716-446655440000";
+        Slip headerSlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(headerSlip));
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, null, null, "새메모", null, null, null),
+                actorId, callerName);
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("변경자 미상"), any(), eq("memo"), any(), any());
+        verify(slipRevisionService).capture(eq(headerSlip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq(null), eq(null));
+
+        clearInvocations(auditLogService, slipRevisionService);
+        Slip overlaySlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(overlaySlip));
+        service.applyOverlayPatch(slipId, "memo", "새메모",
+                actorId, callerName);
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("변경자 미상"), any(), eq("memo"), any(), any());
+        verify(slipRevisionService).capture(eq(overlaySlip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq(null), eq(null));
+
+        clearInvocations(auditLogService, slipRevisionService);
+        Slip batchSlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findByIdForCollabUpdate(slipId)).thenReturn(Optional.of(batchSlip));
+        Map<String, String> expectedBefore = new HashMap<>();
+        expectedBefore.put("memo", null);
+        service.applyOverlayPatchBatch(slipId, Map.of("memo", "새메모"), expectedBefore,
+                actorId, callerName);
+        verify(auditLogService).recordBatch(
+                eq(slipId), any(UUID.class), eq("변경자 미상"), any(), anyList());
+        verify(slipRevisionService).capture(eq(batchSlip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq(null), eq(null));
+    }
+
+    private void assertDisplayNamePreservedAcrossAllWritePaths(String callerName) {
+        assertDisplayNamePreservedAcrossAllWritePaths(callerName, UUID.randomUUID().toString());
+    }
+
+    private void assertDisplayNamePreservedAcrossAllWritePaths(String callerName, String actorId) {
+        Slip headerSlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(headerSlip));
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, null, null, "새메모", null, null, null),
+                actorId, callerName);
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq(callerName), any(), eq("memo"), any(), any());
+        verify(slipRevisionService).capture(eq(headerSlip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq(callerName), eq(null));
+
+        clearInvocations(auditLogService, slipRevisionService);
+        Slip overlaySlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(overlaySlip));
+        service.applyOverlayPatch(slipId, "memo", "새메모",
+                actorId, callerName);
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq(callerName), any(), eq("memo"), any(), any());
+        verify(slipRevisionService).capture(eq(overlaySlip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq(callerName), eq(null));
+
+        clearInvocations(auditLogService, slipRevisionService);
+        Slip batchSlip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findByIdForCollabUpdate(slipId)).thenReturn(Optional.of(batchSlip));
+        Map<String, String> expectedBefore = new HashMap<>();
+        expectedBefore.put("memo", null);
+        service.applyOverlayPatchBatch(slipId, Map.of("memo", "새메모"), expectedBefore,
+                actorId, callerName);
+        verify(auditLogService).recordBatch(
+                eq(slipId), any(UUID.class), eq(callerName), any(), anyList());
+        verify(slipRevisionService).capture(eq(batchSlip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq(callerName), eq(null));
+    }
+
+    @Test
+    void solR13_uuidLikeButNonCanonicalDisplayName_isPreserved() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, null, null, "새메모", null, null, null),
+                UUID.randomUUID().toString(), "1-1-1-1-1");
+
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("1-1-1-1-1"), any(), eq("memo"), any(), any());
+        verify(slipRevisionService).capture(
+                eq(slip), eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("1-1-1-1-1"), eq(null));
+    }
+
+    @Test
+    void applyOverlayPatch_uuidLikeButNonCanonicalDisplayName_isPreserved() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.applyOverlayPatch(slipId, "memo", "새메모",
+                UUID.randomUUID().toString(), "1-1-1-1-1");
+
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("1-1-1-1-1"), any(), eq("memo"), any(), any());
+    }
+
+    @Test
+    void applyOverlayPatchBatch_uuidLikeButNonCanonicalDisplayName_isPreserved() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findByIdForCollabUpdate(slipId)).thenReturn(Optional.of(slip));
+        Map<String, String> expectedBefore = new HashMap<>();
+        expectedBefore.put("memo", null);
+
+        service.applyOverlayPatchBatch(slipId, Map.of("memo", "새메모"), expectedBefore,
+                UUID.randomUUID().toString(), "1-1-1-1-1");
+
+        verify(auditLogService).recordBatch(
+                eq(slipId), any(UUID.class), eq("1-1-1-1-1"), any(), anyList());
     }
 
     @Test
@@ -1069,6 +1247,30 @@ class SlipServiceTest {
                 eq(slip),
                 eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
                 eq(null), any(UUID.class), eq(null), eq(null));
+    }
+
+    @Test
+    void editHeader_withoutCallerName_recordsNeutralAuditActorName() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, null, null, "새메모", null, null, null),
+                UUID.randomUUID().toString(), null);
+
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("변경자 미상"), any(), eq("memo"), any(), any());
+    }
+
+    @Test
+    void applyOverlayPatch_withoutCallerName_recordsNeutralAuditActorName() {
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.applyOverlayPatch(slipId, "memo", "새메모", UUID.randomUUID().toString(), null);
+
+        verify(auditLogService).recordOverlayPatch(
+                eq(slipId), any(UUID.class), eq("변경자 미상"), any(), eq("memo"), any(), any());
     }
 
     // ---------- reject memo 변경 revision 캡처 (Phase 2.1) ----------

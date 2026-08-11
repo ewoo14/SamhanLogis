@@ -30,6 +30,91 @@ class QuantitySyncRuleValidationTest {
     private final QuantitySyncRuleValidator validator = new QuantitySyncRuleValidator();
 
     @Test
+    void 실외기와_실내기는_target으로_저장할_수_없다() {
+        Draft draft = draft(
+                products(
+                        product("SRC-HOME", "HOME_MULTI", true, true, false),
+                        productWithClassification("AJ040MXHNBC1", "HOME_MULTI", true, true, false,
+                                "실외기", "GOODS")),
+                List.of(new SourceDraft("SRC-HOME", new BigDecimal("1"))),
+                List.of(target("AJ040MXHNBC1", "1")));
+
+        assertInvalid(draft, "부자재");
+    }
+
+    @Test
+    void 비상품_target은_저장할_수_없다() {
+        Draft draft = draft(
+                products(
+                        product("SRC-HOME", "HOME_MULTI", true, true, false),
+                        productWithClassification("운임", "HOME_MULTI", true, true, false,
+                                "부자재", "NON_GOODS")),
+                List.of(new SourceDraft("SRC-HOME", new BigDecimal("1"))),
+                List.of(target("운임", "1")));
+
+        assertInvalid(draft, "GOODS");
+    }
+
+    @Test
+    void 부자재_source는_저장할_수_없다() {
+        Draft draft = draft(
+                products(
+                        productWithClassification("FH-LFHLN", "HOME_MULTI", true, true, false,
+                                "부자재", "GOODS"),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("FH-LFHLN", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")));
+
+        assertInvalid(draft, "source");
+    }
+
+    @Test
+    void 실내기_target도_저장할_수_없다() {
+        Draft draft = draft(
+                products(
+                        product("SRC-HOME", "HOME_MULTI", true, true, false),
+                        productWithClassification("AJ020BN1PBC1", "HOME_MULTI", true, true, false,
+                                "실내기", "GOODS")),
+                List.of(new SourceDraft("SRC-HOME", new BigDecimal("1"))),
+                List.of(target("AJ020BN1PBC1", "1")));
+
+        assertInvalid(draft, "부자재");
+    }
+
+    @Test
+    void 실제_다섯_계열과_재분류된_품목은_target으로_저장할_수_있다() {
+        Draft draft = draft(
+                products(
+                        productWithClassification("AJ020BN1PBC1", "HOME_MULTI", true, true, false,
+                                "실내기", "GOODS"),
+                        productWithClassification("FH-LFHLN", "HOME_MULTI", true, true, false,
+                                "부자재", "GOODS"),
+                        productWithClassification("PC1NWSK3NW", "HOME_MULTI", true, true, false,
+                                "판넬", "GOODS"),
+                        productWithClassification("AWR-WE13N", "HOME_MULTI", true, true, false,
+                                "부자재", "GOODS"),
+                        productWithClassification("AXJ-YA1509N", "HOME_MULTI", true, true, false,
+                                "부자재", "GOODS"),
+                        productWithClassification("SI-AL600A", "HOME_MULTI", true, true, false,
+                                "실외기 받침대", "GOODS"),
+                        productWithClassification("발통세트", "HOME_MULTI", true, true, false,
+                                "실외기 받침", "GOODS"),
+                        productWithClassification("AWR-WV00N", "HOME_MULTI", true, true, false,
+                                "부자재", "GOODS")),
+                List.of(new SourceDraft("AJ020BN1PBC1", new BigDecimal("1"))),
+                List.of(
+                        new TargetDraft("FH-LFHLN", BigDecimal.ONE, "NONE", 1),
+                        new TargetDraft("PC1NWSK3NW", BigDecimal.ONE, "NONE", 2),
+                        new TargetDraft("AWR-WE13N", BigDecimal.ONE, "NONE", 3),
+                        new TargetDraft("AXJ-YA1509N", BigDecimal.ONE, "NONE", 4),
+                        new TargetDraft("SI-AL600A", BigDecimal.ONE, "NONE", 5),
+                        new TargetDraft("발통세트", BigDecimal.ONE, "NONE", 6),
+                        new TargetDraft("AWR-WV00N", BigDecimal.ONE, "NONE", 7)));
+
+        assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
+    }
+
+    @Test
     void 서로_다른_category의_source_target은_저장할_수_없다() {
         Draft draft = draft(
                 products(
@@ -138,8 +223,10 @@ class QuantitySyncRuleValidationTest {
                 List.of(new SourceDraft("S03-SOURCE", new BigDecimal("0.5"))),
                 List.of(new TargetDraft("S03-TARGET", new BigDecimal("1"), "NONE", 1)),
                 products(
-                        product("S03-SOURCE", "SINGLE_SET", true, true, false),
-                        product("S03-TARGET", "SINGLE_SET", true, true, false)),
+                        productWithClassification("S03-SOURCE", "SINGLE_SET", true, true, false,
+                                "실내기", "GOODS"),
+                        productWithClassification("S03-TARGET", "SINGLE_SET", true, true, false,
+                                "부자재", "GOODS")),
                 List.of());
 
         assertInvalid(draft, "정수");
@@ -161,8 +248,10 @@ class QuantitySyncRuleValidationTest {
                 List.of(new SourceDraft("S03-SOURCE", new BigDecimal("0.28"))),
                 List.of(new TargetDraft("S03-TARGET", new BigDecimal("25"), "NONE", 1)),
                 products(
-                        product("S03-SOURCE", "SINGLE_SET", true, true, false),
-                        product("S03-TARGET", "SINGLE_SET", true, true, false)),
+                        productWithClassification("S03-SOURCE", "SINGLE_SET", true, true, false,
+                                "실내기", "GOODS"),
+                        productWithClassification("S03-TARGET", "SINGLE_SET", true, true, false,
+                                "부자재", "GOODS")),
                 List.of());
 
         assertInvalid(draft, "legacy");
@@ -354,7 +443,8 @@ class QuantitySyncRuleValidationTest {
     void BUNDLE_구성품을_별칭으로_재지정해도_연결할_수_없다() {
         UUID componentId = UUID.randomUUID();
         ProductSnapshot bundle = new ProductSnapshot(UUID.randomUUID(), "BUNDLE", "BUNDLE 품목",
-                Set.of("HOME_MULTI"), true, true, true, Set.of(), Set.of(componentId));
+                Set.of("HOME_MULTI"), true, true, true, Set.of(), Set.of(componentId),
+                "실내기", "GOODS");
         ProductSnapshot componentAlias = productAlias(componentId, "COMPONENT_ALIAS", "HOME_MULTI");
         Draft draft = draft(
                 Map.of("BUNDLE", bundle, "COMPONENT_ALIAS", componentAlias),
@@ -616,8 +706,30 @@ class QuantitySyncRuleValidationTest {
                 "896-test",
                 sources,
                 targets,
-                products,
+                normalizeRoles(products, sources, targets),
                 List.of());
+    }
+
+    private static Map<String, ProductSnapshot> normalizeRoles(Map<String, ProductSnapshot> products,
+                                                                List<SourceDraft> sources,
+                                                                List<TargetDraft> targets) {
+        Set<String> sourceCodes = sources.stream().map(SourceDraft::productCode)
+                .collect(java.util.stream.Collectors.toSet());
+        Set<String> targetCodes = targets.stream().map(TargetDraft::productCode)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<String, ProductSnapshot> normalized = new java.util.HashMap<>(products);
+        for (Map.Entry<String, ProductSnapshot> entry : products.entrySet()) {
+            if (entry.getValue().classificationName() != null) {
+                continue;
+            }
+            String code = entry.getKey();
+            if (targetCodes.contains(code)) {
+                normalized.put(code, copyWithClassification(entry.getValue(), "부자재"));
+            } else if (sourceCodes.contains(code)) {
+                normalized.put(code, copyWithClassification(entry.getValue(), "실내기"));
+            }
+        }
+        return normalized;
     }
 
     private static TargetDraft target(String productCode, String multiplier) {
@@ -661,7 +773,23 @@ class QuantitySyncRuleValidationTest {
                                                  boolean active, boolean visible, boolean bundle,
                                                  Set<String> componentCodes) {
         return new ProductSnapshot(UUID.randomUUID(), code, code + " 품목", categories,
-                active, visible, bundle, componentCodes, Set.of());
+                active, visible, bundle, componentCodes, Set.of(), null, "GOODS");
+    }
+
+    private static ProductSnapshot productWithClassification(String code, String category,
+                                                              boolean active, boolean visible,
+                                                              boolean bundle, String classificationName,
+                                                              String goodsType) {
+        return new ProductSnapshot(UUID.randomUUID(), code, code + " 품목", Set.of(category),
+                active, visible, bundle, Set.of(), Set.of(), classificationName, goodsType);
+    }
+
+    private static ProductSnapshot copyWithClassification(ProductSnapshot product,
+                                                           String classificationName) {
+        return new ProductSnapshot(product.productId(), product.productCode(), product.productName(),
+                product.categories(), product.active(), product.visible(), product.bundle(),
+                product.componentCodes(), product.componentProductIds(), classificationName,
+                product.goodsType());
     }
 
     /**
@@ -672,7 +800,7 @@ class QuantitySyncRuleValidationTest {
      */
     private static ProductSnapshot productAlias(UUID productId, String code, String category) {
         return new ProductSnapshot(productId, code, code + " 품목", Set.of(category),
-                true, true, false, Set.of(), Set.of());
+                true, true, false, Set.of(), Set.of(), null, "GOODS");
     }
 
     /**

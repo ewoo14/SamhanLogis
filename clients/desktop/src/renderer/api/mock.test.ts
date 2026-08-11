@@ -3,6 +3,8 @@ import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosRequestConfig } from 'axios'
 import { getMockResponse, MOCK_AUTH, MOCK_PRODUCT_AJ040_ID, mockPartnerByCode, resolveMockCodefRefs } from './mock'
+import { closingAuditApi, dcConfigAuditApi, inventoryAuditAuditApi, taxInvoiceAuditApi } from './createAuditApi'
+import { apiClient } from './client'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
@@ -3808,4 +3810,89 @@ describe('거래처별 원장 mock 응답 계약', () => {
 
     expect(response.data.lines).toHaveLength(2)
   })
+})
+
+describe('#1091 audit history mock routing', () => {
+  it('세금계산서 성공과 재고감사 응답은 flat audit row 배열 envelope을 반환한다', () => {
+    const tax = mockRequest({
+      method: 'GET',
+      url: '/accounting/tax-invoices/ti-001/audit-logs',
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(tax.data.length).toBeGreaterThan(0)
+    expect(tax.data[0]).toHaveProperty('revisionNo')
+
+    const inventory = mockRequest({
+      method: 'GET',
+      url: '/inventory/audits/ia-001/audit-logs',
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(inventory.data.length).toBeGreaterThan(0)
+    expect(inventory.data[0]).toMatchObject({
+      entityId: '11111111-1111-4111-8111-000000000001',
+      fieldName: 'totalDiffAmount',
+      oldValue: '120000',
+      newValue: '95000',
+      actorColor: '#2563EB',
+      revisionNo: 2,
+    })
+    expect(inventory.data[0]).not.toHaveProperty('field')
+    expect(inventory.data[0]).not.toHaveProperty('beforeValue')
+    expect(Array.isArray(inventory.data)).toBe(true)
+  })
+
+  it('정상 빈 이력과 오류 상태를 URL fixture로 선택할 수 있다', () => {
+    const empty = mockRequest({
+      method: 'GET',
+      url: '/inventory/audits/ia-empty/audit-logs?mockAuditState=empty',
+    }) as MockEnvelope<unknown[]>
+    expect(empty.data).toEqual([])
+
+    const forbidden = mockRequest({
+      method: 'GET',
+      url: '/accounting/closings/closing-001/audit-logs?mockAuditState=403',
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(forbidden.__mockStatus).toBe(403)
+    expect(forbidden.body.code).toBe('FORBIDDEN')
+
+    const temporary = mockRequest({
+      method: 'GET',
+      url: '/api/v1/dc-configs/P-001/audit-logs?mockAuditState=500',
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(temporary.__mockStatus).toBe(500)
+    expect(temporary.body.code).toBe('AUDIT_HISTORY_TEMPORARY')
+  })
+
+  it('부재 endpoint mock도 null로 fallthrough하지 않고 404를 반환한다', () => {
+    const closing = mockRequest({
+      method: 'GET',
+      url: '/accounting/closings/closing-001/audit-logs',
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(closing.__mockStatus).toBe(404)
+    expect(closing.body.code).toBe('AUDIT_HISTORY_NOT_SUPPORTED')
+
+    const dcConfig = mockRequest({
+      method: 'GET',
+      url: '/api/v1/dc-configs/P-001/audit-logs',
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(dcConfig.__mockStatus).toBe(404)
+    expect(dcConfig.body.code).toBe('AUDIT_HISTORY_NOT_SUPPORTED')
+  })
+
+  it.skipIf(import.meta.env.VITE_MOCK_MODE !== '1')(
+    'mock adapter가 base URL이 죽어 있어도 audit API를 실 HTTP로 fallthrough하지 않는다',
+    async () => {
+      const tax = await taxInvoiceAuditApi.listAuditLogs('ti-001')
+      expect(tax.length).toBeGreaterThan(0)
+
+      const inventory = await inventoryAuditAuditApi.listAuditLogs('ia-001')
+      expect(inventory[0]).toMatchObject({ revisionNo: 2, field: 'totalDiffAmount' })
+
+      await expect(closingAuditApi.listAuditLogs('closing-001')).rejects.toMatchObject({
+        response: { status: 404 },
+      })
+      await expect(dcConfigAuditApi.listAuditLogs('P-001')).rejects.toMatchObject({
+        response: { status: 404 },
+      })
+      expect(apiClient.defaults.baseURL).toBe('http://127.0.0.1:1')
+    },
+  )
 })

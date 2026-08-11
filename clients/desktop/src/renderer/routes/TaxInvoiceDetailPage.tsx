@@ -63,6 +63,10 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
+import {
+  AuditVersionHistory,
+  isAuditHistoryEndpointUnavailable,
+} from '../components/audit/AuditVersionHistory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -105,18 +109,27 @@ export function TaxInvoiceDetailPage() {
   const id = params['id']!
   const { canAccess } = usePermissions()
   const isMobile = useIsMobile()
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
+  const [auditEndpointUnavailableFor, setAuditEndpointUnavailableFor] = useState<string | null>(null)
 
   const query = useQuery({
     queryKey: ['accounting', 'tax-invoice', id],
     queryFn: () => getTaxInvoice(id),
   })
 
-  // PR-H4c: audit log 백필 — BE 미구현 시 빈 배열 fallback (catch).
+  // PR-H4c: audit log 조회. 실패는 빈 이력으로 바꾸지 않고 모달에서 상태를 안내한다.
   const auditQuery = useQuery({
     queryKey: ['accounting', 'tax-invoice', id, 'audit-logs'],
-    queryFn: () => taxInvoiceAuditApi.listAuditLogs(id).catch(() => []),
-    enabled: !!id,
+    queryFn: () => taxInvoiceAuditApi.listAuditLogs(id),
+    enabled: !!id && auditHistoryOpen && auditEndpointUnavailableFor !== id,
+    retry: false,
+    staleTime: Infinity,
   })
+
+  useEffect(() => {
+    if (!id || !auditQuery.isError || !isAuditHistoryEndpointUnavailable(auditQuery.error)) return
+    setAuditEndpointUnavailableFor((current) => current === id ? current : id)
+  }, [id, auditQuery.error, auditQuery.isError])
 
   // PR-H4c: SSE 구독 — accounting:edit 수신 시 본문 + audit cache invalidate.
   useEffect(() => {
@@ -529,8 +542,20 @@ export function TaxInvoiceDetailPage() {
               <AuditRevisionBadge
                 logs={auditLogs}
                 isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                isLoading={auditQuery.isLoading}
                 reverting={revertMutation.isPending}
                 onRevert={isDraft ? (rev) => revertMutation.mutate(rev) : undefined}
+                testIdPrefix="tax-invoice-detail"
+              />
+              <AuditVersionHistory
+                logs={auditLogs}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                error={auditQuery.error}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="tax-invoice-detail"
               />
             </div>
@@ -590,6 +615,9 @@ export function TaxInvoiceDetailPage() {
                   field="description"
                   currentValue={t.description}
                   history={auditByField['description'] ?? []}
+                  isError={auditQuery.isError}
+                  isFetched={auditQuery.isFetched}
+                  isLoading={auditQuery.isLoading}
                 />
               </div>
             </div>

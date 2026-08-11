@@ -14,6 +14,11 @@
  * 노출 금지. 사용자 노출은 {@code actorName} (풀네임) 만 사용한다.
  */
 import { apiClient, type ApiEnvelope } from './client'
+import {
+  normalizeAuditLogEntry,
+  type AuditLogEntry,
+  type RawAuditLogEntry,
+} from './createAuditApi'
 
 /**
  * BE {@code SlipAuditLogResponse} 와 1:1.
@@ -21,22 +26,7 @@ import { apiClient, type ApiEnvelope } from './client'
  * 한 audit log 행 = 한 필드 변경 한 건. 동일 revisionNo 내에 여러 필드가 변경되면
  * 여러 행으로 응답되며, 호출자가 field 별로 group 하여 AuditOverlay 에 전달한다.
  */
-export interface SlipAuditLogEntry {
-  /** revision 번호 (1, 2, 3, ... — 큰 수록 최근). */
-  revisionNo: number
-  /** 변경된 필드명 — "memo", "shippingAddress", "lines[2].quantity" 등. */
-  field: string
-  /** 변경 이전 값 (null/undefined = 신규 추가). */
-  beforeValue: string | null
-  /** 변경 이후 값 — 호출자가 currentValue 와 비교 가능. */
-  afterValue: string | null
-  /** 변경자 UUID — 색상 hash 입력 전용 (화면 텍스트 노출 금지). */
-  actorId: string
-  /** 변경자 풀네임 — 화면 표시. */
-  actorName: string
-  /** 변경 시각 ISO-8601. */
-  changedAt: string
-}
+export type SlipAuditLogEntry = AuditLogEntry
 
 /**
  * 전표 변경 이력 목록 조회 (revisionNo 내림차순).
@@ -44,8 +34,8 @@ export interface SlipAuditLogEntry {
  * @param slipId 전표 UUID (path 전용 — 화면 노출 X)
  */
 export async function listAuditLogs(slipId: string): Promise<SlipAuditLogEntry[]> {
-  const res = await apiClient.get<ApiEnvelope<SlipAuditLogEntry[]>>(
+  const res = await apiClient.get<ApiEnvelope<RawAuditLogEntry[]>>(
     `/api/v1/slips/${encodeURIComponent(slipId)}/audit-logs`,
   )
-  return res.data.data
+  return res.data.data.map(normalizeAuditLogEntry)
 }

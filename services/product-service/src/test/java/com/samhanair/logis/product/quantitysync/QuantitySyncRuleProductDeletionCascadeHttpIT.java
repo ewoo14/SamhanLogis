@@ -186,6 +186,7 @@ class QuantitySyncRuleProductDeletionCascadeHttpIT extends AbstractPostgresIT {
 
     private String ruleJson(String ruleKey, boolean enabled, String sourceCode, String targetCode,
                             int priority) throws Exception {
+        classifyQuantitySyncTarget(targetCode);
         JsonNode condition = MAPPER.readTree("{}");
         QuantitySyncRuleRequest request = new QuantitySyncRuleRequest(ruleKey,
                 QuantitySyncEstimateCategory.HOME_MULTI, ruleKey + " 이름", enabled, "SUM", condition,

@@ -21,6 +21,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -67,6 +69,43 @@ class SlipRedlineServiceTest {
         assertThat(memo.layers().get(1).actorName()).isEqualTo("김영업");
         assertThat(memo.layers().get(1).actorColor()).isEqualTo("#3366ff");
         assertThat(memo.layers().get(2).actorName()).isEqualTo("박관리");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "550e8400-e29b-41d4-a716-446655440000",
+            "550E8400-E29B-41D4-A716-446655440000",
+            "  550e8400-e29b-41d4-a716-446655440000  ",
+            "{550e8400-e29b-41d4-a716-446655440000}",
+            "urn:uuid:550e8400-e29b-41d4-a716-446655440000",
+            "550e8400e29b41d4a716446655440000"
+    })
+    void computeRedline_hidesActorNameOnlyWhenItEqualsActorId(String actorName) throws Exception {
+        SlipRedlineResponse response = computeRedlineForActor(
+                actorName, UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
+
+        SlipRedlineResponse.FieldRedline memo = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("header.memo"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(memo.layers().get(1).actorName()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "cafebabecafebabecafebabecafebabe",
+            "{cafebabecafebabecafebabecafebabe}",
+            "urn:uuid:cafebabecafebabecafebabecafebabe"
+    })
+    void computeRedline_preservesUuidShapedNameWhenItDiffersFromActorId(String actorName) throws Exception {
+        SlipRedlineResponse response = computeRedlineForActor(
+                actorName, UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
+
+        SlipRedlineResponse.FieldRedline memo = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("header.memo"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(memo.layers().get(1).actorName()).isEqualTo(actorName);
     }
 
     @Test
@@ -357,6 +396,17 @@ class SlipRedlineServiceTest {
     private SlipRedlineService service() {
         return new SlipRedlineService(slipRepository, revisionRepository,
                 new SlipRevisionService(revisionRepository, new ObjectMapper().findAndRegisterModules()));
+    }
+
+    private SlipRedlineResponse computeRedlineForActor(String actorName, UUID actorId) throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        SlipRevision rev1 = revision(slipId, 1, snapshot("원본", List.of(line(productId, 1))));
+        SlipRevision rev2 = revision(slipId, 2, snapshot("수정", List.of(line(productId, 1))), actorId, actorName, null);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId)).thenReturn(List.of(rev2, rev1));
+        return service().computeRedline(slipId);
     }
 
     private Slip anchoredSlip(UUID slipId, int anchorRevisionNo) throws Exception {

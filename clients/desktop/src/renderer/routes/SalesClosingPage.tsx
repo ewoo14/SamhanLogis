@@ -60,6 +60,10 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
+import {
+  AuditVersionHistory,
+  isAuditHistoryEndpointUnavailable,
+} from '../components/audit/AuditVersionHistory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -165,6 +169,8 @@ export function SalesClosingPage() {
   const [periodDate, setPeriodDate] = useState<string>(today())
   const [description, setDescription] = useState<string>('')
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(null)
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
+  const [auditEndpointUnavailableFor, setAuditEndpointUnavailableFor] = useState<string | null>(null)
 
   /** 역마감 확인 Modal 상태 */
   const [reverseConfirmRow, setReverseConfirmRow] = useState<AccountingPeriod | null>(null)
@@ -178,9 +184,23 @@ export function SalesClosingPage() {
 
   const auditQuery = useQuery({
     queryKey: ['sales-closings', selectedClosingId, 'audit-logs'],
-    queryFn: () => closingAuditApi.listAuditLogs(selectedClosingId!).catch(() => []),
-    enabled: !!selectedClosingId,
+    queryFn: () => closingAuditApi.listAuditLogs(selectedClosingId!),
+    enabled:
+      !!selectedClosingId
+      && auditHistoryOpen
+      && auditEndpointUnavailableFor !== selectedClosingId,
+    retry: false,
+    staleTime: Infinity,
   })
+
+  useEffect(() => {
+    if (!selectedClosingId
+      || !auditQuery.isError
+      || !isAuditHistoryEndpointUnavailable(auditQuery.error)) return
+    setAuditEndpointUnavailableFor((current) =>
+      current === selectedClosingId ? current : selectedClosingId,
+    )
+  }, [selectedClosingId, auditQuery.error, auditQuery.isError])
 
   useEffect(() => {
     if (!selectedClosingId) return
@@ -640,6 +660,18 @@ export function SalesClosingPage() {
               <AuditRevisionBadge
                 logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                 isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                isLoading={auditQuery.isLoading}
+                testIdPrefix="sales-closing-audit"
+              />
+              <AuditVersionHistory
+                logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                error={auditQuery.error}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="sales-closing-audit"
               />
               <Button variant="ghost" size="sm" onClick={() => setSelectedClosingId(null)}>
@@ -662,6 +694,9 @@ export function SalesClosingPage() {
               field="description"
               currentValue={selectedClosing.description ?? null}
               history={groupAuditLogsByField(Array.isArray(auditQuery.data) ? auditQuery.data : [])['description'] ?? []}
+              isError={auditQuery.isError}
+              isFetched={auditQuery.isFetched}
+              isLoading={auditQuery.isLoading}
             />
           </div>
         </Card>

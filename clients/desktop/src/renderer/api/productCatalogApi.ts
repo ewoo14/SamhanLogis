@@ -102,6 +102,10 @@ export interface ProductCatalogRow {
   /** 배송 단가 */
   deliveryPrice: number | null
   goodsType: ProductGoodsType | null
+  /** 서버 품목 상태 — target picker의 선택 가능 상태 가드에 사용한다. */
+  status?: string | null
+  /** 서버 validator와 동일한 수량 동기화 target 역할 판정. 구버전 응답에서는 누락될 수 있다. */
+  quantitySyncTargetEligible?: boolean
   /** 고정DC율(%) */
   fixedDiscountRate?: number | string | null
   /** 변동DC 적용 여부 */

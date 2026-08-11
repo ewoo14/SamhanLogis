@@ -62,6 +62,8 @@ class QuantitySyncRuleInputMistakeIT extends AbstractPostgresIT {
         product("MISTAKE-SRC-A");
         product("MISTAKE-TGT-B");
         product("MISTAKE-TGT-C");
+        classifyQuantitySyncTarget("MISTAKE-TGT-B");
+        classifyQuantitySyncTarget("MISTAKE-TGT-C");
     }
 
     @AfterEach
@@ -168,6 +170,7 @@ class QuantitySyncRuleInputMistakeIT extends AbstractPostgresIT {
     @Test
     void F_별칭_모델코드_모델명으로_같은_품목을_target에_두_번_지정하면_원인이_분명한_400을_받는다() throws Exception {
         productWithAlias("MISTAKE-ALIAS-F-CODE", "MISTAKE-ALIAS-F-NAME");
+        classifyQuantitySyncTarget("MISTAKE-ALIAS-F-CODE");
         QuantitySyncRuleRequest request = new QuantitySyncRuleRequest(
                 "MISTAKE_RULE_F", QuantitySyncEstimateCategory.HOME_MULTI, "이름", true, "SUM",
                 MAPPER.readTree("{}"), QuantitySyncInactiveBehavior.ZERO, QuantitySyncConflictPolicy.ADD,
@@ -189,6 +192,7 @@ class QuantitySyncRuleInputMistakeIT extends AbstractPostgresIT {
     @Test
     void G_별칭으로_지정해도_source와_target이_같은_품목이면_원인이_분명한_400을_받는다() throws Exception {
         productWithAlias("MISTAKE-ALIAS-G-CODE", "MISTAKE-ALIAS-G-NAME");
+        classifyQuantitySyncTarget("MISTAKE-ALIAS-G-CODE");
         QuantitySyncRuleRequest request = new QuantitySyncRuleRequest(
                 "MISTAKE_RULE_G", QuantitySyncEstimateCategory.HOME_MULTI, "이름", true, "SUM",
                 MAPPER.readTree("{}"), QuantitySyncInactiveBehavior.ZERO, QuantitySyncConflictPolicy.ADD,
@@ -225,6 +229,7 @@ class QuantitySyncRuleInputMistakeIT extends AbstractPostgresIT {
     }
 
     private QuantitySyncRuleRequest request(String ruleKey, String sourceCode, String targetCode) throws Exception {
+        classifyQuantitySyncTarget(targetCode);
         JsonNode condition = MAPPER.readTree("{}");
         return new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,
                 ruleKey + " 이름", true, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,

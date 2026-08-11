@@ -5,11 +5,18 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.dcconfig.domain.DcConfig;
 import com.samhanair.logis.dcconfig.domain.DcConfigSource;
 import com.samhanair.logis.dcconfig.domain.Partner;
+import com.samhanair.logis.dcconfig.audit.service.DcConfigAuditLogService;
+import com.samhanair.logis.dcconfig.dto.PartnerDcConfigResponse;
 import com.samhanair.logis.dcconfig.dto.UpdatePartnerDcConfigRequest;
 import com.samhanair.logis.dcconfig.repository.DcConfigRepository;
+import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +34,9 @@ public class DcConfigService {
 
     private final DcConfigRepository dcConfigRepository;
     private final PartnerService partnerService;
+    private final DcConfigAuditLogService dcConfigAuditLogService;
+
+    private static final UUID SYSTEM_ACTOR_ID = new UUID(0L, 0L);
 
     /**
      * partnerCode 로 DC 설정 조회. 미설정 거래처는 빈 Optional 반환 (404 X — 0% DC 로 처리).
@@ -87,9 +97,17 @@ public class DcConfigService {
      */
     @Transactional
     public DcConfig updatePartnerDcConfig(String partnerCode, UpdatePartnerDcConfigRequest req) {
+        return updatePartnerDcConfig(partnerCode, req, SYSTEM_ACTOR_ID, "system");
+    }
+
+    /** PATCH 변경을 실제 diff로 기록한 뒤 응답하는 외부 거래처 DC 수정 경로. */
+    @Transactional
+    public DcConfig updatePartnerDcConfig(String partnerCode, UpdatePartnerDcConfigRequest req,
+                                          UUID actorId, String actorName) {
         Partner partner = partnerService.getByPartnerCode(partnerCode);
         DcConfig dc = dcConfigRepository.findByPartner_Id(partner.getId())
                 .orElseGet(() -> dcConfigRepository.save(DcConfig.create(partner, DcConfigSource.ADMIN_EDIT)));
+        PartnerDcConfigResponse before = PartnerDcConfigResponse.from(dc);
 
         BigDecimal homeRate = parsePercent(req.homeMultiDc());
         BigDecimal commercialRate = parsePercent(req.commercialMultiDc());
@@ -129,7 +147,34 @@ public class DcConfigService {
         if (req.remark() != null) {
             dc.changeNote(req.remark().isBlank() ? null : req.remark());
         }
+
+        PartnerDcConfigResponse after = PartnerDcConfigResponse.from(dc);
+        List<ChangeEntry> changes = new ArrayList<>();
+        addChange(changes, "homeMultiDc", before.homeMultiDc(), after.homeMultiDc());
+        addChange(changes, "commercialMultiDc", before.commercialMultiDc(), after.commercialMultiDc());
+        addChange(changes, "flexibleHoseTypeI", before.flexibleHoseTypeI(), after.flexibleHoseTypeI());
+        addChange(changes, "threeSixty", before.threeSixty(), after.threeSixty());
+        addChange(changes, "fourWay", before.fourWay(), after.fourWay());
+        addChange(changes, "oneWay", before.oneWay(), after.oneWay());
+        addChange(changes, "stand", before.stand(), after.stand());
+        addChange(changes, "deluxe", before.deluxe(), after.deluxe());
+        addChange(changes, "firstGrade", before.firstGrade(), after.firstGrade());
+        addChange(changes, "unitProcess", before.unitProcess(), after.unitProcess());
+        addChange(changes, "remark", before.remark(), after.remark());
+        if (!changes.isEmpty()) {
+            dcConfigAuditLogService.recordBatch(dc.getId(),
+                    actorId == null ? SYSTEM_ACTOR_ID : actorId,
+                    actorName == null || actorName.isBlank() ? "system" : actorName,
+                    null, changes);
+        }
         return dc;
+    }
+
+    private static void addChange(List<ChangeEntry> changes, String fieldName,
+                                  String oldValue, String newValue) {
+        if (!Objects.equals(oldValue, newValue)) {
+            changes.add(new ChangeEntry(fieldName, oldValue, newValue));
+        }
     }
 
     /** "46%" → BigDecimal("0.46"). null/blank → null. 파싱 실패 → BAD_REQUEST. */

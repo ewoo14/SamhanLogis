@@ -135,8 +135,9 @@ class SlipServiceAuditDiffTest {
                 "수정된 메모", null, null, null);
         service.editHeader(slipId, req, "user-1", "홍길동");
 
+        // actorName은 callerId가 아니라 호출 시 제공한 정상 표시명을 보존한다(R17).
         verify(auditLogService, times(1)).recordOverlayPatch(
-                eq(slipId), any(), eq("user-1"), eq(null),
+                eq(slipId), any(), eq("홍길동"), eq(null),
                 eq("memo"), eq("원본 메모"), eq("수정된 메모"));
     }
 

@@ -16,6 +16,11 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 
+export interface PreservedByRuleProductDetail {
+  modelCode: string
+  ruleKeys: string[]
+}
+
 /**
  * tab 1개 sync 결과 — BE `ProductSheetSyncService.TabSyncResult` 와 1:1.
  *
@@ -32,6 +37,7 @@ export interface TabSyncResult {
   priceHistoryExposureSpecChangedRows?: number
   preservedManualProductOccurrences?: number
   preservedByRuleProductOccurrences?: number
+  preservedByRuleProductDetails?: PreservedByRuleProductDetail[]
   deferredByEcountReservationProductOccurrences?: number
   specsLinkedRows?: number
   error?: string | null
@@ -64,6 +70,7 @@ export interface SyncSummary {
   totalPreservedManualProductOccurrences: number
   totalPreservedManualComponentOccurrences: number
   totalPreservedByRuleProductOccurrences: number
+  preservedByRuleProductDetails?: PreservedByRuleProductDetail[]
   totalComponentLinkOccurrences: number
   totalBundlesMarkedProducts: number
   totalBlockedByRuleOccurrences: number

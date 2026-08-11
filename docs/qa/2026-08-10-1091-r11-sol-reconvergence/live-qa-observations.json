@@ -1,0 +1,59 @@
+{
+  "head": "5a0d98d334c44cb5433e48eeda3755728cb29f9b",
+  "dc": {
+    "beforeOpen": "수정 이력 미조회",
+    "httpStatus": 404,
+    "errorKind": "not-supported",
+    "modalText": "버전 이력 조회 기능이 아직 제공되지 않습니다.",
+    "badgeAfter": "수정 이력 조회 실패"
+  },
+  "slip": {
+    "document": "2026/08/10-14",
+    "initialStatus": 200,
+    "initialRows": 3,
+    "initialFields": [
+      {
+        "revisionNo": 3,
+        "fieldName": "memo",
+        "oldValue": "S33-open-overlay-ok",
+        "newValue": "S33-open-collab-ok",
+        "actorName": "[DEV-SEED] 개발영업"
+      },
+      {
+        "revisionNo": 2,
+        "fieldName": "memo",
+        "oldValue": "S33-open-header-ok",
+        "newValue": "S33-open-overlay-ok",
+        "actorName": "[DEV-SEED] 개발영업"
+      },
+      {
+        "revisionNo": 1,
+        "fieldName": "memo",
+        "oldValue": "S33-open-normal-path",
+        "newValue": "S33-open-header-ok",
+        "actorName": "<internal-actor-id>"
+      }
+    ],
+    "initialActor": "[DEV-SEED] 개발영업",
+    "initialMemo": "S33-open-collab-ok 변경 이력 없음",
+    "initialAddress": "(빈 값) 변경 이력 없음",
+    "cachedDuringRefresh": "S33-open-collab-ok 변경 이력 없음",
+    "abortedCalls": 2,
+    "afterRefreshFailureMemo": "S33-open-collab-ok 변경 이력 조회 실패",
+    "afterRefreshFailureAddress": "(빈 값) 변경 이력 조회 실패",
+    "historyActorStillVisible": 0
+  },
+  "pageErrors": [],
+  "requestFailures": [
+    {
+      "method": "GET",
+      "pathShape": "/api/v1/slips/<document-id>/audit-logs",
+      "error": "net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "method": "GET",
+      "pathShape": "/api/v1/slips/<document-id>/audit-logs",
+      "error": "net::ERR_INTERNET_DISCONNECTED"
+    }
+  ]
+}

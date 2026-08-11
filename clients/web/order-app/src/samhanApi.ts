@@ -185,9 +185,9 @@ async function fetchAllPages(
   return rows
 }
 
-/** order-app이 소비하는 활성 SINGLE_SET 수량 동기화 규칙 목록. */
+/** 홈멀티 주문 화면이 소비하는 활성 HOME_MULTI 수량 동기화 규칙 목록. */
 function fetchQuantitySyncRules(): Promise<unknown[]> {
-  return fetchAllPages('/quantity-sync-rules', { estimateCategory: 'SINGLE_SET' }, 50)
+  return fetchAllPages('/quantity-sync-rules', { estimateCategory: 'HOME_MULTI' }, 50)
 }
 
 type LegacyOrderItem = {

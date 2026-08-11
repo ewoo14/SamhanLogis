@@ -81,6 +81,7 @@ class QuantitySyncRuleCategoryFromExposureIT extends AbstractPostgresIT {
     void 실_API로_생성한_품목은_products_estimate_category가_NULL이지만_규칙에_연결된다() throws Exception {
         String sourceCode = createProduct("QSFX-SRC-A", List.of(EstimateCategory.HOME_MULTI));
         String targetCode = createProduct("QSFX-TGT-B", List.of(EstimateCategory.HOME_MULTI));
+        classifyQuantitySyncTarget(targetCode);
         // 회귀 방지 lock — 죽은 컬럼이 실제로 NULL임을 먼저 확인한다(보고서 실측과 동일).
         assertThat(estimateCategoryColumn(sourceCode)).isNull();
         assertThat(estimateCategoryColumn(targetCode)).isNull();
@@ -100,6 +101,7 @@ class QuantitySyncRuleCategoryFromExposureIT extends AbstractPostgresIT {
         // 판정 원천이 바뀌어도 유지되어야 한다.
         String sourceCode = createProduct("QSFX-SRC-C", List.of(EstimateCategory.HOME_MULTI));
         String targetCode = createProduct("QSFX-TGT-D", List.of(EstimateCategory.SINGLE_SET));
+        classifyQuantitySyncTarget(targetCode, EstimateCategory.SINGLE_SET);
 
         assertThatThrownBy(() -> quantitySyncRuleService.create(
                 request(QuantitySyncEstimateCategory.HOME_MULTI, "QSFX_RULE_MISMATCH", sourceCode, targetCode),
@@ -116,6 +118,8 @@ class QuantitySyncRuleCategoryFromExposureIT extends AbstractPostgresIT {
                 List.of(EstimateCategory.HOME_MULTI, EstimateCategory.SINGLE_SET));
         String homeTargetCode = createProduct("QSFX-TGT-F", List.of(EstimateCategory.HOME_MULTI));
         String singleTargetCode = createProduct("QSFX-TGT-G", List.of(EstimateCategory.SINGLE_SET));
+        classifyQuantitySyncTarget(homeTargetCode);
+        classifyQuantitySyncTarget(singleTargetCode, EstimateCategory.SINGLE_SET);
 
         QuantitySyncRuleResponse homeRule = quantitySyncRuleService.create(
                 request(QuantitySyncEstimateCategory.HOME_MULTI, "QSFX_RULE_HOME", multiCode, homeTargetCode),

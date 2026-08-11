@@ -5,11 +5,11 @@ import { AuditOverlay, type AuditLogEntry } from './AuditOverlay'
 
 const ACTOR_UUID = '123e4567-e89b-12d3-a456-426614174000'
 
-function entry(actorName: string | null): AuditLogEntry {
+function entry(actorName: string | null, actorId = ACTOR_UUID): AuditLogEntry {
   return {
     revisionNo: 1,
     beforeValue: '이전 값',
-    actorId: ACTOR_UUID,
+    actorId,
     actorName,
     changedAt: '2026-08-11T10:20:00+09:00',
   }
@@ -36,12 +36,26 @@ describe('AuditOverlay actorName 표시', () => {
   })
 
   it('정상 이름과 퍼센트·플러스·하이픈 식별자를 보존한다', () => {
-    for (const actorName of ['김감사', '김%20감사', '김+감사', '1-1-1-1-1']) {
+    for (const actorName of ['김감사', '김%감사', '김%20감사', '김+감사', '%', '1-1-1-1-1']) {
       const { unmount } = render(
         <AuditOverlay field="memo" currentValue="현재 값" history={[entry(actorName)]} />,
       )
       expect(screen.getByTestId('audit-overlay-memo').textContent).toContain(actorName)
       unmount()
     }
+  })
+
+  it('actorId와 다른 UUID-shaped actorName은 과잉 은닉하지 않는다', () => {
+    const differentActorId = '550e8400-e29b-41d4-a716-446655440000'
+    render(
+      <AuditOverlay
+        field="memo"
+        currentValue="현재 값"
+        history={[entry(ACTOR_UUID, differentActorId)]}
+      />,
+    )
+
+    expect(screen.getByTestId('audit-overlay-memo').textContent).toContain(ACTOR_UUID)
+    expect(screen.getByTestId('audit-overlay-memo').textContent).not.toContain('변경자 미상')
   })
 })

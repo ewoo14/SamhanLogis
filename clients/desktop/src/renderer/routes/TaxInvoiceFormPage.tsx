@@ -31,6 +31,10 @@ import { extractApiErrorMessage as extractErrorMessage } from '../api/apiError'
 import { taxInvoiceAuditApi } from '../api/createAuditApi'
 import { TaxInvoiceRealtimeClient } from '../realtime/AccountingRealtimeClient'
 import { AuditRevisionBadge } from '../components/audit/AuditOverlaySection'
+import {
+  AuditVersionHistory,
+  isAuditHistoryEndpointUnavailable,
+} from '../components/audit/AuditVersionHistory'
 import { searchPartners } from '../api/partnerApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -207,6 +211,8 @@ export function TaxInvoiceFormPage() {
   const editId = params['id']
   const isEdit = Boolean(editId)
   const isMobile = useIsMobile()
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
+  const [auditEndpointUnavailableFor, setAuditEndpointUnavailableFor] = useState<string | null>(null)
 
   usePageTitle(isEdit ? '세금계산서 편집' : '세금계산서 작성')
 
@@ -220,9 +226,19 @@ export function TaxInvoiceFormPage() {
   // PR-H4c: edit 모드 audit log 백필
   const auditQuery = useQuery({
     queryKey: ['accounting', 'tax-invoice', editId, 'audit-logs'],
-    queryFn: () => taxInvoiceAuditApi.listAuditLogs(editId!).catch(() => []),
-    enabled: isEdit && !!editId,
+    queryFn: () => taxInvoiceAuditApi.listAuditLogs(editId!),
+    enabled: isEdit
+      && !!editId
+      && auditHistoryOpen
+      && auditEndpointUnavailableFor !== editId,
+    retry: false,
+    staleTime: Infinity,
   })
+
+  useEffect(() => {
+    if (!editId || !auditQuery.isError || !isAuditHistoryEndpointUnavailable(auditQuery.error)) return
+    setAuditEndpointUnavailableFor((current) => current === editId ? current : editId)
+  }, [editId, auditQuery.error, auditQuery.isError])
 
   // PR-H4c: edit 모드 SSE 구독
   useEffect(() => {
@@ -530,13 +546,27 @@ export function TaxInvoiceFormPage() {
         </div>
         {/* PR-H4c: 편집 모드 — 수정 횟수 + 복원 dropdown */}
         {isEdit ? (
-          <AuditRevisionBadge
-            logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
-            isError={auditQuery.isError}
-            reverting={revertMutation.isPending}
-            onRevert={(rev) => revertMutation.mutate(rev)}
-            testIdPrefix="tax-invoice-form"
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <AuditRevisionBadge
+              logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+              isError={auditQuery.isError}
+              isFetched={auditQuery.isFetched}
+              isLoading={auditQuery.isLoading}
+              reverting={revertMutation.isPending}
+              onRevert={(rev) => revertMutation.mutate(rev)}
+              testIdPrefix="tax-invoice-form"
+            />
+              <AuditVersionHistory
+                logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                error={auditQuery.error}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
+                testIdPrefix="tax-invoice-form"
+              />
+          </div>
         ) : null}
       </div>
 

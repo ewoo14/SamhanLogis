@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.dcconfig.audit.service.DcConfigAuditLogService;
 import com.samhanair.logis.dcconfig.repository.DcConfigRepository;
 import com.samhanair.logis.dcconfig.service.DcConfigService;
 import org.junit.jupiter.api.Test;
@@ -17,12 +18,13 @@ class PartnerDcConfigsControllerSearchTest {
 
     @Mock DcConfigRepository repository;
     @Mock DcConfigService service;
+    @Mock DcConfigAuditLogService auditLogService;
 
     @Test
     void list_escapesLikeWildcardsBeforeRepositoryCall() {
         when(repository.search(any(), any())).thenReturn(new PageImpl<>(java.util.List.of()));
 
-        new PartnerDcConfigsController(repository, service).list(0, 50, " %_\\ ");
+        new PartnerDcConfigsController(repository, service, auditLogService).list(0, 50, " %_\\ ");
 
         verify(repository).search("\\%\\_\\\\", org.springframework.data.domain.PageRequest.of(0, 50));
     }

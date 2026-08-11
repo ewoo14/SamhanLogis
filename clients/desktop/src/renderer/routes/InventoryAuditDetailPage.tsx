@@ -61,6 +61,7 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
+import { AuditVersionHistory } from '../components/audit/AuditVersionHistory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -112,6 +113,7 @@ export function InventoryAuditDetailPage() {
   const { canAccess } = usePermissions()
   const isMobile = useIsMobile()
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
+  const [auditHistoryOpen, setAuditHistoryOpen] = useState(false)
 
   const detailQuery = useQuery({
     queryKey: ['inventory', 'audit', id],
@@ -119,11 +121,13 @@ export function InventoryAuditDetailPage() {
     enabled: !!id,
   })
 
-  // PR-H4c FE-B: audit log 백필 — BE 미구현 시 빈 배열 fallback
+  // PR-H4c FE-B: audit log 조회. 실패는 빈 이력으로 바꾸지 않고 모달에서 상태를 안내한다.
   const auditQuery = useQuery({
     queryKey: ['inventory', 'audit', id, 'audit-logs'],
-    queryFn: () => inventoryAuditAuditApi.listAuditLogs(id).catch(() => []),
+    queryFn: () => inventoryAuditAuditApi.listAuditLogs(id),
     enabled: !!id,
+    retry: false,
+    staleTime: Infinity,
   })
 
   // PR-H4c FE-B: SSE 구독 — inventory:edit 수신 시 본문 + audit cache invalidate
@@ -283,7 +287,13 @@ export function InventoryAuditDetailPage() {
           </div>
 
           <MobileCollapsible title="실사 상세 정보" className="mobile-section-card">
-            <DetailGrid audit={audit} auditByField={auditByField} />
+            <DetailGrid
+              audit={audit}
+              auditByField={auditByField}
+              isError={auditQuery.isError}
+              isFetched={auditQuery.isFetched}
+              isLoading={auditQuery.isLoading}
+            />
           </MobileCollapsible>
         </>
       ) : null}
@@ -310,6 +320,18 @@ export function InventoryAuditDetailPage() {
               <AuditRevisionBadge
                 logs={auditLogs}
                 isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                isLoading={auditQuery.isLoading}
+                testIdPrefix="audit-detail"
+              />
+              <AuditVersionHistory
+                logs={auditLogs}
+                isLoading={auditQuery.isLoading}
+                isError={auditQuery.isError}
+                isFetched={auditQuery.isFetched}
+                error={auditQuery.error}
+                open={auditHistoryOpen}
+                onOpenChange={setAuditHistoryOpen}
                 testIdPrefix="audit-detail"
               />
             </div>
@@ -321,7 +343,13 @@ export function InventoryAuditDetailPage() {
               message="차이 분개가 확정되어 본문 변경이 잠금 처리됩니다. 변경 필요 시 수정 요청을 사용하세요."
             />
           ) : null}
-          <DetailGrid audit={audit} auditByField={auditByField} />
+          <DetailGrid
+            audit={audit}
+            auditByField={auditByField}
+            isError={auditQuery.isError}
+            isFetched={auditQuery.isFetched}
+            isLoading={auditQuery.isLoading}
+          />
         </div>
 
         <div
@@ -432,9 +460,12 @@ interface DetailGridProps {
   audit: AuditDetail
   /** PR-H4c FE-B: field 별 audit log group — totalDiffAmount overlay 표시. */
   auditByField: Record<string, AuditLogEntry[]>
+  isError: boolean
+  isFetched: boolean
+  isLoading: boolean
 }
 
-function DetailGrid({ audit, auditByField }: DetailGridProps) {
+function DetailGrid({ audit, auditByField, isError, isFetched, isLoading }: DetailGridProps) {
   return (
     <dl className="audit-detail-meta">
       <dt style={dtStyle}>창고</dt>
@@ -449,6 +480,9 @@ function DetailGrid({ audit, auditByField }: DetailGridProps) {
           field="totalDiffAmount"
           currentValue={formatKrw(audit.totalDiffAmount)}
           history={auditByField['totalDiffAmount'] ?? []}
+          isError={isError}
+          isFetched={isFetched}
+          isLoading={isLoading}
         />
       </dd>
       <dt style={dtStyle}>시작</dt>
