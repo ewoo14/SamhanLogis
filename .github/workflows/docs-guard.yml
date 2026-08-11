@@ -60,9 +60,11 @@ on:
       - 'docs/handoff/**'
       - 'docs/manual/**'
       - 'docs/operational-validation/**'
+      - 'docs/local-stack/**'
       - 'docs/planning/**'
       - 'migration/decisions/**'
       - 'scripts/check-credential-plaintext.sh'
+      - 'scripts/lib/s1-logging-opt-in-contract.test.cjs'
       - 'clients/desktop/scripts/round-910-contract.test.cjs'
       - '.github/workflows/docs-guard.yml'
   push:
@@ -73,9 +75,11 @@ on:
       - 'docs/handoff/**'
       - 'docs/manual/**'
       - 'docs/operational-validation/**'
+      - 'docs/local-stack/**'
       - 'docs/planning/**'
       - 'migration/decisions/**'
       - 'scripts/check-credential-plaintext.sh'
+      - 'scripts/lib/s1-logging-opt-in-contract.test.cjs'
       - 'clients/desktop/scripts/round-910-contract.test.cjs'
       - '.github/workflows/docs-guard.yml'
   workflow_dispatch:
@@ -158,3 +162,19 @@ jobs:
             playwright/sp-07-google-sheets-source/sp-07-google-sheets-source.spec.ts \
             playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts \
             playwright/sp-08-5-1-purchase-slip-list-detail/sp-08-5-1-purchase-slip-list-detail.spec.ts
+
+  s1-logging-opt-in-contract:
+    name: "S1 logging opt-in 계약 (docs/local-stack 관할)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: S1 logging opt-in 계약 테스트 실행
+        run: node --test scripts/lib/s1-logging-opt-in-contract.test.cjs
