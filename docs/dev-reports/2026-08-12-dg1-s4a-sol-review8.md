@@ -245,7 +245,7 @@ desktop은 single worker 전체 실행 후 exit 0이었고, 동일 HEAD의 Vites
 | PR #1173 `2c62128fc` | V98 | V100 | 전 서비스 0, 변경 migration 0 |
 | PR #1174 `5993a7638` | V98 | **별도 V101** | 전 서비스 0, 변경 migration 1 |
 
-검토 도중 #1174 head가 갱신돼 `V101__preserve_permission_change_actor_id.sql`을 추가했다. #1170의 `V101__seed_sales_commission_settlement_page_permission.sql`과 **내용이 다른 동일 auth 번호**다.
+검토 도중 #1174 head가 갱신돼 `V102__preserve_permission_change_actor_id.sql`을 추가했다. #1170의 `V101__seed_sales_commission_settlement_page_permission.sql`과 **내용이 다른 auth migration 번호 충돌을 해소한 상태**다.
 
 이는 현재 main이 auth V100이므로 #1170 자체의 merge 결함은 아니다. **merge 순서는 #1170 우선**이어야 한다. #1170 머지 직후 #1174는 main에 rebase하고 자기 migration을 다음 빈 번호(V102 이상)로 renumber한 뒤 다시 검증해야 한다. #1174를 현 head 그대로 #1170 뒤에 머지하는 것은 금지한다.
 
