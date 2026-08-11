@@ -215,6 +215,42 @@ function parseMockBody(config: AxiosRequestConfig): Record<string, unknown> {
   return {}
 }
 
+/**
+ * URL query만 읽던 문서 참조 검색 mock handler가 Axios config.params도 같은 계약으로
+ * 읽도록 하는 공통 query 경계다. 요청 URL 자체는 변경하지 않아 legacy handler의
+ * suffix/상세 route 매칭을 보존한다. 같은 키가 URL에 있으면 config.params를 권위값으로
+ * 사용하고, 배열은 반복 query로 보존한다.
+ */
+function mockQueryParams(config: AxiosRequestConfig): URLSearchParams {
+  const parsed = new URL(config.url ?? '', 'http://mock')
+  const params = config.params
+  const entries: Array<[string, string]> = []
+
+  if (params instanceof URLSearchParams) {
+    params.forEach((value, key) => entries.push([key, value]))
+  } else if (typeof params === 'object') {
+    for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
+      if (value === null || value === undefined) continue
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item !== null && item !== undefined) entries.push([key, String(item)])
+        }
+      } else {
+        entries.push([key, String(value)])
+      }
+    }
+  }
+
+  for (const key of new Set(entries.map(([name]) => name))) {
+    parsed.searchParams.delete(key)
+  }
+  for (const [key, value] of entries) {
+    parsed.searchParams.append(key, value)
+  }
+
+  return parsed.searchParams
+}
+
 type MockAppClientType =
   | 'DESKTOP'
   | 'SAMHAN_MOBILE'
@@ -4475,7 +4511,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // GET /admin/slips/search?q=... — 그룹웨어 결재 전표 참조 자동완성.
   if (method === 'GET' && /\/(?:admin\/)?slips\/search(?:\?|$)/.test(url)) {
-    const params = new URLSearchParams(url.split('?')[1] ?? '')
+    const params = mockQueryParams(config)
     const q = (params.get('q') ?? '').trim().toLowerCase()
     const slipType = params.get('slipType')
     const rawLimit = Number(params.get('limit') ?? '10')
@@ -4512,7 +4548,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // GET /admin/accounting/*/search — 그룹웨어 결재 통합 문서 참조 자동완성.
   if (method === 'GET' && /\/admin\/accounting\/(?:journals|tax-invoices|statements|ledgers\/partners|sales-commission-settlements)\/search(?:\?|$)/.test(url)) {
-    const params = new URLSearchParams(url.split('?')[1] ?? '')
+    const params = mockQueryParams(config)
     const q = (params.get('q') ?? '').trim().toLowerCase()
     const rawLimit = Number(params.get('limit') ?? '10')
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 20)

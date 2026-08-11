@@ -24,6 +24,7 @@ import {
   registerInboundTaxInvoice,
 } from './taxInvoiceAdminApi'
 import { listInboundTaxInvoices } from './taxInvoiceInboundApi'
+import { searchByType } from './documentReferenceSearch'
 
 const DOCUMENT_NO_KEY_SET = new Set([
   'slipNo',
@@ -3742,6 +3743,82 @@ describe('mock 활성 문서양식(document-templates/active) 핸들러', () => 
     expect(res).not.toBeNull()
     expect(res.data).toBeNull()
   })
+})
+
+describe('그룹웨어 문서 참조 검색 mock transport params 계약', () => {
+  it.each([
+    {
+      name: '출고전표',
+      url: '/admin/slips/search',
+      params: { q: '2026/05/04', limit: 10, slipType: 'OUTBOUND' },
+      expectedKey: 'slipNo',
+      expectedValue: '2026/05/04-1',
+    },
+    {
+      name: '분개장',
+      url: '/admin/accounting/journals/search',
+      params: { q: '2026/05/01', limit: 10 },
+      expectedKey: 'journalNo',
+      expectedValue: '2026/05/01-1',
+    },
+    {
+      name: '세금계산서',
+      url: '/admin/accounting/tax-invoices/search',
+      params: { q: '2026/05/02', limit: 10 },
+      expectedKey: 'taxInvoiceNo',
+      expectedValue: '2026/05/02-1',
+    },
+    {
+      name: '거래명세서',
+      url: '/admin/accounting/statements/search',
+      params: { q: '2026/05/02', limit: 10 },
+      expectedKey: 'statementNo',
+      expectedValue: '2026/05/02-1',
+    },
+    {
+      name: '거래처원장',
+      url: '/admin/accounting/ledgers/partners/search',
+      params: { q: 'P-LASYS', limit: 10 },
+      expectedKey: 'partnerCode',
+      expectedValue: 'P-LASYS-001',
+    },
+    {
+      name: '영업수수료 정산서',
+      url: '/admin/accounting/sales-commission-settlements/search',
+      params: { q: '2026/08/11', limit: 10 },
+      expectedKey: 'settlementNo',
+      expectedValue: '2026/08/11-1',
+    },
+  ])('$name은 Axios config.params 검색어를 읽는다', ({ url, params, expectedKey, expectedValue }) => {
+    const response = mockRequest({ method: 'GET', url, params }) as MockEnvelope<Array<Record<string, unknown>>> | null
+
+    expect(response).not.toBeNull()
+    expect(response?.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ [expectedKey]: expectedValue }),
+    ]))
+  })
+
+  it('URL querystring으로 전달된 동일 검색 계약도 유지한다', () => {
+    const response = mockRequest({
+      method: 'GET',
+      url: '/admin/accounting/sales-commission-settlements/search?q=2026%2F08%2F11&limit=10',
+    }) as MockEnvelope<Array<Record<string, unknown>>> | null
+
+    expect(response?.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ settlementNo: '2026/08/11-1' }),
+    ]))
+  })
+
+  it.skipIf(import.meta.env.VITE_MOCK_MODE !== '1')(
+    'documentReferenceSearch 실제 함수도 mock transport params로 정산서를 찾는다',
+    async () => {
+      const results = await searchByType('SALES_COMMISSION_SETTLEMENT', '2026/08/11', 10)
+
+      expect(results).toEqual(expect.arrayContaining([
+        expect.objectContaining({ settlementNo: '2026/08/11-1' }),
+      ]))
+    },
+  )
 })
 
 describe('거래처별 원장 mock 응답 계약', () => {

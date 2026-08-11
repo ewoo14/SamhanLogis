@@ -5,10 +5,8 @@
  * 상세 생성은 기존 `approvalDoc.ts` 헬퍼를 단일 진실원으로 재사용한다.
  */
 import type { ApprovalLineAdminResponse } from '../api/groupwareApproval'
-import {
-  APPROVAL_ATTACHMENT_TYPE_LABEL,
-  type ApprovalAttachment,
-} from '../api/groupwareApprovalAttachment'
+import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
+import { approvalAttachmentPrintLabel } from '../api/approvalAttachmentPresentation'
 import type { ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import type { EstimateLine } from '../api/estimateApi'
 import { krw } from './PrintLayout'
@@ -128,7 +126,7 @@ export function buildApprovalRenderModel(input: FrozenApprovalDocInput): Approva
         value: row.fieldType === 'NUMBER' ? krw(row.value) || row.value : row.value,
       })),
       attachments: sortedAttachments.map((attachment) => ({
-        typeLabel: APPROVAL_ATTACHMENT_TYPE_LABEL[attachment.attachmentType],
+        typeLabel: approvalAttachmentPrintLabel(attachment),
         title: attachmentTitle(attachment),
         detail: attachmentDetails(attachment).join(' · '),
       })),
