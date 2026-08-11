@@ -21,7 +21,7 @@ function toRow(row: ApiRow): InOutAnalysisRow {
 }
 
 const cardStyle = { padding: 16, marginTop: 16 } as const
-const number = (value: number) => value.toLocaleString('ko-KR')
+const number = (value: number | null) => value === null ? '—' : value.toLocaleString('ko-KR')
 
 /** 확정 입출고 내역과 매입·판매 차액 이익률을 모델코드별로 표시한다. */
 export function InOutAnalysisPage() {
