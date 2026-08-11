@@ -48,10 +48,35 @@ function renderPicker(value: DocumentReferenceValue = emptyValue) {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
   searchByTypeMock.mockReset()
 })
 
 describe('DocumentReferencePicker 요청 세대 (#837)', () => {
+  it('검색 dropdown은 body portal로 렌더되고 하단 공간이 부족하면 위로 열린다', async () => {
+    vi.useFakeTimers()
+    searchByTypeMock.mockResolvedValue([journal('J-PORTAL')])
+    renderPicker()
+
+    const picker = document.querySelector('[class*="picker"]')
+    expect(picker).not.toBeNull()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      if (this === picker) return new DOMRect(100, 700, 500, 60)
+      return new DOMRect()
+    })
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+
+    fireEvent.change(screen.getByTestId('doc-ref-search-input'), { target: { value: 'J-PORTAL' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+
+    const listbox = screen.getByRole('listbox')
+    expect(listbox.parentElement).toBe(document.body)
+    expect(listbox.style.position).toBe('fixed')
+    expect(listbox.style.bottom).not.toBe('')
+    expect(screen.getByText('J-PORTAL')).toBeTruthy()
+  })
+
   it('영업수수료 정산서를 기존 지출결의서 참조 유형으로 선택할 수 있다', () => {
     const onChange = vi.fn()
     render(<DocumentReferencePicker value={emptyValue} onChange={onChange} />)

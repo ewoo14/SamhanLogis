@@ -5,12 +5,9 @@
 }
 
 .dropdown {
-  position: absolute;
-  z-index: 20;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: var(--space-1, 4px) 0 0;
+  position: fixed;
+  z-index: 1100;
+  margin: 0;
   padding: 0;
   max-height: 240px;
   overflow-y: auto;
@@ -89,9 +86,6 @@
   }
 
   .dropdown {
-    position: static;
-    grid-column: 1 / -1;
-    margin-top: var(--space-1, 4px);
     max-width: 100%;
   }
 
