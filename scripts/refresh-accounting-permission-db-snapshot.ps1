@@ -88,7 +88,7 @@ $lines = [System.Collections.Generic.List[string]]::new()
 $lines.Add("import { PERMISSION_PAGE_CODES } from './accounting-slip-permission-snapshot'")
 $lines.Add('')
 $lines.Add('// auth_db role_page_permission_templates projection, derived from all Flyway migrations in this repository.')
-$lines.Add('// Scope: PERMISSION_ROLES 횞 PERMISSION_PAGE_CODES. Missing DB rows are 0000000.')
+$lines.Add('// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES. Missing DB rows are 0000000.')
 $lines.Add('const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {')
 foreach ($role in $roles) {
   $lines.Add("  '$role': {")

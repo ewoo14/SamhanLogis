@@ -1,7 +1,7 @@
 import { PERMISSION_PAGE_CODES } from './accounting-slip-permission-snapshot'
 
 // auth_db role_page_permission_templates projection, derived from all Flyway migrations in this repository.
-// Scope: PERMISSION_ROLES 횞 PERMISSION_PAGE_CODES. Missing DB rows are 0000000.
+// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES. Missing DB rows are 0000000.
 const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<string, string>> = {
   'MASTER': {
     'partners.delete': '1111100',

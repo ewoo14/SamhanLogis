@@ -86,6 +86,13 @@ describe('accounting slip permission contract', () => {
     expect(refreshScript).toContain('exit 1')
   })
 
+  it('preserves the committed UTF-8 multiplication sign in the generator and snapshot comments', () => {
+    expect(refreshScript).not.toContain('횞')
+    expect(refreshScript).toContain('PERMISSION_ROLES × PERMISSION_PAGE_CODES')
+    expect(dbSnapshot).not.toContain('횞')
+    expect(dbSnapshot).toContain('PERMISSION_ROLES × PERMISSION_PAGE_CODES')
+  })
+
   it('gates every accounting slip write CTA by the canonical accounting permission action', () => {
     for (const [page, source, path] of [
       ['sales', salesAccountingSlipPage, 'accounting.sales-slip.accounting'],
