@@ -9,11 +9,11 @@
 | 활성 제품 | 3,084건 |
 | `classification_manual=true` | 0건 |
 | 수동행 분포 | 해당 없음 (전체 활성행 false) |
-| 정찰본 보수 규칙 재현 | 자동 916건 / 미등록 2,168건 |
+| 정찰본 보수 규칙 재현 | 자동 916건 / 미분류 2,168건 |
 | `category_id` | `NOT NULL` |
 | Flyway 기준 | `origin/main` product-service V37 → 이번 V38 |
 
-기존 카테고리 트리 API는 활성 루트부터 재귀 반환하고, 데스크톱 등록·수정 화면은 API가 반환한 값을 필수 선택값으로 사용한다. 따라서 루트 `UNREGISTERED(미등록)`는 화면에 노출되고, 기존 `categoryId` 필터·카운트 계약도 그대로 적용된다.
+기존 카테고리 트리 API는 활성 루트부터 재귀 반환하고, 데스크톱 등록·수정 화면은 API가 반환한 값을 필수 선택값으로 사용한다. 따라서 루트 `UNCLASSIFIED(미분류)`는 화면에 노출되고, 기존 `categoryId` 필터·카운트 계약도 그대로 적용된다.
 
 ## 2. 단일 자동분류 규칙
 
@@ -29,10 +29,10 @@
 공조:           전열교환기|erv
 벽걸이:         벽걸이
 천장형:         시스템천장형|천장형|카세트|1-?way|4-?way|360cst|실링
-미일치:         UNREGISTERED (미등록)
+미일치:         UNCLASSIFIED (미분류)
 ```
 
-품목명에서 미일치일 때만 `bundle_component.component_kind`를 그 구성품의 `component_product_code → products.model_code` 방향으로 역산한다. `OUTDOOR→OUTDOOR`, `INDOOR→INDOOR`, `REMOTE→CONTROL`, `ACCESSORY/PANEL/MATERIAL/FOOT→PIPING`이다. OUTDOOR·INDOOR가 동시에 있으면 보수적으로 미등록이다. 세트 자신에게는 역산하지 않는다.
+품목명에서 미일치일 때만 `bundle_component.component_kind`를 그 구성품의 `component_product_code → products.model_code` 방향으로 역산한다. `OUTDOOR→OUTDOOR`, `INDOOR→INDOOR`, `REMOTE→CONTROL`, `ACCESSORY/PANEL/MATERIAL/FOOT→PIPING`이다. OUTDOOR·INDOOR가 동시에 있으면 보수적으로 미분류이다. 세트 자신에게는 역산하지 않는다.
 
 ## 3. 구성품·받침대 사전 검증
 
@@ -86,11 +86,11 @@ AC023CX1DBC1, AC023CX1PBH1, AC032CX1DBC1, AC032CX1PBH1, AC040CX1DBC1
 | CONTROL | 계장/제어 | 29 | 0 |
 | HVAC | 공조(HVAC) | 11 | 0 |
 | SERVICE | 서비스/요금 | 34 | 0 |
-| UNREGISTERED | 미등록 | 2,126 | 0 |
+| UNCLASSIFIED | 미분류 | 2,126 | 0 |
 
 ## 5. V38 감사와 rollback
 
-V38은 루트 `UNREGISTERED`를 기존 활성 루트의 `MAX(display_order)+1`에 멱등 생성한다. `product_category_backfill_audit`에 migration key, 제품 ID, 이전/적용 카테고리 ID·코드, 사유, rollback 상태 및 BaseEntity 7 audit 열을 먼저 기록한다. 활성·`classification_manual=false`이며 실제 카테고리가 달라지는 행만 적용한다.
+V38은 루트 `UNCLASSIFIED`를 기존 활성 루트의 `MAX(display_order)+1`에 멱등 생성한다. `product_category_backfill_audit`에 migration key, 제품 ID, 이전/적용 카테고리 ID·코드, 사유, rollback 상태 및 BaseEntity 7 audit 열을 먼저 기록한다. 활성·`classification_manual=false`이며 실제 카테고리가 달라지는 행만 적용한다.
 
 rollback은 다음 순서로 운영자가 명시 실행할 수 있다.
 
@@ -157,17 +157,17 @@ UPDATE product_category_backfill_audit a
 | 조합 | 검증 결과 |
 |---|---|
 | 자동분류 성공 신규 | `실외기` → OUTDOOR |
-| 자동분류 실패 신규 | 모델명형 품목 → UNREGISTERED |
+| 자동분류 실패 신규 | 모델명형 품목 → UNCLASSIFIED |
 | 수동분류 기존 | `classification_manual=true` 행은 V38 대상 제외 |
 | 자동분류 기존 | OUTDOOR/INDOOR/PIPING으로 감사 후 변경 |
-| 미등록 기존 | UNREGISTERED로 감사 후 변경 |
-| 미등록 품목 견적 노출 | category_id 유효값 유지, 견적·정액DC 축 변경 없음 |
+| 미분류 기존 | UNCLASSIFIED로 감사 후 변경 |
+| 미분류 품목 견적 노출 | category_id 유효값 유지, 견적·정액DC 축 변경 없음 |
 | soft-delete 후 재등장 | 같은 모델 코드의 삭제행을 `markRestored()`해 기존 카테고리 보존 |
 | 구성품 역산 | 구성품 품목만 OUTDOOR로 보정, 세트 자신은 미변경 |
 
 ## 7. 테스트 결과
 
-- RED: 분류기 부재, V38 migration 부재, 시트의 OUTDOOR/UNREGISTERED/재등장 보존 실패를 각각 확인했다.
+- RED: 분류기 부재, V38 migration 부재, 시트의 OUTDOOR/UNCLASSIFIED/재등장 보존 실패를 각각 확인했다.
 - 격리 Testcontainers PostgreSQL: V38 감사·수동 불가침·rollback·구성품 OUTDOOR 역산 통과.
 - 명칭 개정 RED: 새 코드값을 기대하도록 바꾼 분류기 테스트 2건이 기존 반환값 때문에 실패함을 확인했다.
 - 명칭 개정 GREEN: 분류기·V38·시트 동기화 대상 테스트 — **BUILD SUCCESSFUL**, 39초.
@@ -183,7 +183,7 @@ UPDATE product_category_backfill_audit a
 - `docs/superpowers/plans/2026-08-11-product-category-backfill.md`
 - `docs/dev-reports/2026-08-11-product-category-backfill.md`
 
-## 9. 명칭 개정 검증 (미분류 → 미등록)
+## 9. 현재 명칭 검증 (UNCLASSIFIED / 미분류)
 
 개발책임자 용어를 정본으로 반영했다. 분류 규칙·우선순위·구성품 역산·감사·rollback에는 변경이 없다.
 
@@ -197,7 +197,7 @@ UPDATE product_category_backfill_audit a
 | 계장/제어 | CONTROL | CONTROL | 29 |
 | 공조(HVAC) | HVAC | HVAC | 11 |
 | 서비스/요금 | SERVICE | SERVICE | 34 |
-| 미등록 | UNCLASSIFIED / 미분류 | UNREGISTERED / 미등록 | 2,126 |
+| 미분류 | UNCLASSIFIED / 미분류 | UNCLASSIFIED / 미분류 | 2,126 |
 
 합계 3,084건으로 개정 전후 모든 카테고리별 분류 건수는 동일하다.
 
@@ -207,11 +207,11 @@ UPDATE product_category_backfill_audit a
 
 | 검색 위치 | 건수 | 처리 |
 |---|---:|---|
-| `services/product-service/**` | 0 | 모두 `UNREGISTERED`로 개정 완료 |
+| `services/product-service/**` | 0 | 모두 `UNCLASSIFIED`로 개정 완료 |
 | 이 보고서 | 2 | 개정 전후 대조표의 과거값 1건과 이 검색 근거 문장 1건. 실행 코드 아님 |
 | `docs/dev-reports/2026-08-03-1015-r20-reconvergence.md` | 2 | 과거 전표 분석 marker, 제품 카테고리 아님 — 보존 |
 | `docs/dev-reports/migration-be-m3-dc-config-service.md` | 2 | DC 거래처그룹 enum 문서, 제품 카테고리 아님 — 보존 |
 | `services/slip-service/**` | 2 | 전표 지역그룹 상수, 제품 카테고리 아님 — 보존 |
 | `services/dc-config-service/**` | 8 | 거래처그룹 enum·시더·테스트, 제품 카테고리 아님 — 보존 |
 
-모델코드 접두어 기반 분류는 추가하지 않았다. 위 두 신호로 판정되지 않는 품목은 `UNREGISTERED(미등록)`에 그대로 남는다.
+모델코드 접두어 기반 분류는 추가하지 않았다. 위 두 신호로 판정되지 않는 품목은 `UNCLASSIFIED(미분류)`에 그대로 남는다.

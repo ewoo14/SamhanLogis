@@ -87,7 +87,7 @@ public class ProductSheetSyncService {
     /** 시트 신규 적재와 V38 백필이 공유하는 제품구분 카테고리 코드 집합. */
     private static final Set<String> PRODUCT_CATEGORY_CODES = Set.of(
             "SERVICE", "CONTROL", "PIPING", "OUTDOOR", "HVAC",
-            "INDOOR_WALL", "INDOOR_CEILING", "INDOOR", ProductNameCategoryClassifier.UNREGISTERED_CODE);
+            "INDOOR_WALL", "INDOOR_CEILING", "INDOOR", ProductNameCategoryClassifier.UNCLASSIFIED_CODE);
 
     /** PriceHistory 기준일 — legacy 시드와 동일하게 인상본은 2026-04-01부터 적용한다. */
     private static final LocalDate PRICE_INCREASE_EFFECTIVE_DATE = LocalDate.of(2026, 4, 1);

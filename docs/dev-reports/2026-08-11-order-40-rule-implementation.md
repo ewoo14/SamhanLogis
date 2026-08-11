@@ -14,20 +14,20 @@
 | 활성 품목 | 3,084 | 3,084 | 분모 일치 |
 | 실외기 | 201 | 0 (V38 미적용) | 공유 환경 판정 불가 |
 | 실내기 계열 | 516 (`INDOOR` 415 + `INDOOR_WALL` 40 + `INDOOR_CEILING` 61) | 0 (V38 미적용) | 공유 환경 판정 불가 |
-| 미등록 | 2,126 | 0 (V38 미적용) | 공유 환경 판정 불가 |
+| 미분류 | 2,126 | 0 (V38 미적용) | 공유 환경 판정 불가 |
 | `has_variable_discount=true` | 803 | 803 | 통과 |
 | `has_variable_discount=false` | 2,281 | 2,281 | 통과 |
 | `has_variable_discount IS NULL` | 0 | 0 | 통과 |
 
-공유 `product_db.flyway_schema_history`의 최대 성공 버전은 **V37**이다. 현재 활성 제품의 `category_id` 연결은 `ECOUNT_MIG2` 1,963건과 `INDOOR_WALL` 1,121건뿐이며, `OUTDOOR`, `INDOOR`, `INDOOR_CEILING`, `UNREGISTERED` 연결은 0건이다. 따라서 공유 DB에서 S1 카테고리 축을 기준으로 실외기·실내기·미등록을 세는 것은 불가능하다. 개발책임자가 제시한 212/417/2,126은 이 공유 DB의 실측값으로 사용하지 않는다.
+공유 `product_db.flyway_schema_history`의 최대 성공 버전은 **V37**이다. 현재 활성 제품의 `category_id` 연결은 `ECOUNT_MIG2` 1,963건과 `INDOOR_WALL` 1,121건뿐이며, `OUTDOOR`, `INDOOR`, `INDOOR_CEILING`, `UNCLASSIFIED` 연결은 0건이다. 따라서 공유 DB에서 S1 카테고리 축을 기준으로 실외기·실내기·미분류를 세는 것은 불가능하다. 개발책임자가 제시한 212/417/2,126은 이 공유 DB의 실측값으로 사용하지 않는다.
 
 ### 0.2 실제 주문 경로 표본
 
 공유 `partner_order_db`에는 활성 주문 4건, 활성 라인 8건만 있다. 라인 카테고리 키는 `homemulti` 6건, `singleSets` 2건이다. 기존 라인 중 이름상 실외기인 2라인도 공유 제품 DB에서는 `INDOOR_WALL`로 연결되어 있어 현재 카테고리 축을 신뢰할 수 없다. 이 표본으로는 다음의 발화 조합을 실제 주문 경로에서 판정할 수 없다.
 
 ```text
-둘 다 없음+변동DC 대상 · 둘 다 없음+변동DC 비대상 · 미등록만 ·
-미등록+변동DC · 미등록+실외기 · 전열교환기만 · 빈 주문
+둘 다 없음+변동DC 대상 · 둘 다 없음+변동DC 비대상 · 미분류만 ·
+미분류+변동DC · 미분류+실외기 · 전열교환기만 · 빈 주문
 ```
 
 표본 0 또는 판정 불가를 결함 없음으로 세지 않는다. V38을 공유 DB에 적용하거나 관리자 화면에서 분류·주문을 생성하면 게이트를 진행할 수 있지만, 이 트랙의 **공유 DB write·배포 금지**와 충돌하므로 실행하지 않았다. DB 직접 INSERT도 하지 않았다.
@@ -40,7 +40,7 @@
 services/dc-config-service/.../dto/PriceCalculationRequest.java
   Line: lineId, modelCode, listPrice, category, quantity, option flags,
         fixedDiscountRate, hasVariableDiscount
-  → OUTDOOR / INDOOR / UNREGISTERED 필드 없음
+  → OUTDOOR / INDOOR / UNCLASSIFIED 필드 없음
 
 services/dc-config-service/.../service/PriceCalculationService.java
   pickCategoryRate(...)
@@ -65,7 +65,7 @@ services/partner-order-service/.../PartnerOrderConfirmService.java:201-207
 - **라이브 Playwright:** 40% 적용/미적용 주문을 실제로 만들 수 없어 실행하지 않았다. 실패 원문이 아니라 **판정 불가 사유**를 기록한다.
 - **신규 파일:** 없음. 이 기존 보고서만 재실측 정정 블록을 추가했다.
 
-재개 조건은 (1) V38이 실제 제품 DB에 적용되어 S1 카테고리 분포가 복원되고, (2) 관리자 실 경로로 미등록·실외기·실내기·변동DC 조합을 만들 수 있으며, (3) 그 주문을 공유 DB에 남기지 않고 회수할 수 있는 QA 격리 경로가 확보되는 것이다. 그 뒤에만 단일 규칙 지점 설계와 구현 승인을 진행한다.
+재개 조건은 (1) V38이 실제 제품 DB에 적용되어 S1 카테고리 분포가 복원되고, (2) 관리자 실 경로로 미분류·실외기·실내기·변동DC 조합을 만들 수 있으며, (3) 그 주문을 공유 DB에 남기지 않고 회수할 수 있는 QA 격리 경로가 확보되는 것이다. 그 뒤에만 단일 규칙 지점 설계와 구현 승인을 진행한다.
 
 > 이하 기존 본문은 V38 적용 전 정찰 기록이다. 현재 재실측 결과와 충돌하는 수치는 이 0장 표를 정본으로 한다.
 

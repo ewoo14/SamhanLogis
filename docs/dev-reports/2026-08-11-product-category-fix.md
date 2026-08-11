@@ -116,8 +116,8 @@ UPDATE product_category_backfill_audit a
 ```text
 Error: 기초품목 화면에 제품구분 필터가 없습니다.
 Locator: getByRole('combobox', { name: /카테고리|제품구분/ })
-Error: 기초품목 화면에 미등록 카운트가 없습니다.
-Locator: getByText(/미등록\s*2,126건/)
+Error: 기초품목 화면에 미분류 카운트가 없습니다.
+Locator: getByText(/미분류\s*2,126건/)
 1 failed / 1 passed
 ```
 
@@ -125,7 +125,7 @@ Locator: getByText(/미등록\s*2,126건/)
 
 - `ProductCatalogControllerIT`: `categoryId`와 기존 검색어를 함께 보냈을 때 필터된 1행과 `physicalCategory.code/name`을 요구하도록 추가했다.
 - `V38__ProductCategoryBackfillTest`: rollback 메서드가 없던 상태와 사후 변경 행을 복원하면 안 되는 조건을 먼저 고정했다.
-- Playwright: 전체 3,084건 → `미등록` 선택 → 2,126건/행 표시 → 필터 해제 → 3,084건을 요구하도록 고쳤다.
+- Playwright: 전체 3,084건 → `미분류` 선택 → 2,126건/행 표시 → 필터 해제 → 3,084건을 요구하도록 고쳤다.
 
 ### GREEN
 
@@ -144,9 +144,9 @@ Playwright는 `clients/desktop`에서 renderer root를 `src/renderer`로 기동�
 
 최종 실행 시각은 2026-08-11 13:57(KST)이며 아래 4장으로 흐름을 확인할 수 있다.
 
-1. [01-form-unregistered-selected.png](../qa/2026-08-11-category/01-form-unregistered-selected.png) — 등록 폼의 필수 `미등록 (UNREGISTERED)` 선택
+1. [01-form-unregistered-selected.png](../qa/2026-08-11-category/01-form-unregistered-selected.png) — 등록 폼의 필수 `미분류 (UNCLASSIFIED)` 선택
 2. [02-catalog-before-category-filter.png](../qa/2026-08-11-category/02-catalog-before-category-filter.png) — 목록 전체 `3,084건`
-3. [03-catalog-unregistered-filtered.png](../qa/2026-08-11-category/03-catalog-unregistered-filtered.png) — `제품구분=미등록`, 행의 `미등록`, API 기반 카운트 `2,126건`
+3. [03-catalog-unregistered-filtered.png](../qa/2026-08-11-category/03-catalog-unregistered-filtered.png) — `제품구분=미분류`, 행의 `미분류`, API 기반 카운트 `2,126건`
 4. [04-catalog-filter-cleared.png](../qa/2026-08-11-category/04-catalog-filter-cleared.png) — 필터 해제 후 전체 `3,084건`
 
 중간에 root 없이 `vite.config.ts`를 직접 기동한 잘못된 QA 래퍼는 빈 HTML로 실패했으나, 이는 앱 부팅 전 하네스 root 오류였다. renderer root를 명시한 최종 실행으로 교정했고 위의 `2 passed` 원문을 확보했다. 제품 assertion 실패로 판정하지 않았다.

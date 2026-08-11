@@ -15,7 +15,7 @@
 
 | 축 | 판정 | 직접 증거 |
 |---|---|---|
-| SOL-1 목록 제품구분/필터/count/AND | PASS | 실제 desktop renderer Playwright `2 passed`; 격리 DB count `전체 1→1`, `미등록 1→0`, `q+미등록 1→0` |
+| SOL-1 목록 제품구분/필터/count/AND | PASS | 실제 desktop renderer Playwright `2 passed`; 격리 DB count `전체 1→1`, `미분류 1→0`, `q+미분류 1→0` |
 | SOL-2 rollback 4조건 | PASS | 격리 혼합 batch에서 대상 1건만 복원, 2회차 0건; 각 skip 행과 감사 상태 보존 |
 | SOL-3 main 병합/V38 | PASS | 병합 당시 교집합 2파일 확인; 현재 origin/main 신규 교집합 0; main V37, HEAD V38 연속 |
 
@@ -37,16 +37,16 @@
 
 ```text
 Running 2 tests using 1 worker
-[1/2] 등록 폼의 필수 카테고리 선택에서 미등록을 선택할 수 있다
-[2/2] 기초품목 화면에서 미등록 필터와 2,126건 카운트를 제공한다
+[1/2] 등록 폼의 필수 카테고리 선택에서 미분류를 선택할 수 있다
+[2/2] 기초품목 화면에서 미분류 필터와 2,126건 카운트를 제공한다
 2 passed (2.7s)
 ```
 
 캡처:
 
-1. [01-form-unregistered-selected.png](../qa/2026-08-11-category-r2/01-form-unregistered-selected.png) — 등록 폼 `미등록` 선택
+1. [01-form-unregistered-selected.png](../qa/2026-08-11-category-r2/01-form-unregistered-selected.png) — 등록 폼 `미분류` 선택
 2. [02-catalog-before-category-filter.png](../qa/2026-08-11-category-r2/02-catalog-before-category-filter.png) — 필터 미선택, `총 3,084건`
-3. [03-catalog-unregistered-filtered.png](../qa/2026-08-11-category-r2/03-catalog-unregistered-filtered.png) — `제품구분=미등록`, 행 제품구분 `미등록`, `총 2,126건 / 미등록 2,126건`
+3. [03-catalog-unregistered-filtered.png](../qa/2026-08-11-category-r2/03-catalog-unregistered-filtered.png) — `제품구분=미분류`, 행 제품구분 `미분류`, `총 2,126건 / 미분류 2,126건`
 4. [04-catalog-filter-cleared.png](../qa/2026-08-11-category-r2/04-catalog-filter-cleared.png) — 필터 해제 후 `총 3,084건`
 
 첫 실행은 BrowserRouter 서버에 HashRouter URL을 사용해 두 테스트 모두 대시보드로 낙착했다. 제품 assertion 실패가 아닌 하네스 오류였으며, 요청에 따라 원문을 [playwright-first-run-failure.txt](../qa/2026-08-11-category-r2/playwright-first-run-failure.txt)에 첨부했다. 의도된 HashRouter 하네스로 교정한 뒤 위 최종 결과를 얻었다.
@@ -55,15 +55,15 @@ Running 2 tests using 1 worker
 
 화면 코드는 `selectedPhysicalCategory.name + listQuery.data.totalElements`를 렌더링한다. production source에서 `2,126/3,084` 업무 수치 리터럴을 검색했으며 관련 일치는 0건이었다. 고정 수치는 결정적 화면 fixture에만 있다.
 
-격리 PostgreSQL에서 한 제품을 `UNREGISTERED → INDOOR_WALL`로 직접 바꾸고 같은 repository count query를 다시 실행했다.
+격리 PostgreSQL에서 한 제품을 `UNCLASSIFIED → INDOOR_WALL`로 직접 바꾸고 같은 repository count query를 다시 실행했다.
 
 ```text
 R2_DYNAMIC total=1->1 unregistered=1->0 and=1->0
 ```
 
 - 필터 미선택 전체 count는 동일하다.
-- 미등록 count만 정확히 1 감소한다.
-- `q=R2-DYNAMIC-COUNT AND categoryId=UNREGISTERED` 결과도 1→0으로 변한다.
+- 미분류 count만 정확히 1 감소한다.
+- `q=R2-DYNAMIC-COUNT AND categoryId=UNCLASSIFIED` 결과도 1→0으로 변한다.
 
 따라서 UI count는 백엔드 `totalElements`를 따르며 하드코딩이 아니다. 상세 원문은 [isolated-postgres-probe-output.txt](../qa/2026-08-11-category-r2/isolated-postgres-probe-output.txt)에 있다.
 
@@ -115,7 +115,7 @@ merge 결과를 양 부모와 각각 대조했다.
 
 - #1132/V37 의도 보존: `v37ManagedParents`, `isActiveDefaultBackfillBundle`, 감사 부모의 교체·신규 구성품 `isDefault=true`, rollback 완료 부모의 문자열 규칙 복귀가 남아 있다.
 - #1166 의도 보존: 신규 시트 품목은 `ProductNameCategoryClassifier.classify(name)` 결과 category로 생성되고, soft-delete 재등장은 `findLatestDeletedByModelCode → markRestored()` 후 기존 category를 보존한다.
-- 두 test 집합도 모두 merge 결과에 남았다. 전체 product-service 777 tests에서 V37 RED-A/RED-B와 신규 OUTDOOR/UNREGISTERED/재등장 테스트가 함께 통과했다.
+- 두 test 집합도 모두 merge 결과에 남았다. 전체 product-service 777 tests에서 V37 RED-A/RED-B와 신규 OUTDOOR/UNCLASSIFIED/재등장 테스트가 함께 통과했다.
 
 텍스트 conflict marker는 제품 서비스와 desktop renderer에서 0건이었다.
 
@@ -187,7 +187,7 @@ classification_manual=true=0
 1. `classification_manual=true` 제품은 백필 후보 조회뿐 아니라 실제 UPDATE 시점에도 절대 변경하지 않는다.
 2. 감사행이 과거에 생성돼 있어도 현재 제품이 수동분류이면 그 감사행을 근거로 재적용하지 않는다.
 3. skip된 수동행의 category, `modified_at/by`, 감사 rollback 상태를 변경하지 않는다.
-4. 기존 최초 자동분류, 미등록, 구성품 역산, rollback 4조건은 그대로 유지한다.
+4. 기존 최초 자동분류, 미분류, 구성품 역산, rollback 4조건은 그대로 유지한다.
 
 ### 6.2 좌표 전수
 

@@ -69,8 +69,8 @@ V38 실제 UPDATE는 후보 SELECT와 별도로 쓰기 시점에 `p.classificati
 
 ## 4. 정상경로가 막히지 않았는가
 
-- **백필 정상행:** 격리 probe에서 manual=false 2건이 첫 apply에 실제 변경되고 감사 2건이 생겼다. 공식 V38 첫 테스트도 자동분류/미등록/구성품 역산 4행 적용과 수동 1행 skip을 단언한다.
-- **시트 자동분류:** `ProductSheetSyncServiceIT` 49/49. 신규 `실외기 → OUTDOOR`, 미일치 → `UNREGISTERED`, 기존/soft-delete category 보존 경로가 포함된다.
+- **백필 정상행:** 격리 probe에서 manual=false 2건이 첫 apply에 실제 변경되고 감사 2건이 생겼다. 공식 V38 첫 테스트도 자동분류/미분류/구성품 역산 4행 적용과 수동 1행 skip을 단언한다.
+- **시트 자동분류:** `ProductSheetSyncServiceIT` 49/49. 신규 `실외기 → OUTDOOR`, 미일치 → `UNCLASSIFIED`, 기존/soft-delete category 보존 경로가 포함된다.
 - **화면 사용자 변경:** Chromium 등록 폼에서 카테고리 선택이 동작했다. `ProductFormPage.test.tsx` 10/10은 편집 hydrate와 `updateProduct(... categoryId ...)` 저장을 확인했고, 격리 ProductService probe는 manual=true 행을 `INDOOR`로 바꾼 뒤 재-apply에서도 값을 보존했다.
 - **ECOUNT 정상 복원:** manual=false 복원은 기존 `ECOUNT_MIG2` 계약을 유지하고 manual=true 복원만 현재값을 보존한다.
 
@@ -94,9 +94,9 @@ V38 실제 UPDATE는 후보 SELECT와 별도로 쓰기 시점에 `p.classificati
 
 최종 캡처:
 
-1. [01-form-unregistered-selected.png](../qa/2026-08-11-category-r3/01-form-unregistered-selected.png) — 등록 폼 `미등록` 선택
+1. [01-form-unregistered-selected.png](../qa/2026-08-11-category-r3/01-form-unregistered-selected.png) — 등록 폼 `미분류` 선택
 2. [02-catalog-before-category-filter.png](../qa/2026-08-11-category-r3/02-catalog-before-category-filter.png) — 필터 전 전체 3,084
-3. [03-catalog-unregistered-filtered.png](../qa/2026-08-11-category-r3/03-catalog-unregistered-filtered.png) — `미등록` 선택, 2,126
+3. [03-catalog-unregistered-filtered.png](../qa/2026-08-11-category-r3/03-catalog-unregistered-filtered.png) — `미분류` 선택, 2,126
 4. [04-catalog-filter-cleared.png](../qa/2026-08-11-category-r3/04-catalog-filter-cleared.png) — 해제 후 3,084
 
 ## 7. 이 라운드가 보지 않은 표면
@@ -109,4 +109,3 @@ V38 실제 UPDATE는 후보 SELECT와 별도로 쓰기 시점에 `p.classificati
 ## 8. PM 보고
 
 R3에서 새 결함은 발견되지 않았다. R2-1과 전수조사에서 추가 발견한 ECOUNT soft-delete 복원 경로는 닫혔고, 정상 자동행과 사용자 변경 경로도 막히지 않았다. 제품구분 S1은 PASS로 넘기고, 같은 PR의 다음 단계 S2(주문 40% 규칙)로 진행 가능하다.
-

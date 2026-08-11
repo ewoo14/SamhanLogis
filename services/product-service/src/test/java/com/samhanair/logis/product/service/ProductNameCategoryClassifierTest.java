@@ -29,8 +29,8 @@ class ProductNameCategoryClassifierTest {
                 Arguments.of("벽걸이 실내기", "INDOOR"),
                 Arguments.of("4-Way 실내기", "INDOOR"),
                 Arguments.of("일반 실내기", "INDOOR"),
-                Arguments.of("AM180NXVUHH1", "UNREGISTERED"),
-                Arguments.of(null, "UNREGISTERED")
+                Arguments.of("AM180NXVUHH1", "UNCLASSIFIED"),
+                Arguments.of(null, "UNCLASSIFIED")
         );
     }
 

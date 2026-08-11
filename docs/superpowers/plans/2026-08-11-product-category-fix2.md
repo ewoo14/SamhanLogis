@@ -128,7 +128,7 @@ Expected: product-service full suite passes with the new V38 and importer regres
 
 - [ ] **Step 2: Run Desktop tests and direct Playwright QA**
 
-From `clients/desktop`, run the existing Vitest command for the 152-test renderer scope and the headless Chromium-1217 Playwright flow for `미등록` filter. Capture before/filter-cleared states and retain failure output if any step fails.
+From `clients/desktop`, run the existing Vitest command for the 152-test renderer scope and the headless Chromium-1217 Playwright flow for `미분류` filter. Capture before/filter-cleared states and retain failure output if any step fails.
 
 - [ ] **Step 3: Record the final report**
 
@@ -137,4 +137,3 @@ Include the exact pre-fix RED output, the complete write-point O/X table, root-c
 - [ ] **Step 4: Verify forbidden actions did not occur**
 
 Run read-only `git status --short` and report that no git operation, shared DB write, migration deployment, or 40% rule work was performed.
-

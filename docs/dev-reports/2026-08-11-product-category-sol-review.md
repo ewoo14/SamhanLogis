@@ -8,13 +8,13 @@
 
 ## 1. 결론
 
-분류 결과 자체는 개발책임자 결정과 일치한다. 받침대 선행 예외 11건은 모두 `PIPING`, 정상 실외기·실내기 본체의 받침대 과잉 매칭은 0건, 구성품 역산 순증은 41건, 11개 다중 역할 충돌은 모두 품목명 우선으로 해소됐다. 모델코드 접두 분류도 없다. 격리 V38 적용 후 합계는 3,084건이며 `UNREGISTERED`는 2,126건이다.
+분류 결과 자체는 개발책임자 결정과 일치한다. 받침대 선행 예외 11건은 모두 `PIPING`, 정상 실외기·실내기 본체의 받침대 과잉 매칭은 0건, 구성품 역산 순증은 41건, 11개 다중 역할 충돌은 모두 품목명 우선으로 해소됐다. 모델코드 접두 분류도 없다. 격리 V38 적용 후 합계는 3,084건이며 `UNCLASSIFIED`는 2,126건이다.
 
 그러나 다음 3건 때문에 이 상태로 머지할 수 없다.
 
 | ID | 심각도 | 결함 |
 |---|---|---|
-| SOL-1 | P1 | 기초품목 목록이 물리 제품구분을 응답·표시·필터·카운트하지 않는다. `미등록`을 점진적으로 채울 업무 경로가 없다. |
+| SOL-1 | P1 | 기초품목 목록이 물리 제품구분을 응답·표시·필터·카운트하지 않는다. `미분류`를 점진적으로 채울 업무 경로가 없다. |
 | SOL-2 | P1 | 보고서 rollback SQL이 V38 이후 사람이 수정한 카테고리를 무조건 이전값으로 덮어쓰고, 실제 복원되지 않은 행도 rollback 완료로 표시할 수 있다. |
 | SOL-3 | P1 | 현재 HEAD에는 main에서 이미 적용된 V36·V37 파일이 없다. main V37 복제 DB에 HEAD jar를 그대로 부팅하면 Flyway validation이 중단된다. |
 
@@ -24,15 +24,15 @@
 
 ### 결론
 
-**개명 커밋이 분류를 바꾼 것은 아니다.** 개명 전 커밋 `8221eee0b`와 개명 후 `b5e34da0c` 모두 최종 미분류/미등록 수를 2,126으로 기록하며, 두 커밋의 classifier diff는 상수명·코드값·표시명 변경뿐이다.
+**개명 커밋이 분류를 바꾼 것은 아니다.** 개명 전 커밋 `8221eee0b`와 개명 후 `b5e34da0c` 모두 최종 미분류 수를 2,126으로 기록하며, 두 커밋의 classifier diff는 상수명·코드값·표시명 변경뿐이다.
 
 개발책임자가 지적한 `2,127 = 2,168 - 41` 계산에서 빠진 한 건은 다음 행이다.
 
 | modelCode | 품목명 | 정찰본 규칙 | 구현 규칙 | 이동 이유 |
 |---|---|---|---|---|
-| `SZO-00015` | `WMN4070SJ-TV브라켓` | 미등록 | `PIPING` | 새 선행 예외에 `브라켓`이 포함됨 |
+| `SZO-00015` | `WMN4070SJ-TV브라켓` | 미분류 | `PIPING` | 새 선행 예외에 `브라켓`이 포함됨 |
 
-따라서 수식은 `정찰 미등록 2,168 - 브라켓 1 - 구성품 역산 41 = 최종 미등록 2,126`이다. 이 한 건은 실제 브라켓 부자재이므로 분류 결함은 아니다. 다만 보고서가 “개명 전후 동일”만 적고 정찰본에서 구현본으로 움직인 이 한 건을 설명하지 않은 것은 증거 서술 누락이다.
+따라서 수식은 `정찰 미분류 2,168 - 브라켓 1 - 구성품 역산 41 = 최종 미분류 2,126`이다. 이 한 건은 실제 브라켓 부자재이므로 분류 결함은 아니다. 다만 보고서가 “개명 전후 동일”만 적고 정찰본에서 구현본으로 움직인 이 한 건을 설명하지 않은 것은 증거 서술 누락이다.
 
 ## 3. `UNCLASSIFIED` 저장소 전체 재검색
 
@@ -71,7 +71,7 @@ rg -n "UNCLASSIFIED" --hidden -g '!.git/**' -g '!**/node_modules/**' `
 | OUTDOOR | 201 |
 | PIPING | 167 |
 | SERVICE | 34 |
-| UNREGISTERED | 2,126 |
+| UNCLASSIFIED | 2,126 |
 | **합계** | **3,084** |
 
 실제 변경 감사행은 3,046건이다. 기존 `INDOOR_WALL`과 적용 결과가 같은 38건은 no-op이라 감사 대상에서 제외됐다. 제품 3,084건 전체를 바꾼 것이 아니다.
@@ -112,7 +112,7 @@ rg -n "UNCLASSIFIED" --hidden -g '!.git/**' -g '!**/node_modules/**' `
 
 ### 4.4 구성품 역산과 충돌
 
-품목명 규칙만으로 미등록인 행에 동일 classifier의 구성품 역할을 적용해 **41건이 모두 `OUTDOOR`로 순증**했다. 모델은 다음과 같다.
+품목명 규칙만으로 미분류인 행에 동일 classifier의 구성품 역할을 적용해 **41건이 모두 `OUTDOOR`로 순증**했다. 모델은 다음과 같다.
 
 `AM080AXVSHH1`, `AM100AXVHHH1`, `AM100AXVHHR1`, `AM100AXVSHH1`, `AM100AXVUHH1`, `AM120AXVGHC1`, `AM120AXVGHH1`, `AM120AXVHHH1`, `AM120AXVHHR1`, `AM120AXVSHH1`, `AM120AXVUHH1`, `AM140AXVGHC1`, `AM140AXVGHH1`, `AM140AXVHHH1`, `AM140AXVHHR1`, `AM140AXVSHH1`, `AM140AXVUHH1`, `AM160AXVHHH1`, `AM160AXVHHR1`, `AM160AXVSHH1`, `AM160AXVUHH1`, `AM160NXGGBH1`, `AM180AXVHHH1`, `AM180AXVHHR1`, `AM180AXVSHH1`, `AM180AXVUHH1`, `AM200AXVGHH1`, `AM200AXVHHH1`, `AM200AXVHHR1`, `AM200AXVSHH1`, `AM200AXVUHH1`, `AM200NXGGBH1`, `AM220AXVGHC1`, `AM220AXVGHH1`, `AM220AXVSHH1`, `AM240AXVGHC1`, `AM240AXVGHH1`, `AM240AXVSHH1`, `AM250NXGGBH1`, `AM280AXVGHC1`, `AM300AXVGHC1`.
 
@@ -133,8 +133,8 @@ classifier API는 `productName`과 `componentKinds`만 받는다. V38은 DB에�
 
 ### 5.2 필수 category와 재등장
 
-- V38은 활성 root `UNREGISTERED / 미등록`을 1개 생성하며 `products.category_id NOT NULL` 계약을 지킨다.
-- 등록 폼은 카테고리를 필수로 받고 실제 tree API 응답을 option으로 사용한다. Playwright에서 `미등록 (UNREGISTERED)` 선택 성공을 확인했다.
+- V38은 활성 root `UNCLASSIFIED / 미분류`를 1개 생성하며 `products.category_id NOT NULL` 계약을 지킨다.
+- 등록 폼은 카테고리를 필수로 받고 실제 tree API 응답을 option으로 사용한다. Playwright에서 `미분류 (UNCLASSIFIED)` 선택 성공을 확인했다.
 - 시트 신규 행은 단일 classifier 결과의 유효 category entity로 생성된다.
 - soft-delete 재등장 경로는 삭제행을 `findLatestDeletedByModelCode`로 찾고 `markRestored()`한 뒤 기존 category를 변경하지 않는다. 실제 PostgreSQL IT에서 같은 UUID와 수동 `OUTDOOR` 보존을 확인했다.
 
@@ -181,9 +181,9 @@ Detected applied migration not resolved locally: 37.
 
 결과: **1 passed, 1 failed (12.5s)**.
 
-![등록 폼 미등록 선택](../qa/2026-08-11-category/01-form-unregistered-selected.png)
+![등록 폼 미분류 선택](../qa/2026-08-11-category/01-form-unregistered-selected.png)
 
-등록 폼에서는 `미등록 (UNREGISTERED)`이 보이고 선택된다.
+등록 폼에서는 `미분류 (UNCLASSIFIED)`가 보이고 선택된다.
 
 ![기초품목 목록 제품구분 필터 누락](../qa/2026-08-11-category/02-catalog-missing-category-filter.png)
 
@@ -191,7 +191,7 @@ Detected applied migration not resolved locally: 37.
 
 ![기초품목 전체 카운트만 존재](../qa/2026-08-11-category/03-catalog-total-only.png)
 
-하단에는 전체 `총 3,084건`만 있고 선택 가능한 `미등록 2,126건` 카운트는 없다.
+하단에는 전체 `총 3,084건`만 있고 선택 가능한 `미분류 2,126건` 카운트는 없다.
 
 실패 원문은 [playwright-output.txt](../qa/2026-08-11-category/playwright-output.txt)에 보존했다.
 
@@ -200,8 +200,8 @@ Error: 기초품목 화면에 제품구분 필터가 없습니다.
 Locator: getByRole('combobox', { name: /카테고리|제품구분/ })
 Error: element(s) not found
 
-Error: 기초품목 화면에 미등록 카운트가 없습니다.
-Locator: getByText(/미등록\s*2,126건/)
+Error: 기초품목 화면에 미분류 카운트가 없습니다.
+Locator: getByText(/미분류\s*2,126건/)
 Error: element(s) not found
 ```
 
@@ -214,7 +214,7 @@ Error: element(s) not found
 #### 불변식
 
 1. 기초품목 목록에서 물리 `products.category_id`의 이름/코드를 보여야 한다.
-2. root `UNREGISTERED`를 선택하면 서버가 해당 category의 전체 건수 **2,126**을 반환하고 화면이 그 값을 표시해야 한다.
+2. root `UNCLASSIFIED`를 선택하면 서버가 해당 category의 전체 건수 **2,126**을 반환하고 화면이 그 값을 표시해야 한다.
 3. 이 축은 현 `ProductCategory`/`EstimateCategory` 및 정액DC 분류축과 혼합하면 안 된다.
 4. 검색어와 물리 category 필터는 AND 결합되고 필터 변경 시 page=0으로 돌아가야 한다.
 
@@ -233,24 +233,24 @@ Error: element(s) not found
 
 #### 재현 데이터
 
-- 전체 3,084, `UNREGISTERED` 2,126
-- tree node: code=`UNREGISTERED`, name=`미등록`
+- 전체 3,084, `UNCLASSIFIED` 2,126
+- tree node: code=`UNCLASSIFIED`, name=`미분류`
 - 현재 한 catalog row의 `productCategory=COMMERCIAL_MULTI`는 물리 제품구분과 다른 축임
 
 #### RED-A — 서버 계약 표적
 
-`GET /api/v1/products?categoryId=<UNREGISTERED_UUID>&page=0&size=50`이 2,126건을 반환하고 각 row에 physical category의 `code/name`을 포함하도록 controller IT를 먼저 실패시킨다. q와 categoryId를 함께 보냈을 때 count/data query가 동일 조건을 쓰는지도 RED로 고정한다.
+`GET /api/v1/products?categoryId=<UNCLASSIFIED_UUID>&page=0&size=50`이 2,126건을 반환하고 각 row에 physical category의 `code/name`을 포함하도록 controller IT를 먼저 실패시킨다. q와 categoryId를 함께 보냈을 때 count/data query가 동일 조건을 쓰는지도 RED로 고정한다.
 
 #### RED-B — 데스크톱 표적
 
-현재 실패한 Playwright를 그대로 RED로 삼는다. `미등록` 선택→`총 2,126건`→table physical category `미등록`, 필터 해제→`총 3,084건`을 검증한다. 기존 `상업 멀티` 열을 유지해야 한다면 열 이름을 견적/상품 축으로 명확히 바꾸고 물리 `제품구분` 열을 별도로 추가한다.
+현재 실패한 Playwright를 그대로 RED로 삼는다. `미분류` 선택→`총 2,126건`→table physical category `미분류`, 필터 해제→`총 3,084건`을 검증한다. 기존 `상업 멀티` 열을 유지해야 한다면 열 이름을 견적/상품 축으로 명확히 바꾸고 물리 `제품구분` 열을 별도로 추가한다.
 
 #### 새 조합
 
 - category only / q only / category+q / 둘 다 해제
-- `UNREGISTERED` root / 기존 root / child category / 결과 0건
+- `UNCLASSIFIED` root / 기존 root / child category / 결과 0건
 - 필터를 page 2에서 바꿀 때 page 0 reset
-- 미등록 행 수정 후 목록 복귀 시 count 2,126→2,125 및 새 category count +1
+- 미분류 행 수정 후 목록 복귀 시 count 2,126→2,125 및 새 category count +1
 - 목록 SSE invalidate 후 선택 필터 유지
 
 ### SOL-2 — rollback이 사후 수동수정을 파괴
