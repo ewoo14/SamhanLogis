@@ -8,8 +8,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -22,17 +20,21 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Component
-@ConditionalOnProperty(name = "samhan.audit.publisher.enabled", havingValue = "true")
 public class AuditPublisher implements AutoCloseable {
     private final RabbitTemplate rabbitTemplate;
     private final ArrayBlockingQueue<AuditEventV2> priorityLane;
     private final ArrayBlockingQueue<AuditEventV2> readLane;
     private final ExecutorService workers;
     private final Counter dropped;
+    private final boolean enabled;
 
     public AuditPublisher(RabbitTemplate rabbitTemplate, MeterRegistry meters) {
+        this(rabbitTemplate, meters, true);
+    }
+
+    public AuditPublisher(RabbitTemplate rabbitTemplate, MeterRegistry meters, boolean enabled) {
         this.rabbitTemplate = rabbitTemplate;
+        this.enabled = enabled;
         this.priorityLane = new ArrayBlockingQueue<>(128);
         this.readLane = new ArrayBlockingQueue<>(128);
         this.workers = Executors.newFixedThreadPool(2, runnable -> {
@@ -41,11 +43,18 @@ public class AuditPublisher implements AutoCloseable {
             return thread;
         });
         this.dropped = Counter.builder("audit.publisher.drop.total").tag("reason", "queue_full").register(meters);
+        if (!enabled) {
+            log.warn("[AUDIT_DISABLED] 중앙 감사 publisher는 등록되었지만 samhan.audit.publisher.enabled=false 입니다");
+        }
         workers.execute(() -> drain(priorityLane));
         workers.execute(() -> drain(readLane));
     }
 
     public void publish(AuditEventV2 event) {
+        if (!enabled) {
+            log.warn("[AUDIT_DISABLED] 감사 이벤트를 발행하지 않았습니다 id={}", safe(event));
+            return;
+        }
         try {
             AuditEventValidator.validate(event);
             boolean accepted = event.action() == AuditAction.C_READ ? readLane.offer(event) : priorityLane.offer(event);
@@ -70,6 +79,10 @@ public class AuditPublisher implements AutoCloseable {
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 AuditEventV2 event = lane.take();
+                if (rabbitTemplate == null) {
+                    log.warn("[AUDIT_DISABLED] Rabbit ConnectionFactory가 없어 이벤트를 발행하지 않았습니다 id={}", safe(event));
+                    continue;
+                }
                 rabbitTemplate.convertAndSend(AuditTopology.EXCHANGE, event.routingKey(), event);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();

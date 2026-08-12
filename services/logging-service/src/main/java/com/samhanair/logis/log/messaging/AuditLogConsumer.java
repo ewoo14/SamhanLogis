@@ -46,6 +46,9 @@ public class AuditLogConsumer {
                     .afterData(event.afterData())
                     .ipAddress(event.ipAddress())
                     .userAgent(event.userAgent())
+                    .httpStatus(event.httpStatus())
+                    .errorCode(event.errorCode())
+                    .errorSummary(event.errorSummary())
                     .occurredAt(event.occurredAt() != null ? event.occurredAt() : Instant.now())
                     .ingestedAt(Instant.now())
                     .build();

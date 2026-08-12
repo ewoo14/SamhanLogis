@@ -78,6 +78,15 @@ public class AuditLog {
     @Field(type = FieldType.Keyword)
     private String userAgent;
 
+    @Field(type = FieldType.Integer)
+    private Integer httpStatus;
+
+    @Field(type = FieldType.Keyword)
+    private String errorCode;
+
+    @Field(type = FieldType.Text)
+    private String errorSummary;
+
     @Field(type = FieldType.Date, format = DateFormat.date_optional_time)
     private Instant occurredAt;
 

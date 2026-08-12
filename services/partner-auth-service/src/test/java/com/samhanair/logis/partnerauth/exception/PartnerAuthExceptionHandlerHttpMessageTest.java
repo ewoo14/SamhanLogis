@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerauth.exception;
 
 import static org.mockito.Mockito.mock;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,6 +12,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import static org.mockito.Mockito.verify;
+import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 /** partner-auth-service JSON body 파싱 실패 응답 계약 테스트. */
 class PartnerAuthExceptionHandlerHttpMessageTest {
@@ -46,5 +51,36 @@ class PartnerAuthExceptionHandlerHttpMessageTest {
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
                 .andExpect(jsonPath("$.message").value("지원하지 않는 Content-Type입니다"));
+    }
+
+    @Test
+    void malformedJson_auditsActualStatusAndReasonWithoutTrustingForwardedIp() throws Exception {
+        AuditPublisher publisher = mock(AuditPublisher.class);
+        MockMvc mvc = MockMvcBuilders
+                .standaloneSetup(new PartnerAuthController(mock(PartnerAuthService.class), publisher))
+                .setControllerAdvice(new PartnerAuthExceptionHandler(publisher))
+                .build();
+
+        mvc.perform(post("/api/v1/auth/partner-login")
+                        .header("X-Forwarded-For", "203.0.113.9")
+                        .contentType(MediaType.APPLICATION_JSON).content("{"))
+                .andExpect(status().isBadRequest());
+
+        verify(publisher).publishAfterCommit(org.mockito.ArgumentMatchers.argThat(event ->
+                event.httpStatus() == 400
+                        && "요청 본문이 유효하지 않습니다".equals(event.errorSummary())
+                        && !"203.0.113.9".equals(event.ipAddress())));
+    }
+
+    @Test
+    void requestIp_ignoresUntrustedForwardedHeader() throws Exception {
+        PartnerAuthController controller = new PartnerAuthController(mock(PartnerAuthService.class));
+        java.lang.reflect.Method method = PartnerAuthController.class
+                .getDeclaredMethod("resolveClientIp", HttpServletRequest.class);
+        method.setAccessible(true);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("10.0.0.8");
+        request.addHeader("X-Forwarded-For", "203.0.113.9");
+        assertThat(method.invoke(controller, request)).isEqualTo("10.0.0.8");
     }
 }

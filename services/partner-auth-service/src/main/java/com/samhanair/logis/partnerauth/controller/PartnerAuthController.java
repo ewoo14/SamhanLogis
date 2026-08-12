@@ -115,13 +115,8 @@ public class PartnerAuthController {
         return ApiResponse.ok(partnerAuthService.updateTutorial(request));
     }
 
-    /** X-Forwarded-For 우선, 없으면 remote addr. */
+    /** 요청자가 주입할 수 있는 X-Forwarded-For는 신뢰하지 않고 직접 peer 주소만 기록한다. */
     private String resolveClientIp(HttpServletRequest req) {
-        String fwd = req.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) {
-            int comma = fwd.indexOf(',');
-            return (comma > 0 ? fwd.substring(0, comma) : fwd).trim();
-        }
         return req.getRemoteAddr();
     }
 }

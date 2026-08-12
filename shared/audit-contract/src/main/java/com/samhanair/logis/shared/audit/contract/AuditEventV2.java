@@ -58,6 +58,17 @@ public record AuditEventV2(
                 ipAddress, userAgent, Instant.now());
     }
 
+    public static AuditEventV2 failure(String serviceName, String method, String route,
+                                       int httpStatus, String errorCode, String reason,
+                                       String ipAddress, String userAgent) {
+        return new AuditEventV2("v2", UUID.randomUUID().toString(), serviceName,
+                RetentionClass.B, EventKind.AUTH, Outcome.FAILURE, AuditAction.B_FAILURE,
+                null, null, null, method, route, httpStatus, null,
+                null, "비인증 거래처", null, "AUTH", "거래처 인증", null,
+                reason, null, null, errorCode, null, null, reason, null,
+                ipAddress, userAgent, Instant.now());
+    }
+
     public String routingKey() {
         return AuditTopology.routingKey(action, serviceName);
     }
