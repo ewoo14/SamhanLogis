@@ -12,4 +12,5 @@ export const DcConfigRealtimeClient = createRealtimeClient({
   name: 'DcConfigRealtimeClient',
   endpointPath: (partnerCode) =>
     `/api/v1/dc-configs/${encodeURIComponent(partnerCode)}/realtime`,
+  allowMockMode: true,
 })

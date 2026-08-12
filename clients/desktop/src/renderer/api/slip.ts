@@ -21,6 +21,7 @@ import { withLineIdContract } from './lineIdContract'
 import type { SlipStatus } from '@samhan/design-system'
 import type { DeliveryTagCode } from '@samhan/design-system'
 import { isSinglePanelOption } from '../utils/bundleOptionDomain'
+import { searchSlips } from './slipSearch'
 
 /** 본 슬라이스 범위 — 출고/입고 2종. */
 export type SlipType = 'OUTBOUND' | 'INBOUND'
@@ -577,6 +578,29 @@ export async function getSlipByNumber(slipNo: string, slipType: SlipType): Promi
   const summary = page.content.find((candidate) => candidate.slipNo === slipNo)
   if (!summary) throw new Error(`전표 ${slipNo}를 찾을 수 없습니다.`)
   return getSlip(summary.id)
+}
+
+/** 사용자 권한으로 출고전표 번호를 exact 해석해 라인 포함 상세를 조회한다. */
+export async function getOutboundSlipBySlipNo(slipNo: string): Promise<SlipDetail> {
+  const normalizedSlipNo = slipNo.trim()
+  if (!normalizedSlipNo) throw new Error('slipNo is required')
+
+  const searched = await searchSlips(normalizedSlipNo, 20, 'OUTBOUND')
+  const searchHit = searched.find((row) => row.slipNo === normalizedSlipNo)
+  if (!searchHit) throw new Error('outbound slip reference not found')
+
+  const day = searchHit.slipDate.slice(0, 10)
+  const page = await querySlips({
+    slipType: 'OUTBOUND',
+    dateFrom: day,
+    dateTo: day,
+    page: 0,
+    size: 20,
+    searchSlipNo: normalizedSlipNo,
+  })
+  const exactRow = page.content.find((row) => row.slipNo === normalizedSlipNo)
+  if (!exactRow) throw new Error('outbound slip detail reference not found')
+  return getSlip(exactRow.id)
 }
 
 /**

@@ -33,4 +33,5 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const ProductRealtimeClient = createRealtimeClient({
   name: 'ProductRealtimeClient',
   endpointPath: (_entityId) => `/api/v1/products/catalog-realtime`,
+  allowMockMode: true,
 })

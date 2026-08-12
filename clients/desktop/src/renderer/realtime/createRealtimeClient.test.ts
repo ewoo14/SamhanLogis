@@ -24,7 +24,7 @@ describe('createRealtimeClient', () => {
     vi.restoreAllMocks()
   })
 
-  it('mock 모드에서는 fetch 없이 abort 가능한 controller만 반환한다', async () => {
+  it('mock 모드에서는 handler 없이 fetch를 시작하지 않고 명시적으로 실패한다', async () => {
     vi.mocked(isMockMode).mockReturnValue(true)
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     const client = createRealtimeClient({
@@ -32,10 +32,9 @@ describe('createRealtimeClient', () => {
       endpointPath: (id) => `/items/${id}/stream`,
     })
 
-    const controller = client.subscribe('item-1', () => undefined)
-
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(controller).toBeInstanceOf(AbortController)
+    expect(() => client.subscribe('item-1', () => undefined)).toThrow(
+      'Mock handler not found: GET /items/item-1/stream',
+    )
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
@@ -52,7 +51,7 @@ describe('createRealtimeClient', () => {
     controller.abort()
   })
 
-  it('협업 client가 명시적으로 허용하면 mock 모드에서도 SSE fetch를 시작한다', async () => {
+  it('allowMockMode가 있으면 mock origin의 SSE handler로 fetch를 시작한다', async () => {
     vi.mocked(isMockMode).mockReturnValue(true)
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false, status: 503, body: null } as Response)
     const client = createRealtimeClient({
@@ -61,8 +60,10 @@ describe('createRealtimeClient', () => {
       allowMockMode: true,
     })
 
-    const controller = client.subscribe('item-1', () => undefined)
-    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1))
-    controller.abort()
+    client.subscribe('item-1', () => undefined)
+    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/items/item-1/collab/stream',
+      expect.objectContaining({ method: 'GET' }),
+    ))
   })
 })

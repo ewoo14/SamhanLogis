@@ -22,7 +22,7 @@
  * 매뉴얼 출처: {@code docs/manual/01-영업/06-견적서.md}.
  */
 import { useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -54,6 +54,7 @@ import { AuditLockedBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
@@ -94,9 +95,15 @@ function DetailGridField({
 
 export function EstimateDetailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const id = params['id']!
+  const returnTo = getReturnTo(location.state, { pathname: '/sales/estimates', search: '' })
+  const returnEntryKey = location.state && typeof location.state === 'object'
+    ? (location.state as ReturnNavigationState).returnEntryKey
+    : undefined
+  const hasReturnEntry = typeof returnEntryKey === 'string' && returnEntryKey.length > 0
   const { canAccess } = usePermissions()
   const isMobile = useIsMobile()
 
@@ -588,6 +595,13 @@ export function EstimateDetailPage() {
           </div>
 
           <div className="detail-action-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button
+              variant="ghost"
+              onClick={() => hasReturnEntry ? navigate(-1) : navigate(returnTo, { replace: true })}
+              data-testid="estimate-detail-list-button"
+            >
+              ← 목록
+            </Button>
             {(isDraft || isSent) && canMutate ? (
               <Button
                 variant="ghost"

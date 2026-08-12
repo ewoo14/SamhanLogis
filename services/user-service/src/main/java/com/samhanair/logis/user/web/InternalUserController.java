@@ -99,7 +99,9 @@ public class InternalUserController {
                 emp.getId(),
                 emp.getLoginId(),
                 emp.getFullName(),
-                emp.getRoleSnapshot()));
+                emp.getRoleSnapshot(),
+                emp.getDepartment() == null ? null : emp.getDepartment().getName(),
+                emp.getEcountCode()));
     }
 
     /**
@@ -174,7 +176,9 @@ public class InternalUserController {
                 emp.getId(),
                 emp.getLoginId(),
                 emp.getFullName(),
-                emp.getRoleSnapshot()));
+                emp.getRoleSnapshot(),
+                emp.getDepartment() == null ? null : emp.getDepartment().getName(),
+                emp.getEcountCode()));
     }
 
     /**

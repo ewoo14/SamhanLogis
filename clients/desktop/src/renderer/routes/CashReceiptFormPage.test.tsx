@@ -199,7 +199,7 @@ describe('CashReceiptFormPage', () => {
       partnerCode: 'P-EDIT',
       bizNo: '222-22-22222',
       partnerName: '편집거래처',
-      amount: '760000',
+      amount: '1008',
       transactionDate: '2026-07-04',
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
@@ -217,6 +217,8 @@ describe('CashReceiptFormPage', () => {
     })
 
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '편집거래처'))
+    expect((screen.getByLabelText('금액') as HTMLInputElement).value).toBe('1008')
+    expect((screen.getByLabelText('입금 행 1 금액') as HTMLInputElement).value).toBe('1008')
     fireEvent.change(screen.getByLabelText('입금 행 1 금액'), { target: { value: '880000' } })
     fireEvent.change(screen.getByLabelText('금액'), { target: { value: '880000' } })
     fireEvent.click(screen.getByRole('button', { name: '저장' }))
@@ -229,6 +231,61 @@ describe('CashReceiptFormPage', () => {
       debitAccountCode: '103',
       creditAccountCode: '110',
     })))
+  })
+
+  it('RED-LUNA-1: 2026/08/07-8 부분 행 hydrate 첫 금액은 서버 1008이어야 한다', async () => {
+    renderCashReceiptHydrateCase('receipt-liveqa-1008', [{ partnerName: '대구HVAC솔루션' }], [{ partnerName: '대구HVAC솔루션', amount: 1008, memo: 'S5-1094-08' }], '1008')
+    await waitFor(() => {
+      expect(screen.getByLabelText('입금 행 1 금액').getAttribute('data-provider-present')).toBe('true')
+      expect(screen.getByLabelText('입금 행 1 금액')).toHaveProperty('value', '1008')
+    })
+  })
+
+  it('RED-LUNA-2: 2026/08/07-8 hydrate 합계는 행 합계 1008원과 입금 총액 1008원이어야 한다', async () => {
+    renderCashReceiptHydrateCase('receipt-liveqa-1008-total', [{ partnerName: '대구HVAC솔루션' }], [{ partnerName: '대구HVAC솔루션', amount: 1008, memo: 'S5-1094-08' }], '1008')
+    await waitFor(() => {
+      expect(screen.getByLabelText('입금 행 1 금액').getAttribute('data-provider-present')).toBe('true')
+      expect(screen.getByText('행 합계: 1,008원 / 입금 총액 1,008원')).toBeTruthy()
+    })
+  })
+
+  it('RED-LUNA-3A: 거래처-only 행은 서버 금액 1008와 적요를 보존해야 한다', async () => {
+    renderCashReceiptHydrateCase('receipt-partner-only', [{ partnerName: '대구HVAC솔루션' }], [{ partnerName: '대구HVAC솔루션', amount: 1008, memo: 'S5-1094-08' }], '1008')
+    await waitFor(() => {
+      expect(screen.getByLabelText('입금 행 1 금액').getAttribute('data-provider-present')).toBe('true')
+      expect(screen.getByLabelText('입금 행 1 금액')).toHaveProperty('value', '1008')
+      expect(screen.getByLabelText('입금 행 1 적요')).toHaveProperty('value', 'S5-1094-08')
+    })
+  })
+
+  it('RED-LUNA-3B: 금액-only 행은 서버 거래처와 적요를 보존해야 한다', async () => {
+    renderCashReceiptHydrateCase('receipt-amount-only', [{ amount: '2024' }], [{ partnerName: '대구 HVAC 솔루션', amount: 2024, memo: 'RECONV2-AMOUNT-ONLY' }], '2024')
+    await waitFor(() => {
+      expect(screen.getByLabelText('입금 행 1 금액').getAttribute('data-provider-present')).toBe('true')
+      expect(within(screen.getByTestId('cash-receipt-line-0')).getByTestId('cash-receipt-partner-autocomplete')).toHaveProperty('value', '대구 HVAC 솔루션')
+      expect(screen.getByLabelText('입금 행 1 적요')).toHaveProperty('value', 'RECONV2-AMOUNT-ONLY')
+    })
+  })
+
+  it('RED-LUNA-3C: 혼합 여러 행은 각 행의 서버 금액과 적요를 보존해야 한다', async () => {
+    renderCashReceiptHydrateCase('receipt-mixed', [{ partnerName: '대구 HVAC 솔루션' }, { amount: '2222' }], [
+      { partnerName: '대구 HVAC 솔루션', amount: 1111, memo: 'RECONV2-MULTI-A' },
+      { partnerName: '능동에어컨(박수천)', amount: 2222, memo: 'RECONV2-MULTI-B' },
+    ], '3333')
+    await waitFor(() => {
+      expect(screen.getByLabelText('입금 행 1 금액').getAttribute('data-provider-present')).toBe('true')
+      expect(screen.getByLabelText('입금 행 1 금액')).toHaveProperty('value', '1111')
+      expect(screen.getByLabelText('입금 행 2 적요')).toHaveProperty('value', 'RECONV2-MULTI-B')
+    })
+  })
+
+  it('RED-LUNA-3D: 단일 빈 provider 행은 서버 금액 4040과 거래처를 보존해야 한다', async () => {
+    renderCashReceiptHydrateCase('receipt-single-empty', [{}], [{ partnerName: '능동에어컨(박수천)', amount: 4040, memo: null }], '4040')
+    await waitFor(() => {
+      expect(screen.getByLabelText('입금 행 1 금액').getAttribute('data-provider-present')).toBe('true')
+      expect(screen.getByLabelText('입금 행 1 금액')).toHaveProperty('value', '4040')
+      expect(within(screen.getByTestId('cash-receipt-line-0')).getByTestId('cash-receipt-partner-autocomplete')).toHaveProperty('value', '능동에어컨(박수천)')
+    })
   })
 
   it('편집 저장은 목록 쿼리를 갱신한 뒤 원래 목록 history entry로 복귀한다', async () => {
@@ -698,4 +755,43 @@ function makeProvider(): TestDocCoeditProvider {
       for (const subscriber of subscribers) subscriber()
     },
   }
+}
+
+function renderCashReceiptHydrateCase(
+  id: string,
+  providerRows: Array<Record<string, string>>,
+  serverLines: Array<{ partnerName: string; amount: number; memo: string | null }>,
+  headerAmount: string,
+) {
+  const provider = makeProvider()
+  provider.isEmpty.mockReturnValue(false)
+  provider.items = { toArray: () => providerRows } as DocCoeditProvider['items']
+  provider.getItemValue.mockImplementation((index: number, fieldName: string) => providerRows[index]?.[fieldName] ?? '')
+  provider.setItemValue.mockImplementation((index: number, fieldName: string, value: string) => {
+    if (providerRows[index]) providerRows[index]![fieldName] = value
+  })
+  provider.replaceItems.mockImplementation((nextRows: Array<Record<string, string>>) => {
+    providerRows.splice(0, providerRows.length, ...nextRows)
+  })
+  mocks.createDocCoeditProvider.mockResolvedValue(provider)
+  mocks.getCashReceipt.mockResolvedValue({
+    id,
+    slipNo: id === 'receipt-liveqa-1008' ? '2026/08/07-8' : id,
+    partnerCode: 'P-2026-0005',
+    bizNo: '165-35-10155',
+    partnerName: serverLines[0]?.partnerName ?? '',
+    amount: headerAmount,
+    transactionDate: '2026-08-07',
+    kind: 'MANUAL_RECEIPT',
+    status: 'DRAFT',
+    memo: serverLines[0]?.memo ?? '',
+    debitAccountCode: '102',
+    creditAccountCode: '110',
+    lines: serverLines.map((line) => ({
+      partnerCode: 'P-2026-0005',
+      bizNo: '165-35-10155',
+      ...line,
+    })),
+  })
+  renderPage(`/accounting/admin/cash-receipts/${id}/edit`)
 }

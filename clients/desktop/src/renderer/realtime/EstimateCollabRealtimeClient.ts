@@ -9,4 +9,5 @@ export const EstimateCollabRealtimeClient = createRealtimeClient({
   name: 'estimate-collab',
   endpointPath: (estimateId) =>
     `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/collab/stream`,
+  allowMockMode: true,
 })

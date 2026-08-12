@@ -9,4 +9,5 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const PartnerOrderBoardRealtimeClient = createRealtimeClient({
   name: 'PartnerOrderBoardRealtimeClient',
   endpointPath: (_entityId) => '/api/v1/partner-orders/board-realtime',
+  allowMockMode: true,
 })

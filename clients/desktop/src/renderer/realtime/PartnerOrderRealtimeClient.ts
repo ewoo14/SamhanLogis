@@ -16,4 +16,5 @@ export const PartnerOrderRealtimeClient = createRealtimeClient({
   name: 'PartnerOrderRealtimeClient',
   endpointPath: (id) =>
     `/api/v1/partner-orders/${encodeURIComponent(id)}/realtime`,
+  allowMockMode: true,
 })

@@ -1,0 +1,166 @@
+{
+  "results": [
+    {
+      "scenario": "reference-12-lines",
+      "url": "http://127.0.0.1:40275/#/groupware/approvals/77554976-81f7-4756-bb94-303f65d32e8f/print",
+      "printDoc": 1,
+      "loadingText": false,
+      "errorBanner": 0,
+      "detailLayer": 1,
+      "detailRows": 12,
+      "expectedRows": 12,
+      "headers": [
+        "품목",
+        "모델명",
+        "규격",
+        "수량",
+        "공급가액",
+        "부가세",
+        "합계",
+        "비고"
+      ],
+      "firstRow": [
+        "???_6HP ???",
+        "AJ060MXHNBC1",
+        "?? 1w",
+        "1",
+        "112,233",
+        "11,223",
+        "123,456",
+        "-"
+      ],
+      "modelNameVisible": true,
+      "uuidVisible": false,
+      "documentHeight": 1061,
+      "responseTail": [
+        "503 /app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+        "503 /app/notices/active",
+        "503 /api/notifications/my",
+        "200 /auth/admin/permissions/my",
+        "200 /admin/groupware/approvals/77554976-81f7-4756-bb94-303f65d32e8f/attachments",
+        "200 /admin/groupware/approvals/77554976-81f7-4756-bb94-303f65d32e8f",
+        "200 /groupware/document-templates/active?docType=GROUPWARE_EXPENSE_REPORT",
+        "200 /groupware/approval-templates/active",
+        "200 /admin/slips/search?q=2026%2F08%2F07-20&limit=20&slipType=OUTBOUND",
+        "200 /slips/query?slipType=OUTBOUND&dateFrom=2026-08-07&dateTo=2026-08-07&page=0&size=20&searchSlipNo=2026%2F08%2F07-20",
+        "200 /slips/fe0a9968-0a0f-4fef-b0fd-f5671d261434"
+      ]
+    },
+    {
+      "scenario": "reference-48-lines",
+      "url": "http://127.0.0.1:40275/#/groupware/approvals/27d08fba-fc64-492a-9360-f3e75c62b83c/print",
+      "printDoc": 1,
+      "loadingText": false,
+      "errorBanner": 0,
+      "detailLayer": 1,
+      "detailRows": 48,
+      "expectedRows": 48,
+      "headers": [
+        "품목",
+        "모델명",
+        "규격",
+        "수량",
+        "공급가액",
+        "부가세",
+        "합계",
+        "비고"
+      ],
+      "firstRow": [
+        "???_6HP ??? QA-1",
+        "AJ060MXHNBC1-QA1",
+        "?? 1w",
+        "1",
+        "112,233",
+        "11,223",
+        "123,456",
+        "-"
+      ],
+      "modelNameVisible": true,
+      "uuidVisible": false,
+      "documentHeight": 2883,
+      "responseTail": [
+        "503 /api/notifications/my",
+        "200 /admin/groupware/approvals/27d08fba-fc64-492a-9360-f3e75c62b83c/attachments",
+        "200 /admin/groupware/approvals/27d08fba-fc64-492a-9360-f3e75c62b83c",
+        "200 /groupware/document-templates/active?docType=GROUPWARE_EXPENSE_REPORT",
+        "200 /groupware/approval-templates/active",
+        "200 /admin/slips/search?q=2026%2F08%2F12-845&limit=20&slipType=OUTBOUND",
+        "200 /slips/query?slipType=OUTBOUND&dateFrom=2026-08-12&dateTo=2026-08-12&page=0&size=20&searchSlipNo=2026%2F08%2F12-845",
+        "200 /slips/84500000-0000-4000-8000-000000000001"
+      ]
+    },
+    {
+      "scenario": "no-reference",
+      "url": "http://127.0.0.1:40275/#/groupware/approvals/faaadfc6-58a8-4132-b522-d97c39b36a3f/print",
+      "printDoc": 1,
+      "loadingText": false,
+      "errorBanner": 0,
+      "detailLayer": 0,
+      "detailRows": 0,
+      "expectedRows": 0,
+      "headers": [],
+      "firstRow": [],
+      "modelNameVisible": false,
+      "uuidVisible": false,
+      "documentHeight": 241,
+      "responseTail": [
+        "200 /admin/groupware/approvals/faaadfc6-58a8-4132-b522-d97c39b36a3f/attachments",
+        "200 /admin/groupware/approvals/faaadfc6-58a8-4132-b522-d97c39b36a3f"
+      ]
+    },
+    {
+      "scenario": "broken-reference",
+      "url": "http://127.0.0.1:40275/#/groupware/approvals/947da872-f726-46b6-a93c-cc07ec3636a5/print",
+      "printDoc": 1,
+      "loadingText": false,
+      "errorBanner": 0,
+      "detailLayer": 0,
+      "detailRows": 0,
+      "expectedRows": 0,
+      "headers": [],
+      "firstRow": [],
+      "modelNameVisible": false,
+      "uuidVisible": false,
+      "documentHeight": 512,
+      "responseTail": [
+        "200 /admin/groupware/approvals/947da872-f726-46b6-a93c-cc07ec3636a5/attachments",
+        "200 /admin/groupware/approvals/947da872-f726-46b6-a93c-cc07ec3636a5",
+        "200 /groupware/document-templates/active?docType=GROUPWARE_EXPENSE_REPORT",
+        "200 /admin/slips/search?q=2026%2F06%2F08-1908&limit=20&slipType=OUTBOUND",
+        "200 /groupware/approval-templates/active"
+      ]
+    },
+    {
+      "scenario": "non-default-connected",
+      "url": "http://127.0.0.1:40275/#/groupware/approvals/1f43b3c7-635a-4a8a-a378-e5c6848c4c8d/print",
+      "printDoc": 1,
+      "loadingText": false,
+      "errorBanner": 0,
+      "detailLayer": 0,
+      "detailRows": 0,
+      "expectedRows": 0,
+      "headers": [],
+      "firstRow": [],
+      "modelNameVisible": false,
+      "uuidVisible": false,
+      "documentHeight": 243,
+      "responseTail": [
+        "200 /admin/groupware/approvals/1f43b3c7-635a-4a8a-a378-e5c6848c4c8d/attachments",
+        "200 /admin/groupware/approvals/1f43b3c7-635a-4a8a-a378-e5c6848c4c8d",
+        "200 /groupware/approval-templates/active",
+        "200 /groupware/document-templates/active?docType=GROUPWARE_LIVEQA848_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "200 /admin/slips/search?q=2026%2F08%2F07-20&limit=20&slipType=OUTBOUND",
+        "200 /slips/query?slipType=OUTBOUND&dateFrom=2026-08-07&dateTo=2026-08-07&page=0&size=20&searchSlipNo=2026%2F08%2F07-20",
+        "200 /slips/fe0a9968-0a0f-4fef-b0fd-f5671d261434"
+      ]
+    }
+  ],
+  "allApprovalPaths": {
+    "listHttp": 200,
+    "total": 70,
+    "opened": 70,
+    "blocked": 0,
+    "blockedDocs": []
+  },
+  "pageErrors": []
+}
