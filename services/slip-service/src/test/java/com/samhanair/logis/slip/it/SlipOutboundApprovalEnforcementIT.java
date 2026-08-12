@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
@@ -105,7 +106,8 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
-                .andExpect(jsonPath("$.data.dispatcherUserId").value(dispatcherId.toString()));
+                .andExpect(jsonPath("$.data.dispatcherUserId").value(
+                        OpaqueUuidSerializer.encode(dispatcherId)));
     }
 
     @Test
@@ -129,7 +131,8 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.inspectorUserId").value(inspectorId.toString()));
+                .andExpect(jsonPath("$.data.inspectorUserId").value(
+                        OpaqueUuidSerializer.encode(inspectorId)));
     }
 
     @Test
@@ -281,7 +284,8 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
                         .header("X-User-Id", dispatcherId.toString())
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.dispatcherUserId").value(dispatcherId.toString()));
+                .andExpect(jsonPath("$.data.dispatcherUserId").value(
+                        OpaqueUuidSerializer.encode(dispatcherId)));
     }
 
     @Test
@@ -305,7 +309,8 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
-                .andExpect(jsonPath("$.data.dispatcherUserId").value(receiverId.toString()));
+                .andExpect(jsonPath("$.data.dispatcherUserId").value(
+                        OpaqueUuidSerializer.encode(receiverId)));
     }
 
     @Test
@@ -329,7 +334,8 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.inspectorUserId").value(inspectorId.toString()));
+                .andExpect(jsonPath("$.data.inspectorUserId").value(
+                        OpaqueUuidSerializer.encode(inspectorId)));
     }
 
     private String createInspectingSlip(String slipType) throws Exception {

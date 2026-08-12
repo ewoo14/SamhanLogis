@@ -262,7 +262,7 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(updateBody(updatedAt, "SP0862-audit-after", 6, "210000"))))
                 .andExpect(status().isOk());
 
-        var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(UUID.fromString(id));
+        var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(OpaqueUuidTestDecoder.decode(id));
         assertThat(logs).isNotEmpty();
         assertThat(logs).extracting(log -> log.getRevisionNo()).containsOnly(1);
         assertThat(logs).anyMatch(log -> "SLIP_EDIT".equals(log.getFieldName()));
@@ -280,7 +280,7 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
                 .andReturn();
         JsonNode detailData = objectMapper.readTree(detail.getResponse().getContentAsString()).path("data");
         String updatedAt = detailData.path("updatedAt").asText();
-        UUID existingLineId = UUID.fromString(detailData.path("lines").get(0).path("id").asText());
+        UUID existingLineId = OpaqueUuidTestDecoder.decode(detailData.path("lines").get(0).path("id").asText());
         UUID bundleParentId = UUID.randomUUID();
         UUID firstComponentId = UUID.randomUUID();
         UUID secondComponentId = UUID.randomUUID();
@@ -353,7 +353,7 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
         JsonNode savedLines = objectMapper.readTree(roundTrip.getResponse().getContentAsString())
                 .path("data").path("lines");
         assertThat(savedLines).allMatch(line -> "BUNDLE-IT".equals(line.path("parentSetModel").asText()));
-        assertThat(slipRepository.findById(UUID.fromString(id)).orElseThrow().getLines())
+        assertThat(slipRepository.findById(OpaqueUuidTestDecoder.decode(id)).orElseThrow().getLines())
                 .allMatch(line -> "BUNDLE-IT".equals(line.getParentSetModel()));
     }
 
@@ -441,7 +441,7 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk());
 
-        MvcResult revisions = mockMvc.perform(get("/slips/{id}/revisions", UUID.fromString(id))
+        MvcResult revisions = mockMvc.perform(get("/slips/{id}/revisions", OpaqueUuidTestDecoder.decode(id))
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_NAME_HEADER, "감사자")
                         .header(USER_ROLE_HEADER, "MANAGER"))
@@ -494,7 +494,7 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk());
 
-        var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(UUID.fromString(id));
+        var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(OpaqueUuidTestDecoder.decode(id));
         assertThat(logs).hasSize(1);
         // 첫 PUT 에서 slip.revisionCount=1 진입, 두 번째 PUT 시 incrementRevision → revisionNo=2
         // 핵심은 SLIP_EDIT audit 기록 여부 (supervisionAddress 단독 변경도 summarize 비교 통과)
@@ -507,7 +507,7 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
     void testUpdateSalesSoftDeletedReturns404() throws Exception {
         String id = createSlip("OUTBOUND", "SP0862-삭제됨");
         String updatedAt = updatedAt(id);
-        Slip slip = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        Slip slip = slipRepository.findById(OpaqueUuidTestDecoder.decode(id)).orElseThrow();
         slip.markDeleted("test");
         slipRepository.flush();
 

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
@@ -156,7 +157,8 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
-                .andExpect(jsonPath("$.data.dispatcherUserId").value(dispatcherId))
+                .andExpect(jsonPath("$.data.dispatcherUserId").value(
+                        OpaqueUuidSerializer.encode(UUID.fromString(dispatcherId))))
                 .andExpect(jsonPath("$.data.dispatcherSignedAt").exists());
     }
 
@@ -205,7 +207,8 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.inspectorUserId").value(inspectorId))
+                .andExpect(jsonPath("$.data.inspectorUserId").value(
+                        OpaqueUuidSerializer.encode(UUID.fromString(inspectorId))))
                 .andExpect(jsonPath("$.data.inspectorSignedAt").exists());
     }
 
@@ -396,7 +399,8 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
-                .andExpect(jsonPath("$.data.dispatcherUserId").value(dispatcherId));
+                .andExpect(jsonPath("$.data.dispatcherUserId").value(
+                        OpaqueUuidSerializer.encode(UUID.fromString(dispatcherId))));
 
         // 5) PROCESSING.
         mockMvc.perform(post("/slips/" + slipId + "/process")
@@ -419,7 +423,8 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.inspectorUserId").value(inspectorId));
+                .andExpect(jsonPath("$.data.inspectorUserId").value(
+                        OpaqueUuidSerializer.encode(UUID.fromString(inspectorId))));
 
         // 8) SHIPPING.
         mockMvc.perform(post("/slips/" + slipId + "/ship")

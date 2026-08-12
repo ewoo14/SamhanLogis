@@ -2,13 +2,17 @@ import { chromium } from '../../../clients/desktop/node_modules/@playwright/test
 import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.cjs'
 
 const require = createRequire(import.meta.url)
-const jsQR = require('C:/Users/user/AppData/Local/Temp/sol999-liveqa2-202608130244/qrdecode/node_modules/jsqr')
-const { PNG } = require('C:/Users/user/AppData/Local/Temp/sol999-liveqa2-202608130244/qrdecode/node_modules/pngjs')
-const ROOT = 'C:/dev/Samhan-Public/.claude/worktrees/w999'
-const OUT = `${ROOT}/docs/qa/2026-08-13-999-liveqa2`
-const TMP = 'C:/Users/user/AppData/Local/Temp/sol999-liveqa2-202608130244'
+const HERE = dirname(fileURLToPath(import.meta.url))
+const TMP = join(tmpdir(), 'sol999-liveqa2-202608130244')
+const jsQR = require(resolve(TMP, 'qrdecode/node_modules/jsqr'))
+const { PNG } = require(resolve(TMP, 'qrdecode/node_modules/pngjs'))
+const OUT = resolveQaShotsDir(HERE)
 const PG = 'sol999-liveqa2-pg-202608130244'
 const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi
 const envelope = (data) => ({ success: true, code: 'OK', message: '성공', data, timestamp: '2026-08-13T00:00:00' })

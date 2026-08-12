@@ -128,7 +128,7 @@ class SlipRedlineIT extends AbstractPostgresIT {
                         .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk());
 
-        Slip anchored = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        Slip anchored = slipRepository.findById(OpaqueUuidTestDecoder.decode(id)).orElseThrow();
         assertThat(anchored.getRedlineAnchorRevisionNo()).isEqualTo(1);
 
         patchMemo(id, "S2d 1차", "김영업");
@@ -180,11 +180,11 @@ class SlipRedlineIT extends AbstractPostgresIT {
         transition(id, "complete");
         transition(id, "inspect");
 
-        Slip anchored = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        Slip anchored = slipRepository.findById(OpaqueUuidTestDecoder.decode(id)).orElseThrow();
         assertThat(anchored.getRedlineAnchorRevisionNo()).isNotNull();
 
-        captureLineEdit(UUID.fromString(id), 2, new BigDecimal("12000"), "김영업");
-        captureLineEdit(UUID.fromString(id), 3, new BigDecimal("13000"), "박관리");
+        captureLineEdit(OpaqueUuidTestDecoder.decode(id), 2, new BigDecimal("12000"), "김영업");
+        captureLineEdit(OpaqueUuidTestDecoder.decode(id), 3, new BigDecimal("13000"), "박관리");
 
         String body = mockMvc.perform(get(SLIPS_PATH + "/{id}/redline", id)
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
