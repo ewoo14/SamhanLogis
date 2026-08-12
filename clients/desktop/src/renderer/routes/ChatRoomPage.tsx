@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@samhan/design-system'
-import { fetchChatMessages, sendChatMessage } from '../api/messengerApi'
+import { fetchChatMessages, fetchChatRooms, sendChatMessage } from '../api/messengerApi'
 import { chatRealtimeClient } from '../realtime/chatRealtimeClient'
 import { useParams } from 'react-router-dom'
 
@@ -11,6 +11,12 @@ export function ChatRoomPage() {
   const queryClient = useQueryClient()
   const [body, setBody] = useState('')
   const messagesQuery = useQuery({ queryKey: ['chat', roomCode, 'messages'], queryFn: () => fetchChatMessages(roomCode), enabled: Boolean(roomCode) })
+  const roomsQuery = useQuery({ queryKey: ['chat', 'rooms'], queryFn: fetchChatRooms })
+  const room = roomsQuery.data?.find((item) => item.roomCode === roomCode)
+  const firstOtherMessage = messagesQuery.data?.find((message) => !message.mine)
+  const partnerName = room?.partnerName ?? firstOtherMessage?.senderName
+  const partnerDepartment = room?.partnerDepartment ?? firstOtherMessage?.senderDepartment
+  const partnerEmployeeCode = room?.partnerEmployeeCode ?? firstOtherMessage?.senderEmployeeCode
   const sendMutation = useMutation({
     mutationFn: (value: string) => sendChatMessage(roomCode, value),
     onSuccess: () => { setBody(''); void queryClient.invalidateQueries({ queryKey: ['chat', roomCode, 'messages'] }) },
@@ -26,9 +32,9 @@ export function ChatRoomPage() {
   }, [roomCode, queryClient])
   const submit = (event: FormEvent) => { event.preventDefault(); if (body.trim()) sendMutation.mutate(body.trim()) }
   return <main data-testid="chat-room-page" style={{ display: 'grid', gap: 16, padding: 24 }}>
-    <header><h3 style={{ margin: 0 }}>채팅</h3><p style={{ margin: '6px 0 0' }}>{roomCode}</p></header>
+    <header><h3 style={{ margin: 0 }}>{partnerName ?? '채팅'}</h3><p style={{ margin: '6px 0 0' }}>{partnerDepartment}{partnerEmployeeCode ? ` · ${partnerEmployeeCode}` : ''}</p></header>
     <ul aria-label="대화 내용" style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 8 }}>
-      {(messagesQuery.data ?? []).map((message) => <li key={message.sequence}><p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{message.body}</p><time>{new Date(message.sentAt).toLocaleString('ko-KR')}</time></li>)}
+      {(messagesQuery.data ?? []).map((message) => <li key={`${message.sequence}-${message.sentAt}`}><strong>{message.mine ? '나' : (message.senderName ?? '알 수 없는 발신자')}</strong><span>{message.senderDepartment ? ` · ${message.senderDepartment}` : ''}{message.senderEmployeeCode ? ` · ${message.senderEmployeeCode}` : ''}</span><p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{message.body}</p><time>{new Date(message.sentAt).toLocaleString('ko-KR')}</time></li>)}
     </ul>
     <form onSubmit={submit} style={{ display: 'flex', gap: 8 }}><textarea aria-label="메시지 본문" value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} /><Button type="submit" disabled={sendMutation.isPending || !body.trim()}>보내기</Button></form>
   </main>

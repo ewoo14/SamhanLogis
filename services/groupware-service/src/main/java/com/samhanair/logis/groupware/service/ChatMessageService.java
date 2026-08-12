@@ -8,6 +8,7 @@ import com.samhanair.logis.groupware.domain.Message;
 import com.samhanair.logis.groupware.repository.MessageRepository;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Service
 @RequiredArgsConstructor
 public class ChatMessageService {
+    private final ConcurrentHashMap<UUID, Object> sequenceLocks = new ConcurrentHashMap<>();
     private final ChatRoomService roomService;
     private final MessageRepository messageRepository;
     private final UserClient userClient;
@@ -28,8 +30,12 @@ public class ChatMessageService {
         if (body == null || body.isBlank() || body.length() > 2000)
             throw new BusinessException(ErrorCode.INVALID_INPUT, "본문은 1자 이상 2000자 이하로 입력하십시오");
         if (!userClient.exists(recipientId)) throw new BusinessException(ErrorCode.NOT_FOUND, "수신자를 찾을 수 없습니다");
-        Message saved = messageRepository.save(Message.sendInRoom(room.getId(), messageRepository.findMaxSequence(room.getId()) + 1,
-                senderId, recipientId, body.trim()));
+        Message saved;
+        synchronized (sequenceLocks.computeIfAbsent(room.getId(), ignored -> new Object())) {
+            messageRepository.lockRoomSequence(room.getId());
+            saved = messageRepository.save(Message.sendInRoom(room.getId(), messageRepository.findMaxSequence(room.getId()) + 1,
+                    senderId, recipientId, body.trim()));
+        }
         Runnable publish = () -> broker.publish(room.getId(), "chat:message-created", java.util.Map.of(
                 "roomCode", roomCode, "sequence", saved.getSequence()));
         if (TransactionSynchronizationManager.isSynchronizationActive())

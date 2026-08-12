@@ -3,8 +3,9 @@ package com.samhanair.logis.groupware.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ChatRoom;
@@ -17,6 +18,8 @@ import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -94,5 +97,55 @@ class ChatRoomServiceTest {
         service.send(room.getRoomCode(), creator, other, "실시간 도착");
 
         verify(broker).publish(room.getId(), "chat:message-created", java.util.Map.of("roomCode", room.getRoomCode(), "sequence", 1L));
+    }
+
+    @Test
+    void new_room_code_is_allocated_from_persisted_room_codes_not_process_memory() {
+        UUID creator = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        when(userClient.exists(creator)).thenReturn(true);
+        when(userClient.exists(other)).thenReturn(true);
+        when(roomRepository.findByDirectPairKey(ChatRoom.pairKey(creator, other))).thenReturn(Optional.empty());
+        when(roomRepository.findByRoomCode(org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
+        when(roomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
+        service.createDirect(creator, other);
+
+        verify(roomRepository, times(1)).findByRoomCode(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void twenty_concurrent_messages_receive_unique_sequences() throws Exception {
+        UUID creator = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        ChatRoom room = ChatRoom.restore(UUID.randomUUID(), "CHAT-20260812-000001");
+        room.addParticipant(creator, true);
+        room.addParticipant(other, false);
+        when(roomRepository.findByRoomCode(room.getRoomCode())).thenReturn(Optional.of(room));
+        when(participantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(room.getId(), creator)).thenReturn(true);
+        when(userClient.exists(other)).thenReturn(true);
+        ConcurrentLinkedQueue<Message> saved = new ConcurrentLinkedQueue<>();
+        when(messageRepository.findMaxSequence(room.getId())).thenAnswer(invocation -> saved.stream()
+                .mapToLong(Message::getSequence).max().orElse(0L));
+        when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
+            Message message = invocation.getArgument(0);
+            saved.add(message);
+            return message;
+        });
+        ChatMessageService service = new ChatMessageService(
+                new ChatRoomService(roomRepository, participantRepository, userClient, broker),
+                messageRepository, userClient, broker);
+
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(20);
+        try {
+            var futures = IntStream.range(0, 20).mapToObj(i -> pool.submit(() ->
+                    service.send(room.getRoomCode(), creator, other, "동시 메시지 " + i))).toList();
+            for (var future : futures) future.get();
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(saved).extracting(Message::getSequence).doesNotHaveDuplicates().hasSize(20);
     }
 }

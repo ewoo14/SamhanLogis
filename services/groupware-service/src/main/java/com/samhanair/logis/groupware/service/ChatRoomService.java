@@ -9,7 +9,6 @@ import com.samhanair.logis.groupware.repository.ChatRoomRepository;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import java.time.LocalDate;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class ChatRoomService {
-    private static final AtomicInteger CODE_SEQUENCE = new AtomicInteger();
     private final ChatRoomRepository roomRepository;
     private final ChatRoomParticipantRepository participantRepository;
     private final UserClient userClient;
@@ -56,5 +54,9 @@ public class ChatRoomService {
     public org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream(String roomCode, UUID actor) {
         return broker.subscribe(requireParticipant(roomCode, actor).getId());
     }
-    private String nextCode() { return "CHAT-" + LocalDate.now().toString().replace("-", "") + "-" + String.format("%06d", CODE_SEQUENCE.incrementAndGet()); }
+    private String nextCode() {
+        String code = "CHAT-" + LocalDate.now().toString().replace("-", "") + "-"
+                + String.format("%06d", roomRepository.nextRoomCodeSequence());
+        return roomRepository.findByRoomCode(code).isPresent() ? nextCode() : code;
+    }
 }

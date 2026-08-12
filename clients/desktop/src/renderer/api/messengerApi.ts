@@ -81,8 +81,8 @@ export async function markMessageRead(messageId: string): Promise<MessageRespons
   return response.data.data
 }
 
-export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null }
-export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string }
+export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null; partnerName?: string | null; partnerDepartment?: string | null; partnerEmployeeCode?: string | null }
+export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string; senderName?: string | null; senderDepartment?: string | null; senderEmployeeCode?: string | null; mine?: boolean }
 
 export async function fetchChatRooms(): Promise<ChatRoom[]> {
   const response = await apiClient.get<ApiEnvelope<ChatRoom[]>>('/admin/groupware/chat/rooms')
@@ -96,5 +96,10 @@ export async function fetchChatMessages(roomCode: string): Promise<ChatMessage[]
 
 export async function sendChatMessage(roomCode: string, body: string): Promise<ChatMessage> {
   const response = await apiClient.post<ApiEnvelope<ChatMessage>>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`, { body })
+  return response.data.data
+}
+
+export async function createDirectChatRoom(participantId: string): Promise<ChatRoom> {
+  const response = await apiClient.post<ApiEnvelope<ChatRoom>>('/admin/groupware/chat/rooms/direct', { participantId })
   return response.data.data
 }

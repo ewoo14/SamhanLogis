@@ -317,6 +317,7 @@ import { GroupwareDocumentTemplateAdminPage } from './GroupwareDocumentTemplateA
 import { DocumentTemplateEditorPage } from './DocumentTemplateEditorPage'
 import { MessengerPage } from './MessengerPage'
 import { ChatRoomPage } from './ChatRoomPage'
+import { ChatRoomsPage } from './ChatRoomsPage'
 import { ApprovalDocView } from '../print/ApprovalDocView'
 // [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
 import { ProductCatalogPage } from './ProductCatalogPage'
@@ -413,6 +414,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="messenger.send" action="view">
             <MessengerPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/chat',
+        element: (
+          <PermissionGuard pageCode="messenger.send" action="view">
+            <ChatRoomsPage />
           </PermissionGuard>
         ),
       },

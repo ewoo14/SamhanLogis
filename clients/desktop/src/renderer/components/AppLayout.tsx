@@ -1349,6 +1349,13 @@ export function AppLayout() {
               메신저
             </SidebarLink>
             <SidebarLink
+              to="/chat"
+              show={showMessengerSend}
+              data-testid="sidebar-chat"
+            >
+              채팅
+            </SidebarLink>
+            <SidebarLink
               to="/admin/chat-rooms"
               show={showChatRoomAdmin}
               requiredRole="MASTER / MANAGER"
