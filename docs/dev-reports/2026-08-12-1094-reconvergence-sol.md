@@ -1,269 +1,149 @@
-# PR #1179 (#1094) 재수렴 적대검증 (SOL)
+# PR #1179 (#1094) fix-liveqa4 실서버 재수렴 라이브 QA (SOL)
 
-- 대상: `feat/1094-docno-hyperlink-and-back`, 개발책임자 제공 HEAD `5ee38fc54`
+- 대상 브랜치: `feat/1094-docno-hyperlink-and-back`
+- 대상 HEAD: `f6239f387`
 - 일시: 2026-08-12 (Asia/Seoul)
-- 판정 질문: **실 사용자 경로로 재현 가능한 결함이 있는가?**
-- 제한 준수: git 명령 미사용, 공유 `samhan-*` 스택 쓰기 미수행, 구현 코드 미변경
+- 판정 질문: **실 사용자 경로에서 재현되는 결함이 있는가?**
 
 ## 판정
 
-**있다. 4건이다.** 모두 #1175가 바꾼 주문·견적 DS 상세 표면에서 현재 코드로 도달한다.
+**있다. 입금보고서 편집 hydrate 결함 1건이 실 사용자 경로에서 재현된다.**
 
-| # | 실사용 경로 | 재현 결함 | 직접 근거 |
-|---|---|---|---|
-| F1 | 판매 → 견적서 관리 → 견적번호 | 견적번호가 하이퍼링크가 아닌 `span`이고 행 전체 클릭으로만 상세 진입 | `EstimateListPage.tsx:196-213, 567-572` |
-| F2 | 견적 목록 → 행 클릭 → DS 상세 | `Card + detail-grid` 상세에 목록/뒤로가기 버튼이 없다 | `EstimateDetailPage.tsx`의 사용자 액션 전수에서 목록/뒤로가기 0건 |
-| F3 | 판매 → 주문서 관리 → 주문번호 | 주문번호가 하이퍼링크가 아닌 `OrderNumberDisplay`를 감싼 `span`이고 행 전체 클릭으로만 상세 진입 | `SalesPartnerOrderListPage.tsx:226-248, 384-389` |
-| F4 | 필터/검색된 주문 목록 → 상세 → `← 목록` | 원래 history entry가 아니라 고정 `/sales/partner-orders`로 이동하여 검색·scroll identity를 잃음 | `SalesPartnerOrderDetailPage.tsx:837` 및 동일 고정 이동 호출 |
+견적·주문·입금보고서의 문서번호 링크, 목록 버튼 1회 복귀, `640px` 스크롤 복원, 2회 왕복 history 비누적, 브라우저 뒤로가기 상세 비재진입은 모두 통과했다. 주문 검색어도 유지됐다. 입금보고서 상세 금액 `1,008`은 정상이나, 편집 hydrate 뒤 첫 행은 빈 값이고 행 합계는 `0원`이다.
 
-따라서 충돌 해소 후 **PR의 번호 하이퍼링크·공통 뒤로가기 의도와 main의 DS 셸 의도가 함께 살아 있지 않다.** DS 셸은 살아 있으나 위 네 계약이 견적·주문 표면에서 소실됐다.
+## 격리 clone과 실서비스
 
-반대로 S7 자동 drop 판단은 입금보고서 reference 경로에서는 맞았다. 격리 라이브에서 `목록(640px) → 상세 → 편집 → 저장 → 동일 필터 URL/640px`를 완주했다.
+- PostgreSQL: `qa1094reconv-pg`, `127.0.0.1:40832`
+- network: `qa1094reconv-net`
+- gateway: `qa1094reconv-gateway`, `127.0.0.1:40880`
+- renderer: current worktree HashRouter Vite, `127.0.0.1:52948`
+- 전용 서비스: eureka/auth/user/product/partner/slip/partner-order/dc-config/accounting
+- 공유 `samhan-*` 업무 화면/API는 사용하지 않았다. 로그인과 화면 요청은 전용 clone/service에만 수행했다.
 
-## 집계
-
-### 라이브 실행
-
-- passed: **4**
-  - 입금보고서 전표번호 native `A` + 비즈니스 번호 라벨
-  - visible UUID 비노출
-  - 상세 `목록` → 동일 필터 URL/640px 복귀
-  - 편집 저장 mutation → 동일 history entry/640px 복귀
-- skipped: **3**
-  - 직접 URL 상세 → canonical 목록
-  - 견적 DS 목록/상세 상호작용
-  - 주문 DS 목록/상세 상호작용
-- failed: **0**
-
-skipped 사유는 제품 판정이 아니라 검증 스택 중단이다. 전용 컨테이너 과부하 뒤 397xx 전 포트와 Docker daemon이 timeout이 되어 공유 스택으로 전환하지 않았다. 직접 URL은 집중 단위 테스트에 포함돼 통과했지만 라이브 통과로 승격하지 않았다.
-
-### 정적 도달성 적대검증
-
-- passed: **2**
-  - cash detail → edit가 `returnEntryKey`를 보존
-  - edit save가 `navigate(-2)`로 원래 목록 entry 복귀
-- skipped: **0**
-- failed: **4** — 위 F1~F4
-
-### 집중 자동 회귀
-
-- passed: **79**
-- skipped: **0**
-- failed: **0**
-
-## 격리 DB 복제와 인코딩 게이트
-
-전용 환경만 사용했다.
+복제는 PowerShell 파이프를 사용하지 않았다.
 
 ```text
-network: recon1094-net
-PostgreSQL: recon1094-pg / 127.0.0.1:39732
-gateway: 127.0.0.1:39780
-auth: 39781
-accounting: 39787
-renderer: 127.0.0.1:52794
+samhan-postgres 내부 pg_dumpall -f /tmp/qa1094reconv-all.sql
+docker cp source:/tmp/qa1094reconv-all.sql host-file
+docker cp host-file qa1094reconv-pg:/tmp/qa1094reconv-all.sql
+qa1094reconv-pg 내부 psql -f /tmp/qa1094reconv-all.sql
 ```
 
-복제는 파이프 없이 수행했다.
+20개 비-template DB가 복원됐다. 새 PostgreSQL의 기본 role과 dump role이 겹쳐 `role "samhan" already exists` 표준 오류 1건이 있었고 restore는 끝까지 완료됐다.
+
+요청된 한글 확인 원문:
 
 ```text
-samhan-postgres 내부 pg_dumpall -f /tmp/recon1094-all.sql
-docker cp source-container:/tmp/recon1094-all.sql host-file
-docker cp host-file recon1094-pg:/tmp/recon1094-all.sql
-recon1094-pg 내부 psql -f /tmp/recon1094-all.sql
+SOURCE_HANGUL_BEGIN
+(주)한국냉동물류
+(주)서울택배
+대한화물서비스(주)
+SOURCE_HANGUL_END
+CLONE_HANGUL_BEGIN
+(주)한국냉동물류
+(주)서울택배
+대한화물서비스(주)
+CLONE_HANGUL_END
 ```
 
-restore 오류는 초기 컨테이너가 이미 만든 동일 역할 재생성 1건뿐이었다.
+입금보고서 clone DB 원문:
 
 ```text
-RESTORE_ERROR_COUNT=1
-psql:/tmp/recon1094-all.sql:16: ERROR:  role "samhan" already exists
+2026/08/07-8|MANUAL_RECEIPT|DRAFT|1008.00|[{"memo": "S5-1094-08", "bizNo": "165-35-10155", "amount": 1008, "partnerId": "8f2bc08a-c6f3-3bc3-af98-7fdd58d2b38e", "partnerCode": "P-2026-0005", "partnerName": "대구HVAC솔루션"}]
 ```
 
-복제 직후 공유 원문과 clone에서 같은 SQL을 각각 컨테이너 파일로 출력하고 `docker cp`로 꺼냈다. 한글 SELECT 원문:
+## 화면별 실측
+
+각 화면에서 같은 문서를 2회 연속 `목록 → 상세 → 목록` 왕복했다. `history.length`는 브라우저 세션의 절대 길이이며, 목록 버튼은 각 왕복에서 한 번만 클릭했다.
+
+| 화면 | 대상 | 진입 전 scrollY | 1회 복귀 후 | 2회 복귀 후 | history.length (`목록→상세1→목록1→상세2→목록2`) | 브라우저 뒤로가기 |
+|---|---|---:|---:|---:|---|---|
+| 견적 | `삼성전자`, `QUOTE_DRAFT`, `2026/08/10-9` | `640,640,640,640` | `640,640,640,640` | `640,640,640,640` | `3→4→4→4→4` | `#/` 도달, 상세 재진입 없음 |
+| 주문 | `DRAFT`, 검색어 `2026/06/08`, `2026/06/08-1982` | `640,640,640,640` | `640,640,640,640` | `640,640,640,640` | `3→4→4→4→4` | `#/` 도달, 상세 재진입 없음 |
+| 입금보고서 | `MANUAL_RECEIPT`, `2026/08/07-8` | `640,640,640,640` | `640,640,640,640` | `640,640,640,640` | `4→5→5→5→5` | 무필터 입금 목록 도달, 상세 재진입 없음 |
+
+주문 검색어 원문:
 
 ```text
-2026/07/04-12|#929-R3-표면3-검증-throwaway
-2026/07/07-1|라이브QA coedit 초기
-2026/07/05-4|race-condition 시뮬레이션(동시 세션)
-2026/07/04-9|E3S4c 실QA — 다중선택 벌크 입금보고서
-2026/07/05-3|race-condition 시뮬레이션(동시 세션)
+목록 URL = #/sales/partner-orders?status=DRAFT&keyword=2026%2F06%2F08
+1회 왕복 후 input value = 2026/06/08
+2회 왕복 후 URL = #/sales/partner-orders?status=DRAFT&keyword=2026%2F06%2F08
 ```
 
-검증 원문:
+입금보고서 `1,008` 관측 원문:
 
 ```text
-UTF8_EXACT_MATCH=True
-SOURCE_HAS_HANGUL=True
-CLONE_HAS_HANGUL=True
-SOURCE_SHA256=9B45F8273AC6C1465FF63E705945149733935B73DF9852C8770A15D6EE9DB87C
-CLONE_SHA256=9B45F8273AC6C1465FF63E705945149733935B73DF9852C8770A15D6EE9DB87C
+clone DB header amount = 1008.00
+clone DB lines_json[0].amount = 1008
+상세 화면 금액 = 1,008
+편집 hydrate 1초 후 첫 행 = ""
+화면 합계 = 행 합계: 0원 / 입금 총액 1,008원
 ```
 
-인코딩 게이트 통과 전에는 서비스/UI 검증을 시작하지 않았다.
-
-## S2·S3·S5 충돌 해소 및 S7 drop 추적
-
-### 살아 있는 의도
-
-입금보고서 reference에는 다음이 모두 남았다.
+최종 Playwright 원문 집계:
 
 ```text
-CashReceiptListPage
-  Link label = row.slipNo
-  state = { returnTo, returnEntryKey: location.key }
-  saveScrollAnchor(location.key)
-
-CashReceiptDetailPage
-  유효 returnEntryKey → navigate(-1)
-  직접 URL/state 없음 → canonical replace
-  edit state에 returnTo + returnEntryKey 보존
-
-CashReceiptFormPage
-  목록 → 상세 → 편집 → 저장 + 유효 returnEntryKey → navigate(-2)
-  직접 상세 → 편집 → 저장 → 저장된 상세 replace
+Running 3 tests using 1 worker
+견적 PASS
+주문 PASS
+입금보고서 FAIL
+2 passed / 1 failed
+실패 assertion 1: expected first line "1008", received ""
+실패 assertion 2: expected "행 합계: 1,008원 / 입금 총액 1,008원",
+                  received "행 합계: 0원 / 입금 총액 1,008원"
 ```
 
-초기 정적 조사에서 `CashReceiptFormPage.tsx:138`의 `state: { returnTo }`를 S7 누락 후보로 보았으나, 이 분기는 `hasReturnEntry=false`인 직접 진입 전용이었다. 목록에서 온 실제 mutation은 `:131-134`의 `navigate(-2)`를 사용한다. 라이브 저장으로 반증했으므로 결함으로 집계하지 않았다.
+## 재현 가능한 결함
 
-### 버려진 의도
+### F1. 입금보고서 편집 hydrate에서 첫 행 `1,008` 유실
 
-견적/주문 표면은 #1175 DS 셸과 데이터 표면은 살아 있지만 #1094 계약이 결합되지 않았다.
+1. 입금보고서 목록에서 전표번호 `2026/08/07-8`, 구분 `수기 입금`으로 검색한다.
+2. 문서번호 `2026/08/07-8` 링크를 클릭한다.
+3. 상세 화면 금액 `1,008`을 확인한다.
+4. `편집`을 클릭한다.
+5. 첫 입금 행의 거래처 `대구HVAC솔루션`은 보이지만 금액 입력은 빈 값이다.
+6. 1초 후에도 `행 합계: 0원 / 입금 총액 1,008원`으로 불일치한다.
 
-실행 원문에 대응하는 현재 코드:
+## 스크린샷과 증명 범위
 
-```tsx
-// EstimateListPage.tsx
-<span data-testid={`estimate-list-row-${row.id}-number`}>
-  {row.estimateNo}
-</span>
-// ...
-onRowClick={(r) => navigate(`/sales/estimates/${r.id}`)}
-```
+아래 16장은 모두 이번 라운드의 clone DB + 전용 gateway/services + current worktree renderer에서 새로 캡처한 1440×420 PNG다. 직접 열어 확인했으며 증거 화면의 한글은 정상이고 데이터 자리에 `?`가 보이는 캡처는 없다.
 
-```tsx
-// SalesPartnerOrderListPage.tsx
-<span className={styles['partnerOrderNumberCell']}>
-  <OrderNumberDisplay orderNumber={o.orderNumber} />
-</span>
-// ...
-navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`)
-```
+- `docs/qa/2026-08-12-1094-reconv/00-estimate-filtered-target-link.png` — 삼성전자/작성중 필터와 `2026/08/10-9` 문서번호 링크.
+- `docs/qa/2026-08-12-1094-reconv/01-estimate-list-before-link-640.png` — 견적 클릭 직전 `scrollY=640` viewport.
+- `docs/qa/2026-08-12-1094-reconv/02-estimate-detail-after-docno-link.png` — 링크 클릭 뒤 `2026/08/10-9` 상세와 `← 목록`.
+- `docs/qa/2026-08-12-1094-reconv/03-estimate-list-after-one-back.png` — 목록 버튼 1회 뒤 복원된 `scrollY=640` viewport.
+- `docs/qa/2026-08-12-1094-reconv/04-estimate-browser-back-not-detail.png` — 2회 왕복 뒤 브라우저 back이 상세가 아닌 대시보드에 도달.
+- `docs/qa/2026-08-12-1094-reconv/05a-order-filtered-target-link-keyword.png` — 검색어 `2026/06/08`과 `2026/06/08-1982` 문서번호 링크.
+- `docs/qa/2026-08-12-1094-reconv/05-order-list-before-link-640-keyword.png` — 주문 클릭 직전 `scrollY=640` viewport.
+- `docs/qa/2026-08-12-1094-reconv/06-order-detail-after-docno-link.png` — 링크 클릭 뒤 주문 `2026/06/08-1982` 상세와 `← 목록`.
+- `docs/qa/2026-08-12-1094-reconv/07-order-list-after-one-back-keyword-retained.png` — 목록 버튼 1회 뒤 `scrollY=640` 위치와 같은 주문 결과.
+- `docs/qa/2026-08-12-1094-reconv/08-order-browser-back-not-detail.png` — 2회 왕복 뒤 브라우저 back이 상세가 아닌 대시보드에 도달.
+- `docs/qa/2026-08-12-1094-reconv/09a-cash-filtered-target-link-1008.png` — `2026/08/07-8`, 수기 입금, 대구HVAC솔루션, `1,008` 목록 행.
+- `docs/qa/2026-08-12-1094-reconv/09-cash-list-before-link-640.png` — 입금보고서 클릭 직전 `scrollY=640` viewport.
+- `docs/qa/2026-08-12-1094-reconv/10-cash-detail-after-docno-link-1008.png` — 링크 클릭 뒤 상세 `1,008`과 목록/편집 버튼.
+- `docs/qa/2026-08-12-1094-reconv/11-cash-list-after-one-back.png` — 목록 버튼 1회 뒤 복원된 `scrollY=640` viewport.
+- `docs/qa/2026-08-12-1094-reconv/12-cash-browser-back-not-detail.png` — 2회 왕복 뒤 브라우저 back이 상세가 아닌 입금보고서 목록에 도달.
+- `docs/qa/2026-08-12-1094-reconv/13-cash-edit-hydrated-first-line-1008-total-1008.png` — 첫 행 금액 빈칸과 `행 합계: 0원 / 입금 총액 1,008원` 결함.
 
-```tsx
-// SalesPartnerOrderDetailPage.tsx
-<Button type="button" variant="ghost" onClick={() => navigate('/sales/partner-orders')}>
-  ← 목록
-</Button>
-```
+정확한 수치 원문은 `docs/qa/2026-08-12-1094-reconv/measurements.jsonl`에도 저장했다.
 
-`EstimateDetailPage.tsx`는 `Card + detail-grid`를 렌더하지만 목록/뒤로가기 action이 0건이다.
+## 못 한 것
 
-## 격리 라이브 QA 원문
+없다. 요청된 세 화면의 링크 진입, 목록 버튼, 반복 history, 브라우저 뒤로가기, 주문 검색어, 입금 hydrate를 모두 실서비스 GUI에서 수행했다.
 
-브라우저 플러그인은 복구 절차 후에도 사용 가능한 브라우저 목록이 `[]`였으므로, 로컬 Playwright Chromium으로 동일 격리 URL을 제어했다. 공유 스택에는 로그인/API 호출을 하지 않았다.
+## 종료 점검
 
-실행:
-
-```powershell
-node .codex-tmp\recon1094\liveqa.mjs
-```
-
-유효 원문:
+전용 `qa1094reconv-*` 컨테이너/network, renderer, Playwright 잔여 프로세스, 임시 dump/harness를 제거했다.
 
 ```text
-LOGIN_HTTP=200 ROLE=MASTER
-DRAFT_BUSINESS_ID=2026/08/07-8
-PASS | 입금보고서 번호 하이퍼링크 | tag=A text=2026/08/07-8
-PASS | 번호 링크 UUID 비노출 | visible=2026/08/07-8
-PASS | 입금보고서 원래 URL/scroll 복귀 | before=640 after=640 url=http://127.0.0.1:52794/#/accounting/admin/cash-receipts?slipNo=2026%2F08%2F07-8
-PASS | mutation 후 원래 entry identity 유지 | before=640 after=640 url=http://127.0.0.1:52794/#/accounting/admin/cash-receipts?slipNo=2026%2F08%2F07-8
+RENDERER_LISTENER=False
+QA_CONTAINERS=0
+QA_NETWORK=0
+TEMP_EXISTS=False
+HARNESS_EXISTS=False
+SOURCE_TMP_EXISTS=False
 ```
 
-초기 스크립트의 아래 1행은 무효 측정으로 집계에서 제외했다.
+**삭제된 추적 파일은 없다.** `git ls-files --deleted`와 `git diff --name-status origin/main...HEAD`의 `D` 항목이 모두 0건이다.
 
-```text
-FAIL | 입금보고서 DS 상세 셸과 뒤로가기 공존 | detail-grid=0 ...
-```
-
-이유: #1175의 `detail-grid` 계약 대상은 주문·견적 상세이고 cash detail은 별도 Card 표면이다. 실제 캡처에는 cash 상세 본문과 `목록` 버튼이 정상 렌더됐다.
-
-그 다음 direct page 대기 중 전용 스택이 응답 정지했다.
-
-```text
-locator.waitFor: Timeout 20000ms exceeded.
-waiting for getByRole('button', { name: '목록', exact: true }) to be visible
-```
-
-후속 전용 health 원문:
-
-```text
-39780=FAIL:The operation has timed out.
-39781=FAIL:The operation has timed out.
-39787=FAIL:The operation has timed out.
-39788=FAIL:The operation has timed out.
-39789=FAIL:The operation has timed out.
-39792=FAIL:The operation has timed out.
-```
-
-Docker daemon의 `docker ps`, `docker stop`도 각각 timeout됐다. 공유 스택으로 대체하지 않았고, 이 환경 실패를 제품 결함으로 집계하지 않았다. 전용 `recon1094-*` 정리 요청도 daemon timeout으로 완료 확인하지 못했다.
-
-## 집중 회귀 원문
-
-입금보고서 return contract:
-
-```text
-Test Files  4 passed (4)
-Tests       38 passed (38)
-Duration    19.65s
-```
-
-명령:
-
-```powershell
-npx vitest run src/renderer/utils/returnContract.test.ts src/renderer/routes/CashReceiptListPage.test.tsx src/renderer/routes/CashReceiptDetailPage.test.tsx src/renderer/routes/CashReceiptFormPage.test.tsx
-```
-
-주문·견적 기존 회귀:
-
-```text
-Test Files  4 passed (4)
-Tests       41 passed (41)
-Duration    5.58s
-```
-
-명령:
-
-```powershell
-npx vitest run src/renderer/routes/EstimateListPage.test.tsx src/renderer/routes/EstimateDetailPage.test.tsx src/renderer/routes/SalesPartnerOrderListPage.test.tsx src/renderer/routes/SalesPartnerOrderDetailPage.coedit.test.tsx
-```
-
-41개 기존 테스트는 DS/도메인 기능을 통과하지만 F1~F4 계약을 검사하지 않는다. 테스트 통과를 결함 부재로 해석하지 않았다.
-
-## 스크린샷 전부
-
-- `docs/qa/2026-08-12-1094-reconv/01-cash-list-document-link.png`
-- `docs/qa/2026-08-12-1094-reconv/02-cash-detail-ds-shell-back.png`
-- `docs/qa/2026-08-12-1094-reconv/03-cash-after-edit-return-identity.png`
-
-세 파일은 격리 clone DB + 전용 397xx API + 이 worktree renderer 52794의 실제 렌더다. 두 번째 캡처 상단의 업데이트 확인 실패 배너는 격리 환경에서 외부 업데이트 확인 endpoint가 없는 현상이며 #1094 판정에 포함하지 않았다.
-
-## 삭제된 추적 파일 확인
-
-git 명령 없이 worktree index v2를 직접 읽고 19,382개 추적 entry의 실제 경로 존재를 전수 확인했다.
-
-```text
-INDEX_SIGNATURE=DIRC
-INDEX_VERSION=2
-TRACKED_ENTRY_COUNT=19382
-MISSING_TRACKED_COUNT=0
-```
-
-**삭제된 추적 파일 없음.**
-
-## 변경 범위
-
-- 구현 코드 변경 없음
-- 생성한 영구 산출물: 본 보고서와 위 스크린샷 3장
-- `.codex-tmp/recon1094/`에는 복제 파일, SELECT 원문, restore/live 출력, QA 보조 스크립트가 있다
-- git 명령·commit·push 미수행
+특별 확인 대상 `tools/.s24-build-only/build/deep/tracked-writer.mjs`는 존재하며 42 bytes, SHA-256 `F3A735766688747E0E23C5D4155E95D1BF1B2134C845263D784661E8F79603A3`이다. git add/commit/push/checkout/stash/reset은 수행하지 않았다.
