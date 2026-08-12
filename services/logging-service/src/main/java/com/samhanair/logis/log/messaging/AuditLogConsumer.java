@@ -2,6 +2,7 @@ package com.samhanair.logis.log.messaging;
 
 import java.time.Instant;
 import java.util.UUID;
+import com.samhanair.logis.shared.audit.contract.AuditEnums;
 
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -31,13 +32,15 @@ public class AuditLogConsumer {
     public void consume(AuditLogEvent event) {
         try {
             AuditLog entry = AuditLog.builder()
-                    .id(blankToUuid(event.id()))
+                    .id(event.schemaVersion() == null ? blankToUuid(event.id()) : event.id())
                     .serviceName(event.serviceName())
                     .userId(event.userId())
                     .userRole(event.userRole())
+                    .actorDisplayName(event.actorDisplayName())
                     .action(event.action())
                     .resourceType(event.resourceType())
                     .resourceId(event.resourceId())
+                    .internalResourceId(event.internalResourceId())
                     .description(event.description())
                     .beforeData(event.beforeData())
                     .afterData(event.afterData())
