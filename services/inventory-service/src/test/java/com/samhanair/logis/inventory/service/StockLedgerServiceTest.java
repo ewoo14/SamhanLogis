@@ -1,0 +1,76 @@
+package com.samhanair.logis.inventory.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.samhanair.logis.inventory.client.ProductClient;
+import com.samhanair.logis.inventory.client.ProductSummary;
+import com.samhanair.logis.inventory.domain.MovementType;
+import com.samhanair.logis.inventory.domain.StockMovement;
+import com.samhanair.logis.inventory.repository.StockMovementRepository;
+import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class StockLedgerServiceTest {
+
+    @Mock private ProductClient productClient;
+    @Mock private StockMovementRepository movementRepository;
+    @Mock private WarehouseRepository warehouseRepository;
+    @InjectMocks private StockLedgerService service;
+
+    @Test
+    @DisplayName("기간 시작 전 잔량과 기간 내 입출고의 누적 잔량을 계산한다")
+    void calculatesOpeningAndRunningBalance() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary product = mock(ProductSummary.class);
+        when(product.id()).thenReturn(productId);
+        when(product.name()).thenReturn("테스트 품목");
+        when(productClient.requireExistsByCode("AP145BNPPHH1")).thenReturn(product);
+
+        StockMovement opening = movement(MovementType.INBOUND, 10, LocalDateTime.of(2026, 7, 31, 9, 0));
+        StockMovement inbound = movement(MovementType.INBOUND, 5, LocalDateTime.of(2026, 8, 2, 9, 0));
+        StockMovement outbound = movement(MovementType.DEDUCT, -3, LocalDateTime.of(2026, 8, 3, 9, 0));
+        when(movementRepository.findAllByProductIdOrderByOccurredAtAsc(productId))
+                .thenReturn(List.of(opening, inbound, outbound));
+
+        var ledger = service.getLedger("AP145BNPPHH1", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3));
+
+        assertThat(ledger.openingBalance()).isEqualTo(10);
+        assertThat(ledger.rows()).extracting(StockLedgerRow::balance).containsExactly(15, 12);
+        assertThat(ledger.rows()).extracting(StockLedgerRow::inboundQuantity).containsExactly(5, 0);
+        assertThat(ledger.rows()).extracting(StockLedgerRow::outboundQuantity).containsExactly(0, 3);
+        assertThat(ledger.closingBalance()).isEqualTo(12);
+    }
+
+    @Test
+    @DisplayName("수불부 응답에는 UUID를 포함하지 않는다")
+    void responseHasNoUuidFields() {
+        var row = new StockLedgerRow(LocalDate.of(2026, 8, 2), "품목", "CODE", "창고", "거래처",
+                "7343889694", null, 5, 0, 15, false);
+
+        assertThat(row.toString()).doesNotContain("00000000-0000-0000-0000-000000000000");
+        assertThat(StockLedgerRow.class.getRecordComponents())
+                .extracting(component -> component.getType())
+                .noneMatch(UUID.class::equals);
+    }
+
+    private StockMovement movement(MovementType type, int delta, LocalDateTime occurredAt) {
+        StockMovement movement = mock(StockMovement.class);
+        when(movement.getMovementType()).thenReturn(type);
+        when(movement.getQuantityDelta()).thenReturn(delta);
+        when(movement.getOccurredAt()).thenReturn(occurredAt);
+        when(movement.getWarehouseId()).thenReturn(UUID.randomUUID());
+        return movement;
+    }
+}

@@ -1,4 +1,6 @@
 import { Modal } from '@samhan/design-system'
+import { useEffect, useRef } from 'react'
+import QRCode from 'qrcode'
 import type { StockInstanceListRow, StockInstanceQuality } from '../../api/inventory'
 
 const QUALITY_LABEL: Record<StockInstanceQuality, string> = {
@@ -11,24 +13,18 @@ const QUALITY_LABEL: Record<StockInstanceQuality, string> = {
 
 const QUALITY_VALUES = Object.keys(QUALITY_LABEL) as StockInstanceQuality[]
 
-function barcodePattern(value: string): string[] {
-  return Array.from(value).flatMap((char) => {
-    const bits = char.charCodeAt(0).toString(2).padStart(7, '0')
-    return bits.split('').map((bit) => bit === '1' ? '3px' : '1px')
-  })
-}
+function SerialQr({ value }: { value: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
-function SerialBarcode({ value }: { value: string }) {
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent)) return
+    if (canvasRef.current) {
+      void QRCode.toCanvas(canvasRef.current, value, { width: 64, margin: 1 }).catch(() => undefined)
+    }
+  }, [value])
+
   return (
-    <span
-      data-testid={`serial-barcode-${value}`}
-      aria-label={`${value} 바코드`}
-      style={{ display: 'inline-flex', height: 24, gap: 1, alignItems: 'stretch', padding: '0 2px' }}
-    >
-      {barcodePattern(value).map((width, index) => (
-        <span key={`${value}-${index}`} style={{ width, background: '#111827' }} />
-      ))}
-    </span>
+    <canvas ref={canvasRef} data-testid={`serial-qr-${value}`} aria-label={`${value} QR 코드`} />
   )
 }
 
@@ -64,7 +60,7 @@ export function StockInstanceListModal({
                   <td style={cellStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span>{row.serialKey}</span>
-                      <SerialBarcode value={row.barcode} />
+                      <SerialQr value={row.serialKey} />
                     </div>
                   </td>
                   <td style={cellStyle}>{row.warehouseName} ({row.warehouseCode})</td>

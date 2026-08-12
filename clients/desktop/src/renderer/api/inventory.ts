@@ -308,11 +308,37 @@ export type StockInstanceQuality = 'NORMAL' | 'USED' | 'DAMAGED' | 'REPACKAGED' 
 /** 품목리스트 모달 응답 — UUID를 포함하지 않는 S2a 화면 계약. */
 export interface StockInstanceListRow {
   serialKey: string
-  barcode: string
   warehouseCode: string
   warehouseName: string
   status: StockInstanceStatus
   quality: StockInstanceQuality
+}
+
+export interface StockLedgerRow {
+  date: string
+  productName: string
+  productCode: string
+  warehouseName: string
+  partnerName: string
+  description: string
+  locationTag: string | null
+  inboundQuantity: number
+  outboundQuantity: number
+  balance: number
+  opening: boolean
+}
+
+export interface StockLedgerResponse {
+  companyName: string
+  startDate: string
+  endDate: string
+  productName: string
+  productCode: string
+  openingBalance: number
+  totalInbound: number
+  totalOutbound: number
+  closingBalance: number
+  rows: StockLedgerRow[]
 }
 
 export async function listStockInstances(productCode: string): Promise<StockInstanceListRow[]> {
@@ -328,6 +354,17 @@ export async function updateStockInstanceQuality(
 ): Promise<StockInstanceListRow> {
   const res = await apiClient.patch<ApiEnvelope<StockInstanceListRow>>('/inventory/instances/quality',
     { quality }, { params: { serialKey } })
+  return res.data.data
+}
+
+export async function getStockLedger(
+  productCode: string,
+  startDate?: string,
+  endDate?: string,
+): Promise<StockLedgerResponse> {
+  const res = await apiClient.get<ApiEnvelope<StockLedgerResponse>>('/inventory/ledger', {
+    params: { productCode, startDate, endDate },
+  })
   return res.data.data
 }
 

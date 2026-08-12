@@ -45,9 +45,11 @@ import {
   type WarehouseType,
   listStockInstances,
   updateStockInstanceQuality,
+  getStockLedger,
 } from '../../api/inventory'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { StockInstanceListModal } from './StockInstanceListModal'
+import { StockLedgerModal } from './StockLedgerModal'
 
 // ---------------------------------------------------------------------------
 // 페이지당 행 수 (서버 page/size 파라미터 연동)
@@ -218,6 +220,8 @@ export function InventoryStockBalancePage() {
   /** 현재 페이지 (0-based, 서버 page 파라미터 연동) */
   const [currentPage, setCurrentPage] = useState(0)
   const [instanceProductCode, setInstanceProductCode] = useState<string | null>(null)
+  const [ledgerProductCode, setLedgerProductCode] = useState<string | null>(null)
+  const [ledgerRange, setLedgerRange] = useState<{ start: string; end: string } | undefined>(undefined)
   const queryClient = useQueryClient()
 
   const warehousesQuery = useQuery({
@@ -246,6 +250,11 @@ export function InventoryStockBalancePage() {
       updateStockInstanceQuality(serialKey, quality),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inventory-instances', instanceProductCode] }),
   })
+  const ledgerQuery = useQuery({
+    queryKey: ['inventory-ledger', ledgerProductCode, ledgerRange?.start, ledgerRange?.end],
+    queryFn: () => getStockLedger(ledgerProductCode!, ledgerRange?.start, ledgerRange?.end),
+    enabled: ledgerProductCode !== null,
+  })
 
   const handleQuery = useCallback(() => {
     setCurrentPage(0)
@@ -267,12 +276,20 @@ export function InventoryStockBalancePage() {
 
   const columns = COLUMNS.map((column) => column.key === 'productCode'
     ? { ...column, render: (row: StockBalanceListRow) => (
-      <button
-        type="button"
-        onClick={() => setInstanceProductCode(row.productCode)}
-        style={productLinkStyle}
-        aria-label={`${row.productCode} 품목리스트 열기`}
-      >{row.productCode}</button>
+      <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => setInstanceProductCode(row.productCode)}
+          style={productLinkStyle}
+          aria-label={`${row.productCode} 품목리스트 열기`}
+        >{row.productCode}</button>
+        <button
+          type="button"
+          onClick={() => { setLedgerRange(undefined); setLedgerProductCode(row.productCode) }}
+          style={ledgerLinkStyle}
+          aria-label={`${row.productCode} 재고수불부 열기`}
+        >수불부</button>
+      </span>
       ) }
     : column)
 
@@ -417,6 +434,14 @@ export function InventoryStockBalancePage() {
           onQualityChange={(serialKey, quality) => qualityMutation.mutate({ serialKey, quality })}
         />
       ) : null}
+      {ledgerProductCode !== null ? (
+        <StockLedgerModal
+          open
+          data={ledgerQuery.data}
+          onClose={() => setLedgerProductCode(null)}
+          onRangeChange={(startDate, endDate) => setLedgerRange({ start: startDate, end: endDate })}
+        />
+      ) : null}
     </div>
   )
 }
@@ -440,6 +465,17 @@ const productLinkStyle: CSSProperties = {
   textDecoration: 'underline',
   cursor: 'pointer',
   font: 'inherit',
+}
+
+const ledgerLinkStyle: CSSProperties = {
+  border: 0,
+  padding: 0,
+  background: 'transparent',
+  color: 'var(--color-neutral-600, #4B5563)',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+  font: 'inherit',
+  fontSize: 11,
 }
 
 const headerRowStyle: CSSProperties = {
