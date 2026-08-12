@@ -183,6 +183,9 @@ spring:
             - Path=/api/v1/auth/partner-status,/api/v1/auth/partner-register,/api/v1/auth/partner-password,/api/v1/auth/partner-login,/api/v1/auth/partner-temp-password,/api/v1/auth/partner-expiration,/api/v1/auth/partner-tutorial
           filters:
             - StripInboundIdentityHeaders
+            - name: ForwardedClientIp
+              args:
+                trustedPeerAddresses: ${SAMHAN_AUDIT_TRUSTED_INGRESS_ADDRESSES:private}
 
         # 모바일 슬1 웹 bootstrap: GET /api/v1/auth/me 는 쿠키/Bearer JWT 검증 후
         # auth-service /auth/me 로 전달해야 한다. public auth-service-v1 catch-all 보다 먼저 선언.
