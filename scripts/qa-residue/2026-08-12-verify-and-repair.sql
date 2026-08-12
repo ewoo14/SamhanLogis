@@ -30,6 +30,11 @@ COMMIT;
 
 \connect slip_db
 SELECT to_regclass('public.qa_residue_target_snapshot') IS NOT NULL AS snapshot_exists \gset
+\if :snapshot_exists
+\else
+  \echo 'snapshot을 먼저 고정하십시오: 2026-08-12-pin-qa-residue-snapshot.sql'
+  SELECT 1 / 0 AS missing_snapshot_guard_failure;
+\endif
 BEGIN TRANSACTION READ ONLY;
 \if :snapshot_exists
   SELECT COUNT(*) AS snapshot_slips_total, COUNT(s.id) AS physical_slips_total,
@@ -46,34 +51,6 @@ BEGIN TRANSACTION READ ONLY;
          (SELECT COUNT(*) FROM slip_lines l WHERE l.is_deleted AND l.deleted_by = 'qa-residue-softdelete-2026-08-12' AND NOT EXISTS (SELECT 1 FROM qa_residue_target_snapshot t WHERE t.snapshot_key = 'qa-residue-softdelete-2026-08-12' AND t.entity_type = 'line' AND t.entity_id = l.id)) AS non_target_line_marker
   FROM qa_residue_target_snapshot t LEFT JOIN slip_lines l ON l.id = t.entity_id
   WHERE t.snapshot_key = 'qa-residue-softdelete-2026-08-12' AND t.entity_type = 'line' \gset slip_
-\else
-  WITH target AS (
-    SELECT DISTINCT s.id FROM slips s JOIN slip_lines l ON l.slip_id = s.id
-    WHERE (s.is_deleted AND s.deleted_by = 'qa-residue-softdelete-2026-08-12'
-           AND EXISTS (SELECT 1 FROM slip_lines ml WHERE ml.slip_id = s.id AND ml.is_deleted AND ml.deleted_by = 'qa-residue-softdelete-2026-08-12'))
-       OR (NOT s.is_deleted AND ((l.created_by = 'system' AND l.created_at BETWEEN TIMESTAMP '2026-05-09 16:59:33.210336' AND TIMESTAMP '2026-05-09 16:59:33.901047')
-           OR (l.created_by = 'system-internal' AND l.created_at BETWEEN TIMESTAMP '2026-05-30 13:37:02.475652' AND TIMESTAMP '2026-05-30 13:39:39.203576')
-           OR l.product_id IN ('57dc63e2-43da-43e6-b73e-3c81822cf9a7','7de11ab7-e70c-421e-80a4-7c6b51a2c6e9','ed278526-0e16-427d-8a92-2ca06164254a')))
-  )
-  SELECT COUNT(*) AS snapshot_slips_total, COUNT(s.id) AS physical_slips_total,
-         COUNT(*) FILTER (WHERE s.is_deleted AND s.deleted_by = 'qa-residue-softdelete-2026-08-12' AND s.deleted_at IS NOT NULL) AS slips_deleted,
-         COUNT(*) FILTER (WHERE NOT s.is_deleted AND s.deleted_by IS NULL AND s.deleted_at IS NULL) AS slips_restored,
-         COUNT(*) FILTER (WHERE s.id IS NOT NULL AND NOT ((s.is_deleted AND s.deleted_by = 'qa-residue-softdelete-2026-08-12' AND s.deleted_at IS NOT NULL) OR (NOT s.is_deleted AND s.deleted_by IS NULL AND s.deleted_at IS NULL))) AS slips_drift,
-         (SELECT COUNT(*) FROM slips s WHERE s.is_deleted AND s.deleted_by = 'qa-residue-softdelete-2026-08-12' AND NOT EXISTS (SELECT 1 FROM target t WHERE t.id = s.id)) AS non_target_slip_marker
-  FROM target t LEFT JOIN slips s ON s.id = t.id \gset slip_
-  WITH target_lines AS (
-    SELECT l.id FROM slip_lines l
-    WHERE (l.is_deleted AND l.deleted_by = 'qa-residue-softdelete-2026-08-12')
-       OR (NOT l.is_deleted AND ((l.created_by = 'system' AND l.created_at BETWEEN TIMESTAMP '2026-05-09 16:59:33.210336' AND TIMESTAMP '2026-05-09 16:59:33.901047')
-           OR (l.created_by = 'system-internal' AND l.created_at BETWEEN TIMESTAMP '2026-05-30 13:37:02.475652' AND TIMESTAMP '2026-05-30 13:39:39.203576')
-           OR l.product_id IN ('57dc63e2-43da-43e6-b73e-3c81822cf9a7','7de11ab7-e70c-421e-80a4-7c6b51a2c6e9','ed278526-0e16-427d-8a92-2ca06164254a')))
-  )
-  SELECT COUNT(*) AS snapshot_lines_total, COUNT(l.id) AS physical_lines_total,
-         COUNT(*) FILTER (WHERE l.is_deleted AND l.deleted_by = 'qa-residue-softdelete-2026-08-12' AND l.deleted_at IS NOT NULL) AS lines_deleted,
-         COUNT(*) FILTER (WHERE NOT l.is_deleted AND l.deleted_by IS NULL AND l.deleted_at IS NULL) AS lines_restored,
-         COUNT(*) FILTER (WHERE l.id IS NOT NULL AND NOT ((l.is_deleted AND l.deleted_by = 'qa-residue-softdelete-2026-08-12' AND l.deleted_at IS NOT NULL) OR (NOT l.is_deleted AND l.deleted_by IS NULL AND l.deleted_at IS NULL))) AS lines_drift,
-         (SELECT COUNT(*) FROM slip_lines l WHERE l.is_deleted AND l.deleted_by = 'qa-residue-softdelete-2026-08-12' AND NOT EXISTS (SELECT 1 FROM target_lines t WHERE t.id = l.id)) AS non_target_line_marker
-  FROM target_lines t LEFT JOIN slip_lines l ON l.id = t.id \gset slip_
 \endif
 COMMIT;
 
@@ -110,13 +87,8 @@ SELECT ((:'state_partner_deleted_state'::boolean AND :'state_slip_deleted_state'
       \elif :repair_restore_slip
         \connect slip_db
         BEGIN; SELECT pg_advisory_xact_lock(hashtext('qa-residue-soft-delete-2026-08-12'));
-        \if :snapshot_exists
-          CREATE TEMP TABLE qa_repair_slips ON COMMIT DROP AS SELECT entity_id AS id FROM qa_residue_target_snapshot WHERE snapshot_key = 'qa-residue-softdelete-2026-08-12' AND entity_type = 'slip';
-          CREATE TEMP TABLE qa_repair_lines ON COMMIT DROP AS SELECT entity_id AS id FROM qa_residue_target_snapshot WHERE snapshot_key = 'qa-residue-softdelete-2026-08-12' AND entity_type = 'line';
-        \else
-          CREATE TEMP TABLE qa_repair_lines ON COMMIT DROP AS SELECT id FROM slip_lines WHERE is_deleted AND deleted_by = 'qa-residue-softdelete-2026-08-12';
-          CREATE TEMP TABLE qa_repair_slips ON COMMIT DROP AS SELECT DISTINCT s.id FROM slips s JOIN slip_lines l ON l.slip_id = s.id JOIN qa_repair_lines q ON q.id = l.id;
-        \endif
+        CREATE TEMP TABLE qa_repair_slips ON COMMIT DROP AS SELECT entity_id AS id FROM qa_residue_target_snapshot WHERE snapshot_key = 'qa-residue-softdelete-2026-08-12' AND entity_type = 'slip';
+        CREATE TEMP TABLE qa_repair_lines ON COMMIT DROP AS SELECT entity_id AS id FROM qa_residue_target_snapshot WHERE snapshot_key = 'qa-residue-softdelete-2026-08-12' AND entity_type = 'line';
         UPDATE slip_lines l SET is_deleted = FALSE, deleted_at = NULL, deleted_by = NULL FROM qa_repair_lines t WHERE l.id = t.id AND l.is_deleted AND l.deleted_by = 'qa-residue-softdelete-2026-08-12';
         UPDATE slips s SET is_deleted = FALSE, deleted_at = NULL, deleted_by = NULL, deleted_by_name = NULL FROM qa_repair_slips t WHERE s.id = t.id AND s.is_deleted AND s.deleted_by = 'qa-residue-softdelete-2026-08-12';
         SELECT (SELECT COUNT(*) FROM qa_repair_slips) = 295 AND (SELECT COUNT(*) FROM qa_repair_lines) = 636 AND (SELECT COUNT(*) FROM slips s JOIN qa_repair_slips t ON t.id=s.id WHERE NOT s.is_deleted AND s.deleted_at IS NULL AND s.deleted_by IS NULL) = 295 AND (SELECT COUNT(*) FROM slip_lines l JOIN qa_repair_lines t ON t.id=l.id WHERE NOT l.is_deleted AND l.deleted_at IS NULL AND l.deleted_by IS NULL) = 636 AND (SELECT COUNT(*) FROM slips WHERE is_deleted AND deleted_by='qa-residue-softdelete-2026-08-12') = 0 AND (SELECT COUNT(*) FROM slip_lines WHERE is_deleted AND deleted_by='qa-residue-softdelete-2026-08-12') = 0 AS repaired \gset
