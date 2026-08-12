@@ -1,4 +1,40 @@
 \set ON_ERROR_STOP on
+
+-- 서로 다른 DB이므로 실제 UPDATE 전에 양쪽 표지를 모두 확인한다.
+-- 전표 쪽 가드가 실패하면 partner UPDATE/COMMIT 자체가 시작되지 않는다.
+\connect partner_db
+BEGIN;
+CREATE TEMP TABLE qa_partner_rollback_preflight ON COMMIT DROP AS
+SELECT id FROM partners
+WHERE is_deleted AND deleted_by = 'qa-residue-softdelete-2026-08-12';
+SELECT COUNT(*) = 1000 AS partner_preflight_ok
+FROM qa_partner_rollback_preflight \gset
+\if :partner_preflight_ok
+  ROLLBACK;
+\else
+  \echo '예상치 불일치: partner 복구 표지가 1,000행이 아니므로 실행하지 않습니다.'
+  ROLLBACK;
+  SELECT 1 / 0 AS preflight_guard_failure;
+\endif
+
+\connect slip_db
+BEGIN;
+CREATE TEMP TABLE qa_slip_rollback_preflight ON COMMIT DROP AS
+SELECT id FROM slips
+WHERE is_deleted AND deleted_by = 'qa-residue-softdelete-2026-08-12';
+CREATE TEMP TABLE qa_line_rollback_preflight ON COMMIT DROP AS
+SELECT id FROM slip_lines
+WHERE is_deleted AND deleted_by = 'qa-residue-softdelete-2026-08-12';
+SELECT (SELECT COUNT(*) FROM qa_slip_rollback_preflight) = 295
+   AND (SELECT COUNT(*) FROM qa_line_rollback_preflight) = 636 AS slip_preflight_ok \gset
+\if :slip_preflight_ok
+  ROLLBACK;
+\else
+  \echo '예상치 불일치: slip 복구 표지가 전표 295행·라인 636행이 아니므로 실행하지 않습니다.'
+  ROLLBACK;
+  SELECT 1 / 0 AS preflight_guard_failure;
+\endif
+
 \connect partner_db
 
 BEGIN;
