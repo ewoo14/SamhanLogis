@@ -117,6 +117,7 @@ import { SupplierProfilePage } from './accounting/SupplierProfilePage'
 import { EstimateListPage } from './EstimateListPage'
 import { EstimateFormPage } from './EstimateFormPage'
 import { EstimateDetailPage } from './EstimateDetailPage'
+import { WebEstimateSourceDetailPage } from './WebEstimateSourceDetailPage'
 // [Phase 6 v4] 판매 sub-route 4종 (견적은 신규 EstimateListPage — legacy webview 폐기)
 import { SalesPartnerOrderListPage } from './SalesPartnerOrderListPage'
 import { SalesPartnerOrderDetailPage } from './SalesPartnerOrderDetailPage'
@@ -498,6 +499,7 @@ const routes = [
         ),
       },
       { path: '/sales/estimates/new', element: <EstimateFormPage /> },
+      { path: '/sales/estimates/web-snapshots/:id', element: <WebEstimateSourceDetailPage kind="snapshot" /> },
       {
         path: '/sales/partner-orders',
         element: (
@@ -514,6 +516,7 @@ const routes = [
           </PermissionGuard>
         ),
       },
+      { path: '/sales/partner-orders/web-drafts/:id', element: <WebEstimateSourceDetailPage kind="draft" /> },
       {
         // [Round C P1 #4 FE] 주문서 승인 — 사이드바 노출(showPartnerOrderList)과 동일 page-code 로
         // 라우트도 가드해 사이드바↔진입 역전(노출되나 무가드 직접 진입) 갭을 막는다.

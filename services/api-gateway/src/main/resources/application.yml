@@ -446,6 +446,14 @@ spring:
             - StripPrefix=2
             - JwtAuthentication
 
+        # Desktop 견적 통합 목록의 웹 snapshot 조회. 컨트롤러 full path를 그대로 전달한다.
+        - id: slip-service-estimate-snapshots-v1
+          uri: lb://slip-service
+          predicates:
+            - Path=/api/v1/estimates/web-snapshots,/api/v1/estimates/web-snapshots/**
+          filters:
+            - JwtAuthentication
+
         - id: accounting-service-v1
           uri: lb://accounting-service
           predicates:

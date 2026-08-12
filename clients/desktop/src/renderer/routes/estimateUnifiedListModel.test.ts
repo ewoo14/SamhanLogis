@@ -168,4 +168,15 @@ describe('통합 견적서 목록 모델', () => {
     expect(rows.filter((row) => row.source === 'estimate')).toHaveLength(45)
     expect(rows.filter((row) => row.source === 'order')).toHaveLength(7)
   })
+
+  it('웹 저장 행은 종합견적서와 주문서 모두 상세 진입 경로를 가진다', () => {
+    const rows = mergeEstimateAndOrderRows(
+      [], [],
+      [{ snapshotKey: 'snapshot-1', documentLabel: '웹견적-1', custName: null, created: '2026-08-03T00:00:00', totalAmount: '300' }],
+      [{ draftKey: 'draft-1', documentLabel: '웹주문-1', partnerCode: 'P-2', createdAt: '2026-08-04T00:00:00', totalAmount: '400' }],
+    )
+
+    expect(rows.find((row) => row.source === 'web-quote-snapshot')?.navigationPath).toBe('/sales/estimates/web-snapshots/snapshot-1')
+    expect(rows.find((row) => row.source === 'web-partner-order-draft')?.navigationPath).toBe('/sales/partner-orders/web-drafts/draft-1')
+  })
 })

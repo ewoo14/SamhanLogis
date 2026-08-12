@@ -9,6 +9,8 @@ import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.service.EstimateService;
 import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
+import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailReadResponse;
+import com.samhanair.logis.slip.estimate.web.dto.EstimateReadResponse;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateResponse;
 import com.samhanair.logis.slip.estimate.web.dto.UpdateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.ChangeEstimateOwnerRequest;
@@ -81,7 +83,7 @@ public class EstimateController {
             description = "status / partnerId / 기간(start-end) 필터 조합")
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Page<EstimateResponse>> list(
+    public ApiResponse<Page<EstimateReadResponse>> list(
             @RequestParam(required = false) EstimateStatus status,
             @RequestParam(required = false) UUID partnerId,
             @RequestParam(required = false)
@@ -95,13 +97,14 @@ public class EstimateController {
             @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);
         Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, includeDeleted, pageable));
+        return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, includeDeleted, pageable)
+                .map(EstimateReadResponse::from));
     }
 
     /** 웹 표면 자기 담당 목록 — 직원/거래처의 현재 담당 견적만 반환한다. */
     @GetMapping("/assigned")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Page<EstimateResponse>> assignedList(
+    public ApiResponse<Page<EstimateReadResponse>> assignedList(
             @RequestParam(required = false) EstimateStatus status,
             @RequestParam(required = false) UUID partnerId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -111,19 +114,19 @@ public class EstimateController {
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(estimateService.listAssigned(callerHeader, status, partnerId,
-                startDate, endDate, includeDeleted, PageRequest.of(page, size)));
+                startDate, endDate, includeDeleted, PageRequest.of(page, size)).map(EstimateReadResponse::from));
     }
 
     /** 견적서 단건 상세 조회. */
     @Operation(summary = "견적서 단건 상세", description = "라인 포함")
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<EstimateDetailResponse> getOne(
+    public ApiResponse<EstimateDetailReadResponse> getOne(
             @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);
-        return ApiResponse.ok(estimateService.getOne(id));
+        return ApiResponse.ok(EstimateDetailReadResponse.from(estimateService.getOne(id)));
     }
 
     /** 견적서 신규 생성 (DRAFT 상태). */

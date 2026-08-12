@@ -149,7 +149,7 @@ export function mergeEstimateAndOrderRows(
     sortAt: row.created,
     status: '저장됨',
     isDeleted: false,
-    navigationPath: null,
+    navigationPath: `/sales/estimates/web-snapshots/${encodeURIComponent(row.snapshotKey)}`,
   }))
 
   const webDraftRows: UnifiedEstimateListRow[] = webPartnerOrderDrafts.map((row) => ({
@@ -166,7 +166,7 @@ export function mergeEstimateAndOrderRows(
     sortAt: row.createdAt,
     status: '저장됨',
     isDeleted: false,
-    navigationPath: null,
+    navigationPath: `/sales/partner-orders/web-drafts/${encodeURIComponent(row.draftKey)}`,
   }))
 
   return [...estimateRows, ...orderRows, ...webQuoteRows, ...webDraftRows].sort((a, b) => {
