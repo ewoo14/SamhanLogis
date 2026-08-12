@@ -1,0 +1,138 @@
+url=http://127.0.0.1:42973/#/inventory/stock-balance
+Samhan Public
+홈
+알림 내역
+구매
+창고 운영
+재고 현황
+입출고 내역·분석
+0.1.0-dev · 사내 전용
+재고 현황
+CODEX SOL · MASTER▼
+재고 현황
+가용재고 / 실재고 / 예약재고 3구분 표시
+가용재고
+= 실재고 − 예약재고 (전환 가능)
+예약재고
+= 전환(전표 발행) 으로 잠긴 수량
+실재고
+= 물리 보유 수량
+가용 0 → 빨강 강조 (전환 불가)
+가상 창고(VIRTUAL): 수량 개념 없음 (— 표시)
+창고
+전체 창고
+본사창고
+조회
+품목코드
+	
+품목명
+	
+창고코드
+	
+창고명
+	
+창고구분
+	
+가용재고
+	
+예약재고
+	
+실재고
+
+
+010001
+수불부
+	S2a QR 검증 품목	HQ-001	본사창고	
+본사
+	1	0	3
+
+AJ030RXH4BC1
+수불부
+	실외기_3HP 다배관	HQ-001	본사창고	
+본사
+	12	0	12
+총 2건
+재고수불부
+
+내역을 불러오는 중입니다.
+api=[
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/auth/me",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"userId\":\"sol-liveqa\",\"loginId\":\"sol\",\"role\":\"MASTER\",\"displayName\":\"CODEX SOL\",\"groups\":[]},\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/auth/me",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"userId\":\"sol-liveqa\",\"loginId\":\"sol\",\"role\":\"MASTER\",\"displayName\":\"CODEX SOL\",\"groups\":[]},\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/api/notifications/my",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/auth/admin/permissions/my",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accounting.sales-slip.list\":[\"VIEW\",\"EDIT\"],\"inventory.audit\":[\"VIEW\",\"CREATE\",\"EDIT\"],\"inventory.stock-balance\":[\"VIEW\",\"CREATE\"],\"inventory.adjust\":[\"VIEW\",\"UPDATE\"]},\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/app/notices/active",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/inventory/warehouses",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"WH-QA\",\"code\":\"HQ-001\",\"name\":\"본사창고\",\"type\":\"HEADQUARTERS\",\"displayOrder\":1}],\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/inventory/balances?page=0&size=50",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"productCode\":\"010001\",\"productName\":\"S2a QR 검증 품목\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"warehouseType\":\"HEADQUARTERS\",\"availableQty\":1,\"reservedQty\":0,\"totalQty\":3},{\"productCode\":\"AJ030RXH4BC1\",\"productName\":\"실외기_3HP 다배관\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"warehouseType\":\"HEADQUARTERS\",\"availableQty\":12,\"reservedQty\":0,\"totalQty\":12}],\"pageable\":{\"pageNumber\":0,\"pageSize\":50},\"totalElements\":2,\"totalPages\":1,\"last\":true,\"first\":true,\"size\":50,\"number\":0,\"numberOfElements\":2,\"empty\":false},\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/inventory/instances/product-list?productCode=010001",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"품목리스트 조회 완료\",\"data\":[{\"serialKey\":\"SI-SA8BQM\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-BKSADE\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-643G7S\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"AVAILABLE\",\"quality\":\"NORMAL\"}],\"timestamp\":\"2026-08-12T17:54:07.485389200Z\"}"
+  },
+  {
+    "method": "PATCH",
+    "url": "http://localhost:8080/inventory/instances/quality?serialKey=SI-643G7S",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"품목 상태 변경 완료\",\"data\":{\"serialKey\":\"SI-643G7S\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"AVAILABLE\",\"quality\":\"USED\"},\"timestamp\":\"2026-08-12T17:54:08.059284300Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/inventory/instances/product-list?productCode=010001",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"품목리스트 조회 완료\",\"data\":[{\"serialKey\":\"SI-SA8BQM\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-BKSADE\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-643G7S\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"AVAILABLE\",\"quality\":\"USED\"}],\"timestamp\":\"2026-08-12T17:54:08.077438200Z\"}"
+  },
+  {
+    "method": "PATCH",
+    "url": "http://localhost:8080/inventory/instances/quality?serialKey=SI-643G7S",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"품목 상태 변경 완료\",\"data\":{\"serialKey\":\"SI-643G7S\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"RESERVED\",\"quality\":\"DAMAGED\"},\"timestamp\":\"2026-08-12T17:54:08.697583600Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/inventory/instances/product-list?productCode=010001",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"품목리스트 조회 완료\",\"data\":[{\"serialKey\":\"SI-SA8BQM\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-BKSADE\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-643G7S\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"RESERVED\",\"quality\":\"DAMAGED\"}],\"timestamp\":\"2026-08-12T17:54:08.712957400Z\"}"
+  }
+]
+console=[]
