@@ -75,7 +75,22 @@ DS token 원값은 `tokens.css` 기준이다. 승인된 두 visible change는 �
 | 시점 | 줄 수 | class selector | 사용 | 죽음 |
 |---|---:|---:|---:|---:|
 | 전환 전 정찰 | 1,194 | 100 | 56 | 44 |
-| 상세 셸 전환 및 정리 후 | 513 | 41 | 41 | 0 |
+| ~~상세 셸 전환 및 정리 후~~ | ~~513~~ | 41 | 41 | ~~0~~ |
+| **정정 — 현재 HEAD 기준** | **533** | 41 | 37 | **4** |
+
+> 🚨 **증거 무결성 정정 (2026-08-12 · SOL 재수렴 지적 · PM 실측 확인)**
+>
+> 위 `513 / 0` 은 **fix2(범위 밖 삭제 되돌림) 이전 시점의 수치**로, 이후 되돌린 줄이 반영되지 않은 채 남아 있었다.
+>
+> ```bash
+> $ wc -l clients/desktop/src/renderer/components/sales/sales.module.css
+> 533
+> $ git show origin/main:clients/desktop/src/renderer/components/sales/sales.module.css | wc -l
+> 1194
+> ```
+>
+> 미참조 selector 도 `0` 이 아니라 **4개**다(SOL 재수렴 실측). 도달 가능한 결함은 아니지만,
+> 보고서가 "실측" 으로 제시한 수치가 실제와 다르므로 그 라운드에서 정정한다.
 
 죽은 44개는 이동하지 않았다. 추가로 상세 셸을 DS로 옮기면서 새로 죽은 `cardActions`, `cardHead`, `cardTitle`, `formFieldSpanAll`, `listBackLink`, `ratio`도 제거했다. 인쇄/미리보기용 구현 CSS와 해당 동작은 이 파일에서 재구현하지 않았다.
 
