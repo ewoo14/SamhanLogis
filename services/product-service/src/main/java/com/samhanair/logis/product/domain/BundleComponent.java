@@ -95,6 +95,10 @@ public class BundleComponent extends BaseEntity {
     @Column(name = "component_variant", length = 64)
     private String componentVariant;
 
+    /** 형상 자체가 360 판넬 여부의 정의다. 빈 값이면 360 판넬이 아니다. */
+    @Column(name = "component_shape", length = 16)
+    private String componentShape;
+
     /** componentVariant ~ /기본/. */
     @Column(name = "is_default", nullable = false)
     private Boolean isDefault = Boolean.FALSE;
@@ -146,6 +150,20 @@ public class BundleComponent extends BaseEntity {
                 qtyMode == null ? QtyMode.FIXED : qtyMode,
                 componentKind == null ? ComponentKind.ACCESSORY : componentKind,
                 componentVariant, isDefault, specText);
+    }
+
+    public static BundleComponent seed(UUID bundleProductId, String componentProductCode,
+                                       BigDecimal defaultQty, QtyMode qtyMode,
+                                       ComponentKind componentKind, String componentVariant,
+                                       String componentShape, boolean isDefault, String specText) {
+        BundleComponent component = seed(bundleProductId, componentProductCode, defaultQty, qtyMode,
+                componentKind, componentVariant, isDefault, specText);
+        component.changeShape(componentShape);
+        return component;
+    }
+
+    public void changeShape(String componentShape) {
+        this.componentShape = componentShape == null || componentShape.isBlank() ? null : componentShape;
     }
 
     /**

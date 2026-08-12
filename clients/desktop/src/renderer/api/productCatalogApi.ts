@@ -280,8 +280,10 @@ export interface BundleComponentItem {
   qtyMode: QtyMode
   /** 구성 분류 */
   componentKind: ComponentKind
-  /** 구성품 특징 (기본/사각/WIFI 등; null 가능) */
+  /** 구성품 특징 */
   componentVariant: string | null
+  /** 구성품 형상: 빈 값은 360 판넬 아님, 그 외 원형/사각 */
+  componentShape: string | null
   /** 기본 옵션 여부 */
   isDefault: boolean
   /** 규격 (null 가능) */
@@ -312,6 +314,8 @@ export interface BundleComponentInput {
   componentKind?: ComponentKind | null
   /** 구성품 특징 */
   componentVariant?: string | null
+  /** 빈 값은 360 판넬 아님. 후보: 빈 값/원형/사각 */
+  componentShape?: string | null
   /** 기본 옵션 여부 */
   isDefault?: boolean
   /** 규격 */

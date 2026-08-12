@@ -61,7 +61,59 @@ vi.mock('../api/productCatalogApi', async (importOriginal) => {
     listBundleComponents: mocks.listBundleComponents,
     updateBundleComponents: mocks.updateBundleComponents,
   }
-})
+  })
+
+  // RED-first surface tests: these intentionally exercised the missing shape surface.
+  it('renders kind-specific feature choices, disables shape for non-360 panels, and preserves the component code', async () => {
+    const seed = seedFor('SET-FEATURE-SHAPE-RED')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    mocks.updateBundleComponents.mockImplementation(async (_modelCode, items) => items)
+    renderPage('/products/SET-FEATURE-SHAPE-RED/edit', [{
+      id: 'panel-red', componentProductCode: 'PANEL-360', componentName: '360 Panel',
+      defaultQty: 1, qtyMode: 'FOLLOW_SET', componentKind: 'PANEL', componentVariant: '기본',
+      componentShape: null, isDefault: true, specText: null, displayOrder: 1,
+      allocationMode: 'AUTO', allocationWeight: 4, fixedAllocationAmount: null,
+    } as BundleComponentItem])
+
+    expect(await screen.findByTestId('product-form-component-row-0')).not.toBeNull()
+    const row = screen.getByTestId('product-form-component-row-0')
+    expect(row.textContent).toContain('블랙')
+    expect(row.textContent).toContain('형상')
+    const selects = row.querySelectorAll('select')
+    expect(selects.length).toBeGreaterThanOrEqual(4)
+    fireEvent.change(selects[1], { target: { value: '블랙' } })
+    fireEvent.click(screen.getByTestId('product-form-components-save'))
+
+    await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
+    expect(mocks.updateBundleComponents).toHaveBeenCalledWith('SET-FEATURE-SHAPE-RED', [expect.objectContaining({
+      componentProductCode: 'PANEL-360', componentVariant: '블랙', componentShape: null,
+    })])
+  })
+
+  it('renders qty sync, allocation weight, fixed amount, and rounding fields for every component row', async () => {
+    const seed = seedFor('SET-SURFACE-RED')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    renderPage('/products/SET-SURFACE-RED/edit', [{
+      id: 'remote-red', componentProductCode: 'REMOTE-1', componentName: 'Remote',
+      defaultQty: 1, qtyMode: 'FIXED', componentKind: 'REMOTE', componentVariant: '기본',
+      componentShape: null, isDefault: true, specText: null, displayOrder: 1,
+      allocationMode: 'FIXED', allocationWeight: null, fixedAllocationAmount: 45375,
+    } as BundleComponentItem])
+
+    expect(await screen.findByTestId('product-form-component-row-0')).not.toBeNull()
+    const row = screen.getByTestId('product-form-component-row-0')
+    expect(row.textContent).toContain('비중')
+    expect(row.textContent).toContain('고정금액')
+    expect(row.textContent).toContain('반올림 단위')
+  })
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()

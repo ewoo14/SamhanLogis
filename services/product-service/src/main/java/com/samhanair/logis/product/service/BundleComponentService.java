@@ -361,6 +361,7 @@ public class BundleComponentService {
                     qtyMode,
                     kind,
                     blankToNull(req.componentVariant()),
+                    req.componentShape(),
                     req.isDefault(),
                     blankToNull(req.specText())
             );

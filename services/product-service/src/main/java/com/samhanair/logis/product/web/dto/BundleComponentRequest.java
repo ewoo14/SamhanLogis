@@ -30,6 +30,7 @@ public record BundleComponentRequest(
         BundleComponent.QtyMode qtyMode,
         BundleComponent.ComponentKind componentKind,
         String componentVariant,
+        String componentShape,
         boolean isDefault,
         String specText,
         BundleComponent.AllocationMode allocationMode,
@@ -39,8 +40,18 @@ public record BundleComponentRequest(
     public BundleComponentRequest(String componentProductCode, BigDecimal defaultQty,
                                   BundleComponent.QtyMode qtyMode,
                                   BundleComponent.ComponentKind componentKind,
+                                  String componentVariant, boolean isDefault, String specText,
+                                  BundleComponent.AllocationMode allocationMode,
+                                  Integer allocationWeight, BigDecimal fixedAllocationAmount) {
+        this(componentProductCode, defaultQty, qtyMode, componentKind, componentVariant, null,
+                isDefault, specText, allocationMode, allocationWeight, fixedAllocationAmount);
+    }
+
+    public BundleComponentRequest(String componentProductCode, BigDecimal defaultQty,
+                                  BundleComponent.QtyMode qtyMode,
+                                  BundleComponent.ComponentKind componentKind,
                                   String componentVariant, boolean isDefault, String specText) {
         this(componentProductCode, defaultQty, qtyMode, componentKind, componentVariant,
-                isDefault, specText, null, null, null);
+                null, isDefault, specText, null, null, null);
     }
 }

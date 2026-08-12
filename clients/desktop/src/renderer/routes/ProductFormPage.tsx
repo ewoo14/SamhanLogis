@@ -873,6 +873,13 @@ const COMPONENT_KINDS: Array<{ value: ComponentKind; label: string }> = [
   { value: 'FOOT', label: '받침대' },
 ]
 
+const FEATURE_OPTIONS: Record<ComponentKind, string[]> = {
+  PANEL: ['기본', '블랙', '승강', '공청'],
+  REMOTE: ['기본', '유선', '컬러'],
+  INDOOR: [], OUTDOOR: [], MATERIAL: [], ACCESSORY: [], FOOT: [],
+}
+const SHAPE_OPTIONS = ['', '원형', '사각']
+
 const helpTextStyle: CSSProperties = {
   margin: 0,
   color: 'var(--color-neutral-500, #6B7280)',
@@ -919,6 +926,7 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
       qtyMode: 'FOLLOW_SET',
       componentKind: 'ACCESSORY',
       componentVariant: null,
+      componentShape: null,
       isDefault: false,
       specText: null,
       displayOrder: current.length + 1,
@@ -938,6 +946,7 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
     qtyMode: item.qtyMode,
     componentKind: item.componentKind,
     componentVariant: item.componentVariant,
+    componentShape: item.componentShape || null,
     isDefault: item.isDefault,
     specText: item.specText,
     allocationMode: item.allocationMode,
@@ -963,7 +972,20 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
           <Select label="종류" value={item.componentKind} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentKind: event.target.value as ComponentKind })}>
             {COMPONENT_KINDS.map((kind) => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
           </Select>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36 }}>
+          <Select label="특징" value={item.componentVariant ?? ''} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentVariant: event.target.value || null, isDefault: event.target.value === '기본' })}>
+            <option value="">(없음)</option>
+            {(FEATURE_OPTIONS[item.componentKind] ?? []).map((feature) => <option key={feature} value={feature}>{feature}</option>)}
+          </Select>
+          <Select label="형상" value={item.componentShape ?? ''} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentShape: event.target.value || null })}>
+            {SHAPE_OPTIONS.map((shape) => <option key={shape} value={shape}>{shape || '(없음)'}</option>)}
+          </Select>
+          <Select label="수량 동기화" value={item.qtyMode} disabled={!canEdit} onChange={(event) => updateDraft(index, { qtyMode: event.target.value as BundleComponentDraft['qtyMode'] })}>
+            <option value="FOLLOW_SET">세트 따라감</option><option value="FIXED">고정</option>
+          </Select>
+          <Input label="비중" type="number" min="1" max="9" value={item.allocationWeight == null ? '' : String(item.allocationWeight)} disabled={!canEdit || item.allocationMode !== 'AUTO'} onChange={(event) => updateDraft(index, { allocationWeight: event.target.value ? Number(event.target.value) : null })} />
+          <Input label="고정금액" type="number" min="0" value={item.fixedAllocationAmount == null ? '' : String(item.fixedAllocationAmount)} disabled={!canEdit || item.allocationMode !== 'FIXED'} onChange={(event) => updateDraft(index, { fixedAllocationAmount: event.target.value || null })} />
+          <Input label="반올림 단위" type="number" min="1" defaultValue="1000" disabled={!canEdit} />
+          <label style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 }}>
             <input
               type="checkbox"
               aria-label="기본 구성품"
