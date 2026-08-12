@@ -260,6 +260,7 @@ type MockAppClientType =
   | 'SAMHAN_ESTIMATE_WEB'
   | 'SAMHAN_MOBILE_PUBLIC_WEB'
   | 'AROLOGIS_DESKTOP'
+  | 'INTERNAL_CHAT_DESKTOP'
   | 'WEB'
   | 'MOBILE'
 type MockAppForceLevel = 'NONE' | 'MINOR' | 'MAJOR' | 'CRITICAL'
@@ -461,6 +462,7 @@ function normalizeMockClientType(value: unknown): MockAppClientType {
     || value === 'SAMHAN_ESTIMATE_WEB'
     || value === 'SAMHAN_MOBILE_PUBLIC_WEB'
     || value === 'AROLOGIS_DESKTOP'
+    || value === 'INTERNAL_CHAT_DESKTOP'
     || value === 'WEB'
     || value === 'MOBILE'
   ) return value

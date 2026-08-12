@@ -9,6 +9,7 @@ export type AppClientType =
   | 'SAMHAN_ESTIMATE_WEB'
   | 'SAMHAN_MOBILE_PUBLIC_WEB'
   | 'AROLOGIS_DESKTOP'
+  | 'INTERNAL_CHAT_DESKTOP'
   | 'WEB'
   | 'MOBILE'
 export type AppForceLevel = 'NONE' | 'MINOR' | 'MAJOR' | 'CRITICAL'
@@ -31,6 +32,7 @@ export const APP_CLIENT_OPTIONS: ReadonlyArray<AppClientOption> = [
   { value: 'SAMHAN_ESTIMATE_WEB', label: '삼한 종합견적 웹', versionCheckSupported: false },
   { value: 'SAMHAN_MOBILE_PUBLIC_WEB', label: '삼한 모바일 퍼블릭 웹', versionCheckSupported: false },
   { value: 'AROLOGIS_DESKTOP', label: '아로로지스 데스크톱', versionCheckSupported: false },
+  { value: 'INTERNAL_CHAT_DESKTOP', label: '사내 메신저 데스크톱', versionCheckSupported: false },
 ]
 
 const APP_CLIENT_LABEL: Record<AppClientType, string> = {
@@ -42,6 +44,7 @@ const APP_CLIENT_LABEL: Record<AppClientType, string> = {
   SAMHAN_ESTIMATE_WEB: '삼한 종합견적 웹',
   SAMHAN_MOBILE_PUBLIC_WEB: '삼한 모바일 퍼블릭 웹',
   AROLOGIS_DESKTOP: '아로로지스 데스크톱',
+  INTERNAL_CHAT_DESKTOP: '사내 메신저 데스크톱',
   WEB: '기존 웹 클라이언트(호환)',
   MOBILE: '기존 모바일 클라이언트(호환)',
 }

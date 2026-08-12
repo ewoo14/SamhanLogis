@@ -2,9 +2,12 @@
 
 const { resolve } = require('node:path')
 const { spawnSync } = require('node:child_process')
+const { mkdtempSync, rmSync, writeFileSync } = require('node:fs')
+const { tmpdir } = require('node:os')
 const {
   createElectronBuilderVersionArgs,
   createReleaseBuildEnvironment,
+  createNsisDisplayVersionInclude,
 } = require('./app-build-version.cjs')
 
 const APP_DIR = resolve(__dirname, '../clients/internal-chat-desktop')
@@ -20,14 +23,22 @@ function main() {
   const electronViteCli = resolve(APP_DIR, 'node_modules/electron-vite/bin/electron-vite.js')
   const electronBuilderCli = resolve(APP_DIR, 'node_modules/electron-builder/cli.js')
 
-  console.log(`[internal-chat-release] VITE_APP_VERSION=${releaseBuild.appVersion}`)
-  run(process.execPath, [electronViteCli, 'build'], releaseBuild.env)
-  run(process.execPath, [
-    electronBuilderCli,
-    '--win',
-    '--config.win.signAndEditExecutable=false',
-    ...createElectronBuilderVersionArgs(releaseBuild.packageVersion, releaseBuild.appVersion),
-  ], releaseBuild.env)
+  const includeDirectory = mkdtempSync(resolve(tmpdir(), 'internal-chat-nsis-'))
+  const includeFile = resolve(includeDirectory, 'display-version.nsh')
+  writeFileSync(includeFile, createNsisDisplayVersionInclude(releaseBuild.appVersion), 'utf8')
+  try {
+    console.log(`[internal-chat-release] VITE_APP_VERSION=${releaseBuild.appVersion}`)
+    run(process.execPath, [electronViteCli, 'build'], releaseBuild.env)
+    run(process.execPath, [
+      electronBuilderCli,
+      `--config.nsis.include=${includeFile}`,
+      '--config.win.signAndEditExecutable=false',
+      '--win',
+      ...createElectronBuilderVersionArgs(releaseBuild.packageVersion, releaseBuild.appVersion),
+    ], releaseBuild.env)
+  } finally {
+    rmSync(includeDirectory, { recursive: true, force: true })
+  }
 }
 
 try {

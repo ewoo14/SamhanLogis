@@ -50,6 +50,7 @@ describe('appVersion API client', () => {
       'SAMHAN_ESTIMATE_WEB',
       'SAMHAN_MOBILE_PUBLIC_WEB',
       'AROLOGIS_DESKTOP',
+      'INTERNAL_CHAT_DESKTOP',
     ]))
     expect(APP_CLIENT_OPTIONS.map((option) => option.value)).not.toEqual(expect.arrayContaining(['WEB', 'MOBILE']))
 
@@ -68,6 +69,7 @@ describe('appVersion API client', () => {
       'SAMHAN_ESTIMATE_WEB',
       'SAMHAN_MOBILE_PUBLIC_WEB',
       'AROLOGIS_DESKTOP',
+      'INTERNAL_CHAT_DESKTOP',
       'WEB',
       'MOBILE',
     ])

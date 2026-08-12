@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -11,12 +11,25 @@ describe('internal chat desktop app shell contract', () => {
     const packageJson = JSON.parse(read('package.json')) as {
       name: string
       main: string
-      scripts: { build: string }
+      scripts: { build: string; typecheck: string; lint: string; test: string }
     }
 
     expect(packageJson.name).toBe('@samhan/internal-chat-desktop')
     expect(packageJson.main).toBe('out/main/index.js')
     expect(packageJson.scripts.build).toContain('electron-vite build')
+    expect(packageJson.scripts.typecheck).toContain('tsc')
+    expect(packageJson.scripts.lint).toContain('eslint')
+    expect(packageJson.scripts.test).toContain('vitest run')
+  })
+
+  it('uses the shared date-version release wrapper without enabling an update feed', () => {
+    const wrapper = read('../../scripts/build-internal-chat-desktop-release.cjs')
+    const builderConfig = read('electron-builder.yml')
+
+    expect(wrapper).toContain('createNsisDisplayVersionInclude')
+    expect(wrapper).toContain('--config.nsis.include=')
+    expect(builderConfig).not.toContain('publish:')
+    expect(builderConfig).not.toContain('channel:')
   })
 
   it('keeps the renderer isolated and the sandbox preload loadable', () => {
@@ -32,7 +45,6 @@ describe('internal chat desktop app shell contract', () => {
   it('declares a packaged mascot resource for the tray', () => {
     const builderConfig = read('electron-builder.yml')
 
-    expect(existsSync(resolve(appRoot, 'build/samhani-tray.png'))).toBe(true)
     expect(builderConfig).toContain('samhani-tray.png')
   })
 

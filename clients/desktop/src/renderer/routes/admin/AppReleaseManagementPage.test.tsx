@@ -30,7 +30,7 @@ describe('AppReleaseManagementPage 앱 선택', () => {
     vi.clearAllMocks()
   })
 
-  it('릴리스 등록 화면에서 8개 앱을 사람이 읽는 이름으로 명확히 선택한다', async () => {
+  it('릴리스 등록 화면에서 9개 앱을 사람이 읽는 이름으로 명확히 선택한다', async () => {
     renderPage()
 
     fireEvent.click(await screen.findByTestId('app-release-create-open'))
@@ -46,6 +46,7 @@ describe('AppReleaseManagementPage 앱 선택', () => {
       'SAMHAN_ESTIMATE_WEB',
       'SAMHAN_MOBILE_PUBLIC_WEB',
       'AROLOGIS_DESKTOP',
+      'INTERNAL_CHAT_DESKTOP',
     ])
     expect(options.map((option) => option.textContent)).toEqual([
       '삼한 데스크톱',
@@ -56,6 +57,7 @@ describe('AppReleaseManagementPage 앱 선택', () => {
       '삼한 종합견적 웹 (버전 확인 미지원)',
       '삼한 모바일 퍼블릭 웹 (버전 확인 미지원)',
       '아로로지스 데스크톱 (버전 확인 미지원)',
+      '사내 메신저 데스크톱 (버전 확인 미지원)',
     ])
     expect(options.map((option) => option.textContent)).not.toContain('MOBILE')
     await waitFor(() => expect(screen.getByTestId('app-release-form')).toBeTruthy())
