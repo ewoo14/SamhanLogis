@@ -427,6 +427,28 @@ let MOCK_ACTIVITY_LOGS: MockActivityLog[] = [
     description: '버전 관리 릴리스 정보를 수정했습니다.',
     serviceName: 'dashboard-service',
   },
+  {
+    occurredAt: mockActivityOccurredAt(25),
+    userId: 'dev-master',
+    user: '개발자',
+    userRole: 'DEVELOPER',
+    action: 'UPDATE',
+    resourceType: 'DC_CONFIG',
+    resourceId: 'P-001',
+    description: '거래처 DC 설정을 변경했습니다.',
+    serviceName: 'dc-config-service',
+  },
+  {
+    occurredAt: mockActivityOccurredAt(30),
+    userId: 'partner-session-internal',
+    user: '비인증 거래처',
+    userRole: 'PARTNER',
+    action: 'LOGIN',
+    resourceType: 'AUTH',
+    resourceId: '거래처 인증',
+    description: '거래처 인증 성공/실패 이벤트입니다.',
+    serviceName: 'partner-auth-service',
+  },
 ]
 
 function normalizeMockClientType(value: unknown): MockAppClientType {
