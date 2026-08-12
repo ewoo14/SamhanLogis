@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web.dto;
 
 import com.samhanair.logis.common.security.ActorDisplayName;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
@@ -41,21 +42,21 @@ import java.util.UUID;
  * {@code slipNo} / {@code partnerName} / {@code businessNumber} / {@code partnerCode} 사용.
  */
 public record SlipResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         SlipType slipType,
         String slipNo,
         LocalDate slipDate,
         int seqNo,
         SlipStatus status,
-        UUID partnerId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID partnerId,
         String partnerName,
         String partnerCode,
-        UUID sourceWarehouseId,
-        UUID destinationWarehouseId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID sourceWarehouseId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID destinationWarehouseId,
         DeliveryTag deliveryTag,
         String deliveryTagLabel,
-        String requesterId,
-        String acceptedBy,
+        @JsonSerialize(using = OpaqueUuidStringSerializer.class) String requesterId,
+        @JsonSerialize(using = OpaqueUuidStringSerializer.class) String acceptedBy,
         LocalDateTime acceptedAt,
         LocalDateTime completedAt,
         LocalDateTime confirmedAt,

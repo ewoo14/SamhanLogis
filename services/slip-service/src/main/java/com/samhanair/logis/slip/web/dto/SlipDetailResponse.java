@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web.dto;
 
 import com.samhanair.logis.slip.domain.DeliveryTag;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.slip.domain.InspectionReadyStatus;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipSourceType;
@@ -51,7 +52,7 @@ import java.util.UUID;
  * </ul>
  */
 public record SlipDetailResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         SlipType slipType,
         String slipNo,
         LocalDate slipDate,
@@ -61,15 +62,15 @@ public record SlipDetailResponse(
         boolean lockFlag,
         /** 발행 출처 — FE가 subtype별 lifecycle 액션을 정확히 계산할 때 사용한다. */
         SlipSourceType sourceType,
-        UUID partnerId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID partnerId,
         String partnerName,
         String partnerCode,
-        UUID sourceWarehouseId,
-        UUID destinationWarehouseId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID sourceWarehouseId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID destinationWarehouseId,
         DeliveryTag deliveryTag,
         String memo,
-        String requesterId,
-        String acceptedBy,
+        @JsonSerialize(using = OpaqueUuidStringSerializer.class) String requesterId,
+        @JsonSerialize(using = OpaqueUuidStringSerializer.class) String acceptedBy,
         LocalDateTime acceptedAt,
         LocalDateTime completedAt,
         LocalDateTime confirmedAt,
@@ -85,13 +86,13 @@ public record SlipDetailResponse(
         String discountInfo,
         String collectTerm,
         String agreeTerm,
-        String dispatcherUserId,
+        @JsonSerialize(using = OpaqueUuidStringSerializer.class) String dispatcherUserId,
         LocalDateTime dispatcherSignedAt,
-        String inspectorUserId,
+        @JsonSerialize(using = OpaqueUuidStringSerializer.class) String inspectorUserId,
         LocalDateTime inspectorSignedAt,
         String driverName,
         String driverPhone,
-        UUID deliveryBatchId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID deliveryBatchId,
         Long version,
         // V20 신규 7 필드 — 판매/구매조회 화면 매칭
         /** 사업자등록번호 snapshot (partner-service Feign 자동 resolve, 사용자 직접 입력 X). */

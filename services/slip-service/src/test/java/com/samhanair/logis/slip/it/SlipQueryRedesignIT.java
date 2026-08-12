@@ -24,6 +24,7 @@ import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidDeserializer;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -508,7 +509,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
      * @param projectName 설정할 프로젝트명
      */
     private void applyProjectInfo(String slipId, String projectName) {
-        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+        Slip slip = slipRepository.findById(OpaqueUuidDeserializer.decode(slipId))
                 .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
         slip.withProjectInfo(null, null, null, projectName, null, null);
         slipRepository.save(slip);
@@ -520,7 +521,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
      * @param slipId 대상 슬립 UUID 문자열
      */
     private void applyPrint(String slipId) {
-        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+        Slip slip = slipRepository.findById(OpaqueUuidDeserializer.decode(slipId))
                 .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
         slip.recordPrint();
         slipRepository.save(slip);
@@ -533,7 +534,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
      * @param times  증가 횟수
      */
     private void applyRevisions(String slipId, int times) {
-        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+        Slip slip = slipRepository.findById(OpaqueUuidDeserializer.decode(slipId))
                 .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
         for (int i = 0; i < times; i++) {
             slip.incrementRevision();
@@ -545,7 +546,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
      * 현재 슬립 상태를 버전이력 스냅샷으로 캡처한다.
      */
     private void captureCurrentRevision(String slipId, SlipRevisionType type, Integer sourceRevisionNo) {
-        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+        Slip slip = slipRepository.findById(OpaqueUuidDeserializer.decode(slipId))
                 .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
         slipRevisionService.capture(slip, type, sourceRevisionNo,
                 UUID.randomUUID(), "IT관리자", null);
@@ -555,7 +556,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
      * OUTBOUND 를 도메인 정규 경로로 COMPLETED 까지 전이한다.
      */
     private void advanceOutboundToCompleted(String slipId) {
-        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+        Slip slip = slipRepository.findById(OpaqueUuidDeserializer.decode(slipId))
                 .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
         if (slip.getSlipType() != SlipType.OUTBOUND) {
             throw new IllegalStateException("OUTBOUND 테스트 전표가 아닙니다: " + slipId);
@@ -573,7 +574,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
      * INBOUND 를 도메인 정규 경로로 SENT 까지 전이한다.
      */
     private void advanceInboundToSent(String slipId) {
-        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+        Slip slip = slipRepository.findById(OpaqueUuidDeserializer.decode(slipId))
                 .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
         if (slip.getSlipType() != SlipType.INBOUND) {
             throw new IllegalStateException("INBOUND 테스트 전표가 아닙니다: " + slipId);
@@ -590,7 +591,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
      * @return 전표번호 (예: "2026/05/11-001")
      */
     private String getSlipNo(String slipId) {
-        return slipRepository.findById(UUID.fromString(slipId))
+        return slipRepository.findById(OpaqueUuidDeserializer.decode(slipId))
                 .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId))
                 .getSlipNo();
     }
