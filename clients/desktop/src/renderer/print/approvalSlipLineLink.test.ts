@@ -31,7 +31,7 @@ beforeEach(() => vi.resetAllMocks())
 
 describe('결재문서 출고전표 참조 품목 연결', () => {
   it('참조 출고전표의 SlipDetail.lines를 인쇄 품목 행으로 보여준다', () => {
-    const lines: SlipLineDetail[] = [line()]
+    const lines: SlipLineDetail[] = [line({ lineTotal: '1818' })]
 
     const projected = projectSlipLineItems(lines)
 
@@ -47,6 +47,12 @@ describe('결재문서 출고전표 참조 품목 연결', () => {
         note: '비고',
       },
     ])
+  })
+
+  it('D-1 fix2: 합계는 저장된 공급가액 별칭이 아니라 공급가액과 부가세의 합이다', () => {
+    const projected = projectSlipLineItems([line({ supplyAmount: '112233', vatAmount: '11223', lineTotal: '112233' })])
+
+    expect(projected[0].lineTotal, '112,233 + 11,223 = 123,456').toBe('123456')
   })
 
   it('연결된 라인은 결재 렌더 모델의 detail source가 되고 UUID는 제거된다', () => {

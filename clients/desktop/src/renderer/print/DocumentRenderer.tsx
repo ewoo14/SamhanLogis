@@ -26,6 +26,7 @@ import {
   type ImageElement,
   type TextElement,
   DETAIL_COLUMN_LABEL,
+  LEGACY_FALLBACK_DETAIL_COLUMNS,
   BAND_KIND_LABEL,
   isAllowedImageSource,
 } from './templateSchema'
@@ -623,7 +624,7 @@ export function compileApprovalDocument(
       key: 'approval-default-detail',
       type: 'DETAIL' as const,
       repeatBinding: 'body.lineItems' as const,
-      columns: ['productName', 'modelName', 'specification', 'quantity', 'supplyAmount', 'vatAmount', 'lineTotal', 'note'] as const,
+      columns: [...LEGACY_FALLBACK_DETAIL_COLUMNS] as DetailColumnKey[],
     }]
   }
   const bodyDetails = bodyElements.filter((element): element is DetailElement => element.type === 'DETAIL')

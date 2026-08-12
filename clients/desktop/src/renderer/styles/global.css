@@ -3390,7 +3390,11 @@ button {
 
 .document-template-detail table {
   width: 100%;
-  border-collapse: collapse;
+  /* Chromium은 collapsed border를 페이지 경계에서 잘라 중간 페이지 마지막
+     행의 아래 선을 잃을 수 있다. 0 간격 separate border는 각 셀의 마감을
+     fragmentation 경계와 독립적으로 유지한다. */
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
   /* H9(R7) fix: 이전에는 여기 고정 9pt 가 .document-template-detail(부모 div)의 inline
      style.fontSize 상속을 항상 이겼다(직접 선택자가 상속보다 우선) — DocumentRenderer.tsx 의

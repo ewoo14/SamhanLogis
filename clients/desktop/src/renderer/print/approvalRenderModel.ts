@@ -20,6 +20,7 @@ import {
   contentParagraphs,
   fieldRows,
 } from './approvalDoc'
+import { storedLineAmounts } from './printAmounts'
 
 export interface FrozenApprovalDocInput {
   approval: ApprovalLineAdminResponse
@@ -94,7 +95,9 @@ export function projectSlipLineItems(lines: SlipLineDetail[]): ApprovalRenderLin
     quantity: line.quantity,
     supplyAmount: line.supplyAmount ?? '',
     vatAmount: line.vatAmount ?? '',
-    lineTotal: line.lineTotal,
+    // SlipLineDetail.lineTotal은 legacy에서 공급가액 별칭이다. 결재 품목 밴드의
+    // 합계는 VAT 포함 금액이므로 저장된 공급가액과 부가세를 합산한다.
+    lineTotal: String(storedLineAmounts(line).total),
     note: line.note ?? '',
   }))
 }
