@@ -9,6 +9,7 @@ import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
 import { approvalAttachmentPrintLabel } from '../api/approvalAttachmentPresentation'
 import type { ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import type { EstimateLine } from '../api/estimateApi'
+import type { SlipLineDetail } from '../api/slip'
 import { krw } from './PrintLayout'
 import {
   attachmentDetails,
@@ -26,6 +27,8 @@ export interface FrozenApprovalDocInput {
   attachments: ApprovalAttachment[]
   /** 파일럿 detail adapter 입력 — 실제 EstimateLineResponse의 FE 정규화 타입. */
   lineItems?: EstimateLine[]
+  /** 결재 첨부의 기존 OUTBOUND_SLIP 상세에서 온 라인. */
+  slipLineItems?: SlipLineDetail[]
   backTo?: string
 }
 
@@ -82,6 +85,20 @@ export function projectEstimateLineItems(lines: EstimateLine[]): ApprovalRenderL
   }))
 }
 
+/** 기존 출고전표 상세 응답의 라인을 UUID 없는 결재 인쇄 행으로 투영한다. */
+export function projectSlipLineItems(lines: SlipLineDetail[]): ApprovalRenderLineItem[] {
+  return lines.map((line) => ({
+    productName: line.productName ?? '',
+    modelName: line.modelName ?? '',
+    specification: line.specification ?? '',
+    quantity: line.quantity,
+    supplyAmount: line.supplyAmount ?? '',
+    vatAmount: line.vatAmount ?? '',
+    lineTotal: line.lineTotal,
+    note: line.note ?? '',
+  }))
+}
+
 export interface ApprovalRenderModel {
   header: ApprovalRenderHeader
   approvalSteps: ApprovalRenderStep[]
@@ -130,8 +147,12 @@ export function buildApprovalRenderModel(input: FrozenApprovalDocInput): Approva
         title: attachmentTitle(attachment),
         detail: attachmentDetails(attachment).join(' · '),
       })),
-      lineItems: projectEstimateLineItems(input.lineItems ?? []),
-      lineItemsAvailability: input.lineItems === undefined ? 'UNAVAILABLE' : 'CONNECTED',
+      lineItems: input.slipLineItems !== undefined
+        ? projectSlipLineItems(input.slipLineItems)
+        : projectEstimateLineItems(input.lineItems ?? []),
+      lineItemsAvailability: input.slipLineItems !== undefined || input.lineItems !== undefined
+        ? 'CONNECTED'
+        : 'UNAVAILABLE',
     },
     closing: { note: CLOSING_NOTE },
   }
