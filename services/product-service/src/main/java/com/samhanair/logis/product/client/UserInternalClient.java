@@ -3,10 +3,10 @@ package com.samhanair.logis.product.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
-import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -14,18 +14,32 @@ import org.springframework.web.client.RestClient;
 @Component
 public class UserInternalClient {
 
+    private static final int CONNECT_TIMEOUT_MS = 100;
+    private static final int READ_TIMEOUT_MS = 200;
+
     private final RestClient restClient;
     private final InternalAuthProperties authProperties;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public UserInternalClient(
             @Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
             InternalAuthProperties authProperties,
             ObjectMapper objectMapper) {
+        this(builder, authProperties, objectMapper, "http://user-service");
+    }
+
+    UserInternalClient(
+            RestClient.Builder builder,
+            InternalAuthProperties authProperties,
+            ObjectMapper objectMapper,
+            String userServiceBaseUrl) {
         var requestFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
-        requestFactory.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
-        this.restClient = builder.baseUrl("http://user-service").requestFactory(requestFactory).build();
+        // 사용자 이름은 감사 표시 보조 데이터다. 조회 장애가 제품 상세를 막지 않도록
+        // shared user-client-abstraction의 fail-soft timeout 기준(100/200ms)을 따른다.
+        requestFactory.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        requestFactory.setReadTimeout(READ_TIMEOUT_MS);
+        this.restClient = builder.baseUrl(userServiceBaseUrl).requestFactory(requestFactory).build();
         this.authProperties = authProperties;
         this.objectMapper = objectMapper;
     }
