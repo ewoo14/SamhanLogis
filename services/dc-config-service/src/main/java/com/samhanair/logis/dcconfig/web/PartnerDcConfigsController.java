@@ -26,7 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
-import java.util.Optional;
 import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.audit.contract.AuditEventV2;
 import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
@@ -58,11 +57,11 @@ public class PartnerDcConfigsController {
 
     @Autowired
     public PartnerDcConfigsController(DcConfigRepository repository, DcConfigService service,
-                                      DcConfigAuditLogService auditLogService, Optional<AuditPublisher> auditPublisher) {
+                                      DcConfigAuditLogService auditLogService, AuditPublisher auditPublisher) {
         this.dcConfigRepository = repository;
         this.dcConfigService = service;
         this.dcConfigAuditLogService = auditLogService;
-        this.auditPublisher = auditPublisher.orElse(null);
+        this.auditPublisher = auditPublisher;
     }
 
     /** 기존 controller 단위 테스트/호출자의 생성자 호환성을 유지한다. */

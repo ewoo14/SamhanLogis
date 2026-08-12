@@ -9,7 +9,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -25,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "samhan.audit.publisher.enabled", havingValue = "true")
-@ConditionalOnBean(RabbitTemplate.class)
 public class AuditPublisher implements AutoCloseable {
     private final RabbitTemplate rabbitTemplate;
     private final ArrayBlockingQueue<AuditEventV2> priorityLane;

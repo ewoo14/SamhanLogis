@@ -27,7 +27,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
-import java.util.Optional;
 import com.samhanair.logis.shared.audit.contract.AuditEventV2;
 import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
 
@@ -47,9 +46,9 @@ public class PartnerAuthController {
     private final AuditPublisher auditPublisher;
 
     @Autowired
-    public PartnerAuthController(PartnerAuthService partnerAuthService, Optional<AuditPublisher> auditPublisher) {
+    public PartnerAuthController(PartnerAuthService partnerAuthService, AuditPublisher auditPublisher) {
         this.partnerAuthService = partnerAuthService;
-        this.auditPublisher = auditPublisher.orElse(null);
+        this.auditPublisher = auditPublisher;
     }
 
     /** 기존 단위 테스트와 수동 controller 생성자의 호환 생성자. */
@@ -90,7 +89,7 @@ public class PartnerAuthController {
         boolean success = response.status() == com.samhanair.logis.partnerauth.domain.PartnerStatus.OK;
         if (auditPublisher != null) {
             auditPublisher.publishAfterCommit(AuditEventV2.authentication(
-                    "partner-auth-service", success, "/api/v1/auth/partner-login", response.message(), ip, null));
+                    "partner-auth-service", success, "/api/v1/auth/partner-login", response.message(), ip, ua));
         }
         return ApiResponse.ok(response);
     }
