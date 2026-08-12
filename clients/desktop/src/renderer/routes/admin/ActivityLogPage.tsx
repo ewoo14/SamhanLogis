@@ -16,6 +16,8 @@ const PAGE_LABELS: Record<string, string> = {
   'admin.app-release': '버전 관리',
   'dev.popup-notice': '팝업공지',
   'dev.activity-log': '로그',
+  'P-001': '거래처 P-001',
+  '거래처 인증': '거래처 인증',
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -33,12 +35,16 @@ const RESOURCE_TYPE_LABELS: Record<string, string> = {
   MENU: '메뉴',
   SLIP: '전표',
   ACCOUNT: '계정',
+  DC_CONFIG: 'DC 설정',
+  AUTH: '인증',
 }
 
 const SERVICE_LABELS: Record<string, string> = {
   desktop: '데스크톱',
   'dashboard-service': '대시보드',
   'logging-service': '로그',
+  'dc-config-service': 'DC 설정',
+  'partner-auth-service': '거래처 인증',
 }
 
 function kstInputToInstant(value: string): string | undefined {

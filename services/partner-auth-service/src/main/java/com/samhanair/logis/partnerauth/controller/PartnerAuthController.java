@@ -26,6 +26,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+import com.samhanair.logis.shared.audit.contract.AuditEventV2;
+import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
+import com.samhanair.logis.partnerauth.audit.PartnerAuditClientIpResolver;
 
 /**
  * Partner Auth Service — 7 endpoint (설계서 §3).
@@ -37,10 +45,39 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/auth")
-@RequiredArgsConstructor
 public class PartnerAuthController {
 
     private final PartnerAuthService partnerAuthService;
+    private final AuditPublisher auditPublisher;
+    private final Set<String> trustedGatewayAddresses;
+    private final PartnerAuditClientIpResolver clientIpResolver;
+
+    @Autowired
+    public PartnerAuthController(PartnerAuthService partnerAuthService, AuditPublisher auditPublisher,
+                                 @Value("${samhan.audit.trusted-gateway-addresses:}") String trustedGatewayAddresses) {
+        this.partnerAuthService = partnerAuthService;
+        this.auditPublisher = auditPublisher;
+        this.trustedGatewayAddresses = parseAddresses(trustedGatewayAddresses);
+        this.clientIpResolver = new PartnerAuditClientIpResolver(this.trustedGatewayAddresses);
+    }
+
+    /** 기존 단위 테스트와 수동 controller 생성자의 호환 생성자. */
+    public PartnerAuthController(PartnerAuthService partnerAuthService, AuditPublisher auditPublisher) {
+        this(partnerAuthService, auditPublisher, "");
+    }
+
+    public PartnerAuthController(PartnerAuthService partnerAuthService) {
+        this(partnerAuthService, null, "");
+    }
+
+    /** 테스트 및 기존 호출부 호환용 신뢰 gateway 주소 생성자. */
+    public PartnerAuthController(PartnerAuthService partnerAuthService, AuditPublisher auditPublisher,
+                                 Set<String> trustedGatewayAddresses) {
+        this.partnerAuthService = partnerAuthService;
+        this.auditPublisher = auditPublisher;
+        this.trustedGatewayAddresses = trustedGatewayAddresses == null ? Set.of() : Set.copyOf(trustedGatewayAddresses);
+        this.clientIpResolver = new PartnerAuditClientIpResolver(this.trustedGatewayAddresses);
+    }
 
     /** 1) 거래처 인증 상태 조회. */
     @GetMapping("/partner-status")
@@ -70,7 +107,13 @@ public class PartnerAuthController {
             HttpServletRequest httpRequest) {
         String ip = resolveClientIp(httpRequest);
         String ua = httpRequest.getHeader("User-Agent");
-        return ApiResponse.ok(partnerAuthService.tryLogin(request, ip, ua));
+        TryLoginResponse response = partnerAuthService.tryLogin(request, ip, ua);
+        boolean success = response.status() == com.samhanair.logis.partnerauth.domain.PartnerStatus.OK;
+        if (auditPublisher != null) {
+            auditPublisher.publishAfterCommit(AuditEventV2.authentication(
+                    "partner-auth-service", success, "/api/v1/auth/partner-login", response.message(), ip, ua));
+        }
+        return ApiResponse.ok(response);
     }
 
     /** 5) 임시 비밀번호 발급 (sms-service 큐잉) — 202 Accepted. */
@@ -94,13 +137,17 @@ public class PartnerAuthController {
         return ApiResponse.ok(partnerAuthService.updateTutorial(request));
     }
 
-    /** X-Forwarded-For 우선, 없으면 remote addr. */
+    /** 신뢰 gateway가 전달한 감사 전용 주소만 사용하고 직접 forwarding header는 무시한다. */
     private String resolveClientIp(HttpServletRequest req) {
-        String fwd = req.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) {
-            int comma = fwd.indexOf(',');
-            return (comma > 0 ? fwd.substring(0, comma) : fwd).trim();
-        }
-        return req.getRemoteAddr();
+        return resolveClientIp(req, trustedGatewayAddresses);
+    }
+
+    private String resolveClientIp(HttpServletRequest req, Set<String> trustedGateways) {
+        return new PartnerAuditClientIpResolver(trustedGateways).resolve(req);
+    }
+
+    private static Set<String> parseAddresses(String addresses) {
+        return Arrays.stream((addresses == null ? "" : addresses).split(","))
+                .map(String::trim).filter(value -> !value.isBlank()).collect(Collectors.toUnmodifiableSet());
     }
 }

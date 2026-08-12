@@ -128,6 +128,19 @@ class UserClientSearchActiveOnlyTest {
         }
     }
 
+    @Test
+    void resolveProfile은_실제직원의_부서와_사번을_함께반환한다_RED() {
+        UUID userId = UUID.randomUUID();
+        server.expect(once(), requestTo("http://user-service/internal/users/" + userId))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"id":"%s","fullName":"김개발","departmentName":"플랫폼팀","ecountCode":"E001"}}
+                        """.formatted(userId), MediaType.APPLICATION_JSON));
+
+        assertThat(client.resolveProfile(userId)).get().extracting(UserClient.UserProfile::department, UserClient.UserProfile::employeeCode)
+                .containsExactly("플랫폼팀", "E001");
+        server.verify();
+    }
+
     private ServiceDiscoveryClient noopDiscovery() {
         return new ServiceDiscoveryClient() {
             @Override public void register(String serviceName, String host, int port) { }

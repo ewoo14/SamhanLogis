@@ -1,0 +1,10 @@
+LOGIN_HTTP=200 ROLE=MASTER
+SCREEN=01-partners-list-restored.png URL=http://127.0.0.1:39975/#/admin/partners CHECK=거래처 관리 EVENTS=HTTP 503 /app/version || HTTP 503 /app/notices/active
+SCREEN=02-partner-restored-search.png CHECK=SOL1154R20-BULK-0001
+SCREEN=03-sales-slips-list-restored.png URL=http://127.0.0.1:39975/#/sales/slips CHECK=판매전표 목록 EVENTS=HTTP 503 /logs/front
+SCREEN=04-sales-slip-restored-detail.png URL=http://127.0.0.1:39975/#/sales/3f924f59-8f83-4be8-a297-363468da92c2 CHECK=판매전표 상세|2026/01/01 EVENTS=HTTP 400 /accounting/journals/sales-slip-ledger?partnerCode=P-2026-0001&from=2026-01-01&to=2026-01-01
+SCREEN=05-cash-receipts-list.png URL=http://127.0.0.1:39975/#/accounting/admin/cash-receipts CHECK=입금보고서 EVENTS=HTTP 503 /logs/front
+SCREEN=06-cash-receipt-detail.png URL=http://127.0.0.1:39975/#/accounting/admin/cash-receipts/45960645-bed7-44ba-af89-f57287a3adac CHECK=입금보고서 상세|2026/07/27-1|통장연계|취소|13,579 EVENTS=0
+SCREEN=07-bank-transactions.png URL=http://127.0.0.1:39975/#/accounting/bank-transactions CHECK=입출금 내역|계좌 EVENTS=HTTP 503 /logs/front
+
+메뉴·필드·상태 라벨은 정상 한글로 렌더링됐다. 일부 거래처명·메모의 `?`는 격리 복제 전 원본 QA 데이터에 이미 저장된 값이다.
