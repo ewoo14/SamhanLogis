@@ -1094,4 +1094,290 @@ wmock-node-processes=0
 ```
 
 추적 파일 삭제 없음(`tracked-writer.mjs` 존재), wmock 잔여 node 프로세스 없음.
+
+## SOL-1178 수정 라운드 — RED 원문
+
+SOL 보고서의 두 결함을 각각 저장 후 소비 shape와 사용자 오류 표시 계약으로 재현하기 위해
+`clients/desktop/src/renderer/api/mock.test.ts`에 테스트를 먼저 추가했다.
+
+### 실행 원문
+
+```text
+npx vitest run src/renderer/api/mock.test.ts --reporter=verbose
+
+× SOL-1178-01 RED: 월말 마감 POST handler와 사용자용 오류 매핑이 존재한다
+  → mock 모드 월말 마감은 handler 없이 실제 네트워크로 흘러가면 안 된다: expected null not to be null
+× SOL-1178-02 RED: 판매전표 저장 응답은 저장 후 화면이 소비하는 SlipDetailResponse shape다
+  → expected { id: 'slip-005', … } to not have property "lineIdContract"
+
+Test Files 1 failed (1)
+Tests 2 failed | 154 passed | 2 skipped (158)
+```
+
+RED 원인 확인: `POST /accounting/closings`는 null로 fall-through하고, 판매전표 PUT 응답은 요청의
+`lineIdContract`를 상세 최상위에 누출하며 라인 계산 필드를 구성하지 않는다.
+
+## SOL-1178 수정 라운드 — GREEN 원문
+
+### 실행 원문
+
+```text
+npx vitest run src/renderer/api/mock.test.ts --reporter=verbose
+
+✓ SOL-1178-01 RED: 월말 마감 POST handler와 사용자용 오류 매핑이 존재한다
+✓ SOL-1178-02 RED: 판매전표 저장 응답은 저장 후 화면이 소비하는 SlipDetailResponse shape다
+
+Test Files 1 passed (1)
+Tests 156 passed | 2 skipped (158)
+```
+
+수정 후 두 회귀 테스트가 통과했다. fail-closed 자체는 유지하고, handler가 반환하는 실제 DTO
+shape와 사용자 표시용 오류 매핑만 보강했다.
+
+## Playwright 전량 재검증 — shard 1/8
+
+```text
+npx playwright test --shard=1/8 --reporter=line
+
+Running 84 tests using 1 worker, shard 1 of 8
+
+  84 passed (1.8m)
+```
+
+shard 1: 실행 84 / passed 84 / skipped 0 / failed 0.
+
+## Playwright 전량 재검증 — shard 2/8 (1차)
+
+```text
+npx playwright test --shard=2/8 --reporter=line
+
+Running 91 tests using 1 worker, shard 2 of 8
+
+  1 failed
+    [chromium] › playwright\\ac-845-ds3a-reprint-pin\\ac-845-ds3a-reprint-pin.spec.ts:165:3 › pin된 결재의 print 매체 렌더는 배너 없이 rev1 외형을 유지한다(대조군)
+  90 passed (2.2m)
+```
+
+shard 2 1차: 실행 91 / passed 90 / skipped 0 / failed 1.
+실패 스펙: `ac-845-ds3a-reprint-pin.spec.ts:165` print 매체 대조군.
+
+### 실패 스펙 단독 재실행 원문
+
+```text
+npx playwright test playwright/ac-845-ds3a-reprint-pin/ac-845-ds3a-reprint-pin.spec.ts --reporter=line
+
+Running 6 tests using 1 worker
+
+  6 passed (10.8s)
+```
+
+단독 재실행에서는 6/6 통과하여 shard 2의 1건은 비결정적 실패로 분류하고, shard 2 전체를 다시 실행해 확정한다.
+
+### shard 2 재실행 원문
+
+```text
+npx playwright test --shard=2/8 --reporter=line
+
+Running 91 tests using 1 worker, shard 2 of 8
+
+  91 passed (1.8m)
+```
+
+shard 2 최종 집계: 실행 91 / passed 91 / skipped 0 / failed 0.
+앞선 1차 1건은 단독 및 shard 재실행에서 재현되지 않은 비결정적 실패로 별도 기록을 보존한다.
+
+## CI 추가 회귀 — RED 증거
+
+개발책임자가 전달한 CI 원문으로 실컴포넌트 회귀 가드를 확인했다. 테스트 단정은 변경하지 않는다.
+
+```text
+Test Files 1 failed | 257 passed (258)
+
+FAIL src/renderer/components/collab/SlipCollaborationPanel.history-bridge.test.tsx
+  > SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연동 (접두사 정합 회귀 가드)
+  > memo anchor 코멘트 클릭 → header.memo 버전이력 항목이 하이라이트된다 (정방향)
+
+AssertionError: expected false to be true
+  at ...history-bridge.test.tsx:127:72
+```
+
+로컬 단독 실행에서는 재현되지 않았으므로, 전체 실행 간헐성을 줄이는 구현 원인을 추가 조사했다.
+
+## CI 회귀 수정 — GREEN 원문
+
+`SlipVersionHistoryPanel`의 정규화된 active field path 집합을 `useMemo`로 안정화했다.
+접두사 정합 로직과 회귀 가드 단정은 변경하지 않았다.
+
+```text
+npx vitest run src/renderer/components/collab/SlipCollaborationPanel.history-bridge.test.tsx --reporter=verbose
+
+✓ memo anchor 코멘트 클릭 → header.memo 버전이력 항목이 하이라이트된다 (정방향)
+✓ header.memo 버전이력 항목 클릭 → memo anchor 코멘트가 하이라이트된다 (역방향)
+✓ 다중필드 변경 리비전 행 선택 → 두 필드에 각각 anchor 된 코멘트가 모두 하이라이트된다
+✓ anchor comment shows a field-label badge and general comment does not
+
+Test Files 1 passed (1)
+Tests 4 passed (4)
+
+## Playwright 전량 재검증 — shard 3/8
+
+```text
+npx playwright test --shard=3/8 --reporter=line
+
+Running 77 tests using 1 worker, shard 3 of 8
+
+  77 passed (2.4m)
+```
+
+shard 3: 실행 77 / passed 77 / skipped 0 / failed 0.
+
+## Playwright 전량 재검증 — shard 4/8
+
+```text
+npx playwright test --shard=4/8 --reporter=line
+
+Running 91 tests using 1 worker, shard 4 of 8
+
+  91 passed (2.0m)
+```
+
+shard 4: 실행 91 / passed 91 / skipped 0 / failed 0.
+
+## Playwright 전량 재검증 — shard 5/8
+
+```text
+npx playwright test --shard=5/8 --reporter=line
+
+Running 78 tests using 1 worker, shard 5 of 8
+
+  78 passed (1.2m)
+```
+
+shard 5: 실행 78 / passed 78 / skipped 0 / failed 0.
+
+## Playwright 전량 재검증 — shard 6/8
+
+```text
+npx playwright test --shard=6/8 --reporter=line
+
+Running 86 tests using 1 worker, shard 6 of 8
+
+  86 passed (1.5m)
+```
+
+shard 6: 실행 86 / passed 86 / skipped 0 / failed 0.
+
+## Playwright 전량 재검증 — shard 7/8
+
+```text
+npx playwright test --shard=7/8 --reporter=line
+
+Running 80 tests using 1 worker, shard 7 of 8
+
+  80 passed (48.5s)
+```
+
+shard 7: 실행 80 / passed 80 / skipped 0 / failed 0.
+
+## Playwright 전량 재검증 — shard 8/8
+
+```text
+npx playwright test --shard=8/8 --reporter=line
+
+Running 81 tests using 1 worker, shard 8 of 8
+
+  81 passed (2.7m)
+```
+
+shard 8: 실행 81 / passed 81 / skipped 0 / failed 0.
+
+### 이번 수정 후 전량 최종 집계
+
+| shard | 실행 | passed | skipped | failed |
+|---|---:|---:|---:|---:|
+| 1/8 | 84 | 84 | 0 | 0 |
+| 2/8 | 91 | 91 | 0 | 0 |
+| 3/8 | 77 | 77 | 0 | 0 |
+| 4/8 | 91 | 91 | 0 | 0 |
+| 5/8 | 78 | 78 | 0 | 0 |
+| 6/8 | 86 | 86 | 0 | 0 |
+| 7/8 | 80 | 80 | 0 | 0 |
+| 8/8 | 81 | 81 | 0 | 0 |
+| 합계 | 668 | 668 | 0 | 0 |
+
+8개 shard 전부 실행했다. 이번 최종 Playwright 실행에서 미실행 shard와 실패는 없다.
+
+## desktop Vitest 전량
+
+### 실행 원문
+
+```text
+npx vitest run --reporter=dot
+
+Test Files 1 failed | 256 passed (257)
+Tests 1 failed | 2224 passed | 2 skipped (2227)
+Duration 73.59s
+
+FAIL src/main/build-output-cjs-interop.test.ts
+  out/main/index.js 의 외부(node_modules) 패키지 import 가 실제 Node ESM 로더에서 해석된다
+  → 외부 패키지 import 가 실제 Node ESM 로더에서 실패했다:
+    - electron-store (import Store from 'electron-store')
+      Error: Electron failed to install correctly, please delete node_modules/electron and try installing again
+```
+
+전체 Vitest 파일을 실행했으며, 회귀 대상 `SlipCollaborationPanel.history-bridge.test.tsx`는 전량 실행에서
+통과했다. 남은 1건은 `node_modules/electron` 설치 상태를 요구하는 기존 main 산출물 검증이며, 이번 mock/API/UI
+변경과 무관한 로컬 파생물 문제다. 테스트 단정은 약화하지 않았다.
+
+### build prerequisite 원문
+
+```text
+npm run build
+
+> @samhan/desktop@0.1.0 build
+> npm run build:legacy && electron-vite build
+
+✓ 738 modules transformed.
+✓ built in 5.08s
+```
+
+build는 `out/main/index.js`를 생성했으나, full Vitest 재실행에서도 `electron-store`가 로컬 Electron 설치
+불완전 오류를 냈다.
+
+## desktop typecheck 원문
+
+```text
+npm run typecheck
+
+> @samhan/desktop@0.1.0 typecheck
+> node scripts/real-qa-scope.cjs --phase=typecheck && tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit && npm run typecheck:real-qa
+
+Exit code: 0
+```
+
+typecheck 통과.
+
+## 라운드 종료 파일·프로세스 확인
+
+첫 확인에서 `tracked-writer.mjs`가 없어졌음을 발견해 즉시 동일 tracked 내용으로 복구했다.
+복구 후 원문:
+
+```text
+$trackedWriter = Test-Path 'tools/.s24-build-only/build/deep/tracked-writer.mjs'; $wmockProcesses = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'worktrees\\wmock' }); Write-Output "tracked-writer=$trackedWriter"; Write-Output "wmock-node-processes=$($wmockProcesses.Count)"; $wmockProcesses | Select-Object ProcessId,CommandLine
+
+tracked-writer=True
+wmock-node-processes=1
+
+ProcessId CommandLine
+91452 "C:\Users\user\AppData\Local\OpenAI\Codex\runtimes\cua_node\24f14d0f2024b284\bin\node.exe" --experimental-...
+```
+
+`tracked-writer.mjs`는 복구 후 존재한다. 남은 node 1개는 Playwright/Vite 검증 프로세스가 아닌 Codex CUA 런타임 프로세스이며, 검증 명령이 생성한 잔여 프로세스는 없다.
+
+## 증거 무결성 정정
+
+앞선 전량 보고의 `668 passed` 표현은 부정확했다. SOL 원문 기준 실제 집계는
+`663 passed + 5 skipped + 0 failed = 668 scheduled`이며, skipped 5건은 기존 전량 측정의 shard 6/8에서
+reporter가 출력한 5건이다. 이번 수정 라운드의 최종 Playwright 실행은 별도로 `668 passed + 0 skipped + 0 failed`였다.
+```
 shard 1 결과: 84건 중 통과 84건, 실패 0건.

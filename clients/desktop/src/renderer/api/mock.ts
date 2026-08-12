@@ -9798,6 +9798,40 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // GET/POST /accounting/closings — BE MonthEndCloseController 계약.
+  // AccountingPeriodResponse의 필드명·타입을 그대로 반환해 월말 마감 화면이
+  // mock handler 부재로 fail-closed 되거나, 응답 shape 차이로 깨지지 않게 한다.
+  if (method === 'GET' && url.endsWith('/accounting/closings')) {
+    return envelope([])
+  }
+  if (method === 'POST' && url.endsWith('/accounting/closings')) {
+    const req = parseMockBody(config) as {
+      periodType?: 'DAILY' | 'MONTHLY'
+      periodDate?: string
+      description?: string
+    }
+    const periodType = req.periodType === 'DAILY' ? 'DAILY' : 'MONTHLY'
+    const rawDate = typeof req.periodDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.periodDate)
+      ? req.periodDate
+      : '2026-08-01'
+    const periodDate = periodType === 'MONTHLY' ? `${rawDate.slice(0, 7)}-01` : rawDate
+    return envelope({
+      id: `closing-${Date.now()}`,
+      periodType,
+      periodDate,
+      status: 'CLOSED',
+      closedAt: new Date().toISOString(),
+      closedBy: 'system',
+      reversedAt: null,
+      reversedBy: null,
+      totalSales: '0',
+      totalPurchase: '0',
+      totalExpense: '0',
+      lockedSlipCount: 0,
+      description: typeof req.description === 'string' ? req.description : null,
+    })
+  }
+
   // GET /accounting/closings/daily — DailyClosingPage detail.
   if (method === 'GET' && url.includes('/accounting/closings/daily')) {
     const date = (config.params?.['date'] ?? '2026-06-07') as string
@@ -13742,8 +13776,43 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     } catch {
       /* noop */
     }
-    Object.assign(found, body, { id })
-    return envelope({ ...found, lines: Array.isArray(body.lines) ? body.lines : SAMPLE_LINES })
+    const requestLines = Array.isArray(body.lines) ? body.lines as Array<Record<string, unknown>> : []
+    const existingLines = Array.isArray(found.lines) ? found.lines as Array<Record<string, unknown>> : SAMPLE_LINES
+    const lines = requestLines.length > 0
+      ? requestLines.map((requestLine) => {
+        const lineId = typeof requestLine.lineId === 'string'
+          ? requestLine.lineId
+          : typeof requestLine.id === 'string' ? requestLine.id : undefined
+        const existing = existingLines.find((candidate) => candidate.id === lineId) ?? {}
+        const quantity = typeof requestLine.quantity === 'number'
+          ? requestLine.quantity
+          : Number(requestLine.quantity ?? existing.quantity ?? 0)
+        const unitPrice = String(requestLine.unitPrice ?? existing.unitPrice ?? '0')
+        const lineTotal = requestLine.lineTotal != null
+          ? String(requestLine.lineTotal)
+          : String(quantity * Number(unitPrice))
+        const supplyAmount = requestLine.supplyAmount != null
+          ? String(requestLine.supplyAmount)
+          : lineTotal
+        const vatAmount = requestLine.vatAmount != null
+          ? String(requestLine.vatAmount)
+          : String(Number(supplyAmount) * 0.1)
+        return {
+          ...existing,
+          ...requestLine,
+          id: lineId ?? existing.id,
+          lineTotal,
+          supplyAmount,
+          vatAmount,
+          setHead: requestLine.setHead ?? existing.setHead ?? false,
+          parentSetModel: requestLine.parentSetModel ?? existing.parentSetModel ?? null,
+        }
+      })
+      : existingLines
+    const { lineIdContract: _lineIdContract, lines: _requestLines, ...detailBody } = body
+    const detail = { ...found, ...detailBody, id, lines }
+    Object.assign(found, detail)
+    return envelope(detail)
   }
 
   // ============================================================================
