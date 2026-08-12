@@ -922,6 +922,11 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
       isDefault: false,
       specText: null,
       displayOrder: current.length + 1,
+      // 신규 행은 V39 기본 계약과 동일하게 FIXED로 시작한다.
+      // 금액은 서버가 신규 구성품의 deliveryPrice로 확정하므로 여기서는 null을 보낸다.
+      allocationMode: 'FIXED',
+      allocationWeight: null,
+      fixedAllocationAmount: null,
     }])
     setNewCode('')
   }
