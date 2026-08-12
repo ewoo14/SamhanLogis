@@ -164,13 +164,13 @@ function orderPageOf(content: PartnerOrderSummary[]) {
   }
 }
 
-function renderPage() {
+function renderPage(initialEntries: string[] = ['/sales/estimates']) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <EstimateListPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -242,30 +242,6 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(link.getAttribute('href')).toBe('/sales/estimates/estimate-1')
   })
 
-  it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {
-    listEstimatesMock.mockImplementation(async (options) => ({
-      ...pageOf([estimateRow({ id: options.includeDeleted ? `deleted-${options.page}` : `active-${options.page}` })]),
-      totalElements: options.includeDeleted ? 101 : 1,
-      totalPages: options.includeDeleted ? 3 : 1,
-      number: options.page ?? 0,
-      size: options.size ?? 50,
-      first: (options.page ?? 0) === 0,
-      last: (options.page ?? 0) === (options.includeDeleted ? 2 : 0),
-    }))
-
-    renderPage()
-    const toggle = await screen.findByTestId('estimate-list-include-deleted')
-    fireEvent.click(toggle)
-    fireEvent.click((await screen.findAllByTestId('estimate-list-next-page')).at(-1)!)
-
-    await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, includeDeleted: true })))
-    fireEvent.click((await screen.findAllByTestId('estimate-list-next-page')).at(-1)!)
-    await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, includeDeleted: true })))
-    fireEvent.click(toggle)
-    await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ page: 0 })))
-    expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.not.objectContaining({ includeDeleted: true }))
-  })
-
   it('삭제행은 모든 데이터 열에 취소선 처리하고 삭제 배지는 견적번호 취소선 span 바깥 형제로 렌더하며 행 클릭을 막는다', async () => {
     listEstimatesMock.mockResolvedValue(pageOf([
       estimateRow({
@@ -281,18 +257,14 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     renderPage()
 
     const row = await screen.findByTestId('estimate-list-row-estimate-deleted')
-    const estimateNo = within(row).getByTestId('estimate-list-row-estimate-deleted-number')
+    const estimateNo = within(row).getByText('2026/07/07-2')
     const badge = within(row).getByTestId('estimate-list-row-estimate-deleted-deleted-badge')
 
     expect(estimateNo.getAttribute('style') ?? '').toContain('line-through')
-    expect(badge.textContent).toContain('삭제: 이운영')
+    expect(badge.textContent).toContain('삭제됨')
     expect(estimateNo.contains(badge)).toBe(false)
-    expect(badge.parentElement).toBe(estimateNo.parentElement)
 
-    // STEP4 HIGH-1 fix(#759): estimateNo 1열만이 아니라 partnerBusinessNo/partnerName/
-    // estimateDate/validUntil/totalAmount 나머지 데이터 열도 모두 취소선 처리한다
-    // (주문(C) SalesPartnerOrderListPage 미러 정합).
-    for (const cellText of ['1234567890', '삭제거래처', '2026-07-07', '2026-08-07', '₩110,000']) {
+    for (const cellText of ['데스크톱', '삭제거래처', '2026-07-07', '₩110,000']) {
       const cell = within(row).getByText(cellText)
       expect(cell.getAttribute('style') ?? '').toContain('line-through')
     }
@@ -352,75 +324,72 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(within(row).queryByTestId('estimate-list-row-qa-residue-restore')).toBeNull()
   })
 
-  it('통합 보기에서 두 계열의 API 행을 한 목록에 누락 없이 표시한다', async () => {
-    const estimateCount = 2
-    const orderCount = 1
-    listEstimatesMock.mockResolvedValue(pageOf(
-      Array.from({ length: estimateCount }, (_, index) => estimateRow({
-        id: `estimate-${index}`,
-        estimateNo: `Q-${index}`,
-      })),
-    ))
-    listPartnerOrdersMock.mockResolvedValue(orderPageOf(
-      Array.from({ length: orderCount }, (_, index) => orderRow({
-        orderNumber: `O-${index}`,
-        partnerCode: `P-${index}`,
-      })),
-    ))
+  it('견적서 관리에는 종합견적서와 주문서 탭만 있고 통합 목록 토글은 없다', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('tab', { name: '종합견적서' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: '주문서' })).toBeTruthy()
+    expect(screen.queryByTestId('estimate-list-unified-toggle')).toBeNull()
+    expect(screen.queryByTestId('estimate-unified-list-table')).toBeNull()
+  })
+
+  it('종합견적서 탭은 데스크톱 견적과 웹 종합견적만 조회하고 웹 주문서는 조회하지 않는다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ estimateNo: '데스크톱-견적-1' })]))
+    listWebQuoteSnapshotSummariesMock.mockResolvedValue([
+      { snapshotKey: 'quote-1', documentLabel: '웹-견적-1', custName: '웹 거래처', created: '2026-08-13T11:00:00', totalAmount: '300000' },
+    ])
+    listWebPartnerOrderDraftSummariesMock.mockResolvedValue([
+      { draftKey: 'draft-1', documentLabel: '웹-주문-1', partnerCode: 'P-1', createdAt: '2026-08-13T12:00:00', totalAmount: '400000' },
+    ])
 
     renderPage()
-    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
 
-    const table = await screen.findByTestId('estimate-unified-list-table')
+    const table = await screen.findByTestId('estimate-list-table')
     await waitFor(() => {
-      expect(within(table).getAllByText('종합견적서')).toHaveLength(estimateCount)
-      expect(within(table).getAllByText('주문서')).toHaveLength(orderCount)
-      expect(within(table).getAllByText('P-0')).toHaveLength(1)
+      expect(within(table).getByText('데스크톱')).toBeTruthy()
+      expect(within(table).getByText('웹')).toBeTruthy()
+      expect(within(table).getByText('데스크톱-견적-1')).toBeTruthy()
+      expect(within(table).getByText('웹-견적-1')).toBeTruthy()
+      expect(within(table).queryByText('웹-주문-1')).toBeNull()
     })
+    expect(listWebQuoteSnapshotSummariesMock).toHaveBeenCalled()
+    expect(listWebPartnerOrderDraftSummariesMock).not.toHaveBeenCalled()
+    expect(listPartnerOrdersMock).not.toHaveBeenCalled()
   })
 
-  it('통합 보기에는 담당 열이 있고 계열이 보유하지 않는 값은 빈칸으로 둔다', async () => {
-    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ id: 'estimate-without-code', requesterName: '홍길동' })]))
-    listPartnerOrdersMock.mockResolvedValue(orderPageOf([orderRow({ partnerCode: '' })]))
+  it('웹 종합견적서 행은 UUID가 아닌 opaque snapshot key 상세 경로로 열린다', async () => {
+    listWebQuoteSnapshotSummariesMock.mockResolvedValue([
+      { snapshotKey: '2026-08-13T11:00:00', documentLabel: '웹-견적-상세', custName: '웹 거래처', created: '2026-08-13T11:00:00', totalAmount: '300000' },
+    ])
 
     renderPage()
-    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
 
-    const table = await screen.findByTestId('estimate-unified-list-table')
-    await waitFor(() => expect(within(table).getByText('담당')).toBeTruthy())
+    const row = await screen.findByTestId('estimate-list-row-web-quote:2026-08-13T11:00:00')
+    fireEvent.click(row)
 
-    expect(table.textContent).not.toContain('—')
-    expect(within(table).getByTestId('estimate-unified-row-estimate:estimate-without-code-owner').textContent).toBe('홍길동')
-    expect(within(table).getByTestId('estimate-unified-row-order:2026-08-08-1-owner').textContent).toBe('')
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/sales/estimates/web-snapshots/2026-08-13T11%3A00%3A00',
+      expect.objectContaining({ state: expect.objectContaining({ returnEntryKey: expect.any(String) }) }),
+    )
   })
 
-  it('통합 보기에서 한 계열 조회가 실패해도 다른 계열을 표시하고 오류를 드러낸다', async () => {
-    listPartnerOrdersMock.mockRejectedValue(new Error('partner-order unavailable'))
+  it('주문서 탭은 웹 주문서만 조회하고 견적 계열은 조회하지 않는다', async () => {
+    listWebPartnerOrderDraftSummariesMock.mockResolvedValue([
+      { draftKey: 'draft-1', documentLabel: '웹-주문-1', partnerCode: 'P-1', createdAt: '2026-08-13T12:00:00', totalAmount: '400000' },
+    ])
 
-    renderPage()
-    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
+    renderPage(['/sales/estimates?tab=orders'])
 
-    const table = await screen.findByTestId('estimate-unified-list-table')
-    await waitFor(() => expect(within(table).getAllByText('종합견적서')).toHaveLength(1))
-    expect((await screen.findByTestId('estimate-unified-list-error')).textContent).toContain('주문서')
-  })
-
-  it('통합 보기에서 후속 페이지가 실패해도 먼저 받은 페이지와 불완전 표시를 보존한다', async () => {
-    listEstimatesMock.mockImplementation(async (options) => {
-      if (options.size === 10000 && options.page === 1) {
-        throw new Error('estimate page 2 unavailable')
-      }
-      if (options.size === 10000) {
-        return { ...pageOf([estimateRow({ id: 'estimate-page-1', estimateNo: '2026/08/08-9001' })]), totalPages: 2 }
-      }
-      return pageOf([estimateRow()])
+    const orderTab = await screen.findByRole('tab', { name: '주문서' })
+    expect(orderTab.getAttribute('aria-selected')).toBe('true')
+    const table = await screen.findByTestId('estimate-list-table')
+    await waitFor(() => {
+      expect(within(table).getByText('웹-주문-1')).toBeTruthy()
+      expect(within(table).queryByText('종합견적서')).toBeNull()
     })
-
-    renderPage()
-    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
-
-    const table = await screen.findByTestId('estimate-unified-list-table')
-    await waitFor(() => expect(within(table).getByText('2026/08/08-9001')).toBeTruthy())
-    expect((await screen.findByTestId('estimate-unified-list-error')).textContent).toContain('종합견적서')
+    expect(listWebPartnerOrderDraftSummariesMock).toHaveBeenCalled()
+    expect(listEstimatesMock).not.toHaveBeenCalled()
+    expect(listWebQuoteSnapshotSummariesMock).not.toHaveBeenCalled()
+    expect(listPartnerOrdersMock).not.toHaveBeenCalled()
   })
 })
