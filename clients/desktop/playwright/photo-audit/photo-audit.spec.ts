@@ -71,7 +71,8 @@ test.describe('D-AX-20 사진 감사 contract', () => {
     const page = read(pagePath)
     const api = read(apiPath)
 
-    expect(page).toContain('UUID_PATTERN')
+    // fix2 이후 UUID 판정은 개별 정규식이 아니라 공통 safeActorName resolver가 담당한다.
+    expect(page).toContain('safeActorName')
     expect(page).toContain('URL_LIKE_PATTERN')
     expect(page).toContain('formatUploader')
     expect(page).toContain('업로더 확인 필요')
