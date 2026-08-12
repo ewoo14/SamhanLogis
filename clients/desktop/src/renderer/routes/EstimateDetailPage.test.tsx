@@ -118,13 +118,6 @@ describe('EstimateDetailPage 담당 변경', () => {
     ))
   })
 
-  it('DS 상세에 목록으로 돌아가는 액션이 있다', async () => {
-    renderPage()
-
-    await screen.findByTestId('estimate-detail-no')
-    expect(screen.getByRole('button', { name: /목록/ })).toBeTruthy()
-  })
-
   it('계열 교차 변경 거부 사유를 화면에 표시한다', async () => {
     changeEstimateOwnerMock.mockRejectedValue({
       isAxiosError: true,

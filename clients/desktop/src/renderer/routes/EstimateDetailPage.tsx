@@ -417,7 +417,7 @@ export function EstimateDetailPage() {
                       className="mobile-more-sheet-item"
                       onClick={() => {
                         setMobileMoreOpen(false)
-                        navigate(`/sales/estimates/${e.id}/edit`, { state: { returnTo, returnEntryKey } })
+                        navigate(`/sales/estimates/${e.id}/edit`)
                       }}
                     >
                       편집
@@ -605,7 +605,7 @@ export function EstimateDetailPage() {
             {(isDraft || isSent) && canMutate ? (
               <Button
                 variant="ghost"
-                onClick={() => navigate(`/sales/estimates/${e.id}/edit`, { state: { returnTo, returnEntryKey } })}
+                onClick={() => navigate(`/sales/estimates/${e.id}/edit`)}
                 data-testid="estimate-detail-edit-button"
               >
                 편집

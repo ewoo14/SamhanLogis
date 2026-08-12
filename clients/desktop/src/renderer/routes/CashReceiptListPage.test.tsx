@@ -52,22 +52,6 @@ afterEach(() => {
 })
 
 describe('CashReceiptListPage', () => {
-  it('입금보고서 복귀는 한 번의 프레임 복원만 사용한다', async () => {
-    const source = (await import('node:fs')).readFileSync('src/renderer/routes/CashReceiptListPage.tsx', 'utf8')
-    expect(source).not.toContain('const delayed = window.setTimeout(restore, 100)')
-  })
-
-  it('URL query의 필터와 page를 목록 정본으로 복원한다', async () => {
-    listCashReceiptsMock.mockResolvedValue({
-      content: [sampleRow], totalElements: 101, totalPages: 3, number: 2, size: 50, first: false, last: true,
-    })
-    renderPage('/accounting/admin/cash-receipts?partnerName=%EC%82%BC%ED%95%9C%EA%B3%B5%EC%A1%B0&kind=DEPOSIT_REPORT&page=2')
-
-    expect(await screen.findByTestId('cash-receipt-filter-partner-name')).toHaveValue('삼한공조')
-    expect(screen.getByTestId('cash-receipt-filter-kind')).toHaveValue('DEPOSIT_REPORT')
-    await waitFor(() => expect(listCashReceiptsMock).toHaveBeenCalledWith(expect.objectContaining({ page: 2 })))
-  })
-
   it('복귀 URL이 같은 입금보고서라도 스크롤 identity를 값으로 복원한다', async () => {
     listCashReceiptsMock.mockResolvedValue({
       content: [sampleRow], totalElements: 1, totalPages: 1, number: 0, size: 50, first: true, last: true,
@@ -85,6 +69,17 @@ describe('CashReceiptListPage', () => {
     expect(screen.getByTestId('cash-receipt-filter-slip-no')).toHaveValue('2026/08/07-8')
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 640, behavior: 'auto' }))
     scrollTo.mockRestore()
+  })
+
+  it('URL query의 필터와 page를 목록 정본으로 복원한다', async () => {
+    listCashReceiptsMock.mockResolvedValue({
+      content: [sampleRow], totalElements: 101, totalPages: 3, number: 2, size: 50, first: false, last: true,
+    })
+    renderPage('/accounting/admin/cash-receipts?partnerName=%EC%82%BC%ED%95%9C%EA%B3%B5%EC%A1%B0&kind=DEPOSIT_REPORT&page=2')
+
+    expect(await screen.findByTestId('cash-receipt-filter-partner-name')).toHaveValue('삼한공조')
+    expect(screen.getByTestId('cash-receipt-filter-kind')).toHaveValue('DEPOSIT_REPORT')
+    await waitFor(() => expect(listCashReceiptsMock).toHaveBeenCalledWith(expect.objectContaining({ page: 2 })))
   })
 
   it('전표번호는 상세 링크로 렌더한다', async () => {

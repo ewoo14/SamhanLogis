@@ -119,10 +119,7 @@ export function EstimateListPage() {
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
     const values: Record<string, string> = { status: statusFilter, startDate, endDate, partner: partnerKeyword }
-    for (const [key, value] of Object.entries(values)) {
-      if (value) next.set(key, value)
-      else next.delete(key)
-    }
+    for (const [key, value] of Object.entries(values)) value ? next.set(key, value) : next.delete(key)
     if (includeDeleted) next.set('includeDeleted', 'true')
     else next.delete('includeDeleted')
     if (page > 0) next.set('page', String(page))
@@ -227,22 +224,20 @@ export function EstimateListPage() {
       mobilePriority: 'primary',
       render: (row) => (
         <>
-          {row.isDeleted ? (
-            <span data-testid={`estimate-list-row-${row.id}-number`} style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, ...DELETED_ROW_TEXT_STYLE }}>
-              {row.estimateNo}
-            </span>
-          ) : (
-            <Link
-              to={`/sales/estimates/${toOrderPathId(row.estimateNo)}`}
-              state={{ returnTo, returnEntryKey: location.key }}
-              onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
-              data-testid={`estimate-list-row-${row.id}-number`}
-              aria-label={`${row.estimateNo} 상세 보기`}
-              style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-brand-700)', textDecoration: 'none' }}
-            >
-              {row.estimateNo}
-            </Link>
-          )}
+          {row.isDeleted ? <span
+            data-testid={`estimate-list-row-${row.id}-number`}
+            style={{
+              fontVariantNumeric: 'tabular-nums',
+              fontWeight: 500,
+              ...(row.isDeleted ? DELETED_ROW_TEXT_STYLE : {}),
+            }}
+          >{row.estimateNo}</span> : <Link
+            to={`/sales/estimates/${toOrderPathId(row.estimateNo)}`}
+            state={{ returnTo, returnEntryKey: location.key }}
+            onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
+            data-testid={`estimate-list-row-${row.id}-number`}
+            aria-label={`${row.estimateNo} 상세 보기`}
+          >{row.estimateNo}</Link>}
           {row.isDeleted ? (
             <Badge
               variant="neutral"
@@ -601,9 +596,7 @@ export function EstimateListPage() {
             onRowClick={(r) => {
               if (r.isDeleted === true) return
               saveScrollAnchor(location.key)
-              navigate(`/sales/estimates/${toOrderPathId(r.estimateNo)}`, {
-                state: { returnTo, returnEntryKey: location.key },
-              })
+              navigate(`/sales/estimates/${toOrderPathId(r.estimateNo)}`, { state: { returnTo, returnEntryKey: location.key } })
             }}
             emptyMessage="등록된 견적서가 없습니다."
           />

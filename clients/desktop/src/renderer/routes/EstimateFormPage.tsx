@@ -14,7 +14,7 @@
  * UUID 비공개 가드 — productId / partnerId 는 state 에만, 화면 표시는 modelName / partnerName.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Button,
@@ -78,7 +78,6 @@ import {
   toServerLineIdSet,
 } from '../realtime/coeditLineIds'
 import { consumeEstimateRestoreFence } from '../utils/estimateRestoreFence'
-import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { resolvePriceInputQuantitySync } from './estimateLineModel'
 import {
@@ -725,15 +724,10 @@ function EstimateMobileLineCard(props: {
 
 export function EstimateFormPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const queryClient = useQueryClient()
   const params = useParams<{ id?: string }>()
   const editId = params['id']
   const isEdit = Boolean(editId)
-  const returnTo = getReturnTo(location.state, { pathname: '/sales/estimates', search: '' })
-  const returnEntryKey = location.state && typeof location.state === 'object'
-    ? (location.state as ReturnNavigationState).returnEntryKey
-    : undefined
   const { canAccess } = usePermissions()
   const canViewProductLookups = canAccess('products.list', 'view')
   const isMobile = useIsMobile()
@@ -1742,10 +1736,7 @@ export function EstimateFormPage() {
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
       queryClient.invalidateQueries({ queryKey: ['estimate', updated.id] })
-      navigate(`/sales/estimates/${updated.id}`, {
-        replace: true,
-        state: { returnTo, ...(returnEntryKey ? { returnEntryKey } : {}) },
-      })
+      navigate(`/sales/estimates/${updated.id}`, { replace: true })
     },
     onError: (err: Error) => setTopError(`수정 실패: ${err.message}`),
   })

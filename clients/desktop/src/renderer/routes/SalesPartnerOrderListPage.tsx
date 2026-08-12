@@ -110,10 +110,7 @@ export function SalesPartnerOrderListPage() {
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
     const values: Record<string, string> = { dateFrom, dateTo, partnerId, status: statusFilter, slipPublishStatus: slipPublishStatusFilter, keyword: searchKeyword }
-    for (const [key, value] of Object.entries(values)) {
-      if (value) next.set(key, value)
-      else next.delete(key)
-    }
+    for (const [key, value] of Object.entries(values)) value ? next.set(key, value) : next.delete(key)
     if (includeDeleted) next.set('includeDeleted', 'true')
     else next.delete('includeDeleted')
     if (page > 0) next.set('page', String(page))
@@ -257,15 +254,12 @@ export function SalesPartnerOrderListPage() {
         const deleted = o.isDeleted === true
         return (
           <span className={styles['partnerOrderNumberCell']}>
-            {deleted ? (
-              <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" style={DELETED_ROW_TEXT_STYLE} />
-            ) : (
+            {deleted ? <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" style={DELETED_ROW_TEXT_STYLE} /> : (
               <Link
                 to={`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`}
                 state={{ returnTo, returnEntryKey: location.key }}
                 onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
                 aria-label={`${o.orderNumber} 상세 보기`}
-                style={{ color: 'var(--color-brand-700)', textDecoration: 'none' }}
               >
                 <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" />
               </Link>

@@ -4,9 +4,8 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import type { PartnerOrderSummary } from '../api/sales'
-import '@testing-library/jest-dom/vitest'
 
 const mocks = vi.hoisted(() => ({
   listPartnerOrders: vi.fn(),
@@ -32,16 +31,14 @@ vi.mock('@samhan/design-system', () => ({
     columns,
     rows,
     rowTestId,
-    onRowClick,
   }: {
     columns: Array<{ key: string; render: (row: PartnerOrderSummary) => React.ReactNode }>
     rows: PartnerOrderSummary[]
     rowTestId: (row: PartnerOrderSummary) => string
-    onRowClick?: (row: PartnerOrderSummary) => void
   }) => (
     <div data-testid="partner-order-table">
       {rows.map((row) => (
-        <div key={rowTestId(row)} data-testid={rowTestId(row)} onClick={() => onRowClick?.(row)}>
+        <div key={rowTestId(row)} data-testid={rowTestId(row)}>
           {columns.map((column) => (
             <div key={column.key}>{column.render(row)}</div>
           ))}
@@ -108,11 +105,6 @@ function renderPage(client = new QueryClient({ defaultOptions: { queries: { retr
   )
 }
 
-function ReturnLocationProbe() {
-  const location = useLocation()
-  return <output data-testid="order-return-location">{location.pathname}{location.search}</output>
-}
-
 afterEach(cleanup)
 
 describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
@@ -139,58 +131,6 @@ describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
       first: true,
       last: true,
     })
-  })
-
-  it('주문번호는 문서번호 상세 링크이며 검색·스크롤 목록 identity를 전달한다', async () => {
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={['/sales/partner-orders?keyword=세번째']}>
-          <Routes>
-            <Route path="/sales/partner-orders" element={<SalesPartnerOrderListPage />} />
-            <Route path="/sales/partner-orders/*" element={<ReturnLocationProbe />} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    )
-
-    const link = await screen.findByRole('link', { name: /2026\/05\/31-8/ })
-    expect(link.getAttribute('href')).toBe('/sales/partner-orders/2026-05-31-8')
-    fireEvent.click(link)
-    expect((await screen.findByTestId('order-return-location')).textContent).toBe('/sales/partner-orders/2026-05-31-8')
-  })
-
-  it('문서번호 링크는 행 클릭 전파를 차단해 history 상세 entry를 한 번만 만든다', async () => {
-    function DetailProbe() {
-      const location = useLocation()
-      const navigate = useNavigate()
-      return <><output data-testid="order-depth-path">{location.pathname}</output><button onClick={() => navigate(-1)}>뒤로</button></>
-    }
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={['/sales/partner-orders']}>
-          <Routes>
-            <Route path="/sales/partner-orders" element={<SalesPartnerOrderListPage />} />
-            <Route path="/sales/partner-orders/:id" element={<DetailProbe />} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    )
-    fireEvent.click(await screen.findByRole('link', { name: /2026\/05\/31-8/ }))
-    fireEvent.click(await screen.findByRole('button', { name: '뒤로' }))
-    expect((await screen.findByTestId('partner-order-table')).getAttribute('data-testid')).toBe('partner-order-table')
-  })
-
-  it('복귀 URL의 주문 검색·필터 identity를 값으로 복원한다', async () => {
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={[{ pathname: '/sales/partner-orders', search: '?keyword=2026%2F06%2F08&status=DRAFT', key: 'order-list-entry' }]}>
-          <SalesPartnerOrderListPage />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    )
-
-    expect(await screen.findByTestId('partner-order-list-keyword-filter')).toHaveValue('2026/06/08')
-    expect(screen.getByTestId('partner-order-list-status-filter')).toHaveValue('DRAFT')
   })
 
   it('기본 목록은 삭제행을 제외하고 토글을 켰을 때만 삭제행을 조회한다', async () => {

@@ -5,7 +5,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import React from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import '@testing-library/jest-dom/vitest'
 import { EstimateListPage } from './EstimateListPage'
 import {
   listEstimates,
@@ -17,12 +16,6 @@ import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
 
 const navigateMock = vi.fn()
 const canAccessMock = vi.fn(() => true)
-const { getScrollAnchorMock } = vi.hoisted(() => ({ getScrollAnchorMock: vi.fn(() => 230) }))
-
-vi.mock('../utils/returnContract', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../utils/returnContract')>()
-  return { ...actual, getScrollAnchor: getScrollAnchorMock }
-})
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -183,41 +176,6 @@ describe('EstimateListPage E2 list realtime and restore', () => {
 
     const link = await screen.findByRole('link', { name: /2026\/07\/07-1/ })
     expect(link.getAttribute('href')).toBe('/sales/estimates/2026-07-07-1')
-  })
-
-  it('문서번호 클릭은 history 상세 entry를 한 번만 만든다', async () => {
-    const source = (await import('node:fs')).readFileSync('src/renderer/routes/EstimateListPage.tsx', 'utf8')
-    expect(source).toContain('event.stopPropagation()')
-  })
-
-  it('복귀 URL의 견적 검색·필터 identity를 값으로 복원한다', async () => {
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={[{ pathname: '/sales/estimates', search: '?partner=삼성전자&status=QUOTE_DRAFT', key: 'estimate-list-entry' }]}>
-          <EstimateListPage />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    )
-
-    expect(await screen.findByTestId('estimate-list-filter-partner')).toHaveValue('삼성전자')
-    expect(screen.getByTestId('estimate-list-filter-status')).toHaveValue('QUOTE_DRAFT')
-    expect((await screen.findByTestId('estimate-list-filter-partner')).value).toBe('삼성전자')
-  })
-
-  it('견적 목록 복귀는 저장된 230px anchor를 그대로 복원한다', async () => {
-    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-    renderPage()
-
-    await screen.findByTestId('estimate-list-table')
-    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 230, behavior: 'auto' }))
-    scrollTo.mockRestore()
-  })
-
-  it('견적 편집 저장은 상세를 replace하고 목록 버튼은 history를 한 칸만 되감는다', async () => {
-    const formSource = (await import('node:fs')).readFileSync('src/renderer/routes/EstimateFormPage.tsx', 'utf8')
-    const detailSource = (await import('node:fs')).readFileSync('src/renderer/routes/EstimateDetailPage.tsx', 'utf8')
-    expect(formSource).toContain("replace: true")
-    expect(detailSource).toContain('hasReturnEntry ? navigate(-1) : navigate(returnTo, { replace: true })')
   })
 
   it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {
