@@ -1,0 +1,40 @@
+appId: com.samhanair.internalchat.desktop
+productName: Samhan Internal Chat
+copyright: Copyright (c) 2026 (주)삼한공조시스템
+artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}.${ext}
+forceCodeSigning: false
+
+directories:
+  output: release/${env.SAMHAN_RELEASE_ARTIFACT_VERSION}
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+
+extraResources:
+  - from: build/samhani-tray.png
+    to: samhani-tray.png
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Samhan Internal Chat
+  installerLanguages: [ko_KR]
+  language: '1042'
+
+portable:
+  artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}-portable.${ext}
