@@ -1,9 +1,0 @@
-[2mPM 4:03:46[22m [31m[1m[vite][22m[39m Pre-transform error: Failed to resolve import "virtual:pwa-register" from "src/renderer/components/common/PwaUpdatePrompt.tsx". Does the file exist?
-Error: The following dependencies are imported but could not be resolved:
-
-  [36mvirtual:pwa-register[39m [37m[2m(imported by C:/dev/Samhan-Public/.claude/worktrees/w1094/clients/desktop/src/renderer/components/common/PwaUpdatePrompt.tsx)[22m[39m
-
-Are they installed?
-    at file:///C:/dev/Samhan-Public/.claude/worktrees/w1094/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:50669:15
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async file:///C:/dev/Samhan-Public/.claude/worktrees/w1094/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:50174:26
