@@ -50,6 +50,7 @@ import {
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { StockInstanceListModal } from './StockInstanceListModal'
 import { StockLedgerModal } from './StockLedgerModal'
+import { StockSlipDetailModal } from './StockSlipDetailModal'
 
 // ---------------------------------------------------------------------------
 // 페이지당 행 수 (서버 page/size 파라미터 연동)
@@ -222,6 +223,7 @@ export function InventoryStockBalancePage() {
   const [instanceProductCode, setInstanceProductCode] = useState<string | null>(null)
   const [ledgerProductCode, setLedgerProductCode] = useState<string | null>(null)
   const [ledgerRange, setLedgerRange] = useState<{ start: string; end: string } | undefined>(undefined)
+  const [slipLink, setSlipLink] = useState<{ slipNo: string; slipType: 'INBOUND' | 'OUTBOUND' } | null>(null)
   const queryClient = useQueryClient()
 
   const warehousesQuery = useQuery({
@@ -440,8 +442,10 @@ export function InventoryStockBalancePage() {
           data={ledgerQuery.data}
           onClose={() => setLedgerProductCode(null)}
           onRangeChange={(startDate, endDate) => setLedgerRange({ start: startDate, end: endDate })}
+          onOpenSlip={(slipNo, slipType) => setSlipLink({ slipNo, slipType })}
         />
       ) : null}
+      {slipLink ? <StockSlipDetailModal slipNo={slipLink.slipNo} slipType={slipLink.slipType} onClose={() => setSlipLink(null)} /> : null}
     </div>
   )
 }

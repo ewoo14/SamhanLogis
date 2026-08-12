@@ -570,6 +570,15 @@ export async function getSlip(id: string): Promise<SlipDetail> {
   return res.data.data
 }
 
+/** 전표번호와 유형으로 전표를 해석한다. UUID는 검색 결과 내부에서만 사용한다. */
+export async function getSlipByNumber(slipNo: string, slipType: SlipType): Promise<SlipDetail> {
+  const date = slipNo.slice(0, 10).replace(/\//g, '-')
+  const page = await querySlips({ slipType, dateFrom: date, dateTo: date, page: 0, size: 20, searchSlipNo: slipNo })
+  const summary = page.content.find((candidate) => candidate.slipNo === slipNo)
+  if (!summary) throw new Error(`전표 ${slipNo}를 찾을 수 없습니다.`)
+  return getSlip(summary.id)
+}
+
 /**
  * 신규 전표 생성. 응답은 라인 포함 상세 (`SlipDetailResponse`).
  *

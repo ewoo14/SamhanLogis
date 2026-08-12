@@ -326,6 +326,8 @@ export interface StockLedgerRow {
   outboundQuantity: number
   balance: number
   opening: boolean
+  slipNo?: string | null
+  slipType?: 'INBOUND' | 'OUTBOUND' | null
 }
 
 export interface StockLedgerResponse {

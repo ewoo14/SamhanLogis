@@ -6,6 +6,8 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
+import com.samhanair.logis.inventory.client.SlipClient;
+import com.samhanair.logis.inventory.client.SlipDetail;
 import com.samhanair.logis.inventory.domain.MovementType;
 import com.samhanair.logis.inventory.domain.StockMovement;
 import com.samhanair.logis.inventory.repository.StockMovementRepository;
@@ -27,6 +29,7 @@ class StockLedgerServiceTest {
     @Mock private ProductClient productClient;
     @Mock private StockMovementRepository movementRepository;
     @Mock private WarehouseRepository warehouseRepository;
+    @Mock private SlipClient slipClient;
     @InjectMocks private StockLedgerService service;
 
     @Test
@@ -63,6 +66,27 @@ class StockLedgerServiceTest {
         assertThat(StockLedgerRow.class.getRecordComponents())
                 .extracting(component -> component.getType())
                 .noneMatch(UUID.class::equals);
+    }
+
+    @Test
+    @DisplayName("재고 movement reference UUID는 실제 전표번호로 해석한다")
+    void resolvesMovementReferenceToActualSlipNumber() {
+        UUID productId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        ProductSummary product = mock(ProductSummary.class);
+        when(product.id()).thenReturn(productId);
+        when(product.name()).thenReturn("품목");
+        when(productClient.requireExistsByCode("P1")).thenReturn(product);
+        StockMovement movement = movement(MovementType.INBOUND, 1, LocalDateTime.of(2026, 8, 2, 9, 0));
+        when(movement.getReferenceId()).thenReturn(slipId);
+        when(movement.getReferenceType()).thenReturn("INBOUND");
+        when(movementRepository.findAllByProductIdOrderByOccurredAtAsc(productId)).thenReturn(List.of(movement));
+        when(slipClient.getSlip(slipId)).thenReturn(new SlipDetail(slipId, "2026/08/02-17", "INBOUND", "CONFIRMED", null, "거래처", null, "2026-08-02", List.of()));
+
+        var ledger = service.getLedger("P1", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3));
+
+        assertThat(ledger.rows().get(0).slipNo()).isEqualTo("2026/08/02-17");
+        assertThat(ledger.rows().get(0).slipType()).isEqualTo("INBOUND");
     }
 
     private StockMovement movement(MovementType type, int delta, LocalDateTime occurredAt) {

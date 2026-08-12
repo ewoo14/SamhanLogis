@@ -2,6 +2,8 @@ package com.samhanair.logis.inventory.service;
 
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
+import com.samhanair.logis.inventory.client.SlipClient;
+import com.samhanair.logis.inventory.client.SlipDetail;
 import com.samhanair.logis.inventory.domain.MovementType;
 import com.samhanair.logis.inventory.domain.StockMovement;
 import com.samhanair.logis.inventory.domain.Warehouse;
@@ -28,6 +30,7 @@ public class StockLedgerService {
     private final ProductClient productClient;
     private final StockMovementRepository movementRepository;
     private final WarehouseRepository warehouseRepository;
+    private final SlipClient slipClient;
 
     @Transactional(readOnly = true)
     public StockLedgerResponse getLedger(String productCode, LocalDate startDate, LocalDate endDate) {
@@ -93,10 +96,29 @@ public class StockLedgerService {
                 break;
             }
         }
+        SlipDetail slip = resolveSlip(movement);
+        String slipNo = slip == null ? null : slip.slipNo();
+        String descriptionToShow = slipNo == null ? description : slipNo;
+        String partnerToShow = slip == null || slip.partnerName() == null ? "" : slip.partnerName();
         return new StockLedgerRow(movement.getOccurredAt().toLocalDate(),
                 firstNonBlank(product.name(), product.modelName(), product.productCode()),
-                product.productCode(), warehouse == null ? "" : warehouse.getName(), "",
-                description, tag, inbound, outbound, balance, false);
+                product.productCode(), warehouse == null ? "" : warehouse.getName(), partnerToShow,
+                descriptionToShow, tag, inbound, outbound, balance, false,
+                slipNo, slip == null ? null : slip.slipType());
+    }
+
+    /** reference_id 는 내부에서만 slip-service 상세로 해석하고 사용자 계약에는 slipNo 만 남긴다. */
+    private SlipDetail resolveSlip(StockMovement movement) {
+        if (movement.getReferenceId() == null || movement.getReferenceType() == null) return null;
+        if (!("INBOUND".equals(movement.getReferenceType()) || "SLIP".equals(movement.getReferenceType()))) {
+            return null;
+        }
+        try {
+            return slipClient.getSlip(movement.getReferenceId());
+        } catch (RuntimeException ignored) {
+            // 주소/QA 잔재 등 해석 불가 행은 링크 없이 원래 적요를 유지한다.
+            return null;
+        }
     }
 
     private String firstNonBlank(String... values) {

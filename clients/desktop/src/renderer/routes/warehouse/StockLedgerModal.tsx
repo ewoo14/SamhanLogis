@@ -7,11 +7,13 @@ export function StockLedgerModal({
   data,
   onClose,
   onRangeChange,
+  onOpenSlip,
 }: {
   open: boolean
   data: StockLedgerResponse | undefined
   onClose: () => void
   onRangeChange: (startDate: string, endDate: string) => void
+  onOpenSlip?: (slipNo: string, slipType: 'INBOUND' | 'OUTBOUND') => void
 }) {
   const [startDate, setStartDate] = useState(data?.startDate ?? '')
   const [endDate, setEndDate] = useState(data?.endDate ?? '')
@@ -43,6 +45,12 @@ export function StockLedgerModal({
   ]
 
   const submitRange = () => onRangeChange(startDate, endDate)
+  const renderDescription = (row: StockLedgerRow) => {
+    if (row.slipNo && row.slipType && onOpenSlip) {
+      return <button type="button" aria-label={`전표 ${row.slipNo} 열기`} onClick={() => onOpenSlip(row.slipNo!, row.slipType!)} style={slipLinkStyle}>{row.slipNo}</button>
+    }
+    return <>{row.locationTag ? <strong>{row.locationTag}</strong> : null}{row.locationTag ? ' ' : ''}{row.description}</>
+  }
 
   return (
     <Modal open={open} onClose={onClose} title="재고수불부">
@@ -65,7 +73,7 @@ export function StockLedgerModal({
               <td style={cellStyle}>{row.opening ? '' : row.productCode}</td>
               <td style={cellStyle}>{row.warehouseName}</td>
               <td style={cellStyle}>{row.partnerName}</td>
-              <td style={cellStyle}>{row.opening ? '전일재고' : <>{row.locationTag ? <strong>{row.locationTag}</strong> : null}{row.locationTag ? ' ' : ''}{row.description}</>}</td>
+              <td style={cellStyle}>{row.opening ? '전일재고' : renderDescription(row)}</td>
               <td style={cellStyle}>{row.inboundQuantity || ''}</td>
               <td style={cellStyle}>{row.outboundQuantity || ''}</td>
               <td style={cellStyle}>{row.balance}</td>
@@ -81,3 +89,4 @@ export function StockLedgerModal({
 
 const cellStyle = { borderBottom: '1px solid #E5E7EB', padding: '6px 8px', textAlign: 'left' as const, whiteSpace: 'nowrap' as const }
 const cellHeaderStyle = { ...cellStyle, background: '#F7F8FA', fontWeight: 600 }
+const slipLinkStyle = { border: 0, padding: 0, background: 'transparent', color: '#185B86', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }

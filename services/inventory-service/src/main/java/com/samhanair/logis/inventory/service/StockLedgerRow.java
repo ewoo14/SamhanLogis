@@ -14,5 +14,15 @@ public record StockLedgerRow(
         int inboundQuantity,
         int outboundQuantity,
         int balance,
-        boolean opening) {
+        boolean opening,
+        String slipNo,
+        String slipType) {
+
+    public StockLedgerRow(LocalDate date, String productName, String productCode,
+                          String warehouseName, String partnerName, String description,
+                          String locationTag, int inboundQuantity, int outboundQuantity,
+                          int balance, boolean opening) {
+        this(date, productName, productCode, warehouseName, partnerName, description,
+                locationTag, inboundQuantity, outboundQuantity, balance, opening, null, null);
+    }
 }
