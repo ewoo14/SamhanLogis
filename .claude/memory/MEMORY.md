@@ -126,6 +126,7 @@
 - [Korean Path JDK Trap](feedback_korean_path_jdk.md)
 - [gradlew 실행권한](feedback_gradlew_exec_bit.md)
 - [PowerShell UTF-8 트랩](feedback_powershell_utf8_writes.md)
+- [🚨🚨 격리 QA 복제가 한글을 죽인다 — 그 스…](feedback_isolated_clone_destroys_utf8.md)
 - [PR 게시 인코딩 — 파이프 mojibak…](feedback_gh_comment_utf8_pipe_mojibake.md)
 - [Bash 커밋=−F 파일](feedback_bash_commit_message_file.md)
 - [desktop 타입검증=npm run ty…](feedback_desktop_typecheck_command.md)

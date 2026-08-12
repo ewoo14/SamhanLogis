@@ -14,7 +14,7 @@
  * UUID 비공개 가드 — id 컬럼 미포함, 사용자 노출은 estimateNo + partnerName 만.
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
   Badge,
@@ -51,6 +51,8 @@ import {
   type UnifiedEstimateListRow,
   type UnifiedEstimateSource,
 } from './estimateUnifiedListModel'
+import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
+import { toOrderPathId } from '../utils/orderNo'
 
 const STATUS_OPTIONS: Array<{ value: EstimateStatus | ''; label: string }> = [
   { value: '', label: '전체' },
@@ -105,20 +107,37 @@ async function fetchAllPages<T>(
 
 export function EstimateListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
 
   usePageTitle('견적서 관리')
 
-  const [statusFilter, setStatusFilter] = useState<EstimateStatus | ''>('')
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
-  const [partnerKeyword, setPartnerKeyword] = useState<string>('')
-  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<EstimateStatus | ''>(() => searchParams.get('status') as EstimateStatus | '' || '')
+  const [startDate, setStartDate] = useState<string>(() => searchParams.get('startDate') ?? '')
+  const [endDate, setEndDate] = useState<string>(() => searchParams.get('endDate') ?? '')
+  const [partnerKeyword, setPartnerKeyword] = useState<string>(() => searchParams.get('partner') ?? '')
+  const [includeDeleted, setIncludeDeleted] = useState(() => searchParams.get('includeDeleted') === 'true')
   const [showUnifiedList, setShowUnifiedList] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<UnifiedEstimateSource | ''>('')
   const [page, setPage] = useState(0)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    const values: Record<string, string> = { status: statusFilter, startDate, endDate, partner: partnerKeyword }
+    for (const [key, value] of Object.entries(values)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    if (includeDeleted) next.set('includeDeleted', 'true')
+    else next.delete('includeDeleted')
+    if (page > 0) next.set('page', String(page))
+    else next.delete('page')
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+  }, [statusFilter, startDate, endDate, partnerKeyword, includeDeleted, page, searchParams, setSearchParams])
 
   useCollectionRealtime(EstimateListRealtimeClient, 'list', ESTIMATE_LIST_REALTIME_KEYS)
 
@@ -138,6 +157,8 @@ export function EstimateListPage() {
         ...(includeDeleted ? { includeDeleted: true } : {}),
       }),
   })
+
+  useEffect(() => restoreScrollAnchorWhenReady(location.key, () => query.isFetched), [location.key, query.isFetched])
 
   const unifiedQuery = useQuery({
     queryKey: ['estimates', 'unified', statusFilter, startDate, endDate, partnerKeyword, includeDeleted],
@@ -225,16 +246,20 @@ export function EstimateListPage() {
       mobilePriority: 'primary',
       render: (row) => (
         <>
-          <span
+          {row.isDeleted ? <span
             data-testid={`estimate-list-row-${row.id}-number`}
             style={{
               fontVariantNumeric: 'tabular-nums',
               fontWeight: 500,
               ...(row.isDeleted ? DELETED_ROW_TEXT_STYLE : {}),
             }}
-          >
-            {row.estimateNo}
-          </span>
+          >{row.estimateNo}</span> : <Link
+              to={`/sales/estimates/${encodeURIComponent(row.id)}`}
+            state={{ returnTo, returnEntryKey: location.key }}
+            onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
+            data-testid={`estimate-list-row-${row.id}-number`}
+            aria-label={`${row.estimateNo} 상세 보기`}
+          >{row.estimateNo}</Link>}
           {row.isDeleted ? (
             <Badge
               variant="neutral"
@@ -611,7 +636,8 @@ export function EstimateListPage() {
             rowClassName={(r) => (r.isDeleted ? styles['partnerOrderRowDeleted'] : undefined)}
             onRowClick={(r) => {
               if (r.isDeleted === true) return
-              navigate(`/sales/estimates/${encodeURIComponent(r.id)}`)
+              saveScrollAnchor(location.key)
+              navigate(`/sales/estimates/${encodeURIComponent(r.id)}`, { state: { returnTo, returnEntryKey: location.key } })
             }}
             emptyMessage="등록된 견적서가 없습니다."
           />

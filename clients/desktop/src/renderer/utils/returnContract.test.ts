@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   getReturnTo,
   getScrollAnchor,
+  restoreScrollAnchorWhenReady,
   saveScrollAnchor,
   type ReturnToLocation,
 } from './returnContract'
@@ -49,6 +50,24 @@ describe('return contract', () => {
     for (let i = 0; i < 51; i += 1) saveScrollAnchor(`entry-${i}`, i)
     expect(getScrollAnchor('entry-0')).toBeNull()
     expect(getScrollAnchor('entry-50')).toBe(50)
+    vi.useRealTimers()
+  })
+
+  it('RED-LUNA-1: 목록 데이터가 준비된 뒤에도 진입 전 스크롤 640px을 그대로 복원한다', () => {
+    vi.useFakeTimers()
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
+    let ready = false
+    saveScrollAnchor('list-entry', 640)
+
+    restoreScrollAnchorWhenReady('list-entry', () => ready)
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    ready = true
+    vi.runOnlyPendingTimers()
+    expect(scrollTo).not.toHaveBeenCalled()
+    vi.runOnlyPendingTimers()
+    expect(scrollTo).toHaveBeenCalledWith({ top: 640, behavior: 'auto' })
+    scrollTo.mockRestore()
     vi.useRealTimers()
   })
 })

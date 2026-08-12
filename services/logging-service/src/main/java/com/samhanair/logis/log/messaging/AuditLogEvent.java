@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.samhanair.logis.shared.audit.contract.AuditEnums;
 
 /**
  * Wire-format audit log event published by other services to RabbitMQ
@@ -26,6 +27,37 @@ public record AuditLogEvent(
         Map<String, Object> afterData,
         String ipAddress,
         String userAgent,
-        Instant occurredAt
+        Instant occurredAt,
+        String schemaVersion,
+        AuditEnums.RetentionClass retentionClass,
+        AuditEnums.EventKind eventKind,
+        AuditEnums.Outcome outcome,
+        AuditEnums.AuditAction auditAction,
+        String requestId,
+        String traceId,
+        String parentService,
+        String httpMethod,
+        String routeTemplate,
+        Integer httpStatus,
+        Long durationMs,
+        String actorDisplayName,
+        String internalResourceId,
+        String errorCode,
+        String errorClass,
+        String rootCauseClass,
+        String errorSummary,
+        String stackFingerprint
 ) {
+    public AuditLogEvent(String id, String serviceName, String userId, String userRole, String action,
+                         String resourceType, String resourceId, String description,
+                         Map<String, Object> beforeData, Map<String, Object> afterData,
+                         String ipAddress, String userAgent, Instant occurredAt) {
+        this(id, serviceName, userId, userRole, action, resourceType, resourceId, description,
+                beforeData, afterData, ipAddress, userAgent, occurredAt,
+                null, /* schema */ null, /* retention */ null, /* kind */ null, /* outcome */ null,
+                /* action */ null, /* request */ null, /* trace */ null, /* parent */ null,
+                /* method */ null, /* route */ null, /* status */ null, /* duration */ null,
+                /* actor */ null, /* internal */ null, /* error code */ null,
+                /* root */ null, /* summary */ null, /* fingerprint */ null);
+    }
 }

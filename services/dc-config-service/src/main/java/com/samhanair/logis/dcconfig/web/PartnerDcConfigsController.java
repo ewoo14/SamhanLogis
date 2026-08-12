@@ -22,9 +22,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 import com.samhanair.logis.common.security.ActorDisplayName;
+import com.samhanair.logis.shared.audit.contract.AuditEventV2;
+import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
 
 /**
  * 데스크탑 영업 "거래처 DC 설정" 화면(`/sales/partner-dc-config`) 외부 노출 endpoints.
@@ -44,12 +48,30 @@ import com.samhanair.logis.common.security.ActorDisplayName;
  */
 @RestController
 @RequestMapping("/api/v1/partner-dc-configs")
-@RequiredArgsConstructor
 public class PartnerDcConfigsController {
 
     private final DcConfigRepository dcConfigRepository;
     private final DcConfigService dcConfigService;
     private final DcConfigAuditLogService dcConfigAuditLogService;
+    private final AuditPublisher auditPublisher;
+
+    @Autowired
+    public PartnerDcConfigsController(DcConfigRepository repository, DcConfigService service,
+                                      DcConfigAuditLogService auditLogService, AuditPublisher auditPublisher) {
+        this.dcConfigRepository = repository;
+        this.dcConfigService = service;
+        this.dcConfigAuditLogService = auditLogService;
+        this.auditPublisher = auditPublisher;
+    }
+
+    /** 기존 controller 단위 테스트/호출자의 생성자 호환성을 유지한다. */
+    public PartnerDcConfigsController(DcConfigRepository repository, DcConfigService service,
+                                      DcConfigAuditLogService auditLogService) {
+        this.dcConfigRepository = repository;
+        this.dcConfigService = service;
+        this.dcConfigAuditLogService = auditLogService;
+        this.auditPublisher = null;
+    }
 
     private static final String CALLER_ID_HEADER = "X-User-Id";
     private static final String CALLER_NAME_HEADER = "X-User-Name";
@@ -104,6 +126,13 @@ public class PartnerDcConfigsController {
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         DcConfig updated = dcConfigService.updatePartnerDcConfig(partnerCode, request,
                 parseActorId(callerId), resolveActorName(callerId, callerName));
+        if (auditPublisher != null) {
+            auditPublisher.publishAfterCommit(AuditEventV2.mutation(
+                    "dc-config-service", "PATCH", "/api/v1/partner-dc-configs/{partnerCode}",
+                    resolveActorName(callerId, callerName), "DC_CONFIG", partnerCode,
+                    updated.getId() == null ? null : updated.getId().toString(),
+                    "거래처 DC 설정 변경", Map.of("partnerCode", partnerCode)));
+        }
         return ApiResponse.ok(PartnerDcConfigResponse.from(updated));
     }
 

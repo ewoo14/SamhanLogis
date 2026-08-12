@@ -229,7 +229,17 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     const row = await screen.findByTestId('estimate-list-row-2026/08/10-9')
     fireEvent.click(row)
 
-    expect(navigateMock).toHaveBeenCalledWith('/sales/estimates/2026%2F08%2F10-9')
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/sales/estimates/2026%2F08%2F10-9',
+      expect.objectContaining({ state: expect.objectContaining({ returnEntryKey: expect.any(String) }) }),
+    )
+  })
+
+  it('견적번호는 UUID가 아닌 문서번호 상세로 가는 하이퍼링크다', async () => {
+    renderPage()
+
+    const link = await screen.findByRole('link', { name: /2026\/07\/07-1/ })
+    expect(link.getAttribute('href')).toBe('/sales/estimates/estimate-1')
   })
 
   it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {
