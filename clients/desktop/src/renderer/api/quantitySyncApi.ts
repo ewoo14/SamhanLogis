@@ -8,6 +8,8 @@ export interface QuantitySyncProductRef {
   factor?: number | string | null
   multiplier?: number | string | null
   roundingMode?: 'NONE' | 'FLOOR' | null
+  componentVariant?: string | null
+  componentShape?: string | null
   displayOrder?: number | null
 }
 
@@ -42,6 +44,8 @@ export interface QuantitySyncRuleRequest {
     productCode: string
     multiplier: number
     roundingMode: 'NONE' | 'FLOOR'
+    componentVariant?: string | null
+    componentShape?: string | null
     displayOrder: number
   }>
 }

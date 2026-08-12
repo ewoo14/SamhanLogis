@@ -43,6 +43,7 @@ import {
 } from '../api/productCatalogApi'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { COMPONENT_FEATURE_OPTIONS, COMPONENT_SHAPE_OPTIONS } from '../utils/bundleOptionDomain'
 import {
   buildCreateProductRequest,
   buildUpdateProductRequest,
@@ -873,12 +874,10 @@ const COMPONENT_KINDS: Array<{ value: ComponentKind; label: string }> = [
   { value: 'FOOT', label: '받침대' },
 ]
 
-const FEATURE_OPTIONS: Record<ComponentKind, string[]> = {
-  PANEL: ['기본', '블랙', '승강', '공청'],
-  REMOTE: ['기본', '유선', '컬러'],
+const FEATURE_OPTIONS: Record<ComponentKind, readonly string[]> = {
+  ...COMPONENT_FEATURE_OPTIONS,
   INDOOR: [], OUTDOOR: [], MATERIAL: [], ACCESSORY: [], FOOT: [],
 }
-const SHAPE_OPTIONS = ['', '원형', '사각']
 
 const helpTextStyle: CSSProperties = {
   margin: 0,
@@ -977,7 +976,7 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
             {(FEATURE_OPTIONS[item.componentKind] ?? []).map((feature) => <option key={feature} value={feature}>{feature}</option>)}
           </Select>
           <Select label="형상" value={item.componentShape ?? ''} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentShape: event.target.value || null })}>
-            {SHAPE_OPTIONS.map((shape) => <option key={shape} value={shape}>{shape || '(없음)'}</option>)}
+            {COMPONENT_SHAPE_OPTIONS.map((shape) => <option key={shape} value={shape}>{shape || '(없음)'}</option>)}
           </Select>
           <Select label="수량 동기화" value={item.qtyMode} disabled={!canEdit} onChange={(event) => updateDraft(index, { qtyMode: event.target.value as BundleComponentDraft['qtyMode'] })}>
             <option value="FOLLOW_SET">세트 따라감</option><option value="FIXED">고정</option>

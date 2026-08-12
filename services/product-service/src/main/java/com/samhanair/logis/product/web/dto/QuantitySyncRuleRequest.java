@@ -46,8 +46,16 @@ public record QuantitySyncRuleRequest(
 
     /** target Product를 사용자 식별 코드와 결과 배수로 지정한다. */
     public record TargetRequest(
-            @NotBlank @Size(max = 100) String productCode,
+        @NotBlank @Size(max = 100) String productCode,
             @NotNull BigDecimal multiplier,
             @NotNull String roundingMode,
-            @NotNull @Min(1) Integer displayOrder) {}
+            String componentVariant,
+            String componentShape,
+            @NotNull @Min(1) Integer displayOrder) {
+        /** 기존 API 호출자와의 source 호환 생성자. */
+        public TargetRequest(String productCode, BigDecimal multiplier,
+                             String roundingMode, Integer displayOrder) {
+            this(productCode, multiplier, roundingMode, null, null, displayOrder);
+        }
+    }
 }
