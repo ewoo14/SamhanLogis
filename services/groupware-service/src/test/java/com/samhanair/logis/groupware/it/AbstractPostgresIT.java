@@ -45,6 +45,9 @@ public abstract class AbstractPostgresIT {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+        // 한 컨테이너에 여러 Spring IT context가 병렬 기동될 때 PostgreSQL max_connections를
+        // 넘기지 않도록 test-only pool 상한을 둔다. production datasource 설정은 변경하지 않는다.
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "5");
         registry.add("eureka.client.enabled", () -> "false");
         registry.add("eureka.client.register-with-eureka", () -> "false");
         registry.add("eureka.client.fetch-registry", () -> "false");

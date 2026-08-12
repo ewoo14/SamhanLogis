@@ -23,7 +23,6 @@ public class ChatRoomParticipant extends BaseEntity {
     @Column(name = "left_at") private LocalDateTime leftAt;
 
     private ChatRoomParticipant(UUID roomId, UUID userId, boolean owner) {
-        this.id = UUID.randomUUID();
         this.roomId = roomId; this.userId = userId; this.owner = owner; this.joinedAt = LocalDateTime.now();
     }
     public static ChatRoomParticipant create(UUID roomId, UUID userId, boolean owner) {

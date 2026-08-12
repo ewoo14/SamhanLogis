@@ -10,6 +10,7 @@ export function ChatRoomPage() {
   const { roomCode = '' } = useParams<{ roomCode: string }>()
   const queryClient = useQueryClient()
   const [body, setBody] = useState('')
+  const [sendError, setSendError] = useState(false)
   const messagesQuery = useQuery({ queryKey: ['chat', roomCode, 'messages'], queryFn: () => fetchChatMessages(roomCode), enabled: Boolean(roomCode) })
   const roomsQuery = useQuery({ queryKey: ['chat', 'rooms'], queryFn: fetchChatRooms })
   const room = roomsQuery.data?.find((item) => item.roomCode === roomCode)
@@ -19,7 +20,8 @@ export function ChatRoomPage() {
   const partnerEmployeeCode = room?.partnerEmployeeCode ?? firstOtherMessage?.senderEmployeeCode
   const sendMutation = useMutation({
     mutationFn: (value: string) => sendChatMessage(roomCode, value),
-    onSuccess: () => { setBody(''); void queryClient.invalidateQueries({ queryKey: ['chat', roomCode, 'messages'] }) },
+    onSuccess: () => { setSendError(false); setBody(''); void queryClient.invalidateQueries({ queryKey: ['chat', roomCode, 'messages'] }) },
+    onError: () => setSendError(true),
   })
   useEffect(() => {
     if (!roomCode) return undefined
@@ -36,7 +38,8 @@ export function ChatRoomPage() {
     <ul aria-label="대화 내용" style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 8 }}>
       {(messagesQuery.data ?? []).map((message) => <li key={`${message.sequence}-${message.sentAt}`}><strong>{message.mine ? '나' : (message.senderName ?? '알 수 없는 발신자')}</strong><span>{message.senderDepartment ? ` · ${message.senderDepartment}` : ''}{message.senderEmployeeCode ? ` · ${message.senderEmployeeCode}` : ''}</span><p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{message.body}</p><time>{new Date(message.sentAt).toLocaleString('ko-KR')}</time></li>)}
     </ul>
-    <form onSubmit={submit} style={{ display: 'flex', gap: 8 }}><textarea aria-label="메시지 본문" value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} /><Button type="submit" disabled={sendMutation.isPending || !body.trim()}>보내기</Button></form>
+    {sendError ? <p role="alert">메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.</p> : null}
+    <form onSubmit={submit} style={{ display: 'flex', gap: 8 }}><textarea aria-label="메시지 본문" value={body} onChange={(event) => { setSendError(false); setBody(event.target.value) }} maxLength={2000} /><Button type="submit" disabled={sendMutation.isPending || !body.trim()}>보내기</Button></form>
   </main>
 }
 

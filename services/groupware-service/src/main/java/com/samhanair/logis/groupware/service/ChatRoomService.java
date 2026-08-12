@@ -27,8 +27,11 @@ public class ChatRoomService {
         if (!userClient.exists(creator) || !userClient.exists(other)) throw new BusinessException(ErrorCode.NOT_FOUND, "참여자를 찾을 수 없습니다");
         String pairKey = ChatRoom.pairKey(creator, other);
         return roomRepository.findByDirectPairKey(pairKey).orElseGet(() -> {
-            ChatRoom room = ChatRoom.direct(nextCode(), creator, other);
-            return roomRepository.save(room);
+            ChatRoom room = roomRepository.saveAndFlush(ChatRoom.directShell(nextCode(), creator, other));
+            room.addParticipant(creator, true);
+            room.addParticipant(other, false);
+            participantRepository.saveAll(room.getParticipants());
+            return room;
         });
     }
 

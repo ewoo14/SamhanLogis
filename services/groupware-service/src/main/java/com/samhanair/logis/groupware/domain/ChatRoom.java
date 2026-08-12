@@ -33,6 +33,10 @@ public class ChatRoom extends BaseEntity {
         ChatRoom room = new ChatRoom(code, ChatRoomType.DIRECT, creator, pairKey(creator, other));
         room.addParticipant(creator, true); room.addParticipant(other, false); return room;
     }
+    /** 방 행을 먼저 저장한 뒤 참여자 FK를 저장해야 하는 신규 DIRECT 생성용 shell. */
+    public static ChatRoom directShell(String code, UUID creator, UUID other) {
+        return new ChatRoom(code, ChatRoomType.DIRECT, creator, pairKey(creator, other));
+    }
     public static ChatRoom restore(UUID id, String code) {
         ChatRoom room = new ChatRoom(code, ChatRoomType.DIRECT, UUID.randomUUID(), null);
         room.id = id; return room;

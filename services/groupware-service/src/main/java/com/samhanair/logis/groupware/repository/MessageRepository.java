@@ -37,7 +37,7 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     /** 다른 JVM에서도 같은 방의 sequence 계산을 직렬화한다. 트랜잭션 종료 시 자동 해제된다. */
     @Query(value = "select pg_advisory_xact_lock(hashtextextended(cast(:roomId as text), 0))", nativeQuery = true)
-    Long lockRoomSequence(@Param("roomId") UUID roomId);
+    void lockRoomSequence(@Param("roomId") UUID roomId);
 
     List<Message> findTop50ByRoomIdAndSequenceLessThanOrderBySequenceDesc(UUID roomId, long beforeSequence);
     List<Message> findTop50ByRoomIdOrderBySequenceDesc(UUID roomId);

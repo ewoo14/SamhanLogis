@@ -41,7 +41,7 @@ class ChatRoomServiceTest {
         UUID other = UUID.randomUUID();
         when(userClient.exists(creator)).thenReturn(true);
         when(userClient.exists(other)).thenReturn(true);
-        when(roomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roomRepository.saveAndFlush(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
         ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
 
         ChatRoom room = service.createDirect(creator, other);
@@ -107,7 +107,7 @@ class ChatRoomServiceTest {
         when(userClient.exists(other)).thenReturn(true);
         when(roomRepository.findByDirectPairKey(ChatRoom.pairKey(creator, other))).thenReturn(Optional.empty());
         when(roomRepository.findByRoomCode(org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
-        when(roomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roomRepository.saveAndFlush(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
         service.createDirect(creator, other);
