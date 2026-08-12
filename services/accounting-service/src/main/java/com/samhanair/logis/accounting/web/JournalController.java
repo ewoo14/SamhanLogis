@@ -160,8 +160,9 @@ public class JournalController {
     @Operation(summary = "분개 단건 조회", description = "라인 포함 상세")
     @GetMapping("/{id}")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
-    public ApiResponse<JournalDetailResponse> getOne(@PathVariable UUID id) {
-        return ApiResponse.ok(journalService.getOne(id));
+    public ApiResponse<JournalDetailResponse> getOne(@PathVariable String id) {
+        return ApiResponse.ok(journalService.getOne(
+                com.samhanair.logis.accounting.web.dto.OpaqueUuidDeserializer.decode(id)));
     }
 
     /** 게시 — DRAFT → POSTED. 차/대 합계 일치 검증 (도메인). */
@@ -173,11 +174,13 @@ public class JournalController {
     @PostMapping("/{id}/post")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<JournalDetailResponse> post(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         checkEditPermission(roleHeader);
-        return ApiResponse.ok(journalService.post(id, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(journalService.post(
+                com.samhanair.logis.accounting.web.dto.OpaqueUuidDeserializer.decode(id),
+                callerOrSystem(callerHeader)));
     }
 
     /** 역분개 — POSTED → REVERSED. 차/대 swap 한 신규 Journal 자동 생성 + POST. */
@@ -193,11 +196,13 @@ public class JournalController {
     @PostMapping("/{id}/reverse")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<JournalDetailResponse> reverse(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         checkEditPermission(roleHeader);
-        return ApiResponse.ok(journalService.reverse(id, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(journalService.reverse(
+                com.samhanair.logis.accounting.web.dto.OpaqueUuidDeserializer.decode(id),
+                callerOrSystem(callerHeader)));
     }
 
     /**
