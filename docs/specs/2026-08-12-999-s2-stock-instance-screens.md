@@ -99,6 +99,37 @@ NORMAL · USED · DAMAGED · REPACKAGED · BOX_DEFECT
 
 🚨 **`지방/` 는 주소 접두사가 아니라 태그다.** 이 프로젝트의 확정 규칙이다 — 주소 문자열의 일부로 다루면 안 된다. (`야적` 도 같다.)
 
+### 전표번호 하이퍼링크 (개발책임자 추가 지시 2026-08-12)
+
+> *"재고수불부에 있는 전표번호들을 클릭하면서 해당 전표를 모달로 볼 수 있도록."*
+> *"입출고전표 및 재고이동 전표까지 모두 나와야 함."*
+
+전표번호를 클릭하면 **그 전표를 모달로** 연다. 재고수불부 모달 위에 전표 모달이 뜨는 구조다.
+
+### 🚩 실측 — 재고이동이 수불부에 안 잡힌다
+
+`inventory_db.stock_movements` (47건) 의 분포다.
+
+```
+movement_type | reference_type               | 건수
+RESERVE       | PARTNER_ORDER_CONVERT        | 14
+RESERVE       | PARTNER_ORDER_MERGE_CONVERT  |  9
+INBOUND       | INBOUND                      |  8
+RESERVE       | SLIP                         |  5
+RELEASE       | SLIP                         |  3
+RELEASE       | PARTNER_ORDER_CONVERT        |  2
+RELEASE       | PARTNER_ORDER_MERGE_CONVERT  |  2
+RELEASE/RESERVE | CODEX_QA_25 · CODEX_QA_25_VERIFY | 4  ← QA 잔재
+```
+
+**`TRANSFER` 계열이 하나도 없다.** 그런데 `stock_transfers` 는 3건, `stock_transfer_lines` 는 4건 존재한다.
+
+⟹ **재고이동이 `stock_movements` 에 기록되지 않고 있다.** 수불부를 `stock_movements` 만으로 만들면 재고이동은 영영 안 나온다. 이동 전표를 수불부에 포함하려면 **이동이 수불 이력에 남는 경로부터** 있어야 한다.
+
+⚠️ `reference_id` 는 **UUID** 다. 🚨 **UUID 를 사용자에게 노출하면 안 된다** — 링크는 전표번호로 해석해서 보여주고 UUID 는 화면·API 응답 어디에도 나오면 안 된다.
+
+⚠️ `CODEX_QA_25` · `CODEX_QA_25_VERIFY` 4건은 QA 잔재로 보인다. **건드리지 말고 보고만** 한다 (→ `#1176` 트랙).
+
 ---
 
 ## 슬라이스
@@ -107,3 +138,6 @@ NORMAL · USED · DAMAGED · REPACKAGED · BOX_DEFECT
 |---|---|---|
 | **S2a** | 품목코드 하이퍼링크 + 품목리스트 모달 | 실 GUI 에서 시리얼키·바코드가 보이고 `AVAILABLE` 인스턴스의 상태를 바꿔 저장되며 `SHIPPED` 는 잠긴다 |
 | **S2b** | 재고수불부 모달 | 실 GUI 에서 기본 기간(월초~오늘)으로 열리고, 날짜를 바꾸면 내역이 따라 바뀌며, 재고수량이 누적 잔량으로 맞는다 |
+| **S2c** | 전표번호 하이퍼링크 → 전표 모달 | 수불부의 전표번호를 클릭하면 그 전표가 모달로 열린다. **입출고전표 · 재고이동 전표 모두.** UUID 는 노출되지 않는다 |
+
+⚠️ **S2c 는 S2b 에 의존하고, 재고이동분은 위 실측 때문에 선행 작업이 더 필요하다.** 재고이동이 수불 이력에 남지 않는 한 이동 전표는 수불부에 나타날 수 없다.
