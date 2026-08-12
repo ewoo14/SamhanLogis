@@ -171,6 +171,13 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ includeDeleted: true })))
   })
 
+  it('견적번호는 UUID가 아닌 문서번호 상세로 가는 하이퍼링크다', async () => {
+    renderPage()
+
+    const link = await screen.findByRole('link', { name: /2026\/07\/07-1/ })
+    expect(link.getAttribute('href')).toBe('/sales/estimates/2026-07-07-1')
+  })
+
   it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {
     listEstimatesMock.mockImplementation(async (options) => ({
       ...pageOf([estimateRow({ id: options.includeDeleted ? `deleted-${options.page}` : `active-${options.page}` })]),

@@ -5,7 +5,7 @@
  * components + 자동 생성 슬립 번호 표시.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import {
@@ -22,6 +22,7 @@ import {
   WarehouseAutocomplete,
 } from '@samhan/design-system'
 import type { Warehouse } from '@samhan/design-system'
+import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
 import { listWarehouses, type StockBalanceLookupLine } from '../api/inventory'
 import {
   SLIP_PUBLISH_STATUS_DISPLAY,
@@ -190,10 +191,20 @@ export function SalesPartnerOrderDetailPage() {
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
   const isMobile = useIsMobile()
 
   const isValidId = !!id && id !== 'undefined' && id !== 'null'
   const orderId = id!
+  const returnTo = getReturnTo(location.state, { pathname: '/sales/partner-orders', search: '' })
+  const returnEntryKey = location.state && typeof location.state === 'object'
+    ? (location.state as ReturnNavigationState).returnEntryKey
+    : undefined
+  const hasReturnEntry = typeof returnEntryKey === 'string' && returnEntryKey.length > 0
+  const goBackToList = () => {
+    if (hasReturnEntry) navigate(-1)
+    else navigate(returnTo, { replace: true })
+  }
   const canEdit = canAccess('sales.partner-order.edit', 'update')
   // [C2c] 삭제는 BE PartnerOrderDeleteController 가 sales.partner-order.edit + DELETE 요구 →
   // 7-action 분리 모델에서 update 와 별개로 delete 권한을 확인(Codex review P1).
@@ -273,7 +284,7 @@ export function SalesPartnerOrderDetailPage() {
       setDeleteErrorMessage(null)
       setDeleteOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
-      navigate('/sales/partner-orders')
+      goBackToList()
     },
     onError: (error) => {
       if (axios.isAxiosError(error) && error.response?.status === 422) {
@@ -723,7 +734,7 @@ export function SalesPartnerOrderDetailPage() {
           <div className="empty-state">
             <h3>주문번호가 지정되지 않았습니다</h3>
             <p>주문서 목록에서 항목을 선택해 주세요.</p>
-            <Button type="button" variant="ghost" onClick={() => navigate('/sales/partner-orders')}>
+            <Button type="button" variant="ghost" onClick={goBackToList}>
               ← 목록으로 이동
             </Button>
           </div>
@@ -834,8 +845,8 @@ export function SalesPartnerOrderDetailPage() {
                 삭제
               </Button>
             ) : null}
-            <Button type="button" variant="ghost" onClick={() => navigate('/sales/partner-orders')}>
-              ← 목록
+          <Button type="button" variant="ghost" onClick={goBackToList}>
+            ← 목록
             </Button>
           </div>
         ) : null}
@@ -1023,7 +1034,7 @@ export function SalesPartnerOrderDetailPage() {
                       className="mobile-more-sheet-item"
                       onClick={() => {
                         setMoreOpen(false)
-                        navigate('/sales/partner-orders')
+                        goBackToList()
                       }}
                     >
                       목록으로

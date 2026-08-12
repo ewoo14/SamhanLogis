@@ -8,7 +8,7 @@
  * 해당 거래처의 DRAFT/ON_HOLD 주문만 칩으로 선택한다.
  */
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -30,6 +30,7 @@ import {
 } from '../api/sales'
 import { formatSlipDate } from '../api/slipNumber'
 import { toOrderPathId } from '../utils/orderNo'
+import { getScrollAnchor, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -85,6 +86,7 @@ const PRE_CONFIRM_STATUSES: ReadonlySet<PartnerOrderStatus> = new Set([
 
 export function SalesPartnerOrderListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
@@ -102,6 +104,14 @@ export function SalesPartnerOrderListPage() {
   /** Phase 2.6b D2: 병합 전환 성공 토스트 메시지 — null 이면 비표시. */
   const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+
+  useEffect(() => {
+    const anchor = getScrollAnchor(location.key)
+    if (anchor == null) return
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [location.key])
 
   const canCreateMerge = canAccess('sales.partner-order.convert', 'create')
   const canSearchPartners = canAccess('partners.search', 'view')
@@ -232,11 +242,19 @@ export function SalesPartnerOrderListPage() {
         const deleted = o.isDeleted === true
         return (
           <span className={styles['partnerOrderNumberCell']}>
-            <OrderNumberDisplay
-              orderNumber={o.orderNumber}
-              size="sm"
-              style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}
-            />
+            {deleted ? (
+              <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" style={DELETED_ROW_TEXT_STYLE} />
+            ) : (
+              <Link
+                to={`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`}
+                state={{ returnTo, returnEntryKey: location.key }}
+                onClick={() => saveScrollAnchor(location.key)}
+                aria-label={`${o.orderNumber} 상세 보기`}
+                style={{ color: 'var(--color-brand-700)', textDecoration: 'none' }}
+              >
+                <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" />
+              </Link>
+            )}
             {deleted ? (
               <span
                 className={styles['partnerOrderDeletedBadge']}
@@ -385,7 +403,10 @@ export function SalesPartnerOrderListPage() {
     if (o.isDeleted === true) {
       return
     }
-    navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`)
+    saveScrollAnchor(location.key)
+    navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`, {
+      state: { returnTo, returnEntryKey: location.key },
+    })
   }
 
   return (

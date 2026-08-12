@@ -14,7 +14,7 @@
  * UUID 비공개 가드 — id 컬럼 미포함, 사용자 노출은 estimateNo + partnerName 만.
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
   Badge,
@@ -43,6 +43,8 @@ import {
   deletedBadgeLabel,
 } from './admin/partnerDeletedRow'
 import { mergeEstimateAndOrderRows, type UnifiedEstimateListRow } from './estimateUnifiedListModel'
+import { getScrollAnchor, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
+import { toOrderPathId } from '../utils/orderNo'
 
 const STATUS_OPTIONS: Array<{ value: EstimateStatus | ''; label: string }> = [
   { value: '', label: '전체' },
@@ -97,6 +99,7 @@ async function fetchAllPages<T>(
 
 export function EstimateListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
 
@@ -110,6 +113,14 @@ export function EstimateListPage() {
   const [showUnifiedList, setShowUnifiedList] = useState(false)
   const [page, setPage] = useState(0)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+
+  useEffect(() => {
+    const anchor = getScrollAnchor(location.key)
+    if (anchor == null) return
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [location.key])
 
   useCollectionRealtime(EstimateListRealtimeClient, 'list', ESTIMATE_LIST_REALTIME_KEYS)
 
@@ -201,16 +212,22 @@ export function EstimateListPage() {
       mobilePriority: 'primary',
       render: (row) => (
         <>
-          <span
-            data-testid={`estimate-list-row-${row.id}-number`}
-            style={{
-              fontVariantNumeric: 'tabular-nums',
-              fontWeight: 500,
-              ...(row.isDeleted ? DELETED_ROW_TEXT_STYLE : {}),
-            }}
-          >
-            {row.estimateNo}
-          </span>
+          {row.isDeleted ? (
+            <span data-testid={`estimate-list-row-${row.id}-number`} style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, ...DELETED_ROW_TEXT_STYLE }}>
+              {row.estimateNo}
+            </span>
+          ) : (
+            <Link
+              to={`/sales/estimates/${toOrderPathId(row.estimateNo)}`}
+              state={{ returnTo, returnEntryKey: location.key }}
+              onClick={() => saveScrollAnchor(location.key)}
+              data-testid={`estimate-list-row-${row.id}-number`}
+              aria-label={`${row.estimateNo} 상세 보기`}
+              style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-brand-700)', textDecoration: 'none' }}
+            >
+              {row.estimateNo}
+            </Link>
+          )}
           {row.isDeleted ? (
             <Badge
               variant="neutral"
@@ -568,7 +585,10 @@ export function EstimateListPage() {
             rowClassName={(r) => (r.isDeleted ? styles['partnerOrderRowDeleted'] : undefined)}
             onRowClick={(r) => {
               if (r.isDeleted === true) return
-              navigate(`/sales/estimates/${r.id}`)
+              saveScrollAnchor(location.key)
+              navigate(`/sales/estimates/${toOrderPathId(r.estimateNo)}`, {
+                state: { returnTo, returnEntryKey: location.key },
+              })
             }}
             emptyMessage="등록된 견적서가 없습니다."
           />

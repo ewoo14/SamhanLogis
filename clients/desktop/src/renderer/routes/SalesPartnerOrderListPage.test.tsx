@@ -4,7 +4,7 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import type { PartnerOrderSummary } from '../api/sales'
 
 const mocks = vi.hoisted(() => ({
@@ -105,6 +105,11 @@ function renderPage(client = new QueryClient({ defaultOptions: { queries: { retr
   )
 }
 
+function ReturnLocationProbe() {
+  const location = useLocation()
+  return <output data-testid="order-return-location">{location.pathname}{location.search}</output>
+}
+
 afterEach(cleanup)
 
 describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
@@ -131,6 +136,24 @@ describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
       first: true,
       last: true,
     })
+  })
+
+  it('주문번호는 문서번호 상세 링크이며 검색·스크롤 목록 identity를 전달한다', async () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/sales/partner-orders?keyword=세번째']}>
+          <Routes>
+            <Route path="/sales/partner-orders" element={<SalesPartnerOrderListPage />} />
+            <Route path="/sales/partner-orders/*" element={<ReturnLocationProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    const link = await screen.findByRole('link', { name: /2026\/05\/31-8/ })
+    expect(link.getAttribute('href')).toBe('/sales/partner-orders/2026-05-31-8')
+    fireEvent.click(link)
+    expect((await screen.findByTestId('order-return-location')).textContent).toBe('/sales/partner-orders/2026-05-31-8')
   })
 
   it('기본 목록은 삭제행을 제외하고 토글을 켰을 때만 삭제행을 조회한다', async () => {

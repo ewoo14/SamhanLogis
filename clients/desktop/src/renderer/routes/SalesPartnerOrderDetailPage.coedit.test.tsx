@@ -3,7 +3,7 @@ import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import type { PartnerOrderDetail } from '../api/sales'
 
 const mocks = vi.hoisted(() => ({
@@ -234,6 +234,11 @@ function renderPage() {
   }
 }
 
+function ListIdentityProbe() {
+  const location = useLocation()
+  return <output data-testid="order-list-identity">{location.pathname}{location.search}</output>
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -243,6 +248,31 @@ afterEach(() => {
 })
 
 describe('SalesPartnerOrderDetailPage 판매전표 전환 오류 안내', () => {
+  it('목록에서 들어온 상세의 ← 목록은 검색된 목록 history entry로 돌아간다', async () => {
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[
+          '/sales/partner-orders?keyword=세번째',
+          { pathname: '/sales/partner-orders/PO-2099-1', state: {
+            returnTo: { pathname: '/sales/partner-orders', search: '?keyword=세번째' },
+            returnEntryKey: 'list-entry',
+          } },
+        ]} initialIndex={1}>
+          <Routes>
+            <Route path="/sales/partner-orders" element={<ListIdentityProbe />} />
+            <Route path="/sales/partner-orders/:id" element={<SalesPartnerOrderDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await screen.findByText('PO/2099-1')
+    fireEvent.click(screen.getByRole('button', { name: '← 목록' }))
+    expect((await screen.findByTestId('order-list-identity')).textContent).toBe('/sales/partner-orders?keyword=세번째')
+  })
+
   it('BUNDLE 전환 400의 구성품 전개 안내를 단건 alert에 표시한다', async () => {
     mocks.getPartnerOrder.mockResolvedValue(makeOrder({
       lines: [{ ...makeOrder().lines[0], productType: 'BUNDLE' }],
