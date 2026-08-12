@@ -66,6 +66,44 @@ for db in "$@"; do
   fi
   # Re-dump the target after the first comparison. This catches mutations
   # injected after the first snapshot, without ever re-reading the live source.
+  # Hold SHARE ROW EXCLUSIVE locks while the final snapshots are taken and
+  # compared. ACCESS SHARE (pg_dump/SELECT) remains possible, while INSERT /
+  # UPDATE / DELETE and DDL cannot pass the handoff barrier.
+  lock_sql="$TMP_DIR/$db.lock.sql"
+  cat > "$lock_sql" <<'SQL'
+BEGIN;
+DO $$
+DECLARE
+  table_ref record;
+BEGIN
+  FOR table_ref IN
+    SELECT schemaname, tablename
+      FROM pg_catalog.pg_tables
+     WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+  LOOP
+    EXECUTE format(
+      'LOCK TABLE %I.%I IN SHARE ROW EXCLUSIVE MODE',
+      table_ref.schemaname,
+      table_ref.tablename
+    );
+  END LOOP;
+END
+$$;
+SELECT pg_sleep(86400);
+SQL
+  docker cp "$lock_sql" "$CONTAINER:/tmp/$db.lock.sql" >/dev/null
+  docker exec -d "$CONTAINER" sh -c \
+    "psql -v ON_ERROR_STOP=1 -U '$QA_CLONE_TARGET_USER' -d '$db' -f '/tmp/$db.lock.sql' > '/tmp/$db.lock.log' 2>&1" >/dev/null
+  for _ in $(seq 1 60); do
+    locked="$(docker exec "$CONTAINER" psql -U "$QA_CLONE_TARGET_USER" -d "$db" -Atqc \
+      "SELECT count(*) FROM pg_catalog.pg_locks WHERE locktype = 'relation' AND mode = 'ShareRowExclusiveLock' AND granted")"
+    [[ "$locked" =~ ^[1-9][0-9]*$ ]] && break
+    sleep 0.1
+  done
+  [[ "$locked" =~ ^[1-9][0-9]*$ ]] || {
+    echo "UTF-8 검증 실패: db=$db 최종 검증 잠금 확보 실패" >&2
+    exit 1
+  }
   if ! MSYS_NO_PATHCONV=1 docker exec "$CONTAINER" sh -c \
     "pg_dump -U '$QA_CLONE_TARGET_USER' -d '$db' --format=plain --data-only --no-owner --no-privileges --no-comments > '/tmp/$db.target.final.sql'; pg_dump -U '$QA_CLONE_TARGET_USER' -d '$db' --format=plain --schema-only --no-owner --no-privileges > '/tmp/$db.target.final.schema.sql'; sed -i '/^\\\\restrict /d; /^\\\\unrestrict /d' '/tmp/$db.target.final.sql' '/tmp/$db.target.final.schema.sql'; cmp -s '$expected_snapshot' '/tmp/$db.target.final.sql' && cmp -s '$expected_schema' '/tmp/$db.target.final.schema.sql'"; then
     echo "UTF-8 검증 실패: db=$db 원본/복제본 스냅샷 불일치 (최종 재검증)" >&2
