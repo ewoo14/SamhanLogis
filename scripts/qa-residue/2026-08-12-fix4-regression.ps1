@@ -18,6 +18,11 @@ Assert-Contains $verify 'slip_db' '검증 SQL이 slip_db를 점검해야 합니�
 Assert-Contains $verify 'qa-residue-softdelete-2026-08-12' '복구 표지를 점검해야 합니다.'
 Assert-Contains $verify 'repair' '복구는 명시 플래그로만 허용해야 합니다.'
 Assert-Contains $verify 'confirm' '복구 확인 토큰이 필요해야 합니다.'
+Assert-Contains $verify 'target_slips' 'slip 검증이 대상 전표 집합을 고정해야 합니다.'
+Assert-Contains $verify 'target_lines' '라인 검증이 대상 라인 집합을 고정해야 합니다.'
+Assert-Contains $verify 'non_target_marker' '대상 외 표지를 검출해야 합니다.'
+Assert-Contains $verify 'target_drift' '대상 내부 드리프트를 출력해야 합니다.'
+Assert-Contains $verify 'qa_residue_target_snapshot' '실행 시 고정한 대상 스냅샷을 사용해야 합니다.'
 
 foreach ($path in @($ExecuteSql, $RollbackSql)) {
     $sql = Get-Content -LiteralPath $path -Raw -Encoding UTF8

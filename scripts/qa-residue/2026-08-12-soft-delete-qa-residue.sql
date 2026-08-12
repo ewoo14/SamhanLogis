@@ -119,8 +119,19 @@ WHERE NOT s.is_deleted AND NOT l.is_deleted
       'ed278526-0e16-427d-8a92-2ca06164254a'
     )
   );
+CREATE TABLE IF NOT EXISTS qa_residue_target_snapshot (
+  snapshot_key TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id UUID NOT NULL,
+  PRIMARY KEY (snapshot_key, entity_type, entity_id)
+);
 CREATE TEMP TABLE qa_line_targets ON COMMIT DROP AS
 SELECT l.id FROM slip_lines l JOIN qa_slip_targets s ON s.id = l.slip_id WHERE NOT l.is_deleted;
+INSERT INTO qa_residue_target_snapshot (snapshot_key, entity_type, entity_id)
+SELECT 'qa-residue-softdelete-2026-08-12', 'slip', id FROM qa_slip_targets
+UNION ALL
+SELECT 'qa-residue-softdelete-2026-08-12', 'line', id FROM qa_line_targets
+ON CONFLICT DO NOTHING;
 SELECT (SELECT COUNT(*) FROM qa_slip_targets) = 295
    AND (SELECT COUNT(*) FROM qa_line_targets) = 636 AS slip_before_ok \gset
 \if :slip_before_ok
