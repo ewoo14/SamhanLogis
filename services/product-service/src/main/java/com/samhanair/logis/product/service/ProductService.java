@@ -17,6 +17,7 @@ import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.product.client.UserInternalClient;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ClassificationRepository;
@@ -77,6 +78,7 @@ public class ProductService {
     private final ClassificationRepository classificationRepository;
     private final BundleComponentRepository bundleComponentRepository;
     private final BundleComponentService bundleComponentService;
+    private final UserInternalClient userInternalClient;
 
     /**
      * 품목 단종/삭제 전 수량 동기화 규칙 참조 여부 확인용(R1 결함 3). QuantitySyncRuleService
@@ -1036,8 +1038,10 @@ public class ProductService {
 
     private ProductResponse toResponse(Product product) {
         List<ProductSpecResponse> specs = specResponses(product);
+        String createdBy = userInternalClient.resolveDisplayName(product.getCreatedBy()).orElse(null);
+        String modifiedBy = userInternalClient.resolveDisplayName(product.getModifiedBy()).orElse(null);
         if (product.getProductType() == ProductType.BUNDLE) {
-            return ProductResponse.from(product, ProductItemKind.SET, null, null, specs);
+            return ProductResponse.from(product, ProductItemKind.SET, null, null, specs, createdBy, modifiedBy);
         }
         ParentComponentLink parentLink = findParentComponentLink(product);
         if (parentLink != null) {
@@ -1046,9 +1050,9 @@ public class ProductService {
                     ProductItemKind.SET_COMPONENT,
                     parentLink.parentModelCode(),
                     parentLink.componentKind(),
-                    specs);
+                    specs, createdBy, modifiedBy);
         }
-        return ProductResponse.from(product, ProductItemKind.GENERAL, null, null, specs);
+        return ProductResponse.from(product, ProductItemKind.GENERAL, null, null, specs, createdBy, modifiedBy);
     }
 
     /** 제품 등록/수정 화면의 동적 사양을 ProductSpec 1:N row 로 저장한다. */

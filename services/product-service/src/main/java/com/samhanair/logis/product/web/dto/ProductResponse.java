@@ -17,7 +17,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 제품 단건 상세 응답 — BaseEntity 의 audit 필드 + 노출 범위 필드까지 노출.
+ * 제품 단건 상세 응답 — BaseEntity 의 audit 시각과 사용자 표시명 + 노출 범위 필드까지 노출.
+ * {@code createdBy}/{@code modifiedBy}는 내부 사용자 UUID가 아닌 user-service의 fullName이다.
  *
  * <p>PR-B(2026-06-11) 추가 필드:
  * <ul>
@@ -84,6 +85,17 @@ public record ProductResponse(
                                        String parentSetModelCode,
                                        BundleComponent.ComponentKind componentKind,
                                        List<ProductSpecResponse> specs) {
+        return from(p, itemKind, parentSetModelCode, componentKind, specs,
+                displayNameOrNull(p.getCreatedBy()), displayNameOrNull(p.getModifiedBy()));
+    }
+
+    public static ProductResponse from(Product p,
+                                       ProductItemKind itemKind,
+                                       String parentSetModelCode,
+                                       BundleComponent.ComponentKind componentKind,
+                                       List<ProductSpecResponse> specs,
+                                       String createdBy,
+                                       String modifiedBy) {
         return new ProductResponse(
                 p.getId(),
                 p.getName(),
@@ -115,10 +127,20 @@ public record ProductResponse(
                 p.isUsageScopeManual(),
                 null,
                 p.getCreatedAt(),
-                p.getCreatedBy(),
+                createdBy,
                 p.getModifiedAt(),
-                p.getModifiedBy(),
+                modifiedBy,
                 specs == null ? List.of() : specs);
+    }
+
+    private static String displayNameOrNull(String auditValue) {
+        if (auditValue == null || auditValue.isBlank()) return null;
+        try {
+            UUID.fromString(auditValue);
+            return null;
+        } catch (IllegalArgumentException ignored) {
+            return auditValue;
+        }
     }
 
     /** 품목 상세 화면용 분류 참조. */

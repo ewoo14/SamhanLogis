@@ -3,6 +3,7 @@ package com.samhanair.logis.product.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,6 +13,7 @@ import static org.mockito.Mockito.lenient;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.client.UserInternalClient;
 import com.samhanair.logis.product.domain.BundleComponentConsentToken;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Category;
@@ -85,6 +87,9 @@ class ProductServiceTest {
     @Mock
     private QuantitySyncRuleService quantitySyncRuleService;
 
+    @Mock
+    private UserInternalClient userInternalClient;
+
     @InjectMocks
     private ProductService service;
 
@@ -95,6 +100,8 @@ class ProductServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(userInternalClient.resolveDisplayName(nullable(String.class)))
+                .thenReturn(Optional.empty());
         category = Category.create("INDOOR_WALL", "벽걸이형", null, 1);
         categoryId = UUID.randomUUID();
         ReflectionTestUtils.setField(category, "id", categoryId);
