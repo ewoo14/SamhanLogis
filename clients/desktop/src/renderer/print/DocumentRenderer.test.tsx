@@ -556,6 +556,32 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(emptyHtml).not.toContain('데이터가 없습니다.')
   })
 
+  it('D-1: 기본 양식은 연결된 출고전표 12개 품목을 인쇄 결과에 렌더한다', () => {
+    const baseModel = buildApprovalRenderModel(input())
+    const model = {
+      ...baseModel,
+      body: {
+        ...baseModel.body,
+        lineItemsAvailability: 'CONNECTED' as const,
+        lineItems: Array.from({ length: 12 }, (_, index) => ({
+          productName: `출고 품목 ${index + 1}`,
+          modelName: index === 0 ? 'AJ060MXHNBC1' : `MODEL-${index + 1}`,
+          specification: '규격',
+          quantity: index + 1,
+          supplyAmount: '1000',
+          vatAmount: '100',
+          lineTotal: '1100',
+          note: '',
+        })),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={GROUPWARE_DEFAULT} model={model} />)
+
+    expect(html).toContain('AJ060MXHNBC1')
+    expect((html.match(/data-template-detail-row=/g) ?? []).length).toBe(12)
+  })
+
   it('DS-4 A2: 실제 route 입력에 품목 원천이 없으면 빈 표 대신 원인을 출력한다', () => {
     const model = buildApprovalRenderModel(input())
     const template = {
