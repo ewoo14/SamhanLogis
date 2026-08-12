@@ -2,8 +2,8 @@ import { apiClient, type ApiEnvelope } from './client'
 import type { WebPartnerOrderDraftListSource, WebQuoteSnapshotListSource } from '../routes/estimateUnifiedListModel'
 
 /** UUID와 payload를 제외한 웹 저장분 목록 메타데이터. */
-export interface WebQuoteSnapshotSummary extends WebQuoteSnapshotListSource {}
-export interface WebPartnerOrderDraftSummary extends WebPartnerOrderDraftListSource {}
+export type WebQuoteSnapshotSummary = WebQuoteSnapshotListSource
+export type WebPartnerOrderDraftSummary = WebPartnerOrderDraftListSource
 
 export async function listWebQuoteSnapshotSummaries(filters: {
   startDate?: string
