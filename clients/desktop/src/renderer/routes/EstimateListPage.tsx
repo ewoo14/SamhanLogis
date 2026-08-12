@@ -611,7 +611,7 @@ export function EstimateListPage() {
             rowClassName={(r) => (r.isDeleted ? styles['partnerOrderRowDeleted'] : undefined)}
             onRowClick={(r) => {
               if (r.isDeleted === true) return
-              navigate(`/sales/estimates/${r.id}`)
+              navigate(`/sales/estimates/${encodeURIComponent(r.id)}`)
             }}
             emptyMessage="등록된 견적서가 없습니다."
           />

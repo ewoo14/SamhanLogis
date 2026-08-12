@@ -218,6 +218,20 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     await waitFor(() => expect(listEstimatesMock).toHaveBeenLastCalledWith(expect.objectContaining({ includeDeleted: true })))
   })
 
+  it('슬래시 문서번호 견적 행 클릭은 404가 아닌 단일 상세 경로로 이동한다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({
+      id: '2026/08/10-9',
+      estimateNo: '2026/08/10-9',
+    })]))
+
+    renderPage()
+
+    const row = await screen.findByTestId('estimate-list-row-2026/08/10-9')
+    fireEvent.click(row)
+
+    expect(navigateMock).toHaveBeenCalledWith('/sales/estimates/2026%2F08%2F10-9')
+  })
+
   it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {
     listEstimatesMock.mockImplementation(async (options) => ({
       ...pageOf([estimateRow({ id: options.includeDeleted ? `deleted-${options.page}` : `active-${options.page}` })]),

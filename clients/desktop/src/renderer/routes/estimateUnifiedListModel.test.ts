@@ -104,7 +104,7 @@ describe('통합 견적서 목록 모델', () => {
   it('모든 행에 저장 출처를 표시한다', () => {
     const result = mergeEstimateAndOrderRows(
       [{
-        id: 'estimate-1', estimateNo: 'Q-1', estimateDate: '2026-08-01', status: 'QUOTE_DRAFT',
+        id: 'estimate-1', estimateNo: '2026/08/01-1', estimateDate: '2026-08-01', status: 'QUOTE_DRAFT',
         partnerName: '데스크톱 견적', totalAmount: '100', requesterId: null, isDeleted: false,
       }],
       [{
