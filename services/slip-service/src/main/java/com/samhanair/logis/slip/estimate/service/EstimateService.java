@@ -18,6 +18,7 @@ import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateResponse;
 import com.samhanair.logis.slip.estimate.web.dto.UpdateEstimateRequest;
+import com.samhanair.logis.slip.estimate.web.dto.OpaqueUuidCodec;
 import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
@@ -524,6 +525,11 @@ public class EstimateService {
         try {
             return UUID.fromString(id);
         } catch (IllegalArgumentException ignored) {
+            try {
+                return OpaqueUuidCodec.decode(id);
+            } catch (IllegalArgumentException ignoredOpaqueToken) {
+                // Legacy document-number URLs remain readable during migration.
+            }
             String canonicalEstimateNo = toSlashDocumentNo(id);
             return estimateRepository.findByEstimateNo(id)
                     .or(() -> estimateRepository.findByEstimateNo(canonicalEstimateNo))

@@ -30,7 +30,7 @@ public record EstimateReadResponse(
 
     public static EstimateReadResponse from(EstimateResponse response) {
         return new EstimateReadResponse(
-                response.estimateNo(), response.estimateNo(), response.estimateDate(), response.seqNo(),
+                OpaqueUuidCodec.encode(response.id()), response.estimateNo(), response.estimateDate(), response.seqNo(),
                 response.status(), response.partnerName(), response.partnerBusinessNo(), response.validUntil(),
                 response.totalSupply(), response.totalVat(), response.totalAmount(), response.sentAt(),
                 response.acceptedAt(), response.convertedAt(), response.version(), response.isDeleted(),
