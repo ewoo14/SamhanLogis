@@ -110,7 +110,10 @@ export function SalesPartnerOrderListPage() {
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
     const values: Record<string, string> = { dateFrom, dateTo, partnerId, status: statusFilter, slipPublishStatus: slipPublishStatusFilter, keyword: searchKeyword }
-    for (const [key, value] of Object.entries(values)) value ? next.set(key, value) : next.delete(key)
+    for (const [key, value] of Object.entries(values)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
     if (includeDeleted) next.set('includeDeleted', 'true')
     else next.delete('includeDeleted')
     if (page > 0) next.set('page', String(page))
