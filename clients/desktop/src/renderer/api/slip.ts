@@ -248,6 +248,15 @@ export interface SlipDetail extends SlipSummary {
   deliveryScheduleLabel?: string | null
 }
 
+/** 검수완료 전표 되돌림 가능성 — 실행 없이 읽기 전용으로만 조회한다. */
+export interface SlipRevertability {
+  slipNo: string
+  revertable: boolean
+  reasonCodes: string[]
+  reasons: string[]
+  userVisibleText: string
+}
+
 /**
  * 세트 전개 옵션 — BE `BundleSetOptions` (estimate/web/dto) 와 1:1.
  *
@@ -567,6 +576,14 @@ export async function listSlips(
  */
 export async function getSlip(id: string): Promise<SlipDetail> {
   const res = await apiClient.get<ApiEnvelope<SlipDetail>>(`/slips/${id}`)
+  return res.data.data
+}
+
+/** 상태·재고·후속 연결을 변경하지 않는 되돌림 preflight 조회. */
+export async function getSlipRevertability(id: string): Promise<SlipRevertability> {
+  const res = await apiClient.get<ApiEnvelope<SlipRevertability>>(
+    `/slips/${encodeURIComponent(id)}/revertability`,
+  )
   return res.data.data
 }
 

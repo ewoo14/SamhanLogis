@@ -16,6 +16,8 @@ import org.springframework.data.repository.query.Param;
  */
 public interface StockLotRepository extends JpaRepository<StockLot, UUID> {
 
+    long countByLotNoAndIsDeletedFalse(String lotNo);
+
     /**
      * FIFO 차감 후보 lot 들을 받는다 — AVAILABLE 상태 + soft-delete 제외 + receivedAt ASC 정렬.
      * StockService.deduct 가 순회하며 가장 오래된 lot 부터 소진. SOLD_OUT/IN_TRANSIT 은 제외.

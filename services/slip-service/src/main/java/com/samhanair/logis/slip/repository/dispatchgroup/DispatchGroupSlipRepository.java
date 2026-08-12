@@ -10,5 +10,6 @@ public interface DispatchGroupSlipRepository extends JpaRepository<DispatchGroup
     List<DispatchGroupSlip> findAllByGroupIdAndIsDeletedFalseOrderBySequenceAsc(UUID groupId);
     Optional<DispatchGroupSlip> findByGroupIdAndSlipIdAndIsDeletedFalse(UUID groupId, UUID slipId);
     boolean existsBySlipIdAndIsDeletedFalse(UUID slipId);
+    Optional<DispatchGroupSlip> findFirstBySlipIdAndIsDeletedFalse(UUID slipId);
     boolean existsByGroupIdAndSlipIdAndIsDeletedFalse(UUID groupId, UUID slipId);
 }

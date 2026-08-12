@@ -24,6 +24,10 @@ import org.springframework.data.repository.query.Param;
  */
 public interface StockInstanceRepository extends JpaRepository<StockInstance, UUID> {
 
+    long countByInboundSlipNoAndIsDeletedFalse(String inboundSlipNo);
+
+    long countByOutboundSlipNoAndIsDeletedFalse(String outboundSlipNo);
+
     /** 모델명 전환 이후 product UUID로 AVAILABLE FIFO 후보를 조회한다. */
     List<StockInstance> findByProductIdAndStatusOrderByReceivedAtAsc(
             UUID productId, StockInstanceStatus status);

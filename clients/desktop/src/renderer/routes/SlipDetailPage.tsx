@@ -61,6 +61,7 @@ import {
   createBundleInstanceKey,
   emptyBundleSetOptions,
   getSlip,
+  getSlipRevertability,
   removeLine,
   transitionSlip,
   updatePurchaseSlip,
@@ -68,6 +69,7 @@ import {
   updateSlipDriver,
   type ExpandedSlipLine,
   type SlipDetail,
+  type SlipRevertability,
   type SlipLineInput,
   type SlipSourceType,
   type SlipTransitionAction,
@@ -1877,6 +1879,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       )
     },
     enabled: isOutbound && salesSlipLedgerRequest !== null,
+    retry: false,
+  })
+  const revertabilityQuery = useQuery<SlipRevertability>({
+    queryKey: ['slip-revertability', id, detailQuery.data?.updatedAt],
+    queryFn: () => getSlipRevertability(id),
+    enabled: !!id && detailQuery.data?.status === 'COMPLETED',
     retry: false,
   })
   const productPresenceQuery = useQuery({
@@ -4469,6 +4477,24 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             ? '회계 마감으로 잠긴 전표입니다. 취소·반려를 포함한 변경은 409로 차단됩니다.'
             : `현재 단계(${slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 물리 종결 전 단계에서만 권한자 수정 또는 삭제 요청이 가능합니다.`}
         </div>
+      ) : null}
+
+      {slip.status === 'COMPLETED' && revertabilityQuery.data ? (
+        <Card padding={4} shadow="sm" style={{ marginTop: 16 }} data-testid="slip-revertability-card">
+          <h4 style={{ marginTop: 0 }}>되돌림 가능성</h4>
+          <div
+            role="status"
+            data-testid="slip-revertability-result"
+            style={{ color: revertabilityQuery.data.revertable ? 'var(--color-success-700, #15803D)' : 'var(--color-danger-700, #B91C1C)' }}
+          >
+            {revertabilityQuery.data.revertable ? '현재 되돌림 가능' : '현재 되돌릴 수 없음'}
+          </div>
+          {!revertabilityQuery.data.revertable ? (
+            <ul data-testid="slip-revertability-reasons" style={{ marginBottom: 0 }}>
+              {revertabilityQuery.data.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+            </ul>
+          ) : null}
+        </Card>
       ) : null}
 
       {deletedProductWarningIds.length > 0 ? (
