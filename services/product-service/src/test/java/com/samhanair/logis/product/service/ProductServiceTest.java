@@ -1026,6 +1026,44 @@ class ProductServiceTest {
     }
 
     @Test
+    void getByModelName_whenAuditUuidCannotBeResolved_preservesUnknownActorMarker() {
+        String missingUserUuid = "11111111-1111-4111-8111-111111111111";
+        ReflectionTestUtils.setField(product, "createdBy", missingUserUuid);
+        ReflectionTestUtils.setField(product, "modifiedBy", missingUserUuid);
+        when(productRepository.findByModelNameAndIsDeletedFalse("SHA-W15K"))
+                .thenReturn(Optional.of(product));
+        when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId))
+                .thenReturn(List.of());
+        when(userInternalClient.resolveDisplayName(missingUserUuid)).thenReturn(Optional.empty());
+
+        ProductResponse response = service.getByModelName("SHA-W15K");
+
+        assertThat(response.createdBy()).isNotNull().isNotBlank();
+        assertThat(response.modifiedBy()).isNotNull().isNotBlank();
+        assertThat(response.createdBy()).doesNotContain(missingUserUuid);
+        assertThat(response.modifiedBy()).doesNotContain(missingUserUuid);
+    }
+
+    @Test
+    void getByModelName_whenAuditValueIsMigrationMarker_preservesSystemMeaning() {
+        String migrationMarker = "V38__PRODUCT_CATEGORY_BACKFILL";
+        ReflectionTestUtils.setField(product, "createdBy", "system");
+        ReflectionTestUtils.setField(product, "modifiedBy", migrationMarker);
+        when(productRepository.findByModelNameAndIsDeletedFalse("SHA-W15K"))
+                .thenReturn(Optional.of(product));
+        when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId))
+                .thenReturn(List.of());
+        when(userInternalClient.resolveDisplayName("system")).thenReturn(Optional.empty());
+        when(userInternalClient.resolveDisplayName(migrationMarker)).thenReturn(Optional.empty());
+
+        ProductResponse response = service.getByModelName("SHA-W15K");
+
+        assertThat(response.createdBy()).isNotNull().isNotBlank();
+        assertThat(response.modifiedBy()).isNotNull().isNotBlank();
+        assertThat(response.modifiedBy()).contains("V38__PRODUCT_CATEGORY_BACKFILL");
+    }
+
+    @Test
     void getByModelName_setComponent_returnsEditRoundTripFields() {
         product.changeModelCode("IDU-001");
         product.changeProductCategory(ProductCategory.SINGLE_PART);

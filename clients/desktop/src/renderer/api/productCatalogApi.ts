@@ -206,6 +206,11 @@ export interface ProductDetailResponse {
   releasePrice: string | number | null
   deliveryPrice: string | number | null
   goodsType: ProductGoodsType | null
+  /** 감사 표시용 작성자 이름/시스템 표식 — 내부 UUID는 포함하지 않는다. */
+  createdAt?: string | null
+  createdBy?: string | null
+  modifiedAt?: string | null
+  modifiedBy?: string | null
   specs?: ProductSpecResponse[] | null
 }
 

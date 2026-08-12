@@ -1038,8 +1038,8 @@ public class ProductService {
 
     private ProductResponse toResponse(Product product) {
         List<ProductSpecResponse> specs = specResponses(product);
-        String createdBy = userInternalClient.resolveDisplayName(product.getCreatedBy()).orElse(null);
-        String modifiedBy = userInternalClient.resolveDisplayName(product.getModifiedBy()).orElse(null);
+        String createdBy = resolveAuditDisplayValue(product.getCreatedBy());
+        String modifiedBy = resolveAuditDisplayValue(product.getModifiedBy());
         if (product.getProductType() == ProductType.BUNDLE) {
             return ProductResponse.from(product, ProductItemKind.SET, null, null, specs, createdBy, modifiedBy);
         }
@@ -1053,6 +1053,25 @@ public class ProductService {
                     specs, createdBy, modifiedBy);
         }
         return ProductResponse.from(product, ProductItemKind.GENERAL, null, null, specs, createdBy, modifiedBy);
+    }
+
+    /** 감사 원천값은 잃지 않되 UUID는 공개하지 않는다. 표시 후보 문구는 이 경계 한 곳에서 교체한다. */
+    private String resolveAuditDisplayValue(String auditValue) {
+        if (auditValue == null || auditValue.isBlank()) {
+            return "감사 주체 미상";
+        }
+        return userInternalClient.resolveDisplayName(auditValue)
+                .orElseGet(() -> {
+                    if (UserInternalClient.isSystemMarker(auditValue)) {
+                        return "시스템 작업 (" + auditValue.trim() + ")";
+                    }
+                    try {
+                        UUID.fromString(auditValue.trim());
+                        return "사용자 미상";
+                    } catch (IllegalArgumentException ignored) {
+                        return "사용자 미상";
+                    }
+                });
     }
 
     /** 제품 등록/수정 화면의 동적 사양을 ProductSpec 1:N row 로 저장한다. */

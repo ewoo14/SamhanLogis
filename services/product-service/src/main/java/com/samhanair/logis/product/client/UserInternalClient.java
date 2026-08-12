@@ -30,7 +30,7 @@ public class UserInternalClient {
         this.objectMapper = objectMapper;
     }
 
-    /** UUID 감사값을 직원 fullName으로 바꾼다. UUID가 아닌 기존 seed 값은 그대로 보존한다. */
+    /** UUID 감사값을 직원 fullName으로 바꾼다. UUID가 아닌 기존 사람 표식은 그대로 보존한다. */
     public Optional<String> resolveDisplayName(String auditValue) {
         if (auditValue == null || auditValue.isBlank()) {
             return Optional.empty();
@@ -39,6 +39,9 @@ public class UserInternalClient {
         try {
             userId = UUID.fromString(auditValue);
         } catch (IllegalArgumentException ignored) {
+            if (isSystemMarker(auditValue)) {
+                return Optional.empty();
+            }
             return Optional.of(auditValue);
         }
         String token = authProperties.getToken();
@@ -60,5 +63,15 @@ public class UserInternalClient {
         } catch (Exception ignored) {
             return Optional.empty();
         }
+    }
+
+    /** 사람이 아닌 저장 표식은 호출자가 시스템 작업으로 표시할 수 있도록 해석 실패로 구분한다. */
+    public static boolean isSystemMarker(String auditValue) {
+        String value = auditValue == null ? "" : auditValue.trim();
+        return value.equalsIgnoreCase("system")
+                || value.equalsIgnoreCase("qa-seed")
+                || value.matches("(?i)^V\\d+__.*")
+                || value.matches("(?i).*(_MIGRATION|_BACKFILL)$")
+                || value.matches("(?i).*\\b(MIGRATION|BACKFILL|SEED)\\b.*");
     }
 }

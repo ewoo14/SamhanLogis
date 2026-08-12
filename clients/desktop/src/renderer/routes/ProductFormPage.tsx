@@ -593,6 +593,19 @@ export function ProductFormPage() {
             data-testid="product-form-unit"
           />
         </div>
+
+        {mode === 'edit' && editSeedQuery.data?.detail ? (
+          <div className="mobile-form-grid" style={gridStyle} aria-label="감사 정보">
+            <div style={auditFieldStyle} data-testid="product-form-created-by">
+              <span style={labelStyle}>작성자</span>
+              <span>{editSeedQuery.data.detail.createdBy ?? '감사 주체 미상'}</span>
+            </div>
+            <div style={auditFieldStyle} data-testid="product-form-modified-by">
+              <span style={labelStyle}>수정자</span>
+              <span>{editSeedQuery.data.detail.modifiedBy ?? '감사 주체 미상'}</span>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {mode === 'edit' && editSeedQuery.data?.summary.productType === 'BUNDLE' ? (
@@ -1047,6 +1060,15 @@ const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 14,
   color: 'var(--color-neutral-800, #1F2937)',
+}
+
+const auditFieldStyle: CSSProperties = {
+  display: 'grid',
+  gap: 6,
+  minHeight: 38,
+  alignContent: 'center',
+  color: 'var(--color-neutral-800, #1F2937)',
+  fontSize: 13,
 }
 
 const sectionHeaderStyle: CSSProperties = {

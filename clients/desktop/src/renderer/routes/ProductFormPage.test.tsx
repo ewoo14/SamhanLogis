@@ -172,6 +172,10 @@ function seedFor(modelCode: string): {
     releasePrice: '900000',
     deliveryPrice: '20000',
     goodsType: 'GOODS',
+    createdAt: '2026-08-13T00:00:00',
+    createdBy: '작성자 이름',
+    modifiedAt: '2026-08-13T01:00:00',
+    modifiedBy: '수정자 이름',
     specs: [],
   }
   const summary: ProductSummaryResponse = {
@@ -215,6 +219,19 @@ afterEach(() => {
 })
 
 describe('ProductFormPage', () => {
+  it('편집 상세의 기본 정보 영역에 만든 사람과 고친 사람을 표시한다', async () => {
+    const seed = seedFor('AUDIT-SURFACE-1143')
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+
+    renderPage('/products/AUDIT-SURFACE-1143/edit')
+
+    await screen.findByTestId('product-form-model-name')
+    expect(screen.getByTestId('product-form-created-by').textContent).toContain('작성자 이름')
+    expect(screen.getByTestId('product-form-modified-by').textContent).toContain('수정자 이름')
+  })
+
   it('shows the component count and does not save when set-to-single confirmation is cancelled', async () => {
     const seed = seedFor('SET-1108')
     seed.summary.productType = 'BUNDLE'
