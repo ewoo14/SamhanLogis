@@ -1,0 +1,36 @@
+[31mUnable to resolve `@import "@samhan/design-system/style.css"` from C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/src/renderer/styles[39m
+[2mPM 6:53:00[22m [31m[1m[vite][22m[39m [31mInternal server error: [postcss] ENOENT: no such file or directory, open 'C:\dev\Samhan-Public\.claude\worktrees\w1085\clients\desktop\@samhan\design-system\style.css'[39m
+  Plugin: [35mvite:css[39m
+  File: [36mC:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/src/renderer/styles/global.css[39m:undefined:NaN
+      at async open (node:internal/fs/promises:640:25)
+      at async Object.readFile (node:internal/fs/promises:1287:14)
+      at async Object.load (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36835:25)
+      at async loadImportContent (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BB45zftN.js:844:19)
+      at async Promise.all (index 0)
+      at async resolveImportId (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BB45zftN.js:800:27)
+      at async parseStyles$1 (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BB45zftN.js:708:5)
+      at async Object.Once (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BB45zftN.js:965:22)
+      at async LazyResult.runAsync (C:\dev\Samhan-Public\.claude\worktrees\w1085\clients\desktop\node_modules\postcss\lib\lazy-result.js:293:11)
+      at async compileCSS (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36898:21)
+      at async TransformPluginContext.transform (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36171:11)
+      at async PluginContainer.transform (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+[2mPM 6:53:00[22m [31m[1m[vite][22m[39m Pre-transform error: [postcss] ENOENT: no such file or directory, open 'C:\dev\Samhan-Public\.claude\worktrees\w1085\clients\desktop\@samhan\design-system\style.css'
+[31mUnable to resolve `@import "@samhan/design-system/style.css"` from C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/src/renderer/styles[39m
+[2mPM 6:53:42[22m [31m[1m[vite][22m[39m [31mInternal server error: [postcss] ENOENT: no such file or directory, open 'C:\dev\Samhan-Public\.claude\worktrees\w1085\clients\desktop\@samhan\design-system\style.css'[39m
+  Plugin: [35mvite:css[39m
+  File: [36mC:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/src/renderer/styles/global.css[39m:undefined:NaN
+      at async open (node:internal/fs/promises:640:25)
+      at async Object.readFile (node:internal/fs/promises:1287:14)
+      at async Object.load (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36835:25)
+      at async loadImportContent (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BB45zftN.js:844:19)
+      at async Promise.all (index 0)
+      at async resolveImportId (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BB45zftN.js:800:27)
+      at async parseStyles$1 (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BB45zftN.js:708:5)
+      at async Object.Once (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BB45zftN.js:965:22)
+      at async LazyResult.runAsync (C:\dev\Samhan-Public\.claude\worktrees\w1085\clients\desktop\node_modules\postcss\lib\lazy-result.js:293:11)
+      at async compileCSS (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36898:21)
+      at async TransformPluginContext.transform (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36171:11)
+      at async PluginContainer.transform (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+      at async viteTransformMiddleware (file:///C:/dev/Samhan-Public/.claude/worktrees/w1085/clients/desktop/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:62106:24)

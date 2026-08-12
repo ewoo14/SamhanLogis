@@ -128,4 +128,17 @@ class ProductSummaryResponseTest {
         assertThat(response.fixedDiscountRate()).isEqualByComparingTo("15");
         assertThat(response.fixedDiscountSource()).isEqualTo("S");
     }
+
+    @Test
+    void lookupResponseDoesNotExposeInternalClassificationAssignedState() throws Exception {
+        Product product = mock(Product.class);
+        Category category = mock(Category.class);
+        when(product.getCategory()).thenReturn(category);
+        when(category.getId()).thenReturn(UUID.randomUUID());
+
+        var json = new ObjectMapper().readTree(
+                new ObjectMapper().writeValueAsString(ProductSummaryResponse.from(product)));
+
+        assertThat(json.has("classificationAssigned")).isFalse();
+    }
 }

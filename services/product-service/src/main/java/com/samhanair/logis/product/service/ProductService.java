@@ -764,6 +764,7 @@ public class ProductService {
                 product.getGoodsType() == null ? null : product.getGoodsType().name());
 
         product.markClassificationManual(catL, catM, catS);
+        product.carryForwardLegacyDiscountOption();
 
         return product;
     }

@@ -45,25 +45,25 @@ class EstimateControllerSecurityContractTest {
                         "create", CreateEstimateRequest.class, String.class, String.class),
                         PermissionAction.CREATE),
                 new WriteMethod(EstimateController.class.getMethod(
-                        "update", UUID.class, UpdateEstimateRequest.class, String.class, String.class),
+                        "update", String.class, UpdateEstimateRequest.class, String.class, String.class),
                         PermissionAction.UPDATE),
                 new WriteMethod(EstimateController.class.getMethod(
-                        "send", UUID.class, String.class),
+                        "send", String.class, String.class),
                         PermissionAction.UPDATE),
                 new WriteMethod(EstimateController.class.getMethod(
-                        "accept", UUID.class, String.class),
+                        "accept", String.class, String.class),
                         PermissionAction.UPDATE),
                 new WriteMethod(EstimateController.class.getMethod(
-                        "reject", UUID.class, String.class),
+                        "reject", String.class, String.class),
                         PermissionAction.UPDATE),
                 new WriteMethod(EstimateController.class.getMethod(
-                        "convert", UUID.class, String.class),
+                        "convert", String.class, String.class),
                         PermissionAction.UPDATE),
                 new WriteMethod(EstimateController.class.getMethod(
-                        "delete", UUID.class, String.class, String.class),
+                        "delete", String.class, String.class, String.class),
                         PermissionAction.DELETE),
                 new WriteMethod(EstimateController.class.getMethod(
-                        "restore", UUID.class),
+                        "restore", String.class),
                         PermissionAction.RESTORE)
         );
 
@@ -75,7 +75,8 @@ class EstimateControllerSecurityContractTest {
             assertThat(annotation.action()).isEqualTo(writeMethod.action());
             assertThat(Arrays.stream(method.getParameterTypes()).filter(String.class::equals).count())
                     .as(method.getName() + " String header count")
-                    .isLessThanOrEqualTo(2);
+                    // opaque-token 전환으로 path variable도 String이므로 path + 최대 2개 header를 허용한다.
+                    .isLessThanOrEqualTo(3);
         }
     }
 

@@ -3,12 +3,13 @@ package com.samhanair.logis.slip.estimate.web.dto;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /** 견적 라인 응답. */
 public record EstimateLineResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         int lineNo,
-        UUID productId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID productId,
         String productName,
         String modelName,
         String specification,

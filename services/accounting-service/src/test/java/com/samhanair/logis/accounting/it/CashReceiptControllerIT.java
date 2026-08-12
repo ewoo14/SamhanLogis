@@ -19,6 +19,7 @@ import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CashReceipt;
+import com.samhanair.logis.accounting.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.accounting.service.Mig9AgingSnapshotRefreshService;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import jakarta.persistence.EntityManager;
@@ -251,10 +252,10 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.sourceRefId").value(defaultReceiptId))
+                .andExpect(jsonPath("$.data.sourceRefId").value(opaque(defaultReceiptId)))
                 // #772 fix — 원분개도 전용 cashReceiptId 를 노출한다 (아래 cancelCreatesReversalAnd
                 // ExposesReverseJournalNo 의 역분개 cashReceiptId 검증과의 대칭성).
-                .andExpect(jsonPath("$.data.cashReceiptId").value(defaultReceiptId))
+                .andExpect(jsonPath("$.data.cashReceiptId").value(opaque(defaultReceiptId)))
                 .andExpect(jsonPath("$.data.cashReceiptSlipNo").value(defaultSlipNo));
 
         Map<String, Object> overrideBody = createBody("62000");
@@ -312,10 +313,11 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.cashReceiptId").value(receiptId))
+                .andExpect(jsonPath("$.data.cashReceiptId").value(opaque(receiptId)))
                 .andExpect(jsonPath("$.data.cashReceiptSlipNo").value(slipNo))
-                .andExpect(jsonPath("$.data.sourceRefId").value(originalJournalId.toString()))
-                .andExpect(jsonPath("$.data.cashReceiptId").value(org.hamcrest.Matchers.not(originalJournalId.toString())));
+                .andExpect(jsonPath("$.data.sourceRefId").value(opaque(originalJournalId.toString())))
+                .andExpect(jsonPath("$.data.cashReceiptId")
+                        .value(org.hamcrest.Matchers.not(opaque(originalJournalId.toString()))));
     }
 
     @Test
@@ -983,6 +985,10 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         MvcResult result = createReceipt(createBody(amount));
         return objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .get("data").get("slipNo").asText();
+    }
+
+    private static String opaque(String uuid) {
+        return OpaqueUuidSerializer.encode(UUID.fromString(uuid));
     }
 
     private MvcResult createReceipt(Map<String, Object> body) throws Exception {

@@ -45,7 +45,7 @@ describe('EstimatePresenceClient', () => {
     await expect(EstimatePresenceClient.list('estimate/1')).resolves.toEqual([])
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/api/v1/slips/estimates/estimate%2F1/collab/presence',
+      '/api/v1/slips/estimates/estimate-1/collab/presence',
       { headers: { 'X-User-Id': 'actor-1' } },
     )
   })
@@ -63,7 +63,7 @@ describe('EstimatePresenceClient', () => {
     })).resolves.toMatchObject({ sessionId: 'session-1' })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      '/api/v1/slips/estimates/estimate%2F1/collab/presence/join',
+      '/api/v1/slips/estimates/estimate-1/collab/presence/join',
       { sessionId: 'session-1', displayName: '담당자' },
       { headers: { 'X-User-Id': 'actor-1' }, signal: undefined },
     )
@@ -72,7 +72,7 @@ describe('EstimatePresenceClient', () => {
       ([config]) => config.name === 'estimate-presence',
     )?.[0]
     expect(estimatePresenceConfig?.endpointPath('estimate/1')).toBe(
-      '/api/v1/slips/estimates/estimate%2F1/collab/stream',
+      '/api/v1/slips/estimates/estimate-1/collab/stream',
     )
   })
 })

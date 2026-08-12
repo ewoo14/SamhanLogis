@@ -31,6 +31,12 @@ export interface Account {
   name: string
   /** 카테고리 prefix (`100` / `200` / `300` / `400` / `500` / `800` / `900`). */
   category: string
+  /** 정찰 보고서가 직접 확인한 이카운트 정본 코드. 미정/미확인 계정은 null. */
+  ecountCode?: string | null
+  /** 백엔드의 정본 판정 상태. */
+  mappingStatus?: 'MAPPED' | 'UNDETERMINED' | 'UNMAPPED'
+  /** 화면 표시용 정본 상태 또는 이카운트 코드. */
+  mappingLabel?: string
 }
 
 export interface AccountCodeSelectProps {

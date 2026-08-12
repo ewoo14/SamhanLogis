@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.slip.estimate.snapshot.service.QuoteSnapshotService;
 import com.samhanair.logis.slip.estimate.snapshot.web.dto.QuoteSnapshotResponse;
 import com.samhanair.logis.slip.estimate.snapshot.web.dto.SaveQuoteSnapshotRequest;
+import com.samhanair.logis.slip.estimate.snapshot.web.dto.WebQuoteSnapshotListResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -85,6 +86,14 @@ public class QuoteSnapshotController {
             @RequestParam(name = "startDate", required = false) String startDate,
             @RequestParam(name = "endDate", required = false) String endDate) {
         return ApiResponse.ok(quoteSnapshotService.history(userEmail, startDate, endDate));
+    }
+
+    /** 데스크톱 통합 목록용 UUID-free 메타데이터 조회. */
+    @GetMapping("/desktop-list")
+    public ApiResponse<List<WebQuoteSnapshotListResponse>> desktopList(
+            @RequestParam(name = "startDate", required = false) String startDate,
+            @RequestParam(name = "endDate", required = false) String endDate) {
+        return ApiResponse.ok(quoteSnapshotService.desktopList(startDate, endDate));
     }
 
     /**

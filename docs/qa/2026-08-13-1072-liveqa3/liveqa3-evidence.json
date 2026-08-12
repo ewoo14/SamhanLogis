@@ -1,0 +1,142 @@
+{
+  "branch": "feat/1072-1144-accounting-canon",
+  "readOnly": true,
+  "listPages": 7,
+  "journalCount": 133,
+  "listUuidCount": 0,
+  "detailCount": 133,
+  "detailUuidCount": 0,
+  "lineUuidCount": 0,
+  "confirmedMappings": {
+    "110": "1089",
+    "401": "4019"
+  },
+  "undetermined": [
+    {
+      "code": "103",
+      "label": "미정"
+    },
+    {
+      "code": "104",
+      "label": "미정"
+    },
+    {
+      "code": "105",
+      "label": "미정"
+    },
+    {
+      "code": "142",
+      "label": "미정"
+    },
+    {
+      "code": "201",
+      "label": "미정"
+    },
+    {
+      "code": "210",
+      "label": "미정"
+    },
+    {
+      "code": "220",
+      "label": "미정"
+    },
+    {
+      "code": "255",
+      "label": "미정"
+    },
+    {
+      "code": "900",
+      "label": "미정"
+    },
+    {
+      "code": "919",
+      "label": "미정"
+    }
+  ],
+  "tokenConsistency": true,
+  "tokenScreenExposure": 0,
+  "questionCount": 0,
+  "collabResponses": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5318/accounting/journals/<opaque-token>/collab/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5318/accounting/journals/<opaque-token>/collab/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/comments?limit=20",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/edits",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence",
+      "status": 200
+    }
+  ],
+  "blockedWrites": [
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/leave"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/join"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/logs/front"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/leave"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/leave"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/join"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/leave"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/leave"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/join"
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence/leave"
+    }
+  ],
+  "screenshots": [
+    "01-A3-detail-network-comments-presence-edits-stream-all-200.png",
+    "02-A4-comments-and-edit-history-visible-empty-states.png",
+    "03-B8-amount-db-gui-match-2026-04-05-1.png",
+    "04-B8-amount-db-gui-match-2026-04-10-1.png",
+    "05-B8-amount-db-gui-match-2026-12-31-1.png",
+    "06-B5-B6-B7-B9-B10-B11-numeric-summary.png",
+    "07-cashreceipt-cancel-confirm-existing-results-readonly.png"
+  ]
+}

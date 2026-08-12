@@ -39,6 +39,7 @@ const harness = vi.hoisted(() => ({
     sellingPrice: '1000',
     modelCode: 'A',
     categoryKey: 'homemulti',
+    discountOption: 'THREE_SIXTY',
     hasVariableDiscount: true,
   },
   productB: {
@@ -75,6 +76,7 @@ const harness = vi.hoisted(() => ({
     sellingPrice: '10000',
     modelCode: 'SET-1',
     categoryKey: 'homemulti',
+    discountOption: 'THREE_SIXTY',
     hasVariableDiscount: true,
   },
 }))

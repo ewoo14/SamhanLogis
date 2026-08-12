@@ -136,7 +136,7 @@ class LedgerControllerIT extends AbstractPostgresIT {
     // 헬퍼
     // -----------------------------------------------------------------------
 
-    private UUID createPostedJournal(String amount) throws Exception {
+    private String createPostedJournal(String amount) throws Exception {
         Map<String, Object> body = balancedJournalBody(amount);
         String created = mockMvc.perform(post("/accounting/journals")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -155,7 +155,8 @@ class LedgerControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
-        return UUID.fromString(id);
+        // PR-1072 opaque token 응답 계약: 이후 mutation path에는 token을 그대로 전달한다.
+        return id;
     }
 
     private Map<String, Object> balancedJournalBody(String amount) {

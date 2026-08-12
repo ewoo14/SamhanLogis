@@ -84,6 +84,7 @@ import {
   decodeEstimateSpecification,
 } from '../utils/estimateSpecificationProvenance'
 import { hydrateCurrentProductStatuses, isQuantityEditable } from '../utils/estimateLineStatus'
+import { toOrderPathId } from '../utils/orderNo'
 
 let __lineUidCounter = 0
 const nextLineUid = (): string => `est-line-${++__lineUidCounter}`
@@ -1000,7 +1001,7 @@ export function EstimateFormPage() {
 
     void createDocCoeditProvider({
       documentId: editId,
-      basePath: `/slips/estimates/${editId}`,
+      basePath: `/slips/estimates/${toOrderPathId(editId)}`,
       headerTextFields: ESTIMATE_HEADER_TEXT_FIELDS,
     }).then((nextProvider) => {
       if (disposed) {

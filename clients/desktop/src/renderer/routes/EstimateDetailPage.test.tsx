@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -49,7 +49,7 @@ const changeEstimateOwnerMock = vi.mocked(changeEstimateOwner)
 const searchApprovalLineUsersMock = vi.mocked(searchApprovalLineUsers)
 
 const estimate = {
-  id: 'estimate-1',
+  id: '2026/08/10-9',
   estimateNo: '2026/08/08-1',
   estimateDate: '2026-08-08',
   seqNo: 1,
@@ -86,6 +86,7 @@ function renderPage() {
       <MemoryRouter initialEntries={['/sales/estimates/estimate-1']}>
         <Routes>
           <Route path="/sales/estimates/:id" element={<EstimateDetailPage />} />
+          <Route path="/sales/estimates/:id/edit" element={<div data-testid="estimate-edit-page" />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -102,7 +103,7 @@ describe('EstimateDetailPage 담당 변경', () => {
     changeEstimateOwnerMock.mockResolvedValue({ ...estimate, requesterId: 'owner-2', requesterName: '이담당' })
   })
 
-  afterEach(() => vi.clearAllMocks())
+  afterEach(() => { cleanup(); vi.clearAllMocks() })
 
   it('담당자 이름을 표시하고 선택한 UUID를 owner endpoint에만 전달한다', async () => {
     renderPage()
@@ -128,5 +129,36 @@ describe('EstimateDetailPage 담당 변경', () => {
     fireEvent.click(await screen.findByRole('button', { name: '이담당' }))
 
     expect((await screen.findByRole('alert')).textContent).toContain('주문서 계열은 견적서 담당 변경 대상이 아닙니다')
+  })
+})
+
+describe('EstimateDetailPage identifier axis', () => {
+  beforeEach(() => {
+    getEstimateMock.mockResolvedValue(estimate)
+  })
+
+  afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+  it('상세의 편집 클릭은 슬래시 문서번호가 아닌 opaque token SPA 경로로 이동한다', async () => {
+    renderPage()
+
+    fireEvent.click((await screen.findAllByTestId('estimate-detail-edit-button'))[0])
+
+    expect(await screen.findByTestId('estimate-edit-page')).toBeTruthy()
+  })
+
+  it('인쇄 deep-link도 원본 문서번호가 아닌 opaque token을 URL 식별자로 사용한다', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    getEstimateMock.mockResolvedValue({ ...estimate, id: 'opaque-estimate-token' })
+    renderPage()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: '인쇄' }))[0])
+
+    expect(open).toHaveBeenCalledWith(
+      expect.stringContaining('/#/sales/estimates/opaque-estimate-token/print'),
+      '_blank',
+      'width=900,height=1200',
+    )
+    open.mockRestore()
   })
 })

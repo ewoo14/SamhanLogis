@@ -1362,6 +1362,13 @@ export function AppLayout() {
              * 라우트(/chat · /chat/:roomCode)는 개발·QA 용으로 살려 둔다.
              */}
             <SidebarLink
+              to="/chat"
+              show={showMessengerSend}
+              data-testid="sidebar-chat"
+            >
+              채팅
+            </SidebarLink>
+            <SidebarLink
               to="/admin/chat-rooms"
               show={showChatRoomAdmin}
               requiredRole="MASTER / MANAGER"
