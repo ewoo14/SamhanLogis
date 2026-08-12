@@ -28,7 +28,7 @@ import {
   inputStyle,
   pageRootStyle,
 } from './accounting/admin/Mig14AdminShared'
-import { getScrollAnchor, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
+import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 
 const PAGE_CODE = 'accounting.cash-receipts'
 
@@ -101,13 +101,6 @@ export function CashReceiptListPage() {
     setFilters(applied)
   }, [applied])
 
-  useEffect(() => {
-    const anchor = getScrollAnchor(location.key)
-    if (anchor == null) return
-    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
-    return () => window.cancelAnimationFrame(frame)
-  }, [location.key])
-
   const queryOptions = useMemo(
     () => listCashReceiptQueryOptions(applied, page, PAGE_SIZE),
     [applied, page],
@@ -118,6 +111,8 @@ export function CashReceiptListPage() {
     queryFn: () => listCashReceipts(queryOptions),
     enabled: canView,
   })
+
+  useEffect(() => restoreScrollAnchorWhenReady(location.key, () => query.isFetched), [location.key, query.isFetched])
 
   useEffect(() => {
     if (!query.data || page === 0) return
