@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.discount.LegacyModelFlags;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
@@ -121,7 +122,7 @@ public class PartnerOrderPriceCalculationService {
         for (int i = 0; i < requestLines.size(); i++) {
             ConfirmLineRequest line = requestLines.get(i);
             ProductSummary product = lineProducts.get(i);
-            String discountFlags = optionFlags(product.discountOption());
+            String discountFlags = optionFlags(product);
             BigDecimal fixedDiscountRate = product.fixedDiscountRate() != null
                     ? product.fixedDiscountRate() : fixedDiscountRates.get(product.id());
             BigDecimal listPrice = resolveListPrice(product, line.categoryKey(), fixedDiscountRate);
@@ -215,6 +216,28 @@ public class PartnerOrderPriceCalculationService {
 
     private boolean discountFlag(String flags, int index) {
         return flags != null && flags.length() > index && flags.charAt(index) == '1';
+    }
+
+    /**
+     * #1090 전환 전 데이터 호환 규칙. 분류가 없는 품목에만 레거시 모델코드 옵션을
+     * 임시로 유지하며, classificationAssigned=true가 되는 순간 분류 정본만 사용한다.
+     */
+    private String optionFlags(ProductSummary product) {
+        if (!product.classificationAssigned()) {
+            if (product.discountFlags() != null && product.discountFlags().matches("[01]{6}")
+                    && !"000000".equals(product.discountFlags())) {
+                return product.discountFlags();
+            }
+            LegacyModelFlags flags = LegacyModelFlags.from(
+                    product.modelCode() != null ? product.modelCode() : product.modelName());
+            if (flags.is360()) return "100000";
+            if (flags.is4Way()) return "010000";
+            if (flags.is1Way()) return "001000";
+            if (flags.isStand()) return "000100";
+            if (flags.isDeluxe()) return "000010";
+            if (flags.isFirstGrade()) return "000001";
+        }
+        return optionFlags(product.discountOption());
     }
 
     private String optionFlags(String option) {

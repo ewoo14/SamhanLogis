@@ -42,6 +42,8 @@ export interface ProductOption {
   fixedDiscountSource?: string | null
   /** #1090 분류 정본의 정액DC 옵션 — null 은 미분류/미지정. */
   discountOption?: 'THREE_SIXTY' | 'FOUR_WAY' | 'ONE_WAY' | 'STAND' | 'DELUXE' | 'FIRST_GRADE' | null
+  /** L/M/S 분류가 존재하는지. false일 때만 #1090 전환 호환 fallback을 허용한다. */
+  classificationAssigned?: boolean
   /** 변동DC 적용 자격 — 물리 카테고리 fallback과 별개인 BE 원천 플래그. */
   hasVariableDiscount?: boolean | null
   /** 후보 선택 가능 여부 판정용 product-service 상태. */

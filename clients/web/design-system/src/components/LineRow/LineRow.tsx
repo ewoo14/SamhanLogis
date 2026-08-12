@@ -121,6 +121,8 @@ export interface LineDraft {
   fixedDiscountRate?: number | null
   /** #1090 분류 정본의 정액DC 옵션. */
   discountOption?: 'THREE_SIXTY' | 'FOUR_WAY' | 'ONE_WAY' | 'STAND' | 'DELUXE' | 'FIRST_GRADE' | null
+  /** L/M/S 분류가 존재하는지. false일 때만 #1090 전환 호환 fallback을 허용한다. */
+  classificationAssigned?: boolean
   /** 거래처 전역DC 자격 — 거래처 변경 재가격 시에도 원 품목 자격을 보존한다. */
   hasVariableDiscount?: boolean | null
   /** 적용 규칙 사용자 안내용. */

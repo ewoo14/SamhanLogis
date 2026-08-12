@@ -232,7 +232,8 @@ public class ProductClient {
                         ? null
                         : Boolean.valueOf(m.get("hasVariableDiscount").toString()),
                  (String) m.get("physicalCategoryCode"),
-                 (String) m.get("discountOption"));
+                 (String) m.get("discountOption"),
+                 Boolean.TRUE.equals(m.get("classificationAssigned")));
     }
 
     private String requireToken() {

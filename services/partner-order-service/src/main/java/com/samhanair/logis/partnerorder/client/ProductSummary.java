@@ -31,7 +31,8 @@ public record ProductSummary(
         BigDecimal deliveryPrice,
         Boolean hasVariableDiscount,
         String physicalCategoryCode,
-        String discountOption) {
+        String discountOption,
+        boolean classificationAssigned) {
 
     /**
      * 구 6-arg 호환 생성자 — productType 미제공 기존 호출자/테스트(productType=null).
@@ -46,7 +47,7 @@ public record ProductSummary(
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status) {
         this(id, name, modelName, categoryId, sellingPrice, status, null, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, false);
     }
 
     /**
@@ -63,7 +64,7 @@ public record ProductSummary(
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status, String productType) {
         this(id, name, modelName, categoryId, sellingPrice, status, null, productType, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, false);
     }
 
     /**
@@ -82,7 +83,7 @@ public record ProductSummary(
                           BigDecimal sellingPrice, String status, String modelCode,
                           String productType) {
         this(id, name, modelName, categoryId, sellingPrice, status, modelCode, productType, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, false);
     }
 
     /** 구 9-arg 호환 생성자 — categoryKey 를 포함한 기존 wire-format. */
@@ -90,7 +91,7 @@ public record ProductSummary(
                           BigDecimal sellingPrice, String status, String modelCode,
                           String productType, String categoryKey) {
         this(id, name, modelName, categoryId, sellingPrice, status,
-                modelCode, productType, categoryKey, null, null, null, null, null, null, null, null);
+                modelCode, productType, categoryKey, null, null, null, null, null, null, null, null, false);
     }
 
     /** 구 11-arg 호환 생성자 — 고정DC/옵션 플래그까지 포함한 기존 wire-format. */
@@ -99,7 +100,7 @@ public record ProductSummary(
                           String productType, String categoryKey,
                           BigDecimal fixedDiscountRate, String discountFlags) {
         this(id, name, modelName, categoryId, sellingPrice, status, modelCode, productType,
-                categoryKey, fixedDiscountRate, null, discountFlags, null, null, null, null, null);
+                categoryKey, fixedDiscountRate, null, discountFlags, null, null, null, null, null, false);
     }
 
     /** 물리 제품구분 추가 전 canonical 호출 호환 생성자. */
@@ -111,7 +112,7 @@ public record ProductSummary(
                           Boolean hasVariableDiscount) {
         this(id, name, modelName, categoryId, sellingPrice, status, modelCode, productType,
                 categoryKey, fixedDiscountRate, null, discountFlags, releasePrice, deliveryPrice,
-                hasVariableDiscount, null, null);
+                hasVariableDiscount, null, null, false);
     }
 
     /** fixedDiscountSource 추가 전 canonical 호출 호환 생성자. */
@@ -123,7 +124,7 @@ public record ProductSummary(
                           Boolean hasVariableDiscount, String physicalCategoryCode) {
         this(id, name, modelName, categoryId, sellingPrice, status, modelCode, productType,
                 categoryKey, fixedDiscountRate, null, discountFlags, releasePrice, deliveryPrice,
-                hasVariableDiscount, physicalCategoryCode, null);
+                hasVariableDiscount, physicalCategoryCode, null, false);
     }
 
     /** fixedDiscountSource 를 포함한 기존 wire-format 호환 생성자. */
@@ -135,6 +136,6 @@ public record ProductSummary(
                           Boolean hasVariableDiscount, String physicalCategoryCode) {
         this(id, name, modelName, categoryId, sellingPrice, status, modelCode, productType,
                 categoryKey, fixedDiscountRate, fixedDiscountSource, discountFlags, releasePrice,
-                deliveryPrice, hasVariableDiscount, physicalCategoryCode, null);
+                deliveryPrice, hasVariableDiscount, physicalCategoryCode, null, false);
     }
 }
