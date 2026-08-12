@@ -291,6 +291,17 @@ public class StockInstanceController {
         return ApiResponse.ok(result, "역-FIFO 회수 후보 조회 완료");
     }
 
+    /** UUID를 노출하지 않고 사용자 노출용 시리얼키로 단건 조회한다. */
+    @Operation(summary = "시리얼키 인스턴스 조회", description = "노출용 시리얼키로 재고 인스턴스를 단건 조회.")
+    @GetMapping("/serial")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.VIEW)
+    public ApiResponse<StockInstanceResponse> bySerialKey(
+            @Parameter(description = "사용자 노출용 시리얼키", required = true)
+            @RequestParam String serialKey) {
+        return ApiResponse.ok(StockInstanceResponse.from(stockInstanceService.bySerialKey(serialKey)),
+                "시리얼키 인스턴스 조회 완료");
+    }
+
     /**
      * 품목별 인스턴스 조회 — productId + 상태 필터.
      *

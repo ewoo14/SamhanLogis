@@ -529,6 +529,14 @@ public class StockInstanceService {
                 : byProductId;
     }
 
+    /** UUID가 아닌 사용자 노출용 시리얼키로 활성 인스턴스를 조회한다. */
+    @Transactional(readOnly = true)
+    public StockInstance bySerialKey(String serialKey) {
+        return repo.findBySerialKey(serialKey)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "재고 인스턴스 시리얼키를 찾을 수 없습니다: " + serialKey));
+    }
+
     /**
      * 품목별 인스턴스 조회 — productId + 상태 필터.
      *

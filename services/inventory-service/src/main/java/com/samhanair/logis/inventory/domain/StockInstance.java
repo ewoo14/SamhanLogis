@@ -48,11 +48,19 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class StockInstance extends BaseEntity {
 
+    private static final String SERIAL_CHARSET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+    private static final int SERIAL_RANDOM_LENGTH = 6;
+    private static final java.security.SecureRandom SERIAL_RANDOM = new java.security.SecureRandom();
+
     @Id
     @GeneratedValue
     @UuidGenerator
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
+
+    /** UUID와 분리된 사용자 노출용 시리얼키. QR payload도 후속 슬라이스에서 이 값을 사용한다. */
+    @Column(name = "serial_key", nullable = false, unique = true, length = 9)
+    private String serialKey;
 
     /** product-service products.id 논리 참조 (FK 없음 — MSA cross-DB). */
     @Column(name = "product_id", nullable = false)
@@ -69,6 +77,11 @@ public class StockInstance extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private StockInstanceStatus status;
+
+    /** 재고상황과 독립된 품질 축. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "quality", nullable = false, length = 20)
+    private StockInstanceQuality quality;
 
     /** 입고 구분 — 구매/차용. */
     @Column(name = "inbound_type", length = 20)
@@ -120,7 +133,9 @@ public class StockInstance extends BaseEntity {
         this.productId = productId;
         this.productCode = productCode;
         this.warehouseId = warehouseId;
+        this.serialKey = generateSerialKey();
         this.status = StockInstanceStatus.AVAILABLE;
+        this.quality = StockInstanceQuality.NORMAL;
         this.inboundType = inboundType;
         this.receivedAt = receivedAt == null ? LocalDateTime.now() : receivedAt;
         this.unitCost = unitCost;
@@ -144,6 +159,15 @@ public class StockInstance extends BaseEntity {
                                         BigDecimal unitCost, String inboundSlipNo) {
         return new StockInstance(productId, productCode, warehouseId, inboundType,
                 receivedAt, unitCost, inboundSlipNo);
+    }
+
+    /** 창고 코드와 같은 6자 혼동방지 charset을 사용하는 인스턴스 노출 시리얼키를 생성한다. */
+    private static String generateSerialKey() {
+        StringBuilder suffix = new StringBuilder(SERIAL_RANDOM_LENGTH);
+        for (int i = 0; i < SERIAL_RANDOM_LENGTH; i++) {
+            suffix.append(SERIAL_CHARSET.charAt(SERIAL_RANDOM.nextInt(SERIAL_CHARSET.length())));
+        }
+        return "SI-" + suffix;
     }
 
     /**

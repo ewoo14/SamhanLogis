@@ -4,6 +4,7 @@ import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +24,9 @@ import org.springframework.data.repository.query.Param;
  * </ul>
  */
 public interface StockInstanceRepository extends JpaRepository<StockInstance, UUID> {
+
+    /** 사용자 노출용 serial_key로 활성 인스턴스를 단건 조회한다. */
+    Optional<StockInstance> findBySerialKey(String serialKey);
 
     /** 모델명 전환 이후 product UUID로 AVAILABLE FIFO 후보를 조회한다. */
     List<StockInstance> findByProductIdAndStatusOrderByReceivedAtAsc(
