@@ -199,7 +199,7 @@ describe('CashReceiptFormPage', () => {
       partnerCode: 'P-EDIT',
       bizNo: '222-22-22222',
       partnerName: '편집거래처',
-      amount: '760000',
+      amount: '1008',
       transactionDate: '2026-07-04',
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
@@ -217,6 +217,8 @@ describe('CashReceiptFormPage', () => {
     })
 
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '편집거래처'))
+    expect((screen.getByLabelText('금액') as HTMLInputElement).value).toBe('1008')
+    expect((screen.getByLabelText('입금 행 1 금액') as HTMLInputElement).value).toBe('1008')
     fireEvent.change(screen.getByLabelText('입금 행 1 금액'), { target: { value: '880000' } })
     fireEvent.change(screen.getByLabelText('금액'), { target: { value: '880000' } })
     fireEvent.click(screen.getByRole('button', { name: '저장' }))

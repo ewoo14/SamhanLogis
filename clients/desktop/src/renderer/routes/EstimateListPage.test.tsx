@@ -17,6 +17,12 @@ import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
 
 const navigateMock = vi.fn()
 const canAccessMock = vi.fn(() => true)
+const { getScrollAnchorMock } = vi.hoisted(() => ({ getScrollAnchorMock: vi.fn(() => 230) }))
+
+vi.mock('../utils/returnContract', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/returnContract')>()
+  return { ...actual, getScrollAnchor: getScrollAnchorMock }
+})
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
@@ -196,6 +202,22 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(await screen.findByTestId('estimate-list-filter-partner')).toHaveValue('삼성전자')
     expect(screen.getByTestId('estimate-list-filter-status')).toHaveValue('QUOTE_DRAFT')
     expect((await screen.findByTestId('estimate-list-filter-partner')).value).toBe('삼성전자')
+  })
+
+  it('견적 목록 복귀는 저장된 230px anchor를 그대로 복원한다', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    renderPage()
+
+    await screen.findByTestId('estimate-list-table')
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 230, behavior: 'auto' }))
+    scrollTo.mockRestore()
+  })
+
+  it('견적 편집 저장은 상세를 replace하고 목록 버튼은 history를 한 칸만 되감는다', async () => {
+    const formSource = (await import('node:fs')).readFileSync('src/renderer/routes/EstimateFormPage.tsx', 'utf8')
+    const detailSource = (await import('node:fs')).readFileSync('src/renderer/routes/EstimateDetailPage.tsx', 'utf8')
+    expect(formSource).toContain("replace: true")
+    expect(detailSource).toContain('hasReturnEntry ? navigate(-1) : navigate(returnTo, { replace: true })')
   })
 
   it('삭제 포함 목록은 다음 페이지로 이동하고 토글을 끄면 첫 활성 페이지로 돌아온다', async () => {

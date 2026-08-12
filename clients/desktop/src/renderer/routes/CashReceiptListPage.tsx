@@ -106,10 +106,8 @@ export function CashReceiptListPage() {
     if (anchor == null) return
     const restore = () => window.scrollTo({ top: anchor, behavior: 'auto' })
     const frame = window.requestAnimationFrame(restore)
-    const delayed = window.setTimeout(restore, 100)
     return () => {
       window.cancelAnimationFrame(frame)
-      window.clearTimeout(delayed)
     }
   }, [location.key])
 

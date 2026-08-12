@@ -52,6 +52,11 @@ afterEach(() => {
 })
 
 describe('CashReceiptListPage', () => {
+  it('입금보고서 복귀는 한 번의 프레임 복원만 사용한다', async () => {
+    const source = (await import('node:fs')).readFileSync('src/renderer/routes/CashReceiptListPage.tsx', 'utf8')
+    expect(source).not.toContain('const delayed = window.setTimeout(restore, 100)')
+  })
+
   it('URL query의 필터와 page를 목록 정본으로 복원한다', async () => {
     listCashReceiptsMock.mockResolvedValue({
       content: [sampleRow], totalElements: 101, totalPages: 3, number: 2, size: 50, first: false, last: true,
