@@ -337,6 +337,48 @@ class BundleComponentServiceTest {
     }
 
     @Test
+    void replaceComponents_기존_배분계약을_생략한_무변경저장은_계약을_보존한다() {
+        BundleComponent indoor = BundleComponent.seed(bundleId, "IDU-001",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, null, true, null);
+        indoor.changeAllocation(BundleComponent.AllocationMode.AUTO, 4, null);
+        BundleComponent outdoor = BundleComponent.seed(bundleId, "ODU-001",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.OUTDOOR, null, true, null);
+        outdoor.changeAllocation(BundleComponent.AllocationMode.AUTO, 6, null);
+        Product outdoorProduct = product("ODU-001");
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleProduct));
+        when(productRepository.findByModelCodeAndIsDeletedFalse("IDU-001"))
+                .thenReturn(Optional.of(componentProduct));
+        when(productRepository.findByModelCodeAndIsDeletedFalse("ODU-001"))
+                .thenReturn(Optional.of(outdoorProduct));
+        when(bundleComponentRepository.findByBundleProductId(bundleId))
+                .thenReturn(List.of(indoor, outdoor));
+        lenient().when(bundleComponentRepository.save(any(BundleComponent.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(componentProduct, outdoorProduct));
+
+        // 현 데스크톱처럼 신규 배분 계약 필드를 보내지 않는 요청
+        List<BundleComponentResponse> result = service.replaceComponents("TEST-BUNDLE-001", List.of(
+                new BundleComponentRequest("IDU-001", BigDecimal.ONE,
+                        BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.INDOOR,
+                        null, true, null, null, null, null),
+                new BundleComponentRequest("ODU-001", BigDecimal.ONE,
+                        BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR,
+                        null, true, null, null, null, null)), "tester-user");
+
+        assertThat(result).extracting(BundleComponentResponse::allocationMode)
+                .containsExactly(BundleComponent.AllocationMode.AUTO, BundleComponent.AllocationMode.AUTO);
+        assertThat(result).extracting(BundleComponentResponse::allocationWeight)
+                .containsExactly(4, 6);
+        assertThat(result).extracting(BundleComponentResponse::fixedAllocationAmount)
+                .containsExactly(null, null);
+    }
+
+    @Test
     void replaceComponents_displayOrder_종류순_기본먼저_정규화() {
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));

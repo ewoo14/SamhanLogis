@@ -295,13 +295,34 @@ public class BundleComponentService {
                     "다음 구성 모델코드가 활성 품목으로 해소되지 않습니다: " + unresolvedCodes);
         }
 
-        BundleAllocationPolicy.validate(requests.stream()
-                .map(req -> BundleAllocationPolicy.item(
-                        req.allocationMode() == null ? BundleComponent.AllocationMode.FIXED : req.allocationMode(),
-                        req.allocationWeight() == null ? 0 : req.allocationWeight(),
-                        req.fixedAllocationAmount() == null
-                                ? resolvedComponents.get(req.componentProductCode()).getDeliveryPrice()
-                                : req.fixedAllocationAmount()))
+        // 기존 행을 먼저 읽어 부분 요청의 생략 필드를 코드별로 보존한다.
+        // 레거시 데스크톱은 신규 배분 계약 필드를 보내지 않으므로, 생략을 기본값으로
+        // 해석하면 무변경 저장만으로 AUTO/비중 계약이 파괴된다.
+        List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(parent.getId());
+        Map<String, BundleComponent> existingByCode = existing.stream()
+                .collect(Collectors.toMap(BundleComponent::getComponentProductCode, bc -> bc,
+                        (first, ignored) -> first));
+        Map<String, AllocationValues> allocationByCode = new LinkedHashMap<>();
+        for (BundleComponentRequest req : requests) {
+            BundleComponent previous = existingByCode.get(req.componentProductCode());
+            Product component = resolvedComponents.get(req.componentProductCode());
+            BundleComponent.AllocationMode mode = req.allocationMode() != null
+                    ? req.allocationMode()
+                    : previous != null ? previous.getAllocationMode() : BundleComponent.AllocationMode.FIXED;
+            Integer weight = req.allocationWeight() != null
+                    ? req.allocationWeight()
+                    : previous != null ? previous.getAllocationWeight() : null;
+            BigDecimal fixedAmount = req.fixedAllocationAmount() != null
+                    ? req.fixedAllocationAmount()
+                    : previous != null && previous.getFixedAllocationAmount() != null
+                    ? previous.getFixedAllocationAmount()
+                    : mode == BundleComponent.AllocationMode.AUTO ? null : component.getDeliveryPrice();
+            AllocationValues allocation = new AllocationValues(mode, weight, fixedAmount);
+            allocationByCode.put(req.componentProductCode(), allocation);
+        }
+        BundleAllocationPolicy.validate(allocationByCode.values().stream()
+                .map(value -> BundleAllocationPolicy.item(value.mode(),
+                        value.weight() == null ? 0 : value.weight(), value.fixedAmount()))
                 .toList());
 
         // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — 이 replace-all 이 확정할
@@ -315,7 +336,6 @@ public class BundleComponentService {
 
         // 기존 구성품 전량 soft-delete — actor = X-User-Id (P3-3, null/blank → "system")
         String deleteActor = (actor == null || actor.isBlank()) ? "system" : actor;
-        List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(parent.getId());
         for (BundleComponent bc : existing) {
             bc.markDeleted(deleteActor);
             bundleComponentRepository.save(bc);
@@ -344,12 +364,8 @@ public class BundleComponentService {
                     req.isDefault(),
                     blankToNull(req.specText())
             );
-            bc.changeAllocation(req.allocationMode(), req.allocationWeight(),
-                    req.fixedAllocationAmount() == null
-                            && (req.allocationMode() == null
-                            || req.allocationMode() == BundleComponent.AllocationMode.FIXED)
-                            ? resolvedComponents.get(req.componentProductCode()).getDeliveryPrice()
-                            : req.fixedAllocationAmount());
+            AllocationValues allocation = allocationByCode.get(req.componentProductCode());
+            bc.changeAllocation(allocation.mode(), allocation.weight(), allocation.fixedAmount());
             bc.changeDisplayOrder(idx + 1); // 1-based 표시 순서 기록 (P2-4)
             saved.add(bundleComponentRepository.save(bc));
         }
@@ -387,6 +403,9 @@ public class BundleComponentService {
 
         return result;
     }
+
+    private record AllocationValues(BundleComponent.AllocationMode mode, Integer weight,
+                                    BigDecimal fixedAmount) {}
 
     /**
      * 세트구성품 수기 등록 직후 부모 BUNDLE 에 구성품 1건을 추가한다.

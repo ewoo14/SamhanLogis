@@ -41,6 +41,6 @@ public record BundleComponentRequest(
                                   BundleComponent.ComponentKind componentKind,
                                   String componentVariant, boolean isDefault, String specText) {
         this(componentProductCode, defaultQty, qtyMode, componentKind, componentVariant,
-                isDefault, specText, BundleComponent.AllocationMode.FIXED, null, null);
+                isDefault, specText, null, null, null);
     }
 }

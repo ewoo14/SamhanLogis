@@ -2,9 +2,14 @@ package com.samhanair.logis.product.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.web.GlobalExceptionHandler;
 import java.math.BigDecimal;
 import java.util.List;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /** #1143 비중 계약의 RED-first 회귀 테스트. */
@@ -12,12 +17,18 @@ class BundleAllocationPolicyTest {
 
     @Test
     void 자동_비중의_합이_10이_아니면_저장을_거부한다() {
-        assertThatThrownBy(() -> BundleAllocationPolicy.validate(
+        Throwable thrown = Assertions.catchThrowable(() -> BundleAllocationPolicy.validate(
                 List.of(
                         BundleAllocationPolicy.item(BundleComponent.AllocationMode.AUTO, 6, null),
-                        BundleAllocationPolicy.item(BundleComponent.AllocationMode.AUTO, 3, null))))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("10");
+                        BundleAllocationPolicy.item(BundleComponent.AllocationMode.AUTO, 3, null))));
+
+        Assertions.assertThat(thrown).isInstanceOf(BusinessException.class);
+        BusinessException businessException = (BusinessException) thrown;
+        Assertions.assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+        var response = new GlobalExceptionHandler().handleBusiness(businessException);
+        Assertions.assertThat(response.getStatusCode()).isEqualTo(ErrorCode.INVALID_INPUT.getHttpStatus());
+        Assertions.assertThat(response.getBody()).isNotNull();
+        Assertions.assertThat(response.getBody().getMessage()).contains("자동 구성품 비중 합은 10이어야 합니다");
     }
 
     @Test

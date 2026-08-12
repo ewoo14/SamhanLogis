@@ -935,6 +935,9 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
     componentVariant: item.componentVariant,
     isDefault: item.isDefault,
     specText: item.specText,
+    allocationMode: item.allocationMode,
+    allocationWeight: item.allocationWeight,
+    fixedAllocationAmount: item.fixedAllocationAmount,
   })))
 
   return (

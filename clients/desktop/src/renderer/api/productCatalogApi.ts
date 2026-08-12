@@ -288,6 +288,12 @@ export interface BundleComponentItem {
   specText: string | null
   /** 표시 순서 (PUT 시 배열 인덱스 기준 부여) */
   displayOrder: number
+  /** 구성품 가격 배분 방식 */
+  allocationMode: 'AUTO' | 'FIXED'
+  /** AUTO 비중 (null 가능) */
+  allocationWeight: number | null
+  /** FIXED 금액 (null 가능) */
+  fixedAllocationAmount: string | number | null
 }
 
 /**
@@ -310,6 +316,10 @@ export interface BundleComponentInput {
   isDefault?: boolean
   /** 규격 */
   specText?: string | null
+  /** 기존 값 보존을 위해 조회 응답의 배분 계약을 그대로 전달 */
+  allocationMode?: 'AUTO' | 'FIXED' | null
+  allocationWeight?: number | null
+  fixedAllocationAmount?: string | number | null
 }
 
 /**
