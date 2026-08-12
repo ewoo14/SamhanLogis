@@ -8,6 +8,7 @@ import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -58,7 +59,7 @@ public record ProductSummaryResponse(
         String fixedDiscountSource,
         String physicalCategoryCode,
         String discountOption,
-        boolean classificationAssigned) {
+        @JsonIgnore boolean classificationAssigned) {
 
     /** fixedDiscountSource 추가 전 canonical 호출 호환 생성자. */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,

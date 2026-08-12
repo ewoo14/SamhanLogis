@@ -220,10 +220,10 @@ public class PartnerOrderPriceCalculationService {
 
     /**
      * #1090 전환 전 데이터 호환 규칙. 분류가 없는 품목에만 레거시 모델코드 옵션을
-     * 임시로 유지하며, classificationAssigned=true가 되는 순간 분류 정본만 사용한다.
+     * 임시로 유지하며, discountOption 정본이 채워지는 순간 분류 정본만 사용한다.
      */
     private String optionFlags(ProductSummary product) {
-        if (!product.classificationAssigned()) {
+        if (product.discountOption() == null) {
             if (product.discountFlags() != null && product.discountFlags().matches("[01]{6}")
                     && !"000000".equals(product.discountFlags())) {
                 return product.discountFlags();

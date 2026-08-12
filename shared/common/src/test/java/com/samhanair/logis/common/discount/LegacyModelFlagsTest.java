@@ -40,4 +40,9 @@ class LegacyModelFlagsTest {
         assertThat(LegacyModelFlags.from("ZZ123456P")).isEqualTo(LegacyModelFlags.NONE);
         assertThat(LegacyModelFlags.from(null)).isEqualTo(LegacyModelFlags.NONE);
     }
+
+    @Test
+    void preservesLegacy360MarkerInModelNameOnlyFixture() {
+        assertThat(LegacyModelFlags.from("AM360AXVHHR1SY").is360()).isTrue();
+    }
 }

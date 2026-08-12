@@ -27,6 +27,7 @@ public record LegacyModelFlags(
         boolean isStand = false;
         boolean isDeluxe = false;
         boolean isGrade1 = false;
+        if (m.contains("360")) is360 = true;
 
         if (m.startsWith("AC") && m.length() >= 9) {
             if (m.charAt(7) == '6' && m.charAt(8) == 'P') is360 = true;

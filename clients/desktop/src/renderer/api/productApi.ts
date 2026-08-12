@@ -115,7 +115,7 @@ function toProductOption(p: ProductSummaryResponse): ProductOption {
       fixedDiscountRate: p.fixedDiscountRate ?? null,
       fixedDiscountSource: p.fixedDiscountSource ?? null,
       discountOption: p.discountOption ?? null,
-      classificationAssigned: p.classificationAssigned === true,
+      classificationAssigned: p.discountOption != null,
       hasVariableDiscount: p.hasVariableDiscount ?? null,
       status: p.status ?? null,
       goodsType: p.goodsType ?? undefined,

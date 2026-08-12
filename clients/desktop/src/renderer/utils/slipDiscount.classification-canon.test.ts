@@ -12,7 +12,7 @@ const config = {
   firstGrade: '5000',
 }
 
-describe('#1090 분류 단독 정본 RED', () => {
+describe('#1090 분류 정본·가격 보존', () => {
   it('분류가 미분류면 모델코드 레거시 판별을 사용하지 않는다', () => {
     const result = calculateSlipDiscount({
       listPrice: 100000,
@@ -34,6 +34,28 @@ describe('#1090 분류 단독 정본 RED', () => {
     }, { ...config, threeSixty: '70000' })
 
     expect(result.unitPrice).toBe(100000)
+  })
+
+  it('AC023BN1DBC1 분류 저장 전후 단가가 상승하지 않는다', () => {
+    const before = calculateSlipDiscount({
+      listPrice: 316800,
+      modelCode: 'AC023BN1DBC1',
+      category: 'OTHER',
+      classificationOptions: [],
+      classificationAssigned: false,
+    }, { ...config, oneWay: '50000' })
+    const after = calculateSlipDiscount({
+      listPrice: 316800,
+      modelCode: 'AC023BN1DBC1',
+      category: 'OTHER',
+      classificationOptions: ['ONE_WAY'],
+      classificationAssigned: true,
+    }, { ...config, oneWay: '50000' })
+
+    expect({ before: before.unitPrice, after: after.unitPrice }).toEqual({
+      before: 266800,
+      after: 266800,
+    })
   })
 
   it('분류의 360 옵션만으로 정액을 적용한다', () => {
@@ -198,6 +220,7 @@ AP290RXPDHH1|5177700|STAND`
       })
 
     expect(rows).toHaveLength(113)
+    expect(rows.some((row) => row.modelCode === 'AP290RXPDHH1')).toBe(true)
     const mismatches = rows.map((row) => {
       const before = Math.max(0, row.listPrice - dc[row.option])
       const after = calculateSlipDiscount({

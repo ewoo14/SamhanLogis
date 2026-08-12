@@ -55,6 +55,18 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
 
+    @Test
+    void classificationSaveCarriesLegacyDiscountBasisIntoClassificationCanon() {
+        Category category = org.mockito.Mockito.mock(Category.class);
+        Product product = Product.create("360 멀티", "AM360AXVHHR1SY", category,
+                new BigDecimal("100000"), new BigDecimal("50000"), "KRW", null, null);
+
+        product.markClassificationManual(null, null, null);
+        product.carryForwardLegacyDiscountOption();
+
+        assertThat(product.getDiscountOption()).isEqualTo(Product.DiscountOption.THREE_SIXTY);
+    }
+
     @Mock
     private ProductRepository productRepository;
 

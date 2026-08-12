@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.discount.LegacyModelFlags;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -637,6 +638,19 @@ public class Product extends BaseEntity {
     /** 분류 정본의 정액DC 옵션을 변경한다. null 은 개발책임자 확정 전 미지정이다. */
     public void changeDiscountOption(DiscountOption discountOption) {
         this.discountOption = discountOption;
+    }
+
+    /** 분류 저장 시 기존 모델 표식의 정액DC 근거만 분류 정본으로 승격한다. */
+    public void carryForwardLegacyDiscountOption() {
+        if (discountOption != null) return;
+        String source = modelCode == null || modelCode.isBlank() ? modelName : modelCode;
+        LegacyModelFlags flags = LegacyModelFlags.from(source);
+        if (flags.is360()) changeDiscountOption(DiscountOption.THREE_SIXTY);
+        else if (flags.is4Way()) changeDiscountOption(DiscountOption.FOUR_WAY);
+        else if (flags.is1Way()) changeDiscountOption(DiscountOption.ONE_WAY);
+        else if (flags.isStand()) changeDiscountOption(DiscountOption.STAND);
+        else if (flags.isDeluxe()) changeDiscountOption(DiscountOption.DELUXE);
+        else if (flags.isFirstGrade()) changeDiscountOption(DiscountOption.FIRST_GRADE);
     }
 
     /** 분류 수동 override 를 저장한다. null 은 해당 단계 미분류를 의미하며 이후 sync 에서 보존된다. */
