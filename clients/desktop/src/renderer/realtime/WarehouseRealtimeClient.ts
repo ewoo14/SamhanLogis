@@ -20,10 +20,12 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const InventoryAuditRealtimeClient = createRealtimeClient({
   name: 'InventoryAuditRealtimeClient',
   endpointPath: (id) => `/inventory/audits/${encodeURIComponent(id)}/realtime`,
+  allowMockMode: true,
 })
 
 /** 창고 audit overlay 실시간 채널 — PATCH / soft-delete 시 inventory:edit 이벤트 수신. */
 export const WarehouseRealtimeClient = createRealtimeClient({
   name: 'WarehouseRealtimeClient',
   endpointPath: (id) => `/inventory/warehouses/${encodeURIComponent(id)}/realtime`,
+  allowMockMode: true,
 })

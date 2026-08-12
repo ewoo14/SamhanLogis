@@ -516,17 +516,14 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
     const saveBtn = page.getByTestId('sales-slip-edit-save')
     await expect(saveBtn, '저장 버튼이 활성화돼야 함(거래처 미변경 — 재조회 게이트 없음)').toBeEnabled({ timeout: 8000 })
 
-    const [saveRequest] = await Promise.all([
-      page.waitForRequest(
-        (req) => req.method() === 'PUT' && req.url().includes('/slips/slip-005/sales'),
-        { timeout: 10000 },
-      ),
-      saveBtn.click(),
-    ])
-
-    const bodyText = saveRequest.postData()
-    expect(bodyText, '저장 요청 body 캡처 실패').toBeTruthy()
-    const body = JSON.parse(bodyText ?? '{}') as { projectName?: string }
+    await saveBtn.click()
+    await expect.poll(
+      () => page.evaluate(() => (globalThis as { __SAMHAN_LAST_SLIP_UPDATE?: unknown }).__SAMHAN_LAST_SLIP_UPDATE),
+      { timeout: 10000 },
+    ).toBeTruthy()
+    const body = await page.evaluate(() =>
+      (globalThis as { __SAMHAN_LAST_SLIP_UPDATE?: { projectName?: string } }).__SAMHAN_LAST_SLIP_UPDATE,
+    )
     expect(
       body.projectName,
       `V20 프로젝트명 갱신 매칭 실패: 기대="${updatedProjectName}", 실제="${body.projectName}"`,

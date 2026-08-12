@@ -5,11 +5,22 @@
  * Vitest DOM 테스트만으로 끝내지 않고 좁은 품목 입력 화면과 수정 견적 화면에서
  * 모달/빈행의 사용자 표면을 함께 확인한다.
  */
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 const MOCK_PRODUCT_AJ040_ID = '2e40fa30-10b2-3a9b-a99c-570ac92287ad'
 
+async function installMockRealtimeHandler(page: Page): Promise<void> {
+  await page.route('**/api/v1/**/collab/stream**', (route) => route.fulfill({
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache' },
+    body: ': mock keep-alive\n\n',
+  }))
+}
+
 test.describe('PR #1063 전표 라인 입력 UX mock', () => {
+  test.beforeEach(async ({ page }) => {
+    await installMockRealtimeHandler(page)
+  })
   test('후보 2건 이상은 UUID 없이 읽을 수 있는 품목 표 모달을 연다', async ({ page }) => {
     await page.goto('/#/inventory/safety-stock-alerts?mockRole=MASTER', {
       waitUntil: 'domcontentloaded',

@@ -9,4 +9,5 @@ export const SlipCollabRealtimeClient = createRealtimeClient({
   name: 'slip-collab',
   endpointPath: (slipId) =>
     `/api/v1/slips/${encodeURIComponent(slipId)}/collab/stream`,
+  allowMockMode: true,
 })

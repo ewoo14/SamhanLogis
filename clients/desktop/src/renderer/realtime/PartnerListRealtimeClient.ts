@@ -8,4 +8,5 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const PartnerListRealtimeClient = createRealtimeClient({
   name: 'PartnerListRealtimeClient',
   endpointPath: (_entityId) => '/admin/partners/list-realtime',
+  allowMockMode: true,
 })

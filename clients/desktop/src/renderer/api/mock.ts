@@ -9145,6 +9145,29 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // POST /api/v1/partners/admin/blocks — 수동 발송금지 등록.
+  // Axios mock interceptor가 브라우저 밖에서 처리하므로, QA는 동일 DTO payload를
+  // 페이지 전역에 기록해 관찰한다. 응답은 BlockedPartner DTO shape을 따른다.
+  if (method === 'POST' && url.match(/\/api\/v1\/partners\/admin\/blocks(?:\?.*)?$/)) {
+    const body = parseMockBody(config) as {
+      partnerCode?: string
+      blockReason?: string
+    }
+    try {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_LAST_BLOCKED_PARTNER_CREATE'] = body
+    } catch {
+      /* noop */
+    }
+    return envelope({
+      id: `block-${Date.now()}`,
+      partnerCode: body.partnerCode ?? '',
+      businessNameSnapshot: body.partnerCode === '4567890123' ? '미래시스템' : '엘에이시스템에어',
+      blockReason: body.blockReason ?? null,
+      blockedAt: '2026-07-18T10:00:00+09:00',
+      source: 'MANUAL',
+    })
+  }
+
   // GET /admin/aligo/address-book — AligoAddressBookPage
   if (method === 'GET' && url.includes('/admin/aligo/address-book')) {
     return envelope({
@@ -9161,6 +9184,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       jobId: 'aligo-sync-' + Date.now(),
       status: 'IN_PROGRESS',
       message: '알리고 주소록 동기화를 시작했습니다',
+    })
+  }
+  if (method === 'POST' && url.includes('/admin/notification/aligo/address-book/sync')) {
+    const g = globalThis as Record<string, unknown>
+    const calls = Number(g['__SAMHAN_ALIGO_SYNC_CALLS'] ?? 0) + 1
+    g['__SAMHAN_ALIGO_SYNC_CALLS'] = calls
+    if (g['__SAMHAN_ALIGO_SYNC_FAILURE'] === true) {
+      return mockError(500, 'INTERNAL_SERVER_ERROR', 'mock server error')
+    }
+    return envelope({
+      added: 12,
+      updated: 8,
+      skipped: 2,
+      failed: [],
+      deliveryStatus: 'NOT_DELIVERED',
     })
   }
 
@@ -9181,6 +9219,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // (Page envelope 으로 감싸면 SlipEditRequestsPage `list = query.data ?? []` → object → list.map 에러)
   if (method === 'GET' && url.includes('/slips/edit-requests')) {
     return envelope(MOCK_EDIT_REQUESTS)
+  }
+  // GET /api/v1/accounting/edit-requests — accounting-service pending requests.
+  if (method === 'GET' && url.includes('/api/v1/accounting/edit-requests')) {
+    return envelope([
+      {
+        requestId: 'accounting-edit-001',
+        entityId: 'journal-001',
+        requestType: 'EDIT',
+        status: 'PENDING',
+        reason: '적요 수정 요청',
+        requesterId: 'user-001',
+        requesterName: '김관리',
+        targetRole: 'MANAGER',
+        decidedById: null,
+        decidedByName: null,
+        decisionReason: null,
+        requestedAt: '2026-08-12T09:00:00+09:00',
+        decidedAt: null,
+        expiresAt: null,
+      },
+    ])
   }
   // POST /api/v1/slips/{slipId}/edit-request — 작성자 신규 요청 (CONFIRMED 단계).
   // body { type: 'EDIT'|'DELETE', reason: string } → SlipEditRequest 응답.
@@ -13665,6 +13724,26 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       createdAt: new Date().toISOString(),
       createdBy: '오병승',
     })
+  }
+
+  // PUT /slips/{id}/sales — 판매전표 direct update (SlipUpdateRequest).
+  // Axios mock interceptor가 브라우저 밖에서 처리하므로, Playwright가 검증할 수 있도록
+  // 마지막 payload를 페이지 전역에 기록한다. 응답 shape는 GET 상세와 같은 envelope이다.
+  const salesSlipUpdateMatch = url.match(/\/slips\/([^/?]+)\/sales$/)
+  if (method === 'PUT' && salesSlipUpdateMatch) {
+    const denied = mockRequirePermission('sales.slip.edit', 'update')
+    if (denied) return denied
+    const id = decodeURIComponent(salesSlipUpdateMatch[1]!)
+    const found = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
+    if (!found) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
+    const body = parseMockBody(config) as Record<string, unknown>
+    try {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_LAST_SLIP_UPDATE'] = body
+    } catch {
+      /* noop */
+    }
+    Object.assign(found, body, { id })
+    return envelope({ ...found, lines: Array.isArray(body.lines) ? body.lines : SAMPLE_LINES })
   }
 
   // ============================================================================
