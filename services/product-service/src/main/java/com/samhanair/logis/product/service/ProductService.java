@@ -1082,6 +1082,9 @@ public class ProductService {
             for (ProductSpec spec : currentSpecs) {
                 spec.markDeleted("system");
             }
+            // 부분 유니크(활성 product_id/spec_key)는 신규 INSERT보다 기존 행의
+            // soft-delete UPDATE가 먼저 DB에 반영되어야 동일 키 재저장이 가능하다.
+            productSpecRepository.flush();
         }
         saveSpecs(product, specs);
     }
