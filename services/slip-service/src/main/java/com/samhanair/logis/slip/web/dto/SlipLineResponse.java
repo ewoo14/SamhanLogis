@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web.dto;
 
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -20,8 +21,8 @@ import java.util.UUID;
  * 재고조회 대상인 경우 단품 기준 조회가 올바른 동작.
  */
 public record SlipLineResponse(
-        UUID id,
-        UUID productId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID productId,
         String productName,
         String modelName,
         String specification,

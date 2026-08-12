@@ -36,6 +36,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 
@@ -55,6 +56,7 @@ dependencies {
     // DcConfig 변경 audit overlay + SSE broadcast + EditLockGuard
     // (정책 적용 후 변경 신중 — APPROVED 1회 소진 후 mutation 가능).
     implementation project(':shared:realtime-abstraction')
+    implementation project(':shared:audit-publisher')
 
     runtimeOnly 'org.postgresql:postgresql'
 

@@ -41,6 +41,14 @@ public class Message extends BaseEntity {
     @Column(name = "recipient_id", nullable = false, updatable = false)
     private UUID recipientId;
 
+    /** room 승계 이후의 내부 방 FK. 기존 메신저 행은 migration 후 채워진다. */
+    @Column(name = "room_id")
+    private UUID roomId;
+
+    /** 방 안에서 단조 증가하는 표시 순서. */
+    @Column(name = "sequence_no")
+    private Long sequence;
+
     /** 복수 수신 발송 묶음 식별자. 기존 단건 발송은 null이다. */
     @Column(name = "batch_id", updatable = false)
     private UUID batchId;
@@ -86,6 +94,13 @@ public class Message extends BaseEntity {
     /** 복수 수신 메신저 발송. 수신자별 1행이며 같은 batchId를 공유한다. */
     public static Message send(UUID senderId, UUID recipientId, String body, UUID batchId) {
         return new Message(senderId, recipientId, body, batchId);
+    }
+
+    public static Message sendInRoom(UUID roomId, long sequence, UUID senderId, UUID recipientId, String body) {
+        Message message = new Message(senderId, recipientId, body, null);
+        message.roomId = roomId;
+        message.sequence = sequence;
+        return message;
     }
 
     /** 수신자가 열람 호출. UNREAD → READ + readAt 적재. 이미 READ 상태면 idempotent (no-op). */

@@ -1,12 +1,32 @@
 import type { EstimateSummary } from '../api/estimateApi'
 import type { PartnerOrderStatus, PartnerOrderSummary } from '../api/sales'
 
-export type UnifiedEstimateSource = 'estimate' | 'order'
+export type UnifiedEstimateSource =
+  | 'estimate'
+  | 'order'
+  | 'web-quote-snapshot'
+  | 'web-partner-order-draft'
+
+/** 개발책임자 확정 전 후보 명칭. 화면 문구 변경은 이 맵만 수정한다. */
+export const UNIFIED_ESTIMATE_SOURCE_LABELS: Record<UnifiedEstimateSource, '종합견적서' | '주문서'> = {
+  estimate: '종합견적서',
+  order: '주문서',
+  'web-quote-snapshot': '종합견적서',
+  'web-partner-order-draft': '주문서',
+}
+
+export const UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS: Record<UnifiedEstimateSource, string> = {
+  estimate: '데스크톱 · 종합견적서',
+  order: '데스크톱 · 주문서',
+  'web-quote-snapshot': '웹 · 종합견적서',
+  'web-partner-order-draft': '웹 · 주문서',
+}
 
 export interface UnifiedEstimateListRow {
   id: string
   source: UnifiedEstimateSource
   sourceLabel: '종합견적서' | '주문서'
+  storageLabel: '데스크톱' | '웹'
   documentNo: string
   partnerName: string | null
   /** 주문서만 보유한다. 종합견적서의 partner_id/사업자번호로 대체하지 않는다. */
@@ -29,6 +49,20 @@ type OrderListSource = Pick<
   PartnerOrderSummary,
   'orderNumber' | 'partnerCode' | 'partnerName' | 'submittedAt' | 'createdAt' | 'status' | 'totalAmount' | 'isDeleted'
 >
+export interface WebQuoteSnapshotListSource {
+  snapshotKey: string
+  documentLabel: string
+  custName: string | null
+  created: string
+  totalAmount: string | number | null
+}
+export interface WebPartnerOrderDraftListSource {
+  draftKey: string
+  documentLabel: string
+  partnerCode: string | null
+  createdAt: string
+  totalAmount: string | number | null
+}
 
 const estimateStatusLabel: Record<EstimateSummary['status'], string> = {
   QUOTE_DRAFT: '작성중',
@@ -63,11 +97,14 @@ const asTimestamp = (value: string | null): number => {
 export function mergeEstimateAndOrderRows(
   estimates: EstimateListSource[],
   orders: OrderListSource[],
+  webQuoteSnapshots: WebQuoteSnapshotListSource[] = [],
+  webPartnerOrderDrafts: WebPartnerOrderDraftListSource[] = [],
 ): UnifiedEstimateListRow[] {
   const estimateRows: UnifiedEstimateListRow[] = estimates.map((row) => ({
     id: `estimate:${row.id}`,
     source: 'estimate',
-    sourceLabel: '종합견적서',
+    sourceLabel: UNIFIED_ESTIMATE_SOURCE_LABELS.estimate,
+    storageLabel: '데스크톱',
     documentNo: row.estimateNo,
     partnerName: row.partnerName ?? null,
     partnerCode: null,
@@ -83,7 +120,8 @@ export function mergeEstimateAndOrderRows(
   const orderRows: UnifiedEstimateListRow[] = orders.map((row) => ({
     id: `order:${row.orderNumber}`,
     source: 'order',
-    sourceLabel: '주문서',
+    sourceLabel: UNIFIED_ESTIMATE_SOURCE_LABELS.order,
+    storageLabel: '데스크톱',
     documentNo: row.orderNumber,
     partnerName: row.partnerName ?? null,
     partnerCode: row.partnerCode || null,
@@ -97,9 +135,50 @@ export function mergeEstimateAndOrderRows(
     navigationPath: row.isDeleted ? null : `/sales/partner-orders/${encodeURIComponent(row.orderNumber)}`,
   }))
 
-  return [...estimateRows, ...orderRows].sort((a, b) => {
+  const webQuoteRows: UnifiedEstimateListRow[] = webQuoteSnapshots.map((row) => ({
+    id: `web-quote:${row.snapshotKey}`,
+    source: 'web-quote-snapshot',
+    sourceLabel: UNIFIED_ESTIMATE_SOURCE_LABELS['web-quote-snapshot'],
+    storageLabel: '웹',
+    documentNo: row.documentLabel,
+    partnerName: row.custName ?? null,
+    partnerCode: null,
+    amount: String(row.totalAmount ?? '0'),
+    owner: null,
+    writtenAt: row.created,
+    sortAt: row.created,
+    status: '저장됨',
+    isDeleted: false,
+    navigationPath: `/sales/estimates/web-snapshots/${encodeURIComponent(row.snapshotKey)}`,
+  }))
+
+  const webDraftRows: UnifiedEstimateListRow[] = webPartnerOrderDrafts.map((row) => ({
+    id: `web-order-draft:${row.draftKey}`,
+    source: 'web-partner-order-draft',
+    sourceLabel: UNIFIED_ESTIMATE_SOURCE_LABELS['web-partner-order-draft'],
+    storageLabel: '웹',
+    documentNo: row.documentLabel,
+    partnerName: null,
+    partnerCode: row.partnerCode || null,
+    amount: String(row.totalAmount ?? '0'),
+    owner: null,
+    writtenAt: row.createdAt,
+    sortAt: row.createdAt,
+    status: '저장됨',
+    isDeleted: false,
+    navigationPath: `/sales/partner-orders/web-drafts/${encodeURIComponent(row.draftKey)}`,
+  }))
+
+  return [...estimateRows, ...orderRows, ...webQuoteRows, ...webDraftRows].sort((a, b) => {
     const dateOrder = asTimestamp(b.sortAt) - asTimestamp(a.sortAt)
     if (dateOrder !== 0) return dateOrder
     return a.id.localeCompare(b.id)
   })
+}
+
+export function filterUnifiedEstimateRowsBySource(
+  rows: UnifiedEstimateListRow[],
+  source: UnifiedEstimateSource | '',
+): UnifiedEstimateListRow[] {
+  return source ? rows.filter((row) => row.source === source) : rows
 }

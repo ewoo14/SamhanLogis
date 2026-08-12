@@ -105,3 +105,33 @@ export function getScrollAnchor(entryKey: string): number | null {
     return null
   }
 }
+
+/** 목록 데이터가 렌더된 뒤 저장된 정수 픽셀 anchor를 복원한다. */
+export function restoreScrollAnchorWhenReady(
+  entryKey: string,
+  isReady: () => boolean,
+): () => void {
+  const anchor = getScrollAnchor(entryKey)
+  if (anchor == null) return () => undefined
+
+  let cancelled = false
+  let attempts = 0
+  let readyFrames = 0
+  let frame = 0
+  const restore = () => {
+    if (cancelled) return
+    if (isReady()) readyFrames += 1
+    else readyFrames = 0
+    if (readyFrames >= 2 || attempts >= 60) {
+      window.scrollTo({ top: anchor, behavior: 'auto' })
+      return
+    }
+    attempts += 1
+    frame = window.requestAnimationFrame(restore)
+  }
+  frame = window.requestAnimationFrame(restore)
+  return () => {
+    cancelled = true
+    window.cancelAnimationFrame(frame)
+  }
+}

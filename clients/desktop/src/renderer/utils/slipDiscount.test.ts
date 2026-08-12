@@ -51,23 +51,24 @@ describe('slip discount', () => {
   })
 
   it.each([
-    ['AC123456P', '360', 30000],
-    ['AC123454P', '4way-P', 40000],
-    ['AC123454D', '4way-D', 40000],
-    ['AC123451P', '1way-P', 50000],
-    ['AC123451D', '1way-D', 50000],
-    ['AP123456D1C', 'stand-D+C', 60000],
-    ['AP123456P', 'stand-P', 60000],
-    ['AP123456D1H', 'deluxe-D+H', 70000],
-    ['AP230123P', 'AP230 stand exception', 60000],
-    ['AP290123P', 'AP290 stand exception', 60000],
-    ['AC123456F', 'AC grade1', 80000],
-    ['AP123456F', 'AP grade1', 80000],
-  ])('레거시 %s (%s) 분기만큼 싱글 정액을 차감한다', (modelCode, _branch, amount) => {
+    ['AC123456P', '360', 'THREE_SIXTY', 30000],
+    ['AC123454P', '4way-P', 'FOUR_WAY', 40000],
+    ['AC123454D', '4way-D', 'FOUR_WAY', 40000],
+    ['AC123451P', '1way-P', 'ONE_WAY', 50000],
+    ['AC123451D', '1way-D', 'ONE_WAY', 50000],
+    ['AP123456D1C', 'stand-D+C', 'STAND', 60000],
+    ['AP123456P', 'stand-P', 'STAND', 60000],
+    ['AP123456D1H', 'deluxe-D+H', 'DELUXE', 70000],
+    ['AP230123P', 'AP230 stand exception', 'STAND', 60000],
+    ['AP290123P', 'AP290 stand exception', 'STAND', 60000],
+    ['AC123456F', 'AC grade1', 'FIRST_GRADE', 80000],
+    ['AP123456F', 'AP grade1', 'FIRST_GRADE', 80000],
+  ])('분류 정본 %s (%s) 옵션만큼 싱글 정액을 차감한다', (modelCode, _branch, discountOption, amount) => {
     expect(calculateSlipDiscount(
       {
         listPrice: 1000000,
-        modelCode,
+          modelCode,
+          classificationOptions: [discountOption as any],
         fixedDiscountRate: null,
         category: 'OTHER',
         hasVariableDiscount: false,

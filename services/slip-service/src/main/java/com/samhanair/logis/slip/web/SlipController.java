@@ -23,6 +23,7 @@ import com.samhanair.logis.slip.web.dto.AddLineRequest;
 import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
 import com.samhanair.logis.slip.web.dto.NextDaySlipImageResponse;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidDeserializer;
 import com.samhanair.logis.slip.web.dto.PartnerProductPriceMemoryBulkRequest;
 import com.samhanair.logis.slip.web.dto.RejectRequest;
 import com.samhanair.logis.slip.web.dto.SlipCleanupResponse;
@@ -274,12 +275,12 @@ public class SlipController {
     @Operation(summary = "전표 단건 조회", description = "라인 포함 상세")
     @GetMapping("/{id}")
     public ApiResponse<SlipDetailResponse> getOne(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = "X-User-Role", required = false) String role,
             @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
             @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        SlipDetailResponse response = slipService.getOne(id, userId);
+        SlipDetailResponse response = slipService.getOne(OpaqueUuidDeserializer.decode(id), userId);
         SlipPurchaseAccessGuard.guardInboundPurchaseRead(response.slipType(), role, userGroups, isSystemMaster);
         boolean approvalLineAllowed = !SlipSalesAccessGuard.canReadOutboundSales(role, userGroups, isSystemMaster)
                 && response.canInspect();

@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.delivery.repository.DeliveryBatchRepository;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.delivery.sms.SmsResult;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.it.OpaqueUuidTestDecoder;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -97,7 +98,7 @@ class PublicSlipAttachmentControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.fileName").value("delivery.png"));
 
         var attachments = attachmentRepository.findBySlipIdAndIsDeletedFalseOrderByUploadedAtAsc(
-                UUID.fromString(ctx.slipId));
+                OpaqueUuidTestDecoder.decode(ctx.slipId));
         assertThat(attachments).hasSize(1);
         assertThat(attachments.get(0).getFileName()).isEqualTo("delivery.png");
     }
@@ -143,7 +144,7 @@ class PublicSlipAttachmentControllerIT extends AbstractPostgresIT {
         String batchToken = objectMapper.readTree(grouped.getResponse().getContentAsString())
                 .get("data").get(0).get("batchToken").asText();
 
-        assertThat(slipRepository.findById(UUID.fromString(slipId)).orElseThrow().getSlipNo())
+        assertThat(slipRepository.findById(OpaqueUuidTestDecoder.decode(slipId)).orElseThrow().getSlipNo())
                 .isEqualTo(slipNo)
                 .contains("/");
         return new Context(slipId, slipNo, batchToken);

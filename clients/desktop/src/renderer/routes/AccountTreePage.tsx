@@ -44,6 +44,11 @@ const CATEGORY_DESCRIPTION: Record<string, string> = {
   '900': '이자수익·이자비용·잡손익',
 }
 
+/** 이카운트 정본 상태가 없는 계정도 임의 숫자 대신 상태 문구를 표시한다. */
+export function accountMappingLabel(account: Account): string {
+  return account.mappingLabel ?? account.ecountCode ?? '이카운트 원문 없음'
+}
+
 export function AccountTreePage() {
   usePageTitle('계정과목')
 
@@ -68,6 +73,13 @@ export function AccountTreePage() {
   const columns: DataTableColumn<Account>[] = [
     { key: 'code', header: '코드', width: '100px', mobilePriority: 'primary' },
     { key: 'name', header: '계정명', mobilePriority: 'secondary' },
+    {
+      key: 'ecountCode',
+      header: '이카운트 정본',
+      width: '140px',
+      mobilePriority: 'secondary',
+      render: accountMappingLabel,
+    },
   ]
 
   if (query.isLoading) {

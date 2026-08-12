@@ -47,6 +47,9 @@ public class AuditLog {
     @Field(type = FieldType.Keyword)
     private String userRole;
 
+    @Field(type = FieldType.Keyword)
+    private String actorDisplayName;
+
     /** e.g. "SLIP_CREATE", "ACCOUNT_LOGIN". */
     @Field(type = FieldType.Keyword)
     private String action;
@@ -56,6 +59,9 @@ public class AuditLog {
 
     @Field(type = FieldType.Keyword)
     private String resourceId;
+
+    @Field(type = FieldType.Keyword)
+    private String internalResourceId;
 
     @Field(type = FieldType.Text)
     private String description;
@@ -71,6 +77,15 @@ public class AuditLog {
 
     @Field(type = FieldType.Keyword)
     private String userAgent;
+
+    @Field(type = FieldType.Integer)
+    private Integer httpStatus;
+
+    @Field(type = FieldType.Keyword)
+    private String errorCode;
+
+    @Field(type = FieldType.Text)
+    private String errorSummary;
 
     @Field(type = FieldType.Date, format = DateFormat.date_optional_time)
     private Instant occurredAt;

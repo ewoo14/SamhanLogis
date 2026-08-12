@@ -20,6 +20,8 @@ import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidDeserializer;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidSerializer;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -199,7 +201,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
                 .andExpect(jsonPath("$.message").value("전표 전송 전 거래처를 지정해야 합니다"));
 
-        assertThat(slipRepository.findById(UUID.fromString(slipId)).orElseThrow().getStatus())
+        assertThat(slipRepository.findById(OpaqueUuidDeserializer.decode(slipId)).orElseThrow().getStatus())
                 .isEqualTo(SlipStatus.SAVED);
     }
 
@@ -218,7 +220,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("SENT"));
 
-        assertThat(slipRepository.findById(UUID.fromString(slipId)).orElseThrow().getStatus())
+        assertThat(slipRepository.findById(OpaqueUuidDeserializer.decode(slipId)).orElseThrow().getStatus())
                 .isEqualTo(SlipStatus.SENT);
     }
 
@@ -747,7 +749,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.inspectorUserId").value(inspectorUuid))
+                .andExpect(jsonPath("$.data.inspectorUserId").value(OpaqueUuidSerializer.encode(UUID.fromString(inspectorUuid))))
                 .andExpect(jsonPath("$.data.inspectorSignedAt").value(notNullValue()));
     }
 
@@ -799,7 +801,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
-                .andExpect(jsonPath("$.data.dispatcherUserId").value(dispatcherUuid))
+                .andExpect(jsonPath("$.data.dispatcherUserId").value(OpaqueUuidSerializer.encode(UUID.fromString(dispatcherUuid))))
                 .andExpect(jsonPath("$.data.dispatcherSignedAt").value(notNullValue()));
     }
 

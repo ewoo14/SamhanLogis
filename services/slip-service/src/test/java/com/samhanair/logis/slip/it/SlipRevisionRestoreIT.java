@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
@@ -223,7 +224,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "복원자")
                         .header(ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(slipId.toString()))
+                .andExpect(jsonPath("$.data.id").value(OpaqueUuidSerializer.encode(slipId)))
                 .andExpect(jsonPath("$.data.lines.length()").value(linesAtRev1));
 
         // 복원도 신규 RESTORE revision (sourceRevisionNo=1) 으로 추적 — 타임라인 최신 항목이 RESTORE.
@@ -472,7 +473,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "마스터")
                         .header("X-Is-System-Master", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(slipId.toString()));
+                .andExpect(jsonPath("$.data.id").value(OpaqueUuidSerializer.encode(slipId)));
     }
 
     // =========================================================================
@@ -513,7 +514,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
+        return OpaqueUuidTestDecoder.decode(objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("data").get("id").asText());
     }
 
@@ -572,7 +573,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
     }
 
     private UUID firstLineId(JsonNode detail) {
-        return UUID.fromString(detail.get("lines").get(0).get("id").asText());
+        return OpaqueUuidTestDecoder.decode(detail.get("lines").get(0).get("id").asText());
     }
 
     private void insertCorruptRevision(UUID slipId, int revisionNo, String snapshotJson) {

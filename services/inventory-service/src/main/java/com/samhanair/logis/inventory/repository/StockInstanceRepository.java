@@ -4,6 +4,7 @@ import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +28,9 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
     long countByInboundSlipNoAndIsDeletedFalse(String inboundSlipNo);
 
     long countByOutboundSlipNoAndIsDeletedFalse(String outboundSlipNo);
+
+    /** 사용자 노출용 serial_key로 활성 인스턴스를 단건 조회한다. */
+    Optional<StockInstance> findBySerialKey(String serialKey);
 
     /** 모델명 전환 이후 product UUID로 AVAILABLE FIFO 후보를 조회한다. */
     List<StockInstance> findByProductIdAndStatusOrderByReceivedAtAsc(
@@ -200,6 +204,10 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      * @return 해당 품목의 모든 인스턴스 목록 (soft-delete 필터 자동 적용)
      */
     List<StockInstance> findByProductId(UUID productId);
+
+    /** 화면 품목리스트용 품목코드 단위 조회. */
+    List<StockInstance> findByProductCodeOrderByReceivedAtAsc(String productCode);
+
 
     /**
      * 창고별 인스턴스 수 집계 — 대시보드/조회용.

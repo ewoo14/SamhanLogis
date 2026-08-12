@@ -16,6 +16,7 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 import { type EstimateDetail } from './estimateApi'
+import { toOrderPathId } from '../utils/orderNo'
 
 /**
  * revision 한 건의 변경 요약 — BE {@code EstimateRevisionResponse.changeSummary} 와 1:1.
@@ -67,7 +68,7 @@ export interface EstimateRevision {
  */
 export async function listRevisions(estimateId: string): Promise<EstimateRevision[]> {
   const res = await apiClient.get<ApiEnvelope<EstimateRevision[]>>(
-    `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/revisions`,
+    `/api/v1/slips/estimates/${encodeURIComponent(toOrderPathId(estimateId))}/revisions`,
   )
   return res.data.data
 }
@@ -86,7 +87,7 @@ export async function restoreRevision(
   revisionNo: number,
 ): Promise<EstimateDetail> {
   const res = await apiClient.post<ApiEnvelope<EstimateDetail>>(
-    `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/revisions/${revisionNo}/restore`,
+    `/api/v1/slips/estimates/${encodeURIComponent(toOrderPathId(estimateId))}/revisions/${revisionNo}/restore`,
   )
   return res.data.data
 }

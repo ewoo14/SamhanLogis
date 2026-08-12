@@ -9,10 +9,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /** 분개 단건 상세 — 라인 포함. */
 public record JournalDetailResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String journalNo,
         LocalDate journalDate,
         String description,
@@ -22,9 +23,9 @@ public record JournalDetailResponse(
         BigDecimal totalCredit,
         LocalDateTime postedAt,
         String postedBy,
-        UUID reversedJournalId,
-        UUID sourceRefId,
-        UUID cashReceiptId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID reversedJournalId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID sourceRefId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID cashReceiptId,
         String cashReceiptSlipNo,
         List<JournalLineResponse> lines
 ) {

@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.slip.estimate.web.dto.OpaqueUuidCodec;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.client.InventoryClient;
@@ -464,9 +465,10 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.status").value("QUOTE_CONVERTED"))
                 .andExpect(jsonPath("$.data.convertedSlipId").isNotEmpty())
                 .andReturn();
-        String convertedSlipId = objectMapper.readTree(converted.getResponse().getContentAsString())
+        String convertedSlipToken = objectMapper.readTree(converted.getResponse().getContentAsString())
                 .get("data").get("convertedSlipId").asText();
-        assertThat(convertedSlipId).isNotBlank();
+        assertThat(convertedSlipToken).isNotBlank();
+        UUID convertedSlipId = OpaqueUuidCodec.decode(convertedSlipToken);
 
         // 변환 직후 Slip 행 스냅샷 — delete/restore 전체에 걸쳐 이 값과 계속 동일해야 "무연쇄".
         // (entityManager.flush() 로 convert() 가 영속화한 Slip 을 물리 INSERT 로 내보낸 뒤 조회 —
@@ -491,7 +493,6 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.content[0].id").value(id))
                 .andExpect(jsonPath("$.data.content[0].isDeleted").value(true))
                 .andExpect(jsonPath("$.data.content[0].status").value("QUOTE_CONVERTED"))
-                .andExpect(jsonPath("$.data.content[0].convertedSlipId").value(convertedSlipId))
                 .andExpect(jsonPath("$.data.content[0].deletedByName").value("이운영"));
 
         entityManager.flush();
@@ -507,7 +508,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.id").value(id))
                 .andExpect(jsonPath("$.data.isDeleted").value(false))
                 .andExpect(jsonPath("$.data.status").value("QUOTE_CONVERTED"))
-                .andExpect(jsonPath("$.data.convertedSlipId").value(convertedSlipId))
+                .andExpect(jsonPath("$.data.convertedSlipId").value(convertedSlipToken))
                 .andExpect(jsonPath("$.data.deletedByName").doesNotExist());
 
         // Slip 테이블 무연쇄 — restore 이후에도 변환 직후 스냅샷과 완전히 동일(행 자체를 전혀 건드리지

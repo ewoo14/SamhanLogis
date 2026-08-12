@@ -6,12 +6,14 @@ import com.samhanair.logis.partnerorder.service.PartnerOrderDraftService;
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
+import com.samhanair.logis.partnerorder.web.dto.WebPartnerOrderDraftListResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -75,6 +77,13 @@ public class PartnerOrderDraftController {
             @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode) {
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(draftService.list(partnerCode, from, to, pageable));
+    }
+
+    /** 내부 영업 데스크톱의 웹 주문서 source 목록. UUID와 payload는 반환하지 않는다. */
+    @GetMapping("/desktop-list")
+    @RequirePermission(page = "sales.partner-order.list", action = PermissionAction.VIEW)
+    public ApiResponse<List<WebPartnerOrderDraftListResponse>> desktopList() {
+        return ApiResponse.ok(draftService.desktopList());
     }
 
     /**

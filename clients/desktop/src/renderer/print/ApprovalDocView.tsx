@@ -15,6 +15,8 @@ import { getGroupwareApproval } from '../api/groupwareApproval'
 import type { ApprovalLineAdminResponse } from '../api/groupwareApproval'
 import { listApprovalAttachments } from '../api/groupwareApprovalAttachment'
 import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
+import { loadApprovalSlipLineItems } from './approvalSlipLineItems'
+import type { SlipLineDetail } from '../api/slip'
 import { findActiveApprovalTemplate } from '../api/groupwareApprovalTemplate'
 import type { ApprovalTemplate } from '../api/groupwareApprovalTemplate'
 import { findActiveDocumentTemplate, findDocumentTemplateRevision } from '../api/documentTemplate'
@@ -93,6 +95,27 @@ function ApprovalDocViewInner({ id }: ApprovalDocViewInnerProps) {
     !templateQuery.isFetching && (templateQuery.isSuccess || templateQuery.isError)
   )
 
+  const referencedSlipLineItemsQuery = useQuery<SlipLineDetail[] | null>({
+    queryKey: [
+      'groupware-approval-print-slip-lines',
+      id,
+      (attachmentsQuery.data ?? [])
+        .filter((attachment) => attachment.refDocType === 'OUTBOUND_SLIP')
+        .map((attachment) => attachment.refDocNo)
+        .join('|'),
+    ],
+    queryFn: () => loadApprovalSlipLineItems(attachmentsQuery.data ?? []),
+    enabled: approvalReady,
+    retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnReconnect: false,
+  })
+  const lineItemsReady = !approvalReady || (
+    !referencedSlipLineItemsQuery.isFetching
+    && (referencedSlipLineItemsQuery.isSuccess || referencedSlipLineItemsQuery.isError)
+  )
+
   usePageTitle('결재문서', approvalQuery.data?.title)
 
   // docType/status/pin 중 하나라도 서버 응답으로 바뀌면 layout query/decision을 새 epoch로
@@ -110,9 +133,11 @@ function ApprovalDocViewInner({ id }: ApprovalDocViewInnerProps) {
       id={id}
       docType={docType}
       approvalReady={approvalReady}
+      lineItemsReady={lineItemsReady}
       inputTemplateReady={inputTemplateReady}
       approval={approvalQuery.data}
       attachments={attachmentsQuery.data ?? []}
+      slipLineItems={referencedSlipLineItemsQuery.data ?? undefined}
       templateFields={templateQuery.data?.fields ?? []}
       approvalError={approvalQuery.isError}
       attachmentsError={attachmentsQuery.isError}
@@ -124,9 +149,11 @@ type ApprovalDocViewLayoutProps = {
   id: string
   docType: string | null
   approvalReady: boolean
+  lineItemsReady: boolean
   inputTemplateReady: boolean
   approval: ApprovalLineAdminResponse | undefined
   attachments: ApprovalAttachment[]
+  slipLineItems: SlipLineDetail[] | undefined
   templateFields: ApprovalTemplate['fields']
   approvalError: boolean
   attachmentsError: boolean
@@ -137,9 +164,11 @@ function ApprovalDocViewLayout({
   id,
   docType,
   approvalReady,
+  lineItemsReady,
   inputTemplateReady,
   approval,
   attachments,
+  slipLineItems,
   templateFields,
   approvalError,
   attachmentsError,
@@ -244,7 +273,7 @@ function ApprovalDocViewLayout({
     docType,
   ])
 
-  if (!approvalReady || !inputTemplateReady || !layoutDecided) {
+  if (!approvalReady || !lineItemsReady || !inputTemplateReady || !layoutDecided) {
     return <p>불러오는 중...</p>
   }
   if (approvalError || attachmentsError || !approval) {
@@ -259,6 +288,7 @@ function ApprovalDocViewLayout({
     approval,
     templateFields,
     attachments: attachments.slice().sort((a, b) => a.displayOrder - b.displayOrder),
+    ...(slipLineItems == null ? {} : { slipLineItems }),
     backTo: `/groupware/approvals/${id}`,
   }
   const model = buildApprovalRenderModel(renderInput)

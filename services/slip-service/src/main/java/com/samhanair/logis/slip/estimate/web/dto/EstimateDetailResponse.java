@@ -8,15 +8,16 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /** 견적서 상세 응답 — 라인 포함. */
 public record EstimateDetailResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String estimateNo,
         LocalDate estimateDate,
         int seqNo,
         EstimateStatus status,
-        UUID partnerId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID partnerId,
         String partnerName,
         String partnerBusinessNo,
         String partnerAddress,
@@ -24,13 +25,13 @@ public record EstimateDetailResponse(
         BigDecimal totalSupply,
         BigDecimal totalVat,
         BigDecimal totalAmount,
-        UUID convertedSlipId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID convertedSlipId,
         LocalDateTime sentAt,
         LocalDateTime acceptedAt,
         LocalDateTime rejectedAt,
         LocalDateTime convertedAt,
         String memo,
-        String requesterId,
+        @JsonSerialize(using = OpaqueIdentifierSerializer.class) String requesterId,
         Long version,
         Boolean isDeleted,
         LocalDateTime deletedAt,

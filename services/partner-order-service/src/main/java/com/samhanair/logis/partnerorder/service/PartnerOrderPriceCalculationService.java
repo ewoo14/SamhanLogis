@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.discount.LegacyModelFlags;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
@@ -121,7 +122,7 @@ public class PartnerOrderPriceCalculationService {
         for (int i = 0; i < requestLines.size(); i++) {
             ConfirmLineRequest line = requestLines.get(i);
             ProductSummary product = lineProducts.get(i);
-            String discountFlags = resolveDiscountFlags(product);
+            String discountFlags = optionFlags(product);
             BigDecimal fixedDiscountRate = product.fixedDiscountRate() != null
                     ? product.fixedDiscountRate() : fixedDiscountRates.get(product.id());
             BigDecimal listPrice = resolveListPrice(product, line.categoryKey(), fixedDiscountRate);
@@ -217,48 +218,38 @@ public class PartnerOrderPriceCalculationService {
         return flags != null && flags.length() > index && flags.charAt(index) == '1';
     }
 
-    private String resolveDiscountFlags(ProductSummary product) {
-        if (product.discountFlags() != null
-                && product.discountFlags().matches("[01]{6}")
-                && product.discountFlags().chars().anyMatch(ch -> ch == '1')) {
-            return product.discountFlags();
-        }
-        String model = String.valueOf(modelCodeSnapshot(product)).toUpperCase(java.util.Locale.ROOT);
-        if (product.discountFlags() == null && model.contains("360")) {
-            return "100000";
-        }
-        boolean is360 = false;
-        boolean is4Way = false;
-        boolean is1Way = false;
-        boolean isStand = false;
-        boolean isDeluxe = false;
-        boolean isFirstGrade = false;
-        if (model.startsWith("AC") && model.length() >= 9) {
-            is360 = model.charAt(7) == '6' && model.charAt(8) == 'P';
-            is4Way = model.charAt(7) == '4' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
-            is1Way = model.charAt(7) == '1' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
-        }
-        if (model.startsWith("AP") && model.length() >= 9) {
-            if (model.length() >= 11 && model.charAt(10) == 'C') {
-                isStand = model.charAt(8) == 'D';
-            } else {
-                isStand = model.charAt(8) == 'P';
+    /**
+     * #1090 전환 전 데이터 호환 규칙. 분류가 없는 품목에만 레거시 모델코드 옵션을
+     * 임시로 유지하며, discountOption 정본이 채워지는 순간 분류 정본만 사용한다.
+     */
+    private String optionFlags(ProductSummary product) {
+        if (product.discountOption() == null) {
+            if (product.discountFlags() != null && product.discountFlags().matches("[01]{6}")
+                    && !"000000".equals(product.discountFlags())) {
+                return product.discountFlags();
             }
-            if (model.length() >= 11 && model.charAt(8) == 'D' && model.charAt(10) == 'H') {
-                isDeluxe = true;
-            }
-            if (model.startsWith("AP230") || model.startsWith("AP290")) {
-                isStand = true;
-                isDeluxe = false;
-            }
+            LegacyModelFlags flags = LegacyModelFlags.from(
+                    product.modelCode() != null ? product.modelCode() : product.modelName());
+            if (flags.is360()) return "100000";
+            if (flags.is4Way()) return "010000";
+            if (flags.is1Way()) return "001000";
+            if (flags.isStand()) return "000100";
+            if (flags.isDeluxe()) return "000010";
+            if (flags.isFirstGrade()) return "000001";
         }
-        if ((model.startsWith("AC") || model.startsWith("AP"))
-                && model.length() >= 9 && model.charAt(8) == 'F') {
-            isFirstGrade = true;
-        }
-        return (is360 ? "1" : "0") + (is4Way ? "1" : "0") + (is1Way ? "1" : "0")
-                + (isStand ? "1" : "0") + (isDeluxe ? "1" : "0")
-                + (isFirstGrade ? "1" : "0");
+        return optionFlags(product.discountOption());
+    }
+
+    private String optionFlags(String option) {
+        return switch (option == null ? "" : option) {
+            case "THREE_SIXTY" -> "100000";
+            case "FOUR_WAY" -> "010000";
+            case "ONE_WAY" -> "001000";
+            case "STAND" -> "000100";
+            case "DELUXE" -> "000010";
+            case "FIRST_GRADE" -> "000001";
+            default -> "000000";
+        };
     }
 
     private BigDecimal resolveListPrice(ProductSummary product, String categoryKey,

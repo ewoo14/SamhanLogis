@@ -36,15 +36,21 @@
  * 총 페이지 하단 페이지 버튼으로 이동.
  */
 import { useState, useCallback, type CSSProperties } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import {
   listStockBalances,
   listWarehouses,
   type StockBalanceListRow,
   type WarehouseType,
+  listStockInstances,
+  updateStockInstanceQuality,
+  getStockLedger,
 } from '../../api/inventory'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { StockInstanceListModal } from './StockInstanceListModal'
+import { StockLedgerModal } from './StockLedgerModal'
+import { StockSlipDetailModal } from './StockSlipDetailModal'
 
 // ---------------------------------------------------------------------------
 // 페이지당 행 수 (서버 page/size 파라미터 연동)
@@ -123,9 +129,7 @@ const COLUMNS: DataGridColumn<StockBalanceListRow>[] = [
     filter: false,
     align: 'center',
     render: (row) => (
-      <Badge variant={WAREHOUSE_TYPE_VARIANT[row.warehouseType]}>
-        {WAREHOUSE_TYPE_LABEL[row.warehouseType]}
-      </Badge>
+      <Badge variant={WAREHOUSE_TYPE_VARIANT[row.warehouseType]}>{WAREHOUSE_TYPE_LABEL[row.warehouseType]}</Badge>
     ),
   },
   {
@@ -216,6 +220,11 @@ export function InventoryStockBalancePage() {
   const [queried, setQueried] = useState(false)
   /** 현재 페이지 (0-based, 서버 page 파라미터 연동) */
   const [currentPage, setCurrentPage] = useState(0)
+  const [instanceProductCode, setInstanceProductCode] = useState<string | null>(null)
+  const [ledgerProductCode, setLedgerProductCode] = useState<string | null>(null)
+  const [ledgerRange, setLedgerRange] = useState<{ start: string; end: string } | undefined>(undefined)
+  const [slipLink, setSlipLink] = useState<{ slipNo: string; slipType: 'INBOUND' | 'OUTBOUND' } | null>(null)
+  const queryClient = useQueryClient()
 
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
@@ -231,6 +240,22 @@ export function InventoryStockBalancePage() {
         size: PAGE_SIZE,
       }),
     enabled: queried,
+  })
+
+  const instancesQuery = useQuery({
+    queryKey: ['inventory-instances', instanceProductCode],
+    queryFn: () => listStockInstances(instanceProductCode!),
+    enabled: instanceProductCode !== null,
+  })
+  const qualityMutation = useMutation({
+    mutationFn: ({ serialKey, quality }: { serialKey: string; quality: Parameters<typeof updateStockInstanceQuality>[1] }) =>
+      updateStockInstanceQuality(serialKey, quality),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inventory-instances', instanceProductCode] }),
+  })
+  const ledgerQuery = useQuery({
+    queryKey: ['inventory-ledger', ledgerProductCode, ledgerRange?.start, ledgerRange?.end],
+    queryFn: () => getStockLedger(ledgerProductCode!, ledgerRange?.start, ledgerRange?.end),
+    enabled: ledgerProductCode !== null,
   })
 
   const handleQuery = useCallback(() => {
@@ -250,6 +275,25 @@ export function InventoryStockBalancePage() {
   const zeroAvailableCount = rows.filter(
     (r) => r.availableQty === 0 && r.warehouseType !== 'VIRTUAL',
   ).length
+
+  const columns = COLUMNS.map((column) => column.key === 'productCode'
+    ? { ...column, render: (row: StockBalanceListRow) => (
+      <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => setInstanceProductCode(row.productCode)}
+          style={productLinkStyle}
+          aria-label={`${row.productCode} 품목리스트 열기`}
+        >{row.productCode}</button>
+        <button
+          type="button"
+          onClick={() => { setLedgerRange(undefined); setLedgerProductCode(row.productCode) }}
+          style={ledgerLinkStyle}
+          aria-label={`${row.productCode} 재고수불부 열기`}
+        >수불부</button>
+      </span>
+      ) }
+    : column)
 
   return (
     <div style={pageStyle}>
@@ -325,7 +369,7 @@ export function InventoryStockBalancePage() {
       {/* ── DataGrid 본문 ─────────────────────────────────── */}
       <section style={gridSectionStyle} data-testid="inventory-balance-grid">
         <DataGrid<StockBalanceListRow>
-          columns={COLUMNS}
+          columns={columns}
           rows={rows}
           rowKey={(row) => rowKeyByRow.get(row) ?? `${row.productCode}-${row.warehouseCode}`}
           loading={balancesQuery.isFetching}
@@ -383,6 +427,25 @@ export function InventoryStockBalancePage() {
           ) : null}
         </div>
       ) : null}
+      {instanceProductCode !== null ? (
+        <StockInstanceListModal
+          open
+          productCode={instanceProductCode}
+          rows={instancesQuery.data ?? []}
+          onClose={() => setInstanceProductCode(null)}
+          onQualityChange={(serialKey, quality) => qualityMutation.mutate({ serialKey, quality })}
+        />
+      ) : null}
+      {ledgerProductCode !== null ? (
+        <StockLedgerModal
+          open
+          data={ledgerQuery.data}
+          onClose={() => setLedgerProductCode(null)}
+          onRangeChange={(startDate, endDate) => setLedgerRange({ start: startDate, end: endDate })}
+          onOpenSlip={(slipNo, slipType) => setSlipLink({ slipNo, slipType })}
+        />
+      ) : null}
+      {slipLink ? <StockSlipDetailModal slipNo={slipLink.slipNo} slipType={slipLink.slipType} onClose={() => setSlipLink(null)} /> : null}
     </div>
   )
 }
@@ -396,6 +459,27 @@ const pageStyle: CSSProperties = {
   flexDirection: 'column',
   gap: 12,
   height: '100%',
+}
+
+const productLinkStyle: CSSProperties = {
+  border: 0,
+  padding: 0,
+  background: 'transparent',
+  color: 'var(--color-brand-700, #185B86)',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+  font: 'inherit',
+}
+
+const ledgerLinkStyle: CSSProperties = {
+  border: 0,
+  padding: 0,
+  background: 'transparent',
+  color: 'var(--color-neutral-600, #4B5563)',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+  font: 'inherit',
+  fontSize: 11,
 }
 
 const headerRowStyle: CSSProperties = {

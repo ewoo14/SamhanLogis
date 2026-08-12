@@ -13,6 +13,7 @@ import com.samhanair.logis.accounting.web.collab.dto.JournalCollabCommentRespons
 import com.samhanair.logis.accounting.web.collab.dto.JournalCollabEditResponse;
 import com.samhanair.logis.accounting.web.collab.dto.JournalCollabSuggestionResponse;
 import com.samhanair.logis.accounting.web.collab.dto.JournalPresenceRequest;
+import com.samhanair.logis.accounting.web.dto.OpaqueUuidDeserializer;
 import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
@@ -92,10 +93,11 @@ public class JournalCollabController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<JournalCollabCommentResponse> addComment(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @Valid @RequestBody AddJournalCollabCommentRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         JournalCollabComment saved = commentService.add(
                 CollabDocumentType.ACCOUNTING_VOUCHER,
@@ -113,8 +115,9 @@ public class JournalCollabController {
     @GetMapping("/comments")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<JournalCollabCommentResponse>> listComments(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @RequestParam(defaultValue = "20") int limit) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         List<JournalCollabCommentResponse> items = commentService
                 .listRecent(CollabDocumentType.ACCOUNTING_VOUCHER, journalId, limit)
@@ -129,9 +132,10 @@ public class JournalCollabController {
     @DeleteMapping("/comments/{commentId}")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<Void> deleteComment(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @PathVariable UUID commentId,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         commentService.softDelete(
                 CollabDocumentType.ACCOUNTING_VOUCHER, journalId, commentId, resolveDeleter(callerId));
@@ -143,8 +147,9 @@ public class JournalCollabController {
     @PostMapping("/comments/{commentId}/resolve")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<JournalCollabCommentResponse> resolveComment(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @PathVariable UUID commentId) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         return ApiResponse.ok(JournalCollabCommentResponse.from(
                 commentService.resolve(CollabDocumentType.ACCOUNTING_VOUCHER, journalId, commentId)));
@@ -156,10 +161,11 @@ public class JournalCollabController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<JournalCollabEditResponse> commitEdit(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @Valid @RequestBody CommitJournalCollabEditRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         port.validateChangeSet(request.changeSet());
         JournalCollabEditService.Result result = editService.commitEdit(
@@ -174,7 +180,8 @@ public class JournalCollabController {
     @GetMapping("/edits")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<JournalCollabSuggestionResponse>> listEdits(
-            @PathVariable UUID journalId) {
+            @PathVariable("journalId") String journalIdToken) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         List<JournalCollabSuggestionResponse> items = suggestionRepository
                 .findByDocumentTypeAndDocumentIdAndStatusOrderByCreatedAtDesc(
@@ -189,7 +196,9 @@ public class JournalCollabController {
     @Operation(summary = "회계전표 협업 메모 coedit update snapshot")
     @GetMapping("/coedit")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
-    public ApiResponse<JournalCoeditUpdatesResponse> listCoeditUpdates(@PathVariable UUID journalId) {
+    public ApiResponse<JournalCoeditUpdatesResponse> listCoeditUpdates(
+            @PathVariable("journalId") String journalIdToken) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         return ApiResponse.ok(new JournalCoeditUpdatesResponse(coeditService.listUpdates(journalId)));
     }
@@ -199,8 +208,9 @@ public class JournalCollabController {
     @PostMapping("/coedit/update")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<Void> appendCoeditUpdate(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @RequestBody(required = false) JournalCoeditUpdateRequest request) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         coeditService.appendUpdate(journalId, request == null ? null : request.update());
         return ApiResponse.ok(null);
@@ -211,8 +221,9 @@ public class JournalCollabController {
     @PostMapping("/coedit/awareness")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<Void> publishCoeditAwareness(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @RequestBody(required = false) JournalCoeditAwarenessRequest request) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         coeditService.publishAwareness(journalId, request == null ? null : request.awareness());
         return ApiResponse.ok(null);
@@ -222,7 +233,8 @@ public class JournalCollabController {
     @Operation(summary = "회계전표 협업 SSE stream 구독")
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
-    public SseEmitter stream(@PathVariable UUID journalId) {
+    public SseEmitter stream(@PathVariable("journalId") String journalIdToken) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         return broker.subscribe(journalId);
     }
@@ -237,10 +249,11 @@ public class JournalCollabController {
     @PostMapping("/presence/join")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<PresenceEntry> joinPresence(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @RequestBody(required = false) JournalPresenceRequest request,
             @RequestHeader(CALLER_ID_HEADER) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         String userId = resolvePresenceUserId(callerId);
         String sessionId = resolvePresenceSessionId(request);
@@ -257,9 +270,10 @@ public class JournalCollabController {
     @PostMapping("/presence/leave")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<Void> leavePresence(
-            @PathVariable UUID journalId,
+            @PathVariable("journalId") String journalIdToken,
             @RequestBody(required = false) JournalPresenceRequest request,
             @RequestHeader(CALLER_ID_HEADER) String callerId) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         String userId = resolvePresenceUserId(callerId);
         presenceService.leave(journalId, resolvePresenceSessionId(request), userId);
@@ -274,13 +288,20 @@ public class JournalCollabController {
     @Operation(summary = "회계전표 협업 presence 목록")
     @GetMapping("/presence")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
-    public ApiResponse<List<PresenceEntry>> listPresence(@PathVariable UUID journalId) {
+    public ApiResponse<List<PresenceEntry>> listPresence(
+            @PathVariable("journalId") String journalIdToken) {
+        UUID journalId = decodeJournalId(journalIdToken);
         ensureJournalExists(journalId);
         return ApiResponse.ok(presenceService.list(journalId));
     }
 
     private void ensureJournalExists(UUID journalId) {
         port.loadSnapshot(journalId);
+    }
+
+    /** 목록 응답의 opaque journal token과 기존 UUID path 입력을 동일한 내부 키로 복원한다. */
+    private UUID decodeJournalId(String journalIdToken) {
+        return OpaqueUuidDeserializer.decode(journalIdToken);
     }
 
     private UUID resolveActorId(String header) {

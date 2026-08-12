@@ -181,7 +181,7 @@ class SlipOutboundInstanceIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isConflict());
 
-        UUID id = UUID.fromString(slipId);
+        UUID id = OpaqueUuidTestDecoder.decode(slipId);
         assertThat(slipRepository.findById(id).orElseThrow().getStatus()).isEqualTo(SlipStatus.SENT);
     }
 

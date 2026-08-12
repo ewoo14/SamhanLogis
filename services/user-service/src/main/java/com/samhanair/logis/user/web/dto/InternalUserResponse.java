@@ -17,6 +17,8 @@ public record InternalUserResponse(
         UUID id,
         String loginId,
         String fullName,
-        Role role
+        Role role,
+        String departmentName,
+        String ecountCode
 ) {
 }

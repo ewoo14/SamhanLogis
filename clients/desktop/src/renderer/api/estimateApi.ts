@@ -26,6 +26,7 @@ import {
   type PageResponse,
 } from './client'
 import { withLineIdContract } from './lineIdContract'
+import { toOrderPathId } from '../utils/orderNo'
 import type { BundleSetOptions } from './slip'
 
 export type { BundleSetOptions }
@@ -282,7 +283,7 @@ export async function listAssignedEstimates(
 /** 단건 상세. */
 export async function getEstimate(id: string): Promise<EstimateDetail> {
   const res = await apiClient.get<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${id}`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}`,
   )
   return normalizeEstimateDetail(res.data.data)
 }
@@ -304,7 +305,7 @@ export async function updateEstimate(
   body: UpdateEstimateRequest,
 ): Promise<EstimateDetail> {
   const res = await apiClient.put<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${id}`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}`,
     // [D-R8-9] 전표 미러 — 계약 마커 스탬프. 누락 시 BE 400.
     withLineIdContract(body),
   )
@@ -314,7 +315,7 @@ export async function updateEstimate(
 /** DRAFT → SENT. */
 export async function sendEstimate(id: string): Promise<EstimateDetail> {
   const res = await apiClient.post<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${id}/send`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}/send`,
     {},
   )
   return normalizeEstimateDetail(res.data.data)
@@ -323,7 +324,7 @@ export async function sendEstimate(id: string): Promise<EstimateDetail> {
 /** SENT → ACCEPTED. */
 export async function acceptEstimate(id: string): Promise<EstimateDetail> {
   const res = await apiClient.post<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${id}/accept`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}/accept`,
     {},
   )
   return normalizeEstimateDetail(res.data.data)
@@ -332,7 +333,7 @@ export async function acceptEstimate(id: string): Promise<EstimateDetail> {
 /** SENT → REJECTED. */
 export async function rejectEstimate(id: string): Promise<EstimateDetail> {
   const res = await apiClient.post<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${id}/reject`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}/reject`,
     {},
   )
   return normalizeEstimateDetail(res.data.data)
@@ -341,7 +342,7 @@ export async function rejectEstimate(id: string): Promise<EstimateDetail> {
 /** ACCEPTED → CONVERTED — Slip(OUTBOUND DRAFT) 자동 발행. */
 export async function convertEstimate(id: string): Promise<EstimateDetail> {
   const res = await apiClient.post<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${id}/convert`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}/convert`,
     {},
   )
   return normalizeEstimateDetail(res.data.data)
@@ -350,7 +351,7 @@ export async function convertEstimate(id: string): Promise<EstimateDetail> {
 /** 견적서 soft-delete 복원. */
 export async function restoreEstimate(id: string): Promise<void> {
   await apiClient.post<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${encodeURIComponent(id)}/restore`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}/restore`,
     {},
   )
 }
@@ -361,7 +362,7 @@ export async function changeEstimateOwner(
   request: ChangeEstimateOwnerRequest,
 ): Promise<EstimateDetail> {
   const res = await apiClient.patch<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${encodeURIComponent(id)}/owner`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}/owner`,
     request,
   )
   return normalizeEstimateDetail(res.data.data)
