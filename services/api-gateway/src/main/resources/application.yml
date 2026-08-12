@@ -47,6 +47,9 @@ spring:
             - Path=/api/auth/**
           filters:
             - StripInboundIdentityHeaders
+            - name: ForwardedClientIp
+              args:
+                trustedPeerAddresses: ${SAMHAN_AUDIT_TRUSTED_INGRESS_ADDRESSES:private}
             - StripPrefix=1
 
         - id: user-service

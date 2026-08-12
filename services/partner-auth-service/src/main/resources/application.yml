@@ -30,6 +30,7 @@ eureka:
 
 samhan:
   audit:
+    trusted-gateway-addresses: ${SAMHAN_AUDIT_TRUSTED_GATEWAY_ADDRESSES:private}
     publisher:
       enabled: true
   jwt:

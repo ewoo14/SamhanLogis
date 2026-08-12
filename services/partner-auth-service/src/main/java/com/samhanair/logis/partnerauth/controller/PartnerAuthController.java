@@ -27,8 +27,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 import com.samhanair.logis.shared.audit.contract.AuditEventV2;
 import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
+import com.samhanair.logis.partnerauth.audit.PartnerAuditClientIpResolver;
 
 /**
  * Partner Auth Service — 7 endpoint (설계서 §3).
@@ -44,17 +49,34 @@ public class PartnerAuthController {
 
     private final PartnerAuthService partnerAuthService;
     private final AuditPublisher auditPublisher;
+    private final Set<String> trustedGatewayAddresses;
+    private final PartnerAuditClientIpResolver clientIpResolver;
 
     @Autowired
-    public PartnerAuthController(PartnerAuthService partnerAuthService, AuditPublisher auditPublisher) {
+    public PartnerAuthController(PartnerAuthService partnerAuthService, AuditPublisher auditPublisher,
+                                 @Value("${samhan.audit.trusted-gateway-addresses:}") String trustedGatewayAddresses) {
         this.partnerAuthService = partnerAuthService;
         this.auditPublisher = auditPublisher;
+        this.trustedGatewayAddresses = parseAddresses(trustedGatewayAddresses);
+        this.clientIpResolver = new PartnerAuditClientIpResolver(this.trustedGatewayAddresses);
     }
 
     /** 기존 단위 테스트와 수동 controller 생성자의 호환 생성자. */
+    public PartnerAuthController(PartnerAuthService partnerAuthService, AuditPublisher auditPublisher) {
+        this(partnerAuthService, auditPublisher, "");
+    }
+
     public PartnerAuthController(PartnerAuthService partnerAuthService) {
+        this(partnerAuthService, null, "");
+    }
+
+    /** 테스트 및 기존 호출부 호환용 신뢰 gateway 주소 생성자. */
+    public PartnerAuthController(PartnerAuthService partnerAuthService, AuditPublisher auditPublisher,
+                                 Set<String> trustedGatewayAddresses) {
         this.partnerAuthService = partnerAuthService;
-        this.auditPublisher = null;
+        this.auditPublisher = auditPublisher;
+        this.trustedGatewayAddresses = trustedGatewayAddresses == null ? Set.of() : Set.copyOf(trustedGatewayAddresses);
+        this.clientIpResolver = new PartnerAuditClientIpResolver(this.trustedGatewayAddresses);
     }
 
     /** 1) 거래처 인증 상태 조회. */
@@ -115,8 +137,17 @@ public class PartnerAuthController {
         return ApiResponse.ok(partnerAuthService.updateTutorial(request));
     }
 
-    /** 요청자가 주입할 수 있는 X-Forwarded-For는 신뢰하지 않고 직접 peer 주소만 기록한다. */
+    /** 신뢰 gateway가 전달한 감사 전용 주소만 사용하고 직접 forwarding header는 무시한다. */
     private String resolveClientIp(HttpServletRequest req) {
-        return req.getRemoteAddr();
+        return resolveClientIp(req, trustedGatewayAddresses);
+    }
+
+    private String resolveClientIp(HttpServletRequest req, Set<String> trustedGateways) {
+        return new PartnerAuditClientIpResolver(trustedGateways).resolve(req);
+    }
+
+    private static Set<String> parseAddresses(String addresses) {
+        return Arrays.stream((addresses == null ? "" : addresses).split(","))
+                .map(String::trim).filter(value -> !value.isBlank()).collect(Collectors.toUnmodifiableSet());
     }
 }
