@@ -9,6 +9,7 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductGoodsType;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,11 +30,11 @@ import java.util.UUID;
  * </ul>
  */
 public record ProductResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String name,
         String modelName,
         String modelCode,
-        UUID categoryId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID categoryId,
         String categoryName,
         BigDecimal sellingPrice,
         BigDecimal purchasePrice,
@@ -121,7 +122,7 @@ public record ProductResponse(
     }
 
     /** 품목 상세 화면용 분류 참조. */
-    public record ClassificationRef(UUID id, String name) {
+    public record ClassificationRef(@JsonSerialize(using = OpaqueUuidSerializer.class) UUID id, String name) {
         public static ClassificationRef from(Classification classification) {
             if (classification == null) {
                 return null;

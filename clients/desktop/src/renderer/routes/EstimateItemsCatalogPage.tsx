@@ -10,6 +10,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type CSSProperties,
 } from 'react'
@@ -113,6 +114,23 @@ type MasterProductSearch = (
   q: string,
   options?: { size?: number; usageScope?: UsageScope },
 ) => Promise<ProductOption[]>
+
+/** 라이브 모달에서 effect 의존성이 렌더마다 바뀌지 않도록 노출 행 배열을 고정한다. */
+export function useStableEstimateCatalogRows<T extends { usageScope: UsageScope }>(
+  rows: readonly T[],
+): T[] {
+  return useMemo(
+    () => rows.filter((row) => row.usageScope !== 'NONE'),
+    [rows],
+  )
+}
+
+/** 저장 초안에는 활성 target만 남긴다. API가 삭제 표식을 포함해도 3건 불변식을 보존한다. */
+export function preserveActiveQuantitySyncTargets<T extends object>(
+  targets: readonly T[],
+): T[] {
+  return targets.filter((target) => (target as { isDeleted?: boolean }).isDeleted !== true)
+}
 
 /** 검색 응답의 원천 메타데이터만으로 견적품목 후보를 걸러낸다. */
 export async function searchMasterProducts(
@@ -767,11 +785,11 @@ function CategoryCell({
   const canEditQuantitySync = canEdit && quantitySyncInboundSources.length === 0
   const [quantitySyncModalOpen, setQuantitySyncModalOpen] = useState(false)
   const [selectedQuantityTargets, setSelectedQuantityTargets] = useState<QuantitySyncTargetDraft[]>(() =>
-    (quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft),
+    preserveActiveQuantitySyncTargets(quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft),
   )
 
   useEffect(() => {
-    setSelectedQuantityTargets((quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft))
+    setSelectedQuantityTargets(preserveActiveQuantitySyncTargets(quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft))
   }, [quantitySyncRule])
 
   const handleCategoryAdd = (value: string) => {
@@ -1116,7 +1134,7 @@ export function EstimateItemsCatalogPage() {
   }, [focusedQuantitySyncRuleKey, listQuery.isFetching, sortableRows])
 
   const rawRows = listQuery.data?.content ?? []
-  const rows = rawRows.filter((row) => row.usageScope !== 'NONE')
+  const rows = useStableEstimateCatalogRows(rawRows)
 
   useEffect(() => {
     if (!orderDirty) {
@@ -1252,7 +1270,7 @@ export function EstimateItemsCatalogPage() {
           existing.name,
           existing.legacyRef,
           remainingSources,
-          existing.targets.map(quantitySyncTargetDraft),
+          preserveActiveQuantitySyncTargets(existing.targets).map(quantitySyncTargetDraft),
         )
         await replaceQuantitySyncRule(existing.ruleKey, request)
         return

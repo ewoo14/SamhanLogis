@@ -170,7 +170,7 @@ public record ProductCatalogResponse(
             if (classification == null) {
                 return null;
             }
-            return new ClassificationView(classification.getId().toString(), classification.getName());
+            return new ClassificationView(OpaqueUuidSerializer.encode(classification.getId()), classification.getName());
         }
     }
 
