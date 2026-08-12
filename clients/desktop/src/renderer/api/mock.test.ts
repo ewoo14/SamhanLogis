@@ -117,7 +117,7 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-describe('주문서 앱 접근권한 mock report 계약', () => {
+describe('주문서 승인 mock report 계약', () => {
   it('GET /access-preview/report 는 목록 Page가 아닌 후보 report를 반환한다', () => {
     const response = mockRequest({
       method: 'GET',

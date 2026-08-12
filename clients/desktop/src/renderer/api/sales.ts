@@ -1063,7 +1063,7 @@ export async function listPartnerApprovals(
 }
 
 /**
- * 주문서 앱 접근권한 설정 후보 미리보기.
+ * 주문서 승인 후보 미리보기.
  *
  * <p>기간은 화면 표시용이 아니라 backend 선별 query에 전달되어 실제 후보 수를 바꾼다.
  */
