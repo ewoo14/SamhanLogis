@@ -37,6 +37,7 @@ import {
 
 const PAGE_CODE = 'accounting.cash-receipts'
 const CASH_RECEIPT_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
+const CASH_RECEIPT_LINE_FIELDS = ['partnerCode', 'bizNo', 'partnerName', 'amount', 'memo'] as const
 
 function seedCashReceiptCoeditProvider(provider: DocCoeditProvider, state: CashReceiptFormState) {
   provider.setHeaderValue('partnerName', state.partnerName)
@@ -47,6 +48,23 @@ function seedCashReceiptCoeditProvider(provider: DocCoeditProvider, state: CashR
   provider.setHeaderValue('debitAccountCode', state.debitAccountCode)
   provider.setHeaderValue('creditAccountCode', state.creditAccountCode)
   provider.setHeaderValue('memo', state.memo)
+  provider.replaceItems(state.lines)
+}
+
+/** provider가 화면의 실제 입력 소스이므로, 부분 snapshot의 빈 셀도 canonical 서버값으로 채운다. */
+function hydrateCashReceiptCoeditProvider(provider: DocCoeditProvider, fallback: CashReceiptFormState) {
+  const providerLineCount = provider.items.toArray().length
+  if (providerLineCount === 0 || providerLineCount !== fallback.lines.length) {
+    seedCashReceiptCoeditProvider(provider, fallback)
+    return
+  }
+  fallback.lines.forEach((line, index) => {
+    for (const field of CASH_RECEIPT_LINE_FIELDS) {
+      if (!provider.getItemValue(index, field).trim() && line[field]) {
+        provider.setItemValue(index, field, line[field])
+      }
+    }
+  })
 }
 
 function stateFromCashReceiptCoeditProvider(
@@ -65,16 +83,8 @@ function stateFromCashReceiptCoeditProvider(
   const lines = providerLines.length > 0
     ? providerLines.map((line, index) => {
       const previous = fallback.lines[index]
-      // 주문 편집과 같은 per-field fallback 계약: 구 협업 item이 거래처만
-      // 가지고 금액을 비워도 서버 hydrate의 숫자(예: 1008)를 잃지 않는다.
-      // 행 전체가 아니라 필드별로 복원해야 부분적으로 저장된 Y.Doc도 안전하다.
-      return {
-        partnerCode: line.partnerCode || previous?.partnerCode || '',
-        bizNo: line.bizNo || previous?.bizNo || '',
-        partnerName: line.partnerName || previous?.partnerName || '',
-        amount: line.amount || previous?.amount || '',
-        memo: line.memo || previous?.memo || '',
-      }
+      const hasValue = Object.values(line).some((value) => value.trim())
+      return hasValue ? line : previous ?? emptyCashReceiptLine()
     })
     : fallback.lines
   return {
@@ -262,7 +272,9 @@ export function CashReceiptFormPage() {
     setCoeditPending(true)
 
     const applyProviderState = (nextProvider: DocCoeditProvider) => {
-      setState(stateFromCashReceiptCoeditProvider(nextProvider, cashReceiptFormStateFromRow(receiptSnapshot)))
+      const fallback = cashReceiptFormStateFromRow(receiptSnapshot)
+      hydrateCashReceiptCoeditProvider(nextProvider, fallback)
+      setState(stateFromCashReceiptCoeditProvider(nextProvider, fallback))
     }
 
     void createDocCoeditProvider({
@@ -275,9 +287,7 @@ export function CashReceiptFormPage() {
         return
       }
       provider = nextProvider
-      if (nextProvider.isEmpty()) {
-        seedCashReceiptCoeditProvider(nextProvider, cashReceiptFormStateFromRow(receiptSnapshot))
-      }
+      if (nextProvider.isEmpty()) hydrateCashReceiptCoeditProvider(nextProvider, cashReceiptFormStateFromRow(receiptSnapshot))
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
       setCoeditProvider(nextProvider)
