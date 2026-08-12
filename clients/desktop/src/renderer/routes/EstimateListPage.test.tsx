@@ -12,6 +12,7 @@ import {
   type EstimateSummary,
 } from '../api/estimateApi'
 import { listPartnerOrders, type PartnerOrderSummary } from '../api/sales'
+import { listWebPartnerOrderDraftSummaries, listWebQuoteSnapshotSummaries } from '../api/estimateSourceApi'
 import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
 
 const navigateMock = vi.fn()
@@ -24,7 +25,38 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => navigateMock,
   }
 })
+/*
+  it('웹 저장분의 출처를 표시하고 출처 필터로 분리한다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ id: 'desktop-estimate' })]))
+    listPartnerOrdersMock.mockResolvedValue(orderPageOf([orderRow({ orderNumber: 'desktop-order' })]))
+    listWebQuoteSnapshotSummariesMock.mockResolvedValue([
+      { snapshotKey: 'snapshot-1', documentLabel: '웹견적-1', custName: '웹 거래처', created: '2026-08-03T00:00:00', totalAmount: '300' },
+    ])
+    listWebPartnerOrderDraftSummariesMock.mockResolvedValue([
+      { draftKey: 'draft-1', documentLabel: '웹주문-1', partnerCode: 'P-WEB', createdAt: '2026-08-04T00:00:00', totalAmount: '400' },
+    ])
 
+    renderPage()
+    fireEvent.click(await screen.findByTestId('estimate-list-unified-toggle'))
+
+    const table = await screen.findByTestId('estimate-unified-list-table')
+    await waitFor(() => {
+      expect(within(table).getByText('웹 종합견적서')).toBeTruthy()
+      expect(within(table).getByText('웹 주문서')).toBeTruthy()
+      expect(within(table).getByText('데스크톱 견적서')).toBeTruthy()
+      expect(within(table).getByText('데스크톱 주문서')).toBeTruthy()
+    })
+
+    fireEvent.change(screen.getByTestId('estimate-list-source-filter'), { target: { value: 'web-quote-snapshot' } })
+    await waitFor(() => {
+      expect(within(table).getByText('웹 종합견적서')).toBeTruthy()
+      expect(within(table).queryByText('웹 주문서')).toBeNull()
+      expect(within(table).queryByText('데스크톱 견적서')).toBeNull()
+    })
+  })
+})
+
+*/
 vi.mock('../hooks/usePermissions', () => ({
   usePermissions: () => ({ canAccess: canAccessMock }),
 }))
@@ -47,9 +79,20 @@ vi.mock('../api/sales', async () => {
   return { ...actual, listPartnerOrders: vi.fn() }
 })
 
+vi.mock('../api/estimateSourceApi', async () => {
+  const actual = await vi.importActual<typeof import('../api/estimateSourceApi')>('../api/estimateSourceApi')
+  return {
+    ...actual,
+    listWebPartnerOrderDraftSummaries: vi.fn(),
+    listWebQuoteSnapshotSummaries: vi.fn(),
+  }
+})
+
 const listEstimatesMock = vi.mocked(listEstimates)
 const restoreEstimateMock = vi.mocked(restoreEstimate)
 const listPartnerOrdersMock = vi.mocked(listPartnerOrders)
+const listWebQuoteSnapshotSummariesMock = vi.mocked(listWebQuoteSnapshotSummaries)
+const listWebPartnerOrderDraftSummariesMock = vi.mocked(listWebPartnerOrderDraftSummaries)
 const useCollectionRealtimeMock = vi.mocked(useCollectionRealtime)
 
 afterEach(cleanup)
@@ -143,9 +186,13 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     listEstimatesMock.mockReset()
     restoreEstimateMock.mockReset()
     listPartnerOrdersMock.mockReset()
+    listWebQuoteSnapshotSummariesMock.mockReset()
+    listWebPartnerOrderDraftSummariesMock.mockReset()
     restoreEstimateMock.mockResolvedValue(undefined)
     listEstimatesMock.mockResolvedValue(pageOf([estimateRow()]))
     listPartnerOrdersMock.mockResolvedValue(orderPageOf([]))
+    listWebQuoteSnapshotSummariesMock.mockResolvedValue([])
+    listWebPartnerOrderDraftSummariesMock.mockResolvedValue([])
   })
 
   it('견적 목록 coarse SSE 키로 realtime invalidate를 구독한다', async () => {

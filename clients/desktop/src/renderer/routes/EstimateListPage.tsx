@@ -31,6 +31,7 @@ import {
   type EstimateSummary,
 } from '../api/estimateApi'
 import { listPartnerOrders } from '../api/sales'
+import { listWebPartnerOrderDraftSummaries, listWebQuoteSnapshotSummaries } from '../api/estimateSourceApi'
 import { extractApiErrorResponseMessage } from '../api/apiError'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -42,7 +43,14 @@ import {
   deletedBadgeAriaLabel,
   deletedBadgeLabel,
 } from './admin/partnerDeletedRow'
-import { mergeEstimateAndOrderRows, type UnifiedEstimateListRow } from './estimateUnifiedListModel'
+import {
+  filterUnifiedEstimateRowsBySource,
+  mergeEstimateAndOrderRows,
+  UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS,
+  UNIFIED_ESTIMATE_SOURCE_LABELS,
+  type UnifiedEstimateListRow,
+  type UnifiedEstimateSource,
+} from './estimateUnifiedListModel'
 
 const STATUS_OPTIONS: Array<{ value: EstimateStatus | ''; label: string }> = [
   { value: '', label: '전체' },
@@ -108,6 +116,7 @@ export function EstimateListPage() {
   const [partnerKeyword, setPartnerKeyword] = useState<string>('')
   const [includeDeleted, setIncludeDeleted] = useState(false)
   const [showUnifiedList, setShowUnifiedList] = useState(false)
+  const [sourceFilter, setSourceFilter] = useState<UnifiedEstimateSource | ''>('')
   const [page, setPage] = useState(0)
   const [restoreError, setRestoreError] = useState<string | null>(null)
 
@@ -134,7 +143,7 @@ export function EstimateListPage() {
     queryKey: ['estimates', 'unified', statusFilter, startDate, endDate, partnerKeyword, includeDeleted],
     enabled: showUnifiedList,
     queryFn: async () => {
-      const [estimateResult, orderResult] = await Promise.allSettled([
+      const [estimateResult, orderResult, webQuoteResult, webDraftResult] = await Promise.allSettled([
         fetchAllPages((page) => listEstimates({
           page,
           size: UNIFIED_LIST_FETCH_SIZE,
@@ -148,16 +157,28 @@ export function EstimateListPage() {
           ...(endDate ? { dateTo: endDate } : {}),
           ...(includeDeleted ? { includeDeleted: true } : {}),
         })),
+        listWebQuoteSnapshotSummaries({
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        }),
+        listWebPartnerOrderDraftSummaries({
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        }),
       ])
 
       return {
         estimates: estimateResult.status === 'fulfilled' ? estimateResult.value.items : [],
         orders: orderResult.status === 'fulfilled' ? orderResult.value.items : [],
+        webQuoteSnapshots: webQuoteResult.status === 'fulfilled' ? webQuoteResult.value : [],
+        webPartnerOrderDrafts: webDraftResult.status === 'fulfilled' ? webDraftResult.value : [],
         errors: [
           ...(estimateResult.status === 'rejected' || (estimateResult.status === 'fulfilled' && estimateResult.value.incomplete)
             ? ['종합견적서'] : []),
           ...(orderResult.status === 'rejected' || (orderResult.status === 'fulfilled' && orderResult.value.incomplete)
             ? ['주문서'] : []),
+          ...(webQuoteResult.status === 'rejected' ? ['웹 종합견적서'] : []),
+          ...(webDraftResult.status === 'rejected' ? ['웹 주문서'] : []),
         ],
       }
     },
@@ -187,11 +208,14 @@ export function EstimateListPage() {
     const data = unifiedQuery.data
     if (!data) return []
     const keyword = partnerKeyword.trim().toLowerCase()
-    return mergeEstimateAndOrderRows(
+    const rows = mergeEstimateAndOrderRows(
       data.estimates.filter((row) => !keyword || (row.partnerName ?? '').toLowerCase().includes(keyword)),
       data.orders.filter((row) => !keyword || (row.partnerName ?? '').toLowerCase().includes(keyword)),
+      data.webQuoteSnapshots.filter((row) => !keyword || (row.custName ?? '').toLowerCase().includes(keyword)),
+      data.webPartnerOrderDrafts.filter((row) => !keyword || (row.partnerCode ?? '').toLowerCase().includes(keyword)),
     )
-  }, [unifiedQuery.data, partnerKeyword])
+    return filterUnifiedEstimateRowsBySource(rows, sourceFilter)
+  }, [unifiedQuery.data, partnerKeyword, sourceFilter])
 
   const columns: DataTableColumn<EstimateSummary>[] = [
     {
@@ -350,7 +374,11 @@ export function EstimateListPage() {
       header: '구분',
       width: '120px',
       mobilePriority: 'secondary',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.sourceLabel}</span>,
+      render: (row) => (
+        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
+          <span>{row.storageLabel}</span>{' · '}<span>{row.sourceLabel}</span>
+        </span>
+      ),
     },
     {
       key: 'documentNo',
@@ -463,6 +491,21 @@ export function EstimateListPage() {
               />
               통합 목록 보기
             </label>
+            {showUnifiedList ? (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                출처
+                <select
+                  value={sourceFilter}
+                  onChange={(event) => setSourceFilter(event.target.value as UnifiedEstimateSource | '')}
+                  data-testid="estimate-list-source-filter"
+                >
+                  <option value="">전체</option>
+                  {(Object.keys(UNIFIED_ESTIMATE_SOURCE_LABELS) as UnifiedEstimateSource[]).map((source) => (
+                    <option key={source} value={source}>{UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS[source]}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {canCreate ? (
               <Button
                 variant="primary"

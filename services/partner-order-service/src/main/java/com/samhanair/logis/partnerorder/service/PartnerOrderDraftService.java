@@ -11,6 +11,8 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
+import com.samhanair.logis.partnerorder.web.dto.WebPartnerOrderDraftListResponse;
+import java.math.BigDecimal;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -93,6 +95,18 @@ public class PartnerOrderDraftService {
     @Transactional(readOnly = true)
     public Page<DraftResponse> list(String partnerCode, Pageable pageable) {
         return list(partnerCode, null, null, pageable);
+    }
+
+    /** 데스크톱 견적 목록용 UUID-free draft 메타데이터. */
+    @Transactional(readOnly = true)
+    public List<WebPartnerOrderDraftListResponse> desktopList() {
+        return draftRepository.findAllByOrderByCreatedAtDesc().stream().map(draft ->
+                new WebPartnerOrderDraftListResponse(
+                        draft.getPartnerCode() + ":" + draft.getDraftSeq(),
+                        draft.getLabel(),
+                        draft.getPartnerCode(),
+                        draft.getCreatedAt(),
+                        BigDecimal.ZERO)).toList();
     }
 
     /** 거래처별 draft 페이지 조회 (legacy getOrderSnapshotHistory). 날짜 필터는 선택이다. */
