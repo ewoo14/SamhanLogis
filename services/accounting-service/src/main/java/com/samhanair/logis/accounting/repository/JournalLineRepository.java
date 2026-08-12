@@ -142,8 +142,9 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
             SELECT l FROM JournalLine l
             WHERE l.journal.journalDate >= :from
               AND l.journal.journalDate <= :to
-              AND l.journal.status =
-                    com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+              AND l.journal.status IN (
+                    com.samhanair.logis.accounting.domain.JournalStatus.POSTED,
+                    com.samhanair.logis.accounting.domain.JournalStatus.REVERSED)
               AND EXISTS (
                     SELECT linked.id FROM JournalLine linked
                     WHERE linked.journal.id = l.journal.id
@@ -158,8 +159,9 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     @Query("""
             SELECT l FROM JournalLine l
             WHERE l.journal.journalDate <= :asOf
-              AND l.journal.status =
-                    com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+              AND l.journal.status IN (
+                    com.samhanair.logis.accounting.domain.JournalStatus.POSTED,
+                    com.samhanair.logis.accounting.domain.JournalStatus.REVERSED)
               AND EXISTS (
                     SELECT linked.id FROM JournalLine linked
                     WHERE linked.journal.id = l.journal.id

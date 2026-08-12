@@ -335,8 +335,10 @@ public class PartnerLedgerReadModelService {
         }
         Map<UUID, List<JournalLine>> byJournal = lines.stream()
                 .filter(line -> line.getJournal() != null
-                        && line.getJournal().getStatus()
-                        == com.samhanair.logis.accounting.domain.JournalStatus.POSTED)
+                        && (line.getJournal().getStatus()
+                        == com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+                        || line.getJournal().getStatus()
+                        == com.samhanair.logis.accounting.domain.JournalStatus.REVERSED))
                 .collect(Collectors.groupingBy(line -> line.getJournal().getId(), LinkedHashMap::new, Collectors.toList()));
         if (byJournal.isEmpty()) {
             return targetSale == null
@@ -514,8 +516,10 @@ public class PartnerLedgerReadModelService {
         if (lines == null) return List.of();
         Map<UUID, List<JournalLine>> byJournal = lines.stream()
                 .filter(line -> line != null && line.getJournal() != null
-                        && line.getJournal().getStatus()
-                        == com.samhanair.logis.accounting.domain.JournalStatus.POSTED)
+                        && (line.getJournal().getStatus()
+                        == com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+                        || line.getJournal().getStatus()
+                        == com.samhanair.logis.accounting.domain.JournalStatus.REVERSED))
                 .collect(Collectors.groupingBy(line -> line.getJournal().getId(), LinkedHashMap::new, Collectors.toList()));
         List<PartnerLedgerCollectionContract.Evidence> evidence = new ArrayList<>();
         for (var entry : byJournal.entrySet()) {
