@@ -74,8 +74,8 @@ ERROR: division by zero
 
 ```text
 A_VALID_REPAIR_MISMATCH_EXIT=0
-SELECT 636
 SELECT 295
+SELECT 636
 UPDATE 636
 UPDATE 295
 복구 완료: slip_db를 복구 상태로 맞췄습니다.
@@ -104,8 +104,8 @@ slip_db: snapshot/physical lines= 636 / 636  deleted= 636  restored= 0  drift= 0
 
 ```text
 B_VALID_REPAIR_MISMATCH_EXIT=0
-SELECT 636
 SELECT 295
+SELECT 636
 UPDATE 636
 UPDATE 295
 복구 완료: slip_db를 복구 상태로 맞췄습니다.
