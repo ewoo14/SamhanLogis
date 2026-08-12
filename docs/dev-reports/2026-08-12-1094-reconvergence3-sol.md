@@ -1,138 +1,138 @@
-# PR #1179 (#1094) 재수렴 3회차 적대검증 (SOL)
+# PR #1179 (#1094) 재수렴 3차 실서버 라이브 QA — CODEX SOL
 
-- 대상: `feat/1094-docno-hyperlink-and-back`, 사용자 제공 HEAD `f10cc403d`
+- 대상 브랜치: `feat/1094-docno-hyperlink-and-back`
+- 대상 HEAD: `d034c5016` (`[FIX] #1094 fix2 — 필드별 fallback 을 되돌리고 provider 쪽에서 고쳤다`)
 - 일시: 2026-08-12 (Asia/Seoul)
-- 판정 질문: **실 사용자 경로로 재현 가능한 결함이 있는가?**
-- 제한 준수: git 명령 미사용, 공유 업무 API/화면 미사용, 구현 코드 미변경
+- 판정 질문: **실 사용자 경로에서 재현되는 결함이 있는가?**
 
 ## 판정
 
-**있다. 실 사용자 경로 결함 3건을 재현했다.**
+**없다. 요청 경로에서 도달 가능한 결함은 0건이다.**
 
-| 결함 | 실 사용자 재현 | 관측값 |
-|---|---|---|
-| F1. 견적 목록 1회 복귀 시 스크롤 위치 유실 | `삼성전자` + `QUOTE_DRAFT` 필터 → `640px` → N번째 문서번호 → 상세 → `← 목록` 1회 | 검색·필터·URL은 유지됐으나 `640px → 230px`. 안정화 표본도 `230,230,230,230` |
-| F2. 견적 편집·저장 뒤 목록 복귀에 history 1단계가 더 필요 | 위 목록 → 상세 → 편집 → 저장 → 상세의 `← 목록` 1회 | 목록이 아니라 같은 상세 `#/sales/estimates/2026-08-10-9`에 잔류 |
-| F3. 입금보고서 편집 hydrate에서 저장 행 금액 유실 | `slipNo=2026/08/07-8`, `MANUAL_RECEIPT`, `640px` → 상세 → 편집 → 저장 | clone DB는 총액/행 모두 `1008`이나 라이브 폼은 `행 합계: 0원 / 입금 총액 1,008원`; 클라이언트 검증에 막혀 저장·복귀 불가 |
+견적·주문·입금보고서의 문서번호 링크, 목록 복귀, 2회 왕복 history, 브라우저 뒤로가기와 주문 검색어 유지가 모두 기대값과 일치했다. 입금보고서 `2026/08/07-8`은 상세 `1,008`, 편집 hydrate 후 첫 행 입력 원문 `1008`(화면 금액 1,008), `행 합계: 1,008원 / 입금 총액 1,008원`이었다. 네 가지 provider 행 조합도 서버 canonical 라인과 정확히 일치했고, 서버에 없는 값이 hydrate로 생성된 경우는 0건이었다.
 
-F1은 요청된 픽셀 기준으로 단정한다. 시작값은 정확히 `640px`, 목록 복귀 안정값은 정확히 `230px`였다. F3 때문에 입금보고서의 100ms 지연 재복원 자체에는 도달하지 못했다. 그보다 앞선 실제 저장 경로가 막히므로 사용자 경로 결함으로 판정했다.
+## 증거 무결성 및 격리
 
-## 통과한 경로
-
-- 주문: 검색어 `2026/06/08`, 상태 `DRAFT`, URL query, 문서번호 클릭, 목록 1회 복귀, 행 여백 클릭, 정식 편집·저장 후 복귀 모두 통과. 스크롤은 두 복귀 모두 `640,640,640,640`으로 안정했다.
-- 견적·주문 문서번호 링크는 각각 `#/sales/estimates/2026-08-10-9`, `#/sales/partner-orders/2026-06-08-1982`이며 UUID 경로가 아니다.
-- 문서번호 링크의 전파 차단은 행 클릭을 막지 않았다. 문서번호가 아닌 행 우측 여백 클릭으로 견적·주문 상세에 진입했다.
-- #1175 정본 셸: 견적 `detail-grid=1 / card-like=5`, 주문 `detail-grid=1 / card-like=6`.
-- 견적·주문·입금보고서 상세 visible UUID는 모두 0건.
-- 복귀 state 없는 직접 URL 상세 진입 후 목록 fallback은 견적·주문·입금보고서 모두 통과.
-- 다른 목록의 이중 스크롤/지연 흔들림은 주문에서 관측되지 않았다. 견적은 잘못된 `230px`에 고정됐으며 추가 이중 이동은 없었다.
-
-## 라이브 실행 원문과 집계
-
-현재 worktree의 `slip-service`, `partner-order-service`, `accounting-service` bootJar를 빌드해 전용 이미지로 실행했다.
+- mock 미사용: `VITE_MOCK_MODE=0`.
+- 전용 PostgreSQL: `qa1094reconv3-pg`, 실행 중 포트 `127.0.0.1:41932`.
+- 전용 network/gateway: `qa1094reconv3-net`, `qa1094reconv3-gateway`, 실행 중 포트 `127.0.0.1:41980`.
+- 전용 실서비스: eureka/auth/user/product/partner/slip/partner-order/dc-config/accounting.
+- current worktree renderer: 실행 중 포트 `127.0.0.1:53949`.
+- 공유 `samhan-postgres`에는 업무 데이터 쓰기가 없었다. 검증용 3개 문서와 coedit update는 전용 복제본/전용 서비스에만 기록했다.
+- `pg_dumpall`은 PowerShell 파이프를 쓰지 않고 소스 컨테이너 파일 → 호스트 파일 → 복제 컨테이너 파일로 전달했다. dump 크기는 `73,084,931 bytes`였다.
+- 복제 직후 한글 원문:
 
 ```text
-BUILD SUCCESSFUL in 18s
-28 actionable tasks: 19 executed, 9 from cache
+SOURCE_HANGUL_BEGIN
+(주)한국냉동물류
+(주)서울택배
+대한화물서비스(주)
+SOURCE_HANGUL_END
+CLONE_HANGUL_BEGIN
+(주)한국냉동물류
+(주)서울택배
+대한화물서비스(주)
+CLONE_HANGUL_END
 ```
 
-최종 라이브 원문 중 판정 축:
+- 각 목록·상세·편집 화면 본문에서 데이터 위치의 `?` 및 대체문자 `�`를 자동 검사했다. 검출 0건이다.
+- 최종 구조화 원문은 `docs/qa/2026-08-12-1094-reconv3/measurements.json`이다. `defects` 원문은 `[]`이다.
+- 같은 디렉터리에 이 실행 전부터 있던 별도 PNG는 권위 증거에서 제외했다. 아래 22장만 최종 실행이 같은 시각에 다시 생성한 권위 스크린샷이다.
+
+## 화면별 실 GUI 계측
+
+각 화면에서 같은 문서를 `목록 → 상세 → 목록`으로 2회 왕복했다. 스크롤 배열은 연속 4회 읽은 `window.scrollY` 원문이다.
+
+| 화면 | 목록 진입 전 | 1회 복귀 후 | 2회 복귀 후 | `history.length` (`목록→상세1→목록1→상세2→목록2→브라우저 back`) | 브라우저 back |
+|---|---:|---:|---:|---|---|
+| 견적 `2026/08/10-9` | `640,640,640,640` | `640,640,640,640` | `640,640,640,640` | `3→4→4→4→4→4` | `http://127.0.0.1:53949/`, 상세 재진입 `false` |
+| 주문 `2026/06/08-1982` | `640,640,640,640` | `640,640,640,640` | `640,640,640,640` | `3→4→4→4→4→4` | `http://127.0.0.1:53949/`, 상세 재진입 `false` |
+| 입금보고서 `2026/08/07-8` | `640,640,640,640` | `640,640,640,640` | `640,640,640,640` | `3→4→4→4→4→4` | `http://127.0.0.1:53949/`, 상세 재진입 `false` |
+
+두 번째 복귀 뒤 주문 검색 원문:
 
 ```text
-PASS | 격리 로그인 | HTTP=200 role=MASTER
-PASS | 견적 검색·필터 URL 정본 + 시작 위치 | scroll=640 url=http://127.0.0.1:52943/#/sales/estimates?partner=...&status=QUOTE_DRAFT
-FAIL | 견적 목록 1회 복귀 identity | partner=삼성전자 status=QUOTE_DRAFT scrollSamples=230,230,230,230 url=http://127.0.0.1:52943/#/sales/estimates?partner=...&status=QUOTE_DRAFT
-PASS | 견적 행 여백 클릭 | url=http://127.0.0.1:52943/#/sales/estimates/2026-08-10-9
-FAIL | 견적 편집·저장 후 목록 1회 복귀 | 목록 미도달 url=http://127.0.0.1:52943/#/sales/estimates/2026-08-10-9
-PASS | 주문 목록 1회 복귀 identity | keyword=2026/06/08 status=DRAFT scrollSamples=640,640,640,640 url=http://127.0.0.1:52943/#/sales/partner-orders?status=DRAFT&keyword=2026%2F06%2F08
-PASS | 주문 편집·저장 후 목록 identity | keyword=2026/06/08 status=DRAFT scrollSamples=640,640,640,640 url=http://127.0.0.1:52943/#/sales/partner-orders?status=DRAFT&keyword=2026%2F06%2F08
-PASS | 입금보고서 검색·필터 URL 정본 + 시작 위치 | scroll=640 url=http://127.0.0.1:52943/#/accounting/admin/cash-receipts?slipNo=2026%2F08%2F07-8&kind=MANUAL_RECEIPT
-FAIL | 입금보고서 편집·저장 후 목록 복귀 | 목록 미도달 url=http://127.0.0.1:52943/#/accounting/admin/cash-receipts/a0090411-595e-467b-b5ad-c618d5a541ec/edit alerts=행 합계가 입금 총액과 같아야 합니다.
-LIVE_QA_SUMMARY passed=16 skipped=0 failed=3
+input value = 2026/06/08
+URL = #/sales/partner-orders?status=DRAFT&keyword=2026%2F06%2F08
 ```
 
-F3 집중 재현 원문:
+입금보고서 표적 원문:
 
 ```text
-CASH_PRE_SAVE | 행 합계: 0원 / 입금 총액 1,008원
-FAIL | 입금보고서 편집·저장 후 목록 복귀 | 목록 미도달 ... alerts=행 합계가 입금 총액과 같아야 합니다.
-LIVE_QA_SUMMARY passed=4 skipped=0 failed=1
+clone DB amount = 1008.00
+clone DB lines_json[0].amount = 1008
+실 API detail amount = 1008
+실 API detail lines[0].amount = 1008
+상세 화면 금액 = 1,008
+편집 hydrate 첫 행 input value = 1008
+화면 합계 = 행 합계: 1,008원 / 입금 총액 1,008원
 ```
 
-분리 집계:
+## 네 가지 행 조합 서버값 대조
 
-| 범위 | passed | skipped | failed |
-|---|---:|---:|---:|
-| 최종 전체 라이브 assertion | 16 | 0 | 3 |
-| F3 집중 재현 | 4 | 0 | 1 |
+| 조합 | 문서 | provider 입력 원문 | 서버 canonical 라인 | GUI hydrate 관측 | 합계 | 결과 |
+|---|---|---|---|---|---|---|
+| 거래처만 있는 행 | `2026/08/07-8` | `대구HVAC솔루션`, 금액·적요 없음 | `대구HVAC솔루션 / 1008 / S5-1094-08` | `대구HVAC솔루션 / 1008 / S5-1094-08`, 채워진 행 1 | `1,008 / 1,008` | 일치 |
+| 금액만 있고 거래처가 없는 행 | `2026/08/12-9102` | 금액 `2024`만 | `대구 HVAC 솔루션 / 2024 / RECONV2-AMOUNT-ONLY` | `대구 HVAC 솔루션 / 2024 / RECONV2-AMOUNT-ONLY`, 채워진 행 1 | `2,024 / 2,024` | 일치 |
+| 여러 행이 섞인 입금보고서 | `2026/08/12-9103` | 1행 거래처만, 2행 금액 `2222`만 | 1행 `대구 HVAC 솔루션 / 1111 / RECONV2-MULTI-A`; 2행 `능동에어컨(박수천) / 2222 / RECONV2-MULTI-B` | 서버 2행과 필드별 동일, 채워진 행 2 | `3,333 / 3,333` | 일치 |
+| 행이 하나뿐인 입금보고서 | `2026/08/12-9104` | 빈 provider item 1개 | `능동에어컨(박수천) / 4040 / memo NULL` | `능동에어컨(박수천) / 4040 / memo input ""`, 채워진 행 1 | `4,040 / 4,040` | 일치 |
 
-## 격리 DB 복제와 인코딩 증거
+서버 `NULL` 적요는 빈 입력 `""`로 표시됐고 새로운 값은 만들어지지 않았다. 각 화면의 끝에는 사용자 입력용 `새 빈 행` 슬롯이 하나 있으나, 그 슬롯의 거래처·금액·적요는 모두 빈 값이어서 서버에 없는 업무 값 생성으로 판정할 항목은 없었다.
 
-- network: `recon1094-r3-net`
-- PostgreSQL: `127.0.0.1:40432`
-- gateway: `127.0.0.1:40480`
-- renderer: `127.0.0.1:52943`
-- 관련 서비스: `40476`, `40481`, `40483`, `40484`, `40486`, `40487`, `40488`, `40489`, `40492`, `40495`
-- 공유 `samhan-*` 화면/API에는 로그인하거나 업무 요청하지 않았다. 원본 PostgreSQL은 read-only dump와 비교 SELECT에만 사용했다.
+## 스크린샷
 
-복제는 파이프 없이 파일 경유로 수행했다.
+최종 권위 PNG 22장은 `docs/qa/2026-08-12-1094-reconv3/`에 있다.
+
+- `00-estimate-filtered-document-link.png`
+- `01-estimate-list-before-link-scroll-640.png`
+- `02-estimate-detail-from-document-link.png`
+- `03-estimate-list-after-first-roundtrip-scroll-640.png`
+- `04-estimate-list-after-second-roundtrip-scroll-640.png`
+- `05-estimate-browser-back-not-detail.png`
+- `06-order-filtered-document-link-keyword-2026-06-08.png`
+- `07-order-list-before-link-scroll-640.png`
+- `08-order-detail-from-document-link.png`
+- `09-order-list-after-first-roundtrip-keyword-retained-scroll-640.png`
+- `10-order-list-after-second-roundtrip-keyword-retained-scroll-640.png`
+- `11-order-browser-back-not-detail.png`
+- `12-cash-filtered-document-link-2026-08-07-8.png`
+- `13-cash-list-before-link-scroll-640.png`
+- `14-cash-detail-2026-08-07-8-amount-1008.png`
+- `15-cash-list-after-first-roundtrip-scroll-640.png`
+- `16-cash-list-after-second-roundtrip-scroll-640.png`
+- `17-cash-browser-back-not-detail.png`
+- `20-cash-partner-only-hydrated-to-server-canonical-1008.png`
+- `21-cash-amount-only-no-partner-hydrated-to-server-canonical-2024.png`
+- `22-cash-mixed-multiple-rows-hydrated-to-server-canonical-1111-2222.png`
+- `23-cash-single-row-hydrated-to-server-canonical-4040.png`
+
+## 못 한 것
+
+없다. 요청된 세 화면, 640px 복원, 2회 왕복 history, 주문 검색어, 입금보고서 상세/편집 hydrate, 네 행 조합, 실 PNG를 모두 전용 실서비스 GUI에서 수행했다.
+
+## 종료 점검
 
 ```text
-samhan-postgres 내부 pg_dumpall -f /tmp/recon1094-r3-all.sql
-docker cp source:/tmp/recon1094-r3-all.sql host-file
-docker cp host-file recon1094-r3-pg:/tmp/recon1094-r3-all.sql
-recon1094-r3-pg 내부 psql -f /tmp/recon1094-r3-all.sql
-HOST_DUMP_BYTES=72903145
+제거한 qa1094reconv3-* 컨테이너 = 13
+제거한 qa1094reconv3-net = 1
+renderer listener 53949 = 없음
+격리 DB/gateway listener 41932/41980 = 없음
+.codex-tmp/qa1094reconv3 = 없음
+samhan-postgres:/tmp/qa1094reconv3-all.sql = 없음
 ```
 
-새 PostgreSQL 기본 role 때문에 restore 표준 오류에 `role "samhan" already exists`가 1건 출력됐다. 복원 뒤 원본/clone의 DB와 `estimates` 2,063건을 확인했고, 한글 SELECT와 SHA-256은 일치했다.
+삭제된 추적 파일과 지정 추적 파일은 최종 검증 명령의 실측값을 따른다.
 
 ```text
-SOURCE_SELECT_BEGIN
-2026/08/10-9|삼성전자
-2026/08/10-8|삼성전자
-2026/08/10-7|삼성전자
-2026/08/10-6|삼성전자
-2026/08/10-5|삼성전자
-SOURCE_SELECT_END
-CLONE_SELECT_BEGIN
-2026/08/10-9|삼성전자
-2026/08/10-8|삼성전자
-2026/08/10-7|삼성전자
-2026/08/10-6|삼성전자
-2026/08/10-5|삼성전자
-CLONE_SELECT_END
-SOURCE_HAS_HANGUL=True
-CLONE_HAS_HANGUL=True
-UTF8_EXACT_MATCH=True
-SOURCE_SHA256=EDE80517487030AD45FA585AC7FB9F97BFBAF04089EF269372883620006613EF
-CLONE_SHA256=EDE80517487030AD45FA585AC7FB9F97BFBAF04089EF269372883620006613EF
+FINAL_VERIFY=PASS
+DELETED_TRACKED_FILES=0
+tools/.s24-build-only/build/deep/tracked-writer.mjs = 존재, tracked, 42 bytes
+SHA-256 = F3A735766688747E0E23C5D4155E95D1BF1B2134C845263D784661E8F79603A3
+QA_CONTAINERS=0
+QA_NETWORK=0
+QA_LISTENERS=0
+QA_TEMP_EXISTS=False
+SOURCE_TMP_EXISTS=FALSE
 ```
 
-인앱 Browser는 설치된 브라우저 목록이 `[]`여서 제품 판정에 사용하지 않았다. 저장소의 로컬 Playwright Chromium과 `vite.renderer.dev.config.ts` HashRouter renderer를 사용했다. 최초 재사용 backend 이미지와 900px viewport 실행은 각각 문서번호 API 불일치와 최대 스크롤 `196px`라는 증거 무결성 문제가 있어 폐기했고, 현재 worktree backend 이미지 + 420px viewport로 위 최종 결과를 다시 얻었다.
-
-## 스크린샷 전 경로
-
-13장 모두 전용 clone DB + 404xx API + 이 worktree renderer의 실제 화면이며, 1440×420 PNG다. 직접 육안 확인 결과 한글이 정상이다.
-
-- `docs/qa/2026-08-12-1094-reconv3/01-estimate-filtered-list-640.png`
-- `docs/qa/2026-08-12-1094-reconv3/02-estimate-detail-docno-shell.png`
-- `docs/qa/2026-08-12-1094-reconv3/03-estimate-one-back-restored-230.png`
-- `docs/qa/2026-08-12-1094-reconv3/04-estimate-row-margin-detail.png`
-- `docs/qa/2026-08-12-1094-reconv3/05-estimate-after-edit-save-one-back-stuck.png`
-- `docs/qa/2026-08-12-1094-reconv3/06-order-filtered-list-640.png`
-- `docs/qa/2026-08-12-1094-reconv3/07-order-detail-docno-shell.png`
-- `docs/qa/2026-08-12-1094-reconv3/08-order-one-back-restored-640.png`
-- `docs/qa/2026-08-12-1094-reconv3/09-order-row-margin-detail.png`
-- `docs/qa/2026-08-12-1094-reconv3/10-order-after-edit-save-restored-640.png`
-- `docs/qa/2026-08-12-1094-reconv3/11-cash-filtered-list-640.png`
-- `docs/qa/2026-08-12-1094-reconv3/12-cash-detail-document-shell.png`
-- `docs/qa/2026-08-12-1094-reconv3/13-cash-after-edit-save-return-failed.png`
-
-## 변경·종료 확인
-
-- 구현 코드 변경 없음. 영구 산출물은 본 보고서와 QA PNG 13장이다.
-- git 명령, commit, push 미수행.
-- 임시 하네스·`.codex-tmp/`·`recon1094-r3-*` 컨테이너/network·renderer listener·원본 컨테이너의 `/tmp/recon1094-r3-all.sql`을 제거했다.
-- 종료 원문: `TMP_EXISTS=False`, `HARNESS_EXISTS=False`, `RENDERER_LISTENER=False`, `RECON1094_REMAINING=NONE`, `RECON1094_NETWORK_REMAINING=NONE`, `SOURCE_TMP_EXISTS=False`.
-- 이번 라운드가 추적 파일을 삭제한 적은 없다. git 금지 때문에 인덱스 전체 대조 명령은 실행하지 않았고, 삭제 대상은 전용 임시 경로/프로세스/컨테이너로 한정했다. 특별 확인 대상 `tools/.s24-build-only/build/deep/tracked-writer.mjs`는 종료 시 존재하며 `42 bytes`다. 복구가 필요하지 않아 `git add -f`도 실행하지 않았다.
+**삭제된 추적 파일 0건.** 지정 파일 `tools/.s24-build-only/build/deep/tracked-writer.mjs`도 정상이다.
