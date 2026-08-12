@@ -123,13 +123,13 @@ public class SlipClient {
         try {
             JsonNode data = objectMapper.convertValue(envelope.get("data"), JsonNode.class);
 
-            UUID id = UUID.fromString(data.get("id").asText());
+            UUID id = OpaqueUuidDecoder.decode(data.get("id").asText());
             String slipNo = data.has("slipNo") ? data.get("slipNo").asText() : null;
             String slipType = data.has("slipType") ? data.get("slipType").asText() : null;
             String status = data.has("status") ? data.get("status").asText() : null;
             UUID destinationWarehouseId = data.has("destinationWarehouseId")
                     && !data.get("destinationWarehouseId").isNull()
-                    ? UUID.fromString(data.get("destinationWarehouseId").asText())
+                    ? OpaqueUuidDecoder.decode(data.get("destinationWarehouseId").asText())
                     : null;
             String partnerName = data.has("partnerName")
                     && !data.get("partnerName").isNull()
@@ -149,9 +149,9 @@ public class SlipClient {
             List<SlipLineDetail> lines = new ArrayList<>();
             if (data.has("lines") && data.get("lines").isArray()) {
                 for (JsonNode lineNode : data.get("lines")) {
-                    UUID lineId = UUID.fromString(lineNode.get("id").asText());
+                    UUID lineId = OpaqueUuidDecoder.decode(lineNode.get("id").asText());
                     UUID productId = lineNode.has("productId") && !lineNode.get("productId").isNull()
-                            ? UUID.fromString(lineNode.get("productId").asText()) : null;
+                            ? OpaqueUuidDecoder.decode(lineNode.get("productId").asText()) : null;
                     String productName = lineNode.has("productName")
                             ? lineNode.get("productName").asText() : null;
                     String modelName = lineNode.has("modelName")
