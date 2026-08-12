@@ -26,6 +26,7 @@ import {
   type ImageElement,
   type TextElement,
   DETAIL_COLUMN_LABEL,
+  LEGACY_FALLBACK_DETAIL_COLUMNS,
   BAND_KIND_LABEL,
   isAllowedImageSource,
 } from './templateSchema'
@@ -608,9 +609,24 @@ export function compileApprovalDocument(
     .flatMap((band) => band.elements)
   const hasMetaRows = headerElements.some((element) => element.type === 'META_ROWS')
   const hasApprovalGrid = headerElements.some((element) => element.type === 'APPROVAL_GRID')
-  const bodyElements = template.document.bands
+  let bodyElements = template.document.bands
     .filter((band) => band.kind === 'BODY')
     .flatMap((band) => band.elements)
+  // 기본 양식은 legacy schema(v1)로 고정되어 있어 DETAIL을 저장할 수 없다.
+  // 연결된 출고전표가 있는 경우에만 렌더 시 품목 밴드를 덧붙인다. 따라서
+  // 무참조/끊긴 참조 문서는 기존 legacy DOM과 레이아웃을 그대로 유지한다.
+  if (
+    template.docType === 'GROUPWARE_DEFAULT'
+    && model.body.lineItemsAvailability === 'CONNECTED'
+    && !bodyElements.some((element) => element.type === 'DETAIL')
+  ) {
+    bodyElements = [...bodyElements, {
+      key: 'approval-default-detail',
+      type: 'DETAIL' as const,
+      repeatBinding: 'body.lineItems' as const,
+      columns: [...LEGACY_FALLBACK_DETAIL_COLUMNS] as DetailColumnKey[],
+    }]
+  }
   const bodyDetails = bodyElements.filter((element): element is DetailElement => element.type === 'DETAIL')
 
   const footerElements = template.document.bands

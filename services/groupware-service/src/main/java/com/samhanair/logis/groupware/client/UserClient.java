@@ -50,6 +50,24 @@ public class UserClient implements UserVerifier {
         }
     }
 
+    public record UserProfile(String name, String department, String employeeCode) {}
+
+    /** 채팅 화면 표시용 직원 정보. 내부 UUID는 반환하지 않는다. */
+    public Optional<UserProfile> resolveProfile(UUID userId) {
+        if (userId == null || internalToken == null || internalToken.isBlank()) return Optional.empty();
+        try {
+            String body = restClient.get().uri("/internal/users/{userId}", userId)
+                    .header("X-Internal-Token", internalToken).retrieve().body(String.class);
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            String name = readText(data.get("fullName"));
+            if (name == null) return Optional.empty();
+            return Optional.of(new UserProfile(name, readText(data.get("departmentName")), readText(data.get("ecountCode"))));
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
+    }
+
     public UserClient(RestClient.Builder builder,
                       ServiceDiscoveryClient discoveryClient,
                       @Value("${samhan.user-service.url:http://localhost:8083}") String baseUrl,

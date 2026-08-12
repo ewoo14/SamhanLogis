@@ -149,6 +149,18 @@ class InternalUserSearchControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void 단건_internal_직원조회도_부서와_사번을_반환한다_RED() throws Exception {
+        UUID userId = employeeWithEcount("profile-" + shortToken(), "프로필직원", Role.SALES, "EMP-PROFILE");
+
+        mockMvc.perform(get("/internal/users/" + userId)
+                        .header("X-Internal-Token", TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fullName").value("프로필직원"))
+                .andExpect(jsonPath("$.data.departmentName").value("결재검색팀"))
+                .andExpect(jsonPath("$.data.ecountCode").value("EMP-PROFILE"));
+    }
+
+    @Test
     void R10_activeOnly_true이면_퇴사자를_수신자_검색에서_제외한다() throws Exception {
         String marker = "terminated-recipient-" + shortToken();
         Employee terminated = employeeEntity("terminated-" + shortToken(), marker, Role.SALES);
