@@ -8,7 +8,7 @@
  * 해당 거래처의 DRAFT/ON_HOLD 주문만 칩으로 선택한다.
  */
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -87,16 +87,17 @@ const PRE_CONFIRM_STATUSES: ReadonlySet<PartnerOrderStatus> = new Set([
 export function SalesPartnerOrderListPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [partnerId, setPartnerId] = useState('')
-  const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('DRAFT')
-  const [slipPublishStatusFilter, setSlipPublishStatusFilter] = useState<'' | 'FAILED' | 'PENDING_RETRY'>('')
-  const [searchKeyword, setSearchKeyword] = useState('')
-  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('dateFrom') ?? '')
+  const [dateTo, setDateTo] = useState(() => searchParams.get('dateTo') ?? '')
+  const [partnerId, setPartnerId] = useState(() => searchParams.get('partnerId') ?? '')
+  const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>(() => searchParams.get('status') as PartnerOrderStatus | '' || 'DRAFT')
+  const [slipPublishStatusFilter, setSlipPublishStatusFilter] = useState<'' | 'FAILED' | 'PENDING_RETRY'>(() => searchParams.get('slipPublishStatus') as '' | 'FAILED' | 'PENDING_RETRY' || '')
+  const [searchKeyword, setSearchKeyword] = useState(() => searchParams.get('keyword') ?? '')
+  const [includeDeleted, setIncludeDeleted] = useState(() => searchParams.get('includeDeleted') === 'true')
   const [page, setPage] = useState(0)
 
   /** Phase 2.6b D2: 병합 전환 모달 open/close. */
@@ -105,6 +106,20 @@ export function SalesPartnerOrderListPage() {
   const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    const values: Record<string, string> = { dateFrom, dateTo, partnerId, status: statusFilter, slipPublishStatus: slipPublishStatusFilter, keyword: searchKeyword }
+    for (const [key, value] of Object.entries(values)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    if (includeDeleted) next.set('includeDeleted', 'true')
+    else next.delete('includeDeleted')
+    if (page > 0) next.set('page', String(page))
+    else next.delete('page')
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+  }, [dateFrom, dateTo, partnerId, statusFilter, slipPublishStatusFilter, searchKeyword, includeDeleted, page, searchParams, setSearchParams])
 
   useEffect(() => {
     const anchor = getScrollAnchor(location.key)
@@ -248,7 +263,7 @@ export function SalesPartnerOrderListPage() {
               <Link
                 to={`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`}
                 state={{ returnTo, returnEntryKey: location.key }}
-                onClick={() => saveScrollAnchor(location.key)}
+                onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
                 aria-label={`${o.orderNumber} 상세 보기`}
                 style={{ color: 'var(--color-brand-700)', textDecoration: 'none' }}
               >

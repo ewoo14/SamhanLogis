@@ -12,6 +12,11 @@ vi.mock('../hooks/usePermissions', () => ({
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: () => {} }))
 
 const listCashReceiptsMock = vi.fn()
+const { getScrollAnchorMock } = vi.hoisted(() => ({ getScrollAnchorMock: vi.fn(() => 640) }))
+vi.mock('../utils/returnContract', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/returnContract')>()
+  return { ...actual, getScrollAnchor: getScrollAnchorMock }
+})
 vi.mock('../api/accounting', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/accounting')>()
   return { ...actual, listCashReceipts: (...args: unknown[]) => listCashReceiptsMock(...args) }
@@ -56,6 +61,25 @@ describe('CashReceiptListPage', () => {
     expect(await screen.findByTestId('cash-receipt-filter-partner-name')).toHaveValue('삼한공조')
     expect(screen.getByTestId('cash-receipt-filter-kind')).toHaveValue('DEPOSIT_REPORT')
     await waitFor(() => expect(listCashReceiptsMock).toHaveBeenCalledWith(expect.objectContaining({ page: 2 })))
+  })
+
+  it('복귀 URL이 같은 입금보고서라도 스크롤 identity를 값으로 복원한다', async () => {
+    listCashReceiptsMock.mockResolvedValue({
+      content: [sampleRow], totalElements: 1, totalPages: 1, number: 0, size: 50, first: true, last: true,
+    })
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[{ pathname: '/accounting/admin/cash-receipts', search: '?slipNo=2026%2F08%2F07-8', key: 'cash-list-entry' }]}>
+          <CashReceiptListPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await screen.findByTestId('cash-receipt-filter-slip-no')
+    expect(screen.getByTestId('cash-receipt-filter-slip-no')).toHaveValue('2026/08/07-8')
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 640, behavior: 'auto' }))
+    scrollTo.mockRestore()
   })
 
   it('전표번호는 상세 링크로 렌더한다', async () => {

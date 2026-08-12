@@ -104,8 +104,13 @@ export function CashReceiptListPage() {
   useEffect(() => {
     const anchor = getScrollAnchor(location.key)
     if (anchor == null) return
-    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
-    return () => window.cancelAnimationFrame(frame)
+    const restore = () => window.scrollTo({ top: anchor, behavior: 'auto' })
+    const frame = window.requestAnimationFrame(restore)
+    const delayed = window.setTimeout(restore, 100)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(delayed)
+    }
   }, [location.key])
 
   const queryOptions = useMemo(
