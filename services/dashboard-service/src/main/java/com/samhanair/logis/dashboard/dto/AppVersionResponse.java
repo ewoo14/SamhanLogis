@@ -22,4 +22,9 @@ public record AppVersionResponse(
                 release.getReleaseNotes(),
                 release.getReleasedAt());
     }
+
+    /** 아직 published 릴리스가 없는 초기 배포 상태를 정상적인 무업데이트 응답으로 표현한다. */
+    public static AppVersionResponse noPublishedRelease(String currentVersion) {
+        return new AppVersionResponse(currentVersion, currentVersion, AppVersionForceLevel.NONE, null, null);
+    }
 }
