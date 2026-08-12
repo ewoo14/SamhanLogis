@@ -49,17 +49,36 @@ function seedCashReceiptCoeditProvider(provider: DocCoeditProvider, state: CashR
   provider.setHeaderValue('memo', state.memo)
 }
 
-function stateFromCashReceiptCoeditProvider(provider: DocCoeditProvider): CashReceiptFormState {
+function stateFromCashReceiptCoeditProvider(
+  provider: DocCoeditProvider,
+  fallback: CashReceiptFormState,
+): CashReceiptFormState {
+  const header = (field: keyof Pick<CashReceiptFormState, 'partnerName' | 'partnerCode' | 'bizNo' | 'transactionDate' | 'amount' | 'debitAccountCode' | 'creditAccountCode' | 'memo'>) =>
+    provider.getHeaderValue(field) || fallback[field]
+  const providerLines = provider.items.toArray().map((_, index) => ({
+    partnerCode: provider.getItemValue(index, 'partnerCode'),
+    bizNo: provider.getItemValue(index, 'bizNo'),
+    partnerName: provider.getItemValue(index, 'partnerName'),
+    amount: provider.getItemValue(index, 'amount'),
+    memo: provider.getItemValue(index, 'memo'),
+  }))
+  const lines = providerLines.length > 0
+    ? providerLines.map((line, index) => {
+      const previous = fallback.lines[index]
+      const hasValue = Object.values(line).some((value) => value.trim())
+      return hasValue ? line : previous ?? emptyCashReceiptLine()
+    })
+    : fallback.lines
   return {
-    partnerName: provider.getHeaderValue('partnerName'),
-    partnerCode: provider.getHeaderValue('partnerCode'),
-    bizNo: provider.getHeaderValue('bizNo'),
-    transactionDate: provider.getHeaderValue('transactionDate'),
-    amount: provider.getHeaderValue('amount'),
-    debitAccountCode: provider.getHeaderValue('debitAccountCode'),
-    creditAccountCode: provider.getHeaderValue('creditAccountCode'),
-    memo: provider.getHeaderValue('memo'),
-    lines: [{ partnerCode: provider.getHeaderValue('partnerCode'), bizNo: provider.getHeaderValue('bizNo'), partnerName: provider.getHeaderValue('partnerName'), amount: provider.getHeaderValue('amount'), memo: provider.getHeaderValue('memo') }, { partnerCode: '', bizNo: '', partnerName: '', amount: '', memo: '' }],
+    partnerName: header('partnerName'),
+    partnerCode: header('partnerCode'),
+    bizNo: header('bizNo'),
+    transactionDate: header('transactionDate'),
+    amount: header('amount'),
+    debitAccountCode: header('debitAccountCode'),
+    creditAccountCode: header('creditAccountCode'),
+    memo: header('memo'),
+    lines: lines.length > 0 ? lines : [emptyCashReceiptLine()],
   }
 }
 
@@ -235,7 +254,7 @@ export function CashReceiptFormPage() {
     setCoeditPending(true)
 
     const applyProviderState = (nextProvider: DocCoeditProvider) => {
-      setState(stateFromCashReceiptCoeditProvider(nextProvider))
+      setState(stateFromCashReceiptCoeditProvider(nextProvider, cashReceiptFormStateFromRow(receiptSnapshot)))
     }
 
     void createDocCoeditProvider({

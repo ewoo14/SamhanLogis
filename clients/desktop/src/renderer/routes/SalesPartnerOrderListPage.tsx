@@ -30,7 +30,7 @@ import {
 } from '../api/sales'
 import { formatSlipDate } from '../api/slipNumber'
 import { toOrderPathId } from '../utils/orderNo'
-import { getScrollAnchor, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
+import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -118,13 +118,6 @@ export function SalesPartnerOrderListPage() {
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
   }, [dateFrom, dateTo, partnerId, statusFilter, slipPublishStatusFilter, searchKeyword, includeDeleted, page, searchParams, setSearchParams])
 
-  useEffect(() => {
-    const anchor = getScrollAnchor(location.key)
-    if (anchor == null) return
-    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
-    return () => window.cancelAnimationFrame(frame)
-  }, [location.key])
-
   const canCreateMerge = canAccess('sales.partner-order.convert', 'create')
   const canSearchPartners = canAccess('partners.search', 'view')
   const canMergeConvert = canCreateMerge && canSearchPartners
@@ -208,6 +201,8 @@ export function SalesPartnerOrderListPage() {
     }),
     retry: 1,
   })
+
+  useEffect(() => restoreScrollAnchorWhenReady(location.key, () => query.isFetched), [location.key, query.isFetched])
 
   const restoreMutation = useMutation({
     mutationFn: restorePartnerOrder,

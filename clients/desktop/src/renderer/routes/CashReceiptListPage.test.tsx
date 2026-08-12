@@ -12,10 +12,15 @@ vi.mock('../hooks/usePermissions', () => ({
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: () => {} }))
 
 const listCashReceiptsMock = vi.fn()
-const { getScrollAnchorMock } = vi.hoisted(() => ({ getScrollAnchorMock: vi.fn(() => 640) }))
+const { restoreScrollAnchorWhenReadyMock } = vi.hoisted(() => ({
+  restoreScrollAnchorWhenReadyMock: vi.fn((_entryKey: string, _isReady: () => boolean) => {
+    window.scrollTo({ top: 640, behavior: 'auto' })
+    return () => undefined
+  }),
+}))
 vi.mock('../utils/returnContract', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils/returnContract')>()
-  return { ...actual, getScrollAnchor: getScrollAnchorMock }
+  return { ...actual, restoreScrollAnchorWhenReady: restoreScrollAnchorWhenReadyMock }
 })
 vi.mock('../api/accounting', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/accounting')>()

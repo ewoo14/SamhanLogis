@@ -43,7 +43,7 @@ import {
   deletedBadgeLabel,
 } from './admin/partnerDeletedRow'
 import { mergeEstimateAndOrderRows, type UnifiedEstimateListRow } from './estimateUnifiedListModel'
-import { getScrollAnchor, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
+import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 import { toOrderPathId } from '../utils/orderNo'
 
 const STATUS_OPTIONS: Array<{ value: EstimateStatus | ''; label: string }> = [
@@ -127,13 +127,6 @@ export function EstimateListPage() {
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
   }, [statusFilter, startDate, endDate, partnerKeyword, includeDeleted, page, searchParams, setSearchParams])
 
-  useEffect(() => {
-    const anchor = getScrollAnchor(location.key)
-    if (anchor == null) return
-    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: anchor, behavior: 'auto' }))
-    return () => window.cancelAnimationFrame(frame)
-  }, [location.key])
-
   useCollectionRealtime(EstimateListRealtimeClient, 'list', ESTIMATE_LIST_REALTIME_KEYS)
 
   useEffect(() => {
@@ -152,6 +145,8 @@ export function EstimateListPage() {
         ...(includeDeleted ? { includeDeleted: true } : {}),
       }),
   })
+
+  useEffect(() => restoreScrollAnchorWhenReady(location.key, () => query.isFetched), [location.key, query.isFetched])
 
   const unifiedQuery = useQuery({
     queryKey: ['estimates', 'unified', statusFilter, startDate, endDate, partnerKeyword, includeDeleted],

@@ -233,6 +233,32 @@ describe('CashReceiptFormPage', () => {
     })))
   })
 
+  it('RED-LUNA-4: coedit hydrate가 비어 있어도 서버 첫 행 1,008원과 행 합계 1,008원을 보존한다', async () => {
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-liveqa-1008',
+      slipNo: '2026/08/07-8',
+      partnerCode: 'P-2026-0005',
+      bizNo: '165-35-10155',
+      partnerName: '대구HVAC솔루션',
+      amount: '1008',
+      transactionDate: '2026-08-07',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: 'S5-1094-08',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+      lines: [{ partnerCode: 'P-2026-0005', bizNo: '165-35-10155', partnerName: '대구HVAC솔루션', amount: 1008, memo: 'S5-1094-08' }],
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-liveqa-1008/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('금액')).toHaveProperty('value', '1008'))
+    expect(screen.getByLabelText('입금 행 1 금액')).toHaveProperty('value', '1008')
+    expect(screen.getByText('행 합계: 1,008원 / 입금 총액 1,008원')).toBeTruthy()
+  })
+
   it('편집 저장은 목록 쿼리를 갱신한 뒤 원래 목록 history entry로 복귀한다', async () => {
     const saved = {
       id: 'receipt-1',
