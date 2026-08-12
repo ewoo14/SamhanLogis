@@ -21,12 +21,13 @@ SOURCE_PORT="${QA_CLONE_SOURCE_PORT:-5432}"
 IMAGE="${QA_CLONE_IMAGE:-postgres:16-alpine}"
 CONTAINER="qa-clone-utf8-$(date +%Y%m%d%H%M%S)-$$"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/qa-clone-utf8.XXXXXX")"
-TARGET_PORT="${QA_CLONE_TARGET_PORT:-55432}"
+RUN_ID="$(date +%s%N)-$$"
 cleanup() { set +e; docker rm -f "$CONTAINER" >/dev/null 2>&1; rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
 echo "[clone] isolated container: $CONTAINER"
-docker run -d --name "$CONTAINER" -p "${TARGET_PORT}:5432" \
+# Let Docker allocate the host port so concurrent clones cannot bind-race.
+docker run -d --name "$CONTAINER" -p '127.0.0.1::5432' \
   -e POSTGRES_USER="$QA_CLONE_TARGET_USER" -e POSTGRES_PASSWORD="$QA_CLONE_TARGET_PASSWORD" \
   -e POSTGRES_DB=postgres "$IMAGE" >/dev/null
 for _ in $(seq 1 60); do
@@ -45,7 +46,12 @@ for db in "$@"; do
   docker cp "$dump" "$CONTAINER:/tmp/$db.dump" >/dev/null
   MSYS_NO_PATHCONV=1 docker exec "$CONTAINER" pg_restore --no-owner --no-privileges -U "$QA_CLONE_TARGET_USER" -d "$db" "/tmp/$db.dump"
   echo "[clone] verifying UTF-8 content in $db"
-  expected_db="${db}_expected"
+  # Keep the expected database unique even when the request includes a real
+  # database named `${db}_expected` or another clone is running concurrently.
+  expected_db="${db}__qa_expected_${RUN_ID}"
+  if ((${#expected_db} > 63)); then
+    expected_db="${expected_db:0:$((63 - ${#RUN_ID} - 14))}__qa_expected_${RUN_ID}"
+  fi
   expected_snapshot="/tmp/$db.expected.sql"
   target_snapshot="/tmp/$db.target.sql"
   expected_schema="/tmp/$db.expected.schema.sql"
@@ -58,29 +64,13 @@ for db in "$@"; do
     echo "UTF-8 검증 실패: db=$db 원본/복제본 스냅샷 불일치" >&2
     exit 1
   fi
-  columns="$TMP_DIR/$db.columns"
-  docker exec -e PGPASSWORD="$QA_CLONE_SOURCE_PASSWORD" samhan-postgres psql \
-    -h "$SOURCE_HOST" -p "$SOURCE_PORT" -U "$QA_CLONE_SOURCE_USER" -d "$db" -At -F $'\t' \
-    -c "SELECT table_schema, table_name, column_name FROM information_schema.columns WHERE data_type IN ('text','character varying','character') AND table_schema NOT IN ('pg_catalog','information_schema') ORDER BY 1,2,3" > "$columns"
-  found=0
-  while IFS=$'\t' read -r schema table column; do
-    [[ -n "$schema" ]] || continue
-    source_sql="SELECT count(*) FILTER (WHERE \"$column\"::text ~ '[가-힣]'), count(*) FILTER (WHERE \"$column\"::text LIKE '%?%') FROM \"$schema\".\"$table\""
-    source_result="$(docker exec -e PGPASSWORD="$QA_CLONE_SOURCE_PASSWORD" samhan-postgres psql -h "$SOURCE_HOST" -p "$SOURCE_PORT" -U "$QA_CLONE_SOURCE_USER" -d "$db" -At -F '|' -c "$source_sql")"
-    source_korean="${source_result%%|*}"; source_question="${source_result#*|}"; source_question="${source_question%%|*}"
-    [[ "$source_korean" =~ ^[1-9][0-9]*$ ]] || continue
-    found=1
-    target_sql="SELECT count(*) FILTER (WHERE \"$column\"::text ~ '[가-힣]'), count(*) FILTER (WHERE \"$column\"::text LIKE '%?%') FROM \"$schema\".\"$table\""
-    result="$(docker exec "$CONTAINER" psql -U "$QA_CLONE_TARGET_USER" -d "$db" -At -F '|' -c "$target_sql")"
-    korean="${result%%|*}"; question="${result#*|}"; question="${question%%|*}"
-    if [[ "$korean" -lt "$source_korean" || "$question" -gt "$source_question" ]]; then
-      sample="$(docker exec "$CONTAINER" psql -U "$QA_CLONE_TARGET_USER" -d "$db" -At -c "SELECT \"$column\"::text FROM \"$schema\".\"$table\" WHERE \"$column\"::text LIKE '%?%' OR \"$column\"::text ~ '[가-힣]' LIMIT 3")"
-      echo "UTF-8 검증 실패: db=$db table=$schema.$table column=$column source_korean_rows=$source_korean target_korean_rows=$korean source_question_mark_rows=$source_question target_question_mark_rows=$question" >&2
-      echo "  target sample: $sample" >&2
-      exit 1
-    fi
-  done < "$columns"
-  [[ "$found" == 1 ]] || echo "[clone] warning: source 한글 컬럼 없음: $db" >&2
+  # Re-dump the target after the first comparison. This catches mutations
+  # injected after the first snapshot, without ever re-reading the live source.
+  if ! MSYS_NO_PATHCONV=1 docker exec "$CONTAINER" sh -c \
+    "pg_dump -U '$QA_CLONE_TARGET_USER' -d '$db' --format=plain --data-only --no-owner --no-privileges --no-comments > '/tmp/$db.target.final.sql'; pg_dump -U '$QA_CLONE_TARGET_USER' -d '$db' --format=plain --schema-only --no-owner --no-privileges > '/tmp/$db.target.final.schema.sql'; sed -i '/^\\\\restrict /d; /^\\\\unrestrict /d' '/tmp/$db.target.final.sql' '/tmp/$db.target.final.schema.sql'; cmp -s '$expected_snapshot' '/tmp/$db.target.final.sql' && cmp -s '$expected_schema' '/tmp/$db.target.final.schema.sql'"; then
+    echo "UTF-8 검증 실패: db=$db 원본/복제본 스냅샷 불일치 (최종 재검증)" >&2
+    exit 1
+  fi
   echo "[clone] PASS $db"
 done
 echo "[clone] PASS all databases; isolated container and dump files will be removed"
