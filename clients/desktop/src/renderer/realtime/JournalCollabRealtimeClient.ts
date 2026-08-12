@@ -9,4 +9,5 @@ export const JournalCollabRealtimeClient = createRealtimeClient({
   name: 'journal-collab',
   endpointPath: (journalId) =>
     `/accounting/journals/${encodeURIComponent(journalId)}/collab/stream`,
+  allowMockMode: true,
 })

@@ -8,4 +8,5 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const SlipListRealtimeClient = createRealtimeClient({
   name: 'SlipListRealtimeClient',
   endpointPath: (_entityId) => '/slips/list-realtime',
+  allowMockMode: true,
 })

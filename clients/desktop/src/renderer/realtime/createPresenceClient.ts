@@ -41,6 +41,7 @@ export function createPresenceClient(config: PresenceClientConfig): PresenceClie
   const realtime = createRealtimeClient({
     name: `${config.name}-presence`,
     endpointPath: config.streamPath,
+    allowMockMode: true,
   })
 
   async function list(entityId: string): Promise<PresenceEntry[]> {

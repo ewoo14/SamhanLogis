@@ -15,13 +15,37 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import jakarta.servlet.http.HttpServletRequest;
+import com.samhanair.logis.shared.audit.contract.AuditEventV2;
+import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.beans.factory.annotation.Value;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+import com.samhanair.logis.partnerauth.audit.PartnerAuditClientIpResolver;
 
 /** Partner Auth Service — 표준 ApiResponse 매핑. */
 @RestControllerAdvice
 public class PartnerAuthExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(PartnerAuthExceptionHandler.class);
+    private final AuditPublisher auditPublisher;
+    private final PartnerAuditClientIpResolver clientIpResolver;
+
+    public PartnerAuthExceptionHandler() { this(null, Set.of()); }
+    public PartnerAuthExceptionHandler(AuditPublisher auditPublisher) { this(auditPublisher, Set.of()); }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PartnerAuthExceptionHandler(AuditPublisher auditPublisher,
+                                       @Value("${samhan.audit.trusted-gateway-addresses:}") String trustedGatewayAddresses) {
+        this(auditPublisher, parseAddresses(trustedGatewayAddresses));
+    }
+
+    public PartnerAuthExceptionHandler(AuditPublisher auditPublisher, Set<String> trustedGatewayAddresses) {
+        this.auditPublisher = auditPublisher;
+        this.clientIpResolver = new PartnerAuditClientIpResolver(trustedGatewayAddresses);
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
@@ -31,11 +55,13 @@ public class PartnerAuthExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex,
+                                                               HttpServletRequest request) {
         String msg = ex.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .orElse("입력값이 유효하지 않습니다");
+        auditFailure(request, 400, ErrorCode.INVALID_INPUT.name(), msg);
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
     }
@@ -47,9 +73,23 @@ public class PartnerAuthExceptionHandler {
      * @return 400 INVALID_INPUT ApiResponse
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(HttpMessageNotReadableException ex) {
+    public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(HttpMessageNotReadableException ex,
+                                                                       HttpServletRequest request) {
+        auditFailure(request, 400, ErrorCode.INVALID_INPUT.name(), "요청 본문이 유효하지 않습니다");
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 본문이 유효하지 않습니다"));
+    }
+
+    private void auditFailure(HttpServletRequest request, int status, String code, String reason) {
+        if (auditPublisher == null) return;
+        auditPublisher.publishAfterCommit(AuditEventV2.failure(
+                "partner-auth-service", request.getMethod(), request.getRequestURI(), status,
+                code, reason, clientIpResolver.resolve(request), request.getHeader("User-Agent")));
+    }
+
+    private static Set<String> parseAddresses(String addresses) {
+        return Arrays.stream((addresses == null ? "" : addresses).split(","))
+                .map(String::trim).filter(value -> !value.isBlank()).collect(Collectors.toUnmodifiableSet());
     }
 
     /**

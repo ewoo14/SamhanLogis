@@ -519,9 +519,15 @@ test.describe('AC-4 발송금지 거래처 (blocked-partners)', () => {
     await page.getByTestId('admin-blocked-add-reason-input').fill('825 회귀 검증 차단')
     await page.getByRole('button', { name: '차단 등록' }).click()
 
-    await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
-    expect(capturedBody!.partnerCode).toBe('1234567890')
-    expect(capturedBody!.blockReason).toBe('825 회귀 검증 차단')
+    await expect.poll(
+      () => page.evaluate(() => (globalThis as { __SAMHAN_LAST_BLOCKED_PARTNER_CREATE?: unknown }).__SAMHAN_LAST_BLOCKED_PARTNER_CREATE),
+      { timeout: 5_000 },
+    ).not.toBeNull()
+    const persistedBody = await page.evaluate(() =>
+      (globalThis as { __SAMHAN_LAST_BLOCKED_PARTNER_CREATE?: { partnerCode?: string; blockReason?: string } }).__SAMHAN_LAST_BLOCKED_PARTNER_CREATE,
+    )
+    expect(persistedBody!.partnerCode).toBe('1234567890')
+    expect(persistedBody!.blockReason).toBe('825 회귀 검증 차단')
 
     // 등록 성공 → 다이얼로그 닫힘
     await expect(dialog).not.toBeVisible({ timeout: 5_000 })
@@ -576,8 +582,14 @@ test.describe('AC-4 발송금지 거래처 (blocked-partners)', () => {
 
     // 차단 등록 → SUSPENDED 거래처 partnerCode 가 payload 로 왕복된다
     await page.getByRole('button', { name: '차단 등록' }).click()
-    await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
-    expect(capturedBody!.partnerCode).toBe('4567890123')
+    await expect.poll(
+      () => page.evaluate(() => (globalThis as { __SAMHAN_LAST_BLOCKED_PARTNER_CREATE?: unknown }).__SAMHAN_LAST_BLOCKED_PARTNER_CREATE),
+      { timeout: 5_000 },
+    ).not.toBeNull()
+    const persistedBody = await page.evaluate(() =>
+      (globalThis as { __SAMHAN_LAST_BLOCKED_PARTNER_CREATE?: { partnerCode?: string } }).__SAMHAN_LAST_BLOCKED_PARTNER_CREATE,
+    )
+    expect(persistedBody!.partnerCode).toBe('4567890123')
 
     await expect(dialog).not.toBeVisible({ timeout: 5_000 })
   })
@@ -653,8 +665,14 @@ test.describe('AC-4 발송금지 거래처 (blocked-partners)', () => {
     await expect(dialog.getByRole('alert')).not.toBeVisible()
 
     await page.getByRole('button', { name: '차단 등록' }).click()
-    await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
-    expect(capturedBody!.partnerCode).toBe('4567890123')
+    await expect.poll(
+      () => page.evaluate(() => (globalThis as { __SAMHAN_LAST_BLOCKED_PARTNER_CREATE?: unknown }).__SAMHAN_LAST_BLOCKED_PARTNER_CREATE),
+      { timeout: 5_000 },
+    ).not.toBeNull()
+    const persistedBody = await page.evaluate(() =>
+      (globalThis as { __SAMHAN_LAST_BLOCKED_PARTNER_CREATE?: { partnerCode?: string } }).__SAMHAN_LAST_BLOCKED_PARTNER_CREATE,
+    )
+    expect(persistedBody!.partnerCode).toBe('4567890123')
     await expect(dialog).not.toBeVisible({ timeout: 5_000 })
   })
 
@@ -735,8 +753,14 @@ test.describe('AC-4 발송금지 거래처 (blocked-partners)', () => {
 
     // 등록 → P2 partnerCode payload 왕복(같은 상호여도 P1 아님 증명) + 다이얼로그 닫힘.
     await page.getByRole('button', { name: '차단 등록' }).click()
-    await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
-    expect(capturedBody!.partnerCode).toBe('9900010002')
+    await expect.poll(
+      () => page.evaluate(() => (globalThis as { __SAMHAN_LAST_BLOCKED_PARTNER_CREATE?: unknown }).__SAMHAN_LAST_BLOCKED_PARTNER_CREATE),
+      { timeout: 5_000 },
+    ).not.toBeNull()
+    const persistedBody = await page.evaluate(() =>
+      (globalThis as { __SAMHAN_LAST_BLOCKED_PARTNER_CREATE?: { partnerCode?: string } }).__SAMHAN_LAST_BLOCKED_PARTNER_CREATE,
+    )
+    expect(persistedBody!.partnerCode).toBe('9900010002')
     await expect(dialog).not.toBeVisible({ timeout: 5_000 })
   })
 })

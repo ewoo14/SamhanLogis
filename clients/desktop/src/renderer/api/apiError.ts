@@ -28,7 +28,12 @@ export function getApiErrorInfo(err: unknown): { status?: number; data?: ApiErro
  * BE 한국어 message 를 우선 추출하고, 없으면 기존 Error.message 로 폴백한다.
  */
 export function extractApiErrorMessage(err: unknown): string {
-  return extractApiErrorResponseMessage(err) ?? (err instanceof Error ? err.message : String(err))
+  const responseMessage = extractApiErrorResponseMessage(err)
+  if (responseMessage) return responseMessage
+  if (err instanceof Error && err.message.startsWith('Mock handler not found:')) {
+    return '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+  }
+  return err instanceof Error ? err.message : String(err)
 }
 
 /**

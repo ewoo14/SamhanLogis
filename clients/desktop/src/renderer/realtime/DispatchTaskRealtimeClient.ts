@@ -18,4 +18,5 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const DispatchTaskRealtimeClient = createRealtimeClient({
   name: 'DispatchTaskRealtimeClient',
   endpointPath: (_entityId) => '/admin/dispatch-tasks/board-realtime',
+  allowMockMode: true,
 })

@@ -37,6 +37,7 @@ import {
 
 const PAGE_CODE = 'accounting.cash-receipts'
 const CASH_RECEIPT_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
+const CASH_RECEIPT_LINE_FIELDS = ['partnerCode', 'bizNo', 'partnerName', 'amount', 'memo'] as const
 
 function seedCashReceiptCoeditProvider(provider: DocCoeditProvider, state: CashReceiptFormState) {
   provider.setHeaderValue('partnerName', state.partnerName)
@@ -47,19 +48,55 @@ function seedCashReceiptCoeditProvider(provider: DocCoeditProvider, state: CashR
   provider.setHeaderValue('debitAccountCode', state.debitAccountCode)
   provider.setHeaderValue('creditAccountCode', state.creditAccountCode)
   provider.setHeaderValue('memo', state.memo)
+  provider.replaceItems(state.lines)
 }
 
-function stateFromCashReceiptCoeditProvider(provider: DocCoeditProvider): CashReceiptFormState {
+/** provider가 화면의 실제 입력 소스이므로, 부분 snapshot의 빈 셀도 canonical 서버값으로 채운다. */
+function hydrateCashReceiptCoeditProvider(provider: DocCoeditProvider, fallback: CashReceiptFormState) {
+  const providerLineCount = provider.items.toArray().length
+  if (providerLineCount === 0 || providerLineCount !== fallback.lines.length) {
+    seedCashReceiptCoeditProvider(provider, fallback)
+    return
+  }
+  fallback.lines.forEach((line, index) => {
+    for (const field of CASH_RECEIPT_LINE_FIELDS) {
+      if (!provider.getItemValue(index, field).trim() && line[field]) {
+        provider.setItemValue(index, field, line[field])
+      }
+    }
+  })
+}
+
+function stateFromCashReceiptCoeditProvider(
+  provider: DocCoeditProvider,
+  fallback: CashReceiptFormState,
+): CashReceiptFormState {
+  const header = (field: keyof Pick<CashReceiptFormState, 'partnerName' | 'partnerCode' | 'bizNo' | 'transactionDate' | 'amount' | 'debitAccountCode' | 'creditAccountCode' | 'memo'>) =>
+    provider.getHeaderValue(field) || fallback[field]
+  const providerLines = provider.items.toArray().map((_, index) => ({
+    partnerCode: provider.getItemValue(index, 'partnerCode'),
+    bizNo: provider.getItemValue(index, 'bizNo'),
+    partnerName: provider.getItemValue(index, 'partnerName'),
+    amount: provider.getItemValue(index, 'amount'),
+    memo: provider.getItemValue(index, 'memo'),
+  }))
+  const lines = providerLines.length > 0
+    ? providerLines.map((line, index) => {
+      const previous = fallback.lines[index]
+      const hasValue = Object.values(line).some((value) => value.trim())
+      return hasValue ? line : previous ?? emptyCashReceiptLine()
+    })
+    : fallback.lines
   return {
-    partnerName: provider.getHeaderValue('partnerName'),
-    partnerCode: provider.getHeaderValue('partnerCode'),
-    bizNo: provider.getHeaderValue('bizNo'),
-    transactionDate: provider.getHeaderValue('transactionDate'),
-    amount: provider.getHeaderValue('amount'),
-    debitAccountCode: provider.getHeaderValue('debitAccountCode'),
-    creditAccountCode: provider.getHeaderValue('creditAccountCode'),
-    memo: provider.getHeaderValue('memo'),
-    lines: [{ partnerCode: provider.getHeaderValue('partnerCode'), bizNo: provider.getHeaderValue('bizNo'), partnerName: provider.getHeaderValue('partnerName'), amount: provider.getHeaderValue('amount'), memo: provider.getHeaderValue('memo') }, { partnerCode: '', bizNo: '', partnerName: '', amount: '', memo: '' }],
+    partnerName: header('partnerName'),
+    partnerCode: header('partnerCode'),
+    bizNo: header('bizNo'),
+    transactionDate: header('transactionDate'),
+    amount: header('amount'),
+    debitAccountCode: header('debitAccountCode'),
+    creditAccountCode: header('creditAccountCode'),
+    memo: header('memo'),
+    lines: lines.length > 0 ? lines : [emptyCashReceiptLine()],
   }
 }
 
@@ -235,7 +272,9 @@ export function CashReceiptFormPage() {
     setCoeditPending(true)
 
     const applyProviderState = (nextProvider: DocCoeditProvider) => {
-      setState(stateFromCashReceiptCoeditProvider(nextProvider))
+      const fallback = cashReceiptFormStateFromRow(receiptSnapshot)
+      hydrateCashReceiptCoeditProvider(nextProvider, fallback)
+      setState(stateFromCashReceiptCoeditProvider(nextProvider, fallback))
     }
 
     void createDocCoeditProvider({
@@ -248,9 +287,7 @@ export function CashReceiptFormPage() {
         return
       }
       provider = nextProvider
-      if (nextProvider.isEmpty()) {
-        seedCashReceiptCoeditProvider(nextProvider, cashReceiptFormStateFromRow(receiptSnapshot))
-      }
+      if (nextProvider.isEmpty()) hydrateCashReceiptCoeditProvider(nextProvider, cashReceiptFormStateFromRow(receiptSnapshot))
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
       setCoeditProvider(nextProvider)
