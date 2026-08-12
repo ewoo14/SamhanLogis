@@ -38,7 +38,7 @@ import {
   type EstimateLineRequest,
   type UpdateEstimateRequest,
 } from '../api/estimateApi'
-import { searchPartners, type PartnerSummary } from '../api/sales'
+import { getPartnerDcConfig, searchPartners, type PartnerSummary } from '../api/sales'
 import {
   lookupProductByModelName,
   getPriceMemory,
@@ -50,7 +50,8 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
-import { resolveEstimateCatalogPrice } from '../utils/estimatePrice'
+import { resolveEstimateCatalogPrice, resolveEstimateNewLinePrice, shouldApplyPartnerDcToEstimate } from '../utils/estimatePrice'
+import type { SlipDiscountConfig } from '../utils/slipDiscount'
 import {
   changeLineQuantity,
   editLineVat,
@@ -134,6 +135,10 @@ interface DraftLine {
   lookupLoading: boolean
   /** 품목 유형 — "SINGLE" | "BUNDLE". BUNDLE 일 때만 세트 옵션 노출. */
   productType: string | null
+  modelCode?: string | null
+  categoryKey?: string | null
+  hasVariableDiscount?: boolean | null
+  fixedDiscountRate?: number | null
   goodsType: 'GOODS' | 'NON_GOODS' | null
   status?: string | null
   /** 세트 전개 옵션 — BUNDLE 라인에 한해 채움 (BE BundleSetOptions). */
@@ -168,6 +173,10 @@ const emptyLine = (): DraftLine => ({
   lookupError: null,
   lookupLoading: false,
   productType: null,
+  modelCode: null,
+  categoryKey: null,
+  hasVariableDiscount: null,
+  fixedDiscountRate: null,
   goodsType: null,
   status: null,
   setOptions: emptyBundleSetOptions(),
@@ -786,6 +795,9 @@ export function EstimateFormPage() {
   /** D-R8-1: 가드 위반 시 해당 필드로 포커스 이동 — 배너만 띄우면 SR/키보드 사용자가 원인을 못 찾는다. */
   const partnerInputRef = useRef<HTMLInputElement>(null)
   const selectedPartnerIdRef = useRef<string>('')
+  const partnerDcConfigRef = useRef<SlipDiscountConfig | null>(null)
+  const partnerDcConfigPartnerCodeRef = useRef('')
+  const partnerDcConfigPromiseRef = useRef<Promise<SlipDiscountConfig | null> | null>(null)
   const priceRefreshRequestRef = useRef(0)
   const modelLookupRequestRef = useRef(new Map<string, number>())
   const selectedProductRef = useRef(new Map<string, ProductOption>())
@@ -793,6 +805,31 @@ export function EstimateFormPage() {
   const localSpecificationWritesRef = useRef(new Map<string, LocalSpecificationWrite>())
   const linesRef = useRef(lines)
   linesRef.current = lines
+  const ensurePartnerDcConfig = async (partnerCode: string): Promise<SlipDiscountConfig | null> => {
+    if (!shouldApplyPartnerDcToEstimate(!isEdit) || !partnerCode) return null
+    if (partnerDcConfigPartnerCodeRef.current === partnerCode && partnerDcConfigPromiseRef.current) {
+      return partnerDcConfigPromiseRef.current
+    }
+    partnerDcConfigPartnerCodeRef.current = partnerCode
+    const promise = getPartnerDcConfig(partnerCode).then((config) => {
+      const normalized = config
+        ? {
+            homeMultiDc: config.homeMultiDc,
+            commercialMultiDc: config.commercialMultiDc,
+            threeSixty: config.threeSixty,
+            fourWay: config.fourWay,
+            oneWay: config.oneWay,
+            stand: config.stand,
+            deluxe: config.deluxe,
+            firstGrade: config.firstGrade,
+          }
+        : null
+      partnerDcConfigRef.current = normalized
+      return normalized
+    })
+    partnerDcConfigPromiseRef.current = promise
+    return promise
+  }
   const markExplicitLineDeletion = (line: DraftLine) => {
     if (!isEdit || !line.lineId || !hydratedEstimateLineIdsRef.current.has(line.lineId)) return
     explicitlyClearedEstimateLineIdsRef.current.add(line.lineId)
@@ -1120,8 +1157,18 @@ export function EstimateFormPage() {
     setPartnerBusinessNo(nextBizNo)
     setPartnerAddress(nextAddress)
     propagatePartnerToCoedit(nextPartnerId, p.companyName, nextBizNo, nextAddress)
+    partnerDcConfigRef.current = null
+    partnerDcConfigPromiseRef.current = null
+    partnerDcConfigPartnerCodeRef.current = p.partnerCode ?? ''
     if (nextPartnerId) {
+      const configPromise = ensurePartnerDcConfig(p.partnerCode ?? '')
       void refreshAutoPricesForPartner(nextPartnerId)
+      void configPromise.then(() => {
+        if (partnerDcConfigRef.current && selectedPartnerIdRef.current === nextPartnerId) {
+          return refreshAutoPricesForPartner(nextPartnerId)
+        }
+        return undefined
+      })
     }
   }
 
@@ -1342,8 +1389,26 @@ export function EstimateFormPage() {
         productId: line.productId!,
         currentUnitPrice: line.unitPrice,
         catalogFallback: line.catalogUnitPrice ?? catalogByProductId.get(line.productId!) ?? null,
+        ...(partnerDcConfigRef.current
+          ? {
+              discountInput: {
+                modelCode: line.modelCode,
+                fixedDiscountRate: line.fixedDiscountRate,
+                category: line.categoryKey === 'homemulti'
+                  ? 'HOMEMULTI'
+                  : line.categoryKey === 'commercialMulti'
+                    ? 'COMMERCIAL_MULTI'
+                    : 'OTHER',
+                hasVariableDiscount: line.hasVariableDiscount,
+              },
+            }
+          : {}),
       }))
-      const { outcomes, isCurrent } = await partnerReprice.run(effectivePartnerId, repriceCandidates)
+      const { outcomes, isCurrent } = await partnerReprice.run(
+        effectivePartnerId,
+        repriceCandidates,
+        partnerDcConfigRef.current,
+      )
       const requestIsCurrent = () => partnerRepriceSessionIsCurrent(
         requestId,
         priceRefreshRequestRef.current,
@@ -1501,6 +1566,11 @@ export function EstimateFormPage() {
         fixedDiscountSource: 'fixedDiscountSource' in rawResult
           ? rawResult.fixedDiscountSource ?? null
           : null,
+        modelCode: 'modelCode' in rawResult ? rawResult.modelCode ?? null : null,
+        categoryKey: 'categoryKey' in rawResult ? rawResult.categoryKey ?? null : null,
+        hasVariableDiscount: 'hasVariableDiscount' in rawResult
+          ? rawResult.hasVariableDiscount ?? null
+          : null,
         productType: rawResult.productType,
         goodsType: rawResult.goodsType,
         status: rawResult.status ?? null,
@@ -1513,10 +1583,18 @@ export function EstimateFormPage() {
       // R4-F1: 전표(applyProductSelection)와 동일 semantics(공유 헬퍼) — 빈 단가뿐 아니라 이전
       // 품목의 자동채움(CATALOG/REMEMBERED) 단가도 새 품목 기준으로 재채움 + 가격기억 재조회.
       const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
-      const catalogPrice = resolveEstimateCatalogPrice(
-        Number(result.sellingPrice),
-        result.fixedDiscountRate,
-      )
+      // 거래처 선택 시 설정 조회가 진행 중이어도 품목 lookup의 stale 순서를 막는다.
+      // 설정 도착 후 handleSelectPartner의 refresh가 신규 라인을 다시 계산한다.
+      const partnerDcConfig = partnerDcConfigRef.current
+      const catalogPrice = shouldApplyPartnerDcToEstimate(!isEdit)
+        ? resolveEstimateNewLinePrice({
+            sellingPrice: Number(result.sellingPrice),
+            modelCode: result.modelCode,
+            fixedDiscountRate: result.fixedDiscountRate,
+            categoryKey: result.categoryKey,
+            hasVariableDiscount: result.hasVariableDiscount,
+          }, partnerDcConfig)
+        : resolveEstimateCatalogPrice(Number(result.sellingPrice), result.fixedDiscountRate)
       let nextUnitPrice = String(catalogPrice.unitPrice)
       let nextPriceSource: DraftLine['priceSource'] = 'CATALOG'
       let nextPriceMemoryUpdatedAt: string | null = null
@@ -1598,8 +1676,14 @@ export function EstimateFormPage() {
         specification: nextSpecification,
         specificationSource: nextSpecificationSource,
         productType: result.productType ?? 'SINGLE',
+        modelCode: result.modelCode,
+        categoryKey: result.categoryKey,
+        hasVariableDiscount: result.hasVariableDiscount,
+        fixedDiscountRate: result.fixedDiscountRate,
         goodsType: result.goodsType ?? current.goodsType,
-        catalogUnitPrice: String(catalogPrice.unitPrice),
+        catalogUnitPrice: partnerDcConfig
+          ? String(result.sellingPrice)
+          : String(catalogPrice.unitPrice),
         unitPrice: applyPrice ? nextUnitPrice : current.unitPrice,
         priceSource: applyPrice ? nextPriceSource : current.priceSource,
         priceMemoryUpdatedAt: applyPrice ? nextPriceMemoryUpdatedAt : current.priceMemoryUpdatedAt,

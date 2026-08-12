@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createEstimate: vi.fn(),
   sendEstimate: vi.fn(),
   searchPartners: vi.fn(),
+  getPartnerDcConfig: vi.fn(),
   lookupProductByModelName: vi.fn(),
   searchProducts: vi.fn(),
   getPriceMemory: vi.fn(),
@@ -199,6 +200,7 @@ vi.mock('../api/estimateApi', () => ({
 
 vi.mock('../api/sales', () => ({
   searchPartners: mocks.searchPartners,
+  getPartnerDcConfig: mocks.getPartnerDcConfig,
 }))
 
 vi.mock('../api/slip', () => ({
@@ -401,6 +403,7 @@ beforeEach(() => {
   mocks.searchProducts.mockReset()
   mocks.getPriceMemory.mockResolvedValue(null)
   mocks.getPriceMemories.mockResolvedValue({ hits: [], failedProductIds: [] })
+  mocks.getPartnerDcConfig.mockResolvedValue(null)
   mocks.lookupProducts.mockImplementation(async (productIds: string[]) =>
     productIds.map((id) => ({ id, status: 'ACTIVE' })),
   )
@@ -2144,6 +2147,25 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
 })
 
 /** 하단 합계 바("라벨 <strong>값</strong>" 형태) 텍스트 — label 로 시작하는 div 를 찾아 반환. */
+it('new estimate applies the partner 1way DC to the displayed total', async () => {
+  mocks.getPartnerDcConfig.mockResolvedValue({
+    partnerCode: 'P-A', companyName: 'Partner A', homeMultiDc: null,
+    commercialMultiDc: null, flexibleHoseTypeI: null, threeSixty: null,
+    fourWay: null, oneWay: '50000', stand: null, deluxe: null,
+    firstGrade: null, unitProcess: null, remark: null,
+  })
+  mocks.lookupProductByModelName.mockResolvedValue({
+    productId: 'product-ac023', productName: 'AC023', productType: 'SINGLE',
+    modelCode: 'AC023BN1DBC1', sellingPrice: '316800',
+  })
+  renderPage('/sales/estimates/new')
+  fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
+  fireEvent.change(estimateModel(), { target: { value: 'AC023BN1DBC1' } })
+  fireEvent.blur(estimateModel())
+  await waitFor(() => expect(estimateUnitPrice().value).toBe('266800'))
+  expect(mocks.getPartnerDcConfig).toHaveBeenCalledWith('P-A')
+})
+
 function totalsRowText(container: HTMLElement, label: string): string {
   const row = Array.from(container.querySelectorAll('strong'))
     .map((strong) => strong.parentElement)
