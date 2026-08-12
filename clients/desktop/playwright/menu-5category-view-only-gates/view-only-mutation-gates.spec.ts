@@ -318,24 +318,8 @@ test.describe('menu-5category view-only mutation gates', () => {
   })
 
   test('알리고 주소록 500 뒤 stale focus로 UPDATE가 회수되면 재시도 안내가 권한 안내로 바뀐다', async ({ page }) => {
-    let syncCalls = 0
-    await page.route('**/admin/notification/aligo/address-book/sync', async route => {
-      if (route.request().method() !== 'POST') {
-        await route.continue()
-        return
-      }
-      syncCalls += 1
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: false,
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'mock server error',
-          data: null,
-          timestamp: new Date().toISOString(),
-        }),
-      })
+    await page.addInitScript(() => {
+      ;(globalThis as { __SAMHAN_ALIGO_SYNC_FAILURE?: boolean }).__SAMHAN_ALIGO_SYNC_FAILURE = true
     })
 
     await gotoWithPerm(page, '/admin/aligo-address-book', 'aligo.address-book', true)
@@ -359,7 +343,10 @@ test.describe('menu-5category view-only mutation gates', () => {
     await expect(page.locator('[data-testid="admin-aligo-sync-btn"]')).toBeDisabled()
     await expect(page.getByText(/동기화 실행 권한이 없어 실행할 수 없습니다/)).toBeVisible()
     await expect(page.getByText(/잠시 후 다시 시도해 주세요/)).toHaveCount(0)
-    expect(syncCalls).toBe(1)
+    await expect.poll(
+      () => page.evaluate(() => (globalThis as { __SAMHAN_ALIGO_SYNC_CALLS?: number }).__SAMHAN_ALIGO_SYNC_CALLS),
+      { timeout: 5_000 },
+    ).toBe(1)
   })
 
   test('배차 SMS view-only: 미리보기 버튼이 비활성화된다', async ({ page }) => {

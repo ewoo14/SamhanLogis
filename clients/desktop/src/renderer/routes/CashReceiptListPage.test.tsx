@@ -12,6 +12,16 @@ vi.mock('../hooks/usePermissions', () => ({
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: () => {} }))
 
 const listCashReceiptsMock = vi.fn()
+const { restoreScrollAnchorWhenReadyMock } = vi.hoisted(() => ({
+  restoreScrollAnchorWhenReadyMock: vi.fn((_entryKey: string, _isReady: () => boolean) => {
+    window.scrollTo({ top: 640, behavior: 'auto' })
+    return () => undefined
+  }),
+}))
+vi.mock('../utils/returnContract', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/returnContract')>()
+  return { ...actual, restoreScrollAnchorWhenReady: restoreScrollAnchorWhenReadyMock }
+})
 vi.mock('../api/accounting', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/accounting')>()
   return { ...actual, listCashReceipts: (...args: unknown[]) => listCashReceiptsMock(...args) }
@@ -47,6 +57,25 @@ afterEach(() => {
 })
 
 describe('CashReceiptListPage', () => {
+  it('복귀 URL이 같은 입금보고서라도 스크롤 identity를 값으로 복원한다', async () => {
+    listCashReceiptsMock.mockResolvedValue({
+      content: [sampleRow], totalElements: 1, totalPages: 1, number: 0, size: 50, first: true, last: true,
+    })
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[{ pathname: '/accounting/admin/cash-receipts', search: '?slipNo=2026%2F08%2F07-8', key: 'cash-list-entry' }]}>
+          <CashReceiptListPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await screen.findByTestId('cash-receipt-filter-slip-no')
+    expect(screen.getByTestId('cash-receipt-filter-slip-no')).toHaveValue('2026/08/07-8')
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 640, behavior: 'auto' }))
+    scrollTo.mockRestore()
+  })
+
   it('URL query의 필터와 page를 목록 정본으로 복원한다', async () => {
     listCashReceiptsMock.mockResolvedValue({
       content: [sampleRow], totalElements: 101, totalPages: 3, number: 2, size: 50, first: false, last: true,

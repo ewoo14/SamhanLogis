@@ -52,6 +52,18 @@ export const DETAIL_COLUMN_KEYS = [
   'note',
 ] as const
 
+/** 기본 결재 fallback 품목 밴드의 legacy 8열 계약(구성·순서 고정). */
+export const LEGACY_FALLBACK_DETAIL_COLUMNS = [
+  'productName',
+  'modelName',
+  'specification',
+  'quantity',
+  'supplyAmount',
+  'vatAmount',
+  'lineTotal',
+  'note',
+] as const
+
 export type DetailColumnKey = (typeof DETAIL_COLUMN_KEYS)[number]
 
 export const DETAIL_COLUMN_LABEL: Record<DetailColumnKey, string> = {

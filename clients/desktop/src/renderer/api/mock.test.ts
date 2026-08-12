@@ -8,6 +8,7 @@ import { apiClient } from './client'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
+import { extractApiErrorMessage } from './apiError'
 import {
   createSalesSlipDraft,
   MOCK_SALES_ACCOUNTING_SLIPS,
@@ -77,6 +78,59 @@ function mockRequest(config: AxiosRequestConfig): unknown {
 function amount(raw: string | number): number {
   return typeof raw === 'number' ? raw : Number(raw)
 }
+
+describe('SOL-1178 mock fail-closed 사용자 경로 회귀', () => {
+  it('SOL-1178-01 RED: 월말 마감 POST handler와 사용자용 오류 매핑이 존재한다', () => {
+    const response = getMockResponse({
+      method: 'POST',
+      url: '/accounting/closings',
+      data: JSON.stringify({
+        periodType: 'MONTHLY',
+        periodDate: '2026-08-01',
+        description: 'SOL RED',
+      }),
+    }) as { success: boolean; data: Record<string, unknown> } | null
+
+    expect(response, 'mock 모드 월말 마감은 handler 없이 실제 네트워크로 흘러가면 안 된다').not.toBeNull()
+    expect(response?.data).toMatchObject({
+      periodType: 'MONTHLY',
+      periodDate: '2026-08-01',
+      status: 'CLOSED',
+    })
+    expect(extractApiErrorMessage(new Error('Mock handler not found: POST /accounting/closings')))
+      .toBe('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  })
+
+  it('SOL-1178-02 RED: 판매전표 저장 응답은 저장 후 화면이 소비하는 SlipDetailResponse shape다', () => {
+    const response = getMockResponse({
+      method: 'PUT',
+      url: '/slips/slip-005/sales',
+      data: JSON.stringify({
+        lineIdContract: true,
+        projectName: 'SOL 저장 후 화면',
+        lines: [{
+          lineId: 'line-001',
+          productId: MOCK_PRODUCT_AJ040_ID,
+          productName: '시스템에어컨 4Way 4HP',
+          modelName: 'AJ040RXH4BC1',
+          specification: '4HP',
+          quantity: 2,
+          unitPrice: '1850000',
+          note: null,
+        }],
+      }),
+    }) as { success: boolean; data: Record<string, unknown> } | null
+    const line = (response?.data?.lines as Array<Record<string, unknown>> | undefined)?.[0]
+
+    expect(response?.data).not.toHaveProperty('lineIdContract')
+    expect(line).toMatchObject({
+      id: 'line-001',
+      lineTotal: '3700000',
+      supplyAmount: '3700000',
+      vatAmount: '370000',
+    })
+  })
+})
 
 describe('영업수수료 정산 권한 enforcement mock 계약', () => {
   it('권한 없는 SALES 역할은 목록·생성·확정 API를 모두 403으로 거절한다', () => {

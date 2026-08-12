@@ -9,4 +9,5 @@ export const DispatchCollabRealtimeClient = createRealtimeClient({
   name: 'dispatch-collab',
   endpointPath: (taskId) =>
     `/admin/dispatch-tasks/${taskId}/collab/stream`,
+  allowMockMode: true,
 })

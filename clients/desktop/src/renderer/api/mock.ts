@@ -427,6 +427,28 @@ let MOCK_ACTIVITY_LOGS: MockActivityLog[] = [
     description: '버전 관리 릴리스 정보를 수정했습니다.',
     serviceName: 'dashboard-service',
   },
+  {
+    occurredAt: mockActivityOccurredAt(25),
+    userId: 'dev-master',
+    user: '개발자',
+    userRole: 'DEVELOPER',
+    action: 'UPDATE',
+    resourceType: 'DC_CONFIG',
+    resourceId: 'P-001',
+    description: '거래처 DC 설정을 변경했습니다.',
+    serviceName: 'dc-config-service',
+  },
+  {
+    occurredAt: mockActivityOccurredAt(30),
+    userId: 'partner-session-internal',
+    user: '비인증 거래처',
+    userRole: 'PARTNER',
+    action: 'LOGIN',
+    resourceType: 'AUTH',
+    resourceId: '거래처 인증',
+    description: '거래처 인증 성공/실패 이벤트입니다.',
+    serviceName: 'partner-auth-service',
+  },
 ]
 
 function normalizeMockClientType(value: unknown): MockAppClientType {
@@ -9196,6 +9218,29 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // POST /api/v1/partners/admin/blocks — 수동 발송금지 등록.
+  // Axios mock interceptor가 브라우저 밖에서 처리하므로, QA는 동일 DTO payload를
+  // 페이지 전역에 기록해 관찰한다. 응답은 BlockedPartner DTO shape을 따른다.
+  if (method === 'POST' && url.match(/\/api\/v1\/partners\/admin\/blocks(?:\?.*)?$/)) {
+    const body = parseMockBody(config) as {
+      partnerCode?: string
+      blockReason?: string
+    }
+    try {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_LAST_BLOCKED_PARTNER_CREATE'] = body
+    } catch {
+      /* noop */
+    }
+    return envelope({
+      id: `block-${Date.now()}`,
+      partnerCode: body.partnerCode ?? '',
+      businessNameSnapshot: body.partnerCode === '4567890123' ? '미래시스템' : '엘에이시스템에어',
+      blockReason: body.blockReason ?? null,
+      blockedAt: '2026-07-18T10:00:00+09:00',
+      source: 'MANUAL',
+    })
+  }
+
   // GET /admin/aligo/address-book — AligoAddressBookPage
   if (method === 'GET' && url.includes('/admin/aligo/address-book')) {
     return envelope({
@@ -9212,6 +9257,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       jobId: 'aligo-sync-' + Date.now(),
       status: 'IN_PROGRESS',
       message: '알리고 주소록 동기화를 시작했습니다',
+    })
+  }
+  if (method === 'POST' && url.includes('/admin/notification/aligo/address-book/sync')) {
+    const g = globalThis as Record<string, unknown>
+    const calls = Number(g['__SAMHAN_ALIGO_SYNC_CALLS'] ?? 0) + 1
+    g['__SAMHAN_ALIGO_SYNC_CALLS'] = calls
+    if (g['__SAMHAN_ALIGO_SYNC_FAILURE'] === true) {
+      return mockError(500, 'INTERNAL_SERVER_ERROR', 'mock server error')
+    }
+    return envelope({
+      added: 12,
+      updated: 8,
+      skipped: 2,
+      failed: [],
+      deliveryStatus: 'NOT_DELIVERED',
     })
   }
 
@@ -9232,6 +9292,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // (Page envelope 으로 감싸면 SlipEditRequestsPage `list = query.data ?? []` → object → list.map 에러)
   if (method === 'GET' && url.includes('/slips/edit-requests')) {
     return envelope(MOCK_EDIT_REQUESTS)
+  }
+  // GET /api/v1/accounting/edit-requests — accounting-service pending requests.
+  if (method === 'GET' && url.includes('/api/v1/accounting/edit-requests')) {
+    return envelope([
+      {
+        requestId: 'accounting-edit-001',
+        entityId: 'journal-001',
+        requestType: 'EDIT',
+        status: 'PENDING',
+        reason: '적요 수정 요청',
+        requesterId: 'user-001',
+        requesterName: '김관리',
+        targetRole: 'MANAGER',
+        decidedById: null,
+        decidedByName: null,
+        decisionReason: null,
+        requestedAt: '2026-08-12T09:00:00+09:00',
+        decidedAt: null,
+        expiresAt: null,
+      },
+    ])
   }
   // POST /api/v1/slips/{slipId}/edit-request — 작성자 신규 요청 (CONFIRMED 단계).
   // body { type: 'EDIT'|'DELETE', reason: string } → SlipEditRequest 응답.
@@ -9787,6 +9868,40 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       isLocked: false,
       lockedAt: null,
       lockedBy: null,
+    })
+  }
+
+  // GET/POST /accounting/closings — BE MonthEndCloseController 계약.
+  // AccountingPeriodResponse의 필드명·타입을 그대로 반환해 월말 마감 화면이
+  // mock handler 부재로 fail-closed 되거나, 응답 shape 차이로 깨지지 않게 한다.
+  if (method === 'GET' && url.endsWith('/accounting/closings')) {
+    return envelope([])
+  }
+  if (method === 'POST' && url.endsWith('/accounting/closings')) {
+    const req = parseMockBody(config) as {
+      periodType?: 'DAILY' | 'MONTHLY'
+      periodDate?: string
+      description?: string
+    }
+    const periodType = req.periodType === 'DAILY' ? 'DAILY' : 'MONTHLY'
+    const rawDate = typeof req.periodDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.periodDate)
+      ? req.periodDate
+      : '2026-08-01'
+    const periodDate = periodType === 'MONTHLY' ? `${rawDate.slice(0, 7)}-01` : rawDate
+    return envelope({
+      id: `closing-${Date.now()}`,
+      periodType,
+      periodDate,
+      status: 'CLOSED',
+      closedAt: new Date().toISOString(),
+      closedBy: 'system',
+      reversedAt: null,
+      reversedBy: null,
+      totalSales: '0',
+      totalPurchase: '0',
+      totalExpense: '0',
+      lockedSlipCount: 0,
+      description: typeof req.description === 'string' ? req.description : null,
     })
   }
 
@@ -13748,6 +13863,61 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       createdAt: new Date().toISOString(),
       createdBy: '오병승',
     })
+  }
+
+  // PUT /slips/{id}/sales — 판매전표 direct update (SlipUpdateRequest).
+  // Axios mock interceptor가 브라우저 밖에서 처리하므로, Playwright가 검증할 수 있도록
+  // 마지막 payload를 페이지 전역에 기록한다. 응답 shape는 GET 상세와 같은 envelope이다.
+  const salesSlipUpdateMatch = url.match(/\/slips\/([^/?]+)\/sales$/)
+  if (method === 'PUT' && salesSlipUpdateMatch) {
+    const denied = mockRequirePermission('sales.slip.edit', 'update')
+    if (denied) return denied
+    const id = decodeURIComponent(salesSlipUpdateMatch[1]!)
+    const found = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
+    if (!found) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
+    const body = parseMockBody(config) as Record<string, unknown>
+    try {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_LAST_SLIP_UPDATE'] = body
+    } catch {
+      /* noop */
+    }
+    const requestLines = Array.isArray(body.lines) ? body.lines as Array<Record<string, unknown>> : []
+    const existingLines = Array.isArray(found.lines) ? found.lines as Array<Record<string, unknown>> : SAMPLE_LINES
+    const lines = requestLines.length > 0
+      ? requestLines.map((requestLine) => {
+        const lineId = typeof requestLine.lineId === 'string'
+          ? requestLine.lineId
+          : typeof requestLine.id === 'string' ? requestLine.id : undefined
+        const existing = existingLines.find((candidate) => candidate.id === lineId) ?? {}
+        const quantity = typeof requestLine.quantity === 'number'
+          ? requestLine.quantity
+          : Number(requestLine.quantity ?? existing.quantity ?? 0)
+        const unitPrice = String(requestLine.unitPrice ?? existing.unitPrice ?? '0')
+        const lineTotal = requestLine.lineTotal != null
+          ? String(requestLine.lineTotal)
+          : String(quantity * Number(unitPrice))
+        const supplyAmount = requestLine.supplyAmount != null
+          ? String(requestLine.supplyAmount)
+          : lineTotal
+        const vatAmount = requestLine.vatAmount != null
+          ? String(requestLine.vatAmount)
+          : String(Number(supplyAmount) * 0.1)
+        return {
+          ...existing,
+          ...requestLine,
+          id: lineId ?? existing.id,
+          lineTotal,
+          supplyAmount,
+          vatAmount,
+          setHead: requestLine.setHead ?? existing.setHead ?? false,
+          parentSetModel: requestLine.parentSetModel ?? existing.parentSetModel ?? null,
+        }
+      })
+      : existingLines
+    const { lineIdContract: _lineIdContract, lines: _requestLines, ...detailBody } = body
+    const detail = { ...found, ...detailBody, id, lines }
+    Object.assign(found, detail)
+    return envelope(detail)
   }
 
   // ============================================================================

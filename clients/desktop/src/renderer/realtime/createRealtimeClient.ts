@@ -63,15 +63,26 @@ function nextBackoff(prev: number): number {
 export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClient {
   const logPrefix = `[${config.name}]`
 
+  function resolveTransportUrl(endpointPath: string): string {
+    if (!isMockMode()) return `${(apiClient.defaults.baseURL ?? '').replace(/\/$/, '')}${endpointPath}`
+    // mock SSE는 Playwright/Vite origin에만 연결한다. 실제 gateway baseURL로의 egress는 금지한다.
+    if (typeof window !== 'undefined' && window.location.origin) {
+      return `${window.location.origin}${endpointPath}`
+    }
+    return endpointPath
+  }
+
   function subscribe(
     entityId: string,
     onEvent: RealtimeHandler,
   ): AbortController {
     const controller = new AbortController()
 
-    // 기본 mock fixture에는 SSE 서버가 없으므로 raw fetch 경계를 열지 않는다.
-    // 협업 client처럼 fixture가 stream을 직접 제공하는 경우만 명시적으로 허용한다.
-    if (isMockMode() && !config.allowMockMode) return controller
+    // mock 모드에서는 등록된 SSE handler 없이 실제 네트워크를 열 수 없다.
+    // allowMockMode는 과거의 egress 예외였으므로 fail-closed 전환 후에도 우회구멍으로 쓰지 않는다.
+    if (isMockMode() && !config.allowMockMode) {
+      throw new Error(`Mock handler not found: GET ${config.endpointPath(entityId)}`)
+    }
 
     let backoffMs = BACKOFF_INITIAL_MS
     let lastEventAt = Date.now()
@@ -125,7 +136,8 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
       }
 
       try {
-        const url = `${baseUrl}${config.endpointPath(entityId)}`
+        const endpointPath = config.endpointPath(entityId)
+        const url = isMockMode() ? resolveTransportUrl(endpointPath) : `${baseUrl}${endpointPath}`
         const res = await fetch(url, {
           method: 'GET',
           headers,
@@ -133,7 +145,11 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
           credentials: isElectronPlatform ? 'omit' : 'include',
         })
 
-        if (!res.ok || !res.body) {
+        const contentType = isMockMode() ? (res.headers?.get('content-type') ?? '') : ''
+        if (!res.ok || !res.body || (isMockMode() && !contentType.includes('text/event-stream'))) {
+          if (isMockMode() && res.ok && res.body && !contentType.includes('text/event-stream')) {
+            throw new Error(`Mock handler not found: GET ${endpointPath}`)
+          }
           throw new Error(`SSE 연결 실패 status=${res.status}`)
         }
 
