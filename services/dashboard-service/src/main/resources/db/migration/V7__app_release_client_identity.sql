@@ -18,7 +18,6 @@ ALTER TABLE app_release
             'SAMHAN_ESTIMATE_WEB',
             'SAMHAN_MOBILE_PUBLIC_WEB',
             'AROLOGIS_DESKTOP',
-            'INTERNAL_CHAT_DESKTOP',
             'WEB',
             'MOBILE'
         ));
