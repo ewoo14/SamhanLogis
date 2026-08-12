@@ -7,6 +7,7 @@
 import { apiClient, type ApiEnvelope } from './client'
 import type { EstimateDetail } from './estimateApi'
 import { collabHeaders } from '../auth/collabHeaders'
+import { toOrderPathId } from '../utils/orderNo'
 
 export interface EstimateCollabComment {
   id: string
@@ -48,7 +49,7 @@ export interface CommitEstimateCollabEditResponse {
 }
 
 function collabPath(estimateId: string, suffix: string): string {
-  return `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/collab/${suffix}`
+  return `/api/v1/slips/estimates/${encodeURIComponent(toOrderPathId(estimateId))}/collab/${suffix}`
 }
 
 export async function getEstimateCollabComments(

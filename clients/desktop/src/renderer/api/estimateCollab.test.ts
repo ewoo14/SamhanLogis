@@ -38,7 +38,7 @@ describe('estimateCollab API paths', () => {
     await expect(getEstimateCollabComments('estimate/1', 10)).resolves.toEqual([])
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/api/v1/slips/estimates/estimate%2F1/collab/comments',
+      '/api/v1/slips/estimates/estimate-1/collab/comments',
       { params: { limit: 10 }, headers: { 'X-User-Id': 'actor-1' } },
     )
   })
@@ -61,7 +61,7 @@ describe('estimateCollab API paths', () => {
     })).resolves.toEqual(comment)
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      '/api/v1/slips/estimates/estimate%2F1/collab/comments',
+      '/api/v1/slips/estimates/estimate-1/collab/comments',
       { body: '본문', anchor: 'memo' },
       { headers: { 'X-User-Id': 'actor-1' } },
     )

@@ -9,7 +9,18 @@ const apiClientMock = vi.hoisted(() => ({
 
 vi.mock('./client', () => ({ apiClient: apiClientMock }))
 
-import { changeEstimateOwner, getEstimate, listAssignedEstimates, listEstimates } from './estimateApi'
+import {
+  acceptEstimate,
+  changeEstimateOwner,
+  convertEstimate,
+  getEstimate,
+  listAssignedEstimates,
+  listEstimates,
+  rejectEstimate,
+  restoreEstimate,
+  sendEstimate,
+  updateEstimate,
+} from './estimateApi'
 
 describe('estimate API money normalization', () => {
   beforeEach(() => vi.resetAllMocks())
@@ -95,5 +106,37 @@ describe('estimate owner surface contract', () => {
     expect(apiClientMock.patch).toHaveBeenCalledWith('/slips/estimates/estimate-1/owner', {
       requesterId: 'owner-2', documentType: 'ESTIMATE',
     })
+  })
+})
+
+describe('estimate document-number path family', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  it('all estimate item requests use the same hyphen path id conversion', async () => {
+    apiClientMock.get.mockResolvedValue({ data: { data: { lines: [] } } })
+    apiClientMock.put.mockResolvedValue({ data: { data: { lines: [] } } })
+    apiClientMock.post.mockResolvedValue({ data: { data: { lines: [] } } })
+    apiClientMock.patch.mockResolvedValue({ data: { data: { lines: [] } } })
+    const id = '2026/08/10-9'
+
+    await updateEstimate(id, { lines: [] } as never)
+    await sendEstimate(id)
+    await acceptEstimate(id)
+    await rejectEstimate(id)
+    await convertEstimate(id)
+    await restoreEstimate(id)
+
+    const paths = [
+      '/slips/estimates/2026-08-10-9',
+      '/slips/estimates/2026-08-10-9/send',
+      '/slips/estimates/2026-08-10-9/accept',
+      '/slips/estimates/2026-08-10-9/reject',
+      '/slips/estimates/2026-08-10-9/convert',
+      '/slips/estimates/2026-08-10-9/restore',
+    ]
+    expect([
+      ...apiClientMock.put.mock.calls,
+      ...apiClientMock.post.mock.calls,
+    ].map(([path]) => path)).toEqual(paths)
   })
 })

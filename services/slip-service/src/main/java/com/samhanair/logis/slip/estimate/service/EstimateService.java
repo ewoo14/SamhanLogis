@@ -512,18 +512,24 @@ public class EstimateService {
      */
     @Transactional(readOnly = true)
     public EstimateDetailResponse getOne(String id) {
+        return getOne(resolveId(id));
+    }
+
+    /** UUID 또는 URL-safe 하이픈 견적번호를 내부 견적 UUID로 해석한다. */
+    @Transactional(readOnly = true)
+    public UUID resolveId(String id) {
         if (id == null || id.isBlank()) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "견적서를 찾을 수 없습니다");
         }
         try {
-            return getOne(UUID.fromString(id));
+            return UUID.fromString(id);
         } catch (IllegalArgumentException ignored) {
             String canonicalEstimateNo = toSlashDocumentNo(id);
-            Estimate estimate = estimateRepository.findByEstimateNo(id)
+            return estimateRepository.findByEstimateNo(id)
                     .or(() -> estimateRepository.findByEstimateNo(canonicalEstimateNo))
+                    .map(Estimate::getId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                             "견적서를 찾을 수 없습니다"));
-            return EstimateDetailResponse.from(estimate);
         }
     }
 
