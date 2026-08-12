@@ -1,0 +1,56 @@
+package com.samhanair.logis.groupware.service;
+
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.groupware.client.UserClient;
+import com.samhanair.logis.groupware.domain.ChatRoom;
+import com.samhanair.logis.groupware.domain.Message;
+import com.samhanair.logis.groupware.repository.MessageRepository;
+import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+@Service
+@RequiredArgsConstructor
+public class ChatMessageService {
+    private final ChatRoomService roomService;
+    private final MessageRepository messageRepository;
+    private final UserClient userClient;
+    private final RealtimeBroker broker;
+
+    @Transactional
+    public Message send(String roomCode, UUID senderId, UUID recipientId, String body) {
+        ChatRoom room = roomService.requireParticipant(roomCode, senderId);
+        if (body == null || body.isBlank() || body.length() > 2000)
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "본문은 1자 이상 2000자 이하로 입력하십시오");
+        if (!userClient.exists(recipientId)) throw new BusinessException(ErrorCode.NOT_FOUND, "수신자를 찾을 수 없습니다");
+        Message saved = messageRepository.save(Message.sendInRoom(room.getId(), messageRepository.findMaxSequence(room.getId()) + 1,
+                senderId, recipientId, body.trim()));
+        Runnable publish = () -> broker.publish(room.getId(), "chat:message-created", java.util.Map.of(
+                "roomCode", roomCode, "sequence", saved.getSequence()));
+        if (TransactionSynchronizationManager.isSynchronizationActive())
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() { @Override public void afterCommit() { publish.run(); } });
+        else publish.run();
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<Message> list(String roomCode, UUID actor) {
+        ChatRoom room = roomService.requireParticipant(roomCode, actor);
+        var messages = messageRepository.findTop50ByRoomIdOrderBySequenceDesc(room.getId());
+        java.util.ArrayList<Message> ordered = new java.util.ArrayList<>(messages);
+        java.util.Collections.reverse(ordered);
+        return ordered;
+    }
+
+    @Transactional
+    public void markRead(String roomCode, UUID actor, long sequence) {
+        ChatRoom room = roomService.requireParticipant(roomCode, actor);
+        messageRepository.findAllByRoomIdAndRecipientIdAndSequenceLessThanEqual(room.getId(), actor, sequence)
+                .forEach(message -> message.markRead(actor));
+    }
+}

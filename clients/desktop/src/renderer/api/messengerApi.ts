@@ -80,3 +80,21 @@ export async function markMessageRead(messageId: string): Promise<MessageRespons
   )
   return response.data.data
 }
+
+export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null }
+export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string }
+
+export async function fetchChatRooms(): Promise<ChatRoom[]> {
+  const response = await apiClient.get<ApiEnvelope<ChatRoom[]>>('/admin/groupware/chat/rooms')
+  return response.data.data
+}
+
+export async function fetchChatMessages(roomCode: string): Promise<ChatMessage[]> {
+  const response = await apiClient.get<ApiEnvelope<ChatMessage[]>>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`)
+  return response.data.data
+}
+
+export async function sendChatMessage(roomCode: string, body: string): Promise<ChatMessage> {
+  const response = await apiClient.post<ApiEnvelope<ChatMessage>>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`, { body })
+  return response.data.data
+}

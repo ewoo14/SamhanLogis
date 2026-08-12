@@ -30,4 +30,11 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     /** 원자성 검증용 — 같은 batchId를 공유하는 행 전체 조회 (테스트 전용 소비). */
     List<Message> findAllByBatchId(UUID batchId);
+
+    @Query("select coalesce(max(m.sequence), 0) from Message m where m.roomId = :roomId")
+    long findMaxSequence(@Param("roomId") UUID roomId);
+
+    List<Message> findTop50ByRoomIdAndSequenceLessThanOrderBySequenceDesc(UUID roomId, long beforeSequence);
+    List<Message> findTop50ByRoomIdOrderBySequenceDesc(UUID roomId);
+    List<Message> findAllByRoomIdAndRecipientIdAndSequenceLessThanEqual(UUID roomId, UUID recipientId, long sequence);
 }
