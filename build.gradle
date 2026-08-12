@@ -44,6 +44,8 @@ def leafProjects = [
         ':shared:approval-core',
         ':shared:ecount-io',
         ':shared:notification-publisher',
+        ':shared:audit-contract',
+        ':shared:audit-publisher',
         ':services:eureka-server',
         ':services:api-gateway',
         ':services:auth-service',

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom/server'
@@ -156,6 +157,28 @@ describe('buildApprovalRenderModel', () => {
 })
 
 describe('compileApprovalDocument and DocumentRenderer', () => {
+  it('D-2 fix2: 반복 표는 Chromium 페이지 분할에서도 행 하단 테두리를 보존하는 border model을 사용한다', () => {
+    const css = readFileSync(new URL('../styles/global.css', import.meta.url), 'utf8')
+
+    expect(css).toMatch(/\.document-template-detail table\s*\{[^}]*border-collapse:\s*separate/s)
+  })
+
+  it('D-3 fix2: 기본 연결 품목 밴드는 legacy 8열의 구성·순서·문구를 그대로 사용한다', () => {
+    const model = buildApprovalRenderModel(input({
+      slipLineItems: [{
+        id: 'line-id', productId: 'product-id', productName: '품목', modelName: '모델명',
+        specification: '규격', quantity: 1, unitPrice: '100', lineTotal: '110', note: '비고',
+        supplyAmount: '100', vatAmount: '10',
+      }],
+    }))
+    const html = render(<DocumentRenderer template={GROUPWARE_DEFAULT} model={model} />)
+    const dom = new JSDOM(html)
+    const headers = [...dom.window.document.querySelectorAll('[data-template-detail="approval-default-detail"] th')]
+      .map((cell) => cell.textContent)
+
+    expect(headers).toEqual(['품목', '모델명', '규격', '수량', '공급가액', '부가세', '합계', '비고'])
+  })
+
   it.each(['HEADER', 'FOOTER'] as const)('%s의 flow IMAGE는 좌표 레이어의 형제 좌표 글자를 덮지 않는 일반 flow로 렌더된다', (bandKind) => {
     const model = buildApprovalRenderModel(input())
     const template = {
@@ -554,6 +577,32 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     />)
     expect(emptyHtml).toContain('품목 원천이 연결되지 않은 결재문서입니다.')
     expect(emptyHtml).not.toContain('데이터가 없습니다.')
+  })
+
+  it('D-1: 기본 양식은 연결된 출고전표 12개 품목을 인쇄 결과에 렌더한다', () => {
+    const baseModel = buildApprovalRenderModel(input())
+    const model = {
+      ...baseModel,
+      body: {
+        ...baseModel.body,
+        lineItemsAvailability: 'CONNECTED' as const,
+        lineItems: Array.from({ length: 12 }, (_, index) => ({
+          productName: `출고 품목 ${index + 1}`,
+          modelName: index === 0 ? 'AJ060MXHNBC1' : `MODEL-${index + 1}`,
+          specification: '규격',
+          quantity: index + 1,
+          supplyAmount: '1000',
+          vatAmount: '100',
+          lineTotal: '1100',
+          note: '',
+        })),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={GROUPWARE_DEFAULT} model={model} />)
+
+    expect(html).toContain('AJ060MXHNBC1')
+    expect((html.match(/data-template-detail-row=/g) ?? []).length).toBe(12)
   })
 
   it('DS-4 A2: 실제 route 입력에 품목 원천이 없으면 빈 표 대신 원인을 출력한다', () => {

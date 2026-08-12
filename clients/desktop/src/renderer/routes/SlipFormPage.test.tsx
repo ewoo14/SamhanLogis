@@ -313,6 +313,7 @@ function unitPrice(lineNo = 1) {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
 })
 
 beforeEach(() => {
@@ -1668,6 +1669,8 @@ describe('SlipFormPage outbound date contract', () => {
   })
 
   it('preserves a user-edited N when M changes and exposes an M/N validation error', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-08T09:00:00+09:00'))
     renderPage()
 
     fireEvent.change(screen.getByTestId('delivery-tag-selector'), { target: { value: 'REGION' } })
