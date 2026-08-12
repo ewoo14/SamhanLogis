@@ -22,7 +22,7 @@
  * 매뉴얼 출처: {@code docs/manual/01-영업/06-견적서.md}.
  */
 import { useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -54,6 +54,8 @@ import { AuditLockedBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
+import { toOrderPathId } from '../utils/orderNo'
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
@@ -94,9 +96,15 @@ function DetailGridField({
 
 export function EstimateDetailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const id = params['id']!
+  const returnTo = getReturnTo(location.state, { pathname: '/sales/estimates', search: '' })
+  const returnEntryKey = location.state && typeof location.state === 'object'
+    ? (location.state as ReturnNavigationState).returnEntryKey
+    : undefined
+  const hasReturnEntry = typeof returnEntryKey === 'string' && returnEntryKey.length > 0
   const { canAccess } = usePermissions()
   const isMobile = useIsMobile()
 
@@ -234,12 +242,9 @@ export function EstimateDetailPage() {
     convertMutation.mutate()
   }
   const handlePrint = () => {
-    // Designer commit 5dcbbef 의 QuoteView (`/sales/estimates/:estimateNumber/print`).
-    // Print view 는 estimateNumber path param 사용 (legacy `getEstimate` API). 본 mock
-    // 에서는 동일 estimateNo 를 path 로 전달 — 후속 iteration 에서 print view 가
-    // 신규 estimate-service API 로 마이그레이션 시 path 변경.
+    // Print view도 상세/편집과 같은 opaque token을 URL 식별자로 사용한다.
     const url = `${window.location.origin}/#/sales/estimates/${encodeURIComponent(
-      e.estimateNo,
+      toOrderPathId(e.id),
     )}/print`
     window.open(url, '_blank', 'width=900,height=1200')
   }
@@ -410,7 +415,7 @@ export function EstimateDetailPage() {
                       className="mobile-more-sheet-item"
                       onClick={() => {
                         setMobileMoreOpen(false)
-                        navigate(`/sales/estimates/${e.id}/edit`)
+                        navigate(`/sales/estimates/${encodeURIComponent(toOrderPathId(e.id))}/edit`)
                       }}
                     >
                       편집
@@ -588,10 +593,17 @@ export function EstimateDetailPage() {
           </div>
 
           <div className="detail-action-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button
+              variant="ghost"
+              onClick={() => hasReturnEntry ? navigate(-1) : navigate(returnTo, { replace: true })}
+              data-testid="estimate-detail-list-button"
+            >
+              ← 목록
+            </Button>
             {(isDraft || isSent) && canMutate ? (
               <Button
                 variant="ghost"
-                onClick={() => navigate(`/sales/estimates/${e.id}/edit`)}
+                onClick={() => navigate(`/sales/estimates/${encodeURIComponent(toOrderPathId(e.id))}/edit`)}
                 data-testid="estimate-detail-edit-button"
               >
                 편집

@@ -1,0 +1,238 @@
+import { describe, expect, it } from 'vitest'
+import { calculateSlipDiscount } from './slipDiscount'
+
+const config = {
+  homeMultiDc: null,
+  commercialMultiDc: null,
+  threeSixty: '30000',
+  fourWay: '40000',
+  oneWay: '10000',
+  stand: '10000',
+  deluxe: '20000',
+  firstGrade: '5000',
+}
+
+describe('#1090 분류 정본·가격 보존', () => {
+  it('분류가 미분류면 모델코드 레거시 판별을 사용하지 않는다', () => {
+    const result = calculateSlipDiscount({
+      listPrice: 100000,
+      modelCode: 'AC060CS6PBH1SY',
+      category: 'OTHER',
+      classificationOptions: [],
+    } as any, config)
+
+    expect(result.unitPrice).toBe(100000)
+  })
+
+  it('분류가 존재하면 한시적 레거시 호환 fallback을 타지 않는다', () => {
+    const result = calculateSlipDiscount({
+      listPrice: 100000,
+      modelCode: 'AC060CS6PBH1SY',
+      category: 'OTHER',
+      classificationOptions: [],
+      classificationAssigned: true,
+    }, { ...config, threeSixty: '70000' })
+
+    expect(result.unitPrice).toBe(100000)
+  })
+
+  it('AC023BN1DBC1 분류 저장 전후 단가가 상승하지 않는다', () => {
+    const before = calculateSlipDiscount({
+      listPrice: 316800,
+      modelCode: 'AC023BN1DBC1',
+      category: 'OTHER',
+      classificationOptions: [],
+      classificationAssigned: false,
+    }, { ...config, oneWay: '50000' })
+    const after = calculateSlipDiscount({
+      listPrice: 316800,
+      modelCode: 'AC023BN1DBC1',
+      category: 'OTHER',
+      classificationOptions: ['ONE_WAY'],
+      classificationAssigned: true,
+    }, { ...config, oneWay: '50000' })
+
+    expect({ before: before.unitPrice, after: after.unitPrice }).toEqual({
+      before: 266800,
+      after: 266800,
+    })
+  })
+
+  it('분류의 360 옵션만으로 정액을 적용한다', () => {
+    const result = calculateSlipDiscount({
+      listPrice: 100000,
+      modelCode: 'UNCLASSIFIED-MODEL',
+      category: 'OTHER',
+      classificationOptions: ['THREE_SIXTY'],
+    } as any, config)
+
+    expect(result.unitPrice).toBe(70000)
+  })
+
+  it('교집합 0을 보존하기 위해 저장된 구형 플래그와 모델코드를 무시한다', () => {
+    const result = calculateSlipDiscount({
+      listPrice: 100000,
+      modelCode: 'AP123456P',
+      category: 'OTHER',
+      classificationOptions: [],
+      legacyDiscountFlag: true,
+      discountFlags: '000100',
+    } as any, config)
+
+    expect(result.unitPrice).toBe(100000)
+  })
+
+  it('대표 품목의 정본 전환 전후 견적·주문 금액이 보존된다', () => {
+    const beforeUnitPrice = 100000 - 10000
+    const after = calculateSlipDiscount({
+      listPrice: 100000,
+      modelCode: 'AP123456P',
+      category: 'OTHER',
+      classificationOptions: ['STAND'],
+    } as any, config)
+
+    expect(after.unitPrice).toBe(beforeUnitPrice)
+    expect(after.unitPrice).toBe(90000)
+  })
+
+  it('분류 대기 113건의 전환 전후 금액을 전수 보존한다', () => {
+    const dc: Record<string, number> = {
+      THREE_SIXTY: 70000, FOUR_WAY: 70000, ONE_WAY: 50000,
+      STAND: 70000, DELUXE: 30000, FIRST_GRADE: 30000,
+    }
+    const rows = `
+AC023BN1DBC1|316800|ONE_WAY
+AC023BN1PBH1|328900|ONE_WAY
+AC023BX1DBC1|708400|ONE_WAY
+AC023BX1PBH1|708400|ONE_WAY
+AC032BN1DBC1|334400|ONE_WAY
+AC032BN1PBH1|345400|ONE_WAY
+AC032BX1DBC1|800800|ONE_WAY
+AC032BX1PBH1|847000|ONE_WAY
+AC040BN1PBH1|392700|ONE_WAY
+AC040BX1PBH1|1177000|ONE_WAY
+AC052BN1DBC1|470800|ONE_WAY
+AC052BN1PBH1|563200|ONE_WAY
+AC052BX1DBC1|1012000|ONE_WAY
+AC052BX1PBH1|1349700|ONE_WAY
+AC060BN1DBC1|475200|ONE_WAY
+AC060BN1DBH1|526900|ONE_WAY
+AC060BN4DBC1|544500|FOUR_WAY
+AC060BN4FBH1PP|784300|FIRST_GRADE
+AC060BN4FBH2|792000|FIRST_GRADE
+AC060BN6PBH1|720500|THREE_SIXTY
+AC060BX1DBH1|1304600|ONE_WAY
+AC060BXAFBH1PP|1936000|FIRST_GRADE
+AC060BXAFBH2|1936000|FIRST_GRADE
+AC060CN4FBH1PP|871200|FIRST_GRADE
+AC072BN1DBC1|500500|ONE_WAY
+AC072BN1DBH1|551100|ONE_WAY
+AC072BN4DBC1|550000|FOUR_WAY
+AC072BN4FBH1PP|817300|FIRST_GRADE
+AC072BN4FBH2|825000|FIRST_GRADE
+AC072BN4PBH1|545600|FOUR_WAY
+AC072BN6PBH1|770000|THREE_SIXTY
+AC072BX1DBC1|1144000|ONE_WAY
+AC072BX1DBH1|1538900|ONE_WAY
+AC072BXAFBH1PP|2277000|FIRST_GRADE
+AC072BXAFBH2|2277000|FIRST_GRADE
+AC072CN4FBH1PP|907500|FIRST_GRADE
+AC083BN4DBC1|580800|FOUR_WAY
+AC090BN4DBH1|542300|FOUR_WAY
+AC090BN4FBH1PP|843700|FIRST_GRADE
+AC090BN6PBH1|796400|THREE_SIXTY
+AC090BXAFBH1PP|2846800|FIRST_GRADE
+AC090CN4FBH1PP|937200|FIRST_GRADE
+AC100AX4FHH1PP|2064700|FIRST_GRADE
+AC100BN4DBC1|609400|FOUR_WAY
+AC100BN4FBH1PP|871200|FIRST_GRADE
+AC100BN4FBH2|880000|FIRST_GRADE
+AC100BN4PHH1|649000|FOUR_WAY
+AC100BN6PBH1|862400|THREE_SIXTY
+AC100BXAFBH1PP|3058000|FIRST_GRADE
+AC100BXAFBH2|3058000|FIRST_GRADE
+AC100BXAFHH1PP|3058000|FIRST_GRADE
+AC100BXAFHH2|3058000|FIRST_GRADE
+AC100CN4FBH1PP|968000|FIRST_GRADE
+AC100CN4FHH1|968000|FIRST_GRADE
+AC100CN4FHH1PP|968000|FIRST_GRADE
+AC100CN6PHH1|1073600|THREE_SIXTY
+AC110AN4FBH1PP|635800|FIRST_GRADE
+AC110AX4FBH1PP|2201100|FIRST_GRADE
+AC110AX4FHH1PP|2201100|FIRST_GRADE
+AC110BN4DBC1|627000|FOUR_WAY
+AC110BN4DBH1|620400|FOUR_WAY
+AC110BN4FBH1PP|926200|FIRST_GRADE
+AC110BN4FBH2|935000|FIRST_GRADE
+AC110BN4PBH1PP|0|FOUR_WAY
+AC110BN4PHH1|715000|FOUR_WAY
+AC110BN6PBH1|888800|THREE_SIXTY
+AC110BXAFBH1PP|3289000|FIRST_GRADE
+AC110BXAFBH2|3289000|FIRST_GRADE
+AC110BXAFHH1PP|3289000|FIRST_GRADE
+AC110BXAFHH2|3289000|FIRST_GRADE
+AC110CN4FBH1PP|1028500|FIRST_GRADE
+AC110CN4FHH1|1028500|FIRST_GRADE
+AC110CN4FHH1PP|1028500|FIRST_GRADE
+AC110CN4PHH1|770000|FOUR_WAY
+AC110CN6PHH1|1144000|THREE_SIXTY
+AC130AX4FBH1PP|2404600|FIRST_GRADE
+AC130BN4FBH1PP|958100|FIRST_GRADE
+AC130BN4PHH1|748000|FOUR_WAY
+AC130BN6PBH1|977900|THREE_SIXTY
+AC130BXAFBH1PP|3606900|FIRST_GRADE
+AC130BXAFHH1PP|3606900|FIRST_GRADE
+AC130CN4FBH1PP|1064800|FIRST_GRADE
+AC130CN4FHH1|1030700|FIRST_GRADE
+AC130CN4FHH1PP|1064800|FIRST_GRADE
+AC130CN6PHH1|1200100|THREE_SIXTY
+AC145BN4DBC1|673200|FOUR_WAY
+AC145BN4DBH1|726000|FOUR_WAY
+AC145BN4FBH1PP|1002100|FIRST_GRADE
+AC145BN4PBH1|704000|FOUR_WAY
+AC145BN6PBH1|1027400|THREE_SIXTY
+AC145BXAFHH1PP|3925900|FIRST_GRADE
+AC145CN4FHH1PP|1113200|FIRST_GRADE
+AC160BN4DBH1|853600|FOUR_WAY
+AP083ANPFBH1PP|1029600|FIRST_GRADE
+AP083AXPFBH1PP|2200000|FIRST_GRADE
+AP083BNPDBC1|612700|STAND
+AP083CNPFBH6PP|1254000|FIRST_GRADE
+AP110BNPDBC1|821700|STAND
+AP130RNPPHH1|1386000|STAND
+AP145BNPDHC1|952600|STAND
+AP145BXPDHC1|2280300|STAND
+AP230CNPDHH1|1944800|STAND
+AP230CNPDHH1PP|1944800|STAND
+AP230CXPDHH1|4506700|STAND
+AP230CXPDHH1PP|4506700|STAND
+AP230RNPDHH1|1767700|STAND
+AP230RXPDHH1|4506700|STAND
+AP290CNPDHH1|2108700|STAND
+AP290CNPDHH1PP|2108700|STAND
+AP290CXPDHH1|5177700|STAND
+AP290CXPDHH1PP|5177700|STAND
+AP290RNPDHH1|1916200|STAND
+AP290RXPDHH1|5177700|STAND`
+      .trim().split('\n').map((row) => {
+        const [modelCode, price, option] = row.split('|')
+        return { modelCode, listPrice: Number(price), option: option as any }
+      })
+
+    expect(rows).toHaveLength(113)
+    expect(rows.some((row) => row.modelCode === 'AP290RXPDHH1')).toBe(true)
+    const mismatches = rows.map((row) => {
+      const before = Math.max(0, row.listPrice - dc[row.option])
+      const after = calculateSlipDiscount({
+        listPrice: row.listPrice,
+        modelCode: row.modelCode,
+        category: 'OTHER',
+        classificationOptions: [],
+        classificationAssigned: false,
+      }, { ...config, threeSixty: '70000', fourWay: '70000', oneWay: '50000', stand: '70000', deluxe: '30000', firstGrade: '30000' }).unitPrice
+      return { ...row, before, after, delta: after - before }
+    }).filter((row) => row.before !== row.after)
+
+    expect(mismatches).toEqual([])
+  })
+})

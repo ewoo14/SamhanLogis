@@ -7,13 +7,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /**
  * 분개 헤더 응답 (페이지 조회용 — 라인 미포함). 비즈니스 식별자는 journalNo, 사용자 표시는
  * 분개번호+일자+금액 위주. id 는 mutation 용 (FE 에서 숨김 권장).
  */
 public record JournalResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String journalNo,
         LocalDate journalDate,
         String description,
@@ -23,7 +24,7 @@ public record JournalResponse(
         BigDecimal totalCredit,
         LocalDateTime postedAt,
         String postedBy,
-        UUID reversedJournalId
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID reversedJournalId
 ) {
     public static JournalResponse of(Journal journal) {
         return new JournalResponse(

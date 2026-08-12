@@ -39,25 +39,25 @@ public class AuditLogController {
     private final ActivityLogService activityLogService;
 
     @GetMapping("/by-service/{serviceName}")
-    public ApiResponse<Page<AuditLog>> byService(
+    public ApiResponse<Page<SafeAuditLogResponse>> byService(
             @PathVariable String serviceName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(
-                repository.findByServiceName(serviceName, paged(page, size)));
+                repository.findByServiceName(serviceName, paged(page, size)).map(SafeAuditLogResponse::from));
     }
 
     @GetMapping("/by-user/{userId}")
-    public ApiResponse<Page<AuditLog>> byUser(
+    public ApiResponse<Page<SafeAuditLogResponse>> byUser(
             @PathVariable String userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(
-                repository.findByUserId(userId, paged(page, size)));
+                repository.findByUserId(userId, paged(page, size)).map(SafeAuditLogResponse::from));
     }
 
     @GetMapping("/search")
-    public ApiResponse<Page<AuditLog>> search(
+    public ApiResponse<Page<SafeAuditLogResponse>> search(
             @RequestParam String action,
             @RequestParam Instant fromInstant,
             @RequestParam Instant toInstant,
@@ -65,7 +65,7 @@ public class AuditLogController {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(
                 repository.findByActionAndOccurredAtBetween(
-                        action, fromInstant, toInstant, paged(page, size)));
+                        action, fromInstant, toInstant, paged(page, size)).map(SafeAuditLogResponse::from));
     }
 
     /** DEV-3 개발 메뉴 활동 로그 조회. 응답에는 원본 userId(UUID)를 포함하지 않는다. */

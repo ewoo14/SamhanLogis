@@ -64,8 +64,8 @@ public class EstimateRevisionController {
     @GetMapping("/revisions")
     @RequirePermission(page = "estimates.list", action = PermissionAction.VIEW)
     public ApiResponse<List<EstimateRevisionResponse>> listRevisions(
-            @PathVariable UUID estimateId) {
-        return ApiResponse.ok(revisionService.listWithSummary(estimateId));
+            @PathVariable String estimateId) {
+        return ApiResponse.ok(revisionService.listWithSummary(estimateService.resolveId(estimateId)));
     }
 
     /**
@@ -91,11 +91,11 @@ public class EstimateRevisionController {
     @PostMapping("/revisions/{revisionNo}/restore")
     @RequirePermission(page = "estimates.list", action = PermissionAction.RESTORE)
     public ApiResponse<EstimateDetailResponse> restoreRevision(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @PathVariable int revisionNo,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         return ApiResponse.ok(
-                estimateService.restoreToRevision(estimateId, revisionNo, callerId, callerName));
+                estimateService.restoreToRevision(estimateService.resolveId(estimateId), revisionNo, callerId, callerName));
     }
 }

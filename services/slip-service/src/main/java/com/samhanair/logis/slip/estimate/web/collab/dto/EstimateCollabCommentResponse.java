@@ -5,6 +5,8 @@ import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabComment;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.samhanair.logis.slip.estimate.web.dto.OpaqueUuidSerializer;
 
 /**
  * 견적 협업 댓글 응답 DTO.
@@ -13,11 +15,11 @@ import java.util.UUID;
  * 사용자 표시 식별자는 authorName 만 사용한다.
  */
 public record EstimateCollabCommentResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String anchor,
         String authorName,
         String body,
-        UUID parentId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID parentId,
         CollabCommentStatus status,
         LocalDateTime createdAt
 ) {

@@ -14,7 +14,7 @@
  * UUID 비공개 가드 — id 컬럼 미포함, 사용자 노출은 estimateNo + partnerName 만.
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
   Badge,
@@ -31,6 +31,7 @@ import {
   type EstimateSummary,
 } from '../api/estimateApi'
 import { listPartnerOrders } from '../api/sales'
+import { listWebPartnerOrderDraftSummaries, listWebQuoteSnapshotSummaries } from '../api/estimateSourceApi'
 import { extractApiErrorResponseMessage } from '../api/apiError'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -42,7 +43,16 @@ import {
   deletedBadgeAriaLabel,
   deletedBadgeLabel,
 } from './admin/partnerDeletedRow'
-import { mergeEstimateAndOrderRows, type UnifiedEstimateListRow } from './estimateUnifiedListModel'
+import {
+  filterUnifiedEstimateRowsBySource,
+  mergeEstimateAndOrderRows,
+  UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS,
+  UNIFIED_ESTIMATE_SOURCE_LABELS,
+  type UnifiedEstimateListRow,
+  type UnifiedEstimateSource,
+} from './estimateUnifiedListModel'
+import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
+import { toOrderPathId } from '../utils/orderNo'
 
 const STATUS_OPTIONS: Array<{ value: EstimateStatus | ''; label: string }> = [
   { value: '', label: '전체' },
@@ -97,19 +107,37 @@ async function fetchAllPages<T>(
 
 export function EstimateListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
 
   usePageTitle('견적서 관리')
 
-  const [statusFilter, setStatusFilter] = useState<EstimateStatus | ''>('')
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
-  const [partnerKeyword, setPartnerKeyword] = useState<string>('')
-  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<EstimateStatus | ''>(() => searchParams.get('status') as EstimateStatus | '' || '')
+  const [startDate, setStartDate] = useState<string>(() => searchParams.get('startDate') ?? '')
+  const [endDate, setEndDate] = useState<string>(() => searchParams.get('endDate') ?? '')
+  const [partnerKeyword, setPartnerKeyword] = useState<string>(() => searchParams.get('partner') ?? '')
+  const [includeDeleted, setIncludeDeleted] = useState(() => searchParams.get('includeDeleted') === 'true')
   const [showUnifiedList, setShowUnifiedList] = useState(false)
+  const [sourceFilter, setSourceFilter] = useState<UnifiedEstimateSource | ''>('')
   const [page, setPage] = useState(0)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    const values: Record<string, string> = { status: statusFilter, startDate, endDate, partner: partnerKeyword }
+    for (const [key, value] of Object.entries(values)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    if (includeDeleted) next.set('includeDeleted', 'true')
+    else next.delete('includeDeleted')
+    if (page > 0) next.set('page', String(page))
+    else next.delete('page')
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+  }, [statusFilter, startDate, endDate, partnerKeyword, includeDeleted, page, searchParams, setSearchParams])
 
   useCollectionRealtime(EstimateListRealtimeClient, 'list', ESTIMATE_LIST_REALTIME_KEYS)
 
@@ -130,11 +158,13 @@ export function EstimateListPage() {
       }),
   })
 
+  useEffect(() => restoreScrollAnchorWhenReady(location.key, () => query.isFetched), [location.key, query.isFetched])
+
   const unifiedQuery = useQuery({
     queryKey: ['estimates', 'unified', statusFilter, startDate, endDate, partnerKeyword, includeDeleted],
     enabled: showUnifiedList,
     queryFn: async () => {
-      const [estimateResult, orderResult] = await Promise.allSettled([
+      const [estimateResult, orderResult, webQuoteResult, webDraftResult] = await Promise.allSettled([
         fetchAllPages((page) => listEstimates({
           page,
           size: UNIFIED_LIST_FETCH_SIZE,
@@ -148,16 +178,28 @@ export function EstimateListPage() {
           ...(endDate ? { dateTo: endDate } : {}),
           ...(includeDeleted ? { includeDeleted: true } : {}),
         })),
+        listWebQuoteSnapshotSummaries({
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        }),
+        listWebPartnerOrderDraftSummaries({
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        }),
       ])
 
       return {
         estimates: estimateResult.status === 'fulfilled' ? estimateResult.value.items : [],
         orders: orderResult.status === 'fulfilled' ? orderResult.value.items : [],
+        webQuoteSnapshots: webQuoteResult.status === 'fulfilled' ? webQuoteResult.value : [],
+        webPartnerOrderDrafts: webDraftResult.status === 'fulfilled' ? webDraftResult.value : [],
         errors: [
           ...(estimateResult.status === 'rejected' || (estimateResult.status === 'fulfilled' && estimateResult.value.incomplete)
             ? ['종합견적서'] : []),
           ...(orderResult.status === 'rejected' || (orderResult.status === 'fulfilled' && orderResult.value.incomplete)
             ? ['주문서'] : []),
+          ...(webQuoteResult.status === 'rejected' ? ['웹 종합견적서'] : []),
+          ...(webDraftResult.status === 'rejected' ? ['웹 주문서'] : []),
         ],
       }
     },
@@ -187,11 +229,14 @@ export function EstimateListPage() {
     const data = unifiedQuery.data
     if (!data) return []
     const keyword = partnerKeyword.trim().toLowerCase()
-    return mergeEstimateAndOrderRows(
+    const rows = mergeEstimateAndOrderRows(
       data.estimates.filter((row) => !keyword || (row.partnerName ?? '').toLowerCase().includes(keyword)),
       data.orders.filter((row) => !keyword || (row.partnerName ?? '').toLowerCase().includes(keyword)),
+      data.webQuoteSnapshots.filter((row) => !keyword || (row.custName ?? '').toLowerCase().includes(keyword)),
+      data.webPartnerOrderDrafts.filter((row) => !keyword || (row.partnerCode ?? '').toLowerCase().includes(keyword)),
     )
-  }, [unifiedQuery.data, partnerKeyword])
+    return filterUnifiedEstimateRowsBySource(rows, sourceFilter)
+  }, [unifiedQuery.data, partnerKeyword, sourceFilter])
 
   const columns: DataTableColumn<EstimateSummary>[] = [
     {
@@ -201,16 +246,20 @@ export function EstimateListPage() {
       mobilePriority: 'primary',
       render: (row) => (
         <>
-          <span
+          {row.isDeleted ? <span
             data-testid={`estimate-list-row-${row.id}-number`}
             style={{
               fontVariantNumeric: 'tabular-nums',
               fontWeight: 500,
               ...(row.isDeleted ? DELETED_ROW_TEXT_STYLE : {}),
             }}
-          >
-            {row.estimateNo}
-          </span>
+          >{row.estimateNo}</span> : <Link
+              to={`/sales/estimates/${encodeURIComponent(row.id)}`}
+            state={{ returnTo, returnEntryKey: location.key }}
+            onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
+            data-testid={`estimate-list-row-${row.id}-number`}
+            aria-label={`${row.estimateNo} 상세 보기`}
+          >{row.estimateNo}</Link>}
           {row.isDeleted ? (
             <Badge
               variant="neutral"
@@ -350,7 +399,11 @@ export function EstimateListPage() {
       header: '구분',
       width: '120px',
       mobilePriority: 'secondary',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.sourceLabel}</span>,
+      render: (row) => (
+        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
+          <span>{row.storageLabel}</span>{' · '}<span>{row.sourceLabel}</span>
+        </span>
+      ),
     },
     {
       key: 'documentNo',
@@ -463,6 +516,21 @@ export function EstimateListPage() {
               />
               통합 목록 보기
             </label>
+            {showUnifiedList ? (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                출처
+                <select
+                  value={sourceFilter}
+                  onChange={(event) => setSourceFilter(event.target.value as UnifiedEstimateSource | '')}
+                  data-testid="estimate-list-source-filter"
+                >
+                  <option value="">전체</option>
+                  {(Object.keys(UNIFIED_ESTIMATE_SOURCE_LABELS) as UnifiedEstimateSource[]).map((source) => (
+                    <option key={source} value={source}>{UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS[source]}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {canCreate ? (
               <Button
                 variant="primary"
@@ -568,7 +636,8 @@ export function EstimateListPage() {
             rowClassName={(r) => (r.isDeleted ? styles['partnerOrderRowDeleted'] : undefined)}
             onRowClick={(r) => {
               if (r.isDeleted === true) return
-              navigate(`/sales/estimates/${r.id}`)
+              saveScrollAnchor(location.key)
+              navigate(`/sales/estimates/${encodeURIComponent(r.id)}`, { state: { returnTo, returnEntryKey: location.key } })
             }}
             emptyMessage="등록된 견적서가 없습니다."
           />

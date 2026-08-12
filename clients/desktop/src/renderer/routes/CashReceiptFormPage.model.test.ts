@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   buildCashReceiptRequest,
+  cashReceiptFormStateFromRow,
   cashReceiptInitialFormState,
   partnerOptionFromFormState,
   partnerLookupUnavailableOnHydrate,
@@ -9,6 +10,21 @@ import {
 } from './CashReceiptFormPage.model'
 
 describe('CashReceiptFormPage model', () => {
+  it('RED-LUNA-4: 서버의 1,008원 첫 행을 hydrate하면 행 합계도 1,008원이다', () => {
+    const state = cashReceiptFormStateFromRow({
+      slipNo: '2026/08/07-8',
+      partnerCode: 'P-2026-0005',
+      bizNo: '165-35-10155',
+      partnerName: '대구HVAC솔루션',
+      amount: '1008',
+      transactionDate: '2026-08-07',
+      memo: 'S5-1094-08',
+      lines: [{ partnerCode: 'P-2026-0005', bizNo: '165-35-10155', partnerName: '대구HVAC솔루션', amount: 1008, memo: 'S5-1094-08' }],
+    })
+
+    expect(state.lines[0]?.amount).toBe('1008')
+    expect(state.lines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)).toBe(1008)
+  })
   it('입금보고서 초기 상태는 마지막 빈행을 하나 가진다', () => {
     const state = cashReceiptInitialFormState() as CashReceiptFormState & { lines?: unknown[] }
 

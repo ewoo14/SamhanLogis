@@ -1,0 +1,163 @@
+{
+  "journalNo": "2026/04/01-1",
+  "visible": true,
+  "detail200": true,
+  "blockedWrites": 3,
+  "network": [
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/SupplierProfilePage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/IncomeStatementPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/BalanceSheetPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/VatReportPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/PartnerAgingPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/CorporateTaxReportPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/EquityChangesPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/CashFlowStatementPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/DailySummaryPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/print/MonthlySummaryPrintLayout.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/SalesAccountingSlipPage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/SalesAccountingSlipFormPage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/PurchaseAccountingSlipPage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/PurchaseAccountingSlipFormPage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/TaxInvoiceBatchIssuePage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/admin/SalesLedgerPage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/TaxInvoiceInboundPage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/admin/PurchaseLedgerPage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/admin/MigOpsDashboardPage.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/admin/Mig14AdminShared.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:40725/routes/accounting/admin/LedgerList.tsx"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals?page=0&size=20"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals?page=0&size=20&status=DRAFT"
+    },
+    {
+      "status": 200,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>"
+    },
+    {
+      "status": 400,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/comments?limit=20"
+    },
+    {
+      "status": 400,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/edits"
+    },
+    {
+      "status": 400,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/presence"
+    },
+    {
+      "status": 403,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/stream"
+    },
+    {
+      "status": 403,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/stream"
+    },
+    {
+      "status": 400,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/comments?limit=20"
+    },
+    {
+      "status": 400,
+      "method": "GET",
+      "url": "http://127.0.0.1:8080/accounting/journals/<opaque-token>/collab/edits"
+    }
+  ]
+}

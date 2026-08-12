@@ -1,0 +1,284 @@
+{
+  "login": {
+    "http": 200,
+    "role": "MASTER"
+  },
+  "screens": {
+    "estimate": {
+      "beforeScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "afterFirstScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "afterSecondScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "history": {
+        "list": 3,
+        "detail1": 4,
+        "list1": 4,
+        "detail2": 4,
+        "list2": 4,
+        "browserBack": 4
+      },
+      "listUrl": "http://127.0.0.1:53949/#/sales/estimates?status=QUOTE_DRAFT&partner=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90",
+      "afterFirstUrl": "http://127.0.0.1:53949/#/sales/estimates?status=QUOTE_DRAFT&partner=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90",
+      "afterSecondUrl": "http://127.0.0.1:53949/#/sales/estimates?status=QUOTE_DRAFT&partner=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90",
+      "browserBackUrl": "http://127.0.0.1:53949/",
+      "browserBackReenteredDetail": false,
+      "failedResponses": [
+        "503 http://127.0.0.1:41980/api/notifications/my",
+        "503 http://127.0.0.1:41980/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+        "503 http://127.0.0.1:41980/app/notices/active",
+        "403 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/stream",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/presence",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/presence/leave",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/comments?limit=20",
+        "403 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/stream",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/presence/join",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/presence/leave",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/presence/leave",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/presence",
+        "403 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/stream",
+        "403 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/stream",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/presence/join",
+        "400 http://127.0.0.1:41980/api/v1/slips/estimates/2026-08-10-9/collab/presence/leave",
+        "503 http://127.0.0.1:41980/api/notifications/my",
+        "503 http://127.0.0.1:41980/logs/front"
+      ]
+    },
+    "order": {
+      "beforeScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "afterFirstScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "afterSecondScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "history": {
+        "list": 3,
+        "detail1": 4,
+        "list1": 4,
+        "detail2": 4,
+        "list2": 4,
+        "browserBack": 4
+      },
+      "listUrl": "http://127.0.0.1:53949/#/sales/partner-orders?status=DRAFT&keyword=2026%2F06%2F08",
+      "afterFirstUrl": "http://127.0.0.1:53949/#/sales/partner-orders?status=DRAFT&keyword=2026%2F06%2F08",
+      "afterSecondUrl": "http://127.0.0.1:53949/#/sales/partner-orders?status=DRAFT&keyword=2026%2F06%2F08",
+      "browserBackUrl": "http://127.0.0.1:53949/",
+      "browserBackReenteredDetail": false,
+      "keywordAfter": "2026/06/08",
+      "failedResponses": [
+        "503 http://127.0.0.1:41980/api/notifications/my",
+        "503 http://127.0.0.1:41980/app/notices/active",
+        "503 http://127.0.0.1:41980/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+        "503 http://127.0.0.1:41980/inventory/warehouses",
+        "503 http://127.0.0.1:41980/api/notifications/my",
+        "503 http://127.0.0.1:41980/logs/front"
+      ]
+    },
+    "cash": {
+      "beforeScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "afterFirstScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "afterSecondScroll": [
+        640,
+        640,
+        640,
+        640
+      ],
+      "history": {
+        "list": 3,
+        "detail1": 4,
+        "list1": 4,
+        "detail2": 4,
+        "list2": 4,
+        "browserBack": 4
+      },
+      "listUrl": "http://127.0.0.1:53949/#/accounting/admin/cash-receipts?slipNo=2026%2F08%2F07-8&kind=MANUAL_RECEIPT",
+      "afterFirstUrl": "http://127.0.0.1:53949/#/accounting/admin/cash-receipts?slipNo=2026%2F08%2F07-8&kind=MANUAL_RECEIPT",
+      "afterSecondUrl": "http://127.0.0.1:53949/#/accounting/admin/cash-receipts?slipNo=2026%2F08%2F07-8&kind=MANUAL_RECEIPT",
+      "browserBackUrl": "http://127.0.0.1:53949/",
+      "browserBackReenteredDetail": false,
+      "failedResponses": [
+        "503 http://127.0.0.1:41980/api/notifications/my",
+        "503 http://127.0.0.1:41980/app/notices/active",
+        "503 http://127.0.0.1:41980/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+        "503 http://127.0.0.1:41980/api/notifications/my",
+        "503 http://127.0.0.1:41980/logs/front"
+      ]
+    }
+  },
+  "cashCombinations": [
+    {
+      "category": "partner-only-partial-row",
+      "slipNo": "2026/08/07-8",
+      "providerItems": [
+        {
+          "partnerCode": "P-2026-0005",
+          "bizNo": "165-35-10155",
+          "partnerName": "대구HVAC솔루션"
+        }
+      ],
+      "serverAmount": "1008",
+      "serverLines": [
+        {
+          "partnerCode": "P-2026-0005",
+          "bizNo": "165-35-10155",
+          "partnerName": "대구HVAC솔루션",
+          "amount": 1008,
+          "memo": "S5-1094-08"
+        }
+      ],
+      "observed": [
+        {
+          "partnerName": "대구HVAC솔루션",
+          "amount": "1008",
+          "memo": "S5-1094-08"
+        }
+      ],
+      "rowCount": 1,
+      "total": "행 합계: 1,008원 / 입금 총액 1,008원",
+      "mismatches": []
+    },
+    {
+      "category": "amount-only-no-partner-row",
+      "slipNo": "2026/08/12-9102",
+      "providerItems": [
+        {
+          "amount": "2024"
+        }
+      ],
+      "serverAmount": "2024",
+      "serverLines": [
+        {
+          "partnerCode": "P-2026-0005",
+          "bizNo": "165-35-10155",
+          "partnerName": "대구 HVAC 솔루션",
+          "amount": 2024,
+          "memo": "RECONV2-AMOUNT-ONLY"
+        }
+      ],
+      "observed": [
+        {
+          "partnerName": "대구 HVAC 솔루션",
+          "amount": "2024",
+          "memo": "RECONV2-AMOUNT-ONLY"
+        }
+      ],
+      "rowCount": 1,
+      "total": "행 합계: 2,024원 / 입금 총액 2,024원",
+      "mismatches": []
+    },
+    {
+      "category": "mixed-multiple-rows",
+      "slipNo": "2026/08/12-9103",
+      "providerItems": [
+        {
+          "partnerCode": "P-2026-0005",
+          "bizNo": "165-35-10155",
+          "partnerName": "대구 HVAC 솔루션"
+        },
+        {
+          "amount": "2222"
+        }
+      ],
+      "serverAmount": "3333",
+      "serverLines": [
+        {
+          "partnerCode": "P-2026-0005",
+          "bizNo": "165-35-10155",
+          "partnerName": "대구 HVAC 솔루션",
+          "amount": 1111,
+          "memo": "RECONV2-MULTI-A"
+        },
+        {
+          "partnerCode": "4483500844",
+          "bizNo": "4483500844",
+          "partnerName": "능동에어컨(박수천)",
+          "amount": 2222,
+          "memo": "RECONV2-MULTI-B"
+        }
+      ],
+      "observed": [
+        {
+          "partnerName": "대구 HVAC 솔루션",
+          "amount": "1111",
+          "memo": "RECONV2-MULTI-A"
+        },
+        {
+          "partnerName": "능동에어컨(박수천)",
+          "amount": "2222",
+          "memo": "RECONV2-MULTI-B"
+        }
+      ],
+      "rowCount": 2,
+      "total": "행 합계: 3,333원 / 입금 총액 3,333원",
+      "mismatches": []
+    },
+    {
+      "category": "single-row-empty-provider-item",
+      "slipNo": "2026/08/12-9104",
+      "providerItems": [
+        {}
+      ],
+      "serverAmount": "4040",
+      "serverLines": [
+        {
+          "partnerCode": "4483500844",
+          "bizNo": "4483500844",
+          "partnerName": "능동에어컨(박수천)",
+          "amount": 4040,
+          "memo": null
+        }
+      ],
+      "observed": [
+        {
+          "partnerName": "능동에어컨(박수천)",
+          "amount": "4040",
+          "memo": ""
+        }
+      ],
+      "rowCount": 1,
+      "total": "행 합계: 4,040원 / 입금 총액 4,040원",
+      "mismatches": []
+    }
+  ],
+  "evidence": {
+    "cashDetailAmount": "1,008",
+    "cashHydrateFirstLine": "1008",
+    "cashHydrateTotal": "행 합계: 1,008원 / 입금 총액 1,008원"
+  },
+  "defects": []
+}
