@@ -52,22 +52,27 @@ for db in "$@"; do
   found=0
   while IFS=$'\t' read -r schema table column; do
     [[ -n "$schema" ]] || continue
-    source_sql="SELECT count(*) FILTER (WHERE \"$column\"::text ~ '[가-힣]'), count(*) FILTER (WHERE \"$column\"::text LIKE '%?%') FROM \"$schema\".\"$table\""
+    source_sql="SELECT count(*) FILTER (WHERE \"$column\"::text ~ '[가-힣]'), count(*) FILTER (WHERE \"$column\"::text LIKE '%?%'), COALESCE(md5(string_agg(md5(CASE WHEN \"$column\" IS NULL THEN '<NULL>' ELSE length(\"$column\"::text)::text || ':' || \"$column\"::text END), ',' ORDER BY \"$column\"::text NULLS FIRST)), md5('')) FROM \"$schema\".\"$table\""
     source_result="$(docker exec -e PGPASSWORD="$QA_CLONE_SOURCE_PASSWORD" samhan-postgres psql -h "$SOURCE_HOST" -p "$SOURCE_PORT" -U "$QA_CLONE_SOURCE_USER" -d "$db" -At -F '|' -c "$source_sql")"
-    source_korean="${source_result%%|*}"; source_question="${source_result##*|}"
+    source_korean="${source_result%%|*}"; source_question="${source_result#*|}"; source_question="${source_question%%|*}"
+    source_fingerprint="${source_result#*|}"; source_fingerprint="${source_fingerprint#*|}"
     [[ "$source_korean" =~ ^[1-9][0-9]*$ ]] || continue
     found=1
-    target_sql="SELECT count(*) FILTER (WHERE \"$column\"::text ~ '[가-힣]'), count(*) FILTER (WHERE \"$column\"::text LIKE '%?%') FROM \"$schema\".\"$table\""
+    target_sql="SELECT count(*) FILTER (WHERE \"$column\"::text ~ '[가-힣]'), count(*) FILTER (WHERE \"$column\"::text LIKE '%?%'), COALESCE(md5(string_agg(md5(CASE WHEN \"$column\" IS NULL THEN '<NULL>' ELSE length(\"$column\"::text)::text || ':' || \"$column\"::text END), ',' ORDER BY \"$column\"::text NULLS FIRST)), md5('')) FROM \"$schema\".\"$table\""
     result="$(docker exec "$CONTAINER" psql -U "$QA_CLONE_TARGET_USER" -d "$db" -At -F '|' -c "$target_sql")"
-    korean="${result%%|*}"; question="${result##*|}"
-    if [[ "$korean" -lt "$source_korean" || "$question" -gt "$source_question" ]]; then
+    korean="${result%%|*}"; question="${result#*|}"; question="${question%%|*}"
+    target_fingerprint="${result##*|}"
+    if [[ "$korean" -lt "$source_korean" || "$question" -gt "$source_question" || "$target_fingerprint" != "$source_fingerprint" ]]; then
       sample="$(docker exec "$CONTAINER" psql -U "$QA_CLONE_TARGET_USER" -d "$db" -At -c "SELECT \"$column\"::text FROM \"$schema\".\"$table\" WHERE \"$column\"::text LIKE '%?%' OR \"$column\"::text ~ '[가-힣]' LIMIT 3")"
       echo "UTF-8 검증 실패: db=$db table=$schema.$table column=$column source_korean_rows=$source_korean target_korean_rows=$korean source_question_mark_rows=$source_question target_question_mark_rows=$question" >&2
       echo "  target sample: $sample" >&2
       exit 1
     fi
   done < "$columns"
-  [[ "$found" == 1 ]] || echo "[clone] warning: source 한글 컬럼 없음: $db" >&2
+  if [[ "$found" != 1 ]]; then
+    echo "UTF-8 검증 실패: db=$db source 한글 행을 검사 대상 컬럼에서 찾지 못함" >&2
+    exit 1
+  fi
   echo "[clone] PASS $db"
 done
 echo "[clone] PASS all databases; isolated container and dump files will be removed"
