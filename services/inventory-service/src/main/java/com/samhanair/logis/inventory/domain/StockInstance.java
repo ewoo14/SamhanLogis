@@ -191,6 +191,18 @@ public class StockInstance extends BaseEntity {
         this.outboundAt = outboundAt == null ? LocalDateTime.now() : outboundAt;
     }
 
+    /** 출고 전 품질을 변경한다. 출고된 인스턴스의 품질은 과거 기록 보존을 위해 잠근다. */
+    public void changeQuality(StockInstanceQuality newQuality) {
+        if (this.status == StockInstanceStatus.SHIPPED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "SHIPPED 인스턴스의 품목 상태는 변경할 수 없습니다.");
+        }
+        if (newQuality == null) {
+            throw new IllegalArgumentException("품목 상태 필수");
+        }
+        this.quality = newQuality;
+    }
+
     /**
      * 회수 — SHIPPED → RECALLED (반품/회차 역-FIFO, S4 연동).
      *

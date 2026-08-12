@@ -302,6 +302,35 @@ export interface StockBalanceListRow {
   totalQty: number
 }
 
+export type StockInstanceStatus = 'AVAILABLE' | 'RESERVED' | 'SHIPPED' | 'RECALLED'
+export type StockInstanceQuality = 'NORMAL' | 'USED' | 'DAMAGED' | 'REPACKAGED' | 'BOX_DEFECT'
+
+/** 품목리스트 모달 응답 — UUID를 포함하지 않는 S2a 화면 계약. */
+export interface StockInstanceListRow {
+  serialKey: string
+  barcode: string
+  warehouseCode: string
+  warehouseName: string
+  status: StockInstanceStatus
+  quality: StockInstanceQuality
+}
+
+export async function listStockInstances(productCode: string): Promise<StockInstanceListRow[]> {
+  const res = await apiClient.get<ApiEnvelope<StockInstanceListRow[]>>('/inventory/instances/product-list', {
+    params: { productCode },
+  })
+  return res.data.data
+}
+
+export async function updateStockInstanceQuality(
+  serialKey: string,
+  quality: StockInstanceQuality,
+): Promise<StockInstanceListRow> {
+  const res = await apiClient.patch<ApiEnvelope<StockInstanceListRow>>('/inventory/instances/quality',
+    { quality }, { params: { serialKey } })
+  return res.data.data
+}
+
 /** 목록 조회 옵션. */
 export interface ListStockBalancesOptions {
   /** 기존 품목별 재고 조회 호출부 호환용 선택 필터. */

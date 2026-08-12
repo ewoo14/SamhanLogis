@@ -201,6 +201,10 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      */
     List<StockInstance> findByProductId(UUID productId);
 
+    /** 화면 품목리스트용 품목코드 단위 조회. */
+    List<StockInstance> findByProductCodeOrderByReceivedAtAsc(String productCode);
+
+
     /**
      * 창고별 인스턴스 수 집계 — 대시보드/조회용.
      *
