@@ -34,6 +34,9 @@ public class BundleComponent extends BaseEntity {
 
     public enum QtyMode {FIXED, FOLLOW_SET}
 
+    /** #1143 구성품 가격 배분 방식. */
+    public enum AllocationMode {AUTO, FIXED}
+
     public enum ComponentKind {
         INDOOR(0),
         OUTDOOR(1),
@@ -108,6 +111,16 @@ public class BundleComponent extends BaseEntity {
     @Column(name = "display_order")
     private Integer displayOrder;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "allocation_mode", nullable = false, length = 8)
+    private AllocationMode allocationMode = AllocationMode.FIXED;
+
+    @Column(name = "allocation_weight")
+    private Integer allocationWeight;
+
+    @Column(name = "fixed_allocation_amount", precision = 19, scale = 2)
+    private BigDecimal fixedAllocationAmount;
+
     private BundleComponent(UUID bundleProductId, String componentProductCode,
                             BigDecimal defaultQty, QtyMode qtyMode, ComponentKind componentKind,
                             String componentVariant, boolean isDefault, String specText) {
@@ -142,6 +155,12 @@ public class BundleComponent extends BaseEntity {
      */
     public void changeDisplayOrder(int displayOrder) {
         this.displayOrder = displayOrder;
+    }
+
+    public void changeAllocation(AllocationMode mode, Integer weight, BigDecimal fixedAmount) {
+        this.allocationMode = mode == null ? AllocationMode.FIXED : mode;
+        this.allocationWeight = weight;
+        this.fixedAllocationAmount = fixedAmount;
     }
 
     /**
