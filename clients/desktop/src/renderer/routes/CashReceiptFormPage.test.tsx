@@ -236,6 +236,10 @@ describe('CashReceiptFormPage', () => {
   it('RED-LUNA-4: coedit hydrate가 비어 있어도 서버 첫 행 1,008원과 행 합계 1,008원을 보존한다', async () => {
     const provider = makeProvider()
     provider.isEmpty.mockReturnValue(false)
+    provider.items = { toArray: () => [{}] } as DocCoeditProvider['items']
+    provider.getItemValue.mockImplementation((index: number, fieldName: string) => (
+      index === 0 && fieldName === 'partnerName' ? '대구HVAC솔루션' : ''
+    ))
     mocks.createDocCoeditProvider.mockResolvedValue(provider)
     mocks.getCashReceipt.mockResolvedValue({
       id: 'receipt-liveqa-1008',

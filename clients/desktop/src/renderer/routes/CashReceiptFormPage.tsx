@@ -65,8 +65,16 @@ function stateFromCashReceiptCoeditProvider(
   const lines = providerLines.length > 0
     ? providerLines.map((line, index) => {
       const previous = fallback.lines[index]
-      const hasValue = Object.values(line).some((value) => value.trim())
-      return hasValue ? line : previous ?? emptyCashReceiptLine()
+      // 주문 편집과 같은 per-field fallback 계약: 구 협업 item이 거래처만
+      // 가지고 금액을 비워도 서버 hydrate의 숫자(예: 1008)를 잃지 않는다.
+      // 행 전체가 아니라 필드별로 복원해야 부분적으로 저장된 Y.Doc도 안전하다.
+      return {
+        partnerCode: line.partnerCode || previous?.partnerCode || '',
+        bizNo: line.bizNo || previous?.bizNo || '',
+        partnerName: line.partnerName || previous?.partnerName || '',
+        amount: line.amount || previous?.amount || '',
+        memo: line.memo || previous?.memo || '',
+      }
     })
     : fallback.lines
   return {
