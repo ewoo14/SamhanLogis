@@ -14,6 +14,14 @@ import { changeEstimateOwner, getEstimate, listAssignedEstimates, listEstimates 
 describe('estimate API money normalization', () => {
   beforeEach(() => vi.resetAllMocks())
 
+  it('견적 상세 조회는 슬래시 문서번호를 단일 하이픈 path id로 보낸다', async () => {
+    apiClientMock.get.mockResolvedValue({ data: { data: { lines: [] } } })
+
+    await getEstimate('2026/08/10-9')
+
+    expect(apiClientMock.get).toHaveBeenCalledWith('/slips/estimates/2026-08-10-9')
+  })
+
   it('normalizes BigDecimal JSON numbers to canonical strings at the response boundary', async () => {
     apiClientMock.get.mockResolvedValue({
       data: {

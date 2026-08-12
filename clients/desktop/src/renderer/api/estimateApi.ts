@@ -26,6 +26,7 @@ import {
   type PageResponse,
 } from './client'
 import { withLineIdContract } from './lineIdContract'
+import { toOrderPathId } from '../utils/orderNo'
 import type { BundleSetOptions } from './slip'
 
 export type { BundleSetOptions }
@@ -282,7 +283,7 @@ export async function listAssignedEstimates(
 /** 단건 상세. */
 export async function getEstimate(id: string): Promise<EstimateDetail> {
   const res = await apiClient.get<ApiEnvelope<EstimateDetail>>(
-    `/slips/estimates/${id}`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(id))}`,
   )
   return normalizeEstimateDetail(res.data.data)
 }
