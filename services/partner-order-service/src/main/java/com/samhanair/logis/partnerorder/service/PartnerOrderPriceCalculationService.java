@@ -121,7 +121,7 @@ public class PartnerOrderPriceCalculationService {
         for (int i = 0; i < requestLines.size(); i++) {
             ConfirmLineRequest line = requestLines.get(i);
             ProductSummary product = lineProducts.get(i);
-            String discountFlags = resolveDiscountFlags(product);
+            String discountFlags = optionFlags(product.discountOption());
             BigDecimal fixedDiscountRate = product.fixedDiscountRate() != null
                     ? product.fixedDiscountRate() : fixedDiscountRates.get(product.id());
             BigDecimal listPrice = resolveListPrice(product, line.categoryKey(), fixedDiscountRate);
@@ -217,48 +217,16 @@ public class PartnerOrderPriceCalculationService {
         return flags != null && flags.length() > index && flags.charAt(index) == '1';
     }
 
-    private String resolveDiscountFlags(ProductSummary product) {
-        if (product.discountFlags() != null
-                && product.discountFlags().matches("[01]{6}")
-                && product.discountFlags().chars().anyMatch(ch -> ch == '1')) {
-            return product.discountFlags();
-        }
-        String model = String.valueOf(modelCodeSnapshot(product)).toUpperCase(java.util.Locale.ROOT);
-        if (product.discountFlags() == null && model.contains("360")) {
-            return "100000";
-        }
-        boolean is360 = false;
-        boolean is4Way = false;
-        boolean is1Way = false;
-        boolean isStand = false;
-        boolean isDeluxe = false;
-        boolean isFirstGrade = false;
-        if (model.startsWith("AC") && model.length() >= 9) {
-            is360 = model.charAt(7) == '6' && model.charAt(8) == 'P';
-            is4Way = model.charAt(7) == '4' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
-            is1Way = model.charAt(7) == '1' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
-        }
-        if (model.startsWith("AP") && model.length() >= 9) {
-            if (model.length() >= 11 && model.charAt(10) == 'C') {
-                isStand = model.charAt(8) == 'D';
-            } else {
-                isStand = model.charAt(8) == 'P';
-            }
-            if (model.length() >= 11 && model.charAt(8) == 'D' && model.charAt(10) == 'H') {
-                isDeluxe = true;
-            }
-            if (model.startsWith("AP230") || model.startsWith("AP290")) {
-                isStand = true;
-                isDeluxe = false;
-            }
-        }
-        if ((model.startsWith("AC") || model.startsWith("AP"))
-                && model.length() >= 9 && model.charAt(8) == 'F') {
-            isFirstGrade = true;
-        }
-        return (is360 ? "1" : "0") + (is4Way ? "1" : "0") + (is1Way ? "1" : "0")
-                + (isStand ? "1" : "0") + (isDeluxe ? "1" : "0")
-                + (isFirstGrade ? "1" : "0");
+    private String optionFlags(String option) {
+        return switch (option == null ? "" : option) {
+            case "THREE_SIXTY" -> "100000";
+            case "FOUR_WAY" -> "010000";
+            case "ONE_WAY" -> "001000";
+            case "STAND" -> "000100";
+            case "DELUXE" -> "000010";
+            case "FIRST_GRADE" -> "000001";
+            default -> "000000";
+        };
     }
 
     private BigDecimal resolveListPrice(ProductSummary product, String categoryKey,

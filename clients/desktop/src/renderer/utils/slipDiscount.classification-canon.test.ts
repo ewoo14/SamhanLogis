@@ -35,19 +35,29 @@ describe('#1090 분류 단독 정본 RED', () => {
     expect(result.unitPrice).toBe(70000)
   })
 
-  it('대표 품목의 정본 전환 전후 금액이 보존된다', () => {
-    const before = calculateSlipDiscount({
+  it('교집합 0을 보존하기 위해 저장된 구형 플래그와 모델코드를 무시한다', () => {
+    const result = calculateSlipDiscount({
       listPrice: 100000,
       modelCode: 'AP123456P',
       category: 'OTHER',
-    }, config)
+      classificationOptions: [],
+      legacyDiscountFlag: true,
+      discountFlags: '000100',
+    } as any, config)
+
+    expect(result.unitPrice).toBe(100000)
+  })
+
+  it('대표 품목의 정본 전환 전후 견적·주문 금액이 보존된다', () => {
+    const beforeUnitPrice = 100000 - 10000
     const after = calculateSlipDiscount({
       listPrice: 100000,
       modelCode: 'AP123456P',
       category: 'OTHER',
-      classificationOptions: ['THREE_SIXTY'],
+      classificationOptions: ['STAND'],
     } as any, config)
 
-    expect(after.unitPrice).toBe(before.unitPrice)
+    expect(after.unitPrice).toBe(beforeUnitPrice)
+    expect(after.unitPrice).toBe(90000)
   })
 })

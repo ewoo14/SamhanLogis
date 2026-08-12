@@ -48,6 +48,11 @@ import org.hibernate.type.SqlTypes;
 @SQLRestriction("is_deleted = false")
 public class Product extends BaseEntity {
 
+    /** 분류 정본이 선택하는 싱글 세트 정액DC 옵션. null 은 미분류/미지정이다. */
+    public enum DiscountOption {
+        THREE_SIXTY, FOUR_WAY, ONE_WAY, STAND, DELUXE, FIRST_GRADE
+    }
+
     /** 유효 정액DC율의 적용 출처. */
     public enum FixedDiscountSource {
         PRODUCT,
@@ -145,6 +150,11 @@ public class Product extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cat_s_id")
     private Classification catS;
+
+    /** #1090 분류 정본 전환 결과. 모델코드와 discount_flags 로 런타임 판정하지 않는다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discount_option", length = 20)
+    private DiscountOption discountOption;
 
     /** DOMAIN-EXTENSIONS §1 — 룰 2 (D4 default / D7 미포함 / D8 포함) — 싱글 세트만. */
     @Enumerated(EnumType.STRING)
@@ -622,6 +632,11 @@ public class Product extends BaseEntity {
         this.catL = catL;
         this.catM = catM;
         this.catS = catS;
+    }
+
+    /** 분류 정본의 정액DC 옵션을 변경한다. null 은 개발책임자 확정 전 미지정이다. */
+    public void changeDiscountOption(DiscountOption discountOption) {
+        this.discountOption = discountOption;
     }
 
     /** 분류 수동 override 를 저장한다. null 은 해당 단계 미분류를 의미하며 이후 sync 에서 보존된다. */

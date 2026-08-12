@@ -56,7 +56,8 @@ public record ProductSummaryResponse(
         List<EstimateCategory> estimateCategories,
         ProductCategory productCategory,
         String fixedDiscountSource,
-        String physicalCategoryCode) {
+        String physicalCategoryCode,
+        String discountOption) {
 
     /** fixedDiscountSource 추가 전 canonical 호출 호환 생성자. */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
@@ -72,7 +73,7 @@ public record ProductSummaryResponse(
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, bundleMode, usageScope, estimateCategory, usageScopeManual, displayOrder,
                 categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
-                hasVariableDiscount, parentSetModelCode, specification, estimateCategories, productCategory, null, null);
+                hasVariableDiscount, parentSetModelCode, specification, estimateCategories, productCategory, null, null, null);
     }
 
     /** parentSetModelCode 추가 전 canonical 호출 호환 생성자. */
@@ -87,7 +88,7 @@ public record ProductSummaryResponse(
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, null, usageScope, estimateCategory, usageScopeManual, displayOrder,
                 categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
-                hasVariableDiscount, null, null, null, null, null, null);
+                hasVariableDiscount, null, null, null, null, null, null, null);
     }
 
     /**
@@ -100,7 +101,7 @@ public record ProductSummaryResponse(
                                   boolean usageScopeManual, Integer displayOrder) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, null, usageScope, estimateCategory, usageScopeManual, displayOrder,
-                null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -195,7 +196,8 @@ public record ProductSummaryResponse(
                 p.getProductCategory(),
                 fixedDiscount == null || fixedDiscount.source() == null
                         ? null : fixedDiscount.source().name(),
-                p.getCategory() == null ? null : p.getCategory().getCode());
+                p.getCategory() == null ? null : p.getCategory().getCode(),
+                p.getDiscountOption() == null ? null : p.getDiscountOption().name());
     }
 
     /** 내부 소비자가 구성품의 레거시 세트 매칭명을 함께 보존할 때 사용하는 변환. */
@@ -208,7 +210,7 @@ public record ProductSummaryResponse(
                 base.displayOrder(), base.categoryKey(), base.fixedDiscountRate(), base.discountFlags(),
                 base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode,
                 base.specification(), base.estimateCategories(), base.productCategory(), base.fixedDiscountSource(),
-                base.physicalCategoryCode());
+                base.physicalCategoryCode(), base.discountOption());
     }
 
     /** 검색 응답의 레거시 goods boolean을 견적 라인 계약인 goodsType으로 노출한다. */

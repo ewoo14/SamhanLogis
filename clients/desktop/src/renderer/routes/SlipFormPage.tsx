@@ -507,6 +507,7 @@ interface ExpandedBundleOptionContext {
   parentCatalogUnitPrice: string | null
   parentCategoryKey: LineDraft['categoryKey']
   parentFixedDiscountRate: number | null
+  parentDiscountOption: LineDraft['discountOption']
   parentHasVariableDiscount: boolean | null
   discountInfo: string | null
   setOptions: BundleSetOptions
@@ -987,6 +988,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           parentCatalogUnitPrice: source.catalogUnitPrice ?? null,
           parentCategoryKey: source.categoryKey ?? null,
           parentFixedDiscountRate: source.fixedDiscountRate ?? null,
+          parentDiscountOption: source.discountOption ?? null,
           parentHasVariableDiscount: source.hasVariableDiscount ?? null,
           discountInfo: source.discountInfo ?? null,
           setOptions: source.setOptions ?? emptyBundleSetOptions(),
@@ -1011,6 +1013,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       modelCode: parentModelCode,
       categoryKey: context?.parentCategoryKey ?? source.categoryKey,
       fixedDiscountRate: context?.parentFixedDiscountRate ?? source.fixedDiscountRate,
+      classificationOptions: context?.parentDiscountOption
+        ? [context.parentDiscountOption]
+        : source.discountOption ? [source.discountOption] : [],
       hasVariableDiscount: context?.parentHasVariableDiscount ?? source.hasVariableDiscount,
     }, discountConfig)
     // 재가격 시 새 거래처의 계산 결과만 근거로 남긴다. 이전 거래처의
@@ -1173,6 +1178,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           parentCatalogUnitPrice: selected.catalogUnitPrice ?? null,
           parentCategoryKey: selected.categoryKey ?? null,
           parentFixedDiscountRate: selected.fixedDiscountRate ?? null,
+          parentDiscountOption: selected.discountOption ?? null,
           parentHasVariableDiscount: selected.hasVariableDiscount ?? null,
           discountInfo: selected.discountInfo ?? null,
           setOptions: selected.setOptions ?? emptyBundleSetOptions(),
@@ -1388,6 +1394,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         listPrice: Number(catalogUnitPrice),
         modelCode: product?.modelCode,
         fixedDiscountRate: product?.fixedDiscountRate,
+        classificationOptions: product?.discountOption ? [product.discountOption] : [],
         category,
         hasVariableDiscount: product?.hasVariableDiscount,
       }, config)
@@ -1409,6 +1416,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       catalogUnitPrice: catalogUnitPrice != null ? String(catalogUnitPrice) : line.catalogUnitPrice ?? null,
       categoryKey: product?.categoryKey ?? null,
       fixedDiscountRate: product?.fixedDiscountRate ?? null,
+      discountOption: product?.discountOption ?? null,
       hasVariableDiscount: product?.hasVariableDiscount ?? null,
       discountInfo: dcResult?.info ?? null,
       priceMemoryUpdatedAt: null,
@@ -1610,6 +1618,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           ? undefined
           : {
             fixedDiscountRate: line.fixedDiscountRate,
+            classificationOptions: line.discountOption ? [line.discountOption] : [],
             modelCode: line.modelCode,
             category: line.categoryKey === 'homemulti'
               ? 'HOMEMULTI'
@@ -1645,6 +1654,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         modelCode: context.parentModelCode,
         categoryKey: context.parentCategoryKey,
         fixedDiscountRate: context.parentFixedDiscountRate,
+        classificationOptions: context.parentDiscountOption ? [context.parentDiscountOption] : [],
         hasVariableDiscount: context.parentHasVariableDiscount,
       }, discountConfig)
       const parentUnitPrice = String(parentDiscount.unitPrice)

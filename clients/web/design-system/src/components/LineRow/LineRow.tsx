@@ -119,6 +119,8 @@ export interface LineDraft {
   /** 저장 전표 DC 표시용 품목 카테고리/고정율 — 화면에는 UUID를 포함하지 않는다. */
   categoryKey?: string | null
   fixedDiscountRate?: number | null
+  /** #1090 분류 정본의 정액DC 옵션. */
+  discountOption?: 'THREE_SIXTY' | 'FOUR_WAY' | 'ONE_WAY' | 'STAND' | 'DELUXE' | 'FIRST_GRADE' | null
   /** 거래처 전역DC 자격 — 거래처 변경 재가격 시에도 원 품목 자격을 보존한다. */
   hasVariableDiscount?: boolean | null
   /** 적용 규칙 사용자 안내용. */
