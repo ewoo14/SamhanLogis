@@ -128,20 +128,20 @@ class MonthlyIncomeStatementControllerIT extends AbstractPostgresIT {
 
     private void seedFixtures() {
         seedPosted("MONTHLY-IS-2046-01-REV", LocalDate.of(2046, 1, 10), "전기 매출",
-                line("101", "12000.00", "0.00"),
-                line("401", "0.00", "12000.00"));
+                line("1019", "12000.00", "0.00"),
+                line("4019", "0.00", "12000.00"));
         seedPosted("MONTHLY-IS-2046-01-COST", LocalDate.of(2046, 1, 11), "전기 매출원가",
-                line("501", "4000.00", "0.00"),
-                line("101", "0.00", "4000.00"));
+                line("5019", "4000.00", "0.00"),
+                line("1019", "0.00", "4000.00"));
         seedPosted("MONTHLY-IS-2046-01-SGA", LocalDate.of(2046, 1, 12), "전기 판관비",
-                line("801", "1000.00", "0.00"),
-                line("101", "0.00", "1000.00"));
+                line("8029", "1000.00", "0.00"),
+                line("1019", "0.00", "1000.00"));
         seedPosted("MONTHLY-IS-2046-01-NONOP", LocalDate.of(2046, 1, 13), "전기 이자수익",
-                line("101", "200.00", "0.00"),
-                line("901", "0.00", "200.00"));
+                line("1019", "200.00", "0.00"),
+                line("9019", "0.00", "200.00"));
         seedPosted("MONTHLY-IS-2046-01-TAX", LocalDate.of(2046, 1, 14), "전기 법인세",
-                line("991", "500.00", "0.00"),
-                line("101", "0.00", "500.00"));
+                line("9719", "500.00", "0.00"),
+                line("1019", "0.00", "500.00"));
 
         seedMonth("MONTHLY-IS-2047-01", LocalDate.of(2047, 1, 10),
                 "10000.00", "4000.00", "1000.00", "0.00", "300.00", "500.00");
@@ -155,36 +155,36 @@ class MonthlyIncomeStatementControllerIT extends AbstractPostgresIT {
                 line("400", "0.00", "777.00"));
 
         seedDraft("MONTHLY-IS-2047-04-DRAFT", LocalDate.of(2047, 4, 10), "미게시 제외",
-                line("101", "999.00", "0.00"),
-                line("401", "0.00", "999.00"));
+                line("1019", "999.00", "0.00"),
+                line("4019", "0.00", "999.00"));
     }
 
     private void seedMonth(String prefix, LocalDate date, String revenue, String costOfSales,
                            String sga, String nonOperatingRevenue, String nonOperatingExpense,
                            String incomeTax) {
         seedPosted(prefix + "-REV", date, "당기 매출",
-                line("101", revenue, "0.00"),
-                line("401", "0.00", revenue));
+                line("1019", revenue, "0.00"),
+                line("4019", "0.00", revenue));
         seedPosted(prefix + "-COST", date.plusDays(1), "당기 매출원가",
-                line("501", costOfSales, "0.00"),
-                line("101", "0.00", costOfSales));
+                line("5019", costOfSales, "0.00"),
+                line("1019", "0.00", costOfSales));
         seedPosted(prefix + "-SGA", date.plusDays(2), "당기 판관비",
-                line("801", sga, "0.00"),
-                line("101", "0.00", sga));
+                line("8029", sga, "0.00"),
+                line("1019", "0.00", sga));
         if (new BigDecimal(nonOperatingRevenue).compareTo(BigDecimal.ZERO) > 0) {
             seedPosted(prefix + "-NONOP-REV", date.plusDays(3), "당기 영업외수익",
-                    line("101", nonOperatingRevenue, "0.00"),
-                    line("901", "0.00", nonOperatingRevenue));
+                    line("1019", nonOperatingRevenue, "0.00"),
+                    line("9019", "0.00", nonOperatingRevenue));
         }
         if (new BigDecimal(nonOperatingExpense).compareTo(BigDecimal.ZERO) > 0) {
             seedPosted(prefix + "-NONOP-EXP", date.plusDays(4), "당기 영업외비용",
-                    line("951", nonOperatingExpense, "0.00"),
-                    line("101", "0.00", nonOperatingExpense));
+                    line("9319", nonOperatingExpense, "0.00"),
+                    line("1019", "0.00", nonOperatingExpense));
         }
         if (new BigDecimal(incomeTax).compareTo(BigDecimal.ZERO) > 0) {
             seedPosted(prefix + "-TAX", date.plusDays(5), "당기 법인세",
-                    line("991", incomeTax, "0.00"),
-                    line("101", "0.00", incomeTax));
+                    line("9719", incomeTax, "0.00"),
+                    line("1019", "0.00", incomeTax));
         }
     }
 

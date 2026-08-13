@@ -1012,14 +1012,14 @@ describe('mock manual journal contract', () => {
         description: '수동 분개',
         lines: [
           {
-            accountCode: '101',
+            accountCode: '1019',
             debitAmount: '1000',
             creditAmount: '0',
             partnerId: partnerSearch.data[0]?.partnerId,
             memo: '입금 메모',
           },
           {
-            accountCode: '401',
+            accountCode: '4019',
             debitAmount: '0',
             creditAmount: '1000',
             partnerId: null,
@@ -1035,7 +1035,7 @@ describe('mock manual journal contract', () => {
     expect(created.data.totalDebit).toBe('1000')
     expect(created.data.totalCredit).toBe('1000')
     expect(created.data.lines[0]).toMatchObject({
-      accountCode: '101',
+      accountCode: '1019',
       debitAmount: '1000',
       creditAmount: '0',
       partnerName: '엘에이시스템에어',

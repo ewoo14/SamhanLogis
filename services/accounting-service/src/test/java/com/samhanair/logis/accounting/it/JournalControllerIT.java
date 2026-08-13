@@ -372,13 +372,13 @@ class JournalControllerIT extends AbstractPostgresIT {
 
     private Map<String, Object> balancedJournalBody(String amount) {
         Map<String, Object> debitLine = new HashMap<>();
-        debitLine.put("accountCode", "101");
+        debitLine.put("accountCode", "1019");
         debitLine.put("debitAmount", new BigDecimal(amount));
         debitLine.put("creditAmount", BigDecimal.ZERO);
         debitLine.put("memo", "현금 입금");
 
         Map<String, Object> creditLine = new HashMap<>();
-        creditLine.put("accountCode", "401");
+        creditLine.put("accountCode", "4019");
         creditLine.put("debitAmount", BigDecimal.ZERO);
         creditLine.put("creditAmount", new BigDecimal(amount));
         creditLine.put("memo", "상품매출");

@@ -45,7 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <pre>
  *   create        : (없음) → DRAFT
  *   update        : DRAFT mutation 만 허용
- *   issue         : DRAFT → ISSUED + tax_invoice_no 채번 + 자동 분개 (110/255/400)
+ *   issue         : DRAFT → ISSUED + tax_invoice_no 채번 + 자동 분개 (1089/2559/4019)
  *   cancel        : ISSUED → CANCELLED + 자동 역분개
  *   list / getOne : 조회
  * </pre>
@@ -53,9 +53,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>자동 분개 패턴 (한국 일반기업회계기준 + 매뉴얼 §1-4):
  *
  * <pre>
- *   (차) 110 외상매출금        totalAmount
- *   (대) 255 부가세예수금                 vatAmount
- *   (대) 400 매출                         supplyAmount
+ *   (차) 1089 외상매출금       totalAmount
+ *   (대) 2559 부가세예수금                vatAmount
+ *   (대) 4019 상품매출         supplyAmount
  * </pre>
  *
  * <p>partnerId 는 분개 라인 partnerId 로 전파 → AR/AP 추적 (A4 의존). source_ref_id 는
@@ -66,12 +66,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class TaxInvoiceService {
 
-    /** 외상매출금 — 한국 표준 코드 110 (V1 시드). */
-    public static final String ACCOUNT_RECEIVABLES = "110";
-    /** 부가세예수금 — 한국 표준 코드 255 (V2 시드 신규). */
-    public static final String ACCOUNT_VAT_PAYABLE = "255";
-    /** 매출 — 한국 표준 코드 400 (V1 시드, 통제 계정 → 401 상품매출 라인 코드 사용). */
-    public static final String ACCOUNT_REVENUE = "401";
+    /** 외상매출금 — V101 이카운트 정본 코드 1089. */
+    public static final String ACCOUNT_RECEIVABLES = "1089";
+    /** 부가세예수금 — V101 이카운트 정본 코드 2559. */
+    public static final String ACCOUNT_VAT_PAYABLE = "2559";
+    /** 매출 — V101 이카운트 leaf 코드 4019(상품매출). */
+    public static final String ACCOUNT_REVENUE = "4019";
 
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final TaxInvoiceNumberService taxInvoiceNumberService;
@@ -223,7 +223,7 @@ public class TaxInvoiceService {
     /**
      * 발행 — DRAFT → ISSUED. 발행번호 채번 + 자동 분개 게시 + journalId 연결.
      *
-     * <p>자동 분개: (차) 110 / (대) 255+401. partnerId 라인 전파.
+     * <p>자동 분개: (차) 1089 / (대) 2559+4019. partnerId 라인 전파.
      */
     public TaxInvoiceDetailResponse issue(UUID id, String actorUserId) {
         TaxInvoice ti = findOrThrow(id);
@@ -231,7 +231,7 @@ public class TaxInvoiceService {
         String taxInvoiceNo = taxInvoiceNumberService.next(ti.getSupplyDate());
         ti.issue(taxInvoiceNo, actorUserId);
 
-        // 자동 분개 라인 구성: 110 차 / 255 대 / 401 대.
+        // 자동 분개 라인 구성: 1089 차 / 2559 대 / 4019 대.
         List<JournalService.AutoJournalLineSpec> lineSpecs = new ArrayList<>();
         lineSpecs.add(new JournalService.AutoJournalLineSpec(
                 ACCOUNT_RECEIVABLES,

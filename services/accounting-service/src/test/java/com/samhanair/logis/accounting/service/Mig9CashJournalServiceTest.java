@@ -61,18 +61,11 @@ class Mig9CashJournalServiceTest {
                     if (params.hasValue("code")) {
                         String code = (String) params.getValue("code");
                         return switch (code) {
-                            case "102" -> "102";
-                            case "110" -> "110";
+                            case "8319", "1039", "1089" -> code;
                             default -> throw new EmptyResultDataAccessException(1);
                         };
                     }
-                    String name = (String) params.getValue("name");
-                    return switch (name) {
-                        case "지급수수료" -> "831";
-                        case "보통예금" -> "102";
-                        case "외상매출금" -> "110";
-                        default -> throw new EmptyResultDataAccessException(1);
-                    };
+                    throw new EmptyResultDataAccessException(1);
                 });
         lenient().when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
                         org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))
@@ -98,7 +91,7 @@ class Mig9CashJournalServiceTest {
         // 한다(row.id() 가 cash_disbursements.id 라 CashReceipt UUID 로 오배선되면 안 됨).
         assertThat(journal.getValue("cashReceiptId")).isNull();
         List<SqlParameterSource> lines = lineParams();
-        assertThat(lines).extracting(p -> p.getValue("accountCode")).containsExactly("831", "102");
+        assertThat(lines).extracting(p -> p.getValue("accountCode")).containsExactly("8319", "1039");
         assertThat(lines).extracting(p -> p.getValue("partnerId"))
                 .containsExactly(row.partnerId(), row.partnerId());
         assertThat(lines).extracting(p -> p.getValue("debitAmount"))
@@ -184,7 +177,7 @@ class Mig9CashJournalServiceTest {
         assertThat(result.samples()).extracting(EcountMig9JournalResult.Sample::code)
                 .containsExactly("MIG9_DEFAULT_ACCOUNT_MISSING");
         assertThat(result.samples().get(0).message())
-                .contains("보통예금(102)/외상매출금(110)");
+                .contains("보통예금(1039)/외상매출금(1089)");
     }
 
     @Test

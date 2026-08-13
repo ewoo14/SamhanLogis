@@ -47,9 +47,9 @@ public class PartnerAgingService {
     public static final String TYPE_PAYABLE = "PAYABLE";
 
     /** 외상매출금 계정 코드 (미수). */
-    private static final String ACCOUNT_RECEIVABLE = "110";
+    private static final String ACCOUNT_RECEIVABLE = "1089";
     /** 외상매입금 계정 코드 (미지급). */
-    private static final String ACCOUNT_PAYABLE = "201";
+    private static final String ACCOUNT_PAYABLE = "2519";
 
     private static final String ACCOUNT_RECEIVABLE_NAME = "외상매출금";
     private static final String ACCOUNT_PAYABLE_NAME = "외상매입금";

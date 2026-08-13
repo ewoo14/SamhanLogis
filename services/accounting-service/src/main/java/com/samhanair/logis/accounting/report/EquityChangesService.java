@@ -36,10 +36,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class EquityChangesService {
 
     /** 자본금 계정 코드 (V1 chart_of_accounts 기준: 301). */
-    private static final String CAPITAL_STOCK_CODE = "301";
+    private static final String CAPITAL_STOCK_CODE = "3329";
 
     /** 미처분이익잉여금 계정 코드. */
-    private static final String RETAINED_EARNINGS_CODE = "343";
+    private static final String RETAINED_EARNINGS_CODE = "3779";
 
     private final JournalLineRepository journalLineRepository;
     private final IncomeStatementService incomeStatementService;

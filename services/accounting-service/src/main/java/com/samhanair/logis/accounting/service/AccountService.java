@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.web.dto.AccountTreeNodeResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AccountService {
+
+    private static final Set<String> LEGACY_CONTROL_ACCOUNT_CODES =
+            Set.of("100", "200", "300", "400", "500", "800", "900");
 
     private final ChartOfAccountRepository repository;
 
@@ -34,6 +38,10 @@ public class AccountService {
      * @throws BusinessException(INVALID_INPUT) leaf 가 아닌 통제 계정
      */
     public void requireLeafAccount(String code) {
+        if (LEGACY_CONTROL_ACCOUNT_CODES.contains(code)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "통제 계정(parent)에는 분개할 수 없습니다: " + code);
+        }
         ChartOfAccount account = repository.findById(code)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "존재하지 않는 계정 코드입니다: " + code));

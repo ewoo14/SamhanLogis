@@ -33,7 +33,7 @@ public record LedgerImageResponse(
      *
      * @param date        분개 일자
      * @param journalNo   분개번호 (사용자 노출, UUID 대신)
-     * @param accountCode 계정 코드 (110/401/255 등)
+     * @param accountCode 이카운트 4자리 계정 코드 (1089/4019/2559 등)
      * @param accountName 계정명 — SP-08-FU2 P2-4 신규. ChartOfAccount 마스터 lookup 결과.
      *                    해당 코드의 계정과목이 없거나 조회 실패 시 null.
      * @param description 적요

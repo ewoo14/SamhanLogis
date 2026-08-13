@@ -29,12 +29,7 @@ import java.time.YearMonth;
  *
  * <p>fixture 분개 시나리오:
  * <ul>
- *   <li>401 상품매출 credit 500,000 → 매출 500,000</li>
- *   <li>501 상품매출원가 debit 300,000 → 매출원가 300,000</li>
- *   <li>801 급여 debit 80,000 → 판관비 80,000</li>
- *   <li>901 이자수익 credit 10,000 → 영업외수익 +10,000</li>
- *   <li>951 이자비용 debit 5,000 → 영업외비용 -5,000</li>
- *   <li>991 법인세비용 debit 25,000</li>
+ *   <li>V101 정본 상품매출/매출원가/직원급여/이자수익/이자비용/법인세등 fixture</li>
  * </ul>
  *
  * <p>기대값:
@@ -116,7 +111,7 @@ class IncomeStatementServiceTest {
         IncomeStatementResponse resp = incomeStatementService.findByPeriod(PERIOD);
 
         assertThat(resp.revenue()).hasSize(1);
-        assertThat(resp.revenue().get(0).accountCode()).isEqualTo("401");
+        assertThat(resp.revenue().get(0).accountCode()).isEqualTo("4019");
         assertThat(resp.revenue().get(0).amount()).isEqualByComparingTo("500000");
     }
 
@@ -128,11 +123,11 @@ class IncomeStatementServiceTest {
         // 901 이자수익 (+10,000), 951 이자비용 (-5,000)
         assertThat(resp.nonOperating()).hasSize(2);
         IncomeStatementLine interest = resp.nonOperating().stream()
-                .filter(l -> "901".equals(l.accountCode())).findFirst().orElseThrow();
+                .filter(l -> "9019".equals(l.accountCode())).findFirst().orElseThrow();
         assertThat(interest.amount()).isEqualByComparingTo("10000");
 
         IncomeStatementLine interestExp = resp.nonOperating().stream()
-                .filter(l -> "951".equals(l.accountCode())).findFirst().orElseThrow();
+                .filter(l -> "9319".equals(l.accountCode())).findFirst().orElseThrow();
         assertThat(interestExp.amount()).isEqualByComparingTo("-5000");
     }
 
@@ -144,12 +139,12 @@ class IncomeStatementServiceTest {
      */
     private List<ChartOfAccount> buildChartOfAccounts() {
         return List.of(
-                ChartOfAccount.create("401", "상품매출",   AccountCategory.REVENUE,       "400", true, 4010),
-                ChartOfAccount.create("501", "상품매출원가", AccountCategory.COST_OF_SALES, "500", true, 5010),
-                ChartOfAccount.create("801", "급여",       AccountCategory.SGA,           "800", true, 8010),
-                ChartOfAccount.create("901", "이자수익",   AccountCategory.NON_OPERATING, "900", true, 9010),
-                ChartOfAccount.create("951", "이자비용",   AccountCategory.NON_OPERATING, "900", true, 9510),
-                ChartOfAccount.create("991", "법인세비용", AccountCategory.INCOME_TAX,    null,  true, 9910)
+                ChartOfAccount.create("4019", "상품매출",   AccountCategory.REVENUE,       "4011", true, 4019),
+                ChartOfAccount.create("5019", "재료비",     AccountCategory.COST_OF_SALES, "5018", true, 5019),
+                ChartOfAccount.create("8029", "직원급여(판)", AccountCategory.SGA,         "8018", true, 8029),
+                ChartOfAccount.create("9019", "이자수익",   AccountCategory.NON_OPERATING, "9018", true, 9019),
+                ChartOfAccount.create("9319", "이자비용",   AccountCategory.NON_OPERATING, "9318", true, 9319),
+                ChartOfAccount.create("9719", "법인세등",   AccountCategory.NON_OPERATING, "9717", true, 9719)
         );
     }
 
@@ -158,12 +153,12 @@ class IncomeStatementServiceTest {
      */
     private List<AccountTotal> buildAccountTotals() {
         return List.of(
-                accountTotal("401", BigDecimal.ZERO,           new BigDecimal("500000")),
-                accountTotal("501", new BigDecimal("300000"),  BigDecimal.ZERO),
-                accountTotal("801", new BigDecimal("80000"),   BigDecimal.ZERO),
-                accountTotal("901", BigDecimal.ZERO,           new BigDecimal("10000")),
-                accountTotal("951", new BigDecimal("5000"),    BigDecimal.ZERO),
-                accountTotal("991", new BigDecimal("25000"),   BigDecimal.ZERO)
+                accountTotal("4019", BigDecimal.ZERO,           new BigDecimal("500000")),
+                accountTotal("5019", new BigDecimal("300000"),  BigDecimal.ZERO),
+                accountTotal("8029", new BigDecimal("80000"),   BigDecimal.ZERO),
+                accountTotal("9019", BigDecimal.ZERO,           new BigDecimal("10000")),
+                accountTotal("9319", new BigDecimal("5000"),    BigDecimal.ZERO),
+                accountTotal("9719", new BigDecimal("25000"),   BigDecimal.ZERO)
         );
     }
 

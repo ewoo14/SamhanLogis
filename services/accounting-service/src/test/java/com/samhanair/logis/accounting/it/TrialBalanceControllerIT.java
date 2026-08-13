@@ -166,15 +166,15 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
     @DisplayName("합계잔액시산표 — 이월/기간/4컬럼/균형 및 다중 라인 계정 집계")
     void trialBalanceSummaryAggregatesOpeningAndEcountColumns() throws Exception {
         createAndPostJournal("2024-12-31", List.of(
-                line("101", "1000", "0"),
-                line("301", "0", "1000")
+                line("1019", "1000", "0"),
+                line("3329", "0", "1000")
         ));
         createAndPostJournal("2025-01-05", List.of(
-                line("101", "500", "0"),
-                line("801", "300", "0"),
-                line("101", "200", "0"),
-                line("201", "0", "400"),
-                line("401", "0", "600")
+                line("1019", "500", "0"),
+                line("8029", "300", "0"),
+                line("1019", "200", "0"),
+                line("2519", "0", "400"),
+                line("4019", "0", "600")
         ));
 
         MvcResult result = mockMvc.perform(get("/accounting/reports/trial-balance/summary")
@@ -196,18 +196,18 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                 .get("data").get("rows");
         assertThat(rows).hasSize(5);
 
-        JsonNode cash = row(rows, "101");
+        JsonNode cash = row(rows, "1019");
         assertThat(amount(cash, "openingBalance")).isEqualByComparingTo("1000.00");
         assertThat(amount(cash, "debitTotal")).isEqualByComparingTo("700.00");
         assertThat(amount(cash, "creditTotal")).isEqualByComparingTo("0");
         assertThat(amount(cash, "debitBalance")).isEqualByComparingTo("1700.00");
         assertThat(amount(cash, "creditBalance")).isEqualByComparingTo("0");
 
-        JsonNode payable = row(rows, "201");
+        JsonNode payable = row(rows, "2519");
         assertThat(amount(payable, "debitBalance")).isEqualByComparingTo("0");
         assertThat(amount(payable, "creditBalance")).isEqualByComparingTo("400.00");
 
-        JsonNode capital = row(rows, "301");
+        JsonNode capital = row(rows, "3329");
         assertThat(amount(capital, "openingBalance")).isEqualByComparingTo("1000.00");
         assertThat(amount(capital, "creditBalance")).isEqualByComparingTo("1000.00");
     }
@@ -216,8 +216,8 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
     @DisplayName("합계잔액시산표 — 차변성 계정 음수 기말잔액은 대변잔액 컬럼에 양수 표시")
     void trialBalanceSummaryPlacesNegativeAssetClosingOnCreditBalance() throws Exception {
         createAndPostJournal("2025-02-10", List.of(
-                line("801", "500", "0"),
-                line("101", "0", "500")
+                line("8029", "500", "0"),
+                line("1019", "0", "500")
         ));
 
         MvcResult result = mockMvc.perform(get("/accounting/reports/trial-balance/summary")
@@ -238,12 +238,12 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                 .get("data").get("rows");
         assertThat(rows).hasSize(2);
 
-        JsonNode cash = row(rows, "101");
+        JsonNode cash = row(rows, "1019");
         assertThat(amount(cash, "closingBalance")).isEqualByComparingTo("-500.00");
         assertThat(amount(cash, "debitBalance")).isEqualByComparingTo("0");
         assertThat(amount(cash, "creditBalance")).isEqualByComparingTo("500.00");
 
-        JsonNode salary = row(rows, "801");
+        JsonNode salary = row(rows, "8029");
         assertThat(amount(salary, "debitBalance")).isEqualByComparingTo("500.00");
         assertThat(amount(salary, "creditBalance")).isEqualByComparingTo("0");
     }
@@ -262,11 +262,11 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                 .andReturn();
         BigDecimal baselineReceivableClosing = amount(row(
                 objectMapper.readTree(baselineSummary.getResponse().getContentAsString())
-                        .get("data").get("rows"), "110"), "closingBalance");
+                        .get("data").get("rows"), "1089"), "closingBalance");
 
         String journalId = createAndPostJournal("2099-03-15", List.of(
-                lineWithPartner("110", "777", "0", partnerId),
-                line("401", "0", "777")
+                lineWithPartner("1089", "777", "0", partnerId),
+                line("4019", "0", "777")
         ));
 
         mockMvc.perform(post("/accounting/journals/" + journalId + "/reverse")
@@ -284,8 +284,8 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                 .andReturn();
         JsonNode trialRows = objectMapper.readTree(trialBalance.getResponse().getContentAsString())
                 .get("data").get("rows");
-        assertThat(amount(row(trialRows, "110"), "balance")).isEqualByComparingTo("0");
-        assertThat(amount(row(trialRows, "401"), "balance")).isEqualByComparingTo("0");
+        assertThat(amount(row(trialRows, "1089"), "balance")).isEqualByComparingTo("0");
+        assertThat(amount(row(trialRows, "4019"), "balance")).isEqualByComparingTo("0");
 
         MvcResult summary = mockMvc.perform(get("/accounting/reports/trial-balance/summary")
                         .param("from", "2099-03-01")
@@ -297,7 +297,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                 .andReturn();
         JsonNode summaryRows = objectMapper.readTree(summary.getResponse().getContentAsString())
                 .get("data").get("rows");
-        JsonNode receivable = row(summaryRows, "110");
+        JsonNode receivable = row(summaryRows, "1089");
         assertThat(amount(receivable, "debitTotal")).isEqualByComparingTo("777");
         assertThat(amount(receivable, "creditTotal")).isEqualByComparingTo("777");
         assertThat(amount(receivable, "closingBalance")).isEqualByComparingTo(baselineReceivableClosing);
@@ -326,16 +326,16 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                         partnerId, partnerCode, "기간경계 거래처", "123-45-67890", "서울")));
 
         String originalId = createAndPostJournal("2099-04-15", List.of(
-                lineWithPartner("110", "777", "0", partnerId),
-                line("401", "0", "777")
+                lineWithPartner("1089", "777", "0", partnerId),
+                line("4019", "0", "777")
         ));
         mockMvc.perform(post("/accounting/journals/" + originalId + "/reverse")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
         createAndPostJournal("2099-05-05", List.of(
-                lineWithPartner("110", "1", "0", partnerId),
-                line("401", "0", "1")
+                lineWithPartner("1089", "1", "0", partnerId),
+                line("4019", "0", "1")
         ));
 
         mockMvc.perform(get("/accounting/journals/partner-ledger")
@@ -365,9 +365,9 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                         partnerBId, partnerBCode, "다중 거래처 B", "123-45-67892", "서울")));
 
         createAndPostJournal("2099-06-10", List.of(
-                lineWithPartner("110", "100", "0", partnerAId),
-                lineWithPartner("110", "200", "0", partnerBId),
-                line("401", "0", "300")
+                lineWithPartner("1089", "100", "0", partnerAId),
+                lineWithPartner("1089", "200", "0", partnerBId),
+                line("4019", "0", "300")
         ));
 
         mockMvc.perform(get("/accounting/journals/partner-ledger")
@@ -393,12 +393,12 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
 
     private Map<String, Object> balancedJournalBody(String amount) {
         Map<String, Object> debitLine = new HashMap<>();
-        debitLine.put("accountCode", "101");
+        debitLine.put("accountCode", "1019");
         debitLine.put("debitAmount", new BigDecimal(amount));
         debitLine.put("creditAmount", BigDecimal.ZERO);
 
         Map<String, Object> creditLine = new HashMap<>();
-        creditLine.put("accountCode", "401");
+        creditLine.put("accountCode", "4019");
         creditLine.put("debitAmount", BigDecimal.ZERO);
         creditLine.put("creditAmount", new BigDecimal(amount));
 

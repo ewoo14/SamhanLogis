@@ -16,10 +16,11 @@ import java.util.Set;
  * 기초와 기간에 동일하게 공급해야 하며, public 응답에는 sourceKey를 노출하지 않는다.
  */
 public final class PartnerLedgerCollectionContract {
-    private static final Set<String> LEGACY_REVENUE_CODES = Set.of("401");
-    private static final Set<String> LEGACY_RECEIVABLE_CODES = Set.of("110");
+    /** 과거 원장 evidence 표시를 위해 구 코드도 보존하고, 신규 입력은 V101 코드로 분류한다. */
+    private static final Set<String> LEGACY_REVENUE_CODES = Set.of("401", "4019");
+    private static final Set<String> LEGACY_RECEIVABLE_CODES = Set.of("110", "1089");
     /** 현금·예금 대체와 정산성 매입채무를 수금 effect로 인정한다. */
-    private static final Set<String> CASH_AND_SETTLEMENT_CODES = Set.of("102");
+    private static final Set<String> CASH_AND_SETTLEMENT_CODES = Set.of("102", "1039");
 
     public record Evidence(String sourceKey, LocalDate date, String sourceType, String sourceRefKey,
                            String accountCode, BigDecimal debit, BigDecimal credit,
@@ -86,7 +87,7 @@ public final class PartnerLedgerCollectionContract {
         Set<String> resolvedRevenueCodes = normalizeCodes(revenueCodes, LEGACY_REVENUE_CODES);
         Set<String> resolvedPayableCodes = payableCodes == null
                 ? null : java.util.stream.Stream.concat(
-                        normalizeCodes(payableCodes, Set.of("201")).stream(),
+                        normalizeCodes(payableCodes, Set.of("201", "2519")).stream(),
                         CASH_AND_SETTLEMENT_CODES.stream()).collect(java.util.stream.Collectors.toUnmodifiableSet());
         Map<String, Bundle> bundles = new LinkedHashMap<>();
         if (evidence != null) {

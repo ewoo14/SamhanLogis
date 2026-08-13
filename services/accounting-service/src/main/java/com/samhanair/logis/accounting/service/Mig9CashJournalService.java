@@ -33,8 +33,10 @@ public class Mig9CashJournalService {
     private static final int DEFAULT_BATCH_SIZE = 500;
     private static final int MAX_BATCH_SIZE = 5_000;
 
-    private static final String ACCOUNT_EXPENSE = "지급수수료";
-    private static final String ACCOUNT_CASH = "보통예금";
+    // V101 canonical targets를 사용한다: 지급수수료는 8319, 보통예금은 1039.
+    // V101의 정본 명칭은 지급수수료(판)이므로 이름 lookup은 legacy seed와 달라진다.
+    private static final String ACCOUNT_EXPENSE_CODE = "8319";
+    private static final String ACCOUNT_CASH_CODE = CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     @Autowired(required = false)
@@ -82,8 +84,8 @@ public class Mig9CashJournalService {
             return;
         }
         try {
-            String expenseCode = lookupAccountCode(ACCOUNT_EXPENSE);
-            String cashCode = lookupAccountCode(ACCOUNT_CASH);
+            String expenseCode = requireAccountCode(ACCOUNT_EXPENSE_CODE);
+            String cashCode = requireAccountCode(ACCOUNT_CASH_CODE);
             UUID journalId = insertJournal(row, JournalSourceType.CASH_DISBURSEMENT, actor);
             if (skipDuplicateSource(journalId, result)) {
                 return;
@@ -100,7 +102,8 @@ public class Mig9CashJournalService {
             result.cashDisbursementCreated();
         } catch (EmptyResultDataAccessException ex) {
             reject(row, ErrorCode.MIG9_DEFAULT_ACCOUNT_MISSING,
-                    "MIG-9 기본 계정 조회 실패: 지급수수료/보통예금", result);
+                    "MIG-9 기본 계정 조회 실패: 지급수수료(" + ACCOUNT_EXPENSE_CODE
+                            + ")/보통예금(" + ACCOUNT_CASH_CODE + ")", result);
         }
     }
 
@@ -160,18 +163,6 @@ public class Mig9CashJournalService {
             return true;
         }
         return false;
-    }
-
-    private String lookupAccountCode(String accountName) {
-        return jdbcTemplate.queryForObject("""
-                SELECT code
-                  FROM chart_of_accounts
-                 WHERE name = :name
-                   AND is_leaf = TRUE
-                   AND is_deleted = FALSE
-                 ORDER BY code
-                LIMIT 1
-                """, new MapSqlParameterSource("name", accountName), String.class);
     }
 
     private String requireAccountCode(String accountCode) {

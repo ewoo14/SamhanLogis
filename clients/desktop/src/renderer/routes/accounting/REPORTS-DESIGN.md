@@ -223,7 +223,7 @@ interface IncomeStatementData {
 }
 
 interface ReportLine {
-  accountCode: string;   // "401"
+  accountCode: string;   // "4019"
   accountName: string;   // "상품매출"
   category: string;
   amount: string;        // KRW 정수 string
