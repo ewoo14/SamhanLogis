@@ -37,6 +37,11 @@ public class ChatRoom extends BaseEntity {
     public static ChatRoom directShell(String code, UUID creator, UUID other) {
         return new ChatRoom(code, ChatRoomType.DIRECT, creator, pairKey(creator, other));
     }
+    public static ChatRoom groupShell(String code, UUID creator, String roomName) {
+        ChatRoom room = new ChatRoom(code, ChatRoomType.GROUP, creator, null);
+        room.roomName = roomName == null || roomName.isBlank() ? null : roomName.trim();
+        return room;
+    }
     public static ChatRoom restore(UUID id, String code) {
         ChatRoom room = new ChatRoom(code, ChatRoomType.DIRECT, UUID.randomUUID(), null);
         room.id = id; return room;

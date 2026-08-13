@@ -23,6 +23,8 @@ public class ChatRoomController {
     private final ChatRoomService roomService;
     private final ChatMessageService messageService;
     private final UserClient userClient;
+    private final com.samhanair.logis.groupware.repository.ChatRoomParticipantRepository participantRepository;
+    private final com.samhanair.logis.groupware.repository.MessageRepository messageRepository;
 
     @PostMapping("/direct")
     @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
@@ -46,6 +48,30 @@ public class ChatRoomController {
                         userClient.resolveProfile(participantId).orElse(null))));
     }
 
+    @PostMapping("/groups")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> createGroup(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actor,
+            @Valid @RequestBody ChatGroupRoomRequest request) {
+        var room = roomService.createGroup(actor, request.employeeCodes(), request.roomName());
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(ApiResponse.ok(ChatRoomResponse.from(room)));
+    }
+
+    @GetMapping("/groups")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
+    public ApiResponse<java.util.List<GroupChatRoomResponse>> groups(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actor) {
+        var result = roomService.listGroupsFor(actor).stream().map(room -> {
+            var participants = participantRepository.findAllByRoomIdAndLeftAtIsNull(room.getId()).stream()
+                    .map(participant -> GroupParticipantResponse.from(userClient.resolveProfile(participant.getUserId()).orElse(null))).toList();
+            var latest = messageRepository.findTopByRoomIdOrderBySentAtDesc(room.getId()).map(com.samhanair.logis.groupware.domain.Message::getSentAt).orElse(null);
+            var unread = messageRepository.countByRoomIdAndRecipientIdAndStatus(room.getId(), actor, com.samhanair.logis.groupware.domain.MessageStatus.UNREAD);
+            return GroupChatRoomResponse.of(room, participants, unread, latest);
+        }).toList();
+        return ApiResponse.ok(result);
+    }
+
     @PostMapping("/{roomCode}/messages")
     @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<ChatMessageResponse>> sendMessage(
@@ -53,7 +79,7 @@ public class ChatRoomController {
             @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actor,
             @Valid @RequestBody ChatMessageRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(ChatMessageResponse.from(roomCode,
-                messageService.send(roomCode, actor, roomService.otherParticipant(roomCode, actor), request.body()))));
+                messageService.send(roomCode, actor, roomService.messageRecipients(roomCode, actor), request.body()))));
     }
 
     @GetMapping

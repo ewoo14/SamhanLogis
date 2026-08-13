@@ -53,6 +53,23 @@ class ChatRoomServiceTest {
     }
 
     @Test
+    void creating_group_room_resolves_employee_codes_without_exposing_user_ids() {
+        UUID creator = UUID.randomUUID();
+        UUID member = UUID.randomUUID();
+        when(userClient.resolveUserIdByEmployeeCode("E001")).thenReturn(Optional.of(member));
+        when(userClient.verifyActiveBulk(any())).thenReturn(java.util.Map.of(creator, true, member, true));
+        when(roomRepository.saveAndFlush(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
+
+        ChatRoom room = service.createGroup(creator, List.of("E001"), null);
+
+        assertThat(room.getType()).isEqualTo(com.samhanair.logis.groupware.domain.ChatRoomType.GROUP);
+        assertThat(room.getParticipants()).extracting(ChatRoomParticipant::getUserId)
+                .containsExactlyInAnyOrder(creator, member);
+        verify(userClient).resolveUserIdByEmployeeCode("E001");
+    }
+
+    @Test
     void non_participant_cannot_read_room_messages() {
         UUID outsider = UUID.randomUUID();
         UUID roomId = UUID.randomUUID();

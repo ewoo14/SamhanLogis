@@ -9,20 +9,24 @@ import { ChatApp } from './ChatApp'
 import * as chatApi from './api/chatApi'
 
 vi.mock('./api/chatApi', () => ({
-  fetchMessengerMe: vi.fn().mockResolvedValue({ employeeCode: 'ME', name: '홍길동', jobTitle: '부장', departmentName: '개발팀', employmentStatus: 'ACTIVE' }),
+  fetchMessengerMe: vi.fn().mockResolvedValue({ employeeCode: 'ME', name: '홍길동', jobTitle: '부장', departmentName: '개발팀', employmentStatus: 'ACTIVE', presenceStatus: 'AVAILABLE' }),
+  joinMessengerPresence: vi.fn().mockResolvedValue(undefined),
+  leaveMessengerPresence: vi.fn().mockResolvedValue(undefined),
   fetchMessengerDirectory: vi.fn().mockResolvedValue([
-    { employeeCode: 'CEO', name: '김대표', jobTitle: '대표', departmentName: '대표실', employmentStatus: 'ACTIVE' },
-    { employeeCode: 'STAFF', name: '박사원', jobTitle: '사원', departmentName: '개발팀', employmentStatus: 'ACTIVE' },
-    { employeeCode: 'E002', name: '이개발', jobTitle: '개발자', departmentName: '물류팀', employmentStatus: 'ACTIVE' },
+    { employeeCode: 'CEO', name: '김대표', jobTitle: '대표', departmentName: '대표실', employmentStatus: 'ACTIVE', presenceStatus: 'AWAY' },
+    { employeeCode: 'STAFF', name: '박사원', jobTitle: '사원', departmentName: '개발팀', employmentStatus: 'ACTIVE', presenceStatus: 'OFFLINE' },
+    { employeeCode: 'E002', name: '이개발', jobTitle: '개발자', departmentName: '물류팀', employmentStatus: 'ACTIVE', presenceStatus: 'ABSENT' },
   ]),
+  fetchGroupChatRooms: vi.fn().mockResolvedValue([
+    { roomCode: 'GROUP-OLD', type: 'GROUP', roomName: null, participants: [{ name: '홍길동' }, { name: '김철수' }, { name: '이영희' }, { name: '박민수' }, { name: '최수진' }], unreadCount: 0, latestMessageAt: '2026-08-14T10:00:00Z' },
+    { roomCode: 'GROUP-NEW', type: 'GROUP', roomName: '물류 협의', participants: [{ name: '홍길동' }, { name: '김철수' }], unreadCount: 2, latestMessageAt: '2026-08-14T09:00:00Z' },
+    { roomCode: 'GROUP-UNREAD', type: 'GROUP', roomName: null, participants: [{ name: '홍길동' }, { name: '최수진' }], unreadCount: 1, latestMessageAt: '2026-08-14T11:00:00Z' },
+  ]),
+  createGroupChatRoom: vi.fn().mockResolvedValue({ roomCode: 'GROUP-CREATED', type: 'GROUP', roomName: '새 그룹' }),
   createDirectChatRoomByEmployeeCode: vi.fn().mockResolvedValue({ roomCode: 'CHAT-20260813-000002', type: 'DIRECT', roomName: null, partnerName: '김대표' }),
   fetchChatRooms: vi.fn().mockResolvedValue([
     { roomCode: 'CHAT-20260812-000017', type: 'DIRECT', roomName: null, partnerName: '김개발', partnerDepartment: '플랫폼팀', partnerEmployeeCode: 'E001' },
   ]),
-  searchRecipients: vi.fn().mockResolvedValue([
-    { userId: '4f6f6c2e-5a8e-4db2-a2d7-4b9f2f4f0002', name: '이개발', department: '물류팀', employeeCode: 'E002' },
-  ]),
-  createDirectChatRoom: vi.fn().mockResolvedValue({ roomCode: 'CHAT-20260813-000001', type: 'DIRECT', roomName: null, partnerName: '이개발', partnerDepartment: '물류팀', partnerEmployeeCode: 'E002' }),
   fetchChatMessages: vi.fn().mockResolvedValue([
     { roomCode: 'CHAT-20260812-000017', sequence: 1, body: '안녕하세요', sentAt: '2026-08-12T09:00:00Z', senderName: '김개발', senderDepartment: '플랫폼팀', senderEmployeeCode: 'E001', mine: false },
   ]),
@@ -105,5 +109,46 @@ describe('독립 앱 S1 채팅 이식', () => {
     const module = await import('./ChatApp')
     expect(module).toBeDefined()
     expect(module).not.toHaveProperty('desktopChatSource')
+  })
+
+  it('데스크톱 세션을 접속 상태로 등록하고 언마운트 시 해제한다', async () => {
+    const { unmount } = renderApp()
+    await waitFor(() => expect(chatApi.joinMessengerPresence).toHaveBeenCalledWith(expect.stringMatching(/^desktop-/)))
+    const firstJoinCall = vi.mocked(chatApi.joinMessengerPresence).mock.calls[0]
+    expect(firstJoinCall).toBeDefined()
+    const sessionId = firstJoinCall![0]
+    unmount()
+    await waitFor(() => expect(chatApi.leaveMessengerPresence).toHaveBeenCalledWith(sessionId))
+  })
+
+  it('상태 아이콘과 개별·그룹별 전환을 제공한다', async () => {
+    renderApp()
+    expect(await screen.findByLabelText('홍길동 상태: 접속')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '그룹별' }))
+    expect(await screen.findByTestId('group-chat-rooms-page')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '개별' })).toBeInTheDocument()
+  })
+
+  it('그룹방을 안읽음 먼저, 최신순으로 표시하고 참여자 표시명을 만든다', async () => {
+    renderApp()
+    fireEvent.click(screen.getByRole('button', { name: '그룹별' }))
+    const list = await screen.findByRole('list', { name: '그룹 채팅방 목록' })
+    expect((await within(list).findAllByRole('link')).map((link) => link.textContent?.replace(/\d+$/, ''))).toEqual([
+      '물류 협의', '홍길동, 최수진', '홍길동, 김철수 외 3명',
+    ])
+    expect(within(list).getByText('2')).toBeInTheDocument()
+  })
+
+  it('돋보기 모달에서 복수 직원을 선택해 그룹방을 만든다', async () => {
+    renderApp()
+    fireEvent.click(screen.getByRole('button', { name: '그룹별' }))
+    fireEvent.click(await screen.findByRole('button', { name: '검색' }))
+    const dialog = await screen.findByRole('dialog', { name: '단톡방 생성' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '직원 검색' }), { target: { value: '김' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /김대표/ }))
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '직원 검색' }), { target: { value: '박' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /박사원/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '단톡방 생성' }))
+    await waitFor(() => expect(chatApi.createGroupChatRoom).toHaveBeenCalledWith(['CEO', 'STAFF']))
   })
 })

@@ -6,4 +6,5 @@ public record MessengerEmployeeResponse(
         String name,
         String jobTitle,
         String departmentName,
-        String employmentStatus) {}
+        String employmentStatus,
+        String presenceStatus) {}
