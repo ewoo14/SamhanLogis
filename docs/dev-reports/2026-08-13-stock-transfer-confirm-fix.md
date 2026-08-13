@@ -362,3 +362,86 @@ npm run typecheck:real-qa                 51 passed, 0 failed
 - 코드에서 확인되지 않은 이동전표·재고실사 링크 목적지는 만들지 않았다. 해당 응답 계약이 정해지면 별도 단계에서 종류별 경로를 추가해야 한다.
 - 이카운트 엑셀본에 없는 금액 열은 추가하지 않았다.
 - 기존 `StockSlipDetailModal.tsx` 파일은 이번 라운드에서 삭제하지 않았으며, 수불부에서 더 이상 import/render하지 않는다. 삭제 여부는 PM 정리 단계로 남겼다.
+## 모달 폭 fix
+
+### RED — 1600px 실제 폭 수치
+
+재수렴 라운드의 실제 Chromium 원문:
+
+```text
+viewport=1600x1100
+dialogLeft=264, dialogRight=1336
+tableScrollWidth=1180, tableClientWidth=1040
+firstHeaderLeft=283, lastHeaderRight=1456
+```
+
+`scrollWidth > clientWidth`이고 마지막 열 우측이 모달 우측보다 120px 밖이었다. 원인은 디자인 시스템 `size-xl`의 `max-width: 1080px`와 수불부 표의 `minWidth: 1180px` 불일치다. 열 구성은 이카운트 정본 9열에 전표번호를 더한 10열 그대로 보존했다.
+
+### 고른 수단과 이유
+
+공용 `xl`을 전역 확대하지 않고 디자인 시스템에 `xxl`을 추가해 수불부만 `size="xxl"`을 사용하게 했다. `xxl`은 `max-width: 1320px`, `min-width: min(1180px, calc(100vw - 32px))`로 정의했고, 표의 10열·`minWidth: 1180px`·전표번호 링크 동작은 변경하지 않았다. 1440px에서도 모달 내부 콘텐츠 폭이 표 최소 폭을 수용하도록 한 선택이다.
+
+### GREEN — 실제 Chromium 렌더 폭 수치
+
+수정 후 실제 `StockLedgerModal`을 Chromium 1217에 렌더하고 `getBoundingClientRect()` 및 `scrollWidth/clientWidth`를 읽었다. 디자인 시스템 `style.css`와 `tokens.css`를 적용한 원문이다.
+
+```text
+viewport=1600x1100
+dialogLeft=151.12554931640625, dialogRight=1448.8745727539062
+dialogWidth=1297.7490234375
+modalBodyClientWidth=1320, modalBodyContentWidth=1280
+tableScrollWidth=1280, tableClientWidth=1280
+tableRectWidth=1258.4232177734375
+lastHeaderRight=1429.211669921875
+overflow=false
+
+viewport=1440x1100
+dialogLeft=71.1484375, dialogRight=1368.8515625
+dialogWidth=1297.703125
+modalBodyClientWidth=1320, modalBodyContentWidth=1280
+tableScrollWidth=1280, tableClientWidth=1280
+tableRectWidth=1258.37890625
+lastHeaderRight=1349.189453125
+overflow=false
+```
+
+1440px에서 10개 헤더 폭은 다음과 같았고 최소는 품목명 `103.28280639648438px`이었다(참고: #1197의 18px 붕괴와 다름).
+
+```text
+일자 162.12875366210938
+품목명 103.28280639648438
+품목코드 126.51187133789062
+창고명 103.2828369140625
+거래처명 126.5118408203125
+적요 126.51190185546875
+전표번호 126.51190185546875
+입고수량 126.51177978515625
+출고수량 126.511962890625
+재고수량 126.63427734375
+```
+
+### 불변식 보증 및 검증
+
+- ① 1600px: `tableScrollWidth=tableClientWidth=1280`, `overflow=false`, 10열 전체 표시.
+- ② 1440px: 동일하게 overflow가 없고 품목명 최소 103.28px로 붕괴하지 않음.
+- ③ 열 구성 유지: 일자·품목명·품목코드·창고명·거래처명·적요·전표번호·입고수량·출고수량·재고수량 10열 유지.
+- ④ 재수렴 통과 항목은 코드상 건드리지 않음: 캐시 무효화, 이동 -1/+1, 총량 불변, 양쪽 수불부, 금액 없음, 전표번호 클릭 후 모달 닫힘·전표 화면 이동 유지.
+
+```text
+npx vitest run src/renderer/routes/warehouse/StockLedgerModal.test.tsx --config vitest.config.ts
+1 file passed, 6 tests passed
+
+npm run typecheck
+Exit code: 0
+typecheck:real-qa 2/2 passed
+real-qa-scope 51/51 passed
+
+npm run build (clients/web/design-system)
+BUILD SUCCESSFUL
+```
+
+### 남긴 것
+
+- 공용 Modal에 `xxl` 크기만 추가하고 수불부 소비처만 적용했다.
+- 기존 10열, 표 최소 폭, 링크·캐시·재고 이동 로직은 남겼다.
+- 라이브 로그인 재현은 작업트리에 `QA_DEV_DEFAULT_PASSWORD`가 없어 로그인 단계에서 중단되었지만, 실제 컴포넌트·실제 디자인 시스템 CSS를 Chromium에 렌더한 폭 probe로 1600px·1440px 수치를 확보했다.

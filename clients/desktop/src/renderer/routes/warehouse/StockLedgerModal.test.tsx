@@ -55,7 +55,7 @@ describe('재고수불부 모달', () => {
     expect(onOpenSlip).not.toHaveBeenCalled()
   })
 
-  it('엑셀본 9열에 전표번호 열을 더하고 넓은 모달을 사용한다', () => {
+  it('엑셀본 9열에 전표번호 열을 더하고 10열 전체를 담는 초대형 모달을 사용한다', () => {
     const data: StockLedgerResponse = {
       companyName: '회사', startDate: '2026-08-01', endDate: '2026-08-12',
       productName: '품목', productCode: 'P1', openingBalance: 0,
@@ -68,7 +68,7 @@ describe('재고수불부 모달', () => {
     expect(screen.getAllByRole('columnheader')).toHaveLength(10)
     expect(screen.getByText('주소')).toBeTruthy()
     expect(screen.getByRole('button', { name: '전표 2026/08/02-17 열기' })).toBeTruthy()
-    expect(screen.getByRole('dialog').className).toContain('size-xl')
+    expect(screen.getByRole('dialog').className).toContain('size-xxl')
   })
 
   it('전표 유형별 목적지는 전표번호만 URL에 사용하고 UUID를 포함하지 않는다', () => {

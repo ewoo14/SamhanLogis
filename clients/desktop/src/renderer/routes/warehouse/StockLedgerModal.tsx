@@ -54,7 +54,7 @@ export function StockLedgerModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="재고수불부" size="xl">
+    <Modal open={open} onClose={onClose} title="재고수불부" size="xxl">
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <div>{data.companyName} / {data.startDate} ~ {data.endDate} / 재고수불부 I / {data.productName} ({data.productCode})</div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} aria-label="수불부 기간">
