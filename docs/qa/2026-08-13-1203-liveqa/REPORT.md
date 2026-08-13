@@ -345,3 +345,330 @@ finalRamGB: 25.003
 **머지 비권고.** `confirm()`의 재고 차감·증가, 총량 보존, 양쪽 movement 및 수불부 표시는 모두 실측 통과했다. 그러나 확정 직후 같은 세션의 재고현황이 확정 전 5분 캐시를 재사용하는 도달 결함 1건이 남아 있다. 확정 성공 시 `inventory-balances`와 `inventory-ledger`를 무효화하고, 동일 사용자 흐름에서 새 GET과 양쪽 변경값이 즉시 보이는지 재검증한 뒤 머지하는 것을 권고한다.
 
 라운드 종료 후 공유 스택은 아직 PR 브랜치 inventory-service 빌드다. git 사용 금지 지시로 되돌리지 않았으며 PM 복구가 필요하다.
+
+## 재수렴 라운드
+
+### R0. 판정 요약
+
+- 대상: PR `#1203`, `fix/stock-transfer-confirm-noop`, HEAD `509706df2460f5cb7eca022a69b849e3725cd6b8`
+- 질문 1·2·3·5·6: **PASS**
+- 질문 4: **FAIL** — 이카운트 정본 9열에 전표번호를 더한 10열 표가 모달 안에 한 화면으로 들어오지 않는다.
+- 도달 결함: **1건**
+- 머지 권고: **비권고**
+
+### R1. 환경 원문
+
+`origin/main`의 live-QA preamble을 읽고, 지정된 로컬 Chromium `chromium-1217`과 실제 Vite/게이트웨이/공유 DB를 사용했다. API interception·mock·DB 직접 쓰기는 사용하지 않았다.
+
+```text
+git rev-parse HEAD
+509706df2460f5cb7eca022a69b849e3725cd6b8
+
+git branch --show-current
+fix/stock-transfer-confirm-noop
+
+git diff --name-only origin/main...HEAD -- services/inventory-service/src/main/resources/db/migration
+<출력 없음 — 새 migration 0건>
+
+브라우저: C:\Users\user\AppData\Local\ms-playwright\chromium-1217\chrome-win64\chrome.exe
+viewport: 1600x1100
+Vite: http://127.0.0.1:5293 → HTTP 200
+login: 실제 /api/auth/login HTTP 200, role=MASTER
+초기 가용 RAM: 15.929 GB
+배포 직후 가용 RAM: 15.774 GB
+최종 가용 RAM: 16.642 GB
+```
+
+공유 스택의 inventory-service가 처음에는 main JAR였으므로 아래 순서로 브랜치 JAR을 직접 빌드·배포했다. `docker compose --build`가 Gradle을 실행한다고 간주하지 않았다.
+
+```text
+.\gradlew.bat :services:inventory-service:bootJar --no-daemon
+BUILD SUCCESSFUL in 11s
+
+branch JAR SHA-256
+9DBBBED9A5C7C656CC2B17F4620913A0911A50C4493C5277676E317AD3697380
+
+docker compose -f infrastructure/docker-compose.yml \
+  -f infrastructure/docker-compose.local-all.yml \
+  -f C:\dev\Samhan-Public\infrastructure\docker-compose.local-portfix.yml \
+  up -d --build --no-deps inventory-service
+
+docker inspect samhan-inventory-service
+created=2026-08-13T20:42:37.38669935Z
+image=infrastructure-inventory-service
+health=healthy
+
+docker exec samhan-inventory-service sha256sum /app/app.jar
+9dbbbed9a5c7c656cc2b17f4620913a0911a50c4493c5277676e317ad3697380  /app/app.jar
+```
+
+`samhan-*` 컨테이너 22개가 실행 중이었고 모두 healthy였다. compose 기준 미실행은 `nginx`, `prometheus` 2개였다. **라운드 종료 시점에도 공유 스택 inventory-service에는 브랜치 빌드가 올라가 있다. PM이 main으로 복구해야 한다.**
+
+### R2. 질문 1 — 확정 직후 같은 세션 재고현황
+
+절차:
+
+1. 실제 UI에서 품목 `0000098`, `HQ-001 → 00003`, 수량 1 이동전표 `2026/08/14-4`를 생성했다.
+2. 승인·출고·입고를 각각 실제 버튼으로 실행했고 모두 HTTP 200을 확인했다.
+3. 확정 전에 같은 브라우저 세션에서 출발·도착 재고현황을 각각 열어 5분 캐시를 채웠다.
+4. 같은 세션에서 확정 HTTP 200 후 두 창고 재고현황으로 이동했다.
+
+원문:
+
+```text
+approve POST 200
+ship POST 200
+receive POST 200
+confirm POST 200
+same-session source GET /inventory/balances 200
+same-session destination GET /inventory/balances 200
+```
+
+- [확정 완료 화면](screenshots/12-reconv-transfer-confirmed.png)
+- [같은 세션 출발 창고 재조회](screenshots/13-reconv-transfer-source-same-session.png)
+- [같은 세션 도착 창고 재조회](screenshots/14-reconv-transfer-destination-same-session.png)
+
+결과: **PASS.** 직전 라운드의 “확정 전 캐시가 남아 새 GET이 발생하지 않음”은 재현되지 않았다.
+
+### R3. 질문 2 — 물리 변이 계열 전체
+
+각 경로에서 변이 직전에 재고현황 캐시를 채우고, 변이 성공 직후 같은 브라우저 세션에서 다시 재고현황을 열었다.
+
+| 경로 | 실제 데이터 | 변이 | 변이 응답 | 직후 같은 세션 재고 GET | 증거 |
+|---|---|---|---:|---:|---|
+| 재고이동 | `2026/08/14-4` | confirm | 200 | 출발 200·도착 200 | [12](screenshots/12-reconv-transfer-confirmed.png), [13](screenshots/13-reconv-transfer-source-same-session.png), [14](screenshots/14-reconv-transfer-destination-same-session.png) |
+| 판매전표 | `2026/08/14-2` | ship | 200 | 200 | [15](screenshots/15-reconv-sales-ship-same-session.png) |
+| 판매전표 | `2026/08/14-2` | confirm | 200 | 200 | [16](screenshots/16-reconv-sales-confirmed.png) |
+| 입고전표 | `2026/08/13-3` INBOUND | confirm | 200 | 200 | [17](screenshots/17-reconv-inbound-confirmed.png) |
+| 재고실사 | `2026/08/14-1` | complete | 200 | 200 | [18](screenshots/18-reconv-audit-completed.png) |
+
+재고실사는 `00003`, 품목 `0000098`의 스냅샷 수량 3에 실물수량 4를 입력해 실제 조정 `+1`이 발생하도록 했다.
+
+```text
+audit_no     status     warehouse  expected_qty  actual_qty  diff_qty  diff_amount
+2026/08/14-1 COMPLETED  00003      3             4           1         0.00
+```
+
+계약 테스트도 세 경로(이동·전표·실사)의 `inventory-balances`와 `inventory-ledger` 무효화를 고정한다.
+
+```text
+✓ src/renderer/routes/inventory-mutation-cache.contract.test.ts (3 tests)
+Test Files  1 passed (1)
+Tests       3 passed (3)
+```
+
+전역 정책은 그대로다.
+
+```text
+clients/desktop/src/renderer/App.tsx:25
+staleTime: 5 * 60 * 1000
+```
+
+결과: **PASS.** 한 경로만 고친 형태가 아니며, 요청된 물리 변이 계열을 모두 실제 실행했다.
+
+### R4. 질문 3 — 라운드 1 불변식
+
+새 확정건 `2026/08/14-4`의 DB 원문:
+
+```text
+transfer_no   status     source  destination  requested  shipped  received
+2026/08/14-4  CONFIRMED  HQ-001  00003        1          1        1
+
+warehouse  movement_type  quantity_delta  reference_type  lot_unit_cost
+HQ-001     TRANSFER_OUT   -1              STOCK_TRANSFER  11000.00
+00003      TRANSFER_IN     1              STOCK_TRANSFER  NULL
+
+movement_count  total_delta  outbound_rows  inbound_rows
+2               0            1              1
+```
+
+- 출발 차감: **PASS** (`-1`)
+- 도착 증가: **PASS** (`+1`)
+- 총량 불변: **PASS** (`sum(quantity_delta)=0`)
+- 양쪽 수불부 표시: **PASS** — 최신 모달에서 `2026/08/14-4`의 본사창고 출고 1과 초월창고 S18 입고 1을 함께 확인했다.
+- 금액 없음: **PASS** — 이동 폼·상세·수불부에 금액/단가/원가/공급가/부가세/합계 열이 없다. 위 `lot_unit_cost`는 기존 lot의 내부 원가 속성이고 이동전표 금액이 아니며, `stock_movements`에는 금액 열 자체가 없다.
+
+- [최신 수불부의 이동 양쪽 행](screenshots/23-reconv-transfer-ledger-both-sides.png)
+- [오른쪽 수량 열](screenshots/23-reconv-transfer-ledger-both-sides-right.png)
+- 라운드 1 보존 증거: [이동 폼 금액 없음](screenshots/02-transfer-form-no-amount.png), [출발 수불행](screenshots/07-source-ledger-transfer-out.png), [도착 수불행](screenshots/09-destination-ledger-transfer-in.png)
+
+결과: **PASS.** 라운드 1의 다섯 불변식이 계속 성립한다.
+
+### R5. 질문 4 — 이카운트 9열 + 전표번호 열의 한 화면 표시
+
+모달 헤더 원문은 정본과 일치한다.
+
+```text
+일자|품목명|품목코드|창고명|거래처명|적요|전표번호|입고수량|출고수량|재고수량
+```
+
+그러나 1600×1100에서 실제 기하가 다음과 같았다.
+
+```text
+dialogLeft=264, dialogRight=1336
+tableScrollWidth=1180, tableClientWidth=1040
+firstHeaderLeft=283, lastHeaderRight=1456
+```
+
+마지막 열 우측이 모달 우측보다 120px 밖에 있고 `scrollWidth > clientWidth`이므로, 오른쪽 수량 열을 보려면 가로 스크롤해야 한다.
+
+- [모달 최초 표시 — 오른쪽 열 잘림](screenshots/19-reconv-stock-ledger-9-columns.png)
+- [가로 스크롤 후 오른쪽 열](screenshots/19-reconv-stock-ledger-9-columns-right.png)
+
+결과: **FAIL, DEFECT-R1.** 열 구성은 맞지만 “엑셀본 9열이 잘리지 않고 들어가는 폭”이라는 정본을 충족하지 않는다.
+
+### R6. 질문 5 — 전표번호 클릭 이동
+
+실제 수불부에 함께 나타난 판매·입고 전표번호를 각각 클릭했다.
+
+```text
+2026/08/13-5: modal=closed, hash contains /sales/by-number, 판매전표 상세 heading 확인
+2026/08/13-3: modal=closed, hash contains /purchases/by-number, 입고전표 상세 heading 확인
+```
+
+- [판매전표 목적지](screenshots/20-reconv-ledger-sales-destination.png)
+- [입고 수불부와 전표번호](screenshots/21-reconv-stock-ledger-9-columns-inbound.png)
+- [입고전표 목적지](screenshots/22-reconv-ledger-inbound-destination.png)
+
+결과: **PASS.** 두 경우 모두 수불부가 먼저 닫힌 뒤 맞는 전표 화면으로 이동했다. 지시대로 코드 계약이 없는 이동전표·재고실사 링크는 결함으로 세지 않았다. URL과 캡처에 내부 UUID가 노출되지 않았다.
+
+### R7. 질문 6 — 기존 판매·입고전표 경로 회귀
+
+판매 `2026/08/14-2`는 실제 UI에서 저장·전송·접수·처리·출고완료·검수·배송·확정을 순서대로 수행했고 최종 `CONFIRMED`다. 입고 `2026/08/13-3` INBOUND도 저장·전송·접수·처리·출고완료·검수·확정을 수행했고 최종 `CONFIRMED`다. 기존 판매 `2026/08/13-5`도 최종 `CONFIRMED`이며 수불부 OUTBOUND 행과 전표 이동을 확인했다.
+
+```text
+slip_no      slip_type  status
+2026/08/13-3 INBOUND    CONFIRMED
+2026/08/13-5 OUTBOUND   CONFIRMED
+2026/08/14-2 OUTBOUND   CONFIRMED
+
+ledger API rows for AJ060MXHNBC1
+2026-08-14 | 2026/08/13-5 | OUTBOUND
+2026-08-14 | 2026/08/13-3 | INBOUND
+```
+
+결과: **PASS.** 판매·입고의 기존 상태 전이, 재고 반영, 수불행, 상세 이동까지 실측했다.
+
+### R8. 자동 검증 원문
+
+```text
+npx vitest run src/renderer/routes/inventory-mutation-cache.contract.test.ts --config vitest.config.ts
+1 file passed, 3 tests passed
+
+npx vitest run src/renderer/routes/warehouse/StockLedgerModal.test.tsx --config vitest.config.ts
+1 file passed, 6 tests passed
+
+npm run typecheck
+Exit code: 0
+typecheck:real-qa 2/2 passed
+real-qa-scope 51/51 passed
+
+.\gradlew.bat :services:inventory-service:test \
+  --tests "com.samhanair.logis.inventory.service.StockTransferServiceTest" \
+  --tests "com.samhanair.logis.inventory.service.StockLedgerServiceTest" --no-daemon
+BUILD SUCCESSFUL in 30s
+```
+
+단위 테스트 6건이 통과해도 R5의 실제 1600px 기하 결함은 잡지 못했다. 따라서 자동 테스트 green을 모달 폭 PASS 근거로 사용하지 않았다.
+
+### R9. 도달 결함
+
+#### DEFECT-R1 — 수불부 10열이 모달 한 화면에 들어오지 않음
+
+- 심각도: 사용자 정본 직접 위반
+- 재현율: 3/3
+- 조건: 1600×1100, Chromium 1217, 실제 데이터가 있는 품목의 수불부 열기
+- 실제: 표 가로폭 1180px, 가용폭 1040px, 마지막 열이 모달 밖으로 120px 넘침
+- 기대: 엑셀본 9열과 새 전표번호 열 전체가 가로 스크롤 없이 보여야 함
+
+**도달 결함 합계: 1건.** 캐시 재수렴 도달 결함은 0건이며, 새 도달 결함은 모달 폭 1건이다.
+
+### R10. 증거 무결성
+
+- 모든 신규 캡처는 HEAD `509706df2` frontend와 SHA-256 `9dbbbed9...` inventory-service JAR을 대상으로 생성했다.
+- 실제 `/api/auth/login`, 실제 API Gateway, 실제 PostgreSQL을 사용했다.
+- route interception·응답 조작·mock server·DB INSERT/UPDATE/DELETE: 0건.
+- DB 조회에는 UUID를 출력하지 않았고 보고서에도 내부 UUID를 남기지 않았다.
+- 캡처 12~23은 원본 PNG다. 제품 코드 수정 없이 검증 하네스만 사용했고, 하네스는 보고서 작성 전에 제거했다.
+- 상단의 “업데이트 실패” 배너는 Electron updater가 없는 브라우저 실행 환경의 기존 부가 관측이며, 재고·전표 API 응답을 대체하거나 가리지 않았다.
+
+### R11. 관측 불가 및 실패 명령 원문
+
+최종 질문 1~6 중 관측 불가 항목은 **0건**이다. 다음은 재시도 과정의 실패 원문이며, 성공 근거로 세지 않았다.
+
+저장소 안내 스크립트 부재:
+
+```text
+.\scripts\redeploy-service.ps1
+The term '.\scripts\redeploy-service.ps1' is not recognized...
+```
+
+worktree credential resolver 부재:
+
+```text
+QA credential is missing: QA_DEV_DEFAULT_PASSWORD
+```
+
+대체: 저장소 루트의 동일 QA resolver를 사용했고 credential 값은 출력하지 않았다.
+
+초기 PostgreSQL 사용자 가정 오류:
+
+```text
+psql -U postgres
+FATAL: role "postgres" does not exist
+```
+
+대체: 스키마 설정의 `samhan` 사용자로 읽기 쿼리만 실행했다.
+
+첫 테스트 경로 오타:
+
+```text
+filter: src/renderer/shared/api/inventory-mutation-cache.contract.test.ts
+No test files found, exiting with code 1
+```
+
+대체: 실제 추적 경로 `src/renderer/routes/inventory-mutation-cache.contract.test.ts`로 실행해 3/3 통과했다.
+
+전표번호 locator의 역할 가정 오류:
+
+```text
+locator.click: Timeout 30000ms exceeded.
+waiting for getByRole('dialog').getByRole('button', { name: '2026/08/13-5', exact: true })
+```
+
+실제 접근성 이름 `전표 2026/08/13-5 열기`를 사용해 판매·입고 이동 모두 재실행했고 exit 0을 얻었다.
+
+판매 복제본의 시리얼 재고 부족:
+
+```text
+POST /slips/<internal-id>/accept → HTTP 409
+재고 부족 — 가용 인스턴스 0 < 필요 1 (productCode=AJ060MXHNBC1)
+```
+
+이는 이미 예약된 시리얼 품목을 복제한 테스트 데이터 문제다. 가용 시리얼 품목 `PC1BWCK3NW`로 새 판매전표 `2026/08/14-2`를 만들고 전체 경로를 통과시켰다. 범위 밖 시리얼 축 결함으로 세지 않았다.
+
+### R12. 만든 데이터
+
+| 종류 | 식별자 | 최종 상태 | 상세 |
+|---|---|---|---|
+| 이동전표 | `2026/08/14-1` | REQUESTED | `PR1203-RECONV-1786654372176`, 중간 하네스 재시도 |
+| 이동전표 | `2026/08/14-2` | REQUESTED | `PR1203-RECONV-1786654439464`, 중간 하네스 재시도 |
+| 이동전표 | `2026/08/14-3` | CONFIRMED | `PR1203-RECONV-1786654495787`, HQ-001→00003, 0000098, 수량 1 |
+| 이동전표 | `2026/08/14-4` | CONFIRMED | `PR1203-RECONV-1786654576002`, 최종 불변식·같은 세션 검증 |
+| 판매전표 | `2026/08/14-1` OUTBOUND | SENT | 기존 전표 복제, AJ060 시리얼 부족으로 accept 409 |
+| 판매전표 | `2026/08/14-2` OUTBOUND | CONFIRMED | `PR1203-RECONV-1786655368304-SALES`, PC1BWCK3NW 수량 1 |
+| 판매전표 | `2026/08/14-3` OUTBOUND | SENT | `PR1203-RECONV-1786655417810-SALES`, 중간 재시도 |
+| 재고실사 | `2026/08/14-1` | COMPLETED | 00003, 0000098, 3→4, 차이 +1 |
+
+기존 데이터 상태 변경:
+
+- `2026/08/13-5` OUTBOUND: DRAFT → CONFIRMED
+- `2026/08/13-3` INBOUND: DRAFT → CONFIRMED
+
+새 창고·제품·거래처·마이그레이션: 0건. DB 직접 쓰기: 0건.
+
+### R13. 머지 권고
+
+**머지 비권고.** 직전 라운드의 캐시 결함은 이동 confirm, 판매 ship·confirm, 입고 confirm, 실사 complete 전 경로에서 닫혔고 라운드 1 불변식도 유지된다. 판매·입고 전표번호 이동 역시 통과했다. 그러나 정본이 요구한 “9열 + 전표번호 열을 자르지 않는 XL 모달”이 실제 1600px 화면에서 실패한다. DEFECT-R1을 수정하고 동일 기하·캡처를 재검증한 뒤 머지하는 것을 권고한다.
+
+다시 명시한다: **공유 스택 inventory-service에는 이 라운드에서 만든 브랜치 JAR이 배포되어 있으며, PM의 main 복구가 필요하다.**
