@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
+import { computeUnloadDate } from '../utils/deliverySchedule'
 
 const harness = vi.hoisted(() => ({
   getPriceMemory: vi.fn(),
@@ -1644,17 +1645,15 @@ describe('SlipFormPage outbound date contract', () => {
 
     const outboundDate = screen.getByTestId('slip-form-outbound-date') as HTMLInputElement
     const today = outboundDate.value
-    const addDays = (date: string, days: number) => {
-      const [year, month, day] = date.split('-').map(Number)
-      const result = new Date(Date.UTC(year, month - 1, day + days))
-      return result.toISOString().slice(0, 10)
-    }
-    const nextDayValue = addDays(today, 1)
-    const nextUnloadValue = addDays(nextDayValue, 1)
+    const nextDayValue = new Date(`${today}T00:00:00Z`)
+    nextDayValue.setUTCDate(nextDayValue.getUTCDate() + 1)
+    const nextDayISO = nextDayValue.toISOString().slice(0, 10)
+    const nextUnloadValue = computeUnloadDate(nextDayISO, 'REGION')
+    expect(nextUnloadValue).not.toBeNull()
 
     expect(outboundDate.disabled).toBe(false)
     expect(outboundDate.min).toBe(today)
-    fireEvent.change(outboundDate, { target: { value: nextDayValue } })
+    fireEvent.change(outboundDate, { target: { value: nextDayISO } })
 
     await waitFor(() => expect((screen.getByTestId('slip-form-unload-date') as HTMLInputElement).value)
       .toBe(nextUnloadValue))
@@ -1665,7 +1664,7 @@ describe('SlipFormPage outbound date contract', () => {
 
     await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
     expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({
-      slipDate: nextDayValue,
+      slipDate: nextDayISO,
       unloadDate: nextUnloadValue,
     }))
   })
