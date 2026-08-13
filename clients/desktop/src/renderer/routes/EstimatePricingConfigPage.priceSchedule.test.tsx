@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * EstimatePricingConfigPage — 카테고리별 단가변동 섹션 RTL 렌더 테스트 (#17 S4b R1 fix).
+ * ProductPriceSchedulePage — 카테고리별 단가변동 RTL 렌더 테스트 (#17 S4b R1 fix).
  *
  * 기존 EstimatePricingConfigPage.test.ts 는 readFileSync + toContain substring 뿐이라
  * 렌더 로직(가드 반전, disabled 상태, 에러 처리, stale-flash)이 깨져도 green 이었다
@@ -11,12 +11,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
-import type { EstimateConfig } from '../api/sales'
 import type { PriceChangeScheduleAdminItem } from '../api/productCatalogApi'
 
 const mocks = vi.hoisted(() => ({
-  getEstimateConfig: vi.fn(),
-  updateEstimateConfig: vi.fn(),
   getPriceChangeScheduleAdmin: vi.fn(),
   updatePriceChangeSchedule: vi.fn(),
   canAccess: vi.fn(),
@@ -52,11 +49,6 @@ vi.mock('@samhan/design-system', () => ({
   }),
 }))
 
-vi.mock('../api/sales', () => ({
-  getEstimateConfig: mocks.getEstimateConfig,
-  updateEstimateConfig: mocks.updateEstimateConfig,
-}))
-
 vi.mock('../api/productCatalogApi', () => ({
   getPriceChangeScheduleAdmin: mocks.getPriceChangeScheduleAdmin,
   updatePriceChangeSchedule: mocks.updatePriceChangeSchedule,
@@ -70,12 +62,11 @@ vi.mock('../stores/pageTitle', () => ({
   usePageTitleStore: () => vi.fn(),
 }))
 
-vi.mock('../components/sales/SalesSubNav', () => ({ SalesSubNav: () => <nav /> }))
 vi.mock('../components/sales/sales.module.css', () => ({
   default: new Proxy({}, { get: (_target, key) => String(key) }),
 }))
 
-import { EstimatePricingConfigPage } from './EstimatePricingConfigPage'
+import { ProductPriceSchedulePage } from './ProductPriceSchedulePage'
 
 type AccessEntry = { view?: boolean; update?: boolean }
 
@@ -86,32 +77,6 @@ function stubCanAccess(map: Record<string, AccessEntry>) {
     if (!entry) return false
     return action === 'update' ? !!entry.update : !!entry.view
   })
-}
-
-function makeEstimateConfig(overrides: Partial<EstimateConfig> = {}): EstimateConfig {
-  return {
-    commonHomeDiscountRate: 0.45,
-    commonCommercialDiscountRate: 0.45,
-    oldProductDiscountRate: 0.5,
-    vatRate: 0.1,
-    cardFeeRate: 0.03,
-    advanceDiscountRate: 0,
-    comboWarnRate: 0,
-    homeNoHose: false,
-    homeNoBranch: false,
-    homeWithFoot: false,
-    homeDefaultPanel: '',
-    singleDefaultWiredRemote: '',
-    singleNoRemote: false,
-    singleWithBase: false,
-    singleDefaultPanel: '',
-    singlePanelShape: '원형',
-    singleDiscount: 0,
-    singleOneWayDiscount: 0,
-    singleMaterialInclusion: '별도',
-    footerNotice: '',
-    ...overrides,
-  }
 }
 
 function makeScheduleRows(
@@ -130,8 +95,8 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/sales/estimate-config']}>
-        <EstimatePricingConfigPage />
+      <MemoryRouter initialEntries={['/products/price-schedule']}>
+        <ProductPriceSchedulePage />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -142,14 +107,13 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b R1 fix)', () => {
+describe('ProductPriceSchedulePage 카테고리별 단가변동(#17 S4b R1 fix)', () => {
   it('products.price-schedule VIEW 가 없으면 단가변동 Card 를 렌더하지 않는다', async () => {
-    stubCanAccess({ 'sales.estimate-config': { view: true, update: true } })
-    mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
+    stubCanAccess({})
 
     renderPage()
 
-    await screen.findByText('옵션 기본값')
+    await waitFor(() => expect(screen.queryByText('카테고리별 단가변동')).toBeNull())
     expect(screen.queryByText('카테고리별 단가변동')).toBeNull()
     expect(mocks.getPriceChangeScheduleAdmin).not.toHaveBeenCalled()
   })
@@ -162,10 +126,8 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
     // 박탈하고 재렌더한다 — dirty 는 컴포넌트 로컬 state 라 rerender 로 유지되므로,
     // 이후 save disabled 단언은 오직 canEditPriceSchedule=false 때문임이 격리된다.
     stubCanAccess({
-      'sales.estimate-config': { view: true, update: true },
       'products.price-schedule': { view: true, update: true },
     })
-    mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
     mocks.getPriceChangeScheduleAdmin.mockResolvedValue(makeScheduleRows())
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -174,8 +136,8 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
     // 재실행하지 않고(=usePermissions 재호출 없이) 이전 렌더를 그대로 유지해버린다.
     const buildUi = () => (
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={['/sales/estimate-config']}>
-          <EstimatePricingConfigPage />
+        <MemoryRouter initialEntries={['/products/price-schedule']}>
+          <ProductPriceSchedulePage />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -187,7 +149,6 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
     expect((screen.getByTestId('price-schedule-save-homemulti') as HTMLButtonElement).disabled).toBe(false)
 
     stubCanAccess({
-      'sales.estimate-config': { view: true, update: true },
       'products.price-schedule': { view: true, update: false },
     })
     rerender(buildUi())
@@ -204,10 +165,8 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
 
   it('저장 실패 시 카테고리 라벨을 포함한 에러 문구를 표시한다', async () => {
     stubCanAccess({
-      'sales.estimate-config': { view: true, update: true },
       'products.price-schedule': { view: true, update: true },
     })
-    mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
     mocks.getPriceChangeScheduleAdmin.mockResolvedValue(makeScheduleRows())
     mocks.updatePriceChangeSchedule.mockRejectedValue(new Error('save failed'))
 
@@ -227,10 +186,8 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
 
   it('oldProducts 행은 체크박스 없이 "대상 아님" 을 표시한다', async () => {
     stubCanAccess({
-      'sales.estimate-config': { view: true, update: true },
       'products.price-schedule': { view: true, update: true },
     })
-    mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
     mocks.getPriceChangeScheduleAdmin.mockResolvedValue(makeScheduleRows())
     mocks.updatePriceChangeSchedule.mockResolvedValue({
       category: 'oldProducts',
@@ -262,10 +219,8 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
 
   it('저장 성공 시 refetch 완료 전에도 테이블 값이 즉시 갱신된다(스테일 flash 회귀 가드)', async () => {
     stubCanAccess({
-      'sales.estimate-config': { view: true, update: true },
       'products.price-schedule': { view: true, update: true },
     })
-    mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
     mocks.getPriceChangeScheduleAdmin
       .mockResolvedValueOnce(makeScheduleRows())
       // invalidateQueries 가 트리거하는 background refetch(2번째 GET) 는 고의로 응답을
@@ -296,10 +251,8 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
 
   it('한 카테고리만 저장해도 다른 dirty 카테고리는 초기화되지 않는다(다행 회귀 가드, QA-MED#3)', async () => {
     stubCanAccess({
-      'sales.estimate-config': { view: true, update: true },
       'products.price-schedule': { view: true, update: true },
     })
-    mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
     mocks.getPriceChangeScheduleAdmin.mockResolvedValue(makeScheduleRows())
     mocks.updatePriceChangeSchedule.mockResolvedValue({
       category: 'homemulti',
@@ -347,6 +300,5 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
     await screen.findByText('카테고리별 단가변동')
     expect(screen.queryByText('견적 가격 설정')).toBeNull()
     expect(screen.queryByText('옵션 기본값')).toBeNull()
-    expect(mocks.getEstimateConfig).not.toHaveBeenCalled()
   })
 })

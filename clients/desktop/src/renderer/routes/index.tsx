@@ -324,6 +324,7 @@ import { ApprovalDocView } from '../print/ApprovalDocView'
 import { ProductCatalogPage } from './ProductCatalogPage'
 import { EstimateItemsCatalogPage } from './EstimateItemsCatalogPage'
 import { ProductClassificationsPage } from './ProductClassificationsPage'
+import { ProductPriceSchedulePage } from './ProductPriceSchedulePage'
 import { ProductFormPage } from './ProductFormPage'
 
 /**
@@ -557,10 +558,7 @@ const routes = [
         {
           path: '/sales/estimate-config',
           element: (
-            // H1(#17 S4b R1): ACCOUNTANT 는 sales.estimate-config 가 없어도
-            // products.price-schedule VIEW 만으로 도달 가능(OR 판정) — 페이지 내부에서
-            // estimateConfig 폼/단가변동 섹션을 각자 page-code 로 다시 게이팅한다.
-            <PermissionGuard pageCode={['sales.estimate-config', 'products.price-schedule']} action="view">
+            <PermissionGuard pageCode="sales.estimate-config" action="view">
               <EstimatePricingConfigPage />
             </PermissionGuard>
           ),
@@ -1490,6 +1488,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="products.list" action="view">
             <ProductClassificationsPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/products/price-schedule',
+        element: (
+          <PermissionGuard pageCode="products.price-schedule" action="view">
+            <ProductPriceSchedulePage />
           </PermissionGuard>
         ),
       },
