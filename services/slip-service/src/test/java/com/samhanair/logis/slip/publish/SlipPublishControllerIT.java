@@ -212,8 +212,9 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        UUID slipId = OpaqueUuidTestDecoder.decode(objectMapper.readTree(first.getResponse().getContentAsString())
-                .get("data").get("slipId").asText());
+        String slipToken = objectMapper.readTree(first.getResponse().getContentAsString())
+                .get("data").get("slipId").asText();
+        UUID slipId = OpaqueUuidTestDecoder.decode(slipToken);
         jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
                 legacyPartnerOrderFingerprint(body), slipId);
 
@@ -225,7 +226,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.idempotentReplay").value(true))
-                .andExpect(jsonPath("$.data.slipId").value(slipId.toString()));
+                .andExpect(jsonPath("$.data.slipId").value(slipToken));
     }
 
     @Test

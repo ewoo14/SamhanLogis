@@ -532,7 +532,9 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID slipId = readSlipId(first);
+        String slipToken = objectMapper.readTree(first.getResponse().getContentAsString())
+                .get("data").get("slipId").asText();
+        UUID slipId = OpaqueUuidTestDecoder.decode(slipToken);
         jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
                 legacyMergeFingerprint(body), slipId);
 
@@ -544,7 +546,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.idempotentReplay").value(true))
-                .andExpect(jsonPath("$.data.slipId").value(slipId.toString()));
+                .andExpect(jsonPath("$.data.slipId").value(slipToken));
     }
 
     @Test
