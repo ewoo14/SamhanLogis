@@ -14,6 +14,7 @@ import com.samhanair.logis.user.web.dto.InternalEmployeeLookupResponse;
 import com.samhanair.logis.user.web.dto.InternalEmployeeSearchResponse;
 import com.samhanair.logis.user.web.dto.InternalSignatureBatchRequest;
 import com.samhanair.logis.user.web.dto.InternalUserResponse;
+import com.samhanair.logis.user.web.dto.InternalEmployeeCodeResponse;
 import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -179,6 +180,15 @@ public class InternalUserController {
                 emp.getRoleSnapshot(),
                 emp.getDepartment() == null ? null : emp.getDepartment().getName(),
                 emp.getEcountCode()));
+    }
+
+    /** groupware가 사용자 경계에 UUID를 노출하지 않고 employeeCode로 대화 상대를 해석한다. */
+    @GetMapping("/by-employee-code")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<InternalEmployeeCodeResponse> findByEmployeeCode(@RequestParam("employeeCode") String employeeCode) {
+        var employee = employeeRepository.findByEcountCode(employeeCode.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "직원을 찾을 수 없습니다"));
+        return ApiResponse.ok(new InternalEmployeeCodeResponse(employee.getId(), employee.getEcountCode()));
     }
 
     /**

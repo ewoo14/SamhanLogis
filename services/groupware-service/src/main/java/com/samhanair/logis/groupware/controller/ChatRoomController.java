@@ -33,6 +33,19 @@ public class ChatRoomController {
                 .body(ApiResponse.ok(ChatRoomResponse.from(roomService.createDirect(actor, request.participantId()), userClient.resolveProfile(request.participantId()).orElse(null))));
     }
 
+    @PostMapping("/direct/by-employee-code")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> createDirectByEmployeeCode(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actor,
+            @Valid @RequestBody ChatDirectEmployeeCodeRequest request) {
+        UUID participantId = userClient.resolveUserIdByEmployeeCode(request.employeeCode())
+                .orElseThrow(() -> new com.samhanair.logis.common.exception.BusinessException(
+                        com.samhanair.logis.common.exception.ErrorCode.NOT_FOUND, "직원을 찾을 수 없습니다"));
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(ApiResponse.ok(ChatRoomResponse.from(roomService.createDirect(actor, participantId),
+                        userClient.resolveProfile(participantId).orElse(null))));
+    }
+
     @PostMapping("/{roomCode}/messages")
     @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<ChatMessageResponse>> sendMessage(

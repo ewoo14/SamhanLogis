@@ -1,6 +1,7 @@
 export interface ApiEnvelope<T> { data: T; success: boolean; code: string; message: string; timestamp: string }
 
-export interface RecipientOption { userId: string; name: string; department: string | null; employeeCode: string | null }
+export interface MessengerEmployee { employeeCode: string | null; name: string; jobTitle: string; departmentName: string; employmentStatus: 'ACTIVE' }
+export interface MessengerMe extends MessengerEmployee {}
 export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null; partnerName?: string | null; partnerDepartment?: string | null; partnerEmployeeCode?: string | null }
 export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string; senderName?: string | null; senderDepartment?: string | null; senderEmployeeCode?: string | null; mine?: boolean }
 
@@ -19,9 +20,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function fetchChatRooms(): Promise<ChatRoom[]> { return request('/admin/groupware/chat/rooms') }
 export function fetchChatMessages(roomCode: string): Promise<ChatMessage[]> { return request(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`) }
-export function searchRecipients(query: string): Promise<RecipientOption[]> { return request(`/admin/groupware/messages/recipient-search?q=${encodeURIComponent(query)}&limit=10000`) }
-export function createDirectChatRoom(participantId: string): Promise<ChatRoom> {
-  return request('/admin/groupware/chat/rooms/direct', { method: 'POST', body: JSON.stringify({ participantId }) })
+export function fetchMessengerDirectory(): Promise<MessengerEmployee[]> { return request('/users/messenger/directory') }
+export function fetchMessengerMe(): Promise<MessengerMe> { return request('/users/messenger/me') }
+export function createDirectChatRoomByEmployeeCode(employeeCode: string): Promise<ChatRoom> {
+  return request('/admin/groupware/chat/rooms/direct/by-employee-code', { method: 'POST', body: JSON.stringify({ employeeCode }) })
 }
 export function sendChatMessage(roomCode: string, body: string): Promise<ChatMessage> {
   return request(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`, { method: 'POST', body: JSON.stringify({ body }) })

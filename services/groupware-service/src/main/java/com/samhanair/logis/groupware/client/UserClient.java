@@ -68,6 +68,21 @@ public class UserClient implements UserVerifier {
         }
     }
 
+    /** employeeCode는 사용자 경계의 업무 식별자이고 UUID 해석은 service 내부에서만 수행한다. */
+    public Optional<UUID> resolveUserIdByEmployeeCode(String employeeCode) {
+        if (employeeCode == null || employeeCode.isBlank() || internalToken == null || internalToken.isBlank()) return Optional.empty();
+        try {
+            String body = restClient.get().uri(uriBuilder -> uriBuilder.path("/internal/users/by-employee-code")
+                            .queryParam("employeeCode", employeeCode).build())
+                    .header("X-Internal-Token", internalToken).retrieve().body(String.class);
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            return Optional.ofNullable(readUuid(data.get("userId")));
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
+    }
+
     public UserClient(RestClient.Builder builder,
                       ServiceDiscoveryClient discoveryClient,
                       @Value("${samhan.user-service.url:http://localhost:8083}") String baseUrl,
