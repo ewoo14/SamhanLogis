@@ -2156,7 +2156,8 @@ it('new estimate applies the partner 1way DC to the displayed total', async () =
   })
   mocks.lookupProductByModelName.mockResolvedValue({
     productId: 'product-ac023', productName: 'AC023', productType: 'SINGLE',
-    modelCode: 'AC023BN1DBC1', sellingPrice: '316800',
+    modelCode: 'AC023BN1DBC1', discountOption: 'ONE_WAY', classificationAssigned: true,
+    sellingPrice: '316800',
   })
   renderPage('/sales/estimates/new')
   fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
@@ -2164,6 +2165,29 @@ it('new estimate applies the partner 1way DC to the displayed total', async () =
   fireEvent.blur(estimateModel())
   await waitFor(() => expect(estimateUnitPrice().value).toBe('266800'))
   expect(mocks.getPartnerDcConfig).toHaveBeenCalledWith('P-A')
+})
+
+it('RED-C: 거래처 변경 재계산도 분류 정본 ONE_WAY를 적용한다', async () => {
+  mocks.getPartnerDcConfig.mockImplementation(async (partnerCode: string) => ({
+    partnerCode, companyName: 'Partner', homeMultiDc: null,
+    commercialMultiDc: null, flexibleHoseTypeI: null, threeSixty: null,
+    fourWay: null, oneWay: '50000', stand: null, deluxe: null,
+    firstGrade: null, unitProcess: null, remark: null,
+  }))
+  mocks.lookupProductByModelName.mockResolvedValue({
+    productId: 'product-ac023', productName: 'AC023', productType: 'SINGLE',
+    modelCode: 'UNCLASSIFIED-MODEL', discountOption: 'ONE_WAY', classificationAssigned: true,
+    sellingPrice: '316800',
+  })
+  renderPage('/sales/estimates/new')
+  fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
+  fireEvent.change(estimateModel(), { target: { value: 'AC023BN1DBC1' } })
+  fireEvent.blur(estimateModel())
+
+  await waitFor(() => expect(mocks.getPriceMemory).toHaveBeenCalledWith(mocks.partnerA.id, 'product-ac023'))
+  fireEvent.click(screen.getByTestId('estimate-select-partner-b'))
+  await waitFor(() => expect(mocks.getPriceMemories).toHaveBeenCalledWith(mocks.partnerB.id, ['product-ac023']))
+  await waitFor(() => expect(estimateUnitPrice().value).toBe('266800'))
 })
 
 function totalsRowText(container: HTMLElement, label: string): string {

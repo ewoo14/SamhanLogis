@@ -136,6 +136,8 @@ interface DraftLine {
   /** 품목 유형 — "SINGLE" | "BUNDLE". BUNDLE 일 때만 세트 옵션 노출. */
   productType: string | null
   modelCode?: string | null
+  discountOption?: ProductOption['discountOption']
+  classificationAssigned?: boolean
   categoryKey?: string | null
   hasVariableDiscount?: boolean | null
   fixedDiscountRate?: number | null
@@ -174,6 +176,8 @@ const emptyLine = (): DraftLine => ({
   lookupLoading: false,
   productType: null,
   modelCode: null,
+  discountOption: null,
+  classificationAssigned: undefined,
   categoryKey: null,
   hasVariableDiscount: null,
   fixedDiscountRate: null,
@@ -317,6 +321,8 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           lookupLoading: false,
           // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음.
           productType: null,
+          discountOption: undefined,
+          classificationAssigned: undefined,
           goodsType: null,
           setOptions: line.setOptions ?? emptyBundleSetOptions(),
         }
@@ -468,6 +474,8 @@ function coeditLinesToDraftLines(
         : previous?.lookupError ?? null,
       lookupLoading: previous?.lookupLoading ?? false,
       productType: previous?.productType ?? null,
+      discountOption: previous?.discountOption ?? null,
+      classificationAssigned: previous?.classificationAssigned,
       setOptions: previous?.setOptions ?? emptyBundleSetOptions(),
     }
   })
@@ -1392,6 +1400,8 @@ export function EstimateFormPage() {
         ...(partnerDcConfigRef.current
           ? {
               discountInput: {
+                classificationOptions: line.discountOption ? [line.discountOption] : [],
+                classificationAssigned: line.classificationAssigned,
                 modelCode: line.modelCode,
                 fixedDiscountRate: line.fixedDiscountRate,
                 category: line.categoryKey === 'homemulti'
@@ -1567,6 +1577,10 @@ export function EstimateFormPage() {
           ? rawResult.fixedDiscountSource ?? null
           : null,
         modelCode: 'modelCode' in rawResult ? rawResult.modelCode ?? null : null,
+        discountOption: 'discountOption' in rawResult ? rawResult.discountOption ?? null : null,
+        classificationAssigned: 'classificationAssigned' in rawResult
+          ? rawResult.classificationAssigned
+          : undefined,
         categoryKey: 'categoryKey' in rawResult ? rawResult.categoryKey ?? null : null,
         hasVariableDiscount: 'hasVariableDiscount' in rawResult
           ? rawResult.hasVariableDiscount ?? null
@@ -1590,6 +1604,8 @@ export function EstimateFormPage() {
         ? resolveEstimateNewLinePrice({
             sellingPrice: Number(result.sellingPrice),
             modelCode: result.modelCode,
+            classificationOptions: result.discountOption ? [result.discountOption] : [],
+            classificationAssigned: result.classificationAssigned,
             fixedDiscountRate: result.fixedDiscountRate,
             categoryKey: result.categoryKey,
             hasVariableDiscount: result.hasVariableDiscount,
@@ -1677,6 +1693,8 @@ export function EstimateFormPage() {
         specificationSource: nextSpecificationSource,
         productType: result.productType ?? 'SINGLE',
         modelCode: result.modelCode,
+        discountOption: result.discountOption,
+        classificationAssigned: result.classificationAssigned,
         categoryKey: result.categoryKey,
         hasVariableDiscount: result.hasVariableDiscount,
         fixedDiscountRate: result.fixedDiscountRate,
@@ -1762,6 +1780,8 @@ export function EstimateFormPage() {
         modelName: '',
         productName: '',
         productType: null,
+        discountOption: null,
+        classificationAssigned: undefined,
         goodsType: null,
         status: null,
         catalogUnitPrice: null,

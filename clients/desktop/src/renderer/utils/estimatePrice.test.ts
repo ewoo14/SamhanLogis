@@ -15,10 +15,45 @@ describe('견적 카탈로그 단가', () => {
       appliedRate: 0,
     })
   })
+
+  it('정액DC RED-A: 분류 정본 ONE_WAY를 판매가 316800원에 적용한다', () => {
+    expect(resolveEstimateNewLinePrice({
+      sellingPrice: 316800,
+      modelCode: null,
+      classificationOptions: ['ONE_WAY'],
+      classificationAssigned: true,
+      fixedDiscountRate: null,
+      categoryKey: null,
+      hasVariableDiscount: false,
+    }, {
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      oneWay: '50000',
+    })).toEqual({ unitPrice: 266800, appliedRate: 0 })
+  })
+
+  it('정액DC RED-B: 전환 대기 품목은 AC023BN1DBC1 레거시 판별을 적용한다', () => {
+    expect(resolveEstimateNewLinePrice({
+      sellingPrice: 316800,
+      modelCode: 'AC023BN1DBC1',
+      classificationOptions: [],
+      classificationAssigned: false,
+      fixedDiscountRate: null,
+      categoryKey: null,
+      hasVariableDiscount: false,
+    }, {
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      oneWay: '50000',
+    })).toEqual({ unitPrice: 266800, appliedRate: 0 })
+  })
+
   it('RED-C: new estimate applies the 50,000 KRW 1way discount to AC023BN1DBC1', () => {
     expect(resolveEstimateNewLinePrice({
       sellingPrice: 316800,
       modelCode: 'AC023BN1DBC1',
+      classificationOptions: [],
+      classificationAssigned: false,
       fixedDiscountRate: null,
       categoryKey: null,
       hasVariableDiscount: false,

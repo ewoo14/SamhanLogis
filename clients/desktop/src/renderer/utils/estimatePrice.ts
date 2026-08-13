@@ -1,5 +1,9 @@
 /** 견적 자동단가에 product-service가 반환한 유효 분류 정액DC를 적용한다. */
-import { calculateSlipDiscount, type SlipDiscountConfig } from './slipDiscount'
+import {
+  calculateSlipDiscount,
+  type ClassificationDiscountOption,
+  type SlipDiscountConfig,
+} from './slipDiscount'
 
 export function resolveEstimateCatalogPrice(
   sellingPrice: number,
@@ -19,6 +23,8 @@ export function resolveEstimateCatalogPrice(
 export interface EstimateNewLinePriceInput {
   sellingPrice: number
   modelCode?: string | null
+  classificationOptions?: ClassificationDiscountOption[] | null
+  classificationAssigned?: boolean
   fixedDiscountRate?: number | null
   categoryKey?: string | null
   hasVariableDiscount?: boolean | null
@@ -37,6 +43,8 @@ export function resolveEstimateNewLinePrice(
   const result = calculateSlipDiscount({
     listPrice: Number.isFinite(input.sellingPrice) ? input.sellingPrice : 0,
     modelCode: input.modelCode,
+    classificationOptions: input.classificationOptions,
+    classificationAssigned: input.classificationAssigned,
     fixedDiscountRate: input.fixedDiscountRate,
     category,
     hasVariableDiscount: input.hasVariableDiscount,
