@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.AuditStatus;
 import com.samhanair.logis.inventory.domain.InventoryAudit;
 import com.samhanair.logis.inventory.domain.InventoryAuditLine;
@@ -17,6 +18,7 @@ import java.util.UUID;
 public record AuditDetailResponse(
         UUID id,
         String auditNo,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         String warehouseCode,
         String warehouseName,

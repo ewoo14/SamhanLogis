@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import java.util.List;
@@ -42,6 +43,7 @@ public record ProductBalanceResponse(
      * @param totalQty      총 재고
      */
     public record WarehouseBalance(
+            @JsonSerialize(using = OpaqueUuidSerializer.class)
             UUID warehouseId,
             String warehouseCode,
             String warehouseName,

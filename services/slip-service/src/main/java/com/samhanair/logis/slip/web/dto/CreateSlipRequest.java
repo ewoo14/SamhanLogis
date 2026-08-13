@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.SlipType;
 import jakarta.validation.Valid;
@@ -49,7 +50,9 @@ import java.util.UUID;
 public record CreateSlipRequest(
         @NotNull SlipType slipType,
         LocalDate slipDate,
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         UUID sourceWarehouseId,
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         UUID destinationWarehouseId,
         UUID partnerId,
         @Size(max = 100) String partnerName,

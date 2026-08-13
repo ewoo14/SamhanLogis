@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -11,6 +12,7 @@ import java.util.UUID;
 /** 입고 요청 — 새 StockLot 생성 + StockBalance 가산. */
 public record InboundRequest(
         @NotNull UUID productId,
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         @NotNull UUID warehouseId,
         @Size(max = 50) String lotNo,
         UUID inboundLineId,

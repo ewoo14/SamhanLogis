@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -11,6 +12,7 @@ import java.util.UUID;
  */
 public record DeductRequest(
         @NotNull UUID productId,
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         @NotNull UUID warehouseId,
         @NotNull @Positive Integer quantity,
         Boolean fromReservation,

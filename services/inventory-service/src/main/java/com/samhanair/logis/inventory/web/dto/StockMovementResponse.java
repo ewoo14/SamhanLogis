@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.MovementType;
 import com.samhanair.logis.inventory.domain.StockMovement;
 import java.time.LocalDateTime;
@@ -10,6 +11,7 @@ public record StockMovementResponse(
         UUID id,
         UUID lotId,
         UUID productId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         MovementType movementType,
         int quantityDelta,

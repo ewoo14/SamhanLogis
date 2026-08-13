@@ -959,7 +959,7 @@ const mockCompensationResolvedIds = new Set<string>(
 /** 시드 창고 (V2 시드 4종 + Phase 2.6d 전창고 머지 검증용 신규 1종) */
 const MOCK_WAREHOUSES = [
   {
-    id: '11111111-1111-1111-1111-000000000001',
+    id: 'EREREREREREREQAAAAAAAQ',
     code: 'HQ-001',
     name: '본사창고',
     type: 'HEADQUARTERS',
@@ -969,7 +969,7 @@ const MOCK_WAREHOUSES = [
     description: '본사 보유 메인 창고',
   },
   {
-    id: '11111111-1111-1111-1111-000000000002',
+    id: 'EREREREREREREQAAAAAAAg',
     code: 'VH-001',
     name: '1호차 차량재고',
     type: 'VEHICLE',
@@ -979,7 +979,7 @@ const MOCK_WAREHOUSES = [
     description: '출장 차량 이동 재고 (창고원/기사 단위)',
   },
   {
-    id: '11111111-1111-1111-1111-000000000003',
+    id: 'EREREREREREREQAAAAAAAw',
     code: 'CS-001',
     name: '거래처 위탁창고',
     type: 'CONSIGNMENT',
@@ -989,7 +989,7 @@ const MOCK_WAREHOUSES = [
     description: '거래처에 위탁한 재고 (소유권은 자사)',
   },
   {
-    id: '11111111-1111-1111-1111-000000000004',
+    id: 'EREREREREREREQAAAAAABA',
     code: 'VR-001',
     name: '가상창고',
     type: 'VIRTUAL',
@@ -1004,7 +1004,7 @@ const MOCK_WAREHOUSES = [
    * FE fetchProductBalancesMatrix 가 0/0/0 으로 채우는지 검증 가능.
    */
   {
-    id: '11111111-1111-1111-1111-000000000005',
+    id: 'EREREREREREREQAAAAAABQ',
     code: 'BK-001',
     name: '백업창고',
     type: 'CONSIGNMENT',
@@ -1018,6 +1018,22 @@ const MOCK_WAREHOUSES = [
 /** noUncheckedIndexedAccess 회피용 — 4 시드 명시 참조 */
 const HQ_ID = MOCK_WAREHOUSES[0]!.id
 const VH_ID = MOCK_WAREHOUSES[1]!.id
+
+/** 레거시 mock fixture의 raw UUID를 실제 API 응답과 같은 opaque token으로 변환한다. */
+const toOpaqueWarehouseId = (id: string | null): string | null => {
+  if (id === '11111111-1111-1111-1111-000000000001') return HQ_ID
+  if (id === '11111111-1111-1111-1111-000000000002') return VH_ID
+  return id
+}
+
+const toOpaqueSlipWarehouseIds = <T extends {
+  sourceWarehouseId: string | null
+  destinationWarehouseId: string | null
+}>(row: T): T => ({
+  ...row,
+  sourceWarehouseId: toOpaqueWarehouseId(row.sourceWarehouseId),
+  destinationWarehouseId: toOpaqueWarehouseId(row.destinationWarehouseId),
+})
 
 /**
  * Slice C: 서명 mock fixture — 1×1 빨강 PNG dataURL.
@@ -2164,14 +2180,14 @@ const SAMPLE_TRANSFER_LINES = [
  */
 /**
  * BE `SafetyStockAlertResponse` record 와 1:1 정합 (TM PR #143 cross-check).
- * V8 seed BELOW 3건과 동일 결정적 UUID 사용.
+ * V8 seed BELOW 3건과 동일 결정적 warehouse opaque token 사용.
  */
 const MOCK_SAFETY_STOCK_ALERTS = [
   {
     productId: 'a0a0a0a0-0000-0000-0000-000000000002',
     productCode: 'AJ056RXH4BC1',
     productName: '시스템에어컨 멀티 5.6kW',
-    warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseId: HQ_ID,
     warehouseName: 'HQ 본사 창고',
     threshold: 50,
     currentQty: 43,
@@ -2182,7 +2198,7 @@ const MOCK_SAFETY_STOCK_ALERTS = [
     productId: 'a0a0a0a0-0000-0000-0000-000000000003',
     productCode: 'AM100RXMDH',
     productName: '시스템에어컨 실외기 10마력',
-    warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseId: HQ_ID,
     warehouseName: 'HQ 본사 창고',
     threshold: 30,
     currentQty: 27,
@@ -2193,7 +2209,7 @@ const MOCK_SAFETY_STOCK_ALERTS = [
     productId: 'a0a0a0a0-0000-0000-0000-000000000001',
     productCode: 'AJ040RXH4BC1',
     productName: '시스템에어컨 싱글 4.0kW',
-    warehouseId: '11111111-1111-1111-1111-000000000002',
+    warehouseId: VH_ID,
     warehouseName: 'VH 분원 창고',
     threshold: 10,
     currentQty: 6,
@@ -2726,7 +2742,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && url.endsWith('/inventory/warehouses')) {
     const body = parseMockBody(config) as Record<string, unknown>
     return envelope({
-      id: 'new-' + Date.now(),
+      id: 'EREREREREREREQAAAAAABg',
       code: body['code'],
       name: body['name'],
       type: body['type'],
@@ -5171,7 +5187,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )
 
     const start = pageNo * pageSize
-    const pageContent = allRows.slice(start, start + pageSize)
+    const pageContent = allRows.slice(start, start + pageSize).map(toOpaqueSlipWarehouseIds)
     const totalElements = allRows.length
     const totalPages = Math.ceil(totalElements / pageSize)
 
@@ -10302,11 +10318,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (auditMatch && auditMatch[1] !== 'new') {
       const id = auditMatch[1]!
       const found = MOCK_INVENTORY_AUDITS.find((a) => a.id === id) ?? MOCK_INVENTORY_AUDITS[0]!
-      return envelope(found)
+      return envelope({ ...found, warehouseId: toOpaqueWarehouseId(found.warehouseId) })
     }
+    const auditUrl = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const configuredWarehouseId = String(
+      config.params?.['warehouseId'] ?? auditUrl.searchParams.get('warehouseId') ?? '',
+    )
+    const audits = MOCK_INVENTORY_AUDITS
+      .map((audit) => ({ ...audit, warehouseId: toOpaqueWarehouseId(audit.warehouseId) }))
+      .filter((audit) => !configuredWarehouseId || audit.warehouseId === configuredWarehouseId)
     return envelope({
-      content: MOCK_INVENTORY_AUDITS,
-      totalElements: MOCK_INVENTORY_AUDITS.length,
+      content: audits,
+      totalElements: audits.length,
       totalPages: 1,
       number: 0,
       size: 20,
@@ -16189,7 +16212,7 @@ const MOCK_INVENTORY_AUDITS = [
     id: 'ia-001',
     auditNo: '2026/05/08-1',
     auditDate: '2026-05-08',
-    warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseId: HQ_ID,
     warehouseCode: 'HQ-001',
     warehouseName: '본사창고',
     status: 'PLANNED' as const,
@@ -16205,7 +16228,7 @@ const MOCK_INVENTORY_AUDITS = [
     id: 'ia-002',
     auditNo: '2026/05/09-1',
     auditDate: '2026-05-09',
-    warehouseId: '11111111-1111-1111-1111-000000000002',
+    warehouseId: VH_ID,
     warehouseCode: 'VH-001',
     warehouseName: '1호차 차량재고',
     status: 'IN_PROGRESS' as const,
@@ -16220,7 +16243,7 @@ const MOCK_INVENTORY_AUDITS = [
     id: 'ia-003',
     auditNo: '2026/04/30-1',
     auditDate: '2026-04-30',
-    warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseId: HQ_ID,
     warehouseCode: 'HQ-001',
     warehouseName: '본사창고',
     status: 'COMPLETED' as const,

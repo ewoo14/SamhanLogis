@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.StockTransfer;
 import com.samhanair.logis.inventory.domain.StockTransferLine;
 import com.samhanair.logis.inventory.domain.TransferReason;
@@ -12,8 +13,10 @@ import java.util.UUID;
 public record TransferDetailResponse(
         UUID id,
         String transferNo,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID sourceWarehouseId,
         String sourceWarehouseCode,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID destinationWarehouseId,
         String destinationWarehouseCode,
         TransferReason reason,

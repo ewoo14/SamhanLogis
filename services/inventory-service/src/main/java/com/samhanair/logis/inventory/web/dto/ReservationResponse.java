@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.util.UUID;
 
 /**
@@ -15,6 +16,7 @@ import java.util.UUID;
  */
 public record ReservationResponse(
         UUID productId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         int quantity,
         int availableQty,

@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.domain.StockInstanceQuality;
@@ -23,6 +24,7 @@ public record StockInstanceResponse(
         /** 제품 UUID — API key */
         UUID productId,
         /** 창고 UUID — API key */
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         /** 인스턴스 상태 — 사용자 표시용 */
         StockInstanceStatus status,

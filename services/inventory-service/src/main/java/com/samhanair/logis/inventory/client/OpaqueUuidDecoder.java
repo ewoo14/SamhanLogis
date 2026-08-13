@@ -5,12 +5,22 @@ import java.util.Base64;
 import java.util.UUID;
 
 /** slip-service wire 계약의 opaque UUID token을 inventory 내부 UUID로 복원한다. */
-final class OpaqueUuidDecoder {
+public final class OpaqueUuidDecoder {
 
     private OpaqueUuidDecoder() {
     }
 
-    static UUID decode(String value) {
+    public static String encode(UUID value) {
+        if (value == null) {
+            return null;
+        }
+        ByteBuffer buffer = ByteBuffer.allocate(16);
+        buffer.putLong(value.getMostSignificantBits());
+        buffer.putLong(value.getLeastSignificantBits());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer.array());
+    }
+
+    public static UUID decode(String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("유효하지 않은 전표 식별자입니다.");
         }

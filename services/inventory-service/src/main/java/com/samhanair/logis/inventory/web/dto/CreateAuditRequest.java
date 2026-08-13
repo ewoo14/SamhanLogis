@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -13,6 +14,7 @@ import java.util.UUID;
  * @param auditDate   실사 기준 일자 (필수)
  */
 public record CreateAuditRequest(
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         @NotNull(message = "warehouseId 는 필수입니다") UUID warehouseId,
         @NotNull(message = "auditDate 는 필수입니다") LocalDate auditDate) {
 }

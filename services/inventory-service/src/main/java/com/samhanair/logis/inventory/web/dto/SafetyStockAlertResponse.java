@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.SafetyStockConfig;
 import java.util.UUID;
 
@@ -18,7 +19,7 @@ import java.util.UUID;
  * @param productId     제품 UUID
  * @param productCode   제품 코드 (예: AJ040RXH4BC1) — 사용자 노출용. null 가능 (제품 미동기)
  * @param productName     모델명 — 사용자 노출용. null 가능
- * @param warehouseId   창고 UUID (null = 전체 창고 합산 기준)
+ * @param warehouseId   창고 opaque token (null = 전체 창고 합산 기준)
  * @param warehouseName 창고명 — 사용자 노출용. warehouseId == null 일 때 "전체" 표기
  * @param threshold     안전재고 임계값
  * @param currentQty    현재 가용 재고 수량 (availableQty 합계)
@@ -29,6 +30,7 @@ public record SafetyStockAlertResponse(
         UUID productId,
         String productCode,
         String productName,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         String warehouseName,
         int threshold,
