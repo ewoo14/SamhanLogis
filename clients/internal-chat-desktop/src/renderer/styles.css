@@ -11,3 +11,15 @@ small { color: #71809a; line-height: 1.5; }
 .version-notice { inset-block-start: 16px; inset-block-end: auto; }
 .policy-error-notice { border-color: #fca5a5; color: #991b1b; background: #fef2f2; }
 .update-notice { inset-block-end: 72px; }
+.claude-panel { width: min(100%, 720px); margin: 24px auto 0; padding: 20px; border: 1px solid #d8e0ec; border-radius: 14px; background: #fff; text-align: left; box-shadow: 0 10px 24px #0f172a12; }
+.claude-panel h2 { margin: 0; font-size: 20px; }
+.claude-panel header p { margin-top: 6px; }
+.claude-history { min-height: 96px; margin: 16px 0; padding: 12px; border-radius: 10px; background: #f4f7fb; }
+.claude-history p { margin: 8px 0; white-space: pre-wrap; }
+.claude-form { display: grid; gap: 8px; }
+.claude-form textarea { width: 100%; resize: vertical; padding: 10px; border: 1px solid #b8c4d6; border-radius: 8px; font: inherit; }
+.claude-form button, .claude-deep-link { width: fit-content; border: 0; border-radius: 8px; padding: 9px 12px; color: #fff; background: #1c8c78; cursor: pointer; }
+.claude-form button:disabled { opacity: .6; cursor: wait; }
+.claude-deep-link { margin-top: 12px; color: #1c5d8c; background: #e8f1f8; }
+.claude-status { min-height: 20px; margin-top: 12px; color: #991b1b; }
+.claude-muted { color: #71809a; }

@@ -1,4 +1,5 @@
 import './styles.css'
+import { mountClaudeConversation } from './claude/claude-view'
 
 type UpdateStatus =
   | { kind: 'checking' }
@@ -44,6 +45,7 @@ root.innerHTML = `
 `
 
 const shell = root.querySelector<HTMLElement>('.shell')
+if (shell) mountClaudeConversation(shell)
 let updateStatusNotice: HTMLElement | null = null
 let installStarted = false
 

@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+contextBridge.exposeInMainWorld('internalChatNavigation', {
+  openDeepLink: (link: string): Promise<{ opened: boolean; message?: string }> =>
+    ipcRenderer.invoke('navigation:open-deep-link', link),
+})
+
 contextBridge.exposeInMainWorld('internalChatShell', {
   appName: '삼한이 메신저',
 })

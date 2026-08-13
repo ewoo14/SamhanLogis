@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray } from 'electron'
+import { app, BrowserWindow, Menu, Tray, ipcMain, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { registerAutoUpdateIpcHandlers } from './auto-update.js'
@@ -9,6 +9,18 @@ const __dirname = dirname(__filename)
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
+
+function validateDeepLink(link: unknown): string | null {
+  if (typeof link !== 'string') return null
+  try {
+    const url = new URL(link)
+    if (url.protocol !== 'samhan:' || url.hostname !== 'arologis' || url.pathname !== '/dispatches/manual') return null
+    if (url.search || url.hash || /[0-9a-f]{8}-[0-9a-f-]{27}/i.test(link)) return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
 
 function trayIconPath(): string {
   return app.isPackaged
@@ -68,6 +80,16 @@ const hasLock = app.requestSingleInstanceLock()
 if (!hasLock) {
   app.quit()
 } else {
+  ipcMain.handle('navigation:open-deep-link', async (_event, link: unknown) => {
+    const validated = validateDeepLink(link)
+    if (!validated) return { opened: false, message: '허용되지 않은 딥링크입니다.' }
+    try {
+      await shell.openExternal(validated)
+      return { opened: true }
+    } catch {
+      return { opened: false, message: '대상 앱을 열 수 없습니다.' }
+    }
+  })
   app.on('second-instance', () => showMainWindow())
   app.whenReady().then(() => {
     registerAutoUpdateIpcHandlers()
