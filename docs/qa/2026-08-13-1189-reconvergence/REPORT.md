@@ -239,3 +239,220 @@ message=원천 전표가 확정 상태가 아닙니다 (전표=2026/08/13-1, 상
 **머지 보류.**
 
 도달 결함은 0건이고 직접 관측한 두 surface는 통과했다. 그러나 질문이 지정한 네 곳 중 매출·매입 회계전표의 성공 `onSuccess`가 실제로 실행되지 않아 “4곳 모두 고쳐졌고 정상 경로도 온전하다”는 머지 게이트를 충족하지 못했다. accounting/inventory backend를 HEAD 대응 빌드로 올리고, 고정 거래처에 CONFIRMED OUTBOUND/INBOUND 원천 각 1건을 준비한 뒤 두 회계 저장을 재실행해야 한다.
+
+## 라운드 2
+
+- 대상: `feat/1142-completed-slip-revert`, HEAD `bfa5c4af8b35f86c85cb81aeadc68a77722869e8`
+- 수행: 2026-08-13 20:04~20:16 KST
+- 고정 레인: `P-2026-0017 · 원주에어컨공업`
+- 결론: 판매·입고 원천을 모두 실제 화면에서 `CONFIRMED`로 전환한 뒤 매출·매입 회계전표 성공 `onSuccess`를 실제 실행했다. 두 저장 모두 HTTP 200, 직후 목록 GET 200, document reload 0회, 신규 행 즉시 표시로 PASS다. 도달 가능한 결함은 0건이며 **머지 권고**한다.
+
+### 1. 환경 확인 원문
+
+Git 명령은 사용하지 않았다. worktree metadata를 직접 읽은 원문이다.
+
+```text
+HEAD_RAW=ref: refs/heads/feat/1142-completed-slip-revert
+HEAD_SHA=bfa5c4af8b35f86c85cb81aeadc68a77722869e8
+```
+
+시작 RAM과 컨테이너 생성시각 원문:
+
+```text
+AVAILABLE_RAM_GB=22.416
+/samhan-slip-service       2026-08-12T17:53:07.461758521Z running
+/samhan-accounting-service 2026-08-11T17:59:58.936343007Z running
+/samhan-inventory-service  2026-08-11T17:59:58.933815104Z running
+```
+
+이미지 생성시각 원문:
+
+```text
+samhan-slip-service       2026-08-12T17:52:59.907441518Z
+samhan-accounting-service 2026-08-11T04:31:45.373083397Z
+samhan-inventory-service  2026-08-11T15:02:52.72173765Z
+```
+
+즉 slip-service만 2026-08-12 빌드이고 accounting/inventory는 2026-08-11 혼합 이미지다. backend commit label은 없어 SHA는 관측 불가로 유지했다. 프론트는 위 HEAD의 desktop renderer를 `http://127.0.0.1:5189`에 띄웠고 mock/fixture는 사용하지 않았다. Playwright Chromium 단일 브라우저의 context를 계정별로 분리해 사용했다. 실행 중 재확인 RAM은 23.439GB, 산출물 작성 직전은 21.770GB로 1.0GB 중단선에 접근하지 않았다.
+
+종료 정리 원문:
+
+```text
+ACTUAL_PLAYWRIGHT_BROWSER_COUNT=0
+ACTUAL_W1142_VITE_NODE_COUNT=0
+PORT_5189_LISTENER_COUNT=0
+FINAL_AVAILABLE_RAM_GB=21.376
+```
+
+### 2. 원천 전표 확정 — 화면 동선과 응답 원문
+
+#### 입고전표 `2026/08/13-1`
+
+구매관리 목록의 `상세`로 들어가 입고전표 상세 하단의 정상 버튼을 순서대로 눌렀다.
+
+```text
+완료 (저장)                                      POST /slips/{id}/save     200 SAVED
+완료 (전송)                                      POST /slips/{id}/send     200 SENT
+완료 (수락)                                      POST /slips/{id}/accept   200 ACCEPTED
+완료 (처리 시작)                                 POST /slips/{id}/process  200 PROCESSING
+완료 (재고 반영 후 검수 대기 (입고 완료))        POST /slips/{id}/complete 200 INSPECTING
+완료 (처리 완료)                                 POST /slips/{id}/inspect  200 COMPLETED
+완료 (확정)                                      POST /slips/{id}/confirm  200 CONFIRMED
+```
+
+최종 확정 응답 원문:
+
+```json
+{"success":true,"code":"OK","message":"성공","data":{"id":"0abaf821-fe34-49d2-bb8e-e856d17a3f77","slipType":"INBOUND","slipNo":"2026/08/13-1","slipDate":"2026-08-13","seqNo":1,"status":"CONFIRMED","partnerName":"원주에어컨공업","partnerCode":"P-2026-0017","confirmedAt":"2026-08-13T20:09:05.281377873","version":6}}
+```
+
+스크린샷:
+
+- `round2-purchase-source-before-confirm.png`
+- `round2-purchase-source-confirm-ready.png`
+- `round2-purchase-source-after-confirm.png`
+
+#### 판매전표 `2026/08/13-3`
+
+판매관리 목록의 `상세`로 들어가 같은 하단 정상 버튼을 밟았다. 처음에는 `DRAFT→SAVED→SENT` 후 재고 부족으로 `accept`가 409였다. 같은 고정 거래처 입고전표를 위 정상 화면 동선으로 입고·확정한 다음 재시도해 `ACCEPTED→PROCESSING→INSPECTING`까지 진행했다.
+
+`INSPECTING`에서 `dev_master`의 버튼은 결재라인 자격 때문에 비활성이었다. 화면 밖 우회를 하지 않고 실제 결재라인 조회에서 지정된 `김은지(kimeunji) · ACCOUNTANT` 정상 계정으로 로그인했다. 해당 계정 화면은 `canInspect=true`, `완료 (처리 완료)` 활성 상태였고 이후 전이를 끝까지 실행했다.
+
+```text
+김은지 화면  완료 (처리 완료)  POST /slips/{id}/inspect  200 COMPLETED
+김은지 화면  완료 (배송 시작)  POST /slips/{id}/ship     200 SHIPPING
+김은지 화면  완료 (배송 완료)  POST /slips/{id}/deliver  200 DELIVERED
+김은지 화면  완료 (확정)       POST /slips/{id}/confirm  200 CONFIRMED
+```
+
+최종 확정 응답 원문:
+
+```json
+{"success":true,"code":"OK","message":"성공","data":{"id":"978b7588-0920-4a85-8722-462acc4eaa6a","slipType":"OUTBOUND","slipNo":"2026/08/13-3","slipDate":"2026-08-13","seqNo":3,"status":"CONFIRMED","partnerName":"원주에어컨공업","partnerCode":"P-2026-0017","confirmedAt":"2026-08-13T20:14:57.77414307","inspectorUserId":"c5af1500-ffa1-493d-b57e-3907c0c5f9c7","version":8}}
+```
+
+스크린샷:
+
+- `round2-sales-source-before-confirm.png`
+- `round2-sales-source-confirm-ready.png`
+- `round2-sales-source-after-confirm.png`
+
+### 3. 매출 회계전표 — 저장 원문과 즉시 목록 갱신
+
+매출전표 목록을 먼저 열어 `GET /admin/sales-slips?...` query를 warm했다. SPA의 `작성` 버튼으로 진입해 확정 원천 `2026/08/13-3`만 100% 배분했다. 헤더가 `P-2026-0017 · 원주에어컨공업`으로 바뀐 것을 화면에서 확인한 뒤 `임시저장`을 눌렀다.
+
+저장 원문:
+
+```text
+POST /admin/sales-slips 200
+{"id":"346719c9-538c-4353-a0ee-952b7b040cc9","slipNo":"2026/08/13-5591","slipDate":"2026-08-13","partnerCode":"P-2026-0017","partnerName":"원주에어컨공업","taxType":"TAXABLE","status":"DRAFT","totalSupplyAmount":910000,"totalVatAmount":91000,"totalAmount":1001000,"memo":null,"lines":[{"lineNo":1,"productCode":"실내기 DUCT(고정압) 28평형","productName":"실내기 DUCT(고정압) 28평형","qty":1,"unitPrice":1001000,"supplyAmount":910000,"vatAmount":91000,"lineTotal":1001000,"allocations":[{"sourceSlipNo":"2026/08/13-3","sourceLineNo":1,"allocatedQty":1,"allocatedAmount":1001000}]}]}
+```
+
+`onSuccess` 직후 원문과 화면 결과:
+
+```text
+GET /admin/sales-slips?from=2026-08-01&to=2026-08-13 200
+[{"id":"346719c9-538c-4353-a0ee-952b7b040cc9","slipNo":"2026/08/13-5591","slipDate":"2026-08-13","partnerCode":"P-2026-0017","partnerName":"원주에어컨공업","taxType":"TAXABLE","status":"DRAFT","totalSupplyAmount":910000.00,"totalVatAmount":91000.00,"totalAmount":1001000.00,"memo":null,"lines":[{"lineNo":1,"productCode":"실내기 DUCT(고정압) 28평형","productName":"실내기 DUCT(고정압) 28평형","qty":1.000,"unitPrice":1001000.00,"supplyAmount":910000.00,"vatAmount":91000.00,"lineTotal":1001000.00,"allocations":[{"sourceSlipNo":"2026/08/13-3","sourceLineNo":1,"allocatedQty":1.000,"allocatedAmount":1001000.00}]}]}]
+documentRequestsAfterSave=0
+화면 첫 행=2026/08/13-5591 · 원주에어컨공업 · 임시저장 · 1,001,000
+```
+
+- 정상 저장: **PASS**
+- document reload 없는 목록 즉시 갱신: **PASS**
+- 스크린샷: `round2-sales-accounting-before-save.png`, `round2-sales-accounting-save-ready.png`, `round2-sales-accounting-after-save-list.png`
+
+### 4. 매입 회계전표 — 저장 원문과 즉시 목록 갱신
+
+매입전표 목록을 먼저 열어 `GET /admin/purchase-slips?...` query를 warm했다. SPA의 `작성` 버튼으로 진입해 확정 원천 `2026/08/13-1`을 100% 배분하고, 헤더의 고정 거래처를 확인한 뒤 `임시저장`을 눌렀다.
+
+저장 원문:
+
+```text
+POST /admin/purchase-slips 200
+{"id":"d6348798-1586-44b0-8d8c-9e369a996194","slipNo":"2026/08/13-6831","slipDate":"2026-08-13","partnerCode":"P-2026-0017","partnerName":"원주에어컨공업","taxType":"TAXABLE","status":"DRAFT","totalSupplyAmount":546000,"totalVatAmount":54600,"totalAmount":600600,"memo":null,"lines":[{"lineNo":1,"productCode":"실내기 DUCT(고정압) 28평형","productName":"실내기 DUCT(고정압) 28평형","qty":1,"unitPrice":600600,"supplyAmount":546000,"vatAmount":54600,"lineTotal":600600,"allocations":[{"sourceSlipNo":"2026/08/13-1","sourceLineNo":1,"allocatedQty":1,"allocatedAmount":600600}]}]}
+```
+
+`onSuccess` 직후 원문과 화면 결과:
+
+```text
+GET /admin/purchase-slips?from=2026-08-01&to=2026-08-13 200
+[{"id":"d6348798-1586-44b0-8d8c-9e369a996194","slipNo":"2026/08/13-6831","slipDate":"2026-08-13","partnerCode":"P-2026-0017","partnerName":"원주에어컨공업","taxType":"TAXABLE","status":"DRAFT","totalSupplyAmount":546000.00,"totalVatAmount":54600.00,"totalAmount":600600.00,"memo":null,"lines":[{"lineNo":1,"productCode":"실내기 DUCT(고정압) 28평형","productName":"실내기 DUCT(고정압) 28평형","qty":1.000,"unitPrice":600600.00,"supplyAmount":546000.00,"vatAmount":54600.00,"lineTotal":600600.00,"allocations":[{"sourceSlipNo":"2026/08/13-1","sourceLineNo":1,"allocatedQty":1.000,"allocatedAmount":600600.00}]}]}]
+documentRequestsAfterSave=0
+화면 첫 행=2026/08/13-6831 · 원주에어컨공업 · 임시저장 · 600,600
+```
+
+- 정상 저장: **PASS**
+- document reload 없는 목록 즉시 갱신: **PASS**
+- 스크린샷: `round2-purchase-accounting-before-save.png`, `round2-purchase-accounting-save-ready.png`, `round2-purchase-accounting-after-save-list.png`
+
+### 5. 도달 가능한 결함
+
+**0건.**
+
+매출·매입 회계전표 모두 성공 mutation 뒤 해당 coarse query가 즉시 재조회됐고, 새 행이 document reload 없이 목록에 나타났다. 저장 자체도 정상 동작했다.
+
+### 6. 증거 무결성 정정
+
+- 라운드 1 대상 HEAD `1a894124…`와 달리 이번 실측 HEAD는 사용자 브리핑대로 `bfa5c4af8…`다. Git 명령 없이 worktree metadata로 확인했다.
+- 컨테이너 혼합 이미지 상태는 재현됐다. accounting/inventory를 HEAD 대응 backend라고 간주하지 않았다.
+- 처음 `vite.web.config.ts`로 띄운 세션은 cross-origin web-cookie 세션이 reload 후 유지되지 않아 증거로 사용하지 않았다. 직전 라운드와 같은 `vite.renderer.dev.config.ts` + 실 로그인 토큰의 Electron 인증 브리지로 재기동한 뒤 모든 판정을 다시 수집했다.
+- 판매 상세 캡처의 진행 막대 최종 문구는 `배송완료`지만, CONFIRMED 판정은 추정하지 않고 `POST .../confirm 200`의 `status=CONFIRMED` 원문으로 고정했다.
+
+### 7. 관측 불가로 남긴 것과 실패 명령 원문
+
+관측 불가로 남긴 것은 backend commit SHA와 현재 HEAD 소스로 빌드됐는지 여부다. 컨테이너 label이 없어 생성시각 이상을 단언하지 않았다. 회계 두 성공 `onSuccess` 자체는 더 이상 관측 불가가 아니다.
+
+인앱 브라우저 공급자 확인 실패 원문(이후 저장소 Playwright Chromium을 사용):
+
+```text
+No browser is available
+[]
+```
+
+첫 Vite 기동의 버전 문자열 오류 원문(유효 문자열로 수정 후 정상 기동):
+
+```text
+Error: VITE_APP_VERSION는 YYYY/MM/DD-{번호} 형식이어야 합니다: 2026/08/13-1189-round2
+```
+
+판매 원천 최초 재고 선행조건 실패 원문(입고전표 정상 화면 확정 후 해소):
+
+```text
+POST /slips/978b7588-0920-4a85-8722-462acc4eaa6a/accept 409
+{"success":false,"code":"CONFLICT","message":"inventory-service 호출 실패(409 CONFLICT): {\"success\":false,\"code\":\"CONFLICT\",\"message\":\"재고 부족 — 가용 인스턴스 0 < 필요 1 (productCode=AM100ANHDBH1)\",\"data\":null,...}","data":null,...}
+```
+
+Playwright 전이 묶음의 응답 대기 실패 원문(새 세션에서 GET 상세로 `INSPECTING` 실상태를 재확인한 뒤 계정별 단건 실행으로 재수렴):
+
+```text
+page.waitForResponse: Timeout 20000ms exceeded while waiting for event "response"
+```
+
+원인은 제품 응답 실패가 아니라 `dev_master`의 출고 검수 버튼 비활성이다. 결재라인 조회 원문은 `김기철`, `김은지` 두 사용자만 검수자로 지정돼 있었고, 김은지 화면에서는 같은 버튼이 활성(`canInspect=true`)이었다.
+
+### 8. 이 라운드가 공유 DB에 남긴 것 전부
+
+| 유형 | 번호/식별 | 라운드 2 최종 값 |
+|---|---|---|
+| 입고 원천 | `2026/08/13-1` | DRAFT → CONFIRMED, 고정 거래처, AM100ANHDBH1 1개 입고 |
+| 판매 원천 | `2026/08/13-3` | DRAFT → CONFIRMED, 고정 거래처, AM100ANHDBH1 1개 출고, 검수자 김은지 |
+| 매입 회계전표 | `2026/08/13-6831` (`d6348798-1586-44b0-8d8c-9e369a996194`) | DRAFT, 600,600원, 원천 `2026/08/13-1` 100% 배분 |
+| 매출 회계전표 | `2026/08/13-5591` (`346719c9-538c-4353-a0ee-952b7b040cc9`) | DRAFT, 1,001,000원, 원천 `2026/08/13-3` 100% 배분 |
+| 결재라인 설정 | 조회만 수행 | 변경 없음 |
+
+판매전표 `2026/08/13-1`, `2026/08/13-2`는 DRAFT 그대로 두었고 이 라운드에서 변경하지 않았다. 입고 1개와 출고 1개의 재고 효과는 같은 품목·본사창고에서 발생했다. DB 직접 UPDATE, 다른 거래처 혼용, mock/fixture 사용은 없었다.
+
+### 9. 머지 권고
+
+**머지 권고.**
+
+라운드 1에서 이미 확인한 판매전표 생성, 입고전표 생성, 창고 수정에 더해 이번 라운드에서 남아 있던 매출·매입 회계전표 성공 `onSuccess` 두 곳을 모두 실제로 밟았다. PR sweep fix가 지정한 네 무효화 표면은 이제 전부 실저장으로 확인됐다.
+
+```text
+판매전표 생성 목록 갱신       PASS (라운드 1)
+입고전표 생성 목록 갱신       PASS (라운드 1)
+창고 수정 목록 갱신           PASS (라운드 1)
+매출 회계전표 저장 목록 갱신  PASS (라운드 2, POST 200 → GET 200, reload 0)
+매입 회계전표 저장 목록 갱신  PASS (라운드 2, POST 200 → GET 200, reload 0)
+도달 가능한 결함              0건
+```
