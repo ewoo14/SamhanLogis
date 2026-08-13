@@ -16,6 +16,7 @@ import java.util.UUID;
  * <p>라인의 productId 는 mutation key 로만 사용. 사용자 화면 표시 식별자는 productName (snapshot).
  */
 public record AuditDetailResponse(
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID id,
         String auditNo,
         @JsonSerialize(using = OpaqueUuidSerializer.class)

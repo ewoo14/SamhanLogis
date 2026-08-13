@@ -15,6 +15,7 @@ import java.util.UUID;
  * 사용자 노출 식별자는 auditNo + warehouseCode + auditDate.
  */
 public record AuditResponse(
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID id,
         String auditNo,
         @JsonSerialize(using = OpaqueUuidSerializer.class)

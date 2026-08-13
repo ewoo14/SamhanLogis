@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from './client'
-import { dcConfigAuditApi, normalizeAuditLogEntry } from './createAuditApi'
+import { dcConfigAuditApi, inventoryAuditAuditApi, normalizeAuditLogEntry } from './createAuditApi'
 
 vi.mock('./client', () => ({
   apiClient: { get: vi.fn() },
@@ -17,6 +17,14 @@ describe('PR #1134 R11 DC audit path contract', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith(
       '/api/v1/partner-dc-configs/BIZ-1/audit-logs',
+    )
+  })
+
+  it.each(['raw-audit-id', 'opaque_audit_token'])('keeps the audit entity token unchanged in the path: %s', async (entityId) => {
+    await inventoryAuditAuditApi.listAuditLogs(entityId)
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      `/inventory/audits/${entityId}/audit-logs`,
     )
   })
 

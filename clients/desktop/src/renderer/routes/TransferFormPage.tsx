@@ -12,7 +12,7 @@
  * 모델명 onBlur lookup 으로 productId 내부 보유.
  */
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   Button,
@@ -69,6 +69,7 @@ const REASON_OPTIONS: TransferReason[] = [
 export function TransferFormPage() {
   usePageTitle('새 재고이동')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [sourceWh, setSourceWh] = useState<string | null>(null)
   const [destWh, setDestWh] = useState<string | null>(null)
   const [reason, setReason] = useState<TransferReason>('REBALANCE')
@@ -94,7 +95,10 @@ export function TransferFormPage() {
             requestedQuantity: Number(l.requestedQuantity),
           })),
       }),
-    onSuccess: () => navigate('/transfers'),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['transfers'] })
+      navigate('/transfers')
+    },
   })
 
   const removeLine = (idx: number) =>
