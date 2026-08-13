@@ -10,7 +10,7 @@ import {
 
 const estimate = {
   id: 'estimate-1',
-  estimateNo: 'Q-2026-001',
+  estimateNo: '2026/08/13-1',
   estimateDate: '2026-08-13',
   status: 'QUOTE_DRAFT' as const,
   partnerName: '견적 거래처',
@@ -48,6 +48,21 @@ const webOrder: WebPartnerOrderDraftListSource = {
 }
 
 describe('메뉴별 출처 분리 목록 모델', () => {
+  it('작성자 표시는 정상 이름을 보존하고 UUID는 숨긴다', () => {
+    const rows = mergeEstimateRows([
+      { ...estimate, id: 'named-estimate', estimateNo: '2026/08/13-2', requesterName: '홍길동' },
+      {
+        ...estimate,
+        id: 'uuid-estimate',
+        estimateNo: '2026/08/13-3',
+        requesterName: '00000000-0000-0000-0000-000000000001',
+      },
+    ])
+
+    expect(rows.find((row) => row.id === 'estimate:named-estimate')?.owner).toBe('홍길동')
+    expect(rows.find((row) => row.id === 'estimate:uuid-estimate')?.owner).toBeNull()
+  })
+
   it('주문서 행은 견적서 목록에 0건이고 웹 종합견적서 저장분은 견적서 목록에 나온다', () => {
     const rows = mergeEstimateRows([estimate], [webQuote])
 

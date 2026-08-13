@@ -1,5 +1,6 @@
 import type { EstimateSummary } from '../api/estimateApi'
 import type { PartnerOrderStatus, PartnerOrderSummary } from '../api/sales'
+import { safeActorName } from '@samhan/design-system'
 
 export type EstimateMenuSource = 'estimate' | 'web-quote-snapshot'
 export type OrderMenuSource = 'order' | 'web-partner-order-draft'
@@ -91,7 +92,7 @@ export function mergeEstimateRows(
       partnerName: row.partnerName ?? null,
       partnerCode: null,
       amount: String(row.totalAmount),
-      owner: row.requesterName ?? null,
+      owner: safeActorName(row.requesterName),
       writtenAt: row.estimateDate,
       sortAt: row.estimateDate,
       status: estimateStatusLabel[row.status],

@@ -334,7 +334,7 @@ describe('EstimateListPage E2 list realtime and restore', () => {
   })
 
   it('종합견적서 탭은 데스크톱 견적과 웹 종합견적만 조회하고 웹 주문서는 조회하지 않는다', async () => {
-    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ estimateNo: '데스크톱-견적-1' })]))
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ estimateNo: '2026/08/13-1' })]))
     listWebQuoteSnapshotSummariesMock.mockResolvedValue([
       { snapshotKey: 'quote-1', documentLabel: '웹-견적-1', custName: '웹 거래처', created: '2026-08-13T11:00:00', totalAmount: '300000' },
     ])
@@ -348,7 +348,7 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     await waitFor(() => {
       expect(within(table).getByText('데스크톱')).toBeTruthy()
       expect(within(table).getByText('웹')).toBeTruthy()
-      expect(within(table).getByText('데스크톱-견적-1')).toBeTruthy()
+      expect(within(table).getByText('2026/08/13-1')).toBeTruthy()
       expect(within(table).getByText('웹-견적-1')).toBeTruthy()
       expect(within(table).queryByText('웹-주문-1')).toBeNull()
     })
