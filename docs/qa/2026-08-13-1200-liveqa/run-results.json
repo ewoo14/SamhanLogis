@@ -1,0 +1,376 @@
+{
+  "startedAt": "2026-08-13T12:51:16.862Z",
+  "ids": {
+    "dcNormal": "qa1200-dc-normal-20260813125116",
+    "partnerNormal": "qa1200-partner-normal-20260813125116",
+    "dcFail": "qa1200-dc-fail-20260813125116",
+    "partnerFail": "qa1200-partner-fail-20260813125116",
+    "nonPilot": "qa1200-product-20260813125116",
+    "restore": "qa1200-dc-restore-20260813125116"
+  },
+  "traces": {
+    "dcNormal": "12000000000000000000000000000001",
+    "partnerNormal": "12000000000000000000000000000002",
+    "dcFail": "12000000000000000000000000000003",
+    "partnerFail": "12000000000000000000000000000004",
+    "nonPilot": "12000000000000000000000000000005",
+    "restore": "12000000000000000000000000000006"
+  },
+  "playwright": "1.59.1",
+  "chromiumPath": "C:\\Users\\user\\AppData\\Local\\ms-playwright\\chromium-1217\\chrome-win64\\chrome.exe",
+  "internalLogin": {
+    "attempts": [
+      {
+        "loginId": "dev_master",
+        "status": 200
+      }
+    ],
+    "selected": "dev_master",
+    "role": "MASTER",
+    "displayName": "[DEV-SEED] 개발마스터"
+  },
+  "dcList": {
+    "status": 200,
+    "count": 20,
+    "target": {
+      "partnerCode": "4348703365",
+      "companyName": "주식회사 엠엠시스템에어(고영현)",
+      "homeMultiDc": "48%",
+      "commercialMultiDc": "49%",
+      "flexibleHoseTypeI": "Yes",
+      "threeSixty": null,
+      "fourWay": null,
+      "oneWay": null,
+      "stand": null,
+      "deluxe": null,
+      "firstGrade": null,
+      "unitProcess": "No",
+      "remark": null
+    }
+  },
+  "dcNormal": {
+    "status": 200,
+    "durationMs": 19.9,
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "partnerCode": "4348703365",
+        "companyName": "주식회사 엠엠시스템에어(고영현)",
+        "homeMultiDc": "48%",
+        "commercialMultiDc": "49%",
+        "flexibleHoseTypeI": "No",
+        "threeSixty": null,
+        "fourWay": null,
+        "oneWay": null,
+        "stand": null,
+        "deluxe": null,
+        "firstGrade": null,
+        "unitProcess": "No",
+        "remark": null
+      },
+      "timestamp": "2026-08-13T12:51:17.443971218Z"
+    }
+  },
+  "partnerNormal": {
+    "status": 200,
+    "durationMs": 17.7,
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "status": "LONG_UNUSED",
+        "token": "<redacted>",
+        "config": null,
+        "message": "30일 이상 미사용으로 만료되었습니다"
+      },
+      "timestamp": "2026-08-13T12:51:17.461825128Z"
+    }
+  },
+  "normalEs": {
+    "took": 5,
+    "timed_out": false,
+    "_shards": {
+      "total": 1,
+      "successful": 1,
+      "skipped": 0,
+      "failed": 0
+    },
+    "hits": {
+      "total": {
+        "value": 4,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": [
+        {
+          "_index": "samhan-audit-logs",
+          "_id": "4da8aaa8-fdef-496d-8c73-5b4f239c7341",
+          "_score": null,
+          "_source": {
+            "_class": "com.samhanair.logis.log.domain.AuditLog",
+            "id": "4da8aaa8-fdef-496d-8c73-5b4f239c7341",
+            "serviceName": "dc-config-service",
+            "schemaVersion": "v2",
+            "requestId": "qa1200-dc-normal-20260813125116",
+            "traceId": "12000000000000000000000000000001",
+            "httpMethod": "PATCH",
+            "routeTemplate": "/api/v1/partner-dc-configs/{partnerCode}",
+            "actorDisplayName": "[DEV-SEED] 개발마스터",
+            "action": "A_CHANGE",
+            "resourceType": "DC_CONFIG",
+            "resourceId": "4348703365",
+            "internalResourceId": "b0e2c70e-3221-44b0-8014-0b0ec22ccaa5",
+            "description": "거래처 DC 설정 변경",
+            "afterData": {
+              "partnerCode": "4348703365"
+            },
+            "httpStatus": 200,
+            "occurredAt": "2026-08-13T12:51:17.443Z",
+            "ingestedAt": "2026-08-13T12:51:17.503Z"
+          },
+          "sort": [
+            1786625477443
+          ]
+        },
+        {
+          "_index": "samhan-audit-logs",
+          "_id": "77dc7c01-6ef2-4591-80ce-97b6b3afc031",
+          "_score": null,
+          "_source": {
+            "_class": "com.samhanair.logis.log.domain.AuditLog",
+            "id": "77dc7c01-6ef2-4591-80ce-97b6b3afc031",
+            "serviceName": "dc-config-service",
+            "schemaVersion": "v2",
+            "requestId": "qa1200-dc-normal-20260813125116",
+            "traceId": "12000000000000000000000000000001",
+            "httpMethod": "PATCH",
+            "routeTemplate": "/api/v1/partner-dc-configs/{partnerCode}",
+            "durationMs": 14,
+            "action": "A_CHANGE",
+            "resourceType": "HTTP",
+            "resourceId": "/api/v1/partner-dc-configs/{partnerCode}",
+            "description": "HTTP 요청 결과",
+            "ipAddress": "172.19.0.1",
+            "userAgent": "Samhan-PR1200-LiveQA-Playwright/1.59.1",
+            "httpStatus": 200,
+            "occurredAt": "2026-08-13T12:51:17.444Z",
+            "ingestedAt": "2026-08-13T12:51:17.555Z"
+          },
+          "sort": [
+            1786625477444
+          ]
+        },
+        {
+          "_index": "samhan-audit-logs",
+          "_id": "78243b60-a44b-4ef7-a51a-4f11fe806871",
+          "_score": null,
+          "_source": {
+            "_class": "com.samhanair.logis.log.domain.AuditLog",
+            "id": "78243b60-a44b-4ef7-a51a-4f11fe806871",
+            "serviceName": "partner-auth-service",
+            "schemaVersion": "v2",
+            "requestId": "qa1200-partner-normal-20260813125116",
+            "traceId": "12000000000000000000000000000002",
+            "httpMethod": "POST",
+            "routeTemplate": "/api/v1/auth/partner-login",
+            "actorDisplayName": "비인증 거래처",
+            "action": "B_FAILURE",
+            "resourceType": "AUTH",
+            "resourceId": "거래처 인증",
+            "description": "로그인 결과",
+            "ipAddress": "172.19.0.1",
+            "userAgent": "Samhan-PR1200-LiveQA-Playwright/1.59.1",
+            "httpStatus": 200,
+            "errorSummary": "30일 이상 미사용으로 만료되었습니다",
+            "occurredAt": "2026-08-13T12:51:17.461Z",
+            "ingestedAt": "2026-08-13T12:51:17.608Z"
+          },
+          "sort": [
+            1786625477461
+          ]
+        },
+        {
+          "_index": "samhan-audit-logs",
+          "_id": "0494e45b-8dc4-4be9-a4ae-090e8cbf9a20",
+          "_score": null,
+          "_source": {
+            "_class": "com.samhanair.logis.log.domain.AuditLog",
+            "id": "0494e45b-8dc4-4be9-a4ae-090e8cbf9a20",
+            "serviceName": "partner-auth-service",
+            "schemaVersion": "v2",
+            "requestId": "qa1200-partner-normal-20260813125116",
+            "traceId": "12000000000000000000000000000002",
+            "httpMethod": "POST",
+            "routeTemplate": "/api/v1/auth/partner-login",
+            "durationMs": 10,
+            "action": "A_CHANGE",
+            "resourceType": "HTTP",
+            "resourceId": "/api/v1/auth/partner-login",
+            "description": "HTTP 요청 결과",
+            "ipAddress": "172.19.0.1",
+            "userAgent": "Samhan-PR1200-LiveQA-Playwright/1.59.1",
+            "httpStatus": 200,
+            "occurredAt": "2026-08-13T12:51:17.462Z",
+            "ingestedAt": "2026-08-13T12:51:17.659Z"
+          },
+          "sort": [
+            1786625477462
+          ]
+        }
+      ]
+    }
+  },
+  "correlation": {
+    "dcRequestId": "qa1200-dc-normal-20260813125116",
+    "dcCount": 2,
+    "dcTraceIds": [
+      "12000000000000000000000000000001"
+    ],
+    "partnerRequestId": "qa1200-partner-normal-20260813125116",
+    "partnerCount": 2,
+    "partnerTraceIds": [
+      "12000000000000000000000000000002"
+    ]
+  },
+  "failSoft": {
+    "dc": {
+      "status": 200,
+      "durationMs": 431.1,
+      "before": {
+        "retry": 2,
+        "failure": 1,
+        "drop": 0
+      },
+      "after": {
+        "retry": 6,
+        "failure": 3,
+        "drop": 0
+      },
+      "delta": {
+        "retry": 4,
+        "failure": 2
+      },
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "성공",
+        "data": {
+          "partnerCode": "4348703365",
+          "companyName": "주식회사 엠엠시스템에어(고영현)",
+          "homeMultiDc": "48%",
+          "commercialMultiDc": "49%",
+          "flexibleHoseTypeI": "Yes",
+          "threeSixty": null,
+          "fourWay": null,
+          "oneWay": null,
+          "stand": null,
+          "deluxe": null,
+          "firstGrade": null,
+          "unitProcess": "No",
+          "remark": null
+        },
+        "timestamp": "2026-08-13T12:51:18.458879045Z"
+      }
+    },
+    "partner": {
+      "status": 200,
+      "durationMs": 399.4,
+      "before": {
+        "retry": 0,
+        "failure": 0,
+        "drop": 0
+      },
+      "after": {
+        "retry": 2,
+        "failure": 1,
+        "drop": 0
+      },
+      "delta": {
+        "retry": 2,
+        "failure": 1
+      },
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "성공",
+        "data": {
+          "bizNo": "2118712345",
+          "status": "LONG_UNUSED",
+          "partnerName": null,
+          "message": "30일 이상 미사용으로 만료되었습니다"
+        },
+        "timestamp": "2026-08-13T12:51:18.844018736Z"
+      }
+    }
+  },
+  "restore": {
+    "status": 200,
+    "partnerCode": "4348703365",
+    "restoredFlexibleHoseTypeI": "Yes"
+  },
+  "nonPilot": {
+    "status": 200,
+    "durationMs": 223.1,
+    "responseSummary": {
+      "content": [
+        {
+          "modelCode": "0000098",
+          "name": "한경희 선풍기",
+          "usageScope": "NONE",
+          "estimateCategory": null,
+          "productCategory": null,
+          "catL": null,
+          "catM": null,
+          "catS": null,
+          "usageScopeManual": false,
+          "displayOrder": null,
+          "estimateCategories": [],
+          "releasePrice": 0,
+          "deliveryPrice": 0,
+          "goodsType": "GOODS",
+          "quantitySyncTargetEligible": false,
+          "fixedDiscountRate": null,
+          "hasVariableDiscount": false,
+          "variableDiscountManual": false,
+          "legacyDiscountFlag": false,
+          "status": "ACTIVE",
+          "discountFlags": "000000",
+          "productType": "SINGLE",
+          "componentCount": 0,
+          "componentSetToken": "<redacted>",
+          "fixedDiscountSource": "NONE"
+        }
+      ],
+      "pageable": {
+        "pageNumber": 0,
+        "pageSize": 1,
+        "sort": {
+          "unsorted": true,
+          "sorted": false,
+          "empty": true
+        },
+        "offset": 0,
+        "unpaged": false,
+        "paged": true
+      },
+      "totalPages": 3084,
+      "totalElements": 3084,
+      "last": false,
+      "first": true,
+      "numberOfElements": 1,
+      "size": 1,
+      "number": 0,
+      "sort": {
+        "unsorted": true,
+        "sorted": false,
+        "empty": true
+      },
+      "empty": false
+    },
+    "auditHitCount": 0
+  },
+  "finishedAt": "2026-08-13T12:51:22.481Z"
+}
