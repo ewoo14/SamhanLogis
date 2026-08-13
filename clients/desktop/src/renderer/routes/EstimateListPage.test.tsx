@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EstimateListPage } from './EstimateListPage'
 import {
@@ -172,9 +172,23 @@ function renderPage(initialEntries: string[] = ['/sales/estimates']) {
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={initialEntries}>
         <EstimateListPage />
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location-probe">{location.pathname}{location.search}</output>
+}
+
+function setTabPermissions({ estimates, orders }: { estimates: boolean; orders: boolean }) {
+  canAccessMock.mockImplementation((pageCode: string) => {
+    if (pageCode === 'estimates.list') return estimates
+    if (pageCode === 'sales.partner-order.list') return orders
+    return false
+  })
 }
 
 describe('EstimateListPage E2 list realtime and restore', () => {
@@ -455,5 +469,75 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(screen.queryByTestId('estimate-list-filter-start')).toBeNull()
     expect(screen.queryByTestId('estimate-list-filter-end')).toBeNull()
     expect(screen.queryByTestId('estimate-list-include-deleted')).toBeNull()
+  })
+
+  it.each([
+    {
+      name: 'RED-A estimates.list 만',
+      permissions: { estimates: true, orders: false },
+      initialEntry: '/sales/estimates?tab=orders',
+      expectedTabs: ['종합견적서'],
+      expectedLocation: '/sales/estimates',
+    },
+    {
+      name: 'RED-B sales.partner-order.list 만',
+      permissions: { estimates: false, orders: true },
+      initialEntry: '/sales/estimates',
+      expectedTabs: ['주문서'],
+      expectedLocation: '/sales/estimates?tab=orders',
+    },
+    {
+      name: 'RED-D 두 권한 모두',
+      permissions: { estimates: true, orders: true },
+      initialEntry: '/sales/estimates',
+      expectedTabs: ['종합견적서', '주문서'],
+      expectedLocation: '/sales/estimates',
+    },
+  ])('$name 계정은 접근 가능한 탭만 정확히 렌더링한다', async ({ permissions, initialEntry, expectedTabs, expectedLocation }) => {
+    setTabPermissions(permissions)
+
+    renderPage([initialEntry])
+
+    await screen.findByTestId('estimate-list-table')
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(expectedTabs)
+      expect(screen.getByTestId('location-probe').textContent).toBe(expectedLocation)
+    })
+  })
+
+  it.each([
+    {
+      name: 'estimates.list 만 계정의 주문서 URL',
+      permissions: { estimates: true, orders: false },
+      initialEntry: '/sales/estimates?tab=orders',
+      expectedTabs: ['종합견적서'],
+      expectedLocation: '/sales/estimates',
+      forbiddenApi: 'orders',
+    },
+    {
+      name: 'sales.partner-order.list 만 계정의 종합견적서 URL',
+      permissions: { estimates: false, orders: true },
+      initialEntry: '/sales/estimates?tab=estimates',
+      expectedTabs: ['주문서'],
+      expectedLocation: '/sales/estimates?tab=orders',
+      forbiddenApi: 'estimates',
+    },
+  ])('RED-E $name은 권한 없는 탭 내용과 API에 도달하지 않는다', async ({ permissions, initialEntry, expectedTabs, expectedLocation, forbiddenApi }) => {
+    setTabPermissions(permissions)
+
+    renderPage([initialEntry])
+
+    await screen.findByTestId('estimate-list-table')
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(expectedTabs)
+      expect(screen.getByTestId('location-probe').textContent).toBe(expectedLocation)
+    })
+    if (forbiddenApi === 'orders') {
+      expect(listWebPartnerOrderDraftSummariesMock).not.toHaveBeenCalled()
+      expect(screen.queryByText('등록된 주문서가 없습니다.')).toBeNull()
+    } else {
+      expect(listEstimatesMock).not.toHaveBeenCalled()
+      expect(screen.queryByText('등록된 종합견적서가 없습니다.')).toBeNull()
+    }
   })
 })

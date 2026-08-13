@@ -512,7 +512,7 @@ const routes = [
       {
         path: '/sales/estimates',
         element: (
-          <PermissionGuard pageCode="estimates.list" action="view">
+          <PermissionGuard pageCode={['estimates.list', 'sales.partner-order.list']} action="view">
             <EstimateListPage />
           </PermissionGuard>
         ),

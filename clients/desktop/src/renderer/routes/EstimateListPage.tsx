@@ -125,11 +125,30 @@ export function EstimateListPage() {
     return isEstimateStatus(value) ? value : ''
   })
   const [includeDeleted, setIncludeDeleted] = useState(() => searchParams.get('includeDeleted') === 'true')
-  const activeTab = searchParams.get('tab') === 'orders' ? 'orders' : 'estimates'
+  const requestedTab = searchParams.get('tab') === 'orders' ? 'orders' : 'estimates'
+  const canViewEstimates = canAccess('estimates.list', 'view')
+  const canViewOrders = canAccess('sales.partner-order.list', 'view')
+  const activeTab = requestedTab === 'orders'
+    ? (canViewOrders ? 'orders' : 'estimates')
+    : (canViewEstimates ? 'estimates' : 'orders')
+  const availableTabs: Array<'estimates' | 'orders'> = []
+  if (canViewEstimates) availableTabs.push('estimates')
+  if (canViewOrders) availableTabs.push('orders')
   const [page, setPage] = useState(0)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
   const supportsEstimateOnlyFilters = activeTab === 'estimates'
+
+  // 직접 URL로 권한 없는 탭을 요청해도 해당 탭의 내용/API에 도달하지 않도록
+  // 현재 계정이 볼 수 있는 탭으로 URL을 즉시 정규화한다.
+  useEffect(() => {
+    if (activeTab === requestedTab || availableTabs.length === 0) return
+    const next = new URLSearchParams(searchParams)
+    if (activeTab === 'orders') next.set('tab', 'orders')
+    else next.delete('tab')
+    next.delete('page')
+    setSearchParams(next, { replace: true })
+  }, [activeTab, availableTabs.length, requestedTab, searchParams, setSearchParams])
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
@@ -164,7 +183,7 @@ export function EstimateListPage() {
 
   const query = useQuery({
     queryKey: ['estimates', 'list', statusFilter, startDate, endDate, includeDeleted, page],
-    enabled: activeTab === 'estimates',
+    enabled: activeTab === 'estimates' && canViewEstimates,
     queryFn: () =>
       listEstimates({
         page,
@@ -180,6 +199,7 @@ export function EstimateListPage() {
     queryKey: supportsEstimateOnlyFilters
       ? ['estimates', 'separated', 'estimates', statusFilter, startDate, endDate, includeDeleted]
       : ['estimates', 'separated', 'orders'],
+    enabled: activeTab === 'estimates' ? canViewEstimates : canViewOrders,
     queryFn: async () => {
       if (activeTab === 'orders') {
         const webDrafts = await listWebPartnerOrderDraftSummaries()
@@ -609,7 +629,7 @@ export function EstimateListPage() {
         </div>
 
         <div role="tablist" aria-label="견적서 관리 구분" style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-          {(['estimates', 'orders'] as const).map((tab) => (
+          {availableTabs.map((tab) => (
             <button
               key={tab}
               type="button"
