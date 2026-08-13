@@ -468,3 +468,205 @@ observed room URL=/#/chat/CHAT-20260813-000017
 ### 15.9 최종 머지 권고
 
 **머지를 권고하지 않는다.** 신선한 백엔드에서 본체 회귀와 UUID 비노출은 통과했지만, 독립 앱의 핵심 S1 흐름인 방 생성 후 대화 진입이 실제 UI에서 깨지고 그 결과 메시지 전송·상대 SSE 재조회까지 수행할 수 없는 도달 결함 1건이 있다.
+
+## 화면 정본 검증
+
+### 환경 원문
+
+```text
+branch=feat/894-s1-chat-port
+HEAD=6343b2611a82a7112973f7a047330653df816aa6
+origin/main...HEAD migration 추가=0
+최초 FreePhysicalMemoryGiB=15.963
+최초 /samhan-groupware-service|2026-08-13T13:23:36.625625462Z
+최초 /samhan-user-service|2026-08-11T17:59:58.945181532Z
+```
+
+두 서비스 모두 HEAD 변경을 포함하므로 Gradle 산출물을 먼저 만들었다.
+
+```text
+:services:user-service:bootJar       BUILD SUCCESSFUL
+:services:groupware-service:bootJar  BUILD SUCCESSFUL
+```
+
+메모리 문서의 `scripts/redeploy-service.ps1`과 이 worktree의 기존 JAR는 없었다. 첫 Compose 명령도 아래처럼 실패했다.
+
+```text
+Get-Content: Cannot find path '...scripts\redeploy-service.ps1'
+Get-Item: Cannot find path '...services\{user,groupware}-service\build\libs\*.jar'
+service "api-gateway" refers to undefined network samhan-net: invalid compose project
+service "user-service" refers to undefined network samhan-net: invalid compose project
+```
+
+`docker-compose.yml + docker-compose.local-all.yml` 정본 조합으로 재실행했다.
+
+```text
+/samhan-user-service|2026-08-13T20:45:01.539147101Z|healthy|sha256:d38f9a5c...
+/samhan-groupware-service|2026-08-13T20:45:01.539049809Z|healthy|sha256:b033eeee...
+최종 여유 RAM=13.127 GiB
+```
+
+따라서 이번 라운드는 **두 서비스 모두 브랜치 빌드를 올린 상태**다. PM이 복구해야 한다. 브라우저는 `clients/desktop` 패키지의 Playwright 1.59.1과 로컬 Chromium 1217을 직접 launch했다. 독립 앱 `http://localhost:5173/`, 본체 `http://localhost:5182/`, gateway `http://localhost:8080`을 사용했다.
+
+### 1. 개별 페이지
+
+절차: `dev_master` 실 로그인 → 독립 앱 진입 → 내 정보/직원 목록 → 임시 employeeCode를 DEV-SEED 4명에게 부여해 정렬·클릭 추가 검증 → `dev_manager` 클릭/메시지 전송/재진입 → 임시 퇴사 처리 후 목록 숨김·기록 보존 → 원복.
+
+```text
+GET /users/messenger/directory 404
+GET /api/users/messenger/directory 200
+재직자 24명 중 employeeCode=null 20명
+```
+
+독립 앱은 gateway prefix 없는 첫 경로를 호출해 기본 직원 목록이 비었다. [10-r4-individual-real-null-employee-codes.png](10-r4-individual-real-null-employee-codes.png) 실 DB에서는 원래 25명 전원의 `ecount_code`가 null이라, 경로만 우회해도 전 직원 버튼이 disabled였다.
+
+보정 경로에서는 내 정보가 위, 직원 목록이 아래였고 정본 직급순이었다. [11-r4-individual-sorted-presence-four.png](11-r4-individual-sorted-presence-four.png) `CHAT-20260813-000017`에 `QA1201 독립 기록 보존 20260813205323`을 전송하고 재진입했을 때 보존됐다. [12-r4-independent-direct-message.png](12-r4-independent-direct-message.png) 임시 퇴사자는 directory에서 숨고 기존 방/기록은 계속 읽혔다. [13-r4-terminated-history-preserved.png](13-r4-terminated-history-preserved.png)
+
+반면 `accounts.enabled=false`만 설정한 `dev_sales`는 계속 목록에 표시됐다. [14-r4-disabled-account-directory.png](14-r4-disabled-account-directory.png)
+
+### 직급 정렬 실측 목록
+
+```text
+[DEV-SEED] 개발마스터|대표
+김미선|대표
+장영구|전무
+오병승|이사
+[DEV-SEED] 개발매니저|부장
+김기철|부장
+견진성|차장
+심미광|과장
+박은우|주임
+[DEV-SEED] 개발영업|사원
+홍지수|사원
+[DEV-SEED] 잠금사용자|사원
+정민국|사원
+이지용|사원
+[DEV-SEED] 개발재고|사원
+[DEV-SEED] 개발창고|사원
+신현민|사원
+라해람|사원
+박지수|사원
+김은지|사원
+허유진|사원
+이성미|사원
+[DEV-SEED] 개발회계|사원
+[DEV-SEED] 개발개발자|개발자
+```
+
+직무 `개발자`가 맨 뒤이므로 직급 순서 자체는 통과한다. 동일 직급 내 순서는 미결정이라 판정하지 않았다.
+
+### 2. 상태 아이콘 4종
+
+서로 다른 실 로그인 context에서 `AWAY`, `ABSENT`, `OFFLINE`과 `mobile-qa1201` 세션을 설정했다.
+
+```text
+PUT presence AWAY 200 / PUT presence ABSENT 200
+POST presence/sessions/mobile-qa1201 200
+directory: dev_master=AVAILABLE, dev_manager=ABSENT, dev_sales=AWAY, dev_developer=AVAILABLE
+```
+
+화면에는 접속·자리비움·부재중·오프라인 4종이 모두 렌더됐다. 그러나 `dev_manager=ABSENT`에서 모바일 세션을 추가해도 계속 `ABSENT`였다. 수동 상태가 세션보다 먼저 반환되어 “하나 이상 접속이면 접속” 규칙에 실패한다. [11-r4-individual-sorted-presence-four.png](11-r4-individual-sorted-presence-four.png)
+
+### 3. [개별] [그룹별] 전환
+
+실 UI에서 두 버튼으로 `chat-rooms-page`와 `group-chat-rooms-page`가 전환됐다. 전환 자체는 통과한다.
+
+### 4. 그룹별 페이지 / 그룹방 정렬 실측
+
+내 정보는 목록 위에 있었다. 그러나 프런트와 서버 경로가 다르다.
+
+```text
+프런트 GET/POST /admin/groupware/chat/groups → 404
+서버 실제 mapping /admin/groupware/chat/rooms/groups
+```
+
+UI 목록은 0건이고 생성은 실패했다. [16-r4-group-create-route-failure.png](16-r4-group-create-route-failure.png) 올바른 서버 경로로 이름 있는 방과 이름 없는 방을 만들었다.
+
+```text
+201 CHAT-20260814-000018 name=QA1201 안읽음방 20260813205323
+201 CHAT-20260814-000019 name=null
+GET groups 200: 둘 다 unreadCount=0, latestMessageAt=null
+```
+
+안읽음 우선 확인용 메시지 전송은 두 방 모두 500이었다.
+
+```text
+POST .../CHAT-20260814-000018/messages 500
+POST .../CHAT-20260814-000019/messages 500
+org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique constraint "ux_messages_room_sequence"
+Detail: Key (room_id, sequence_no)=(..., 1) already exists.
+```
+
+복수 수신자별 행에 동일 sequence를 넣어 DB unique 제약과 충돌한다. 따라서 **안읽음 먼저 → 최신순 내림차순은 관측 불가**다. 이름/참여자 표시도 API 응답에는 두 형태가 있었지만 실제 UI는 404로 비어 통과 판정하지 않았다.
+
+### 5. 돋보기 모달
+
+그룹별 → 검색 → 직원 검색 → `개발매니저`, `개발영업` 복수 선택은 통과했다. [15-r4-group-search-multi-select.png](15-r4-group-search-multi-select.png) 단톡방 생성은 잘못된 POST 경로 404로 오류 안내가 떴다. 즉 검색·복수 선택 통과, 실제 생성 실패다.
+
+### 6. 비참여자 HTTP 권한
+
+`dev_developer` 비참여 계정으로 화면이 아닌 실 HTTP를 호출했다.
+
+```text
+GET /admin/groupware/chat/rooms/CHAT-20260814-000018/messages
+403 {"code":"FORBIDDEN","message":"채팅방 참여자만 대화 내용을 볼 수 있습니다"}
+GET /admin/groupware/chat/rooms/CHAT-20260813-000017/messages
+403 {"code":"FORBIDDEN","message":"채팅방 참여자만 대화 내용을 볼 수 있습니다"}
+```
+
+그룹방과 1:1방 모두 통과한다.
+
+### 7. 본체 앱 회귀
+
+실 로그인 후 본체 `/#/chat` 직접 진입은 홈 대시보드로 떨어졌다. [19-r4-main-chat-diagnostic.png](19-r4-main-chat-diagnostic.png) 사이드바 채팅으로 진입한 별도 실행은 `chat-rooms-page`에 도달했지만 기존 방이 DB에 있는데도 링크가 0개였다. [20-r4-main-chat-list.png](20-r4-main-chat-list.png)
+
+```text
+LOGIN=200
+URL=http://localhost:5182/#/chat
+BODY=...환영합니다, [DEV-SEED] 개발매니저 님...대시보드...
+sidebar chat 진입 후 채팅방 링크 수=0
+```
+
+본체가 안 깨졌다고 판정할 수 없으며 직접 URL은 도달 결함이다.
+
+### 8. UUID sweep
+
+generic `8-4-4-4-12` 정규식으로 독립 앱의 초기/정렬·상태/1:1/퇴사자/비활성/그룹 모달·오류 화면, URL, 모든 href를 sweep했다. 화면·URL·링크 0건이었다. 관측한 directory/presence/direct-by-employee-code/groups/messages 요청·응답에서도 사용자 경계 UUID는 0건이었다. 로그인 응답의 기존 userId와 범위 밖으로 명시된 선재 participantId 계약은 결함 수에서 제외했다.
+
+### 도달 결함
+
+총 **7건**이다.
+
+1. 독립 앱 user API의 gateway `/api` prefix 누락으로 directory/me/presence 404.
+2. 실 직원 `employeeCode` 전원 null로 직원 클릭 버튼 전부 비활성.
+3. `accounts.enabled=false` 직원 미숨김.
+4. 모바일/데스크탑 접속보다 수동 `ABSENT/AWAY`가 우선함.
+5. 그룹 UI API 경로 불일치로 목록/생성 404.
+6. 그룹 메시지 복수 수신 행의 sequence unique 충돌로 500; 안읽음 정렬 검증 차단.
+7. 본체 `/#/chat` 홈 fallback 및 사이드바 채팅 목록 0건.
+
+### 증거 무결성
+
+- 기존 보고서와 01~09 이미지는 보존했다. 10~16, 19~20은 이 HEAD의 실 서버·실 DB 캡처다.
+- 캡처 전 화면 고유 testid/dialog를 단정했다. 19는 `/chat` 도달 실패 후 실제 대시보드 body 증거다.
+- 실행 스크립트는 `clients/desktop/playwright/1201-r4-real-qa`에서 실행 후 삭제했고 `docs/qa`에 남기지 않았다.
+- 임시 employeeCode, termination_date, accounts.enabled, presence session/manual status는 모두 원복 실측했다.
+- 그룹 500은 HTTP envelope와 groupware 로그의 PostgreSQL 제약 원문을 대조했다.
+
+### 관측 불가 + 실패 명령 원문
+
+- 그룹 안읽음/최신순: 메시지 POST 500으로 데이터 생성 불가(질문 4 원문).
+- 본체 메시지 전송: direct URL fallback 및 목록 0건으로 방 UI 진입 불가.
+- 최초 잘못된 자격 문자열: `login dev_master status=401`, `아이디 또는 비밀번호가 올바르지 않습니다`.
+- worktree 자격 파일 부재: `QA_CREDENTIAL_MISSING: ...\infrastructure\.env.local에 QA_DEV_DEFAULT_PASSWORD를 입력하거나 표준 환경변수를 설정하십시오.` 공유 checkout의 로컬 자격을 값 출력 없이 프로세스에만 주입해 이후 로그인 200을 얻었다.
+
+### 만든 데이터
+
+- 그룹방 `CHAT-20260814-000018`(이름 있음), `CHAT-20260814-000019`(이름 없음).
+- `CHAT-20260813-000017` 메시지 `QA1201 독립 기록 보존 20260813205323` 1건.
+- 그룹 메시지는 두 POST 모두 rollback되어 0건.
+- DEV-SEED 4명 employeeCode, dev_manager 퇴사일, dev_sales enabled, presence 상태/세션은 임시 변경 후 원복.
+
+### 머지 권고
+
+**머지 비권고.** 질문 1·2·4·5·7의 실 사용자 경로가 깨졌고, 핵심 안읽음 우선 정렬은 그룹 메시지 500 때문에 검증 완료도 불가능하다. 질문 6 권한과 UUID 비노출은 통과했지만 머지 조건을 충족하지 못한다.
