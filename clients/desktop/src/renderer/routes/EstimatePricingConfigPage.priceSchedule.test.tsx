@@ -184,7 +184,7 @@ describe('ProductPriceSchedulePage 카테고리별 단가변동(#17 S4b R1 fix)'
     expect(screen.queryByText(/저장에 실패했습니다/)).toBeNull()
   })
 
-  it('oldProducts 행은 체크박스 없이 "대상 아님" 을 표시한다', async () => {
+  it('oldProducts 행에도 단가변동 토글이 표시되고 저장한다', async () => {
     stubCanAccess({
       'products.price-schedule': { view: true, update: true },
     })
@@ -197,24 +197,15 @@ describe('ProductPriceSchedulePage 카테고리별 단가변동(#17 S4b R1 fix)'
 
     renderPage()
 
-    const oldRow = await screen.findByTestId('price-schedule-row-oldProducts')
-    expect(oldRow.textContent).toContain('대상 아님')
-    expect(screen.queryByTestId('price-schedule-toggle-oldProducts')).toBeNull()
-
-    // QA-MED#4 — oldProducts 는 토글이 없으므로 date 변경 저장 시 patch 에 effectiveDate 만
-    // 담기고 defaultPreChange 키가 섞이지 않아야 한다(무관 카테고리에 estimate-app 대응
-    // 체크박스 필드가 실수로 전송되면 BE 계약 위반).
-    const dateInput = await screen.findByLabelText('구형 적용일')
-    fireEvent.change(dateInput, { target: { value: '2026-09-01' } })
+    await screen.findByTestId('price-schedule-row-oldProducts')
+    const toggle = await screen.findByTestId('price-schedule-toggle-oldProducts')
+    expect((toggle as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(toggle)
     fireEvent.click(screen.getByTestId('price-schedule-save-oldProducts'))
 
     await waitFor(() =>
-      expect(mocks.updatePriceChangeSchedule).toHaveBeenCalledWith('oldProducts', {
-        effectiveDate: '2026-09-01',
-      }),
+      expect(mocks.updatePriceChangeSchedule).toHaveBeenCalledWith('oldProducts', { defaultPreChange: true }),
     )
-    const [, patchArg] = mocks.updatePriceChangeSchedule.mock.calls[0]
-    expect(patchArg).not.toHaveProperty('defaultPreChange')
   })
 
   it('저장 성공 시 refetch 완료 전에도 테이블 값이 즉시 갱신된다(스테일 flash 회귀 가드)', async () => {

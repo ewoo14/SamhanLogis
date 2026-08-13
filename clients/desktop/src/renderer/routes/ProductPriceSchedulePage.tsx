@@ -27,13 +27,14 @@ const PRICE_SCHEDULE_CATEGORY_LABELS: Record<PriceChangeScheduleCategory, string
 }
 
 /**
- * "인상 전 단가" 토글 표시 대상 카테고리 — estimate-app 에 대응 체크박스가 있는 3종만.
- * oldProducts 는 estimate-app 체크박스가 없어 적용일만 편집한다.
+ * 단가변동 토글 표시 대상 카테고리. 구형은 토글을 제공하지만 현재가 baseline을
+ * 사용하므로 전환 자체는 금액 no-op 이다.
  */
 const PRICE_SCHEDULE_TOGGLE_CATEGORIES = new Set<PriceChangeScheduleCategory>([
   'homemulti',
   'singleSets',
   'commercialMulti',
+  'oldProducts',
 ])
 
 type PriceScheduleDirtyMap = Partial<Record<PriceChangeScheduleCategory, UpdatePriceChangeScheduleRequest>>
