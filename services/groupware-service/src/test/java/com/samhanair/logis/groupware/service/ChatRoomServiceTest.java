@@ -192,4 +192,55 @@ class ChatRoomServiceTest {
         messages.addAll(captor.getValue());
         assertThat(messages).extracting(Message::getSequence).containsExactly(1L, 2L);
     }
+
+    @Test
+    void group_message_list_collapses_recipient_rows_into_one_logical_message() {
+        UUID creator = UUID.randomUUID();
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        UUID batchId = UUID.randomUUID();
+        ChatRoom room = ChatRoom.restore(UUID.randomUUID(), "CHAT-20260812-000003");
+        room.addParticipant(creator, true);
+        room.addParticipant(first, false);
+        room.addParticipant(second, false);
+        when(roomRepository.findByRoomCode(room.getRoomCode())).thenReturn(Optional.of(room));
+        when(participantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(room.getId(), creator)).thenReturn(true);
+        Message firstRecipientRow = Message.sendInRoom(room.getId(), 1L, creator, first, "논리 메시지", batchId);
+        Message secondRecipientRow = Message.sendInRoom(room.getId(), 2L, creator, second, "논리 메시지", batchId);
+        when(messageRepository.findTop50ByRoomIdOrderBySequenceDesc(room.getId()))
+                .thenReturn(List.of(secondRecipientRow, firstRecipientRow));
+        ChatMessageService service = new ChatMessageService(
+                new ChatRoomService(roomRepository, participantRepository, userClient, broker),
+                messageRepository, userClient, broker);
+
+        var listed = service.list(room.getRoomCode(), creator);
+
+        assertThat(listed).hasSize(1);
+        assertThat(listed.get(0).getBody()).isEqualTo("논리 메시지");
+    }
+
+    @Test
+    void group_message_list_keeps_the_actor_recipient_row_when_actor_is_a_recipient() {
+        UUID sender = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        UUID batchId = UUID.randomUUID();
+        ChatRoom room = ChatRoom.restore(UUID.randomUUID(), "CHAT-20260812-000004");
+        room.addParticipant(sender, true);
+        room.addParticipant(actor, false);
+        room.addParticipant(other, false);
+        when(roomRepository.findByRoomCode(room.getRoomCode())).thenReturn(Optional.of(room));
+        when(participantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(room.getId(), actor)).thenReturn(true);
+        Message otherRecipientRow = Message.sendInRoom(room.getId(), 1L, sender, other, "논리 메시지", batchId);
+        Message actorRecipientRow = Message.sendInRoom(room.getId(), 2L, sender, actor, "논리 메시지", batchId);
+        when(messageRepository.findTop50ByRoomIdOrderBySequenceDesc(room.getId()))
+                .thenReturn(List.of(actorRecipientRow, otherRecipientRow));
+        ChatMessageService service = new ChatMessageService(
+                new ChatRoomService(roomRepository, participantRepository, userClient, broker),
+                messageRepository, userClient, broker);
+
+        var listed = service.list(room.getRoomCode(), actor);
+
+        assertThat(listed).singleElement().isSameAs(actorRecipientRow);
+    }
 }

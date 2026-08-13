@@ -63,7 +63,24 @@ public class ChatMessageService {
         var messages = messageRepository.findTop50ByRoomIdOrderBySequenceDesc(room.getId());
         java.util.ArrayList<Message> ordered = new java.util.ArrayList<>(messages);
         java.util.Collections.reverse(ordered);
-        return ordered;
+        var logicalMessages = new java.util.ArrayList<Message>();
+        var batchIndexes = new java.util.LinkedHashMap<UUID, Integer>();
+        for (Message message : ordered) {
+            UUID batchId = message.getBatchId();
+            if (batchId == null) {
+                logicalMessages.add(message);
+                continue;
+            }
+            Integer existingIndex = batchIndexes.get(batchId);
+            if (existingIndex == null) {
+                batchIndexes.put(batchId, logicalMessages.size());
+                logicalMessages.add(message);
+            } else if (message.getRecipientId().equals(actor)
+                    && !logicalMessages.get(existingIndex).getRecipientId().equals(actor)) {
+                logicalMessages.set(existingIndex, message);
+            }
+        }
+        return logicalMessages;
     }
 
     @Transactional

@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatApp } from './ChatApp'
 import * as chatApi from './api/chatApi'
+import './styles.css'
 
 vi.mock('./api/chatApi', () => ({
   fetchMessengerMe: vi.fn().mockResolvedValue({ employeeCode: 'ME', name: '홍길동', jobTitle: '부장', departmentName: '개발팀', employmentStatus: 'ACTIVE', presenceStatus: 'AVAILABLE' }),
@@ -127,6 +130,23 @@ describe('독립 앱 S1 채팅 이식', () => {
     fireEvent.click(screen.getByRole('button', { name: '그룹별' }))
     expect(await screen.findByTestId('group-chat-rooms-page')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '개별' })).toBeInTheDocument()
+  })
+
+  it('네 가지 상태 아이콘은 실제로 표시되는 픽셀 요소를 가진다', async () => {
+    renderApp()
+
+    await screen.findByText('홍길동')
+    await screen.findByRole('list', { name: '직원 목록' })
+    for (const status of ['접속', '자리비움', '부재중', '오프라인']) {
+      const icon = screen.getAllByLabelText(new RegExp(`상태: ${status}$`))[0]
+      expect(icon).toHaveClass(`presence-${status === '접속' ? 'available' : status === '자리비움' ? 'away' : status === '부재중' ? 'absent' : 'offline'}`)
+    }
+    const stylesheet = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8')
+    expect(stylesheet).toContain('.presence { display: inline-block; width: 10px; height: 10px;')
+    expect(stylesheet).toContain('.presence-available { background: #16a34a; }')
+    expect(stylesheet).toContain('.presence-away { background: #f59e0b; }')
+    expect(stylesheet).toContain('.presence-absent { background: #ef4444; }')
+    expect(stylesheet).toContain('.presence-offline { background: #94a3b8; }')
   })
 
   it('직접 대화 생성 성공 후 basename 내부 room route에 남는다', async () => {
