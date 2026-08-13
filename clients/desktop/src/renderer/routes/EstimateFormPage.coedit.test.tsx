@@ -440,6 +440,17 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     const header = screen.getByTestId('estimate-form-line-header')
     expect(header.children).toHaveLength(10)
     expect(row.children).toHaveLength(10)
+    expect(screen.getByTestId('estimate-form-line-scroll').style.overflowX).toBe('')
+    expect(header.parentElement).toBe(screen.getByTestId('estimate-form-line-scroll'))
+    expect(header.style.gridTemplateColumns).toBe(row.style.gridTemplateColumns)
+    expect(header.style.gridTemplateColumns).toBe(
+      'var(--col-line-no) minmax(100px, 1.5fr) minmax(100px, 1.5fr) 86px var(--col-qty) var(--col-price) 108px 92px var(--col-sum) var(--col-delete)',
+    )
+    expect(header.style.minWidth).toBe('')
+    expect(row.style.minWidth).toBe('')
+    expect(header.style.gap).toBe('')
+    expect(row.style.gap).toBe('')
+    expect(header.style.whiteSpace).toBe('nowrap')
 
     const modelCell = row.children[1]
     const quantityCell = row.children[4]

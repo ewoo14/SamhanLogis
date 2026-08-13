@@ -197,6 +197,14 @@ const datePlusDays = (iso: string, days: number): string => {
 
 const fmt = (n: number): string => Math.trunc(n).toLocaleString('ko-KR')
 const ESTIMATE_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
+/**
+ * 견적 라인 헤더/행 공용 grid.
+ *
+ * 판매전표 LineRowVat 의 열 정책을 그대로 사용하되, 견적에 없는 체크박스와
+ * 드래그 열만 제외한다. 모델명·품목명은 같은 minmax(100px, 1.5fr) 비율로
+ * 남는 폭을 대등하게 나눈다.
+ */
+const ESTIMATE_LINE_GRID_TEMPLATE = 'var(--col-line-no) minmax(100px, 1.5fr) minmax(100px, 1.5fr) 86px var(--col-qty) var(--col-price) 108px 92px var(--col-sum) var(--col-delete)'
 /** 서버 견적 version과 협업 Y.Doc의 seed 세대를 연결하는 내부 헤더 키. 화면 미노출. */
 const ESTIMATE_SERVER_VERSION_HEADER = 'estimateServerVersion'
 
@@ -2133,19 +2141,33 @@ export function EstimateFormPage() {
           {priceBannerAnnouncement || null}
         </div>
 
+        {isMobile && !isReadOnly && canViewProductLookups ? (
+          <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLineLookupOpen(true)}
+              disabled={estimateFormCoeditPending}
+              data-testid="estimate-line-lookup-btn"
+            >
+              참조 조회
+            </Button>
+          </div>
+        ) : null}
+
+        <div data-testid={!isMobile ? 'estimate-form-line-scroll' : undefined}>
         {!isMobile ? (
-          /* 라인 헤더 */
+          /* 라인 헤더 — 행과 같은 grid 상수를 공유한다. */
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns:
-                '32px 160px 1fr 100px 80px 130px 108px 92px 130px 36px',
-              gap: 8,
+              gridTemplateColumns: ESTIMATE_LINE_GRID_TEMPLATE,
               padding: '8px 0',
               borderBottom: '2px solid var(--line-default)',
               fontSize: 12,
               color: '#6B7280',
               fontWeight: 600,
+              whiteSpace: 'nowrap',
             }}
             data-testid="estimate-form-line-header"
           >
@@ -2162,21 +2184,9 @@ export function EstimateFormPage() {
           </div>
         ) : null}
 
-        {isMobile && !isReadOnly && canViewProductLookups ? (
-          <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setLineLookupOpen(true)}
-              disabled={estimateFormCoeditPending}
-              data-testid="estimate-line-lookup-btn"
-            >
-              참조 조회
-            </Button>
-          </div>
-        ) : null}
-
-        <div className={isMobile ? 'mobile-line-card-list' : undefined}>
+        <div
+          className={isMobile ? 'mobile-line-card-list' : undefined}
+        >
         {lines.map((line, i) => {
           const calculated = recalculateLineVat(asVatLine(line), line.authority ?? 'PRICE')
           const lineIncl = Number(calculated.lineTotal)
@@ -2227,9 +2237,7 @@ export function EstimateFormPage() {
               aria-describedby={line.priceRefreshChanged ? priceChangedStatusId : undefined}
               style={{
                 display: 'grid',
-                gridTemplateColumns:
-                  '32px 160px 1fr 100px 80px 130px 108px 92px 130px 36px',
-                gap: 8,
+                gridTemplateColumns: ESTIMATE_LINE_GRID_TEMPLATE,
                 padding: '6px 0',
                 alignItems: 'center',
                 // R6-H4: 강조행 구분선 #F3F4F6 on --surface-selected(#EFF6FF)=1.01:1 —
@@ -2471,6 +2479,7 @@ export function EstimateFormPage() {
            </div>
           )
         })}
+        </div>
         </div>
 
         {!isReadOnly ? (
