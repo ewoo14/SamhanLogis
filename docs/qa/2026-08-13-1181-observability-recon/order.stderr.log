@@ -1,0 +1,31 @@
+vite.config.ts (18:29) [33m[UNRESOLVED_IMPORT] [0mCould not resolve 'vite' in vite.config.ts
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m vite.config.ts:18:30 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m18 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0m[38;5;249md[0m[38;5;249me[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249me[0m[38;5;249mC[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mg[0m[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m'vite'
+ [38;5;240m   │[0m                              ───┬──  
+ [38;5;240m   │[0m                                 ╰──── Module not found, treating it as an external dependency
+[38;5;246m────╯[0m
+
+vite.config.ts (19:24) [33m[UNRESOLVED_IMPORT] [0mCould not resolve 'vite-plugin-pwa' in vite.config.ts
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m vite.config.ts:19:25 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m19 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0m[38;5;249mV[0m[38;5;249mi[0m[38;5;249mt[0m[38;5;249me[0m[38;5;249mP[0m[38;5;249mW[0m[38;5;249mA[0m[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m'vite-plugin-pwa'
+ [38;5;240m   │[0m                         ────────┬────────  
+ [38;5;240m   │[0m                                 ╰────────── Module not found, treating it as an external dependency
+[38;5;246m────╯[0m
+
+[31mfailed to load config from C:\dev\Samhan-Public\.claude\worktrees\w910\clients\web\order-app\vite.config.ts[39m
+[31merror when starting dev server:
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'vite' imported from C:\dev\Samhan-Public\node_modules\.vite-temp\vite.config.ts.timestamp-1786617831650-ea1b8b81423308.mjs
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+    at packageResolve (node:internal/modules/esm/resolve:764:81)
+    at moduleResolve (node:internal/modules/esm/resolve:855:18)
+    at defaultResolve (node:internal/modules/esm/resolve:988:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:697:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:714:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:746:52)
+    at #resolve (node:internal/modules/esm/loader:679:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:599:35)
+    at ModuleJob.syncLink (node:internal/modules/esm/module_job:162:33) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}[39m
