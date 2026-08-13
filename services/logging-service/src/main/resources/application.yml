@@ -26,6 +26,17 @@ eureka:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
+samhan:
+  audit:
+    # 잠정 운영 초기값. 법적/업무 보존기간 확정 전에는 이 설정만 변경한다.
+    retention:
+      change-retention: ${SAMHAN_AUDIT_RETENTION_CHANGE:8760h}
+      failure-retention: ${SAMHAN_AUDIT_RETENTION_FAILURE:8760h}
+      read-retention: ${SAMHAN_AUDIT_RETENTION_READ:720h}
+    rabbit:
+      audit-queue-max-length: ${SAMHAN_AUDIT_QUEUE_MAX_LENGTH:10000}
+      audit-queue-message-ttl-ms: ${SAMHAN_AUDIT_QUEUE_MESSAGE_TTL_MS:86400000}
+
 management:
   endpoints:
     web:
