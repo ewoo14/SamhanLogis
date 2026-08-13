@@ -15,13 +15,14 @@ import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.client.RestTemplate;
 
 /**
  * RabbitMQ topology for audit logs.
  *
  *   - Exchange: {@code samhan.audit.exchange} (topic, durable)
- *   - Queue:    {@code samhan.audit.queue} bound with pattern {@code audit.#}
+ *   - Queue:    {@code samhan.audit.queue} bound with pattern {@code audit.#};
+ *               retention limits are applied by {@code samhan-audit-retention} policy
  *   - DLX:      {@code samhan.audit.dlx}
  *   - DLQ:      {@code samhan.audit.dlq}
  *
@@ -31,11 +32,10 @@ import org.springframework.beans.factory.annotation.Value;
 @Configuration
 public class RabbitConfig {
 
-    @Value("${samhan.audit.rabbit.audit-queue-max-length:10000}")
-    private long auditQueueMaxLength = 10000L;
-
-    @Value("${samhan.audit.rabbit.audit-queue-message-ttl-ms:86400000}")
-    private long auditQueueMessageTtlMs = 86400000L;
+    @Bean
+    RestTemplate rabbitManagementRestTemplate() {
+        return new RestTemplate();
+    }
 
     public static final String EXCHANGE = "samhan.audit.exchange";
     public static final String QUEUE = "samhan.audit.queue";
@@ -61,9 +61,7 @@ public class RabbitConfig {
         return QueueBuilder.durable(QUEUE)
                 .withArguments(Map.of(
                         "x-dead-letter-exchange", DLX,
-                        "x-dead-letter-routing-key", DLQ_ROUTING_KEY,
-                        "x-max-length", auditQueueMaxLength,
-                        "x-message-ttl", auditQueueMessageTtlMs
+                        "x-dead-letter-routing-key", DLQ_ROUTING_KEY
                 ))
                 .build();
     }
@@ -75,20 +73,22 @@ public class RabbitConfig {
 
     @Bean
     Queue auditFailureQueue() {
-        return boundedQueue(FAILURE_QUEUE, 10000L);
+        return boundedQueue(FAILURE_QUEUE);
     }
 
     @Bean
     Queue auditReadQueue() {
-        return boundedQueue(READ_QUEUE, 2000L);
+        return boundedQueue(READ_QUEUE);
     }
 
-    private Queue boundedQueue(String name, long maxLength) {
+    /**
+     * Declares only immutable topology arguments. Retention arguments belong to the
+     * RabbitMQ policy so an upgrade can safely reuse an existing durable queue.
+     */
+    private Queue boundedQueue(String name) {
         return QueueBuilder.durable(name).withArguments(Map.of(
                 "x-dead-letter-exchange", DLX,
-                "x-dead-letter-routing-key", DLQ_ROUTING_KEY,
-                "x-max-length", maxLength,
-                "x-message-ttl", auditQueueMessageTtlMs)).build();
+                "x-dead-letter-routing-key", DLQ_ROUTING_KEY)).build();
     }
 
     @Bean
