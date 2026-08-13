@@ -1,7 +1,7 @@
 package com.samhanair.logis.slip.web.dto;
 
-import com.samhanair.logis.common.security.ActorDisplayName;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
@@ -121,7 +121,7 @@ public record SlipResponse(
      * @return 요약 응답 record
      */
     public static SlipResponse from(Slip slip) {
-        return from(slip, slip.getRequesterId());
+        return from(slip, ActorDisplayName.resolveNullable(null, slip.getRequesterId()));
     }
 
     /**
@@ -178,7 +178,7 @@ public record SlipResponse(
                 displayTotalAmount,
                 totalQuantity,
                 // 담당자명: 조회 서비스가 user-service에서 resolve한 표시명
-                salesPersonName,
+                ActorDisplayName.resolveNullable(null, salesPersonName),
                 // 수정 이력 건수: S2c 상태의존 표시 카운트(임계 전이 전 편집 제외)
                 slip.editHistoryCount(),
                 // V52 — 하차일 + 배송일정 파생 라벨
