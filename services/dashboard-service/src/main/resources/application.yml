@@ -40,6 +40,11 @@ eureka:
 
 # Phase 8 2차 — ServiceDiscoveryClient provider toggle. eureka default (Phase 10 시점 aws-cloud-map 으로 전환).
 samhan:
+  audit:
+    publisher:
+      enabled: ${SAMHAN_AUDIT_PUBLISHER_ENABLED:true}
+    request-capture:
+      enabled: ${SAMHAN_AUDIT_REQUEST_CAPTURE_ENABLED:true}
   discovery:
     provider: ${SAMHAN_DISCOVERY_PROVIDER:eureka}
   # Phase 9 W4 — DevOps W3 backlog #4 채택 (D-P9-12) — Caffeine 일관 유지 + Redis 토글 약속.

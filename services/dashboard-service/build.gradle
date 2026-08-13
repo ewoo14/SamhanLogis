@@ -42,6 +42,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
@@ -78,6 +79,7 @@ dependencies {
     // 대시보드 위젯 실시간 갱신 가능. 본 service 자체의 audit_log/edit_request 도메인 entity 는 등록 X
     // (read-only 라 mutation 가드 불필요).
     implementation project(':shared:realtime-abstraction')
+    implementation project(':shared:audit-publisher')
 
     runtimeOnly 'org.postgresql:postgresql'
 
@@ -88,6 +90,7 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'com.h2database:h2'
     testImplementation 'org.testcontainers:postgresql:1.20.3'
+    testImplementation 'org.testcontainers:rabbitmq:1.20.3'
     testImplementation 'org.testcontainers:junit-jupiter:1.20.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

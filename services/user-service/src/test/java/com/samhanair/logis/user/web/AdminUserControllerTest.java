@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +24,8 @@ import com.samhanair.logis.user.web.dto.AdminUserRoleChangeRequest;
 import com.samhanair.logis.user.web.dto.AdminUserUpdateRequest;
 import com.samhanair.logis.user.web.dto.EmployeeResponse;
 import com.samhanair.logis.user.web.dto.RoleHistoryResponse;
+import com.samhanair.logis.shared.audit.contract.AuditEventV2;
+import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -51,9 +54,11 @@ class AdminUserControllerTest {
             mock(EmployeeSignatureService.class);
     private final EmployeeSignatureHandoffService handoffService =
             mock(EmployeeSignatureHandoffService.class);
+    private final AuditPublisher auditPublisher = mock(AuditPublisher.class);
 
     private final AdminUserController controller = new AdminUserController(
-            provisioningService, employeeRepository, roleHistoryRepository, signatureService, handoffService);
+            provisioningService, employeeRepository, roleHistoryRepository, signatureService, handoffService,
+            auditPublisher);
 
     // -------------------------------------------------------------------------
     // list
@@ -176,6 +181,45 @@ class AdminUserControllerTest {
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getData().role()).isEqualTo(Role.MANAGER);
         verify(provisioningService).updateRole(eq(empId), eq(Role.MANAGER), eq("팀장 승진"), any());
+    }
+
+    @Test
+    void updateRole_publishesCentralAuditEvent() {
+        UUID empId = UUID.randomUUID();
+        AdminUserRoleChangeRequest req = new AdminUserRoleChangeRequest(Role.MANAGER, "role change");
+        EmployeeResponse mockResp = new EmployeeResponse(
+                empId, "user01", "Kim", "Staff", Role.MANAGER,
+                UUID.randomUUID(), "Sales", false, LocalDate.of(2026, 1, 1), null, null, null);
+        when(provisioningService.updateRole(any(), any(), any(), any())).thenReturn(mockResp);
+
+        ApiResponse<EmployeeResponse> result = controller.updateRole(empId, req, "actor-id");
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getData()).isSameAs(mockResp);
+        var event = org.mockito.ArgumentCaptor.forClass(AuditEventV2.class);
+        verify(auditPublisher).publishAfterCommit(event.capture());
+        assertThat(event.getValue().serviceName()).isEqualTo("user-service");
+        assertThat(event.getValue().httpMethod()).isEqualTo("PATCH");
+        assertThat(event.getValue().routeTemplate()).isEqualTo("/api/v1/admin/users/{id}/role");
+        assertThat(event.getValue().resourceType()).isEqualTo("EMPLOYEE_ROLE");
+        assertThat(event.getValue().resourceId()).isEqualTo(empId.toString());
+    }
+
+    @Test
+    void updateRole_isFailSoftWhenAuditPublishingFails() {
+        UUID empId = UUID.randomUUID();
+        AdminUserRoleChangeRequest req = new AdminUserRoleChangeRequest(Role.MANAGER, "role change");
+        EmployeeResponse mockResp = new EmployeeResponse(
+                empId, "user01", "Kim", "Staff", Role.MANAGER,
+                UUID.randomUUID(), "Sales", false, LocalDate.of(2026, 1, 1), null, null, null);
+        when(provisioningService.updateRole(any(), any(), any(), any())).thenReturn(mockResp);
+        doThrow(new RuntimeException("rabbit down")).when(auditPublisher).publishAfterCommit(any());
+
+        ApiResponse<EmployeeResponse> result = controller.updateRole(empId, req, "actor-id");
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getData()).isSameAs(mockResp);
+        verify(provisioningService).updateRole(eq(empId), eq(Role.MANAGER), eq("role change"), any());
     }
 
     // -------------------------------------------------------------------------
