@@ -541,3 +541,133 @@ BODY_LENGTH=557224
 ## R3-8. 머지 권고
 
 **현재 상태에서는 머지를 권고하지 않는다.** Round 3의 필수 0단계와 시나리오 5~10은 모두 PASS했고 이 범위 신규 결함은 0건이며, 웹 종합견적서 404도 철회한다. 그러나 동일 HEAD에서 이미 실 사용자 경로로 기록된 `R2-DEFECT-1`(1440px에서 품목명 식별 불가)이 미해결 상태다. 해당 결함의 수정 또는 동일 조건 재검증으로 해소가 확인되기 전에는 “도달 가능한 결함 0건” 게이트가 충족되지 않는다.
+
+## Round 4
+
+### R4-1. 환경 확인 원문
+
+Round 2의 재현 조건을 그대로 사용했다: `1440×900` → `/sales/estimates/new` → 거래처 `2568700899` 선택 → 품목 `AC060CS1PBH1SY` 입력 후 blur로 실서버 lookup 완료. 같은 상태를 `1920×1080`으로 바꿔 다시 측정했다. 정적 게이트나 소스 존재 여부가 아니라 Playwright `@playwright/test 1.59.1`과 설치본 `chromium-1217`로 실제 Vite 렌더러(`127.0.0.1:5173`) 및 실 gateway(`127.0.0.1:8080`)를 조작했다. 로그인 HTTP는 200이었다. 저장 버튼은 누르지 않아 신규 문서번호는 없다.
+
+`git` 명령 없이 worktree 관리 파일의 HEAD를 직접 읽은 원문:
+
+```text
+WORKTREE_HEAD=eb5aa20e7a1f15136e54843ba9a667386c13caa9
+EXPECTED_PREFIX_MATCH=True
+VITE_APP_VERSION=2026/08/13-1197
+```
+
+RAM 원문:
+
+```text
+시작 RAM_FREE_GIB=22.215
+증거 고정 직전 RAM_FREE_GIB=21.083
+중단 기준=1.0GiB
+```
+
+### R4-2. 견적 1440px 실제 렌더 폭
+
+`getBoundingClientRect()` 및 헤더 텍스트 node의 `Range.getClientRects()` 원문:
+
+```json
+{
+  "viewport": { "width": 1440, "height": 900 },
+  "headerCount": 10,
+  "rowCount": 10,
+  "headerModel": { "left": 305, "right": 543, "width": 238, "height": 18 },
+  "headerProduct": { "left": 543, "right": 781, "width": 238, "height": 18 },
+  "rowModel": { "left": 309, "right": 545, "width": 236, "height": 36 },
+  "rowProduct": { "left": 545, "right": 781, "width": 236, "height": 28 },
+  "modelInput": { "left": 322, "right": 532, "width": 210, "height": 23 },
+  "productInput": { "left": 545, "right": 781, "width": 236, "height": 28 },
+  "modelHeaderTextLines": [
+    { "left": 305, "top": 490.5625, "width": 33.125, "height": 16 }
+  ],
+  "productHeaderTextLines": [
+    { "left": 543, "top": 490.5625, "width": 33.125, "height": 16 }
+  ],
+  "hiddenCollabCount": 1,
+  "hiddenCollabRects": [
+    { "left": 0, "right": 0, "width": 0, "height": 0 }
+  ]
+}
+```
+
+육안 확인: `모델명`, `품목명`은 각각 한 줄로 표시됐다. `품/목/명` 형태의 3줄 래핑은 재현되지 않았고, 행의 `무풍 1way 냉난방`도 정상 식별된다.
+
+증거: [round4-estimate-1440.png](screenshots/round4-estimate-1440.png)
+
+### R4-3. 견적 1920px 실제 렌더 폭
+
+동일 DOM과 동일 측정 함수의 원문:
+
+```json
+{
+  "viewport": { "width": 1920, "height": 1080 },
+  "headerCount": 10,
+  "rowCount": 10,
+  "headerModel": { "left": 305, "right": 783, "width": 478, "height": 18 },
+  "headerProduct": { "left": 783, "right": 1261, "width": 478, "height": 18 },
+  "rowModel": { "left": 309, "right": 785, "width": 476, "height": 36 },
+  "rowProduct": { "left": 785, "right": 1261, "width": 476, "height": 28 },
+  "modelInput": { "left": 322, "right": 772, "width": 450, "height": 23 },
+  "productInput": { "left": 785, "right": 1261, "width": 476, "height": 28 },
+  "modelHeaderTextLines": [
+    { "left": 305, "top": 490.5625, "width": 33.125, "height": 16 }
+  ],
+  "productHeaderTextLines": [
+    { "left": 783, "top": 490.5625, "width": 33.125, "height": 16 }
+  ],
+  "hiddenCollabCount": 1,
+  "hiddenCollabRects": [
+    { "left": 0, "right": 0, "width": 0, "height": 0 }
+  ]
+}
+```
+
+육안 확인: 두 헤더 모두 한 줄이며 품목명 값도 정상 표시됐다.
+
+증거: [round4-estimate-1920.png](screenshots/round4-estimate-1920.png)
+
+### R4-4. `SlipFormPage` 대조
+
+`/sales/new`에 같은 거래처 `2568700899`와 같은 품목 `AC060CS1PBH1SY`를 입력했다. 판매전표의 기존 규칙에 따라 세트가 구성품으로 전개됐고, 첫 행은 `AC060CN1PBH1 / 무풍 1way 냉난방 실내기`였다. 저장하지 않고 같은 `getBoundingClientRect()` 방식으로 열만 대조했다.
+
+```text
+1440×900
+  모델명 헤더/행 = 183px / 183px
+  품목명 헤더/행 = 183px / 183px
+  모델명 헤더 텍스트 line rect = 1개
+  품목명 헤더 텍스트 line rect = 1개
+  헤더/행 칸 수 = 12 / 12
+
+1920×1080
+  모델명 헤더/행 = 423px / 423px
+  품목명 헤더/행 = 423px / 423px
+  모델명 헤더 텍스트 line rect = 1개
+  품목명 헤더 텍스트 line rect = 1개
+  헤더/행 칸 수 = 12 / 12
+```
+
+판매전표도 모델명·품목명에 동일 비율을 주며 두 열이 같은 폭으로 렌더된다. 견적은 판매전표보다 선택/드래그 칸이 적어 가용 폭이 더 크지만, 핵심 기준인 두 열 동등 배분과 최소 폭 보존이 실제 렌더에서도 성립했다.
+
+### R4-5. 헤더 칸 수 vs 행 칸 수
+
+- 견적: 1440px `10 vs 10`, 1920px `10 vs 10`.
+- 판매전표 대조: 1440px `12 vs 12`, 1920px `12 vs 12`.
+- 견적 행 내부의 협업 동기화 요소는 직접 grid child가 아니라 중첩된 숨은 input 1개이며 실제 rect는 `0×0px`다. 따라서 과거의 숨은 wrapper로 인한 `헤더 10칸 vs 행 11칸`은 재현되지 않았다.
+- 견적 행은 좌우 padding 때문에 헤더보다 모델명 행이 좌측 4px, 품목명 행이 좌측 2px 이동하고 각각 2px 좁지만, 열 순서·경계·후속 열 대응은 일치한다.
+
+### R4-6. `R2-DEFECT-1` 판정
+
+**해소.** Round 2에서 1440px 품목명 헤더·행이 각각 18px로 붕괴했던 동일 조건에서 Round 4 실측은 품목명 헤더 `238px`, 행 `236px`다. 헤더 `품목명`의 text line rect가 1개이고 실제 값 `무풍 1way 냉난방`이 화면에서 정상 식별된다. 1920px도 헤더 `478px`, 행 `476px`로 정상이다. 따라서 기존 `R2-DEFECT-1`을 **해소로 정정**한다.
+
+스크린샷 SHA-256:
+
+```text
+round4-estimate-1440.png  0BD74087049C3B390B5C5AC2D65B9266AD01B849578BF39A47116D48B864D348
+round4-estimate-1920.png  1C8FC20D8D481657BCFE76BB52E582497E3631C345874BF23B6DC86944D773DB
+```
+
+### R4-7. 머지 권고
+
+**머지를 권고한다.** Round 4에서 마지막 미해결 항목 `R2-DEFECT-1`이 동일 조건 실측으로 해소됐다. Round 3에서 확인된 나머지 게이트와 합쳐 PR #1197의 라이브 QA 차단 결함은 0건이다.
