@@ -1,0 +1,329 @@
+{
+  "startedAt": "2026-08-13T10:47:10.878Z",
+  "fixedPartner": {
+    "code": "P-2026-0017",
+    "name": "원주에어컨공업"
+  },
+  "ramGiB": [
+    {
+      "stage": "start",
+      "value": 26.21
+    },
+    {
+      "stage": "before-shot:06-purchase-slip-after-list.png",
+      "value": 25.79
+    },
+    {
+      "stage": "before-shot:07-sales-accounting-before-list.png",
+      "value": 25.613
+    },
+    {
+      "stage": "before-shot:08-sales-accounting-ready.png",
+      "value": 25.5
+    },
+    {
+      "stage": "before-shot:09-sales-accounting-blocked.png",
+      "value": 25.496
+    },
+    {
+      "stage": "before-shot:10-purchase-accounting-before-list.png",
+      "value": 25.596
+    },
+    {
+      "stage": "before-shot:11-purchase-accounting-ready.png",
+      "value": 25.568
+    },
+    {
+      "stage": "before-shot:12-purchase-accounting-blocked.png",
+      "value": 25.548
+    },
+    {
+      "stage": "before-close",
+      "value": 25.593
+    }
+  ],
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/purchases",
+      "resourceType": "document",
+      "at": "2026-08-13T10:47:11.544Z"
+    },
+    {
+      "method": "GET",
+      "path": "/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:12.028Z",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/app/notices/active",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:12.032Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:12.387Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:12.387Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/warehouses",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:12.414Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/query?slipType=INBOUND&dateFrom=2026-07-29&dateTo=2026-08-28&page=0&size=50",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:12.415Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/accounting/sales-slips",
+      "resourceType": "document",
+      "at": "2026-08-13T10:47:13.163Z"
+    },
+    {
+      "method": "GET",
+      "path": "/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:13.531Z",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/app/notices/active",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:13.532Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:13.573Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:13.573Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/sales-slips?from=2026-08-01&to=2026-08-13",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:13.595Z",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/logs/front",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:14.574Z",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/accounting/sales-slips/new",
+      "resourceType": "document",
+      "at": "2026-08-13T10:47:14.657Z"
+    },
+    {
+      "method": "GET",
+      "path": "/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:15.063Z",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/app/notices/active",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:15.065Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:15.108Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:15.109Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/by-period?type=OUTBOUND&from=2026-08-13&to=2026-08-13",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:15.130Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/by-period?type=OUTBOUND&from=2026-08-13&to=2026-08-13",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:15.131Z",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/logs/front",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:16.109Z",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/accounting/purchase-slips",
+      "resourceType": "document",
+      "at": "2026-08-13T10:47:16.277Z"
+    },
+    {
+      "method": "GET",
+      "path": "/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:16.735Z",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/app/notices/active",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:16.737Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:16.788Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:16.789Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/purchase-slips?from=2026-08-01&to=2026-08-13",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:16.818Z",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/logs/front",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:17.794Z",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/accounting/purchase-slips/new",
+      "resourceType": "document",
+      "at": "2026-08-13T10:47:17.943Z"
+    },
+    {
+      "method": "GET",
+      "path": "/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:18.361Z",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/app/notices/active",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:18.362Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:18.406Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/my",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:18.406Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/by-period?type=INBOUND&from=2026-08-13&to=2026-08-13",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:18.431Z",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/by-period?type=INBOUND&from=2026-08-13&to=2026-08-13",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:18.431Z",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/logs/front",
+      "resourceType": "xhr",
+      "at": "2026-08-13T10:47:19.408Z",
+      "status": 503
+    }
+  ],
+  "scenarios": {
+    "salesSlipReuse": {
+      "slipNo": "2026/08/13-3",
+      "source": "operational partial evidence"
+    },
+    "purchaseSlipReuse": {
+      "slipNo": "2026/08/13-1",
+      "source": "operational partial evidence"
+    },
+    "salesAccountingUnavailable": {
+      "reason": "원천 전표 선행조건 불충족",
+      "screenshots": [
+        "07-sales-accounting-before-list.png",
+        "08-sales-accounting-ready.png",
+        "09-sales-accounting-blocked.png"
+      ]
+    },
+    "purchaseAccountingUnavailable": {
+      "reason": "원천 전표 선행조건 불충족",
+      "screenshots": [
+        "10-purchase-accounting-before-list.png",
+        "11-purchase-accounting-ready.png",
+        "12-purchase-accounting-blocked.png"
+      ]
+    }
+  },
+  "errors": [],
+  "completedAt": "2026-08-13T10:47:19.580Z"
+}
