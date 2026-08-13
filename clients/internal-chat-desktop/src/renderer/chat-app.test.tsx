@@ -36,6 +36,17 @@ function renderApp(initialEntries = ['/chat']) {
   )
 }
 
+function renderProductionApp(initialEntries = ['/chat']) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter basename="/chat" initialEntries={initialEntries}>
+        <ChatApp />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
 describe('독립 앱 S1 채팅 이식', () => {
   afterEach(() => { cleanup(); vi.clearAllMocks() })
 
@@ -50,6 +61,17 @@ describe('독립 앱 S1 채팅 이식', () => {
     fireEvent.click(screen.getByRole('button', { name: '대화 시작' }))
 
     await waitFor(() => expect(chatApi.createDirectChatRoom).toHaveBeenCalledWith('4f6f6c2e-5a8e-4db2-a2d7-4b9f2f4f0002'))
+  })
+
+  it('production basename 환경에서 방 생성 직후 생성된 대화방에 진입한다', async () => {
+    renderProductionApp()
+
+    fireEvent.change(await screen.findByRole('textbox', { name: '대화 상대 검색' }), { target: { value: '이개발' } })
+    fireEvent.click(await screen.findByRole('button', { name: /이개발/ }))
+    fireEvent.click(screen.getByRole('button', { name: '대화 시작' }))
+
+    await waitFor(() => expect(screen.getByTestId('chat-room-page')).toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: '채팅' })).toBeInTheDocument()
   })
 
   it('대화 내용과 메시지 전송을 제공한다', async () => {
