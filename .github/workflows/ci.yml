@@ -836,7 +836,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: clients/internal-chat-desktop/package-lock.json
+          cache-dependency-path: |
+            clients/web/design-system/package-lock.json
+            clients/internal-chat-desktop/package-lock.json
+
+      - name: "design-system 사전 빌드 (file: dependency)"
+        working-directory: clients/web/design-system
+        run: |
+          npm ci
+          npm run build
 
       - name: 내부 채팅 의존성 설치
         run: npm ci
