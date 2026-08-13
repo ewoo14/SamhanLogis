@@ -147,6 +147,7 @@ spring:
                 allowedGroups:
                   - 00000000-0000-0000-0000-000000000100
                   - 00000000-0000-0000-0000-000000000101
+                allowSystemMaster: true
 
         # DEV-3 활동 로그 뷰어 — gateway 는 인증만 수행하고 logging-service @RequirePermission(dev.activity-log)가 최종 게이팅.
         - id: logging-activity-dev-menu

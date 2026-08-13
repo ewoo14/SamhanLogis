@@ -204,7 +204,8 @@ public class JwtAuthenticationGatewayFilterFactory
 
             // allowedGroups 검사 — Phase C5-3 신규. 비어있으면 그룹 제한 없음 (기존 라우트 영향 0).
             // groups claim 과 allowedGroups 의 교집합이 없으면 403.
-            if (!config.getAllowedGroups().isEmpty()) {
+            if (!config.getAllowedGroups().isEmpty()
+                    && !(config.isAllowSystemMaster() && isSystemMaster)) {
                 Set<String> tokenGroups = new java.util.HashSet<>(
                         Arrays.asList(groups.split(",")));
                 // 빈 문자열 토큰 제거 (groups claim 부재 시 "" → [""] 방지)
@@ -324,5 +325,7 @@ public class JwtAuthenticationGatewayFilterFactory
          * allowedRoles 와 AND 아님 — 각각 독립 검사.
          */
         private List<String> allowedGroups = new ArrayList<>();
+        /** Allow the signed JWT system-master claim to bypass this route's group list. */
+        private boolean allowSystemMaster;
     }
 }

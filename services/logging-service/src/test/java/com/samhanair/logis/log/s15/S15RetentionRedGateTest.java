@@ -27,6 +27,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.http.HttpMethod.PUT;
 import org.springframework.amqp.core.Queue;
+import org.springframework.beans.factory.annotation.Value;
 
 /**
  * S1.5 RED gate.
@@ -142,5 +143,21 @@ class S15RetentionRedGateTest {
         assertThat(operations.getDeclaredMethod("discard", String.class, String.class)).isNotNull();
         assertThat(operations.getDeclaredMethod("maxRedeliveries").getReturnType())
                 .isEqualTo(int.class);
+    }
+
+    @Test
+    void rabbitCredentials_haveNoPlaintextDevelopmentFallback() throws Exception {
+        java.lang.annotation.Annotation[] values = RabbitRetentionPolicyInitializer.class
+                .getDeclaredConstructor(RestTemplate.class, String.class, String.class, String.class,
+                        long.class, long.class)
+                .getParameterAnnotations()[2];
+
+        String annotation = java.util.Arrays.stream(values)
+                .filter(Value.class::isInstance)
+                .map(Value.class::cast)
+                .map(Value::value)
+                .findFirst()
+                .orElse("");
+        assertThat(annotation).doesNotContain("samhan_dev_pw", "samhan}");
     }
 }

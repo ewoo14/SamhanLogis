@@ -40,8 +40,8 @@ public class RabbitRetentionPolicyInitializer {
     public RabbitRetentionPolicyInitializer(
             RestTemplate restTemplate,
             @Value("${samhan.audit.rabbit.management-url:http://${RABBIT_MANAGEMENT_HOST:${RABBIT_HOST:localhost}}:${RABBIT_MANAGEMENT_PORT:15672}}") String managementUrl,
-            @Value("${spring.rabbitmq.username:samhan}") String username,
-            @Value("${spring.rabbitmq.password:samhan_dev_pw}") String password,
+            @Value("${spring.rabbitmq.username}") String username,
+            @Value("${spring.rabbitmq.password}") String password,
             @Value("${samhan.audit.rabbit.audit-queue-max-length:10000}") long maxLength,
             @Value("${samhan.audit.rabbit.audit-queue-message-ttl-ms:86400000}") long messageTtlMs) {
         this.restTemplate = restTemplate;
