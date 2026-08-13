@@ -15,11 +15,20 @@ import java.util.UUID;
  * @param scanned   true 면 바코드 스캔 입력 (모바일), false 면 수동 (default false)
  */
 public record AuditLineRequest(
-        @NotNull(message = "productId 는 필수입니다") UUID productId,
+        UUID productId,
+        String productCode,
         @NotNull(message = "actualQty 는 필수입니다 (0 이상)")
         @Min(value = 0, message = "actualQty 는 0 이상이어야 합니다")
         Integer actualQty,
         Boolean scanned) {
+
+    public AuditLineRequest(UUID productId, Integer actualQty, Boolean scanned) {
+        this(productId, null, actualQty, scanned);
+    }
+
+    public boolean hasProductIdentifier() {
+        return productId != null || (productCode != null && !productCode.isBlank());
+    }
 
     /** scanned 가 null 이면 false 로 처리. */
     public boolean scannedOrFalse() {

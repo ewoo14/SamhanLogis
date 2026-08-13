@@ -99,6 +99,13 @@ describe('재고수불부 모달', () => {
     expect(stockLedgerSlipDestination('OUTBOUND', '2026/08/02-17')).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27}/i)
   })
 
+  it('이동전표와 실사 조정행도 업무번호로 해당 관리 화면에 이동한다', () => {
+    expect(stockLedgerSlipDestination('STOCK_TRANSFER', '2026/08/14-11'))
+      .toBe('/transfers?transferNo=2026%2F08%2F14-11')
+    expect(stockLedgerSlipDestination('AUDIT', '2026/08/14-3'))
+      .toBe('/warehouse/audit?auditNo=2026%2F08%2F14-3')
+  })
+
   it('기본 기간은 오늘 기준 최근 3개월이다', () => {
     expect(recentThreeMonthsRange(new Date(2026, 7, 14))).toEqual({ start: '2026-05-14', end: '2026-08-14' })
   })

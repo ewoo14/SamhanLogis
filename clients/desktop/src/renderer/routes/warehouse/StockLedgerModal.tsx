@@ -13,7 +13,7 @@ export function StockLedgerModal({
   data: StockLedgerResponse | undefined
   onClose: () => void
   onRangeChange: (startDate: string, endDate: string) => void
-  onOpenSlip?: (slipNo: string, slipType: 'INBOUND' | 'OUTBOUND') => void
+  onOpenSlip?: (slipNo: string, slipType: NonNullable<StockLedgerRow['slipType']>) => void
 }) {
   const [startDate, setStartDate] = useState(data?.startDate ?? '')
   const [endDate, setEndDate] = useState(data?.endDate ?? '')

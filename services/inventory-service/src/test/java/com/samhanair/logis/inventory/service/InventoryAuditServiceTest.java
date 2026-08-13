@@ -12,6 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.client.AccountingClient;
@@ -125,6 +126,31 @@ class InventoryAuditServiceTest {
         assertThat(response.lines().get(0).expectedQty()).isEqualTo(100);
         assertThat(response.lines().get(0).productName()).isEqualTo("AC");
         assertThat(response.lines().get(0).unitCost()).isEqualByComparingTo("100000.00");
+    }
+
+    @Test
+    void recordsAuditLineByExistingProductCodeWithLeadingZero() throws Exception {
+        InventoryAudit audit = InventoryAudit.create("2026/08/14-3", warehouse,
+                LocalDate.of(2026, 8, 12));
+        ReflectionTestUtils.setField(audit, "id", UUID.randomUUID());
+        audit.start();
+        InventoryAuditLine line = InventoryAuditLine.snapshot(audit, productId, "실사 품목", 3,
+                BigDecimal.ONE);
+        audit.addLine(line);
+        when(auditRepository.findById(audit.getId())).thenReturn(Optional.of(audit));
+        UUID resolvedId = productId;
+        when(productClient.requireExistsByCode("0000098"))
+                .thenReturn(new ProductSummary(resolvedId, "실사 품목", "SKU", "0000098",
+                        UUID.randomUUID(), BigDecimal.ONE, "ACTIVE", false, true));
+
+        AuditLineRequest request = new ObjectMapper().readValue(
+                "{\"productCode\":\"0000098\",\"actualQty\":4,\"scanned\":true}",
+                AuditLineRequest.class);
+        service.recordLine(audit.getId(), request);
+
+        assertThat(line.getActualQty()).isEqualTo(4);
+        assertThat(line.getDiffQty()).isEqualTo(1);
+        verify(productClient).requireExistsByCode("0000098");
     }
 
     @Test

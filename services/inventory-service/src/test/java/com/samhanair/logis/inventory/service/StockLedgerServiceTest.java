@@ -114,6 +114,51 @@ class StockLedgerServiceTest {
         assertThat(ledger.rows().get(0).slipType()).isEqualTo("INBOUND");
     }
 
+    @Test
+    @DisplayName("이동 movement는 적요가 아니라 전표번호 열과 이동 전표 유형을 제공한다")
+    void exposesStockTransferNumberAsSlipNumber() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary product = mock(ProductSummary.class);
+        when(product.id()).thenReturn(productId);
+        when(product.name()).thenReturn("이동 품목");
+        when(productClient.requireExistsByCode("TRANSFER-P1")).thenReturn(product);
+        StockMovement movement = movement(MovementType.TRANSFER_IN, 1,
+                LocalDateTime.of(2026, 8, 14, 9, 0));
+        when(movement.getReferenceType()).thenReturn("STOCK_TRANSFER");
+        when(movement.getNote()).thenReturn("2026/08/14-11");
+        when(movementRepository.findAllByProductIdOrderByOccurredAtAsc(productId))
+                .thenReturn(List.of(movement));
+
+        var ledger = service.getLedger("TRANSFER-P1", LocalDate.of(2026, 8, 14),
+                LocalDate.of(2026, 8, 14));
+
+        assertThat(ledger.rows().get(0).slipNo()).isEqualTo("2026/08/14-11");
+        assertThat(ledger.rows().get(0).slipType()).isEqualTo("STOCK_TRANSFER");
+    }
+
+    @Test
+    @DisplayName("실사 조정 movement도 조정번호를 전표번호 열에 제공한다")
+    void exposesInventoryAuditNumberAsSlipNumber() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary product = mock(ProductSummary.class);
+        when(product.id()).thenReturn(productId);
+        when(product.name()).thenReturn("실사 품목");
+        when(productClient.requireExistsByCode("AUDIT-P1")).thenReturn(product);
+        StockMovement movement = movement(MovementType.ADJUST, 1,
+                LocalDateTime.of(2026, 8, 14, 9, 0));
+        when(movement.getReferenceType()).thenReturn("AUDIT");
+        when(movement.getReferenceId()).thenReturn(UUID.randomUUID());
+        when(movement.getNote()).thenReturn("재고 실사 조정 (2026/08/14-3)");
+        when(movementRepository.findAllByProductIdOrderByOccurredAtAsc(productId))
+                .thenReturn(List.of(movement));
+
+        var ledger = service.getLedger("AUDIT-P1", LocalDate.of(2026, 8, 14),
+                LocalDate.of(2026, 8, 14));
+
+        assertThat(ledger.rows().get(0).slipNo()).isEqualTo("2026/08/14-3");
+        assertThat(ledger.rows().get(0).slipType()).isEqualTo("AUDIT");
+    }
+
     private StockMovement movement(MovementType type, int delta, LocalDateTime occurredAt) {
         StockMovement movement = mock(StockMovement.class);
         when(movement.getMovementType()).thenReturn(type);

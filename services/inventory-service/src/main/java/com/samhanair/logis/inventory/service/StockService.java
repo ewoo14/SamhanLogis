@@ -293,7 +293,8 @@ public class StockService {
         stockMovementRepository.save(StockMovement.of(
                 lot.getId(), req.productId(), warehouse.getId(),
                 MovementType.INBOUND, req.quantity(),
-                "INBOUND", null, req.note(), actorUserId));
+                "INBOUND", req.sourceContext() == null ? null : req.sourceContext().slipId(),
+                req.note(), actorUserId));
 
         recordSource(req.sourceContext(), product, SourceOperationOutcome.APPLIED,
                 lot.getId() == null ? List.of() : List.of(lot.getId()), List.of());

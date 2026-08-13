@@ -531,7 +531,7 @@ function BarcodeInput({ audit, onRecorded }: BarcodeInputProps) {
   const mutation = useMutation({
     mutationFn: () =>
       recordAuditLine(audit.id, {
-        productId: productId.trim(),
+        productCode: productId.trim(),
         actualQty: Number.parseInt(actualQty, 10),
         scanned,
       }),

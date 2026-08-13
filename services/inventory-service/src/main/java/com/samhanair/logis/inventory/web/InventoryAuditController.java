@@ -142,11 +142,11 @@ public class InventoryAuditController {
      * 라인 입력 (POST) — productId 로 snapshot 라인 검색해 actual_qty set.
      *
      * @param id      실사 UUID
-     * @param request AuditLineRequest (productId / actualQty / scanned)
+     * @param request AuditLineRequest (productId 또는 productCode / actualQty / scanned)
      * @return AuditDetailResponse (200)
      */
     @Operation(summary = "라인 입력 (바코드/수동)",
-            description = "productId 로 snapshot 라인 검색해 actual_qty set. scanned=true 면 바코드 스캔")
+            description = "productId 또는 productCode 로 snapshot 라인 검색해 actual_qty set. scanned=true 면 바코드 스캔")
     @PostMapping("/{id}/lines")
     @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<AuditDetailResponse> recordLine(

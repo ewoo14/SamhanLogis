@@ -185,8 +185,10 @@ public class InventoryAuditService {
         InventoryAudit audit = loadOrThrow(id);
         audit.requireInProgressForLineInput();
 
+        UUID productId = resolveProductId(req);
+
         InventoryAuditLine line = audit.getLines().stream()
-                .filter(l -> l.getProductId().equals(req.productId()))
+                .filter(l -> l.getProductId().equals(productId))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT,
                         "snapshot 라인에 해당 제품이 없습니다"));
@@ -209,15 +211,27 @@ public class InventoryAuditService {
         InventoryAudit audit = loadOrThrow(id);
         audit.requireInProgressForLineInput();
 
+        UUID productId = resolveProductId(req);
+
         InventoryAuditLine line = auditLineRepository.findByIdAndAudit_Id(lineId, id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "라인을 찾을 수 없습니다"));
-        if (!line.getProductId().equals(req.productId())) {
+        if (!line.getProductId().equals(productId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "productId 불일치 — path 의 lineId 와 body 의 productId 가 다릅니다");
         }
         line.recordActual(req.actualQty(), req.scannedOrFalse());
         return AuditDetailResponse.from(audit);
+    }
+
+    private UUID resolveProductId(AuditLineRequest req) {
+        if (req.productId() != null) {
+            return req.productId();
+        }
+        if (req.productCode() != null && !req.productCode().isBlank()) {
+            return productClient.requireExistsByCode(req.productCode().trim()).id();
+        }
+        throw new BusinessException(ErrorCode.INVALID_INPUT, "productId 또는 productCode 는 필수입니다");
     }
 
     /**

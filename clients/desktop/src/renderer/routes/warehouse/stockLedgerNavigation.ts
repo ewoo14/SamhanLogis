@@ -1,5 +1,7 @@
 import type { SlipType } from '../../api/slip'
 
+export type StockLedgerSlipType = SlipType | 'STOCK_TRANSFER' | 'AUDIT'
+
 export interface StockLedgerDateRange {
   start: string
   end: string
@@ -21,7 +23,13 @@ export function recentThreeMonthsRange(today = new Date()): StockLedgerDateRange
 }
 
 /** 수불부에서 전표번호를 눌렀을 때 사용하는 전표별 opaque 화면 경로. */
-export function stockLedgerSlipDestination(slipType: SlipType, slipNo: string): string {
+export function stockLedgerSlipDestination(slipType: StockLedgerSlipType, slipNo: string): string {
+  if (slipType === 'STOCK_TRANSFER') {
+    return `/transfers?transferNo=${encodeURIComponent(slipNo)}`
+  }
+  if (slipType === 'AUDIT') {
+    return `/warehouse/audit?auditNo=${encodeURIComponent(slipNo)}`
+  }
   const pathname = slipType === 'OUTBOUND' ? '/sales/by-number' : '/purchases/by-number'
   return `${pathname}?slipNo=${encodeURIComponent(slipNo)}`
 }

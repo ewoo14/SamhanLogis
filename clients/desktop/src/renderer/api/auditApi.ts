@@ -164,12 +164,13 @@ export async function cancelAudit(id: string): Promise<AuditDetail> {
 
 /** 라인 입력 요청 — BE `AuditLineRequest`. */
 export interface AuditLineRequest {
-  productId: string
+  productId?: string
+  productCode?: string
   actualQty: number
   scanned?: boolean
 }
 
-/** 라인 입력 (POST) — productId 로 snapshot 라인 검색해 actual_qty set. */
+/** 라인 입력 (POST) — productId 또는 품목코드/바코드로 snapshot 라인을 검색해 actual_qty set. */
 export async function recordAuditLine(
   id: string,
   body: AuditLineRequest,
