@@ -269,3 +269,96 @@ error TS2688: Cannot find type definition file for 'node'.
 - 이카운트 이동 import, 시리얼, 소급 반영, 다중 lot 단일 `sourceLotId` 정책은 라운드 1과 동일하게 남겼다.
 - 판매 상세의 기존 `/accounting/journals/sales-slip-ledger` 400 관측은 이번 변경 범위가 아니므로 유지했다.
 - 전체 desktop 테스트의 기존 import/jsdom 및 기존 계약 테스트 실패는 환경/기존 결함으로 남겼고, 변경 계약 테스트의 GREEN과 구분했다.
+
+## 수불부 전표 링크 단계
+
+### 현황 실측
+
+- 정본 문서: `git show origin/main:docs/decisions/2026-08-14-stock-ledger-modal-spec.md`로 확인했다.
+- 참조자료: `.claude/uploads/재고수불부_AP145BNPPHH1.xlsx`가 존재하며 크기는 37,448 bytes다.
+- 현재 `StockLedgerModal`은 엑셀본과 같은 9개 기본 열(일자·품목명·품목코드·창고명·거래처명·적요·입고수량·출고수량·재고수량)을 렌더링하지만, 전표번호가 있으면 적요 셀 자체를 버튼으로 바꾸고 있었다. 배송주소 행은 전표번호가 없어 링크가 아니었다.
+- 기존 전표 경로는 `getSlipByNumber(slipNo, slipType)`였다. 전표번호로 목록 검색 후 내부 UUID로 상세를 조회하는 기존 경로이므로 새 전표 조회 API를 만들지 않았다.
+- 기존 상세 화면 라우트(`/sales/:id`, `/purchases/:id`)는 UUID path를 사용한다. 이번 단계는 이를 URL에 재사용하지 않고 `/sales/by-number?slipNo=...` 또는 `/purchases/by-number?slipNo=...`에서 내부적으로만 상세 UUID를 해석하도록 보완했다.
+- 수불부 API `StockLedgerRow.slipType`의 코드 계약은 `INBOUND | OUTBOUND`뿐이다. 이동전표·재고실사 전용 종류는 이 화면 응답에서 확인되지 않았으므로 목적지를 지어내지 않았다.
+- 참조 엑셀본은 9열·전표번호 전용 열 없음·금액 열 없음·합계/누계 없음으로 확인했다. 현재 화면의 전일재고 행·합계 행·월초 기본 기간은 기존 표시 보존을 위해 유지했으며, 정본의 미결정 항목으로 남겼다.
+
+### RED 원문 (양방향)
+
+새 계약 테스트를 먼저 추가한 뒤 실행한 원문:
+
+```text
+Error: Failed to resolve import "./stockLedgerNavigation"
+from "src/renderer/routes/warehouse/StockLedgerModal.test.tsx"
+```
+
+이는 전표번호별 opaque 목적지 함수가 아직 없다는 RED였다. 실행 환경에는 처음 `vitest`도 없어 첫 시도는 다음 환경 오류로 막혔다.
+
+```text
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'vitest'
+```
+
+`clients/desktop` 의존성을 `npm ci --ignore-scripts`로 복구한 뒤 위 기능 RED를 확인했다.
+
+양방향 기준은 다음과 같이 잡았다.
+
+- ①~④ RED: 9열+전표번호 열, XL 모달, 전표번호별 판매/입고 목적지 계약이 없었다.
+- ⑤ 기존 표시 RED 보호: 기존 테스트의 전일재고·누적잔량·지방 태그·배송주소 비링크 검증을 유지하고, 전표번호가 있어도 적요가 별도 셀에 계속 보이는 회귀 기준을 추가했다.
+- ⑥ 오류 표시 기준: opaque 경로의 빈 번호와 조회 실패/권한 실패를 `role="alert"`로 표시하는 경로를 추가했다.
+
+### 고른 수단과 이유
+
+- `Modal size="xl"`과 표의 수평 overflow/minimum width를 적용해 9개 엑셀 열과 추가 전표번호 열을 좁은 기본 모달에서 분리했다.
+- 엑셀본 9열은 유지하고, 전표번호만 10번째 전용 열로 추가했다. 적요의 배송주소·지방/야적·할인·계산서 표기를 추측해 분리하지 않았다.
+- `stockLedgerSlipDestination()`으로 `OUTBOUND → /sales/by-number`, `INBOUND → /purchases/by-number`를 매핑했다. URL에는 `encodeURIComponent(slipNo)`만 사용한다.
+- 클릭 handler는 `setLedgerProductCode(null)`을 먼저 실행한 뒤 `navigate()`한다. 수불부를 닫고 같은 창의 기존 상세 화면으로 이동하며, 모달 위 모달/새 창을 만들지 않는다.
+- `StockSlipByNumberPage`가 slipNo로 기존 `getSlipByNumber()`를 호출하고, 성공한 경우에만 기존 `SlipDetailPage`에 내부 `slipId`를 전달한다. UUID는 API path 내부에서만 사용되고 URL에는 없다.
+- 조회 실패·권한 실패·전표번호 누락은 사용자에게 한국어 alert를 표시한다.
+
+### GREEN 원문
+
+변경 모듈 테스트:
+
+```powershell
+npx vitest run src/renderer/routes/warehouse/StockLedgerModal.test.tsx --config vitest.config.ts
+```
+
+```text
+✓ src/renderer/routes/warehouse/StockLedgerModal.test.tsx (6 tests)
+Test Files  1 passed (1)
+Tests       6 passed (6)
+```
+
+필수 데스크톱 typecheck:
+
+```powershell
+npm run typecheck
+```
+
+```text
+Exit code: 0
+tsc -p tsconfig.node.json --noEmit        PASS
+tsc -p tsconfig.web.json --noEmit         PASS
+npm run typecheck:real-qa                 51 passed, 0 failed
+```
+
+### 불변식 보증 방법
+
+| 불변식 | 보증 방법 |
+|---|---|
+| ① 엑셀본 9열이 잘리지 않음 | 9개 기본 열을 그대로 유지하고 `size="xl"`, 표 `minWidth: 1180`, 수평 overflow를 적용했다. 테스트가 기본 9열+전표번호 총 10개 header를 확인한다. |
+| ② 전표번호 클릭 → 전표 화면, 수불부 닫힘 | 전표번호를 적요와 분리해 전용 버튼으로 렌더링하고 handler에서 ledger state를 null로 만든 뒤 `/sales/by-number` 또는 `/purchases/by-number`로 navigate한다. |
+| ③ 전표 종류별 올바른 화면 | 코드로 확인된 종류는 OUTBOUND/INBOUND뿐이며 각각 판매/입고 경로로 매핑했다. 이동/실사는 현재 StockLedgerRow 계약에 없어 만들지 않고 보고한다. |
+| ④ URL UUID 금지 | 목적지 함수 테스트가 전표번호 query만 생성하고 UUID 정규식 불일치를 확인한다. 내부 UUID는 `getSlipByNumber` 응답에서 기존 상세 API로 전달될 뿐 URL에 넣지 않는다. |
+| ⑤ 기존 표시 무파손 | 기존 전일재고·잔량·지방 태그·배송주소 비링크 테스트를 유지하고, 전표번호가 있어도 적요가 별도 셀에 남는 구조로 변경했다. 금액 열은 추가하지 않았다. |
+| ⑥ 이동 대상 없음/권한 없음 표시 | 빈 slipNo는 alert, `getSlipByNumber` 실패는 “전표를 찾을 수 없거나 열람 권한이 없습니다.” alert로 표시한다. |
+
+### typecheck
+
+`clients/desktop`에서 `npm run typecheck`를 실행해 종료 코드 0을 확인했다. 최초에는 design-system `dist/index.d.ts`가 없어 중단됐으나, 해당 저장소가 안내하는 `clients/web/design-system` 의존성 설치 및 build 후 재실행하여 통과했다.
+
+### 남긴 것
+
+- 전일재고 행 포함 여부, 적요를 성격별로 분리할지, 기본 기간을 약 3개월로 바꿀지, 합계/누계 행을 추가할지는 정본 미결정 그대로 남겼다. 현재 동작은 기존 표시 보존을 위해 유지했다.
+- 코드에서 확인되지 않은 이동전표·재고실사 링크 목적지는 만들지 않았다. 해당 응답 계약이 정해지면 별도 단계에서 종류별 경로를 추가해야 한다.
+- 이카운트 엑셀본에 없는 금액 열은 추가하지 않았다.
+- 기존 `StockSlipDetailModal.tsx` 파일은 이번 라운드에서 삭제하지 않았으며, 수불부에서 더 이상 import/render하지 않는다. 삭제 여부는 PM 정리 단계로 남겼다.

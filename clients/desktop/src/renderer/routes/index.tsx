@@ -177,6 +177,7 @@ import { InventoryDpsComparePage } from './InventoryDpsComparePage'
 import { DpsByProductPage } from './warehouse/DpsByProductPage'
 // [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
+import { StockSlipByNumberPage } from './warehouse/StockSlipByNumberPage'
 import { InOutAnalysisPage } from './warehouse/InOutAnalysisPage'
 // [PR-E1 FE-6] 배차안내문자 표시·편집·복사 — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
@@ -589,6 +590,16 @@ const routes = [
           </SlipReadGuard>
         ),
       },
+      {
+        path: '/sales/by-number',
+        element: (
+          <PermissionGuard pageCode="sales.slip.list" action="view">
+            <SlipReadGuard mode="OUTBOUND">
+              <StockSlipByNumberPage mode="OUTBOUND" />
+            </SlipReadGuard>
+          </PermissionGuard>
+        ),
+      },
       // SP-08-6-4 — 거래명세서 (A4 portrait, legacy GAS 동등). 정적 suffix 먼저 매칭.
       { path: '/sales/:id/print/statement', element: <SalesTransactionStatementPrintPage /> },
       // SP-08-6-4 — 세금계산서 (A4 portrait, 공급자/공급받는자 박스 포함). InvoiceView 대체.
@@ -633,6 +644,16 @@ const routes = [
           <PermissionGuard pageCode="purchases.slip.list" action="view">
             <SlipReadGuard mode="INBOUND">
               <SlipDetailPage mode="INBOUND" />
+            </SlipReadGuard>
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/purchases/by-number',
+        element: (
+          <PermissionGuard pageCode="purchases.slip.list" action="view">
+            <SlipReadGuard mode="INBOUND">
+              <StockSlipByNumberPage mode="INBOUND" />
             </SlipReadGuard>
           </PermissionGuard>
         ),
