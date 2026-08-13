@@ -51,12 +51,12 @@ describe('Electron 자동 업데이트 IPC', () => {
     mocks.runtime.isPackaged = true
     mocks.autoUpdater.checkForUpdates.mockClear()
     mocks.autoUpdater.downloadUpdate.mockClear()
-    mocks.autoUpdater.quitAndInstall.mockClear()
+    mocks.autoUpdater.quitAndInstall.mockReset()
     mocks.window.webContents.send.mockClear()
   })
 
   it('packaged 앱의 check IPC가 실제 electron-updater checkForUpdates를 호출한다', async () => {
-    expect(mocks.autoUpdater.allowDowngrade).toBe(false)
+    expect(mocks.autoUpdater.allowDowngrade).toBe(true)
     await mocks.handlers.get('updater:check')?.()
     expect(mocks.autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
   })
@@ -108,6 +108,15 @@ describe('Electron 자동 업데이트 IPC', () => {
 
     await mocks.handlers.get('updater:install')?.()
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
+  })
+
+  it('설치 IPC 실패는 renderer invoke에 reject되어 재시도할 수 있게 한다', async () => {
+    const installHandler = mocks.handlers.get('updater:install')
+    const error = new Error('installer failed')
+    mocks.autoUpdater.quitAndInstall.mockImplementationOnce(() => { throw error })
+
+    await expect(installHandler?.()).rejects.toThrow('installer failed')
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', expect.objectContaining({ kind: 'error' }))
   })
 
   it('해석 불가한 updater 버전은 안전한 빈 표시값으로만 renderer에 전달한다', async () => {

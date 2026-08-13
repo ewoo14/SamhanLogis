@@ -24,20 +24,17 @@ describe('주문 웹 버전 확인 계약', () => {
     }, new Map())).toMatchObject({ kind: 'minor', latestVersion: '2026/07/26-929' })
   })
 
-  it('404와 네트워크 실패는 사용 가능한 상태로 fail-open 한다', async () => {
-    const notFound = await fetchWebVersionStatus({
+  it('404와 네트워크 실패는 정책 미수신 예외로 드러난다', async () => {
+    await expect(fetchWebVersionStatus({
       apiBaseUrl: 'http://localhost:8080',
       currentVersion: '0.1.0-dev',
       fetchImpl: async () => new Response('', { status: 404 }),
-    })
-    const networkFailure = await fetchWebVersionStatus({
+    })).rejects.toThrow('버전 정책을 확인하지 못했습니다')
+    await expect(fetchWebVersionStatus({
       apiBaseUrl: 'http://localhost:8080',
       currentVersion: '0.1.0-dev',
       fetchImpl: async () => { throw new Error('gateway down') },
-    })
-
-    expect(notFound).toBeNull()
-    expect(networkFailure).toBeNull()
+    })).rejects.toThrow('버전 정책을 확인하지 못했습니다')
   })
 
   it('개발 sentinel을 명시 버전으로 그대로 허용한다', () => {

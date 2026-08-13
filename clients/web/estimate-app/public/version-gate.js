@@ -1,6 +1,8 @@
 (function () {
   'use strict';
 
+  var VERSION_POLICY_FAILURE_MESSAGE = '버전 정책을 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.';
+
   var config = window.__SAMHAN_VERSION_GATE_CONFIG__;
   if (!config) return;
 
@@ -110,17 +112,37 @@
     document.body.appendChild(notice);
   }
 
+  function renderPolicyFailure() {
+    if (document.getElementById('samhan-estimate-version-policy-error')) return;
+    var notice = document.createElement('aside');
+    notice.id = 'samhan-estimate-version-policy-error';
+    notice.setAttribute('data-testid', 'web-version-policy-error');
+    notice.setAttribute('role', 'status');
+    notice.setAttribute('aria-live', 'polite');
+    notice.style.cssText = 'position:fixed;inset-inline:16px;inset-block-end:16px;z-index:300000;padding:12px 14px;border:1px solid #FCA5A5;border-radius:10px;background:#FEF2F2;color:#991B1B;box-shadow:0 12px 30px rgba(15,23,42,.16);font-family:system-ui,sans-serif;';
+    notice.textContent = VERSION_POLICY_FAILURE_MESSAGE;
+    document.body.appendChild(notice);
+  }
+
   function run() {
     var controller = new AbortController();
     var timer = window.setTimeout(function () { controller.abort(); }, 5000);
     fetch(buildUrl(), { method: 'GET', headers: { Accept: 'application/json' }, signal: controller.signal })
-      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (response) {
+        if (!response.ok) throw new Error(VERSION_POLICY_FAILURE_MESSAGE);
+        return response.json();
+      })
       .then(function (payload) {
         var info = payload && payload.data ? payload.data : payload;
-        if (!info || !['NONE', 'MINOR', 'MAJOR', 'CRITICAL'].includes(info.forceLevel)) return;
+        if (!info || !['NONE', 'MINOR', 'MAJOR', 'CRITICAL'].includes(info.forceLevel)) {
+          throw new Error(VERSION_POLICY_FAILURE_MESSAGE);
+        }
         render(resolveState(info));
       })
-      .catch(function () { /* 버전 확인 실패는 견적서 사용을 막지 않는다. */ })
+      .catch(function (error) {
+        console.warn('[estimate-version] 버전 정책 조회 실패', error);
+        renderPolicyFailure();
+      })
       .finally(function () { window.clearTimeout(timer); });
   }
 

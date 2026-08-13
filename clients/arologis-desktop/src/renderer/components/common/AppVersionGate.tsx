@@ -3,6 +3,7 @@ import {
   fetchDesktopVersionStatus,
   resolveBuildAppVersion,
   resolveVersionPromptState,
+  VERSION_POLICY_FAILURE_MESSAGE,
   type VersionPromptState,
 } from '../../version/versionCheck'
 import type { DesktopUpdateStatus } from '../../types/electron'
@@ -73,6 +74,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   const [promptState, setPromptState] = useState<VersionPromptState>({ kind: 'none' })
   const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus | null>(null)
   const [noticeDismissed, setNoticeDismissed] = useState(false)
+  const [versionCheckFailure, setVersionCheckFailure] = useState<string | null>(null)
   const checkedRef = useRef(false)
   const installStartedRef = useRef(false)
 
@@ -118,8 +120,11 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
       apiBaseUrl: VERSION_API_BASE_URL,
       currentVersion: CURRENT_VERSION,
     }).then((versionInfo) => {
-      if (!versionInfo) return
+      setVersionCheckFailure(null)
       setPromptState(resolveVersionPromptState(versionInfo, safeStorage()))
+    }).catch((error: unknown) => {
+      console.warn('[arologis-version] 버전 정책 조회 실패', error)
+      setVersionCheckFailure(VERSION_POLICY_FAILURE_MESSAGE)
     })
   }, [bootstrapped])
 
@@ -137,10 +142,17 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     </aside>
   ) : null
 
+  const versionPolicyNotice = versionCheckFailure ? (
+    <aside role="status" data-testid="app-version-policy-error" className="no-print">
+      {versionCheckFailure}
+    </aside>
+  ) : null
+
   if (promptState.kind === 'blocking') {
     const { versionInfo } = promptState
     return (
       <>
+        {versionPolicyNotice}
         {statusNotice}
         <section role="alertdialog" data-testid="app-version-blocking-modal" aria-modal="true">
           <h2>긴급 업데이트</h2>
@@ -156,13 +168,14 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
 
   const notice = promptState.kind === 'minor' || promptState.kind === 'recommend' ? (
     <aside role="status" data-testid="app-version-minor-banner" className="no-print">
-      <span>새 아로로지스 데스크톱 버전 {promptState.versionInfo.latestVersion}이 있습니다. 앱을 다시 시작하면 설치됩니다.</span>
-      <button type="button" onClick={dismiss}>나중에</button>
+      <span>새 아로로지스 데스크톱 버전 {promptState.versionInfo.latestVersion}이 있습니다. 다운로드가 끝나면 자동으로 설치하고 앱을 다시 시작합니다.</span>
+      <button type="button" onClick={dismiss}>안내 닫기</button>
     </aside>
   ) : null
 
   return (
     <>
+      {versionPolicyNotice}
       {statusNotice}
       {notice}
       {children}

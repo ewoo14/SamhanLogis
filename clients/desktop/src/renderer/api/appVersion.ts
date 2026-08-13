@@ -14,6 +14,8 @@ export type AppClientType =
   | 'MOBILE'
 export type AppForceLevel = 'NONE' | 'MINOR' | 'MAJOR' | 'CRITICAL'
 
+export const APP_VERSION_POLICY_FAILURE_MESSAGE = '버전 정책을 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.'
+
 export type CanonicalAppClientType = Exclude<AppClientType, 'WEB' | 'MOBILE'>
 
 export interface AppClientOption {
@@ -28,11 +30,11 @@ export const APP_CLIENT_OPTIONS: ReadonlyArray<AppClientOption> = [
   { value: 'SAMHAN_MOBILE', label: '삼한 모바일', versionCheckSupported: true },
   { value: 'SAMHAN_MOBILE_STAFF', label: '삼한 직원 모바일', versionCheckSupported: true },
   { value: 'AROLOGIS_MOBILE', label: '아로로지스 모바일', versionCheckSupported: true },
-  { value: 'SAMHAN_ORDER_WEB', label: '삼한 주문 웹', versionCheckSupported: false },
-  { value: 'SAMHAN_ESTIMATE_WEB', label: '삼한 종합견적 웹', versionCheckSupported: false },
-  { value: 'SAMHAN_MOBILE_PUBLIC_WEB', label: '삼한 모바일 퍼블릭 웹', versionCheckSupported: false },
-  { value: 'AROLOGIS_DESKTOP', label: '아로로지스 데스크톱', versionCheckSupported: false },
-  { value: 'INTERNAL_CHAT_DESKTOP', label: '사내 메신저 데스크톱', versionCheckSupported: false },
+  { value: 'SAMHAN_ORDER_WEB', label: '삼한 주문 웹', versionCheckSupported: true },
+  { value: 'SAMHAN_ESTIMATE_WEB', label: '삼한 종합견적 웹', versionCheckSupported: true },
+  { value: 'SAMHAN_MOBILE_PUBLIC_WEB', label: '삼한 모바일 퍼블릭 웹', versionCheckSupported: true },
+  { value: 'AROLOGIS_DESKTOP', label: '아로로지스 데스크톱', versionCheckSupported: true },
+  { value: 'INTERNAL_CHAT_DESKTOP', label: '사내 메신저 데스크톱', versionCheckSupported: true },
 ]
 
 const APP_CLIENT_LABEL: Record<AppClientType, string> = {

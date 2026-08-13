@@ -54,7 +54,7 @@ describe('아로로지스 데스크톱 자동 업데이트 IPC', () => {
   })
 
   it('packaged 앱의 확인 IPC가 electron-updater를 호출한다', async () => {
-    expect(mocks.autoUpdater.allowDowngrade).toBe(false)
+    expect(mocks.autoUpdater.allowDowngrade).toBe(true)
     await mocks.handlers.get('updater:check')?.()
     expect(mocks.autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
   })
@@ -101,6 +101,15 @@ describe('아로로지스 데스크톱 자동 업데이트 IPC', () => {
     await mocks.events.get('update-downloaded')?.({ version: '1.20260730.3' })
     await mocks.handlers.get('updater:install')?.()
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
+  })
+
+  it('설치 IPC 실패는 renderer invoke에 reject되어 재시도할 수 있게 한다', async () => {
+    const installHandler = mocks.handlers.get('updater:install')
+    const error = new Error('installer failed')
+    mocks.autoUpdater.quitAndInstall.mockImplementationOnce(() => { throw error })
+
+    await expect(installHandler?.()).rejects.toThrow('installer failed')
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', expect.objectContaining({ kind: 'error' }))
   })
 
   it('해석 불가한 updater 버전은 안전한 빈 표시값으로만 renderer에 전달한다', async () => {

@@ -38,6 +38,57 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     expect(screen.getByText('아로로지스 본문')).toBeTruthy()
   })
 
+  it('강제 즉시 설치 중 설치 실패 후 같은 세션에서 다시 설치를 시도한다', async () => {
+    let emitStatus: ((status: DesktopUpdateStatus) => void) | undefined
+    window.arologisUpdater = {
+      check: vi.fn(async () => undefined),
+      install: vi.fn()
+        .mockRejectedValueOnce(new Error('installer failed'))
+        .mockResolvedValueOnce(undefined),
+      quit: vi.fn(async () => undefined),
+      onStatus: vi.fn((listener: (status: DesktopUpdateStatus) => void) => {
+        emitStatus = listener
+        return () => undefined
+      }),
+    }
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div>아로로지스 본문</div>
+      </AppVersionGate>,
+    )
+
+    await waitFor(() => expect(emitStatus).toBeDefined())
+    emitStatus!({ kind: 'downloaded', version: '2026/07/29-2' })
+    await waitFor(() => expect(window.arologisUpdater?.install).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('설치에 실패했습니다')
+
+    emitStatus!({ kind: 'downloaded', version: '2026/07/29-2' })
+    await waitFor(() => expect(window.arologisUpdater?.install).toHaveBeenCalledTimes(2))
+  })
+
+  it('자동 설치가 계속되는 안내의 닫기 버튼은 나중에가 아니라 안내 닫기라고 표시한다', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      data: {
+        latestVersion: '2026/07/29-2',
+        minSupportedVersion: '2026/07/29-1',
+        forceLevel: 'MINOR',
+        releaseNotes: '',
+        releasedAt: '2026-07-29T00:00:00Z',
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div>아로로지스 본문</div>
+      </AppVersionGate>,
+    )
+
+    expect((await screen.findByTestId('app-version-minor-banner')).textContent).toContain('다운로드가 끝나면 자동으로 설치')
+    expect(screen.getByRole('button', { name: '안내 닫기' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '나중에' })).toBeNull()
+  })
+
   it('버전 확인이 실패해도 본문을 계속 표시한다', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
 

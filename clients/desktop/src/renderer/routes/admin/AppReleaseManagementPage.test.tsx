@@ -53,11 +53,11 @@ describe('AppReleaseManagementPage 앱 선택', () => {
       '삼한 모바일',
       '삼한 직원 모바일',
       '아로로지스 모바일',
-      '삼한 주문 웹 (버전 확인 미지원)',
-      '삼한 종합견적 웹 (버전 확인 미지원)',
-      '삼한 모바일 퍼블릭 웹 (버전 확인 미지원)',
-      '아로로지스 데스크톱 (버전 확인 미지원)',
-      '사내 메신저 데스크톱 (버전 확인 미지원)',
+      '삼한 주문 웹',
+      '삼한 종합견적 웹',
+      '삼한 모바일 퍼블릭 웹',
+      '아로로지스 데스크톱',
+      '사내 메신저 데스크톱',
     ])
     expect(options.map((option) => option.textContent)).not.toContain('MOBILE')
     await waitFor(() => expect(screen.getByTestId('app-release-form')).toBeTruthy())

@@ -29,7 +29,7 @@ describe('모바일 퍼블릭 웹 버전 안내', () => {
     fetchSpy.mockRestore()
   })
 
-  it('네트워크 실패에서는 서명 화면을 막지 않는다', async () => {
+  it('네트워크 실패는 서명 화면을 막지 않되 정책 미수신을 사용자에게 표시한다', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('offline'))
 
     render(
@@ -39,7 +39,7 @@ describe('모바일 퍼블릭 웹 버전 안내', () => {
     )
 
     await waitFor(() => expect(screen.getByText('서명 화면')).toBeTruthy())
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByTestId('web-version-policy-error').textContent).toContain('버전 정책을 확인하지 못했습니다')
     fetchSpy.mockRestore()
   })
 

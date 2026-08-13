@@ -11,6 +11,7 @@ describe('internal chat desktop app shell contract', () => {
     const packageJson = JSON.parse(read('package.json')) as {
       name: string
       main: string
+      dependencies: Record<string, string>
       scripts: { build: string; typecheck: string; lint: string; test: string }
     }
 
@@ -20,16 +21,19 @@ describe('internal chat desktop app shell contract', () => {
     expect(packageJson.scripts.typecheck).toContain('tsc')
     expect(packageJson.scripts.lint).toContain('eslint')
     expect(packageJson.scripts.test).toContain('vitest run')
+    expect(packageJson.dependencies['electron-updater']).toBe('^6.8.9')
   })
 
-  it('uses the shared date-version release wrapper without enabling an update feed', () => {
+  it('uses the shared date-version release wrapper with the existing generic update feed shape', () => {
     const wrapper = read('../../scripts/build-internal-chat-desktop-release.cjs')
     const builderConfig = read('electron-builder.yml')
 
     expect(wrapper).toContain('createNsisDisplayVersionInclude')
     expect(wrapper).toContain('--config.nsis.include=')
-    expect(builderConfig).not.toContain('publish:')
-    expect(builderConfig).not.toContain('channel:')
+    expect(builderConfig).toContain('publish:')
+    expect(builderConfig).toContain('provider: generic')
+    expect(builderConfig).toContain('url: ${env.INTERNAL_CHAT_UPDATE_URL}')
+    expect(builderConfig).toContain('channel: latest')
   })
 
   it('keeps the renderer isolated and the sandbox preload loadable', () => {
@@ -56,5 +60,19 @@ describe('internal chat desktop app shell contract', () => {
     expect(main).toContain("{ label: '종료'")
     expect(main).toContain('isQuitting = true')
     expect(main).toContain("app.on('window-all-closed', () => {})")
+  })
+
+  it('wires the same version endpoint and updater IPC contract as the other desktops', () => {
+    const updater = read('src/main/auto-update.ts')
+    const preload = read('src/preload/index.ts')
+    const renderer = read('src/renderer/main.ts')
+
+    expect(updater).toContain("autoUpdater.allowDowngrade = true")
+    expect(updater).toContain("ipcMain.handle(CHECK_CHANNEL")
+    expect(updater).toContain("ipcMain.handle(INSTALL_CHANNEL")
+    expect(preload).toContain("contextBridge.exposeInMainWorld('internalChatUpdater'")
+    expect(renderer).toContain("clientType: 'INTERNAL_CHAT_DESKTOP'")
+    expect(renderer).toContain('/app/version?')
+    expect(renderer).toContain('internal-chat-version-policy-error')
   })
 })

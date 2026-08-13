@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, Tray } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { registerAutoUpdateIpcHandlers } from './auto-update.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -69,6 +70,7 @@ if (!hasLock) {
 } else {
   app.on('second-instance', () => showMainWindow())
   app.whenReady().then(() => {
+    registerAutoUpdateIpcHandlers()
     createMainWindow()
     createTray()
   })
