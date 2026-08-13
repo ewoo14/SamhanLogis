@@ -82,7 +82,7 @@ BUILD SUCCESSFUL in 12s
 movement 생성 사이의 성공/실패 창을 만들지 않는다.
 
 `stock_movements.lot_id`는 NULL 불가이므로 해당 물리 변동의 단위인 인스턴스 ID를 사용한다.
-전표 source context가 있으면 기존 전표 참조인 `SLIP`과 `slipId`를 기록하고, 직접 호출처럼
+전표 source context가 있으면 입고는 `INBOUND`, 출고는 `SLIP` reference와 `slipId`를 기록하고, 직접 호출처럼
 context가 없는 경우에도 물리 변동 자체는 `system` 행으로 남긴다.
 
 ## GREEN 원문
@@ -146,3 +146,77 @@ BUILD SUCCESSFUL in 1m 57s
 - 소급 보정 및 운영 DB 쓰기/검증을 하지 않았다.
 - 재고이동 축과 QR 스캔 축을 수정하거나 테스트하지 않았다.
 - 변경 모듈 전량 테스트는 필터 없이 실행해 통과했다.
+
+## 라운드 2
+
+### RED 원문 (양방향)
+
+시리얼 도달성 회귀 테스트:
+
+```text
+.\gradlew :services:inventory-service:test --tests "com.samhanair.logis.inventory.service.StockServiceTest.findBalancePage_serialInstancesAreReachableAndExistingQuantityRowsRemainUnchanged" --no-daemon
+
+StockServiceTest > findBalancePage_serialInstancesAreReachableAndExistingQuantityRowsRemainUnchanged() FAILED
+1 test completed, 1 failed
+BUILD FAILED
+```
+
+`stock_balances`가 비어 있고 활성 시리얼 인스턴스만 있는 경우 `findBalancePage()`가 행을 반환하지 않아 수불부 버튼에 도달할 수 없음을 재현했다. 동시에 기존 수량 관리 품목의 `availableQty=4`, `reservedQty=1`, `totalQty=5` 보존 테스트를 추가해 반대 방향 회귀 기준도 고정했다.
+
+### 고른 수단과 이유
+
+`stock_instances`의 `AVAILABLE`/`RESERVED`를 품목·창고·상태별로 집계하는 `StockInstanceRepository.findActiveBalanceGroups()`를 추가하고, `StockService.findBalancePage()`에서 재고 현황 행으로 합성했다. 시리얼 품목의 수량은 활성 인스턴스 수이며, `SHIPPED`/`RECALLED`는 제외한다. 이미 `stock_balances` 행이 남은 시리얼 품목은 중복 표시하지 않고 인스턴스 집계를 정본으로 사용하며, 기존 수량 관리 품목은 기존 경로를 그대로 사용한다. VIRTUAL 창고에는 시리얼 수량 행을 합성하지 않는다.
+
+새 마이그레이션은 추가하지 않았다. 따라서 이번 라운드에는 migration 번호 충돌 조사 대상이 없다.
+
+### GREEN 원문
+
+```text
+.\gradlew :services:inventory-service:test --tests "com.samhanair.logis.inventory.service.StockServiceTest.findBalancePage_*" --no-daemon
+
+BUILD SUCCESSFUL in 21s
+```
+
+시리얼 행 검증: `ACL-KORGHP07 / availableQty=2 / reservedQty=1 / totalQty=3`.
+기존 수량 관리 행 검증: `BATCH-001 / availableQty=4 / reservedQty=1 / totalQty=5`.
+
+### 불변식 ①~④ 보증 방법
+
+1. **① 도달성** — `stock_balances`가 없는 활성 시리얼 품목도 재고 현황 행을 반환한다. 기존 행별 `수불부` 버튼으로 사용자가 수불부 화면을 연다.
+2. **② 실제 수량 일치** — `AVAILABLE`=가용, `RESERVED`=예약, 두 상태의 합=실재고로 매핑한다.
+3. **③ 기존 품목 불변** — `findBalancePage_batchBalanceStillUsesStockBalanceQuantities`가 기존 수량을 그대로 검증하고, serial-managed 행만 인스턴스 집계로 대체한다.
+4. **④ 라운드 1 유지** — 이번 변경은 조회 합성만 수행하며 입고·출고 mutation, movement 기록, 누적 잔량 계산, 트랜잭션 경계를 변경하지 않았다. 라운드 1의 movement·누적 잔량·원자성 테스트와 전량 테스트가 통과했다.
+
+### reference 값 정정
+
+기존 보고서의 설명을 다음과 같이 정정한다.
+
+```text
+입고 movement reference_type = INBOUND
+출고 movement reference_type = SLIP
+```
+
+라이브 QA 실측에서 입고 2건은 모두 `INBOUND`, 출고 1건만 `SLIP`이었다. 입고 reference를 `SLIP`이라고 설명한 기존 원문은 사실과 맞지 않아 이 라운드에 정정했다.
+
+### 전량 테스트 원문
+
+```text
+.\gradlew :services:inventory-service:test --no-daemon
+
+644 tests completed, 0 failed, 1 skipped
+BUILD SUCCESSFUL in 2m 14s
+18 actionable tasks: 2 executed, 16 up-to-date
+```
+
+새 테스트는 단위 테스트라 Linux 스킵 가드가 필요한 Testcontainers/운영환경 의존 테스트가 아니다. Testcontainers 라운드와 병렬 실행하지 않았다. 첫 전량 실행에서 새 repository mock이 없던 기존 가상창고 fixture 5건이 NPE로 실패했으나, fixture에 mock과 빈 집계를 추가한 뒤 필터 없이 재실행해 위 결과를 확인했다.
+
+### 판단 필요해 남긴 것
+
+- 이미 `SHIPPED`인 15건의 소급 movement 생성 여부는 개발책임자 결정 대기다.
+- `confirm()`이 실제 재고를 변경하지 않는 재고이동 축은 별도 라운드다.
+
+### 못 한 것
+
+- QR 스캔 mutation은 경로 자체가 없어 수정하지 않았다.
+- 소급 movement 생성, 운영 DB 쓰기/검증, 재고이동 축 수정은 수행하지 않았다.
+- 라이브 Docker/Playwright 재수렴 QA는 이 코드 라운드에서 수행하지 않았다.
