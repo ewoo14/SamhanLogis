@@ -287,3 +287,173 @@ RemainingFeedCount=0
 ```
 
 인증서 저장소는 변경하지 않았다.
+
+## 재수렴 라운드
+
+> 대상: `feat/910-release-feed` · HEAD `d65cbed049c3670b483ef111b0b96be720b31236`
+> 실행 시각: 2026-08-14 05:45~05:48 KST
+> 판정 축: 도달성 단일 + 라운드 3 증거 무결성
+
+### 결론
+
+- **머지 권고: 아니오.** `docs/dev-reports/2026-08-13-910-release-feed.md`의 `### 결정적 재현 절차`를 fresh PowerShell에서 처음부터 그대로 실행했으나, 절차 안에 `$work` 초기화가 없어 빌드 전에 exit `1`로 중단됐다.
+- **증거 무결성: 불일치 1건.** 라운드 3의 `9101 → 9102 → quitAndInstall → 재기동`, app.asar 교체, DisplayVersion 변경 수치는 문서에 적힌 절차로 재현되지 않았다.
+- **도달 결함: 0건.** 사용자 경로까지 도달하지 못했으므로 제품 결함을 새로 계수하지 않는다. 미실행 항목은 통과가 아니라 관측 불가다.
+
+### 1. 환경 원문
+
+```text
+Branch=feat/910-release-feed
+HEAD=d65cbed049c3670b483ef111b0b96be720b31236
+InitialWorkingTree=clean
+Timestamp=2026-08-14T05:45:38.0913477+09:00
+FreePhysicalMemory=15593212 KB
+FreeGB=14.87
+TotalGB=61.61
+SamhanContainerCount=22
+```
+
+RAM은 중단 기준 1.0GB 이상이었다. `samhan-*` 컨테이너 22개는 모두 `Up`이었고 애플리케이션 컨테이너는 모두 `healthy`였다. 생성 시각 원문은 다음과 같다.
+
+```text
+samhan-user-service|Up 32 seconds (healthy)|2026-08-14 05:45:01 +0900 KST
+samhan-groupware-service|Up 32 seconds (healthy)|2026-08-14 05:45:01 +0900 KST
+samhan-inventory-service|Up 2 minutes (healthy)|2026-08-14 05:42:37 +0900 KST
+samhan-dashboard-service|Up 7 hours (healthy)|2026-08-13 22:22:47 +0900 KST
+samhan-slip-service|Up 11 hours (healthy)|2026-08-13 02:53:07 +0900 KST
+samhan-api-gateway|Up 11 hours (healthy)|2026-08-13 00:39:17 +0900 KST
+samhan-partner-order-service|Up 11 hours (healthy)|2026-08-13 00:02:01 +0900 KST
+samhan-auth-service|Up 11 hours (healthy)|2026-08-12 09:03:23 +0900 KST
+samhan-product-service|Up 11 hours (healthy)|2026-08-12 03:10:22 +0900 KST
+samhan-eureka|Up 11 hours (healthy)|2026-08-12 03:10:15 +0900 KST
+samhan-postgres|Up 11 hours (healthy)|2026-08-12 03:10:14 +0900 KST
+samhan-arologis-service|Up 11 hours (healthy)|2026-08-12 02:59:58 +0900 KST
+samhan-accounting-service|Up 11 hours (healthy)|2026-08-12 02:59:58 +0900 KST
+samhan-dc-config-service|Up 11 hours (healthy)|2026-08-12 02:59:58 +0900 KST
+samhan-partner-service|Up 11 hours (healthy)|2026-08-12 02:59:58 +0900 KST
+samhan-partner-auth-service|Up 11 hours (healthy)|2026-08-12 02:59:58 +0900 KST
+samhan-notification-service|Up 11 hours (healthy)|2026-08-12 02:59:58 +0900 KST
+samhan-grafana|Up 11 hours (healthy)|2026-08-12 02:59:50 +0900 KST
+samhan-minio|Up 11 hours (healthy)|2026-08-08 02:15:59 +0900 KST
+samhan-elasticsearch|Up 11 hours (healthy)|2026-06-28 18:49:33 +0900 KST
+samhan-rabbitmq|Up 11 hours (healthy)|2026-06-22 23:54:01 +0900 KST
+samhan-redis|Up 11 hours (healthy)|2026-06-22 23:54:01 +0900 KST
+```
+
+실행 시작 시 작업트리의 `release\\2026-08-13-9101`, `release\\2026-08-13-9102` 디렉터리는 둘 다 존재하지 않았다. 따라서 기존 산출물을 재사용하지 않고 문서 절차가 빌드부터 성공해야 하는 상태였다.
+
+### 2. 보고서 절차를 그대로 따른 원문
+
+fresh PowerShell 프로세스에서 라운드 3의 `### 결정적 재현 절차` 코드 블록을 `$work` 보완 없이 그대로 실행했다. 인증서 생성 직후 첫 실패가 발생했고, 문서에 적힌 equality guard가 실행을 중단했다.
+
+```text
+ProcedureExitCode=1
+CreatedThumbprint=B99F873EB83964CC9DE0ECF000B4D49BAED1349F
+
+Join-Path : 'Path' 매개 변수가 null이므로 인수를 해당 매개 변수에 바인딩할 수 없습니다.
+위치 줄:11 문자:18
++ $pfx = Join-Path $work 'release.pfx'
++                  ~~~~~
+    + CategoryInfo          : InvalidData: (:) [Join-Path], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.JoinPathCommand
+
+Join-Path : 'Path' 매개 변수가 null이므로 인수를 해당 매개 변수에 바인딩할 수 없습니다.
+위치 줄:12 문자:18
++ $cer = Join-Path $work 'release.cer'
++                  ~~~~~
+
+Export-PfxCertificate : 'FilePath' 매개 변수가 null이므로 인수를 해당 매개 변수에 바인딩할 수 없습니다.
+Export-Certificate : 'FilePath' 매개 변수에 대한 인수의 유효성을 검사할 수 없습니다. 인수가 null이거나 비어 있습니다.
+Import-Certificate : 'FilePath' 매개 변수에 대한 인수의 유효성을 검사할 수 없습니다. 인수가 null이거나 비어 있습니다.
+
+Get-ChildItem : '\\CurrentUser\\Root\\B99F873EB83964CC9DE0ECF000B4D49BAED1349F' 경로는 존재하지 않으므로 찾을 수 없습니다.
+signer/root thumbprint mismatch
+    + CategoryInfo          : OperationStopped: (signer/root thumbprint mismatch:String) [], RuntimeException
+    + FullyQualifiedErrorId : signer/root thumbprint mismatch
+```
+
+문서 전체에서 `$work` 참조는 이 두 `Join-Path`뿐이며 선행 초기화는 없다. 임의 경로를 넣으면 “보고서의 절차를 그대로” 따른 실행이 아니므로 보완하지 않았다.
+
+### 3. 두 지문 실측
+
+절차 실행 전에 인증서 저장소를 직접 읽은 결과, 보고서에 적힌 기존 My/Root 인증서끼리는 동일했다.
+
+```text
+MyExists          : True
+MyThumbprint      : 32F346D8354B518F6C7D6A12DC6E41FEE1388097
+MyHasPrivateKey   : True
+RootExists        : True
+RootThumbprint    : 32F346D8354B518F6C7D6A12DC6E41FEE1388097
+RootHasPrivateKey : False
+SameThumbprint    : True
+```
+
+그러나 질문의 핵심인 **빌드된 installer signer와 trusted root의 동일성**은 직접 확인하지 못했다. 작업트리에 9101/9102 release 산출물이 없었고, 문서 절차가 그 산출물을 만들기 전에 중단됐기 때문이다. My/Root 저장소 두 항목이 같다는 사실을 installer signer equality로 확대하지 않는다.
+
+절차 실행이 새로 만든 인증서는 My에만 생겼고 Root에는 없었다.
+
+```text
+NewMyCertificates=B99F873EB83964CC9DE0ECF000B4D49BAED1349F
+CleanupCertificate=B99F873EB83964CC9DE0ECF000B4D49BAED1349F|CN=Samhan Internal Release
+RemainingCreatedCertificateCount=0
+```
+
+### 4. fresh cache, 재기동 전후 버전, app.asar
+
+**관측 불가(미실행).** 절차가 PFX/CER 경로 생성 단계에서 중단되어 9101/9102 빌드, 9101 설치, cache 삭제, feed 제공, `quitAndInstall`, 재기동 어디에도 도달하지 못했다.
+
+| 시점 | DisplayVersion | 설치 app.asar | 프로세스 재기동 |
+|---|---|---|---|
+| 실행 전 | 관측 불가 | 관측 불가 | 미실행 |
+| 실행 후 | 관측 불가 | 관측 불가 | 미실행 |
+
+### 5. 질문 4~7 결과
+
+- **질문 4 — 인증서가 신뢰 루트에 없을 때 사용자에게 보이는가:** 이번 재수렴에서는 관측 불가(미실행). 절차 전제 불일치로 사용자 경로 실행 전에 즉시 중단했다. 직전 라운드의 실제 사용자 표시 PASS 기록은 기존 절에 보존돼 있지만, 이번 HEAD에서 깨지지 않았다고 새로 단언하지 않는다.
+- **질문 5 — 기존 9앱 `/app/version` 계약 무변화:** 관측 불가(미실행). 즉시 중단 규칙에 따라 9종 요청을 실행하지 않았다.
+- **질문 6 — `YYYY/MM/DD-{번호}` 정본:** 관측 불가(미실행). 빌드·registry·renderer 어느 새 산출물에도 도달하지 못했다.
+- **질문 7 — `allowDowngrade=true` 런타임 동작:** 관측 불가(미실행). 업그레이드 선행 절차도 완주하지 못했다.
+
+### 6. 도달 결함
+
+**0건.** 실 사용자 경로에 도달하지 못했으므로 새 제품 결함은 없다. 이는 질문 4~7 통과를 뜻하지 않는다.
+
+### 7. 증거 무결성 — 라운드 3 수치가 재현되는가
+
+**재현되지 않는다 — 불일치 1건.** 라운드 3은 다음을 결정적 재현 수치로 제시했다.
+
+```text
+Changed=True
+DisplayVersion before=2026/08/13-9101
+DisplayVersion after =2026/08/13-9102
+InstalledHashAfter=05C9B1A1DE207EDE52596861AA5E1055CBF93F4D548270025102B41DAB33FE06
+RestartedProcesses=4
+```
+
+이번 실측은 같은 절차의 첫 경로 변수에서 exit `1`이었고, build/install/cache/feed/update/restart 단계에 도달하지 못했다. 또한 HEAD `d65cbed04`의 변경은 이 개발 보고서 1개에 131줄을 추가한 것뿐이며 코드·빌드 스크립트·release 산출물은 변경하지 않았다.
+
+### 8. 관측 불가와 실패 명령 원문
+
+관측 불가 항목: installer signer, fresh-cache 9101→9102, `quitAndInstall`, 재기동, app.asar 교체, DisplayVersion 변경, 미신뢰 인증서 사용자 표시의 회귀 여부, 9앱 계약, 버전 형식 전량, 실제 다운그레이드.
+
+차단 명령은 라운드 3 `### 결정적 재현 절차` 코드 블록 전체이며 첫 실패 명령은 다음과 같다.
+
+```powershell
+$pfx = Join-Path $work 'release.pfx'
+```
+
+```text
+Join-Path : 'Path' 매개 변수가 null이므로 인수를 해당 매개 변수에 바인딩할 수 없습니다.
+FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.JoinPathCommand
+ProcedureExitCode=1
+```
+
+Node `fs.symlink`를 사용하는 `electron-builder` 단계에는 도달하지 못했다. 따라서 PowerShell `New-Item -SymbolicLink` 실패를 근거로 관측 불가 처리한 것이 아니다.
+
+### 9. 만든·바꾼 데이터와 정리
+
+- DB 행·문서번호·업무 데이터: **0건**.
+- 절차가 만든 CurrentUser My 인증서 `B99F873E…349F` 1개를 해당 지문으로 제거했다. `RemainingCreatedCertificateCount=0`을 확인했다.
+- Root 저장소에는 이번 실행의 신규 인증서가 들어가지 않았다.
+- 임시 로그: `%TEMP%\\1204-reconverge-procedure.stdout.log`, `%TEMP%\\1204-reconverge-procedure.stderr.log`.
+- app/electron/feed/chromium 프로세스는 시작되지 않았다.
