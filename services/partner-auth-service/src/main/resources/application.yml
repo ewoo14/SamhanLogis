@@ -33,6 +33,8 @@ samhan:
     trusted-gateway-addresses: ${SAMHAN_AUDIT_TRUSTED_GATEWAY_ADDRESSES:private}
     publisher:
       enabled: true
+    request-capture:
+      enabled: true
   jwt:
     # Phase 8 2차 — SAMHAN_JWT_SECRET 우선, JWT_SECRET legacy fallback (Phase 10 cutover 시점 단일화)
     secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET:dev-only-partner-jwt-secret-replace-in-prod-32bytes-min!!}}

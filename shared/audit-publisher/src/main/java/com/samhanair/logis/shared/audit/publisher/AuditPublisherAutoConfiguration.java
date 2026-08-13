@@ -14,6 +14,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 
 @Configuration
+@Import(AuditRequestCaptureAutoConfiguration.class)
 public class AuditPublisherAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean

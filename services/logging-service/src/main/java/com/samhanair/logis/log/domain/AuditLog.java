@@ -42,6 +42,27 @@ public class AuditLog {
     private String serviceName;
 
     @Field(type = FieldType.Keyword)
+    private String schemaVersion;
+
+    @Field(type = FieldType.Keyword)
+    private String requestId;
+
+    @Field(type = FieldType.Keyword)
+    private String traceId;
+
+    @Field(type = FieldType.Keyword)
+    private String parentService;
+
+    @Field(type = FieldType.Keyword)
+    private String httpMethod;
+
+    @Field(type = FieldType.Keyword)
+    private String routeTemplate;
+
+    @Field(type = FieldType.Long)
+    private Long durationMs;
+
+    @Field(type = FieldType.Keyword)
     private String userId;
 
     @Field(type = FieldType.Keyword)

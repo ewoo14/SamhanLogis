@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 import java.time.Instant;
 
@@ -63,6 +66,33 @@ class AuditPublisherFailureSoftTest {
                     "partner-auth-service", true, "/login", "성공", "127.0.0.1", "test")))
                     .doesNotThrowAnyException();
             Thread.sleep(50L);
+        } finally {
+            publisher.close();
+        }
+    }
+
+    @Test
+    void rabbitFailure_isRetriedWithinBoundedAttempts_andEventuallyObserved() throws Exception {
+        RabbitTemplate rabbit = Mockito.mock(RabbitTemplate.class);
+        java.util.concurrent.atomic.AtomicInteger attempts = new java.util.concurrent.atomic.AtomicInteger();
+        doAnswer(invocation -> {
+            if (attempts.incrementAndGet() < 3) {
+                throw new IllegalStateException("rabbit down");
+            }
+            return null;
+        }).when(rabbit).convertAndSend(any(String.class), any(String.class), any(Object.class));
+
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
+        AuditPublisher publisher = new AuditPublisher(rabbit, meters);
+        try {
+            publisher.publish(AuditEventV2.authentication(
+                    "partner-auth-service", true, "/login", "성공", "127.0.0.1", "test"));
+            for (int i = 0; i < 40 && attempts.get() < 3; i++) {
+                Thread.sleep(50L);
+            }
+            verify(rabbit, times(3))
+                    .convertAndSend(any(String.class), any(String.class), any(Object.class));
+            assertThat(meters.get("audit.publisher.retry.total").counter().count()).isEqualTo(2.0);
         } finally {
             publisher.close();
         }

@@ -5,6 +5,7 @@ import static com.samhanair.logis.shared.audit.contract.AuditEnums.*;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.MDC;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -35,8 +36,8 @@ public record AuditEventV2(
         return new AuditEventV2(
                 "v2", UUID.randomUUID().toString(), serviceName,
                 RetentionClass.A, EventKind.MUTATION, Outcome.SUCCESS, AuditAction.A_CHANGE,
-                null, // requestId
-                null, // traceId
+                requestContextValue("requestId"),
+                requestContextValue("traceId"),
                 null, // parentService
                 method, route, 200, null,
                 null, actor, null,
@@ -52,7 +53,7 @@ public record AuditEventV2(
                 success ? RetentionClass.A : RetentionClass.B, EventKind.AUTH,
                 success ? Outcome.SUCCESS : Outcome.FAILURE,
                 success ? AuditAction.A_CHANGE : AuditAction.B_FAILURE,
-                null, null, null, "POST", route, 200, null,
+                requestContextValue("requestId"), requestContextValue("traceId"), null, "POST", route, 200, null,
                 null, "비인증 거래처", null, "AUTH", "거래처 인증", null, "로그인 결과",
                 null, null, null, null, null, success ? null : message, null,
                 ipAddress, userAgent, Instant.now());
@@ -63,13 +64,38 @@ public record AuditEventV2(
                                        String ipAddress, String userAgent) {
         return new AuditEventV2("v2", UUID.randomUUID().toString(), serviceName,
                 RetentionClass.B, EventKind.AUTH, Outcome.FAILURE, AuditAction.B_FAILURE,
-                null, null, null, method, route, httpStatus, null,
+                requestContextValue("requestId"), requestContextValue("traceId"), null, method, route, httpStatus, null,
                 null, "비인증 거래처", null, "AUTH", "거래처 인증", null,
                 reason, null, null, errorCode, null, null, reason, null,
                 ipAddress, userAgent, Instant.now());
     }
 
+    public static AuditEventV2 httpOutcome(String serviceName, String method, String route,
+                                           int httpStatus, long durationMs,
+                                           String ipAddress, String userAgent) {
+        boolean failure = httpStatus >= 400;
+        AuditAction auditAction = failure ? AuditAction.B_FAILURE
+                : ("GET".equalsIgnoreCase(method) ? AuditAction.C_READ : AuditAction.A_CHANGE);
+        RetentionClass retention = failure ? RetentionClass.B
+                : (auditAction == AuditAction.C_READ ? RetentionClass.C : RetentionClass.A);
+        EventKind kind = failure ? EventKind.INTERNAL
+                : (auditAction == AuditAction.C_READ ? EventKind.READ : EventKind.MUTATION);
+        return new AuditEventV2(
+                VERSION, UUID.randomUUID().toString(), serviceName, retention, kind,
+                failure ? Outcome.FAILURE : Outcome.SUCCESS, auditAction,
+                requestContextValue("requestId"), requestContextValue("traceId"), null,
+                method, route, httpStatus, durationMs, null, null, null,
+                "HTTP", route, null, "HTTP 요청 결과", null, null,
+                failure ? "HTTP_" + httpStatus : null, null, null,
+                failure ? "HTTP 요청 실패" : null, null, ipAddress, userAgent, Instant.now());
+    }
+
     public String routingKey() {
         return AuditTopology.routingKey(action, serviceName);
+    }
+
+    private static String requestContextValue(String key) {
+        String value = MDC.get(key);
+        return value == null || value.isBlank() ? null : value;
     }
 }
