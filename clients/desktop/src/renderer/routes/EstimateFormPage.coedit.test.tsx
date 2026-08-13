@@ -410,6 +410,47 @@ beforeEach(() => {
 })
 
 describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
+  it.each([
+    { label: '빈 행·협업 비활성', path: '/sales/estimates/new', status: 'blank', coedit: false },
+    { label: 'ACTIVE·협업 비활성', path: '/sales/estimates/estimate-1/edit', status: 'ACTIVE', coedit: false },
+    { label: '비ACTIVE·협업 비활성', path: '/sales/estimates/estimate-1/edit', status: 'OUT_OF_STOCK', coedit: false },
+    { label: 'ACTIVE·협업 활성', path: '/sales/estimates/estimate-1/edit', status: 'ACTIVE', coedit: true },
+  ])('RED-A: $label 행은 헤더와 동일한 10개 grid cell만 가진다', async ({ path, status, coedit }) => {
+    mocks.getEstimate.mockReset()
+    mocks.createDocCoeditProvider.mockReset()
+    mocks.lookupProducts.mockReset()
+    if (status !== 'blank') {
+      mocks.getEstimate.mockResolvedValue(makeEstimate())
+      mocks.lookupProducts.mockResolvedValue([{ id: 'product-1', status }])
+      if (coedit) {
+        mocks.createDocCoeditProvider.mockResolvedValue(makeProvider())
+      } else {
+        mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+      }
+    }
+
+    const { container } = renderPage(path)
+    const row = await screen.findByTestId('estimate-form-line-0')
+    if (coedit) await screen.findByTestId('estimate-coedit-items-0-modelName')
+    if (status === 'ACTIVE') {
+      await waitFor(() => expect(estimateQuantity().disabled).toBe(false))
+    }
+    if (status === 'OUT_OF_STOCK') await screen.findByText('품절')
+
+    const header = screen.getByTestId('estimate-form-line-header')
+    expect(header.children).toHaveLength(10)
+    expect(row.children).toHaveLength(10)
+
+    const modelCell = row.children[1]
+    const quantityCell = row.children[4]
+    expect(modelCell.contains(screen.getByTestId('estimate-coedit-items-0-modelName'))).toBe(true)
+    expect(quantityCell.contains(estimateQuantity())).toBe(true)
+    if (status === 'OUT_OF_STOCK') {
+      expect(quantityCell.contains(screen.getByText('품절'))).toBe(true)
+    }
+    expect(container).toBeTruthy()
+  })
+
   it('S7 RED-B: coedit 중 기존 행 품목은 열고 trailing 빈행 품목 선택은 잠근다', async () => {
     const provider = makeProvider()
     mocks.getEstimate.mockResolvedValue(makeEstimate())
@@ -1302,6 +1343,36 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(provider.setItemValue).toHaveBeenCalledWith(0, 'productId', 'product-lookup')
   })
 
+  it('RED-B/C/D: coedit 단가 변경도 이전 0원 S/V/T를 보존하지 않고 재계산한다', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate({ lines: [] }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.lookupProductByModelName.mockResolvedValue({
+      productId: 'product-coedit-price',
+      productName: '협업 자동단가 제품',
+      productType: 'SINGLE',
+      sellingPrice: '2170900',
+    })
+    renderPage()
+
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalled())
+    fireEvent.change(estimateModel(), { target: { value: 'COEDIT-PRICE' } })
+    fireEvent.blur(estimateModel())
+
+    await waitFor(() => expect(estimateUnitPrice().value).toBe('2170900'))
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('1973545')
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('197355')
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('2170900')
+    expect(provider.getItemValue(0, 'unitPrice')).toBe('2170900')
+
+    provider.setItemValue(0, 'unitPrice', '1000000')
+    act(() => provider.__emit())
+    await waitFor(() => expect(estimateUnitPrice().value).toBe('1000000'))
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('909090')
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('90910')
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('1000000')
+  })
+
   it('provider 라인 수가 서버 라인 수와 다르면 server-wins 로 재시드한다', async () => {
     const provider = makeProvider()
     provider.isEmpty.mockReturnValue(false)
@@ -1478,6 +1549,63 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(status.textContent).toBe('라인 1 거래처 최근단가 적용')
   })
 
+  it('RED-C/D: 자동단가 적용은 행 S/V/T·하단 합계·저장 단가를 같은 값으로 닫는다', async () => {
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.lookupProductByModelName.mockResolvedValue({
+      productId: 'product-auto-price',
+      productName: '자동단가 제품',
+      productType: 'SINGLE',
+      sellingPrice: '2170900',
+    })
+    const { container } = renderPage('/sales/estimates/new')
+
+    fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
+    fireEvent.change(estimateModel(), { target: { value: 'AUTO-PRICE' } })
+    fireEvent.blur(estimateModel())
+
+    await waitFor(() => expect(estimateUnitPrice().value).toBe('2170900'))
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('1973545')
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('197355')
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('2170900')
+    expect(totalsRowText(container, '공급가액')).toContain('1,973,545')
+    expect(totalsRowText(container, '부가세')).toContain('197,355')
+    expect(totalsRowText(container, '총합')).toContain('2,170,900')
+
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+    await waitFor(() => expect(mocks.createEstimate).toHaveBeenCalledTimes(1))
+    expect(mocks.createEstimate).toHaveBeenCalledWith(expect.objectContaining({
+      lines: [expect.objectContaining({
+        productId: 'product-auto-price',
+        unitPrice: '2170900',
+        priceVatInclusive: true,
+      })],
+    }))
+  })
+
+  it('RED-C/D: 사용자가 단가를 직접 고쳐도 행 S/V/T와 하단 합계가 함께 재계산된다', async () => {
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    mocks.lookupProductByModelName.mockResolvedValue({
+      productId: 'product-user-price',
+      productName: '사용자 단가 제품',
+      productType: 'SINGLE',
+      sellingPrice: '2170900',
+    })
+    const { container } = renderPage('/sales/estimates/new')
+
+    fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
+    fireEvent.change(estimateModel(), { target: { value: 'USER-PRICE' } })
+    fireEvent.blur(estimateModel())
+    await waitFor(() => expect(estimateUnitPrice().value).toBe('2170900'))
+
+    fireEvent.change(estimateUnitPrice(), { target: { value: '1000000' } })
+    await waitFor(() => expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('909090'))
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('90910')
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('1000000')
+    expect(totalsRowText(container, '공급가액')).toContain('909,090')
+    expect(totalsRowText(container, '부가세')).toContain('90,910')
+    expect(totalsRowText(container, '총합')).toContain('1,000,000')
+  })
+
   it('edit hydrate 일반 라인은 거래처 변경 시 공용 bulk 재조회로 새 거래처 최근단가를 적용한다', async () => {
     mocks.getEstimate.mockResolvedValue(makeEstimate())
     mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
@@ -1491,7 +1619,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
       }],
       failedProductIds: [],
     })
-    renderPage()
+    const { container } = renderPage()
 
     await waitFor(() => expect((screen.getByTestId('estimate-select-partner-b') as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByTestId('estimate-select-partner-b'))
@@ -1499,6 +1627,12 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     await waitFor(() => expect(mocks.lookupProducts).toHaveBeenCalledWith(['product-1']))
     await waitFor(() => expect(mocks.getPriceMemories).toHaveBeenCalledWith(mocks.partnerB.id, ['product-1']))
     await waitFor(() => expect(estimateUnitPrice().value).toBe('99000'))
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('180000')
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('18000')
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('198000')
+    expect(totalsRowText(container, '공급가액')).toContain('180,000')
+    expect(totalsRowText(container, '부가세')).toContain('18,000')
+    expect(totalsRowText(container, '총합')).toContain('198,000')
     expect(screen.getByTestId('estimate-form-line-0').getAttribute('data-price-source')).toBe('REMEMBERED')
     expect(screen.getByRole('note', { name: /마지막으로 저장된 단가/ }).textContent).toBe('거래처 최근단가')
     expect(screen.getByText('단가 변경')).not.toBeNull()

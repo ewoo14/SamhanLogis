@@ -377,7 +377,12 @@ function coeditLinesToDraftLines(
 ): DraftLine[] {
   return provider.items.toArray().map((_, index) => {
     const previous = current[index]
+    const quantity = provider.getItemValue(index, 'quantity') || '0'
     const unitPrice = provider.getItemValue(index, 'unitPrice') || '0'
+    const recalculated = previous
+      && (unitPrice !== previous.unitPrice || quantity !== previous.quantity)
+      ? recalculateLineVat(asVatLine({ ...previous, quantity, unitPrice }), 'PRICE')
+      : undefined
     const expectedAutoWrite = previous ? localAutoPriceWrites?.get(previous.uid) : undefined
     const isExpectedAutoWrite = expectedAutoWrite?.unitPrice === unitPrice
     if (previous && expectedAutoWrite) localAutoPriceWrites?.delete(previous.uid)
@@ -415,15 +420,15 @@ function coeditLinesToDraftLines(
         ? previous?.specification ?? specification
         : specification,
       specificationSource,
-      quantity: provider.getItemValue(index, 'quantity') || '0',
+      quantity,
       unitPrice,
       goodsType: previous?.goodsType ?? null,
-      supplyAmount: previous?.supplyAmount ?? '0',
-      vatAmount: previous?.vatAmount ?? '0',
-      lineTotal: previous?.lineTotal ?? '0',
-      authority: previous?.authority ?? 'PRICE',
-      vatDirty: previous?.vatDirty ?? false,
-      vatWarning: previous?.vatWarning ?? false,
+      supplyAmount: recalculated?.supplyAmount ?? previous?.supplyAmount ?? '0',
+      vatAmount: recalculated?.vatAmount ?? previous?.vatAmount ?? '0',
+      lineTotal: recalculated?.lineTotal ?? previous?.lineTotal ?? '0',
+      authority: recalculated?.authority ?? previous?.authority ?? 'PRICE',
+      vatDirty: recalculated?.vatDirty ?? previous?.vatDirty ?? false,
+      vatWarning: recalculated?.vatWarning ?? previous?.vatWarning ?? false,
       priceSource: isExpectedAutoWrite
         ? expectedAutoWrite.priceSource
         : isRemoteUnitPriceChange
@@ -1364,7 +1369,7 @@ export function EstimateFormPage() {
         }
         const nextUnitPrice = outcome.source === 'UNAVAILABLE' ? '' : outcome.unitPrice
         const nextLine: DraftLine = {
-          ...current,
+          ...recalculateLineVat(asVatLine({ ...current, unitPrice: nextUnitPrice }), 'PRICE'),
           unitPrice: nextUnitPrice,
           priceSource: outcome.source === 'UNAVAILABLE' ? null : outcome.source,
           priceMemoryUpdatedAt: outcome.updatedAt,
@@ -1592,6 +1597,9 @@ export function EstimateFormPage() {
             : current.specificationSource
       const nextLine: DraftLine = {
         ...current,
+        ...(applyPrice
+          ? recalculateLineVat(asVatLine({ ...current, unitPrice: nextUnitPrice }), 'PRICE')
+          : {}),
         modelName: result.modelName || current.modelName,
         productId: result.productId,
         productName: result.productName,
@@ -2139,6 +2147,7 @@ export function EstimateFormPage() {
               color: '#6B7280',
               fontWeight: 600,
             }}
+            data-testid="estimate-form-line-header"
           >
             <div style={{ textAlign: 'center' }}>#</div>
             <div>모델명</div>
@@ -2249,58 +2258,61 @@ export function EstimateFormPage() {
               >
                 {i + 1}
               </div>
-              <ProductAutocomplete
-                value={line.productId && line.modelName ? {
-                  id: line.productId,
-                  modelName: line.modelName,
-                  productName: line.productName,
-                  productType: line.productType ?? undefined,
-                  status: line.status,
-                  sellingPrice: line.catalogUnitPrice == null ? undefined : Number(line.catalogUnitPrice),
-                  specification: line.specification,
-                } : null}
-                onChange={(product) => handleProductSelection(i, product)}
-                onInputCommitChange={(committed) => {
-                  if (committed) return
-                  if (!isCoeditLineValueEditable(line)) return
-                  handleProductSelection(i, null)
-                }}
-                onInputBlur={(draft) => {
-                  if (!isCoeditLineValueEditable(line) || !draft.trim()) return
-                  updateLine(i, { modelName: draft.trim(), productId: null, productName: '' }, true)
-                  window.setTimeout(() => void handleModelLookup(i), 0)
-                }}
-                searchProducts={searchEstimateProducts}
-                label=""
-                ariaLabel={`라인 ${i + 1} 모델명`}
-                placeholder="모델명 또는 품목명"
-                resultSelectionMode="single"
-                autoSelectSingleResult
-                debounceMs={250}
-                disabled={Boolean(isReadOnly) || estimateFormCoeditPending || !isCoeditLineValueEditable(line)}
-                error={line.lookupError ?? undefined}
-              />
-              <CollaborativeSlipInput
-                provider={estimateFormCoeditProvider}
-                coeditPending={estimateFormCoeditPending}
-                fieldPath={`items.${i}.modelName`}
-                value={line.modelName}
-                onValueChange={(value) => updateLine(i, {
-                  modelName: value,
-                  productId: null,
-                  productName: '',
-                }, true)}
-                onDocSyncValueChange={(value) => updateLine(i, {
-                  modelName: value,
-                  productId: null,
-                  productName: '',
-                })}
-                onBlur={() => handleModelLookup(i)}
-                readOnly={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
-                aria-label={`라인 ${i + 1} 모델명 동기화`}
-                inputStyle={{ display: 'none' }}
-                data-testid={`estimate-coedit-items-${i}-modelName`}
-              />
+              <div>
+                <ProductAutocomplete
+                  value={line.productId && line.modelName ? {
+                    id: line.productId,
+                    modelName: line.modelName,
+                    productName: line.productName,
+                    productType: line.productType ?? undefined,
+                    status: line.status,
+                    sellingPrice: line.catalogUnitPrice == null ? undefined : Number(line.catalogUnitPrice),
+                    specification: line.specification,
+                  } : null}
+                  onChange={(product) => handleProductSelection(i, product)}
+                  onInputCommitChange={(committed) => {
+                    if (committed) return
+                    if (!isCoeditLineValueEditable(line)) return
+                    handleProductSelection(i, null)
+                  }}
+                  onInputBlur={(draft) => {
+                    if (!isCoeditLineValueEditable(line) || !draft.trim()) return
+                    updateLine(i, { modelName: draft.trim(), productId: null, productName: '' }, true)
+                    window.setTimeout(() => void handleModelLookup(i), 0)
+                  }}
+                  searchProducts={searchEstimateProducts}
+                  label=""
+                  ariaLabel={`라인 ${i + 1} 모델명`}
+                  placeholder="모델명 또는 품목명"
+                  resultSelectionMode="single"
+                  autoSelectSingleResult
+                  debounceMs={250}
+                  disabled={Boolean(isReadOnly) || estimateFormCoeditPending || !isCoeditLineValueEditable(line)}
+                  error={line.lookupError ?? undefined}
+                />
+                {/* 화면 입력은 ProductAutocomplete가 담당하고, 이 필드는 협업 문서 동기화만 담당한다. */}
+                <CollaborativeSlipInput
+                  provider={estimateFormCoeditProvider}
+                  coeditPending={estimateFormCoeditPending}
+                  fieldPath={`items.${i}.modelName`}
+                  value={line.modelName}
+                  onValueChange={(value) => updateLine(i, {
+                    modelName: value,
+                    productId: null,
+                    productName: '',
+                  }, true)}
+                  onDocSyncValueChange={(value) => updateLine(i, {
+                    modelName: value,
+                    productId: null,
+                    productName: '',
+                  })}
+                  onBlur={() => handleModelLookup(i)}
+                  readOnly={Boolean(isReadOnly) || estimateFormCoeditPending || coeditActive}
+                  aria-label={`라인 ${i + 1} 모델명 동기화`}
+                  inputStyle={{ display: 'none' }}
+                  data-testid={`estimate-coedit-items-${i}-modelName`}
+                />
+              </div>
               <CollaborativeSlipInput
                 provider={estimateFormCoeditProvider}
                 coeditPending={estimateFormCoeditPending}
@@ -2323,21 +2335,23 @@ export function EstimateFormPage() {
                 readOnly={Boolean(isReadOnly)}
                 aria-label={`라인 ${i + 1} 규격`}
               />
-              <CollaborativeSlipInput
-                provider={estimateFormCoeditProvider}
-                coeditPending={estimateFormCoeditPending}
-                fieldPath={`items.${i}.quantity`}
-                type="text"
-                value={line.quantity}
+              <div>
+                <CollaborativeSlipInput
+                  provider={estimateFormCoeditProvider}
+                  coeditPending={estimateFormCoeditPending}
+                  fieldPath={`items.${i}.quantity`}
+                  type="text"
+                  value={line.quantity}
                   onValueChange={(value) => updateQuantity(i, value)}
                   onDocSyncValueChange={(value) => updateQuantity(i, value)}
-                readOnly={Boolean(isReadOnly) || !isQuantityEditable(line.productId, line.status)}
-                inputMode="numeric"
-                inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
-                aria-label={`라인 ${i + 1} 수량${line.status === 'OUT_OF_STOCK' ? ' 품절' : !isQuantityEditable(line.productId, line.status) ? ' 상태 확인 중' : ''}`}
-                data-testid={`estimate-form-line-${i}-qty`}
-              />
-              {!isQuantityEditable(line.productId, line.status) ? <span role="status">{line.status === 'OUT_OF_STOCK' ? '품절' : '상태 확인 중'}</span> : null}
+                  readOnly={Boolean(isReadOnly) || !isQuantityEditable(line.productId, line.status)}
+                  inputMode="numeric"
+                  inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                  aria-label={`라인 ${i + 1} 수량${line.status === 'OUT_OF_STOCK' ? ' 품절' : !isQuantityEditable(line.productId, line.status) ? ' 상태 확인 중' : ''}`}
+                  data-testid={`estimate-form-line-${i}-qty`}
+                />
+                {!isQuantityEditable(line.productId, line.status) ? <span role="status">{line.status === 'OUT_OF_STOCK' ? '품절' : '상태 확인 중'}</span> : null}
+              </div>
               <div>
                 <CollaborativeSlipInput
                   provider={estimateFormCoeditProvider}
