@@ -36,6 +36,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="/quantitySync.js"></script>
+<script src="/js/legacy-price-toggle.js"></script>
 <!-- Phase 7 4차 잔여 — Pretendard web font 통일.
      Phase 7 5/6차 정정 (DevOps): jsdelivr CDN SPOF 회피 위해 self-host @font-face 로 전환.
      `public/fonts/fonts.css` 가 Express static 으로 `/fonts/fonts.css` 에 노출.
@@ -2263,6 +2264,7 @@ const PRICE_INC_RAW = <%- priceInc %>;
 const PRICE_INC = J(PRICE_INC_RAW, {home:{}, comm:{}, single:{}});
 const PRICE_CHANGE_SCHEDULE = J(<%- priceChangeSchedule %>, {});
 const PRICE_DEFAULT_VARIANT = J(<%- priceDefaultVariant %>, {});
+let oldPriceChangeEnabled = !!PRICE_DEFAULT_VARIANT.oldProducts;
 const HOME_QUANTITY_SYNC_RULES = J(<%- quantitySyncRules || '[]' %>, []);
 const ACTIVE_HOME_QUANTITY_SYNC_RULES = Array.isArray(HOME_QUANTITY_SYNC_RULES)
   ? HOME_QUANTITY_SYNC_RULES.filter(rule => rule?.enabled === true)
@@ -7415,12 +7417,14 @@ function renderOldOptions() {
 
   box.innerHTML = '';
   // 옵션 내용 추가
+  box.appendChild(chk('단가변동', oldPriceChangeEnabled, 'chkOldInc'));
   box.appendChild(numInp('할인율(%)', 'old_rate', getOldDiscountPercent(), 1));
   box.appendChild(roundSel('old'));
 
   // 이벤트 연결
   box.querySelectorAll('input,select').forEach(c => {
     c.addEventListener('change', () => {
+      if (c.id === 'chkOldInc') oldPriceChangeEnabled = c.checked;
       renderOld(); 
       syncOldTotals();
     });
@@ -7447,12 +7451,13 @@ function renderOld(){
     const isSpecial = item.source === SPECIAL_ROW_SOURCE.CATALOG_SPECIAL;
     const isCut = item.kind === 'CUT';
 
-    let listPrice = Math.round(Number(item.price) || 0); 
+    const legacyVariant = resolveLegacyPriceVariant(item, oldPriceChangeEnabled);
+    let listPrice = Math.round(legacyVariant.releasePrice);
     let autoPrice;
     if(item.isDisc === true) {
       autoPrice = Math.round(listPrice * (1 - discountRate));
     } else {
-      autoPrice = Math.round(Number(item.sheetPrice) || 0);
+      autoPrice = Math.round(legacyVariant.deliveryPrice);
     }
     autoPrice = roundByConfig(autoPrice, 'old');
 
@@ -7578,13 +7583,14 @@ function sumOld(){
       return acc + (oldCustomPrices.get(item.model) * q);
     }
 
-    let listP = Math.round(Number(item.price) || 0);
+    const legacyVariant = resolveLegacyPriceVariant(item, oldPriceChangeEnabled);
+    let listP = Math.round(legacyVariant.releasePrice);
     let finalP;
     
     if(item.isDisc === true) {
       finalP = Math.round(listP * 0.5);
     } else {
-      finalP = Math.round(Number(item.sheetPrice) || 0);
+      finalP = Math.round(legacyVariant.deliveryPrice);
     }
     
     return acc + (finalP * q);
