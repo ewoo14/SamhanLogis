@@ -4673,6 +4673,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )
   }
 
+  // GET /slips/{id}/revertability — 되돌림 가능성 preflight (읽기 전용)
+  const revertabilityMatch = url.match(/\/slips\/([^/?]+)\/revertability$/)
+  if (method === 'GET' && revertabilityMatch) {
+    const slipId = decodeURIComponent(revertabilityMatch[1]!)
+    const slip = MOCK_SLIPS.find((item) => item.id === slipId) ?? MOCK_SLIPS[0]!
+    return envelope({
+      slipNo: slip.slipNo,
+      revertable: true,
+      reasonCodes: [],
+      reasons: [],
+      userVisibleText: '현재 되돌림 가능',
+    })
+  }
+
   // GET /slips/{id} (단건 상세) — UUID-like 또는 'slip-001' 패턴
   const slipDetailMatch = url.match(/\/slips\/([^/?]+)$/)
   if (method === 'GET' && slipDetailMatch && !url.includes('/slips/query') && !url.includes('lookup-product') && !url.includes('/slips/edit-requests') && !url.match(/\/slips\/cleanup/) && !url.includes('compensation-failures')) {
