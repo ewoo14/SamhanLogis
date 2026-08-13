@@ -274,6 +274,7 @@ export const PAGE_GROUPS: PageGroup[] = [
       'system.permission-admin',
       'system.password-admin',
       'system.account-admin',
+      'system.claude',
     ],
   },
   // ── SP-D4 신규 그룹 ──────────────────────────────────────────────────────
@@ -476,6 +477,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'system.permission-admin': '시스템 권한',
   'system.password-admin': '비밀번호 관리',
   'system.account-admin': '계정 관리',
+  'system.claude': 'Claude 사용',
   'dc-config.import': 'DC import',
   'dashboard.admin': '대시보드 관리',
   // SP-D2 회계 7개 신규
