@@ -129,6 +129,14 @@ describe('독립 앱 S1 채팅 이식', () => {
     expect(screen.getByRole('button', { name: '개별' })).toBeInTheDocument()
   })
 
+  it('직접 대화 생성 성공 후 basename 내부 room route에 남는다', async () => {
+    renderProductionApp()
+    fireEvent.change(await screen.findByRole('textbox', { name: '대화 상대 검색' }), { target: { value: '김대표' } })
+    fireEvent.click((await screen.findAllByRole('button', { name: /김대표/ })).at(-1)!)
+    fireEvent.click(screen.getByRole('button', { name: '대화 시작' }))
+    await waitFor(() => expect(screen.getByTestId('chat-room-page')).toBeInTheDocument())
+  })
+
   it('그룹방을 안읽음 먼저, 최신순으로 표시하고 참여자 표시명을 만든다', async () => {
     renderApp()
     fireEvent.click(screen.getByRole('button', { name: '그룹별' }))

@@ -86,8 +86,13 @@ public class ChatRoomController {
     @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
     public ApiResponse<java.util.List<ChatRoomResponse>> list(
             @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actor) {
-        return ApiResponse.ok(roomService.listFor(actor).stream().map(room -> ChatRoomResponse.from(room,
-                userClient.resolveProfile(roomService.otherParticipant(room.getRoomCode(), actor)).orElse(null))).toList());
+        return ApiResponse.ok(roomService.listFor(actor).stream().map(room -> {
+            if (room.getType() != com.samhanair.logis.groupware.domain.ChatRoomType.DIRECT) {
+                return ChatRoomResponse.from(room);
+            }
+            return ChatRoomResponse.from(room,
+                    userClient.resolveProfile(roomService.otherParticipant(room.getRoomCode(), actor)).orElse(null));
+        }).toList());
     }
 
     @GetMapping("/{roomCode}/messages")

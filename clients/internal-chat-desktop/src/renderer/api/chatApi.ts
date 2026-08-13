@@ -9,6 +9,7 @@ export interface GroupChatRoom { roomCode: string; type: 'GROUP'; roomName: stri
 export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string; senderName?: string | null; senderDepartment?: string | null; senderEmployeeCode?: string | null; mine?: boolean }
 
 const baseUrl = String(import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '')
+const userApiPrefix = '/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -23,13 +24,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function fetchChatRooms(): Promise<ChatRoom[]> { return request('/admin/groupware/chat/rooms') }
 export function fetchChatMessages(roomCode: string): Promise<ChatMessage[]> { return request(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`) }
-export function fetchMessengerDirectory(): Promise<MessengerEmployee[]> { return request('/users/messenger/directory') }
-export function fetchMessengerMe(): Promise<MessengerMe> { return request('/users/messenger/me') }
-export function joinMessengerPresence(sessionId: string): Promise<void> { return request(`/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'POST' }) }
-export function leaveMessengerPresence(sessionId: string): Promise<void> { return request(`/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }) }
-export function fetchGroupChatRooms(): Promise<GroupChatRoom[]> { return request('/admin/groupware/chat/groups') }
+export function fetchMessengerDirectory(): Promise<MessengerEmployee[]> { return request(`${userApiPrefix}/users/messenger/directory`) }
+export function fetchMessengerMe(): Promise<MessengerMe> { return request(`${userApiPrefix}/users/messenger/me`) }
+export function joinMessengerPresence(sessionId: string): Promise<void> { return request(`${userApiPrefix}/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'POST' }) }
+export function leaveMessengerPresence(sessionId: string): Promise<void> { return request(`${userApiPrefix}/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }) }
+export function fetchGroupChatRooms(): Promise<GroupChatRoom[]> { return request('/admin/groupware/chat/rooms/groups') }
 export function createGroupChatRoom(employeeCodes: string[], roomName?: string): Promise<ChatRoom> {
-  return request('/admin/groupware/chat/groups', { method: 'POST', body: JSON.stringify({ employeeCodes, roomName: roomName || null }) })
+  return request('/admin/groupware/chat/rooms/groups', { method: 'POST', body: JSON.stringify({ employeeCodes, roomName: roomName || null }) })
 }
 export function createDirectChatRoomByEmployeeCode(employeeCode: string): Promise<ChatRoom> {
   return request('/admin/groupware/chat/rooms/direct/by-employee-code', { method: 'POST', body: JSON.stringify({ employeeCode }) })

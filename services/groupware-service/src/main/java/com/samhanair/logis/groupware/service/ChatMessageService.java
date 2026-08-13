@@ -44,8 +44,9 @@ public class ChatMessageService {
         synchronized (sequenceLocks.computeIfAbsent(room.getId(), ignored -> new Object())) {
             messageRepository.lockRoomSequence(room.getId());
             long sequence = messageRepository.findMaxSequence(room.getId()) + 1;
-            var messages = recipientIds.stream().map(recipientId -> Message.sendInRoom(room.getId(), sequence,
-                    senderId, recipientId, body.trim(), batchId)).toList();
+            var messages = java.util.stream.IntStream.range(0, recipientIds.size())
+                    .mapToObj(index -> Message.sendInRoom(room.getId(), sequence + index,
+                            senderId, recipientIds.get(index), body.trim(), batchId)).toList();
             saved = recipientIds.size() == 1 ? messageRepository.save(messages.get(0)) : messageRepository.saveAll(messages).get(0);
         }
         Runnable publish = () -> broker.publish(room.getId(), "chat:message-created", java.util.Map.of(

@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ChatRoom;
@@ -164,5 +164,32 @@ class ChatRoomServiceTest {
         }
 
         assertThat(saved).extracting(Message::getSequence).doesNotHaveDuplicates().hasSize(20);
+    }
+
+    @Test
+    void group_message_rows_keep_unique_room_sequences_per_recipient() {
+        UUID creator = UUID.randomUUID();
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        ChatRoom room = ChatRoom.restore(UUID.randomUUID(), "CHAT-20260812-000002");
+        room.addParticipant(creator, true);
+        room.addParticipant(first, false);
+        room.addParticipant(second, false);
+        when(roomRepository.findByRoomCode(room.getRoomCode())).thenReturn(Optional.of(room));
+        when(participantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(room.getId(), creator)).thenReturn(true);
+        when(userClient.verifyActiveBulk(List.of(first, second))).thenReturn(java.util.Map.of(first, true, second, true));
+        when(messageRepository.findMaxSequence(room.getId())).thenReturn(0L);
+        when(messageRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        ChatMessageService service = new ChatMessageService(
+                new ChatRoomService(roomRepository, participantRepository, userClient, broker),
+                messageRepository, userClient, broker);
+
+        service.send(room.getRoomCode(), creator, List.of(first, second), "그룹 메시지");
+
+        var messages = new java.util.ArrayList<Message>();
+        org.mockito.ArgumentCaptor<List<Message>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(messageRepository).saveAll(captor.capture());
+        messages.addAll(captor.getValue());
+        assertThat(messages).extracting(Message::getSequence).containsExactly(1L, 2L);
     }
 }

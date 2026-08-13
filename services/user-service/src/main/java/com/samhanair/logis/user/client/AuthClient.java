@@ -86,6 +86,20 @@ public class AuthClient {
     /** auth-service 내부 계정 ID 조회 응답. UUID는 서비스 간 계약에서만 사용한다. */
     public record AccountLookupResponse(UUID accountId) {}
 
+    public boolean isEnabled(UUID id) {
+        try {
+            return restClient.get().uri("/auth/internal/accounts/{id}", id)
+                    .header(INTERNAL_TOKEN_HEADER, requireToken()).retrieve()
+                    .body(new org.springframework.core.ParameterizedTypeReference<ApiResponse<AccountStatusResponse>>() {})
+                    .getData().enabled();
+        } catch (RuntimeException ex) {
+            log.warn("AuthClient enabled lookup failed for {}", id);
+            return false;
+        }
+    }
+
+    public record AccountStatusResponse(UUID accountId, boolean enabled) {}
+
     /**
      * auth-service 에 계정 생성 — {@code passwordChangeRequired} 플래그 전달 지원.
      *

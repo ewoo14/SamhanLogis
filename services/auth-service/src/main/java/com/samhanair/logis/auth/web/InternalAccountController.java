@@ -38,6 +38,14 @@ public class InternalAccountController {
 
     private final AuthService authService;
 
+    @GetMapping("/{id}")
+    public ApiResponse<AccountStatusResponse> status(@PathVariable UUID id) {
+        var account = authService.findAccount(id);
+        return ApiResponse.ok(new AccountStatusResponse(id, account.isEnabled()));
+    }
+
+    public record AccountStatusResponse(UUID accountId, boolean enabled) {}
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<RegisterResponse> create(@Valid @RequestBody CreateAccountInternalRequest request) {

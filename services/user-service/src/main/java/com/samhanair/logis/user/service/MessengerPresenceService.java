@@ -28,8 +28,9 @@ public class MessengerPresenceService {
         else manualStatuses.put(userId, status);
     }
     public PresenceStatus status(UUID userId) {
+        if (!sessions.getOrDefault(userId, Set.of()).isEmpty()) return PresenceStatus.AVAILABLE;
         var manual = manualStatuses.get(userId);
         if (manual != null) return manual;
-        return sessions.getOrDefault(userId, Set.of()).isEmpty() ? PresenceStatus.OFFLINE : PresenceStatus.AVAILABLE;
+        return PresenceStatus.OFFLINE;
     }
 }

@@ -7,6 +7,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.user.repository.EmployeeRepository;
+import com.samhanair.logis.user.client.AuthClient;
 import com.samhanair.logis.user.service.MessengerDirectoryService;
 import com.samhanair.logis.user.web.dto.MessengerEmployeeResponse;
 import com.samhanair.logis.user.web.dto.MessengerMeResponse;
@@ -34,14 +35,20 @@ public class MessengerDirectoryController {
     private final EmployeeRepository employeeRepository;
     private final MessengerDirectoryService directoryService;
     private final MessengerPresenceService presenceService;
+    private final AuthClient authClient;
 
     @GetMapping("/directory")
     @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
     public ApiResponse<List<MessengerEmployeeResponse>> directory() {
-        List<MessengerEmployeeResponse> result = directoryService.sort(employeeRepository.findAll()).stream()
+        var employees = employeeRepository.findAll();
+        var enabledAccountIds = employees.stream()
                 .filter(employee -> employee.getTerminationDate() == null)
+                .filter(employee -> authClient.isEnabled(employee.getId()))
+                .map(com.samhanair.logis.user.domain.Employee::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<MessengerEmployeeResponse> result = directoryService.activeOnly(employees, enabledAccountIds).stream()
                 .map(employee -> new MessengerEmployeeResponse(
-                        employee.getEcountCode(), employee.getFullName(), employee.getPosition(),
+                        employee.getEcountCode() == null ? employee.getLoginId() : employee.getEcountCode(), employee.getFullName(), employee.getPosition(),
                         employee.getDepartment().getName(), "ACTIVE", presenceService.status(employee.getId()).name()))
                 .toList();
         return ApiResponse.ok(result);
@@ -61,7 +68,7 @@ public class MessengerDirectoryController {
                 .filter(item -> item.getTerminationDate() == null)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "직원을 찾을 수 없습니다"));
         return ApiResponse.ok(new MessengerMeResponse(
-                employee.getEcountCode(), employee.getFullName(), employee.getPosition(),
+                employee.getEcountCode() == null ? employee.getLoginId() : employee.getEcountCode(), employee.getFullName(), employee.getPosition(),
                 employee.getDepartment().getName(), "ACTIVE", presenceService.status(userId).name()));
     }
 

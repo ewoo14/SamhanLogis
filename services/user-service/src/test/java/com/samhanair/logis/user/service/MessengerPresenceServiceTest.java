@@ -18,12 +18,12 @@ class MessengerPresenceServiceTest {
     }
 
     @Test
-    void manual_absent_overrides_live_sessions_until_changed() {
+    void live_session_is_available_even_if_stale_manual_absent_remains() {
         var user = UUID.randomUUID();
         var service = new MessengerPresenceService();
 
         service.join(user, "mobile-1");
         service.setManualStatus(user, MessengerPresenceService.PresenceStatus.ABSENT);
-        assertThat(service.status(user)).isEqualTo(MessengerPresenceService.PresenceStatus.ABSENT);
+        assertThat(service.status(user)).isEqualTo(MessengerPresenceService.PresenceStatus.AVAILABLE);
     }
 }

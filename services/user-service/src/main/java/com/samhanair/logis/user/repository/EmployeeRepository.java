@@ -29,6 +29,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     boolean existsByLoginId(String loginId);
 
+    Optional<Employee> findByLoginId(String loginId);
+
     /** 계정 연결 정합성 점검용 활성 직원 조회. 이름 비교는 서비스에서 정확히 수행한다. */
     @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.department "
             + "WHERE e.isDeleted = false AND e.terminationDate IS NULL AND e.loginId IN :loginIds")

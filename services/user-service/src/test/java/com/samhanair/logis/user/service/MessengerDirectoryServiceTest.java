@@ -8,6 +8,7 @@ import com.samhanair.logis.user.domain.Employee;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class MessengerDirectoryServiceTest {
@@ -26,6 +27,17 @@ class MessengerDirectoryServiceTest {
         List<Employee> result = service.sort(List.of(employee("개발자"), employee("사원")));
 
         assertThat(result).extracting(Employee::getPosition).containsExactly("사원", "개발자");
+    }
+
+    @Test
+    void active_directory_excludes_terminated_and_disabled_accounts() {
+        Employee active = employee("사원");
+        Employee terminated = employee("주임");
+        terminated.terminate(LocalDate.of(2026, 1, 1));
+        Employee disabled = employee("과장");
+
+        assertThat(service.activeOnly(List.of(active, terminated, disabled), Set.of(active.getId())))
+                .containsExactly(active);
     }
 
     private static Employee employee(String position) {

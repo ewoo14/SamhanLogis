@@ -186,9 +186,12 @@ public class InternalUserController {
     @GetMapping("/by-employee-code")
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<InternalEmployeeCodeResponse> findByEmployeeCode(@RequestParam("employeeCode") String employeeCode) {
-        var employee = employeeRepository.findByEcountCode(employeeCode.trim())
+        var normalized = employeeCode.trim();
+        var employee = employeeRepository.findByEcountCode(normalized)
+                .or(() -> employeeRepository.findByLoginId(normalized))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "직원을 찾을 수 없습니다"));
-        return ApiResponse.ok(new InternalEmployeeCodeResponse(employee.getId(), employee.getEcountCode()));
+        return ApiResponse.ok(new InternalEmployeeCodeResponse(employee.getId(),
+                employee.getEcountCode() == null ? employee.getLoginId() : employee.getEcountCode()));
     }
 
     /**
