@@ -22,6 +22,7 @@ describe('모바일 퍼블릭 웹 버전 안내', () => {
 
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('2026/07/26-929'))
     expect(screen.getByText('서명 화면')).toBeTruthy()
+    expect(screen.queryByTestId('web-version-policy-error')).toBeNull()
     expect(fetchSpy).toHaveBeenCalledWith(
       'http://localhost:8080/app/version?clientType=SAMHAN_MOBILE_PUBLIC_WEB&currentVersion=0.1.0-dev',
       expect.objectContaining({ method: 'GET' }),
@@ -38,8 +39,9 @@ describe('모바일 퍼블릭 웹 버전 안내', () => {
       </WebVersionGate>,
     )
 
-    await waitFor(() => expect(screen.getByText('서명 화면')).toBeTruthy())
-    expect(screen.getByTestId('web-version-policy-error').textContent).toContain('버전 정책을 확인하지 못했습니다')
+    const policyError = await screen.findByTestId('web-version-policy-error')
+    expect(policyError.textContent).toContain('버전 정책을 확인하지 못했습니다')
+    expect(screen.getByText('서명 화면')).toBeTruthy()
     fetchSpy.mockRestore()
   })
 
