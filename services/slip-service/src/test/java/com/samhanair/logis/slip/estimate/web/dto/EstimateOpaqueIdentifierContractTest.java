@@ -12,7 +12,9 @@ import org.junit.jupiter.api.Test;
 class EstimateOpaqueIdentifierContractTest {
 
     private static final UUID ESTIMATE_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID SLIP_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
     private static final String OPAQUE_TOKEN = "AAAAAAAAAAAAAAAAAAAAAQ";
+    private static final String SLIP_OPAQUE_TOKEN = "AAAAAAAAAAAAAAAAAAAAAg";
 
     @Test
     void listResponse_usesOpaqueTokenAndKeepsOriginalEstimateNumberSeparately() {
@@ -39,6 +41,20 @@ class EstimateOpaqueIdentifierContractTest {
 
         assertThat(response.id()).isEqualTo(OPAQUE_TOKEN);
         assertThat(response.estimateNo()).isEqualTo("2026/08/10-9");
+    }
+
+    @Test
+    void detailResponse_preservesConvertedSlipLinkAsOpaqueToken() {
+        EstimateDetailResponse source = new EstimateDetailResponse(
+                ESTIMATE_ID, "2026/08/10-9", null, 9, EstimateStatus.QUOTE_CONVERTED,
+                null, "거래처", null, null, null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                SLIP_ID, null, null, null, null, null, null, 0L, false, null, null,
+                java.util.List.of());
+
+        EstimateDetailReadResponse response = EstimateDetailReadResponse.from(source);
+
+        assertThat(response.convertedSlipId()).isEqualTo(SLIP_OPAQUE_TOKEN);
+        assertThat(response.convertedSlipId()).doesNotContain(SLIP_ID.toString());
     }
 
     @Test

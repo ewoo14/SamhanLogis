@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 견적 상세 조회 전용 응답. UUID와 내부 품목 식별자는 사용자 응답에서 제외한다. */
+/** 견적 상세 조회 전용 응답. UUID와 내부 품목 식별자는 opaque token 외에는 사용자 응답에서 제외한다. */
 public record EstimateDetailReadResponse(
         String id,
         String estimateNo,
@@ -21,6 +21,8 @@ public record EstimateDetailReadResponse(
         BigDecimal totalSupply,
         BigDecimal totalVat,
         BigDecimal totalAmount,
+        /** 변환된 전표의 URL-safe opaque token. 변환 전에는 null. */
+        String convertedSlipId,
         LocalDateTime sentAt,
         LocalDateTime acceptedAt,
         LocalDateTime rejectedAt,
@@ -37,6 +39,7 @@ public record EstimateDetailReadResponse(
                 OpaqueUuidCodec.encode(response.id()), response.estimateNo(), response.estimateDate(), response.seqNo(),
                 response.status(), response.partnerName(), response.partnerBusinessNo(), response.partnerAddress(),
                 response.validUntil(), response.totalSupply(), response.totalVat(), response.totalAmount(),
+                OpaqueUuidCodec.encode(response.convertedSlipId()),
                 response.sentAt(), response.acceptedAt(), response.rejectedAt(), response.convertedAt(),
                 response.memo(), response.version(), response.isDeleted(), response.deletedAt(),
                 response.deletedByName(), response.lines().stream().map(EstimateLineReadResponse::from).toList());

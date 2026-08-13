@@ -47,6 +47,7 @@ vi.mock('../api/approvalLineConfigApi', async () => {
 const getEstimateMock = vi.mocked(getEstimate)
 const changeEstimateOwnerMock = vi.mocked(changeEstimateOwner)
 const searchApprovalLineUsersMock = vi.mocked(searchApprovalLineUsers)
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
 
 const estimate = {
   id: '2026/08/10-9',
@@ -160,5 +161,20 @@ describe('EstimateDetailPage identifier axis', () => {
       'width=900,height=1200',
     )
     open.mockRestore()
+  })
+
+  it('변환된 전표의 opaque token 링크를 상세에서 제공하고 UUID를 URL에 넣지 않는다', async () => {
+    const opaqueSlipId = 'ERERERERERERERERERERER'
+    getEstimateMock.mockResolvedValue({
+      ...estimate,
+      status: 'QUOTE_CONVERTED',
+      convertedSlipId: opaqueSlipId,
+    })
+    renderPage()
+
+    const href = (await screen.findByTestId('estimate-detail-converted-slip-link')).getAttribute('href') ?? ''
+
+    expect(href).toContain(`/#/sales/${opaqueSlipId}`)
+    expect(href).not.toMatch(UUID_PATTERN)
   })
 })

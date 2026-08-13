@@ -37,7 +37,7 @@ class EstimateReadResponseUuidContractTest {
                 "2026/08/13-1", "2026/08/13-1", LocalDate.of(2026, 8, 13), 1,
                 EstimateStatus.QUOTE_DRAFT, "거래처", "1234567890", "주소",
                 LocalDate.of(2026, 9, 1), BigDecimal.ONE, BigDecimal.ONE, BigDecimal.valueOf(2),
-                LocalDateTime.now(), null, null, null, null, 1L, false, null, null, List.of(line));
+                null, LocalDateTime.now(), null, null, null, null, 1L, false, null, null, List.of(line));
 
         assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(response))
                 .doesNotContainPattern(UUID_PATTERN);

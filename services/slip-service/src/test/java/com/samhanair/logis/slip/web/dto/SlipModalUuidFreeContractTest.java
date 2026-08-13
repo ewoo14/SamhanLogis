@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web.dto;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.slip.publish.PublishSlipResponse;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
@@ -25,14 +26,16 @@ class SlipModalUuidFreeContractTest {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}");
 
     @Test
-    void searchAndDetailResponseBodies_areUuidFreeAcrossNestedStructures() throws Exception {
+    void searchDetailAndPublishResponseBodies_areUuidFreeAcrossNestedStructures() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         SlipResponse searchRow = recordWithUuids(SlipResponse.class);
         SlipDetailResponse detail = recordWithUuids(SlipDetailResponse.class);
+        PublishSlipResponse publish = recordWithUuids(PublishSlipResponse.class);
 
         String responseBody = mapper.writeValueAsString(Map.of(
                 "search", Map.of("content", List.of(searchRow)),
-                "detail", detail));
+                "detail", detail,
+                "publish", publish));
 
         assertThat(UUID_PATTERN.matcher(responseBody).find())
                 .as("전표 검색·상세 응답과 중첩 라인 UUID scan — body=%s", responseBody)
@@ -47,6 +50,7 @@ class SlipModalUuidFreeContractTest {
 
         assertThat(token).doesNotContain("-");
         assertThat(token).doesNotContain(ID.toString());
+        assertThat(OpaqueUuidDeserializer.decode(token)).isEqualTo(ID);
     }
 
     private static <T> T recordWithUuids(Class<T> type) throws Exception {
