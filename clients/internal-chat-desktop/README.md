@@ -17,4 +17,4 @@ Windows installer/portable 릴리스는 명시적인 `VITE_APP_VERSION=YYYY/MM/D
 
 > **운영 선행조건 — 인증서 신뢰 루트 배포 필수**
 >
-> 자체서명 인증서의 발급자 루트를 사내 Windows PC의 신뢰할 수 있는 루트 인증 기관에 배포해야 합니다. `electron-updater`는 신뢰 루트가 없으면 `Get-AuthenticodeSignature` 결과가 `UnknownError`가 되어 `ERR_UPDATER_INVALID_SIGNATURE`로 설치를 거부합니다. 이 경우 main 프로세스의 상세 오류는 로그에만 남고 renderer에는 `업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요.`라는 오류 상태가 표시됩니다. 신뢰 루트 배포가 없으면 자동 설치는 전부 막힙니다.
+> 자체서명 인증서의 발급자 루트를 사내 Windows PC의 신뢰할 수 있는 루트 인증 기관에 배포해야 합니다. `electron-updater`는 신뢰 루트가 없으면 `Get-AuthenticodeSignature` 결과가 `UnknownError`가 되어 `ERR_UPDATER_INVALID_SIGNATURE`로 설치를 거부합니다. 이 경우 main 프로세스의 상세 오류는 로그에만 남고 renderer에는 인증서 배포를 요청하는 안전한 안내가 표시됩니다. 신뢰 루트 배포가 없으면 자동 설치는 전부 막힙니다.
