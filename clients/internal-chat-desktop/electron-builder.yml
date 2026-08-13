@@ -2,7 +2,9 @@ appId: com.samhanair.internalchat.desktop
 productName: Samhan Internal Chat
 copyright: Copyright (c) 2026 (주)삼한공조시스템
 artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}.${ext}
-forceCodeSigning: false
+# electron-updater Windows 검증과 같은 인증서를 사용한다. 인증서가 없으면
+# 릴리스 산출물을 만들지 않는다.
+forceCodeSigning: true
 
 # 삼한 Public·아로로지스와 같은 generic feed 경로를 사용한다.
 # 제품별 base URL은 별도 환경변수로 주입하고 channel 이름은 기존 latest를 유지한다.
@@ -28,6 +30,7 @@ win:
     - target: portable
       arch: [x64]
   requestedExecutionLevel: asInvoker
+  publisherName: Samhan Internal Release
 
 nsis:
   oneClick: false

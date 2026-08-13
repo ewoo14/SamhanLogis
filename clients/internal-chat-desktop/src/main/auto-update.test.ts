@@ -63,4 +63,15 @@ describe('사내 메신저 자동 업데이트 IPC', () => {
     await expect(mocks.handlers.get('updater:install')?.()).rejects.toThrow('installer failed')
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', expect.objectContaining({ kind: 'error' }))
   })
+
+  it('신뢰 루트가 없는 자체서명 installer 오류는 상세값을 숨기고 사용자에게 표시한다', () => {
+    mocks.events.get('error')?.(new Error('ERR_UPDATER_INVALID_SIGNATURE: UnknownError'))
+
+    const lastStatus = mocks.window.webContents.send.mock.calls.at(-1)?.[1]
+    expect(lastStatus).toEqual({
+      kind: 'error',
+      message: '업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요.',
+    })
+    expect(JSON.stringify(lastStatus)).not.toContain('UnknownError')
+  })
 })
