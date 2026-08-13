@@ -1212,6 +1212,8 @@ export function EstimateFormPage() {
         productType: legacy.productType,
         fixedDiscountRate: legacy.fixedDiscountRate,
         fixedDiscountSource: legacy.fixedDiscountSource,
+        discountOption: legacy.discountOption ?? null,
+        classificationAssigned: legacy.discountOption != null,
         status: legacy.status,
       }]
     } catch {
@@ -1578,9 +1580,7 @@ export function EstimateFormPage() {
           : null,
         modelCode: 'modelCode' in rawResult ? rawResult.modelCode ?? null : null,
         discountOption: 'discountOption' in rawResult ? rawResult.discountOption ?? null : null,
-        classificationAssigned: 'classificationAssigned' in rawResult
-          ? rawResult.classificationAssigned
-          : undefined,
+        classificationAssigned: 'discountOption' in rawResult && rawResult.discountOption != null,
         categoryKey: 'categoryKey' in rawResult ? rawResult.categoryKey ?? null : null,
         hasVariableDiscount: 'hasVariableDiscount' in rawResult
           ? rawResult.hasVariableDiscount ?? null

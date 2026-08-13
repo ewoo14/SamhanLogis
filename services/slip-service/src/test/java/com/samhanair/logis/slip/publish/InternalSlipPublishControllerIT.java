@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.it.OpaqueUuidTestDecoder;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -130,7 +131,7 @@ class InternalSlipPublishControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID slipId = UUID.fromString(
+        UUID slipId = OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
         SlipLine line = slipRepository.findByIdWithLines(slipId).orElseThrow().getLines().get(0);

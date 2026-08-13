@@ -64,7 +64,23 @@ describe('견적 카탈로그 단가', () => {
     })).toEqual({ unitPrice: 266800, appliedRate: 0 })
   })
 
-  it('RED-D: existing estimate hydration does not retroactively apply partner DC', () => {
+  it('RED-D: 분류는 있으나 정액DC 옵션이 없으면 레거시 모델코드 할인은 적용하지 않는다', () => {
+    expect(resolveEstimateNewLinePrice({
+      sellingPrice: 316800,
+      modelCode: 'AC023BN1DBC1',
+      classificationOptions: [],
+      classificationAssigned: true,
+      fixedDiscountRate: null,
+      categoryKey: null,
+      hasVariableDiscount: false,
+    }, {
+      homeMultiDc: null,
+      commercialMultiDc: null,
+      oneWay: '50000',
+    })).toEqual({ unitPrice: 316800, appliedRate: 0 })
+  })
+
+  it('소급 금지: existing estimate hydration does not retroactively apply partner DC', () => {
     expect(shouldApplyPartnerDcToEstimate(false)).toBe(false)
   })
 

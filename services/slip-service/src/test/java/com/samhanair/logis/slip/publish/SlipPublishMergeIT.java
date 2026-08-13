@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.domain.SlipPublishAudit;
 import com.samhanair.logis.slip.domain.SlipSourceOrder;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.it.OpaqueUuidTestDecoder;
 import com.samhanair.logis.slip.repository.SlipPublishAuditRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
@@ -623,7 +624,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
     }
 
     private UUID readSlipId(MvcResult result) throws Exception {
-        return UUID.fromString(
+        return OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
     }

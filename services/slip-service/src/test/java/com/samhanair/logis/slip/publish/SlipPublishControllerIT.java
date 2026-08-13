@@ -19,6 +19,7 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.UnitPriceDomain;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.it.OpaqueUuidTestDecoder;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -149,7 +150,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.idempotencyKey").value("idem-est-001"))
                 .andExpect(jsonPath("$.data.idempotentReplay").value(false))
                 .andReturn();
-        UUID slipId = UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
+        UUID slipId = OpaqueUuidTestDecoder.decode(objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("data").get("slipId").asText());
         org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow()
                 .getBusinessNumber()).isEqualTo("230-70-10310");
@@ -186,7 +187,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.sourceId").value("2026/04/15-1"))
                 .andReturn();
 
-        UUID slipId = UUID.fromString(
+        UUID slipId = OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
         org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow().getPartnerId())
@@ -211,7 +212,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        UUID slipId = UUID.fromString(objectMapper.readTree(first.getResponse().getContentAsString())
+        UUID slipId = OpaqueUuidTestDecoder.decode(objectMapper.readTree(first.getResponse().getContentAsString())
                 .get("data").get("slipId").asText());
         jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
                 legacyPartnerOrderFingerprint(body), slipId);
@@ -249,7 +250,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        UUID slipId = UUID.fromString(
+        UUID slipId = OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
         com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId).orElseThrow()
@@ -283,7 +284,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        UUID slipId = UUID.fromString(
+        UUID slipId = OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
         com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId)
@@ -312,7 +313,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID slipId = UUID.fromString(
+        UUID slipId = OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
         com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId)
@@ -337,7 +338,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(legacyBody)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID slipId = UUID.fromString(objectMapper.readTree(first.getResponse().getContentAsString())
+        UUID slipId = OpaqueUuidTestDecoder.decode(objectMapper.readTree(first.getResponse().getContentAsString())
                 .get("data").get("slipId").asText());
         jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
                 legacyPartnerOrderFingerprint(legacyBody), slipId);
@@ -521,7 +522,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        UUID slipId = UUID.fromString(
+        UUID slipId = OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
         Slip persisted = slipRepository.findById(slipId).orElseThrow();
@@ -569,7 +570,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        UUID slipId = UUID.fromString(
+        UUID slipId = OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
         Slip persisted = slipRepository.findById(slipId).orElseThrow();
@@ -593,7 +594,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        UUID slipId = UUID.fromString(
+        UUID slipId = OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
         Slip persisted = slipRepository.findById(slipId).orElseThrow();

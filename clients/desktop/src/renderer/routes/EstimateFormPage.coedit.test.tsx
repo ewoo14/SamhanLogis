@@ -2146,8 +2146,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
   })
 })
 
-/** 하단 합계 바("라벨 <strong>값</strong>" 형태) 텍스트 — label 로 시작하는 div 를 찾아 반환. */
-it('new estimate applies the partner 1way DC to the displayed total', async () => {
+it('RED-B: 검색 fallback 경로도 discountOption 정본으로 정액DC를 적용한다', async () => {
   mocks.getPartnerDcConfig.mockResolvedValue({
     partnerCode: 'P-A', companyName: 'Partner A', homeMultiDc: null,
     commercialMultiDc: null, flexibleHoseTypeI: null, threeSixty: null,
@@ -2155,13 +2154,19 @@ it('new estimate applies the partner 1way DC to the displayed total', async () =
     firstGrade: null, unitProcess: null, remark: null,
   })
   mocks.lookupProductByModelName.mockResolvedValue({
-    productId: 'product-ac023', productName: 'AC023', productType: 'SINGLE',
+    productId: 'product-ac023', modelName: 'AC023BN1DBC1', productName: 'AC023', productType: 'SINGLE',
     modelCode: 'AC023BN1DBC1', discountOption: 'ONE_WAY', classificationAssigned: true,
     sellingPrice: '316800',
   })
   renderPage('/sales/estimates/new')
   fireEvent.click(screen.getByTestId('estimate-select-partner-a'))
-  fireEvent.change(estimateModel(), { target: { value: 'AC023BN1DBC1' } })
+  const model = await screen.findByLabelText('라인 1 모델명')
+  fireEvent.change(model, { target: { value: 'AC023BN1DBC1' } })
+  fireEvent.blur(model)
+  await waitFor(() => expect(mocks.searchProducts).toHaveBeenCalledWith(
+    'AC023BN1DBC1', { size: 50, usageScope: 'ESTIMATE' },
+  ))
+  await waitFor(() => expect(estimateModel().value).toBe('AC023BN1DBC1'))
   fireEvent.blur(estimateModel())
   await waitFor(() => expect(estimateUnitPrice().value).toBe('266800'))
   expect(mocks.getPartnerDcConfig).toHaveBeenCalledWith('P-A')

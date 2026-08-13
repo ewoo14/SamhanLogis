@@ -492,6 +492,8 @@ export interface ProductLookupResult {
   /** product-service가 계산한 유효 정액DC율(%) 및 적용 출처. */
   fixedDiscountRate?: number | null
   fixedDiscountSource?: string | null
+  /** product-service가 판정한 정액DC 분류 정본. */
+  discountOption?: 'THREE_SIXTY' | 'FOUR_WAY' | 'ONE_WAY' | 'STAND' | 'DELUXE' | 'FIRST_GRADE' | null
   status?: string | null
 }
 
@@ -506,6 +508,7 @@ interface ProductLookupWireResult {
   specification?: string | null
   fixedDiscountRate?: string | number | null
   fixedDiscountSource?: string | null
+  discountOption?: 'THREE_SIXTY' | 'FOUR_WAY' | 'ONE_WAY' | 'STAND' | 'DELUXE' | 'FIRST_GRADE' | null
   status?: string | null
 }
 
@@ -899,6 +902,7 @@ export async function lookupProductByModelName(
     specification: data.specification ?? undefined,
     fixedDiscountRate: data.fixedDiscountRate == null ? null : Number(data.fixedDiscountRate),
     fixedDiscountSource: data.fixedDiscountSource ?? null,
+    discountOption: data.discountOption ?? null,
     status: data.status ?? null,
   }
 }
