@@ -5,9 +5,10 @@
  *
  * <p>필터:
  * <ul>
- *   <li>status — QUOTE_DRAFT/SENT/ACCEPTED/REJECTED/CONVERTED (전체)</li>
- *   <li>기간 — estimateDate startDate / endDate</li>
+ *   <li>기간 — estimateDate startDate / endDate (종합견적서 탭)</li>
+ *   <li>상태 — 데스크톱 견적에만 서버측 적용 (종합견적서 탭)</li>
  *   <li>partner — 거래처명 부분 매칭 (client-side filter)</li>
+ *   <li>웹 저장 source에는 상태·삭제 필터를 적용하지 않는다.</li>
  * </ul>
  *
  * <p>컬럼: 견적번호 / 거래처 코드 / 거래처 / 작성일 / 유효기간 / 합계 / 상태.
@@ -54,15 +55,6 @@ import { UNIFIED_ESTIMATE_SOURCE_LABELS, UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS }
 import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 import { toOrderPathId } from '../utils/orderNo'
 
-const STATUS_OPTIONS: Array<{ value: EstimateStatus | ''; label: string }> = [
-  { value: '', label: '전체' },
-  { value: 'QUOTE_DRAFT', label: '작성중' },
-  { value: 'QUOTE_SENT', label: '발송완료' },
-  { value: 'QUOTE_ACCEPTED', label: '수주완료' },
-  { value: 'QUOTE_REJECTED', label: '거절' },
-  { value: 'QUOTE_CONVERTED', label: '전표변환완료' },
-]
-
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
   QUOTE_SENT: 'brand',
@@ -70,6 +62,17 @@ const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | '
   QUOTE_REJECTED: 'danger',
   QUOTE_CONVERTED: 'warning',
 }
+
+const STATUS_OPTIONS: Array<{ value: EstimateStatus; label: string }> = [
+  { value: 'QUOTE_DRAFT', label: ESTIMATE_STATUS_LABEL.QUOTE_DRAFT },
+  { value: 'QUOTE_SENT', label: ESTIMATE_STATUS_LABEL.QUOTE_SENT },
+  { value: 'QUOTE_ACCEPTED', label: ESTIMATE_STATUS_LABEL.QUOTE_ACCEPTED },
+  { value: 'QUOTE_REJECTED', label: ESTIMATE_STATUS_LABEL.QUOTE_REJECTED },
+  { value: 'QUOTE_CONVERTED', label: ESTIMATE_STATUS_LABEL.QUOTE_CONVERTED },
+]
+
+const isEstimateStatus = (value: string | null): value is EstimateStatus =>
+  value !== null && Object.prototype.hasOwnProperty.call(ESTIMATE_STATUS_LABEL, value)
 
 const ESTIMATE_LIST_REALTIME_KEYS: QueryKey[] = [['estimates', 'list']]
 
@@ -114,38 +117,53 @@ export function EstimateListPage() {
 
   usePageTitle('견적서 관리')
 
-  const [statusFilter, setStatusFilter] = useState<EstimateStatus | ''>(() => searchParams.get('status') as EstimateStatus | '' || '')
   const [startDate, setStartDate] = useState<string>(() => searchParams.get('startDate') ?? '')
   const [endDate, setEndDate] = useState<string>(() => searchParams.get('endDate') ?? '')
   const [partnerKeyword, setPartnerKeyword] = useState<string>(() => searchParams.get('partner') ?? '')
+  const [statusFilter, setStatusFilter] = useState<EstimateStatus | ''>(() => {
+    const value = searchParams.get('status')
+    return isEstimateStatus(value) ? value : ''
+  })
   const [includeDeleted, setIncludeDeleted] = useState(() => searchParams.get('includeDeleted') === 'true')
   const activeTab = searchParams.get('tab') === 'orders' ? 'orders' : 'estimates'
   const [page, setPage] = useState(0)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+  const supportsEstimateOnlyFilters = activeTab === 'estimates'
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
-    const values: Record<string, string> = { status: statusFilter, startDate, endDate, partner: partnerKeyword }
+    const values: Record<string, string> = { partner: partnerKeyword }
+    if (supportsEstimateOnlyFilters) {
+      values.status = statusFilter
+      values.startDate = startDate
+      values.endDate = endDate
+    } else {
+      next.delete('status')
+      next.delete('startDate')
+      next.delete('endDate')
+      next.delete('includeDeleted')
+    }
     for (const [key, value] of Object.entries(values)) {
       if (value) next.set(key, value)
       else next.delete(key)
     }
-    if (includeDeleted) next.set('includeDeleted', 'true')
+    if (supportsEstimateOnlyFilters && includeDeleted) next.set('includeDeleted', 'true')
     else next.delete('includeDeleted')
     if (page > 0) next.set('page', String(page))
     else next.delete('page')
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
-  }, [statusFilter, startDate, endDate, partnerKeyword, includeDeleted, page, searchParams, setSearchParams])
+  }, [supportsEstimateOnlyFilters, startDate, endDate, partnerKeyword, statusFilter, includeDeleted, page, searchParams, setSearchParams])
 
   useCollectionRealtime(EstimateListRealtimeClient, 'list', ESTIMATE_LIST_REALTIME_KEYS)
 
   useEffect(() => {
     setPage(0)
-  }, [activeTab, statusFilter, startDate, endDate, partnerKeyword, includeDeleted])
+    if (!supportsEstimateOnlyFilters) setStatusFilter('')
+  }, [activeTab, startDate, endDate, partnerKeyword, statusFilter, includeDeleted, supportsEstimateOnlyFilters])
 
   const query = useQuery({
-    queryKey: ['estimates', 'list', statusFilter, startDate, endDate, partnerKeyword, includeDeleted, page],
+    queryKey: ['estimates', 'list', statusFilter, startDate, endDate, includeDeleted, page],
     enabled: activeTab === 'estimates',
     queryFn: () =>
       listEstimates({
@@ -159,13 +177,12 @@ export function EstimateListPage() {
   })
 
   const sourceQuery = useQuery({
-    queryKey: ['estimates', 'separated', activeTab, statusFilter, startDate, endDate, includeDeleted],
+    queryKey: supportsEstimateOnlyFilters
+      ? ['estimates', 'separated', 'estimates', statusFilter, startDate, endDate, includeDeleted]
+      : ['estimates', 'separated', 'orders'],
     queryFn: async () => {
       if (activeTab === 'orders') {
-        const webDrafts = await listWebPartnerOrderDraftSummaries({
-          ...(startDate ? { startDate } : {}),
-          ...(endDate ? { endDate } : {}),
-        })
+        const webDrafts = await listWebPartnerOrderDraftSummaries()
         return { rows: mergeOrderRows([], webDrafts), errors: [] }
       }
       const [estimateResult, webQuoteResult] = await Promise.allSettled([
@@ -543,7 +560,7 @@ export function EstimateListPage() {
       <div className={styles['wrap']}>
         {/* [3a 데스크탑 ↔ 웹 분리] 본 화면은 내부 영업/관리자용 견적 관리 UI 임을 명시.
             거래처가 직접 작성하는 종합견적서 흐름은 별도 외부 웹앱 (sub-nav 우측 "웹 종합견적서 ↗") 으로 분리. */}
-        <div
+      <div
           data-testid="estimate-audience-banner"
           role="note"
           style={{
@@ -630,47 +647,41 @@ export function EstimateListPage() {
           }}
           data-testid="estimate-list-filter"
         >
-          <label style={{ fontSize: 13, color: 'var(--ink-primary)' }}>
-            상태
-            <br />
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as EstimateStatus | '')
-              }
-              style={{
-                height: 36,
-                padding: '0 8px',
-                borderRadius: 6,
-                border: '1px solid var(--color-neutral-300)',
-                fontSize: 13,
-                minWidth: 140,
-              }}
-              data-testid="estimate-list-filter-status"
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Input
-            label="기간 (시작)"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            fullWidth={false}
-            data-testid="estimate-list-filter-start"
-          />
-          <Input
-            label="기간 (종료)"
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            fullWidth={false}
-            data-testid="estimate-list-filter-end"
-          />
+          {supportsEstimateOnlyFilters ? (
+            <>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+                상태
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as EstimateStatus | '')}
+                  aria-label="상태 필터"
+                  data-testid="estimate-list-filter-status"
+                  style={{ height: 36, minWidth: 150, padding: '0 8px' }}
+                >
+                  <option value="">전체 상태</option>
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <Input
+                label="기간 (시작)"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                fullWidth={false}
+                data-testid="estimate-list-filter-start"
+              />
+              <Input
+                label="기간 (종료)"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                fullWidth={false}
+                data-testid="estimate-list-filter-end"
+              />
+            </>
+          ) : null}
           <Input
             label="거래처명"
             placeholder="거래처명 부분 검색"
@@ -679,16 +690,28 @@ export function EstimateListPage() {
             fullWidth={false}
             data-testid="estimate-list-filter-partner"
           />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, fontSize: 13 }}>
-            <input
-              type="checkbox"
-              checked={includeDeleted}
-              onChange={(e) => setIncludeDeleted(e.target.checked)}
-              data-testid="estimate-list-include-deleted"
-            />
-            삭제 문서 포함
-          </label>
+          {supportsEstimateOnlyFilters ? (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={includeDeleted}
+                onChange={(e) => setIncludeDeleted(e.target.checked)}
+                data-testid="estimate-list-include-deleted"
+              />
+              삭제 문서 포함
+            </label>
+          ) : null}
         </div>
+
+        {supportsEstimateOnlyFilters && statusFilter ? (
+          <div
+            role="note"
+            data-testid="estimate-list-status-scope-note"
+            style={{ marginBottom: 12, color: 'var(--color-neutral-700)', fontSize: 12 }}
+          >
+            상태 필터는 데스크톱 견적에만 적용됩니다. 웹 종합견적서 저장분은 '저장됨' 상태 하나뿐이므로 이 필터로 걸러지지 않습니다.
+          </div>
+        ) : null}
 
         {restoreError ? (
           <div
@@ -743,7 +766,7 @@ export function EstimateListPage() {
           </div>
         ) : null}
 
-        {sourceQuery.isError ? (
+        {sourceQuery.isError || sourceQuery.data?.errors.length ? (
           <div
             className="error-banner"
             role="alert"

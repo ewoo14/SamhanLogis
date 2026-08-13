@@ -16,13 +16,9 @@ export async function listWebQuoteSnapshotSummaries(filters: {
   return res.data.data ?? []
 }
 
-export async function listWebPartnerOrderDraftSummaries(filters: {
-  startDate?: string
-  endDate?: string
-} = {}): Promise<WebPartnerOrderDraftSummary[]> {
+export async function listWebPartnerOrderDraftSummaries(): Promise<WebPartnerOrderDraftSummary[]> {
   const res = await apiClient.get<ApiEnvelope<WebPartnerOrderDraftSummary[]>>(
     '/api/v1/partner-orders/web-drafts',
-    { params: filters },
   )
   return res.data.data ?? []
 }

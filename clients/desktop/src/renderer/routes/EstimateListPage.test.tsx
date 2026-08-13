@@ -357,6 +357,58 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(listPartnerOrdersMock).not.toHaveBeenCalled()
   })
 
+  it('상태 필터는 데스크톱 견적에 서버측 적용되고 웹 저장분에는 적용되지 않음을 표시한다', async () => {
+    const desktopDraft = estimateRow({ id: 'desktop-draft', estimateNo: '2026/08/13-draft', status: 'QUOTE_DRAFT' })
+    const desktopSent = estimateRow({ id: 'desktop-sent', estimateNo: '2026/08/13-sent', status: 'QUOTE_SENT' })
+    listEstimatesMock.mockImplementation(async (options = {}) => pageOf(
+      options.status === 'QUOTE_DRAFT' ? [desktopDraft] : [desktopDraft, desktopSent],
+    ))
+    listWebQuoteSnapshotSummariesMock.mockResolvedValue([
+      { snapshotKey: 'quote-1', documentLabel: '웹-견적-1', custName: '웹 거래처', created: '2026-08-13T11:00:00', totalAmount: '300000' },
+    ])
+
+    renderPage()
+
+    const table = await screen.findByTestId('estimate-list-table')
+    expect(await within(table).findByText('2026/08/13-sent')).toBeTruthy()
+
+    fireEvent.change(screen.getByTestId('estimate-list-filter-status'), { target: { value: 'QUOTE_DRAFT' } })
+
+    await waitFor(() => {
+      expect(within(table).getByText('2026/08/13-draft')).toBeTruthy()
+      expect(within(table).queryByText('2026/08/13-sent')).toBeNull()
+      expect(within(table).getByText('웹-견적-1')).toBeTruthy()
+      expect(listEstimatesMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'QUOTE_DRAFT' }))
+    })
+    expect(screen.getByTestId('estimate-list-status-scope-note').textContent).toContain('데스크톱 견적에만 적용')
+    expect(screen.getByTestId('estimate-list-status-scope-note').textContent).toContain('웹 종합견적서 저장분')
+    expect(screen.getByTestId('estimate-list-status-scope-note').textContent).toContain('걸러지지 않습니다')
+  })
+
+  it('기간·삭제 필터는 종합견적서 탭에만 노출한다', async () => {
+    renderPage()
+
+    await screen.findByTestId('estimate-list-table')
+
+    expect(screen.getByTestId('estimate-list-filter-start')).toBeTruthy()
+    expect(screen.getByTestId('estimate-list-filter-end')).toBeTruthy()
+    expect(screen.getByTestId('estimate-list-include-deleted')).toBeTruthy()
+  })
+
+  it('웹 종합견적서 조회가 실패해도 데스크톱 행은 남기고 부분 실패를 표시한다', async () => {
+    listEstimatesMock.mockResolvedValue(pageOf([estimateRow({ estimateNo: '2026/08/13-2' })]))
+    listWebQuoteSnapshotSummariesMock.mockRejectedValue(new Error('web quote unavailable'))
+
+    renderPage()
+
+    const table = await screen.findByTestId('estimate-list-table')
+    expect(await within(table).findByText('2026/08/13-2')).toBeTruthy()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('웹 종합견적서')
+    expect(alert.textContent).toContain('불러오지 못했습니다')
+  })
+
   it('웹 종합견적서 행은 UUID가 아닌 opaque snapshot key 상세 경로로 열린다', async () => {
     listWebQuoteSnapshotSummariesMock.mockResolvedValue([
       { snapshotKey: '2026-08-13T11:00:00', documentLabel: '웹-견적-상세', custName: '웹 거래처', created: '2026-08-13T11:00:00', totalAmount: '300000' },
@@ -391,5 +443,17 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(listEstimatesMock).not.toHaveBeenCalled()
     expect(listWebQuoteSnapshotSummariesMock).not.toHaveBeenCalled()
     expect(listPartnerOrdersMock).not.toHaveBeenCalled()
+  })
+
+  it('지원하지 않는 주문서 필터는 숨기고 웹 주문서 API에는 필터를 보내지 않는다', async () => {
+    renderPage(['/sales/estimates?tab=orders&status=QUOTE_SENT&startDate=2026-08-01&endDate=2026-08-13&includeDeleted=true'])
+
+    await screen.findByTestId('estimate-list-table')
+    await waitFor(() => expect(listWebPartnerOrderDraftSummariesMock).toHaveBeenCalledWith())
+
+    expect(screen.queryByTestId('estimate-list-filter-status')).toBeNull()
+    expect(screen.queryByTestId('estimate-list-filter-start')).toBeNull()
+    expect(screen.queryByTestId('estimate-list-filter-end')).toBeNull()
+    expect(screen.queryByTestId('estimate-list-include-deleted')).toBeNull()
   })
 })

@@ -1,18 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@samhan/design-system'
 import {
   listWebPartnerOrderDraftSummaries,
   listWebQuoteSnapshotSummaries,
 } from '../api/estimateSourceApi'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
 
 type SourceKind = 'snapshot' | 'draft'
 
 /** 웹 저장 견적/주문서의 읽기 전용 상세 진입 화면. 목록과 동일한 UUID-free 요약 API를 사용한다. */
 export function WebEstimateSourceDetailPage({ kind }: { kind: SourceKind }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id = '' } = useParams<{ id: string }>()
+  const returnTo = getReturnTo(location.state, {
+    pathname: '/sales/estimates',
+    search: kind === 'draft' ? '?tab=orders' : '',
+  })
+  const hasReturnEntry = typeof (location.state as ReturnNavigationState | null)?.returnEntryKey === 'string'
   const query = useQuery({
     queryKey: ['web-estimate-source-detail', kind, id],
     queryFn: async () => {
@@ -37,7 +44,11 @@ export function WebEstimateSourceDetailPage({ kind }: { kind: SourceKind }) {
 
   return (
     <main>
-      <Button type="button" variant="secondary" onClick={() => navigate('/sales/estimates')}>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => hasReturnEntry ? navigate(-1) : navigate(returnTo, { replace: true })}
+      >
         목록으로
       </Button>
       <h1>{isSnapshot ? '웹 종합견적서 상세' : '웹 주문서 상세'}</h1>

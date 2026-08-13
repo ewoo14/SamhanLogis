@@ -85,6 +85,7 @@ describe('메뉴별 출처 분리 목록 모델', () => {
 
     expect(estimateRow.storageLabel).toBe('웹')
     expect(estimateRow.sourceLabel).toBe('종합견적서')
+    expect(estimateRow.status).toBe('저장됨')
     expect(estimateRow.navigationPath).toBe('/sales/estimates/web-snapshots/quote-snapshot-1')
     expect(orderRow.storageLabel).toBe('웹')
     expect(orderRow.sourceLabel).toBe('주문서')
