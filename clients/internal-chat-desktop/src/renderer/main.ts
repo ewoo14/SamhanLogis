@@ -1,4 +1,9 @@
 import './styles.css'
+import { createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
+import { ChatApp } from './ChatApp'
 
 type UpdateStatus =
   | { kind: 'checking' }
@@ -34,14 +39,8 @@ const CURRENT_VERSION = String(import.meta.env.VITE_APP_VERSION ?? '0.1.0-dev').
 const VERSION_API_BASE_URL = String(import.meta.env.VITE_VERSION_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '')
 const VERSION_POLICY_FAILURE_MESSAGE = '버전 정책을 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.'
 
-root.innerHTML = `
-  <section class="shell" aria-labelledby="title">
-    <div class="mascot" aria-hidden="true">삼</div>
-    <h1 id="title">삼한이 메신저</h1>
-    <p>사내 메신저 셸이 준비되었습니다.</p>
-    <small>채팅 연결과 로그인 연계는 다음 슬라이스에서 추가됩니다.</small>
-  </section>
-`
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+createRoot(root).render(createElement(QueryClientProvider, { client: queryClient }, createElement(MemoryRouter, { basename: '/chat', initialEntries: ['/chat'] }, createElement(ChatApp))))
 
 const shell = root.querySelector<HTMLElement>('.shell')
 let updateStatusNotice: HTMLElement | null = null
