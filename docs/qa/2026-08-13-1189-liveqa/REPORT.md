@@ -489,3 +489,197 @@ count=0
 | `round2-09-safety-filter-visible.png` | 1440x996 | `FDED89A63FBA91F94502821BE1B9DD0FC12AE3609F32C63A4EE176AFA11B5B4C` |
 | `round2-09b-safety-filter-refreshed.png` | 1440x996 | `60A570E0DB23A760A5D6B1420B49239B2A96CE8E3BD32B09D859B4C145E41E24` |
 | `round2-10-revertability-detail.png` | 1440x2012 | `6A28C54959EA2D8354AA4731B4BC81CF9B719A3CE2DE77AC9A2B9BCFA338FB30` |
+
+---
+
+# 라운드 3 — 재수렴
+
+- 수행 시각: 2026-08-13, 종료 16:58 KST
+- 프런트 대상: 개발책임자 제공 기준 `feat/1142-completed-slip-revert` / `225fdb913` / CI 45/45 green
+- 백엔드 대상: **이전 커밋 `b11f025ea` 빌드의 기존 컨테이너 12개**
+- 판정: **재고이동 캐시 fix 본체 PASS. transfer 저장 구간의 교차 query-family 호출 0건. 재고실사 warm 목록에서 별도 stale-cache 결함 1건.**
+- 중요 제한: 이번 컨테이너에는 `225fdb913`의 백엔드 변경이 없다. 재고실사 상세 ID opaque 해소 여부를 비롯한 백엔드 변경은 모두 **관측 불가**이며 통과나 결함으로 판정하지 않는다.
+
+## R3-1. 환경 확인
+
+### R3-1.1 실행 대상과 제약 준수
+
+| 항목 | 실측 |
+|---|---|
+| 컨테이너 | 시작·종료 모두 12개 healthy, gateway `/actuator/health` `UP` |
+| 백엔드 빌드 | 개발책임자가 명시한 이전 커밋 `b11f025ea`. git 금지로 이미지 커밋을 독립 조회하지 않았다. |
+| 프런트 renderer | 워크트리 `clients/desktop`, Vite `http://127.0.0.1:5189`; 현재 워크트리 프런트 변경을 직접 렌더링 |
+| design-system | `clients/web/design-system/dist` 존재. `npm ci`·build 추가 실행 0회 |
+| 브라우저 | Playwright Chromium 동시 1개, context 1개, page 1개, worker 0개 |
+| git / Gradle | 각각 0회 |
+| Docker 재빌드·재기동 | 0회 |
+| 코드 수정 | 0건. 본 `REPORT.md`와 실제 renderer 스크린샷만 QA 산출물로 추가 |
+| 합성·fixture·mock | 0건 |
+
+standalone renderer에서는 Electron token 저장 bridge가 없어 실 GUI 로그인 POST 200 뒤 `/auth/me`가 401로 돌아오는 기존 하네스 제약이 있었다. 로그인 응답의 실 JWT를 같은 browser context의 요청 헤더에만 주입했고, 이후 `/auth/me` 200과 `[DEV-SEED] 개발마스터 · MASTER` 화면을 확인했다. 비밀번호와 JWT는 보고서·스크린샷·해시 산출물에 기록하지 않았다.
+
+### R3-1.2 RAM과 종료 상태
+
+| 시점 | 가용 물리 RAM |
+|---|---:|
+| renderer 시작 전 | 2.08GB |
+| Vite 기동 뒤 | 2.13GB |
+| Chromium 실행 중 최저 실측 | **1.25GB** |
+| Chromium·Vite 종료 뒤 | 1.75GB |
+
+1.0GB 중단선 아래로 내려간 적은 없다. 종료 시 Vite listener 0개, Playwright headless Chromium 0개를 확인했다. 사용자의 일반 Chrome은 조작하거나 종료하지 않았다.
+
+## R3-2. 항목 1~3 실측
+
+### 1. 재고이동 신규 저장 → 새로고침 없이 목록 표시
+
+- GUI: 재고이동 관리 → `새 이동전표` → 출발 `HQ-001 · 본사창고` → 도착 `CS-001 · 거래처 위탁창고` → 사유 `재배치` → `AM100ANHDBH1` 1개 → 저장.
+- 저장 전 목록: `2026/08/13-1` 1행.
+- 저장 요청/응답:
+
+```http
+POST http://localhost:8080/inventory/transfers
+
+HTTP 201
+transferNo=2026/08/13-2
+status=REQUESTED
+```
+
+- 같은 저장 동작에서 이어진 목록 재조회:
+
+```http
+GET http://localhost:8080/inventory/transfers?page=0&size=20
+
+HTTP 200
+totalElements=2
+```
+
+- GUI 결과: document reload 없이 `/transfers/new` → `/transfers` SPA 이동 뒤 `2026/08/13-1`, `2026/08/13-2` 2행이 표시됐다.
+- DOM 연속 관측: 저장 클릭 전부터 목록 렌더 완료까지 mutation 5회에서 `등록된 이동전표가 없습니다.` 노출 **0회**. POST 201 뒤 GET 200이 실제로 발생했다.
+- 판정: **PASS. 라운드 2의 “POST 201 뒤 빈 목록, 수동 새로고침 필요” 결함은 재현되지 않았다.**
+- 증거: `screenshots/round3-01-transfer-list-before-1440.png`, `round3-02-transfer-ready-1440.png`, `round3-03-transfer-visible-without-reload-1440.png`, `round3-04-transfer-visible-without-reload-1920.png`.
+
+### 2. fix가 다른 목록 캐시에 만든 표면
+
+#### A. transfer 저장 구간의 query-family 경계
+
+저장 클릭부터 새 목록 렌더 완료까지 실제 response는 아래 3건뿐이었다.
+
+```text
+POST /inventory/transfers                         201
+GET  /auth/admin/permissions/my                  200
+GET  /inventory/transfers?page=0&size=20         200
+```
+
+같은 구간의 교차 호출은 다음과 같다.
+
+| query family | 호출 수 |
+|---|---:|
+| `/inventory/audits` | 0 |
+| `/inventory/balances` | 0 |
+| `/inventory/warehouses` | 0 |
+
+따라서 transfer invalidation이 재고실사·재고현황·창고 목록을 함께 다시 부르는 현상은 관측되지 않았다.
+
+#### B. 재고이동 필터·페이지 상태
+
+**관측 불가.** 저장 전 1행, 저장 후 2행인 현재 목록에는 필터 input/select가 0개이고 이전·다음·페이지 버튼도 0개였다. 최종 재진입에서도 input 0, select 0, pagination button 0이었다. 존재하지 않는 조작면을 임의 query parameter나 fixture로 만들어 통과시키지 않았다.
+
+#### C. 다른 목록 화면
+
+| 화면 | 조작 | 실측 |
+|---|---|---|
+| 재고현황 | 본사창고 선택 → 조회 | GET `/inventory/balances?...` 200, 총 103건 중 50행. 명시적 empty-state 문구 노출 0회. 첫 조회의 정상 loading 구간에서 0행이 약 143ms 있었고 곧 50행으로 수렴. |
+| 재고실사 | 목록 진입 | GET `/inventory/audits?page=0&size=50` 200, 기존 10행 정상 표시. 단 아래 별도 stale-cache 결함 발견. |
+| 창고 목록 | 재고실사·재고현황 뒤 진입 | `/inventory/warehouses` 추가 GET 없이 기존 warehouse cache로 30행 즉시 표시. 빈 상태 0회. |
+
+재고현황의 기존 데이터 품질 결함인 `참조 끊김 / 제품 마스터 없음` 50행은 라운드 2와 동일하게 남아 있다. transfer fix가 만든 새 결함으로 세지 않는다.
+
+### 3. 재고이동·재고실사 2종 회귀
+
+| 대상 | 실측 | 판정 | 증거 |
+|---|---|---|---|
+| 재고이동 | POST 201 `2026/08/13-2`, GET 200, 새로고침 없이 2행 | **PASS** | `round3-02`~`round3-04` |
+| 재고실사 등록·상세 | `1 · 서초창고`, 2026-08-13 → POST 201 `2026/08/13-2` / `PLANNED`; 상세·realtime·audit-logs 모두 200, snapshot 0행 | **저장·상세 PASS** | `round3-07-audit-ready-1920.png`, `round3-08-audit-saved-1920.png` |
+| 재고실사 목록 복귀 | 저장 전에 열어 둔 목록으로 복귀하자 audits GET 0회, 10행 유지, 신규 `2026/08/13-2` 없음 | **FAIL — 별도 캐시 결함** | `round3-06-audit-list-before-1920.png`, `round3-09-audit-list-stale-without-reload-1920.png` |
+| 재고실사 수동 새로고침 대조 | GET audits 200 뒤 11행, 신규 `2026/08/13-2` 첫 행 표시 | **대조 확인** | `round3-10-audit-list-after-reload-1920.png`, `round3-11-audit-list-after-reload-1440.png` |
+
+신규 실사 대상인 서초창고에는 활성 재고가 없어 snapshot 0행이었다. 이는 POST·상세 실패로 세지 않는다.
+
+## R3-3. 🚨 fix가 만든 새 표면
+
+### transfer invalidation으로 귀속 가능한 새 표면
+
+**관측 0건.** 저장 구간에서 transfer 외 목록 API 호출은 0건이었고, 재고현황 50행·창고 30행은 비정상 empty-state 없이 표시됐다.
+
+### 별도 인접 결함 — 재고실사 생성 후 warm 목록 stale
+
+**[MEDIUM] 재고실사 목록을 먼저 본 뒤 신규 실사를 만들면 목록 복귀 시 생성 건이 보이지 않는다.**
+
+1. `/warehouse/audit`에서 기존 10행을 연다.
+2. `신규 실사`에서 `1 · 서초창고`, `2026-08-13`을 등록한다.
+3. POST `/inventory/audits` 201, 상세 `2026/08/13-2` 진입을 확인한다.
+4. 사이드바 `재고 실사`로 목록에 돌아간다.
+
+실제 결과: `/inventory/audits` 재조회가 0회이고 이전 10행 cache가 그대로 남아 `2026/08/13-2`가 없다. 수동 새로고침 뒤 GET 200, 11행으로 바뀌며 생성 건이 나타난다.
+
+`round3-06-audit-list-before-1920.png`와 `round3-09-audit-list-stale-without-reload-1920.png`는 바이트와 SHA-256이 완전히 같다(`234EB72C...E945016`). 반면 reload 뒤 `round3-10`은 새 첫 행을 포함한다. transfer 저장 구간의 교차 invalidation은 아니므로 이번 transfer fix가 원인이라고 귀속하지 않지만, 요구한 “근처 정상 경로” 재수렴에서 실제로 드러난 결함으로 분리한다.
+
+## R3-4. 표 정렬 — 1440px · 1920px
+
+실제 screenshot 시각 확인과 DOM `getBoundingClientRect()`를 함께 사용했다. 각 표의 header cell과 첫 데이터 row cell은 같은 열에서 `x`와 `width`가 모두 일치했다(최대 차이 0px).
+
+| 화면 | 1440px | 1920px | 증거 |
+|---|---|---|---|
+| 재고이동 6열 | header↔2개 행 정렬 일치 | header↔2개 행 정렬 일치 | `round3-03`, `round3-04` |
+| 재고실사 5열 | header↔신규 첫 행 정렬 일치 | header↔첫 행 정렬 일치 | `round3-11`, `round3-10` |
+| 재고현황 8열 | header↔첫 행 정렬 일치 | header↔첫 행 정렬 일치 | `round3-12`, `round3-05` |
+| 창고 목록 5열 | header↔첫 행 정렬 일치 | header↔첫 행 정렬 일치 | `round3-13`, `round3-14` |
+
+1440px에서만 열이 붕괴하거나 header와 row가 한 칸 어긋나는 현상은 관측되지 않았다.
+
+## R3-5. 관측 불가 목록 · 증거 무결성
+
+### 관측 불가
+
+- **재고실사 상세 URL raw UUID 해소 여부:** 백엔드가 이전 `b11f025ea` 빌드이므로 관측 불가. 현재 stack의 URL 형태를 `225fdb913` backend fix 판정에 사용하지 않았다.
+- `225fdb913`가 바꾼 재고실사 ID 응답·요청 경계 전체: 현재 stack 미반영으로 관측 불가.
+- 재고이동 필터·페이지 상태 유지: 해당 목록에 필터·pagination UI가 없고 2행뿐이라 관측 불가.
+- 재고실사 상세 데이터 행 정렬: 신규 서초창고 snapshot이 0행이라 empty colspan만 확인. 행 정렬 통과로 세지 않았다.
+
+### 콘솔·네트워크
+
+- Playwright `pageerror`: 0건.
+- 필수 경로 `/inventory/transfers`, `/inventory/audits`, `/inventory/balances`, `/inventory/warehouses`의 HTTP 400/403/404/500: **0건**.
+- console 집계: debug 8, info 4, warning 97, error 33. error는 인증 bridge 주입 전 `/auth/me` 401과 기존 stack에서 빠진 app-version·notification·notice·front-log 서비스의 503 resource error였다. 필수 업무 endpoint 실패는 없었다.
+- 비밀번호·JWT는 screenshot·보고서·네트워크 요약에 포함하지 않았다.
+
+### 이번 라운드에서 생성된 실제 업무데이터
+
+| 유형 | 식별자 | 값 |
+|---|---|---|
+| 재고이동 | `2026/08/13-2` | REQUESTED, HQ-001 → CS-001, AM100ANHDBH1 1개, 사유 상세 `QA1189-R3 캐시 무효화 재수렴` |
+| 재고실사 | `2026/08/13-2` | PLANNED, `1 · 서초창고`, 2026-08-13, snapshot 0행 |
+
+사용자가 요구한 실제 저장 검증이므로 위 데이터는 삭제·정리하지 않았다.
+
+### 스크린샷 무결성
+
+모두 현재 워크트리 renderer + 기존 실 gateway/service/DB에서 캡처한 실제 PNG다. 합성·fixture·mock은 사용하지 않았고 모두 `round3-` 접두다.
+
+| 파일 | 크기 | SHA-256 |
+|---|---:|---|
+| `round3-01-transfer-list-before-1440.png` | 1440x900 | `60576A66608444B6CF8A789B9444C47FB4EB90B183EF0826541F77D1201942B3` |
+| `round3-02-transfer-ready-1440.png` | 1440x900 | `123B63B2AB9976351F15EF9FDB9B6BF11440DB620226BC7DDF3D005F258567B5` |
+| `round3-03-transfer-visible-without-reload-1440.png` | 1440x900 | `B091A27B810E6305FC303136C32BA1948EEF88E39B9B49E63C454661BB4F500F` |
+| `round3-04-transfer-visible-without-reload-1920.png` | 1920x1080 | `AFD0072E3653851807520938A67F8CEF9D49401DAA167848771EC4AAF3B3B017` |
+| `round3-05-stock-list-1920.png` | 1920x2211 | `C32CA81A23EA028DA83E380C60222E72483078F11EC6F265B493438EE0CDC8A4` |
+| `round3-06-audit-list-before-1920.png` | 1920x1080 | `234EB72C637F40C74F3E728F411F7E21F810D345EA96D669F97B009C5E945016` |
+| `round3-07-audit-ready-1920.png` | 1920x1080 | `07EF6CCA615836F6C9B7635EA9A1069ABC44CFF0EAA6C63242296259E850B79B` |
+| `round3-08-audit-saved-1920.png` | 1920x1080 | `3D37BE2B1C9724CDB6E097173962323618064E69F9DD303077611E44F9BF5A38` |
+| `round3-09-audit-list-stale-without-reload-1920.png` | 1920x1080 | `234EB72C637F40C74F3E728F411F7E21F810D345EA96D669F97B009C5E945016` |
+| `round3-10-audit-list-after-reload-1920.png` | 1920x1080 | `B99491853E0CFE2C39EB985D612FBB90CE2006BB1378E3DECE3D0FA1BD84DFF4` |
+| `round3-11-audit-list-after-reload-1440.png` | 1440x996 | `A23AC5A8A7253A0086ED1FDCF03C135B780F4D07344749FBB466FEE466BD58F2` |
+| `round3-12-stock-list-1440.png` | 1440x2211 | `A1918199DC0C785619E3920B9E9F35DA0A5A07EA4527141C3FDD088CBD2D1B12` |
+| `round3-13-warehouse-list-1440.png` | 1440x1376 | `0C3A4BC39D7A0D2EB985EF501E9AD51E6E4CCB2451C10046AD679044357A35BF` |
+| `round3-14-warehouse-list-1920.png` | 1920x1376 | `A12E182195156423767F06161578ED48D8B06D92C4C4CA00DFDCBB4F8348416B` |

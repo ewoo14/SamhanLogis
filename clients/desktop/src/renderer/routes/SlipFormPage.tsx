@@ -23,7 +23,7 @@
  * 본 컴포넌트는 `mode` prop 으로 OUTBOUND / INBOUND 양쪽 화면에서 재사용.
  */
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   Button,
@@ -675,6 +675,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const navigate = useNavigate()
   const isOutbound = mode === 'OUTBOUND'
   const listPath = isOutbound ? '/sales' : '/purchases'
+  const queryClient = useQueryClient()
   const titleLabel = isOutbound ? '새 판매전표' : '새 입고전표'
   const isMobile = useIsMobile()
 
@@ -2009,6 +2010,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       return createSlip(payload)
     },
     onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: ['slips', 'query', mode] })
       if (isOutbound && created?.id) {
         navigate(`/sales/${created.id}`)
         return

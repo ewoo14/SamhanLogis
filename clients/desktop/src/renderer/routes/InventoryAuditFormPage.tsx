@@ -20,7 +20,7 @@
  */
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { Button, Card, FormField } from '@samhan/design-system'
 import { createAudit } from '../api/auditApi'
@@ -39,6 +39,7 @@ function todayIso(): string {
 export function InventoryAuditFormPage() {
   usePageTitle('재고 실사', '신규')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [warehouseId, setWarehouseId] = useState('')
   const [auditDate, setAuditDate] = useState(todayIso())
@@ -51,6 +52,7 @@ export function InventoryAuditFormPage() {
   const mutation = useMutation({
     mutationFn: () => createAudit({ warehouseId, auditDate }),
     onSuccess: (audit) => {
+      void queryClient.invalidateQueries({ queryKey: ['inventory', 'audits'] })
       navigate(`/warehouse/audit/${audit.id}`, { replace: true })
     },
   })
