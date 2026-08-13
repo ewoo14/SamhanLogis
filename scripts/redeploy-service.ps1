@@ -34,7 +34,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
-# 집PC 는 influxd 가 127.0.0.1:8086 을 점유해 portfix 오버레이가 필요하다.
+# 집PC 는 influxd 가 로컬호스트의 InfluxDB 기본값 8086 을 점유해 portfix 오버레이가 필요하다.
 # 회사PC 등 충돌이 없는 곳에서는 파일이 없을 수 있으므로 존재할 때만 얹는다.
 $composeFiles = @(
     'infrastructure/docker-compose.yml',
