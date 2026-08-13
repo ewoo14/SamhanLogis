@@ -290,3 +290,254 @@ GUI 로그인은 `POST http://localhost:8080/auth/login` 200 뒤 보호 API(`/au
 ## 라운드 2 최종 상태
 
 `DONE_WITH_CONCERNS` — 우선 결함 2건 중 자동단가 행 금액은 실제 반환 단가 기준 정상이고, 헤더·행 열 순서 밀림도 해소됐다. 그러나 1440px 품목명 열 붕괴와 웹 종합견적서 404가 도달 가능하며, 자원 하한 발동으로 시나리오 5~10의 상당 부분은 관측 불가다.
+
+---
+
+# Round 3 — PR #1197 라이브 QA 완주 (2026-08-13)
+
+대상은 사용자 지정 PR #1197 `fix/1092-split-unified-list`, HEAD `f5f3161e0`이다. git 명령은 사용하지 않았다. 이 절은 기존 Round 1·2 기록을 보존한 채 추가한 결과다.
+
+## R3-1. 환경 확인 원문
+
+### ① 백엔드 컨테이너 빌드 시각
+
+`docker inspect samhan-<svc> --format "{{.Created}}"` 계열 실측 원문:
+
+```text
+samhan-slip-service|2026-08-12T17:53:07.461758521Z
+samhan-api-gateway|2026-08-12T15:39:17.991855852Z
+samhan-partner-order-service|2026-08-12T15:02:01.069557636Z
+samhan-auth-service|2026-08-12T00:03:23.288496844Z
+samhan-product-service|2026-08-11T18:10:22.372262338Z
+samhan-eureka|2026-08-11T18:10:15.05691594Z
+samhan-postgres|2026-08-11T18:10:14.478346436Z
+samhan-user-service|2026-08-11T17:59:58.945181532Z
+samhan-arologis-service|2026-08-11T17:59:58.944887609Z
+samhan-accounting-service|2026-08-11T17:59:58.936343007Z
+samhan-groupware-service|2026-08-11T17:59:58.936253267Z
+samhan-dc-config-service|2026-08-11T17:59:58.935668218Z
+samhan-inventory-service|2026-08-11T17:59:58.933815104Z
+samhan-partner-service|2026-08-11T17:59:58.92548763Z
+samhan-dashboard-service|2026-08-11T17:59:58.903286495Z
+samhan-partner-auth-service|2026-08-11T17:59:58.888219639Z
+samhan-notification-service|2026-08-11T17:59:58.884122215Z
+samhan-grafana|2026-08-11T17:59:50.780292025Z
+samhan-prometheus|2026-08-11T17:59:50.305821163Z
+samhan-nginx|2026-08-11T17:59:50.302952411Z
+samhan-minio|2026-08-07T17:15:59.685930284Z
+samhan-elasticsearch|2026-06-28T09:49:33.830104726Z
+samhan-rabbitmq|2026-06-22T14:54:01.201891168Z
+samhan-redis|2026-06-22T14:54:01.200390069Z
+```
+
+최신 백엔드인 `slip-service`조차 `2026-08-12T17:53` 생성본이다. 따라서 아래 백엔드 의존 결과는 **현재 라이브 스택과의 호환성 관측**이지 PR HEAD 백엔드 빌드의 증명으로 확대하지 않는다.
+
+### ② 컨테이너 24개 존재·상태
+
+`docker ps -a --filter "name=samhan-" --format "{{.Names}}|{{.Status}}"` 결과는 총 24개였다. **없는 컨테이너 0개/24개**, 실행 22개, 알려진 중단 2개다.
+
+```text
+samhan-nginx|Exited (127)
+samhan-prometheus|Exited (127)
+나머지 samhan-* 22개|Up (healthy)
+```
+
+### ③ 프런트엔드 워크트리 빌드
+
+현재 워크트리에서 `clients/desktop`의 `npm run build`를 실행했다.
+
+```text
+vite v6.4.1 building for production...
+✓ 748 modules transformed.
+✓ built
+Exit code: 0
+```
+
+`clients/web/estimate-app`도 의존성 설치 후 `npm run build`를 실행했고 JS 17개 파일 typecheck가 성공했다. 실제 GUI는 이 워크트리의 desktop Vite(5173)와 estimate-app(5183)을 Playwright Chromium으로 조작했다.
+
+RAM 원문은 시작 `RAM_FREE_MB=28973 RAM_TOTAL_MB=63092`, 최종 증거 고정 직전 `RAM_FREE_MB=27377 RAM_TOTAL_MB=63092`였다. 라운드 중 최저 관측치는 24,579MB로 1.0GB 중단선에 접근하지 않았다.
+
+## R3-2. 0단계 — 웹 종합견적서 HTTP 404 재확인
+
+실 사용자 경로 `대시보드 → 판매 → 견적서 관리`로 진입해 브라우저가 발생시킨 요청을 관측했다.
+
+```text
+GET http://localhost:8080/api/v1/estimates/web-snapshots
+HTTP/1.1 200
+Content-Type: application/json
+data.length=4
+화면 오류 문구/alert=없음
+```
+
+화면에는 웹 저장분 4건(`S3-1135-%_\\`, `S9-875-20260807200351`, `QA-875-live-1786131344007`, `QA 견적 수정 2026-08-02`)이 렌더됐다.
+
+**판정: PASS. Round 2의 404는 재현되지 않았다.** PR 전제인 “종합견적서 탭에 웹 저장분이 보인다”는 현재 실서버에서 성립한다.
+
+증거: [round3-stage0-web-snapshot-list.png](screenshots/round3-stage0-web-snapshot-list.png)
+
+## R3-3. 시나리오 5~10
+
+### 시나리오 5 — 주문서 탭 웹 저장분·중복·누락
+
+절차: 견적서 관리에서 `주문서` 탭 클릭 → 목록 렌더와 실제 네트워크 응답 확인 → 각 행의 `draftKey`를 수집해 중복 검사.
+
+```text
+GET /api/v1/partner-orders/web-drafts → 200
+화면 행=11
+고유 draftKey=11
+중복 draftKey=0
+```
+
+같은 표시명 `주문서 확정 임시저장` 행들은 거래처·시각·draftKey가 서로 다른 별도 저장분이었다. 다른 트랙이 만든 행을 결함으로 세지 않았다.
+
+**결과: PASS.** 증거: [round3-s5-orders-list.png.png](screenshots/round3-s5-orders-list.png.png)
+
+### 시나리오 6 — 상태 필터와 적용 범위 안내
+
+절차: 종합견적서 탭에서 `작성중(QUOTE_DRAFT)` 선택 → URL·선택 상태·안내문·목록을 확인.
+
+```text
+URL query=status=QUOTE_DRAFT
+안내문=상태 필터는 데스크톱 견적에만 적용됩니다. 웹 종합견적서 저장분은 '저장됨' 상태 하나뿐이므로 이 필터로 걸러지지 않습니다.
+화면 행=44
+```
+
+**결과: PASS.** 증거: [round3-s6-status-scope.png.png](screenshots/round3-s6-status-scope.png.png)
+
+### 시나리오 7 — 주문서 탭 필터 범위
+
+절차: 주문서 탭 진입 후 필터 control 수를 DOM과 화면에서 확인.
+
+```text
+status=0
+startDate=0
+endDate=0
+includeDeleted=0
+partnerName=1
+URL query=tab=orders
+```
+
+**결과: PASS.** 주문서 탭에는 거래처 필터만 있고 상태·기간·삭제 포함 필터는 없다. 증거: [round3-s7-order-filters.png.png](screenshots/round3-s7-order-filters.png.png)
+
+### 시나리오 8 — 주문서 상세 → 목록 탭 왕복
+
+절차: 주문서 첫 웹 저장행(`draftKey=1068689215:2`) 상세 진입 → 본문 확인 → `목록으로` 클릭 → 복귀 탭 확인.
+
+```text
+상세 URL=/sales/partner-orders/web-drafts/1068689215%3A2
+상세 문서명=주문서 확정 임시저장
+거래처 코드=1068689215
+작성시각=2026-08-07T19:35:01.817407
+목록 복귀 URL query=tab=orders
+주문서 탭 aria-selected=true
+```
+
+**결과: PASS.** 증거: [round3-s8-order-detail.png.png](screenshots/round3-s8-order-detail.png.png)
+
+### 시나리오 9 — 가격 경로·페이지 실도달
+
+절차: 실제 사이드바 링크로 `견적 가격 설정`, `카테고리별 단가변동`을 각각 열어 본문과 입력 폼/카테고리 목록을 확인.
+
+- `/sales/estimate-config`: 가정용·상업용 할인율, 구형 할인율, VAT 등 전역 설정 폼 렌더 확인.
+- `/products/price-schedule`: `카테고리별 단가변동` 제목과 네 개 카테고리 렌더 확인.
+
+**결과: PASS.** 빈 화면·라우트 실패 없음.
+
+증거: [round3-s9-estimate-config.png.png](screenshots/round3-s9-estimate-config.png.png), [round3-s9-price-schedule.png.png](screenshots/round3-s9-price-schedule.png.png)
+
+### 시나리오 10 — 종합견적서 스냅샷 분기계산 왕복
+
+절차:
+
+1. estimate-app 실제 GUI에서 상업멀티 제품 `AM080AXVHHH1` 1대, `AM016BN1PBH2` 1대, `AM020BN1PBH2` 1대를 선택했다.
+2. 분기계산 화면에서 실외기명과 용량·분기관·추가수량을 입력했다.
+3. `견적저장` → 이름 `PR1197-R3-BRANCH-1786618391920` 입력 → 확인 → `✅ 안전하게 저장되었습니다!` 확인.
+4. 화면 값을 의도적으로 실외기명 `R3-변경값`, 용량 `99/88`, 추가수량 `0`으로 변조했다.
+5. `저장내역`에서 해당 행의 `복원` 클릭 → 확인 → `✅ 복원 완료` 확인.
+6. 복원된 분기 화면의 실제 input·계산 결과와 `GLOBAL_BRANCH_STATE`를 함께 읽어 저장 전 값과 비교했다.
+
+| 항목 | 저장 값 | 변조 값 | 복원 값 | 판정 |
+|---|---|---|---|---|
+| 실외기명 | `R3-실외기-A` | `R3-변경값` | `R3-실외기-A` | 일치 |
+| 용량 슬롯 1~4 | `16, 20, 빈칸, 빈칸` | `99, 88, 빈칸, 빈칸` | `16, 20, 빈칸, 빈칸` | 일치 |
+| 분기관 코드 1~4 | `-, 2512, -, -` | 재계산 상태 | `-, 2512, -, -` | 일치 |
+| 2512 추가수량 | `2` | `0` | `2` | 일치 |
+| 2512 합계 | `3` | 변조 후 값 | `3` | 일치 |
+
+복원 RPC도 `GET /rpc/getQuoteHistory → 200`이었다. 화면값 5개 비교와 내부 상태 비교가 모두 `true`였다.
+
+**결과: PASS.** 분기 상태와 분기관 코드가 실제 저장소 왕복 후 그대로 복원됐다.
+
+증거: [저장 전 분기](screenshots/round3-s10-before-save-branch.png), [저장내역](screenshots/round3-s10-saved-list.png), [복원 후 분기](screenshots/round3-s10-restored-branch.png)
+
+## R3-4. 도달 가능한 결함
+
+- **Round 3 신규 도달 결함: 0건.** 0단계 및 시나리오 5~10에서 실 사용자 경로로 재현되는 결함은 없었다.
+- **전체 라이브 QA의 기존 미해결 결함: 1건.** 같은 HEAD의 Round 2 `R2-DEFECT-1`(1440px 견적 품목명 열 18px 붕괴)은 이번 지시 범위인 시나리오 5~10에서 재검증하지 않았으므로 해소됐다고 정정할 근거가 없다.
+- Round 2 `R2-DEFECT-2`(웹 종합견적서 조회 404)는 이번 0단계 실측으로 철회한다.
+
+## R3-5. 증거 무결성 정정
+
+1. Round 2의 “웹 종합견적서 조회 HTTP 404”는 현재 실 사용자 경로에서 200으로 반증됐다. **낡은 배포본/당시 스택 관측으로 정정하며 PR #1197 현 HEAD의 도달 결함 증거로 사용하지 않는다.**
+2. 기존 문서 첫 제목의 `PR #1092` 표기는 이 라운드 사용자 지정 대상 `PR #1197`과 어긋난다. 기존 기록은 삭제하지 않고 Round 3 대상을 PR #1197로 명시한다.
+3. estimate-app 최초 기본 이메일 `dev@samhan-air.com` 실행에서는 `접근 권한이 없습니다`가 나왔고, 실 seed 계정 `dev_master@samhan-air.com`으로 다시 실행해 권한 화면과 전 시나리오를 관측했다. 최초 권한 화면은 제품 결함 증거에서 제외한다.
+4. estimate-app의 내부 저장 API 대상을 gateway로 둔 최초 QA 실행은 404, 잘못 추정한 8081 직접 포트는 403이었다. Docker 실제 매핑 `slip-service 8086/tcp → 127.0.0.1:18086`과 컨테이너의 기존 내부 토큰으로 수정한 뒤 실제 저장·복원에 성공했다. 실패한 두 저장 이름은 생성되지 않았다.
+
+## R3-6. 관측 불가·실패 명령 원문
+
+### 관측 불가
+
+- 시나리오 5~10의 사용자 화면 항목은 **관측 불가 없음**.
+- 단, 백엔드 컨테이너가 PR HEAD의 신선 빌드인지 여부는 관측 불가다. `slip-service` Created가 `2026-08-12T17:53:07Z`이므로 위 결과를 HEAD 백엔드 검증으로 판정하지 않았다.
+
+### 실패 명령 원문과 후속 처리
+
+인앱 브라우저 세션 탐색:
+
+```text
+No browser is available
+```
+
+사용자 지정 설치본 `@playwright/test` + `chromium-1217` standalone 실행으로 전 시나리오를 완료했으므로 이것은 최종 관측 불가 사유가 아니다.
+
+estimate-app 최초 서버 실행:
+
+```text
+node server.js
+Error: Cannot find module 'dotenv'
+Require stack:
+- C:\dev\Samhan-Public\.claude\worktrees\wsplitlist\clients\web\estimate-app\server.js
+Node.js v24.15.0
+```
+
+`npm ci` 후 동일 서버가 정상 기동됐다.
+
+잘못된 내부 API 대상의 실제 원문:
+
+```text
+GET http://127.0.0.1:8080/internal/estimates/snapshots
+404
+{"timestamp":"2026-08-13T10:49:08.132+00:00","path":"/internal/estimates/snapshots","status":404,"error":"Not Found","requestId":"62ef0362-813"}
+
+GET http://127.0.0.1:8081/internal/estimates/snapshots
+403
+```
+
+실제 Docker 매핑으로 정정 후:
+
+```text
+GET http://127.0.0.1:18086/internal/estimates/snapshots
+200
+Content-Type: application/json
+BODY_LENGTH=557224
+```
+
+## R3-7. 공유 DB에 남긴 문서번호·이름
+
+- 생성 성공: `PR1197-R3-BRANCH-1786618391920` — 웹 종합견적서 스냅샷 1건.
+- 생성 실패·DB 미잔존: `PR1197-R3-BRANCH-1786617985175`, `PR1197-R3-BRANCH-1786618201076`.
+- 시나리오 5~9에서는 신규 문서를 만들지 않았다. 기존 주문서·견적서 행은 조회만 했다.
+
+## R3-8. 머지 권고
+
+**현재 상태에서는 머지를 권고하지 않는다.** Round 3의 필수 0단계와 시나리오 5~10은 모두 PASS했고 이 범위 신규 결함은 0건이며, 웹 종합견적서 404도 철회한다. 그러나 동일 HEAD에서 이미 실 사용자 경로로 기록된 `R2-DEFECT-1`(1440px에서 품목명 식별 불가)이 미해결 상태다. 해당 결함의 수정 또는 동일 조건 재검증으로 해소가 확인되기 전에는 “도달 가능한 결함 0건” 게이트가 충족되지 않는다.
