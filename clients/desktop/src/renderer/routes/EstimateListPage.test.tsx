@@ -358,8 +358,8 @@ describe('EstimateListPage E2 list realtime and restore', () => {
   })
 
   it('상태 필터는 데스크톱 견적에 서버측 적용되고 웹 저장분에는 적용되지 않음을 표시한다', async () => {
-    const desktopDraft = estimateRow({ id: 'desktop-draft', estimateNo: '2026/08/13-draft', status: 'QUOTE_DRAFT' })
-    const desktopSent = estimateRow({ id: 'desktop-sent', estimateNo: '2026/08/13-sent', status: 'QUOTE_SENT' })
+    const desktopDraft = estimateRow({ id: 'desktop-draft', estimateNo: '2026/08/13-1', status: 'QUOTE_DRAFT' })
+    const desktopSent = estimateRow({ id: 'desktop-sent', estimateNo: '2026/08/13-2', status: 'QUOTE_SENT' })
     listEstimatesMock.mockImplementation(async (options = {}) => pageOf(
       options.status === 'QUOTE_DRAFT' ? [desktopDraft] : [desktopDraft, desktopSent],
     ))
@@ -370,13 +370,13 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     renderPage()
 
     const table = await screen.findByTestId('estimate-list-table')
-    expect(await within(table).findByText('2026/08/13-sent')).toBeTruthy()
+    expect(await within(table).findByText('2026/08/13-2')).toBeTruthy()
 
     fireEvent.change(screen.getByTestId('estimate-list-filter-status'), { target: { value: 'QUOTE_DRAFT' } })
 
     await waitFor(() => {
-      expect(within(table).getByText('2026/08/13-draft')).toBeTruthy()
-      expect(within(table).queryByText('2026/08/13-sent')).toBeNull()
+      expect(within(table).getByText('2026/08/13-1')).toBeTruthy()
+      expect(within(table).queryByText('2026/08/13-2')).toBeNull()
       expect(within(table).getByText('웹-견적-1')).toBeTruthy()
       expect(listEstimatesMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'QUOTE_DRAFT' }))
     })
