@@ -41,6 +41,7 @@ class StockTransferServiceTest {
     @Mock private StockTransferRepository transferRepository;
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private ProductClient productClient;
+    @Mock private StockService stockService;
     @Mock private EntityManager entityManager;
     @Mock private Query advisoryLockQuery;
 

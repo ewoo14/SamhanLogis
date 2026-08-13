@@ -9,6 +9,8 @@ import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.domain.StockLot;
 import com.samhanair.logis.inventory.domain.StockMovement;
 import com.samhanair.logis.inventory.domain.SourceOperationOutcome;
+import com.samhanair.logis.inventory.domain.StockTransfer;
+import com.samhanair.logis.inventory.domain.StockTransferLine;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -239,6 +242,67 @@ public class StockService {
         recordSource(req.sourceContext(), product, SourceOperationOutcome.APPLIED,
                 lot.getId() == null ? List.of() : List.of(lot.getId()), List.of());
         return StockLotResponse.from(lot);
+    }
+
+    /**
+     * 이동전표 확정 — 출발 FIFO lot/balance 를 차감하고 도착 lot/balance 를 가산한다.
+     * 출고와 입고 movement 를 같은 트랜잭션에 기록하여 이동 전후 총 수량을 보존한다.
+     *
+     * @param transfer RECEIVED 상태의 이동전표
+     * @param actorUserId 확정자 user-id
+     * @throws BusinessException(CONFLICT) 출발 가용 lot 또는 balance 가 부족할 때
+     */
+    public void transfer(StockTransfer transfer, String actorUserId) {
+        for (StockTransferLine line : transfer.getLines()) {
+            transferLine(line, transfer, actorUserId);
+        }
+    }
+
+    private void transferLine(StockTransferLine line, StockTransfer transfer, String actorUserId) {
+        UUID productId = line.getProductId();
+        UUID sourceWarehouseId = transfer.getSourceWarehouse().getId();
+        UUID destinationWarehouseId = transfer.getDestinationWarehouse().getId();
+        int quantity = line.getRequestedQuantity();
+        StockBalance sourceBalance = loadBalanceOrThrow(productId, sourceWarehouseId);
+        Warehouse destinationWarehouse = transfer.getDestinationWarehouse();
+        List<StockLot> sourceLots = stockLotRepository.findAvailableLotsForFifo(productId, sourceWarehouseId);
+        int available = sourceLots.stream().mapToInt(StockLot::getQuantity).sum();
+        if (available < quantity) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이동 재고 부족: 요청 " + quantity + ", 가용 " + available);
+        }
+
+        int remaining = quantity;
+        StockLot sourceLot = null;
+        for (StockLot lot : sourceLots) {
+            if (remaining == 0) {
+                break;
+            }
+            int taken = Math.min(remaining, lot.getQuantity());
+            if (sourceLot == null) {
+                sourceLot = lot;
+            }
+            lot.deduct(taken);
+            applyWithRetry(() -> sourceBalance.deduct(taken, false));
+            stockMovementRepository.save(StockMovement.of(
+                    lot.getId(), productId, sourceWarehouseId,
+                    MovementType.TRANSFER_OUT, -taken,
+                    "STOCK_TRANSFER", transfer.getId(), transfer.getTransferNo(), actorUserId));
+            remaining -= taken;
+        }
+
+        StockLot destinationLot = stockLotRepository.save(StockLot.createFromTransfer(
+                productId, destinationWarehouse, transfer.getTransferNo(), quantity,
+                LocalDateTime.now(), null, transfer.getId()));
+        StockBalance destinationBalance = loadOrCreateBalance(productId, destinationWarehouse);
+        applyWithRetry(() -> destinationBalance.addInbound(quantity));
+        stockMovementRepository.save(StockMovement.of(
+                destinationLot.getId(), productId, destinationWarehouseId,
+                MovementType.TRANSFER_IN, quantity,
+                "STOCK_TRANSFER", transfer.getId(), transfer.getTransferNo(), actorUserId));
+
+        line.recordShipment(quantity, sourceLot == null ? null : sourceLot.getId());
+        line.recordReceipt(quantity, destinationLot.getId());
     }
 
     /**

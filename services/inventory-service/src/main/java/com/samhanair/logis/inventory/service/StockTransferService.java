@@ -36,6 +36,7 @@ public class StockTransferService {
     private final StockTransferRepository transferRepository;
     private final WarehouseRepository warehouseRepository;
     private final ProductClient productClient;
+    private final StockService stockService;
     private final EntityManager entityManager;
 
     /**
@@ -146,6 +147,7 @@ public class StockTransferService {
      */
     public TransferDetailResponse confirm(UUID id, String approverId) {
         StockTransfer t = loadOrThrow(id);
+        stockService.transfer(t, approverId);
         t.confirm(approverId);
         return TransferDetailResponse.from(t);
     }
