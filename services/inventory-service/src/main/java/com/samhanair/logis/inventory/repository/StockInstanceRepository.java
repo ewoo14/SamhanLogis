@@ -25,6 +25,27 @@ import org.springframework.data.repository.query.Param;
  */
 public interface StockInstanceRepository extends JpaRepository<StockInstance, UUID> {
 
+    /**
+     * 재고 현황 합성용 활성 시리얼 인스턴스 집계.
+     * {@code SHIPPED}/{@code RECALLED}는 현재 재고가 아니므로 제외한다.
+     */
+    @Query("""
+            SELECT s.productId AS productId,
+                   s.warehouseId AS warehouseId,
+                   s.status AS status,
+                   COUNT(s) AS quantity
+            FROM StockInstance s
+            WHERE s.status IN (com.samhanair.logis.inventory.domain.StockInstanceStatus.AVAILABLE,
+                               com.samhanair.logis.inventory.domain.StockInstanceStatus.RESERVED)
+              AND (:productId IS NULL OR s.productId = :productId)
+              AND (:warehouseId IS NULL OR s.warehouseId = :warehouseId)
+              AND s.isDeleted = false
+            GROUP BY s.productId, s.warehouseId, s.status
+            """)
+    List<StockInstanceBalanceProjection> findActiveBalanceGroups(
+            @Param("productId") UUID productId,
+            @Param("warehouseId") UUID warehouseId);
+
     long countByInboundSlipNoAndIsDeletedFalse(String inboundSlipNo);
 
     long countByOutboundSlipNoAndIsDeletedFalse(String outboundSlipNo);

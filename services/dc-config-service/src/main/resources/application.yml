@@ -34,6 +34,8 @@ samhan:
   audit:
     publisher:
       enabled: true
+    request-capture:
+      enabled: true
   security:
     department:
       enabled: true

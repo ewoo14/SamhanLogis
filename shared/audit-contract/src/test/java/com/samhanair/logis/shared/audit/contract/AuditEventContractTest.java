@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 
 import com.samhanair.logis.shared.audit.contract.AuditEnums.AuditAction;
 import com.samhanair.logis.shared.audit.contract.AuditEnums.EventKind;
@@ -34,5 +35,21 @@ class AuditEventContractTest {
                 null, null, null, null, null, null, null, Instant.now());
         assertThatThrownBy(() -> AuditEventValidator.validate(event))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void factory_carriesRequestAndTraceIdsFromRequestContext() {
+        try {
+            MDC.put("requestId", "req-1161");
+            MDC.put("traceId", "trace-1161");
+            AuditEventV2 event = AuditEventV2.mutation(
+                    "dc-config-service", "PATCH", "/api/v1/partner-dc-configs/{partnerCode}",
+                    "개발책임자", "DC_CONFIG", "P-001", "internal-1", "변경", null);
+
+            assertThat(event.requestId()).isEqualTo("req-1161");
+            assertThat(event.traceId()).isEqualTo("trace-1161");
+        } finally {
+            MDC.clear();
+        }
     }
 }

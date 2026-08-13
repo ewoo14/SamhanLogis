@@ -26,7 +26,10 @@ public class AuditPublisher implements AutoCloseable {
     private final ArrayBlockingQueue<AuditEventV2> readLane;
     private final ExecutorService workers;
     private final Counter dropped;
+    private final Counter retries;
+    private final Counter failures;
     private final boolean enabled;
+    private static final int MAX_ATTEMPTS = 3;
 
     public AuditPublisher(RabbitTemplate rabbitTemplate, MeterRegistry meters) {
         this(rabbitTemplate, meters, true);
@@ -43,6 +46,8 @@ public class AuditPublisher implements AutoCloseable {
             return thread;
         });
         this.dropped = Counter.builder("audit.publisher.drop.total").tag("reason", "queue_full").register(meters);
+        this.retries = Counter.builder("audit.publisher.retry.total").register(meters);
+        this.failures = Counter.builder("audit.publisher.failure.total").register(meters);
         if (!enabled) {
             log.warn("[AUDIT_DISABLED] 중앙 감사 publisher는 등록되었지만 samhan.audit.publisher.enabled=false 입니다");
         }
@@ -81,13 +86,31 @@ public class AuditPublisher implements AutoCloseable {
                 AuditEventV2 event = lane.take();
                 if (rabbitTemplate == null) {
                     log.warn("[AUDIT_DISABLED] Rabbit ConnectionFactory가 없어 이벤트를 발행하지 않았습니다 id={}", safe(event));
+                    failures.increment();
                     continue;
                 }
-                rabbitTemplate.convertAndSend(AuditTopology.EXCHANGE, event.routingKey(), event);
+                publishWithRetry(event);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private void publishWithRetry(AuditEventV2 event) {
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                rabbitTemplate.convertAndSend(AuditTopology.EXCHANGE, event.routingKey(), event);
+                return;
             } catch (RuntimeException ex) {
-                log.warn("audit publisher failed id={} reason={}", "internal", ex.getClass().getSimpleName());
+                if (attempt < MAX_ATTEMPTS) {
+                    retries.increment();
+                    log.warn("audit publisher retry id={} attempt={} reason={}",
+                            safe(event), attempt, ex.getClass().getSimpleName());
+                } else {
+                    failures.increment();
+                    log.error("audit publisher exhausted retries id={} attempts={} reason={}",
+                            safe(event), MAX_ATTEMPTS, ex.getClass().getSimpleName());
+                }
             }
         }
     }

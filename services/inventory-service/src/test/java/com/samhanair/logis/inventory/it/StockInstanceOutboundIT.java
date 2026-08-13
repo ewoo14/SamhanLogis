@@ -175,6 +175,12 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
             assertThat(i.getOutboundPartnerCode()).isEqualTo("P-S3-001");
             assertThat(i.getOutboundAt()).isEqualTo(LocalDateTime.of(2026, 6, 2, 15, 0));
         });
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                  FROM stock_movements
+                 WHERE product_id = ?
+                   AND movement_type = 'DEDUCT'
+                """, Long.class, serialProductId)).isEqualTo(2L);
     }
 
     @Test
