@@ -43,7 +43,7 @@ import org.springframework.web.client.RestClient;
 /**
  * PartnerAgingService 단위 테스트.
  *
- * <p>fixture 분개 라인 시나리오 (110 외상매출금):
+ * <p>fixture 분개 라인 시나리오 (1089 외상매출금):
  * <ul>
  *   <li>거래처 A: debit 500,000 / credit 100,000 → 잔액 400,000</li>
  *   <li>거래처 B: debit 300,000 / credit 300,000 → 잔액 0 (제외)</li>
@@ -71,17 +71,17 @@ class PartnerAgingServiceTest {
     @BeforeEach
     void setUp() {
         // 110 외상매출금 집계 stub
-        when(journalLineRepository.aggregateAgingByAccount(eq("110"), any(LocalDate.class)))
+        when(journalLineRepository.aggregateAgingByAccount(eq("1089"), any(LocalDate.class)))
                 .thenReturn(List.of(
-                        partnerTotal(PARTNER_A, "110", new BigDecimal("500000"), new BigDecimal("100000")),
-                        partnerTotal(PARTNER_B, "110", new BigDecimal("300000"), new BigDecimal("300000")),
-                        partnerTotal(null,      "110", new BigDecimal("200000"), new BigDecimal("50000"))
+                        partnerTotal(PARTNER_A, "1089", new BigDecimal("500000"), new BigDecimal("100000")),
+                        partnerTotal(PARTNER_B, "1089", new BigDecimal("300000"), new BigDecimal("300000")),
+                        partnerTotal(null,      "1089", new BigDecimal("200000"), new BigDecimal("50000"))
                 ));
 
         // 201 외상매입금 집계 stub
-        when(journalLineRepository.aggregateAgingByAccount(eq("201"), any(LocalDate.class)))
+        when(journalLineRepository.aggregateAgingByAccount(eq("2519"), any(LocalDate.class)))
                 .thenReturn(List.of(
-                        partnerTotal(PARTNER_A, "201", new BigDecimal("100000"), new BigDecimal("600000"))
+                        partnerTotal(PARTNER_A, "2519", new BigDecimal("100000"), new BigDecimal("600000"))
                 ));
 
         // partnerLookupClient stub
@@ -109,7 +109,7 @@ class PartnerAgingServiceTest {
         PartnerAgingResponse resp = partnerAgingService.findReceivable(AS_OF);
 
         assertThat(resp.type()).isEqualTo("RECEIVABLE");
-        assertThat(resp.accountCode()).isEqualTo("110");
+        assertThat(resp.accountCode()).isEqualTo("1089");
         // PARTNER_B 잔액 0 → 제외. PARTNER_A + ETC 2건
         assertThat(resp.lines()).hasSize(2);
     }
@@ -167,7 +167,7 @@ class PartnerAgingServiceTest {
         PartnerAgingResponse resp = partnerAgingService.findPayable(AS_OF);
 
         assertThat(resp.type()).isEqualTo("PAYABLE");
-        assertThat(resp.accountCode()).isEqualTo("201");
+        assertThat(resp.accountCode()).isEqualTo("2519");
         assertThat(resp.lines()).hasSize(1);
 
         PartnerAgingLine line = resp.lines().get(0);
@@ -197,9 +197,9 @@ class PartnerAgingServiceTest {
         // PARTNER_B 는 setUp 에서 batch lookup 미포함. 잔액은 0 이므로 제외됨.
         // 잔액 있는 별도 거래처 C 로 검증
         UUID partnerC = UUID.randomUUID();
-        when(journalLineRepository.aggregateAgingByAccount(eq("110"), any(LocalDate.class)))
+        when(journalLineRepository.aggregateAgingByAccount(eq("1089"), any(LocalDate.class)))
                 .thenReturn(List.of(
-                        partnerTotal(partnerC, "110", new BigDecimal("100000"), BigDecimal.ZERO)
+                        partnerTotal(partnerC, "1089", new BigDecimal("100000"), BigDecimal.ZERO)
                 ));
         when(partnerLookupClient.findByPartnerIdsBatch(anyList()))
                 .thenReturn(Map.of());

@@ -60,8 +60,8 @@ describe('BankDepositReceiptModal.model', () => {
       mixedPartner: false,
     })
     expect(form.transactionDate).toBe('2026-06-25')
-    expect(form.debitAccountCode).toBe('102')
-    expect(form.creditAccountCode).toBe('110')
+    expect(form.debitAccountCode).toBe('1039')
+    expect(form.creditAccountCode).toBe('1089')
   })
 
   it('refetch 후 선택 행이 REFLECTED로 바뀌면 선택 집합과 요약에서 제외한다', () => {
@@ -87,8 +87,8 @@ describe('BankDepositReceiptModal.model', () => {
     const summary = bankDepositReceiptSelectionSummary(selectedRows)
     const payload = buildBankDepositReceiptRequest([reflectedAfterRefetch, stillSelectable], {
       transactionDate: '2026-06-30',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
       memo: '',
     })
 
@@ -117,8 +117,8 @@ describe('BankDepositReceiptModal.model', () => {
 
     const payload = buildBankDepositReceiptRequest(rows, {
       transactionDate: '2026-06-30',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
       memo: '6월 운임 입금 일괄 반영',
     })
 
@@ -138,8 +138,8 @@ describe('BankDepositReceiptModal.model', () => {
         },
       ],
       transactionDate: '2026-06-30',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
       memo: '6월 운임 입금 일괄 반영',
     })
   })

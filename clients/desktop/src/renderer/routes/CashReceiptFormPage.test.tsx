@@ -113,8 +113,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
 import { CashReceiptFormPage } from './CashReceiptFormPage'
 
 const accounts = [
-  { code: '102', name: '보통예금', category: '100' },
-  { code: '110', name: '외상매출금', category: '100' },
+  { code: '1039', name: '보통예금', category: '1018' },
+  { code: '1089', name: '외상매출금', category: '1087' },
   { code: '103', name: '당좌예금', category: '100' },
 ]
 
@@ -147,15 +147,15 @@ afterEach(() => {
 })
 
 describe('CashReceiptFormPage', () => {
-  it('신규 작성은 오늘 날짜와 기본 계정 102/110을 프리필한다', async () => {
+  it('신규 작성은 오늘 날짜와 기본 계정 1039/1089를 프리필한다', async () => {
     const now = new Date()
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     renderPage()
 
     expect(await screen.findByRole('heading', { name: '입금보고서 조회' })).not.toBeNull()
     expect(screen.getByLabelText('거래일')).toHaveProperty('value', today)
-    expect(screen.getByLabelText('차변 계정')).toHaveProperty('value', '102')
-    expect(screen.getByLabelText('대변 계정')).toHaveProperty('value', '110')
+    expect(screen.getByLabelText('차변 계정')).toHaveProperty('value', '1039')
+    expect(screen.getByLabelText('대변 계정')).toHaveProperty('value', '1089')
   })
 
   it('필수값 오류를 표시하고 유효한 신규 저장은 createCashReceipt를 호출한다', async () => {
@@ -180,8 +180,8 @@ describe('CashReceiptFormPage', () => {
       amount: '2480000',
       transactionDate: expect.any(String),
       memo: undefined,
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
       lines: [{
         partnerCode: 'P-001',
         bizNo: '123-45-67890',
@@ -204,8 +204,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '초기 적요',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
     })
     mocks.updateCashReceipt.mockResolvedValue({ id: 'receipt-1', slipNo: '2026/07/05-1' })
     renderPage({
@@ -228,8 +228,8 @@ describe('CashReceiptFormPage', () => {
       partnerName: '편집거래처',
       amount: '880000',
       transactionDate: '2026-07-04',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
     })))
   })
 
@@ -300,8 +300,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '갱신 적요',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
     }
     mocks.getCashReceipt.mockResolvedValue({ ...saved, amount: '760000', memo: '초기 적요' })
     mocks.updateCashReceipt.mockResolvedValue(saved)
@@ -334,8 +334,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'CONFIRMED',
       memo: '확정 적요',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     renderPage('/accounting/admin/cash-receipts/receipt-confirmed/edit')
 
@@ -358,8 +358,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'BANK_LINKED',
       status: 'CONFIRMED',
       memo: '통장연계 적요',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     renderPage('/accounting/admin/cash-receipts/receipt-bank-linked-confirmed/edit')
 
@@ -385,8 +385,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'BANK_LINKED',
       status: 'CANCELLED',
       memo: '취소 통장연계 적요',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     renderPage('/accounting/admin/cash-receipts/receipt-bank-linked-cancelled/edit')
 
@@ -409,8 +409,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '권한 없음 적요',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     renderPage('/accounting/admin/cash-receipts/receipt-no-update/edit')
 
@@ -434,8 +434,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'CANCELLED',
       memo: '취소 적요',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     renderPage('/accounting/admin/cash-receipts/receipt-cancelled/edit')
 
@@ -460,8 +460,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '저장 실패 적요',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     mocks.updateCashReceipt.mockRejectedValue(new Error('서버 오류'))
     renderPage('/accounting/admin/cash-receipts/receipt-save-fail/edit')
@@ -486,8 +486,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '조회장애 적요',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     renderPage('/accounting/admin/cash-receipts/receipt-lookup-unavailable/edit')
 
@@ -508,8 +508,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '조회장애 적요',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     renderPage('/accounting/admin/cash-receipts/receipt-lookup-unavailable-2/edit')
 
@@ -561,8 +561,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     }
     // getCashReceipt 는 절대 resolve 되지 않는 pending Promise 로 둔다 — react-query 의 fetch
     // 경로(마이크로태스크 체인 다수 hop)를 아예 안 타야 "언제 commit 되는지"를 완전히 통제할
@@ -636,8 +636,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '초기 적요',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
     })
     mocks.createDocCoeditProvider.mockResolvedValue(provider)
 
@@ -654,8 +654,8 @@ describe('CashReceiptFormPage', () => {
     expect(provider.setHeaderValue).toHaveBeenCalledWith('bizNo', '222-22-22222')
     expect(provider.setHeaderValue).toHaveBeenCalledWith('transactionDate', '2026-07-04')
     expect(provider.setHeaderValue).toHaveBeenCalledWith('amount', '760000')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('debitAccountCode', '103')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('creditAccountCode', '110')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('debitAccountCode', '1029')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('creditAccountCode', '1089')
     expect(provider.setHeaderValue).toHaveBeenCalledWith('memo', '초기 적요')
 
     for (const fieldPath of [
@@ -686,8 +686,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '초기 적요',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
     })
     mocks.createDocCoeditProvider.mockResolvedValue(provider)
     const { client } = renderPage('/accounting/admin/cash-receipts/receipt-1/edit')
@@ -704,8 +704,8 @@ describe('CashReceiptFormPage', () => {
       kind: 'MANUAL_RECEIPT',
       status: 'DRAFT',
       memo: '리페치 적요',
-      debitAccountCode: '103',
-      creditAccountCode: '110',
+      debitAccountCode: '1029',
+      creditAccountCode: '1089',
     })
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '편집거래처'))
 
@@ -785,8 +785,8 @@ function renderCashReceiptHydrateCase(
     kind: 'MANUAL_RECEIPT',
     status: 'DRAFT',
     memo: serverLines[0]?.memo ?? '',
-    debitAccountCode: '102',
-    creditAccountCode: '110',
+    debitAccountCode: '1039',
+    creditAccountCode: '1089',
     lines: serverLines.map((line) => ({
       partnerCode: 'P-2026-0005',
       bizNo: '165-35-10155',

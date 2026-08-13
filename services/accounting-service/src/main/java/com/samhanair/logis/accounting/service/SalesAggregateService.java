@@ -32,8 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>한국 일반기업회계기준 코드:
  * <ul>
- *   <li>110 외상매출금: 차변 = 채권 발생, 비-CASH_RECEIPT 대변 = 수금/회수 보조값</li>
- *   <li>401 상품매출: 대변 = 매출 발생, 차변 = 매출 차감 (할인/반품)</li>
+ *   <li>1089 외상매출금: 차변 = 채권 발생, 비-CASH_RECEIPT 대변 = 수금/회수 보조값</li>
+ *   <li>4019 상품매출: 대변 = 매출 발생, 차변 = 매출 차감 (할인/반품)</li>
  * </ul>
  * <p>원장 화면의 CASH_RECEIPT 수금 정본은 확정 입금보고서 금액이며, 해당 자동분개는
  * 중복 집계하지 않는다.
@@ -47,9 +47,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class SalesAggregateService {
 
     /** 외상매출금. */
-    public static final String ACCOUNT_RECEIVABLES = "110";
+    public static final String ACCOUNT_RECEIVABLES = "1089";
     /** 상품매출. */
-    public static final String ACCOUNT_REVENUE = "401";
+    public static final String ACCOUNT_REVENUE = "4019";
 
     private final JournalLineRepository journalLineRepository;
     private final CashReceiptRepository cashReceiptRepository;

@@ -14,7 +14,7 @@ import {
 
 function sectionWithDuplicatePartnerNames(): AccountStatementAccountSection {
   return {
-    accountCode: '110',
+    accountCode: '1089',
     accountName: '외상매출금',
     category: 'ASSET',
     categoryDisplayName: '자산',
@@ -22,7 +22,7 @@ function sectionWithDuplicatePartnerNames(): AccountStatementAccountSection {
     balanceDirectionDisplayName: '차변잔액',
     lines: [
       {
-        accountCode: '110',
+        accountCode: '1089',
         accountName: '외상매출금',
         partnerCode: '',
         bizNo: '',
@@ -35,7 +35,7 @@ function sectionWithDuplicatePartnerNames(): AccountStatementAccountSection {
         balance: '1000.00',
       },
       {
-        accountCode: '110',
+        accountCode: '1089',
         accountName: '외상매출금',
         partnerCode: '',
         bizNo: '',
@@ -115,7 +115,7 @@ describe('accountStatementPageModel', () => {
   it('동일 계정의 중복 거래처명 라인도 rowKey 가 충돌하지 않는다', () => {
     const rows = buildAccountStatementRows(sectionWithDuplicatePartnerNames())
 
-    expect(rows.map((row) => row.rowKey)).toEqual(['110:0', '110:1'])
+    expect(rows.map((row) => row.rowKey)).toEqual(['1089:0', '1089:1'])
     expect(new Set(rows.map((row) => row.rowKey)).size).toBe(rows.length)
   })
 

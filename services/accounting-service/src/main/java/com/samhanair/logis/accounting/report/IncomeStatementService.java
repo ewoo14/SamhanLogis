@@ -40,7 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class IncomeStatementService {
 
-    private static final String INCOME_TAX_CODE = "991";
+    /** V101 이카운트 정본 법인세등 계정. */
+    private static final String INCOME_TAX_CODE = "9719";
 
     private final JournalLineRepository journalLineRepository;
     private final ChartOfAccountRepository chartOfAccountRepository;
@@ -99,7 +100,9 @@ public class IncomeStatementService {
             if (account == null) {
                 continue;
             }
-            BigDecimal amount = computeSignedAmount(account.getCategory(), t.getDebitTotal(), t.getCreditTotal());
+            BigDecimal amount = INCOME_TAX_CODE.equals(code)
+                    ? t.getDebitTotal().subtract(t.getCreditTotal())
+                    : computeSignedAmount(account.getCategory(), t.getDebitTotal(), t.getCreditTotal());
             amountByCode.put(code, amount);
         }
 

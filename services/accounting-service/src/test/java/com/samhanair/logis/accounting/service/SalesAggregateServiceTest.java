@@ -68,9 +68,9 @@ class SalesAggregateServiceTest {
                         "샘플상사", "123-45-67890", "서울시")));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of(
-                        new TestPartnerAccountTotal(partnerId, "401",
+                        new TestPartnerAccountTotal(partnerId, "4019",
                                 BigDecimal.ZERO, new BigDecimal("1000000")),
-                        new TestPartnerAccountTotal(partnerId, "110",
+                        new TestPartnerAccountTotal(partnerId, "1089",
                                 new BigDecimal("1100000"), new BigDecimal("500000"))
                 ));
 
@@ -95,7 +95,7 @@ class SalesAggregateServiceTest {
         // 5월 실 DB와 같이 401/110이 아닌 계정만 남은 journal projection이어도
         // 상세의 CASH_RECEIPT 원천은 집계되어야 한다.
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
-                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "255",
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "2559",
                         new BigDecimal("100"), new BigDecimal("100"))));
         List<CashReceipt> receipts = List.of(
                 confirmedReceipt("2026-05-06-003", partnerId, "90402200", LocalDate.of(2026, 5, 6), "r1"),
@@ -122,7 +122,7 @@ class SalesAggregateServiceTest {
                 .thenReturn(Optional.of(new PartnerSummary(
                         partnerId, "8428102605", "주식회사 제이시스템", "8428102605", "")));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
-                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "110",
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "1089",
                         BigDecimal.ZERO, new BigDecimal("100"), JournalSourceType.CASH_RECEIPT)));
         lenient().when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of(
                 confirmedReceipt("2026-05-06-003", partnerId, "245612215",
@@ -171,7 +171,7 @@ class SalesAggregateServiceTest {
                 .thenReturn(PartnerLookupClient.BatchLookupResult.unavailable());
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of(
-                        new TestPartnerAccountTotal(pid, "401",
+                        new TestPartnerAccountTotal(pid, "4019",
                                 BigDecimal.ZERO, new BigDecimal("1000000"))
                 ));
 
@@ -197,8 +197,8 @@ class SalesAggregateServiceTest {
                         Map.of(resolved, new PartnerSummary(resolved, "P-001", "정상거래처", "111", ""))));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of(
-                        new TestPartnerAccountTotal(resolved, "401", BigDecimal.ZERO, new BigDecimal("100")),
-                        new TestPartnerAccountTotal(deleted, "401", BigDecimal.ZERO, new BigDecimal("200"))
+                        new TestPartnerAccountTotal(resolved, "4019", BigDecimal.ZERO, new BigDecimal("100")),
+                        new TestPartnerAccountTotal(deleted, "4019", BigDecimal.ZERO, new BigDecimal("200"))
                 ));
 
         List<SalesAggregateRow> rows = service.aggregate(FROM, TO, null);
@@ -224,7 +224,7 @@ class SalesAggregateServiceTest {
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of(
                         // 매출 1,000,000 + 할인(차변) 50,000 → 순매출 950,000
-                        new TestPartnerAccountTotal(pid, "401",
+                        new TestPartnerAccountTotal(pid, "4019",
                                 new BigDecimal("50000"), new BigDecimal("1000000"))
                 ));
 
@@ -245,10 +245,10 @@ class SalesAggregateServiceTest {
                         p2, new PartnerSummary(p2, "P-002", "거래처2", "2", "")));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of(
-                        new TestPartnerAccountTotal(p1, "401", BigDecimal.ZERO, new BigDecimal("100")),
-                        new TestPartnerAccountTotal(p1, "110", new BigDecimal("110"), BigDecimal.ZERO),
-                        new TestPartnerAccountTotal(p2, "401", BigDecimal.ZERO, new BigDecimal("200")),
-                        new TestPartnerAccountTotal(p2, "110", new BigDecimal("220"), new BigDecimal("100"))
+                        new TestPartnerAccountTotal(p1, "4019", BigDecimal.ZERO, new BigDecimal("100")),
+                        new TestPartnerAccountTotal(p1, "1089", new BigDecimal("1089"), BigDecimal.ZERO),
+                        new TestPartnerAccountTotal(p2, "4019", BigDecimal.ZERO, new BigDecimal("200")),
+                        new TestPartnerAccountTotal(p2, "1089", new BigDecimal("220"), new BigDecimal("100"))
                 ));
 
         List<SalesAggregateRow> rows = service.aggregate(FROM, TO, null);
@@ -269,7 +269,7 @@ class SalesAggregateServiceTest {
         when(partnerLookupClient.findByPartnerCode("P-001"))
                 .thenReturn(Optional.of(new PartnerSummary(partnerId, "P-001", "거래처", "", "")));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
-                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "4019",
                         BigDecimal.ZERO, new BigDecimal("20000000"))));
         when(partnerLedgerSalesClient.find(FROM, TO, "P-001", partnerId))
                 .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
@@ -313,7 +313,7 @@ class SalesAggregateServiceTest {
         when(partnerLookupClient.findByPartnerIdsBatch(any()))
                 .thenReturn(Map.of(partnerId, new PartnerSummary(partnerId, "P-001", "거래처", "321", "")));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
-                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "4019",
                         BigDecimal.ZERO, new BigDecimal("20000000"))));
         when(partnerLedgerSalesClient.find(FROM, TO, null, null))
                 .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
@@ -336,7 +336,7 @@ class SalesAggregateServiceTest {
                 .thenReturn(Map.of(partnerId, new PartnerSummary(
                         partnerId, "P-0018", "강릉HVAC솔루션", "334-26-10558", "")));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
-                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "4019",
                         BigDecimal.ZERO, new BigDecimal("7000000"))));
         when(partnerLedgerSalesClient.find(FROM, TO, null, null))
                 .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
@@ -364,7 +364,7 @@ class SalesAggregateServiceTest {
         when(partnerLookupClient.searchDirectoryResult("1653510155", 10))
                 .thenReturn(PartnerLookupClient.DirectoryLookupResult.found(List.of(summary)));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
-                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "4019",
                         BigDecimal.ZERO, new BigDecimal("100"))));
 
         List<SalesAggregateRow> rows = service.aggregate(FROM, TO, "1653510155");

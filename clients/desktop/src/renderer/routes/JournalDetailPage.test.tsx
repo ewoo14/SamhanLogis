@@ -119,7 +119,7 @@ function makeJournal(overrides: Partial<Journal> = {}): Journal {
       {
         id: 'line-1',
         lineNo: 1,
-        accountCode: '102',
+        accountCode: '1039',
         accountName: '보통예금',
         debit: '1000',
         credit: '0',
@@ -130,7 +130,7 @@ function makeJournal(overrides: Partial<Journal> = {}): Journal {
       {
         id: 'line-2',
         lineNo: 2,
-        accountCode: '110',
+        accountCode: '1089',
         accountName: '외상매출금',
         debit: '0',
         credit: '1000',
@@ -362,7 +362,7 @@ describe('JournalDetailPage 라인 테이블', () => {
         {
           id: 'line-empty',
           lineNo: 1,
-          accountCode: '102',
+          accountCode: '1039',
           accountName: null,
           debit: '1000',
           credit: '0',
@@ -373,7 +373,7 @@ describe('JournalDetailPage 라인 테이블', () => {
         {
           id: 'line-value',
           lineNo: 2,
-          accountCode: '110',
+          accountCode: '1089',
           accountName: '외상매출금',
           debit: '0',
           credit: '1000',
@@ -417,7 +417,7 @@ describe('JournalDetailPage 모바일 합계 카드', () => {
         {
           id: 'line-empty-account',
           lineNo: 1,
-          accountCode: '102',
+          accountCode: '1039',
           accountName: null,
           debit: '1000',
           credit: '0',

@@ -11,12 +11,12 @@ import type { FundsStatusAccountSection } from '../api/accounting'
 describe('fundsStatusPageModel', () => {
   it('계정 섹션 라인 뒤에 소계 행을 붙인다', () => {
     const section: FundsStatusAccountSection = {
-      accountCode: '102',
+      accountCode: '1039',
       accountName: '보통예금',
       category: 'ASSET',
       lines: [
         {
-          accountCode: '102',
+          accountCode: '1039',
           accountName: '보통예금',
           bizNo: '1112233333',
           partnerName: '국민은행 운영계좌',
@@ -78,25 +78,25 @@ describe('fundsStatusPageModel', () => {
     expect(fundsIncreaseDetailTitle({
       fromDate: '2026-06-01',
       toDate: '2026-06-30',
-      accountCode: '102',
+      accountCode: '1039',
       accountName: '보통예금',
       partnerName: '국민은행 운영계좌',
       lines: [],
       totalAmount: '0',
       generatedAt: '2026-06-30T00:00:00',
-    })).toBe('102 보통예금 — 증가 상세')
+    })).toBe('1039 보통예금 — 증가 상세')
   })
 
   it('drill-down modal 제목은 partnerName null 이어도 동일 형식', () => {
     expect(fundsIncreaseDetailTitle({
       fromDate: '2026-06-01',
       toDate: '2026-06-30',
-      accountCode: '103',
+      accountCode: '1029',
       accountName: '당좌예금',
       partnerName: null,
       lines: [],
       totalAmount: '500',
       generatedAt: '2026-06-30T00:00:00',
-    })).toBe('103 당좌예금 — 증가 상세')
+    })).toBe('1029 당좌예금 — 증가 상세')
   })
 })

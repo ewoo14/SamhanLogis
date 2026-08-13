@@ -10,7 +10,7 @@ package com.samhanair.logis.accounting.domain;
  *
  * <ul>
  *   <li>{@link #DRAFT} — 작성중. 라인/금액 수정 가능. tax_invoice_no 미부여.</li>
- *   <li>{@link #ISSUED} — 발행 완료. tax_invoice_no 채번 + 자동 분개 (110/255/400).
+ *   <li>{@link #ISSUED} — 발행 완료. tax_invoice_no 채번 + 자동 분개 (1089/2559/4019).
  *       매뉴얼 §1-4 발행 후 자동 분개 패턴.</li>
  *   <li>{@link #CANCELLED} — 취소 처리. 자동 역분개 생성 + cancelled_at/by 기록.
  *       원분개는 REVERSED, 신규 역분개는 POSTED 로 함께 보존.</li>

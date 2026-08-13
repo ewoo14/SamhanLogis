@@ -116,9 +116,9 @@ public class TaxInvoiceController {
         return ApiResponse.ok(taxInvoiceService.update(id, request));
     }
 
-    /** ISSUED 전이 + tax_invoice_no 발급 + 자동 분개 (110/255/400). */
+    /** ISSUED 전이 + tax_invoice_no 발급 + 자동 분개 (1089/2559/4019). */
     @Operation(summary = "세금계산서 발행",
-            description = "DRAFT → ISSUED. 발행번호 채번 + 자동 분개 (110 외상매출금 / 255 부가세예수금 / 400 매출)")
+            description = "DRAFT → ISSUED. 발행번호 채번 + 자동 분개 (1089 외상매출금 / 2559 부가세예수금 / 4019 매출)")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발행 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "미존재"),

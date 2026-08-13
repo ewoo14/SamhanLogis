@@ -106,7 +106,7 @@ public class AccountingReportController {
 
     /** BE-A8 매출/수금/채권 집계. */
     @Operation(summary = "매출/수금/채권 집계 (BE-A8)",
-            description = "기간 + 거래처 단일/전체 필터 — 자체 분개 401/110 코드 기반 합계")
+            description = "기간 + 거래처 단일/전체 필터 — 자체 분개 4019/1089 코드 기반 합계")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "from/to 누락 또는 역순")

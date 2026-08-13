@@ -51,8 +51,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/accounting/cash-receipts";
     private static final String ACCOUNTANT_ID = "00000000-0000-0000-0000-000000000104";
-    private static final String OVERRIDE_DEBIT_ACCOUNT_CODE = "101";
-    private static final String OVERRIDE_CREDIT_ACCOUNT_CODE = "120";
+    private static final String OVERRIDE_DEBIT_ACCOUNT_CODE = "1019";
+    private static final String OVERRIDE_CREDIT_ACCOUNT_CODE = "1209";
     private static final UUID PARTNER_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
     private static final UUID PARTNER_ID_2 = UUID.fromString("10000000-0000-0000-0000-000000000002");
 
@@ -97,8 +97,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.kind").value("MANUAL_RECEIPT"))
-                .andExpect(jsonPath("$.data.debitAccountCode").value("102"))
-                .andExpect(jsonPath("$.data.creditAccountCode").value("110"))
+                .andExpect(jsonPath("$.data.debitAccountCode").value(CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE))
+                .andExpect(jsonPath("$.data.creditAccountCode").value(CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE))
                 .andExpect(jsonPath("$.data.journalId").doesNotExist())
                 .andExpect(jsonPath("$.data.journalNo").doesNotExist())
                 .andExpect(jsonPath("$.data.partnerId").doesNotExist())
@@ -179,9 +179,9 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(invalidAccountBody)))
                 .andExpect(status().isNotFound());
 
-        // 비-leaf 계정('100' 자산 그룹) = 400.
+        // 비-leaf 계정('1010' 자산 그룹) = 400. V101 이후 활성 이카운트 트리의 통제 계정.
         Map<String, Object> nonLeafAccountBody = updateBody("123000");
-        nonLeafAccountBody.put("debitAccountCode", "100");
+        nonLeafAccountBody.put("debitAccountCode", "1010");
         mockMvc.perform(patch(BASE_URL + "/{id}", receiptId)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
@@ -243,7 +243,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(journal.get("posted_by")).isEqualTo(ACCOUNTANT_ID);
         org.assertj.core.api.Assertions.assertThat(journal.get("description").toString())
                 .contains("입금보고서 확정", defaultSlipNo, "삼한입금상사");
-        assertJournalLines(journalId, "102", "110", new BigDecimal("61000.00"));
+        assertJournalLines(journalId, CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE,
+                CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE, new BigDecimal("61000.00"));
 
         // #744 라운드1 LOW — CASH_RECEIPT 라이브 분개는 실 HTTP GET(분개 단건 조회) 응답에도
         // 원천 입금보고서 전표번호(cashReceiptSlipNo)를 노출한다. 단위 mock 이 아닌 실 Postgres
@@ -304,7 +305,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(reversal.get("status")).isEqualTo("POSTED");
         org.assertj.core.api.Assertions.assertThat(reversal.get("journal_no"))
                 .isEqualTo(data(cancelled).get("reverseJournalNo").asText());
-        assertReversalLines(reverseJournalId, "102", "110", new BigDecimal("63000.00"));
+        assertReversalLines(reverseJournalId, CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE,
+                CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE, new BigDecimal("63000.00"));
 
         // #771 회귀 — 역분개는 원분개 UUID(sourceRefId, 이중 의미)가 아닌 전용 cashReceiptId 로
         // 원천 입금보고서를 가리켜야 한다. 실 HTTP GET(단건 조회)으로 응답 DTO 까지 검증한다
@@ -489,7 +491,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                             .header("X-User-Role", "ACCOUNTANT"))
                     .andExpect(status().isOk());
 
-            // refresh 성공 = MV timestamp 전진 + 확정 분개(차 102/대 110)가 net 에 실반영.
+            // refresh 성공 = MV timestamp 전진 + 확정 분개(차 1039/대 1089)가 net 에 실반영.
             java.time.OffsetDateTime refreshedAfter = jdbcTemplate.queryForObject(
                     "SELECT MAX(last_refreshed_at) FROM partner_aging_snapshot", java.time.OffsetDateTime.class);
             org.assertj.core.api.Assertions.assertThat(refreshedAfter).isNotNull();
@@ -903,8 +905,9 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         Integer columnCount = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
-                  FROM information_schema.columns
-                 WHERE table_name = 'cash_receipts'
+                 FROM information_schema.columns
+                 WHERE table_schema = 'public'
+                   AND table_name = 'cash_receipts'
                    AND column_name IN ('status', 'debit_account_code', 'credit_account_code')
                 """,
                 Integer.class);
@@ -960,18 +963,46 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V51 fresh DB의 기본 차변 계정 DEFAULT는 102(보통예금)다")
-    void v51MigrationSetsDebitAccountDefault102() {
-        String columnDefault = jdbcTemplate.queryForObject(
+    @DisplayName("V101 fresh DB의 입금보고서 기본 계정 DEFAULT는 1039/1089다")
+    void v101MigrationSetsReceiptAccountDefaults() {
+        Map<String, Object> defaults = jdbcTemplate.queryForMap(
                 """
-                SELECT column_default
+                SELECT MAX(column_default) FILTER (WHERE column_name = 'debit_account_code') AS debit_default,
+                       MAX(column_default) FILTER (WHERE column_name = 'credit_account_code') AS credit_default
                   FROM information_schema.columns
-                 WHERE table_name = 'cash_receipts'
-                   AND column_name = 'debit_account_code'
-                """,
-                String.class);
+                 WHERE table_schema = 'public'
+                   AND table_name = 'cash_receipts'
+                   AND column_name IN ('debit_account_code', 'credit_account_code')
+                """);
 
-        org.assertj.core.api.Assertions.assertThat(columnDefault).contains("'102'");
+        org.assertj.core.api.Assertions.assertThat(defaults.get("debit_default")).asString().contains("'1039'");
+        org.assertj.core.api.Assertions.assertThat(defaults.get("credit_default")).asString().contains("'1089'");
+    }
+
+    @Test
+    @DisplayName("V101 이후 값 없이 INSERT한 입금보고서는 1039/1089 기본 계정을 사용한다")
+    void valueLessCashReceiptInsertUsesV101Defaults() {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                """
+                INSERT INTO cash_receipts (
+                    id, slip_no, partner_id, amount, transaction_date, kind,
+                    external_ref, created_at, created_by
+                )
+                VALUES (?::uuid, ?, ?::uuid, ?, '2026-07-03', 'DEPOSIT_REPORT', ?, NOW(), 'v101-test')
+                """,
+                id.toString(),
+                "V101-DEFAULT-1039",
+                PARTNER_ID.toString(),
+                new BigDecimal("1000.00"),
+                "V101-DEFAULT-1039");
+
+        Map<String, Object> receipt = jdbcTemplate.queryForMap(
+                "SELECT debit_account_code, credit_account_code FROM cash_receipts WHERE id = ?::uuid",
+                id.toString());
+
+        org.assertj.core.api.Assertions.assertThat(receipt.get("debit_account_code")).isEqualTo("1039");
+        org.assertj.core.api.Assertions.assertThat(receipt.get("credit_account_code")).isEqualTo("1089");
     }
 
     /** partner_aging_snapshot 이 jl.partner_id 기준 집계이므로 라인 partner 전파를 회귀로 고정한다. */

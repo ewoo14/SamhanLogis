@@ -59,8 +59,8 @@ function receipt(overrides: Partial<CashReceiptRow> = {}): CashReceiptRow {
     journalNo: null,
     reverseJournalNo: null,
     externalRef: 'MANUAL-20260705-001',
-    debitAccountCode: '102',
-    creditAccountCode: '110',
+    debitAccountCode: '1039',
+    creditAccountCode: '1089',
     ...overrides,
   }
 }

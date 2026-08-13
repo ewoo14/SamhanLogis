@@ -105,7 +105,7 @@ class FundsStatusControllerIT extends AbstractPostgresIT {
         String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
         JsonNode data = objectMapper.readTree(body).get("data");
 
-        JsonNode cashLine = findLine(data, "102", "국민은행 운영계좌");
+        JsonNode cashLine = findLine(data, "1039", "국민은행 운영계좌");
         if (!"1112233333".equals(cashLine.get("bizNo").asText())) {
             throw new AssertionError("자금현황 거래처코드(bizNo)가 예상과 다릅니다: " + cashLine.get("bizNo").asText());
         }
@@ -114,7 +114,7 @@ class FundsStatusControllerIT extends AbstractPostgresIT {
         assertAmount(cashLine.get("decrease"), "1000.00");
         assertAmount(cashLine.get("closingBalance"), "13000.00");
 
-        JsonNode loanLine = findLine(data, "230", "기업은행 차입금");
+        JsonNode loanLine = findLine(data, "2515", "기업은행 차입금");
         assertAmount(loanLine.get("openingBalance"), "20000.00");
         assertAmount(loanLine.get("increase"), "5000.00");
         assertAmount(loanLine.get("decrease"), "2000.00");
@@ -133,7 +133,7 @@ class FundsStatusControllerIT extends AbstractPostgresIT {
         MvcResult result = mockMvc.perform(get("/accounting/reports/funds-status/increase-detail")
                         .param("from", "2026-06-01")
                         .param("to", "2026-06-30")
-                        .param("accountCode", "102")
+                        .param("accountCode", "1039")
                         .param("partnerId", CASH_PARTNER_ID.toString())
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
@@ -166,26 +166,26 @@ class FundsStatusControllerIT extends AbstractPostgresIT {
 
     private void seedFixtures() {
         seedPosted("FUNDS-OPEN-ASSET", LocalDate.of(2026, 5, 31), "보통예금 이월",
-                line("102", "10000.00", "0.00", CASH_PARTNER_ID, "국민은행 이월"),
-                line("401", "0.00", "10000.00", COUNTER_PARTNER_ID, "전기 매출"));
+                line("1039", "10000.00", "0.00", CASH_PARTNER_ID, "국민은행 이월"),
+                line("4019", "0.00", "10000.00", COUNTER_PARTNER_ID, "전기 매출"));
         seedPosted("FUNDS-OPEN-LIABILITY", LocalDate.of(2026, 5, 31), "단기차입금 이월",
-                line("500", "20000.00", "0.00", COUNTER_PARTNER_ID, "전기 비용"),
-                line("230", "0.00", "20000.00", LOAN_PARTNER_ID, "기업은행 차입"));
+                line("5019", "20000.00", "0.00", COUNTER_PARTNER_ID, "전기 비용"),
+                line("2515", "0.00", "20000.00", LOAN_PARTNER_ID, "기업은행 차입"));
         seedPosted("FUNDS-ASSET-INCREASE", LocalDate.of(2026, 6, 10), "자금 증가",
-                line("102", "4000.00", "0.00", CASH_PARTNER_ID, "국민은행 입금"),
-                line("110", "0.00", "4000.00", COUNTER_PARTNER_ID, "외상매출금 회수"));
+                line("1039", "4000.00", "0.00", CASH_PARTNER_ID, "국민은행 입금"),
+                line("1089", "0.00", "4000.00", COUNTER_PARTNER_ID, "외상매출금 회수"));
         seedPosted("FUNDS-ASSET-DECREASE", LocalDate.of(2026, 6, 11), "자금 감소",
                 line("801", "1000.00", "0.00", COUNTER_PARTNER_ID, "지급수수료"),
-                line("102", "0.00", "1000.00", CASH_PARTNER_ID, "국민은행 출금"));
+                line("1039", "0.00", "1000.00", CASH_PARTNER_ID, "국민은행 출금"));
         seedPosted("FUNDS-LIABILITY-INCREASE", LocalDate.of(2026, 6, 12), "차입 증가",
-                line("110", "5000.00", "0.00", COUNTER_PARTNER_ID, "차입 상대"),
-                line("230", "0.00", "5000.00", LOAN_PARTNER_ID, "기업은행 추가 차입"));
+                line("1089", "5000.00", "0.00", COUNTER_PARTNER_ID, "차입 상대"),
+                line("2515", "0.00", "5000.00", LOAN_PARTNER_ID, "기업은행 추가 차입"));
         seedPosted("FUNDS-LIABILITY-DECREASE", LocalDate.of(2026, 6, 13), "차입 감소",
-                line("230", "2000.00", "0.00", LOAN_PARTNER_ID, "기업은행 상환"),
-                line("110", "0.00", "2000.00", COUNTER_PARTNER_ID, "상환 상대"));
+                line("2515", "2000.00", "0.00", LOAN_PARTNER_ID, "기업은행 상환"),
+                line("1089", "0.00", "2000.00", COUNTER_PARTNER_ID, "상환 상대"));
         seedDraft("FUNDS-DRAFT-IGNORED", LocalDate.of(2026, 6, 14), "미게시 제외",
-                line("102", "999.00", "0.00", CASH_PARTNER_ID, "미게시 입금"),
-                line("401", "0.00", "999.00", COUNTER_PARTNER_ID, "미게시 매출"));
+                line("1039", "999.00", "0.00", CASH_PARTNER_ID, "미게시 입금"),
+                line("4019", "0.00", "999.00", COUNTER_PARTNER_ID, "미게시 매출"));
     }
 
     private void seedPosted(String journalNo, LocalDate date, String description, LineSpec... specs) {

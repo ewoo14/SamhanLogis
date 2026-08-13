@@ -20,13 +20,14 @@ import org.springframework.boot.test.mock.mockito.MockBean;
  * Flyway V1 한국 표준 계정과목 시드 검증 (Plan §3 + 메모리 project_korean_accounting.md).
  *
  * <p>50+ 행 + 7-그룹 (ASSET/LIABILITY/EQUITY/REVENUE/COST_OF_SALES/SGA/NON_OPERATING/INCOME_TAX)
- * 모두 존재 + 핵심 계정 (101 현금, 401 상품매출, 991 법인세비용 등) 존재 검증.
+ * 모두 존재 + 핵심 계정 (1019 현금, 4019 상품매출, 9719 법인세비용 등) 존재 검증.
  */
 @SpringBootTest(classes = AccountingServiceApplication.class)
 class ChartOfAccountSeedIT extends AbstractPostgresIT {
 
     @Autowired
     private ChartOfAccountRepository repository;
+
 
     /** SP-09-1 e-Tax client 격리 — Phase 11 NTS 전환 시 IT 실 API 호출 방지 (D2). */
     @MockBean
@@ -53,23 +54,31 @@ class ChartOfAccountSeedIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("핵심 leaf 계정 존재 — 101 현금 / 110 외상매출금 / 401 상품매출 / 814 통신비 / 991 법인세비용")
+    @DisplayName("핵심 leaf 계정 존재 — 1019 현금 / 1089 외상매출금 / 4019 상품매출 / 8139 통신비 / 9719 법인세비용")
     void coreLeafAccountsExist() {
-        assertLeaf("101", "현금", AccountCategory.ASSET);
-        assertLeaf("110", "외상매출금", AccountCategory.ASSET);
-        assertLeaf("201", "외상매입금", AccountCategory.LIABILITY);
-        assertLeaf("301", "자본금", AccountCategory.EQUITY);
-        assertLeaf("401", "상품매출", AccountCategory.REVENUE);
-        assertLeaf("501", "상품매출원가", AccountCategory.COST_OF_SALES);
-        assertLeaf("814", "통신비", AccountCategory.SGA);
-        assertLeaf("901", "이자수익", AccountCategory.NON_OPERATING);
-        assertLeaf("991", "법인세비용", AccountCategory.INCOME_TAX);
+        assertLeaf("1019", "현금", AccountCategory.ASSET);
+        assertLeaf("1089", "외상매출금", AccountCategory.ASSET);
+        assertLeaf("2519", "외상매입금", AccountCategory.LIABILITY);
+        assertLeaf("3329", "보통주자본금", AccountCategory.EQUITY);
+        assertLeaf("4019", "상품매출", AccountCategory.REVENUE);
+        assertLeaf("5019", "재료비", AccountCategory.COST_OF_SALES);
+        assertLeaf("8139", "통신비(판)", AccountCategory.SGA);
+        assertLeaf("9019", "이자수익", AccountCategory.NON_OPERATING);
+        assertLeaf("9719", "법인세등", AccountCategory.NON_OPERATING);
     }
 
     @Test
-    @DisplayName("Root 통제 계정 — 100/200/300/400/500/800/900 isLeaf=false")
+    @DisplayName("V101 root 통제 계정 — 활성 자식이 있는 root는 isLeaf=false")
     void rootAccountsAreNotLeaf() {
-        for (String rootCode : List.of("100", "200", "300", "400", "500", "800", "900")) {
+        List<ChartOfAccount> all = repository.findAll();
+        List<String> rootCodes = all.stream()
+                .filter(account -> account.getParentCode() == null)
+                .filter(root -> all.stream().anyMatch(child -> root.getCode().equals(child.getParentCode())))
+                .map(ChartOfAccount::getCode)
+                .toList();
+
+        assertThat(rootCodes).isNotEmpty();
+        for (String rootCode : rootCodes) {
             ChartOfAccount root = repository.findById(rootCode).orElseThrow();
             assertThat(root.isLeaf()).as("root " + rootCode + " 는 통제 계정").isFalse();
             assertThat(root.getParentCode()).as("root " + rootCode + " parent null").isNull();
