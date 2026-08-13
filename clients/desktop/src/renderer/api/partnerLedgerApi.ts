@@ -6,7 +6,7 @@
  * <h2>노출 endpoint</h2>
  * <ul>
  *   <li>{@code GET /accounting/sales/aggregate?from=&to=&partnerCode=} (BE-A8) —
- *       기간 매출/수금/채권 집계 (한국 일반기업회계기준 401/110 코드 기반)</li>
+ *       기간 매출/수금/채권 집계 (이카운트 4자리 4019/1089 코드 기반)</li>
  *   <li>{@code GET /accounting/journals/partner-ledger?partnerCode=&from=&to=} —
  *       거래처별 원장 read model (출고 판매전표 + 확정 입금보고서)</li>
  * </ul>
@@ -41,9 +41,9 @@ import { apiClient, type ApiEnvelope } from './client'
  *
  * <p>거래처별 매출/수금/채권 집계 1행. 한국 일반기업회계기준 코드 매핑:
  * <ul>
- *   <li>{@code salesTotal} — 401 (상품매출) 분개 라인 합계 (대변잔액)</li>
- *   <li>{@code paymentTotal} — 110 (외상매출금) 대변 합계 (수금/회수)</li>
- *   <li>{@code receivableBalance} — 110 차변잔액 (현재 미회수 채권)</li>
+ *   <li>{@code salesTotal} — 4019 (상품매출) 분개 라인 합계 (대변잔액)</li>
+ *   <li>{@code paymentTotal} — 1089 (외상매출금) 대변 합계 (수금/회수)</li>
+ *   <li>{@code receivableBalance} — 1089 차변잔액 (현재 미회수 채권)</li>
  * </ul>
  */
 export interface SalesAggregateRow {
@@ -75,7 +75,7 @@ export interface LedgerLine {
   date: string
   /** 사용자 노출 분개번호 (예: 2026/05/08-1). UUID 대신. */
   journalNo: string
-  /** 4자리 계정 코드 (110/401/255 등). */
+  /** 이카운트 4자리 계정 코드 (1089/4019/2559 등). */
   accountCode: string
   /** 적요 (분개 헤더 description 또는 슬립 메모). */
   description: string

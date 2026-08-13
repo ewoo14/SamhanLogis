@@ -80,26 +80,26 @@ class FundsFlowComparisonControllerIT extends AbstractPostgresIT {
         assertText(prior.get("fromDate"), "2026-06-07");
         assertText(prior.get("toDate"), "2026-06-09");
 
-        assertAmount(findLine(current.get("increases"), "110").get("amount"), "500.00");
-        assertAmount(findLine(current.get("increases"), "120").get("amount"), "33.33");
-        assertAmount(findLine(current.get("increases"), "130").get("amount"), "33.33");
-        assertAmount(findLine(current.get("increases"), "140").get("amount"), "33.34");
-        assertAmount(findLine(current.get("increases"), "150").get("amount"), "70.00");
-        assertAmount(findLine(current.get("increases"), "901").get("amount"), "30.00");
+        assertAmount(findLine(current.get("increases"), "1089").get("amount"), "500.00");
+        assertAmount(findLine(current.get("increases"), "1209").get("amount"), "33.33");
+        assertAmount(findLine(current.get("increases"), "1469").get("amount"), "33.33");
+        assertAmount(findLine(current.get("increases"), "1509").get("amount"), "33.34");
+        assertAmount(findLine(current.get("increases"), "1149").get("amount"), "70.00");
+        assertAmount(findLine(current.get("increases"), "9019").get("amount"), "30.00");
         assertAmount(current.get("increaseSubtotal"), "700.00");
-        assertAmount(findLine(current.get("decreases"), "801").get("amount"), "120.00");
-        assertAmount(findLine(current.get("decreases"), "850").get("amount"), "80.00");
+        assertAmount(findLine(current.get("decreases"), "8029").get("amount"), "120.00");
+        assertAmount(findLine(current.get("decreases"), "8249").get("amount"), "80.00");
         assertAmount(current.get("decreaseSubtotal"), "200.00");
-        assertLineAbsent(current.get("increases"), "101");
-        assertLineAbsent(current.get("decreases"), "102");
+        assertLineAbsent(current.get("increases"), "1019");
+        assertLineAbsent(current.get("decreases"), "1039");
         assertLineAbsent(current.get("increases"), "UNKNOWN");
         assertLineAbsent(current.get("decreases"), "UNKNOWN");
         assertPeriodDelta(current, "500.00");
         assertReconciled(current);
 
-        assertAmount(findLine(prior.get("increases"), "110").get("amount"), "200.00");
+        assertAmount(findLine(prior.get("increases"), "1089").get("amount"), "200.00");
         assertAmount(prior.get("increaseSubtotal"), "200.00");
-        assertAmount(findLine(prior.get("decreases"), "801").get("amount"), "50.00");
+        assertAmount(findLine(prior.get("decreases"), "8029").get("amount"), "50.00");
         assertAmount(prior.get("decreaseSubtotal"), "50.00");
         assertPeriodDelta(prior, "150.00");
         assertReconciled(prior);
@@ -114,9 +114,9 @@ class FundsFlowComparisonControllerIT extends AbstractPostgresIT {
     @DisplayName("자금 입출금내역 — 한 분개의 다중 현금성 라인은 상대 라인을 중복 배분하지 않음")
     void fundsFlowComparisonDeduplicatesFetchedJournalLinesWithMultipleCashEquivalents() throws Exception {
         seedPosted("FUNDS-FLOW-MULTI-CASH-IN", LocalDate.of(2026, 7, 10), "다중 현금성 입금",
-                line("101", "10000000.00", "0.00", CASH_PARTNER_ID, "현금 입금"),
-                line("102", "0.00", "3000000.00", CASH_PARTNER_ID, "보통예금 내부이체"),
-                line("110", "0.00", "7000000.00", COUNTER_PARTNER_ID, "외상매출금 회수"));
+                line("1019", "10000000.00", "0.00", CASH_PARTNER_ID, "현금 입금"),
+                line("1039", "0.00", "3000000.00", CASH_PARTNER_ID, "보통예금 내부이체"),
+                line("1089", "0.00", "7000000.00", COUNTER_PARTNER_ID, "외상매출금 회수"));
 
         MvcResult result = mockMvc.perform(get("/accounting/reports/funds-flow-comparison")
                         .param("from", "2026-07-10")
@@ -129,14 +129,14 @@ class FundsFlowComparisonControllerIT extends AbstractPostgresIT {
         JsonNode current = objectMapper.readTree(
                 result.getResponse().getContentAsString(StandardCharsets.UTF_8)).get("data").get("current");
 
-        assertAmount(findLine(current.get("increases"), "110").get("amount"), "7000000.00");
+        assertAmount(findLine(current.get("increases"), "1089").get("amount"), "7000000.00");
         assertAmount(current.get("increaseSubtotal"), "7000000.00");
         assertAmount(current.get("decreaseSubtotal"), "0.00");
         assertPeriodDelta(current, "7000000.00");
-        assertLineAbsent(current.get("increases"), "101");
-        assertLineAbsent(current.get("increases"), "102");
-        assertLineAbsent(current.get("decreases"), "101");
-        assertLineAbsent(current.get("decreases"), "102");
+        assertLineAbsent(current.get("increases"), "1019");
+        assertLineAbsent(current.get("increases"), "1039");
+        assertLineAbsent(current.get("decreases"), "1019");
+        assertLineAbsent(current.get("decreases"), "1039");
         assertLineAbsent(current.get("increases"), "UNKNOWN");
         assertReconciled(current);
     }
@@ -237,7 +237,25 @@ class FundsFlowComparisonControllerIT extends AbstractPostgresIT {
     }
 
     private LineSpec line(String accountCode, String debit, String credit, UUID partnerId, String memo) {
-        return new LineSpec(accountCode, debit, credit, partnerId, memo);
+        return new LineSpec(canonicalCode(accountCode), debit, credit, partnerId, memo);
+    }
+
+    /** V101 이후 fixture도 이카운트 정본 계정으로 저장한다. */
+    private String canonicalCode(String legacyCode) {
+        return switch (legacyCode) {
+            case "101" -> "1019";
+            case "102" -> "1039";
+            case "110" -> "1089";
+            case "120" -> "1209";
+            case "130" -> "1469";
+            case "140" -> "1509";
+            case "150" -> "1149";
+            case "301" -> "3329";
+            case "801" -> "8029";
+            case "850" -> "8249";
+            case "901" -> "9019";
+            default -> legacyCode;
+        };
     }
 
     private JsonNode findLine(JsonNode lines, String accountCode) {

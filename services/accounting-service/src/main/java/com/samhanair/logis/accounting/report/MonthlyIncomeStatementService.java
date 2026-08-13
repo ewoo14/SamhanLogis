@@ -41,7 +41,8 @@ public class MonthlyIncomeStatementService {
     private static final String ROW_ACCOUNT = "ACCOUNT";
     private static final String ROW_SUBTOTAL = "SUBTOTAL";
     private static final String ROW_TOTAL = "TOTAL";
-    private static final String INCOME_TAX_CODE = "991";
+    /** V101 이카운트 정본 법인세등 계정. */
+    private static final String INCOME_TAX_CODE = "9719";
     private static final Set<AccountCategory> PROFIT_AND_LOSS_CATEGORIES = Set.of(
             AccountCategory.REVENUE,
             AccountCategory.COST_OF_SALES,
@@ -105,10 +106,10 @@ public class MonthlyIncomeStatementService {
                     || !PROFIT_AND_LOSS_CATEGORIES.contains(account.getCategory())) {
                 continue;
             }
-            amounts.put(
-                    total.getAccountCode(),
-                    computeSignedAmount(account.getCategory(), total.getDebitTotal(), total.getCreditTotal())
-            );
+            BigDecimal signedAmount = INCOME_TAX_CODE.equals(total.getAccountCode())
+                    ? total.getDebitTotal().subtract(total.getCreditTotal())
+                    : computeSignedAmount(account.getCategory(), total.getDebitTotal(), total.getCreditTotal());
+            amounts.put(total.getAccountCode(), signedAmount);
         }
         return amounts;
     }
@@ -278,7 +279,9 @@ public class MonthlyIncomeStatementService {
         BigDecimal total = BigDecimal.ZERO;
         for (Map.Entry<String, BigDecimal> entry : amounts.entrySet()) {
             ChartOfAccount account = accountMap.get(entry.getKey());
-            if (account != null && account.getCategory() == category) {
+            if (account != null && account.getCategory() == category
+                    && !(category == AccountCategory.NON_OPERATING
+                    && INCOME_TAX_CODE.equals(account.getCode()))) {
                 total = total.add(entry.getValue());
             }
         }
@@ -299,7 +302,7 @@ public class MonthlyIncomeStatementService {
         BigDecimal total = BigDecimal.ZERO;
         for (Map.Entry<String, BigDecimal> entry : amounts.entrySet()) {
             ChartOfAccount account = accountMap.get(entry.getKey());
-            if (account != null && account.getCategory() == AccountCategory.INCOME_TAX) {
+            if (INCOME_TAX_CODE.equals(entry.getKey())) {
                 total = total.add(entry.getValue());
             }
         }

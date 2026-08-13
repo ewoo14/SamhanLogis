@@ -123,11 +123,11 @@ class ReportValidationSeedIT extends AbstractPostgresIT {
         assertThat(j.totalDebit()).isEqualByComparingTo(new BigDecimal("2200000.00"));
         // 대변 합계: 상품매출 2,000,000 + 부가세예수금 200,000
         assertThat(j.totalCredit()).isEqualByComparingTo(new BigDecimal("2200000.00"));
-        // 계정코드 401(상품매출) 라인 존재
+        // 계정코드 4019(상품매출) 라인 존재
         boolean hasRevenue = j.getLines().stream()
-                .anyMatch(l -> "401".equals(l.getAccountCode())
+                .anyMatch(l -> "4019".equals(l.getAccountCode())
                         && l.getCreditAmount().compareTo(new BigDecimal("2000000.00")) == 0);
-        assertThat(hasRevenue).as("401 상품매출 라인 2,000,000 존재").isTrue();
+        assertThat(hasRevenue).as("4019 상품매출 라인 2,000,000 존재").isTrue();
     }
 
     @Test
@@ -137,9 +137,9 @@ class ReportValidationSeedIT extends AbstractPostgresIT {
         assertThat(j.totalDebit()).isEqualByComparingTo(new BigDecimal("5500000.00"));
         assertThat(j.totalCredit()).isEqualByComparingTo(new BigDecimal("5500000.00"));
         boolean hasRevenue = j.getLines().stream()
-                .anyMatch(l -> "404".equals(l.getAccountCode())
+                .anyMatch(l -> "4049".equals(l.getAccountCode())
                         && l.getCreditAmount().compareTo(new BigDecimal("5000000.00")) == 0);
-        assertThat(hasRevenue).as("404 제품매출 라인 5,000,000 존재").isTrue();
+        assertThat(hasRevenue).as("4049 제품매출 라인 5,000,000 존재").isTrue();
     }
 
     @Test
@@ -148,19 +148,19 @@ class ReportValidationSeedIT extends AbstractPostgresIT {
         Journal j = journalRepository.findById(Objects.requireNonNull(ID_RPT_004)).orElseThrow();
         // 차변 801(급여) 3,000,000
         boolean hasSalary = j.getLines().stream()
-                .anyMatch(l -> "801".equals(l.getAccountCode())
+                .anyMatch(l -> "8029".equals(l.getAccountCode())
                         && l.getDebitAmount().compareTo(new BigDecimal("3000000.00")) == 0);
         // 대변 221(예수금) 300,000
         boolean hasWithholding = j.getLines().stream()
-                .anyMatch(l -> "221".equals(l.getAccountCode())
+                .anyMatch(l -> "2549".equals(l.getAccountCode())
                         && l.getCreditAmount().compareTo(new BigDecimal("300000.00")) == 0);
         // 대변 102(보통예금) 2,700,000
         boolean hasBank = j.getLines().stream()
-                .anyMatch(l -> "102".equals(l.getAccountCode())
+                .anyMatch(l -> "1039".equals(l.getAccountCode())
                         && l.getCreditAmount().compareTo(new BigDecimal("2700000.00")) == 0);
-        assertThat(hasSalary).as("801 급여 차변 3,000,000").isTrue();
-        assertThat(hasWithholding).as("221 예수금 대변 300,000").isTrue();
-        assertThat(hasBank).as("102 보통예금 대변 2,700,000").isTrue();
+        assertThat(hasSalary).as("8029 급여 차변 3,000,000").isTrue();
+        assertThat(hasWithholding).as("2549 예수금 대변 300,000").isTrue();
+        assertThat(hasBank).as("1039 보통예금 대변 2,700,000").isTrue();
     }
 
     @Test
@@ -168,12 +168,12 @@ class ReportValidationSeedIT extends AbstractPostgresIT {
     void rpt007IncomeTaxExpense() {
         Journal j = journalRepository.findById(Objects.requireNonNull(ID_RPT_007)).orElseThrow();
         boolean hasExpense = j.getLines().stream()
-                .anyMatch(l -> "991".equals(l.getAccountCode())
+                .anyMatch(l -> "9719".equals(l.getAccountCode())
                         && l.getDebitAmount().compareTo(new BigDecimal("700000.00")) == 0);
         boolean hasLiability = j.getLines().stream()
-                .anyMatch(l -> "210".equals(l.getAccountCode())
+                .anyMatch(l -> "2539".equals(l.getAccountCode())
                         && l.getCreditAmount().compareTo(new BigDecimal("700000.00")) == 0);
-        assertThat(hasExpense).as("991 법인세비용 차변 700,000").isTrue();
-        assertThat(hasLiability).as("210 미지급금 대변 700,000 (법인세 부채 계상)").isTrue();
+        assertThat(hasExpense).as("9719 법인세비용 차변 700,000").isTrue();
+        assertThat(hasLiability).as("2539 미지급금 대변 700,000 (법인세 부채 계상)").isTrue();
     }
 }

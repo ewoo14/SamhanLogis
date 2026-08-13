@@ -13,7 +13,7 @@ import type { MonthlyIncomeStatementLine } from '../api/accounting'
 const row: MonthlyIncomeStatementLine = {
   rowKind: 'ACCOUNT',
   section: 'REVENUE',
-  accountCode: '401',
+  accountCode: '4019',
   accountName: '상품매출',
   category: 'REVENUE',
   monthlyAmounts: ['1000', '-2000', 0],

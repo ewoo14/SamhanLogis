@@ -133,8 +133,8 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
                                   ],
                                   "transactionDate": "2026-07-04",
                                   "memo": "S3-BANK-IT 정상 합산",
-                                  "debitAccountCode": "102",
-                                  "creditAccountCode": "110"
+                                  "debitAccountCode": "1039",
+                                  "creditAccountCode": "1089"
                                 }
                                 """.formatted(keyJson("S3-BANK-001", "2026-07-04T09:00:00", "10000.00"),
                                 keyJson("S3-BANK-001", "2026-07-04T09:00:00", "10000.00"),
@@ -158,7 +158,7 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
         assertThat(receipt.get("status")).isEqualTo("CONFIRMED");
         assertThat((BigDecimal) receipt.get("amount")).isEqualByComparingTo("35000.00");
         assertThat(journalId).isNotNull();
-        assertJournalLines(journalId, "102", "110", new BigDecimal("35000.00"));
+        assertJournalLines(journalId, "1039", "1089", new BigDecimal("35000.00"));
 
         Integer reflected = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -518,8 +518,8 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
                                   "amount": 17000.00,
                                   "transactionDate": "2026-07-04",
                                   "memo": "수정 금지",
-                                  "debitAccountCode": "102",
-                                  "creditAccountCode": "110"
+                                  "debitAccountCode": "1039",
+                                  "creditAccountCode": "1089"
                                 }
                                 """))
                 .andExpect(status().isConflict())

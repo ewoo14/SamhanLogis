@@ -32,8 +32,8 @@ describe('mock bank deposit receipt contract', () => {
           },
         ],
         transactionDate: '2026-06-24',
-        debitAccountCode: '102',
-        creditAccountCode: '110',
+        debitAccountCode: '1039',
+        creditAccountCode: '1089',
         memo: 'mock 벌크 생성',
       },
     }) as MockEnvelope<{
@@ -51,8 +51,8 @@ describe('mock bank deposit receipt contract', () => {
       kind: 'BANK_LINKED',
       status: 'CONFIRMED',
       amount: '4000000',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
     expect(created.data.slipNo).toMatch(/^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/)
     expect(created.data.journalNo).toMatch(/^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/)

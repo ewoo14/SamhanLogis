@@ -161,9 +161,9 @@ class PartnerLedgerBalanceFix4RealQaIT extends AbstractPostgresIT {
 
     private void postJournal(String journalNo, JournalSourceType sourceType, int amount) {
         Journal journal = Journal.create(journalNo, DATE, "fix4 real qa", sourceType, null);
-        journal.addLine(JournalLine.create(journal, 1, "110", BigDecimal.valueOf(amount), BigDecimal.ZERO,
+        journal.addLine(JournalLine.create(journal, 1, "1089", BigDecimal.valueOf(amount), BigDecimal.ZERO,
                 PARTNER_ID, "fix4 real qa"));
-        journal.addLine(JournalLine.create(journal, 2, "401", BigDecimal.ZERO, BigDecimal.valueOf(amount),
+        journal.addLine(JournalLine.create(journal, 2, "4019", BigDecimal.ZERO, BigDecimal.valueOf(amount),
                 null, "fix4 real qa"));
         journal.post("fix4-real-qa");
         journalRepository.saveAndFlush(journal);

@@ -17,7 +17,7 @@ import org.hibernate.annotations.SQLRestriction;
  * {@code project_korean_accounting.md}).
  *
  * <p>Flyway V1 시드 50+ 행으로 7-그룹 ({@link AccountCategory}) 전체 셋업.
- * 코드 체계는 한국 표준 — VARCHAR(6) (예: "101" 현금, "10101" 본점현금).
+ * 코드 체계는 V101 이카운트 정본 — VARCHAR(6) (예: "1019" 현금).
  *
  * <p>BaseEntity 7 audit + soft-delete (@SQLRestriction). 코드는 변경 불가 (PK).
  */
@@ -28,7 +28,7 @@ import org.hibernate.annotations.SQLRestriction;
 @SQLRestriction("is_deleted = false")
 public class ChartOfAccount extends BaseEntity {
 
-    /** 계정 코드 — VARCHAR(10) PK. 예: "101"(현금), 이카운트 "00010". */
+    /** 계정 코드 — VARCHAR(10) PK. 예: "1019"(현금). */
     @Id
     @Column(name = "code", length = 10, nullable = false)
     private String code;

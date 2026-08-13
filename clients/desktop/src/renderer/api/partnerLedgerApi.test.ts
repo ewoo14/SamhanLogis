@@ -107,7 +107,7 @@ describe('partner ledger adapter', () => {
     const lines = buildPartnerLedgerLines([{
       type: 'SALE_SUMMARY', documentNo: '2026/01/01-1', date: '2026-01-01',
       deliveryAddress: null, amount: '9900000', lines: [],
-      accountCode: '110', description: '판매전표 없음 / 전표 미이관', debit: '9900000', credit: '0',
+      accountCode: '1089', description: '판매전표 없음 / 전표 미이관', debit: '9900000', credit: '0',
     }])
 
     expect(lines).toHaveLength(1)
@@ -156,7 +156,7 @@ describe('partner ledger adapter', () => {
 
   it('구형 line snapshot은 documents가 없어도 행과 금액을 그대로 복원한다', () => {
     const legacyLine = {
-      date: '2026-08-01', journalNo: '2026/08/01-3', accountCode: '110', accountName: '외상매출금',
+      date: '2026-08-01', journalNo: '2026/08/01-3', accountCode: '1089', accountName: '외상매출금',
       description: '구형 원장', debit: '100', credit: '0', balance: '100',
     }
     const restored = mapLedgerSnapshotResponse({

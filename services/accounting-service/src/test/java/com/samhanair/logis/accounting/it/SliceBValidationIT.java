@@ -253,7 +253,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     @DisplayName("V9 seed — RECEIVABLE: 110 외상매출금 3거래처 차변 잔액 검증")
     void partnerAgingReceivableBalancesExist() {
         List<PartnerAccountTotal> totals = journalLineRepository.aggregateAgingByAccount(
-                "110", LocalDate.of(2026, 4, 30));
+                "1089", LocalDate.of(2026, 4, 30));
 
         // 삼한물류 (b0000001-...001) — debit 2,200,000
         PartnerAccountTotal samhan = totals.stream()
@@ -297,7 +297,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     @DisplayName("V9 seed — PAYABLE: 201 외상매입금 2거래처 대변 잔액 검증")
     void partnerAgingPayableBalancesExist() {
         List<PartnerAccountTotal> totals = journalLineRepository.aggregateAgingByAccount(
-                "201", LocalDate.of(2026, 4, 30));
+                "2519", LocalDate.of(2026, 4, 30));
 
         // 현대오일뱅크 (b0000001-...011) — credit 2,750,000
         PartnerAccountTotal hyundai = totals.stream()

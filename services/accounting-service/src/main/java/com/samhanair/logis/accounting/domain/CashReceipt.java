@@ -30,11 +30,11 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class CashReceipt extends BaseEntity {
 
-    /** 기본 차변 계정: 보통예금(102) — V1 chart_of_accounts 시드 기준. */
-    public static final String DEFAULT_DEBIT_ACCOUNT_CODE = "102";
+    /** 기본 차변 계정: 보통예금(1039) — V101 이카운트 계정과목 통일 target. */
+    public static final String DEFAULT_DEBIT_ACCOUNT_CODE = "1039";
 
-    /** 기본 대변 계정: 외상매출금(110) — V1 chart_of_accounts 시드 기준. */
-    public static final String DEFAULT_CREDIT_ACCOUNT_CODE = "110";
+    /** 기본 대변 계정: 외상매출금(1089) — V101 이카운트 계정과목 통일 target. */
+    public static final String DEFAULT_CREDIT_ACCOUNT_CODE = "1089";
 
     @Id
     @GeneratedValue
