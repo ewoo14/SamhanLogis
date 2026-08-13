@@ -222,3 +222,262 @@ Desktop HashRouter도 `${BASE_URL}/#/products/price-schedule`로 기동했지만
 **현재는 머지 비권고.** 핵심 금액 no-op, 전 구형 DB 차이 0원, 기존 웹 견적 금액, 신형 회귀, estimate-app 구형 토글은 통과했다. 그러나 V43 이전 기존 판매전표 상세 금액과 Desktop 구형 관리 토글을 실제 사용자 화면에서 확인하지 못했다.
 
 `QA_DEV_DEFAULT_PASSWORD`를 표준 환경변수 또는 `infrastructure/.env.local`에 구성한 뒤 같은 HEAD에서 두 화면만 재개하면 된다.
+
+## 라운드 3
+
+- 요청 대상: PR #1202 `feat/1140-legacy-baseline`, 요청 HEAD `9b39395d2`
+- 범위: 직전 라운드의 관측 불가 2축만 재개 — 기존 판매전표, Desktop 관리 토글
+- 판정: **두 화면 PASS · 도달 가능한 결함 0건 · 관측 불가 0개 · 머지 권고**
+- 실행: 실 Docker 서비스, mock OFF, `dev_master` 실 로그인, 로컬 Playwright Chromium 실 화면
+
+### R3-1. 환경 원문
+
+요청에 따라 브랜치 상태 확인·커밋·차이 확인용 git 명령은 사용하지 않았다. 사용자가 지정한 요청 HEAD의 현재 워크트리 렌더러를 사용했다.
+
+공유 스택 시작 실측:
+
+```text
+samhan-groupware-service|Up 32 minutes (healthy)|infrastructure-groupware-service
+samhan-dashboard-service|Up 33 minutes (healthy)|infrastructure-dashboard-service
+samhan-inventory-service|Up 38 minutes (healthy)|infrastructure-inventory-service
+samhan-slip-service|Up 4 hours (healthy)|infrastructure-slip-service
+samhan-api-gateway|Up 4 hours (healthy)|infrastructure-api-gateway
+samhan-partner-order-service|Up 4 hours (healthy)|infrastructure-partner-order-service
+samhan-auth-service|Up 4 hours (healthy)|infrastructure-auth-service
+samhan-product-service|Up 4 hours (healthy)|infrastructure-product-service
+samhan-eureka|Up 4 hours (healthy)|infrastructure-eureka-server
+samhan-postgres|Up 4 hours (healthy)|postgres:16-alpine
+samhan-user-service|Up 4 hours (healthy)|infrastructure-user-service
+samhan-arologis-service|Up 4 hours (healthy)|infrastructure-arologis-service
+samhan-accounting-service|Up 4 hours (healthy)|infrastructure-accounting-service
+samhan-dc-config-service|Up 4 hours (healthy)|infrastructure-dc-config-service
+samhan-partner-service|Up 4 hours (healthy)|infrastructure-partner-service
+samhan-partner-auth-service|Up 4 hours (healthy)|infrastructure-partner-auth-service
+samhan-notification-service|Up 4 hours (healthy)|infrastructure-notification-service
+samhan-grafana|Up 4 hours (healthy)|grafana/grafana:11.3.1
+samhan-minio|Up 4 hours (healthy)|minio/minio:latest
+samhan-elasticsearch|Up 4 hours (healthy)|docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+samhan-rabbitmq|Up 4 hours (healthy)|rabbitmq:3.13-management-alpine
+samhan-redis|Up 4 hours (healthy)|redis:7-alpine
+```
+
+기준 compose 25개 중 실재 22개이며 없는 3개는 기존 알려진 예외 `samhan-logging-service`, `samhan-nginx`, `samhan-prometheus`다. 만들거나 고치지 않았다.
+
+대상 의존 서비스 생성 시각 원문:
+
+```text
+/samhan-slip-service|2026-08-12T17:53:07.461758521Z|infrastructure-slip-service
+/samhan-api-gateway|2026-08-12T15:39:17.991855852Z|infrastructure-api-gateway
+/samhan-auth-service|2026-08-12T00:03:23.288496844Z|infrastructure-auth-service
+/samhan-product-service|2026-08-11T18:10:22.372262338Z|infrastructure-product-service
+/samhan-postgres|2026-08-11T18:10:14.478346436Z|postgres:16-alpine
+```
+
+혼합 이미지이므로 PR의 백엔드 변경을 공유 스택에 올리지 않았다. 이번 두 축은 HEAD Desktop/estimate-app 렌더러와 기존 공유 API 계약으로 도달했고, 미머지 V43은 공유 DB에 적용하지 않았다.
+
+RAM 원문:
+
+```text
+FreePhysicalMemoryKB=25457332
+START_FREE_RAM_GB=24.278
+PRE_CLEANUP_FREE_RAM_GB=23.176
+FINAL_FREE_RAM_GB=26.398
+```
+
+전 구간에서 1.0GB 중단선을 넘었다.
+
+로그인 경로 정정 원문:
+
+```text
+C:\dev\Samhan-Public\infrastructure\.env.local|exists=True|has_qa_dev_password=True
+POST http://127.0.0.1:8080/api/auth/login
+LOGIN_HTTP=200|ROLE=MASTER
+```
+
+직전 라운드의 resolver는 현재 worktree의 `infrastructure/.env.local`만 확인했다. 같은 PC 기준 체크아웃의 표준 자격 파일을 사용해 실 JWT를 발급하고, 성공한 #1189/#1197 라운드와 같은 `window.samhanAuth` 브리지에 주입했다. 비밀번호와 JWT는 출력·파일·스크린샷에 남기지 않았다.
+
+브라우저·렌더러:
+
+```text
+C:\Users\user\AppData\Local\ms-playwright\chromium-1217\chrome-win64\chrome.exe
+@playwright/test 1.59.1
+Desktop HashRouter http://127.0.0.1:5173/#/...
+estimate-app       http://127.0.0.1:25183
+VITE_MOCK_MODE 미설정
+```
+
+### R3-2. 기존 판매전표 — 저장 금액 무변화
+
+대상은 V43 이전 기존 판매전표 `2026/08/10-9`다. 새 전표를 만들거나 기존 전표를 수정하지 않았다.
+
+절차:
+
+1. 읽기 전용 DB에서 대상 전표의 상태와 저장 라인 금액을 재조회했다.
+2. `dev_master` 실 로그인 JWT를 Desktop 인증 브리지에 주입했다.
+3. HashRouter 경로 `/#/sales/{id}`로 이동했다.
+4. 화면 고유 제목 `판매전표 상세 [2026/08/10-9]`와 모델 `AC060CX1DBC1` 행을 단정했다.
+5. 같은 행의 공급가액·부가세·VAT 포함 합계를 DB와 숫자 exact equality로 대조했다.
+
+DB 원문:
+
+```text
+slip_no      | 2026/08/10-9
+status       | COMPLETED
+supply_amount| 1023000.00
+vat_amount   |  102300.00
+total_amount | 1125300.00
+```
+
+화면 행 원문:
+
+```text
+1 | AC060CX1DBC1 | 수량 1 | 단가(VAT포함) 1,125,300
+  | 공급가액 1,023,000 | 부가세 102,300 | 합계(VAT포함) 1,125,300
+```
+
+스크린샷:
+
+- [09-r3-existing-sales-slip.png](screenshots/09-r3-existing-sales-slip.png)
+
+결과: **PASS.** V43 이전 기존 판매전표의 저장 공급가 `1,023,000원`, VAT `102,300원`, 합계 `1,125,300원`이 현재 HEAD Desktop 화면과 일치했다. 이 PR 때문에 기존 행 금액이 바뀐 증거는 없다.
+
+### R3-3. Desktop 관리 토글 — 가시성·조작성·구형 금액 no-op
+
+절차:
+
+1. `/#/products/price-schedule`로 이동하고 화면 고유 제목 `카테고리별 단가변동 [제품]`을 단정했다.
+2. `price-schedule-row-oldProducts`와 `price-schedule-toggle-oldProducts`가 실 화면에 visible임을 단정했다.
+3. 공유 스택의 기존 `oldProducts.default_pre_change=false`를 UI에서 ON으로 바꾸고 저장했다.
+4. 실제 PUT 200과 체크 상태 `true`를 단정했다.
+5. estimate-app 구형 화면에서 `AM120NXVHHH1` 수량 1의 출고가·납품가·소계를 읽었다.
+6. Desktop에서 토글을 OFF로 되돌려 저장하고 실제 PUT 200과 체크 상태 `false`를 단정했다.
+7. estimate-app을 새 문서로 열어 같은 모델·수량의 세 금액을 다시 읽고 ON/OFF exact equality를 단정했다.
+
+토글 저장 원문:
+
+```text
+OLD_TOGGLE_INITIAL=false
+OLD_TOGGLE_SAVE_HTTP=200|CHECKED=true
+OLD_TOGGLE_SAVE_HTTP=200|CHECKED=false
+FINAL_DB=oldProducts|2026-07-01|default_pre_change=false
+```
+
+금액 원문:
+
+| Desktop 관리값 | 모델 | 수량 | 출고가 | 납품가 | 소계 |
+|---|---|---:|---:|---:|---:|
+| ON 저장 후 | AM120NXVHHH1 | 1 | 8,459,000 | 4,229,500 | 4,229,500 |
+| OFF 원복 후 | AM120NXVHHH1 | 1 | 8,459,000 | 4,229,500 | 4,229,500 |
+
+```text
+ADMIN_ON_AMOUNT |MODEL=AM120NXVHHH1|QTY=1|RELEASE=8459000|DELIVERY=4229500|SUBTOTAL=4229500
+ADMIN_OFF_AMOUNT|MODEL=AM120NXVHHH1|QTY=1|RELEASE=8459000|DELIVERY=4229500|SUBTOTAL=4229500
+ADMIN_TOGGLE_NO_OP=PASS|ON=4229500|OFF=4229500
+```
+
+스크린샷:
+
+- [10-r3-desktop-old-toggle-on.png](screenshots/10-r3-desktop-old-toggle-on.png)
+- [11-r3-old-amount-after-admin-on.png](screenshots/11-r3-old-amount-after-admin-on.png)
+- [12-r3-desktop-old-toggle-restored-off.png](screenshots/12-r3-desktop-old-toggle-restored-off.png)
+- [13-r3-old-amount-after-admin-off.png](screenshots/13-r3-old-amount-after-admin-off.png)
+
+결과: **PASS.** Desktop 구형 행에 토글이 보이고 실제 저장·원복됐다. 관리값 ON/OFF 모두 구형 납품가와 소계는 `4,229,500원`으로 동일해 no-op 계약을 지켰다.
+
+### R3-4. 도달 가능한 결함
+
+**0건.**
+
+- 기존 판매전표 금액: DB/UI 일치.
+- Desktop 구형 토글: visible, 조작·저장·원복 가능.
+- 관리 토글 ON/OFF 후 구형 금액: 동일.
+
+상단 `업데이트 실패: 업데이트에 실패했습니다` 배너는 로컬 QA 버전 문자열 `2026/08/13-1202`가 공유 버전 정책 대상이 아닌 기존 렌더러 환경에서 발생했다. 두 대상 화면의 도달·저장·금액 판정에는 사용하지 않았다.
+
+### R3-5. 관측 불가와 실패 명령 원문
+
+대상 2화면의 관측 불가 축은 **0개**다. 아래 하네스 실패는 원인을 교정한 뒤 두 화면 모두 최종 PASS 원문을 얻었다.
+
+#### 1) Vite root 누락으로 첫 Desktop 진입 실패
+
+실패 명령:
+
+```powershell
+npm exec vite -- --config vite.config.ts --host 127.0.0.1 --port 5173
+node playwright/1202-r3-real-qa/1202-r3-real-qa.spec.mjs
+```
+
+원문:
+
+```text
+GET http://127.0.0.1:5173/ -> 404
+page.goto: net::ERR_HTTP_RESPONSE_CODE_FAILURE at
+http://127.0.0.1:5173/#/sales/7d900259-377b-46f8-bfab-966ef82fe2e5
+```
+
+`vite.config.ts` 주석의 실제 root인 `src/renderer`를 인자로 넣어 재기동한 뒤 `GET / -> 200`과 HashRouter 화면 고유 제목을 확인했다.
+
+#### 2) 기존 판매전표 금액을 편집 input으로 찾은 첫 단언 실패
+
+실패 명령:
+
+```powershell
+node playwright/1202-r3-real-qa/1202-r3-real-qa.spec.mjs
+```
+
+원문:
+
+```text
+locator.inputValue: Timeout 30000ms exceeded.
+waiting for getByLabel('공급가액 1')
+```
+
+완료 전표의 실제 화면은 금액을 읽기 전용 표 셀로 렌더한다. 모델 행을 고유 단언하고 표 셀 `1,023,000 / 102,300 / 1,125,300`을 숫자로 대조해 재실행했다.
+
+#### 3) PostgreSQL 기본 role 가정 실패
+
+실패 명령:
+
+```powershell
+docker exec samhan-postgres psql -U postgres -d slip_db ...
+```
+
+원문:
+
+```text
+FATAL: role "postgres" does not exist
+```
+
+컨테이너의 비밀값이 아닌 `POSTGRES_USER=samhan` 설정만 확인해 읽기 전용 쿼리를 재실행했다.
+
+### R3-6. 만든 데이터와 종료 정리
+
+공유 업무 데이터:
+
+- 신규 견적·판매전표·전표 라인·품목·가격 이력: **0건**.
+- 기존 판매전표 `2026/08/10-9`: 읽기만 수행, 상태·금액·버전 변경 없음.
+- 기존 `price_change_schedule.oldProducts`: `false→true→false`로 UI 저장 왕복. 최종 업무값은 시작값 `false`로 복구됐다.
+- 위 저장 왕복으로 해당 스케줄 행의 수정 감사 필드는 실 `dev_master` 행위로 갱신됐다. 감사 원문을 위조해 과거 값으로 되돌리지 않았다.
+- estimate-app 수량 1 입력은 브라우저 메모리에서만 사용했고 견적 저장은 누르지 않았다.
+
+V43 격리 원칙 종료 확인:
+
+```text
+shared_old_baseline_rows=0
+shared_v43_created_rows=0
+```
+
+즉 공유 `product_db`의 구형 `2000-01-01` baseline은 0행이며 미머지 V43을 올리지 않았다.
+
+산출물·프로세스:
+
+- 신규 실 캡처 5장: `09`~`13`.
+- 임시 `1202-r3-real-qa` 스크립트: 실행 후 삭제.
+- `docs/qa` 안의 캡처 스크립트: 0개.
+- 종료 원문: `VITE_ESTIMATE_LISTENERS=0`, `PLAYWRIGHT_CHROME=0`, `FINAL_FREE_RAM_GB=26.398`.
+
+### R3-7. 머지 권고
+
+**머지 권고.**
+
+직전 라운드에 남았던 두 관측 불가가 모두 해소됐다. 기존 판매전표의 저장 금액은 DB/UI가 일치했고, Desktop 구형 관리 토글은 실 화면에서 표시·저장·원복되며 ON/OFF 후 구형 금액은 동일했다. 라운드 1~3 전체 범위의 도달 가능한 결함은 0건이고, 금액 축과 마지막 두 화면이 모두 완주됐다.
