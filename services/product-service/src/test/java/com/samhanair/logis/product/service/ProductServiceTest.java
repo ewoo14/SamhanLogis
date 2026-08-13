@@ -3,6 +3,7 @@ package com.samhanair.logis.product.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,6 +13,7 @@ import static org.mockito.Mockito.lenient;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.client.UserInternalClient;
 import com.samhanair.logis.product.domain.BundleComponentConsentToken;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Category;
@@ -55,6 +57,18 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
 
+    @Test
+    void classificationSaveCarriesLegacyDiscountBasisIntoClassificationCanon() {
+        Category category = org.mockito.Mockito.mock(Category.class);
+        Product product = Product.create("360 멀티", "AM360AXVHHR1SY", category,
+                new BigDecimal("100000"), new BigDecimal("50000"), "KRW", null, null);
+
+        product.markClassificationManual(null, null, null);
+        product.carryForwardLegacyDiscountOption();
+
+        assertThat(product.getDiscountOption()).isEqualTo(Product.DiscountOption.THREE_SIXTY);
+    }
+
     @Mock
     private ProductRepository productRepository;
 
@@ -85,6 +99,9 @@ class ProductServiceTest {
     @Mock
     private QuantitySyncRuleService quantitySyncRuleService;
 
+    @Mock
+    private UserInternalClient userInternalClient;
+
     @InjectMocks
     private ProductService service;
 
@@ -95,6 +112,8 @@ class ProductServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(userInternalClient.resolveDisplayName(nullable(String.class)))
+                .thenReturn(Optional.empty());
         category = Category.create("INDOOR_WALL", "벽걸이형", null, 1);
         categoryId = UUID.randomUUID();
         ReflectionTestUtils.setField(category, "id", categoryId);
@@ -1016,6 +1035,44 @@ class ProductServiceTest {
         assertThat(response.specs())
                 .extracting("specKey", "specValue", "unit")
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("냉방능력, kW", "5.2", "kW"));
+    }
+
+    @Test
+    void getByModelName_whenAuditUuidCannotBeResolved_preservesUnknownActorMarker() {
+        String missingUserUuid = "11111111-1111-4111-8111-111111111111";
+        ReflectionTestUtils.setField(product, "createdBy", missingUserUuid);
+        ReflectionTestUtils.setField(product, "modifiedBy", missingUserUuid);
+        when(productRepository.findByModelNameAndIsDeletedFalse("SHA-W15K"))
+                .thenReturn(Optional.of(product));
+        when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId))
+                .thenReturn(List.of());
+        when(userInternalClient.resolveDisplayName(missingUserUuid)).thenReturn(Optional.empty());
+
+        ProductResponse response = service.getByModelName("SHA-W15K");
+
+        assertThat(response.createdBy()).isNotNull().isNotBlank();
+        assertThat(response.modifiedBy()).isNotNull().isNotBlank();
+        assertThat(response.createdBy()).doesNotContain(missingUserUuid);
+        assertThat(response.modifiedBy()).doesNotContain(missingUserUuid);
+    }
+
+    @Test
+    void getByModelName_whenAuditValueIsMigrationMarker_preservesSystemMeaning() {
+        String migrationMarker = "V38__PRODUCT_CATEGORY_BACKFILL";
+        ReflectionTestUtils.setField(product, "createdBy", "system");
+        ReflectionTestUtils.setField(product, "modifiedBy", migrationMarker);
+        when(productRepository.findByModelNameAndIsDeletedFalse("SHA-W15K"))
+                .thenReturn(Optional.of(product));
+        when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId))
+                .thenReturn(List.of());
+        when(userInternalClient.resolveDisplayName("system")).thenReturn(Optional.empty());
+        when(userInternalClient.resolveDisplayName(migrationMarker)).thenReturn(Optional.empty());
+
+        ProductResponse response = service.getByModelName("SHA-W15K");
+
+        assertThat(response.createdBy()).isNotNull().isNotBlank();
+        assertThat(response.modifiedBy()).isNotNull().isNotBlank();
+        assertThat(response.modifiedBy()).contains("V38__PRODUCT_CATEGORY_BACKFILL");
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.revision.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
@@ -631,6 +632,11 @@ public class PartnerOrderRevisionService {
      */
     public static String displayNameOrNull(UUID actorId, String actorName) {
         if (actorName == null) {
+            return null;
+        }
+        // 공통 표시명 resolver가 사용자 화면용 placeholder를 만든 경우에도
+        // 버전이력의 nullable actorName 계약을 유지한다.
+        if (ActorDisplayName.UNKNOWN.equals(actorName)) {
             return null;
         }
         // UUID 패턴 직접 매칭

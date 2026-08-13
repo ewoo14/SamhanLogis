@@ -48,10 +48,107 @@ function renderPicker(value: DocumentReferenceValue = emptyValue) {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
   searchByTypeMock.mockReset()
 })
 
 describe('DocumentReferencePicker 요청 세대 (#837)', () => {
+  it('외부 scroll로 닫힌 뒤 focus를 유지한 입력을 클릭하면 기존 후보 dropdown을 다시 연다', async () => {
+    vi.useFakeTimers()
+    searchByTypeMock.mockResolvedValue([journal('J-RECLICK')])
+    renderPicker()
+
+    const input = screen.getByTestId('doc-ref-search-input')
+    input.focus()
+    fireEvent.change(input, { target: { value: 'J-RECLICK' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(screen.getByRole('listbox')).toBeTruthy()
+
+    fireEvent.scroll(window)
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(document.activeElement).toBe(input)
+
+    fireEvent.click(input)
+
+    expect(screen.getByRole('listbox')).toBeTruthy()
+    expect(screen.getByText('J-RECLICK')).toBeTruthy()
+  })
+
+  it('scroll close와 같은 paint 경계의 클릭도 후보 dropdown을 다시 연다', async () => {
+    vi.useFakeTimers()
+    searchByTypeMock.mockResolvedValue([journal('J-RACE')])
+    renderPicker()
+
+    const input = screen.getByTestId('doc-ref-search-input')
+    input.focus()
+    fireEvent.change(input, { target: { value: 'J-RACE' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(screen.getByRole('listbox')).toBeTruthy()
+
+    act(() => {
+      fireEvent.scroll(window)
+      fireEvent.click(input)
+    })
+
+    expect(screen.getByRole('listbox')).toBeTruthy()
+    expect(screen.getByText('J-RACE')).toBeTruthy()
+  })
+
+  it('검색 결과가 0건이면 클릭해도 기존 계약대로 빈 surface를 만들지 않는다', async () => {
+    vi.useFakeTimers()
+    searchByTypeMock.mockResolvedValue([])
+    renderPicker()
+
+    const input = screen.getByTestId('doc-ref-search-input')
+    input.focus()
+    fireEvent.change(input, { target: { value: 'NO_MATCHING_DOCUMENT' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+
+    expect(screen.queryByRole('listbox')).toBeNull()
+    fireEvent.click(input)
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByText('검색 결과 없음')).toBeNull()
+  })
+
+  it('검색 dropdown은 body portal로 렌더되고 하단 공간이 부족하면 위로 열린다', async () => {
+    vi.useFakeTimers()
+    searchByTypeMock.mockResolvedValue([journal('J-PORTAL')])
+    renderPicker()
+
+    const picker = document.querySelector('[class*="picker"]')
+    expect(picker).not.toBeNull()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      if (this === picker) return new DOMRect(100, 700, 500, 60)
+      return new DOMRect()
+    })
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+
+    fireEvent.change(screen.getByTestId('doc-ref-search-input'), { target: { value: 'J-PORTAL' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+
+    const listbox = screen.getByRole('listbox')
+    expect(listbox.parentElement).toBe(document.body)
+    expect(listbox.style.position).toBe('fixed')
+    expect(listbox.style.bottom).not.toBe('')
+    expect(screen.getByText('J-PORTAL')).toBeTruthy()
+  })
+
+  it('영업수수료 정산서를 기존 지출결의서 참조 유형으로 선택할 수 있다', () => {
+    const onChange = vi.fn()
+    render(<DocumentReferencePicker value={emptyValue} onChange={onChange} />)
+
+    expect(screen.getByRole('option', { name: '영업수수료 정산서' })).toBeTruthy()
+    fireEvent.change(screen.getByTestId('doc-ref-type-select'), {
+      target: { value: 'SALES_COMMISSION_SETTLEMENT' },
+    })
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      refDocType: 'SALES_COMMISSION_SETTLEMENT',
+      refDocNo: null,
+    }))
+  })
+
   it('A/B 응답이 역순으로 도착해도 최신 옵션과 loading owner만 유지한다', async () => {
     vi.useFakeTimers()
     let resolveA!: (value: unknown[]) => void

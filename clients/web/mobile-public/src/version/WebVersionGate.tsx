@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import {
   fetchWebVersionStatus,
   resolveVersionPromptState,
+  VERSION_POLICY_FAILURE_MESSAGE,
   type VersionPromptState,
 } from './versionCheck'
 
@@ -21,13 +22,20 @@ export function WebVersionGate({
 }: WebVersionGateProps) {
   const [promptState, setPromptState] = useState<VersionPromptState>({ kind: 'none' })
   const [confirmingReload, setConfirmingReload] = useState(false)
+  const [failureMessage, setFailureMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
-    void fetchWebVersionStatus({ apiBaseUrl, currentVersion }).then((versionInfo) => {
-      if (!active || !versionInfo) return
-      setPromptState(resolveVersionPromptState(versionInfo, safeLocalStorage()))
-    })
+    void fetchWebVersionStatus({ apiBaseUrl, currentVersion })
+      .then((versionInfo) => {
+        if (!active) return
+        setFailureMessage(null)
+        setPromptState(resolveVersionPromptState(versionInfo, safeLocalStorage()))
+      })
+      .catch((error: unknown) => {
+        console.warn('[mobile-public-version] 버전 정책 조회 실패', error)
+        if (active) setFailureMessage(VERSION_POLICY_FAILURE_MESSAGE)
+      })
     return () => { active = false }
   }, [apiBaseUrl, currentVersion])
 
@@ -52,6 +60,20 @@ export function WebVersionGate({
 
   return (
     <>
+      {failureMessage ? (
+        <aside
+          role="status"
+          aria-live="polite"
+          data-testid="web-version-policy-error"
+          style={{
+            position: 'fixed', insetInline: 12, insetBlockEnd: 12, zIndex: 1001,
+            padding: '12px 14px', border: '1px solid #FCA5A5', borderRadius: 8,
+            background: '#FEF2F2', color: '#991B1B', boxShadow: '0 8px 24px rgba(15, 23, 42, .16)',
+          }}
+        >
+          {failureMessage}
+        </aside>
+      ) : null}
       {promptState.kind !== 'none' ? (
         <aside
           role={promptState.kind === 'blocking' ? 'alertdialog' : 'status'}

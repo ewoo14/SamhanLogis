@@ -108,6 +108,30 @@ function mockError(status: number, code: string, message: string) {
   }
 }
 
+/**
+ * #1091 audit 상태 fixture.
+ *
+ * `mockAuditState`는 캡처/단위 테스트에서 성공·빈 이력·HTTP 실패를 선택한다.
+ * 제공되지 않은 audit endpoint는 호출부가 실제 미제공 상태를 검증할 수 있도록
+ * 기본 404를 반환한다. 핸들러가 null을 반환하지 않으므로 mock 모드에서 실 HTTP로
+ * fallthrough하지 않는다.
+ */
+function mockAuditResponse<T>(url: string, successData: T, defaultResponse: unknown = envelope(successData)) {
+  const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+  switch (urlObj.searchParams.get('mockAuditState')) {
+    case 'empty':
+      return envelope([])
+    case '404':
+      return mockError(404, 'AUDIT_HISTORY_NOT_SUPPORTED', '버전 이력 조회 기능이 아직 제공되지 않습니다.')
+    case '403':
+      return mockError(403, 'FORBIDDEN', '버전 이력을 조회할 권한이 없습니다.')
+    case '500':
+      return mockError(500, 'AUDIT_HISTORY_TEMPORARY', '버전 이력을 불러오지 못했습니다.')
+    default:
+      return defaultResponse
+  }
+}
+
 /** 실 BE partnerId LIKE '%입력%' 계약을 mock에서도 재현한다. SQL wildcard는 의도적으로 보존한다. */
 function matchesPartnerLike(value: string, input: string): boolean {
   const pattern = `%${input.trim().toLowerCase()}%`
@@ -191,6 +215,42 @@ function parseMockBody(config: AxiosRequestConfig): Record<string, unknown> {
   return {}
 }
 
+/**
+ * URL query만 읽던 문서 참조 검색 mock handler가 Axios config.params도 같은 계약으로
+ * 읽도록 하는 공통 query 경계다. 요청 URL 자체는 변경하지 않아 legacy handler의
+ * suffix/상세 route 매칭을 보존한다. 같은 키가 URL에 있으면 config.params를 권위값으로
+ * 사용하고, 배열은 반복 query로 보존한다.
+ */
+function mockQueryParams(config: AxiosRequestConfig): URLSearchParams {
+  const parsed = new URL(config.url ?? '', 'http://mock')
+  const params = config.params
+  const entries: Array<[string, string]> = []
+
+  if (params instanceof URLSearchParams) {
+    params.forEach((value, key) => entries.push([key, value]))
+  } else if (typeof params === 'object') {
+    for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
+      if (value === null || value === undefined) continue
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item !== null && item !== undefined) entries.push([key, String(item)])
+        }
+      } else {
+        entries.push([key, String(value)])
+      }
+    }
+  }
+
+  for (const key of new Set(entries.map(([name]) => name))) {
+    parsed.searchParams.delete(key)
+  }
+  for (const [key, value] of entries) {
+    parsed.searchParams.append(key, value)
+  }
+
+  return parsed.searchParams
+}
+
 type MockAppClientType =
   | 'DESKTOP'
   | 'SAMHAN_MOBILE'
@@ -200,6 +260,7 @@ type MockAppClientType =
   | 'SAMHAN_ESTIMATE_WEB'
   | 'SAMHAN_MOBILE_PUBLIC_WEB'
   | 'AROLOGIS_DESKTOP'
+  | 'INTERNAL_CHAT_DESKTOP'
   | 'WEB'
   | 'MOBILE'
 type MockAppForceLevel = 'NONE' | 'MINOR' | 'MAJOR' | 'CRITICAL'
@@ -367,6 +428,28 @@ let MOCK_ACTIVITY_LOGS: MockActivityLog[] = [
     description: '버전 관리 릴리스 정보를 수정했습니다.',
     serviceName: 'dashboard-service',
   },
+  {
+    occurredAt: mockActivityOccurredAt(25),
+    userId: 'dev-master',
+    user: '개발자',
+    userRole: 'DEVELOPER',
+    action: 'UPDATE',
+    resourceType: 'DC_CONFIG',
+    resourceId: 'P-001',
+    description: '거래처 DC 설정을 변경했습니다.',
+    serviceName: 'dc-config-service',
+  },
+  {
+    occurredAt: mockActivityOccurredAt(30),
+    userId: 'partner-session-internal',
+    user: '비인증 거래처',
+    userRole: 'PARTNER',
+    action: 'LOGIN',
+    resourceType: 'AUTH',
+    resourceId: '거래처 인증',
+    description: '거래처 인증 성공/실패 이벤트입니다.',
+    serviceName: 'partner-auth-service',
+  },
 ]
 
 function normalizeMockClientType(value: unknown): MockAppClientType {
@@ -379,6 +462,7 @@ function normalizeMockClientType(value: unknown): MockAppClientType {
     || value === 'SAMHAN_ESTIMATE_WEB'
     || value === 'SAMHAN_MOBILE_PUBLIC_WEB'
     || value === 'AROLOGIS_DESKTOP'
+    || value === 'INTERNAL_CHAT_DESKTOP'
     || value === 'WEB'
     || value === 'MOBILE'
   ) return value
@@ -877,7 +961,7 @@ const mockCompensationResolvedIds = new Set<string>(
 /** 시드 창고 (V2 시드 4종 + Phase 2.6d 전창고 머지 검증용 신규 1종) */
 const MOCK_WAREHOUSES = [
   {
-    id: '11111111-1111-1111-1111-000000000001',
+    id: 'EREREREREREREQAAAAAAAQ',
     code: 'HQ-001',
     name: '본사창고',
     type: 'HEADQUARTERS',
@@ -887,7 +971,7 @@ const MOCK_WAREHOUSES = [
     description: '본사 보유 메인 창고',
   },
   {
-    id: '11111111-1111-1111-1111-000000000002',
+    id: 'EREREREREREREQAAAAAAAg',
     code: 'VH-001',
     name: '1호차 차량재고',
     type: 'VEHICLE',
@@ -897,7 +981,7 @@ const MOCK_WAREHOUSES = [
     description: '출장 차량 이동 재고 (창고원/기사 단위)',
   },
   {
-    id: '11111111-1111-1111-1111-000000000003',
+    id: 'EREREREREREREQAAAAAAAw',
     code: 'CS-001',
     name: '거래처 위탁창고',
     type: 'CONSIGNMENT',
@@ -907,7 +991,7 @@ const MOCK_WAREHOUSES = [
     description: '거래처에 위탁한 재고 (소유권은 자사)',
   },
   {
-    id: '11111111-1111-1111-1111-000000000004',
+    id: 'EREREREREREREQAAAAAABA',
     code: 'VR-001',
     name: '가상창고',
     type: 'VIRTUAL',
@@ -922,7 +1006,7 @@ const MOCK_WAREHOUSES = [
    * FE fetchProductBalancesMatrix 가 0/0/0 으로 채우는지 검증 가능.
    */
   {
-    id: '11111111-1111-1111-1111-000000000005',
+    id: 'EREREREREREREQAAAAAABQ',
     code: 'BK-001',
     name: '백업창고',
     type: 'CONSIGNMENT',
@@ -936,6 +1020,22 @@ const MOCK_WAREHOUSES = [
 /** noUncheckedIndexedAccess 회피용 — 4 시드 명시 참조 */
 const HQ_ID = MOCK_WAREHOUSES[0]!.id
 const VH_ID = MOCK_WAREHOUSES[1]!.id
+
+/** 레거시 mock fixture의 raw UUID를 실제 API 응답과 같은 opaque token으로 변환한다. */
+const toOpaqueWarehouseId = (id: string | null): string | null => {
+  if (id === '11111111-1111-1111-1111-000000000001') return HQ_ID
+  if (id === '11111111-1111-1111-1111-000000000002') return VH_ID
+  return id
+}
+
+const toOpaqueSlipWarehouseIds = <T extends {
+  sourceWarehouseId: string | null
+  destinationWarehouseId: string | null
+}>(row: T): T => ({
+  ...row,
+  sourceWarehouseId: toOpaqueWarehouseId(row.sourceWarehouseId),
+  destinationWarehouseId: toOpaqueWarehouseId(row.destinationWarehouseId),
+})
 
 /**
  * Slice C: 서명 mock fixture — 1×1 빨강 PNG dataURL.
@@ -1473,6 +1573,8 @@ const MOCK_BRANCH_PIPE_ROWS = [
 type MockProductCatalogRow = {
   modelCode: string
   name: string
+  categoryId?: string | null
+  physicalCategory?: { code: string; name: string } | null
   usageScope: string
   estimateCategories: Array<{ category: string; displayOrder: number | null }>
   estimateCategory: string | null
@@ -1502,6 +1604,7 @@ type MockClassification = {
   name: string
   displayOrder: number
   active: boolean
+  fixedDiscountRate?: number | null
 }
 
 let MOCK_CLASSIFICATIONS: MockClassification[] = [
@@ -1603,6 +1706,8 @@ let MOCK_PRODUCT_CATALOG_ROWS: MockProductCatalogRow[] = [
       ...mockDefaultClassificationRefs(primaryCategory),
       modelCode: p.modelName,
       name: p.productName,
+      categoryId: 'cat-home',
+      physicalCategory: { code: 'HOME_MULTI', name: '홈멀티' },
       // BUNDLE(세트)은 판매 가능 품목 → 전표 라인 자동완성(usageScope=PARTNER_ORDER, BE IN-확장 {PARTNER_ORDER,BOTH})에
       // 노출되어야 하므로 항상 BOTH. (index-parity 로 ESTIMATE 가 되면 슬립 라인 검색에서 제외돼 bundle-set-options 회귀.)
       usageScope: isBundle || index % 2 === 0 ? 'BOTH' : 'ESTIMATE',
@@ -1699,6 +1804,8 @@ function ensureMockProductCatalogRowsSeeded() {
         ...deriveLegacyExposureFields({
         modelCode,
         name: String(row.name ?? modelCode),
+        categoryId: row.categoryId == null ? null : String(row.categoryId),
+        physicalCategory: row.physicalCategory ?? null,
         usageScope: String(row.usageScope ?? 'BOTH'),
         estimateCategories: normalizeMockExposures(row),
         estimateCategory: null,
@@ -2075,14 +2182,14 @@ const SAMPLE_TRANSFER_LINES = [
  */
 /**
  * BE `SafetyStockAlertResponse` record 와 1:1 정합 (TM PR #143 cross-check).
- * V8 seed BELOW 3건과 동일 결정적 UUID 사용.
+ * V8 seed BELOW 3건과 동일 결정적 warehouse opaque token 사용.
  */
 const MOCK_SAFETY_STOCK_ALERTS = [
   {
     productId: 'a0a0a0a0-0000-0000-0000-000000000002',
     productCode: 'AJ056RXH4BC1',
     productName: '시스템에어컨 멀티 5.6kW',
-    warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseId: HQ_ID,
     warehouseName: 'HQ 본사 창고',
     threshold: 50,
     currentQty: 43,
@@ -2093,7 +2200,7 @@ const MOCK_SAFETY_STOCK_ALERTS = [
     productId: 'a0a0a0a0-0000-0000-0000-000000000003',
     productCode: 'AM100RXMDH',
     productName: '시스템에어컨 실외기 10마력',
-    warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseId: HQ_ID,
     warehouseName: 'HQ 본사 창고',
     threshold: 30,
     currentQty: 27,
@@ -2104,7 +2211,7 @@ const MOCK_SAFETY_STOCK_ALERTS = [
     productId: 'a0a0a0a0-0000-0000-0000-000000000001',
     productCode: 'AJ040RXH4BC1',
     productName: '시스템에어컨 싱글 4.0kW',
-    warehouseId: '11111111-1111-1111-1111-000000000002',
+    warehouseId: VH_ID,
     warehouseName: 'VH 분원 창고',
     threshold: 10,
     currentQty: 6,
@@ -2246,6 +2353,40 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const method = (config.method ?? 'get').toUpperCase()
   const url = config.url ?? ''
   const body = parseMockBody(config)
+
+  // #1091 audit-logs는 broad domain handler보다 먼저 분기한다.
+  // audit URL이 목록/상세 mock에 가로채이지 않도록 flat audit row 계약을 고정한다.
+  const auditPath = new URL(url.startsWith('http') ? url : `http://mock${url}`).pathname
+  const taxInvoiceAuditMatch = auditPath.match(/\/accounting\/tax-invoices\/([^/?]+)\/audit-logs$/)
+  if (method === 'GET' && taxInvoiceAuditMatch) {
+    const sample = MOCK_AUDIT_LOGS_BY_DOMAIN['tax-invoices'] ?? []
+    return mockAuditResponse(url, sample)
+  }
+
+  const closingAuditMatch = auditPath.match(/\/accounting\/closings\/([^/?]+)\/audit-logs$/)
+  if (method === 'GET' && closingAuditMatch) {
+    return mockAuditResponse(
+      url,
+      [],
+      mockError(404, 'AUDIT_HISTORY_NOT_SUPPORTED', '버전 이력 조회 기능이 아직 제공되지 않습니다.'),
+    )
+  }
+
+  const dcConfigAuditMatch = auditPath.match(/\/api\/v1\/dc-configs\/([^/?]+)\/audit-logs$/)
+  if (method === 'GET' && dcConfigAuditMatch) {
+    return mockAuditResponse(
+      url,
+      [],
+      mockError(404, 'AUDIT_HISTORY_NOT_SUPPORTED', '버전 이력 조회 기능이 아직 제공되지 않습니다.'),
+    )
+  }
+
+  const inventoryAuditLogsMatch = auditPath.match(/\/inventory\/audits\/([^/?]+)\/audit-logs$/)
+  if (method === 'GET' && inventoryAuditLogsMatch) {
+    const id = inventoryAuditLogsMatch[1]!
+    const logs = id === 'ia-001' ? MOCK_INVENTORY_AUDIT_LOGS : []
+    return mockAuditResponse(url, logs)
+  }
 
   // POST /auth/login → 토큰 응답
   if (method === 'POST' && url.endsWith('/auth/login')) {
@@ -2603,7 +2744,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && url.endsWith('/inventory/warehouses')) {
     const body = parseMockBody(config) as Record<string, unknown>
     return envelope({
-      id: 'new-' + Date.now(),
+      id: 'EREREREREREREQAAAAAABg',
       code: body['code'],
       name: body['name'],
       type: body['type'],
@@ -2611,6 +2752,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       displayOrder: body['displayOrder'] ?? 0,
       description: body['description'],
     })
+  }
+
+  // GET /api/v1/quantity-sync-rules — 견적품목 화면의 병행 규칙 조회.
+  // 이 경로가 mock adapter를 빠져나가면 로컬의 실제 8080이 401을 반환하는 환경에서
+  // 전역 auth interceptor가 로그인 화면으로 이동시켜 mock hard gate가 환경 의존적으로 깨진다.
+  if (method === 'GET' && url.match(/\/api\/v1\/quantity-sync-rules(?:\?.*)?$/)) {
+    return []
   }
 
   const productCategoryTreeMatch = url.match(/\/api\/products\/categories(?:\?.*)?$/)
@@ -2664,6 +2812,24 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // PATCH/DELETE /api/v1/classifications/{id}
+  const classificationFixedDiscountMatch = url.match(/\/api\/v1\/classifications\/([^/?]+)\/fixed-discount(?:\?.*)?$/)
+  if (classificationFixedDiscountMatch && method === 'PATCH') {
+    const denied = mockRequirePermission('products.admin', 'update')
+    if (denied) return denied
+    const id = decodeURIComponent(classificationFixedDiscountMatch[1]!)
+    const idx = MOCK_CLASSIFICATIONS.findIndex((item) => item.id === id)
+    if (idx < 0) return mockError(404, 'NOT_FOUND', '분류를 찾을 수 없습니다.')
+    const body = parseMockBody(config)
+    const raw = body['fixedDiscountRate']
+    const rate = raw == null || String(raw).trim() === '' ? null : Number(raw)
+    if (rate != null && (!Number.isFinite(rate) || rate < 0 || rate > 100)) {
+      return mockError(400, 'INVALID_INPUT', '고정DC율은 0 이상 100 이하이어야 합니다.')
+    }
+    const updated = { ...MOCK_CLASSIFICATIONS[idx]!, fixedDiscountRate: rate }
+    MOCK_CLASSIFICATIONS = MOCK_CLASSIFICATIONS.map((item, i) => (i === idx ? updated : item))
+    return updated
+  }
+
   const classificationItemMatch = url.match(/\/api\/v1\/classifications\/([^/?]+)(?:\?.*)?$/)
   if (classificationItemMatch) {
     const id = decodeURIComponent(classificationItemMatch[1]!)
@@ -3361,6 +3527,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ?? urlObj.searchParams.get('usageScope')
     const category = (config.params?.['category'] as string | undefined)
       ?? urlObj.searchParams.get('category')
+    const physicalCategoryId = (config.params?.['categoryId'] as string | undefined)
+      ?? urlObj.searchParams.get('categoryId')
     // usageScope IN-확장 시멘틱 (BE 계약 동형, PR-B 사이클1):
     //   PARTNER_ORDER → PARTNER_ORDER | BOTH
     //   ESTIMATE      → ESTIMATE | BOTH
@@ -3376,7 +3544,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const filtered = MOCK_PRODUCT_CATALOG_ROWS.filter((row) =>
       (!q || row.modelCode.toLowerCase().includes(q) || row.name.toLowerCase().includes(q))
       && (!usageScope || matchesUsageScope(row.usageScope, usageScope))
-      && (!category || exposureForCategory(row, category) != null),
+      && (!category || exposureForCategory(row, category) != null)
+      && (!physicalCategoryId || row.categoryId === physicalCategoryId),
     )
     // [#9] BE 정렬 동형 — displayOrder asc(null=맨뒤), 동률 시 modelCode 사전순.
     //   순서 저장(PUT /display-orders) 후 displayOrder 가 갱신되면 재조회 시 그 순서로 보여야
@@ -4398,7 +4567,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // GET /admin/slips/search?q=... — 그룹웨어 결재 전표 참조 자동완성.
   if (method === 'GET' && /\/(?:admin\/)?slips\/search(?:\?|$)/.test(url)) {
-    const params = new URLSearchParams(url.split('?')[1] ?? '')
+    const params = mockQueryParams(config)
     const q = (params.get('q') ?? '').trim().toLowerCase()
     const slipType = params.get('slipType')
     const rawLimit = Number(params.get('limit') ?? '10')
@@ -4434,8 +4603,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /admin/accounting/*/search — 그룹웨어 결재 통합 문서 참조 자동완성.
-  if (method === 'GET' && /\/admin\/accounting\/(?:journals|tax-invoices|statements|ledgers\/partners)\/search(?:\?|$)/.test(url)) {
-    const params = new URLSearchParams(url.split('?')[1] ?? '')
+  if (method === 'GET' && /\/admin\/accounting\/(?:journals|tax-invoices|statements|ledgers\/partners|sales-commission-settlements)\/search(?:\?|$)/.test(url)) {
+    const params = mockQueryParams(config)
     const q = (params.get('q') ?? '').trim().toLowerCase()
     const rawLimit = Number(params.get('limit') ?? '10')
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 20)
@@ -4487,6 +4656,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       )
     }
 
+    if (url.includes('/admin/accounting/sales-commission-settlements/search')) {
+      return envelope(
+        [
+          {
+            settlementNo: '2026/08/11-1',
+            settlementDate: '2026-08-11',
+            status: 'CONFIRMED',
+            payoutAmount: 1320000,
+          },
+        ]
+          .filter((settlement) => contains(settlement.settlementNo))
+          .slice(0, limit),
+      )
+    }
+
     const ledgerPartners = [
       ...MOCK_TAX_INVOICES.map((invoice) => ({
         partnerCode: invoice.partnerCode,
@@ -4505,6 +4689,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         .filter((partner) => contains(partner.partnerCode) || contains(partner.partnerName))
         .slice(0, limit),
     )
+  }
+
+  // GET /slips/{id}/revertability — 되돌림 가능성 preflight (읽기 전용)
+  const revertabilityMatch = url.match(/\/slips\/([^/?]+)\/revertability$/)
+  if (method === 'GET' && revertabilityMatch) {
+    const slipId = decodeURIComponent(revertabilityMatch[1]!)
+    const slip = MOCK_SLIPS.find((item) => item.id === slipId) ?? MOCK_SLIPS[0]!
+    return envelope({
+      slipNo: slip.slipNo,
+      revertable: true,
+      reasonCodes: [],
+      reasons: [],
+      userVisibleText: '현재 되돌림 가능',
+    })
   }
 
   // GET /slips/{id} (단건 상세) — UUID-like 또는 'slip-001' 패턴
@@ -4991,7 +5189,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )
 
     const start = pageNo * pageSize
-    const pageContent = allRows.slice(start, start + pageSize)
+    const pageContent = allRows.slice(start, start + pageSize).map(toOpaqueSlipWarehouseIds)
     const totalElements = allRows.length
     const totalPages = Math.ceil(totalElements / pageSize)
 
@@ -5773,6 +5971,50 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         )
       : allItems
     return envelope(filtered.slice(0, Number(config.params?.['limit'] ?? 20)))
+  }
+
+  // GET /accounting/journals/sales-slip-ledger — SlipFormPage 전잔/후잔 표시 계약.
+  // 일반 /accounting/journals 페이지 핸들러보다 먼저 처리해야 한다.
+  if (method === 'GET' && url.includes('/accounting/journals/sales-slip-ledger')) {
+    if (typeof window !== 'undefined' && window.location.hash.includes('mockAccountingFailure=1')) {
+      return mockError(503, 'ACCOUNTING_UNAVAILABLE', '회계 원장 조회에 실패했습니다')
+    }
+    if (typeof window !== 'undefined' && window.location.hash.includes('mockAccountingZero=1')) {
+      return envelope({
+        partnerCode: '1234567890',
+        partnerName: '엘에이시스템에어',
+        partnerBusinessNo: '123-45-67890',
+        periodFrom: '2026-05-04',
+        periodTo: '2026-05-04',
+        openingBalance: '0',
+        salesTotal: '0',
+        paymentTotal: '0',
+        closingBalance: '0',
+        documents: [],
+        adjustmentTotal: '0',
+      })
+    }
+    return envelope({
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      partnerBusinessNo: '123-45-67890',
+      periodFrom: '2026-05-04',
+      periodTo: '2026-05-04',
+      openingBalance: '4250000',
+      salesTotal: '3700000',
+      paymentTotal: '0',
+      closingBalance: '7950000',
+      documents: [{
+        type: 'SALE',
+        documentNo: '2026/05/04-99',
+        date: '2026-05-04',
+        partnerCode: '1234567890',
+        partnerName: '엘에이시스템에어',
+        amount: '3700000',
+        lines: [],
+      }],
+      adjustmentTotal: '0',
+    })
   }
 
   // GET /accounting/journals/partner-ledger — PartnerLedgerResponse VIEW read model.
@@ -6787,6 +7029,63 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     MOCK_CASH_RECEIPTS.push(created)
     return envelope(created)
+  }
+
+  // D-G1 S4a — 영업수수료 정산 목록/상세/생성/확정 mock.
+  if (url.includes('/accounting/sales-commission-settlements')) {
+    const pathname = new URL(url, 'http://mock.local').pathname
+    const settlementId = pathname.match(/\/accounting\/sales-commission-settlements\/([^/]+)/)?.[1] ?? null
+    if (method === 'GET' && settlementId) {
+      const denied = mockRequirePermission('accounting.sales-commission-settlement', 'view')
+      if (denied) return denied
+      const row = MOCK_SALES_COMMISSION_SETTLEMENTS.find((item) => item.id === settlementId)
+      return row ? envelope(row) : mockError(404, 'NOT_FOUND', '영업수수료 정산서를 찾을 수 없습니다.')
+    }
+    if (method === 'GET') {
+      const denied = mockRequirePermission('accounting.sales-commission-settlement', 'view')
+      if (denied) return denied
+      const page = Number(config.params?.['page'] ?? 0)
+      const size = Number(config.params?.['size'] ?? 20)
+      const content = MOCK_SALES_COMMISSION_SETTLEMENTS.slice(page * size, page * size + size)
+      return envelope({
+        content,
+        totalElements: MOCK_SALES_COMMISSION_SETTLEMENTS.length,
+        totalPages: Math.max(1, Math.ceil(MOCK_SALES_COMMISSION_SETTLEMENTS.length / size)),
+        number: page,
+        size,
+        first: page === 0,
+        last: (page + 1) * size >= MOCK_SALES_COMMISSION_SETTLEMENTS.length,
+      })
+    }
+    if (method === 'POST' && pathname.endsWith('/confirm')) {
+      const denied = mockRequirePermission('accounting.sales-commission-settlement', 'update')
+      if (denied) return denied
+      const row = settlementId ? MOCK_SALES_COMMISSION_SETTLEMENTS.find((item) => item.id === settlementId) : null
+      if (!row) return mockError(404, 'NOT_FOUND', '영업수수료 정산서를 찾을 수 없습니다.')
+      if (row.status !== 'DRAFT') return mockError(409, 'CONFLICT', 'DRAFT 상태만 확정할 수 있습니다.')
+      row.status = 'CONFIRMED'
+      row.documentNo = `${row.settlementDate.replace(/-/g, '/')}-${MOCK_SALES_COMMISSION_SETTLEMENTS.length}`
+      return envelope(row)
+    }
+    if (method === 'POST' && pathname === '/accounting/sales-commission-settlements') {
+      const denied = mockRequirePermission('accounting.sales-commission-settlement', 'create')
+      if (denied) return denied
+      const body = parseMockBody(config) as { settlementDate?: string }
+      if (!body.settlementDate) return mockError(400, 'INVALID_INPUT', 'settlementDate 는 필수입니다.')
+      const row: MockSalesCommissionSettlement = {
+        id: `00000000-0000-4000-8000-${String(930000 + MOCK_SALES_COMMISSION_SETTLEMENTS.length + 1).padStart(12, '0')}`,
+        documentNo: null,
+        settlementDate: body.settlementDate,
+        status: 'DRAFT',
+        totalAmount: null,
+        payoutAmount: null,
+        supplyAmount: null,
+        vatAmount: null,
+        rateContractVersion: null,
+      }
+      MOCK_SALES_COMMISSION_SETTLEMENTS.push(row)
+      return envelope(row)
+    }
   }
 
   if (method === 'GET' && /\/accounting\/cash-receipts\/[0-9a-zA-Z-]{6,36}$/.test(new URL(url, 'http://mock.local').pathname)) {
@@ -8682,6 +8981,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // 주의: /admin/partners/search 보다 반드시 뒤에 배치 (search 가 더 specific 하므로 먼저 매칭됨)
   const adminPartnerDetailMatch = url.match(/\/admin\/partners\/([^/?]+)$/)
   if (method === 'GET' && adminPartnerDetailMatch) {
+    if (typeof window !== 'undefined' && window.location.hash.includes('mockPartnerDetailFailure=1')) {
+      return mockError(503, 'PARTNER_UNAVAILABLE', '거래처 상세 조회에 실패했습니다')
+    }
     const code = decodeURIComponent(adminPartnerDetailMatch[1] ?? '')
     const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
     if (!row) {
@@ -8692,7 +8994,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       name: String(row['partnerName'] ?? row['name'] ?? ''),
       phone: (row['phone'] as string | null | undefined) ?? null,
       address: (row['address'] as string | null | undefined) ?? null,
+      address1: (row['address1'] as string | null | undefined) ?? null,
+      address2: (row['address2'] as string | null | undefined) ?? null,
       representative: (row['representative'] as string | null | undefined) ?? null,
+      note: (row['note'] as string | null | undefined) ?? null,
+      managerName: (row['managerName'] as string | null | undefined) ?? null,
       bizNo: String(row['businessNumber'] ?? row['bizNo'] ?? ''),
       status: row['status'] ?? 'ACTIVE',
     })
@@ -8944,6 +9250,29 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // POST /api/v1/partners/admin/blocks — 수동 발송금지 등록.
+  // Axios mock interceptor가 브라우저 밖에서 처리하므로, QA는 동일 DTO payload를
+  // 페이지 전역에 기록해 관찰한다. 응답은 BlockedPartner DTO shape을 따른다.
+  if (method === 'POST' && url.match(/\/api\/v1\/partners\/admin\/blocks(?:\?.*)?$/)) {
+    const body = parseMockBody(config) as {
+      partnerCode?: string
+      blockReason?: string
+    }
+    try {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_LAST_BLOCKED_PARTNER_CREATE'] = body
+    } catch {
+      /* noop */
+    }
+    return envelope({
+      id: `block-${Date.now()}`,
+      partnerCode: body.partnerCode ?? '',
+      businessNameSnapshot: body.partnerCode === '4567890123' ? '미래시스템' : '엘에이시스템에어',
+      blockReason: body.blockReason ?? null,
+      blockedAt: '2026-07-18T10:00:00+09:00',
+      source: 'MANUAL',
+    })
+  }
+
   // GET /admin/aligo/address-book — AligoAddressBookPage
   if (method === 'GET' && url.includes('/admin/aligo/address-book')) {
     return envelope({
@@ -8960,6 +9289,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       jobId: 'aligo-sync-' + Date.now(),
       status: 'IN_PROGRESS',
       message: '알리고 주소록 동기화를 시작했습니다',
+    })
+  }
+  if (method === 'POST' && url.includes('/admin/notification/aligo/address-book/sync')) {
+    const g = globalThis as Record<string, unknown>
+    const calls = Number(g['__SAMHAN_ALIGO_SYNC_CALLS'] ?? 0) + 1
+    g['__SAMHAN_ALIGO_SYNC_CALLS'] = calls
+    if (g['__SAMHAN_ALIGO_SYNC_FAILURE'] === true) {
+      return mockError(500, 'INTERNAL_SERVER_ERROR', 'mock server error')
+    }
+    return envelope({
+      added: 12,
+      updated: 8,
+      skipped: 2,
+      failed: [],
+      deliveryStatus: 'NOT_DELIVERED',
     })
   }
 
@@ -8980,6 +9324,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // (Page envelope 으로 감싸면 SlipEditRequestsPage `list = query.data ?? []` → object → list.map 에러)
   if (method === 'GET' && url.includes('/slips/edit-requests')) {
     return envelope(MOCK_EDIT_REQUESTS)
+  }
+  // GET /api/v1/accounting/edit-requests — accounting-service pending requests.
+  if (method === 'GET' && url.includes('/api/v1/accounting/edit-requests')) {
+    return envelope([
+      {
+        requestId: 'accounting-edit-001',
+        entityId: 'journal-001',
+        requestType: 'EDIT',
+        status: 'PENDING',
+        reason: '적요 수정 요청',
+        requesterId: 'user-001',
+        requesterName: '김관리',
+        targetRole: 'MANAGER',
+        decidedById: null,
+        decidedByName: null,
+        decisionReason: null,
+        requestedAt: '2026-08-12T09:00:00+09:00',
+        decidedAt: null,
+        expiresAt: null,
+      },
+    ])
   }
   // POST /api/v1/slips/{slipId}/edit-request — 작성자 신규 요청 (CONFIRMED 단계).
   // body { type: 'EDIT'|'DELETE', reason: string } → SlipEditRequest 응답.
@@ -9538,6 +9903,40 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // GET/POST /accounting/closings — BE MonthEndCloseController 계약.
+  // AccountingPeriodResponse의 필드명·타입을 그대로 반환해 월말 마감 화면이
+  // mock handler 부재로 fail-closed 되거나, 응답 shape 차이로 깨지지 않게 한다.
+  if (method === 'GET' && url.endsWith('/accounting/closings')) {
+    return envelope([])
+  }
+  if (method === 'POST' && url.endsWith('/accounting/closings')) {
+    const req = parseMockBody(config) as {
+      periodType?: 'DAILY' | 'MONTHLY'
+      periodDate?: string
+      description?: string
+    }
+    const periodType = req.periodType === 'DAILY' ? 'DAILY' : 'MONTHLY'
+    const rawDate = typeof req.periodDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.periodDate)
+      ? req.periodDate
+      : '2026-08-01'
+    const periodDate = periodType === 'MONTHLY' ? `${rawDate.slice(0, 7)}-01` : rawDate
+    return envelope({
+      id: `closing-${Date.now()}`,
+      periodType,
+      periodDate,
+      status: 'CLOSED',
+      closedAt: new Date().toISOString(),
+      closedBy: 'system',
+      reversedAt: null,
+      reversedBy: null,
+      totalSales: '0',
+      totalPurchase: '0',
+      totalExpense: '0',
+      lockedSlipCount: 0,
+      description: typeof req.description === 'string' ? req.description : null,
+    })
+  }
+
   // GET /accounting/closings/daily — DailyClosingPage detail.
   if (method === 'GET' && url.includes('/accounting/closings/daily')) {
     const date = (config.params?.['date'] ?? '2026-06-07') as string
@@ -9700,6 +10099,38 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         { date: '2026-04-19', journalNo: '2026/04/19-1', accountCode: '110', description: '4월 3주 출고', debit: '4750000', credit: '0', balance: '6450000' },
         { date: '2026-04-26', journalNo: '2026/04/26-1', accountCode: '110', description: '계좌이체 입금', debit: '0', credit: '2200000', balance: '4250000' },
       ],
+    })
+  }
+
+  // GET /accounting/journals/sales-slip-ledger — SlipFormPage 전잔/후잔 표시 계약.
+  // 실 원장 왕복은 격리 서비스 QA에서 검증하고, 이 mock은 화면의 성공/실패 상태를
+  // headless renderer에서도 재현하기 위한 고정 응답이다.
+  if (method === 'GET' && url.includes('/accounting/journals/sales-slip-ledger')) {
+    if (typeof window !== 'undefined' && window.location.hash.includes('mockAccountingFailure=1')) {
+      return mockError(503, 'ACCOUNTING_UNAVAILABLE', '회계 원장 조회에 실패했습니다')
+    }
+    return envelope({
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      partnerBusinessNo: '123-45-67890',
+      periodFrom: '2026-05-04',
+      periodTo: '2026-05-04',
+      openingBalance: '4250000',
+      salesTotal: '3700000',
+      paymentTotal: '0',
+      closingBalance: '7950000',
+      documents: [
+        {
+          type: 'SALE',
+          documentNo: '2026/05/04-99',
+          date: '2026-05-04',
+          partnerCode: '1234567890',
+          partnerName: '엘에이시스템에어',
+          amount: '3700000',
+          lines: [],
+        },
+      ],
+      adjustmentTotal: '0',
     })
   }
 
@@ -9889,11 +10320,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (auditMatch && auditMatch[1] !== 'new') {
       const id = auditMatch[1]!
       const found = MOCK_INVENTORY_AUDITS.find((a) => a.id === id) ?? MOCK_INVENTORY_AUDITS[0]!
-      return envelope(found)
+      return envelope({ ...found, warehouseId: toOpaqueWarehouseId(found.warehouseId) })
     }
+    const auditUrl = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const configuredWarehouseId = String(
+      config.params?.['warehouseId'] ?? auditUrl.searchParams.get('warehouseId') ?? '',
+    )
+    const audits = MOCK_INVENTORY_AUDITS
+      .map((audit) => ({ ...audit, warehouseId: toOpaqueWarehouseId(audit.warehouseId) }))
+      .filter((audit) => !configuredWarehouseId || audit.warehouseId === configuredWarehouseId)
     return envelope({
-      content: MOCK_INVENTORY_AUDITS,
-      totalElements: MOCK_INVENTORY_AUDITS.length,
+      content: audits,
+      totalElements: audits.length,
       totalPages: 1,
       number: 0,
       size: 20,
@@ -11471,6 +11909,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         approverIds?: string[]
         templateId?: string | null
         fieldValues?: Record<string, string>
+        references?: Array<Partial<ApprovalAttachment>>
       }
       const title = String(body.title ?? '').trim()
       const requesterId = String(body.requesterId ?? '').trim()
@@ -11542,6 +11981,40 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         fieldValues: { ...fieldValues },
         status: 'PENDING',
         steps,
+      }
+      const references = Array.isArray(body.references) ? body.references : []
+      if (references.length > 0) {
+        const attachmentStore = getMockGroupwareApprovalAttachmentsStore()
+        attachmentStore[created.approvalId] = references.map((reference, index) => {
+          const type = reference.attachmentType === 'PARTNER_LEDGER_REF'
+            ? 'PARTNER_LEDGER_REF'
+            : 'SLIP_REF'
+          const nextSequence = mockGroupwareApprovalAttachmentSequence++
+          return {
+            id: `77777777-eeee-4eee-8eee-${String(nextSequence).padStart(12, '0')}`,
+            attachmentType: type,
+            label: reference.label ?? null,
+            displayOrder: Number(reference.displayOrder ?? index + 1),
+            refSlipNo: reference.refSlipNo ?? null,
+            refSlipType: reference.refSlipType ?? null,
+            refPartnerCode: reference.refPartnerCode ?? null,
+            refPartnerName: reference.refPartnerName ?? null,
+            refPeriod: reference.refPeriod ?? null,
+            refDocType: reference.refDocType ?? (
+              type === 'PARTNER_LEDGER_REF'
+                ? 'PARTNER_LEDGER'
+                : reference.refSlipType === 'SLIP_INBOUND' || reference.refSlipType === 'INBOUND'
+                  ? 'INBOUND_SLIP'
+                  : 'OUTBOUND_SLIP'
+            ),
+            refDocNo: reference.refDocNo ?? reference.refSlipNo ?? null,
+            refDocLabel: reference.refDocLabel ?? reference.refPartnerName ?? reference.label ?? null,
+            fileName: null,
+            contentType: null,
+            fileSize: null,
+            downloadUrl: null,
+          } satisfies ApprovalAttachment
+        })
       }
       approvals.unshift(created)
       return envelope(created)
@@ -12934,11 +13407,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // ==========================================================================
   // audit-logs 추가 (slip 외 — journal / tax-invoice / dispatch / user)
   // ==========================================================================
-  const otherAuditLogsMatch = url.match(/\/(journals|tax-invoices|dispatches|users)\/([^/]+)\/audit-logs/)
+  const otherAuditLogsMatch = url.match(/\/(journals|dispatches|users)\/([^/]+)\/audit-logs/)
   if (method === 'GET' && otherAuditLogsMatch) {
     const domain = otherAuditLogsMatch[1]!
     const sample = MOCK_AUDIT_LOGS_BY_DOMAIN[domain] ?? []
-    return envelope(sample)
+    return mockAuditResponse(url, sample)
   }
 
   // ==========================================================================
@@ -13429,6 +13902,61 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       createdAt: new Date().toISOString(),
       createdBy: '오병승',
     })
+  }
+
+  // PUT /slips/{id}/sales — 판매전표 direct update (SlipUpdateRequest).
+  // Axios mock interceptor가 브라우저 밖에서 처리하므로, Playwright가 검증할 수 있도록
+  // 마지막 payload를 페이지 전역에 기록한다. 응답 shape는 GET 상세와 같은 envelope이다.
+  const salesSlipUpdateMatch = url.match(/\/slips\/([^/?]+)\/sales$/)
+  if (method === 'PUT' && salesSlipUpdateMatch) {
+    const denied = mockRequirePermission('sales.slip.edit', 'update')
+    if (denied) return denied
+    const id = decodeURIComponent(salesSlipUpdateMatch[1]!)
+    const found = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
+    if (!found) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
+    const body = parseMockBody(config) as Record<string, unknown>
+    try {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_LAST_SLIP_UPDATE'] = body
+    } catch {
+      /* noop */
+    }
+    const requestLines = Array.isArray(body.lines) ? body.lines as Array<Record<string, unknown>> : []
+    const existingLines = Array.isArray(found.lines) ? found.lines as Array<Record<string, unknown>> : SAMPLE_LINES
+    const lines = requestLines.length > 0
+      ? requestLines.map((requestLine) => {
+        const lineId = typeof requestLine.lineId === 'string'
+          ? requestLine.lineId
+          : typeof requestLine.id === 'string' ? requestLine.id : undefined
+        const existing = existingLines.find((candidate) => candidate.id === lineId) ?? {}
+        const quantity = typeof requestLine.quantity === 'number'
+          ? requestLine.quantity
+          : Number(requestLine.quantity ?? existing.quantity ?? 0)
+        const unitPrice = String(requestLine.unitPrice ?? existing.unitPrice ?? '0')
+        const lineTotal = requestLine.lineTotal != null
+          ? String(requestLine.lineTotal)
+          : String(quantity * Number(unitPrice))
+        const supplyAmount = requestLine.supplyAmount != null
+          ? String(requestLine.supplyAmount)
+          : lineTotal
+        const vatAmount = requestLine.vatAmount != null
+          ? String(requestLine.vatAmount)
+          : String(Number(supplyAmount) * 0.1)
+        return {
+          ...existing,
+          ...requestLine,
+          id: lineId ?? existing.id,
+          lineTotal,
+          supplyAmount,
+          vatAmount,
+          setHead: requestLine.setHead ?? existing.setHead ?? false,
+          parentSetModel: requestLine.parentSetModel ?? existing.parentSetModel ?? null,
+        }
+      })
+      : existingLines
+    const { lineIdContract: _lineIdContract, lines: _requestLines, ...detailBody } = body
+    const detail = { ...found, ...detailBody, id, lines }
+    Object.assign(found, detail)
+    return envelope(detail)
   }
 
   // ============================================================================
@@ -13997,7 +14525,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const permissions: Record<string, string[]> = {}
       for (const p of mockPerms) {
         const actions: string[] = []
-        if (p.view) actions.push('VIEW', 'DOWNLOAD', 'PRINT')
+        if (p.view) {
+          actions.push('VIEW')
+          if (!MOCK_NO_EXPORT_PAGES.has(p.pageCode)) actions.push('DOWNLOAD', 'PRINT')
+        }
         // action-only page(복원 지원 페이지 포함)는 role-cell 경로(아래)와 동일하게 지정
         // 액션 집합을 부여 — 기존 CRUD 고정 도출은 RESTORE 미부여(#757 R2 LOW)·convert
         // 과다 grant 를 만들었다.
@@ -14039,7 +14570,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
         if (cell.pageCode === 'sales.slip.list' && cell.edit) actions.push('RESTORE')
         // download/print 는 BE read-side export 계약을 따르므로 view 권한에서 파생한다.
-        if (cell.view) actions.push('DOWNLOAD', 'PRINT')
+        if (cell.view && !MOCK_NO_EXPORT_PAGES.has(cell.pageCode)) actions.push('DOWNLOAD', 'PRINT')
       }
       permissions[cell.pageCode] = actions
     }
@@ -14785,7 +15316,11 @@ const MOCK_ADMIN_PARTNERS: Array<Record<string, unknown>> = [
     representative: '이엘에이',
     businessNumber: '123-45-67890',
     address: '서울특별시 강남구 테헤란로 152',
+    address1: '서울특별시 강남구 테헤란로 152',
+    address2: '삼성빌딩 8층',
     phone: '02-1234-5678',
+    note: '납품 전 담당자 확인',
+    managerName: '박담당',
     status: 'ACTIVE' as const,
     creditLimit: '50000000',
     currentBalance: '4250000',
@@ -15492,6 +16027,43 @@ type MockCashReceiptRow = {
   creditAccountCode: string
 }
 
+type MockSalesCommissionSettlement = {
+  id: string
+  documentNo: string | null
+  settlementDate: string
+  status: 'DRAFT' | 'CONFIRMED'
+  totalAmount: string | null
+  payoutAmount: string | null
+  supplyAmount: string | null
+  vatAmount: string | null
+  rateContractVersion: number | null
+}
+
+const MOCK_SALES_COMMISSION_SETTLEMENTS: MockSalesCommissionSettlement[] = [
+  {
+    id: '00000000-0000-4000-8000-000000000931',
+    documentNo: '2026/08/11-1',
+    settlementDate: '2026-08-11',
+    status: 'CONFIRMED',
+    totalAmount: '12500000',
+    payoutAmount: '10875000',
+    supplyAmount: '9875000',
+    vatAmount: '987500',
+    rateContractVersion: 1,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000932',
+    documentNo: null,
+    settlementDate: '2026-08-12',
+    status: 'DRAFT',
+    totalAmount: null,
+    payoutAmount: null,
+    supplyAmount: null,
+    vatAmount: null,
+    rateContractVersion: null,
+  },
+]
+
 const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
   {
     id: '00000000-0000-4000-8000-000000000706',
@@ -15642,7 +16214,7 @@ const MOCK_INVENTORY_AUDITS = [
     id: 'ia-001',
     auditNo: '2026/05/08-1',
     auditDate: '2026-05-08',
-    warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseId: HQ_ID,
     warehouseCode: 'HQ-001',
     warehouseName: '본사창고',
     status: 'PLANNED' as const,
@@ -15658,7 +16230,7 @@ const MOCK_INVENTORY_AUDITS = [
     id: 'ia-002',
     auditNo: '2026/05/09-1',
     auditDate: '2026-05-09',
-    warehouseId: '11111111-1111-1111-1111-000000000002',
+    warehouseId: VH_ID,
     warehouseCode: 'VH-001',
     warehouseName: '1호차 차량재고',
     status: 'IN_PROGRESS' as const,
@@ -15673,7 +16245,7 @@ const MOCK_INVENTORY_AUDITS = [
     id: 'ia-003',
     auditNo: '2026/04/30-1',
     auditDate: '2026-04-30',
-    warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseId: HQ_ID,
     warehouseCode: 'HQ-001',
     warehouseName: '본사창고',
     status: 'COMPLETED' as const,
@@ -17359,6 +17931,33 @@ const MOCK_AUDIT_LOGS_BY_DOMAIN: Record<string, Array<{
   ],
 }
 
+const MOCK_INVENTORY_AUDIT_LOGS = [
+  {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+    entityId: '11111111-1111-4111-8111-000000000001',
+    revisionNo: 2,
+    actorId: '33333333-3333-4333-8333-000000000003',
+    actorName: '재고담당자',
+    actorColor: '#2563EB',
+    fieldName: 'totalDiffAmount',
+    oldValue: '120000',
+    newValue: '95000',
+    changedAt: '2026-05-08T16:42:00+09:00',
+  },
+  {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    entityId: '11111111-1111-4111-8111-000000000001',
+    revisionNo: 1,
+    actorId: '33333333-3333-4333-8333-000000000003',
+    actorName: '재고담당자',
+    actorColor: '#2563EB',
+    fieldName: 'totalDiffAmount',
+    oldValue: '0',
+    newValue: '120000',
+    changedAt: '2026-05-08T15:30:00+09:00',
+  },
+]
+
 // ==========================================================================
 // P0-1 Slice A: 재무 보고서 fixture (손익계산서 / 재무상태표)
 // 한국 일반기업회계기준 표준 계정명 + KRW 정수 금액. balanced=true 케이스.
@@ -18732,6 +19331,7 @@ const SP_D1_PAGES = [
   'accounting.deposit-mapping',
   'accounting.deposit-match',
   'accounting.cash-receipts',
+  'accounting.sales-commission-settlement',
   'accounting.period-close',
   'accounting.statement-batch',
   'accounting.partner-ledger',
@@ -18776,7 +19376,6 @@ const SP_D1_PAGES = [
   'arologis.admin',
   'arologis.region',
   // MIG-14 admin UI
-  'ecount.mig14.order-list',
   'ecount.mig14.ledger',
     // C2b 단독→PermissionGuard 전환 page-codes (V29/V30/V33/V34/V36 seed 기반)
     'sales.slip.create',
@@ -18858,6 +19457,8 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   // DOWNLOAD/PRINT 없음). 미등재 시 mock /permissions/my 가 MANAGER/ACCOUNTANT 에
   // CREATE/DELETE/DOWNLOAD/PRINT 까지 과다부여한다.
   'products.price-schedule': ['UPDATE'],
+  // D-G6/S4a: 정산서는 조회·생성·수정만 허용하며 export 권한은 별도 seed가 없다.
+  'accounting.sales-commission-settlement': ['CREATE', 'UPDATE'],
   // #836: 4탭 신규 등록/수정/삭제 action만 허용하고 DOWNLOAD/PRINT는 부여하지 않는다.
   'partners.4tab': ['CREATE', 'UPDATE', 'DELETE'],
   'sales.partner-order.convert': ['CREATE'],
@@ -18876,6 +19477,9 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   // mock 모드 MANAGER/SALES 의 canAccess('estimates.list','restore') 가 항상 false 였다.
   'estimates.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
 }
+
+/** seed의 can_download/can_print=false 를 mock에서도 보존하는 페이지. */
+const MOCK_NO_EXPORT_PAGES = new Set(['accounting.sales-commission-settlement'])
 
 /** V98: MANAGER 입고 검수는 canonical 권한에서 UPDATE만 additive grant 한다. */
 const MOCK_ACTION_MATRIX_OVERRIDES: Record<string, Partial<MockActionMatrix>> = {
@@ -18933,7 +19537,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D2 회계 7개 — MANAGER: view 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
-    'accounting.partner-ledger',
+    'accounting.partner-ledger', 'accounting.sales-commission-settlement',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
     // V30: MANAGER messenger.send VIEW/CREATE/UPDATE/DELETE.
@@ -18953,7 +19557,6 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
     // MIG-14 admin UI
-    'ecount.mig14.order-list',
     'ecount.mig14.ledger',
     // Issue 4 Slice 4
     'accounting.edit-requests', 'accounting.edit-requests.decide',
@@ -19030,7 +19633,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
-    'accounting.partner-ledger',
+    'accounting.partner-ledger', 'accounting.sales-commission-settlement',
     // V37 supplier-profiles — ACCOUNTANT: view only
     'accounting.supplier-profiles',
     // V30: ACCOUNTANT messenger.send VIEW/CREATE/UPDATE/DELETE.
@@ -19043,7 +19646,6 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.edit-requests', 'inventory.edit-requests.decide',
     'partners.list', 'partners.detail', 'partners.search',
     // MIG-14 admin UI — ACCOUNTANT: view 전용
-    'ecount.mig14.order-list',
     'ecount.mig14.ledger',
     // C2b PermissionGuard 전환 — ACCOUNTANT: slip.edit-requests view (V38 broadened)
     'slip.edit-requests',
@@ -19134,7 +19736,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // V99: MANAGER .list 1111 → .accounting 1111.
     'accounting.sales-slip.accounting', 'accounting.purchase-slip.accounting',
     'accounting.daily-closing.run',
-    'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts',
+    'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts', 'accounting.sales-commission-settlement',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
     'messenger.send',
@@ -19152,7 +19754,6 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
     // MIG-14 admin UI
-    'ecount.mig14.order-list',
     'ecount.mig14.ledger',
     // Issue 4 Slice 4
     'accounting.edit-requests', 'accounting.edit-requests.decide',
@@ -19221,7 +19822,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // V30: ACCOUNTANT messenger.send VIEW/CREATE/UPDATE/DELETE.
     'messenger.send',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
-    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close',
+    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.sales-commission-settlement',
     'accounting.statement-batch',
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
     'inventory.edit-requests', 'inventory.edit-requests.decide',

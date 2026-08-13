@@ -20,6 +20,7 @@ import {
   DataTable,
   type DataTableColumn,
 } from '@samhan/design-system'
+import { safeActorName } from '@samhan/design-system'
 import {
   listInboundInspections,
   INSPECTION_STATUS_LABEL,
@@ -117,7 +118,7 @@ export function InboundInspectionListPage() {
       header: '검수자',
       width: '120px',
       mobilePriority: 'hidden',
-      render: (row) => row.inspectorName ?? '—',
+      render: (row) => safeActorName(row.inspectorName) ?? '—',
     },
     {
       key: 'slipId',

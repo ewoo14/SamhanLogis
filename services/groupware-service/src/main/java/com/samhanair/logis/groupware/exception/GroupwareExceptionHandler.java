@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.TransactionTimedOutException;
+import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -92,6 +94,14 @@ public class GroupwareExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleIllegalState(IllegalStateException ex) {
         return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.CONFLICT, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
+    }
+
+    /** transaction timeout/rollback-only 표면을 스택트레이스 대신 재시도 안내로 반환한다. */
+    @ExceptionHandler({TransactionTimedOutException.class, UnexpectedRollbackException.class})
+    public ResponseEntity<ApiResponse<Void>> handleTransactionTimeout(Exception ex) {
+        return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR,
+                        "결재 생성 시간이 제한을 초과했습니다. 참조를 나누어 다시 시도해 주세요."));
     }
 
     /**

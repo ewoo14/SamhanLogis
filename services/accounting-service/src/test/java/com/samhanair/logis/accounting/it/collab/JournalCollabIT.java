@@ -29,6 +29,8 @@ import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -124,6 +126,33 @@ class JournalCollabIT extends AbstractPostgresIT {
                         .param("limit", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    /**
+     * 분개 상세 진입 시 자동 호출되는 협업 조회 경로 전체가 목록 응답의 opaque token을 받는지 검증한다.
+     * comments/presence/edits 조회와 동일 채널 SSE 구독을 한 번에 훑어 누락을 방지한다.
+     */
+    @Test
+    void detailCollaborationRequests_acceptOpaqueJournalTokenAcrossAllEndpoints() throws Exception {
+        UUID journalId = seedPostedJournal("20990613-OPAQ-COLLAB-" + SEQ.getAndIncrement()).getId();
+        String opaqueToken = opaqueToken(journalId);
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/comments", opaqueToken)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .param("limit", "20"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/presence", opaqueToken)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/edits", opaqueToken)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/stream", opaqueToken)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk());
     }
 
     /** POSTED 회계전표의 적요/라인메모 수정완료가 실 적용되고 ACCEPTED 이력이 남는지 검증한다. */
@@ -541,6 +570,12 @@ class JournalCollabIT extends AbstractPostgresIT {
                 BigDecimal.ZERO, BigDecimal.valueOf(1000), null, "대변 메모"));
         journal.post("posted_login");
         return journalRepository.saveAndFlush(journal);
+    }
+
+    private static String opaqueToken(UUID id) {
+        ByteBuffer buffer = ByteBuffer.allocate(16);
+        buffer.putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer.array());
     }
 
     private Journal seedReversedJournal(String journalNo) {

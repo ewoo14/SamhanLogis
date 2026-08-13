@@ -17,6 +17,9 @@ public record StockBalanceResponse(
         int totalQty,
         Long version) {
 
+    private static final String MISSING_PRODUCT_CODE = "참조 끊김";
+    private static final String MISSING_PRODUCT_NAME = "제품 마스터 없음";
+
     public static StockBalanceResponse from(StockBalance b) {
         return from(b, null);
     }
@@ -30,8 +33,8 @@ public record StockBalanceResponse(
      */
     public static StockBalanceResponse from(StockBalance b, ProductSummary product) {
         return new StockBalanceResponse(
-                product == null ? null : product.modelName(),
-                product == null ? null : product.name(),
+                product == null ? MISSING_PRODUCT_CODE : product.modelName(),
+                product == null ? MISSING_PRODUCT_NAME : product.name(),
                 b.getWarehouse().getCode(),
                 b.getWarehouse().getName(),
                 b.getWarehouse().getType(),
@@ -51,14 +54,29 @@ public record StockBalanceResponse(
      */
     public static StockBalanceResponse virtual(Warehouse warehouse, ProductSummary product) {
         return new StockBalanceResponse(
-                product == null ? null : product.modelName(),
-                product == null ? null : product.name(),
+                product == null ? MISSING_PRODUCT_CODE : product.modelName(),
+                product == null ? MISSING_PRODUCT_NAME : product.name(),
                 warehouse.getCode(),
                 warehouse.getName(),
                 WarehouseType.VIRTUAL,
                 0,
                 0,
                 0,
+                null);
+    }
+
+    /** 활성 시리얼 인스턴스 수를 재고 현황 수량으로 표시한다. */
+    public static StockBalanceResponse serial(Warehouse warehouse, ProductSummary product,
+                                              int availableQty, int reservedQty) {
+        return new StockBalanceResponse(
+                product == null ? MISSING_PRODUCT_CODE : product.modelName(),
+                product == null ? MISSING_PRODUCT_NAME : product.name(),
+                warehouse.getCode(),
+                warehouse.getName(),
+                warehouse.getType(),
+                availableQty,
+                reservedQty,
+                availableQty + reservedQty,
                 null);
     }
 }

@@ -5,6 +5,29 @@ metadata:
   type: feedback
 ---
 
+# 🚨🚨 2026-08-12 — **적대검증도 codex 토큰으로. Agent 적대리뷰는 발주하지 않는다**
+
+> 개발책임자: *"OPUS에 왜 적대검증을??"* · *"코덱스 토큰만 사용해"*
+
+PM 이 rebase 재수렴 라운드를 캐논대로 **OPUS 서브에이전트**에 발주하려 하자 개발책임자가 정정했다.
+
+| 스테이지 | ~~구~~ | **현행** |
+|---|---|---|
+| 1차 적대검증 | ~~OPUS 서브에이전트 (Agent `model:"opus"`)~~ | **CODEX SOL** (`gpt-5.6-sol`) |
+| 대조 각도 | ~~SONNET5 서브에이전트~~ | **CODEX SOL** |
+| 2차 적대검증 | CODEX SOL | CODEX SOL (변동 없음) |
+| 구현·라운드 fix | CODEX LUNA | CODEX LUNA (`gpt-5.6-luna`) — 변동 없음 |
+
+**Why**: PM 세션 토큰이 병목인데 Agent 서브에이전트는 **같은 풀을 쓴다.** codex 는 별개 풀이다. 적대검증을 Agent 로 돌리면 토큰 절약의 취지 자체가 사라진다 → [[feedback_pm_delegate_to_codex_conserve_tokens]].
+
+**How to apply**
+- 🚫 적대검증·대조·정찰 목적의 **Agent 툴 발주 금지.** 전부 `mcp__codex__codex` 로 보낸다.
+- 리뷰어/구현자 분리는 **모델이 아니라 스테이지로** 유지한다 — 같은 PR 을 **SOL 이 검증하고 LUNA 가 fix** 한다. 🚫 SOL 을 구현 폴백으로 쓰지 않는다(그 PR 을 리뷰한 모델에 구현을 맡기면 검증이 사라진다).
+- 2 트랙 정도의 codex 병렬은 안전하다. 12개는 붕괴한다 → [[feedback_codex_parallel_throughput_collapse]].
+- PM 이 직접 하는 것은 그대로다: 오케스트레이션 · 브리핑(불변식) · **산출물 검증** · commit 대행 · 게시 · 머지.
+
+---
+
 # 🚨 머지 게이트 = **도달성 축** (현행 정본)
 
 | # | 게이트 |

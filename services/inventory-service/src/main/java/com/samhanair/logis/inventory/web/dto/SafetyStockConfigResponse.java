@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.SafetyStockConfig;
 import java.util.UUID;
 
@@ -8,13 +9,14 @@ import java.util.UUID;
  *
  * @param id          설정 UUID
  * @param productId   제품 UUID
- * @param warehouseId 창고 UUID (null = 전체 합산 기준)
+ * @param warehouseId 창고 opaque token (null = 전체 합산 기준)
  * @param threshold   안전재고 임계값
  * @param note        메모
  */
 public record SafetyStockConfigResponse(
         UUID id,
         UUID productId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         int threshold,
         String note

@@ -14,6 +14,7 @@
  * })
  */
 import { apiClient, type ApiEnvelope } from './client'
+import { safeActorName } from '@samhan/design-system'
 
 /** BE 표준 audit log row — 모든 도메인 동일 schema. */
 export interface AuditLogEntry {
@@ -45,13 +46,18 @@ export interface AuditApiConfig {
   revertPath?: (entityId: string, revisionNo: number) => string
 }
 
+const UNKNOWN_ACTOR_NAME = '변경자 미상'
+function normalizeActorName(actorName: string | null | undefined): string {
+  return safeActorName(actorName) ?? UNKNOWN_ACTOR_NAME
+}
+
 export interface AuditApi {
   listAuditLogs: (entityId: string) => Promise<AuditLogEntry[]>
   /** revertPath 미설정 시 reject. */
   revertToRevision: (entityId: string, revisionNo: number) => Promise<RevertResponse>
 }
 
-interface RawAuditLogEntry {
+export interface RawAuditLogEntry {
   revisionNo: number
   field?: string
   fieldName?: string
@@ -60,18 +66,18 @@ interface RawAuditLogEntry {
   afterValue?: string | null
   newValue?: string | null
   actorId: string
-  actorName: string
+  actorName: string | null
   changedAt: string
 }
 
-function normalizeAuditLogEntry(entry: RawAuditLogEntry): AuditLogEntry {
+export function normalizeAuditLogEntry(entry: RawAuditLogEntry): AuditLogEntry {
   return {
     revisionNo: entry.revisionNo,
     field: entry.field ?? entry.fieldName ?? '',
     beforeValue: entry.beforeValue ?? entry.oldValue ?? null,
     afterValue: entry.afterValue ?? entry.newValue ?? null,
     actorId: entry.actorId,
-    actorName: entry.actorName,
+    actorName: normalizeActorName(entry.actorName),
     changedAt: entry.changedAt,
   }
 }
@@ -118,7 +124,7 @@ export const partnerOrderAuditApi = createAuditApi({
 
 export const dcConfigAuditApi = createAuditApi({
   listPath: (partnerCode) =>
-    `/api/v1/dc-configs/${encodeURIComponent(partnerCode)}/audit-logs`,
+    `/api/v1/partner-dc-configs/${encodeURIComponent(partnerCode)}/audit-logs`,
 })
 
 /**

@@ -23,6 +23,8 @@ metadata:
 6  git worktree prune
 ```
 
+🚨 **정리 확인은 `git worktree list` 가 아니라 `ls -d .claude/worktrees/*/` 로 센다 — 두 수가 같아야 정리된 것이다.** `remove` 없이 `prune` 만 돌면 등록만 사라지고 디렉토리가 남아 `list` 에 안 보인다(2026-08-12 실측: 디렉토리 50 vs 등록 6 = 고아 44. 그 자리에 `worktree add` 하면 `fatal: already exists`).
+
 🚨 **3~4번을 건너뛰면 증거가 영영 사라진다.** 머지된 PR 은 브랜치가 지워지면 복구 경로가 없고, *"그때 무엇을 확인하고 머지했나"* 를 물으면 그것뿐이다.
 
 ## 무엇을 회수하고 무엇을 두고 오나

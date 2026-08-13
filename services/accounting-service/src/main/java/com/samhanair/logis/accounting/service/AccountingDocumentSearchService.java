@@ -1,11 +1,14 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.repository.JournalRepository;
+import com.samhanair.logis.accounting.domain.SalesCommissionSettlementStatus;
+import com.samhanair.logis.accounting.repository.SalesCommissionSettlementRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.AccountingJournalSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingLedgerPartnerSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingStatementSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingTaxInvoiceSearchResponse;
+import com.samhanair.logis.accounting.web.dto.AccountingSalesCommissionSettlementSearchResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +27,7 @@ public class AccountingDocumentSearchService {
 
     private final JournalRepository journalRepository;
     private final TaxInvoiceRepository taxInvoiceRepository;
+    private final SalesCommissionSettlementRepository salesCommissionSettlementRepository;
 
     /** 분개번호 또는 적요로 분개장 참조 후보를 검색한다. */
     public List<AccountingJournalSearchResponse> searchJournals(String q, int limit) {
@@ -47,6 +51,20 @@ public class AccountingDocumentSearchService {
     /** 거래처코드 또는 거래처명으로 거래처원장 참조 후보를 검색한다. */
     public List<AccountingLedgerPartnerSearchResponse> searchLedgerPartners(String q, int limit) {
         return taxInvoiceRepository.searchLedgerPartnerReferences(normalize(q), pageable(limit));
+    }
+
+    /** 확정 영업수수료 정산서의 문서번호로 결재 첨부 후보를 검색한다. */
+    public List<AccountingSalesCommissionSettlementSearchResponse> searchSalesCommissionSettlements(
+            String q, int limit) {
+        return salesCommissionSettlementRepository
+                .searchApprovalReferences(normalize(q), SalesCommissionSettlementStatus.CONFIRMED, pageable(limit))
+                .stream()
+                .map(settlement -> new AccountingSalesCommissionSettlementSearchResponse(
+                        settlement.getDocumentNo(),
+                        settlement.getSettlementDate(),
+                        settlement.getStatus().name(),
+                        settlement.getPayoutAmount()))
+                .toList();
     }
 
     private Pageable pageable(int requestedLimit) {

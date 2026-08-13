@@ -43,6 +43,7 @@ import {
 } from '../api/productCatalogApi'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { COMPONENT_FEATURE_OPTIONS, COMPONENT_SHAPE_OPTIONS } from '../utils/bundleOptionDomain'
 import {
   buildCreateProductRequest,
   buildUpdateProductRequest,
@@ -592,6 +593,19 @@ export function ProductFormPage() {
             data-testid="product-form-unit"
           />
         </div>
+
+        {mode === 'edit' && editSeedQuery.data?.detail ? (
+          <div className="mobile-form-grid" style={gridStyle} aria-label="감사 정보">
+            <div style={auditFieldStyle} data-testid="product-form-created-by">
+              <span style={labelStyle}>작성자</span>
+              <span>{editSeedQuery.data.detail.createdBy ?? '감사 주체 미상'}</span>
+            </div>
+            <div style={auditFieldStyle} data-testid="product-form-modified-by">
+              <span style={labelStyle}>수정자</span>
+              <span>{editSeedQuery.data.detail.modifiedBy ?? '감사 주체 미상'}</span>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {mode === 'edit' && editSeedQuery.data?.summary.productType === 'BUNDLE' ? (
@@ -873,6 +887,11 @@ const COMPONENT_KINDS: Array<{ value: ComponentKind; label: string }> = [
   { value: 'FOOT', label: '받침대' },
 ]
 
+const FEATURE_OPTIONS: Record<ComponentKind, readonly string[]> = {
+  ...COMPONENT_FEATURE_OPTIONS,
+  INDOOR: [], OUTDOOR: [], MATERIAL: [], ACCESSORY: [], FOOT: [],
+}
+
 const helpTextStyle: CSSProperties = {
   margin: 0,
   color: 'var(--color-neutral-500, #6B7280)',
@@ -919,9 +938,15 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
       qtyMode: 'FOLLOW_SET',
       componentKind: 'ACCESSORY',
       componentVariant: null,
+      componentShape: null,
       isDefault: false,
       specText: null,
       displayOrder: current.length + 1,
+      // 신규 행은 V39 기본 계약과 동일하게 FIXED로 시작한다.
+      // 금액은 서버가 신규 구성품의 deliveryPrice로 확정하므로 여기서는 null을 보낸다.
+      allocationMode: 'FIXED',
+      allocationWeight: null,
+      fixedAllocationAmount: null,
     }])
     setNewCode('')
   }
@@ -933,8 +958,12 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
     qtyMode: item.qtyMode,
     componentKind: item.componentKind,
     componentVariant: item.componentVariant,
+    componentShape: item.componentShape || null,
     isDefault: item.isDefault,
     specText: item.specText,
+    allocationMode: item.allocationMode,
+    allocationWeight: item.allocationWeight,
+    fixedAllocationAmount: item.fixedAllocationAmount,
   })))
 
   return (
@@ -949,12 +978,35 @@ function BundleComponentsEditor({ modelCode, canEdit }: { modelCode: string; can
       {error ? <div role="alert" style={errorBannerStyle}>{error}</div> : null}
       {query.isLoading ? <p>구성품을 불러오는 중입니다.</p> : null}
       {drafts.map((item, index) => (
-        <div key={item.localId} data-testid={`product-form-component-row-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 130px auto', gap: 8, alignItems: 'end' }}>
+        <div key={item.localId} data-testid={`product-form-component-row-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 130px 110px auto', gap: 8, alignItems: 'end' }}>
           <Input label={item.componentName ? `${item.componentName} · 모델코드` : '모델코드'} value={item.componentProductCode} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentProductCode: event.target.value })} />
           <Input label="수량" type="number" min="0.01" value={String(item.defaultQty)} disabled={!canEdit} onChange={(event) => updateDraft(index, { defaultQty: Number(event.target.value) || 1 })} />
           <Select label="종류" value={item.componentKind} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentKind: event.target.value as ComponentKind })}>
             {COMPONENT_KINDS.map((kind) => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
           </Select>
+          <Select label="특징" value={item.componentVariant ?? ''} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentVariant: event.target.value || null, isDefault: event.target.value === '기본' })}>
+            <option value="">(없음)</option>
+            {(FEATURE_OPTIONS[item.componentKind] ?? []).map((feature) => <option key={feature} value={feature}>{feature}</option>)}
+          </Select>
+          <Select label="형상" value={item.componentShape ?? ''} disabled={!canEdit} onChange={(event) => updateDraft(index, { componentShape: event.target.value || null })}>
+            {COMPONENT_SHAPE_OPTIONS.map((shape) => <option key={shape} value={shape}>{shape || '(없음)'}</option>)}
+          </Select>
+          <Select label="수량 동기화" value={item.qtyMode} disabled={!canEdit} onChange={(event) => updateDraft(index, { qtyMode: event.target.value as BundleComponentDraft['qtyMode'] })}>
+            <option value="FOLLOW_SET">세트 따라감</option><option value="FIXED">고정</option>
+          </Select>
+          <Input label="비중" type="number" min="1" max="9" value={item.allocationWeight == null ? '' : String(item.allocationWeight)} disabled={!canEdit || item.allocationMode !== 'AUTO'} onChange={(event) => updateDraft(index, { allocationWeight: event.target.value ? Number(event.target.value) : null })} />
+          <Input label="고정금액" type="number" min="0" value={item.fixedAllocationAmount == null ? '' : String(item.fixedAllocationAmount)} disabled={!canEdit || item.allocationMode !== 'FIXED'} onChange={(event) => updateDraft(index, { fixedAllocationAmount: event.target.value || null })} />
+          <Input label="반올림 단위" type="number" min="1" defaultValue="1000" disabled={!canEdit} />
+          <label style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 }}>
+            <input
+              type="checkbox"
+              aria-label="기본 구성품"
+              checked={item.isDefault}
+              disabled={!canEdit}
+              onChange={(event) => updateDraft(index, { isDefault: event.target.checked })}
+            />
+            기본 구성품
+          </label>
           {canEdit ? <Button variant="secondary" onClick={() => remove(index)} data-testid={`product-form-component-delete-${index}`}>삭제</Button> : null}
         </div>
       ))}
@@ -1008,6 +1060,15 @@ const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 14,
   color: 'var(--color-neutral-800, #1F2937)',
+}
+
+const auditFieldStyle: CSSProperties = {
+  display: 'grid',
+  gap: 6,
+  minHeight: 38,
+  alignContent: 'center',
+  color: 'var(--color-neutral-800, #1F2937)',
+  fontSize: 13,
 }
 
 const sectionHeaderStyle: CSSProperties = {

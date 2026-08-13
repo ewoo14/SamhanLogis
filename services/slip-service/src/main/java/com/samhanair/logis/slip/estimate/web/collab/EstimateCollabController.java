@@ -9,6 +9,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
@@ -19,6 +20,7 @@ import com.samhanair.logis.slip.estimate.collab.EstimateCollabEditService;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabSuggestionRepository;
 import com.samhanair.logis.slip.estimate.collab.EstimateDocumentCollaborationPort;
 import com.samhanair.logis.slip.estimate.repository.EstimateRepository;
+import com.samhanair.logis.slip.estimate.service.EstimateService;
 import com.samhanair.logis.slip.estimate.web.EstimatePermissionGuard;
 import com.samhanair.logis.slip.estimate.web.collab.dto.AddEstimateCollabCommentRequest;
 import com.samhanair.logis.slip.estimate.web.collab.dto.CommitEstimateCollabEditRequest;
@@ -33,7 +35,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -63,15 +64,13 @@ public class EstimateCollabController {
 
     private static final String CALLER_ID_HEADER = "X-User-Id";
     private static final String CALLER_NAME_HEADER = "X-User-Name";
-    private static final Pattern UUID_SHAPE = Pattern.compile(
-            "(?i)^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$");
-
     private final CollabCommentService<EstimateCollabComment> commentService;
     private final EstimateCollabEditService editService;
     private final EstimateCollabSuggestionRepository suggestionRepository;
     private final EstimateDocumentCollaborationPort port;
     private final RealtimeBroker broker;
     private final EstimateRepository estimateRepository;
+    private final EstimateService estimateService;
     private final PresenceService presenceService;
     private final CollabCoeditService coeditService;
 
@@ -81,6 +80,7 @@ public class EstimateCollabController {
                                     EstimateDocumentCollaborationPort port,
                                     RealtimeBroker broker,
                                     EstimateRepository estimateRepository,
+                                    EstimateService estimateService,
                                     PresenceService presenceService,
                                     CollabCoeditService coeditService) {
         this.commentService = commentService;
@@ -89,6 +89,7 @@ public class EstimateCollabController {
         this.port = port;
         this.broker = broker;
         this.estimateRepository = estimateRepository;
+        this.estimateService = estimateService;
         this.presenceService = presenceService;
         this.coeditService = coeditService;
     }
@@ -99,14 +100,14 @@ public class EstimateCollabController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<EstimateCollabCommentResponse> addComment(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @Valid @RequestBody AddEstimateCollabCommentRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        ensureEstimateExists(estimateId);
+        UUID estimateUuid = resolveEstimateId(estimateId);
         EstimateCollabComment saved = commentService.add(
                 CollabDocumentType.ESTIMATE,
-                estimateId,
+                estimateUuid,
                 request.anchor(),
                 resolveActorId(callerId),
                 resolveActorName(callerName),
@@ -120,11 +121,11 @@ public class EstimateCollabController {
     @GetMapping("/{estimateId}/collab/comments")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<EstimateCollabCommentResponse>> listComments(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @RequestParam(defaultValue = "20") int limit) {
-        ensureEstimateExists(estimateId);
+        UUID estimateUuid = resolveEstimateId(estimateId);
         List<EstimateCollabCommentResponse> items = commentService
-                .listRecent(CollabDocumentType.ESTIMATE, estimateId, limit)
+                .listRecent(CollabDocumentType.ESTIMATE, estimateUuid, limit)
                 .stream()
                 .map(EstimateCollabCommentResponse::from)
                 .toList();
@@ -136,12 +137,12 @@ public class EstimateCollabController {
     @DeleteMapping("/{estimateId}/collab/comments/{commentId}")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<Void> deleteComment(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @PathVariable UUID commentId,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId) {
-        ensureEstimateExists(estimateId);
+        UUID estimateUuid = resolveEstimateId(estimateId);
         commentService.softDelete(
-                CollabDocumentType.ESTIMATE, estimateId, commentId, resolveDeleter(callerId));
+                CollabDocumentType.ESTIMATE, estimateUuid, commentId, resolveDeleter(callerId));
         return ApiResponse.ok(null);
     }
 
@@ -150,11 +151,11 @@ public class EstimateCollabController {
     @PostMapping("/{estimateId}/collab/comments/{commentId}/resolve")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<EstimateCollabCommentResponse> resolveComment(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @PathVariable UUID commentId) {
-        ensureEstimateExists(estimateId);
+        UUID estimateUuid = resolveEstimateId(estimateId);
         return ApiResponse.ok(EstimateCollabCommentResponse.from(
-                commentService.resolve(CollabDocumentType.ESTIMATE, estimateId, commentId)));
+                commentService.resolve(CollabDocumentType.ESTIMATE, estimateUuid, commentId)));
     }
 
     /** 견적 수정완료. */
@@ -163,14 +164,14 @@ public class EstimateCollabController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<EstimateCollabEditResponse> commitEdit(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @Valid @RequestBody CommitEstimateCollabEditRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        ensureEstimateExists(estimateId);
+        UUID estimateUuid = resolveEstimateId(estimateId);
         port.validateChangeSet(request.changeSet());
         EstimateCollabEditService.Result result = editService.commitEdit(
-                port, estimateId, resolveActorId(callerId), resolveActorName(callerName),
+                port, estimateUuid, resolveActorId(callerId), resolveActorName(callerName),
                 request.changeSet(), request.reason());
         return ApiResponse.ok(new EstimateCollabEditResponse(
                 EstimateCollabSuggestionResponse.from(result.edit()), result.estimate()));
@@ -181,11 +182,11 @@ public class EstimateCollabController {
     @GetMapping("/{estimateId}/collab/edits")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<EstimateCollabSuggestionResponse>> listEdits(
-            @PathVariable UUID estimateId) {
-        ensureEstimateExists(estimateId);
+            @PathVariable String estimateId) {
+        UUID estimateUuid = resolveEstimateId(estimateId);
         List<EstimateCollabSuggestionResponse> items = suggestionRepository
                 .findByDocumentTypeAndDocumentIdAndStatusOrderByCreatedAtDesc(
-                        CollabDocumentType.ESTIMATE, estimateId, CollabSuggestionStatus.ACCEPTED)
+                        CollabDocumentType.ESTIMATE, estimateUuid, CollabSuggestionStatus.ACCEPTED)
                 .stream()
                 .map(EstimateCollabSuggestionResponse::from)
                 .toList();
@@ -197,9 +198,9 @@ public class EstimateCollabController {
     @GetMapping("/{estimateId}/collab/coedit")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<EstimateCoeditUpdatesResponse> listCoeditUpdates(
-            @PathVariable UUID estimateId) {
-        ensureEstimateExists(estimateId);
-        return ApiResponse.ok(new EstimateCoeditUpdatesResponse(coeditService.listUpdates(estimateId)));
+            @PathVariable String estimateId) {
+        UUID estimateUuid = resolveEstimateId(estimateId);
+        return ApiResponse.ok(new EstimateCoeditUpdatesResponse(coeditService.listUpdates(estimateUuid)));
     }
 
     /** 견적 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
@@ -207,10 +208,10 @@ public class EstimateCollabController {
     @PostMapping("/{estimateId}/collab/coedit/update")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<Void> appendCoeditUpdate(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @RequestBody(required = false) EstimateCoeditUpdateRequest request) {
-        ensureEstimateExists(estimateId);
-        coeditService.appendUpdate(estimateId, request == null ? null : request.update());
+        UUID estimateUuid = resolveEstimateId(estimateId);
+        coeditService.appendUpdate(estimateUuid, request == null ? null : request.update());
         return ApiResponse.ok(null);
     }
 
@@ -219,10 +220,10 @@ public class EstimateCollabController {
     @PostMapping("/{estimateId}/collab/coedit/awareness")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<Void> publishCoeditAwareness(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @RequestBody(required = false) EstimateCoeditAwarenessRequest request) {
-        ensureEstimateExists(estimateId);
-        coeditService.publishAwareness(estimateId, request == null ? null : request.awareness());
+        UUID estimateUuid = resolveEstimateId(estimateId);
+        coeditService.publishAwareness(estimateUuid, request == null ? null : request.awareness());
         return ApiResponse.ok(null);
     }
 
@@ -230,9 +231,9 @@ public class EstimateCollabController {
     @Operation(summary = "견적 협업 SSE stream 구독")
     @GetMapping(value = "/{estimateId}/collab/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
-    public SseEmitter stream(@PathVariable UUID estimateId) {
-        ensureEstimateExists(estimateId);
-        return broker.subscribe(estimateId);
+    public SseEmitter stream(@PathVariable String estimateId) {
+        UUID estimateUuid = resolveEstimateId(estimateId);
+        return broker.subscribe(estimateUuid);
     }
 
     /**
@@ -246,15 +247,15 @@ public class EstimateCollabController {
     @PostMapping("/{estimateId}/collab/presence/join")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<PresenceEntry> joinPresence(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @RequestBody(required = false) EstimatePresenceRequest request,
             @RequestHeader(CALLER_ID_HEADER) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        ensureEstimateExists(estimateId);
+        UUID estimateUuid = resolveEstimateId(estimateId);
         String userId = resolvePresenceUserId(callerId);
         String sessionId = resolvePresenceSessionId(request);
         String displayName = resolvePresenceDisplayName(callerName, request);
-        return ApiResponse.ok(presenceService.join(estimateId, sessionId, userId, displayName));
+        return ApiResponse.ok(presenceService.join(estimateUuid, sessionId, userId, displayName));
     }
 
     /**
@@ -267,12 +268,12 @@ public class EstimateCollabController {
     @PostMapping("/{estimateId}/collab/presence/leave")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<Void> leavePresence(
-            @PathVariable UUID estimateId,
+            @PathVariable String estimateId,
             @RequestBody(required = false) EstimatePresenceRequest request,
             @RequestHeader(CALLER_ID_HEADER) String callerId) {
-        ensureEstimateExists(estimateId);
+        UUID estimateUuid = resolveEstimateId(estimateId);
         String userId = resolvePresenceUserId(callerId);
-        presenceService.leave(estimateId, resolvePresenceSessionId(request), userId);
+        presenceService.leave(estimateUuid, resolvePresenceSessionId(request), userId);
         return ApiResponse.ok(null);
     }
 
@@ -285,15 +286,17 @@ public class EstimateCollabController {
     @Operation(summary = "견적 협업 presence 목록")
     @GetMapping("/{estimateId}/collab/presence")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
-    public ApiResponse<List<PresenceEntry>> listPresence(@PathVariable UUID estimateId) {
-        ensureEstimateExists(estimateId);
-        return ApiResponse.ok(presenceService.list(estimateId));
+    public ApiResponse<List<PresenceEntry>> listPresence(@PathVariable String estimateId) {
+        UUID estimateUuid = resolveEstimateId(estimateId);
+        return ApiResponse.ok(presenceService.list(estimateUuid));
     }
 
-    private void ensureEstimateExists(UUID estimateId) {
+    private UUID resolveEstimateId(String pathId) {
+        UUID estimateId = estimateService.resolveId(pathId);
         if (!estimateRepository.existsById(estimateId)) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "대상 견적을 찾을 수 없습니다");
         }
+        return estimateId;
     }
 
     private UUID resolveActorId(String header) {
@@ -308,13 +311,10 @@ public class EstimateCollabController {
     }
 
     private String resolveActorName(String callerName) {
-        if (callerName == null || callerName.isBlank()) {
-            return "system";
-        }
-        String normalized = callerName.trim();
-        if (UUID_SHAPE.matcher(normalized).matches()) {
-            return "system";
-        }
+        String normalized = callerName == null ? null : callerName.trim();
+        String resolved = ActorDisplayName.resolve(null, normalized);
+        if ("system".equals(resolved)) return resolved;
+        normalized = resolved;
         return normalized.length() <= CollabCommentRecord.MAX_AUTHOR_NAME_LENGTH
                 ? normalized
                 : normalized.substring(0, CollabCommentRecord.MAX_AUTHOR_NAME_LENGTH);
@@ -364,7 +364,8 @@ public class EstimateCollabController {
             String resolved = resolveActorName(callerName);
             return "system".equals(resolved) ? null : resolved;
         }
-        return request == null ? null : request.displayName();
+        String resolved = request == null ? null : resolveActorName(request.displayName());
+        return "system".equals(resolved) ? null : resolved;
     }
 
     /**

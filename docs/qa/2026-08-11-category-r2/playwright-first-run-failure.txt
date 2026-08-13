@@ -1,0 +1,38 @@
+PR #1166 SOL R2 Playwright 첫 실행 실패 원문
+실행 시각: 2026-08-11 KST
+실행 위치: clients/desktop
+명령: .\node_modules\.bin\playwright.cmd test --config=playwright/1166-product-category-sol-review/playwright.config.ts --project=chromium --reporter=line
+
+Running 2 tests using 1 worker
+
+[1/2] 등록 폼의 필수 카테고리 선택에서 미등록을 선택할 수 있다
+Error: expect(locator).toBeVisible() failed
+Locator: getByTestId('product-form-category')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+at 1166-product-category-sol-review.spec.ts:130:26
+
+[2/2] 기초품목 화면에서 미등록 필터와 2,126건 카운트를 제공한다
+Error: expect(locator).toBeVisible() failed
+Locator: getByTestId('product-catalog-table')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+at 1166-product-category-sol-review.spec.ts:140:59
+
+2 failed
+
+페이지 snapshot 공통 상태:
+- 요청 URL은 /#/products/new 또는 /#/products/catalog 이었으나 실제 heading은 "대시보드"
+- 제품 assertion 전에 목표 route 진입 자체가 실패
+
+원인:
+- 첫 실행 서버를 vite.web.config.ts로 띄워 VITE_PLATFORM=web의 BrowserRouter가 선택됐다.
+- spec은 HashRouter URL(/#/...)을 사용하므로 hash가 무시되어 대시보드로 낙착했다.
+- 저장소 harness-false-green-guard.test.ts의 H-1 설명과 동일한 하네스 오류다.
+
+교정:
+- 제가 띄운 5316 프로세스만 종료했다.
+- vite.config.ts + root=src/renderer로 다시 기동해 HashRouter와 spec을 맞췄다.
+- 동일 Playwright spec 최종 결과: 2 passed (2.7s), chromium-1217 headless.

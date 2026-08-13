@@ -1,14 +1,18 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { TextDecoder } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { getMockResponse } from '../api/mock'
+import { PERMISSION_BITS_BY_ROLE } from './accounting-slip-permission-snapshot'
 import { assertExactPermissionMatrix } from './permission-contract-checker'
 
 const workspace = resolve(__dirname, '../../..')
 const routes = readFileSync(resolve(workspace, 'src/renderer/routes/index.tsx'), 'utf8')
 const layout = readFileSync(resolve(workspace, 'src/renderer/components/AppLayout.tsx'), 'utf8')
 const mock = readFileSync(resolve(workspace, 'src/renderer/api/mock.ts'), 'utf8')
-const refreshScript = readFileSync(resolve(workspace, '../../scripts/refresh-accounting-permission-db-snapshot.ps1'), 'utf8')
+const dbSnapshot = readStrictUtf8('src/renderer/test-utils/accounting-slip-permission-db-snapshot.ts')
+const refreshScript = readStrictUtf8('../../scripts/refresh-accounting-permission-db-snapshot.ps1')
+const permissionChecker = readStrictUtf8('src/renderer/test-utils/permission-contract-checker.ts')
 const salesAccountingSlipPage = readFileSync(resolve(workspace, 'src/renderer/routes/accounting/SalesAccountingSlipPage.tsx'), 'utf8')
 const purchaseAccountingSlipPage = readFileSync(resolve(workspace, 'src/renderer/routes/accounting/PurchaseAccountingSlipPage.tsx'), 'utf8')
 const taxInvoiceController = readFileSync(
@@ -20,6 +24,51 @@ const migrationPath = resolve(
   '../../services/auth-service/src/main/resources/db/migration/V99__align_accounting_slip_permissions.sql',
 )
 const migration = existsSync(migrationPath) ? readFileSync(migrationPath, 'utf8') : ''
+
+const canonicalNonAsciiLines = {
+  generator: [
+    "  throw 'DB 파생 스냅샷 갱신 중단: docker 명령이 없습니다.'",
+    "if (-not $pageMatch.Success) { throw 'PERMISSION_PAGE_CODES를 찾지 못했습니다.' }",
+    '# 공유 auth_db의 적용 여부에 의존하지 않는다. 매번 일회성 PostgreSQL에 저장소의',
+    '# migration 전체를 Flyway로 적용한 뒤 그 결과만 SELECT한다. 이 컨테이너/네트워크는',
+    '# finally에서 제거되므로 운영 DB에는 쓰기가 발생하지 않는다.',
+    "  if ($LASTEXITCODE -ne 0) { throw '임시 Docker 네트워크 생성에 실패했습니다.' }",
+    "  if ($LASTEXITCODE -ne 0) { throw '임시 PostgreSQL 컨테이너 생성에 실패했습니다.' }",
+    "  if (-not $databaseReady) { throw '임시 PostgreSQL이 준비되지 않았습니다.' }",
+    "  if ($LASTEXITCODE -ne 0) { throw '전체 migration 적용에 실패했습니다. projection을 갱신하지 않습니다.' }",
+    "    throw 'DB 파생 스냅샷 갱신 중단: 전체 migration DB SELECT가 실패했거나 결과가 비었습니다. 기존 체크인 산출물로 조용히 대체하지 않습니다.'",
+    "    throw \"DB 파생 스냅샷 갱신 중단: 잘못된 projection row '$row'\"",
+    "    throw \"DB 파생 스냅샷 갱신 중단: duplicate projection cell $cell first/second bits cannot be represented\"",
+    "$lines.Add('// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES. Missing DB rows are 0000000.')",
+  ],
+  dbSnapshot: [
+    '// Scope: PERMISSION_ROLES × PERMISSION_PAGE_CODES. Missing DB rows are 0000000.',
+  ],
+  checker: [
+    "  expect([...mockPageCodes].sort(), 'mock ↔ snapshot page-code catalog').toEqual([...snapshotPageCodes].sort())",
+    "  expect([...mockRoles].sort(), 'mock ↔ snapshot role catalog').toEqual([...snapshotRoles].sort())",
+    ' * Mock account endpoint와 auth_db role_page_permission_templates 스냅샷의',
+    ' * 역할 × page code × 7-action 전체 곱을 비교한다. 누락 셀도 0000000으로',
+    ' * 묵인하지 않고 page/role 집합 자체를 먼저 비교한다.',
+    "      expect(cell, `${role} × ${pageCode} cell`).toBeDefined()",
+    "      expect(actualBits, `${role} × ${pageCode}`).toBe(frozenDivergence?.mockBits ?? expectedBits)",
+  ],
+} as const
+
+function readStrictUtf8(relativePath: string): string {
+  return new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(resolve(workspace, relativePath)))
+}
+
+function nonAsciiLines(source: string): string[] {
+  return source
+    .split(/\r?\n/)
+    .filter((line) => /[^\x00-\x7F]/u.test(line))
+    .map((line) => line.replace(/^\uFEFF/u, ''))
+}
+
+function assertCanonicalNonAsciiInventory(label: keyof typeof canonicalNonAsciiLines, source: string): void {
+  expect(nonAsciiLines(source), `${label} non-ASCII inventory`).toEqual(canonicalNonAsciiLines[label])
+}
 
 type PermissionCell = {
   view: boolean
@@ -68,6 +117,35 @@ describe('accounting slip permission contract', () => {
     expect(refreshScript).toContain("$lines.Add('const TEMPLATE_PERMISSION_DB_BITS_BY_ROLE")
     expect(refreshScript).toContain("$lines.Add('// DynamicPermissionService bypasses role templates for MASTER")
     expect(refreshScript).toContain("MASTER: Object.fromEntries(PERMISSION_PAGE_CODES.map((pageCode) => [pageCode, '1111111']))")
+    expect(refreshScript).toContain('$seenCells = [System.Collections.Generic.HashSet[string]]::new()')
+    expect(refreshScript).toContain('duplicate projection cell')
+  })
+
+  it('writes a PowerShell 5.1 refresh artifact with LF and one readable error line', () => {
+    expect(refreshScript).not.toContain('[Environment]::NewLine')
+    expect(refreshScript).toContain('($lines -join "`n") + "`n"')
+    expect(refreshScript).toContain('[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)')
+    expect(refreshScript).toContain('$OutputEncoding = [Text.UTF8Encoding]::new($false)')
+    expect(refreshScript).toContain('[Console]::Error.WriteLine($_.Exception.Message)')
+    expect(refreshScript).toContain('exit 1')
+  })
+
+  it('strictly decodes and pins every non-ASCII generator, snapshot, and checker line', () => {
+    assertCanonicalNonAsciiInventory('generator', refreshScript)
+    assertCanonicalNonAsciiInventory('dbSnapshot', dbSnapshot)
+    assertCanonicalNonAsciiInventory('checker', permissionChecker)
+
+    const mutations = [
+      ['generator multiplication sign', 'generator', refreshScript.replace('×', '�')],
+      ['generator Korean error text', 'generator', refreshScript.replace('DB 파생 스냅샷 갱신 중단', 'DB ?뚯깮 스냅샷 갱신 중단')],
+      ['checker arrow symbol', 'checker', permissionChecker.replace('↔', '→')],
+      ['checker Korean JSDoc', 'checker', permissionChecker.replace('역할', '役割')],
+      ['snapshot multiplication sign', 'dbSnapshot', dbSnapshot.replace('×', '…')],
+    ] as const
+
+    for (const [name, label, mutatedSource] of mutations) {
+      expect(() => assertCanonicalNonAsciiInventory(label, mutatedSource), name).toThrow()
+    }
   })
 
   it('gates every accounting slip write CTA by the canonical accounting permission action', () => {
@@ -226,6 +304,62 @@ describe('accounting slip permission contract', () => {
   })
 
   it('R8: every mock page and every role matches the canonical 7-bit matrix', () => {
-    assertExactPermissionMatrix({ getMockResponse, mockSource: mock })
+    assertExactPermissionMatrix({ getMockResponse, mockSource: mock, snapshotSource: dbSnapshot })
+  })
+
+  it('RED-A: rejects a snapshot page duplicated across two bit buckets', () => {
+    const duplicatedSnapshot = structuredClone(PERMISSION_BITS_BY_ROLE)
+    duplicatedSnapshot.ACCOUNTANT['1000000'] = [
+      ...duplicatedSnapshot.ACCOUNTANT['1000000'],
+      'accounting.sales-commission-settlement',
+    ]
+
+    expect(() => (assertExactPermissionMatrix as (options: Record<string, unknown>) => void)({
+      getMockResponse,
+      mockSource: mock,
+      snapshotBitsByRole: duplicatedSnapshot,
+    })).toThrow(/ACCOUNTANT\|accounting\.sales-commission-settlement/)
+  })
+
+  it('RED-A: rejects duplicate keys in the raw DB projection source before import', () => {
+    const marker = [
+      "    'accounting.bank-matching': '1110000',",
+      "    'accounting.deposit-match': '1000000',",
+      "    'accounting.cash-receipts': '1111000',",
+      "    'accounting.sales-commission-settlement': '1110000',",
+      "    'accounting.period-close': '1000000',",
+    ].join('\n')
+    const duplicatedSource = dbSnapshot.replace(marker, [
+      "    'accounting.bank-matching': '1110000',",
+      "    'accounting.deposit-match': '1000000',",
+      "    'accounting.cash-receipts': '1111000',",
+      "    'accounting.sales-commission-settlement': '0000000',",
+      "    'accounting.sales-commission-settlement': '1110000',",
+      "    'accounting.period-close': '1000000',",
+    ].join('\n'))
+
+    expect(duplicatedSource).not.toBe(dbSnapshot)
+    expect(() => (assertExactPermissionMatrix as (options: Record<string, unknown>) => void)({
+      getMockResponse,
+      mockSource: mock,
+      snapshotSource: duplicatedSource,
+    })).toThrow(/MANAGER\|accounting\.sales-commission-settlement/)
+  })
+
+  it('rejects duplicate page rows in the mock role edit source before membership lookup', () => {
+    const editSource = mock.match(/const SP_D1_DEFAULT_EDIT[\s\S]*?= \{([\s\S]*?)\n\}\n\n/)?.[1]
+    expect(editSource, 'SP_D1_DEFAULT_EDIT source').toBeTruthy()
+    const duplicateCells: string[] = []
+    const roles = /([A-Z]+): \[([\s\S]*?)\n  \],/g
+    let roleMatch: RegExpExecArray | null
+    while ((roleMatch = roles.exec(editSource ?? '')) !== null) {
+      const pages = Array.from(roleMatch[2].matchAll(/'([^']+)'/g), (match) => match[1])
+      const seen = new Set<string>()
+      for (const page of pages) {
+        if (seen.has(page)) duplicateCells.push(`${roleMatch[1]}|${page}`)
+        seen.add(page)
+      }
+    }
+    expect(duplicateCells, 'mock role/page source must be duplicate-free').toEqual([])
   })
 })

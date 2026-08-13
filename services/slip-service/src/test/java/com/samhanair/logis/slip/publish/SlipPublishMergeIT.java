@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.domain.SlipPublishAudit;
 import com.samhanair.logis.slip.domain.SlipSourceOrder;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.it.OpaqueUuidTestDecoder;
 import com.samhanair.logis.slip.repository.SlipPublishAuditRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
@@ -531,7 +532,9 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID slipId = readSlipId(first);
+        String slipToken = objectMapper.readTree(first.getResponse().getContentAsString())
+                .get("data").get("slipId").asText();
+        UUID slipId = OpaqueUuidTestDecoder.decode(slipToken);
         jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
                 legacyMergeFingerprint(body), slipId);
 
@@ -543,7 +546,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.idempotentReplay").value(true))
-                .andExpect(jsonPath("$.data.slipId").value(slipId.toString()));
+                .andExpect(jsonPath("$.data.slipId").value(slipToken));
     }
 
     @Test
@@ -623,7 +626,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
     }
 
     private UUID readSlipId(MvcResult result) throws Exception {
-        return UUID.fromString(
+        return OpaqueUuidTestDecoder.decode(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
     }

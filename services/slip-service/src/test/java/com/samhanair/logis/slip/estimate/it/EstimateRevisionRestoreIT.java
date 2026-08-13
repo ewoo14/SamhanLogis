@@ -25,6 +25,7 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.estimate.web.EstimatePermissionGuard;
+import com.samhanair.logis.slip.estimate.web.dto.OpaqueUuidCodec;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -248,7 +249,7 @@ class EstimateRevisionRestoreIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "복원자")
                         .header(ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(estimateId.toString()))
+                .andExpect(jsonPath("$.data.id").value(OpaqueUuidCodec.encode(estimateId)))
                 .andExpect(jsonPath("$.data.lines.length()").value(linesAtRev1));
 
         // 복원도 신규 RESTORE revision (sourceRevisionNo=1) 으로 추적 — 타임라인 최신 항목이 RESTORE.
@@ -348,7 +349,7 @@ class EstimateRevisionRestoreIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "마스터")
                         .header("X-Is-System-Master", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(estimateId.toString()));
+                .andExpect(jsonPath("$.data.id").value(OpaqueUuidCodec.encode(estimateId)));
     }
 
     // =========================================================================
@@ -375,7 +376,7 @@ class EstimateRevisionRestoreIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
+        return OpaqueUuidCodec.decode(objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("data").get("id").asText());
     }
 

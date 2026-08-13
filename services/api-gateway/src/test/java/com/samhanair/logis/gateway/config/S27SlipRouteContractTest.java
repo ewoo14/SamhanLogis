@@ -20,4 +20,41 @@ class S27SlipRouteContractTest {
         assertThat(source).contains("id: slip-service-mobile-sales-noprefix");
         assertThat(source).contains("Path=/mobile/sales/**");
     }
+
+    @Test
+    void webEstimateSnapshotRoutePreservesFullControllerPath() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/resources/application.yml"), StandardCharsets.UTF_8);
+
+        assertThat(source).contains("id: slip-service-estimate-snapshots-v1");
+        assertThat(source).contains("Path=/api/v1/estimates/web-snapshots,/api/v1/estimates/web-snapshots/**");
+        assertThat(source).contains("uri: lb://slip-service");
+    }
+
+    @Test
+    void partnerAuthPublicRoute_forwardsGatewayResolvedClientIpToAudit() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/resources/application.yml"), StandardCharsets.UTF_8);
+
+        assertThat(routeBlock(source, "partner-auth-public-v1"))
+                .contains("name: ForwardedClientIp");
+    }
+
+    @Test
+    void partnerAuthPublicRoute_replacesExternalAuditClientIpHeader() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/resources/application.yml"), StandardCharsets.UTF_8);
+        String route = routeBlock(source, "partner-auth-public-v1");
+
+        assertThat(route).contains("- StripInboundIdentityHeaders");
+        assertThat(route).contains("name: ForwardedClientIp");
+        assertThat(route.indexOf("- StripInboundIdentityHeaders"))
+                .isLessThan(route.indexOf("name: ForwardedClientIp"));
+    }
+
+    private static String routeBlock(String source, String routeId) {
+        int routeStart = source.indexOf("- id: " + routeId);
+        int nextRoute = source.indexOf("\n        - id: ", routeStart + 1);
+        return source.substring(routeStart, nextRoute < 0 ? source.length() : nextRoute);
+    }
 }

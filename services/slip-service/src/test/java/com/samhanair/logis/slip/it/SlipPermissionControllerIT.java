@@ -48,6 +48,7 @@ import com.samhanair.logis.slip.revision.service.SlipRedlineService;
 import com.samhanair.logis.slip.revision.web.SlipRedlineController;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.NextDaySlipImageService;
+import com.samhanair.logis.slip.service.RevertabilityQueryService;
 import com.samhanair.logis.slip.service.SlipCleanupService;
 import com.samhanair.logis.slip.service.SlipCleanupSaveHistoryService;
 import com.samhanair.logis.slip.service.SlipDuplicateService;
@@ -137,6 +138,7 @@ class SlipPermissionControllerIT {
 
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private SlipService slipService;
+    @MockBean private RevertabilityQueryService revertabilityQueryService;
     @MockBean private SlipDuplicateService slipDuplicateService;
     @MockBean private NextDaySlipImageService nextDaySlipImageService;
     @MockBean private SlipCleanupService slipCleanupService;

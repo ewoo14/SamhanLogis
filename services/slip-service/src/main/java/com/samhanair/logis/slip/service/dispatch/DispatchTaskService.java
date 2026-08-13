@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -24,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,9 +50,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class DispatchTaskService {
 
     private static final int MAX_DAILY_COUNTER = 99_999;
-    private static final Pattern UUID_PATTERN = Pattern.compile(
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
-
     private final DispatchTaskRepository taskRepo;
     private final DispatchVehicleGroupRepository groupRepo;
     private final DispatchVehicleGroupSlipRepository slipMapRepo;
@@ -509,11 +506,9 @@ public class DispatchTaskService {
         if (callerName == null || callerName.isBlank()) {
             return null;
         }
-        String trimmed = callerName.trim();
-        if (UUID_PATTERN.matcher(trimmed).matches()) {
-            return null;
-        }
+        String resolved = ActorDisplayName.resolveNullable(null, callerName);
+        if (resolved == null) return null;
         // deleted_by_name 컬럼 길이(100) 초과 시 INSERT 500(value too long) 방지 — UUID 널처리와 동일 방어계층.
-        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
+        return resolved.length() > 100 ? resolved.substring(0, 100) : resolved;
     }
 }

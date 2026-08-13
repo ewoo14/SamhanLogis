@@ -78,4 +78,26 @@ class AuditLogConsumerTest {
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getId()).isEqualTo("fixed-id-123");
     }
+
+    @Test
+    void consume_persistsRequestCorrelationFields() {
+        AuditLogEvent event = new AuditLogEvent(
+                "event-1", "dc-config-service", null, null, "HTTP", "HTTP", "/dc", "요청",
+                null, null, null, null, Instant.now(), "v2",
+                com.samhanair.logis.shared.audit.contract.AuditEnums.RetentionClass.C,
+                com.samhanair.logis.shared.audit.contract.AuditEnums.EventKind.READ,
+                com.samhanair.logis.shared.audit.contract.AuditEnums.Outcome.SUCCESS,
+                com.samhanair.logis.shared.audit.contract.AuditEnums.AuditAction.C_READ,
+                "req-1161", "trace-1161", null, "GET", "/api/v1/dc-configs", 200, 12L,
+                null, null, null, null, null, null, null);
+        when(repository.save(any(AuditLog.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        consumer.consume(event);
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getRequestId()).isEqualTo("req-1161");
+        assertThat(captor.getValue().getTraceId()).isEqualTo("trace-1161");
+        assertThat(captor.getValue().getRouteTemplate()).isEqualTo("/api/v1/dc-configs");
+    }
 }

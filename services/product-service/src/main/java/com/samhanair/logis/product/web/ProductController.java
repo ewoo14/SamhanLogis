@@ -8,6 +8,7 @@ import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.web.dto.CreateProductRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductResponse;
+import com.samhanair.logis.product.web.dto.OpaqueUuidDeserializer;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
@@ -92,9 +93,9 @@ public class ProductController {
     @GetMapping("/{id}")
     @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public ApiResponse<ProductResponse> getOne(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(productService.getOne(id));
+        return ApiResponse.ok(productService.getOne(OpaqueUuidDeserializer.decode(id)));
     }
 
     /**
@@ -134,52 +135,52 @@ public class ProductController {
 
     @PatchMapping("/{id}")
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
-    public ApiResponse<ProductResponse> update(@PathVariable UUID id,
+    public ApiResponse<ProductResponse> update(@PathVariable String id,
                                                @Valid @RequestBody UpdateProductRequest request,
                                                @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(productService.update(id, request));
+        return ApiResponse.ok(productService.update(OpaqueUuidDeserializer.decode(id), request));
     }
 
     @PatchMapping("/{id}/price")
     @RequirePermission(page = "products.price", action = PermissionAction.UPDATE)
-    public ApiResponse<ProductResponse> updatePrice(@PathVariable UUID id,
+    public ApiResponse<ProductResponse> updatePrice(@PathVariable String id,
                                                     @Valid @RequestBody UpdatePriceRequest request,
                                                     @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(productService.updatePrice(id, request));
+        return ApiResponse.ok(productService.updatePrice(OpaqueUuidDeserializer.decode(id), request));
     }
 
     @PutMapping("/{id}/tags")
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
-    public ApiResponse<ProductResponse> replaceTags(@PathVariable UUID id,
+    public ApiResponse<ProductResponse> replaceTags(@PathVariable String id,
                                                     @RequestBody Map<String, String> tags,
                                                     @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(productService.replaceTags(id, tags));
+        return ApiResponse.ok(productService.replaceTags(OpaqueUuidDeserializer.decode(id), tags));
     }
 
     @PostMapping("/{id}/discontinue")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
-    public void discontinue(@PathVariable UUID id,
+    public void discontinue(@PathVariable String id,
                             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productService.discontinue(id);
+        productService.discontinue(OpaqueUuidDeserializer.decode(id));
     }
 
     @PostMapping("/{id}/reactivate")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
-    public void reactivate(@PathVariable UUID id,
+    public void reactivate(@PathVariable String id,
                            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productService.reactivate(id);
+        productService.reactivate(OpaqueUuidDeserializer.decode(id));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequirePermission(page = "products.admin", action = PermissionAction.DELETE)
-    public void delete(@PathVariable UUID id,
+    public void delete(@PathVariable String id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                        @RequestParam(value = "confirmBundleChildrenDeletion", required = false) Boolean confirmBundleChildrenDeletion,
                        @RequestParam(value = "expectedBundleComponentSetToken", required = false) String expectedBundleComponentSetToken,
                        @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productService.delete(id, callerHeader, confirmBundleChildrenDeletion, expectedBundleComponentSetToken);
+        productService.delete(OpaqueUuidDeserializer.decode(id), callerHeader, confirmBundleChildrenDeletion, expectedBundleComponentSetToken);
     }
 }

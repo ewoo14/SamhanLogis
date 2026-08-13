@@ -46,6 +46,7 @@ import {
   Modal,
   type BadgeVariant,
 } from '@samhan/design-system'
+import { safeActorName } from '@samhan/design-system'
 import {
   approveSlipEditRequest,
   listSlipEditRequests,
@@ -242,7 +243,7 @@ export function SlipEditRequestsPage() {
                   <td>
                     <strong>{req.slipNo}</strong>
                   </td>
-                  <td>{req.requesterName}</td>
+                  <td>{safeActorName(req.requesterName) ?? '변경자 미상'}</td>
                   <td>
                     <Badge variant={TYPE_VARIANT[req.type]}>
                       {SLIP_EDIT_REQUEST_TYPE_LABEL[req.type]}
@@ -343,7 +344,7 @@ export function SlipEditRequestsPage() {
               </strong>{' '}
               요청을 거절합니다.
               <br />
-              요청자: {rejectTarget.requesterName}
+              요청자: {safeActorName(rejectTarget.requesterName) ?? '변경자 미상'}
             </p>
           ) : null}
           <label

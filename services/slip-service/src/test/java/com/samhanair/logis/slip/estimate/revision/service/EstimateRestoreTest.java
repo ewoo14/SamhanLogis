@@ -14,10 +14,12 @@ import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevision;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
 import com.samhanair.logis.slip.estimate.revision.repository.EstimateRevisionRepository;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -247,6 +249,78 @@ class EstimateRestoreTest {
 
         assertThat(estimate.getLines().get(0).getSpecificationSource()).isEqualTo("CATALOG");
         assertThat(estimate.getLines().get(1).getSpecificationSource()).isEqualTo("USER");
+    }
+
+    @Test
+    @DisplayName("restoreFromSnapshot: 중복 signature keyless 다중 BUNDLE은 keyless로 복원한다")
+    void restoreFromSnapshotKeepsAmbiguousLegacyMultiInstanceBundleKeyless() throws Exception {
+        Estimate estimate = rev1Estimate(UUID.randomUUID());
+        java.util.List<EstimateSnapshot.Line> lines = new java.util.ArrayList<>();
+        for (int instance = 0; instance < 2; instance++) {
+            for (int component = 0; component < 2; component++) {
+                lines.add(new EstimateSnapshot.Line(UUID.randomUUID(), "구성품" + component,
+                        "COMP-" + component, null, 1, new BigDecimal("1000"),
+                        new BigDecimal("1000"), new BigDecimal("100"), new BigDecimal("1100"),
+                        null, null, component == 0, "SET-RESTORE", null,
+                        new BundleSetOptions(null, false, null, null, false, null)));
+            }
+        }
+        EstimateSnapshot snapshot = new EstimateSnapshot("2026/08/11-1", LocalDate.of(2026, 8, 11),
+                estimate.getPartnerId(), "삼한물산", "123-45-67890", "서울", LocalDate.of(2026, 9, 11),
+                "legacy multi instance", lines);
+
+        estimate.restoreFromSnapshot(snapshot);
+
+        assertThat(estimate.getLines()).hasSize(4);
+        assertThat(estimate.getLines()).allMatch(line -> line.getBundleSetOptions().instanceKey() == null);
+    }
+
+    @Test
+    @DisplayName("R14: Estimate 교차 배치 legacy BUNDLE도 signature로 child 소속을 보존한다")
+    void restoreFromSnapshotMaterializesCrossedLegacyBundleBySignature() throws Exception {
+        Estimate estimate = rev1Estimate(UUID.randomUUID());
+        BundleSetOptions optionA = new BundleSetOptions("REMOTE-A", false, null, null, false);
+        BundleSetOptions optionB = new BundleSetOptions("REMOTE-B", false, null, null, false);
+        List<EstimateSnapshot.Line> lines = List.of(
+                bundleLine(true, "head-A", optionA), bundleLine(true, "head-B", optionB),
+                bundleLine(false, "child-A", optionA), bundleLine(false, "child-B", optionB));
+        EstimateSnapshot snapshot = new EstimateSnapshot("2026/08/11-1", LocalDate.of(2026, 8, 11),
+                estimate.getPartnerId(), "삼한물산", "123-45-67890", "서울",
+                LocalDate.of(2026, 9, 11), "crossed legacy", lines);
+
+        estimate.restoreFromSnapshot(snapshot);
+
+        assertThat(estimate.getLines()).extracting(line -> line.getBundleSetOptions().instanceKey())
+                .doesNotContainNull()
+                .containsExactly(estimate.getLines().get(0).getBundleSetOptions().instanceKey(),
+                        estimate.getLines().get(1).getBundleSetOptions().instanceKey(),
+                        estimate.getLines().get(2).getBundleSetOptions().instanceKey(),
+                        estimate.getLines().get(3).getBundleSetOptions().instanceKey());
+        assertThat(estimate.getLines().get(0).getBundleSetOptions().instanceKey())
+                .isNotEqualTo(estimate.getLines().get(1).getBundleSetOptions().instanceKey());
+    }
+
+    @Test
+    @DisplayName("R14: Estimate 동일 signature legacy BUNDLE 복원은 차단하지 않고 keyless를 보존한다")
+    void restoreFromSnapshotKeepsAmbiguousLegacyBundleKeyless() throws Exception {
+        Estimate estimate = rev1Estimate(UUID.randomUUID());
+        BundleSetOptions duplicate = new BundleSetOptions("REMOTE-SAME", false, null, null, false);
+        List<EstimateSnapshot.Line> lines = List.of(
+                bundleLine(true, "head-A", duplicate), bundleLine(true, "head-B", duplicate),
+                bundleLine(false, "child-A", duplicate), bundleLine(false, "child-B", duplicate));
+        EstimateSnapshot snapshot = new EstimateSnapshot("2026/08/11-1", LocalDate.of(2026, 8, 11),
+                estimate.getPartnerId(), "삼한물산", "123-45-67890", "서울",
+                LocalDate.of(2026, 9, 11), "ambiguous legacy", lines);
+
+        estimate.restoreFromSnapshot(snapshot);
+
+        assertThat(estimate.getLines()).allMatch(line -> line.getBundleSetOptions().instanceKey() == null);
+    }
+
+    private EstimateSnapshot.Line bundleLine(boolean head, String model, BundleSetOptions options) {
+        return new EstimateSnapshot.Line(UUID.randomUUID(), model, model, null, 1,
+                new BigDecimal("1000"), new BigDecimal("1000"), new BigDecimal("100"),
+                new BigDecimal("1100"), null, null, head, "SET-SAME", null, options);
     }
 
     @Test

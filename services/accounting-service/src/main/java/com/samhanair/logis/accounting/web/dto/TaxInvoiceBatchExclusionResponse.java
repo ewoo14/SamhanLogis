@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web.dto;
 
 import com.samhanair.logis.accounting.domain.TaxInvoiceBatchExclusion;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 
 /**
@@ -30,7 +31,7 @@ public record TaxInvoiceBatchExclusionResponse(
                 ex.getPartnerName(),
                 ex.getReason(),
                 ex.getCreatedAt(),
-                ex.getCreatedBy()
+                ActorDisplayName.resolve(ex.getCreatedBy(), null)
         );
     }
 }

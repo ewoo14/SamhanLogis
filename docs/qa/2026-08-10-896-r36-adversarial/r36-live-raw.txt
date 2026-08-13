@@ -1,0 +1,52 @@
+PR #1126 R35 fix 이후 2차 적대검증 실행 원문
+HEAD=bce0bccc14ee0e7b6ba7ef246734390f43814875
+ROLE=CODEX SOL 5.6 / 2차 적대검증 리뷰어
+
+[배포본]
+product-service.createdUtc=2026-08-09T12:46:56.4128984Z
+head.commitUtc=2026-08-10T14:03:03Z
+product-service.olderThanHead=1d 01:16:06.5871016
+audit.age=1d 01:56:31.1125095
+product-service.state=exited
+product-service.exitCode=255
+redeploy=false
+restart=false
+
+[라이브 API / 브라우저 원문]
+R36_LIVE_PRODUCTS http=503 body={"timestamp":"2026-08-10T14:44:26.627+00:00","path":"/api/v1/products","status":503,"error":"Service Unavailable","requestId":"51718329-4394"}
+R36_LIVE_RULES http=503 body={"timestamp":"2026-08-10T14:44:26.628+00:00","path":"/api/v1/quantity-sync-rules","status":503,"error":"Service Unavailable","requestId":"6881b9e8-4396"}
+
+[HEAD 프런트 사용자 조작 / API 응답 격리]
+R36_FRONT_FILTER eligible=PC6NUDK1NW rejected=INDOOR-MATERIAL,PANEL-NON-GOODS
+R36_INBOUND target=PC6NUDK1NW source=AM052BN6PBH1 readonly=true
+R36_GENERAL_PICKER allowed=GENERAL-ALLOWED excluded=GENERAL-MATERIAL
+R36_D15 writes=POST,PUT,PUT,DELETE sources=1>2>1>0 target=QA_R36_T
+
+위 네 줄은 HEAD 렌더러와 chromium-1217을 실제 조작하되, 중단된 product-service 경계만
+Playwright route로 격리한 결과다. 활성 규칙 UI_HOME_MULTI_AM052BN6PBH1은 읽기 전용 fixture로
+주입했고 변경하지 않았다. QA_R36_*는 브라우저 메모리 응답이며 서버/DB에 생성하지 않았다.
+
+[실행]
+REAL_QA_ALLOW_UNTRACKED=1
+QA_DESKTOP_BASE=http://127.0.0.1:5316
+playwright=1.59.1
+browser=chromium-1217 / headless
+spec=clients/desktop/playwright/896-r36-adversarial-live-qa/896-r36-adversarial-real-qa.spec.ts
+result=3 passed (9.5s)
+
+[스크린샷 SHA-256]
+00-live-product-service-503.png e2406c8d6dec9daceb7f606989109333abc1a37128c4914311000b28012c5144 88185
+01-pc6-inbound-source-readonly.png 17eedd20351e9f2d04fd46775b7cbe6d156de46aa9b289aeb7e4b1a1fff6471a 93123
+02-eligible-only-target-picker.png 5ce429ecaac0e42102ad0b4afe87ce4518955dcdf1363c2f035e6918d44f9aea 97753
+03-general-picker-material-still-excluded.png 32be5d563590d224cb6810f6995b27737a3c83d593a0d850396ba095dd0060a9 100749
+04-multi-source-created.png a6f5b1be27e27eb5792b424e99808e45dde49f682d0b42c866d0bf9d5435ef4a 118313
+05-one-source-remains.png f9cffae9f61c1c74ad0c13622921c23789731733c0659a682b277c8a9e52e486 98350
+06-last-source-deletes-rule.png c596a6ca18d0fb52b0fda9abe7524990042d99a8f47f5e4476ab1b10689ac117 93095
+
+git check-ignore: 7 PNG 모두 비 ignore
+
+[throwaway]
+실 서버 생성 0건
+DB 직접 쓰기 0건
+samhan-* 컨테이너 변경 0건
+브라우저 격리 fixture QA_R36_SA, QA_R36_SB, QA_R36_T는 test page 종료와 함께 폐기됨

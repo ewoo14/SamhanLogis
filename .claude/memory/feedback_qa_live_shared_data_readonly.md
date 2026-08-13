@@ -17,3 +17,45 @@ metadata:
 3. **오염 유발 시 = 즉시 완전 복구 + 정직 고지.** 원상 확인(seed/원본 값)→최소 수술로 복구(un-soft-delete 등)→API 로 복원 검증→PR·dev-report·개발책임자께 사건 명시([[feedback_no_fake_data_ever]] 정직). 무결성 인접 도메인은 특히.
 
 → [[feedback_parallel_agent_gradle_shared_tree_contention]](③ 공유 라이브DB 쓰기 경합)·[[feedback_qa_docker_real_test]]·[[feedback_realqa_run_and_false_red]]·[[feedback_applied_migration_immutable]](soft-delete/불변 모델)·[[feedback_no_fake_data_ever]].
+
+---
+
+## 🚨 2026-08-12 — **로그인 자체가 write 다** (SOL 실측)
+
+```text
+`#1174` 라이브QA 가 read-only 계약을 위반했다
+원인  로그인이 공유 DB 의 `dev_master.last_login_at` 을 **1회 갱신**
+```
+
+🔑 지금까지 모든 라이브QA 브리핑이 *"공유 DB 는 조회만"* 을 적으면서 **로그인을 예외로 세지 않았다.**
+화면을 밟으려면 로그인해야 하고, 로그인은 write 다. 계약이 처음부터 성립할 수 없었다.
+
+### 그래서 무엇을 할 것인가
+
+```text
+✅ 공유 DB 를 쓰는 라이브QA 는 **화면 밟기 자체가 불가능**하다고 보라
+   → 격리 DB + 격리 서비스로 하거나, 공유는 SELECT 전용 probe 로만 쓴다
+✅ 브리핑 문구를 바꾼다
+   ❌ "공유 DB 는 조회만"
+   ✅ "공유 DB 는 조회만 — **로그인도 write 이므로 공유 스택으로 화면을 밟지 마십시오**.
+       화면 QA 는 격리 DB/서비스로 하십시오"
+✅ 이미 갱신된 것을 **되돌리려 하지 말 것** (되돌리는 것도 write 다)
+```
+
+### 🚩 같은 라운드에서 함께 나온 것 — "전수" 가 전수가 아니었다
+
+`#1174` 는 14개 서비스를 돌고 공통 resolver 까지 만들었는데 **여섯 곳이 남았다.**
+남은 것들의 공통점:
+
+```text
+· 공통 resolver 를 **지나지 않는 경로** (홈택스 이력 · 제외 목록 · 협업 이력)
+· **변형 UUID** (brace `{32hex}` · `urn:uuid:` · zero-width) — canonical 만 보면 놓친다
+· **표시 문자열 불일치** (`system` vs `시스템`)
+· **화면 밖 기록** (권한 변경 로그) — "화면만 N/A" 로 판정했다가 뒤집혔다
+```
+
+⟹ sweep 의 분모를 **"서비스 목록"** 이 아니라 **"그 값이 사람에게 보이는 모든 출구"** 로 세라.
+화면 · 엑셀 · 인쇄 · 알림 본문 · 로그 · 툴팁 · 이력/감사 API 응답.
+그리고 **각 출구가 공통 resolver 를 지나는지**를 표로 만들라.
+
+관련: [[feedback_qa_rounds_pollute_shared_data]] · [[feedback_defect_family_sweep_fix]] · [[feedback_qa_environment_verification_first]]

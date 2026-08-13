@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.partnerorder.service.PartnerOrderFromEstimateService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
@@ -55,12 +56,6 @@ public class PartnerOrderFromEstimateController {
     }
 
     private String resolveName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            return callerId;
-        }
-        return "system";
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 }

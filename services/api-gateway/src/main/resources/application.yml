@@ -47,6 +47,9 @@ spring:
             - Path=/api/auth/**
           filters:
             - StripInboundIdentityHeaders
+            - name: ForwardedClientIp
+              args:
+                trustedPeerAddresses: ${SAMHAN_AUDIT_TRUSTED_INGRESS_ADDRESSES:private}
             - StripPrefix=1
 
         - id: user-service
@@ -180,6 +183,9 @@ spring:
             - Path=/api/v1/auth/partner-status,/api/v1/auth/partner-register,/api/v1/auth/partner-password,/api/v1/auth/partner-login,/api/v1/auth/partner-temp-password,/api/v1/auth/partner-expiration,/api/v1/auth/partner-tutorial
           filters:
             - StripInboundIdentityHeaders
+            - name: ForwardedClientIp
+              args:
+                trustedPeerAddresses: ${SAMHAN_AUDIT_TRUSTED_INGRESS_ADDRESSES:private}
 
         # 모바일 슬1 웹 bootstrap: GET /api/v1/auth/me 는 쿠키/Bearer JWT 검증 후
         # auth-service /auth/me 로 전달해야 한다. public auth-service-v1 catch-all 보다 먼저 선언.
@@ -444,6 +450,14 @@ spring:
             - Path=/api/v1/slips/**
           filters:
             - StripPrefix=2
+            - JwtAuthentication
+
+        # Desktop 견적 통합 목록의 웹 snapshot 조회. 컨트롤러 full path를 그대로 전달한다.
+        - id: slip-service-estimate-snapshots-v1
+          uri: lb://slip-service
+          predicates:
+            - Path=/api/v1/estimates/web-snapshots,/api/v1/estimates/web-snapshots/**
+          filters:
             - JwtAuthentication
 
         - id: accounting-service-v1

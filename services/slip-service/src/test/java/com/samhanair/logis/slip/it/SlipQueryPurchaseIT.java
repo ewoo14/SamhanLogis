@@ -23,6 +23,7 @@ import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidSerializer;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -256,7 +257,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.slipNo", notNullValue()))
                 .andExpect(jsonPath("$.data.partnerName", is("SP0851-상세거래처")))
                 .andExpect(jsonPath("$.data.lines[0].productName", is("매입 IT 제품")))
-                .andExpect(jsonPath("$.data.id", is(id)))
+                .andExpect(jsonPath("$.data.id", is(OpaqueUuidSerializer.encode(UUID.fromString(id)))))
                 .andExpect(jsonPath("$.data.partnerId", notNullValue()))
                 .andExpect(jsonPath("$.data.destinationWarehouseId", notNullValue()))
                 .andExpect(jsonPath("$.data.inspectionStatus", is("NOT_READY")));

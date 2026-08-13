@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.audit.service.AccountingAuditLogService;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.PartnerMatchSource;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
@@ -36,7 +37,9 @@ public class PartnerMatchAuditRecorder {
                        UUID oldMappingId, String oldRawName, String oldNormalizedName,
                        UUID actorId, String actorName, String reason) {
         UUID safeActor = actorId == null ? SYSTEM_ACTOR : actorId;
-        String safeActorName = actorName == null || actorName.isBlank() ? "SYSTEM" : actorName;
+        String safeActorName = safeActor.equals(SYSTEM_ACTOR)
+                ? "SYSTEM"
+                : ActorDisplayName.resolve(safeActor.toString(), actorName);
         String oldMappingKey = mappingKey(oldRawName, oldNormalizedName);
         String newMappingKey = mappingKey(transaction.getMatchedMappingRawName(),
                 transaction.getMatchedMappingNormalizedName());

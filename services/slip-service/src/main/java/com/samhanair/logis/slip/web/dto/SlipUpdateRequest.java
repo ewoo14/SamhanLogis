@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.web.dto;
 
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -92,8 +93,28 @@ public record SlipUpdateRequest(
             /** 권위 부가세 V — 공급가액·합계와 함께 보낼 때만 적용한다. */
             BigDecimal vatAmount,
             /** 권위 VAT 포함 합계 T — 전표 lineTotal 컬럼과 의미가 다르다. */
-            BigDecimal lineTotalWithVat
+            BigDecimal lineTotalWithVat,
+            /** 신규 BUNDLE 구성품의 부모 세트 옵션. 서버 전개 재검증에만 사용한다. */
+            BundleSetOptions setOptions,
+            /** 신규 BUNDLE 구성품의 부모 세트 modelCode. */
+            @Size(max = 100) String parentSetModel,
+            /** 서버 전개 결과의 첫 구성품 여부. */
+            Boolean setHead,
+            /** 신규 BUNDLE 구성품의 부모 제품 UUID. */
+            UUID bundleParentProductId,
+            /** 부모 BUNDLE에 입력한 세트 단가. 서버 전개 재검증에 사용한다. */
+            BigDecimal bundleParentUnitPrice
     ) {
+        /** 계보 필드를 생략하는 기존 호출자용 canonical 호환 생성자. */
+        public LineRequest(UUID productId, String productName, String modelName,
+                           String specification, Integer quantity, BigDecimal unitPrice,
+                           String note, UUID lineId, BigDecimal supplyAmount,
+                           BigDecimal vatAmount, BigDecimal lineTotalWithVat) {
+            this(productId, productName, modelName, specification, quantity, unitPrice, note,
+                    lineId, supplyAmount, vatAmount, lineTotalWithVat,
+                    null, null, null, null, null);
+        }
+
         /** 기존 lineId 계약을 사용하는 호출자용 — VAT 권위 필드는 모두 생략한다. */
         public LineRequest(UUID productId, String productName, String modelName,
                            String specification, Integer quantity, BigDecimal unitPrice,

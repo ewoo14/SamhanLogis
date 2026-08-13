@@ -15,8 +15,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,8 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 구분할 수 없었다. {@link ProductClient}(product-service internal
  * batch lookup, 안전재고 알림 화면 등에서 기존 사용 중인 client)로 productId → productCode/명을
  * 해석한다. 응답 DTO에는 UUID를 넣지 않고, export 내부에서만 원천 엔티티의 UUID를 사용한다.
- * product-service 조회가 실패(예: 품목 삭제로 일부 lookup 누락)해도 export 자체는 실패하지
- * 않고 해당 행만 "—" 로 남는다(가용성 우선 — export 는 F-1 회귀 울타리 대상).
+ * 삭제 등으로 product-service 응답에서 빠진 품목은 행과 실제 수량을 보존한 채
+ * "참조 끊김" / "제품 마스터 없음"으로 표시한다. product-service 4xx/5xx/연결 실패는
+ * 데이터 누락으로 오인하지 않도록 {@link ProductClient}의 업무 예외를 그대로 전파한다.
  *
  * <p>최대 10,000 행 제한.
  */
@@ -45,9 +44,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class StockExcelExportService {
 
-    private static final Logger log = LoggerFactory.getLogger(StockExcelExportService.class);
-
     private static final int MAX_ROWS = 10_000;
+
+    private static final String MISSING_PRODUCT_CODE = "참조 끊김";
+    private static final String MISSING_PRODUCT_NAME = "제품 마스터 없음";
 
     /** ProductClient.lookup() 1회 호출당 최대 productId 개수(product-service internal 계약). */
     private static final int PRODUCT_LOOKUP_BATCH_SIZE = 100;
@@ -99,9 +99,8 @@ public class StockExcelExportService {
 
     /**
      * 잔량 행에 등장하는 distinct productId 를 {@value #PRODUCT_LOOKUP_BATCH_SIZE}건씩 청크로
-     * product-service 에 일괄 조회한다. 한 청크라도 실패(예: 삭제된 품목이 섞여 NOT_FOUND)하면
-     * export 를 중단시키지 않고 해당 청크만 빈 결과로 남긴다 — 화면 다운로드는 항상 200 이어야
-     * 한다(F-1 회귀 울타리).
+     * product-service 에 관용 조회한다. 응답에서 빠진 ID만 누락 표시 대상으로 남기고,
+     * 4xx/5xx/연결 실패는 {@link ProductClient}가 구분한 예외를 그대로 전파한다.
      */
     private Map<UUID, ProductSummary> resolveProducts(List<StockBalance> balances) {
         Set<UUID> distinctIds = new LinkedHashSet<>();
@@ -126,21 +125,16 @@ public class StockExcelExportService {
     }
 
     private void lookupChunk(List<UUID> chunk, Map<UUID, ProductSummary> resultSink) {
-        try {
-            for (ProductSummary summary : productClient.lookup(chunk)) {
-                resultSink.put(summary.id(), summary);
-            }
-        } catch (RuntimeException ex) {
-            log.warn("[StockExcelExportService] product-service 품목 조회 실패 — {}건 미해석, "
-                    + "해당 행은 품목코드/명 공란으로 출력. msg={}", chunk.size(), ex.getMessage());
+        for (ProductSummary summary : productClient.lookupAllowMissing(chunk)) {
+            resultSink.put(summary.id(), summary);
         }
     }
 
     /** StockBalance + product(nullable) → row Map 변환. UUID 필드 제외. */
     private static Map<String, Object> toRow(StockBalance r, ProductSummary product) {
         Map<String, Object> row = new HashMap<>();
-        row.put("productCode",   product != null ? nvl(product.productCode()) : "");
-        row.put("productName",   product != null ? nvl(product.name()) : "");
+        row.put("productCode",   product != null ? nvl(product.productCode()) : MISSING_PRODUCT_CODE);
+        row.put("productName",   product != null ? nvl(product.name()) : MISSING_PRODUCT_NAME);
         row.put("warehouseCode", nvl(r.getWarehouse().getCode()));
         row.put("warehouseName", nvl(r.getWarehouse().getName()));
         row.put("availableQty",  r.getAvailableQty());

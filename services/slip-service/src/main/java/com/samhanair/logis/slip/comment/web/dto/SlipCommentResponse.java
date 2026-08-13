@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.comment.web.dto;
 
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.comment.domain.SlipComment;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -29,7 +30,9 @@ public record SlipCommentResponse(
         return new SlipCommentResponse(
                 comment.getId(),
                 comment.getSlipId(),
-                comment.getAuthorName(),
+                ActorDisplayName.resolveNullable(
+                        comment.getAuthorId() == null ? null : comment.getAuthorId().toString(),
+                        comment.getAuthorName()),
                 comment.getBody(),
                 comment.getCreatedAt()
         );

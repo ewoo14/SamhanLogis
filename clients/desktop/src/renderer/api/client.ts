@@ -81,6 +81,9 @@ apiClient.interceptors.request.use(
         }
         return config
       }
+      throw new Error(
+        `Mock handler not found: ${(config.method ?? 'get').toUpperCase()} ${config.url ?? ''}`,
+      )
     }
     if ((config as InternalAxiosRequestConfig & { skipAuth?: boolean }).skipAuth) {
       config.withCredentials = false

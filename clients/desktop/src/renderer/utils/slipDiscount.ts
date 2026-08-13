@@ -1,8 +1,13 @@
 export type SlipDiscountCategory = 'HOMEMULTI' | 'COMMERCIAL_MULTI' | 'OTHER'
+export type ClassificationDiscountOption = 'THREE_SIXTY' | 'FOUR_WAY' | 'ONE_WAY' | 'STAND' | 'DELUXE' | 'FIRST_GRADE'
 
 export interface SlipDiscountInput {
   listPrice: number
   modelCode?: string | null
+  /** 분류 정본이 보유한 정액DC 옵션. 모델코드/저장 플래그로 추론하지 않는다. */
+  classificationOptions?: ClassificationDiscountOption[] | null
+  /** 분류 L/M/S가 아직 없는 전환 대기 품목인지 여부. 한시적 레거시 호환용. */
+  classificationAssigned?: boolean
   fixedDiscountRate?: number | null
   category: SlipDiscountCategory
   hasVariableDiscount?: boolean | null
@@ -31,6 +36,8 @@ export interface BundleParentDiscountInput {
   modelCode?: string | null
   categoryKey?: string | null
   fixedDiscountRate?: number | null
+  classificationOptions?: ClassificationDiscountOption[] | null
+  classificationAssigned?: boolean
   hasVariableDiscount?: boolean | null
 }
 
@@ -48,6 +55,8 @@ export function calculateBundleParentDiscount(
     listPrice: input.listPrice,
     modelCode: input.modelCode,
     fixedDiscountRate: input.fixedDiscountRate,
+    classificationOptions: input.classificationOptions,
+    classificationAssigned: input.classificationAssigned,
     category,
     hasVariableDiscount: input.hasVariableDiscount,
   }, config)
@@ -57,15 +66,14 @@ export function calculateSlipDiscount(
   input: SlipDiscountInput,
   config: SlipDiscountConfig | null,
 ): SlipDiscountResult {
-  const modelFlags = getModelFlags(input.modelCode)
   const optionDiscount = input.category === 'OTHER'
     ? [
-        modelFlags.is360 ? parseAmount(config?.threeSixty) : 0,
-        modelFlags.is4way ? parseAmount(config?.fourWay) : 0,
-        modelFlags.is1way ? parseAmount(config?.oneWay) : 0,
-        modelFlags.isStand ? parseAmount(config?.stand) : 0,
-        modelFlags.isDeluxe ? parseAmount(config?.deluxe) : 0,
-        modelFlags.isGrade1 ? parseAmount(config?.firstGrade) : 0,
+        hasOption(input, 'THREE_SIXTY') ? parseAmount(config?.threeSixty) : 0,
+        hasOption(input, 'FOUR_WAY') ? parseAmount(config?.fourWay) : 0,
+        hasOption(input, 'ONE_WAY') ? parseAmount(config?.oneWay) : 0,
+        hasOption(input, 'STAND') ? parseAmount(config?.stand) : 0,
+        hasOption(input, 'DELUXE') ? parseAmount(config?.deluxe) : 0,
+        hasOption(input, 'FIRST_GRADE') ? parseAmount(config?.firstGrade) : 0,
       ].reduce((sum, amount) => sum + amount, 0)
     : 0
   const fixed = input.fixedDiscountRate
@@ -90,46 +98,35 @@ export function calculateSlipDiscount(
   return { unitPrice, rate, source: 'GLOBAL', info: `거래처 전역DC ${rate}% 적용` }
 }
 
-type ModelFlags = {
-  is360: boolean
-  is4way: boolean
-  is1way: boolean
-  isStand: boolean
-  isDeluxe: boolean
-  isGrade1: boolean
+/**
+ * #1090 전환 전 데이터 호환 규칙.
+ * 분류 정본이 아직 없는 품목에 한해 기존 모델코드 판별을 유지한다.
+ * 품목에 분류가 저장되면 classificationAssigned=true가 되어 이 경로는 자동으로 걷힌다.
+ */
+function hasOption(input: SlipDiscountInput, option: ClassificationDiscountOption): boolean {
+  if (input.classificationAssigned === false) return legacyModelFlags(input.modelCode).includes(option)
+  return input.classificationOptions?.includes(option) === true
 }
 
-/** 레거시 종합견적서 getModelFlags(model)의 분기·순서를 그대로 재현한다. */
-function getModelFlags(model: string | null | undefined): ModelFlags {
-  const m = String(model || '').toUpperCase()
-  let is360 = false
-  let is4way = false
-  let is1way = false
-  let isStand = false
-  let isDeluxe = false
-  let isGrade1 = false
-
+function legacyModelFlags(modelCode: string | null | undefined): ClassificationDiscountOption[] {
+  const m = String(modelCode || '').toUpperCase()
+  const flags: ClassificationDiscountOption[] = []
   if (m.startsWith('AC') && m.length >= 9) {
-    if (m[7] === '6' && m[8] === 'P') is360 = true
-    if (m[7] === '4' && (m[8] === 'P' || m[8] === 'D')) is4way = true
-    if (m[7] === '1' && (m[8] === 'P' || m[8] === 'D')) is1way = true
+    if (m[7] === '6' && m[8] === 'P') flags.push('THREE_SIXTY')
+    if (m[7] === '4' && (m[8] === 'P' || m[8] === 'D')) flags.push('FOUR_WAY')
+    if (m[7] === '1' && (m[8] === 'P' || m[8] === 'D')) flags.push('ONE_WAY')
   }
   if (m.startsWith('AP') && m.length >= 9) {
-    if (m.length >= 11 && m[10] === 'C') {
-      if (m[8] === 'D') isStand = true
-    } else if (m[8] === 'P') {
-      isStand = true
-    }
-    if (m.length >= 11 && m[8] === 'D' && m[10] === 'H') isDeluxe = true
-    if (m.startsWith('AP230') || m.startsWith('AP290')) {
-      isStand = true
-      isDeluxe = false
-    }
+    if (m.startsWith('AP230') || m.startsWith('AP290')) flags.push('STAND')
+    else if (m.length >= 11 && m[10] === 'C' && m[8] === 'D') flags.push('STAND')
+    else if (m[8] === 'P') flags.push('STAND')
+    if (m.length >= 11 && m[8] === 'D' && m[10] === 'H'
+      && !m.startsWith('AP230') && !m.startsWith('AP290')) flags.push('DELUXE')
   }
   if ((m.startsWith('AC') || m.startsWith('AP')) && m.length >= 9 && m[8] === 'F') {
-    isGrade1 = true
+    flags.push('FIRST_GRADE')
   }
-  return { is360, is4way, is1way, isStand, isDeluxe, isGrade1 }
+  return flags
 }
 
 function parseAmount(raw: string | null | undefined): number {

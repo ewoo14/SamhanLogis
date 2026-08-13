@@ -24,6 +24,7 @@
 | 10 | `getOrderSnapshotHistory()` | 8858 | 저장내역 조회 (loadSnapshotHistory) | `GET /api/v1/partner-orders/drafts` | M4 partner-order-service | 페이징, 본인 거래처 필터 |
 | 11 | `sendOrderFromUi(payload)` | 6074 | **최종 주문 전송** (모달 확인 후) | `POST /api/v1/partner-orders/{id}/confirm` | M4 partner-order-service + slip-service Event | trigger: slip-service 자동 출고전표 + 카카오 알림톡 |
 | 12 | `saveTutorialState(state)` | 9423 | 튜토리얼 완료 체크박스 (endTut) | `PATCH /api/v1/auth/partner-tutorial` | M2 partner-service | sessionStorage fallback 도 가능 (서버 저장은 cross-device 동기화) |
+| 13 | `pricePreview(items, order)` | v4 order-app | 입력 중 서버 가격 미리보기 | `POST /api/v1/partner-orders/price-preview` | M4 partner-order-service | `sales.partner-order.draft CREATE` 인증, 250ms client debounce, 실패 시 자체 계산 없음 |
 
 ## 2. legacy Code.js 외부 호출 → Samhan Public 대체 (RPC 매핑 외)
 

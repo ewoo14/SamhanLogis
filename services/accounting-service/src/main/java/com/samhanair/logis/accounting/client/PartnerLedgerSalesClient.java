@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -20,8 +21,14 @@ public class PartnerLedgerSalesClient {
     private final InternalAuthProperties auth;
 
     public PartnerLedgerSalesClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
-                                    InternalAuthProperties auth) {
-        this.restClient = builder.baseUrl("http://slip-service").build();
+                                    InternalAuthProperties auth,
+                                    @Value("${app.services.slip-service.base-url:http://slip-service}")
+                                    String slipServiceBaseUrl) {
+        RestClient.Builder resolvedBuilder = slipServiceBaseUrl.startsWith("http://localhost:")
+                || slipServiceBaseUrl.startsWith("http://127.0.0.1:")
+                ? RestClient.builder()
+                : builder;
+        this.restClient = resolvedBuilder.baseUrl(slipServiceBaseUrl).build();
         this.auth = auth;
     }
 
@@ -40,6 +47,23 @@ public class PartnerLedgerSalesClient {
         } catch (RuntimeException ex) {
             throw new BusinessException(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE,
                     "판매전표 원장 조회에 실패했습니다", ex);
+        }
+    }
+
+    /** 저장 직후 판매전표를 상태와 무관하게 원장 대상 projection으로 조회한다. */
+    public Sale findBySlipNo(String slipNo) {
+        try {
+            return restClient.get()
+                    .uri(uri -> uri.path("/internal/slips/partner-ledger-sales/by-slip-no")
+                            .queryParam("slipNo", slipNo)
+                            .build())
+                    .header("X-Internal-Token", auth.getToken())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<Sale>>() {})
+                    .data();
+        } catch (RuntimeException ex) {
+            throw new BusinessException(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE,
+                    "저장 대상 판매전표 원장 조회에 실패했습니다", ex);
         }
     }
 

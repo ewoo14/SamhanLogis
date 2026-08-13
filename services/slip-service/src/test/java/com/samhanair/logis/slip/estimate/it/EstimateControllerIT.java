@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.slip.estimate.web.dto.OpaqueUuidCodec;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.client.InventoryClient;
@@ -464,9 +465,10 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.status").value("QUOTE_CONVERTED"))
                 .andExpect(jsonPath("$.data.convertedSlipId").isNotEmpty())
                 .andReturn();
-        String convertedSlipId = objectMapper.readTree(converted.getResponse().getContentAsString())
+        String convertedSlipToken = objectMapper.readTree(converted.getResponse().getContentAsString())
                 .get("data").get("convertedSlipId").asText();
-        assertThat(convertedSlipId).isNotBlank();
+        assertThat(convertedSlipToken).isNotBlank();
+        UUID convertedSlipId = OpaqueUuidCodec.decode(convertedSlipToken);
 
         // 변환 직후 Slip 행 스냅샷 — delete/restore 전체에 걸쳐 이 값과 계속 동일해야 "무연쇄".
         // (entityManager.flush() 로 convert() 가 영속화한 Slip 을 물리 INSERT 로 내보낸 뒤 조회 —
@@ -491,7 +493,6 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.content[0].id").value(id))
                 .andExpect(jsonPath("$.data.content[0].isDeleted").value(true))
                 .andExpect(jsonPath("$.data.content[0].status").value("QUOTE_CONVERTED"))
-                .andExpect(jsonPath("$.data.content[0].convertedSlipId").value(convertedSlipId))
                 .andExpect(jsonPath("$.data.content[0].deletedByName").value("이운영"));
 
         entityManager.flush();
@@ -507,7 +508,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.id").value(id))
                 .andExpect(jsonPath("$.data.isDeleted").value(false))
                 .andExpect(jsonPath("$.data.status").value("QUOTE_CONVERTED"))
-                .andExpect(jsonPath("$.data.convertedSlipId").value(convertedSlipId))
+                .andExpect(jsonPath("$.data.convertedSlipId").value(convertedSlipToken))
                 .andExpect(jsonPath("$.data.deletedByName").doesNotExist());
 
         // Slip 테이블 무연쇄 — restore 이후에도 변환 직후 스냅샷과 완전히 동일(행 자체를 전혀 건드리지
@@ -575,6 +576,40 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.lines[0].unitPrice").value(600000))
                 .andExpect(jsonPath("$.data.lines[1].productName").value("실외기"))
                 .andExpect(jsonPath("$.data.lines[1].unitPrice").value(400000));
+    }
+
+    @Test
+    @DisplayName("GREEN-A-1: V37 기본 지정 세트 견적 저장")
+    void createEstimate_backfilledBundle_savesExpandedLines() throws Exception {
+        UUID setId = UUID.randomUUID();
+        ProductSummary setSummary = new ProductSummary(setId, "상업멀티 22HP 세트", "AM220AXVHHR1SY", null,
+                null, new BigDecimal("15242370"), null, false, "AM220AXVHHR1SY", "BUNDLE");
+        Mockito.when(productClient.lookup(ArgumentMatchers.anyList())).thenReturn(List.of(setSummary));
+        Mockito.when(productClient.expand(ArgumentMatchers.eq("AM220AXVHHR1SY"), ArgumentMatchers.any(),
+                        ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of(
+                        new ExpandedLineDto(UUID.randomUUID(), "AM100AXVHHR1", "AM100AXVHHR1", "실내기",
+                                BigDecimal.ONE, new BigDecimal("4560050"), "INDOOR", true),
+                        new ExpandedLineDto(UUID.randomUUID(), "AM120AXVHHR1", "AM120AXVHHR1", "실외기",
+                                BigDecimal.ONE, new BigDecimal("5280000"), "OUTDOOR", false)));
+
+        Map<String, Object> lineReq = new HashMap<>();
+        lineReq.put("productId", setId.toString());
+        lineReq.put("quantity", 1);
+        lineReq.put("unitPrice", "15242370");
+        Map<String, Object> body = new HashMap<>();
+        body.put("partnerName", "GREEN-A 견적 거래처");
+        body.put("lines", List.of(lineReq));
+
+        mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines.length()").value(2))
+                .andExpect(jsonPath("$.data.lines[0].productName").value("실내기"))
+                .andExpect(jsonPath("$.data.lines[1].productName").value("실외기"));
     }
 
     @Test

@@ -100,6 +100,8 @@ import { JournalListPage } from './JournalListPage'
 import { JournalFormPage } from './JournalFormPage'
 import { JournalDetailPage } from './JournalDetailPage'
 import { TrialBalancePage } from './TrialBalancePage'
+import { SalesCommissionSettlementListPage } from './SalesCommissionSettlementListPage'
+import { SalesCommissionSettlementDetailPage } from './SalesCommissionSettlementDetailPage'
 // P0-4 세금계산서 라우트 3종 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
 // BE: accounting-service `/accounting/tax-invoices/*` (commit f8b8b49).
 import { TaxInvoiceListPage } from './TaxInvoiceListPage'
@@ -115,6 +117,7 @@ import { SupplierProfilePage } from './accounting/SupplierProfilePage'
 import { EstimateListPage } from './EstimateListPage'
 import { EstimateFormPage } from './EstimateFormPage'
 import { EstimateDetailPage } from './EstimateDetailPage'
+import { WebEstimateSourceDetailPage } from './WebEstimateSourceDetailPage'
 // [Phase 6 v4] 판매 sub-route 4종 (견적은 신규 EstimateListPage — legacy webview 폐기)
 import { SalesPartnerOrderListPage } from './SalesPartnerOrderListPage'
 import { SalesPartnerOrderDetailPage } from './SalesPartnerOrderDetailPage'
@@ -273,8 +276,6 @@ import { PurchaseAccountingSlipPage } from './accounting/PurchaseAccountingSlipP
 import { PurchaseAccountingSlipFormPage } from './accounting/PurchaseAccountingSlipFormPage'
 import { TaxInvoiceBatchIssuePage } from './accounting/TaxInvoiceBatchIssuePage'
 import { TaxInvoiceInboundPage } from './accounting/TaxInvoiceInboundPage'
-import { OrderListPage } from './accounting/admin/OrderListPage'
-import { OrderDetailPage } from './accounting/admin/OrderDetailPage'
 import { SalesLedgerPage } from './accounting/admin/SalesLedgerPage'
 import { PurchaseLedgerPage } from './accounting/admin/PurchaseLedgerPage'
 import { MigOpsDashboardPage } from './accounting/admin/MigOpsDashboardPage'
@@ -316,11 +317,14 @@ import { GroupwareApprovalTemplateAdminPage } from './GroupwareApprovalTemplateA
 import { GroupwareDocumentTemplateAdminPage } from './GroupwareDocumentTemplateAdminPage'
 import { DocumentTemplateEditorPage } from './DocumentTemplateEditorPage'
 import { MessengerPage } from './MessengerPage'
+import { ChatRoomPage } from './ChatRoomPage'
+import { ChatRoomsPage } from './ChatRoomsPage'
 import { ApprovalDocView } from '../print/ApprovalDocView'
 // [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
 import { ProductCatalogPage } from './ProductCatalogPage'
 import { EstimateItemsCatalogPage } from './EstimateItemsCatalogPage'
 import { ProductClassificationsPage } from './ProductClassificationsPage'
+import { ProductPriceSchedulePage } from './ProductPriceSchedulePage'
 import { ProductFormPage } from './ProductFormPage'
 
 /**
@@ -415,6 +419,22 @@ const routes = [
           </PermissionGuard>
         ),
       },
+      {
+        path: '/chat',
+        element: (
+          <PermissionGuard pageCode="messenger.send" action="view">
+            <ChatRoomsPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/chat/:roomCode',
+        element: (
+          <PermissionGuard pageCode="messenger.send" action="view">
+            <ChatRoomPage />
+          </PermissionGuard>
+        ),
+      },
       // [SP-D4] inventory.warehouse 동적 RBAC 추가 (기존 미가드 라우트 → PermissionGuard 추가).
       {
         path: '/warehouses',
@@ -492,12 +512,13 @@ const routes = [
       {
         path: '/sales/estimates',
         element: (
-          <PermissionGuard pageCode="estimates.list" action="view">
+          <PermissionGuard pageCode={['estimates.list', 'sales.partner-order.list']} action="view">
             <EstimateListPage />
           </PermissionGuard>
         ),
       },
       { path: '/sales/estimates/new', element: <EstimateFormPage /> },
+      { path: '/sales/estimates/web-snapshots/:id', element: <WebEstimateSourceDetailPage kind="snapshot" /> },
       {
         path: '/sales/partner-orders',
         element: (
@@ -514,6 +535,7 @@ const routes = [
           </PermissionGuard>
         ),
       },
+      { path: '/sales/partner-orders/web-drafts/:id', element: <WebEstimateSourceDetailPage kind="draft" /> },
       {
         // [Round C P1 #4 FE] 주문서 승인 — 사이드바 노출(showPartnerOrderList)과 동일 page-code 로
         // 라우트도 가드해 사이드바↔진입 역전(노출되나 무가드 직접 진입) 갭을 막는다.
@@ -536,10 +558,7 @@ const routes = [
         {
           path: '/sales/estimate-config',
           element: (
-            // H1(#17 S4b R1): ACCOUNTANT 는 sales.estimate-config 가 없어도
-            // products.price-schedule VIEW 만으로 도달 가능(OR 판정) — 페이지 내부에서
-            // estimateConfig 폼/단가변동 섹션을 각자 page-code 로 다시 게이팅한다.
-            <PermissionGuard pageCode={['sales.estimate-config', 'products.price-schedule']} action="view">
+            <PermissionGuard pageCode="sales.estimate-config" action="view">
               <EstimatePricingConfigPage />
             </PermissionGuard>
           ),
@@ -716,6 +735,22 @@ const routes = [
         element: (
           <PermissionGuard pageCode="accounting.balances" action="view">
             <TrialBalancePage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/sales-commission-settlements',
+        element: (
+          <PermissionGuard pageCode="accounting.sales-commission-settlement" action="view">
+            <SalesCommissionSettlementListPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/sales-commission-settlements/:id',
+        element: (
+          <PermissionGuard pageCode="accounting.sales-commission-settlement" action="view">
+            <SalesCommissionSettlementDetailPage />
           </PermissionGuard>
         ),
       },
@@ -1207,22 +1242,6 @@ const routes = [
         ),
       },
       {
-        path: '/accounting/admin/orders',
-        element: (
-          <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
-            <OrderListPage />
-          </PermissionGuard>
-        ),
-      },
-      {
-        path: '/accounting/admin/orders/:orderNo',
-        element: (
-          <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
-            <OrderDetailPage />
-          </PermissionGuard>
-        ),
-      },
-      {
         path: '/accounting/admin/ledger/sales',
         element: (
           <PermissionGuard pageCode="ecount.mig14.ledger" action="view">
@@ -1469,6 +1488,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="products.list" action="view">
             <ProductClassificationsPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/products/price-schedule',
+        element: (
+          <PermissionGuard pageCode="products.price-schedule" action="view">
+            <ProductPriceSchedulePage />
           </PermissionGuard>
         ),
       },

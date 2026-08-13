@@ -10,6 +10,7 @@ import com.samhanair.logis.accounting.domain.CashReceiptStatus;
 import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.JournalLine;
+import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
@@ -30,6 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -39,9 +41,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class PartnerLedgerReadModelService {
-    /** 정책 정본: R17의 현행 집계 기준 상태 집합. slip-service도 이 계약으로 조회한다. */
+    /** 정책 정본: R22의 원장 판매 상태 집합. slip-service도 이 계약으로 조회한다. */
     public static final List<String> CANONICAL_SALE_STATUSES = PartnerLedgerContract.CANONICAL_SALE_STATUSES;
     private static final LocalDate LEDGER_SALES_EPOCH = LocalDate.of(1900, 1, 1);
+    private static final Pattern SLIP_NUMBER_PATTERN = Pattern.compile("\\d{4}/\\d{2}/\\d{2}-\\d+");
     /** 비매출 journal line을 표시하는 legacy 문서 종류. 매출은 별도 SALE_SUMMARY로 투영한다. */
     public static final PartnerLedgerReadModel.DocumentType JOURNAL_ONLY_DOCUMENT =
             PartnerLedgerReadModel.DocumentType.JOURNAL_ONLY;
@@ -79,32 +82,64 @@ public class PartnerLedgerReadModelService {
     }
 
     public PartnerLedgerReadModel read(String partnerCode, LocalDate from, LocalDate to) {
+        return read(partnerCode, from, to, null);
+    }
+
+    /**
+     * 판매전표 상세용 원장 read — 아직 canonical 상태가 아닌 저장 대상 slipNo를 선택적으로 포함한다.
+     *
+     * <p>대상 전표가 이미 기간 원장에 있으면 slipNo로 중복 제거하고, DRAFT/SAVED라서 기간
+     * 조회에서 빠졌으면 대상 projection을 한 번만 추가한다. 따라서 저장 직후 후잔은 누락과
+     * 이중 계상을 모두 피한다.
+     */
+    public PartnerLedgerReadModel read(String partnerCode, LocalDate from, LocalDate to,
+                                       String targetSlipNo) {
         if (from == null || to == null || to.isBefore(from)) {
             throw new IllegalArgumentException("from/to 기간이 올바르지 않습니다");
         }
         PartnerFilterResolution filter = resolvePartner(partnerCode);
         if (filter.kind() == PartnerFilterKind.NOT_FOUND) {
+            if (targetSlipNo != null && !targetSlipNo.isBlank()) {
+                throw new IllegalStateException("저장 대상 전표의 거래처 원장 조회에 실패했습니다");
+            }
             return new PartnerLedgerReadModel(List.of(), null);
         }
         PartnerSummary selectedSummary = filter.summary();
         UUID selectedId = selectedSummary == null ? null : selectedSummary.partnerId();
         LedgerAccountCodes accountCodes = resolveLedgerAccountCodes();
-        List<PartnerLedgerSalesClient.Sale> openingSales = findSales(
-                LEDGER_SALES_EPOCH, from.minusDays(1), selectedSummary, selectedId);
+        PartnerLedgerSalesClient.Sale targetSale = resolveTargetSale(
+                targetSlipNo, partnerCode, selectedId, from, to);
+        List<PartnerLedgerSalesClient.Sale> openingSales = findOpeningSales(
+                from, targetSale, selectedSummary, selectedId);
         Map<UUID, BigDecimal> openingBalances = openingBalances(
-                from, openingSales, selectedSummary, selectedId, accountCodes);
+                from, targetSale, selectedSummary, selectedId, accountCodes, openingSales);
+        // Historical canonical slip projections keep the same partner row and contribute to R22 balance.
         List<JournalLineRepository.PartnerAccountTotal> journalTotals =
-                journalLineRepository.aggregatePostedByPartnerAccount(from, to);
+                journalLineRepository.aggregatePostedOnlyByPartnerAccount(from, to);
         Map<UUID, MutablePartner> groups = new LinkedHashMap<>();
+        if (selectedId != null) {
+            // 활동이 없는 거래처도 실제 0원 잔액으로 표시할 수 있도록 선택 거래처를 유지한다.
+            groups.put(selectedId, new MutablePartner(selectedId));
+        }
         openingBalances.forEach((id, balance) -> {
             if (balance.signum() != 0 && (selectedId == null || selectedId.equals(id))) {
                 groups.computeIfAbsent(id, MutablePartner::new);
             }
         });
+        for (PartnerLedgerSalesClient.Sale sale : openingSales) {
+            if (!isCanonicalSale(sale) || selectedId != null && sale.partnerId() != null
+                    && !selectedId.equals(sale.partnerId())) continue;
+            UUID id = sale.partnerId();
+            if (id == null) {
+                PartnerSummary resolved = resolveSalePartner(sale);
+                id = resolved == null ? null : resolved.partnerId();
+            }
+            if (id != null) groups.computeIfAbsent(id, MutablePartner::new);
+        }
         for (var total : journalTotals) {
             UUID id = total.getPartnerId();
             if (id == null || selectedId != null && !selectedId.equals(id)
-                    || total.getSourceType() == JournalSourceType.CASH_RECEIPT) {
+                    ) {
                 continue;
             }
             MutablePartner group = groups.computeIfAbsent(id, ignored -> new MutablePartner(id));
@@ -118,27 +153,23 @@ public class PartnerLedgerReadModelService {
                             total.getAccountCode(), debit, credit, false, false));
         }
 
-        List<CashReceipt> receipts = findReceipts(from, to, selectedId);
+        // cash_receipts 는 표시 projection 일 뿐이며, 잔액 정본은 POSTED 분개이다.
+        List<CashReceipt> receipts = List.of();
         for (CashReceipt receipt : receipts) {
             if (receipt.getPartnerId() == null) continue;
             MutablePartner group = groups.computeIfAbsent(receipt.getPartnerId(), MutablePartner::new);
             String no = resolveJournalNos(receipt);
             group.documents.add(new PartnerLedgerReadModel.Document(
                     PartnerLedgerReadModel.DocumentType.CASH_RECEIPT, no, receipt.getTransactionDate(),
-                    null, null, null, zero(receipt.getAmount()), List.of()));
+                    null, null, null, zero(receipt.getAmount()), List.of(), null,
+                    "입금 projection (posted 분개 대기)", BigDecimal.ZERO, BigDecimal.ZERO,
+                    PartnerLedgerContract.Effect.NONE));
         }
 
-        List<PartnerLedgerSalesClient.Sale> sales = findSales(from, to, selectedSummary, selectedId);
-        for (PartnerLedgerSalesClient.Sale sale : openingSales) {
-            if (sale == null || selectedId != null && sale.partnerId() != null
-                    && !selectedId.equals(sale.partnerId())) continue;
-            UUID id = sale.partnerId();
-            if (id == null) {
-                PartnerSummary resolved = resolveSalePartner(sale);
-                id = resolved == null ? null : resolved.partnerId();
-            }
-            if (id != null) groups.computeIfAbsent(id, MutablePartner::new);
-        }
+        List<PartnerLedgerSalesClient.Sale> sales = canonicalSales(
+                findSales(from, to, selectedSummary, selectedId));
+        sales = includeTargetSale(sales, targetSale);
+        Set<String> canonicalSlipKeys = exactSlipKeys(sales);
         for (PartnerLedgerSalesClient.Sale sale : sales) {
             if (sale == null || selectedId != null && sale.partnerId() != null
                     && !selectedId.equals(sale.partnerId())) {
@@ -172,12 +203,8 @@ public class PartnerLedgerReadModelService {
         for (MutablePartner group : groups.values()) {
             if (group.journalSeen) {
                 PartnerSummary summary = summaries.get(group.partnerId);
-                // slip-service 원장 projection은 UUID를 반환하지 않는다. 실제 canonical link는
-                // journal sourceRefId가 업무 식별자와 별도인 경우에만 적용되므로, 이 경로에서는
-                // 공개 응답 계약을 깨지 않고 journal bundle 자체를 분류한다.
-                java.util.Set<String> canonicalSlipKeys = Set.of();
                 group.documents.addAll(journalDocumentsFromContract(group, from, to, summary,
-                        canonicalSlipKeys, accountCodes));
+                        canonicalSlipKeys, accountCodes, targetSale));
             }
         }
         List<PartnerLedgerReadModel.Partner> result = new ArrayList<>();
@@ -241,12 +268,19 @@ public class PartnerLedgerReadModelService {
     }
 
     private PartnerLedgerReadModel.Document saleDocument(PartnerLedgerSalesClient.Sale sale) {
+        BigDecimal amount = saleAmount(sale);
+        PartnerLedgerContract.Direction saleDirection = direction(amount);
         return new PartnerLedgerReadModel.Document(PartnerLedgerReadModel.DocumentType.SALE,
                 sale.slipNo(), sale.slipDate(), sale.partnerCode(), sale.partnerName(), sale.deliveryAddress(),
-                saleAmount(sale), sale.lines() == null ? List.of() : sale.lines().stream()
+                amount, sale.lines() == null ? List.of() : sale.lines().stream()
                         .map(l -> new PartnerLedgerReadModel.Line(l.productName(), l.modelName(), l.quantity(),
                                 l.unitPriceWithVat(), l.lineAmount())).toList(),
-                null, null, direction(saleAmount(sale)).debit(), direction(saleAmount(sale)).credit());
+                null, isCanonicalSale(sale) ? "slip projection (R22 canonical sale)"
+                        : "slip projection (status outside R22)",
+                isCanonicalSale(sale) ? saleDirection.debit() : BigDecimal.ZERO,
+                isCanonicalSale(sale) ? saleDirection.credit() : BigDecimal.ZERO,
+                isCanonicalSale(sale) ? PartnerLedgerContract.Effect.SALE
+                        : PartnerLedgerContract.Effect.NONE);
     }
 
     private List<PartnerLedgerReadModel.Document> journalDocuments(UUID partnerId, LocalDate from,
@@ -283,8 +317,14 @@ public class PartnerLedgerReadModelService {
     private List<PartnerLedgerReadModel.Document> journalDocumentsFromContract(MutablePartner group, LocalDate from,
                                                                                  LocalDate to, PartnerSummary summary,
                                                                                  java.util.Set<String> canonicalSlipKeys,
-                                                                                 LedgerAccountCodes accountCodes) {
+                                                                                 LedgerAccountCodes accountCodes,
+                                                                                 PartnerLedgerSalesClient.Sale targetSale) {
         List<JournalLine> lines = journalLineRepository.findJournalLinesInRangeForPartner(group.partnerId, from, to);
+        if (targetSale != null) {
+            lines = lines == null ? List.of() : lines.stream()
+                    .filter(line -> isTargetJournal(line.getJournal(), targetSale))
+                    .toList();
+        }
         if (lines == null || lines.isEmpty()) {
             // 생성자 호환 테스트/구형 adapter에서 line detail을 공급하지 못하는 경우에만 표시 보존.
             if (group.salesSeen) return List.of();
@@ -295,15 +335,21 @@ public class PartnerLedgerReadModelService {
         }
         Map<UUID, List<JournalLine>> byJournal = lines.stream()
                 .filter(line -> line.getJournal() != null
-                        && line.getJournal().getSourceType() != JournalSourceType.CASH_RECEIPT)
+                        && (line.getJournal().getStatus()
+                        == com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+                        || line.getJournal().getStatus()
+                        == com.samhanair.logis.accounting.domain.JournalStatus.REVERSED))
                 .collect(Collectors.groupingBy(line -> line.getJournal().getId(), LinkedHashMap::new, Collectors.toList()));
-        if (byJournal.isEmpty()) return journalDocuments(group.partnerId, from, to, summary, accountCodes);
+        if (byJournal.isEmpty()) {
+            return targetSale == null
+                    ? journalDocuments(group.partnerId, from, to, summary, accountCodes)
+                    : List.of();
+        }
         List<PartnerLedgerCollectionContract.Evidence> evidence = new ArrayList<>();
         for (var entry : byJournal.entrySet()) {
             JournalLine first = entry.getValue().get(0);
             var journal = first.getJournal();
-            String sourceRefKey = journal.getSourceRefId() == null ? null : journal.getSourceRefId().toString();
-            if (sourceRefKey != null && canonicalSlipKeys.contains(sourceRefKey)) continue;
+            if (isExactSlipJournal(journal, canonicalSlipKeys)) continue;
             evidence.addAll(journalEvidence(entry.getValue(), canonicalSlipKeys, group.partnerId, accountCodes));
         }
         Map<String, String> journalNumbers = byJournal.values().stream()
@@ -354,13 +400,20 @@ public class PartnerLedgerReadModelService {
         String biz = summary == null ? null : summary.bizNo();
         List<PartnerLedgerReadModel.Document> docs = group.documents.stream()
                 .sorted(Comparator.comparing(PartnerLedgerReadModel.Document::date,
-                        Comparator.nullsFirst(Comparator.naturalOrder())).thenComparing(
-                                PartnerLedgerReadModel.Document::documentNo, Comparator.nullsFirst(String::compareTo)))
+                        Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparingInt(PartnerLedgerReadModelService::documentOrder)
+                        .thenComparing(PartnerLedgerReadModel.Document::documentNo,
+                                Comparator.nullsFirst(String::compareTo)))
                 .toList();
         List<com.samhanair.logis.common.ledger.PartnerLedgerContract.Entry> entries = docs.stream()
-                .map(document -> new com.samhanair.logis.common.ledger.PartnerLedgerContract.Entry(
-                        toContractType(document.type()), document.amount(), document.debit(), document.credit(),
-                        document.effect()))
+                .map(document -> document.effect() == PartnerLedgerContract.Effect.NONE
+                        ? new com.samhanair.logis.common.ledger.PartnerLedgerContract.Entry(
+                                com.samhanair.logis.common.ledger.PartnerLedgerContract.DocumentType.JOURNAL_ONLY,
+                                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                                PartnerLedgerContract.Effect.NONE)
+                        : new com.samhanair.logis.common.ledger.PartnerLedgerContract.Entry(
+                                toContractType(document.type()), document.amount(), document.debit(), document.credit(),
+                                document.effect()))
                 .toList();
         var totals = com.samhanair.logis.common.ledger.PartnerLedgerContract.fold(entries, openingBalance);
         return new PartnerLedgerReadModel.Partner(group.partnerId, code, name, biz, docs,
@@ -381,12 +434,25 @@ public class PartnerLedgerReadModelService {
     }
 
     private Map<UUID, BigDecimal> openingBalances(LocalDate from,
-                                                  List<PartnerLedgerSalesClient.Sale> openingSales,
+                                                  PartnerLedgerSalesClient.Sale targetSale,
                                                   PartnerSummary selectedSummary, UUID selectedId,
-                                                  LedgerAccountCodes accountCodes) {
-        LocalDate asOf = from.minusDays(1);
+                                                  LedgerAccountCodes accountCodes,
+                                                  List<PartnerLedgerSalesClient.Sale> openingSales) {
+        LocalDate asOf = targetSale == null ? from.minusDays(1) : targetSale.slipDate();
         Map<UUID, BigDecimal> result = new HashMap<>();
         Set<UUID> journalPartnerIds = new LinkedHashSet<>();
+        Set<UUID> openingPartnerIds = new LinkedHashSet<>();
+        for (PartnerLedgerSalesClient.Sale sale : openingSales) {
+            if (!isCanonicalSale(sale)) continue;
+            UUID partnerId = sale.partnerId();
+            if (partnerId == null) {
+                PartnerSummary resolved = resolveSalePartner(sale);
+                partnerId = resolved == null ? null : resolved.partnerId();
+            }
+            if (partnerId != null && (selectedId == null || selectedId.equals(partnerId))) {
+                openingPartnerIds.add(partnerId);
+            }
+        }
         // chart 정본의 모든 채권 계정에서 후보를 모은다. 후보 전표는 이후 전체 라인을 읽어
         // revenue/상대 계정과 역분개까지 같은 collection contract로 판정한다.
         for (String accountCode : accountCodes.receivableCodes()) {
@@ -397,32 +463,49 @@ public class PartnerLedgerReadModelService {
                 }
             }
         }
-        for (UUID partnerId : journalPartnerIds) {
+        // Opening balance is a partner-ledger total, not an accounts-receivable-only aging total.
+        // This also discovers posted payment/adjustment journals carrying a partner axis.
+        List<JournalLineRepository.PartnerAccountTotal> canonicalTotals =
+                journalLineRepository.aggregatePostedOnlyByPartnerAccount(LEDGER_SALES_EPOCH, asOf);
+        for (var total : canonicalTotals == null ? List.<JournalLineRepository.PartnerAccountTotal>of()
+                : canonicalTotals) {
+            if (total.getPartnerId() != null
+                    && (selectedId == null || selectedId.equals(total.getPartnerId()))) {
+                journalPartnerIds.add(total.getPartnerId());
+            }
+        }
+        Set<UUID> allPartnerIds = new LinkedHashSet<>(journalPartnerIds);
+        allPartnerIds.addAll(openingPartnerIds);
+        Set<String> canonicalSlipKeys = exactSlipKeys(openingSales);
+        for (UUID partnerId : allPartnerIds) {
             List<JournalLine> lines = journalLineRepository.findJournalLinesUpToForPartner(partnerId, asOf);
-            java.util.Set<String> canonicalSlipKeys = Set.of();
+            if (targetSale != null) {
+                lines = lines == null ? List.of() : lines.stream()
+                        .filter(line -> isBeforeTarget(line.getJournal(), targetSale))
+                        .toList();
+            }
             List<PartnerLedgerCollectionContract.Evidence> evidence = journalEvidence(
                     lines, canonicalSlipKeys, partnerId, accountCodes);
+            List<PartnerLedgerContract.Entry> entries = new ArrayList<>();
+            for (PartnerLedgerSalesClient.Sale sale : openingSales) {
+                UUID salePartnerId = sale == null ? null : sale.partnerId();
+                if (salePartnerId == null) {
+                    PartnerSummary resolved = resolveSalePartner(sale);
+                    salePartnerId = resolved == null ? null : resolved.partnerId();
+                }
+                if (partnerId.equals(salePartnerId) && isCanonicalSale(sale)) {
+                    entries.add(PartnerLedgerContract.Entry.sale(saleAmount(sale)));
+                }
+            }
+            entries.addAll(PartnerLedgerCollectionContract.toEntries(
+                    PartnerLedgerCollectionContract.classify(
+                            evidence, accountCodes.receivableCodes(), accountCodes.revenueCodes())));
             var totals = PartnerLedgerContract.fold(
-                    PartnerLedgerCollectionContract.toEntries(PartnerLedgerCollectionContract.classify(
-                            evidence, accountCodes.receivableCodes(), accountCodes.revenueCodes())),
+                    entries,
                     BigDecimal.ZERO);
             if (totals.closingBalance().signum() != 0) {
                 result.put(partnerId, totals.closingBalance());
             }
-        }
-        for (CashReceipt receipt : findReceipts(LEDGER_SALES_EPOCH, asOf, selectedId)) {
-            if (receipt.getPartnerId() == null) continue;
-            result.merge(receipt.getPartnerId(), zero(receipt.getAmount()).negate(), BigDecimal::add);
-        }
-        for (PartnerLedgerSalesClient.Sale sale : openingSales) {
-            if (sale == null || selectedId != null && sale.partnerId() != null
-                    && !selectedId.equals(sale.partnerId())) continue;
-            UUID id = sale.partnerId();
-            if (id == null) {
-                PartnerSummary resolved = resolveSalePartner(sale);
-                id = resolved == null ? null : resolved.partnerId();
-            }
-            if (id != null) result.merge(id, saleAmount(sale), BigDecimal::add);
         }
         return result;
     }
@@ -433,14 +516,17 @@ public class PartnerLedgerReadModelService {
         if (lines == null) return List.of();
         Map<UUID, List<JournalLine>> byJournal = lines.stream()
                 .filter(line -> line != null && line.getJournal() != null
-                        && line.getJournal().getSourceType() != JournalSourceType.CASH_RECEIPT)
+                        && (line.getJournal().getStatus()
+                        == com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+                        || line.getJournal().getStatus()
+                        == com.samhanair.logis.accounting.domain.JournalStatus.REVERSED))
                 .collect(Collectors.groupingBy(line -> line.getJournal().getId(), LinkedHashMap::new, Collectors.toList()));
         List<PartnerLedgerCollectionContract.Evidence> evidence = new ArrayList<>();
         for (var entry : byJournal.entrySet()) {
             JournalLine first = entry.getValue().get(0);
             var journal = first.getJournal();
+            if (isExactSlipJournal(journal, canonicalSlipKeys)) continue;
             String sourceRefKey = journal.getSourceRefId() == null ? null : journal.getSourceRefId().toString();
-            if (sourceRefKey != null && canonicalSlipKeys.contains(sourceRefKey)) continue;
             boolean seed = "SYSTEM_SEED".equals(journal.getPostedBy())
                     || entry.getValue().stream().anyMatch(line -> line.getMemo() != null
                     && line.getMemo().contains("[DEV-SEED]"));
@@ -465,6 +551,127 @@ public class PartnerLedgerReadModelService {
         List<PartnerLedgerSalesClient.Sale> found = salesClient.find(from, to,
                 selectedSummary == null ? null : selectedSummary.partnerCode(), selectedId);
         return found == null ? List.of() : found;
+    }
+
+    private List<PartnerLedgerSalesClient.Sale> findOpeningSales(
+        LocalDate from, PartnerLedgerSalesClient.Sale targetSale,
+            PartnerSummary selectedSummary, UUID selectedId) {
+        LocalDate openingTo = targetSale == null ? from.minusDays(1) : targetSale.slipDate();
+        return findSales(LEDGER_SALES_EPOCH, openingTo, selectedSummary, selectedId).stream()
+                .filter(PartnerLedgerReadModelService::isCanonicalSale)
+                .filter(sale -> targetSale == null || isBeforeTarget(sale, targetSale))
+                .toList();
+    }
+
+    private static List<PartnerLedgerSalesClient.Sale> canonicalSales(
+            List<PartnerLedgerSalesClient.Sale> sales) {
+        if (sales == null) return List.of();
+        return sales.stream().filter(PartnerLedgerReadModelService::isCanonicalSale).toList();
+    }
+
+    private static Set<String> exactSlipKeys(Collection<PartnerLedgerSalesClient.Sale> sales) {
+        if (sales == null) return Set.of();
+        return sales.stream()
+                .filter(PartnerLedgerReadModelService::isCanonicalSale)
+                .map(PartnerLedgerSalesClient.Sale::slipNo)
+                .filter(value -> value != null && !value.isBlank())
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static boolean isCanonicalSale(PartnerLedgerSalesClient.Sale sale) {
+        return sale != null && sale.status() != null
+                && PartnerLedgerContract.CANONICAL_SALE_STATUSES.contains(sale.status());
+    }
+
+    private static boolean isExactSlipJournal(Journal journal, Set<String> canonicalSlipKeys) {
+        return journal != null
+                && journal.getSourceType() == JournalSourceType.SLIP
+                && journal.getJournalNo() != null
+                && canonicalSlipKeys.contains(journal.getJournalNo());
+    }
+
+    private PartnerLedgerSalesClient.Sale resolveTargetSale(String targetSlipNo, String partnerCode,
+                                                             UUID selectedId, LocalDate from, LocalDate to) {
+        if (targetSlipNo == null || targetSlipNo.isBlank()) return null;
+        String normalizedSlipNo = targetSlipNo.trim();
+        PartnerLedgerSalesClient.Sale target = salesClient.findBySlipNo(normalizedSlipNo);
+        if (target == null || target.slipNo() == null) {
+            throw new IllegalStateException("저장 대상 판매전표 원장 projection이 없습니다: " + normalizedSlipNo);
+        }
+        boolean samePartner = partnerCode == null
+                || partnerCode.equals(target.partnerCode())
+                || selectedId != null && selectedId.equals(target.partnerId());
+        if (!samePartner) {
+            throw new IllegalArgumentException("대상 판매전표의 거래처가 조회 거래처와 다릅니다");
+        }
+        if (target.slipDate() == null || target.slipDate().isBefore(from) || target.slipDate().isAfter(to)) {
+            throw new IllegalArgumentException("대상 판매전표 일자가 원장 조회 기간과 다릅니다");
+        }
+        return target;
+    }
+
+    private List<PartnerLedgerSalesClient.Sale> includeTargetSale(
+            List<PartnerLedgerSalesClient.Sale> sales,
+            PartnerLedgerSalesClient.Sale targetSale) {
+        if (targetSale == null) return sales;
+        return List.of(targetSale);
+    }
+
+    private static boolean isBeforeTarget(Journal journal,
+                                          PartnerLedgerSalesClient.Sale targetSale) {
+        if (journal == null || journal.getJournalDate() == null || targetSale == null
+                || targetSale.slipDate() == null) return false;
+        int dateOrder = journal.getJournalDate().compareTo(targetSale.slipDate());
+        if (dateOrder < 0) return true;
+        if (dateOrder > 0) return false;
+        if (journal.getSourceType() != JournalSourceType.SLIP) return false;
+        return compareEventNumber(journal.getJournalNo(), targetSale.slipNo()) < 0;
+    }
+
+    private static boolean isBeforeTarget(PartnerLedgerSalesClient.Sale sale,
+                                          PartnerLedgerSalesClient.Sale targetSale) {
+        if (sale == null || targetSale == null || sale.slipDate() == null || targetSale.slipDate() == null) {
+            return false;
+        }
+        int dateOrder = sale.slipDate().compareTo(targetSale.slipDate());
+        if (dateOrder != 0) return dateOrder < 0;
+        return compareEventNumber(sale.slipNo(), targetSale.slipNo()) < 0;
+    }
+
+    private static boolean isTargetJournal(Journal journal,
+                                           PartnerLedgerSalesClient.Sale targetSale) {
+        if (journal == null || targetSale == null || journal.getJournalDate() == null
+                || targetSale.slipDate() == null
+                || journal.getJournalDate().compareTo(targetSale.slipDate()) != 0
+                || journal.getSourceType() != JournalSourceType.SLIP) return false;
+        return compareEventNumber(journal.getJournalNo(), targetSale.slipNo()) == 0;
+    }
+
+    /** Same-day slip order is the numeric suffix of yyyy/MM/dd-N; non-slip journals sort last. */
+    private static int compareEventNumber(String left, String right) {
+        Integer leftSequence = eventSequence(left);
+        Integer rightSequence = eventSequence(right);
+        if (leftSequence != null && rightSequence != null) {
+            return Integer.compare(leftSequence, rightSequence);
+        }
+        if (left == null) return right == null ? 0 : -1;
+        if (right == null) return 1;
+        return left.compareTo(right);
+    }
+
+    private static Integer eventSequence(String value) {
+        if (value == null || !SLIP_NUMBER_PATTERN.matcher(value).matches()) return null;
+        int separator = value.lastIndexOf('-');
+        if (separator < 0 || separator == value.length() - 1) return null;
+        try {
+            return Integer.valueOf(value.substring(separator + 1));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static int documentOrder(PartnerLedgerReadModel.Document document) {
+        return eventSequence(document.documentNo()) == null ? 1 : 0;
     }
 
     private static List<PartnerLedgerReadModel.Document> documentsFromAggregateContract(

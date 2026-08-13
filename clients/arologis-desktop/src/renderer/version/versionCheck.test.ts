@@ -18,14 +18,14 @@ describe('아로로지스 데스크톱 버전 확인', () => {
     expect(resolveBuildAppVersion('2026/07/29-1')).toBe('2026/07/29-1')
   })
 
-  it('공개 버전 API 실패는 앱을 막지 않고 null로 끝난다', async () => {
+  it('공개 버전 API 실패는 정책 미수신 예외로 드러난다', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new Error('offline'))
 
     await expect(fetchDesktopVersionStatus({
       apiBaseUrl: 'http://localhost:8080',
       currentVersion: '0.1.0-dev',
       fetchImpl,
-    })).resolves.toBeNull()
+    })).rejects.toThrow('버전 정책을 확인하지 못했습니다')
   })
 
   it('CRITICAL 릴리스는 사용자가 최신 버전을 확인하도록 blocking 상태를 만든다', () => {

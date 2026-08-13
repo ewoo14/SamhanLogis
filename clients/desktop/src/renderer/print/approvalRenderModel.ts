@@ -5,12 +5,11 @@
  * 상세 생성은 기존 `approvalDoc.ts` 헬퍼를 단일 진실원으로 재사용한다.
  */
 import type { ApprovalLineAdminResponse } from '../api/groupwareApproval'
-import {
-  APPROVAL_ATTACHMENT_TYPE_LABEL,
-  type ApprovalAttachment,
-} from '../api/groupwareApprovalAttachment'
+import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
+import { approvalAttachmentPrintLabel } from '../api/approvalAttachmentPresentation'
 import type { ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import type { EstimateLine } from '../api/estimateApi'
+import type { SlipLineDetail } from '../api/slip'
 import { krw } from './PrintLayout'
 import {
   attachmentDetails,
@@ -21,6 +20,7 @@ import {
   contentParagraphs,
   fieldRows,
 } from './approvalDoc'
+import { storedLineAmounts } from './printAmounts'
 
 export interface FrozenApprovalDocInput {
   approval: ApprovalLineAdminResponse
@@ -28,6 +28,8 @@ export interface FrozenApprovalDocInput {
   attachments: ApprovalAttachment[]
   /** 파일럿 detail adapter 입력 — 실제 EstimateLineResponse의 FE 정규화 타입. */
   lineItems?: EstimateLine[]
+  /** 결재 첨부의 기존 OUTBOUND_SLIP 상세에서 온 라인. */
+  slipLineItems?: SlipLineDetail[]
   backTo?: string
 }
 
@@ -84,6 +86,22 @@ export function projectEstimateLineItems(lines: EstimateLine[]): ApprovalRenderL
   }))
 }
 
+/** 기존 출고전표 상세 응답의 라인을 UUID 없는 결재 인쇄 행으로 투영한다. */
+export function projectSlipLineItems(lines: SlipLineDetail[]): ApprovalRenderLineItem[] {
+  return lines.map((line) => ({
+    productName: line.productName ?? '',
+    modelName: line.modelName ?? '',
+    specification: line.specification ?? '',
+    quantity: line.quantity,
+    supplyAmount: line.supplyAmount ?? '',
+    vatAmount: line.vatAmount ?? '',
+    // SlipLineDetail.lineTotal은 legacy에서 공급가액 별칭이다. 결재 품목 밴드의
+    // 합계는 VAT 포함 금액이므로 저장된 공급가액과 부가세를 합산한다.
+    lineTotal: String(storedLineAmounts(line).total),
+    note: line.note ?? '',
+  }))
+}
+
 export interface ApprovalRenderModel {
   header: ApprovalRenderHeader
   approvalSteps: ApprovalRenderStep[]
@@ -128,12 +146,16 @@ export function buildApprovalRenderModel(input: FrozenApprovalDocInput): Approva
         value: row.fieldType === 'NUMBER' ? krw(row.value) || row.value : row.value,
       })),
       attachments: sortedAttachments.map((attachment) => ({
-        typeLabel: APPROVAL_ATTACHMENT_TYPE_LABEL[attachment.attachmentType],
+        typeLabel: approvalAttachmentPrintLabel(attachment),
         title: attachmentTitle(attachment),
         detail: attachmentDetails(attachment).join(' · '),
       })),
-      lineItems: projectEstimateLineItems(input.lineItems ?? []),
-      lineItemsAvailability: input.lineItems === undefined ? 'UNAVAILABLE' : 'CONNECTED',
+      lineItems: input.slipLineItems !== undefined
+        ? projectSlipLineItems(input.slipLineItems)
+        : projectEstimateLineItems(input.lineItems ?? []),
+      lineItemsAvailability: input.slipLineItems !== undefined || input.lineItems !== undefined
+        ? 'CONNECTED'
+        : 'UNAVAILABLE',
     },
     closing: { note: CLOSING_NOTE },
   }

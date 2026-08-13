@@ -23,7 +23,7 @@
  * 본 컴포넌트는 `mode` prop 으로 OUTBOUND / INBOUND 양쪽 화면에서 재사용.
  */
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   Button,
@@ -68,6 +68,7 @@ import {
 } from '../api/inventory'
 import {
   createSlip,
+  createBundleInstanceKey,
   expandBundleLine,
   getPriceMemory,
   lookupPartnerForAutoFill,
@@ -76,6 +77,8 @@ import {
   type SlipLineInput,
   type SlipType,
 } from '../api/slip'
+import { getSalesSlipLedgerData } from '../api/partnerLedgerApi'
+import { formatSalesSlipLedgerAmount } from './salesSlipLedger'
 import { getPartnerDcConfig } from '../api/sales'
 import type { PartnerDcConfig } from '../api/sales'
 import {
@@ -504,6 +507,8 @@ interface ExpandedBundleOptionContext {
   parentCatalogUnitPrice: string | null
   parentCategoryKey: LineDraft['categoryKey']
   parentFixedDiscountRate: number | null
+  parentDiscountOption: LineDraft['discountOption']
+  parentClassificationAssigned?: boolean
   parentHasVariableDiscount: boolean | null
   discountInfo: string | null
   setOptions: BundleSetOptions
@@ -670,6 +675,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const navigate = useNavigate()
   const isOutbound = mode === 'OUTBOUND'
   const listPath = isOutbound ? '/sales' : '/purchases'
+  const queryClient = useQueryClient()
   const titleLabel = isOutbound ? '새 판매전표' : '새 입고전표'
   const isMobile = useIsMobile()
 
@@ -717,6 +723,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // AC-3: 거래처 자동완성 선택 상태 (PartnerAutocomplete controlled value)
   const [selectedPartner, setSelectedPartner] = useState<PartnerOption | null>(null)
   const [partnerDcConfig, setPartnerDcConfig] = useState<PartnerDcConfig | null>(null)
+  const [partnerNote, setPartnerNote] = useState('')
+  const [partnerManagerName, setPartnerManagerName] = useState('')
   const [priceLookupAnnouncement, setPriceLookupAnnouncement] = useState('')
   // 단건 최근단가 조회의 실제 Promise 수명 — 거래처 bulk refresh의 line flag와 분리한다.
   const [priceLookupPendingIds, setPriceLookupPendingIds] = useState<Set<string>>(new Set())
@@ -724,6 +732,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const priceLookupSequenceRef = useRef(0)
   const selectedPartnerIdRef = useRef<string | null>(null)
   const dcRequestSeqRef = useRef(0)
+  type PartnerAutoFillField = 'customerTel' | 'customerAddress' | 'customerRepresentative'
+  const partnerAutoFillDirtyRef = useRef<Set<PartnerAutoFillField>>(new Set())
   selectedPartnerIdRef.current = selectedPartner?.id ?? null
   // R8-FE-3: 안내 낭독을 실제 적용 여부와 같은 조건으로 묶기 위한 최신 라인 스냅샷
   // (견적 EstimateFormPage.linesRef 와 동일 패턴 — 비대칭 해소).
@@ -767,7 +777,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setPriceLookupPendingIds(new Set())
   }
 
-  // 거래처 snapshot — 자동완성 선택 시 채워짐(폼 미표시, 전표 기록/주소복사용).
+  // 거래처 snapshot — 자동완성 선택 시 채워짐(전표 기록/주소복사용).
   // eCount 12필드 입력 카드는 출고전표 폼 정비로 제거(ioType/timeDate/검수지/결제·할인·약정 등).
   const [customerTel, setCustomerTel] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
@@ -794,6 +804,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
     queryFn: listWarehouses,
+  })
+
+  const salesSlipOpeningBalanceQuery = useQuery({
+    queryKey: ['new-sales-slip-opening-balance', selectedPartner?.partnerCode ?? '', slipDate],
+    queryFn: () => getSalesSlipLedgerData(
+      selectedPartner?.partnerCode ?? '',
+      slipDate,
+      slipDate,
+    ),
+    enabled: isOutbound && Boolean(selectedPartner?.partnerCode) && Boolean(slipDate),
+    retry: false,
   })
 
   // KST 로컬 날짜 기준 (UTC 기준 toISOString().slice(0,10) 은 오전 0~8:59 에 하루 전 날짜를 반환함)
@@ -969,6 +990,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           parentCatalogUnitPrice: source.catalogUnitPrice ?? null,
           parentCategoryKey: source.categoryKey ?? null,
           parentFixedDiscountRate: source.fixedDiscountRate ?? null,
+          parentDiscountOption: source.discountOption ?? null,
+          parentClassificationAssigned: source.classificationAssigned,
           parentHasVariableDiscount: source.hasVariableDiscount ?? null,
           discountInfo: source.discountInfo ?? null,
           setOptions: source.setOptions ?? emptyBundleSetOptions(),
@@ -982,11 +1005,21 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const parentProductId = context?.parentProductId ?? source.productId
     const parentModelCode = context?.parentModelCode ?? source.modelCode
     const parentUnitPrice = parentContextOverrides.unitPrice ?? context?.unitPrice ?? source.unitPrice
+    const bundleSetOptions = {
+      ...(context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions()),
+      instanceKey: context?.setOptions?.instanceKey
+        ?? source.setOptions?.instanceKey
+        ?? createBundleInstanceKey(),
+    }
     const bundleDiscountResult = calculateBundleParentDiscount({
       listPrice: Number(context?.parentCatalogUnitPrice ?? source.catalogUnitPrice ?? source.unitPrice),
       modelCode: parentModelCode,
       categoryKey: context?.parentCategoryKey ?? source.categoryKey,
       fixedDiscountRate: context?.parentFixedDiscountRate ?? source.fixedDiscountRate,
+      classificationOptions: context?.parentDiscountOption
+        ? [context.parentDiscountOption]
+        : source.discountOption ? [source.discountOption] : [],
+      classificationAssigned: context?.parentClassificationAssigned ?? source.classificationAssigned,
       hasVariableDiscount: context?.parentHasVariableDiscount ?? source.hasVariableDiscount,
     }, discountConfig)
     // 재가격 시 새 거래처의 계산 결과만 근거로 남긴다. 이전 거래처의
@@ -1042,7 +1075,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               bundleParentProductId: parentProductId,
               bundleParentUnitPrice: parentUnitPrice,
             }),
-            setOptions: context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions(),
+            setOptions: bundleSetOptions,
           }), 'PRICE'),
           productId: component.productId,
           modelName: component.modelName ?? '',
@@ -1061,7 +1094,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             bundleParentProductId: parentProductId,
             bundleParentUnitPrice: parentUnitPrice,
           }),
-          setOptions: context?.setOptions ?? source.setOptions ?? emptyBundleSetOptions(),
+          setOptions: bundleSetOptions,
           lookupError: null,
           lookupLoading: false,
         } satisfies LineDraft
@@ -1149,6 +1182,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           parentCatalogUnitPrice: selected.catalogUnitPrice ?? null,
           parentCategoryKey: selected.categoryKey ?? null,
           parentFixedDiscountRate: selected.fixedDiscountRate ?? null,
+          parentDiscountOption: selected.discountOption ?? null,
+          parentClassificationAssigned: selected.classificationAssigned,
           parentHasVariableDiscount: selected.hasVariableDiscount ?? null,
           discountInfo: selected.discountInfo ?? null,
           setOptions: selected.setOptions ?? emptyBundleSetOptions(),
@@ -1364,6 +1399,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         listPrice: Number(catalogUnitPrice),
         modelCode: product?.modelCode,
         fixedDiscountRate: product?.fixedDiscountRate,
+        classificationOptions: product?.discountOption ? [product.discountOption] : [],
+        classificationAssigned: product?.classificationAssigned,
         category,
         hasVariableDiscount: product?.hasVariableDiscount,
       }, config)
@@ -1385,6 +1422,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       catalogUnitPrice: catalogUnitPrice != null ? String(catalogUnitPrice) : line.catalogUnitPrice ?? null,
       categoryKey: product?.categoryKey ?? null,
       fixedDiscountRate: product?.fixedDiscountRate ?? null,
+      discountOption: product?.discountOption ?? null,
+      classificationAssigned: product?.classificationAssigned,
       hasVariableDiscount: product?.hasVariableDiscount ?? null,
       discountInfo: dcResult?.info ?? null,
       priceMemoryUpdatedAt: null,
@@ -1586,6 +1625,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           ? undefined
           : {
             fixedDiscountRate: line.fixedDiscountRate,
+            classificationOptions: line.discountOption ? [line.discountOption] : [],
+            classificationAssigned: line.classificationAssigned,
             modelCode: line.modelCode,
             category: line.categoryKey === 'homemulti'
               ? 'HOMEMULTI'
@@ -1621,6 +1662,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         modelCode: context.parentModelCode,
         categoryKey: context.parentCategoryKey,
         fixedDiscountRate: context.parentFixedDiscountRate,
+        classificationOptions: context.parentDiscountOption ? [context.parentDiscountOption] : [],
+        classificationAssigned: context.parentClassificationAssigned,
         hasVariableDiscount: context.parentHasVariableDiscount,
       }, discountConfig)
       const parentUnitPrice = String(parentDiscount.unitPrice)
@@ -1721,6 +1764,30 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   // ── AC-3: PartnerAutocomplete onChange 핸들러 ────────────────────────────────
 
+  const setPartnerAutoFillValue = (
+    field: PartnerAutoFillField,
+    value: string,
+  ) => {
+    if (partnerAutoFillDirtyRef.current.has(field)) return
+    if (field === 'customerTel') setCustomerTel(value)
+    if (field === 'customerAddress') setCustomerAddress(value)
+    if (field === 'customerRepresentative') setCustomerRepresentative(value)
+  }
+
+  const markPartnerAutoFillDirty = (field: PartnerAutoFillField) => {
+    partnerAutoFillDirtyRef.current.add(field)
+  }
+
+  const joinPartnerAddress = (detail: {
+    address?: string | null
+    address1?: string | null
+    address2?: string | null
+  }) => Array.from(new Set([
+    detail.address,
+    detail.address1,
+    detail.address2,
+  ].map((value) => value?.trim()).filter(Boolean))).join(' ')
+
   /**
    * AC-3 거래처 자동완성 선택 핸들러 — 2단계 채움.
    *
@@ -1760,9 +1827,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       setPriceLookupAnnouncement('')
       // 선택 해제 — 관련 필드 클리어
       setPartnerName('')
-      setCustomerTel('')
-      setCustomerAddress('')
-      setCustomerRepresentative('')
+      setPartnerAutoFillValue('customerTel', '')
+      setPartnerAutoFillValue('customerAddress', '')
+      setPartnerAutoFillValue('customerRepresentative', '')
+      setPartnerNote('')
+      setPartnerManagerName('')
       setAutoFillError(null)
       return
     }
@@ -1780,17 +1849,25 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
     // 1단계: search summary 즉시 fill
     setPartnerName(partner.name)
-    setCustomerTel(partner.phone ?? '')
+    setPartnerAutoFillValue('customerTel', partner.phone ?? '')
+    setPartnerAutoFillValue('customerAddress', '')
+    setPartnerAutoFillValue('customerRepresentative', '')
+    setPartnerNote('')
+    setPartnerManagerName('')
 
     // 2단계: detail fetch → address/representative 보강 (기존 handlePartnerAutoFill 로직 재사용)
     setAutoFillLoading(true)
     setAutoFillError(null)
     try {
       const detail = await lookupPartnerForAutoFill(partner.partnerCode)
-      if (detail.address) setCustomerAddress(detail.address)
-      if (detail.representative) setCustomerRepresentative(detail.representative)
+      if (dcRequestSeqRef.current !== dcRequestSeq
+        || selectedPartnerIdRef.current !== partner.id) return
+      setPartnerAutoFillValue('customerAddress', joinPartnerAddress(detail))
+      setPartnerAutoFillValue('customerRepresentative', detail.representative?.trim() ?? '')
+      setPartnerNote(detail.note?.trim() ?? '')
+      setPartnerManagerName(detail.managerName?.trim() ?? '')
       // phone/name 은 summary 기준 우선, detail 로 보강
-      if (!partner.phone && detail.phone) setCustomerTel(detail.phone)
+      if (!partner.phone) setPartnerAutoFillValue('customerTel', detail.phone?.trim() ?? '')
     } catch (err) {
       const msg =
         axios.isAxiosError(err) && err.response?.status === 404
@@ -1875,7 +1952,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         // link-dispatch-slice — OUTBOUND 만 driver 정보 송신
         driverName: isOutbound && driverName.trim() ? driverName.trim() : undefined,
         driverPhone: isOutbound && driverPhone ? driverPhone : undefined,
-        // 거래처 snapshot — 자동완성 선택 시 채워짐(폼 표시 X, 전표 기록용). ioType 는
+        // 거래처 snapshot — 자동완성 선택 시 채워짐(헤더 표시 + 전표 기록용). ioType 는
         // 내부 코드라 BE 가 slipType 으로 자동 분기(미전송).
         customerTel: customerTel.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
@@ -1932,7 +2009,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       }
       return createSlip(payload)
     },
-    onSuccess: () => navigate(listPath),
+    onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: ['slips', 'query', mode] })
+      if (isOutbound && created?.id) {
+        navigate(`/sales/${created.id}`)
+        return
+      }
+      navigate(listPath)
+    },
   })
 
   const errorMessage = (() => {
@@ -2141,6 +2225,105 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             </div>
           ) : null}
         </div>
+
+        <div
+          className="sfp-form-grid sfp-form-grid--2 mobile-form-grid"
+          style={{ marginTop: 16 }}
+          data-testid="slip-partner-header-autofill"
+        >
+          <FormField
+            label="거래처 전화번호"
+            render={({ id }) => (
+              <input
+                id={id}
+                value={customerTel}
+                onChange={(event) => {
+                  markPartnerAutoFillDirty('customerTel')
+                  setCustomerTel(event.target.value)
+                }}
+                maxLength={50}
+                className="sfp-input"
+                data-testid="slip-customer-tel"
+              />
+            )}
+          />
+          <FormField
+            label="거래처 주소"
+            render={({ id }) => (
+              <input
+                id={id}
+                value={customerAddress}
+                onChange={(event) => {
+                  markPartnerAutoFillDirty('customerAddress')
+                  setCustomerAddress(event.target.value)
+                }}
+                maxLength={500}
+                className="sfp-input"
+                data-testid="slip-customer-address"
+              />
+            )}
+          />
+          <FormField
+            label="대표이사"
+            render={({ id }) => (
+              <input
+                id={id}
+                value={customerRepresentative}
+                onChange={(event) => {
+                  markPartnerAutoFillDirty('customerRepresentative')
+                  setCustomerRepresentative(event.target.value)
+                }}
+                maxLength={100}
+                className="sfp-input"
+                data-testid="slip-customer-representative"
+              />
+            )}
+          />
+          <div>
+            <span className="detail-label">거래처 특이사항</span>
+            <div className="detail-value" data-testid="slip-partner-note">
+              {partnerNote || '—'}
+            </div>
+          </div>
+          <div>
+            <span className="detail-label">거래처 담당자</span>
+            <div className="detail-value" data-testid="slip-partner-manager">
+              {partnerManagerName || '—'}
+            </div>
+          </div>
+        </div>
+
+        {isOutbound ? (
+          <div
+            className="sfp-form-grid sfp-form-grid--2 mobile-form-grid"
+            style={{ marginTop: 16 }}
+            data-testid="slip-form-ledger-balance"
+          >
+            <div>
+              <span className="detail-label">전잔</span>
+              <div className="detail-value" data-testid="slip-form-opening-balance">
+                {!selectedPartner?.partnerCode
+                  ? '거래처 없음'
+                  : salesSlipOpeningBalanceQuery.isPending
+                    ? '조회 중…'
+                    : salesSlipOpeningBalanceQuery.isError
+                      ? '조회 실패'
+                      : salesSlipOpeningBalanceQuery.data?.openingBalance == null
+                        ? '조회 실패'
+                        : formatSalesSlipLedgerAmount(salesSlipOpeningBalanceQuery.data.openingBalance)}
+              </div>
+              {selectedPartner?.partnerCode && salesSlipOpeningBalanceQuery.isError ? (
+                <small>전잔 조회 실패 · 전표 작성은 계속할 수 있습니다.</small>
+              ) : null}
+            </div>
+            <div>
+              <span className="detail-label">후잔</span>
+              <div className="detail-value" data-testid="slip-form-closing-balance">
+                저장 후 산출
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="sfp-form-grid sfp-form-grid--1 mobile-form-grid" style={{ marginTop: 16 }}>
           <FormField

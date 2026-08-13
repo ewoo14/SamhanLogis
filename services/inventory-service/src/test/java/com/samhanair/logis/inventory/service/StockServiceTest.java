@@ -14,6 +14,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.StockBalance;
+import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.domain.StockLot;
 import com.samhanair.logis.inventory.domain.StockMovement;
 import com.samhanair.logis.inventory.domain.Warehouse;
@@ -21,6 +22,8 @@ import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
 import com.samhanair.logis.inventory.repository.StockLotRepository;
 import com.samhanair.logis.inventory.repository.StockMovementRepository;
+import com.samhanair.logis.inventory.repository.StockInstanceRepository;
+import com.samhanair.logis.inventory.repository.StockInstanceBalanceProjection;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.AdjustRequest;
 import com.samhanair.logis.inventory.web.dto.DeductRequest;
@@ -49,6 +52,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
 class StockServiceTest {
@@ -56,6 +61,7 @@ class StockServiceTest {
     @Mock private StockLotRepository stockLotRepository;
     @Mock private StockBalanceRepository stockBalanceRepository;
     @Mock private StockMovementRepository stockMovementRepository;
+    @Mock private StockInstanceRepository stockInstanceRepository;
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private ProductClient productClient;
     @Mock private SourceOperationJournalWriter sourceJournalWriter;
@@ -105,6 +111,65 @@ class StockServiceTest {
         assertThat(response.warehouseCode()).isEqualTo("HQ-001");
         verify(stockMovementRepository).save(any(StockMovement.class));
         verify(sourceJournalWriter).record(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void findBalancePage_serialInstancesAreReachableAndExistingQuantityRowsRemainUnchanged() {
+        UUID serialProductId = UUID.randomUUID();
+        ProductSummary serialProduct = new ProductSummary(
+                serialProductId, "시리얼 에어컨", "ACL-KORGHP07", "ACL-KORGHP07",
+                UUID.randomUUID(), new BigDecimal("1500000.00"), "ACTIVE", true);
+        when(stockBalanceRepository.findBalancePage(null, null, Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(List.of()));
+        StockInstanceBalanceProjection available = org.mockito.Mockito.mock(StockInstanceBalanceProjection.class);
+        when(available.getProductId()).thenReturn(serialProductId);
+        when(available.getWarehouseId()).thenReturn(warehouseId);
+        when(available.getStatus()).thenReturn(StockInstanceStatus.AVAILABLE);
+        when(available.getQuantity()).thenReturn(2L);
+        StockInstanceBalanceProjection reserved = org.mockito.Mockito.mock(StockInstanceBalanceProjection.class);
+        when(reserved.getProductId()).thenReturn(serialProductId);
+        when(reserved.getWarehouseId()).thenReturn(warehouseId);
+        when(reserved.getStatus()).thenReturn(StockInstanceStatus.RESERVED);
+        when(reserved.getQuantity()).thenReturn(1L);
+        when(stockInstanceRepository.findActiveBalanceGroups(null, null))
+                .thenReturn(List.of(available, reserved));
+        when(warehouseRepository.findAllByIsDeletedFalseOrderByDisplayOrderAsc())
+                .thenReturn(List.of(warehouse));
+        when(productClient.lookupAllowMissing(List.of(serialProductId)))
+                .thenReturn(List.of(serialProduct));
+
+        // RED: 현재 재고 현황은 stock_balances만 읽으므로 serial-only 품목 행을 반환하지 않는다.
+        var result = service.findBalancePage(null, null, Pageable.unpaged());
+
+        assertThat(result.getContent())
+                .extracting(response -> response.productCode())
+                .containsExactly("ACL-KORGHP07");
+        assertThat(result.getContent().get(0).availableQty()).isEqualTo(2);
+        assertThat(result.getContent().get(0).reservedQty()).isEqualTo(1);
+        assertThat(result.getContent().get(0).totalQty()).isEqualTo(3);
+    }
+
+    @Test
+    void findBalancePage_batchBalanceStillUsesStockBalanceQuantities() {
+        StockBalance batchBalance = balanceWith(4, 1, 5);
+        when(stockBalanceRepository.findBalancePage(null, null, Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(List.of(batchBalance)));
+        when(warehouseRepository.findAllByIsDeletedFalseOrderByDisplayOrderAsc())
+                .thenReturn(List.of(warehouse));
+        when(productClient.lookupAllowMissing(List.of(productId)))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "수량 품목", "BATCH-001", "BATCH-001",
+                        UUID.randomUUID(), BigDecimal.ZERO, "ACTIVE", false)));
+        when(stockInstanceRepository.findActiveBalanceGroups(null, null)).thenReturn(List.of());
+
+        var result = service.findBalancePage(null, null, Pageable.unpaged());
+
+        assertThat(result.getContent()).singleElement().satisfies(row -> {
+            assertThat(row.productCode()).isEqualTo("BATCH-001");
+            assertThat(row.availableQty()).isEqualTo(4);
+            assertThat(row.reservedQty()).isEqualTo(1);
+            assertThat(row.totalQty()).isEqualTo(5);
+        });
     }
 
     @Test
@@ -347,6 +412,24 @@ class StockServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    void deduct_missingProduct_staysStrictAndMutatesNothing() {
+        when(productClient.requireExists(productId))
+                .thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 제품 ID"));
+
+        assertThatThrownBy(() -> service.deduct(
+                new DeductRequest(productId, warehouseId, 1, false, null, null, null,
+                        sourceContext(productId)), "u1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.NOT_FOUND));
+
+        verify(stockLotRepository, never()).findAvailableLotsForFifo(any(), any());
+        verify(stockBalanceRepository, never())
+                .findByProductIdAndWarehouse_IdAndIsDeletedFalse(any(), any());
+        verify(stockMovementRepository, never()).save(any());
     }
 
     @Test

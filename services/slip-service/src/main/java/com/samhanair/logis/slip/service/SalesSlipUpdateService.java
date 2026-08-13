@@ -3,10 +3,12 @@ package com.samhanair.logis.slip.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
@@ -21,10 +23,12 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -107,6 +111,23 @@ public class SalesSlipUpdateService {
         bundleLineage.restoreSlipLines(replacementLines, request.lines().stream()
                 .map(SlipUpdateRequest.LineRequest::lineId)
                 .toList());
+        validateAndAssignNewBundleLineage(replacementLines, request.lines());
+        BundleLineageResolver.flattenHeadProductReplacements(
+                slip.getLines(), replacementLines, request.lines().stream()
+                        .map(SlipUpdateRequest.LineRequest::lineId)
+                        .toList());
+        BundleLineageResolver.flattenAmbiguousLegacyLineageAfterHeadDeletion(
+                slip.getLines(), replacementLines, request.lines().stream()
+                        .map(SlipUpdateRequest.LineRequest::lineId)
+                        .toList());
+        BundleLineageResolver.requireSingleHeadPerRetainedBundleInstance(
+                slip.getLines(), replacementLines, request.lines().stream()
+                        .map(SlipUpdateRequest.LineRequest::lineId)
+                        .toList());
+        BundleLineageResolver.materializeLegacyInstanceKeys(
+                slip.getLines(), replacementLines, request.lines().stream()
+                        .map(SlipUpdateRequest.LineRequest::lineId)
+                        .toList());
         rejectAuthoritativeBundleComponents(replacementLines, request.lines());
         try {
             slip.updateSalesHeader(
@@ -134,6 +155,8 @@ public class SalesSlipUpdateService {
                 auditLogService.recordBatch(saved.getId(), actorId, actorName, null,
                         List.of(new SlipAuditLogService.ChangeEntry("SLIP_EDIT", before, after)));
             }
+            // auditLogService.recordBatch가 revisionCount/modifiedAt을 전진시킨 뒤의 최종 token을 만든다.
+            slipRepository.flush();
             priceMemoryService.rememberBatchAfterCommit(priceMemoryCommands, "slip.salesUpdate");
             return SlipDetailResponse.from(saved);
         } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
@@ -257,6 +280,204 @@ public class SalesSlipUpdateService {
                 line.quantity(),
                 line.unitPrice(),
                 line.note());
+    }
+
+    /**
+     * 신규 익명 라인의 BUNDLE 계보를 부모와 허용 구성품 membership으로 검증한 뒤 영속한다.
+     *
+     * <p>기존 {@code lineId} 라인은 {@link BundleLineageResolver}가 구 규약의 계보를 복원한다.
+     * 반면 신규 구성품은 영속 ID가 없으므로 요청의 계보를 무검증으로 신뢰하면 임의 SINGLE을
+     * 세트 구성품으로 위조할 수 있다. 신규 계보 그룹이 있을 때만 부모를 조회하고, product-service
+     * 전개 결과에서 허용 구성품 ID와 canonical head만 확인한다. 수량·단가는 화면에서 편집 가능한
+     * 사용자 권위값이므로 서버 전개 원문과 동일해야 한다는 조건을 두지 않는다.
+     */
+    private void validateAndAssignNewBundleLineage(
+            List<SlipLine> lines, List<SlipUpdateRequest.LineRequest> requests) {
+        Map<BundleRequestKey, List<Integer>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < requests.size(); i++) {
+            SlipUpdateRequest.LineRequest request = requests.get(i);
+            if (!hasBundleMetadata(request)) {
+                continue;
+            }
+            if (!hasCompleteBundleMetadata(request)) {
+                if (request.lineId() == null) {
+                    rejectBundleLineage("신규 세트 구성품의 부모 계보가 불완전합니다");
+                }
+                // 기존 구 세트 행은 응답에 부모 UUID/가격이 없을 수 있으므로 resolver 결과를 보존한다.
+                continue;
+            }
+            BundleRequestKey key = BundleRequestKey.from(request);
+            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(i);
+        }
+        if (groups.isEmpty()) {
+            return;
+        }
+
+        List<UUID> parentIds = groups.keySet().stream()
+                .map(BundleRequestKey::parentProductId)
+                .distinct()
+                .toList();
+        Map<UUID, ProductSummary> parentsById = productClient.lookup(parentIds).stream()
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toMap(ProductSummary::id, value -> value,
+                        (left, right) -> left));
+
+        for (Map.Entry<BundleRequestKey, List<Integer>> entry : groups.entrySet()) {
+            BundleRequestKey key = entry.getKey();
+            List<Integer> indexes = entry.getValue();
+            if (indexes.stream().noneMatch(index -> requests.get(index).lineId() == null)) {
+                continue;
+            }
+            ProductSummary parent = parentsById.get(key.parentProductId());
+            if (parent == null || !"BUNDLE".equals(parent.productType())
+                    || !Objects.equals(key.parentSetModel(), parent.modelCode())) {
+                rejectBundleLineage("부모 BUNDLE 품목과 세트 modelCode가 일치하지 않습니다");
+            }
+            BigDecimal parentUnitPrice = requests.get(indexes.get(0)).bundleParentUnitPrice();
+            if (parentUnitPrice.signum() < 0 || indexes.stream().anyMatch(index ->
+                    requests.get(index).bundleParentUnitPrice() == null
+                            || requests.get(index).bundleParentUnitPrice().compareTo(parentUnitPrice) != 0)) {
+                rejectBundleLineage("세트 부모 단가가 구성품 행마다 일치하지 않습니다");
+            }
+
+            BundleSetOptions setOptions = ensureInstanceKey(key.setOptions());
+            ExpandedLineDto.Options expandOptions = toExpandOptions(setOptions);
+            List<ExpandedLineDto> expanded = componentLines(productClient.expand(
+                    key.parentSetModel(), BigDecimal.ONE, expandOptions, parentUnitPrice));
+            UUID canonicalHeadProductId = validateBundleMembership(expanded, indexes, requests);
+            for (int i = 0; i < indexes.size(); i++) {
+                int index = indexes.get(i);
+                lines.get(index).assignBundleComponent(
+                        key.parentSetModel(),
+                        Objects.equals(requests.get(index).productId(), canonicalHeadProductId),
+                        setOptions);
+            }
+        }
+    }
+
+    private boolean hasBundleMetadata(SlipUpdateRequest.LineRequest request) {
+        return (request.parentSetModel() != null && !request.parentSetModel().isBlank())
+                || request.setHead() != null
+                || request.bundleParentProductId() != null
+                || request.bundleParentUnitPrice() != null
+                || request.setOptions() != null;
+    }
+
+    private boolean hasCompleteBundleMetadata(SlipUpdateRequest.LineRequest request) {
+        return request.parentSetModel() != null && !request.parentSetModel().isBlank()
+                && request.setHead() != null
+                && request.bundleParentProductId() != null
+                && request.bundleParentUnitPrice() != null;
+    }
+
+    private ExpandedLineDto.Options toExpandOptions(BundleSetOptions options) {
+        if (options == null) {
+            return null;
+        }
+        return new ExpandedLineDto.Options(
+                options.remoteOption(), Boolean.TRUE.equals(options.remoteExcluded()),
+                options.panelOption(), options.panelShape360(),
+                Boolean.TRUE.equals(options.materialIncluded()));
+    }
+
+    private BundleSetOptions ensureInstanceKey(BundleSetOptions options) {
+        if (options != null && options.instanceKey() != null && !options.instanceKey().isBlank()) {
+            return options;
+        }
+        return new BundleSetOptions(
+                options == null ? null : options.remoteOption(),
+                options == null ? null : options.remoteExcluded(),
+                options == null ? null : options.panelOption(),
+                options == null ? null : options.panelShape360(),
+                options == null ? null : options.materialIncluded(),
+                UUID.randomUUID().toString());
+    }
+
+    private List<ExpandedLineDto> componentLines(List<ExpandedLineDto> expanded) {
+        if (expanded == null) {
+            return List.of();
+        }
+        return expanded.stream()
+                .filter(line -> line != null && line.productId() != null && line.componentKind() != null)
+                .toList();
+    }
+
+    /**
+     * 서버 전개 결과를 편집 가능한 계보 증명으로 축소한다.
+     *
+     * <p>요청은 서버가 허용한 구성품의 부분집합만 포함할 수 있고, 중복 구성품이나 head 삭제는
+     * 허용하지 않는다. 1행 전개는 product-service의 {@code setHead=false} 응답도 유효하므로
+     * slip 저장 경계에서 그 유일한 구성품을 canonical head로 정규화한다.
+     */
+    private UUID validateBundleMembership(List<ExpandedLineDto> expanded,
+                                          List<Integer> indexes,
+                                          List<SlipUpdateRequest.LineRequest> requests) {
+        Map<UUID, ExpandedLineDto> allowed = new LinkedHashMap<>();
+        for (ExpandedLineDto line : expanded) {
+            if (line == null || line.productId() == null || line.componentKind() == null) {
+                continue;
+            }
+            if (allowed.put(line.productId(), line) != null) {
+                rejectBundleLineage("서버 전개 구성품에 중복 품목이 있습니다");
+            }
+        }
+        if (allowed.isEmpty()) {
+            rejectBundleLineage("서버 전개 구성품이 없습니다");
+        }
+
+        UUID canonicalHeadProductId;
+        if (allowed.size() == 1) {
+            canonicalHeadProductId = allowed.keySet().iterator().next();
+        } else {
+            List<UUID> serverHeads = expanded.stream()
+                    .filter(Objects::nonNull)
+                    .filter(ExpandedLineDto::setHead)
+                    .map(ExpandedLineDto::productId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+            if (serverHeads.size() != 1) {
+                rejectBundleLineage("서버 전개 결과의 구성품 수 또는 setHead가 올바르지 않습니다");
+            }
+            canonicalHeadProductId = serverHeads.get(0);
+        }
+
+        Set<UUID> requestedProductIds = new HashSet<>();
+        int requestedHeadCount = 0;
+        for (int index : indexes) {
+            SlipUpdateRequest.LineRequest request = requests.get(index);
+            if (!allowed.containsKey(request.productId())) {
+                rejectBundleLineage("요청 구성품이 부모 BUNDLE 전개 membership에 없습니다");
+            }
+            if (!requestedProductIds.add(request.productId())) {
+                rejectBundleLineage("요청 구성품이 중복됩니다");
+            }
+            if (Boolean.TRUE.equals(request.setHead())) {
+                requestedHeadCount++;
+                if (!Objects.equals(request.productId(), canonicalHeadProductId)) {
+                    rejectBundleLineage("요청 setHead가 부모 BUNDLE 전개 head와 다릅니다");
+                }
+            }
+        }
+        if (allowed.size() > 1 && requestedHeadCount != 1) {
+            rejectBundleLineage("요청 BUNDLE 구성품의 setHead가 정확히 1개가 아닙니다");
+        }
+        if (!requestedProductIds.contains(canonicalHeadProductId)) {
+            rejectBundleLineage("세트 head 구성품은 삭제할 수 없습니다");
+        }
+        return canonicalHeadProductId;
+    }
+
+    private void rejectBundleLineage(String message) {
+        throw new BusinessException(ErrorCode.INVALID_INPUT, "세트 계보 검증 실패: " + message);
+    }
+
+    private record BundleRequestKey(String parentSetModel, UUID parentProductId,
+                                    BundleSetOptions setOptions) {
+        private static BundleRequestKey from(SlipUpdateRequest.LineRequest request) {
+            return new BundleRequestKey(request.parentSetModel().trim(),
+                    request.bundleParentProductId(), request.setOptions());
+        }
     }
 
     private void rejectAuthoritativeBundleComponents(List<SlipLine> lines,

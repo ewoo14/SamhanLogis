@@ -14,7 +14,7 @@ metadata:
 ## 무엇을 위임하나 (거의 전부)
 - **기획 전수 정찰** — 큰 파일·다표면 조사는 `mcp__codex__codex`(gpt-5.6-sol) 또는 OPUS 서브에이전트. PM 은 정찰 **결과로 설계 결정**만.
 - **구현** — CODEX LUNA (`gpt-5.6-luna`).
-- **적대검증 리뷰** — 1차 OPUS 서브에이전트(Agent `model:"opus"`), 2차 CODEX SOL. fix = SONNET5(Agent `model:"sonnet"`)/LUNA.
+- **적대검증 리뷰** — ~~1차 OPUS 서브에이전트(Agent `model:"opus"`), 2차 CODEX SOL~~ → **2026-08-12 폐지. 아래 §2026-08-12 참조.**
 - **라이브QA** — 원칙상 OPUS 라운드는 PM 직접이나(캐논), **토큰 절약이 우선일 때 SOL/QA 에이전트에 위임 가능**. 단 PM 은 산출물(스샷·응답코드·RED 원문)을 **검증**한다.
 
 ## PM 이 직접 하는 것 (위임 안 함)
@@ -25,4 +25,21 @@ metadata:
 
 **왜** — PM 세션 토큰이 유한하고 3~4 트랙 상시 오케스트레이션에는 정찰·리뷰·QA 를 병렬 위임해야 처리량이 난다. PM 이 직접 파면 한 트랙에 토큰이 쏠려 병렬성이 죽는다.
 
-관련: [[feedback_pm_no_direct_implementation]] · [[feedback_codex_plugin_setup]] · [[feedback_pm_verify_what_measurement_proves]] · [[feedback_pm_codex_progress_verification]]
+---
+
+## 🚨🚨 2026-08-12 — **Agent 서브에이전트는 같은 토큰 풀이다. 적대검증도 codex 로.**
+
+> 개발책임자: *"OPUS에 왜 적대검증을??"* · *"코덱스 토큰만 사용해"*
+
+이 파일이 위에서 *"1차 적대검증 = OPUS 서브에이전트"* 라고 적어 둔 것이 **모순이었다.** 이 메모리의 목적은 PM 세션 토큰 절약인데, **Agent 서브에이전트는 PM 세션과 같은 풀을 쓴다.** 별개 풀은 codex 뿐이다. 그래서 적대검증을 OPUS Agent 로 돌리면 절약이 0 이다.
+
+**현행**: 정찰·적대검증·대조·구현·fix·라이브QA **전부 `mcp__codex__codex`**.
+- 검증(1차·2차·재수렴) = **SOL** (`gpt-5.6-sol`)
+- 구현·fix = **LUNA** (`gpt-5.6-luna`)
+- 🚫 **Agent 툴 발주 금지** (적대검증·정찰 목적)
+
+리뷰어/구현자 분리는 모델이 아니라 **스테이지**로 지킨다 — SOL 검증 → LUNA fix. SOL 을 구현 폴백으로 쓰지 않는다.
+
+**구현 폴백 순서 (2026-08-12 개발책임자)**: *"luna 오류 시 임시로 terra로 대체 가능"* → **LUNA 먼저 → 실패하면 TERRA**. 🚫 **SOL 은 구현 폴백 금지** — 그 PR 을 리뷰한 모델에 구현을 맡기면 검증이 사라진다.
+
+관련: [[feedback_pm_no_direct_implementation]] · [[feedback_codex_plugin_setup]] · [[feedback_pm_verify_what_measurement_proves]] · [[feedback_pm_codex_progress_verification]] · [[feedback_canonical_workflow]]

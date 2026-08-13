@@ -8,6 +8,15 @@ export interface WebVersionInfo {
   releasedAt: string | null
 }
 
+export const VERSION_POLICY_FAILURE_MESSAGE = '버전 정책을 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.'
+
+export class VersionPolicyError extends Error {
+  constructor() {
+    super(VERSION_POLICY_FAILURE_MESSAGE)
+    this.name = 'VersionPolicyError'
+  }
+}
+
 export type VersionPromptState =
   | { kind: 'none' }
   | { kind: 'minor'; latestVersion: string; versionInfo: WebVersionInfo; dismissKey: string }
@@ -41,13 +50,13 @@ export function buildVersionCheckUrl(apiBaseUrl: string, currentVersion: string)
   return `${base}/app/version?${params.toString()}`
 }
 
-/** 버전 API 장애·404는 서명 화면을 막지 않는 fail-open 계약이다. */
+/** 버전 API 실패는 호출자가 사용자 안내로 표시할 수 있도록 예외를 유지한다. */
 export async function fetchWebVersionStatus({
   apiBaseUrl,
   currentVersion,
   fetchImpl = fetch,
   timeoutMs = VERSION_CHECK_TIMEOUT_MS,
-}: FetchVersionOptions): Promise<WebVersionInfo | null> {
+}: FetchVersionOptions): Promise<WebVersionInfo> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -56,10 +65,13 @@ export async function fetchWebVersionStatus({
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     })
-    if (!response.ok) return null
-    return normalizeVersionInfo(await response.json())
-  } catch {
-    return null
+    if (!response.ok) throw new VersionPolicyError()
+    const versionInfo = normalizeVersionInfo(await response.json())
+    if (!versionInfo) throw new VersionPolicyError()
+    return versionInfo
+  } catch (error) {
+    if (error instanceof VersionPolicyError) throw error
+    throw new VersionPolicyError()
   } finally {
     clearTimeout(timeout)
   }

@@ -89,7 +89,7 @@ class DashboardFlywayV3AppReleaseIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V7 앱 식별자 제약은 8개 앱과 구버전 값을 허용하고 기존 DESKTOP 값을 보존한다")
+    @DisplayName("V7 앱 식별자 제약은 9개 앱과 구버전 값을 허용하고 기존 DESKTOP 값을 보존한다")
     void v7AppClientIdentityConstraintPreservesLegacyDesktopRows() {
         String checkDefinition = jdbcTemplate.queryForObject("""
                 SELECT pg_get_constraintdef(oid)
@@ -104,6 +104,7 @@ class DashboardFlywayV3AppReleaseIT extends AbstractPostgresIT {
                 .contains("SAMHAN_ESTIMATE_WEB")
                 .contains("SAMHAN_MOBILE_PUBLIC_WEB")
                 .contains("AROLOGIS_DESKTOP")
+                .contains("INTERNAL_CHAT_DESKTOP")
                 .contains("MOBILE")
                 .contains("WEB");
 

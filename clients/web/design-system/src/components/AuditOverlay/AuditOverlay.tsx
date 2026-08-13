@@ -38,6 +38,7 @@
  */
 import { useMemo, useState } from 'react'
 import { userIdToColor } from '../../utils/userColorHash'
+import { safeActorName } from '../../utils/actorName'
 import styles from './AuditOverlay.module.css'
 
 /** 한 revision 변경의 audit 레코드 — BE {@code SlipAuditLogResponse} 와 1:1. */
@@ -48,8 +49,8 @@ export interface AuditLogEntry {
   beforeValue: string | null
   /** 변경자 UUID — userIdToColor 입력 전용. 화면 텍스트 노출 금지. */
   actorId: string
-  /** 변경자 풀네임 — 화면 표시. */
-  actorName: string
+  /** 변경자 풀네임 — 화면 표시. 감사 데이터가 없으면 null. */
+  actorName: string | null
   /** 변경 시각 ISO-8601. */
   changedAt: string
 }
@@ -61,6 +62,12 @@ export interface AuditOverlayProps {
   currentValue: string | null | undefined
   /** 변경 이력 — 가장 최근(revisionNo 큰) 항목이 inline 노출. 빈 배열이면 현재 값만 표시. */
   history: AuditLogEntry[]
+  /** 조회 실패 시 빈 이력으로 오해하지 않도록 실패 상태를 표시한다. */
+  isError?: boolean
+  /** 첫 조회가 아직 시작되지 않았는지 여부. */
+  isFetched?: boolean
+  /** 첫 audit 조회가 진행 중인지 여부. */
+  isLoading?: boolean
 }
 
 /** "2026-05-09T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4 동일 로직. */
@@ -75,13 +82,26 @@ function displayValue(v: string | null | undefined): string {
   return v
 }
 
+const UNKNOWN_ACTOR_NAME = '변경자 미상'
+/** 정규화 후 UUID 모양의 actorName은 사용자 텍스트에서 숨긴다. */
+function displayActorName(actorName: string | null | undefined): string {
+  return safeActorName(actorName) ?? UNKNOWN_ACTOR_NAME
+}
+
 /**
  * AuditOverlay — 한 필드의 현재값 + 과거 변경 이력 overlay.
  *
  * - history 가 비어 있으면 현재 값만 표시 (no overlay)
  * - history 가 1건 이상이면 최근 1건 inline + (2건 이상 시) "이력 N개" expand
  */
-export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps) {
+export function AuditOverlay({
+  field,
+  currentValue,
+  history,
+  isError = false,
+  isFetched = true,
+  isLoading = false,
+}: AuditOverlayProps) {
   const [expanded, setExpanded] = useState(false)
 
   // 최신 → 과거 정렬 (revisionNo 내림차순). 원본 mutate 금지를 위해 slice 후 sort.
@@ -90,7 +110,8 @@ export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps
     [history],
   )
   const latest = sorted[0]
-  const olderCount = sorted.length > 1 ? sorted.length - 1 : 0
+  const canShowHistory = !isError && !isLoading && isFetched
+  const olderCount = canShowHistory && sorted.length > 1 ? sorted.length - 1 : 0
 
   return (
     <div
@@ -100,7 +121,13 @@ export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps
     >
       <div className={styles['row']}>
         <span className={styles['current']}>{displayValue(currentValue)}</span>
-        {latest ? (
+        {isError ? (
+          <span className={styles['empty']}>변경 이력 조회 실패</span>
+        ) : isLoading ? (
+          <span className={styles['empty']}>변경 이력 불러오는 중</span>
+        ) : !isFetched ? (
+          <span className={styles['empty']}>변경 이력 미조회</span>
+        ) : latest ? (
           <>
             <span
               className={styles['before']}
@@ -114,7 +141,7 @@ export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps
                 style={{ background: userIdToColor(latest.actorId) }}
                 aria-hidden="true"
               />
-              <span className={styles['actorName']}>{latest.actorName}</span>
+              <span className={styles['actorName']}>{displayActorName(latest.actorName)}</span>
               <span className={styles['timestamp']}>{formatHHmm(latest.changedAt)}</span>
             </span>
           </>
@@ -149,7 +176,7 @@ export function AuditOverlay({ field, currentValue, history }: AuditOverlayProps
                   style={{ background: userIdToColor(entry.actorId) }}
                   aria-hidden="true"
                 />
-                <span className={styles['actorName']}>{entry.actorName}</span>
+                <span className={styles['actorName']}>{displayActorName(entry.actorName)}</span>
                 <span className={styles['timestamp']}>{formatHHmm(entry.changedAt)}</span>
               </span>
             </li>

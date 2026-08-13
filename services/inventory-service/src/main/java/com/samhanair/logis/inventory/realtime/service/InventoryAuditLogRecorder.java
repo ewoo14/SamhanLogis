@@ -2,6 +2,7 @@ package com.samhanair.logis.inventory.realtime.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.inventory.realtime.domain.InventoryAuditLog;
 import com.samhanair.logis.inventory.realtime.repository.InventoryAuditLogRepository;
 import com.samhanair.logis.shared.realtime.audit.AuditEventPayloadBuilder;
@@ -73,15 +74,16 @@ public class InventoryAuditLogRecorder implements AuditLogRecorder {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "changes 가 비어있습니다 — audit 기록할 변경이 없습니다");
         }
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = (int) (auditLogRepository.countByEntityId(entityId) + 1);
         List<InventoryAuditLog> saved = new ArrayList<>(changes.size());
         for (ChangeEntry change : changes) {
             saved.add(auditLogRepository.save(InventoryAuditLog.record(
-                    entityId, revisionNo, actorId, actorName, actorColor,
+                    entityId, revisionNo, actorId, safeActorName, actorColor,
                     change.fieldName(), change.oldValue(), change.newValue())));
         }
         broker.publish(entityId, EVENT_INVENTORY_EDIT,
-                AuditEventPayloadBuilder.build(revisionNo, actorId, actorName, actorColor, changes));
+                AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName, actorColor, changes));
         log.info("[PR-H4b] inventory entity {} audit 기록 — revision={} fields={}",
                 entityId, revisionNo, changes.size());
         return saved;

@@ -16,6 +16,7 @@ public enum AppClientType {
     SAMHAN_ESTIMATE_WEB,
     SAMHAN_MOBILE_PUBLIC_WEB,
     AROLOGIS_DESKTOP,
+    INTERNAL_CHAT_DESKTOP,
     /** 구버전 웹 클라이언트 호환용 식별자. */
     WEB,
     /** 구버전 모바일 클라이언트 호환용 식별자. */

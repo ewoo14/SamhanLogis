@@ -2,8 +2,12 @@ package com.samhanair.logis.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.auth.domain.AccountPagePermission;
+import com.samhanair.logis.auth.domain.AccountPermissionOverride;
+import com.samhanair.logis.auth.domain.Account;
 import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountPermissionOverrideRepository;
 import com.samhanair.logis.auth.repository.AccountPagePermissionRepository;
@@ -21,6 +25,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -91,6 +96,30 @@ class AccountPermissionServiceTest {
         AccountPermissionService service = service();
 
         assertThat(service.check(accountId, "slip.closed-date-exception", PermissionAction.CREATE)).isTrue();
+    }
+
+    @Test
+    void updateAccountMatrix_persistsOriginalActorIdAlongsideDisplaySafeAudit() {
+        UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000003");
+        String actorId = "cafebabe-cafe-babe-cafe-babecafebabe";
+        given(accountRepository.findById(accountId))
+                .willReturn(Optional.of(Account.createWithId(accountId, "target", "{noop}pw", "대상")));
+        given(overrideRepository.findByAccountIdAndPageCodeAndIsDeletedFalse(accountId, "accounting.journals"))
+                .willReturn(Optional.empty());
+        when(overrideRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
+
+        int changed = service().updateAccountMatrix(
+                accountId,
+                List.of(new AccountPermissionService.AccountPermissionUpdate(
+                        "accounting.journals",
+                        new AccountPermissionService.ActionMatrix(true, true, false, false, false, false, false))),
+                actorId);
+
+        assertThat(changed).isEqualTo(1);
+        ArgumentCaptor<AccountPermissionOverride> saved = ArgumentCaptor.forClass(AccountPermissionOverride.class);
+        verify(overrideRepository).save(saved.capture());
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(saved.getValue(), "actorId"))
+                .isEqualTo(actorId);
     }
 
     private AccountPermissionService service() {

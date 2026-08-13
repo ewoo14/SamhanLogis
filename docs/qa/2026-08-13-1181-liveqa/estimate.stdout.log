@@ -1,0 +1,5 @@
+[estimate-app] v2 listening on http://localhost:49184
+[estimate-app] SAMHAN_API_BASE_URL=http://127.0.0.1:8080
+[estimate-app] SLIP_SERVICE_URL=(default :8086)
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404
+[AppsScript] [bootstrap] db estimateConfig: dc-config GET /estimate-config → HTTP 404

@@ -530,8 +530,8 @@ export function AppLayout() {
   const showAccountingBankMatching = dynamicCanAccess('accounting.bank-matching',  'view')
   const showAccountingDepositMapping = dynamicCanAccess('accounting.deposit-mapping', 'view')
   const showAccountingCashReceipts = dynamicCanAccess('accounting.cash-receipts', 'view')
+  const showAccountingSalesCommissionSettlement = dynamicCanAccess('accounting.sales-commission-settlement', 'view')
   const showAccountingBankCardAdmin = dynamicCanAccess('accounting.bank-card-admin',  'view')
-  const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
   const showAccountingAdminMigOps = dynamicCanAccess('ecount.mig.ops-dashboard', 'view')
   const showAccountingEditRequests = dynamicCanAccess('accounting.edit-requests.decide', 'view')
@@ -544,6 +544,7 @@ export function AppLayout() {
     || showAccountingSalesSlip || showAccountingPurchaseSlip
     || showAccountingPartnerLedger || showAccountingTaxInvoice
     || showAccountingTaxInvoiceBatch || showAccountingTaxInvoiceInbound
+    || showAccountingSalesCommissionSettlement
     || showAccountingDailyClose
     || showAccountingLedger || showAccountingBankMatching || showAccountingDepositMapping || showAccountingCashReceipts || showAccountingBankCardAdmin
     || showAccountingAdminLedger
@@ -588,6 +589,7 @@ export function AppLayout() {
   const showProductsList           = dynamicCanAccess('products.list',                'view')
   const _showProductsAdmin         = dynamicCanAccess('products.admin',               'view')
   const showProductsSync           = dynamicCanAccess('products.sync',                'view')
+  const showPriceSchedule          = dynamicCanAccess('products.price-schedule',       'view')
   const showArologisAdminPage      = dynamicCanAccess('arologis.admin',               'view')
   const showArologisRegionPage     = dynamicCanAccess('arologis.region',              'view')
   // [Round A P3] 구 showInventoryGroup 집계 변수 삭제 — 창고운영 그룹 게이트는
@@ -642,10 +644,7 @@ export function AppLayout() {
     const showBlockedPartners = showPartnersBlock
     const showPartnerManagement = showPartnersList
     const showPartnerDcConfig = dynamicCanAccess('sales.partner-dc-config', 'view')
-    // H1(#17 S4b R1): ACCOUNTANT 는 products.price-schedule VIEW 만으로도 사이드바
-    // 진입점을 봐야 한다(라우트 가드와 동일 OR 판정).
-    const showEstimateConfig =
-      dynamicCanAccess('sales.estimate-config', 'view') || dynamicCanAccess('products.price-schedule', 'view')
+    const showEstimateConfig = dynamicCanAccess('sales.estimate-config', 'view')
   // [samhan-dispatch-board Phase A + SP-D1 cycle 2] 배차 보드 route — 동적 RBAC 권한 연동.
   // 기존 정적 역할 체크 → dispatch.board 동적 canAccess 로 전환.
   const showDispatchBoard = dynamicCanAccess('dispatch.board', 'view')
@@ -653,7 +652,7 @@ export function AppLayout() {
     showSalesSlipList || showEstimatesList || showPartnerOrderList
     || showPartnerDcConfig || showEstimateConfig || showPartnerManagement || showSlipCleanup
     || showNextDaySlip || showBlockedPartners
-    || showAccountingAdminOrder || showProductsList || showSheetSync
+    || showProductsList || showPriceSchedule || showSheetSync
   const showPurchase =
     showPurchaseSlipList || showInventoryStockTransfer
     || showInboundInspection || showAudit || showDpsCompare || showDpsByProduct
@@ -706,17 +705,17 @@ export function AppLayout() {
             activeTargets={[
               '/sales/estimates',
               '/sales/partner-orders',
-              '/accounting/admin/orders',
-                '/sales/order-approvals',
-                '/admin/partners',
-                '/sales/partner-dc-config',
-                '/sales/estimate-config',
-                '/admin/blocked-partners',
+              '/sales/order-approvals',
+              '/admin/partners',
+              '/sales/partner-dc-config',
+              '/sales/estimate-config',
+              '/admin/blocked-partners',
               '/sales/slip-cleanup',
               '/sales/next-day-slip',
               '/products/catalog',
               '/products/estimate-items',
               '/products/classifications',
+              '/products/price-schedule',
               '/admin/sheet-sync',
             ]}
             exactTargets={['/sales']}
@@ -744,26 +743,11 @@ export function AppLayout() {
             >
               주문서 관리
             </SidebarLink>
-            {/* [이카운트 네이티브 편입 슬4→슬6] eCount 이관 주문(MIG-8) silo — 네이티브 '주문서 관리'(/sales/partner-orders)와
-                구분 위해 '(이관)' 표기. 슬6 에서 partner_orders 로 이식 후 본 링크/route 제거 예정. */}
-            <SidebarLink
-              to="/accounting/admin/orders"
-              show={showAccountingAdminOrder}
-              data-testid="sidebar-accounting-admin-orders"
-            >
-              주문서 관리 (이관)
-            </SidebarLink>
             <SidebarLink
               to="/sales/order-approvals"
               show={showPartnerOrderList}
             >
               주문서 승인
-            </SidebarLink>
-            <SidebarLink
-              to="/sales/order-approvals"
-              show={showPartnerOrderList}
-            >
-              주문서 앱 접근권한 설정
             </SidebarLink>
             {/* [C5 후속 C-4] 거래처 관리 — /admin/partners 라우트와 동일한 partners.list VIEW 기준. */}
             <SidebarLink
@@ -829,13 +813,20 @@ export function AppLayout() {
             >
               견적품목 관리
             </SidebarLink>
-            <SidebarLink
-              to="/products/classifications"
-              show={showProductsList}
-              data-testid="sidebar-products-classifications"
-            >
-              분류 관리
-            </SidebarLink>
+              <SidebarLink
+                to="/products/classifications"
+                show={showProductsList}
+                data-testid="sidebar-products-classifications"
+              >
+                분류 관리
+              </SidebarLink>
+              <SidebarLink
+                to="/products/price-schedule"
+                show={showPriceSchedule}
+                data-testid="sidebar-products-price-schedule"
+              >
+                카테고리별 단가변동
+              </SidebarLink>
             <SidebarLink
               to="/admin/sheet-sync"
               show={showSheetSync && showProductsList}
@@ -940,6 +931,7 @@ export function AppLayout() {
               '/accounting/funds/status',
               '/sales/closing',
               '/accounting/period-close',
+              '/accounting/sales-commission-settlements',
               '/accounting/statement-batch',
               '/accounting/partner-ledger',
               '/accounting/hometax-export',
@@ -1181,6 +1173,13 @@ export function AppLayout() {
               >
                 월말 마감
               </SidebarLink>
+              <SidebarLink
+                to="/accounting/sales-commission-settlements"
+                show={showAccountingSalesCommissionSettlement}
+                data-testid="sidebar-accounting-sales-commission-settlements"
+              >
+                영업수수료 정산
+              </SidebarLink>
               {/* [PR-E2 FE-8] 거래명세서 일괄 — accounting.statement-batch 동적 RBAC. */}
               <SidebarLink
                 to="/accounting/statement-batch"
@@ -1354,6 +1353,26 @@ export function AppLayout() {
               data-testid="sidebar-messenger"
             >
               메신저
+            </SidebarLink>
+            {/*
+             * 🚫 채팅 사이드바 진입점 비노출 (2026-08-12 개발책임자 결정)
+             *
+             * 채팅은 본체 메뉴가 아니라 **별도 패키징 앱**으로 간다.
+             *   "채팅창은 메뉴로 만들게 아니라 따로 카톡처럼 창을 띄워야지"
+             *   "별도 패키징 앱으로 하고 접속 중인지 여부도 알 수 있게 하자"
+             *
+             * #894 S1 은 서버·통신 토대(REST·SSE·방/메시지/참여자·권한)만 머지됐고
+             * 그 위에 얹을 클라이언트는 S2 에서 별도 앱으로 만든다.
+             * 그때까지 사용자에게 폐기 예정 형태를 노출하지 않는다.
+             *
+             * 라우트(/chat · /chat/:roomCode)는 개발·QA 용으로 살려 둔다.
+             */}
+            <SidebarLink
+              to="/chat"
+              show={showMessengerSend}
+              data-testid="sidebar-chat"
+            >
+              채팅
             </SidebarLink>
             <SidebarLink
               to="/admin/chat-rooms"

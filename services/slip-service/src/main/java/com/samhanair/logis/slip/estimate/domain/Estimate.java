@@ -3,7 +3,10 @@ package com.samhanair.logis.slip.estimate.domain;
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
+import com.samhanair.logis.slip.service.BundleSetInstanceKeyPolicy;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,7 +27,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -70,8 +72,6 @@ public class Estimate extends BaseEntity {
 
     private static final int MEMO_MAX_LENGTH = 1000;
     private static final int LINE_NOTE_MAX_LENGTH = 200;
-    private static final Pattern UUID_PATTERN = Pattern.compile(
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     @Id
     @GeneratedValue
@@ -522,6 +522,15 @@ public class Estimate extends BaseEntity {
         if (snapshot == null) {
             throw new IllegalArgumentException("복원 스냅샷은 null 일 수 없습니다");
         }
+        // 레거시 BUNDLE 정책은 mutation 전에 계산한다. signature가 확정되지 않는 정책으로
+        // 바뀌더라도 헤더/기존 라인이 먼저 변경되지 않도록 복원 입력을 선행 검증한다.
+        List<EstimateSnapshot.Line> snapshotLines = snapshot.lines();
+        List<BundleSetOptions> restoredSetOptions = snapshotLines == null
+                ? List.of()
+                : BundleSetInstanceKeyPolicy.materializeLegacyMultiInstanceKeys(snapshotLines,
+                        EstimateSnapshot.Line::parentSetModel,
+                        line -> Boolean.TRUE.equals(line.setHead()),
+                        EstimateSnapshot.Line::bundleSetOptions);
         // 헤더 8필드 역적용 — toSnapshot() 이 캡처한 동일 필드 집합 (스냅샷 값 그대로 덮어씀)
         this.estimateNo = snapshot.estimateNo();
         this.estimateDate = snapshot.estimateDate();
@@ -537,10 +546,10 @@ public class Estimate extends BaseEntity {
         //  요소별 requireEditable/recalculateTotals 중복을 피하려고 컬렉션을 직접 조작한 뒤
         //  마지막에 recalculateTotals() 1회만 호출한다.)
         this.lines.clear();
-        List<EstimateSnapshot.Line> snapshotLines = snapshot.lines();
         if (snapshotLines != null) {
             int lineNo = 1;
-            for (EstimateSnapshot.Line snapLine : snapshotLines) {
+            for (int index = 0; index < snapshotLines.size(); index++) {
+                EstimateSnapshot.Line snapLine = snapshotLines.get(index);
                 // #824 — 신규 권위 금액 snapshot은 S/V/T와 VAT 포함 단가(provenance)가 함께 있다.
                 // unitPriceWithVat가 없는 구 JSONB는 S/V/T 필드가 있어도 종전 공급 semantics를 유지한다.
                 boolean hasAuthoritativeAmounts = snapLine.unitPriceWithVat() != null
@@ -575,7 +584,7 @@ public class Estimate extends BaseEntity {
                 if (snapLine.parentSetModel() != null && !snapLine.parentSetModel().isBlank()) {
                     restored.assignBundleComponent(
                             snapLine.parentSetModel(), Boolean.TRUE.equals(snapLine.setHead()),
-                            snapLine.bundleSetOptions());
+                            restoredSetOptions.get(index));
                 }
                 this.lines.add(restored);
             }
@@ -593,13 +602,7 @@ public class Estimate extends BaseEntity {
     }
 
     private static String safeActorName(String actorName) {
-        if (actorName == null || actorName.isBlank()) {
-            return null;
-        }
-        String trimmed = actorName.trim();
-        if (UUID_PATTERN.matcher(trimmed).matches()) {
-            return null;
-        }
-        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
+        String resolved = ActorDisplayName.resolveNullable(null, actorName);
+        return resolved == null ? null : resolved.substring(0, Math.min(resolved.length(), 100));
     }
 }

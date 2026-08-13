@@ -23,11 +23,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -42,10 +38,10 @@ import org.springframework.transaction.annotation.Transactional;
  *   POST /confirm
  *     ① 멱등 가드 (findByIdempotencyKey)
  *     ② dc-config price-calc (POST /internal/price-calculations) 로 라인별 finalPrice 계산
- *        └ 실패/404/5xx → fail-soft (listPrice 사용)
+ *        └ 실패/404/5xx/부분응답 → PRICE_CALCULATION_UNAVAILABLE(503), 저장하지 않음
  *     ③ M1a product 카탈로그 스냅샷
  *     ④ PartnerOrder.createFromConfirm → status=DRAFT, slipPublishStatus=NOT_REQUIRED
- *     ⑤ 라인 INSERT (priceVat=finalPrice else listPrice) + recomputeTotal + save
+ *     ⑤ 서버 계산 결과가 모든 라인에 있음을 확인한 뒤 라인 INSERT + recomputeTotal + save
  *     ⑥ history(CONFIRMED=주문접수) + revision CREATE 캡처
  *     ⑦ (slip 발행 없음)
  *   → ConfirmResponse{ orderNo, status=DRAFT, slipNo=null }
@@ -71,6 +67,8 @@ public class PartnerOrderConfirmService {
 
     private final DcConfigClient dcConfigClient;
     private final ProductClient productClient;
+    /** 미리보기와 확정이 공유하는 단일 가격 계산 진입점. */
+    private final PartnerOrderPriceCalculationService priceCalculationService;
     private final PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
     // Phase 2.6c: inventoryClient 제거 — confirm 단계는 재고 무영향 (주문 무영향 원칙).
     // inventoryClient 는 PartnerOrderConvertService 에서만 사용 (출고전표 전환 시 reserve).
@@ -88,7 +86,8 @@ public class PartnerOrderConfirmService {
      * 생성하며 slip-service 를 호출하지 않는다. 출고전표는 명시적 convert 액션으로만 발행.
      *
      * <p>DC 단가 계산: {@link DcConfigClient#calculatePrices} (POST /internal/price-calculations) 로
-     * 라인별 finalPrice 를 받아 priceVat 에 적용한다. fail-soft 적용 — price-calc 실패 시 listPrice 사용.
+     * 라인별 finalPrice 를 받아 priceVat 에 적용한다. 계산 실패/부분 응답이면 정상가로 대체하지 않고
+     * 사용자에게 재시도 가능한 503을 반환한다.
      *
      * <p>주문 저장 성공 후 {@link PartnerOrderRevisionService#capture} 로 CREATE 유형 revision 을
      * 트랜잭션 내에서 캡처한다 (Phase 2.4 버전이력 훅).
@@ -129,84 +128,16 @@ public class PartnerOrderConfirmService {
         // 이 주문은 당시 거래처 정체성을 잃지 않도록 partnerCode만 저장하지 않는다.
         UUID partnerId = partnerIdentityResolver.requirePartnerId(partnerCode, bizCode);
 
-        // 2) M1a product — 카탈로그 조회 (라인 스냅샷 + 가격 산출)
-        List<UUID> productIds = request.lines().stream()
-                .map(ConfirmLineRequest::productId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        List<String> modelCodes = request.lines().stream()
-                .filter(line -> line.productId() == null)
-                .map(ConfirmLineRequest::modelCode)
-                .filter(code -> code != null && !code.isBlank())
-                .map(String::trim)
-                .distinct()
-                .toList();
-        if (productIds.isEmpty() && modelCodes.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "확정 라인에 productId 또는 modelCode가 필요합니다");
-        }
-        List<ProductSummary> productsById = productIds.isEmpty()
-                ? List.of() : productClient.lookup(productIds);
-        List<ProductSummary> productsByModelCode = modelCodes.isEmpty()
-                ? List.of() : productClient.lookupByModelCodes(modelCodes);
-        Map<UUID, ProductSummary> productMap = new HashMap<>();
-        Map<String, ProductSummary> modelCodeMap = new HashMap<>();
-        for (ProductSummary p : productsById) {
-            productMap.put(p.id(), p);
-        }
-        for (ProductSummary p : productsByModelCode) {
-            productMap.put(p.id(), p);
-            if (p.modelCode() != null && !p.modelCode().isBlank()) {
-                modelCodeMap.put(p.modelCode().trim(), p);
-            }
-        }
-
+        // 2) 미리보기와 확정이 동일한 카탈로그/서버 가격 계산기를 통과한다.
+        PartnerOrderPriceCalculationService.Calculation calculation =
+                effectivePriceCalculationService().calculate(partnerCode, request);
         List<ConfirmLineRequest> reqLines = request.lines();
-        List<ProductSummary> lineProducts = new ArrayList<>();
-        for (ConfirmLineRequest line : reqLines) {
-            ProductSummary p = resolveProduct(line, productMap, modelCodeMap);
-            if (p == null) {
-                String identity = line.productId() != null
-                        ? line.productId().toString() : line.modelCode();
-                throw new BusinessException(ErrorCode.NOT_FOUND, "제품 카탈로그 없음: " + identity);
-            }
-            lineProducts.add(p);
+        if (!calculation.available() || calculation.lines().size() != reqLines.size()
+                || calculation.lines().stream().anyMatch(line -> line.finalPrice() == null
+                        || line.finalPrice().signum() <= 0)) {
+            throw new BusinessException(ErrorCode.PRICE_CALCULATION_UNAVAILABLE,
+                    ErrorCode.PRICE_CALCULATION_UNAVAILABLE.getDefaultMessage());
         }
-        List<UUID> resolvedProductIds = lineProducts.stream()
-                .map(ProductSummary::id)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<UUID, BigDecimal> fixedDiscountRates =
-                productClient.lookupFixedDiscountRates(resolvedProductIds);
-        if (fixedDiscountRates == null) {
-            fixedDiscountRates = Map.of();
-        }
-
-        // 3) price-calc 요청 빌드 (라인 index 를 lineId 로)
-        List<DcConfigClient.PriceLine> priceLines = new ArrayList<>();
-        for (int i = 0; i < reqLines.size(); i++) {
-            ConfirmLineRequest line = reqLines.get(i);
-            ProductSummary p = lineProducts.get(i);
-            String discountFlags = resolveDiscountFlags(p);
-            BigDecimal fixedDiscountRate = p.fixedDiscountRate() != null
-                    ? p.fixedDiscountRate()
-                    : fixedDiscountRates.get(p.id());
-            BigDecimal listPrice = resolveListPrice(p, line.categoryKey(), fixedDiscountRate);
-            if (listPrice == null || listPrice.signum() <= 0) {
-                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                        "확정 가격 기준가 없음: " + modelCodeSnapshot(p));
-            }
-            priceLines.add(new DcConfigClient.PriceLine(
-                    String.valueOf(i), modelCodeSnapshot(p), listPrice,
-                    mapCategory(line.categoryKey()), line.quantity(),
-                    discountFlag(discountFlags, 0), discountFlag(discountFlags, 1),
-                    discountFlag(discountFlags, 2), discountFlag(discountFlags, 3),
-                    discountFlag(discountFlags, 4), discountFlag(discountFlags, 5),
-                    fixedDiscountRate, variableDiscountEnabled(p)));
-        }
-        Map<String, BigDecimal> finalPrices = dcConfigClient.calculatePrices(partnerCode, priceLines);
 
         // 4) inventory reserve 제거 (Phase 2.6c — 주문 무영향 원칙)
         // confirm 단계에서는 재고 예약을 하지 않는다. 재고 예약은 "출고전표로 전환(convert)" 시점에만 발생.
@@ -220,10 +151,9 @@ public class PartnerOrderConfirmService {
 
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);
-            ProductSummary p = lineProducts.get(i);
-            BigDecimal listPrice = resolveListPrice(p, line.categoryKey(),
-                    p.fixedDiscountRate() != null ? p.fixedDiscountRate() : fixedDiscountRates.get(p.id()));
-            BigDecimal priceVat = finalPrices.getOrDefault(String.valueOf(i), listPrice);
+            PartnerOrderPriceCalculationService.Line calculatedLine = calculation.lines().get(i);
+            ProductSummary p = calculatedLine.product();
+            BigDecimal priceVat = calculatedLine.finalPrice();
             if (priceVat == null || priceVat.signum() <= 0) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                         "확정 최종 단가가 0원입니다: " + modelCodeSnapshot(p));
@@ -253,16 +183,26 @@ public class PartnerOrderConfirmService {
         return ConfirmResponse.from(order);
     }
 
-    private ProductSummary resolveProduct(ConfirmLineRequest line,
-                                          Map<UUID, ProductSummary> productMap,
-                                          Map<String, ProductSummary> modelCodeMap) {
-        if (line.productId() != null) {
-            return productMap.get(line.productId());
+    private PartnerOrderPriceCalculationService effectivePriceCalculationService() {
+        if (priceCalculationService != null) {
+            return priceCalculationService;
         }
-        if (line.modelCode() == null || line.modelCode().isBlank()) {
-            return null;
+        // 기존 단위 테스트/호환 생성 경로에서 새 의존성이 주입되지 않는 경우에도
+        // 동일한 계산 서비스 구현을 사용한다. Spring 런타임에서는 위 bean이 항상 선택된다.
+        return new PartnerOrderPriceCalculationService(productClient, dcConfigClient);
+    }
+
+    /** 레거시 반사 회귀 테스트/문서 호환용 매핑 — 실제 가격 계산은 공유 서비스가 담당한다. */
+    @SuppressWarnings("unused")
+    private String mapCategory(String categoryKey) {
+        if (categoryKey == null) {
+            return "OTHER";
         }
-        return modelCodeMap.get(line.modelCode().trim());
+        return switch (categoryKey) {
+            case "homemulti", "homeDefaults" -> "HOMEMULTI";
+            case "commercialMulti" -> "COMMERCIAL_MULTI";
+            default -> "OTHER";
+        };
     }
 
     private void publishListChanged() {
@@ -317,123 +257,11 @@ public class PartnerOrderConfirmService {
         }
     }
 
-    /**
-     * ConfirmLineRequest.categoryKey → price-calc category (HOMEMULTI/COMMERCIAL_MULTI/OTHER).
-     *
-     * <p>매핑 규칙:
-     * <ul>
-     *   <li>{@code homemulti} / {@code homeDefaults} → {@code HOMEMULTI}</li>
-     *   <li>{@code commercialMulti} → {@code COMMERCIAL_MULTI}</li>
-     *   <li>그 외 모든 값 (singleSets / commercialParts / oldProducts 등) → {@code OTHER}</li>
-     * </ul>
-     *
-     * <p><b>주의</b>: {@code OTHER} 카테고리는 dc-config-service 에서 rate DC 미적용 대상이다.
-     * 옵션 품목 / 단품 DC 는 후속 슬라이스에서 별도 category 신설 예정
-     * (현 confirm 라인 한계 — P1-3 후속).
-     *
-     * @param categoryKey legacy 카테고리 키 (homemulti / commercialMulti / ...)
-     * @return price-calc 카테고리 문자열 (HOMEMULTI / COMMERCIAL_MULTI / OTHER)
-     */
-    private String mapCategory(String categoryKey) {
-        if (categoryKey == null) {
-            return "OTHER";
-        }
-        return switch (categoryKey) {
-            case "homemulti", "homeDefaults" -> "HOMEMULTI";
-            case "commercialMulti" -> "COMMERCIAL_MULTI";
-            default -> "OTHER";
-        };
-    }
-
     private String modelCodeSnapshot(ProductSummary product) {
         if (product.modelCode() != null && !product.modelCode().isBlank()) {
             return product.modelCode().trim();
         }
         return product.modelName();
-    }
-
-    /** Product.discountFlags 의 6비트 순서(is360 ... isFirstGrade)를 계산 요청으로 전사한다. */
-    private boolean discountFlag(String flags, int index) {
-        return flags != null && flags.length() > index && flags.charAt(index) == '1';
-    }
-
-    /**
-     * 새 product summary의 저장 비트셋을 우선하고, 구형 product-service 응답에는 모델 규칙을 보완한다.
-     * 구형 응답도 AM360 같은 실제 360 품목을 false로 소거하지 않기 위한 호환 경로다.
-     */
-    private String resolveDiscountFlags(ProductSummary product) {
-        if (product.discountFlags() != null
-                && product.discountFlags().matches("[01]{6}")
-                && product.discountFlags().chars().anyMatch(ch -> ch == '1')) {
-            return product.discountFlags();
-        }
-        String model = String.valueOf(modelCodeSnapshot(product)).toUpperCase(java.util.Locale.ROOT);
-        // 구형 product-service 응답에는 discountFlags 자체가 없다. 기존 AM360 호환 호출자는
-        // 모델 토큰으로 360 옵션을 식별하던 계약이므로 그 경로만 보존한다. 실제 응답의
-        // "000000"은 아래 order-app getModelFlags 규칙으로 재판정한다.
-        if (product.discountFlags() == null && model.contains("360")) {
-            return "100000";
-        }
-        boolean is360 = false;
-        boolean is4Way = false;
-        boolean is1Way = false;
-        boolean isStand = false;
-        boolean isDeluxe = false;
-        boolean isFirstGrade = false;
-        if (model.startsWith("AC") && model.length() >= 9) {
-            is360 = model.charAt(7) == '6' && model.charAt(8) == 'P';
-            is4Way = model.charAt(7) == '4' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
-            is1Way = model.charAt(7) == '1' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
-        }
-        if (model.startsWith("AP") && model.length() >= 9) {
-            if (model.length() >= 11 && model.charAt(10) == 'C') {
-                isStand = model.charAt(8) == 'D';
-            } else {
-                isStand = model.charAt(8) == 'P';
-            }
-            if (model.length() >= 11 && model.charAt(8) == 'D' && model.charAt(10) == 'H') {
-                isDeluxe = true;
-            }
-            if (model.startsWith("AP230") || model.startsWith("AP290")) {
-                isStand = true;
-                isDeluxe = false;
-            }
-        }
-        if ((model.startsWith("AC") || model.startsWith("AP"))
-                && model.length() >= 9 && model.charAt(8) == 'F') {
-            isFirstGrade = true;
-        }
-        return (is360 ? "1" : "0")
-                + (is4Way ? "1" : "0")
-                + (is1Way ? "1" : "0")
-                + (isStand ? "1" : "0")
-                + (isDeluxe ? "1" : "0")
-                + (isFirstGrade ? "1" : "0");
-    }
-
-    /** 화면의 카탈로그 계산이 사용한 원금. 멀티는 변동DC/고정DC가 있을 때 releasePrice를 쓴다. */
-    private BigDecimal resolveListPrice(ProductSummary product, String categoryKey,
-                                        BigDecimal fixedDiscountRate) {
-        boolean multi = "homemulti".equals(categoryKey) || "homeDefaults".equals(categoryKey)
-                || "commercialMulti".equals(categoryKey);
-        BigDecimal primary;
-        if (multi) {
-            primary = fixedDiscountRate != null || variableDiscountEnabled(product)
-                    ? product.releasePrice() : product.deliveryPrice();
-        } else if ("oldProducts".equals(categoryKey)) {
-            primary = product.releasePrice();
-        } else {
-            primary = product.deliveryPrice();
-        }
-        if (primary != null && primary.signum() > 0) {
-            return primary;
-        }
-        return product.sellingPrice();
-    }
-
-    /** null은 구형 product-service 응답의 변동DC 정보 부재를 뜻하므로 기존 rate 계약을 유지한다. */
-    private boolean variableDiscountEnabled(ProductSummary product) {
-        return product.hasVariableDiscount() == null || product.hasVariableDiscount();
     }
 
     /**

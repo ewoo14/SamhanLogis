@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.audit.domain.AccountingAuditLog;
 import com.samhanair.logis.accounting.audit.repository.AccountingAuditLogRepository;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +54,7 @@ public class DepositMatchAuditRecorder {
                 auditEntityId,
                 1,
                 actorId,
-                actorId != null ? actorId.toString().substring(0, 8) : "system",
+                actorId == null ? "system" : ActorDisplayName.UNKNOWN,
                 null,
                 "action",
                 null,
@@ -65,7 +66,7 @@ public class DepositMatchAuditRecorder {
                 auditEntityId,
                 2,
                 actorId,
-                actorId != null ? actorId.toString().substring(0, 8) : "system",
+                actorId == null ? "system" : ActorDisplayName.UNKNOWN,
                 null,
                 "matchSummary",
                 null,

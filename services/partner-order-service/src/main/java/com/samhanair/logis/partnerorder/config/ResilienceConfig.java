@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
  * <p>인스턴스 키 매트릭스:
  * <ul>
  *   <li>{@code slipServiceClient} — slip-service /from-partner-order 호출 (가장 중요)</li>
- *   <li>{@code dcConfigClient} — dc-config-service (DC 미적용 시 fallback)</li>
+ *   <li>{@code dcConfigClient} — dc-config-service (장애 시 가격 확정 차단)</li>
  *   <li>{@code productClient} — product-service (카탈로그 fail-soft)</li>
  *   <li>{@code inventoryClient} — inventory-service (reservation/commit)</li>
  *   <li>{@code partnerAuthClient} — partner-auth-service (JWT 검증)</li>

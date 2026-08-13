@@ -38,6 +38,8 @@ public interface RolePagePermissionRepository extends JpaRepository<RolePagePerm
      */
     Optional<RolePagePermission> findByRoleCodeAndPageCode(String roleCode, String pageCode);
 
+    List<RolePagePermission> findByActorId(String actorId);
+
     /**
      * 전체 매트릭스 조회 — 마스터 관리 화면용.
      * 모든 활성 행을 role_code, page_code 순으로 정렬하여 반환.

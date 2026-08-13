@@ -14,6 +14,7 @@ import {
   DataTable,
   FormField,
   Spinner,
+  safeActorName,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -29,6 +30,11 @@ import {
   APPROVAL_REFERENCE_DOC_TYPE_LABEL,
   type ApprovalReferenceDocType,
 } from '../api/documentReferenceSearch'
+import {
+  approvalAttachmentDetailLabel,
+  approvalAttachmentHref,
+  resolveApprovalAttachmentDocType,
+} from '../api/approvalAttachmentPresentation'
 import {
   APPROVAL_STATUS_LABEL,
   APPROVAL_STEP_STATUS_LABEL,
@@ -70,8 +76,7 @@ function formatDateTime(value: string | null | undefined): string {
 }
 
 function displayNameOrFallback(value: string | null | undefined, fallback: string): string {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : fallback
+  return safeActorName(value) ?? fallback
 }
 
 function serverErrorMessage(error: unknown): string {
@@ -136,34 +141,12 @@ function buildReferenceInput(draft: DocumentReferenceValue, displayOrder: number
   }
 }
 
-function attachmentDocType(attachment: ApprovalAttachment): ApprovalReferenceDocType | null {
-  if (attachment.refDocType) return attachment.refDocType
-  if (attachment.attachmentType === 'PARTNER_LEDGER_REF') return 'PARTNER_LEDGER'
-  if (attachment.refSlipType === 'SLIP_INBOUND' || attachment.refSlipType === 'INBOUND') return 'INBOUND_SLIP'
-  if (attachment.attachmentType === 'SLIP_REF') return 'OUTBOUND_SLIP'
-  return null
-}
-
 function attachmentDisplayNo(attachment: ApprovalAttachment): string {
-  const docType = attachmentDocType(attachment)
+  const docType = resolveApprovalAttachmentDocType(attachment)
   if (docType === 'PARTNER_LEDGER') {
     return `${attachment.refPartnerName ?? attachment.refPartnerCode ?? '-'} · ${attachment.refPeriod ?? '-'}`
   }
   return attachment.refDocNo ?? attachment.refSlipNo ?? '-'
-}
-
-function attachmentHref(attachment: ApprovalAttachment): string {
-  const docType = attachmentDocType(attachment)
-  const docNo = attachment.refDocNo ?? attachment.refSlipNo ?? ''
-  if (docType === 'INBOUND_SLIP') return `#/purchases?slipNo=${encodeURIComponent(docNo)}`
-  if (docType === 'OUTBOUND_SLIP') return `#/sales?slipNo=${encodeURIComponent(docNo)}`
-  if (docType === 'JOURNAL') return `#/accounting/journals?journalNo=${encodeURIComponent(docNo)}`
-  if (docType === 'TAX_INVOICE') return `#/accounting/tax-invoices?taxInvoiceNo=${encodeURIComponent(docNo)}`
-  if (docType === 'STATEMENT') return `#/accounting/statement-batch?statementNo=${encodeURIComponent(docNo)}`
-  if (docType === 'PARTNER_LEDGER') {
-    return `#/accounting/ledgers?partnerCode=${encodeURIComponent(attachment.refPartnerCode ?? '')}&period=${encodeURIComponent(attachment.refPeriod ?? '')}`
-  }
-  return '#'
 }
 
 function canSubmitReference(draft: DocumentReferenceValue): boolean {
@@ -603,7 +586,7 @@ export function GroupwareApprovalDetailPage() {
                       <Badge variant="neutral">
                         {attachment.attachmentType === 'FILE'
                           ? '파일'
-                          : APPROVAL_REFERENCE_DOC_TYPE_LABEL[attachmentDocType(attachment) ?? 'OUTBOUND_SLIP']}
+                          : approvalAttachmentDetailLabel(attachment)}
                       </Badge>
                       <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, overflowWrap: 'anywhere' }}>
                         {attachment.attachmentType === 'FILE' ? (
@@ -623,9 +606,11 @@ export function GroupwareApprovalDetailPage() {
                             {attachment.fileName ?? '파일'} ({formatFileSize(attachment.fileSize)})
                           </button>
                         ) : (
-                          <a href={attachmentHref(attachment)}>
-                            {attachmentDisplayNo(attachment)}
-                          </a>
+                          (() => {
+                            const href = approvalAttachmentHref(attachment)
+                            const displayNo = attachmentDisplayNo(attachment)
+                            return href ? <a href={href}>{displayNo}</a> : <span>{displayNo}</span>
+                          })()
                         )}
                       </div>
                       {attachment.label ? (

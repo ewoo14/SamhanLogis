@@ -9,6 +9,7 @@ import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidator;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
@@ -46,6 +47,7 @@ public record ProductCatalogResponse(
         UsageScope usageScope,
         EstimateCategory estimateCategory,
         ProductCategory productCategory,
+        PhysicalCategoryView physicalCategory,
         ClassificationView catL,
         ClassificationView catM,
         ClassificationView catS,
@@ -55,6 +57,7 @@ public record ProductCatalogResponse(
         BigDecimal releasePrice,
         BigDecimal deliveryPrice,
         ProductGoodsType goodsType,
+        boolean quantitySyncTargetEligible,
         BigDecimal fixedDiscountRate,
         boolean hasVariableDiscount,
         boolean variableDiscountManual,
@@ -63,7 +66,8 @@ public record ProductCatalogResponse(
         String discountFlags,
         ProductType productType,
         int componentCount,
-        String componentSetToken
+        String componentSetToken,
+        String fixedDiscountSource
 ) {
     /**
      * {@link Product} → 카탈로그 응답 변환 (componentCount=0 기본).
@@ -98,6 +102,7 @@ public record ProductCatalogResponse(
                 p.getUsageScope(),
                 firstCategory,
                 p.getProductCategory(),
+                PhysicalCategoryView.from(p.getCategory()),
                 ClassificationView.from(p.getCatL()),
                 ClassificationView.from(p.getCatM()),
                 ClassificationView.from(p.getCatS()),
@@ -107,7 +112,10 @@ public record ProductCatalogResponse(
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
                 p.getGoodsType(),
-                p.getFixedDiscountRate(),
+                QuantitySyncRuleValidator.isValidTargetRole(
+                        p.getCatL() == null ? null : p.getCatL().getName(),
+                        p.getGoodsType() == null ? null : p.getGoodsType().name()),
+                p.resolveFixedDiscount().rate(),
                 Boolean.TRUE.equals(p.getHasVariableDiscount()),
                 p.isVariableDiscountManual(),
                 Boolean.TRUE.equals(p.getLegacyDiscountFlag()),
@@ -115,7 +123,8 @@ public record ProductCatalogResponse(
                 p.getDiscountFlags(),
                 p.getProductType(),
                 0,
-                null
+                null,
+                p.resolveFixedDiscount().source().name()
         );
     }
 
@@ -131,10 +140,10 @@ public record ProductCatalogResponse(
     public ProductCatalogResponse withComponentCount(int count, String token) {
         return new ProductCatalogResponse(
                 modelCode, name, usageScope, estimateCategory,
-                productCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
-                releasePrice, deliveryPrice, goodsType, fixedDiscountRate,
+                productCategory, physicalCategory, catL, catM, catS, usageScopeManual, displayOrder, estimateCategories,
+                releasePrice, deliveryPrice, goodsType, quantitySyncTargetEligible, fixedDiscountRate,
                 hasVariableDiscount, variableDiscountManual, legacyDiscountFlag, status, discountFlags,
-                productType, count, token
+                productType, count, token, fixedDiscountSource
         );
     }
 
@@ -161,7 +170,17 @@ public record ProductCatalogResponse(
             if (classification == null) {
                 return null;
             }
-            return new ClassificationView(classification.getId().toString(), classification.getName());
+            return new ClassificationView(OpaqueUuidSerializer.encode(classification.getId()), classification.getName());
+        }
+    }
+
+    /** 물리 제품구분 표시 정보 — 견적 {@link ProductCategory} 축과 분리한다. */
+    public record PhysicalCategoryView(String code, String name) {
+        public static PhysicalCategoryView from(com.samhanair.logis.product.domain.Category category) {
+            if (category == null) {
+                return null;
+            }
+            return new PhysicalCategoryView(category.getCode(), category.getName());
         }
     }
 }

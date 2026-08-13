@@ -3,7 +3,7 @@ import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import type { PartnerOrderDetail } from '../api/sales'
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +17,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@samhan/design-system', () => ({
   Badge: ({ children, ...props }: any) => <span {...props}>{children}</span>,
+  Card: ({ children, ...props }: any) => <section {...props}>{children}</section>,
+  CopyButton: ({ label }: any) => <button type="button">{label}</button>,
+  OrderNumberDisplay: ({ orderNumber, ...props }: any) => <span {...props}>{orderNumber}</span>,
+  OrderStatusBadge: ({ status, ...props }: any) => <span {...props} data-status={status}>{status}</span>,
+  Spinner: ({ label }: any) => <span>{label}</span>,
   Button: ({ children, variant: _variant, size: _size, ...props }: any) => (
     <button {...props}>{children}</button>
   ),
@@ -229,6 +234,17 @@ function renderPage() {
   }
 }
 
+function BrowserBackProbe() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  return (
+    <div data-testid="order-list-return">
+      <span data-testid="order-list-search">{location.search}</span>
+      <button type="button" onClick={() => navigate(-1)}>브라우저 뒤로가기</button>
+    </div>
+  )
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -238,6 +254,38 @@ afterEach(() => {
 })
 
 describe('SalesPartnerOrderDetailPage 판매전표 전환 오류 안내', () => {
+  it('RED-LUNA-2/3: 주문 목록 복귀는 검색어를 유지하고 브라우저 뒤로 상세로 재진입하지 않는다', async () => {
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[
+          { pathname: '/sales/partner-orders', search: '?status=DRAFT&keyword=2026%2F06%2F08' },
+          {
+            pathname: '/sales/partner-orders/PO%2F2099-1',
+            state: {
+              returnTo: { pathname: '/sales/partner-orders', search: '?status=DRAFT&keyword=2026%2F06%2F08' },
+              returnEntryKey: 'order-list-entry',
+            },
+          },
+        ]} initialIndex={1}>
+          <Routes>
+            <Route path="/sales/partner-orders" element={<BrowserBackProbe />} />
+            <Route path="/sales/partner-orders/:id" element={<SalesPartnerOrderDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await screen.findByText('주문서 상세')
+    fireEvent.click(screen.getByRole('button', { name: '← 목록' }))
+    expect(await screen.findByTestId('order-list-return')).toBeTruthy()
+    expect(screen.getByTestId('order-list-search').textContent).toBe('?status=DRAFT&keyword=2026%2F06%2F08')
+
+    fireEvent.click(screen.getByRole('button', { name: '브라우저 뒤로가기' }))
+    expect(screen.queryByText('주문서 상세')).toBeNull()
+    expect(screen.getByTestId('order-list-return')).toBeTruthy()
+  })
+
   it('BUNDLE 전환 400의 구성품 전개 안내를 단건 alert에 표시한다', async () => {
     mocks.getPartnerOrder.mockResolvedValue(makeOrder({
       lines: [{ ...makeOrder().lines[0], productType: 'BUNDLE' }],

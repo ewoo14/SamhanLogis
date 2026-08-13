@@ -53,6 +53,22 @@ describe('RedlineCell', () => {
     expect(screen.getByTestId('redline-cell-struck').textContent).toContain('비움')
   })
 
+  it('BE identity guard가 보존한 UUID-shaped actorName을 aria-label에도 표시한다', () => {
+    const actorName = 'cafebabecafebabecafebabecafebabe'
+    render(
+      <RedlineCell
+        layers={[
+          { value: '원본', actorName: null, actorColor: null, changedAt: null },
+          { value: '수정', actorName, actorColor: '#DB2777', changedAt: '2026-08-10T09:01:00' },
+        ]}
+      />,
+    )
+
+    expect(screen.getByTestId('redline-cell-current').getAttribute('aria-label'))
+      .toBe('현재값: 수정')
+    expect(screen.getByTestId('redline-cell-current').textContent).not.toContain(actorName)
+  })
+
   it('format prop으로 각 layer 값을 포맷한다(수량 천단위)', () => {
     render(
       <RedlineCell

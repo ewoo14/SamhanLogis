@@ -14,8 +14,15 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@samhan/design-system', () => ({
+  safeActorName: (value: string | null | undefined) => value === 'system' ? '시스템' : value,
   Badge: ({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => (
     <span {...props}>{children}</span>
+  ),
+  OrderNumberDisplay: ({ orderNumber, ...props }: { orderNumber: string } & Record<string, unknown>) => (
+    <span {...props}>{orderNumber}</span>
+  ),
+  OrderStatusBadge: ({ status, ...props }: { status: string } & Record<string, unknown>) => (
+    <span {...props} data-status={status}>{status}</span>
   ),
   Button: ({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => (
     <button {...props}>{children}</button>

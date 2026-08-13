@@ -96,3 +96,40 @@ gh run list --branch <branch> --limit 6 --json headSha,status,conclusion,name
 - [[feedback_screenshot_restore_scope_destroys_edits]] — QA 산출물 커밋이 다른 것을 망가뜨리는 계열
 - [[feedback_design_system_playwright_mock_suite]]
 - [[feedback_pr_conflict_blocks_all_workflows]]
+
+---
+
+## 🚨 2026-08-11 재발 (`#1168`) — 그리고 **PM 이 늦게 본 것**이 더 큰 문제였다
+
+```text
+[guard] expected=667 unexpected=9 skipped=0 flaky=1
+실패 9건 전부  playwright/2026-08-11-dg1-s3-fix/s3-fix-live.spec.ts
+원인          디렉토리에 `-real-qa` 접미사가 없어 mock 스위트가 라이브 스펙을 집었다
+```
+
+### 🔑 진짜 교훈 — CI 를 **라운드마다** 봐야 한다
+
+```text
+이 잡은 **여러 라운드 전부터 red 였다.**
+PM 이 SOL 라운드 결과만 보고 CI 는 "머지 직전에 확인할 것" 으로 미뤘다.
+⟹ SOL 7라운드가 끝나고 나서야 발견 → fix 라운드가 하나 더 붙었다
+
+✅ 라운드 게시할 때마다 CI 도 함께 본다 (게시와 같은 도구 블록에서)
+   gh pr view <n> --json statusCheckRollup -q \
+     '.statusCheckRollup[]|select(.conclusion!="SUCCESS" and .conclusion!=null and .conclusion!="")|"\(.conclusion) \(.name)"'
+```
+
+### ⚠️ CI 대기 조건의 함정 — `conclusion` 은 `null` 이 아니라 **빈 문자열**일 수 있다
+
+```bash
+# ❌ 즉시 통과해 버린다 (아직 안 끝났는데 "완료" 로 읽힘)
+select(.conclusion==null)|length
+# ✅ status 로 판정한다
+select(.status!="COMPLETED")|length
+```
+
+실측: 이 조건 오류로 CI 대기 루프가 한 번 헛돌아 "CI 완료" 를 잘못 보고했다.
+
+### 🚫 config 를 넓혀 해결하지 말 것
+
+`playwright.config.ts` 의 `testIgnore` 를 넓히면 **다른 라이브 스펙이 조용히 빠져** false-green 이 된다. 스펙 쪽 이름을 규약(`-real-qa`)에 맞춘다.

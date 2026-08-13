@@ -17,6 +17,7 @@ import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.product.client.UserInternalClient;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ClassificationRepository;
@@ -77,6 +78,7 @@ public class ProductService {
     private final ClassificationRepository classificationRepository;
     private final BundleComponentRepository bundleComponentRepository;
     private final BundleComponentService bundleComponentService;
+    private final UserInternalClient userInternalClient;
 
     /**
      * 품목 단종/삭제 전 수량 동기화 규칙 참조 여부 확인용(R1 결함 3). QuantitySyncRuleService
@@ -620,7 +622,8 @@ public class ProductService {
         // product.changeUsage(...)를 도메인 객체에 반영했으므로 product.getUsageScope()가
         // 곧 "쓰기 이후" 값이다.
         boolean usageForcedNone = applyUpdateFields(product, req);
-        if (usageForcedNone || req.usageScope() != null || req.estimateCategories() != null) {
+        if (usageForcedNone || req.usageScope() != null || req.estimateCategories() != null
+                || req.goodsType() != null) {
             assertResultingStateSatisfiesQuantitySyncRules(product, product.getUsageScope(), req.estimateCategories());
             syncEstimateExposures(product, product.getUsageScope(), req.estimateCategories(), "product-update");
         }
@@ -737,7 +740,11 @@ public class ProductService {
     /** 견적품목 메뉴에서 상품/비상품 선언을 변경한다. */
     public Product updateGoodsTypeAndReturn(String modelCode,
                                             UpdateProductGoodsTypeRequest req) {
+        quantitySyncRuleService.lockGraphMutation();
         Product product = loadByModelCodeOrThrow(modelCode);
+        assertResultingRoleSatisfiesQuantitySyncRules(product,
+                product.getCatL() == null ? null : product.getCatL().getName(),
+                req.goodsType() == null ? ProductGoodsType.GOODS.name() : req.goodsType().name());
         product.changeGoodsType(req.goodsType());
         product.changeInventoryQtyMgmt(req.goodsType() == ProductGoodsType.GOODS);
         return product;
@@ -746,13 +753,18 @@ public class ProductService {
     /** 품목별 L/M/S 분류를 FE F1-b PATCH body 계약 그대로 저장한다. */
     public Product updateClassificationAndFixedDiscount(String modelCode,
                                                         UpdateProductClassificationRequest req) {
+        quantitySyncRuleService.lockGraphMutation();
         Product product = loadByModelCodeOrThrow(modelCode);
         Classification catL = loadClassification(req.catLId(), Classification.CatLevel.L, "대분류");
         Classification catM = loadClassification(req.catMId(), Classification.CatLevel.M, "중분류");
         Classification catS = loadClassification(req.catSId(), Classification.CatLevel.S, "소분류");
         validateClassificationTree(product, catL, catM, catS);
+        assertResultingRoleSatisfiesQuantitySyncRules(product,
+                catL == null ? null : catL.getName(),
+                product.getGoodsType() == null ? null : product.getGoodsType().name());
 
         product.markClassificationManual(catL, catM, catS);
+        product.carryForwardLegacyDiscountOption();
 
         return product;
     }
@@ -866,7 +878,30 @@ public class ProductService {
         Set<EstimateCategory> resultingCategories =
                 resolveResultingExposedCategories(product, effectiveScope, requestedCategories);
         List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysBrokenByResultingState(
-                product.getId(), product.getStatus() == ProductStatus.ACTIVE, resultingVisible, resultingCategories);
+                product.getId(), product.getStatus() == ProductStatus.ACTIVE, resultingVisible, resultingCategories,
+                product.getCatL() == null ? null : product.getCatL().getName(),
+                product.getGoodsType() == null ? null : product.getGoodsType().name());
+        throwIfQuantitySyncRuleRoleViolation(ruleKeys);
+    }
+
+    /** 상품/비상품·L분류 변경 후 역할 계약을 깨는 활성 규칙을 기존 충돌 방식으로 차단한다. */
+    private void assertResultingRoleSatisfiesQuantitySyncRules(
+            Product product, String resultingClassificationName, String resultingGoodsType) {
+        if (product.getId() == null) {
+            return;
+        }
+        String currentClassificationName = product.getCatL() == null ? null : product.getCatL().getName();
+        String currentGoodsType = product.getGoodsType() == null ? null : product.getGoodsType().name();
+        if (Objects.equals(currentClassificationName, resultingClassificationName)
+                && Objects.equals(currentGoodsType, resultingGoodsType)) {
+            return;
+        }
+        List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysBrokenByResultingRole(
+                product.getId(), resultingClassificationName, resultingGoodsType);
+        throwIfQuantitySyncRuleRoleViolation(ruleKeys);
+    }
+
+    private void throwIfQuantitySyncRuleRoleViolation(List<String> ruleKeys) {
         if (!ruleKeys.isEmpty()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "
@@ -1004,8 +1039,10 @@ public class ProductService {
 
     private ProductResponse toResponse(Product product) {
         List<ProductSpecResponse> specs = specResponses(product);
+        String createdBy = resolveAuditDisplayValue(product.getCreatedBy());
+        String modifiedBy = resolveAuditDisplayValue(product.getModifiedBy());
         if (product.getProductType() == ProductType.BUNDLE) {
-            return ProductResponse.from(product, ProductItemKind.SET, null, null, specs);
+            return ProductResponse.from(product, ProductItemKind.SET, null, null, specs, createdBy, modifiedBy);
         }
         ParentComponentLink parentLink = findParentComponentLink(product);
         if (parentLink != null) {
@@ -1014,9 +1051,28 @@ public class ProductService {
                     ProductItemKind.SET_COMPONENT,
                     parentLink.parentModelCode(),
                     parentLink.componentKind(),
-                    specs);
+                    specs, createdBy, modifiedBy);
         }
-        return ProductResponse.from(product, ProductItemKind.GENERAL, null, null, specs);
+        return ProductResponse.from(product, ProductItemKind.GENERAL, null, null, specs, createdBy, modifiedBy);
+    }
+
+    /** 감사 원천값은 잃지 않되 UUID는 공개하지 않는다. 표시 후보 문구는 이 경계 한 곳에서 교체한다. */
+    private String resolveAuditDisplayValue(String auditValue) {
+        if (auditValue == null || auditValue.isBlank()) {
+            return "감사 주체 미상";
+        }
+        return userInternalClient.resolveDisplayName(auditValue)
+                .orElseGet(() -> {
+                    if (UserInternalClient.isSystemMarker(auditValue)) {
+                        return "시스템 작업 (" + auditValue.trim() + ")";
+                    }
+                    try {
+                        UUID.fromString(auditValue.trim());
+                        return "사용자 미상";
+                    } catch (IllegalArgumentException ignored) {
+                        return "사용자 미상";
+                    }
+                });
     }
 
     /** 제품 등록/수정 화면의 동적 사양을 ProductSpec 1:N row 로 저장한다. */
@@ -1050,6 +1106,9 @@ public class ProductService {
             for (ProductSpec spec : currentSpecs) {
                 spec.markDeleted("system");
             }
+            // 부분 유니크(활성 product_id/spec_key)는 신규 INSERT보다 기존 행의
+            // soft-delete UPDATE가 먼저 DB에 반영되어야 동일 키 재저장이 가능하다.
+            productSpecRepository.flush();
         }
         saveSpecs(product, specs);
     }

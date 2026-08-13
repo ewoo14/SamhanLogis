@@ -33,6 +33,7 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabComment;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabCommentRepository;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabSuggestion;
+import com.samhanair.logis.slip.estimate.web.dto.OpaqueUuidCodec;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabSuggestionRepository;
 import com.samhanair.logis.slip.estimate.web.EstimatePermissionGuard;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
@@ -135,7 +136,7 @@ class EstimateCollabIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.anchor").value("validUntil"))
                 .andExpect(jsonPath("$.data.status").value("OPEN"))
                 .andReturn().getResponse().getContentAsString();
-        UUID commentId = UUID.fromString((String) dataMap(createResp).get("id"));
+        UUID commentId = OpaqueUuidCodec.decode((String) dataMap(createResp).get("id"));
 
         mvc.perform(get("/slips/estimates/{estimateId}/collab/comments", estimateId)
                         .header(USER_ID_HEADER, ACTOR_ID)
@@ -194,7 +195,7 @@ class EstimateCollabIT extends AbstractPostgresIT {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> edit = (Map<String, Object>) dataMap(response).get("edit");
-        UUID editId = UUID.fromString((String) edit.get("id"));
+        UUID editId = OpaqueUuidCodec.decode((String) edit.get("id"));
 
         estimateRepository.flush();
         Estimate reloaded = estimateRepository.findById(estimate.getId()).orElseThrow();

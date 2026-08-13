@@ -13,6 +13,7 @@ import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.inventory.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -118,7 +119,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.productId").value(productId.toString()))
-                .andExpect(jsonPath("$.data.warehouseId").value(hqWarehouseId.toString()))
+                .andExpect(jsonPath("$.data.warehouseId").value(OpaqueUuidSerializer.encode(hqWarehouseId)))
                 .andExpect(jsonPath("$.data.threshold").value(50))
                 .andExpect(jsonPath("$.data.note").value("HQ 안전재고 50개"));
     }

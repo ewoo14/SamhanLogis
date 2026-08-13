@@ -9,6 +9,9 @@ import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.web.dto.ClassificationResponse;
 import com.samhanair.logis.product.web.dto.CreateClassificationRequest;
 import com.samhanair.logis.product.web.dto.UpdateClassificationRequest;
+import com.samhanair.logis.product.web.dto.UpdateClassificationFixedDiscountRequest;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ public class ClassificationService {
 
     private final ClassificationRepository classificationRepository;
     private final ProductRepository productRepository;
+    private final QuantitySyncRuleService quantitySyncRuleService;
 
     @Transactional(readOnly = true)
     public List<ClassificationResponse> list(EstimateCategory estimateCategory, UUID parentId) {
@@ -59,6 +63,17 @@ public class ClassificationService {
     public ClassificationResponse update(UUID id, UpdateClassificationRequest request) {
         Classification target = load(id);
         if (request.name() != null) {
+            if (target.getCatLevel() == Classification.CatLevel.L
+                    && !request.name().trim().equals(target.getName())) {
+                quantitySyncRuleService.lockGraphMutation();
+                List<String> ruleKeys = quantitySyncRuleService
+                        .findEnabledRuleKeysBrokenByClassificationName(id, request.name().trim());
+                if (!ruleKeys.isEmpty()) {
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "
+                                    + String.join(", ", ruleKeys));
+                }
+            }
             target.rename(request.name());
         }
         if (request.parentId() != null) {
@@ -78,6 +93,14 @@ public class ClassificationService {
         return ClassificationResponse.from(target);
     }
 
+    /** 분류 단계의 정액DC율을 저장한다. 품목별 수동 override 와는 별도 축이다. */
+    public ClassificationResponse updateFixedDiscount(
+            UUID id, UpdateClassificationFixedDiscountRequest request) {
+        Classification target = load(id);
+        target.changeFixedDiscountRate(parseFixedDiscountRate(request.fixedDiscountRate()));
+        return ClassificationResponse.from(target);
+    }
+
     public void delete(UUID id, String actor) {
         Classification target = load(id);
         if (classificationRepository.existsByParent_IdAndIsDeletedFalse(id)) {
@@ -94,6 +117,21 @@ public class ClassificationService {
     private Classification load(UUID id) {
         return classificationRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "분류를 찾을 수 없습니다"));
+    }
+
+    private BigDecimal parseFixedDiscountRate(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            BigDecimal rate = new BigDecimal(raw.trim()).setScale(2, RoundingMode.HALF_UP);
+            if (rate.compareTo(BigDecimal.ZERO) < 0 || rate.compareTo(new BigDecimal("100.00")) > 0) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "고정DC율은 0 이상 100 이하이어야 합니다");
+            }
+            return rate;
+        } catch (NumberFormatException ex) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "고정DC율이 숫자가 아닙니다");
+        }
     }
 
     private Classification resolveAndValidateParent(EstimateCategory estimateCategory,

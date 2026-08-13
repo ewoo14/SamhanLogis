@@ -55,11 +55,17 @@ public class ProductClient {
                          InternalAuthProperties internalAuthProperties,
                          ObjectMapper objectMapper,
                          @Value("${samhan.product-client.connect-timeout-ms:2000}") int connectTimeoutMs,
-                         @Value("${samhan.product-client.read-timeout-ms:3000}") int readTimeoutMs) {
+                         @Value("${samhan.product-client.read-timeout-ms:3000}") int readTimeoutMs,
+                         @Value("${app.services.product-service.base-url:http://product-service}")
+                         String productServiceBaseUrl) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofMillis(connectTimeoutMs));
         requestFactory.setReadTimeout(Duration.ofMillis(readTimeoutMs));
-        this.restClient = builder.requestFactory(requestFactory).baseUrl(PRODUCT_SERVICE_BASE).build();
+        RestClient.Builder resolvedBuilder = productServiceBaseUrl.startsWith("http://localhost:")
+                || productServiceBaseUrl.startsWith("http://127.0.0.1:")
+                ? RestClient.builder()
+                : builder;
+        this.restClient = resolvedBuilder.requestFactory(requestFactory).baseUrl(productServiceBaseUrl).build();
         this.internalAuthProperties = internalAuthProperties;
         this.objectMapper = objectMapper;
     }

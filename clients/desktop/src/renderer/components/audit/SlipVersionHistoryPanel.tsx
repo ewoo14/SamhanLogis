@@ -10,9 +10,9 @@
  * <p>slipId 는 prop/path 전용 — 화면 노출 X. 표시 텍스트는 actorName / slipNo 만 사용한다
  * ([[uuid-no-user-visibility]]).
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Modal, Spinner } from '@samhan/design-system'
+import { Badge, Button, Card, Modal, Spinner, safeActorName } from '@samhan/design-system'
 import {
   listRevisions,
   restoreRevision,
@@ -115,6 +115,7 @@ function renderFieldChange(
   },
 ) {
   const actorColor = presenceColorToHex(change.actorColor)
+  const actorName = safeActorName(change.actorName)
   return (
     <div
       key={change.fieldPath}
@@ -161,8 +162,8 @@ function renderFieldChange(
         }}
       />
       <span style={{ minWidth: 0 }}>
-        {change.actorName ? (
-          <strong style={{ color: actorColor, marginRight: 6 }}>{change.actorName}</strong>
+        {actorName ? (
+          <strong style={{ color: actorColor, marginRight: 6 }}>{actorName}</strong>
         ) : null}
         <strong>{change.label}</strong>
         <span
@@ -235,10 +236,13 @@ export function SlipVersionHistoryPanel({
    * 코멘트 anchor 유래 활성 필드 목록을 canonical 형태(Set)로 정규화한다 — 리비전 행 전체 배열과의
    * 교집합 판정(다중필드) 및 개별 필드변경과의 포함 판정에 재사용한다(PR #747 재수렴 MEDIUM fix).
    */
-  const normalizedActiveFieldPaths = new Set(
-    (activeFieldPaths ?? EMPTY_ACTIVE_FIELD_PATHS)
-      .map((path) => normalizeFieldPath(path))
-      .filter((path) => path.length > 0),
+  const normalizedActiveFieldPaths = useMemo(
+    () => new Set(
+      (activeFieldPaths ?? EMPTY_ACTIVE_FIELD_PATHS)
+        .map((path) => normalizeFieldPath(path))
+        .filter((path) => path.length > 0),
+    ),
+    [activeFieldPaths],
   )
 
   const hasActiveHistoryTarget = activeRevisionNo !== null || normalizedActiveFieldPaths.size > 0
@@ -411,9 +415,11 @@ export function SlipVersionHistoryPanel({
                         ? ` (버전 ${rev.sourceRevisionNo})`
                         : ''}
                     </Badge>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: rev.actorColor ? presenceColorToHex(rev.actorColor) : 'var(--color-neutral-600)' }}>
-                      {rev.actorName}
-                    </span>
+                    {safeActorName(rev.actorName) ? (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: rev.actorColor ? presenceColorToHex(rev.actorColor) : 'var(--color-neutral-600)' }}>
+                        {safeActorName(rev.actorName)}
+                      </span>
+                    ) : null}
                     <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
                       {formatLocalDateTime(rev.createdAt)}
                     </span>

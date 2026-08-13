@@ -5,6 +5,7 @@ import com.samhanair.logis.accounting.web.dto.AccountingJournalSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingLedgerPartnerSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingStatementSearchResponse;
 import com.samhanair.logis.accounting.web.dto.AccountingTaxInvoiceSearchResponse;
+import com.samhanair.logis.accounting.web.dto.AccountingSalesCommissionSettlementSearchResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
@@ -62,5 +63,15 @@ public class AccountingDocumentSearchController {
             @RequestParam(defaultValue = "") String q,
             @RequestParam(defaultValue = "10") int limit) {
         return ApiResponse.ok(searchService.searchLedgerPartners(q, limit));
+    }
+
+    /** 영업수수료 정산서 검색. DRAFT(번호 없음)는 후보에서 제외한다. */
+    @Operation(summary = "결재 첨부용 영업수수료 정산서 검색")
+    @GetMapping("/sales-commission-settlements/search")
+    @RequirePermission(page = "accounting.reports", action = PermissionAction.VIEW)
+    public ApiResponse<List<AccountingSalesCommissionSettlementSearchResponse>> searchSalesCommissionSettlements(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ApiResponse.ok(searchService.searchSalesCommissionSettlements(q, limit));
     }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   addApproverOption,
   buildGroupwareApprovalDocumentType,
+  buildGroupwareApprovalReferenceInputs,
   getApprovalLinePreviewStatus,
   loadDefaultApproverOptions,
   mapDefaultApproversToApproverOptions,
@@ -13,6 +14,28 @@ import type { ApprovalLineDefaultApprover, ApprovalLineStructure } from '../api/
 import type { ApproverOption } from '../api/groupwareApprovalApprover'
 
 describe('GroupwareApprovalCreatePage default approver prefill', () => {
+  it('결재 생성 요청에 참조 목록을 포함할 수 있는 첨부 계약으로 변환한다', () => {
+    expect(buildGroupwareApprovalReferenceInputs([
+      {
+        refDocType: 'SALES_COMMISSION_SETTLEMENT',
+        refDocNo: '2099/12/27-1',
+        refDocLabel: '영업수수료 정산서',
+        refPartnerCode: null,
+        refPartnerName: null,
+        refPeriod: null,
+      },
+    ])).toEqual([{
+      attachmentType: 'SLIP_REF',
+      label: '영업수수료 정산서',
+      displayOrder: 1,
+      refDocType: 'SALES_COMMISSION_SETTLEMENT',
+      refDocNo: '2099/12/27-1',
+      refDocLabel: '영업수수료 정산서',
+      refSlipNo: null,
+      refSlipType: null,
+    }])
+  })
+
   it('기본 결재자를 sequence 순서의 ApproverOption 으로 매핑한다', () => {
     const defaults: ApprovalLineDefaultApprover[] = [
       { sequence: 2, label: '승인자', userId: 'user-008', displayName: '김관리' },

@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.samhanair.logis.inventory.domain.TransferReason;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -11,7 +12,9 @@ import java.util.UUID;
 
 /** 이동전표 생성 요청 + 라인 목록. */
 public record CreateTransferRequest(
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         @NotNull UUID sourceWarehouseId,
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         @NotNull UUID destinationWarehouseId,
         @NotNull TransferReason reason,
         @Size(max = 500) String reasonDetail,

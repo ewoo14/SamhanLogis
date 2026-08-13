@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -8,7 +9,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
@@ -186,6 +189,72 @@ class PartnerOrderConfirmServiceTest {
                     assertThat(line.getPriceVat()).isEqualByComparingTo("70");
                 });
         assertThat(saved.getValue().getDeliveryAddress()).isEqualTo("서울시 금천구 주문로 1");
+    }
+
+    @Test
+    void confirm_whenDcConfigUnavailable_doesNotPersistNormalPrice() {
+        UUID productId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        UUID partnerId = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        ProductSummary product = new ProductSummary(
+                productId, "HVAC 상품", "QA-HVAC-001", null, new BigDecimal("1000000"), "ACTIVE",
+                "QA-HVAC-001", "BUNDLE", "homemulti", null, null,
+                new BigDecimal("1000000"), new BigDecimal("1000000"), true, "HVAC");
+        when(draftRepository.findMaxDraftSeqByPartnerCode("P-QA-40")).thenReturn(0L);
+        when(orderRepository.findByIdempotencyKey("PO-CONF-P-QA-40-1")).thenReturn(Optional.empty());
+        when(partnerIdentityResolver.requirePartnerId("P-QA-40", "B1")).thenReturn(partnerId);
+        when(productClient.lookupByModelCodes(List.of("QA-HVAC-001"))).thenReturn(List.of(product));
+        when(productClient.lookupFixedDiscountRates(List.of(productId))).thenReturn(Map.of());
+        when(dcConfigClient.calculateDetailed(eq("P-QA-40"), anyList()))
+                .thenReturn(new DcConfigClient.CalculationResult(Map.of(), false));
+
+        assertThatThrownBy(() -> service.confirm(
+                "P-QA-40", "B1", "user", "사용자", null,
+                new com.samhanair.logis.partnerorder.web.dto.ConfirmRequest(List.of(
+                        new com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest(
+                                null, "QA-HVAC-001", "homemulti", 1, null)),
+                        "서울시 금천구 주문로 1")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("가격 계산");
+
+        verify(orderRepository, never()).save(any(PartnerOrder.class));
+    }
+
+    @Test
+    void confirm_whenDcConfigAvailable_persistsServerCalculatedDiscountedPrice() {
+        UUID productId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        UUID partnerId = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        ProductSummary product = new ProductSummary(
+                productId, "HVAC 상품", "QA-HVAC-001", null, new BigDecimal("1000000"), "ACTIVE",
+                "QA-HVAC-001", "BUNDLE", "homemulti", null, null,
+                new BigDecimal("1000000"), new BigDecimal("1000000"), true, "HVAC");
+        when(draftRepository.findMaxDraftSeqByPartnerCode("P-QA-40")).thenReturn(0L);
+        when(orderRepository.findByIdempotencyKey("PO-CONF-P-QA-40-1")).thenReturn(Optional.empty());
+        when(partnerIdentityResolver.requirePartnerId("P-QA-40", "B1")).thenReturn(partnerId);
+        when(productClient.lookupByModelCodes(List.of("QA-HVAC-001"))).thenReturn(List.of(product));
+        when(productClient.lookupFixedDiscountRates(List.of(productId))).thenReturn(Map.of());
+        when(dcConfigClient.calculateDetailed(eq("P-QA-40"), anyList()))
+                .thenReturn(new DcConfigClient.CalculationResult(
+                        Map.of("0", new DcConfigClient.CalculatedLine(
+                                new BigDecimal("600000"), new BigDecimal("0.40"))), true));
+        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))"))
+                .thenReturn(advisoryLockQuery);
+        when(advisoryLockQuery.setParameter(anyInt(), anyString())).thenReturn(advisoryLockQuery);
+        when(advisoryLockQuery.getSingleResult()).thenReturn(null);
+        when(orderRepository.findAllByOrderNoStartingWith(any(String.class))).thenReturn(List.of());
+        when(orderRepository.save(any(PartnerOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.confirm(
+                "P-QA-40", "B1", "user", "사용자", null,
+                new com.samhanair.logis.partnerorder.web.dto.ConfirmRequest(List.of(
+                        new com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest(
+                                null, "QA-HVAC-001", "homemulti", 1, null)),
+                        "서울시 금천구 주문로 1"));
+
+        ArgumentCaptor<PartnerOrder> saved = ArgumentCaptor.forClass(PartnerOrder.class);
+        verify(orderRepository).save(saved.capture());
+        assertThat(saved.getValue().getLines()).singleElement()
+                .satisfies(line -> assertThat(line.getPriceVat()).isEqualByComparingTo("600000"));
     }
 
     private static PartnerOrder order(String orderNo) {

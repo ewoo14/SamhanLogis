@@ -21,8 +21,8 @@
  * <p>UUID 비공개 가드 — id 표시 X. estimateNo / partnerName / modelName 만 노출.
  * 매뉴얼 출처: {@code docs/manual/01-영업/06-견적서.md}.
  */
-import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState, type ReactNode } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -30,6 +30,7 @@ import {
   Card,
   DataTable,
   AsyncAutocomplete,
+  safeActorName,
   Spinner,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -53,6 +54,8 @@ import { AuditLockedBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
+import { toOrderPathId } from '../utils/orderNo'
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
@@ -68,27 +71,40 @@ const fmt = (raw: string | number): string => {
   return Math.trunc(n).toLocaleString('ko-KR')
 }
 
-function estimateStatusBadgeStyle(status: EstimateStatus) {
-  switch (status) {
-    case 'QUOTE_ACCEPTED':
-      return { background: '#D1FAE5', color: '#065F46' }
-    case 'QUOTE_REJECTED':
-      return { background: '#FEE2E2', color: '#991B1B' }
-    case 'QUOTE_CONVERTED':
-      return { background: '#EDE9FE', color: '#5B21B6' }
-    case 'QUOTE_SENT':
-      return { background: '#DBEAFE', color: '#1D4ED8' }
-    case 'QUOTE_DRAFT':
-    default:
-      return { background: '#F3F4F6', color: '#4B5563' }
-  }
+function DetailGridField({
+  label,
+  value,
+  children,
+  testId,
+}: {
+  label: string
+  value: unknown
+  children: ReactNode
+  testId?: string
+}) {
+  const isEmpty = value === null || value === undefined || value === ''
+  return (
+    <div
+      className={isEmpty ? 'detail-grid-item-empty' : undefined}
+      data-testid={testId}
+    >
+      <span className="detail-label">{label}</span>
+      <span className="detail-value">{children}</span>
+    </div>
+  )
 }
 
 export function EstimateDetailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const id = params['id']!
+  const returnTo = getReturnTo(location.state, { pathname: '/sales/estimates', search: '' })
+  const returnEntryKey = location.state && typeof location.state === 'object'
+    ? (location.state as ReturnNavigationState).returnEntryKey
+    : undefined
+  const hasReturnEntry = typeof returnEntryKey === 'string' && returnEntryKey.length > 0
   const { canAccess } = usePermissions()
   const isMobile = useIsMobile()
 
@@ -197,7 +213,7 @@ export function EstimateDetailPage() {
   const isLocked = e.status === 'QUOTE_CONVERTED' || e.status === 'QUOTE_REJECTED'
   const currentOwner = e.requesterId
     ? ownerDirectoryQuery.data?.find((user) => user.id === e.requesterId) ??
-      (e.requesterName ? { id: e.requesterId, displayName: e.requesterName } : null)
+      (e.requesterName ? { id: e.requesterId, displayName: safeActorName(e.requesterName) ?? '변경자 미상' } : null)
     : null
 
   const handleSend = () => {
@@ -226,12 +242,9 @@ export function EstimateDetailPage() {
     convertMutation.mutate()
   }
   const handlePrint = () => {
-    // Designer commit 5dcbbef 의 QuoteView (`/sales/estimates/:estimateNumber/print`).
-    // Print view 는 estimateNumber path param 사용 (legacy `getEstimate` API). 본 mock
-    // 에서는 동일 estimateNo 를 path 로 전달 — 후속 iteration 에서 print view 가
-    // 신규 estimate-service API 로 마이그레이션 시 path 변경.
+    // Print view도 상세/편집과 같은 opaque token을 URL 식별자로 사용한다.
     const url = `${window.location.origin}/#/sales/estimates/${encodeURIComponent(
-      e.estimateNo,
+      toOrderPathId(e.id),
     )}/print`
     window.open(url, '_blank', 'width=900,height=1200')
   }
@@ -349,12 +362,12 @@ export function EstimateDetailPage() {
           <div className="mobile-summary-card" data-testid="estimate-detail-mobile-summary">
             <div className="mobile-summary-card-header">
               <span className="mobile-summary-doc-no">{e.estimateNo}</span>
-              <span
+              <Badge
                 className="mobile-status-badge"
-                style={estimateStatusBadgeStyle(e.status)}
+                variant={STATUS_VARIANT[e.status]}
               >
                 {ESTIMATE_STATUS_LABEL[e.status]}
-              </span>
+              </Badge>
             </div>
             <div className="mobile-summary-partner">{e.partnerName}</div>
             <div className="mobile-summary-divider" />
@@ -402,7 +415,7 @@ export function EstimateDetailPage() {
                       className="mobile-more-sheet-item"
                       onClick={() => {
                         setMobileMoreOpen(false)
-                        navigate(`/sales/estimates/${e.id}/edit`)
+                        navigate(`/sales/estimates/${encodeURIComponent(toOrderPathId(e.id))}/edit`)
                       }}
                     >
                       편집
@@ -496,7 +509,7 @@ export function EstimateDetailPage() {
         </>
       ) : null}
 
-      <Card>
+      <Card padding={4} shadow="sm">
         {!isMobile ? (
         <div
           style={{
@@ -508,7 +521,7 @@ export function EstimateDetailPage() {
             flexWrap: 'wrap',
           }}
         >
-          <div>
+          <div style={{ flex: '1 1 520px', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <h3
                 style={{ margin: 0, fontVariantNumeric: 'tabular-nums' }}
@@ -520,7 +533,7 @@ export function EstimateDetailPage() {
                 {ESTIMATE_STATUS_LABEL[e.status]}
               </Badge>
             </div>
-            <div style={{ marginTop: 8, fontSize: 13, color: '#6B7280' }}>
+            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--ink-secondary)' }}>
               작성일: {e.estimateDate}
               {e.validUntil ? ` · 유효기간: ${e.validUntil}` : ''}
               {e.sentAt
@@ -536,33 +549,25 @@ export function EstimateDetailPage() {
                 ? ` · 변환: ${new Date(e.convertedAt).toLocaleString('ko-KR')}`
                 : ''}
             </div>
-            <div style={{ marginTop: 12, fontSize: 14 }}>
-              <div>
-                <strong>거래처</strong>: {e.partnerName}
-                {e.partnerBusinessNo ? (
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      color: '#6B7280',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    ({e.partnerBusinessNo})
-                  </span>
-                ) : null}
-              </div>
-              {e.partnerAddress ? (
-                <div style={{ marginTop: 4, color: 'var(--ink-primary)' }}>
-                  <strong>주소</strong>: {e.partnerAddress}
-                </div>
-              ) : null}
-              <div
-                style={{ marginTop: 4, color: 'var(--ink-primary)' }}
-                data-testid="estimate-detail-memo"
-              >
-                <strong>비고</strong>: {e.memo || '(빈 값)'}
-              </div>
-              <div style={{ marginTop: 10, maxWidth: 360 }} data-testid="estimate-owner-control">
+            <div className="detail-grid" style={{ marginTop: 16 }}>
+              <DetailGridField label="거래처" value={e.partnerName}>
+                {e.partnerName}
+                {e.partnerBusinessNo ? ` (${e.partnerBusinessNo})` : ''}
+              </DetailGridField>
+              <DetailGridField label="작성일" value={e.estimateDate}>
+                {e.estimateDate}
+              </DetailGridField>
+              <DetailGridField label="유효기간" value={e.validUntil}>
+                {e.validUntil ?? '-'}
+              </DetailGridField>
+              <DetailGridField label="주소" value={e.partnerAddress}>
+                {e.partnerAddress ?? '-'}
+              </DetailGridField>
+              <DetailGridField label="비고" value={e.memo} testId="estimate-detail-memo">
+                {e.memo || '(빈 값)'}
+              </DetailGridField>
+              <DetailGridField label="담당" value={currentOwner?.displayName}>
+                <div data-testid="estimate-owner-control">
                 <AsyncAutocomplete<ApprovalLineUserOption>
                   label="담당"
                   value={currentOwner}
@@ -579,18 +584,26 @@ export function EstimateDetailPage() {
                   disabled={!canMutate || ownerMutation.isPending}
                   ariaLabel="담당자 이름 검색"
                 />
-                <div style={{ marginTop: 4, fontSize: 12, color: '#6B7280' }}>
+                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--ink-secondary)' }}>
                   담당 변경은 견적서에만 적용되며 작성 기록은 보존됩니다.
                 </div>
-              </div>
+                </div>
+              </DetailGridField>
             </div>
           </div>
 
           <div className="detail-action-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button
+              variant="ghost"
+              onClick={() => hasReturnEntry ? navigate(-1) : navigate(returnTo, { replace: true })}
+              data-testid="estimate-detail-list-button"
+            >
+              ← 목록
+            </Button>
             {(isDraft || isSent) && canMutate ? (
               <Button
                 variant="ghost"
-                onClick={() => navigate(`/sales/estimates/${e.id}/edit`)}
+                onClick={() => navigate(`/sales/estimates/${encodeURIComponent(toOrderPathId(e.id))}/edit`)}
                 data-testid="estimate-detail-edit-button"
               >
                 편집

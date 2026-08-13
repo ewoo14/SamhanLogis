@@ -8,6 +8,8 @@ import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -29,11 +31,11 @@ import java.util.UUID;
  * 품목 검색 모달의 규격 열을 채우기 위해 {@code specification} 도 함께 반환한다.
  */
 public record ProductSummaryResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String name,
         String modelName,
         String productCode,
-        UUID categoryId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID categoryId,
         BigDecimal sellingPrice,
         ProductStatus status,
         boolean serialManaged,
@@ -54,7 +56,28 @@ public record ProductSummaryResponse(
         String parentSetModelCode,
         String specification,
         List<EstimateCategory> estimateCategories,
-        ProductCategory productCategory) {
+        ProductCategory productCategory,
+        String fixedDiscountSource,
+        String physicalCategoryCode,
+        String discountOption,
+        @JsonIgnore boolean classificationAssigned) {
+
+    /** fixedDiscountSource 추가 전 canonical 호출 호환 생성자. */
+    public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
+                                  UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
+                                  boolean serialManaged, boolean goods, String modelCode, String productType,
+                                  String bundleMode, UsageScope usageScope, EstimateCategory estimateCategory,
+                                  boolean usageScopeManual, Integer displayOrder, String categoryKey,
+                                  BigDecimal fixedDiscountRate, String discountFlags,
+                                  BigDecimal releasePrice, BigDecimal deliveryPrice,
+                                  Boolean hasVariableDiscount, String parentSetModelCode,
+                                  String specification, List<EstimateCategory> estimateCategories,
+                                  ProductCategory productCategory) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
+                modelCode, productType, bundleMode, usageScope, estimateCategory, usageScopeManual, displayOrder,
+                categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
+                hasVariableDiscount, parentSetModelCode, specification, estimateCategories, productCategory, null, null, null, false);
+    }
 
     /** parentSetModelCode 추가 전 canonical 호출 호환 생성자. */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
@@ -68,7 +91,7 @@ public record ProductSummaryResponse(
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, null, usageScope, estimateCategory, usageScopeManual, displayOrder,
                 categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
-                hasVariableDiscount, null, null, null, null);
+                hasVariableDiscount, null, null, null, null, null, null, null, false);
     }
 
     /**
@@ -81,7 +104,7 @@ public record ProductSummaryResponse(
                                   boolean usageScopeManual, Integer displayOrder) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, null, usageScope, estimateCategory, usageScopeManual, displayOrder,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, false);
     }
 
     /**
@@ -143,6 +166,7 @@ public record ProductSummaryResponse(
 
     /** Product 검색 페이지의 활성 견적 노출을 벌크 조회 결과로 주입한다. */
     public static ProductSummaryResponse from(Product p, List<ProductEstimateExposure> exposures) {
+        Product.FixedDiscountResolution fixedDiscount = p.resolveFixedDiscount();
         return new ProductSummaryResponse(
                 p.getId(),
                 p.getName(),
@@ -161,7 +185,7 @@ public record ProductSummaryResponse(
                 p.isUsageScopeManual(),
                 null,
                 categoryKey(p),
-                p.getFixedDiscountRate(),
+                fixedDiscount == null ? null : fixedDiscount.rate(),
                 p.getDiscountFlags(),
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
@@ -172,7 +196,12 @@ public record ProductSummaryResponse(
                         .map(ProductEstimateExposure::getEstimateCategory)
                         .distinct()
                         .toList(),
-                p.getProductCategory());
+                p.getProductCategory(),
+                fixedDiscount == null || fixedDiscount.source() == null
+                        ? null : fixedDiscount.source().name(),
+                p.getCategory() == null ? null : p.getCategory().getCode(),
+                p.getDiscountOption() == null ? null : p.getDiscountOption().name(),
+                p.getCatL() != null || p.getCatM() != null || p.getCatS() != null);
     }
 
     /** 내부 소비자가 구성품의 레거시 세트 매칭명을 함께 보존할 때 사용하는 변환. */
@@ -184,7 +213,8 @@ public record ProductSummaryResponse(
                 base.productType(), base.bundleMode(), base.usageScope(), base.estimateCategory(), base.usageScopeManual(),
                 base.displayOrder(), base.categoryKey(), base.fixedDiscountRate(), base.discountFlags(),
                 base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode,
-                base.specification(), base.estimateCategories(), base.productCategory());
+                base.specification(), base.estimateCategories(), base.productCategory(), base.fixedDiscountSource(),
+                base.physicalCategoryCode(), base.discountOption(), base.classificationAssigned());
     }
 
     /** 검색 응답의 레거시 goods boolean을 견적 라인 계약인 goodsType으로 노출한다. */

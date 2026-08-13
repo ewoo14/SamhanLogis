@@ -8,4 +8,5 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const EstimateListRealtimeClient = createRealtimeClient({
   name: 'EstimateListRealtimeClient',
   endpointPath: (_entityId) => '/slips/estimates/list-realtime',
+  allowMockMode: true,
 })

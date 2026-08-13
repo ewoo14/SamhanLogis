@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.editrequest.web.dto;
 
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequest;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequestStatus;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequestType;
@@ -53,10 +54,14 @@ public record SlipEditRequestResponse(
                 request.getStatus(),
                 request.getReason(),
                 request.getRequesterId(),
-                request.getRequesterName(),
+                ActorDisplayName.resolveNullable(
+                        request.getRequesterId() == null ? null : request.getRequesterId().toString(),
+                        request.getRequesterName()),
                 request.getTargetRole(),
                 request.getDecidedById(),
-                request.getDecidedByName(),
+                ActorDisplayName.resolveNullable(
+                        request.getDecidedById() == null ? null : request.getDecidedById().toString(),
+                        request.getDecidedByName()),
                 request.getDecisionReason(),
                 request.getRequestedAt(),
                 request.getDecidedAt(),

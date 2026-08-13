@@ -13,6 +13,7 @@ import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.client.SlipClient;
+import com.samhanair.logis.inventory.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -266,7 +267,7 @@ class P13ValidationIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").exists())
                 .andExpect(jsonPath("$.data.productId").value(newProductId.toString()))
-                .andExpect(jsonPath("$.data.warehouseId").value(WH_HQ_001.toString()))
+                .andExpect(jsonPath("$.data.warehouseId").value(OpaqueUuidSerializer.encode(WH_HQ_001)))
                 .andExpect(jsonPath("$.data.threshold").value(20))
                 .andExpect(jsonPath("$.data.note").value("P13 IT 신규 설정 검증"));
     }

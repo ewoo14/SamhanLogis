@@ -25,17 +25,17 @@ describe('종합견적 웹 버전 확인 계약', () => {
     }, new Map())).toMatchObject({ kind: 'recommend', latestVersion: '2026/07/26-929' });
   });
 
-  test('404와 네트워크 실패는 견적서 사용을 막지 않는다', async () => {
+  test('404와 네트워크 실패는 정책 미수신 예외로 드러난다', async () => {
     await expect(fetchWebVersionStatus({
       apiBaseUrl: 'http://localhost:8080',
       currentVersion: '0.1.0-dev',
       fetchImpl: async () => new Response('', { status: 404 }),
-    })).resolves.toBeNull();
+    })).rejects.toThrow('버전 정책을 확인하지 못했습니다');
     await expect(fetchWebVersionStatus({
       apiBaseUrl: 'http://localhost:8080',
       currentVersion: '0.1.0-dev',
       fetchImpl: async () => { throw new Error('gateway down'); },
-    })).resolves.toBeNull();
+    })).rejects.toThrow('버전 정책을 확인하지 못했습니다');
   });
 
   test('개발 sentinel과 작성 중 견적 입력을 기존 계약대로 판정한다', () => {

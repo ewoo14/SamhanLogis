@@ -5,6 +5,14 @@ const { resolveBuildAppVersion: resolveSharedBuildAppVersion } = require('../../
 const VERSION_API_CLIENT_TYPE = 'SAMHAN_ESTIMATE_WEB';
 const DEVELOPMENT_SENTINEL = '0.1.0-dev';
 const VERSION_CHECK_TIMEOUT_MS = 5000;
+const VERSION_POLICY_FAILURE_MESSAGE = '버전 정책을 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.';
+
+class VersionPolicyError extends Error {
+  constructor() {
+    super(VERSION_POLICY_FAILURE_MESSAGE);
+    this.name = 'VersionPolicyError';
+  }
+}
 
 /** 견적 웹도 #910 공통 버전 resolver와 고정 개발 sentinel을 사용한다. */
 function resolveBuildAppVersion(injectedVersion, env = process.env) {
@@ -28,7 +36,7 @@ function buildVersionCheckUrl(apiBaseUrl, currentVersion) {
   return `${base}/app/version?${params.toString()}`;
 }
 
-/** 조회 실패·404는 견적서 사용을 막지 않는 fail-open 결과(null)로 정규화한다. */
+/** 조회 실패는 호출자가 사용자 안내로 표시할 수 있도록 예외를 유지한다. */
 async function fetchWebVersionStatus({ apiBaseUrl, currentVersion, fetchImpl = fetch, timeoutMs = VERSION_CHECK_TIMEOUT_MS }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -38,10 +46,13 @@ async function fetchWebVersionStatus({ apiBaseUrl, currentVersion, fetchImpl = f
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     });
-    if (!response.ok) return null;
-    return normalizeVersionInfo(await response.json());
-  } catch {
-    return null;
+    if (!response.ok) throw new VersionPolicyError();
+    const versionInfo = normalizeVersionInfo(await response.json());
+    if (!versionInfo) throw new VersionPolicyError();
+    return versionInfo;
+  } catch (error) {
+    if (error instanceof VersionPolicyError) throw error;
+    throw new VersionPolicyError();
   } finally {
     clearTimeout(timeout);
   }
@@ -92,6 +103,8 @@ function hasUnsavedFormInput(controls) {
 
 module.exports = {
   DEVELOPMENT_SENTINEL,
+  VERSION_POLICY_FAILURE_MESSAGE,
+  VersionPolicyError,
   buildVersionCheckUrl,
   fetchWebVersionStatus,
   hasUnsavedFormInput,

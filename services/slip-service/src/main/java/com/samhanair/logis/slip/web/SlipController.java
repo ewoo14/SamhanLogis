@@ -18,15 +18,18 @@ import com.samhanair.logis.slip.service.SlipCleanupService;
 import com.samhanair.logis.slip.service.SlipDuplicateService;
 import com.samhanair.logis.slip.service.SlipExcelExportService;
 import com.samhanair.logis.slip.service.SlipService;
+import com.samhanair.logis.slip.service.RevertabilityQueryService;
 import com.samhanair.logis.slip.web.dto.AddLineRequest;
 import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
 import com.samhanair.logis.slip.web.dto.NextDaySlipImageResponse;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidDeserializer;
 import com.samhanair.logis.slip.web.dto.PartnerProductPriceMemoryBulkRequest;
 import com.samhanair.logis.slip.web.dto.RejectRequest;
 import com.samhanair.logis.slip.web.dto.SlipCleanupResponse;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.SlipRevertabilityResponse;
 import com.samhanair.logis.slip.web.dto.SlipSearchResult;
 import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
@@ -116,6 +119,7 @@ public class SlipController {
     private static final String CALLER_NAME_HEADER = "X-User-Name";
 
     private final SlipService slipService;
+    private final RevertabilityQueryService revertabilityQueryService;
     /** R6-H2 — 전표 서버측 복사 (세트 계보 승계 + 구성품 가격기억 제외). */
     private final SlipDuplicateService slipDuplicateService;
     private final NextDaySlipImageService nextDaySlipImageService;
@@ -271,18 +275,32 @@ public class SlipController {
     @Operation(summary = "전표 단건 조회", description = "라인 포함 상세")
     @GetMapping("/{id}")
     public ApiResponse<SlipDetailResponse> getOne(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = "X-User-Role", required = false) String role,
             @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
             @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        SlipDetailResponse response = slipService.getOne(id, userId);
+        SlipDetailResponse response = slipService.getOne(OpaqueUuidDeserializer.decode(id), userId);
         SlipPurchaseAccessGuard.guardInboundPurchaseRead(response.slipType(), role, userGroups, isSystemMaster);
         boolean approvalLineAllowed = !SlipSalesAccessGuard.canReadOutboundSales(role, userGroups, isSystemMaster)
                 && response.canInspect();
         SlipSalesAccessGuard.guardOutboundSalesRead(response.slipType(), response.status(), role, userGroups,
                 isSystemMaster, approvalLineAllowed);
         return ApiResponse.ok(response);
+    }
+
+    /** 검수완료 전표의 되돌림 가능성만 조회한다. 실제 되돌림 endpoint는 이 슬라이스에 없다. */
+    @Operation(summary = "전표 되돌림 가능성 조회", description = "읽기 전용 preflight. 상태·재고·연결을 변경하지 않음.")
+    @GetMapping("/{id}/revertability")
+    public ApiResponse<SlipRevertabilityResponse> revertability(@PathVariable UUID id) {
+        return ApiResponse.ok(SlipRevertabilityResponse.from(revertabilityQueryService.evaluate(id)));
+    }
+
+    /** 활성 COMPLETED 전표 전체를 사용자 식별자와 사유만으로 판정한다. */
+    @GetMapping("/revertability")
+    public ApiResponse<List<SlipRevertabilityResponse>> completedRevertability() {
+        return ApiResponse.ok(revertabilityQueryService.evaluateCompleted().stream()
+                .map(SlipRevertabilityResponse::from).toList());
     }
 
     /**

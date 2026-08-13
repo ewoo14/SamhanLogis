@@ -5,16 +5,17 @@
  *
  * <p>필터:
  * <ul>
- *   <li>status — QUOTE_DRAFT/SENT/ACCEPTED/REJECTED/CONVERTED (전체)</li>
- *   <li>기간 — estimateDate startDate / endDate</li>
+ *   <li>기간 — estimateDate startDate / endDate (종합견적서 탭)</li>
+ *   <li>상태 — 데스크톱 견적에만 서버측 적용 (종합견적서 탭)</li>
  *   <li>partner — 거래처명 부분 매칭 (client-side filter)</li>
+ *   <li>웹 저장 source에는 상태·삭제 필터를 적용하지 않는다.</li>
  * </ul>
  *
  * <p>컬럼: 견적번호 / 거래처 코드 / 거래처 / 작성일 / 유효기간 / 합계 / 상태.
  * UUID 비공개 가드 — id 컬럼 미포함, 사용자 노출은 estimateNo + partnerName 만.
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
   Badge,
@@ -30,7 +31,7 @@ import {
   type EstimateStatus,
   type EstimateSummary,
 } from '../api/estimateApi'
-import { listPartnerOrders } from '../api/sales'
+import { listWebPartnerOrderDraftSummaries, listWebQuoteSnapshotSummaries } from '../api/estimateSourceApi'
 import { extractApiErrorResponseMessage } from '../api/apiError'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -42,16 +43,17 @@ import {
   deletedBadgeAriaLabel,
   deletedBadgeLabel,
 } from './admin/partnerDeletedRow'
-import { mergeEstimateAndOrderRows, type UnifiedEstimateListRow } from './estimateUnifiedListModel'
-
-const STATUS_OPTIONS: Array<{ value: EstimateStatus | ''; label: string }> = [
-  { value: '', label: '전체' },
-  { value: 'QUOTE_DRAFT', label: '작성중' },
-  { value: 'QUOTE_SENT', label: '발송완료' },
-  { value: 'QUOTE_ACCEPTED', label: '수주완료' },
-  { value: 'QUOTE_REJECTED', label: '거절' },
-  { value: 'QUOTE_CONVERTED', label: '전표변환완료' },
-]
+import {
+  filterSeparatedRows,
+  mergeEstimateRows,
+  mergeOrderRows,
+  paginateSeparatedRows,
+  type SourceSeparatedListRow,
+} from './estimateSourceSeparatedListModel'
+import type { UnifiedEstimateListRow } from './estimateUnifiedListModel'
+import { UNIFIED_ESTIMATE_SOURCE_LABELS, UNIFIED_ESTIMATE_SOURCE_FILTER_LABELS } from './estimateUnifiedListModel'
+import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
+import { toOrderPathId } from '../utils/orderNo'
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
@@ -61,6 +63,17 @@ const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | '
   QUOTE_CONVERTED: 'warning',
 }
 
+const STATUS_OPTIONS: Array<{ value: EstimateStatus; label: string }> = [
+  { value: 'QUOTE_DRAFT', label: ESTIMATE_STATUS_LABEL.QUOTE_DRAFT },
+  { value: 'QUOTE_SENT', label: ESTIMATE_STATUS_LABEL.QUOTE_SENT },
+  { value: 'QUOTE_ACCEPTED', label: ESTIMATE_STATUS_LABEL.QUOTE_ACCEPTED },
+  { value: 'QUOTE_REJECTED', label: ESTIMATE_STATUS_LABEL.QUOTE_REJECTED },
+  { value: 'QUOTE_CONVERTED', label: ESTIMATE_STATUS_LABEL.QUOTE_CONVERTED },
+]
+
+const isEstimateStatus = (value: string | null): value is EstimateStatus =>
+  value !== null && Object.prototype.hasOwnProperty.call(ESTIMATE_STATUS_LABEL, value)
+
 const ESTIMATE_LIST_REALTIME_KEYS: QueryKey[] = [['estimates', 'list']]
 
 const DELETED_ROW_TEXT_STYLE: CSSProperties = {
@@ -68,7 +81,7 @@ const DELETED_ROW_TEXT_STYLE: CSSProperties = {
   color: 'var(--color-neutral-600)',
 }
 
-const UNIFIED_LIST_FETCH_SIZE = 10_000
+const SOURCE_LIST_FETCH_SIZE = 10_000
 
 const fmtKrw = (raw: string): string => {
   const n = Number.parseFloat(raw)
@@ -97,28 +110,80 @@ async function fetchAllPages<T>(
 
 export function EstimateListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
 
   usePageTitle('견적서 관리')
 
-  const [statusFilter, setStatusFilter] = useState<EstimateStatus | ''>('')
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
-  const [partnerKeyword, setPartnerKeyword] = useState<string>('')
-  const [includeDeleted, setIncludeDeleted] = useState(false)
-  const [showUnifiedList, setShowUnifiedList] = useState(false)
+  const [startDate, setStartDate] = useState<string>(() => searchParams.get('startDate') ?? '')
+  const [endDate, setEndDate] = useState<string>(() => searchParams.get('endDate') ?? '')
+  const [partnerKeyword, setPartnerKeyword] = useState<string>(() => searchParams.get('partner') ?? '')
+  const [statusFilter, setStatusFilter] = useState<EstimateStatus | ''>(() => {
+    const value = searchParams.get('status')
+    return isEstimateStatus(value) ? value : ''
+  })
+  const [includeDeleted, setIncludeDeleted] = useState(() => searchParams.get('includeDeleted') === 'true')
+  const requestedTab = searchParams.get('tab') === 'orders' ? 'orders' : 'estimates'
+  const canViewEstimates = canAccess('estimates.list', 'view')
+  const canViewOrders = canAccess('sales.partner-order.list', 'view')
+  const activeTab = requestedTab === 'orders'
+    ? (canViewOrders ? 'orders' : 'estimates')
+    : (canViewEstimates ? 'estimates' : 'orders')
+  const availableTabs: Array<'estimates' | 'orders'> = []
+  if (canViewEstimates) availableTabs.push('estimates')
+  if (canViewOrders) availableTabs.push('orders')
   const [page, setPage] = useState(0)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+  const supportsEstimateOnlyFilters = activeTab === 'estimates'
+
+  // 직접 URL로 권한 없는 탭을 요청해도 해당 탭의 내용/API에 도달하지 않도록
+  // 현재 계정이 볼 수 있는 탭으로 URL을 즉시 정규화한다.
+  useEffect(() => {
+    if (activeTab === requestedTab || availableTabs.length === 0) return
+    const next = new URLSearchParams(searchParams)
+    if (activeTab === 'orders') next.set('tab', 'orders')
+    else next.delete('tab')
+    next.delete('page')
+    setSearchParams(next, { replace: true })
+  }, [activeTab, availableTabs.length, requestedTab, searchParams, setSearchParams])
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    const values: Record<string, string> = { partner: partnerKeyword }
+    if (supportsEstimateOnlyFilters) {
+      values.status = statusFilter
+      values.startDate = startDate
+      values.endDate = endDate
+    } else {
+      next.delete('status')
+      next.delete('startDate')
+      next.delete('endDate')
+      next.delete('includeDeleted')
+    }
+    for (const [key, value] of Object.entries(values)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    if (supportsEstimateOnlyFilters && includeDeleted) next.set('includeDeleted', 'true')
+    else next.delete('includeDeleted')
+    if (page > 0) next.set('page', String(page))
+    else next.delete('page')
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+  }, [supportsEstimateOnlyFilters, startDate, endDate, partnerKeyword, statusFilter, includeDeleted, page, searchParams, setSearchParams])
 
   useCollectionRealtime(EstimateListRealtimeClient, 'list', ESTIMATE_LIST_REALTIME_KEYS)
 
   useEffect(() => {
     setPage(0)
-  }, [statusFilter, startDate, endDate, partnerKeyword, includeDeleted])
+    if (!supportsEstimateOnlyFilters) setStatusFilter('')
+  }, [activeTab, startDate, endDate, partnerKeyword, statusFilter, includeDeleted, supportsEstimateOnlyFilters])
 
   const query = useQuery({
-    queryKey: ['estimates', 'list', statusFilter, startDate, endDate, partnerKeyword, includeDeleted, page],
+    queryKey: ['estimates', 'list', statusFilter, startDate, endDate, includeDeleted, page],
+    enabled: activeTab === 'estimates' && canViewEstimates,
     queryFn: () =>
       listEstimates({
         page,
@@ -130,44 +195,51 @@ export function EstimateListPage() {
       }),
   })
 
-  const unifiedQuery = useQuery({
-    queryKey: ['estimates', 'unified', statusFilter, startDate, endDate, partnerKeyword, includeDeleted],
-    enabled: showUnifiedList,
+  const sourceQuery = useQuery({
+    queryKey: supportsEstimateOnlyFilters
+      ? ['estimates', 'separated', 'estimates', statusFilter, startDate, endDate, includeDeleted]
+      : ['estimates', 'separated', 'orders'],
+    enabled: activeTab === 'estimates' ? canViewEstimates : canViewOrders,
     queryFn: async () => {
-      const [estimateResult, orderResult] = await Promise.allSettled([
+      if (activeTab === 'orders') {
+        const webDrafts = await listWebPartnerOrderDraftSummaries()
+        return { rows: mergeOrderRows([], webDrafts), errors: [] }
+      }
+      const [estimateResult, webQuoteResult] = await Promise.allSettled([
         fetchAllPages((page) => listEstimates({
           page,
-          size: UNIFIED_LIST_FETCH_SIZE,
+          size: SOURCE_LIST_FETCH_SIZE,
           ...(statusFilter ? { status: statusFilter } : {}),
           ...(startDate ? { startDate } : {}),
           ...(endDate ? { endDate } : {}),
           ...(includeDeleted ? { includeDeleted: true } : {}),
         })),
-        fetchAllPages((page) => listPartnerOrders(page, UNIFIED_LIST_FETCH_SIZE, {
-          ...(startDate ? { dateFrom: startDate } : {}),
-          ...(endDate ? { dateTo: endDate } : {}),
-          ...(includeDeleted ? { includeDeleted: true } : {}),
-        })),
+        listWebQuoteSnapshotSummaries({
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        }),
       ])
-
+      const estimates = estimateResult.status === 'fulfilled' ? estimateResult.value.items : []
+      const webQuotes = webQuoteResult.status === 'fulfilled' ? webQuoteResult.value : []
       return {
-        estimates: estimateResult.status === 'fulfilled' ? estimateResult.value.items : [],
-        orders: orderResult.status === 'fulfilled' ? orderResult.value.items : [],
+        rows: mergeEstimateRows(estimates, webQuotes),
         errors: [
           ...(estimateResult.status === 'rejected' || (estimateResult.status === 'fulfilled' && estimateResult.value.incomplete)
             ? ['종합견적서'] : []),
-          ...(orderResult.status === 'rejected' || (orderResult.status === 'fulfilled' && orderResult.value.incomplete)
-            ? ['주문서'] : []),
+          ...(webQuoteResult.status === 'rejected' ? ['웹 종합견적서'] : []),
         ],
       }
     },
   })
+
+  useEffect(() => restoreScrollAnchorWhenReady(location.key, () => sourceQuery.isFetched), [location.key, sourceQuery.isFetched])
 
   const restoreMutation = useMutation({
     mutationFn: restoreEstimate,
     onSuccess: async () => {
       setRestoreError(null)
       await queryClient.invalidateQueries({ queryKey: ['estimates', 'list'] })
+      await queryClient.invalidateQueries({ queryKey: ['estimates', 'separated'] })
     },
     onError: (error) =>
       setRestoreError(
@@ -176,22 +248,14 @@ export function EstimateListPage() {
       ),
   })
 
-  const filteredRows = useMemo(() => {
-    const rows = query.data?.content ?? []
-    const kw = partnerKeyword.trim().toLowerCase()
-    if (!kw) return rows
-    return rows.filter((r) => (r.partnerName ?? '').toLowerCase().includes(kw))
-  }, [query.data?.content, partnerKeyword])
-
-  const unifiedRows = useMemo(() => {
-    const data = unifiedQuery.data
-    if (!data) return []
-    const keyword = partnerKeyword.trim().toLowerCase()
-    return mergeEstimateAndOrderRows(
-      data.estimates.filter((row) => !keyword || (row.partnerName ?? '').toLowerCase().includes(keyword)),
-      data.orders.filter((row) => !keyword || (row.partnerName ?? '').toLowerCase().includes(keyword)),
-    )
-  }, [unifiedQuery.data, partnerKeyword])
+  const filteredSourceRows = useMemo(
+    () => filterSeparatedRows(sourceQuery.data?.rows ?? [], partnerKeyword),
+    [sourceQuery.data?.rows, partnerKeyword],
+  )
+  const pagedSourceRows = useMemo(
+    () => paginateSeparatedRows(filteredSourceRows, page, 50),
+    [filteredSourceRows, page],
+  )
 
   const columns: DataTableColumn<EstimateSummary>[] = [
     {
@@ -201,16 +265,20 @@ export function EstimateListPage() {
       mobilePriority: 'primary',
       render: (row) => (
         <>
-          <span
+          {row.isDeleted ? <span
             data-testid={`estimate-list-row-${row.id}-number`}
             style={{
               fontVariantNumeric: 'tabular-nums',
               fontWeight: 500,
               ...(row.isDeleted ? DELETED_ROW_TEXT_STYLE : {}),
             }}
-          >
-            {row.estimateNo}
-          </span>
+          >{row.estimateNo}</span> : <Link
+              to={`/sales/estimates/${encodeURIComponent(row.id)}`}
+            state={{ returnTo, returnEntryKey: location.key }}
+            onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
+            data-testid={`estimate-list-row-${row.id}-number`}
+            aria-label={`${row.estimateNo} 상세 보기`}
+          >{row.estimateNo}</Link>}
           {row.isDeleted ? (
             <Badge
               variant="neutral"
@@ -350,7 +418,11 @@ export function EstimateListPage() {
       header: '구분',
       width: '120px',
       mobilePriority: 'secondary',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.sourceLabel}</span>,
+      render: (row) => (
+        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
+          <span>{row.storageLabel}</span>{' · '}<span>{row.sourceLabel}</span>
+        </span>
+      ),
     },
     {
       key: 'documentNo',
@@ -410,15 +482,105 @@ export function EstimateListPage() {
     },
   ]
 
+  const sourceColumns: DataTableColumn<SourceSeparatedListRow>[] = [
+    {
+      key: 'storageLabel',
+      header: '출처',
+      width: '90px',
+      mobilePriority: 'secondary',
+      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.storageLabel}</span>,
+    },
+    {
+      key: 'documentNo',
+      header: '문서번호',
+      width: '180px',
+      mobilePriority: 'primary',
+      render: (row) => (
+        <>
+          {row.source === 'estimate' && !row.isDeleted ? (
+            <Link
+              to={row.navigationPath ?? '#'}
+              state={{ returnTo, returnEntryKey: location.key }}
+              onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
+            >{row.documentNo}</Link>
+          ) : <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.documentNo}</span>}
+          {row.isDeleted ? <Badge
+            variant="neutral"
+            data-testid={`estimate-list-row-${row.id.slice('estimate:'.length)}-deleted-badge`}
+            style={{ marginLeft: 8 }}
+          >삭제됨</Badge> : null}
+        </>
+      ),
+    },
+    {
+      key: 'partnerName',
+      header: '거래처',
+      mobilePriority: 'secondary',
+      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.partnerName ?? row.partnerCode ?? ''}</span>,
+    },
+    {
+      key: 'owner',
+      header: '담당',
+      width: '120px',
+      mobilePriority: 'secondary',
+      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.owner ?? ''}</span>,
+    },
+    {
+      key: 'writtenAt',
+      header: '작성일',
+      width: '160px',
+      mobilePriority: 'hidden',
+      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.writtenAt ?? ''}</span>,
+    },
+    {
+      key: 'amount',
+      header: '금액',
+      width: '160px',
+      align: 'right',
+      mobilePriority: 'secondary',
+      render: (row) => <strong style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{fmtKrw(row.amount)}</strong>,
+    },
+    {
+      key: 'status',
+      header: '상태',
+      width: '120px',
+      mobilePriority: 'secondary',
+      render: (row) => <Badge variant="neutral" style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.isDeleted ? '삭제됨' : row.status}</Badge>,
+    },
+    {
+      key: 'actions',
+      header: '',
+      width: '96px',
+      align: 'right',
+      mobilePriority: 'secondary',
+      render: (row) => row.source === 'estimate' && row.isDeleted && row.restoreAvailable !== false && canAccess('estimates.list', 'restore') ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          loading={restoreMutation.isPending && restoreMutation.variables === row.id.slice('estimate:'.length)}
+          disabled={restoreMutation.isPending}
+          onClick={(event) => {
+            event.stopPropagation()
+            restoreMutation.mutate(row.id.slice('estimate:'.length))
+          }}
+          data-testid={`estimate-list-row-${row.id.slice('estimate:'.length)}-restore`}
+        >
+          복원
+        </Button>
+      ) : null,
+    },
+  ]
+
   const canCreate = canAccess('estimates.list', 'create')
 
   return (
-    <div className={styles['salesScope']}>
+    <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
       <SalesSubNav />
       <div className={styles['wrap']}>
         {/* [3a 데스크탑 ↔ 웹 분리] 본 화면은 내부 영업/관리자용 견적 관리 UI 임을 명시.
             거래처가 직접 작성하는 종합견적서 흐름은 별도 외부 웹앱 (sub-nav 우측 "웹 종합견적서 ↗") 으로 분리. */}
-        <div
+      <div
           data-testid="estimate-audience-banner"
           role="note"
           style={{
@@ -448,21 +610,12 @@ export function EstimateListPage() {
           }}
         >
           <h3 style={{ margin: 0 }}>
-            견적서 관리{' '}
+            {activeTab === 'orders' ? '주문서' : '종합견적서'}{' '}
             <span style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginLeft: 8 }}>
-              전체 {query.data?.totalElements ?? 0}건
+              전체 {filteredSourceRows.length}건
             </span>
           </h3>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-              <input
-                type="checkbox"
-                checked={showUnifiedList}
-                onChange={(event) => setShowUnifiedList(event.target.checked)}
-                data-testid="estimate-list-unified-toggle"
-              />
-              통합 목록 보기
-            </label>
             {canCreate ? (
               <Button
                 variant="primary"
@@ -473,6 +626,34 @@ export function EstimateListPage() {
               </Button>
             ) : null}
           </div>
+        </div>
+
+        <div role="tablist" aria-label="견적서 관리 구분" style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+          {availableTabs.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                if (tab === 'orders') next.set('tab', 'orders')
+                else next.delete('tab')
+                next.delete('page')
+                setSearchParams(next)
+              }}
+              style={{
+                padding: '8px 16px',
+                border: '1px solid var(--color-neutral-300)',
+                borderBottomColor: activeTab === tab ? 'var(--color-brand-600)' : 'var(--color-neutral-300)',
+                background: activeTab === tab ? 'var(--color-brand-50)' : 'transparent',
+                fontWeight: activeTab === tab ? 700 : 400,
+                cursor: 'pointer',
+              }}
+            >
+              {tab === 'orders' ? '주문서' : '종합견적서'}
+            </button>
+          ))}
         </div>
 
         {/* 필터 */}
@@ -486,47 +667,41 @@ export function EstimateListPage() {
           }}
           data-testid="estimate-list-filter"
         >
-          <label style={{ fontSize: 13, color: 'var(--ink-primary)' }}>
-            상태
-            <br />
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as EstimateStatus | '')
-              }
-              style={{
-                height: 36,
-                padding: '0 8px',
-                borderRadius: 6,
-                border: '1px solid var(--color-neutral-300)',
-                fontSize: 13,
-                minWidth: 140,
-              }}
-              data-testid="estimate-list-filter-status"
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Input
-            label="기간 (시작)"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            fullWidth={false}
-            data-testid="estimate-list-filter-start"
-          />
-          <Input
-            label="기간 (종료)"
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            fullWidth={false}
-            data-testid="estimate-list-filter-end"
-          />
+          {supportsEstimateOnlyFilters ? (
+            <>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+                상태
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as EstimateStatus | '')}
+                  aria-label="상태 필터"
+                  data-testid="estimate-list-filter-status"
+                  style={{ height: 36, minWidth: 150, padding: '0 8px' }}
+                >
+                  <option value="">전체 상태</option>
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <Input
+                label="기간 (시작)"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                fullWidth={false}
+                data-testid="estimate-list-filter-start"
+              />
+              <Input
+                label="기간 (종료)"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                fullWidth={false}
+                data-testid="estimate-list-filter-end"
+              />
+            </>
+          ) : null}
           <Input
             label="거래처명"
             placeholder="거래처명 부분 검색"
@@ -535,16 +710,28 @@ export function EstimateListPage() {
             fullWidth={false}
             data-testid="estimate-list-filter-partner"
           />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, fontSize: 13 }}>
-            <input
-              type="checkbox"
-              checked={includeDeleted}
-              onChange={(e) => setIncludeDeleted(e.target.checked)}
-              data-testid="estimate-list-include-deleted"
-            />
-            삭제 문서 포함
-          </label>
+          {supportsEstimateOnlyFilters ? (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={includeDeleted}
+                onChange={(e) => setIncludeDeleted(e.target.checked)}
+                data-testid="estimate-list-include-deleted"
+              />
+              삭제 문서 포함
+            </label>
+          ) : null}
         </div>
+
+        {supportsEstimateOnlyFilters && statusFilter ? (
+          <div
+            role="note"
+            data-testid="estimate-list-status-scope-note"
+            style={{ marginBottom: 12, color: 'var(--color-neutral-700)', fontSize: 12 }}
+          >
+            상태 필터는 데스크톱 견적에만 적용됩니다. 웹 종합견적서 저장분은 '저장됨' 상태 하나뿐이므로 이 필터로 걸러지지 않습니다.
+          </div>
+        ) : null}
 
         {restoreError ? (
           <div
@@ -559,86 +746,55 @@ export function EstimateListPage() {
 
         <div data-testid="estimate-list-table">
           <DataTable
-            columns={columns}
-            rows={filteredRows}
-            loading={query.isLoading}
+            columns={sourceColumns}
+            rows={pagedSourceRows.content}
+            loading={sourceQuery.isLoading}
             rowKey={(r) => `${r.id}:${r.isDeleted ? 'D' : 'A'}`}
-            rowTestId={(r) => `estimate-list-row-${r.id}`}
+            rowTestId={(r) => `estimate-list-row-${r.source === 'estimate' ? r.id.slice('estimate:'.length) : r.id}`}
             rowClickable={(r) => r.isDeleted !== true}
             rowClassName={(r) => (r.isDeleted ? styles['partnerOrderRowDeleted'] : undefined)}
             onRowClick={(r) => {
               if (r.isDeleted === true) return
-              navigate(`/sales/estimates/${r.id}`)
+              saveScrollAnchor(location.key)
+              if (r.navigationPath) navigate(r.navigationPath, { state: { returnTo, returnEntryKey: location.key } })
             }}
-            emptyMessage="등록된 견적서가 없습니다."
+            emptyMessage={activeTab === 'orders' ? '등록된 주문서가 없습니다.' : '등록된 종합견적서가 없습니다.'}
           />
         </div>
 
-        {query.data && query.data.totalPages > 1 ? (
+        {pagedSourceRows.totalPages > 1 ? (
           <div data-testid="estimate-list-pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 16 }}>
             <Button
               variant="secondary"
               size="sm"
               data-testid="estimate-list-previous-page"
-              disabled={page === 0 || query.isFetching}
+              disabled={page === 0 || sourceQuery.isFetching}
               onClick={() => setPage((current) => Math.max(0, current - 1))}
             >
               이전
             </Button>
-            <span data-testid="estimate-list-page-indicator">{page + 1} / {query.data.totalPages}</span>
+            <span data-testid="estimate-list-page-indicator">{page + 1} / {pagedSourceRows.totalPages}</span>
             <Button
               variant="secondary"
               size="sm"
               data-testid="estimate-list-next-page"
-              disabled={page + 1 >= query.data.totalPages || query.isFetching}
-              onClick={() => setPage((current) => Math.min(query.data!.totalPages - 1, current + 1))}
+              disabled={page + 1 >= pagedSourceRows.totalPages || sourceQuery.isFetching}
+              onClick={() => setPage((current) => Math.min(pagedSourceRows.totalPages - 1, current + 1))}
             >
               다음
             </Button>
           </div>
         ) : null}
 
-        {query.isError ? (
+        {sourceQuery.isError || sourceQuery.data?.errors.length ? (
           <div
             className="error-banner"
             role="alert"
             style={{ marginTop: 16, color: 'var(--color-danger-700, #991B1B)' }}
           >
-            견적서 목록을 불러오지 못했습니다. slip-service 의 estimate endpoint
-            (`/slips/estimates`) 가 가동 중인지 확인하세요.
+            {activeTab === 'orders' ? '주문서' : '종합견적서'} 목록을 불러오지 못했습니다.
+            {sourceQuery.data?.errors.length ? ` (${sourceQuery.data.errors.join(', ')})` : ''}
           </div>
-        ) : null}
-
-        {showUnifiedList ? (
-          <section aria-labelledby="estimate-unified-list-heading" style={{ marginTop: 28 }}>
-            <h3 id="estimate-unified-list-heading" style={{ margin: '0 0 12px' }}>
-              통합 목록 <span style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginLeft: 8 }}>{unifiedRows.length}건</span>
-            </h3>
-            {unifiedQuery.data?.errors.length ? (
-              <div
-                className="error-banner"
-                role="alert"
-                data-testid="estimate-unified-list-error"
-                style={{ marginBottom: 12, color: 'var(--color-danger-700, #991B1B)' }}
-              >
-                {unifiedQuery.data.errors.join(', ')} 목록을 불러오지 못했습니다. 가능한 데이터만 표시합니다.
-              </div>
-            ) : null}
-            <div data-testid="estimate-unified-list-table">
-              <DataTable
-                columns={unifiedColumns}
-                rows={unifiedRows}
-                loading={unifiedQuery.isLoading}
-                rowKey={(row) => row.id}
-                rowTestId={(row) => `estimate-unified-row-${row.id}`}
-                rowClickable={(row) => row.navigationPath !== null}
-                onRowClick={(row) => {
-                  if (row.navigationPath) navigate(row.navigationPath)
-                }}
-                emptyMessage="통합 목록에 표시할 문서가 없습니다."
-              />
-            </div>
-          </section>
         ) : null}
       </div>
     </div>

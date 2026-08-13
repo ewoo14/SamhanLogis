@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.StockLot;
 import com.samhanair.logis.inventory.domain.StockLotStatus;
 import java.math.BigDecimal;
@@ -10,6 +11,7 @@ import java.util.UUID;
 public record StockLotResponse(
         UUID id,
         UUID productId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         String warehouseCode,
         String lotNo,

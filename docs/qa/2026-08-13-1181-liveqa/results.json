@@ -1,0 +1,363 @@
+{
+  "marker": "PR1181-LIVEQA-20260813",
+  "releaseVersion": "2026/08/13-118101",
+  "createdIds": [
+    "2b84b5fe-8502-492a-bae6-4bbe601e4e8f",
+    "1556dc49-05c6-47ab-aa43-23c8d44164d4",
+    "3f473e3c-fba2-479b-86d7-c3730fce6a15",
+    "48af594f-e079-4bb1-9d87-59faa21215eb"
+  ],
+  "apiVersionScenarios": {
+    "latest": {
+      "currentVersion": "2026/08/13-118101",
+      "status": 200,
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "성공",
+        "data": {
+          "latestVersion": "2026/08/13-118101",
+          "minSupportedVersion": "2026/08/01-1",
+          "forceLevel": "NONE",
+          "releaseNotes": "PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증",
+          "releasedAt": "2026-08-13T19:58:00"
+        },
+        "timestamp": "2026-08-13T11:01:29.596281019Z"
+      },
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"NONE\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:29.596281019Z\"}"
+    },
+    "old": {
+      "currentVersion": "2026/08/12-1",
+      "status": 200,
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "성공",
+        "data": {
+          "latestVersion": "2026/08/13-118101",
+          "minSupportedVersion": "2026/08/01-1",
+          "forceLevel": "MINOR",
+          "releaseNotes": "PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증",
+          "releasedAt": "2026-08-13T19:58:00"
+        },
+        "timestamp": "2026-08-13T11:01:29.610122832Z"
+      },
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:29.610122832Z\"}"
+    },
+    "higher": {
+      "currentVersion": "2026/08/14-1",
+      "status": 200,
+      "body": {
+        "success": true,
+        "code": "OK",
+        "message": "성공",
+        "data": {
+          "latestVersion": "2026/08/13-118101",
+          "minSupportedVersion": "2026/08/01-1",
+          "forceLevel": "NONE",
+          "releaseNotes": "PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증",
+          "releasedAt": "2026-08-13T19:58:00"
+        },
+        "timestamp": "2026-08-13T11:01:29.620193433Z"
+      },
+      "raw": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"NONE\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:29.620193433Z\"}"
+    }
+  },
+  "adminRoundTrip": [
+    {
+      "phase": "initial",
+      "text": "아로로지스 데스크톱 2026/08/13-118101 2026/08/01-1 권고 2026.08.13 테스트 PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증 배포 수정 삭제"
+    },
+    {
+      "phase": "publish",
+      "stateText": "아로로지스 데스크톱 2026/08/13-118101 2026/08/01-1 권고 2026.08.13 배포됨 PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증 배포 취소 수정 삭제",
+      "toastText": "릴리스를 배포했습니다. 닫기"
+    },
+    {
+      "phase": "unpublish",
+      "stateText": "아로로지스 데스크톱 2026/08/13-118101 2026/08/01-1 권고 2026.08.13 테스트 PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증 배포 수정 삭제",
+      "toastText": "릴리스 배포를 취소했습니다. 닫기"
+    },
+    {
+      "phase": "republish",
+      "stateText": "아로로지스 데스크톱 2026/08/13-118101 2026/08/01-1 권고 2026.08.13 배포됨 PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증 배포 취소 수정 삭제",
+      "toastText": "릴리스를 배포했습니다. 닫기"
+    }
+  ],
+  "webApps": {
+    "order": {
+      "requests": [
+        "http://127.0.0.1:8080/app/version?clientType=SAMHAN_ORDER_WEB&currentVersion=2026%2F08%2F12-1",
+        "http://127.0.0.1:8080/app/version?clientType=SAMHAN_ORDER_WEB&currentVersion=2026%2F08%2F12-1"
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 SAMHAN_ORDER_WEB 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:30.078666598Z\"}"
+        },
+        {
+          "status": 200,
+          "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 SAMHAN_ORDER_WEB 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:30.308345354Z\"}"
+        }
+      ],
+      "console": [
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "warning: [v4 bootstrap] sync prefetch failed: HTTP 404",
+        "warning: Failed to decode downloaded font: http://127.0.0.1:49182/fonts/PretendardVariable.woff2",
+        "warning: OTS parsing error: invalid sfntVersion: 1008813135",
+        "debug: [vite] connecting...",
+        "debug: [vite] connected.",
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "warning: [v4 bootstrap] sync prefetch failed: HTTP 404",
+        "warning: Failed to decode downloaded font: http://127.0.0.1:49182/fonts/PretendardVariable.woff2",
+        "warning: OTS parsing error: invalid sfntVersion: 1008813135",
+        "debug: [vite] connecting...",
+        "debug: [vite] connected."
+      ],
+      "loadCountBefore": 1,
+      "loadCountAfter": 2,
+      "noticeTextBefore": "새 주문 웹 버전 2026/08/13-118101을 사용할 수 있습니다. 페이지 새로고침 나중에",
+      "noticeTextAfter": "새 주문 웹 버전 2026/08/13-118101을 사용할 수 있습니다. 페이지 새로고침 나중에"
+    },
+    "estimate": {
+      "requests": [
+        "http://127.0.0.1:8080/app/version?clientType=SAMHAN_ESTIMATE_WEB&currentVersion=2026%2F08%2F12-1",
+        "http://127.0.0.1:8080/app/version?clientType=SAMHAN_ESTIMATE_WEB&currentVersion=2026%2F08%2F12-1"
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 SAMHAN_ESTIMATE_WEB 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:31.521363297Z\"}"
+        },
+        {
+          "status": 200,
+          "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 SAMHAN_ESTIMATE_WEB 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:32.261823252Z\"}"
+        }
+      ],
+      "console": [
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "loadCountBefore": 1,
+      "loadCountAfter": 2,
+      "noticeTextBefore": "새 견적 웹 버전 2026/08/13-118101을 사용할 수 있습니다. 작성 중인 내용이 있으면 먼저 저장해 주세요. 페이지 새로고침나중에",
+      "noticeTextAfter": "새 견적 웹 버전 2026/08/13-118101을 사용할 수 있습니다. 작성 중인 내용이 있으면 먼저 저장해 주세요. 페이지 새로고침나중에"
+    },
+    "mobile-public": {
+      "requests": [
+        "http://127.0.0.1:8080/app/version?clientType=SAMHAN_MOBILE_PUBLIC_WEB&currentVersion=2026%2F08%2F12-1",
+        "http://127.0.0.1:8080/app/version?clientType=SAMHAN_MOBILE_PUBLIC_WEB&currentVersion=2026%2F08%2F12-1",
+        "http://127.0.0.1:8080/app/version?clientType=SAMHAN_MOBILE_PUBLIC_WEB&currentVersion=2026%2F08%2F12-1",
+        "http://127.0.0.1:8080/app/version?clientType=SAMHAN_MOBILE_PUBLIC_WEB&currentVersion=2026%2F08%2F12-1"
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 SAMHAN_MOBILE_PUBLIC_WEB 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:36.544025307Z\"}"
+        },
+        {
+          "status": 200,
+          "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 SAMHAN_MOBILE_PUBLIC_WEB 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:36.553098850Z\"}"
+        },
+        {
+          "status": 200,
+          "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 SAMHAN_MOBILE_PUBLIC_WEB 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:36.698218631Z\"}"
+        },
+        {
+          "status": 200,
+          "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 SAMHAN_MOBILE_PUBLIC_WEB 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:36.705729012Z\"}"
+        }
+      ],
+      "console": [
+        "debug: [vite] connecting...",
+        "debug: [vite] connected.",
+        "info: %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+        "warning: Failed to decode downloaded font: http://127.0.0.1:49183/fonts/PretendardVariable.woff2",
+        "warning: OTS parsing error: invalid sfntVersion: 1008821359",
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "warning: Failed to decode downloaded font: http://127.0.0.1:49183/fonts/Pretendard-Regular.woff2",
+        "warning: OTS parsing error: invalid sfntVersion: 1008821359",
+        "warning: Failed to decode downloaded font: http://127.0.0.1:49183/fonts/Pretendard-Bold.woff2",
+        "warning: OTS parsing error: invalid sfntVersion: 1008821359",
+        "debug: [vite] connecting...",
+        "debug: [vite] connected.",
+        "info: %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+        "warning: Failed to decode downloaded font: http://127.0.0.1:49183/fonts/PretendardVariable.woff2",
+        "warning: OTS parsing error: invalid sfntVersion: 1008821359",
+        "warning: Failed to decode downloaded font: http://127.0.0.1:49183/fonts/Pretendard-Regular.woff2",
+        "warning: OTS parsing error: invalid sfntVersion: 1008821359",
+        "warning: Failed to decode downloaded font: http://127.0.0.1:49183/fonts/Pretendard-Bold.woff2",
+        "warning: OTS parsing error: invalid sfntVersion: 1008821359"
+      ],
+      "loadCountBefore": 1,
+      "loadCountAfter": 2,
+      "noticeTextBefore": "새 버전 2026/08/13-118101을 사용할 수 있습니다. 작성 중인 내용이 있으면 먼저 저장해 주세요. 페이지 새로고침 나중에",
+      "noticeTextAfter": "새 버전 2026/08/13-118101을 사용할 수 있습니다. 작성 중인 내용이 있으면 먼저 저장해 주세요. 페이지 새로고침 나중에"
+    }
+  },
+  "electron": {
+    "requests": [
+      "http://127.0.0.1:8080/app/version?clientType=AROLOGIS_DESKTOP&currentVersion=2026%2F08%2F12-1"
+    ],
+    "responses": [
+      {
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:38.147147892Z\"}"
+      }
+    ],
+    "bannerText": "새 아로로지스 데스크톱 버전 2026/08/13-118101이 있습니다. 다운로드가 끝나면 자동으로 설치하고 앱을 다시 시작합니다.안내 닫기",
+    "dismissLabel": "안내 닫기",
+    "hasLaterButton": 0,
+    "bannerAfterDismissCount": 0,
+    "updaterAudit": {
+      "checkCalls": 1,
+      "installCalls": 1,
+      "quitCalls": 0,
+      "emitted": [
+        {
+          "kind": "checking"
+        },
+        {
+          "kind": "available",
+          "version": "2026/08/13-118101"
+        },
+        {
+          "kind": "downloading",
+          "percent": 67
+        },
+        {
+          "kind": "downloaded",
+          "version": "2026/08/13-118101"
+        }
+      ]
+    },
+    "statusText": "새 버전 2026/08/13-118101을 설치하고 앱을 다시 시작하는 중입니다.다시 확인닫기"
+  },
+  "cleanup": {
+    "beforeDeleteRaw": "48af594f-e079-4bb1-9d87-59faa21215eb|AROLOGIS_DESKTOP|2026/08/13-118101|true|false\n1556dc49-05c6-47ab-aa43-23c8d44164d4|SAMHAN_ESTIMATE_WEB|2026/08/13-118101|true|false\n3f473e3c-fba2-479b-86d7-c3730fce6a15|SAMHAN_MOBILE_PUBLIC_WEB|2026/08/13-118101|true|false\n2b84b5fe-8502-492a-bae6-4bbe601e4e8f|SAMHAN_ORDER_WEB|2026/08/13-118101|true|false",
+    "deleteRaw": "DELETE 4\n0",
+    "finalRaw": "144|0|2026-07-30 01:39:22.692121"
+  },
+  "console": [
+    "LOGIN|HTTP 200|role=MASTER|userId=a0000000-0000-0000-0000-000000000001",
+    "CREATED|SAMHAN_ORDER_WEB|2b84b5fe-8502-492a-bae6-4bbe601e4e8f|published=false",
+    "CREATED|SAMHAN_ESTIMATE_WEB|1556dc49-05c6-47ab-aa43-23c8d44164d4|published=false",
+    "CREATED|SAMHAN_MOBILE_PUBLIC_WEB|3f473e3c-fba2-479b-86d7-c3730fce6a15|published=false",
+    "CREATED|AROLOGIS_DESKTOP|48af594f-e079-4bb1-9d87-59faa21215eb|published=false",
+    "AFTER_INSERT_RAW\n148|3\n48af594f-e079-4bb1-9d87-59faa21215eb|AROLOGIS_DESKTOP|2026/08/13-118101|false|false\n1556dc49-05c6-47ab-aa43-23c8d44164d4|SAMHAN_ESTIMATE_WEB|2026/08/13-118101|true|false\n3f473e3c-fba2-479b-86d7-c3730fce6a15|SAMHAN_MOBILE_PUBLIC_WEB|2026/08/13-118101|true|false\n2b84b5fe-8502-492a-bae6-4bbe601e4e8f|SAMHAN_ORDER_WEB|2026/08/13-118101|true|false",
+    "ADMIN_CONSOLE|debug|[vite] connecting...",
+    "ADMIN_CONSOLE|debug|[vite] connected.",
+    "ADMIN_CONSOLE|info|%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|error|Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "ADMIN_CONSOLE|error|Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "ADMIN_CONSOLE|warning|[app-version] 버전 정책 조회 실패 AxiosError: Request failed with status code 404\n    at settle (http://127.0.0.1:49181/@fs/C:/dev/Samhan-Public/.claude/worktrees/w910/clients/desktop/node_modules/.vite/deps/axios.js?v=8758d84e:1426:12)\n    at XMLHttpRequest.onloadend (http://127.0.0.1:49181/@fs/C:/dev/Samhan-Public/.claude/worktrees/w910/clients/desktop/node_modules/.vite/deps/axios.js?v=8758d84e:1827:7)",
+    "ADMIN_CONSOLE|warning|⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|error|Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "ADMIN_CONSOLE|warning|[activity-log] 메뉴 접근 기록 실패 AxiosError: Request failed with status code 503\n    at settle (http://127.0.0.1:49181/@fs/C:/dev/Samhan-Public/.claude/worktrees/w910/clients/desktop/node_modules/.vite/deps/axios.js?v=8758d84e:1426:12)\n    at XMLHttpRequest.onloadend (http://127.0.0.1:49181/@fs/C:/dev/Samhan-Public/.claude/worktrees/w910/clients/desktop/node_modules/.vite/deps/axios.js?v=8758d84e:1827:7)",
+    "ADMIN|publish|아로로지스 데스크톱 2026/08/13-118101 2026/08/01-1 권고 2026.08.13 배포됨 PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증 배포 취소 수정 삭제|릴리스를 배포했습니다. 닫기",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN|unpublish|아로로지스 데스크톱 2026/08/13-118101 2026/08/01-1 권고 2026.08.13 테스트 PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증 배포 수정 삭제|릴리스 배포를 취소했습니다. 닫기",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN|republish|아로로지스 데스크톱 2026/08/13-118101 2026/08/01-1 권고 2026.08.13 배포됨 PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증 배포 취소 수정 삭제|릴리스를 배포했습니다. 닫기",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/PretendardVariable.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Regular.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "ADMIN_CONSOLE|warning|Failed to decode downloaded font: http://127.0.0.1:49181/fonts/Pretendard-Bold.woff2",
+    "ADMIN_CONSOLE|warning|OTS parsing error: invalid sfntVersion: 1008821359",
+    "APP_VERSION|latest|current=2026/08/13-118101|HTTP 200|{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"NONE\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:29.596281019Z\"}",
+    "APP_VERSION|old|current=2026/08/12-1|HTTP 200|{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"MINOR\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:29.610122832Z\"}",
+    "APP_VERSION|higher|current=2026/08/14-1|HTTP 200|{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/13-118101\",\"minSupportedVersion\":\"2026/08/01-1\",\"forceLevel\":\"NONE\",\"releaseNotes\":\"PR1181-LIVEQA-20260813 AROLOGIS_DESKTOP 실제 200/reload 검증\",\"releasedAt\":\"2026-08-13T19:58:00\"},\"timestamp\":\"2026-08-13T11:01:29.620193433Z\"}",
+    "WEB|order|load=1->2|새 주문 웹 버전 2026/08/13-118101을 사용할 수 있습니다. 페이지 새로고침 나중에",
+    "WEB|estimate|load=1->2|새 견적 웹 버전 2026/08/13-118101을 사용할 수 있습니다. 작성 중인 내용이 있으면 먼저 저장해 주세요. 페이지 새로고침나중에",
+    "WEB|mobile-public|load=1->2|새 버전 2026/08/13-118101을 사용할 수 있습니다. 작성 중인 내용이 있으면 먼저 저장해 주세요. 페이지 새로고침 나중에",
+    "ELECTRON|banner=새 아로로지스 데스크톱 버전 2026/08/13-118101이 있습니다. 다운로드가 끝나면 자동으로 설치하고 앱을 다시 시작합니다.안내 닫기|dismissed=0|audit={\"checkCalls\":1,\"installCalls\":1,\"quitCalls\":0,\"emitted\":[{\"kind\":\"checking\"},{\"kind\":\"available\",\"version\":\"2026/08/13-118101\"},{\"kind\":\"downloading\",\"percent\":67},{\"kind\":\"downloaded\",\"version\":\"2026/08/13-118101\"}]}",
+    "CLEANUP_BEFORE\n48af594f-e079-4bb1-9d87-59faa21215eb|AROLOGIS_DESKTOP|2026/08/13-118101|true|false\n1556dc49-05c6-47ab-aa43-23c8d44164d4|SAMHAN_ESTIMATE_WEB|2026/08/13-118101|true|false\n3f473e3c-fba2-479b-86d7-c3730fce6a15|SAMHAN_MOBILE_PUBLIC_WEB|2026/08/13-118101|true|false\n2b84b5fe-8502-492a-bae6-4bbe601e4e8f|SAMHAN_ORDER_WEB|2026/08/13-118101|true|false",
+    "CLEANUP_DELETE\nDELETE 4\n0",
+    "CLEANUP_FINAL|144|0|2026-07-30 01:39:22.692121"
+  ],
+  "afterInsertRaw": "148|3\n48af594f-e079-4bb1-9d87-59faa21215eb|AROLOGIS_DESKTOP|2026/08/13-118101|false|false\n1556dc49-05c6-47ab-aa43-23c8d44164d4|SAMHAN_ESTIMATE_WEB|2026/08/13-118101|true|false\n3f473e3c-fba2-479b-86d7-c3730fce6a15|SAMHAN_MOBILE_PUBLIC_WEB|2026/08/13-118101|true|false\n2b84b5fe-8502-492a-bae6-4bbe601e4e8f|SAMHAN_ORDER_WEB|2026/08/13-118101|true|false"
+}

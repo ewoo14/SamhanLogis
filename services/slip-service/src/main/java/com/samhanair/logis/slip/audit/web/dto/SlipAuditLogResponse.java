@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.audit.web.dto;
 
 import com.samhanair.logis.slip.audit.domain.SlipAuditLog;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -41,7 +42,7 @@ public record SlipAuditLogResponse(
                 log.getSlipId(),
                 log.getRevisionNo(),
                 log.getActorId(),
-                log.getActorName(),
+                resolveActorName(log),
                 log.getActorColor(),
                 log.getFieldName(),
                 log.getOldValue(),
@@ -49,4 +50,13 @@ public record SlipAuditLogResponse(
                 log.getChangedAt()
         );
     }
+
+    private static String resolveActorName(SlipAuditLog log) {
+        if (log.getActorId() == null && (log.getActorName() == null || log.getActorName().isBlank())) {
+            return ActorDisplayName.UNKNOWN;
+        }
+        return ActorDisplayName.resolve(
+                log.getActorId() == null ? null : log.getActorId().toString(), log.getActorName());
+    }
+
 }

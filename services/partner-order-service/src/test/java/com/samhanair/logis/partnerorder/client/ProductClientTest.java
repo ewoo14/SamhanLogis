@@ -75,10 +75,12 @@ class ProductClientTest {
                           "displayOrder":10,
                           "categoryKey":"singleSets",
                           "fixedDiscountRate":45.0,
+                          "fixedDiscountSource":"PRODUCT",
                           "discountFlags":"100000",
                           "releasePrice":3121800.00,
                           "deliveryPrice":1840000.00,
-                          "hasVariableDiscount":true
+                          "hasVariableDiscount":true,
+                          "physicalCategoryCode":"INDOOR_WALL"
                         }]}""", MediaType.APPLICATION_JSON));
 
         List<ProductSummary> products = client.lookup(List.of(productId));
@@ -95,10 +97,12 @@ class ProductClientTest {
         assertThat(product.productType()).isEqualTo("SINGLE");
         assertThat(product.categoryKey()).isEqualTo("singleSets");
         assertThat(product.fixedDiscountRate()).isEqualByComparingTo("45.0");
+        assertThat(product.fixedDiscountSource()).isEqualTo("PRODUCT");
         assertThat(product.discountFlags()).isEqualTo("100000");
         assertThat(product.releasePrice()).isEqualByComparingTo("3121800.00");
         assertThat(product.deliveryPrice()).isEqualByComparingTo("1840000.00");
         assertThat(product.hasVariableDiscount()).isTrue();
+        assertThat(product.physicalCategoryCode()).isEqualTo("INDOOR_WALL");
         server.verify();
     }
 
@@ -151,6 +155,19 @@ class ProductClientTest {
 
         assertThat(rates).containsKey(productId);
         assertThat(rates.get(productId)).isEqualByComparingTo("45.00");
+        server.verify();
+    }
+
+    @Test
+    void lookupFixedDiscountRates_원격장애는_가격계산불가로_표면화한다() {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        server.expect(once(), requestTo(FIXED_DISCOUNT_ENDPOINT))
+                .andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.lookupFixedDiscountRates(List.of(productId)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.PRICE_CALCULATION_UNAVAILABLE));
         server.verify();
     }
 

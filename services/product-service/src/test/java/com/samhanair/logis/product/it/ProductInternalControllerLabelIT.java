@@ -16,6 +16,7 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductAliasRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
+import com.samhanair.logis.product.web.dto.OpaqueUuidSerializer;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -92,7 +93,7 @@ class ProductInternalControllerLabelIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(
                                 Map.of("label", "AC023CN1DBC1 [CN냉전 실내기]"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id", is(exactProduct.getId().toString())))
+                .andExpect(jsonPath("$.data.id", is(OpaqueUuidSerializer.encode(exactProduct.getId()))))
                 .andExpect(jsonPath("$.data.modelCode", is("AC023CN1DBC1")))
                 .andExpect(jsonPath("$.data.categoryKey", is("homemulti")));
     }
@@ -120,7 +121,7 @@ class ProductInternalControllerLabelIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(
                                 Map.of("label", "AC999ALIASX1 [별칭 매핑 테스트]"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id", is(aliasMainProduct.getId().toString())))
+                .andExpect(jsonPath("$.data.id", is(OpaqueUuidSerializer.encode(aliasMainProduct.getId()))))
                 .andExpect(jsonPath("$.data.modelCode", is("ALIAS-EXPOSED-CODE1")));
     }
 

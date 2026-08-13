@@ -52,6 +52,8 @@ describe('dispatchDeletedRow 파생 유틸', () => {
 
   it('deletedBadgeLabel 은 이름이 없으면 삭제됨만 표기한다 (이름 추정 금지)', () => {
     expect(deletedBadgeLabel('홍길동')).toBe('삭제: 홍길동')
+    expect(deletedBadgeLabel('\u2063cafebabe-cafe-babe-cafe-babecafebabe\u2063')).toBe('삭제됨')
+    expect(deletedBadgeLabel('system')).toBe('삭제: 시스템')
     expect(deletedBadgeLabel('  ')).toBe('삭제됨')
     expect(deletedBadgeLabel(null)).toBe('삭제됨')
     expect(deletedBadgeLabel(undefined)).toBe('삭제됨')

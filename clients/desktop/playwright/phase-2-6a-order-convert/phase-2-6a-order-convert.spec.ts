@@ -335,7 +335,12 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     await expect(page.getByTestId('partner-order-convert-open')).toHaveCount(0)
 
     // 연결 전표 필드에 슬립 번호 노출 확인
-    await expect(page.getByLabel('연결 전표')).toHaveValue('2026/05/04-1')
+    const linkedSlipField = page.locator('.detail-grid > div').filter({
+      has: page.locator('.detail-label', { hasText: /^연결 전표$/ }),
+    })
+    const linkedSlipValue = linkedSlipField.locator('.detail-value')
+    await expect(linkedSlipValue).toBeVisible()
+    await expect(linkedSlipValue).toHaveText('2026/05/04-1')
   })
 
   // ──────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type CSSProperties,
 } from 'react'
@@ -69,9 +70,28 @@ import {
   type Classification,
 } from '../api/classificationApi'
 import { isSelectableProductStatus, searchProducts as searchProductsApi } from '../api/productApi'
+import {
+  createQuantitySyncRule,
+  deleteQuantitySyncRule,
+  listQuantitySyncRules,
+  replaceQuantitySyncRule,
+  type QuantitySyncCategory,
+  type QuantitySyncProductRef,
+  type QuantitySyncRule,
+  type QuantitySyncRuleRequest,
+} from '../api/quantitySyncApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePermissions } from '../hooks/usePermissions'
 import { usePageTitleStore } from '../stores/pageTitle'
+import {
+  addQuantitySyncTarget,
+  getQuantitySyncFeatureOptions,
+  quantitySyncTargetDraft as buildQuantitySyncTargetDraft,
+  quantitySyncTargetKind,
+  QUANTITY_SYNC_SHAPE_OPTIONS,
+  removeQuantitySyncTarget,
+  type QuantitySyncTargetModalDraft,
+} from './quantitySyncTargetModal'
 import {
   buildCategoryDisplayOrderInputs,
   estimateCategoryValues,
@@ -95,6 +115,23 @@ type MasterProductSearch = (
   options?: { size?: number; usageScope?: UsageScope },
 ) => Promise<ProductOption[]>
 
+/** 라이브 모달에서 effect 의존성이 렌더마다 바뀌지 않도록 노출 행 배열을 고정한다. */
+export function useStableEstimateCatalogRows<T extends { usageScope: UsageScope }>(
+  rows: readonly T[],
+): T[] {
+  return useMemo(
+    () => rows.filter((row) => row.usageScope !== 'NONE'),
+    [rows],
+  )
+}
+
+/** 저장 초안에는 활성 target만 남긴다. API가 삭제 표식을 포함해도 3건 불변식을 보존한다. */
+export function preserveActiveQuantitySyncTargets<T extends object>(
+  targets: readonly T[],
+): T[] {
+  return targets.filter((target) => (target as { isDeleted?: boolean }).isDeleted !== true)
+}
+
 /** 검색 응답의 원천 메타데이터만으로 견적품목 후보를 걸러낸다. */
 export async function searchMasterProducts(
   searchProducts: MasterProductSearch,
@@ -106,6 +143,29 @@ export async function searchMasterProducts(
     if (!isSelectableProductStatus(product.status) || product.productCategory === 'MATERIAL') return false
     return !(product.estimateCategories ?? []).includes(committedCategory)
   })
+}
+
+/** 서버가 계산한 target 역할 eligibility를 보존한 카탈로그 행만 picker 옵션으로 변환한다. */
+export function filterQuantitySyncTargetProducts(products: ProductCatalogRow[]): ProductOption[] {
+  return products
+    .filter((product) => {
+      const code = product.modelCode
+      return product.quantitySyncTargetEligible === true
+        && isSelectableProductStatus(product.status)
+        && Boolean(code)
+        && product.name.trim().length > 0
+    })
+    .map((product) => ({
+      id: product.modelCode,
+      modelName: product.modelCode,
+      modelCode: product.modelCode,
+      productName: product.name,
+      deliveryPrice: product.deliveryPrice ?? undefined,
+      sellingPrice: product.releasePrice ?? undefined,
+      status: product.status,
+      goodsType: product.goodsType ?? undefined,
+      productCategory: product.productCategory,
+    }))
 }
 
 const ESTIMATE_CATEGORY_LABEL: Record<EstimateCategory, string> = {
@@ -204,8 +264,123 @@ function errorMsg(err: unknown): string {
   return '처리 중 오류가 발생했습니다. 다시 시도해 주세요.'
 }
 
+const QUANTITY_SYNC_RULE_BLOCK_MESSAGE =
+  '수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다:'
+const QUANTITY_SYNC_RULE_KEY_PATTERN = /^[A-Za-z0-9_-]+$/
+
+/** 409 차단 문구의 rule key만 추출한다. 서버 문구·규칙 계약은 변경하지 않는다. */
+export function extractQuantitySyncRuleKeys(message: string): string[] {
+  if (!message.startsWith(QUANTITY_SYNC_RULE_BLOCK_MESSAGE)) return []
+  return message
+    .slice(QUANTITY_SYNC_RULE_BLOCK_MESSAGE.length)
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => QUANTITY_SYNC_RULE_KEY_PATTERN.test(key))
+}
+
+export interface QuantitySyncRuleEditTarget {
+  ruleKey: string
+  modelCode: string
+}
+
+/** 활성 규칙 key를 본체(source) 행의 수량 동기화 편집 지점으로 해석한다. */
+export function resolveQuantitySyncRuleEditTarget(
+  ruleKey: string,
+  rules: QuantitySyncRule[],
+): QuantitySyncRuleEditTarget | undefined {
+  const rule = rules.find((candidate) => candidate.enabled && candidate.ruleKey === ruleKey)
+  const source = rule?.sources.find((candidate) => candidate.productCode.trim().length > 0)
+  if (!rule || !source) return undefined
+  return { ruleKey: rule.ruleKey, modelCode: source.productCode }
+}
+
+function quantitySyncRuleEditAnchorId(ruleKey: string): string {
+  return `estimate-items-quantity-sync-rule-${ruleKey}`
+}
+
 function nextScopeForEstimateAppend(scope: UsageScope): UsageScope {
   return scope === 'PARTNER_ORDER' || scope === 'BOTH' ? 'BOTH' : 'ESTIMATE'
+}
+
+function quantitySyncCategoryForEstimateCategory(category: EstimateCategory): QuantitySyncCategory | null {
+  if (category === 'HOME_MULTI') return 'HOME_MULTI'
+  if (category === 'SINGLE_SET') return 'SINGLE_SET'
+  if (category === 'COMMERCIAL_MULTI') return 'COMM_MULTI'
+  return null
+}
+
+function quantitySyncRuleForSource(
+  rules: QuantitySyncRule[],
+  modelCode: string,
+): QuantitySyncRule | undefined {
+  return rules.find((rule) => rule.enabled && rule.sources.some((source) => source.productCode === modelCode))
+}
+
+export interface QuantitySyncInboundSource {
+  rule: QuantitySyncRule
+  source: QuantitySyncProductRef
+}
+
+/** 활성 규칙의 target 행에서 해당 target을 부르는 source들을 읽기 전용으로 조회한다. */
+export function quantitySyncInboundSourcesForModel(
+  rules: QuantitySyncRule[],
+  modelCode: string,
+): QuantitySyncInboundSource[] {
+  return rules
+    .filter((rule) => rule.enabled)
+    .flatMap((rule) => rule.targets.some((target) => target.productCode === modelCode)
+      ? rule.sources.map((source) => ({ rule, source }))
+      : [])
+}
+
+function quantitySyncSharedRuleForCategory(
+  rules: QuantitySyncRule[],
+  category: QuantitySyncCategory,
+): QuantitySyncRule | undefined {
+  return rules.find((rule) => rule.enabled && rule.estimateCategory === category && rule.ruleKey.startsWith(`UI_${category}_`))
+}
+
+type QuantitySyncTargetDraft = QuantitySyncTargetModalDraft
+
+function quantitySyncTargetDraft(target: QuantitySyncProductRef): QuantitySyncTargetDraft {
+  return buildQuantitySyncTargetDraft(target)
+}
+
+function isValidQuantitySyncMultiplier(value: string): boolean {
+  const multiplier = Number(value)
+  return Number.isFinite(multiplier) && multiplier > 0 && multiplier <= 1000
+}
+
+function quantitySyncRequest(
+  rule: QuantitySyncRule | undefined,
+  category: QuantitySyncCategory,
+  ruleKey: string,
+  name: string,
+  legacyRef: string,
+  sources: Array<{ productCode: string; factor: number }>,
+  targetDrafts: QuantitySyncTargetDraft[],
+): QuantitySyncRuleRequest {
+  return {
+    ruleKey,
+    estimateCategory: category,
+    name,
+    enabled: rule?.enabled ?? true,
+    aggregation: rule?.aggregation ?? 'SUM',
+    when: rule?.when ?? {},
+    inactiveBehavior: rule?.inactiveBehavior ?? 'ZERO',
+    conflictPolicy: rule?.conflictPolicy ?? 'REPLACE',
+    priority: rule?.priority ?? 1000,
+    legacyRef,
+    sources,
+    targets: targetDrafts.map((target, index) => ({
+      productCode: target.modelCode ?? target.modelName,
+      multiplier: Number(target.multiplier),
+      roundingMode: target.roundingMode ?? 'NONE',
+      componentVariant: target.componentVariant || null,
+      componentShape: target.componentShape || null,
+      displayOrder: index + 1,
+    })),
+  }
 }
 
 interface ToggleCellProps {
@@ -334,7 +509,17 @@ interface FixedDiscountCellProps {
   patchLoading: boolean
 }
 
-function FixedDiscountCell({
+function fixedDiscountSourceLabel(source: ProductCatalogRow['fixedDiscountSource']): string {
+  switch (source) {
+    case 'PRODUCT': return '품목 개별'
+    case 'S': return 'S'
+    case 'M': return 'M'
+    case 'L': return 'L'
+    default: return '미지정'
+  }
+}
+
+export function FixedDiscountCell({
   row,
   canEdit,
   onFixedDiscountPatch,
@@ -384,6 +569,13 @@ function FixedDiscountCell({
           style={{ width: 72 }}
         />
         <span style={fixedDiscountSuffixStyle}>%</span>
+      </span>
+      <span
+        style={fixedDiscountSourceStyle}
+        title="현재 고정DC율이 결정된 출처"
+        data-testid={`estimate-items-fixed-dc-source-${row.modelCode}`}
+      >
+        {fixedDiscountSourceLabel(row.fixedDiscountSource)}
       </span>
       {localError ? (
         <span
@@ -566,6 +758,11 @@ interface CategoryCellProps {
   canEdit: boolean
   onPatch: (modelCode: string, scope: UsageScope, estimateCategories: EstimateCategory[]) => void
   patchLoading: boolean
+  quantitySyncRule: QuantitySyncRule | undefined
+  quantitySyncInboundSources: QuantitySyncInboundSource[]
+  focusedQuantitySyncRuleKey: string | null
+  onQuantitySyncSave: (modelCode: string, targetDrafts: QuantitySyncTargetDraft[]) => void
+  searchQuantitySyncProducts: (q: string) => Promise<ProductOption[]>
 }
 
 function CategoryCell({
@@ -573,6 +770,11 @@ function CategoryCell({
   canEdit,
   onPatch,
   patchLoading,
+  quantitySyncRule,
+  quantitySyncInboundSources,
+  focusedQuantitySyncRuleKey,
+  onQuantitySyncSave,
+  searchQuantitySyncProducts,
 }: CategoryCellProps) {
   const { estimate } = fromUsageScope(row.usageScope)
   const selectedCategories = estimateCategoryValues(row)
@@ -580,6 +782,15 @@ function CategoryCell({
     (opt) => !selectedCategories.includes(opt.value),
   )
   const showEstimateCategory = estimate && (row.usageScope === 'ESTIMATE' || row.usageScope === 'BOTH')
+  const canEditQuantitySync = canEdit && quantitySyncInboundSources.length === 0
+  const [quantitySyncModalOpen, setQuantitySyncModalOpen] = useState(false)
+  const [selectedQuantityTargets, setSelectedQuantityTargets] = useState<QuantitySyncTargetDraft[]>(() =>
+    preserveActiveQuantitySyncTargets(quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft),
+  )
+
+  useEffect(() => {
+    setSelectedQuantityTargets(preserveActiveQuantitySyncTargets(quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft))
+  }, [quantitySyncRule])
 
   const handleCategoryAdd = (value: string) => {
     if (!value) return
@@ -648,6 +859,115 @@ function CategoryCell({
           ))}
         </Select>
       ) : null}
+      {quantitySyncInboundSources.length > 0 ? (
+        <div
+          data-testid={`estimate-items-quantity-sync-inbound-${row.modelCode}`}
+          aria-readonly="true"
+          style={{ ...quantitySyncCellStyle, borderTop: 0, paddingTop: 0 }}
+        >
+          <span style={{ ...categoryChipStyle, color: 'var(--color-neutral-700, #363D49)' }}>
+            나를 부르는 본체
+          </span>
+          {quantitySyncInboundSources.map(({ rule, source }) => {
+            const sourceCode = source.productCode
+            const sourceLabel = source.productName || sourceCode
+            return (
+              <span
+                key={`${rule.ruleKey}-${sourceCode}`}
+                data-testid={`estimate-items-quantity-sync-inbound-${row.modelCode}-source-${sourceCode}`}
+                style={{ ...quantitySyncChipStyle, borderColor: 'var(--color-neutral-200, #E5E7EB)' }}
+              >
+                <span>{sourceLabel}:{source.factor ?? 1}</span>
+                <span>{rule.ruleKey}</span>
+              </span>
+            )
+          })}
+        </div>
+      ) : null}
+      <div
+        id={quantitySyncRule ? quantitySyncRuleEditAnchorId(quantitySyncRule.ruleKey) : undefined}
+        tabIndex={quantitySyncRule && quantitySyncRule.ruleKey === focusedQuantitySyncRuleKey ? -1 : undefined}
+        style={quantitySyncRule?.ruleKey === focusedQuantitySyncRuleKey
+          ? { ...quantitySyncCellStyle, ...quantitySyncFocusedCellStyle }
+          : quantitySyncCellStyle}
+        data-testid={`estimate-items-quantity-sync-${row.modelCode}`}
+      >
+        {selectedQuantityTargets.map((product) => (
+          <span
+            key={product.modelCode ?? product.modelName}
+            style={quantitySyncChipStyle}
+            data-testid={`estimate-items-quantity-sync-${row.modelCode}-chip-${product.modelCode ?? product.modelName}`}
+          >
+            <span>{product.productName || product.modelCode || product.modelName}: ×{product.multiplier}</span>
+          </span>
+        ))}
+        {canEditQuantitySync ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setQuantitySyncModalOpen(true)}
+            disabled={patchLoading}
+            data-testid={`estimate-items-quantity-sync-${row.modelCode}-open`}
+          >
+            수량 동기화 설정
+          </Button>
+        ) : null}
+      </div>
+      <Modal
+        open={quantitySyncModalOpen}
+        onClose={() => setQuantitySyncModalOpen(false)}
+        title={`수량 동기화 설정 — ${row.modelCode}`}
+        size="lg"
+        footer={canEditQuantitySync ? (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setQuantitySyncModalOpen(false)} disabled={patchLoading}>닫기</Button>
+            <Button
+              variant="primary"
+              onClick={() => { onQuantitySyncSave(row.modelCode, selectedQuantityTargets); setQuantitySyncModalOpen(false) }}
+              disabled={patchLoading || selectedQuantityTargets.some((target) => !isValidQuantitySyncMultiplier(target.multiplier))}
+              data-testid={`estimate-items-quantity-sync-${row.modelCode}-save`}
+            >수량 동기화 저장</Button>
+          </div>
+        ) : <Button variant="secondary" onClick={() => setQuantitySyncModalOpen(false)}>닫기</Button>}
+      >
+        <div data-testid={`estimate-items-quantity-sync-${row.modelCode}-modal`} style={{ display: 'grid', gap: 12 }}>
+          <div><strong>본체</strong> <span>{row.modelCode}</span></div>
+          <ProductMultiSelectAutocomplete
+            selected={selectedQuantityTargets}
+            onAdd={(product) => {
+              if ((product.modelCode ?? product.modelName) === row.modelCode) return
+              setSelectedQuantityTargets((current) => addQuantitySyncTarget(current, product))
+            }}
+            onRemove={(product) => setSelectedQuantityTargets((current) => removeQuantitySyncTarget(current, product.id))}
+            searchProducts={searchQuantitySyncProducts}
+            label="수량 동기화 품목"
+            placeholder="품목 검색"
+            minChars={1}
+            disabled={patchLoading}
+            inputTestId={`estimate-items-quantity-sync-${row.modelCode}-input`}
+          />
+          <span style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}>부자재 품목 선택</span>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {selectedQuantityTargets.map((product) => {
+              const kind = quantitySyncTargetKind(product)
+              return (
+                <div key={product.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 90px 120px 100px auto', gap: 8, alignItems: 'end' }} data-testid={`estimate-items-quantity-sync-${row.modelCode}-modal-chip-${product.id}`}>
+                  <span>{product.productName || product.modelCode}</span>
+                  <Input type="number" min="0.0001" max="1000" step="0.0001" label="수량" value={product.multiplier} onChange={(event) => setSelectedQuantityTargets((current) => current.map((item) => item.id === product.id ? { ...item, multiplier: event.target.value } : item))} data-testid={`estimate-items-quantity-sync-${row.modelCode}-multiplier-${product.id}`} />
+                  <Select label="특징" value={product.componentVariant} onChange={(event) => setSelectedQuantityTargets((current) => current.map((item) => item.id === product.id ? { ...item, componentVariant: event.target.value } : item))}>
+                    <option value="">(없음)</option>
+                    {getQuantitySyncFeatureOptions(kind).map((feature) => <option key={feature} value={feature}>{feature}</option>)}
+                  </Select>
+                  <Select label="형상" value={product.componentShape} onChange={(event) => setSelectedQuantityTargets((current) => current.map((item) => item.id === product.id ? { ...item, componentShape: event.target.value } : item))}>
+                    {QUANTITY_SYNC_SHAPE_OPTIONS.map((shape) => <option key={shape} value={shape}>{shape || '(없음)'}</option>)}
+                  </Select>
+                  <Button variant="secondary" size="sm" onClick={() => setSelectedQuantityTargets((current) => removeQuantitySyncTarget(current, product.id))} aria-label={`${product.productName || product.modelCode} 동기화 제거`}>삭제</Button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -714,6 +1034,7 @@ export function EstimateItemsCatalogPage() {
   const [selectedProducts, setSelectedProducts] = useState<ProductOption[]>([])
   const [patchingCode, setPatchingCode] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
+  const [focusedQuantitySyncRuleKey, setFocusedQuantitySyncRuleKey] = useState<string | null>(null)
   const [sortableRows, setSortableRows] = useState<ProductCatalogRow[]>([])
   const [orderDirty, setOrderDirty] = useState(false)
   const [orderSaving, setOrderSaving] = useState(false)
@@ -778,8 +1099,42 @@ export function EstimateItemsCatalogPage() {
     staleTime: 30_000,
   })
 
+  const quantitySyncCategory = quantitySyncCategoryForEstimateCategory(committedCategory)
+  const quantitySyncRulesQuery = useQuery({
+    queryKey: ['quantity-sync-rules', quantitySyncCategory],
+    queryFn: () => listQuantitySyncRules(quantitySyncCategory!),
+    enabled: quantitySyncCategory != null,
+    staleTime: 30_000,
+  })
+
+  const quantitySyncRuleKeys = extractQuantitySyncRuleKeys(mutationError ?? '')
+
+  const handleQuantitySyncRuleNavigate = useCallback(async (ruleKey: string) => {
+    if (!quantitySyncCategory) return
+    const rules = await queryClient.fetchQuery({
+      queryKey: ['quantity-sync-rules', quantitySyncCategory],
+      queryFn: () => listQuantitySyncRules(quantitySyncCategory),
+      staleTime: 30_000,
+    })
+    const editTarget = resolveQuantitySyncRuleEditTarget(ruleKey, rules)
+    if (!editTarget) return
+    setSearchInput(editTarget.modelCode)
+    setCommittedSearch(editTarget.modelCode)
+    setCurrentPage(0)
+    setOrderDirty(false)
+    setFocusedQuantitySyncRuleKey(editTarget.ruleKey)
+  }, [quantitySyncCategory, queryClient])
+
+  useEffect(() => {
+    if (!focusedQuantitySyncRuleKey || listQuery.isFetching) return
+    const editPoint = document.getElementById(quantitySyncRuleEditAnchorId(focusedQuantitySyncRuleKey))
+    if (!editPoint) return
+    editPoint.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    editPoint.focus({ preventScroll: true })
+  }, [focusedQuantitySyncRuleKey, listQuery.isFetching, sortableRows])
+
   const rawRows = listQuery.data?.content ?? []
-  const rows = rawRows.filter((row) => row.usageScope !== 'NONE')
+  const rows = useStableEstimateCatalogRows(rawRows)
 
   useEffect(() => {
     if (!orderDirty) {
@@ -894,6 +1249,62 @@ export function EstimateItemsCatalogPage() {
     },
   })
 
+  const quantitySyncMutation = useMutation({
+    mutationFn: async ({ modelCode, targetDrafts }: { modelCode: string; targetDrafts: QuantitySyncTargetDraft[] }) => {
+      if (!quantitySyncCategory) throw new Error('수량 동기화가 지원되지 않는 견적 카테고리입니다.')
+      const rules = quantitySyncRulesQuery.data ?? []
+      const existing = quantitySyncRuleForSource(rules, modelCode)
+      if (targetDrafts.length === 0) {
+        if (!existing) return
+        const remainingSources = existing.sources
+          .filter((source) => source.productCode !== modelCode)
+          .map((source) => ({ productCode: source.productCode, factor: Number(source.factor ?? 1) }))
+        if (remainingSources.length === 0) {
+          await deleteQuantitySyncRule(existing.ruleKey)
+          return
+        }
+        const request = quantitySyncRequest(
+          existing,
+          quantitySyncCategory,
+          existing.ruleKey,
+          existing.name,
+          existing.legacyRef,
+          remainingSources,
+          preserveActiveQuantitySyncTargets(existing.targets).map(quantitySyncTargetDraft),
+        )
+        await replaceQuantitySyncRule(existing.ruleKey, request)
+        return
+      }
+      const shared = existing ?? quantitySyncSharedRuleForCategory(rules, quantitySyncCategory)
+      const sources = (shared?.sources ?? [])
+        .filter((source) => source.productCode !== modelCode)
+        .map((source) => ({ productCode: source.productCode, factor: Number(source.factor ?? 1) }))
+      sources.push({ productCode: modelCode, factor: 1 })
+      const ruleKey = shared?.ruleKey
+        ?? `UI_${quantitySyncCategory}_SHARED`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 100)
+      const request = quantitySyncRequest(
+        shared,
+        quantitySyncCategory,
+        ruleKey,
+        shared?.name ?? `수량 동기화 - ${quantitySyncCategory}`,
+        shared?.legacyRef ?? `UI:${quantitySyncCategory}`,
+        sources,
+        targetDrafts,
+      )
+      if (shared) return replaceQuantitySyncRule(shared.ruleKey, request)
+      return createQuantitySyncRule(request)
+    },
+    onSuccess: () => {
+      setMutationError(null)
+      setPatchingCode(null)
+      void queryClient.invalidateQueries({ queryKey: ['quantity-sync-rules'] })
+    },
+    onError: (err) => {
+      setMutationError(errorMsg(err))
+      setPatchingCode(null)
+    },
+  })
+
   const addProductMutation = useMutation({
     mutationFn: async (product: ProductOption) => {
       const modelCode = product.modelCode ?? product.modelName
@@ -992,6 +1403,20 @@ export function EstimateItemsCatalogPage() {
     },
     [classificationSettingsMutation],
   )
+
+  const handleQuantitySyncSave = useCallback(
+    (modelCode: string, targetDrafts: QuantitySyncTargetDraft[]) => {
+      setPatchingCode(modelCode)
+      setMutationError(null)
+      quantitySyncMutation.mutate({ modelCode, targetDrafts })
+    },
+    [quantitySyncMutation],
+  )
+
+  const searchQuantitySyncProducts = useCallback(async (q: string): Promise<ProductOption[]> => {
+    const page = await listProducts({ q, size: 10000 })
+    return filterQuantitySyncTargetProducts(page.content)
+  }, [])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
@@ -1120,6 +1545,11 @@ export function EstimateItemsCatalogPage() {
           canEdit={canEdit}
           onPatch={handlePatch}
           patchLoading={patchingCode === row.modelCode}
+          quantitySyncRule={quantitySyncRuleForSource(quantitySyncRulesQuery.data ?? [], row.modelCode)}
+          quantitySyncInboundSources={quantitySyncInboundSourcesForModel(quantitySyncRulesQuery.data ?? [], row.modelCode)}
+          focusedQuantitySyncRuleKey={focusedQuantitySyncRuleKey}
+          onQuantitySyncSave={handleQuantitySyncSave}
+          searchQuantitySyncProducts={searchQuantitySyncProducts}
         />
       ),
     },
@@ -1352,6 +1782,21 @@ export function EstimateItemsCatalogPage() {
       {mutationError ? (
         <div role="alert" style={errorBannerStyle} data-testid="estimate-items-mutation-error">
           {mutationError}
+          {quantitySyncRuleKeys.length > 0 ? (
+            <span style={quantitySyncRuleLinkGroupStyle}>
+              {quantitySyncRuleKeys.map((ruleKey) => (
+                <button
+                  key={ruleKey}
+                  type="button"
+                  onClick={() => { void handleQuantitySyncRuleNavigate(ruleKey) }}
+                  data-testid={`estimate-items-mutation-error-rule-${ruleKey}`}
+                  style={quantitySyncRuleLinkStyle}
+                >
+                  규칙 편집 지점으로 이동: {ruleKey}
+                </button>
+              ))}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
@@ -1616,6 +2061,58 @@ const categoryChipRemoveStyle: CSSProperties = {
   lineHeight: 1,
 }
 
+const quantitySyncCellStyle: CSSProperties = {
+  display: 'flex',
+  gap: 4,
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  flexBasis: '100%',
+  paddingTop: 4,
+  borderTop: '1px dashed var(--color-border, #E5E7EB)',
+}
+
+const quantitySyncFocusedCellStyle: CSSProperties = {
+  outline: '2px solid var(--color-primary-400, #60A5FA)',
+  outlineOffset: 2,
+  borderRadius: 4,
+}
+
+const quantitySyncRuleLinkGroupStyle: CSSProperties = {
+  display: 'inline-flex',
+  gap: 6,
+  flexWrap: 'wrap',
+  marginLeft: 8,
+}
+
+const quantitySyncRuleLinkStyle: CSSProperties = {
+  appearance: 'none',
+  border: 0,
+  padding: 0,
+  background: 'transparent',
+  color: 'var(--color-danger-800, #991B1B)',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+  font: 'inherit',
+}
+
+const quantitySyncChipStyle: CSSProperties = {
+  ...categoryChipStyle,
+  borderColor: 'var(--color-success-200, #BBF7D0)',
+  background: 'var(--color-success-50, #F0FDF4)',
+  color: 'var(--color-success-700, #15803D)',
+}
+
+const quantitySyncMultiplierInputStyle: CSSProperties = {
+  width: 56,
+  border: '1px solid var(--color-success-300, #86EFAC)',
+  borderRadius: 4,
+  background: 'var(--color-bg, #FFFFFF)',
+  color: 'inherit',
+  fontSize: 12,
+  fontWeight: 600,
+  padding: '1px 3px',
+}
+
 const variableDiscountGroupStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -1644,6 +2141,12 @@ const fixedDiscountInputWrapStyle: CSSProperties = {
 const fixedDiscountSuffixStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--color-neutral-500, #6B7280)',
+}
+
+const fixedDiscountSourceStyle: CSSProperties = {
+  fontSize: 11,
+  color: 'var(--color-neutral-500, #6B7280)',
+  whiteSpace: 'nowrap',
 }
 
 const fixedDiscountErrorStyle: CSSProperties = {

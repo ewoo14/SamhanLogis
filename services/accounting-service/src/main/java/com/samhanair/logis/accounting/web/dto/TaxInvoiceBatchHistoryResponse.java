@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.web.dto;
 
 import com.samhanair.logis.accounting.domain.TaxInvoiceBatch;
 import com.samhanair.logis.accounting.domain.TaxInvoiceBatchStatus;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -26,8 +27,8 @@ public record TaxInvoiceBatchHistoryResponse(
         int splitFileCount,
         /** 배치 상태 (DRAFT/COMPLETED/DOWNLOADED). */
         TaxInvoiceBatchStatus status,
-        /** 작업자 UUID. */
-        UUID processedBy,
+        /** 작업자 표시명. 내부 작업자 UUID는 {@link TaxInvoiceBatch} entity에 보존한다. */
+        String processedBy,
         /** 작업 완료 시각. */
         LocalDateTime processedAt,
         /**
@@ -51,7 +52,8 @@ public record TaxInvoiceBatchHistoryResponse(
                 batch.getTotalRowCount(),
                 batch.getSplitFileCount(),
                 batch.getStatus(),
-                batch.getProcessedBy(),
+                ActorDisplayName.resolve(
+                        batch.getProcessedBy() == null ? null : batch.getProcessedBy().toString(), null),
                 batch.getProcessedAt(),
                 null
         );
@@ -72,7 +74,8 @@ public record TaxInvoiceBatchHistoryResponse(
                 batch.getTotalRowCount(),
                 batch.getSplitFileCount(),
                 batch.getStatus(),
-                batch.getProcessedBy(),
+                ActorDisplayName.resolve(
+                        batch.getProcessedBy() == null ? null : batch.getProcessedBy().toString(), null),
                 batch.getProcessedAt(),
                 batch.getDataSnapshotJson()
         );

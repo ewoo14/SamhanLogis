@@ -15,4 +15,6 @@ public interface AccountPermissionOverrideRepository
     List<AccountPermissionOverride> findByAccountIdOrderByPageCodeAsc(UUID accountId);
 
     Optional<AccountPermissionOverride> findByAccountIdAndPageCodeAndIsDeletedFalse(UUID accountId, String pageCode);
+
+    List<AccountPermissionOverride> findByActorId(String actorId);
 }

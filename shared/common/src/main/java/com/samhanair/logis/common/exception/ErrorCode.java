@@ -75,6 +75,12 @@ public enum ErrorCode {
      */
     PARTNER_IDENTITY_LOOKUP_UNAVAILABLE(HttpStatus.BAD_GATEWAY,
             "거래처 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."),
+    /**
+     * 주문 확정에 필요한 서버 가격 계산 결과를 확보하지 못함.
+     * 정상가 저장으로 대체하면 미리보기와 다른 금액을 청구할 수 있으므로 503으로 차단한다.
+     */
+    PRICE_CALCULATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE,
+            "가격 계산 서버가 응답하지 않아 주문을 확정할 수 없습니다. 잠시 후 다시 시도해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     /**
      * 도메인 specific — product-service 의 modelCode/UUID 조회 미존재.

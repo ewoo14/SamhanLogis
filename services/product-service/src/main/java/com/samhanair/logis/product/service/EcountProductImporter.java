@@ -500,7 +500,11 @@ public class EcountProductImporter {
                    SET name = :name,
                        model_name = :code,
                        model_code = :code,
-                       category_id = (SELECT id FROM categories WHERE code = 'ECOUNT_MIG2' AND is_deleted = FALSE LIMIT 1),
+                       category_id = CASE
+                           WHEN p.classification_manual THEN p.category_id
+                           ELSE (SELECT id FROM categories
+                                  WHERE code = 'ECOUNT_MIG2' AND is_deleted = FALSE LIMIT 1)
+                       END,
                        selling_price = :sellingPrice,
                        purchase_price = :purchasePrice,
                        currency = 'KRW',

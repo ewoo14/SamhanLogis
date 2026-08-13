@@ -1,31 +1,33 @@
 package com.samhanair.logis.slip.estimate.web.dto;
 
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /** 견적서 요약 응답 — 라인 미포함, 페이지/리스트 용. */
 public record EstimateResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String estimateNo,
         LocalDate estimateDate,
         int seqNo,
         EstimateStatus status,
-        UUID partnerId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID partnerId,
         String partnerName,
         String partnerBusinessNo,
         LocalDate validUntil,
         BigDecimal totalSupply,
         BigDecimal totalVat,
         BigDecimal totalAmount,
-        UUID convertedSlipId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID convertedSlipId,
         LocalDateTime sentAt,
         LocalDateTime acceptedAt,
         LocalDateTime convertedAt,
-        String requesterId,
+        @JsonSerialize(using = OpaqueIdentifierSerializer.class) String requesterId,
         Long version,
         Boolean isDeleted,
         LocalDateTime deletedAt,
@@ -58,7 +60,7 @@ public record EstimateResponse(
                 estimate.getVersion(),
                 estimate.getIsDeleted(),
                 estimate.getDeletedAt(),
-                estimate.getDeletedByName(),
+                ActorDisplayName.resolveNullable(null, estimate.getDeletedByName()),
                 restoreAvailable);
     }
 }

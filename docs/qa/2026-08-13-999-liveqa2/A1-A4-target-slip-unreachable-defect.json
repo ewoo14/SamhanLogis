@@ -1,0 +1,33 @@
+{
+  "targetRow": [
+    "2026/08/02",
+    "실외기_3HP 다배관",
+    "AJ030RXH4BC1",
+    "본사창고",
+    "",
+    "2026/08/02-17",
+    "5",
+    "",
+    "17"
+  ],
+  "buttonCount": 0,
+  "pageUrl": "http://127.0.0.1:42973/#/inventory/stock-balance",
+  "screenUuidCount": 0,
+  "slipRequestsAfterLedgerOpen": [],
+  "consoleErrors": [],
+  "directLedgerTarget": {
+    "date": "2026-08-02",
+    "productName": "실외기_3HP 다배관",
+    "productCode": "AJ030RXH4BC1",
+    "warehouseName": "본사창고",
+    "partnerName": "",
+    "description": "2026/08/02-17",
+    "locationTag": null,
+    "inboundQuantity": 5,
+    "outboundQuantity": 0,
+    "balance": 17,
+    "opening": false,
+    "slipNo": null,
+    "slipType": null
+  }
+}

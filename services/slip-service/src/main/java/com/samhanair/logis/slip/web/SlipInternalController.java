@@ -429,6 +429,28 @@ public class SlipInternalController {
         return ApiResponse.ok(rows);
     }
 
+    /**
+     * 저장 직후 판매전표 원장 projection — 대상 slipNo를 회계 원장에 한 번만 포함시키기 위한 read 계약.
+     *
+     * <p>기존 기간 조회는 canonical 판매 상태만 읽으므로 DRAFT/SAVED 신규 전표가 빠진다.
+     * 이 endpoint는 활성 OUTBOUND 전표를 상태와 무관하게 반환하며, 응답은 기존 projection과
+     * 동일하게 UUID를 사용자 계약으로 노출하지 않는다.
+     */
+    @Operation(summary = "저장 대상 판매전표 원장 projection 조회",
+            description = "X-Internal-Token 인증. 활성 OUTBOUND 전표를 slipNo로 조회하며 DRAFT/SAVED도 포함한다.")
+    @GetMapping("/partner-ledger-sales/by-slip-no")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<PartnerLedgerSalesResponse> findPartnerLedgerSaleBySlipNo(
+            @RequestParam String slipNo) {
+        if (slipNo == null || slipNo.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "slipNo는 필수입니다");
+        }
+        Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType.OUTBOUND, slipNo.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "저장 대상 판매전표를 찾을 수 없습니다: " + slipNo));
+        return ApiResponse.ok(PartnerLedgerSalesResponse.from(slip));
+    }
+
     // ---- SP-SAS-1 Task 7 — accounting-service cross-service read-only contract ----
 
     /**

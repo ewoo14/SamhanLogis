@@ -69,7 +69,7 @@ export function SalesOrderApprovalsPage() {
   const canUpdateApproval = canAccess('sales.partner-order.list', 'update')
 
   useEffect(() => {
-    setPageTitle({ title: '주문서 앱 접근권한 설정', meta: '영업' })
+    setPageTitle({ title: '주문서 승인', meta: '영업' })
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 
@@ -233,7 +233,7 @@ export function SalesOrderApprovalsPage() {
   ]
 
   return (
-    <div className={styles['salesScope']}>
+    <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
       <SalesSubNav />
       <div className={styles['wrap']}>
         {/* PR-H4c FE-A: 승인 변경 audit 안내 — 변경 시 BE audit log 자동 기록 */}
@@ -243,7 +243,7 @@ export function SalesOrderApprovalsPage() {
         />
         <div className={styles['top']}>
           <div className={styles['title']}>
-            주문서 앱 접근권한 설정
+            주문서 승인
             <span className={styles['badge']}>전체 {query.data?.totalElements ?? 0}건</span>
           </div>
           <div className={styles['topActions']}>

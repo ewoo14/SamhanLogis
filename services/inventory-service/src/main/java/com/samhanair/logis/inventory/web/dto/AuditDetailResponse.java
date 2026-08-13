@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.AuditStatus;
 import com.samhanair.logis.inventory.domain.InventoryAudit;
 import com.samhanair.logis.inventory.domain.InventoryAuditLine;
@@ -15,8 +16,10 @@ import java.util.UUID;
  * <p>라인의 productId 는 mutation key 로만 사용. 사용자 화면 표시 식별자는 productName (snapshot).
  */
 public record AuditDetailResponse(
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID id,
         String auditNo,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         String warehouseCode,
         String warehouseName,

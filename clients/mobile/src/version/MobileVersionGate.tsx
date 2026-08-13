@@ -8,6 +8,7 @@ import {
   getMajorSessionDismissKey,
   getMinorDismissStorageKey,
   isBlockingForceLevel,
+  VERSION_POLICY_FAILURE_MESSAGE,
   type VersionStatus,
 } from './versionCheck';
 
@@ -33,11 +34,19 @@ const sessionDismissedMajorVersions = new Set<string>();
 
 export function MobileVersionGate({ children }: MobileVersionGateProps): React.ReactElement {
   const [gateState, setGateState] = React.useState<GateState>({ status: 'checking' });
+  const [failureMessage, setFailureMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
 
     async function runBootChecks() {
+      async function observeOtaUpdate() {
+        const result = await checkForOtaUpdate();
+        if (result !== 'failed' || !mounted) return;
+        console.warn('[mobile-version] OTA 업데이트 확인 실패');
+        setFailureMessage('앱 업데이트를 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.');
+      }
+
       try {
         const version = await fetchMobileVersionStatus();
         if (!mounted) return;
@@ -46,7 +55,7 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
           return;
         }
 
-        void checkForOtaUpdate();
+        void observeOtaUpdate();
 
         if (version.forceLevel === 'MAJOR') {
           const dismissKey = getMajorSessionDismissKey(version.latestVersion || 'unknown');
@@ -61,8 +70,12 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
         }
         setGateState({ status: 'pass' });
       } catch {
-        void checkForOtaUpdate();
-        if (mounted) setGateState({ status: 'pass' });
+        console.warn('[mobile-version] 버전 정책 조회 실패');
+        void observeOtaUpdate();
+        if (mounted) {
+          setFailureMessage(VERSION_POLICY_FAILURE_MESSAGE);
+          setGateState({ status: 'pass' });
+        }
       }
     }
 
@@ -86,6 +99,11 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
 
   return (
     <View style={styles.root}>
+      {failureMessage ? (
+        <View accessibilityRole="alert" style={styles.failureBanner}>
+          <Text style={styles.failureText}>{failureMessage}</Text>
+        </View>
+      ) : null}
       {gateState.status === 'major' ? (
         <MajorVersionModal
           version={gateState.version}
@@ -317,5 +335,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     flexWrap: 'wrap',
+  },
+  failureBanner: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#FEF2F2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FCA5A5',
+  },
+  failureText: {
+    color: '#991B1B',
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

@@ -64,14 +64,14 @@ describe('samhanApi.fetchQuantitySyncRules', () => {
     mocks.get.mockReset();
   });
 
-  it('로그인 후 SINGLE_SET 규칙 목록을 API에서 읽고 배열로 반환한다', async () => {
+  it('홈멀티 주문 화면의 규칙 목록을 HOME_MULTI 카테고리로 읽고 배열로 반환한다', async () => {
     mocks.get.mockResolvedValue({
       data: {
         success: true,
         code: 'OK',
         data: [{
           ruleKey: 'SINGLE_S03_CEILING_DRAIN_PUMP',
-          estimateCategory: 'SINGLE_SET',
+          estimateCategory: 'HOME_MULTI',
           enabled: true,
         }],
       },
@@ -80,11 +80,11 @@ describe('samhanApi.fetchQuantitySyncRules', () => {
     const result = await samhanApi.fetchQuantitySyncRules();
 
     expect(mocks.get).toHaveBeenCalledWith('/quantity-sync-rules', {
-      params: { estimateCategory: 'SINGLE_SET', page: 0, size: 50 },
+      params: { estimateCategory: 'HOME_MULTI', page: 0, size: 50 },
     });
     expect(result).toEqual([{
       ruleKey: 'SINGLE_S03_CEILING_DRAIN_PUMP',
-      estimateCategory: 'SINGLE_SET',
+      estimateCategory: 'HOME_MULTI',
       enabled: true,
     }]);
   });
@@ -544,5 +544,49 @@ describe('samhanApi.call', () => {
       orderNo: null,
       error: '서버 응답이 지연되어 처리 결과를 확인할 수 없습니다. 재전송해도 중복 주문으로 처리되지 않습니다.',
     });
+  });
+
+  it('가격 미리보기는 서버 endpoint와 거래처 헤더만 사용하고 자체 계산하지 않는다', async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          lines: [{ lineId: '0', finalPrice: 600000, appliedRate: 0.40 }],
+          totalListAmount: 1000000,
+          totalFinalAmount: 600000,
+          totalDiscountAmount: 400000,
+        },
+      },
+    });
+
+    const result = await samhanApi.call('pricePreview', [
+      [{ section: 'HOME', model: 'ERV-001', qty: 1, price: 1000000 }],
+      { bizno: 'P-001' },
+    ]);
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/partner-orders/price-preview',
+      {
+        lines: [{ modelCode: 'ERV-001', categoryKey: 'homemulti', quantity: 1, remark: null }],
+      },
+      { headers: { 'X-Partner-Code': 'P-001' } },
+    );
+    expect(result).toEqual({
+      lines: [{ lineId: '0', finalPrice: 600000, appliedRate: 0.40 }],
+      totalListAmount: 1000000,
+      totalFinalAmount: 600000,
+      totalDiscountAmount: 400000,
+    });
+  });
+
+  it('가격 미리보기 실패는 정상가/기존율로 변환하지 않고 reject한다', async () => {
+    mocks.post.mockRejectedValueOnce({
+      response: { data: { message: '가격 미리보기 서버가 응답하지 않습니다' } },
+    });
+
+    await expect(samhanApi.call('pricePreview', [
+      [{ section: 'HOME', model: 'HM-1', qty: 1 }],
+      { bizno: 'P-001' },
+    ])).rejects.toMatchObject({ response: { data: { message: '가격 미리보기 서버가 응답하지 않습니다' } } });
   });
 });

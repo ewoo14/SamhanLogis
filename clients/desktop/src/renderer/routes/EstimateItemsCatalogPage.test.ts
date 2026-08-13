@@ -1,14 +1,22 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { render } from '@testing-library/react'
 import {
   applyClassificationSettingsSuccessEffects,
   applyFixedDiscountPatchSuccessEffects,
   applyUsagePatchSuccessEffects,
+  extractQuantitySyncRuleKeys,
+  resolveQuantitySyncRuleEditTarget,
   VariableDiscountCell,
+  FixedDiscountCell,
+  useStableEstimateCatalogRows,
+  preserveActiveQuantitySyncTargets,
   type EstimateItemsCatalogSuccessEffects,
 } from './EstimateItemsCatalogPage'
 import type { ProductCatalogRow } from '../api/productCatalogApi'
+import type { QuantitySyncRule } from '../api/quantitySyncApi'
 import { searchMasterProducts } from './EstimateItemsCatalogPage'
 
 function effects(): EstimateItemsCatalogSuccessEffects & {
@@ -96,6 +104,33 @@ describe('EstimateItemsCatalogPage master search', () => {
   })
 })
 
+describe('EstimateItemsCatalogPage live-QA regressions', () => {
+  it('모달이 열린 뒤 렌더 횟수가 20회를 넘지 않아 입력 경로가 도달 가능하다', () => {
+    let renderCount = 0
+    const source = [{ modelCode: 'AM052BN6PBH1', usageScope: 'ESTIMATE' as const }]
+    function Harness() {
+      renderCount += 1
+      const stableRows = useStableEstimateCatalogRows(source)
+      return createElement('output', { 'data-count': stableRows.length })
+    }
+
+    render(createElement(Harness))
+
+    expect(renderCount).toBeLessThanOrEqual(20)
+  })
+
+  it('규칙 응답에 섞인 소프트삭제 target 23건을 저장 draft에서 제외하고 활성 3건만 유지한다', () => {
+    const targets = [
+      ...Array.from({ length: 3 }, (_, index) => ({ productCode: `ACTIVE-${index + 1}`, isDeleted: false })),
+      ...Array.from({ length: 23 }, (_, index) => ({ productCode: `DELETED-${index + 1}`, isDeleted: true })),
+    ]
+
+    expect(preserveActiveQuantitySyncTargets(targets).map((target) => target.productCode)).toEqual([
+      'ACTIVE-1', 'ACTIVE-2', 'ACTIVE-3',
+    ])
+  })
+})
+
 const variableDiscountRow: ProductCatalogRow = {
   modelCode: 'AC-VDC-1000',
   name: '변동DC 테스트 품목',
@@ -126,5 +161,53 @@ describe('VariableDiscountCell', () => {
     expect(visibleText).not.toContain('변동DC')
     expect(markup).toContain('aria-label="변동DC"')
     expect(markup).toContain('title="변동DC: 전역할인율 영향 없이 기초 납품가 그대로 표시"')
+  })
+})
+
+describe('FixedDiscountCell 적용 출처', () => {
+  it('유효 정액DC율의 출처를 화면에 표시한다', () => {
+    const markup = renderToStaticMarkup(
+      createElement(FixedDiscountCell, {
+        row: { ...variableDiscountRow, fixedDiscountRate: 15, fixedDiscountSource: 'S' },
+        canEdit: false,
+        patchLoading: false,
+        onFixedDiscountPatch: vi.fn(),
+      }),
+    )
+
+    expect(markup).toContain('data-testid="estimate-items-fixed-dc-source-AC-VDC-1000"')
+    expect(markup).toContain('>S</span>')
+  })
+})
+
+describe('EstimateItemsCatalogPage quantity-sync 409 navigation', () => {
+  const activeRule: QuantitySyncRule = {
+    ruleKey: 'UI_HOME_MULTI_R32',
+    estimateCategory: 'HOME_MULTI',
+    name: 'R32 테스트 규칙',
+    enabled: true,
+    aggregation: 'SUM',
+    when: {},
+    inactiveBehavior: 'ZERO',
+    conflictPolicy: 'REPLACE',
+    priority: 1000,
+    legacyRef: 'UI:R32',
+    sources: [{ productCode: 'R32-MAIN', productName: 'R32 본체' }],
+    targets: [{ productCode: 'R32-MATERIAL', productName: 'R32 부자재', multiplier: 1 }],
+  }
+
+  it('409 차단 문구에서 rule key 목록을 보존하고 무관한 문구는 연결하지 않는다', () => {
+    expect(extractQuantitySyncRuleKeys(
+      '수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: UI_HOME_MULTI_R32, UI_HOME_MULTI_OTHER',
+    )).toEqual(['UI_HOME_MULTI_R32', 'UI_HOME_MULTI_OTHER'])
+    expect(extractQuantitySyncRuleKeys('일반 오류: UI_HOME_MULTI_R32')).toEqual([])
+  })
+
+  it('활성 rule key를 본체 source 모델코드 편집 지점으로 해석한다', () => {
+    expect(resolveQuantitySyncRuleEditTarget(activeRule.ruleKey, [activeRule])).toEqual({
+      ruleKey: activeRule.ruleKey,
+      modelCode: 'R32-MAIN',
+    })
+    expect(resolveQuantitySyncRuleEditTarget(activeRule.ruleKey, [{ ...activeRule, enabled: false }])).toBeUndefined()
   })
 })

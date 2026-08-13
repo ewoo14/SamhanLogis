@@ -20,6 +20,7 @@ import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.web.dto.LookupRequest;
+import com.samhanair.logis.product.web.dto.OpaqueUuidSerializer;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -227,7 +228,7 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].id", is(bundleProductId.toString())))
+                .andExpect(jsonPath("$.data[0].id", is(OpaqueUuidSerializer.encode(bundleProductId))))
                 .andExpect(jsonPath("$.data[0].productCode", is(bundleProductCode)))
                 .andExpect(jsonPath("$.data[0].productType", is("BUNDLE")))
                 .andExpect(jsonPath("$.data[0].categoryKey", is("singleSets")));
@@ -356,8 +357,8 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                 // 총 2건 반환
                 .andExpect(jsonPath("$.data.length()", is(2)))
                 // serial 품목(INDOOR_WALL) — UUID 기준 filter expression, 결과는 List → hasItem
-                .andExpect(jsonPath("$.data[?(@.id=='" + serialIdStr + "')].serialManaged", hasItem(true)))
+                .andExpect(jsonPath("$.data[?(@.id=='" + OpaqueUuidSerializer.encode(UUID.fromString(serialIdStr)) + "')].serialManaged", hasItem(true)))
                 // batch 품목(PIPING) — UUID 기준 filter expression, 결과는 List → hasItem
-                .andExpect(jsonPath("$.data[?(@.id=='" + batchIdStr + "')].serialManaged", hasItem(false)));
+                .andExpect(jsonPath("$.data[?(@.id=='" + OpaqueUuidSerializer.encode(UUID.fromString(batchIdStr)) + "')].serialManaged", hasItem(false)));
     }
 }

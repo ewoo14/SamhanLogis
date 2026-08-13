@@ -1,11 +1,14 @@
-param(
+﻿param(
   [string]$Database = 'auth_db',
   [string]$User = 'samhan',
   [string]$PostgresImage = 'postgres:16-alpine',
   [string]$FlywayImage = 'flyway/flyway:10.10.0'
 )
 
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Text.UTF8Encoding]::new($false)
 $ErrorActionPreference = 'Stop'
+try {
 $randomPasswordBytes = New-Object byte[] 32
 $randomNumberGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
 try { $randomNumberGenerator.GetBytes($randomPasswordBytes) } finally { $randomNumberGenerator.Dispose() }
@@ -67,9 +70,17 @@ try {
   & docker network rm $network *> $null
 }
 $byRole = @{}
+$seenCells = [System.Collections.Generic.HashSet[string]]::new()
 foreach ($row in $rows) {
   if ($row -notmatch '\|') { continue }
   $parts = $row.Split('|')
+  if ($parts.Count -ne 3 -or $parts[2] -notmatch '^[01]{7}$') {
+    throw "DB 파생 스냅샷 갱신 중단: 잘못된 projection row '$row'"
+  }
+  $cell = "$($parts[0])|$($parts[1])"
+  if (-not $seenCells.Add($cell)) {
+    throw "DB 파생 스냅샷 갱신 중단: duplicate projection cell $cell first/second bits cannot be represented"
+  }
   if (-not $byRole.ContainsKey($parts[0])) { $byRole[$parts[0]] = @{} }
   $byRole[$parts[0]][$parts[1]] = $parts[2]
 }
@@ -95,6 +106,10 @@ $lines.Add('export const PERMISSION_DB_BITS_BY_ROLE: Record<string, Record<strin
 $lines.Add('  ...TEMPLATE_PERMISSION_DB_BITS_BY_ROLE,')
 $lines.Add("  MASTER: Object.fromEntries(PERMISSION_PAGE_CODES.map((pageCode) => [pageCode, '1111111'])),")
 $lines.Add('}')
-[IO.File]::WriteAllText($outputPath, ($lines -join [Environment]::NewLine) + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText($outputPath, ($lines -join "`n") + "`n", [Text.UTF8Encoding]::new($false))
 Write-Output "Wrote DB-derived projection: $outputPath"
 Write-Output 'Next: run the contract test; any changed divergence set must update permission-mock-divergences.ts in the same change.'
+} catch {
+  [Console]::Error.WriteLine($_.Exception.Message)
+  exit 1
+}

@@ -9,6 +9,8 @@ import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.service.EstimateService;
 import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
+import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailReadResponse;
+import com.samhanair.logis.slip.estimate.web.dto.EstimateReadResponse;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateResponse;
 import com.samhanair.logis.slip.estimate.web.dto.UpdateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.ChangeEstimateOwnerRequest;
@@ -81,7 +83,7 @@ public class EstimateController {
             description = "status / partnerId / 기간(start-end) 필터 조합")
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Page<EstimateResponse>> list(
+    public ApiResponse<Page<EstimateReadResponse>> list(
             @RequestParam(required = false) EstimateStatus status,
             @RequestParam(required = false) UUID partnerId,
             @RequestParam(required = false)
@@ -95,13 +97,14 @@ public class EstimateController {
             @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);
         Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, includeDeleted, pageable));
+        return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, includeDeleted, pageable)
+                .map(EstimateReadResponse::from));
     }
 
     /** 웹 표면 자기 담당 목록 — 직원/거래처의 현재 담당 견적만 반환한다. */
     @GetMapping("/assigned")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Page<EstimateResponse>> assignedList(
+    public ApiResponse<Page<EstimateReadResponse>> assignedList(
             @RequestParam(required = false) EstimateStatus status,
             @RequestParam(required = false) UUID partnerId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -111,19 +114,19 @@ public class EstimateController {
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(estimateService.listAssigned(callerHeader, status, partnerId,
-                startDate, endDate, includeDeleted, PageRequest.of(page, size)));
+                startDate, endDate, includeDeleted, PageRequest.of(page, size)).map(EstimateReadResponse::from));
     }
 
     /** 견적서 단건 상세 조회. */
     @Operation(summary = "견적서 단건 상세", description = "라인 포함")
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<EstimateDetailResponse> getOne(
+    public ApiResponse<EstimateDetailReadResponse> getOne(
             @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);
-        return ApiResponse.ok(estimateService.getOne(id));
+        return ApiResponse.ok(EstimateDetailReadResponse.from(estimateService.getOne(id)));
     }
 
     /** 견적서 신규 생성 (DRAFT 상태). */
@@ -150,11 +153,11 @@ public class EstimateController {
     @PutMapping("/{id}")
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> update(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @Valid @RequestBody UpdateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        return ApiResponse.ok(estimateService.update(id, request, callerOrSystem(callerHeader), callerName));
+        return ApiResponse.ok(estimateService.update(estimateService.resolveId(id), request, callerOrSystem(callerHeader), callerName));
     }
 
     /** DRAFT → SENT. */
@@ -162,9 +165,9 @@ public class EstimateController {
     @PostMapping("/{id}/send")
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> send(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(estimateService.send(id, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(estimateService.send(estimateService.resolveId(id), callerOrSystem(callerHeader)));
     }
 
     /** SENT → ACCEPTED. */
@@ -172,9 +175,9 @@ public class EstimateController {
     @PostMapping("/{id}/accept")
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> accept(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(estimateService.accept(id, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(estimateService.accept(estimateService.resolveId(id), callerOrSystem(callerHeader)));
     }
 
     /** SENT → REJECTED. */
@@ -182,9 +185,9 @@ public class EstimateController {
     @PostMapping("/{id}/reject")
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> reject(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(estimateService.reject(id, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(estimateService.reject(estimateService.resolveId(id), callerOrSystem(callerHeader)));
     }
 
     /** 임의 상태(DRAFT/SENT/ACCEPTED) → CONVERTED — Slip(OUTBOUND DRAFT) 자동 발행. */
@@ -197,9 +200,9 @@ public class EstimateController {
     @PostMapping("/{id}/convert")
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> convert(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(estimateService.convert(id, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(estimateService.convert(estimateService.resolveId(id), callerOrSystem(callerHeader)));
     }
 
     /** 견적서 목록 soft-delete. */
@@ -207,10 +210,10 @@ public class EstimateController {
     @DeleteMapping("/{id}")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public ApiResponse<Void> delete(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        estimateService.delete(id, callerOrSystem(callerHeader), callerName);
+        estimateService.delete(estimateService.resolveId(id), callerOrSystem(callerHeader), callerName);
         return ApiResponse.ok(null);
     }
 
@@ -219,26 +222,26 @@ public class EstimateController {
     @PostMapping("/{id}/restore")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.RESTORE)
     public ApiResponse<EstimateDetailResponse> restore(
-            @PathVariable UUID id) {
-        return ApiResponse.ok(estimateService.restore(id));
+            @PathVariable String id) {
+        return ApiResponse.ok(estimateService.restore(estimateService.resolveId(id)));
     }
 
     /** 웹 표면 자기 담당 삭제 견적 복원. */
     @PostMapping("/assigned/{id}/restore")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.RESTORE)
     public ApiResponse<EstimateDetailResponse> assignedRestore(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(estimateService.restoreAssigned(id, callerHeader));
+        return ApiResponse.ok(estimateService.restoreAssigned(estimateService.resolveId(id), callerHeader));
     }
 
     /** 견적서 계열 담당 변경. 주문서 계열은 이 endpoint의 계약 대상이 아니다. */
     @PatchMapping("/{id}/owner")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> changeOwner(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @Valid @RequestBody ChangeEstimateOwnerRequest request) {
-        return ApiResponse.ok(estimateService.changeOwner(id, request.requesterId(), request.documentType()));
+        return ApiResponse.ok(estimateService.changeOwner(estimateService.resolveId(id), request.requesterId(), request.documentType()));
     }
 
     private UUID parseAccountId(String header) {

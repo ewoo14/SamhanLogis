@@ -382,7 +382,8 @@ public class PartnerService {
             return;
         }
         java.util.UUID safeActorId = actorUserId == null ? new java.util.UUID(0L, 0L) : actorUserId;
-        String safeActorName = (actorName == null || actorName.isBlank()) ? "system" : actorName;
+        String safeActorName = com.samhanair.logis.common.security.ActorDisplayName.resolve(
+                safeActorId.toString(), actorName);
         try {
             auditRecorder.recordOverlayPatch(entityId, safeActorId, safeActorName, null,
                     fieldName, oldVal, newVal);

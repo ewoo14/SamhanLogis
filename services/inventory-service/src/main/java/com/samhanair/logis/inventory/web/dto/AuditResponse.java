@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.AuditStatus;
 import com.samhanair.logis.inventory.domain.InventoryAudit;
 import java.math.BigDecimal;
@@ -14,8 +15,10 @@ import java.util.UUID;
  * 사용자 노출 식별자는 auditNo + warehouseCode + auditDate.
  */
 public record AuditResponse(
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID id,
         String auditNo,
+        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID warehouseId,
         String warehouseCode,
         String warehouseName,

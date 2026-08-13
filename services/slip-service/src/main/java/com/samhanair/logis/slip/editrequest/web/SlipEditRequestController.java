@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.editrequest.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequest;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequestStatus;
@@ -179,12 +180,6 @@ public class SlipEditRequestController {
     }
 
     private String resolveName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            return callerId;
-        }
-        return "system";
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 }

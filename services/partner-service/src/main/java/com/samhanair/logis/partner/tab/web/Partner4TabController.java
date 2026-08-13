@@ -1,6 +1,7 @@
 package com.samhanair.logis.partner.tab.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.partner.tab.dto.PartnerContactRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerContactResponse;
 import com.samhanair.logis.partner.tab.dto.PartnerFullRequest;
@@ -151,6 +152,9 @@ public class Partner4TabController {
      * 전파되는 경우(비-UUID 문자열)에만 그대로 사용한다.
      */
     static String displayNameOrNull(String principalName) {
+        if (ActorDisplayName.isUuid(principalName)) {
+            return null;
+        }
         if (principalName == null || principalName.isBlank()) {
             return null;
         }

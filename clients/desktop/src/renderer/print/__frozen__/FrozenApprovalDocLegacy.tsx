@@ -5,9 +5,7 @@
  * 조합을 verbatim 복사한 test/golden 생성 전용 파일이다. fetch/router를 호출하지
  * 않으며 production model이나 `LegacyApprovalDocBody`를 공유하지 않는다.
  */
-import {
-  APPROVAL_ATTACHMENT_TYPE_LABEL,
-} from '../../api/groupwareApprovalAttachment'
+import { approvalAttachmentPrintLabel } from '../../api/approvalAttachmentPresentation'
 import { PrintLayout, krw } from '../PrintLayout'
 import {
   attachmentDetails,
@@ -118,7 +116,7 @@ export function FrozenApprovalDocLegacy({
                   return (
                     <tr key={`${attachment.displayOrder}-${index}`}>
                       <td style={{ padding: '2mm', border: '1px solid #000' }}>
-                        {APPROVAL_ATTACHMENT_TYPE_LABEL[attachment.attachmentType]}
+                        {approvalAttachmentPrintLabel(attachment)}
                       </td>
                       <td style={{ padding: '2mm', border: '1px solid #000', overflowWrap: 'anywhere' }}>
                         {attachmentTitle(attachment)}

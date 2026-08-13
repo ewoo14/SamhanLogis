@@ -24,6 +24,7 @@ import { getEstimate, type EstimateDetail } from '../api/sales'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
+import { safeActorName } from '@samhan/design-system'
 
 /**
  * 견적 유효기간 — `createdAt + 30 일` 기본 (실제 운영은 EstimateDetail 에 expirationDate 추가
@@ -115,7 +116,7 @@ export function QuoteView() {
                 </tr>
                 <tr>
                   <th>작성자</th>
-                  <td>{est.authorName}</td>
+                  <td>{safeActorName(est.authorName) ?? '변경자 미상'}</td>
                 </tr>
               </tbody>
             </table>

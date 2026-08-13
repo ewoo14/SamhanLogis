@@ -14,7 +14,7 @@ describe('EstimateCollabRealtimeClient', () => {
 
     expect(config).toMatchObject({ name: 'estimate-collab' })
     expect(config?.endpointPath('estimate/1')).toBe(
-      '/api/v1/slips/estimates/estimate%2F1/collab/stream',
+      '/api/v1/slips/estimates/estimate-1/collab/stream',
     )
   })
 })

@@ -1,0 +1,564 @@
+{
+  "startedAt": "2026-08-12T20:41:12.554Z",
+  "expected": [
+    "2026/08/03-2",
+    "2026/08/03-3",
+    "2026/08/03-4",
+    "2026/08/08-6",
+    "2026/08/08-7",
+    "2026/08/08-8",
+    "2026/08/08-9",
+    "2026/08/08-20",
+    "2026/08/08-21",
+    "2026/08/09-10",
+    "2026/08/10-6",
+    "2026/08/10-7",
+    "2026/08/10-9"
+  ],
+  "observed": [
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:41420/auth/login",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/purchases/slips",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/auth/admin/permissions/my",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips?page=0&size=20&slipType=INBOUND",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": true
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips?status=COMPLETED&page=0&size=50",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": true
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/revertability",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/list-realtime",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/auth/admin/permissions/my",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/audit-logs",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/comments?limit=20",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/presence",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/redline",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/presence",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/presence/join",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/stream",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/stream",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/realtime",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/auth/admin/permissions/my",
+      "rawUrlHasUuid": false,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/audit-logs",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/redline",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/comments?limit=20",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/presence",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/presence",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>/revertability",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": false,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:41420/api/v1/slips/<UUID>/collab/presence/join",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": false
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:41420/slips/<UUID>",
+      "rawUrlHasUuid": true,
+      "status": 200,
+      "responseHasUuid": true,
+      "responseHasQuestionMark": false
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+  ],
+  "login": {
+    "path": "/",
+    "userPath": true
+  },
+  "list": {
+    "headingVisible": true,
+    "rowCountOnPage": 20,
+    "visibleUuid": false,
+    "questionDataCells": [
+      "?????",
+      "??????91?-???",
+      "?????",
+      "?????",
+      "(?)??????"
+    ],
+    "url": "http://127.0.0.1:41420/purchases/slips",
+    "urlHasUuid": false
+  },
+  "api": {
+    "completedListStatus": 200,
+    "completedListResponseHasUuid": true,
+    "bulkStatus": 200,
+    "bulkCount": 13,
+    "bulkResponseHasUuid": false,
+    "bulkResponseHasQuestionMark": false,
+    "missing": [],
+    "extra": [],
+    "singleCount": 13,
+    "singleStatuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "singleResponseUuidCount": 0,
+    "rows": [
+      {
+        "slipNo": "2026/08/03-2",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/03-3",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/03-4",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL",
+          "DOWNSTREAM_DISPATCH_GROUP"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다.",
+          "완료 후 연결된 배차그룹이 있어 먼저 연결을 해제해야 합니다. 배차그룹: QA-1039-GROUP-S9"
+        ]
+      },
+      {
+        "slipNo": "2026/08/08-6",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/08-7",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/08-8",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/08-9",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/08-20",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/08-21",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/09-10",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/10-6",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/10-7",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      },
+      {
+        "slipNo": "2026/08/10-9",
+        "revertable": false,
+        "reasonCodes": [
+          "LEGACY_NO_SOURCE_JOURNAL"
+        ],
+        "reasons": [
+          "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다."
+        ]
+      }
+    ]
+  },
+  "detail": {
+    "slipNoVisible": true,
+    "completedVisible": false,
+    "resultText": "현재 되돌릴 수 없음",
+    "reasons": "재고 결과물은 연결됐지만 source journal이 없어 자동 되돌림 근거가 없습니다.\n완료 후 연결된 배차그룹이 있어 먼저 연결을 해제해야 합니다. 배차그룹: QA-1039-GROUP-S9",
+    "dispatchGroupVisible": true,
+    "visibleUuid": false,
+    "url": "http://127.0.0.1:41420/purchases/<UUID>",
+    "urlHasUuid": true,
+    "questionDataCells": []
+  },
+  "afterReadOnlyCalls": {
+    "completedVisible": false,
+    "slipNoVisible": true,
+    "resultText": "현재 되돌릴 수 없음",
+    "mutationButtons": 0
+  },
+  "finishedAt": "2026-08-12T20:41:14.408Z"
+}

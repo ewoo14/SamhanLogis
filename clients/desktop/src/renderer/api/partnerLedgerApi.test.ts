@@ -1,20 +1,70 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildPartnerLedgerLines, mapLedgerSnapshotResponse } from './partnerLedgerApi'
+import { buildPartnerLedgerLines, getSalesSlipLedgerData, mapLedgerSnapshotResponse, mapPartnerLedgerResponse } from './partnerLedgerApi'
 import { apiClient } from './client'
 import { getLedgerData } from './partnerLedgerApi'
 
 vi.mock('./client', () => ({ apiClient: { get: vi.fn() } }))
 
 describe('partner ledger adapter', () => {
+  it('판매전표 상세용 원장 endpoint가 accounting-service의 전잔·후잔을 보존한다', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: {
+      partnerCode: 'P-0005', partnerName: '대구HVAC솔루션', partnerBusinessNo: '165-35-10155',
+      periodFrom: '2026-07-01', periodTo: '2026-07-01',
+      openingBalance: '120000', salesTotal: '55000', paymentTotal: '0',
+      closingBalance: '175000', adjustmentTotal: '0', documents: [],
+    } } })
+
+    const result = await getSalesSlipLedgerData('P-0005', '2026-07-01', '2026-07-01')
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/accounting/journals/sales-slip-ledger',
+      { params: { partnerCode: 'P-0005', from: '2026-07-01', to: '2026-07-01' } },
+    )
+    expect(result.openingBalance).toBe('120000')
+    expect(result.closingBalance).toBe('175000')
+  })
+
+  it('저장 대상 slipNo를 accounting 원장 endpoint에 명시적으로 전달한다', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: {
+      partnerCode: 'P-0005', partnerName: '대구HVAC솔루션', partnerBusinessNo: '165-35-10155',
+      periodFrom: '2026-07-01', periodTo: '2026-07-01',
+      openingBalance: '120000', salesTotal: '55000', paymentTotal: '0',
+      closingBalance: '175000', adjustmentTotal: '0', documents: [],
+    } } })
+
+    await getSalesSlipLedgerData('P-0005', '2026-07-01', '2026-07-01', '2026/07/01-7')
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/accounting/journals/sales-slip-ledger',
+      { params: {
+        partnerCode: 'P-0005', from: '2026-07-01', to: '2026-07-01', slipNo: '2026/07/01-7',
+      } },
+    )
+  })
+
+  it('원장 응답에서 잔액 필드가 없으면 0으로 합성하지 않는다', () => {
+    const result = mapPartnerLedgerResponse({
+      partnerCode: 'P-0005', partnerName: '거래처', partnerBusinessNo: '',
+      periodFrom: '2026-07-01', periodTo: '2026-07-01', documents: [],
+    })
+
+    expect(result.openingBalance).toBeUndefined()
+    expect(result.closingBalance).toBeUndefined()
+  })
+
   it('상세 응답의 거래처 사업자번호를 상세·인쇄 모델로 전달한다', async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: {
       partnerCode: 'P-0005', partnerName: '대구HVAC솔루션', partnerBusinessNo: '165-35-10155',
-      periodFrom: '2026-07-01', periodTo: '2026-07-31', documents: [],
+      periodFrom: '2026-07-01', periodTo: '2026-07-31',
+      openingBalance: '120000', salesTotal: '55000', paymentTotal: '0',
+      closingBalance: '175000', adjustmentTotal: '0', documents: [],
     } } })
 
     const result = await getLedgerData('P-0005', '2026-07-01', '2026-07-31')
 
     expect(result.partnerBusinessNo).toBe('165-35-10155')
+    expect(result.openingBalance).toBe('120000')
+    expect(result.closingBalance).toBe('175000')
   })
 
   it('keeps source order and computes a running debit-minus-credit balance', () => {

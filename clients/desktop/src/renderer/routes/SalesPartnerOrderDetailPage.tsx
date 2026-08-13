@@ -4,15 +4,26 @@
  * <p>거래처가 입력한 그대로 표시 (수정 X). Bundle EXPAND/KEEP 결과 + expanded
  * components + 자동 생성 슬립 번호 표시.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { Badge, Button, Input, Modal, Select, WarehouseAutocomplete } from '@samhan/design-system'
+import {
+  Badge,
+  Button,
+  Card,
+  CopyButton,
+  Input,
+  Modal,
+  OrderNumberDisplay,
+  OrderStatusBadge,
+  Select,
+  Spinner,
+  WarehouseAutocomplete,
+} from '@samhan/design-system'
 import type { Warehouse } from '@samhan/design-system'
 import { listWarehouses, type StockBalanceLookupLine } from '../api/inventory'
 import {
-  PARTNER_ORDER_STATUS_LABEL,
   SLIP_PUBLISH_STATUS_DISPLAY,
   convertPartnerOrderToSlip,
   deletePartnerOrder,
@@ -37,6 +48,7 @@ import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
+import { getReturnTo, type ReturnNavigationState } from '../utils/returnContract'
 import styles from '../components/sales/sales.module.css'
 
 const BUNDLE_CONVERSION_MESSAGE = '세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.'
@@ -49,24 +61,26 @@ function safeConversionMessage(value: unknown): string | null {
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 const PARTNER_ORDER_INVENTORY_LOOKUP_TEST_ID = 'partner-order-inventory-lookup-btn'
-const statusBadgeStyle = (status: string) => {
-  switch (status) {
-    case 'ON_HOLD':
-      return { background: '#FEF3C7', color: '#92400E' }
-    case 'CONVERTED':
-      return { background: '#EDE9FE', color: '#5B21B6' }
-    case 'CONFIRMED':
-      return { background: '#D1FAE5', color: '#065F46' }
-    case 'CANCELED':
-      return { background: '#FEE2E2', color: '#991B1B' }
-    case 'DRAFT':
-    default:
-      return { background: '#F3F4F6', color: '#4B5563' }
-  }
-}
-
 const emptyLabel = (value: string | number | null | undefined) =>
   value === null || value === undefined || value === '' ? '-' : String(value)
+
+function DetailGridField({
+  label,
+  value,
+  children,
+}: {
+  label: string
+  value: string | number | null | undefined
+  children: ReactNode
+}) {
+  const isEmpty = value === null || value === undefined || value === ''
+  return (
+    <div className={isEmpty ? 'detail-grid-item-empty' : undefined}>
+      <span className="detail-label">{label}</span>
+      <span className="detail-value">{children}</span>
+    </div>
+  )
+}
 
 /**
  * SlipPublishStatus 배지 hover 안내(title) — design-system Badge 가 `...rest` 로 title 을
@@ -177,10 +191,20 @@ export function SalesPartnerOrderDetailPage() {
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
   const isMobile = useIsMobile()
 
   const isValidId = !!id && id !== 'undefined' && id !== 'null'
   const orderId = id!
+  const returnTo = getReturnTo(location.state, { pathname: '/sales/partner-orders', search: '' })
+  const returnEntryKey = location.state && typeof location.state === 'object'
+    ? (location.state as ReturnNavigationState).returnEntryKey
+    : undefined
+  const hasReturnEntry = typeof returnEntryKey === 'string' && returnEntryKey.length > 0
+  const goBackToList = () => {
+    if (hasReturnEntry) navigate(-1)
+    else navigate(returnTo, { replace: true })
+  }
   const canEdit = canAccess('sales.partner-order.edit', 'update')
   // [C2c] 삭제는 BE PartnerOrderDeleteController 가 sales.partner-order.edit + DELETE 요구 →
   // 7-action 분리 모델에서 update 와 별개로 delete 권한을 확인(Codex review P1).
@@ -260,7 +284,7 @@ export function SalesPartnerOrderDetailPage() {
       setDeleteErrorMessage(null)
       setDeleteOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
-      navigate('/sales/partner-orders')
+      goBackToList()
     },
     onError: (error) => {
       if (axios.isAxiosError(error) && error.response?.status === 422) {
@@ -704,32 +728,47 @@ export function SalesPartnerOrderDetailPage() {
 
   if (!isValidId) {
     return (
-      <div className={styles['salesScope']}>
+      <>
         <SalesSubNav />
-        <div className={styles['wrap']}>
-          <div className={styles['emptyState']}>
+        <Card padding={4} shadow="sm">
+          <div className="empty-state">
             <h3>주문번호가 지정되지 않았습니다</h3>
             <p>주문서 목록에서 항목을 선택해 주세요.</p>
-            <Link to="/sales/partner-orders" className={styles['btnGhost']}>
+            <Button type="button" variant="ghost" onClick={goBackToList}>
               ← 목록으로 이동
-            </Link>
+            </Button>
           </div>
-        </div>
-      </div>
+        </Card>
+      </>
     )
   }
 
   return (
-    <div className={styles['salesScope']}>
+    <>
       <SalesSubNav />
-      <div className={styles['wrap']}>
-        <div className={styles['top']}>
-          <div className={styles['title']}>
-            주문서 상세
-            <span className={styles['badge']}>{query.data?.orderNumber ?? '조회 중'}</span>
-          </div>
-          {!isMobile ? (
-          <div className={`${styles['topActions']} detail-action-bar`}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <h3 style={{ margin: 0 }}>주문서 상세</h3>
+          {query.data?.orderNumber ? (
+            <OrderNumberDisplay orderNumber={query.data.orderNumber} size="lg" />
+          ) : (
+            <Badge variant="neutral">조회 중</Badge>
+          )}
+          {query.data?.orderNumber ? (
+            <CopyButton text={query.data.orderNumber} label="번호 복사" />
+          ) : null}
+        </div>
+        {!isMobile ? (
+          <div className="detail-action-bar">
             {query.data && canPrint ? (
               <Button
                 type="button"
@@ -806,12 +845,12 @@ export function SalesPartnerOrderDetailPage() {
                 삭제
               </Button>
             ) : null}
-            <Link to="/sales/partner-orders" className={`${styles['btnGhost']} ${styles['listBackLink']}`}>
+            <Button type="button" variant="ghost" onClick={goBackToList}>
               ← 목록
-            </Link>
+            </Button>
           </div>
-          ) : null}
-        </div>
+        ) : null}
+      </div>
         {printErrorMessage ? (
           <div className={styles['errorBanner']} role="alert" data-testid="partner-order-print-error">
             {printErrorMessage}
@@ -845,12 +884,10 @@ export function SalesPartnerOrderDetailPage() {
                 {/* 배지 2개를 그룹핑 래퍼로 묶어야 space-between 3-child 배치로 상태 배지가
                     중앙에 부유하지 않는다(#854 R5 LOW-5). */}
                 <span className="mobile-summary-badge-group">
-                  <span
+                  <OrderStatusBadge
                     className="mobile-status-badge"
-                    style={statusBadgeStyle(query.data.status)}
-                  >
-                    {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
-                  </span>
+                    status={query.data.status}
+                  />
                   {slipPublishStatusMeta ? (
                     <Badge
                       variant={slipPublishStatusMeta.variant}
@@ -997,7 +1034,7 @@ export function SalesPartnerOrderDetailPage() {
                       className="mobile-more-sheet-item"
                       onClick={() => {
                         setMoreOpen(false)
-                        navigate('/sales/partner-orders')
+                        goBackToList()
                       }}
                     >
                       목록으로
@@ -1008,7 +1045,9 @@ export function SalesPartnerOrderDetailPage() {
         ) : null}
 
         {query.isLoading ? (
-          <div className={styles['emptyState']}>주문 상세를 불러오는 중…</div>
+          <div className={styles['emptyState']}>
+            <Spinner size="lg" label="주문 상세를 불러오는 중" />
+          </div>
         ) : query.isError ? (
           <div className={styles['emptyState']}>
             <h3>주문 조회에 실패했습니다</h3>
@@ -1046,13 +1085,22 @@ export function SalesPartnerOrderDetailPage() {
             ) : null}
 
             {!isMobile ? (
-            <div className={styles['card']}>
-              <div className={styles['cardHead']}>
-                <div className={styles['cardTitle']}>
-                  거래처 · {query.data.partnerName ?? query.data.partnerCode}
-                  <span className={styles['badge']}>
-                    {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
-                  </span>
+            <Card padding={4} shadow="sm">
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <h4 style={{ margin: 0 }}>
+                    거래처 · {query.data.partnerName ?? query.data.partnerCode}
+                  </h4>
+                  <OrderStatusBadge status={query.data.status} />
                   {slipPublishStatusMeta ? (
                     <Badge
                       variant={slipPublishStatusMeta.variant}
@@ -1063,50 +1111,48 @@ export function SalesPartnerOrderDetailPage() {
                     </Badge>
                   ) : null}
                 </div>
-                <div className={styles['cardActions']}>
-                  <span className={styles['ratio']}>합계 {krw(query.data.totalAmount)}원</span>
-                </div>
+                <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  합계 {krw(query.data.totalAmount)}원
+                </strong>
               </div>
-              <div className={styles['formGrid']}>
-                <div className={styles['formField']}>
-                  <label>거래처 코드</label>
-                  <Input aria-label="거래처 코드" readOnly inputSize="sm" value={query.data.partnerCode} />
-                </div>
-                <div className={styles['formField']}>
-                  <label>연결 전표</label>
-                  <Input aria-label="연결 전표" readOnly inputSize="sm" value={query.data.linkedSlipNo ?? '-'} />
-                </div>
-                <div className={styles['formField']}>
-                  <label>배송지</label>
-                  <Input aria-label="배송지" readOnly inputSize="sm" value={query.data.deliveryAddress ?? '-'} />
-                </div>
-                <div className={styles['formField']}>
-                  <label>현장</label>
-                  <Input aria-label="현장" readOnly inputSize="sm" value={query.data.siteAddress ?? '-'} />
-                </div>
-                <div className={styles['formField']}>
-                  <label>연락처</label>
-                  <Input aria-label="연락처" readOnly inputSize="sm" value={query.data.contactPhone ?? '-'} />
-                </div>
-                <div className={styles['formField']}>
-                  <label>납기</label>
-                  <Input aria-label="납기" readOnly inputSize="sm" value={query.data.dueDate ?? '-'} />
-                </div>
-                {query.data.memo ? (
-                  <div className={`${styles['formField']} ${styles['formFieldSpanAll']}`}>
-                    <label>요청사항</label>
-                    <Input aria-label="요청사항" readOnly inputSize="sm" value={query.data.memo} />
-                  </div>
-                ) : null}
+              <div className="detail-grid">
+                <DetailGridField label="거래처 코드" value={query.data.partnerCode}>
+                  {emptyLabel(query.data.partnerCode)}
+                </DetailGridField>
+                <DetailGridField label="연결 전표" value={query.data.linkedSlipNo}>
+                  {emptyLabel(query.data.linkedSlipNo)}
+                </DetailGridField>
+                <DetailGridField label="배송지" value={query.data.deliveryAddress}>
+                  {emptyLabel(query.data.deliveryAddress)}
+                </DetailGridField>
+                <DetailGridField label="현장" value={query.data.siteAddress}>
+                  {emptyLabel(query.data.siteAddress)}
+                </DetailGridField>
+                <DetailGridField label="연락처" value={query.data.contactPhone}>
+                  {emptyLabel(query.data.contactPhone)}
+                </DetailGridField>
+                <DetailGridField label="납기" value={query.data.dueDate}>
+                  {emptyLabel(query.data.dueDate)}
+                </DetailGridField>
+                <DetailGridField label="요청사항" value={query.data.memo}>
+                  {emptyLabel(query.data.memo)}
+                </DetailGridField>
               </div>
-            </div>
+            </Card>
             ) : null}
 
-            <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
-              <div className={`${styles['cardHead']} detail-mobile-hide`}>
-                <div className={styles['cardTitle']}>
+            <Card padding={4} shadow="sm" style={{ marginTop: 24 }}>
+              <div className="detail-mobile-hide" style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 16,
+                flexWrap: 'wrap',
+              }}>
+                <h4 style={{ margin: 0 }}>
                   라인 ({query.data.lines?.length ?? 0}건)
-                </div>
+                </h4>
                 {/* Phase 2.6d: 선택 품목 재고조회 버튼 */}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <Button
@@ -1145,7 +1191,7 @@ export function SalesPartnerOrderDetailPage() {
                   )}
                 </div>
               </div>
-              <div className={`${styles['tableWrap']} detail-mobile-hide`}>
+              <div className="detail-mobile-hide" style={{ overflowX: 'auto' }}>
                 <table className={styles['estTable']}>
                   <thead>
                     {/* v2 §정정 4/5 — '품명'→'품목명', '모델 코드'→'모델명' */}
@@ -1368,7 +1414,7 @@ export function SalesPartnerOrderDetailPage() {
                   )
                 })}
               </div>
-            </div>
+            </Card>
 
             {isMobile ? (
               collabCurrentValues ? (
@@ -1407,7 +1453,6 @@ export function SalesPartnerOrderDetailPage() {
             )}
           </>
         ) : null}
-      </div>
       <Modal
         open={editOpen}
         onClose={() => setEditOpen(false)}
@@ -1840,7 +1885,7 @@ export function SalesPartnerOrderDetailPage() {
         open={lineLookupOpen}
         onClose={() => setLineLookupOpen(false)}
       />
-    </div>
+    </>
   )
 
   function updateLine(index: number, patch: Partial<EditLine>) {

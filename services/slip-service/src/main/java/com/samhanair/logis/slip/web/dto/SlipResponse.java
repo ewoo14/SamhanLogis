@@ -1,5 +1,7 @@
 package com.samhanair.logis.slip.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
@@ -40,21 +42,21 @@ import java.util.UUID;
  * {@code slipNo} / {@code partnerName} / {@code businessNumber} / {@code partnerCode} 사용.
  */
 public record SlipResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         SlipType slipType,
         String slipNo,
         LocalDate slipDate,
         int seqNo,
         SlipStatus status,
-        UUID partnerId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID partnerId,
         String partnerName,
         String partnerCode,
-        UUID sourceWarehouseId,
-        UUID destinationWarehouseId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID sourceWarehouseId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID destinationWarehouseId,
         DeliveryTag deliveryTag,
         String deliveryTagLabel,
-        String requesterId,
-        String acceptedBy,
+        @JsonSerialize(using = OpaqueUuidStringSerializer.class) String requesterId,
+        @JsonSerialize(using = OpaqueUuidStringSerializer.class) String acceptedBy,
         LocalDateTime acceptedAt,
         LocalDateTime completedAt,
         LocalDateTime confirmedAt,
@@ -119,7 +121,7 @@ public record SlipResponse(
      * @return 요약 응답 record
      */
     public static SlipResponse from(Slip slip) {
-        return from(slip, slip.getRequesterId());
+        return from(slip, ActorDisplayName.resolveNullable(null, slip.getRequesterId()));
     }
 
     /**
@@ -176,7 +178,7 @@ public record SlipResponse(
                 displayTotalAmount,
                 totalQuantity,
                 // 담당자명: 조회 서비스가 user-service에서 resolve한 표시명
-                salesPersonName,
+                ActorDisplayName.resolveNullable(null, salesPersonName),
                 // 수정 이력 건수: S2c 상태의존 표시 카운트(임계 전이 전 편집 제외)
                 slip.editHistoryCount(),
                 // V52 — 하차일 + 배송일정 파생 라벨
@@ -184,7 +186,7 @@ public record SlipResponse(
                 DeliverySchedule.scheduleLabel(slip.getSlipDate(), slip.getUnloadDate(), slip.getDeliveryTag()),
                 Boolean.TRUE.equals(slip.getIsDeleted()),
                 slip.getDeletedAt(),
-                slip.getDeletedByName());
+                ActorDisplayName.resolveNullable(null, slip.getDeletedByName()));
     }
 
     private static LocalDateTime updatedAtOf(Slip slip) {

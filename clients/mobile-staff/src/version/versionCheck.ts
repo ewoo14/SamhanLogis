@@ -10,6 +10,15 @@ export interface VersionStatus {
   releasedAt: string | null;
 }
 
+export const VERSION_POLICY_FAILURE_MESSAGE = '버전 정책을 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.';
+
+export class VersionPolicyError extends Error {
+  constructor() {
+    super(VERSION_POLICY_FAILURE_MESSAGE);
+    this.name = 'VersionPolicyError';
+  }
+}
+
 interface RawVersionStatus {
   latestVersion?: unknown;
   minSupportedVersion?: unknown;
@@ -101,9 +110,11 @@ export async function fetchMobileVersionStatus(
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new Error(`Version check failed with HTTP ${response.status}`);
+      throw new VersionPolicyError();
     }
-    return normalizeVersionStatus(unwrapVersionStatus(await response.json()));
+    const rawStatus = unwrapVersionStatus(await response.json());
+    if (!isValidForceLevel(rawStatus.forceLevel)) throw new VersionPolicyError();
+    return normalizeVersionStatus(rawStatus);
   } finally {
     clearTimeout(timeout);
   }
@@ -122,6 +133,10 @@ function normalizeForceLevel(forceLevel: unknown): ForceLevel {
     return forceLevel;
   }
   return 'NONE';
+}
+
+function isValidForceLevel(forceLevel: unknown): forceLevel is ForceLevel {
+  return forceLevel === 'CRITICAL' || forceLevel === 'MAJOR' || forceLevel === 'MINOR' || forceLevel === 'NONE';
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {

@@ -133,6 +133,10 @@ public enum PageCode {
     /** 입금보고서 수기 CRUD API — E3 S1. */
     ACCOUNTING_CASH_RECEIPTS("accounting.cash-receipts", "입금보고서"),
 
+    /** 영업수수료 정산서 목록·상세·생성·확정 화면/API — D-G1 S4a. */
+    ACCOUNTING_SALES_COMMISSION_SETTLEMENT(
+            "accounting.sales-commission-settlement", "영업수수료 정산"),
+
     // ---- 알림 / SMS (notification) ----
 
     /** 알림 발송 admin 화면/API — SP-D6-3. */
@@ -658,9 +662,6 @@ public enum PageCode {
 
     /** MIG-11 이카운트 매입장 마이그레이션. */
     ECOUNT_MIG11_PURCHASE_LEDGER("ecount.mig11.purchase-ledger", "이카운트 매입장 마이그레이션"),
-
-    /** MIG-14 Order admin 목록/상세 화면. */
-    ECOUNT_MIG14_ORDER_LIST("ecount.mig14.order-list", "이카운트 주문서 admin 조회"),
 
     /** MIG-14 Ledger admin 화면. */
     ECOUNT_MIG14_LEDGER("ecount.mig14.ledger", "이카운트 매출장/매입장 admin 조회"),

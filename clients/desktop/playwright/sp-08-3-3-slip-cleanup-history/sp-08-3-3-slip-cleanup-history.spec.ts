@@ -80,7 +80,9 @@ test.describe('SP-08-3-3 slip cleanup history', () => {
     expect(saveDialog).toContain('Modal')
     expect(saveDialog).not.toContain('backdropStyle')
     expect(restoredBanner).toContain('restored-banner')
-    expect(maskCreatedBy).toContain('ALLOWLIST')
+    // fix2 이후 시스템/UUID 변형 판정은 공통 safeActorName resolver에 위임한다.
+    expect(maskCreatedBy).toContain('safeActorName')
+    expect(maskCreatedBy).toContain("return '시스템'")
     expect(maskCreatedBy).toContain("return '사용자'")
     expect(mock).toContain('mockLatest404')
     expect(mock.indexOf('/slips/cleanup/history')).toBeLessThan(mock.indexOf("url.includes('/slips/cleanup')"))

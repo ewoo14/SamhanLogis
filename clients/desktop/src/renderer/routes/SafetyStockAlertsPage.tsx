@@ -6,7 +6,7 @@
  *
  * UUID 노출 가드 (memory `feedback_uuid_no_user_visibility`):
  * - 화면에는 productCode / productName / warehouseName 만 표시.
- * - UUID(productId / warehouseId) 는 path param 으로만 사용, 화면 미노출.
+ * - productId / warehouseId opaque token 은 path param 으로만 사용, 화면 미노출.
  *
  * 긴급도 (UrgencyBadge, P1-3 신규 컴포넌트):
  * - CRITICAL : 재고 = 0
@@ -112,7 +112,7 @@ export function SafetyStockAlertsPage() {
     refetchInterval: 60_000,
   })
 
-  // 클라이언트 필터링 (창고 + 긴급도)
+  // 창고 목록과 알림 응답이 동일한 opaque warehouseId 축을 사용하므로 문자열을 직접 매칭한다.
   const alerts = useMemo<SafetyStockAlert[]>(() => {
     let all = Array.isArray(alertsQuery.data) ? alertsQuery.data : []
     if (warehouseId) {

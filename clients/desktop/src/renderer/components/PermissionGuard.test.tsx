@@ -33,6 +33,7 @@ vi.mock('@samhan/design-system', () => ({
 
 const PROTECTED_TEXT = '보호된 화면'
 const HOME_TEXT = '홈 화면'
+const SALES_ESTIMATES_PAGE_CODES: PageCode[] = ['estimates.list', 'sales.partner-order.list']
 
 function renderGuard(pageCode: PageCode | PageCode[]) {
   return render(
@@ -110,6 +111,31 @@ describe('PermissionGuard', () => {
 
     expect(screen.getByText(HOME_TEXT)).not.toBeNull()
     expect(screen.queryByText(PROTECTED_TEXT)).toBeNull()
+  })
+
+  it.each([
+    { name: 'RED-A estimates.list 만', grants: ['estimates.list'], protected: true },
+    { name: 'RED-B sales.partner-order.list 만', grants: ['sales.partner-order.list'], protected: true },
+    { name: 'RED-C 둘 다 없음', grants: [], protected: false },
+    { name: 'RED-D 두 권한 모두', grants: ['estimates.list', 'sales.partner-order.list'], protected: true },
+  ])('$name 계정의 /sales/estimates OR 진입 결과가 정확히 일치한다', ({ grants, protected: shouldRender }) => {
+    mocks.canAccess.mockImplementation((code: PageCode) => grants.includes(code))
+
+    renderGuard(SALES_ESTIMATES_PAGE_CODES)
+
+    expect(screen.queryByText(PROTECTED_TEXT) !== null).toBe(shouldRender)
+    expect(screen.queryByText(HOME_TEXT) !== null).toBe(!shouldRender)
+  })
+
+  it('/sales/estimates 라우트는 기존 두 권한을 정확히 OR로 사용한다', () => {
+    const routes = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/renderer/routes/index.tsx'),
+      'utf8',
+    )
+
+    expect(routes).toMatch(
+      /path: '\/sales\/estimates',\s*element:\s*\(\s*<PermissionGuard pageCode=\{\['estimates\.list', 'sales\.partner-order\.list'\]\} action="view">/,
+    )
   })
 
   it('isLoading=true 이면 children 을 렌더하지 않는다(spinner)', () => {

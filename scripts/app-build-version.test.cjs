@@ -159,6 +159,7 @@ test('두 Electron builder 설정에 env 리터럴 버전이 남지 않는다', 
   for (const relativePath of [
     'clients/desktop/electron-builder.yml',
     'clients/arologis-desktop/electron-builder.yml',
+    'clients/internal-chat-desktop/electron-builder.yml',
   ]) {
     const config = readFileSync(resolve(__dirname, '..', relativePath), 'utf8')
     assert.doesNotMatch(config, /\$\{env\.SAMHAN_RELEASE_PACKAGE_VERSION\}/, relativePath)
@@ -283,7 +284,7 @@ function captureReleaseBuilderInvocation(relativeScript, appVersion) {
   return calls
 }
 
-test('두 릴리스 wrapper가 실제 package semver를 builder CLI transformer 입력으로 전달한다', () => {
+test('세 Electron 릴리스 wrapper가 실제 package semver를 builder CLI transformer 입력으로 전달한다', () => {
   const release = createReleaseBuildEnvironment({
     env: { VITE_APP_VERSION: '2026/07/30-2' },
   })
@@ -292,6 +293,7 @@ test('두 릴리스 wrapper가 실제 package semver를 builder CLI transformer 
   for (const [relativeScript, relativeProject] of [
     ['build-desktop-release.cjs', 'clients/desktop'],
     ['build-arologis-desktop-release.cjs', 'clients/arologis-desktop'],
+    ['build-internal-chat-desktop-release.cjs', 'clients/internal-chat-desktop'],
   ]) {
     const calls = captureReleaseBuilderInvocation(relativeScript, release.appVersion)
     const builderCall = calls.find(({ args }) => args.includes(builderArgs[0]))

@@ -2,6 +2,7 @@ package com.samhanair.logis.partner.audit.service;
 
 import com.samhanair.logis.partner.audit.domain.PartnerAuditLog;
 import com.samhanair.logis.partner.audit.repository.PartnerAuditLogRepository;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.audit.AuditEventPayloadBuilder;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
@@ -50,12 +51,13 @@ public class PartnerAuditLogService implements AuditLogRecorder {
                                    String actorColor, String fieldName,
                                    String oldValue, String newValue) {
         Objects.requireNonNull(entityId, "entityId 는 필수입니다");
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = nextRevisionNo(entityId);
         auditLogRepository.save(PartnerAuditLog.record(
-                entityId, revisionNo, actorId, actorName, actorColor,
+                entityId, revisionNo, actorId, safeActorName, actorColor,
                 fieldName, oldValue, newValue));
         broker.publish(entityId, EVENT_PARTNER_EDIT,
-                AuditEventPayloadBuilder.build(revisionNo, actorId, actorName, actorColor,
+                AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName, actorColor,
                         List.of(new ChangeEntry(fieldName, oldValue, newValue))));
         log.debug("[PR-H4b] partner audit overlay 기록 — entityId={} revisionNo={} field={}",
                 entityId, revisionNo, fieldName);
@@ -71,15 +73,16 @@ public class PartnerAuditLogService implements AuditLogRecorder {
         if (changes == null || changes.isEmpty()) {
             throw new IllegalArgumentException("changes 가 비어있습니다 — audit 기록할 변경이 없습니다");
         }
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int revisionNo = nextRevisionNo(entityId);
         List<PartnerAuditLog> saved = new ArrayList<>(changes.size());
         for (ChangeEntry change : changes) {
             saved.add(auditLogRepository.save(PartnerAuditLog.record(
-                    entityId, revisionNo, actorId, actorName, actorColor,
+                    entityId, revisionNo, actorId, safeActorName, actorColor,
                     change.fieldName(), change.oldValue(), change.newValue())));
         }
         broker.publish(entityId, EVENT_PARTNER_EDIT,
-                AuditEventPayloadBuilder.build(revisionNo, actorId, actorName, actorColor, changes));
+                AuditEventPayloadBuilder.build(revisionNo, actorId, safeActorName, actorColor, changes));
         log.debug("[PR-H4b] partner audit batch 기록 — entityId={} revisionNo={} {}건",
                 entityId, revisionNo, changes.size());
         return saved;

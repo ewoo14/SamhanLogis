@@ -20,7 +20,16 @@ cd /c/dev/SamhanLogis
 powershell.exe -ExecutionPolicy Bypass -File scripts/seed-local-stack.ps1
 ```
 
-`launch-local-stack`는 service bootJar를 먼저 만들고, `infrastructure/docker-compose.yml` + `infrastructure/docker-compose.local-all.yml` 조합으로 infra/backend를 올린 뒤 client dev server를 병렬 실행한다.
+`launch-local-stack`는 service bootJar를 먼저 만들고, `infrastructure/docker-compose.yml` + `infrastructure/docker-compose.local-all.yml` 조합으로 infra/backend를 올린 뒤 client dev server를 병렬 실행한다. 이 기본 런처는 기존 서비스 집합만 기동하며 logging-service는 기본 profile에서 제외된다.
+
+logging-service가 필요할 때만 기존 Compose 대상 지정 방식으로 명시적으로 기동한다. 이미 실행 중인 공유 의존성을 건드리지 않도록 `--no-deps`를 유지한다.
+
+```powershell
+.\gradlew.bat :services:logging-service:bootJar
+docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d --build --no-deps logging-service
+```
+
+기본 런처를 실행해도 logging-service가 자동 생성되지 않으며, 위 명령을 실행한 경우에만 `samhan-logging-service`가 추가된다.
 
 ## 접속 URL / Port
 

@@ -1,0 +1,69 @@
+url=http://127.0.0.1:42973/inventory/stock-balance
+Samhan Public
+홈
+알림 내역
+구매
+창고 운영
+0.1.0-dev · 사내 전용
+대시보드
+CODEX SOL · MASTER▼
+
+환영합니다, CODEX SOL 님.
+
+저재고 알림
+
+준비중
+
+미확인 메시지
+
+준비중
+
+결재 대기
+
+준비중
+
+빠른 액션
+새 판매전표
+재고이동 관리
+창고관리
+
+전표 작성은 전표 작성 권한이 있는 계정에서만 가능합니다.
+api=[
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/auth/me",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"userId\":\"sol-liveqa\",\"loginId\":\"sol\",\"role\":\"MASTER\",\"displayName\":\"CODEX SOL\",\"groups\":[]},\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/auth/me",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"userId\":\"sol-liveqa\",\"loginId\":\"sol\",\"role\":\"MASTER\",\"displayName\":\"CODEX SOL\",\"groups\":[]},\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/api/notifications/my",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/auth/admin/permissions/my",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accounting.sales-slip.list\":[\"VIEW\",\"EDIT\"],\"inventory.audit\":[\"VIEW\",\"CREATE\",\"EDIT\"],\"inventory.stock-balance\":[\"VIEW\",\"CREATE\"],\"inventory.adjust\":[\"VIEW\",\"UPDATE\"]},\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.1.0-dev",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-13T00:00:00\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://localhost:8080/app/notices/active",
+    "status": 200,
+    "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-13T00:00:00\"}"
+  }
+]
+console=[]

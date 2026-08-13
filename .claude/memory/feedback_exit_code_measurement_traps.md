@@ -89,3 +89,38 @@ scripts/generate-896-p0-golden-manifest.mjs → const baselineDir
 - 🆕 **구현자가 이상해 보이는 코드를 썼으면 그것이 무엇을 피하고 있는지부터 확인**한다. 되돌리기 전에 되돌린 상태를 실제로 재라 — CI 로.
 
 관련: [[feedback_business_meaning_needs_confirmation_not_inference]] · [[feedback_quoted_output_splice_forgery]] · [[feedback_changed_line_count_misreport]] · [[feedback_qa_harness_commit_breaks_ci]]
+
+---
+
+## 🚨 CI 완료 판정 함정 셋 (2026-08-11 실측 · 하루에 둘을 겪음)
+
+```text
+① conclusion 이 null 이 아니라 **빈 문자열**이다
+   ❌ select(.conclusion==null)|length == 0  →  아직 도는데 "완료" 로 읽힘
+   ✅ select(.status!="COMPLETED")|length
+
+② 🚨 잡 레코드가 **좀비 in_progress** 로 남는다 — 런은 이미 success 인데
+   실측(#1166): 워크플로 런 5개 전부 completed/success · updated 14:27:01
+                그런데 체크런 3개가 in_progress · completed_at=null
+                **그 잡들의 모든 스텝은 completed/success (Complete job 포함)**
+   ⟹ status 만 보면 영원히 안 끝난다. 대기 루프가 무한히 돈다
+
+③ 앱 체크(GitGuardian 등)는 워크플로와 **별개 생명주기**다
+   런이 다 끝난 뒤에 시작하기도 한다
+```
+
+### 판정 절차 (이 순서로)
+
+```bash
+sha=$(gh pr view <n> --json headRefOid -q .headRefOid)
+# 1) 워크플로 런의 conclusion — 이것이 1차 근거
+gh api "repos/<o>/<r>/actions/runs?head_sha=$sha" \
+  --jq '.workflow_runs[]|"\(.status)/\(.conclusion) \(.name)"'
+# 2) in_progress 로 남은 체크런이 있으면 **스텝 단위로** 확인
+gh api "repos/<o>/<r>/actions/runs/<runId>/jobs?per_page=100" \
+  --jq '.jobs[]|select(.status!="completed")|"\(.name)\n  "+([.steps[]|"\(.name)=\(.status)/\(.conclusion//"-")"]|join("\n  "))'
+#    모든 스텝이 completed/success 면 **기록 오류**이지 미완이 아니다
+# 3) 남은 것이 앱 체크뿐인지 확인
+```
+
+🔑 **런 conclusion 과 스텝 결과가 근거이고, 잡의 status 필드는 근거가 아니다.**

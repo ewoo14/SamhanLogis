@@ -35,8 +35,56 @@ export function assertPermissionCatalogSymmetry({
   expect([...mockRoles].sort(), 'mock ↔ snapshot role catalog').toEqual([...snapshotRoles].sort())
 }
 
-function snapshotPageCatalog(): string[] {
-  return [...new Set(Object.values(PERMISSION_BITS_BY_ROLE).flatMap((groups) => Object.values(groups).flat()))].sort()
+type SnapshotBitsByRole = Record<string, Record<string, string[]>>
+
+function snapshotPageCatalog(bitsByRole: SnapshotBitsByRole): string[] {
+  const pages: string[] = []
+  const seenCells = new Map<string, { bits: string }>()
+
+  for (const [role, groups] of Object.entries(bitsByRole)) {
+    for (const [bits, pageCodes] of Object.entries(groups)) {
+      expect(bits, `${role} snapshot bucket must contain exactly seven bits`).toMatch(/^[01]{7}$/)
+      for (const pageCode of pageCodes) {
+        const cell = `${role}|${pageCode}`
+        const first = seenCells.get(cell)
+        expect(
+          first,
+          `duplicate snapshot cell ${cell} firstBits=${first?.bits} secondBits=${bits}`,
+        ).toBeUndefined()
+        seenCells.set(cell, { bits })
+        pages.push(pageCode)
+      }
+    }
+  }
+
+  return [...new Set(pages)].sort()
+}
+
+function assertUniquePermissionDbSnapshotSource(source: string): void {
+  const roleBlocks = /'([A-Z]+)'\s*:\s*\{([\s\S]*?)\n\s*\},/g
+  const cells = /'([^']+)'\s*:\s*'([01]{7})'/g
+  const seenRoles = new Set<string>()
+  const seenCells = new Map<string, { bits: string }>()
+  let roleMatch: RegExpExecArray | null
+
+  while ((roleMatch = roleBlocks.exec(source)) !== null) {
+    const role = roleMatch[1]!
+    expect(seenRoles.has(role), `duplicate projection role block ${role}`).toBe(false)
+    seenRoles.add(role)
+    cells.lastIndex = 0
+    let cellMatch: RegExpExecArray | null
+    while ((cellMatch = cells.exec(roleMatch[2]!)) !== null) {
+      const pageCode = cellMatch[1]!
+      const bits = cellMatch[2]!
+      const cell = `${role}|${pageCode}`
+      const first = seenCells.get(cell)
+      expect(
+        first,
+        `duplicate projection cell ${cell} firstBits=${first?.bits} secondBits=${bits}`,
+      ).toBeUndefined()
+      seenCells.set(cell, { bits })
+    }
+  }
 }
 
 function mockBits(cell: PermissionCell | undefined): string {
@@ -74,9 +122,17 @@ export function collectPermissionMockDivergences({
 export function assertExactPermissionMatrix({
   getMockResponse,
   mockSource,
-}: { getMockResponse: MockResponse; mockSource: string }): void {
+  snapshotBitsByRole = PERMISSION_BITS_BY_ROLE,
+  snapshotSource,
+}: {
+  getMockResponse: MockResponse
+  mockSource: string
+  snapshotBitsByRole?: SnapshotBitsByRole
+  snapshotSource: string
+}): void {
+  assertUniquePermissionDbSnapshotSource(snapshotSource)
   const expectedPages = [...PERMISSION_PAGE_CODES].sort()
-  const snapshotPages = snapshotPageCatalog()
+  const snapshotPages = snapshotPageCatalog(snapshotBitsByRole)
   assertPermissionCatalogSymmetry({
     mockPageCodes: expectedPages,
     snapshotPageCodes: snapshotPages,

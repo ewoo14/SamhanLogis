@@ -1,9 +1,9 @@
 package com.samhanair.logis.slip.attachment.web.dto;
 
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.regex.Pattern;
 
 /**
  * 관리자 사진 감사 목록 응답.
@@ -36,9 +36,6 @@ public record SlipPhotoAuditResponse(
         String uploadedBy,
         LocalDateTime uploadedAt) {
 
-    private static final Pattern UUID_PATTERN = Pattern.compile(
-            "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-            Pattern.CASE_INSENSITIVE);
     private static final String UNKNOWN_UPLOADER = "업로더 확인 필요";
 
     public SlipPhotoAuditResponse {
@@ -49,10 +46,10 @@ public record SlipPhotoAuditResponse(
         if (value == null || value.isBlank()) {
             return UNKNOWN_UPLOADER;
         }
-        String trimmed = value.trim();
-        if (UUID_PATTERN.matcher(trimmed).matches()) {
+        String displayName = ActorDisplayName.resolve(null, value);
+        if (displayName.equals("변경자 미상")) {
             return UNKNOWN_UPLOADER;
         }
-        return trimmed;
+        return displayName;
     }
 }

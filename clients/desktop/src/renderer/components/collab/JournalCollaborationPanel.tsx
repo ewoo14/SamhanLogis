@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
+import { Badge, Button, Card, Input, safeActorName, Select } from '@samhan/design-system'
 import {
   addJournalCollabComment,
   commitJournalCollabEdit,
@@ -57,7 +57,8 @@ function formatDateTime(value: string | null | undefined): string {
 }
 
 function displayName(value: string | null | undefined): string {
-  return value && value !== 'system' ? value : '시스템'
+  if (value == null || value.trim().length === 0) return '시스템'
+  return safeActorName(value) ?? '변경자 미상'
 }
 
 function lineMemoPath(lineNo: number): string {

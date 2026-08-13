@@ -21,6 +21,7 @@ import { withLineIdContract } from './lineIdContract'
 import type { SlipStatus } from '@samhan/design-system'
 import type { DeliveryTagCode } from '@samhan/design-system'
 import { isSinglePanelOption } from '../utils/bundleOptionDomain'
+import { searchSlips } from './slipSearch'
 
 /** 본 슬라이스 범위 — 출고/입고 2종. */
 export type SlipType = 'OUTBOUND' | 'INBOUND'
@@ -248,6 +249,15 @@ export interface SlipDetail extends SlipSummary {
   deliveryScheduleLabel?: string | null
 }
 
+/** 검수완료 전표 되돌림 가능성 — 실행 없이 읽기 전용으로만 조회한다. */
+export interface SlipRevertability {
+  slipNo: string
+  revertable: boolean
+  reasonCodes: string[]
+  reasons: string[]
+  userVisibleText: string
+}
+
 /**
  * 세트 전개 옵션 — BE `BundleSetOptions` (estimate/web/dto) 와 1:1.
  *
@@ -270,6 +280,16 @@ export interface BundleSetOptions {
   panelShape360?: string | null
   /** 자재 포함 여부 — true 면 자재류 구성품 포함. */
   materialIncluded?: boolean | null
+  /** 세트 구성품을 하나의 명시적 인스턴스로 묶는 안정 키. 기존 JSON에는 없을 수 있다. */
+  instanceKey?: string | null
+}
+
+/** 협업 세션에서 새로 추가한 BUNDLE 인스턴스의 충돌 방지용 key. */
+export function createBundleInstanceKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return Math.random().toString(36).slice(2)
 }
 
 /** 빈 세트 옵션 — 신규 라인 초기값. */
@@ -304,6 +324,7 @@ export function toApiBundleSetOptions(
     panelOption: isSinglePanelOption(panelOption) ? panelOption : null,
     panelShape360: trimOrNull(o.panelShape360),
     materialIncluded: Boolean(o.materialIncluded),
+    instanceKey: o.instanceKey ?? null,
   }
 }
 
@@ -477,6 +498,11 @@ export interface ProductLookupResult {
   goodsType?: 'GOODS' | 'NON_GOODS'
   /** 카탈로그 자동 규격 — 견적 라인 확정 시 저장되는 값. */
   specification?: string | null
+  /** product-service가 계산한 유효 정액DC율(%) 및 적용 출처. */
+  fixedDiscountRate?: number | null
+  fixedDiscountSource?: string | null
+  /** product-service가 판정한 정액DC 분류 정본. */
+  discountOption?: 'THREE_SIXTY' | 'FOUR_WAY' | 'ONE_WAY' | 'STAND' | 'DELUXE' | 'FIRST_GRADE' | null
   status?: string | null
 }
 
@@ -489,6 +515,9 @@ interface ProductLookupWireResult {
   productType?: string | null
   goodsType?: 'GOODS' | 'NON_GOODS' | null
   specification?: string | null
+  fixedDiscountRate?: string | number | null
+  fixedDiscountSource?: string | null
+  discountOption?: 'THREE_SIXTY' | 'FOUR_WAY' | 'ONE_WAY' | 'STAND' | 'DELUXE' | 'FIRST_GRADE' | null
   status?: string | null
 }
 
@@ -552,6 +581,46 @@ export async function listSlips(
 export async function getSlip(id: string): Promise<SlipDetail> {
   const res = await apiClient.get<ApiEnvelope<SlipDetail>>(`/slips/${id}`)
   return res.data.data
+}
+
+/** 상태·재고·후속 연결을 변경하지 않는 되돌림 preflight 조회. */
+export async function getSlipRevertability(id: string): Promise<SlipRevertability> {
+  const res = await apiClient.get<ApiEnvelope<SlipRevertability>>(
+    `/slips/${encodeURIComponent(id)}/revertability`,
+  )
+  return res.data.data
+}
+
+/** 전표번호와 유형으로 전표를 해석한다. UUID는 검색 결과 내부에서만 사용한다. */
+export async function getSlipByNumber(slipNo: string, slipType: SlipType): Promise<SlipDetail> {
+  const date = slipNo.slice(0, 10).replace(/\//g, '-')
+  const page = await querySlips({ slipType, dateFrom: date, dateTo: date, page: 0, size: 20, searchSlipNo: slipNo })
+  const summary = page.content.find((candidate) => candidate.slipNo === slipNo)
+  if (!summary) throw new Error(`전표 ${slipNo}를 찾을 수 없습니다.`)
+  return getSlip(summary.id)
+}
+
+/** 사용자 권한으로 출고전표 번호를 exact 해석해 라인 포함 상세를 조회한다. */
+export async function getOutboundSlipBySlipNo(slipNo: string): Promise<SlipDetail> {
+  const normalizedSlipNo = slipNo.trim()
+  if (!normalizedSlipNo) throw new Error('slipNo is required')
+
+  const searched = await searchSlips(normalizedSlipNo, 20, 'OUTBOUND')
+  const searchHit = searched.find((row) => row.slipNo === normalizedSlipNo)
+  if (!searchHit) throw new Error('outbound slip reference not found')
+
+  const day = searchHit.slipDate.slice(0, 10)
+  const page = await querySlips({
+    slipType: 'OUTBOUND',
+    dateFrom: day,
+    dateTo: day,
+    page: 0,
+    size: 20,
+    searchSlipNo: normalizedSlipNo,
+  })
+  const exactRow = page.content.find((row) => row.slipNo === normalizedSlipNo)
+  if (!exactRow) throw new Error('outbound slip detail reference not found')
+  return getSlip(exactRow.id)
 }
 
 /**
@@ -848,6 +917,9 @@ export async function lookupProductByModelName(
     productType: data.productType ?? undefined,
     goodsType: data.goodsType ?? undefined,
     specification: data.specification ?? undefined,
+    fixedDiscountRate: data.fixedDiscountRate == null ? null : Number(data.fixedDiscountRate),
+    fixedDiscountSource: data.fixedDiscountSource ?? null,
+    discountOption: data.discountOption ?? null,
     status: data.status ?? null,
   }
 }
@@ -861,7 +933,11 @@ export interface PartnerAutoFillResult {
   name: string
   phone: string | null
   address: string | null
+  address1?: string | null
+  address2?: string | null
   representative: string | null
+  note?: string | null
+  managerName?: string | null
 }
 
 /**
@@ -885,7 +961,11 @@ export async function lookupPartnerForAutoFill(
     name: d.name,
     phone: d.phone ?? null,
     address: d.address ?? null,
+    address1: d.address1 ?? null,
+    address2: d.address2 ?? null,
     representative: d.representative ?? null,
+    note: d.note ?? null,
+    managerName: d.managerName ?? null,
   }
 }
 

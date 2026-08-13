@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, Modal } from '@samhan/design-system'
-import { getAppVersion } from '../../api/appVersion'
+import { APP_VERSION_POLICY_FAILURE_MESSAGE, getAppVersion } from '../../api/appVersion'
 import type { AppClientType, AppVersionInfo } from '../../api/appVersion'
 import { isCapacitorPlatform, isElectronPlatform } from '../../auth/authProvider'
 import {
@@ -302,7 +302,8 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
         }))
       })
       .catch((err: unknown) => {
-        console.warn('[app-version] 버전체크 실패 — 앱 부팅은 계속 진행합니다.', err)
+        console.warn('[app-version] 버전 정책 조회 실패', err)
+        setUpdateStatus({ kind: 'error', message: APP_VERSION_POLICY_FAILURE_MESSAGE })
       })
       .finally(() => setVersionCheckReady(true))
   }, [bootstrapped])

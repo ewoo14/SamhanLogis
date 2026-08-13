@@ -25,6 +25,7 @@ import com.samhanair.logis.product.repository.ClassificationRepository;
 import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
+import com.samhanair.logis.product.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
@@ -110,6 +111,33 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[?(@.modelCode == 'API_HOME_01')]").exists());
+    }
+
+    @Test
+    void GET_products_physicalCategoryId와_검색어를_AND로_필터하고_물리제품구분을_반환한다() throws Exception {
+        Category targetCategory = categoryRepository.save(
+                Category.create("CAT-PHYSICAL-TARGET", "물리 대상", null, 90));
+        Category otherCategory = categoryRepository.save(
+                Category.create("CAT-PHYSICAL-OTHER", "물리 다른 대상", null, 91));
+        productRepository.save(Product.seedFromSheet(
+                "물리 필터 대상", "PHYSICAL_FILTER_TARGET", targetCategory,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, null));
+        productRepository.save(Product.seedFromSheet(
+                "물리 필터 다른 대상", "PHYSICAL_FILTER_OTHER", otherCategory,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, null));
+        productRepository.flush();
+
+        mvc.perform(get("/api/v1/products")
+                        .param("categoryId", targetCategory.getId().toString())
+                        .param("q", "PHYSICAL_FILTER")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].modelCode").value("PHYSICAL_FILTER_TARGET"))
+                .andExpect(jsonPath("$.content[0].physicalCategory.code").value("CAT-PHYSICAL-TARGET"))
+                .andExpect(jsonPath("$.content[0].physicalCategory.name").value("물리 대상"));
     }
 
     @Test
@@ -1055,9 +1083,9 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
                                 }
                                 """.formatted(catL.getId(), catM.getId(), catS.getId())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.catL.id").value(catL.getId().toString()))
-                .andExpect(jsonPath("$.catM.id").value(catM.getId().toString()))
-                .andExpect(jsonPath("$.catS.id").value(catS.getId().toString()));
+                .andExpect(jsonPath("$.catL.id").value(OpaqueUuidSerializer.encode(catL.getId())))
+                .andExpect(jsonPath("$.catM.id").value(OpaqueUuidSerializer.encode(catM.getId())))
+                .andExpect(jsonPath("$.catS.id").value(OpaqueUuidSerializer.encode(catS.getId())));
 
         Product product = productRepository.findByModelCodeAndIsDeletedFalse("API_HOME_01").orElseThrow();
         org.assertj.core.api.Assertions.assertThat(product.getCatL().getId()).isEqualTo(catL.getId());

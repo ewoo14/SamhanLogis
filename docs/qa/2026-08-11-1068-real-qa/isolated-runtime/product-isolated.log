@@ -1,0 +1,103 @@
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-08-11T23:35:00.618+09:00  INFO 107260 --- [product-service] [           main] c.s.l.product.ProductServiceApplication  : Starting ProductServiceApplication v0.1.0-SNAPSHOT using Java 17.0.18 with PID 107260 (C:\dev\Samhan-Public\.claude\worktrees\w1068\services\product-service\build\libs\product-service.jar started by user in C:\dev\Samhan-Public\.claude\worktrees\w1068)
+2026-08-11T23:35:00.621+09:00  INFO 107260 --- [product-service] [           main] c.s.l.product.ProductServiceApplication  : The following 1 profile is active: "dev"
+2026-08-11T23:35:02.107+09:00  INFO 107260 --- [product-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-08-11T23:35:02.262+09:00  INFO 107260 --- [product-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 145 ms. Found 18 JPA repository interfaces.
+2026-08-11T23:35:02.590+09:00  INFO 107260 --- [product-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=ee4e4bbb-e3c0-337f-8ab4-93a815e95f3c
+2026-08-11T23:35:03.173+09:00  WARN 107260 --- [product-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig' of type [org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [lbRestClientPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-11T23:35:03.178+09:00  WARN 107260 --- [product-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'deferringLoadBalancerInterceptor' of type [org.springframework.cloud.client.loadbalancer.DeferringLoadBalancerInterceptor] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [lbRestClientPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-11T23:35:03.915+09:00  INFO 107260 --- [product-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8284 (http)
+2026-08-11T23:35:03.956+09:00  INFO 107260 --- [product-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-11T23:35:03.957+09:00  INFO 107260 --- [product-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.31]
+2026-08-11T23:35:04.056+09:00  INFO 107260 --- [product-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-08-11T23:35:04.058+09:00  INFO 107260 --- [product-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 3388 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2026-08-11T23:35:05.058+09:00  INFO 107260 --- [product-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-08-11T23:35:05.355+09:00  INFO 107260 --- [product-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@285c63cf
+2026-08-11T23:35:05.359+09:00  INFO 107260 --- [product-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-08-11T23:35:05.442+09:00  INFO 107260 --- [product-service] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:55432/product_db (PostgreSQL 16.14)
+2026-08-11T23:35:05.504+09:00  INFO 107260 --- [product-service] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-08-11T23:35:05.517+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 37 migrations (execution time 00:00.048s)
+2026-08-11T23:35:05.541+09:00  INFO 107260 --- [product-service] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-08-11T23:35:05.602+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-08-11T23:35:05.615+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - init product service"
+2026-08-11T23:35:05.675+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "2 - seed product categories"
+2026-08-11T23:35:05.700+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "3 - migration extension"
+2026-08-11T23:35:05.789+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "4 - seed spec key template"
+2026-08-11T23:35:05.814+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "5 - add ecount product fields"
+2026-08-11T23:35:05.850+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "6 - add realtime overlay"
+2026-08-11T23:35:05.896+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "7 - add product aliases and ecount staging"
+2026-08-11T23:35:05.911+09:00  INFO 107260 --- [product-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: constraint "chk_products_tax_type" of relation "products" does not exist, skipping
+2026-08-11T23:35:05.961+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "8 - widen product model code for mig2"
+2026-08-11T23:35:05.983+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "9 - add category serial managed"
+2026-08-11T23:35:05.998+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "10 - odu indoor capacity nullable"
+2026-08-11T23:35:06.014+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "11 - bundle component unique active"
+2026-08-11T23:35:06.029+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "12 - product spec unique active"
+2026-08-11T23:35:06.046+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "13 - add product display order"
+2026-08-11T23:35:06.063+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "14 - add usage scope manual"
+2026-08-11T23:35:06.077+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "15 - bundle component display order"
+2026-08-11T23:35:06.096+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "16 - add product goods type and service category"
+2026-08-11T23:35:06.114+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "17 - spec key template value type reseed"
+2026-08-11T23:35:06.131+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "18 - add product estimate exposure"
+2026-08-11T23:35:06.134+09:00  WARN 107260 --- [product-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-11T23:35:06.158+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "19 - add variable discount manual"
+2026-08-11T23:35:06.175+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "20 - add product classification"
+2026-08-11T23:35:06.177+09:00  WARN 107260 --- [product-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-11T23:35:06.245+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "21 - add product attribute types"
+2026-08-11T23:35:06.264+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "22 - add price change schedule"
+2026-08-11T23:35:06.266+09:00  WARN 107260 --- [product-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-11T23:35:06.284+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "23 - add price change schedule default variant"
+2026-08-11T23:35:06.298+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "24 - quantity sync rule schema"
+2026-08-11T23:35:06.300+09:00  WARN 107260 --- [product-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-11T23:35:06.345+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "25 - product sheet sync generation"
+2026-08-11T23:35:06.359+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "26 - align price change schedule to live gas"
+2026-08-11T23:35:06.372+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "27 - allow skipped main candidate status"
+2026-08-11T23:35:06.387+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "28 - add product lineage"
+2026-08-11T23:35:06.408+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "29 - add ecount alias reservations"
+2026-08-11T23:35:06.425+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "30 - preserve legacy product codes as aliases"
+2026-08-11T23:35:06.441+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "31 - soft delete test seed products"
+2026-08-11T23:35:06.461+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "32 - bundle components manual"
+2026-08-11T23:35:06.475+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "33 - mark non goods estimate candidates"
+2026-08-11T23:35:06.489+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "34 - expand product statuses"
+2026-08-11T23:35:06.502+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "35 - repair issue 1096 product cleanup"
+2026-08-11T23:35:06.522+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "36 - add classification fixed discount rate"
+2026-08-11T23:35:06.536+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "37 - mark active bundle components default"
+2026-08-11T23:35:06.553+09:00  INFO 107260 --- [product-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: [PR1132 V37] 조건 일치 세트=0 구성품=0 감사 누적 적용=0 (건수 하드 실패 없음)
+2026-08-11T23:35:06.567+09:00  INFO 107260 --- [product-service] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 37 migrations to schema "public", now at version v37 (execution time 00:00.531s)
+2026-08-11T23:35:06.672+09:00  INFO 107260 --- [product-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-08-11T23:35:06.726+09:00  INFO 107260 --- [product-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-08-11T23:35:06.754+09:00  INFO 107260 --- [product-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-08-11T23:35:06.974+09:00  INFO 107260 --- [product-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-08-11T23:35:07.013+09:00  WARN 107260 --- [product-service] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-08-11T23:35:08.354+09:00  INFO 107260 --- [product-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-08-11T23:35:08.399+09:00  INFO 107260 --- [product-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-08-11T23:35:09.017+09:00  INFO 107260 --- [product-service] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-08-11T23:35:11.268+09:00  WARN 107260 --- [product-service] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 4149b247-2900-4017-9be9-41cfaec47236
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-08-11T23:35:11.320+09:00  INFO 107260 --- [product-service] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-08-11T23:35:12.426+09:00  INFO 107260 --- [product-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 3 endpoints beneath base path '/actuator'
+2026-08-11T23:35:14.757+09:00  INFO 107260 --- [product-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-11T23:35:14.768+09:00  INFO 107260 --- [product-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-08-11T23:35:14.918+09:00  INFO 107260 --- [product-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8284 (http) with context path '/'
+2026-08-11T23:35:16.433+09:00  INFO 107260 --- [product-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-11T23:35:16.450+09:00  INFO 107260 --- [product-service] [           main] c.s.l.product.ProductServiceApplication  : Started ProductServiceApplication in 17.719 seconds (process running for 18.718)
+2026-08-11T23:35:16.793+09:00  INFO 107260 --- [product-service] [           main] c.s.l.product.seed.HvacProductSeeder     : HvacProductSeeder created 100 products (skipped 0, total 100)
+2026-08-11T23:35:17.395+09:00  INFO 107260 --- [product-service] [           main] c.s.l.product.seed.PriceHistorySeeder    : PriceHistorySeeder created 200 price_history rows (skipped 0, products 100)
+2026-08-11T23:35:17.397+09:00  INFO 107260 --- [product-service] [           main] c.s.l.p.s.ProductSheetSyncScheduler      : [ProductSheetSyncScheduler] cron-enabled=false ? 부팅 sync skip (수동 trigger 전용)
+2026-08-11T23:36:07.273+09:00  INFO 107260 --- [product-service] [nio-8284-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-11T23:36:07.275+09:00  INFO 107260 --- [product-service] [nio-8284-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-11T23:36:07.277+09:00  INFO 107260 --- [product-service] [nio-8284-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 2 ms

@@ -3,9 +3,12 @@ import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosRequestConfig } from 'axios'
 import { getMockResponse, MOCK_AUTH, MOCK_PRODUCT_AJ040_ID, mockPartnerByCode, resolveMockCodefRefs } from './mock'
+import { closingAuditApi, dcConfigAuditApi, inventoryAuditAuditApi, taxInvoiceAuditApi } from './createAuditApi'
+import { apiClient } from './client'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
+import { extractApiErrorMessage } from './apiError'
 import {
   createSalesSlipDraft,
   MOCK_SALES_ACCOUNTING_SLIPS,
@@ -22,6 +25,7 @@ import {
   registerInboundTaxInvoice,
 } from './taxInvoiceAdminApi'
 import { listInboundTaxInvoices } from './taxInvoiceInboundApi'
+import { searchByType } from './documentReferenceSearch'
 
 const DOCUMENT_NO_KEY_SET = new Set([
   'slipNo',
@@ -75,12 +79,99 @@ function amount(raw: string | number): number {
   return typeof raw === 'number' ? raw : Number(raw)
 }
 
+describe('SOL-1178 mock fail-closed 사용자 경로 회귀', () => {
+  it('SOL-1178-01 RED: 월말 마감 POST handler와 사용자용 오류 매핑이 존재한다', () => {
+    const response = getMockResponse({
+      method: 'POST',
+      url: '/accounting/closings',
+      data: JSON.stringify({
+        periodType: 'MONTHLY',
+        periodDate: '2026-08-01',
+        description: 'SOL RED',
+      }),
+    }) as { success: boolean; data: Record<string, unknown> } | null
+
+    expect(response, 'mock 모드 월말 마감은 handler 없이 실제 네트워크로 흘러가면 안 된다').not.toBeNull()
+    expect(response?.data).toMatchObject({
+      periodType: 'MONTHLY',
+      periodDate: '2026-08-01',
+      status: 'CLOSED',
+    })
+    expect(extractApiErrorMessage(new Error('Mock handler not found: POST /accounting/closings')))
+      .toBe('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  })
+
+  it('SOL-1178-02 RED: 판매전표 저장 응답은 저장 후 화면이 소비하는 SlipDetailResponse shape다', () => {
+    const response = getMockResponse({
+      method: 'PUT',
+      url: '/slips/slip-005/sales',
+      data: JSON.stringify({
+        lineIdContract: true,
+        projectName: 'SOL 저장 후 화면',
+        lines: [{
+          lineId: 'line-001',
+          productId: MOCK_PRODUCT_AJ040_ID,
+          productName: '시스템에어컨 4Way 4HP',
+          modelName: 'AJ040RXH4BC1',
+          specification: '4HP',
+          quantity: 2,
+          unitPrice: '1850000',
+          note: null,
+        }],
+      }),
+    }) as { success: boolean; data: Record<string, unknown> } | null
+    const line = (response?.data?.lines as Array<Record<string, unknown>> | undefined)?.[0]
+
+    expect(response?.data).not.toHaveProperty('lineIdContract')
+    expect(line).toMatchObject({
+      id: 'line-001',
+      lineTotal: '3700000',
+      supplyAmount: '3700000',
+      vatAmount: '370000',
+    })
+  })
+})
+
+describe('영업수수료 정산 권한 enforcement mock 계약', () => {
+  it('권한 없는 SALES 역할은 목록·생성·확정 API를 모두 403으로 거절한다', () => {
+    const originalRole = MOCK_AUTH.role
+    MOCK_AUTH.role = 'SALES'
+    try {
+      for (const request of [
+        { method: 'GET', url: '/accounting/sales-commission-settlements' },
+        { method: 'POST', url: '/accounting/sales-commission-settlements', data: JSON.stringify({ settlementDate: '2026-08-13' }) },
+        { method: 'POST', url: '/accounting/sales-commission-settlements/settlement-1/confirm' },
+      ] as AxiosRequestConfig[]) {
+        const response = mockRequest(request) as { __mockStatus: number; body: MockEnvelope<null> }
+        expect(response.__mockStatus).toBe(403)
+        expect(response.body.success).toBe(false)
+      }
+    } finally {
+      MOCK_AUTH.role = originalRole
+    }
+  })
+
+  it('ACCOUNTANT 기본 권한은 VIEW·CREATE·UPDATE만이고 export/delete/restore는 과다 부여되지 않는다', () => {
+    const originalRole = MOCK_AUTH.role
+    MOCK_AUTH.role = 'ACCOUNTANT'
+    try {
+      const response = mockRequest({
+        method: 'GET',
+        url: '/auth/admin/permissions/my',
+      }) as MockEnvelope<Record<string, string[]>>
+      expect(response.data['accounting.sales-commission-settlement']).toEqual(['VIEW', 'CREATE', 'UPDATE'])
+    } finally {
+      MOCK_AUTH.role = originalRole
+    }
+  })
+})
+
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
 })
 
-describe('주문서 앱 접근권한 mock report 계약', () => {
+describe('주문서 승인 mock report 계약', () => {
   it('GET /access-preview/report 는 목록 Page가 아닌 후보 report를 반환한다', () => {
     const response = mockRequest({
       method: 'GET',
@@ -266,6 +357,40 @@ describe('거래처 적재 mock handler 계약', () => {
 })
 
 describe('mock 그룹웨어 결재 생성 요청 관찰', () => {
+  it('원자 생성 references를 첨부 저장소에 보존해 생성 직후 상세 조회에서도 반환한다', () => {
+    const created = mockRequest({
+      method: 'POST',
+      url: '/admin/groupware/approvals',
+      data: {
+        requesterId: '00000000-0000-0000-0000-000000010001',
+        title: '원자 정산 참조 보존',
+        approverIds: ['00000000-0000-0000-0000-000000010002'],
+        references: [{
+          attachmentType: 'SLIP_REF',
+          label: '영업수수료 정산서',
+          displayOrder: 1,
+          refDocType: 'SALES_COMMISSION_SETTLEMENT',
+          refDocNo: '2026/08/11-1',
+          refDocLabel: '영업수수료 정산서',
+        }],
+      },
+    }) as MockEnvelope<{ approvalId: string }>
+
+    const attachments = mockRequest({
+      method: 'GET',
+      url: `/admin/groupware/approvals/${created.data.approvalId}/attachments`,
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+
+    expect(attachments.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        attachmentType: 'SLIP_REF',
+        label: '영업수수료 정산서',
+        refDocType: 'SALES_COMMISSION_SETTLEMENT',
+        refDocNo: '2026/08/11-1',
+      }),
+    ]))
+  })
+
   it('POST handler가 받은 approverIds 순서를 QA 캡처에 그대로 보존한다', () => {
     const approverIds = [
       '00000000-0000-0000-0000-000000010003',
@@ -3742,6 +3867,82 @@ describe('mock 활성 문서양식(document-templates/active) 핸들러', () => 
   })
 })
 
+describe('그룹웨어 문서 참조 검색 mock transport params 계약', () => {
+  it.each([
+    {
+      name: '출고전표',
+      url: '/admin/slips/search',
+      params: { q: '2026/05/04', limit: 10, slipType: 'OUTBOUND' },
+      expectedKey: 'slipNo',
+      expectedValue: '2026/05/04-1',
+    },
+    {
+      name: '분개장',
+      url: '/admin/accounting/journals/search',
+      params: { q: '2026/05/01', limit: 10 },
+      expectedKey: 'journalNo',
+      expectedValue: '2026/05/01-1',
+    },
+    {
+      name: '세금계산서',
+      url: '/admin/accounting/tax-invoices/search',
+      params: { q: '2026/05/02', limit: 10 },
+      expectedKey: 'taxInvoiceNo',
+      expectedValue: '2026/05/02-1',
+    },
+    {
+      name: '거래명세서',
+      url: '/admin/accounting/statements/search',
+      params: { q: '2026/05/02', limit: 10 },
+      expectedKey: 'statementNo',
+      expectedValue: '2026/05/02-1',
+    },
+    {
+      name: '거래처원장',
+      url: '/admin/accounting/ledgers/partners/search',
+      params: { q: 'P-LASYS', limit: 10 },
+      expectedKey: 'partnerCode',
+      expectedValue: 'P-LASYS-001',
+    },
+    {
+      name: '영업수수료 정산서',
+      url: '/admin/accounting/sales-commission-settlements/search',
+      params: { q: '2026/08/11', limit: 10 },
+      expectedKey: 'settlementNo',
+      expectedValue: '2026/08/11-1',
+    },
+  ])('$name은 Axios config.params 검색어를 읽는다', ({ url, params, expectedKey, expectedValue }) => {
+    const response = mockRequest({ method: 'GET', url, params }) as MockEnvelope<Array<Record<string, unknown>>> | null
+
+    expect(response).not.toBeNull()
+    expect(response?.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ [expectedKey]: expectedValue }),
+    ]))
+  })
+
+  it('URL querystring으로 전달된 동일 검색 계약도 유지한다', () => {
+    const response = mockRequest({
+      method: 'GET',
+      url: '/admin/accounting/sales-commission-settlements/search?q=2026%2F08%2F11&limit=10',
+    }) as MockEnvelope<Array<Record<string, unknown>>> | null
+
+    expect(response?.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ settlementNo: '2026/08/11-1' }),
+    ]))
+  })
+
+  it.skipIf(import.meta.env.VITE_MOCK_MODE !== '1')(
+    'documentReferenceSearch 실제 함수도 mock transport params로 정산서를 찾는다',
+    async () => {
+      const results = await searchByType('SALES_COMMISSION_SETTLEMENT', '2026/08/11', 10)
+
+      expect(results).toEqual(expect.arrayContaining([
+        expect.objectContaining({ settlementNo: '2026/08/11-1' }),
+      ]))
+    },
+  )
+})
+
 describe('거래처별 원장 mock 응답 계약', () => {
   it('partner-ledger는 PartnerLedgerResponse documents shape으로 데이터와 라인을 반환한다', () => {
     type PartnerLedgerLine = {
@@ -3808,4 +4009,89 @@ describe('거래처별 원장 mock 응답 계약', () => {
 
     expect(response.data.lines).toHaveLength(2)
   })
+})
+
+describe('#1091 audit history mock routing', () => {
+  it('세금계산서 성공과 재고감사 응답은 flat audit row 배열 envelope을 반환한다', () => {
+    const tax = mockRequest({
+      method: 'GET',
+      url: '/accounting/tax-invoices/ti-001/audit-logs',
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(tax.data.length).toBeGreaterThan(0)
+    expect(tax.data[0]).toHaveProperty('revisionNo')
+
+    const inventory = mockRequest({
+      method: 'GET',
+      url: '/inventory/audits/ia-001/audit-logs',
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(inventory.data.length).toBeGreaterThan(0)
+    expect(inventory.data[0]).toMatchObject({
+      entityId: '11111111-1111-4111-8111-000000000001',
+      fieldName: 'totalDiffAmount',
+      oldValue: '120000',
+      newValue: '95000',
+      actorColor: '#2563EB',
+      revisionNo: 2,
+    })
+    expect(inventory.data[0]).not.toHaveProperty('field')
+    expect(inventory.data[0]).not.toHaveProperty('beforeValue')
+    expect(Array.isArray(inventory.data)).toBe(true)
+  })
+
+  it('정상 빈 이력과 오류 상태를 URL fixture로 선택할 수 있다', () => {
+    const empty = mockRequest({
+      method: 'GET',
+      url: '/inventory/audits/ia-empty/audit-logs?mockAuditState=empty',
+    }) as MockEnvelope<unknown[]>
+    expect(empty.data).toEqual([])
+
+    const forbidden = mockRequest({
+      method: 'GET',
+      url: '/accounting/closings/closing-001/audit-logs?mockAuditState=403',
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(forbidden.__mockStatus).toBe(403)
+    expect(forbidden.body.code).toBe('FORBIDDEN')
+
+    const temporary = mockRequest({
+      method: 'GET',
+      url: '/api/v1/dc-configs/P-001/audit-logs?mockAuditState=500',
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(temporary.__mockStatus).toBe(500)
+    expect(temporary.body.code).toBe('AUDIT_HISTORY_TEMPORARY')
+  })
+
+  it('부재 endpoint mock도 null로 fallthrough하지 않고 404를 반환한다', () => {
+    const closing = mockRequest({
+      method: 'GET',
+      url: '/accounting/closings/closing-001/audit-logs',
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(closing.__mockStatus).toBe(404)
+    expect(closing.body.code).toBe('AUDIT_HISTORY_NOT_SUPPORTED')
+
+    const dcConfig = mockRequest({
+      method: 'GET',
+      url: '/api/v1/dc-configs/P-001/audit-logs',
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(dcConfig.__mockStatus).toBe(404)
+    expect(dcConfig.body.code).toBe('AUDIT_HISTORY_NOT_SUPPORTED')
+  })
+
+  it.skipIf(import.meta.env.VITE_MOCK_MODE !== '1')(
+    'mock adapter가 base URL이 죽어 있어도 audit API를 실 HTTP로 fallthrough하지 않는다',
+    async () => {
+      const tax = await taxInvoiceAuditApi.listAuditLogs('ti-001')
+      expect(tax.length).toBeGreaterThan(0)
+
+      const inventory = await inventoryAuditAuditApi.listAuditLogs('ia-001')
+      expect(inventory[0]).toMatchObject({ revisionNo: 2, field: 'totalDiffAmount' })
+
+      await expect(closingAuditApi.listAuditLogs('closing-001')).rejects.toMatchObject({
+        response: { status: 404 },
+      })
+      await expect(dcConfigAuditApi.listAuditLogs('P-001')).rejects.toMatchObject({
+        response: { status: 404 },
+      })
+      expect(apiClient.defaults.baseURL).toBe('http://127.0.0.1:1')
+    },
+  )
 })

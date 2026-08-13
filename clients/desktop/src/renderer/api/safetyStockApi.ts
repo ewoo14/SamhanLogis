@@ -12,7 +12,7 @@
  *
  * UUID 사용자 비공개 가드 (memory `feedback_uuid_no_user_visibility`):
  * - 화면에는 productCode / productName / warehouseName 만 표시.
- * - productId / warehouseId UUID 는 API 요청 param 으로만 사용, 화면 노출 금지.
+ * - productId / warehouseId opaque token 은 API 요청 param 으로만 사용, 화면 노출 금지.
  *
  * 권한: BE @PreAuthorize 와 동일 (조회/설정 모두 MASTER / MANAGER / INVENTORY / WAREHOUSE).
  */
@@ -24,7 +24,7 @@ import { apiClient, type ApiEnvelope } from './client'
  * @property productId    제품 UUID (path param / 내부 조인용, 화면 비표시)
  * @property productCode  제품 코드 (화면 표시용 비즈니스 식별자, BE fail-soft 시 null)
  * @property productName  제품명 (화면 표시용, BE fail-soft 시 null)
- * @property warehouseId  창고 UUID (path param / 내부 조인용, 화면 비표시)
+ * @property warehouseId  창고 opaque token (path param / 내부 조인용, 화면 비표시)
  * @property warehouseName 창고명 (화면 표시용, memory `feedback_uuid_no_user_visibility`)
  * @property threshold    안전재고 임계값
  * @property currentQty   현재 가용 재고 합계
@@ -59,7 +59,7 @@ export interface SafetyStockConfigDto {
 /**
  * 임계값 설정 요청 body — BE `SafetyStockSetRequest` record 와 1:1 매칭.
  *
- * @property warehouseId 대상 창고 UUID (null = 전체 창고 합산 기준)
+ * @property warehouseId 대상 창고 opaque token (null = 전체 창고 합산 기준)
  * @property threshold   안전재고 임계값 (0 이상)
  * @property note        메모 (선택)
  */

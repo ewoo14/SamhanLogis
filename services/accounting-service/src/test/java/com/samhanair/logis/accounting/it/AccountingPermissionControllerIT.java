@@ -256,6 +256,11 @@ class AccountingPermissionControllerIT {
                                 .param("partnerCode", "P-001")
                                 .param("from", "2026-05-01")
                                 .param("to", "2026-05-27")),
+                endpoint("sales slip partner ledger balance", "sales.slip.list", PermissionAction.VIEW, "SALES",
+                        () -> get("/accounting/journals/sales-slip-ledger")
+                                .param("partnerCode", "P-001")
+                                .param("from", "2026-05-01")
+                                .param("to", "2026-05-01")),
                 endpoint("accounting partner ledger restore", "accounting.partner-ledger", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/journals/ledger-history/{batchNo}/restore", "LEDGER-20260801-000001")),
                 endpoint("accounting statement batch", "accounting.statement-batch", PermissionAction.PRINT, "ACCOUNTANT",

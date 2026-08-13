@@ -8,9 +8,18 @@
  * 해당 거래처의 DRAFT/ON_HOLD 주문만 칩으로 선택한다.
  */
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
+import {
+  Badge,
+  Button,
+  DataTable,
+  Input,
+  OrderNumberDisplay,
+  OrderStatusBadge,
+  Select,
+  type DataTableColumn,
+} from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   SLIP_PUBLISH_STATUS_DISPLAY,
@@ -21,6 +30,7 @@ import {
 } from '../api/sales'
 import { formatSlipDate } from '../api/slipNumber'
 import { toOrderPathId } from '../utils/orderNo'
+import { restoreScrollAnchorWhenReady, saveScrollAnchor, type ReturnToLocation } from '../utils/returnContract'
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -36,15 +46,6 @@ import {
 } from '../realtime/deletedRowDisplay'
 import { serverErrorMessage } from './dispatch-board/dispatchErrorMessage'
 import styles from '../components/sales/sales.module.css'
-
-const STATUS_CLASS: Record<PartnerOrderStatus, string> = {
-  DRAFT: styles['statusDraft']!,
-  ON_HOLD: styles['statusOnHold']!,
-  CONFIRMING: styles['statusSent']!,
-  CONFIRMED: styles['statusConfirmed']!,
-  CANCELED: styles['statusCanceled']!,
-  CONVERTED: styles['statusConverted']!,
-}
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 // v2 §정정 8 — 'YYYY/MM/DD' 통일.
@@ -85,16 +86,18 @@ const PRE_CONFIRM_STATUSES: ReadonlySet<PartnerOrderStatus> = new Set([
 
 export function SalesPartnerOrderListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [partnerId, setPartnerId] = useState('')
-  const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('DRAFT')
-  const [slipPublishStatusFilter, setSlipPublishStatusFilter] = useState<'' | 'FAILED' | 'PENDING_RETRY'>('')
-  const [searchKeyword, setSearchKeyword] = useState('')
-  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('dateFrom') ?? '')
+  const [dateTo, setDateTo] = useState(() => searchParams.get('dateTo') ?? '')
+  const [partnerId, setPartnerId] = useState(() => searchParams.get('partnerId') ?? '')
+  const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>(() => searchParams.get('status') as PartnerOrderStatus | '' || 'DRAFT')
+  const [slipPublishStatusFilter, setSlipPublishStatusFilter] = useState<'' | 'FAILED' | 'PENDING_RETRY'>(() => searchParams.get('slipPublishStatus') as '' | 'FAILED' | 'PENDING_RETRY' || '')
+  const [searchKeyword, setSearchKeyword] = useState(() => searchParams.get('keyword') ?? '')
+  const [includeDeleted, setIncludeDeleted] = useState(() => searchParams.get('includeDeleted') === 'true')
   const [page, setPage] = useState(0)
 
   /** Phase 2.6b D2: 병합 전환 모달 open/close. */
@@ -102,6 +105,21 @@ export function SalesPartnerOrderListPage() {
   /** Phase 2.6b D2: 병합 전환 성공 토스트 메시지 — null 이면 비표시. */
   const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const returnTo: ReturnToLocation = { pathname: location.pathname, search: location.search }
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    const values: Record<string, string> = { dateFrom, dateTo, partnerId, status: statusFilter, slipPublishStatus: slipPublishStatusFilter, keyword: searchKeyword }
+    for (const [key, value] of Object.entries(values)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    if (includeDeleted) next.set('includeDeleted', 'true')
+    else next.delete('includeDeleted')
+    if (page > 0) next.set('page', String(page))
+    else next.delete('page')
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+  }, [dateFrom, dateTo, partnerId, statusFilter, slipPublishStatusFilter, searchKeyword, includeDeleted, page, searchParams, setSearchParams])
 
   const canCreateMerge = canAccess('sales.partner-order.convert', 'create')
   const canSearchPartners = canAccess('partners.search', 'view')
@@ -187,6 +205,8 @@ export function SalesPartnerOrderListPage() {
     retry: 1,
   })
 
+  useEffect(() => restoreScrollAnchorWhenReady(location.key, () => query.isFetched), [location.key, query.isFetched])
+
   const restoreMutation = useMutation({
     mutationFn: restorePartnerOrder,
     onSuccess: async (restored) => {
@@ -232,9 +252,16 @@ export function SalesPartnerOrderListPage() {
         const deleted = o.isDeleted === true
         return (
           <span className={styles['partnerOrderNumberCell']}>
-            <span style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}>
-              {o.orderNumber}
-            </span>
+            {deleted ? <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" style={DELETED_ROW_TEXT_STYLE} /> : (
+              <Link
+                to={`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`}
+                state={{ returnTo, returnEntryKey: location.key }}
+                onClick={(event) => { event.stopPropagation(); saveScrollAnchor(location.key) }}
+                aria-label={`${o.orderNumber} 상세 보기`}
+              >
+                <OrderNumberDisplay orderNumber={o.orderNumber} size="sm" />
+              </Link>
+            )}
             {deleted ? (
               <span
                 className={styles['partnerOrderDeletedBadge']}
@@ -300,12 +327,16 @@ export function SalesPartnerOrderListPage() {
         const publishMeta = SLIP_PUBLISH_STATUS_DISPLAY[o.slipPublishStatus]
         return (
           <span className={styles['partnerOrderNumberCell']}>
-            <span
-              className={`${styles['statusBadge']} ${deleted ? styles['statusDeletedNeutral'] : STATUS_CLASS[o.status]}`}
-              style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}
-            >
-              {PARTNER_ORDER_STATUS_LABEL[o.status]}
-            </span>
+            {deleted ? (
+              <Badge
+                variant="neutral"
+                style={DELETED_ROW_TEXT_STYLE}
+              >
+                {PARTNER_ORDER_STATUS_LABEL[o.status]}
+              </Badge>
+            ) : (
+              <OrderStatusBadge status={o.status} />
+            )}
             {publishMeta ? (
               <Badge
                 variant={publishMeta.variant}
@@ -379,11 +410,14 @@ export function SalesPartnerOrderListPage() {
     if (o.isDeleted === true) {
       return
     }
-    navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`)
+    saveScrollAnchor(location.key)
+    navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`, {
+      state: { returnTo, returnEntryKey: location.key },
+    })
   }
 
   return (
-    <div className={styles['salesScope']}>
+    <div style={{ color: 'var(--ink-primary)', background: 'var(--surface-card)' }}>
       <SalesSubNav />
       <div className={styles['wrap']}>
         {/* [3a 데스크탑 ↔ 웹 분리] 본 화면은 내부 영업/관리자가 거래처가 보낸 주문을 조회·승인하는

@@ -97,11 +97,11 @@ public class ProductClient {
      * 품목별 고정DC율을 기존 product-service 부분성공 endpoint에서 조회한다.
      *
      * <p>구형 product-service가 lookup 요약에 아직 고정DC를 싣지 않는 동안에도 confirm이
-     * bootstrap/product DB의 실제 percent 값을 사용할 수 있게 하는 보강 경로다. 조회 실패는
-     * confirm의 기존 product lookup/fail-soft 흐름을 깨지 않도록 빈 Map으로 흡수한다.
+     * bootstrap/product DB의 실제 percent 값을 사용할 수 있게 하는 보강 경로다. 유효한 응답에서
+     * 고정DC가 없는 것은 빈 Map으로 표현하지만, 원격 장애는 가격 기준을 잃은 상태이므로 숨기지 않는다.
      *
      * @param productIds 조회할 품목 UUID
-     * @return productId → fixedDiscountRate(percent), 결측/실패 시 빈 Map
+     * @return productId → fixedDiscountRate(percent), 유효한 응답의 결측은 빈 Map
      */
     public Map<UUID, BigDecimal> lookupFixedDiscountRates(List<UUID> productIds) {
         if (productIds == null || productIds.isEmpty()) {
@@ -120,7 +120,8 @@ public class ProductClient {
 
             Object data = envelope == null ? null : envelope.get("data");
             if (!(data instanceof Map<?, ?> rawMap)) {
-                return Map.of();
+                throw new BusinessException(ErrorCode.PRICE_CALCULATION_UNAVAILABLE,
+                        "품목 고정 할인 기준을 확인할 수 없습니다");
             }
             Map<UUID, BigDecimal> result = new HashMap<>();
             for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
@@ -139,8 +140,12 @@ public class ProductClient {
             }
             return result;
         } catch (RuntimeException ex) {
-            log.warn("ProductClient fixed discount lookup fail-soft: {}", ex.getMessage());
-            return Map.of();
+            log.warn("ProductClient fixed discount lookup unavailable: {}", ex.getMessage());
+            if (ex instanceof BusinessException businessException) {
+                throw businessException;
+            }
+            throw new BusinessException(ErrorCode.PRICE_CALCULATION_UNAVAILABLE,
+                    "품목 고정 할인 기준을 확인할 수 없어 주문 가격을 계산할 수 없습니다", ex);
         }
     }
 
@@ -215,6 +220,7 @@ public class ProductClient {
                 m.get("fixedDiscountRate") == null
                         ? null
                         : new java.math.BigDecimal(m.get("fixedDiscountRate").toString()),
+                (String) m.get("fixedDiscountSource"),
                 (String) m.get("discountFlags"),
                 m.get("releasePrice") == null
                         ? null
@@ -224,7 +230,10 @@ public class ProductClient {
                         : new BigDecimal(m.get("deliveryPrice").toString()),
                 m.get("hasVariableDiscount") == null
                         ? null
-                        : Boolean.valueOf(m.get("hasVariableDiscount").toString()));
+                        : Boolean.valueOf(m.get("hasVariableDiscount").toString()),
+                 (String) m.get("physicalCategoryCode"),
+                 (String) m.get("discountOption"),
+                 Boolean.TRUE.equals(m.get("classificationAssigned")));
     }
 
     private String requireToken() {

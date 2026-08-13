@@ -27,6 +27,7 @@ import {
   DataTable,
   JournalStatusBadge,
   Spinner,
+  safeActorName,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -372,7 +373,7 @@ export function JournalDetailPage() {
           <MobileCollapsible title="분개 상세 정보" className="mobile-section-card">
             {[
               { label: '일자', value: journal.journalDate },
-              { label: '작성자', value: journal.createdByName },
+              { label: '작성자', value: safeActorName(journal.createdByName) ?? '변경자 미상' },
               { label: '적요', value: journal.description },
               { label: '역분개 사유', value: journal.reverseReason },
             ].map(({ label, value }) => {
@@ -411,7 +412,7 @@ export function JournalDetailPage() {
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: '#6B7280' }}>
               일자: {journal.journalDate}
-              {journal.createdByName ? ` · 작성자: ${journal.createdByName}` : ''}
+              {journal.createdByName ? ` · 작성자: ${safeActorName(journal.createdByName) ?? '변경자 미상'}` : ''}
               {journal.postedAt
                 ? ` · 확정: ${new Date(journal.postedAt).toLocaleString('ko-KR')}`
                 : ''}

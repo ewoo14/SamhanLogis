@@ -59,7 +59,8 @@ function configureAutoUpdater(): void {
 
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.allowDowngrade = false
+  // 장애 릴리스 복구를 위해 낮은 semver도 설치 대상으로 허용한다.
+  autoUpdater.allowDowngrade = true
 
   autoUpdater.on('checking-for-update', () => broadcast({ kind: 'checking' }))
   autoUpdater.on('update-available', (info: UpdateInfo) => {
@@ -98,7 +99,7 @@ export function registerAutoUpdateIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle(INSTALL_CHANNEL, () => {
+  ipcMain.handle(INSTALL_CHANNEL, async () => {
     if (!app.isPackaged) {
       broadcast({ kind: 'not-available' })
       return
@@ -107,6 +108,8 @@ export function registerAutoUpdateIpcHandlers(): void {
       autoUpdater.quitAndInstall(true, true)
     } catch (error: unknown) {
       broadcast({ kind: 'error', message: messageFromError(error) })
+      // ipcRenderer.invoke()가 실패를 관찰해야 renderer가 설치 재시도 상태를 되돌린다.
+      throw error
     }
   })
 }

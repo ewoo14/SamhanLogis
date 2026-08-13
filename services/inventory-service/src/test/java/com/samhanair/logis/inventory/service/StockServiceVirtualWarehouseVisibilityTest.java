@@ -12,6 +12,7 @@ import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
 import com.samhanair.logis.inventory.repository.StockLotRepository;
 import com.samhanair.logis.inventory.repository.StockMovementRepository;
+import com.samhanair.logis.inventory.repository.StockInstanceRepository;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.StockBalanceResponse;
 import java.math.BigDecimal;
@@ -35,6 +36,7 @@ class StockServiceVirtualWarehouseVisibilityTest {
     @Mock private StockLotRepository stockLotRepository;
     @Mock private StockBalanceRepository stockBalanceRepository;
     @Mock private StockMovementRepository stockMovementRepository;
+    @Mock private StockInstanceRepository stockInstanceRepository;
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private ProductClient productClient;
 
@@ -64,7 +66,7 @@ class StockServiceVirtualWarehouseVisibilityTest {
             existingBalances.add(balance(productId, vehicle, 20));
         }
 
-        when(productClient.lookup(any())).thenAnswer(invocation ->
+        when(productClient.lookupAllowMissing(any())).thenAnswer(invocation ->
                 ((List<?>) invocation.getArgument(0)).stream()
                         .map(UUID.class::cast)
                         .map(productId -> new ProductSummary(productId, "테스트 품목", "MODEL-TEST",
@@ -85,6 +87,8 @@ class StockServiceVirtualWarehouseVisibilityTest {
         when(warehouseRepository.findAllByIsDeletedFalseOrderByDisplayOrderAsc())
                 .thenReturn(List.of(headquarters, vehicle, virtualWarehouse,
                         emptyHeadquarters, emptyConsignment));
+        when(stockInstanceRepository.findActiveBalanceGroups(any(), any()))
+                .thenReturn(List.of());
     }
 
     @Test

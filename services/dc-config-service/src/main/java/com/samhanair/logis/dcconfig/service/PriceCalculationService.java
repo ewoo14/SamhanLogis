@@ -37,6 +37,9 @@ public class PriceCalculationService {
 
     private static final String CAT_HOMEMULTI = "HOMEMULTI";
     private static final String CAT_COMMERCIAL = "COMMERCIAL_MULTI";
+    private static final BigDecimal NO_MAIN_EQUIPMENT_RATE = new BigDecimal("0.40");
+    private static final String UNCLASSIFIED = "UNCLASSIFIED";
+    private static final String ORDER_CALLER_SERVICE = "partner-order-service";
 
     private final PartnerService partnerService;
     private final DcConfigService dcConfigService;
@@ -56,11 +59,13 @@ public class PriceCalculationService {
         List<PriceCalculationResponse.Line> lines = new ArrayList<>();
         BigDecimal totalList = BigDecimal.ZERO;
         BigDecimal totalFinal = BigDecimal.ZERO;
+        boolean applyNoMainEquipmentRule = ORDER_CALLER_SERVICE.equals(request.callerService())
+                && qualifiesForNoMainEquipmentRule(request.lines());
 
         for (PriceCalculationRequest.Line line : request.lines()) {
             BigDecimal listPrice = line.listPrice();
             BigDecimal appliedRate = pickCategoryRate(config, line.category(), line.fixedDiscountRate(),
-                    line.hasVariableDiscount());
+                    line.hasVariableDiscount(), applyNoMainEquipmentRule);
             BigDecimal afterRate = listPrice.multiply(BigDecimal.ONE.subtract(appliedRate));
             BigDecimal optionDc = sumOptionDc(config, line);
             BigDecimal afterOption = afterRate.subtract(optionDc).max(BigDecimal.ZERO);
@@ -96,7 +101,7 @@ public class PriceCalculationService {
     }
 
     private BigDecimal pickCategoryRate(DcConfig config, String category, BigDecimal fixedDiscountRate,
-                                        Boolean hasVariableDiscount) {
+                                        Boolean hasVariableDiscount, boolean applyNoMainEquipmentRule) {
         if (fixedDiscountRate != null) {
             BigDecimal normalized = fixedDiscountRate.compareTo(BigDecimal.ONE) > 0
                     ? fixedDiscountRate.movePointLeft(2)
@@ -109,6 +114,9 @@ public class PriceCalculationService {
         if (Boolean.FALSE.equals(hasVariableDiscount)) {
             return BigDecimal.ZERO;
         }
+        if (applyNoMainEquipmentRule && Boolean.TRUE.equals(hasVariableDiscount)) {
+            return NO_MAIN_EQUIPMENT_RATE;
+        }
         if (config == null || category == null) {
             return BigDecimal.ZERO;
         }
@@ -116,6 +124,42 @@ public class PriceCalculationService {
             case CAT_HOMEMULTI -> nz(config.getHomeDiscountRate());
             case CAT_COMMERCIAL -> nz(config.getCommercialDiscountRate());
             default -> BigDecimal.ZERO;
+        };
+    }
+
+    /**
+     * 주문 전체가 메인 장비 없이 판정 가능할 때만 주문 40% 규칙을 연다.
+     *
+     * <p>미분류/누락 물리 카테고리는 “없음”이 아니라 판정 불가이므로 보수적으로 차단한다.
+     * 실내기 하위 카테고리도 메인 장비로 취급한다.
+     */
+    private boolean qualifiesForNoMainEquipmentRule(List<PriceCalculationRequest.Line> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return false;
+        }
+        return lines.stream().noneMatch(line -> isMainEquipment(line.physicalCategoryCode()))
+                && lines.stream().noneMatch(line -> isUnknownEquipment(line.physicalCategoryCode()));
+    }
+
+    private boolean isMainEquipment(String physicalCategoryCode) {
+        if (physicalCategoryCode == null) {
+            return false;
+        }
+        return switch (physicalCategoryCode) {
+            case "OUTDOOR", "INDOOR", "INDOOR_WALL", "INDOOR_CEILING" -> true;
+            default -> false;
+        };
+    }
+
+    private boolean isUnknownEquipment(String physicalCategoryCode) {
+        if (physicalCategoryCode == null || physicalCategoryCode.isBlank()
+                || UNCLASSIFIED.equals(physicalCategoryCode)) {
+            return true;
+        }
+        return switch (physicalCategoryCode) {
+            case "SERVICE", "CONTROL", "PIPING", "HVAC",
+                    "OUTDOOR", "INDOOR", "INDOOR_WALL", "INDOOR_CEILING" -> false;
+            default -> true;
         };
     }
 
@@ -179,6 +223,7 @@ public class PriceCalculationService {
                 item.put("isFirstGrade", line.isFirstGrade());
                 item.put("fixedDiscountRate", line.fixedDiscountRate());
                 item.put("hasVariableDiscount", line.hasVariableDiscount());
+                item.put("physicalCategoryCode", line.physicalCategoryCode());
                 lines.add(item);
             }
         }

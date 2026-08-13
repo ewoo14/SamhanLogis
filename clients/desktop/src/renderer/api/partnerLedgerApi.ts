@@ -310,6 +310,20 @@ export async function getLedgerData(
   return mapPartnerLedgerResponse(res.data.data, partnerCode)
 }
 
+/** 판매전표 상세의 전잔·후잔 read 계약 — SALES 역할이 사용할 전용 accounting endpoint. */
+export async function getSalesSlipLedgerData(
+  partnerCode: string,
+  from: string,
+  to: string,
+  slipNo?: string,
+): Promise<LedgerData> {
+  const res = await apiClient.get<ApiEnvelope<PartnerLedgerResponse>>(
+    '/accounting/journals/sales-slip-ledger',
+    { params: { partnerCode, from, to, ...(slipNo ? { slipNo } : {}) } },
+  )
+  return mapPartnerLedgerResponse(res.data.data, partnerCode)
+}
+
 /** 사용자가 현재 원장 결과를 명시적으로 snapshot 저장한다. 조회 자체는 저장하지 않는다. */
 export async function captureLedger(
   partnerCode: string,
@@ -336,11 +350,11 @@ export function mapPartnerLedgerResponse(
     chatRoomNames: [],
     periodFrom: source.periodFrom,
     periodTo: source.periodTo,
-    openingBalance: source.openingBalance ?? '0',
+    openingBalance: source.openingBalance,
     salesTotal: source.salesTotal ?? '0',
     paymentTotal: source.paymentTotal ?? '0',
     adjustmentTotal: source.adjustmentTotal ?? '0',
-    closingBalance: source.closingBalance ?? source.openingBalance ?? '0',
+    closingBalance: source.closingBalance,
     lines: buildPartnerLedgerLines(source.documents ?? [], source.openingBalance ?? '0'),
   }
 }

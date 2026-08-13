@@ -23,6 +23,12 @@ export default defineConfig({
     '**/phase-2-4-real-qa/**',
     '**/*-real-qa.spec.ts',
     '**/*-real-qa/**',
+    // 1131 adversarial live probes require a deployed API plus QA credentials;
+    // this job is the mock hard gate, so keep those probes out of the mock run.
+    '**/1131-r10-sol-review/**',
+    '**/1131-r2-adversarial/1131-r2-live-readonly.spec.ts',
+    '**/1131-r5-adversarial/1131-r5-live.spec.ts',
+    '**/1131-r6-adversarial/1131-r6-live.spec.ts',
     // #1151 live reconvergence 는 mock hard gate 대상이 아니다. 실 SSE/source-journal 검증을 보존한다.
     '**/1151-final-reconv.spec.ts',
     '**/1151-postmerge-sol-reconv.spec.ts',

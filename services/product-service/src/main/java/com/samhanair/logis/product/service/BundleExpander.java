@@ -95,7 +95,12 @@ public class BundleExpander {
         }
 
         // ── EXPAND ──────────────────────────────────────────────
-        List<BundleComponent> components = componentRepository.findByBundleProductId(parent.getId());
+        List<BundleComponent> activeComponents = componentRepository.findByBundleProductId(parent.getId());
+        // 모든 도메인은 데이터가 지정한 기본 구성품만 전개한다.
+        // 기본 0건 세트는 V37에서 레거시 활성 구성품을 기본으로 지정한다.
+        List<BundleComponent> components = activeComponents.stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsDefault()))
+                .toList();
         Map<String, Product> productsByModelCode = components.isEmpty()
                 ? Map.of()
                 : productRepository.findByModelCodeInAndIsDeletedFalse(

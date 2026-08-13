@@ -184,6 +184,7 @@ export type PageCode =
   | 'accounting.partner-ledger'
   | 'accounting.supplier-profiles'
   | 'accounting.cash-receipts'
+  | 'accounting.sales-commission-settlement'
   | 'accounting.edit-requests'
   | 'accounting.edit-requests.decide'
   | 'ecount.mig2.product'
@@ -285,8 +286,6 @@ export type PageCode =
   | 'arologis.accounting.summary'
   | 'arologis.admin.permissions'
   | 'arologis.accounting.accounts'
-  // MIG-14 admin UI
-  | 'ecount.mig14.order-list'
   | 'ecount.mig14.ledger'
   // MIG-21 migration ops dashboard
   | 'ecount.mig.ops-dashboard'

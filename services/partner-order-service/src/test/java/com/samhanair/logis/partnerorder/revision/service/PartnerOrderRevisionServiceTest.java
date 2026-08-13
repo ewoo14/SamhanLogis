@@ -224,6 +224,14 @@ class PartnerOrderRevisionServiceTest {
         }
 
         @Test
+        @DisplayName("공통 표시명 placeholder인 변경자 미상은 버전이력에 null로 저장")
+        void actorName_unknownPlaceholder_returnsNull() {
+            assertThat(PartnerOrderRevisionService.displayNameOrNull(
+                    UUID.randomUUID(), "변경자 미상"))
+                    .isNull();
+        }
+
+        @Test
         @DisplayName("capture 호출 시 actorName=UUID → 저장된 revision 의 actorName=null")
         void capture_actorNameUuid_savedWithNullActorName() {
             // given

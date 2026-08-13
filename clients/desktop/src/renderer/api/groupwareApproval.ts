@@ -6,6 +6,7 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 import { STEP_TYPE_LABEL } from './approvalLineConfigApi'
+import type { ApprovalAttachmentReferenceInput } from './groupwareApprovalAttachment'
 
 export type ApprovalStatus =
   | 'PENDING'
@@ -75,6 +76,7 @@ export interface CreateGroupwareApprovalInput {
   approverIds: string[]
   templateId?: string | null
   fieldValues?: Record<string, string>
+  references?: ApprovalAttachmentReferenceInput[]
 }
 
 export interface GroupwareApprovalDecisionInput {

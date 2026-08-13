@@ -3,6 +3,7 @@ package com.samhanair.logis.dcconfig.audit.service;
 import com.samhanair.logis.dcconfig.audit.domain.DcConfigAuditLog;
 import com.samhanair.logis.dcconfig.audit.repository.DcConfigAuditLogRepository;
 import com.samhanair.logis.dcconfig.realtime.DcConfigRealtimeBroker;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.audit.AuditEventPayloadBuilder;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
@@ -47,16 +48,17 @@ public class DcConfigAuditLogService implements AuditLogRecorder {
         if (changes == null || changes.isEmpty()) {
             return;
         }
+        String safeActorName = ActorDisplayName.resolve(actorId == null ? null : actorId.toString(), actorName);
         int nextRevision = repository.findMaxRevisionByEntityId(entityId) + 1;
 
         for (ChangeEntry c : changes) {
-            DcConfigAuditLog row = DcConfigAuditLog.record(entityId, nextRevision, actorId, actorName,
+            DcConfigAuditLog row = DcConfigAuditLog.record(entityId, nextRevision, actorId, safeActorName,
                     actorColor, c.fieldName(), c.oldValue(), c.newValue());
             repository.save(row);
         }
 
         Map<String, Object> payload = AuditEventPayloadBuilder.build(
-                nextRevision, actorId, actorName, actorColor, changes);
+                nextRevision, actorId, safeActorName, actorColor, changes);
 
         try {
             broker.publish(entityId, DcConfigRealtimeBroker.EVENT_EDIT, payload);
@@ -64,5 +66,11 @@ public class DcConfigAuditLogService implements AuditLogRecorder {
             log.warn("dc-config audit SSE broadcast 실패 — entityId={} cause={}",
                     entityId, broadcastFailure.getMessage());
         }
+    }
+
+    /** 거래처 DC 설정별 audit timeline — 최신 revision 우선. */
+    @Transactional(readOnly = true)
+    public List<DcConfigAuditLog> listByEntity(UUID entityId) {
+        return repository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(entityId);
     }
 }

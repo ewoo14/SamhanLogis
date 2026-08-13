@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   DataTable,
+  safeActorName,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -45,8 +46,7 @@ function requestDateFromApprovalNo(approvalNo: string): string {
 }
 
 function displayNameOrFallback(value: string | null | undefined): string {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : '-'
+  return safeActorName(value) ?? '-'
 }
 
 export function GroupwareApprovalListPage() {

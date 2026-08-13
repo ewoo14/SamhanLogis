@@ -17,6 +17,7 @@ import com.samhanair.logis.slip.price.domain.PartnerProductPriceMemory;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.service.BundleModePolicy;
+import com.samhanair.logis.slip.service.BundleSetInstanceKeyPolicy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -158,6 +159,7 @@ public class MobileQuotationService {
                 List<ExpandedLineDto> expanded = productClient.expand(
                         summary.modelCode(), BigDecimal.valueOf(lineReq.quantity()), null,
                         lineReq.unitPrice());
+                var persistedSetOptions = BundleSetInstanceKeyPolicy.ensure(null);
                 int added = 0;
                 for (ExpandedLineDto component : expanded) {
                     if (component.productId() == null) {
@@ -177,7 +179,8 @@ public class MobileQuotationService {
                             component.modelName(), specification, quantity,
                             component.unitPrice() == null ? BigDecimal.ZERO : component.unitPrice(),
                             lineReq.note());
-                    componentLine.assignBundleComponent(summary.modelCode(), component.setHead());
+                    componentLine.assignBundleComponent(
+                            summary.modelCode(), component.setHead(), persistedSetOptions);
                     estimate.addLine(componentLine);
                     added++;
                 }

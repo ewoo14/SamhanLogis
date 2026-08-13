@@ -222,6 +222,7 @@ public class AccountPermissionService {
                     .findByAccountIdAndPageCodeAndIsDeletedFalse(accountId, update.pageCode())
                     .orElseGet(() -> AccountPermissionOverride.of(accountId, update.pageCode()));
             update.actions().applyTo(override);
+            override.setActorId(actorId);
             overrideRepository.save(override);
             changed++;
         }
@@ -354,6 +355,7 @@ public class AccountPermissionService {
                     .findByRoleCodeAndPageCode(roleCode, update.pageCode())
                     .orElseGet(() -> RolePagePermissionTemplate.of(roleCode, update.pageCode()));
             update.actions().applyTo(template);
+            template.setActorId(actorId);
             templateRepository.save(template);
             changed++;
         }

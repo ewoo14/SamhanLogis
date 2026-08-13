@@ -313,6 +313,7 @@ describe('SlipDetailPage — lineId 왕복 계약 (R8-FE-2)', () => {
         specification: '',
         quantity: 1,
         unitPrice: '100005',
+        unitPriceDomain: 'VAT_INCLUSIVE',
         supplyAmount: '100005',
         vatAmount: '9999',
         lineTotal: '110004',
@@ -702,6 +703,7 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
         quantity: 2,
         unitPrice: '100000',
         unitPriceWithVat: '110000',
+        unitPriceDomain: 'VAT_INCLUSIVE',
         supplyAmount: '200000',
         vatAmount: '20000',
         lineTotal: '220000',
@@ -714,8 +716,7 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     expect(hydrated).toMatchObject({
       unitPrice: '110000', supplyAmount: '200000', vatAmount: '20000', lineTotalWithVat: '220000',
     })
-    // REST 하이드레이션은 저장된 라인(공급/부가세/합계 모두 non-null)을 전부 vatDirty=true 로 본다
-    // — 재열기 후 무수정 저장이 4단계처럼 payload 에 supplyAmount 를 싣는 이유.
+    // 과거 금액 셀 편집 행은 저장 시점에 기록된 VAT_INCLUSIVE 도메인으로 권위를 복원한다.
     expect(hydrated.vatDirty).toBe(true)
   })
 
@@ -1205,6 +1206,7 @@ describe('SlipDetailPage — 생성/수정 화면 부가세 경고 판정 일치
         specification: '',
         quantity: 2,
         unitPrice: '60000',
+        unitPriceDomain: 'SUPPLY',
         supplyAmount: '109090', // 120,000 을 PRICE 권위로 분리한 값 — 정확한 10%(10,909)와는 다른 10,910 이 부가세로 저장된다.
         vatAmount: '10910',
         lineTotal: '120000',

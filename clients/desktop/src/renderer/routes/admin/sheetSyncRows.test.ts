@@ -64,4 +64,20 @@ describe('buildSheetSyncRows', () => {
     expect(rows.find((row) => row.tabName === 'manual 보존')?.result.error).toBeUndefined()
     expect(buildSheetSyncRows({ byTab: summary.byTab, byComponentTab: {}, failedTabs: 1 })).toHaveLength(3)
   })
+
+  it('R33 A3: 규칙 보존 상세를 화면 행까지 전달한다', () => {
+    const rows = buildSheetSyncRows({
+      byTab: {
+        홈멀티: result({
+          preservedByRuleProductOccurrences: 1,
+          preservedByRuleProductDetails: [{ modelCode: 'R33-TARGET', ruleKeys: ['R33_RULE'] }],
+        }),
+      },
+      failedTabs: 0,
+    })
+
+    expect(rows[0]?.result.preservedByRuleProductDetails).toEqual([
+      { modelCode: 'R33-TARGET', ruleKeys: ['R33_RULE'] },
+    ])
+  })
 })

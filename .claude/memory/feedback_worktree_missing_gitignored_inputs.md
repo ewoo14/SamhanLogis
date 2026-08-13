@@ -35,3 +35,35 @@ metadata:
 - 이런 미판정 보고는 **정직한 것이지 실패가 아니다.** 없는 데이터를 지어내 GREEN 을 만드는 것보다 훨씬 낫다 — 그 자리에서 입력을 채우고 같은 스레드로 이어가면 된다.
 
 관련: [[feedback_incomplete_work_wip_branch_cross_pc]] · [[feedback_no_fake_data_ever]] · [[feedback_check_tracked_before_delete]]
+
+---
+
+## 🚨 2026-08-11 재발 — QA 자격 파일. **워크트리 5개 전부 없었다**
+
+```text
+증상   구현자가 "QA_DEV_DEFAULT_PASSWORD 부재로 인증 단계 중단, PNG 생성 미검증" 보고
+원인   scripts/lib/qa-credentials.cjs:4
+         REPO_ENV_FILE = <repo>/infrastructure/.env.local
+       이 파일은 .gitignore:62 대상이라 **워크트리에 딸려오지 않는다**
+실측   main 워크트리에만 있음 · w1051 · wdg7 · w1068 · wdg1s4 · wdg2 **전부 없음**
+```
+
+⟹ 라이브QA 가 **머지 게이트**인데, 워크트리를 만들 때마다 조용히 못 돌게 되어 있었다.
+   "관측 불가" 보고의 진짜 원인이 여기였던 경우가 더 있을 수 있다.
+
+### 워크트리 생성 직후 PM 이 할 것 (체크리스트)
+
+```bash
+git worktree add -b <branch> .claude/worktrees/<w> origin/main
+cp infrastructure/.env.local .claude/worktrees/<w>/infrastructure/.env.local
+git -C .claude/worktrees/<w> check-ignore infrastructure/.env.local   # 무시되는지 확인
+```
+
+🔑 **gitignore 된 입력은 "있는 것" 으로 가정하지 마라.** 워크트리는 tracked 파일만 가져온다.
+그 목록에는 `.env.local` 류 외에 `node_modules`·빌드 산출물·Playwright 브라우저 경로 설정도 들어간다.
+
+### 🚩 함께 관찰된 것 — blocker 보고가 옳았다
+
+구현자는 허위 스크린샷을 만들지 않고 **실패 원문을 남겼다**. PM 이 원인을 찾아 5개 워크트리에 배포하는 것으로 해소됐다. 이 세션 정직한 blocker 보고 **5회**째이고 전부 옳은 처리였다.
+
+관련: [[feedback_live_qa_use_playwright_not_browser_runtime]] · [[feedback_qa_environment_verification_first]] · [[feedback_no_fake_data_ever]]

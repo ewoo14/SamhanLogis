@@ -1,0 +1,33 @@
+[RED-A command]
+.\gradlew.bat :services:product-service:test --tests db.migration.V38__ProductCategoryBackfillTest --no-daemon
+
+[Gradle result]
+> Task :services:product-service:test
+
+V38__ProductCategoryBackfillTest > apply_재실행은_감사후_수동변경한_제품구분을_덮어쓰지_않는다() FAILED
+    org.opentest4j.AssertionFailedError at V38__ProductCategoryBackfillTest.java:233
+
+> Task :services:product-service:test FAILED
+4 tests completed, 1 failed
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':services:product-service:test'.
+> There were failing tests. See the report at: file:///C:/dev/Samhan-Public/.claude/worktrees/wdg2/services/product-service/build/reports/tests/test/index.html
+
+BUILD FAILED
+
+[JUnit XML failure message]
+org.opentest4j.AssertionFailedError:
+expected: "INDOOR"
+ but was: "OUTDOOR"
+
+at db.migration.V38__ProductCategoryBackfillTest.assertCategory(V38__ProductCategoryBackfillTest.java:233)
+at db.migration.V38__ProductCategoryBackfillTest.apply_재실행은_감사후_수동변경한_제품구분을_덮어쓰지_않는다(V38__ProductCategoryBackfillTest.java:120)
+
+[Reproduction state]
+product=BACKFILL-MANUAL-RERUN
+first apply=OUTDOOR
+human change=INDOOR, classification_manual=true, modified_by=human
+second apply=expected INDOOR, actual OUTDOOR

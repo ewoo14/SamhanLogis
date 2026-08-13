@@ -1,0 +1,63 @@
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-08-11T21:01:40.147+09:00  INFO 91264 --- [dc-config-service] [           main] c.s.l.d.DcConfigServiceApplication       : Starting DcConfigServiceApplication v0.1.0-SNAPSHOT using Java 17.0.18 with PID 91264 (C:\dev\Samhan-Public\.claude\worktrees\wdg2\services\dc-config-service\build\libs\dc-config-service.jar started by user in C:\dev\Samhan-Public\.claude\worktrees\wdg2\services\dc-config-service\build\libs)
+2026-08-11T21:01:40.153+09:00  INFO 91264 --- [dc-config-service] [           main] c.s.l.d.DcConfigServiceApplication       : No active profile set, falling back to 1 default profile: "default"
+2026-08-11T21:01:42.915+09:00  INFO 91264 --- [dc-config-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-08-11T21:01:43.140+09:00  INFO 91264 --- [dc-config-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 205 ms. Found 7 JPA repository interfaces.
+2026-08-11T21:01:43.576+09:00  INFO 91264 --- [dc-config-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=3b0005ed-6dc0-3988-a746-c1eaf393689e
+2026-08-11T21:01:44.419+09:00  WARN 91264 --- [dc-config-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig' of type [org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [lbRestClientPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-11T21:01:44.428+09:00  WARN 91264 --- [dc-config-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'deferringLoadBalancerInterceptor' of type [org.springframework.cloud.client.loadbalancer.DeferringLoadBalancerInterceptor] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [lbRestClientPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-11T21:01:45.905+09:00  INFO 91264 --- [dc-config-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 28085 (http)
+2026-08-11T21:01:45.955+09:00  INFO 91264 --- [dc-config-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-11T21:01:45.956+09:00  INFO 91264 --- [dc-config-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.31]
+2026-08-11T21:01:46.077+09:00  INFO 91264 --- [dc-config-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-08-11T21:01:46.080+09:00  INFO 91264 --- [dc-config-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 5846 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2026-08-11T21:01:47.879+09:00  INFO 91264 --- [dc-config-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-08-11T21:01:48.241+09:00  INFO 91264 --- [dc-config-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@4ea43d4d
+2026-08-11T21:01:48.245+09:00  INFO 91264 --- [dc-config-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-08-11T21:01:48.293+09:00  INFO 91264 --- [dc-config-service] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://127.0.0.1:55432/dc_config_db (PostgreSQL 16.14)
+2026-08-11T21:01:48.351+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-08-11T21:01:48.356+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 5 migrations (execution time 00:00.030s)
+2026-08-11T21:01:48.387+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-08-11T21:01:48.532+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-08-11T21:01:48.557+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - init dc config"
+2026-08-11T21:01:48.704+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "2 - add unit processing flag"
+2026-08-11T21:01:48.733+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "3 - add dc config audit logs and edit requests"
+2026-08-11T21:01:48.803+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "4 - add estimate config"
+2026-08-11T21:01:48.845+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "5 - add estimate option defaults"
+2026-08-11T21:01:48.875+09:00  INFO 91264 --- [dc-config-service] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 5 migrations to schema "public", now at version v5 (execution time 00:00.203s)
+2026-08-11T21:01:49.016+09:00  INFO 91264 --- [dc-config-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-08-11T21:01:49.083+09:00  INFO 91264 --- [dc-config-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-08-11T21:01:49.120+09:00  INFO 91264 --- [dc-config-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-08-11T21:01:49.472+09:00  INFO 91264 --- [dc-config-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-08-11T21:01:49.524+09:00  WARN 91264 --- [dc-config-service] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-08-11T21:01:50.931+09:00  INFO 91264 --- [dc-config-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-08-11T21:01:50.974+09:00  INFO 91264 --- [dc-config-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-08-11T21:01:51.690+09:00  INFO 91264 --- [dc-config-service] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-08-11T21:01:54.242+09:00  WARN 91264 --- [dc-config-service] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: d6ee52f6-a10c-4e73-a6cb-54727671a902
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-08-11T21:01:54.375+09:00  INFO 91264 --- [dc-config-service] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-08-11T21:01:56.201+09:00  INFO 91264 --- [dc-config-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 3 endpoints beneath base path '/actuator'
+2026-08-11T21:01:59.250+09:00  INFO 91264 --- [dc-config-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-11T21:01:59.267+09:00  INFO 91264 --- [dc-config-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-08-11T21:01:59.351+09:00  WARN 91264 --- [dc-config-service] [           main] iguration$LoadBalancerCaffeineWarnLogger : Spring Cloud LoadBalancer is currently working with the default cache. While this cache implementation is useful for development and tests, it's recommended to use Caffeine cache in production.You can switch to using Caffeine cache, by adding it and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+2026-08-11T21:01:59.460+09:00  INFO 91264 --- [dc-config-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 28085 (http) with context path '/'
+2026-08-11T21:02:01.232+09:00  INFO 91264 --- [dc-config-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-11T21:02:01.267+09:00  INFO 91264 --- [dc-config-service] [           main] c.s.l.d.DcConfigServiceApplication       : Started DcConfigServiceApplication in 23.889 seconds (process running for 25.398)
+2026-08-11T21:03:00.859+09:00  INFO 91264 --- [dc-config-service] [io-28085-exec-2] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-11T21:03:00.859+09:00  INFO 91264 --- [dc-config-service] [io-28085-exec-2] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-11T21:03:00.861+09:00  INFO 91264 --- [dc-config-service] [io-28085-exec-2] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms

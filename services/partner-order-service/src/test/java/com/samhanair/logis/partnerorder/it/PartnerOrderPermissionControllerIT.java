@@ -33,6 +33,7 @@ import com.samhanair.logis.partnerorder.service.PartnerOrderDraftService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderFromEstimateService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderHistoryService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderPrintService;
+import com.samhanair.logis.partnerorder.service.PartnerOrderPriceCalculationService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderQueryService;
 import com.samhanair.logis.partnerorder.service.TutorialStateService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderUpdateService;
@@ -44,8 +45,11 @@ import com.samhanair.logis.partnerorder.web.PartnerOrderFromEstimateController;
 import com.samhanair.logis.partnerorder.web.PartnerOrderHistoryController;
 import com.samhanair.logis.partnerorder.web.PartnerOrderListController;
 import com.samhanair.logis.partnerorder.web.PartnerOrderPrintController;
+import com.samhanair.logis.partnerorder.web.PartnerOrderPricePreviewController;
 import com.samhanair.logis.partnerorder.web.TutorialStateController;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
+import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
+import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
 import com.samhanair.logis.partnerorder.web.dto.HistoryResponse;
@@ -98,6 +102,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 PartnerOrderConfirmController.class,
                 PartnerOrderDeleteController.class,
                 PartnerOrderDraftController.class,
+                PartnerOrderPricePreviewController.class,
                 PartnerOrderEditController.class,
                 PartnerOrderFromEstimateController.class,
                 PartnerOrderHistoryController.class,
@@ -139,6 +144,7 @@ class PartnerOrderPermissionControllerIT {
     @MockBean private PartnerOrderConfirmService confirmService;
     @MockBean private PartnerOrderDeleteService deleteService;
     @MockBean private PartnerOrderDraftService draftService;
+    @MockBean private PartnerOrderPriceCalculationService priceCalculationService;
     @MockBean private PartnerOrderUpdateService updateService;
     @MockBean private PartnerOrderFromEstimateService fromEstimateService;
     @MockBean private PartnerOrderHistoryService historyService;
@@ -197,6 +203,17 @@ class PartnerOrderPermissionControllerIT {
         lenient().when(draftService.create(any(), anyString(), any())).thenReturn(draft);
         lenient().when(draftService.list(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of(draft)));
         lenient().when(draftService.getOne(any(), any())).thenReturn(draftDetail);
+        lenient().when(priceCalculationService.calculate(anyString(), any(ConfirmRequest.class)))
+                .thenReturn(new PartnerOrderPriceCalculationService.Calculation(
+                        List.of(new PartnerOrderPriceCalculationService.Line(
+                                0,
+                                new ConfirmLineRequest(null, "MODEL-1", "homemulti", 1, null),
+                                new com.samhanair.logis.partnerorder.client.ProductSummary(
+                                        null, "제품", "MODEL-1", null, BigDecimal.valueOf(1000),
+                                        "ACTIVE", "MODEL-1", null, null, null, null,
+                                        BigDecimal.valueOf(1000), BigDecimal.valueOf(1000), true, "HVAC"),
+                                BigDecimal.valueOf(1000), BigDecimal.valueOf(900), BigDecimal.valueOf(0.10))),
+                        true, BigDecimal.valueOf(1000), BigDecimal.valueOf(900)));
         lenient().when(updateService.update(anyString(), any(), any(), anyString())).thenReturn(detail);
         lenient().when(fromEstimateService.createFromEstimate(any(), any(), anyString())).thenReturn(detail);
         lenient().when(historyService.findHistory(anyString(), any(), any(), any()))
@@ -296,6 +313,18 @@ class PartnerOrderPermissionControllerIT {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void pricePreview_whenServerCalculationUnavailable_returns503_withoutFallback() throws Exception {
+        when(priceCalculationService.calculate(anyString(), any(ConfirmRequest.class)))
+                .thenReturn(new PartnerOrderPriceCalculationService.Calculation(
+                        List.of(), false, BigDecimal.ZERO, BigDecimal.ZERO));
+
+        mockMvc.perform(withActor(post("/api/v1/partner-orders/price-preview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(previewBody()), "PARTNER"))
+                .andExpect(status().isServiceUnavailable());
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 new EndpointCase("edit request create", "sales.partner-order.edit-requests", PermissionAction.CREATE, "SALES", 201,
@@ -328,6 +357,10 @@ class PartnerOrderPermissionControllerIT {
                         () -> post("/api/v1/partner-orders/drafts")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"label\":\"draft\",\"payloadJson\":\"{}\"}")),
+                new EndpointCase("price preview", "sales.partner-order.draft", PermissionAction.CREATE, "SALES", 200,
+                        () -> post("/api/v1/partner-orders/price-preview")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(previewBody())),
                 new EndpointCase("draft list", "sales.partner-order.draft", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/v1/partner-orders/drafts")),
                 new EndpointCase("draft detail", "sales.partner-order.draft", PermissionAction.VIEW, "SALES", 200,
@@ -372,6 +405,10 @@ class PartnerOrderPermissionControllerIT {
                         () -> post("/api/v1/partner-orders/drafts")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"label\":\"draft\",\"payloadJson\":\"{}\"}")),
+                new EndpointCase("price preview", "sales.partner-order.draft", PermissionAction.CREATE, "PARTNER", 200,
+                        () -> post("/api/v1/partner-orders/price-preview")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(previewBody())),
                 new EndpointCase("draft list", "sales.partner-order.draft", PermissionAction.VIEW, "PARTNER", 200,
                         () -> get("/api/v1/partner-orders/drafts")),
                 new EndpointCase("draft detail", "sales.partner-order.draft", PermissionAction.VIEW, "PARTNER", 200,
@@ -397,6 +434,12 @@ class PartnerOrderPermissionControllerIT {
     private static String confirmBody() {
         return """
                 {"lines":[{"productId":"00000000-0000-0000-0000-000000000301","categoryKey":"wall","quantity":1}]}
+                """;
+    }
+
+    private static String previewBody() {
+        return """
+                {"lines":[{"modelCode":"MODEL-1","categoryKey":"homemulti","quantity":1}]}
                 """;
     }
 

@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.editrequest.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.product.editrequest.domain.ProductEditRequest;
 import com.samhanair.logis.product.editrequest.service.ProductEditRequestService;
 import com.samhanair.logis.product.editrequest.web.dto.ApproveRequest;
@@ -159,12 +160,6 @@ public class ProductEditRequestController {
     }
 
     private String resolveName(String callerId, String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            return callerId;
-        }
-        return "system";
+        return ActorDisplayName.resolve(callerId, callerName);
     }
 }

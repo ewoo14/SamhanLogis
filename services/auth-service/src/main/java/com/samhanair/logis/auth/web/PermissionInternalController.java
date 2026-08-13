@@ -5,6 +5,7 @@ import com.samhanair.logis.auth.repository.RolePagePermissionRepository;
 import com.samhanair.logis.auth.service.AccountPermissionService;
 import com.samhanair.logis.auth.service.DynamicPermissionService;
 import com.samhanair.logis.auth.service.dto.PermissionDto;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.auth.web.dto.PermissionUpdateRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.permission.PermissionAction;
@@ -183,9 +184,9 @@ public class PermissionInternalController {
             @RequestHeader(value = USER_ID_HEADER, required = false) String actor) {
         String actorId = (actor == null || actor.isBlank()) ? "system-internal" : actor;
         // 신뢰경계 감사 — 도메인 무제한 write 면이므로 모든 변경을 오용 탐지용으로 WARN 기록.
-        log.warn("[PermissionInternal] role-grant 변경 — actor={} roleCode={} pageCode={} "
+        log.warn("[PermissionInternal] role-grant 변경 — actorName={} roleCode={} pageCode={} "
                         + "canView={} canEdit={}",
-                actorId, request.roleCode(), request.pageCode(),
+                ActorDisplayName.resolve(actorId, null), request.roleCode(), request.pageCode(),
                 request.canView(), request.canEdit());
         return ApiResponse.ok(dynamicPermissionService.updatePermission(request, actorId));
     }

@@ -2,16 +2,41 @@ package com.samhanair.logis.slip.web.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /** {@link SlipResponse} 매핑 단위 테스트. */
 class SlipResponseTest {
+
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}");
+
+    @Test
+    void from_existingLegacyRowWithRequesterUuid_doesNotUseItAsSalesPersonName() throws Exception {
+        UUID requesterId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+        // 기존 DB 행의 레거시 shape: requester_id가 표시명이 아닌 UUID 문자열로 남아 있다.
+        Slip slip = Slip.createOutbound("2026/08/13-legacy", LocalDate.of(2026, 8, 13), 1,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "기존 전표",
+                DeliveryTag.DAY, null, requesterId.toString());
+
+        SlipResponse response = SlipResponse.from(slip);
+        String body = new ObjectMapper().findAndRegisterModules().writeValueAsString(response);
+        String listUrl = "/slips?status=COMPLETED&page=0&size=20";
+        String wire = listUrl + body;
+
+        assertThat(response.salesPersonName()).isNull();
+        assertThat(body).doesNotContain(requesterId.toString());
+        assertThat(UUID_PATTERN.matcher(body).find()).isFalse();
+        assertThat(listUrl).doesNotContain(requesterId.toString());
+        assertThat(UUID_PATTERN.matcher(wire).find()).isFalse();
+    }
 
     @Test
     void from_목록금액은_legacyNull_라인도_VAT포함_상세합계와_같아야한다() {

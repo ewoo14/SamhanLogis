@@ -8,6 +8,7 @@ import com.samhanair.logis.slip.estimate.snapshot.domain.QuoteSnapshot;
 import com.samhanair.logis.slip.estimate.snapshot.repository.QuoteSnapshotRepository;
 import com.samhanair.logis.slip.estimate.snapshot.web.dto.QuoteSnapshotResponse;
 import com.samhanair.logis.slip.estimate.snapshot.web.dto.SaveQuoteSnapshotRequest;
+import com.samhanair.logis.slip.estimate.snapshot.web.dto.WebQuoteSnapshotListResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,6 +17,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.time.format.DateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,6 +70,21 @@ public class QuoteSnapshotService {
         return repository.findByCustomer(userEmail == null || userEmail.isBlank() ? null : userEmail.trim(),
                         custName == null ? "" : escapeLikeLiteral(custName.trim()), org.springframework.data.domain.PageRequest.of(0, 30))
                 .stream().map(QuoteSnapshotResponse::full).toList();
+    }
+
+    /** 데스크톱 견적 목록용 메타데이터. 내부 UUID와 복원 payload를 절대 반환하지 않는다. */
+    @Transactional(readOnly = true)
+    public List<WebQuoteSnapshotListResponse> desktopList(String startDate, String endDate) {
+        LocalDateTime from = parseDayStart(startDate) == null ? FLOOR : parseDayStart(startDate);
+        LocalDateTime to = parseDayEnd(endDate) == null ? CEIL : parseDayEnd(endDate);
+        return repository.findAllHistory(from, to).stream().map(snapshot ->
+                new WebQuoteSnapshotListResponse(
+                        snapshot.getSavedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                        snapshot.getCustName() == null || snapshot.getCustName().isBlank()
+                                ? "웹 종합견적서" : snapshot.getCustName(),
+                        snapshot.getCustName(),
+                        snapshot.getSavedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                        snapshot.getTotalAmount())).toList();
     }
 
     private static String escapeLikeLiteral(String value) {

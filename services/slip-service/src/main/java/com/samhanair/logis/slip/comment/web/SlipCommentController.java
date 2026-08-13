@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.comment.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.comment.domain.SlipComment;
 import com.samhanair.logis.slip.comment.service.SlipCommentService;
@@ -66,7 +67,7 @@ public class SlipCommentController {
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         UUID authorId = resolveAuthorId(callerId);
-        String authorName = resolveAuthorName(callerName);
+        String authorName = resolveAuthorName(callerId, callerName);
         SlipComment saved = commentService.add(slipId, authorId, authorName, request.body());
         return ApiResponse.ok(SlipCommentResponse.from(saved));
     }
@@ -103,7 +104,7 @@ public class SlipCommentController {
         }
     }
 
-    private String resolveAuthorName(String header) {
-        return (header == null || header.isBlank()) ? "system" : header;
+    private String resolveAuthorName(String callerId, String header) {
+        return ActorDisplayName.resolve(callerId, header);
     }
 }

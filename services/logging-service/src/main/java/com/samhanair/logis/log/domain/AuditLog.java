@@ -42,10 +42,34 @@ public class AuditLog {
     private String serviceName;
 
     @Field(type = FieldType.Keyword)
+    private String schemaVersion;
+
+    @Field(type = FieldType.Keyword)
+    private String requestId;
+
+    @Field(type = FieldType.Keyword)
+    private String traceId;
+
+    @Field(type = FieldType.Keyword)
+    private String parentService;
+
+    @Field(type = FieldType.Keyword)
+    private String httpMethod;
+
+    @Field(type = FieldType.Keyword)
+    private String routeTemplate;
+
+    @Field(type = FieldType.Long)
+    private Long durationMs;
+
+    @Field(type = FieldType.Keyword)
     private String userId;
 
     @Field(type = FieldType.Keyword)
     private String userRole;
+
+    @Field(type = FieldType.Keyword)
+    private String actorDisplayName;
 
     /** e.g. "SLIP_CREATE", "ACCOUNT_LOGIN". */
     @Field(type = FieldType.Keyword)
@@ -56,6 +80,9 @@ public class AuditLog {
 
     @Field(type = FieldType.Keyword)
     private String resourceId;
+
+    @Field(type = FieldType.Keyword)
+    private String internalResourceId;
 
     @Field(type = FieldType.Text)
     private String description;
@@ -71,6 +98,15 @@ public class AuditLog {
 
     @Field(type = FieldType.Keyword)
     private String userAgent;
+
+    @Field(type = FieldType.Integer)
+    private Integer httpStatus;
+
+    @Field(type = FieldType.Keyword)
+    private String errorCode;
+
+    @Field(type = FieldType.Text)
+    private String errorSummary;
 
     @Field(type = FieldType.Date, format = DateFormat.date_optional_time)
     private Instant occurredAt;

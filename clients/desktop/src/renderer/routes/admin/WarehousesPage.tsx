@@ -418,6 +418,7 @@ export function WarehousesPage() {
         onClose={() => setEditTarget(null)}
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ['admin', 'warehouses'] })
+          queryClient.invalidateQueries({ queryKey: ['warehouses'] })
         }}
       />
 

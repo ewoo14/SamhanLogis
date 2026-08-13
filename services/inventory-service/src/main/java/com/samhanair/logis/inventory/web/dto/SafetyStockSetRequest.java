@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -15,6 +16,7 @@ import java.util.UUID;
  * @param scopeMode   선택 범위 ({@code ALL}/{@code SELECTED}) — 누락 불가
  */
 public record SafetyStockSetRequest(
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         UUID warehouseId,
         @NotNull @Min(0) Integer threshold,
         String note,

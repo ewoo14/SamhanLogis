@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web.collab.dto;
 
 import com.samhanair.logis.accounting.collab.JournalCollabSuggestion;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.collab.CollabSuggestionStatus;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -28,9 +29,9 @@ public record JournalCollabSuggestionResponse(
                 suggestion.getId(),
                 suggestion.getChangeSet(),
                 suggestion.getReason(),
-                suggestion.getProposerName(),
+                ActorDisplayName.resolve(suggestion.getProposerId() == null ? null : suggestion.getProposerId().toString(), suggestion.getProposerName()),
                 suggestion.getStatus(),
-                suggestion.getDecidedByName(),
+                ActorDisplayName.resolve(suggestion.getDecidedById() == null ? null : suggestion.getDecidedById().toString(), suggestion.getDecidedByName()),
                 suggestion.getDecidedAt() == null ? null
                         : LocalDateTime.ofInstant(suggestion.getDecidedAt(), ZoneId.systemDefault()),
                 suggestion.getCreatedAt());

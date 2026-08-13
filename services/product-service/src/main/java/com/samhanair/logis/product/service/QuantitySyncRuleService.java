@@ -193,11 +193,71 @@ public class QuantitySyncRuleService {
     public List<String> findEnabledRuleKeysBrokenByResultingState(
             UUID productId, boolean resultingActive, boolean resultingVisible,
             Set<EstimateCategory> resultingCategories) {
+        return findEnabledRuleKeysBrokenByResultingState(productId, resultingActive, resultingVisible,
+                resultingCategories, null);
+    }
+
+    /**
+     * 품목 역할까지 포함한 결과 상태로 활성 규칙을 판정한다.
+     *
+     * <p>기존 상태 가드의 enabled/shadow/category 판정은 그대로 두고, target이면 GOODS와
+     * 허용 부자재 역할을, source이면 부자재 역할이 아님을 추가로 확인한다. 역할 변경은
+     * 저장 전에 호출자가 이 결과를 확인하므로 규칙을 조용히 무효화하지 않고 기존 충돌
+     * 메시지 계약으로 사용자에게 원인을 알릴 수 있다.
+     */
+    @Transactional(readOnly = true)
+    public List<String> findEnabledRuleKeysBrokenByResultingState(
+            UUID productId, boolean resultingActive, boolean resultingVisible,
+            Set<EstimateCategory> resultingCategories,
+            String resultingClassificationName, String resultingGoodsType) {
+        return findEnabledRuleKeysBrokenByResultingState(productId, resultingActive, resultingVisible,
+                resultingCategories, new ResultingRole(resultingClassificationName, resultingGoodsType));
+    }
+
+    /** 분류명·상품유형만 바뀌는 경우에 역할 계약을 깨는 활성 규칙을 반환한다. */
+    @Transactional(readOnly = true)
+    public List<String> findEnabledRuleKeysBrokenByResultingRole(
+            UUID productId, String resultingClassificationName, String resultingGoodsType) {
+        return findEnabledRuleKeysBrokenByResultingState(productId, true, true, Set.of(),
+                new ResultingRole(resultingClassificationName, resultingGoodsType), false);
+    }
+
+    /** L분류명 변경으로 target 역할이 깨지는 활성 규칙을 반환한다. */
+    @Transactional(readOnly = true)
+    public List<String> findEnabledRuleKeysBrokenByClassificationName(
+            UUID classificationId, String resultingClassificationName) {
+        Set<String> broken = new java.util.TreeSet<>();
+        productRepository.findByCatL_IdAndIsDeletedFalse(classificationId).forEach(product ->
+                broken.addAll(findEnabledRuleKeysBrokenByResultingRole(
+                        product.getId(), resultingClassificationName,
+                        product.getGoodsType() == null ? null : product.getGoodsType().name())));
+        return List.copyOf(broken);
+    }
+
+    private List<String> findEnabledRuleKeysBrokenByResultingState(
+            UUID productId, boolean resultingActive, boolean resultingVisible,
+            Set<EstimateCategory> resultingCategories, ResultingRole resultingRole) {
+        return findEnabledRuleKeysBrokenByResultingState(productId, resultingActive, resultingVisible,
+                resultingCategories, resultingRole, true);
+    }
+
+    private List<String> findEnabledRuleKeysBrokenByResultingState(
+            UUID productId, boolean resultingActive, boolean resultingVisible,
+            Set<EstimateCategory> resultingCategories, ResultingRole resultingRole,
+            boolean checkMembership) {
         Set<UUID> ruleIds = new HashSet<>();
+        Set<UUID> sourceRuleIds = new HashSet<>();
+        Set<UUID> targetRuleIds = new HashSet<>();
         sourceRepository.findAllBySourceProductIdAndIsDeletedFalse(productId)
-                .forEach(source -> ruleIds.add(source.getRuleId()));
+                .forEach(source -> {
+                    ruleIds.add(source.getRuleId());
+                    sourceRuleIds.add(source.getRuleId());
+                });
         targetRepository.findAllByTargetProductIdAndIsDeletedFalse(productId)
-                .forEach(target -> ruleIds.add(target.getRuleId()));
+                .forEach(target -> {
+                    ruleIds.add(target.getRuleId());
+                    targetRuleIds.add(target.getRuleId());
+                });
         if (ruleIds.isEmpty()) {
             return List.of();
         }
@@ -205,11 +265,32 @@ public class QuantitySyncRuleService {
         return ruleRepository.findAllById(ruleIds).stream()
                 .filter(QuantitySyncRule::isEnabled)
                 .filter(rule -> !isShadowOnlyRule(rule))
-                .filter(rule -> !satisfiesMembership
-                        || !containsRuleCategory(resultingCategories, rule.getEstimateCategory()))
+                .filter(rule -> {
+                    boolean membershipBroken = checkMembership
+                            && (!satisfiesMembership
+                            || !containsRuleCategory(resultingCategories, rule.getEstimateCategory()));
+                    boolean roleBroken = resultingRole != null
+                            && !roleSatisfiesRule(rule.getId(), sourceRuleIds, targetRuleIds, resultingRole);
+                    return membershipBroken || roleBroken;
+                })
                 .map(QuantitySyncRule::getRuleKey)
                 .sorted()
                 .toList();
+    }
+
+    private boolean roleSatisfiesRule(UUID ruleId, Set<UUID> sourceRuleIds,
+                                      Set<UUID> targetRuleIds, ResultingRole resultingRole) {
+        if (targetRuleIds.contains(ruleId)
+                && !QuantitySyncRuleValidator.isValidTargetRole(
+                        resultingRole.classificationName(), resultingRole.goodsType())) {
+            return false;
+        }
+        return !sourceRuleIds.contains(ruleId)
+                || !QuantitySyncRuleValidator.isMaterialClassificationName(
+                        resultingRole.classificationName());
+    }
+
+    private record ResultingRole(String classificationName, String goodsType) {
     }
 
     /**
@@ -388,7 +469,8 @@ public class QuantitySyncRuleService {
         List<QuantitySyncTarget> targets = request.targets().stream()
                 .map(target -> QuantitySyncTarget.create(ruleId,
                         products.get(target.productCode()).getId(), target.multiplier(),
-                        QuantitySyncRoundingMode.valueOf(target.roundingMode()), target.displayOrder()))
+                        QuantitySyncRoundingMode.valueOf(target.roundingMode()),
+                        target.componentVariant(), target.componentShape(), target.displayOrder()))
                 .toList();
         sourceRepository.saveAll(sources);
         targetRepository.saveAll(targets);
@@ -424,7 +506,7 @@ public class QuantitySyncRuleService {
                 request.conflictPolicy().name(), request.priority(), request.legacyRef(),
                 request.sources().stream().map(s -> new SourceDraft(s.productCode(), s.factor())).toList(),
                 request.targets().stream().map(t -> new TargetDraft(t.productCode(), t.multiplier(),
-                        t.roundingMode(), t.displayOrder())).toList(), snapshots, existingRules);
+                        t.roundingMode(), t.componentVariant(), t.componentShape(), t.displayOrder())).toList(), snapshots, existingRules);
     }
 
     /**
@@ -475,7 +557,9 @@ public class QuantitySyncRuleService {
                 product.getStatus() == ProductStatus.ACTIVE,
                 product.getUsageScope() != UsageScope.NONE,
                 product.getProductType() == ProductType.BUNDLE,
-                componentCodes, componentProductIds(componentCodes));
+                componentCodes, componentProductIds(componentCodes),
+                product.getCatL() == null ? null : product.getCatL().getName(),
+                product.getGoodsType() == null ? null : product.getGoodsType().name());
     }
 
     /**
@@ -558,7 +642,8 @@ public class QuantitySyncRuleService {
                     return QuantitySyncProductRef.target(
                             product == null ? null : productCode(product),
                             product == null ? MISSING_PRODUCT_LABEL : product.getName(),
-                            target.getMultiplier(), target.getRoundingMode().name(), target.getDisplayOrder());
+                            target.getMultiplier(), target.getRoundingMode().name(),
+                            target.getComponentVariant(), target.getComponentShape(), target.getDisplayOrder());
                 }).toList();
         return new QuantitySyncRuleResponse(rule.getRuleKey(), rule.getEstimateCategory(), rule.getName(),
                 rule.isEnabled(), rule.getAggregation(), rule.getConditionJson(), rule.getInactiveBehavior(),

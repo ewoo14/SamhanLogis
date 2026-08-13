@@ -1,0 +1,29 @@
+실행 위치: clients/desktop
+Playwright: 1.59.1
+Chromium: C:\Users\user\AppData\Local\ms-playwright\chromium-1217\chrome-win64\chrome.exe
+첫 하네스: vite.web.config.ts, http://127.0.0.1:5416
+
+Running 2 tests using 1 worker
+
+[1/2] 등록 폼의 필수 카테고리 선택에서 미등록을 선택할 수 있다
+Error: expect(locator).toBeVisible() failed
+Locator: getByTestId('product-form-category')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+at playwright/1166-product-category-sol-review/1166-product-category-sol-review.spec.ts:130:26
+
+[2/2] 기초품목 화면에서 미등록 필터와 2,126건 카운트를 제공한다
+Error: expect(locator).toBeVisible() failed
+Locator: getByTestId('product-catalog-table')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+at playwright/1166-product-category-sol-review/1166-product-category-sol-review.spec.ts:140:59
+
+2 failed
+
+실패 화면 snapshot은 두 경우 모두 대시보드였다. 원인은 HashRouter URL(#/products/...)을
+BrowserRouter를 강제하는 vite.web.config.ts 서버에 사용한 하네스 불일치다.
+실패 캡처: 05-first-run-failure-form.png, 06-first-run-failure-catalog.png
+

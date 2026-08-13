@@ -9,4 +9,5 @@ export const PartnerOrderCollabRealtimeClient = createRealtimeClient({
   name: 'partner-order-collab',
   endpointPath: (orderId) =>
     `/api/v1/partner-orders/${encodeURIComponent(orderId)}/collab/stream`,
+  allowMockMode: true,
 })

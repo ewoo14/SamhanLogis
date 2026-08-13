@@ -21,4 +21,5 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const ArologisDispatchRealtimeClient = createRealtimeClient({
   name: 'ArologisDispatchRealtimeClient',
   endpointPath: (id) => `/admin/arologis/dispatches/${encodeURIComponent(id)}/realtime`,
+  allowMockMode: true,
 })

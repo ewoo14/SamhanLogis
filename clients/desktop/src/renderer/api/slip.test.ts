@@ -10,7 +10,7 @@ const apiClientMock = vi.hoisted(() => ({
 
 vi.mock('./client', () => ({ apiClient: apiClientMock }))
 
-import { duplicateSlip, expandBundleLine, getPriceMemories, listSlips, toApiBundleSetOptions } from './slip'
+import { duplicateSlip, expandBundleLine, getPriceMemories, getSlipByNumber, listSlips, toApiBundleSetOptions } from './slip'
 
 describe('slip price contract', () => {
   beforeEach(() => {
@@ -158,6 +158,12 @@ describe('slip bundle expansion contract', () => {
       panelOption: null,
     }))
   })
+
+  it('세트 instanceKey는 기존 옵션 필드와 함께 API JSONB 문맥으로 왕복한다', () => {
+    expect(toApiBundleSetOptions('BUNDLE', { instanceKey: 'instance-1' })).toEqual(expect.objectContaining({
+      instanceKey: 'instance-1',
+    }))
+  })
 })
 
 describe('slip list soft-delete population', () => {
@@ -175,5 +181,34 @@ describe('slip list soft-delete population', () => {
     expect(apiClientMock.get).toHaveBeenLastCalledWith('/slips', {
       params: { page: 0, size: 20, slipType: 'OUTBOUND', includeDeleted: 'true' },
     })
+  })
+})
+
+describe('재고수불부 전표 모달 UUID 비공개 계약', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  it('검색·상세 요청 URL과 두 응답 본문 전체에 UUID가 없어야 한다', async () => {
+    const slipNo = '2026/08/02-17'
+    const opaqueId = 'ERERERERERERERERERERER'
+    const search = {
+      content: [{ id: opaqueId, slipNo, slipType: 'INBOUND', partnerId: opaqueId }],
+      totalElements: 1, totalPages: 1, number: 0, size: 20, first: true, last: true,
+    }
+    const detail = { id: opaqueId, slipNo, lines: [{ id: opaqueId, productId: opaqueId }] }
+    apiClientMock.get
+      .mockResolvedValueOnce({ data: { data: search } })
+      .mockResolvedValueOnce({ data: { data: detail } })
+
+    const result = await getSlipByNumber(slipNo, 'INBOUND')
+
+    const requestUrls = apiClientMock.get.mock.calls.map(([url]) => String(url))
+    const responseBodies = [search, detail].map((body) => JSON.stringify(body))
+    expect(result.slipNo).toBe(slipNo)
+    expect(apiClientMock.get).toHaveBeenNthCalledWith(1, '/slips/query', expect.objectContaining({
+      params: expect.objectContaining({ searchSlipNo: slipNo }),
+    }))
+    expect(apiClientMock.get).toHaveBeenNthCalledWith(2, `/slips/${opaqueId}`)
+    expect(requestUrls.join('\n')).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27}/i)
+    expect(responseBodies.join('\n')).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27}/i)
   })
 })

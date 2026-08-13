@@ -2,7 +2,9 @@ import {
   fetchWebVersionStatus,
   hasUnsavedFormInput,
   resolveVersionPromptState,
+  VERSION_POLICY_FAILURE_MESSAGE,
   type FormControlSnapshot,
+  type WebVersionInfo,
   type VersionPromptState,
 } from './versionCheck'
 
@@ -65,9 +67,14 @@ export async function mountOrderVersionGate({
   fetchImpl,
   reload = () => window.location.reload(),
 }: OrderVersionGateOptions): Promise<void> {
-  const versionInfo = await fetchWebVersionStatus({ apiBaseUrl, currentVersion, fetchImpl })
-  if (!versionInfo) return
-
+  let versionInfo: WebVersionInfo
+  try {
+    versionInfo = await fetchWebVersionStatus({ apiBaseUrl, currentVersion, fetchImpl })
+  } catch (error) {
+    console.warn('[order-version] 버전 정책 조회 실패', error)
+    mountVersionPolicyFailureNotice(documentRef)
+    return
+  }
   const promptState = resolveVersionPromptState(versionInfo, readBrowserStorage())
   if (promptState.kind === 'none') return
 
@@ -133,6 +140,30 @@ export async function mountOrderVersionGate({
     actions.appendChild(dismissButton)
   }
   notice.appendChild(actions)
+  documentRef.body.appendChild(notice)
+}
+
+function mountVersionPolicyFailureNotice(documentRef: Document): void {
+  if (documentRef.getElementById('samhan-order-version-policy-error')) return
+  const notice = documentRef.createElement('aside')
+  notice.id = 'samhan-order-version-policy-error'
+  notice.setAttribute('data-testid', 'web-version-policy-error')
+  notice.setAttribute('role', 'status')
+  notice.setAttribute('aria-live', 'polite')
+  Object.assign(notice.style, {
+    position: 'fixed',
+    insetInline: '16px',
+    insetBlockEnd: '16px',
+    zIndex: '300000',
+    padding: '12px 14px',
+    border: '1px solid #FCA5A5',
+    borderRadius: '10px',
+    background: '#FEF2F2',
+    color: '#991B1B',
+    boxShadow: '0 12px 30px rgba(15, 23, 42, .16)',
+    fontFamily: 'system-ui, sans-serif',
+  })
+  notice.textContent = VERSION_POLICY_FAILURE_MESSAGE
   documentRef.body.appendChild(notice)
 }
 

@@ -3,13 +3,19 @@ package com.samhanair.logis.inventory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
+import com.samhanair.logis.inventory.realtime.domain.InventoryAuditLog;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.inventory.realtime.service.InventoryAuditLogRecorder;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
@@ -19,6 +25,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,6 +38,9 @@ class WarehouseServiceTest {
 
     @Mock
     private WarehouseRepository warehouseRepository;
+
+    @Mock
+    private InventoryAuditLogRecorder auditLogRecorder;
 
     @InjectMocks
     private WarehouseService service;
@@ -105,6 +117,160 @@ class WarehouseServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    void update_withoutCallerName_usesAuditFallbackName() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("감사 창고", null, null, null, null),
+                callerId.toString());
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("변경자 미상"), eq(null), anyList());
+    }
+
+    @Test
+    void update_authenticatedCaller_persistsDisplayNameInAudit() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("표시명 보존 창고", null, null, null, null),
+                callerId.toString(), "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), eq(null), anyList());
+    }
+
+    @Test
+    void delete_authenticatedCaller_persistsDisplayNameInAudit() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.delete(mainId, callerId.toString(), "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), eq(null), anyList());
+    }
+
+    @Test
+    void restore_authenticatedCaller_persistsDisplayNameInAudit() {
+        mainWarehouse.markDeleted("삭제자");
+        when(warehouseRepository.findDeletedById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        when(warehouseRepository.existsByCodeAndIsDeletedFalse(mainWarehouse.getCode())).thenReturn(false);
+        UUID callerId = UUID.randomUUID();
+
+        service.restore(mainId, callerId.toString(), "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), eq(null), anyList());
+    }
+
+    @Test
+    void revert_authenticatedCaller_persistsDisplayNameInAudit() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        when(auditLogRecorder.listByEntity(mainId)).thenReturn(List.of(
+                InventoryAuditLog.record(mainId, 1, UUID.randomUUID(), "기존 사용자", null,
+                        "name", "되돌릴 창고명", "현재 창고명")));
+        UUID callerId = UUID.randomUUID();
+
+        service.revertToRevision(mainId, 1, callerId.toString(), "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김감사"), eq(null), anyList());
+    }
+
+    @Test
+    void authenticatedCaller_uuidDisplayName_usesUnknownAuditName() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("UUID 이름 차단", null, null, null, null),
+                callerId.toString(), callerId.toString());
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("변경자 미상"), eq(null), anyList());
+    }
+
+    @ParameterizedTest(name = "보이지 않는 문자 actorName {0} 은 원문을 저장한다")
+    @ValueSource(strings = {
+            "\u200B",
+            "\u200B123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174000\u200B",
+            "\u200C",
+            "\u200D",
+            "\uFEFF",
+            "\u00AD",
+            "\u2060"
+    })
+    void invisibleOrWrappedUuidDisplayName_usesUnknownAuditName(String actorName) {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("정규화 창고", null, null, null, null),
+                callerId.toString(), actorName);
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("변경자 미상"), eq(null), anyList());
+    }
+
+    @ParameterizedTest(name = "이름 부재 {0} 은 감사 fallback으로 저장한다")
+    @NullSource
+    @ValueSource(strings = {"", "   ", "\t", "\n"})
+    void missingDisplayName_usesAuditFallback(String actorName) {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("이름 부재 창고", null, null, null, null),
+                callerId.toString(), actorName);
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("변경자 미상"), eq(null), anyList());
+    }
+
+    @ParameterizedTest(name = "정상 actorName {0} 은 원문을 보존한다")
+    @ValueSource(strings = {"김%감사", "김+감사", "김%20감사", "1-1-1-1-1"})
+    void normalDisplayName_isPersistedUnchanged(String actorName) {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("정상 이름 창고", null, null, null, null),
+                callerId.toString(), actorName);
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq(actorName), eq(null), anyList());
+    }
+
+    @Test
+    void mixedInvisibleCharacterDisplayName_isPersistedUnchanged() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+        UUID callerId = UUID.randomUUID();
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("혼합 이름 창고", null, null, null, null),
+                callerId.toString(), "김\u200B감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(callerId), eq("김\u200B감사"), eq(null), anyList());
+    }
+
+    @Test
+    void systemCaller_alwaysUsesSystemActorName() {
+        when(warehouseRepository.findById(mainId)).thenReturn(Optional.of(mainWarehouse));
+
+        service.update(mainId,
+                new UpdateWarehouseRequest("시스템 변경", null, null, null, null),
+                null, "김감사");
+
+        verify(auditLogRecorder).recordBatch(
+                eq(mainId), eq(new UUID(0L, 0L)), eq("시스템"), isNull(), anyList());
     }
 
     @Test

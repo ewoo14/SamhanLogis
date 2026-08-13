@@ -1,0 +1,39 @@
+명령:
+git grep -n "category_id" -- services/product-service/src/main/java services/product-service/src/main/resources/db/migration
+
+services/product-service/src/main/java/com/samhanair/logis/product/domain/Product.java:84:    @JoinColumn(name = "category_id", nullable = false)
+services/product-service/src/main/java/com/samhanair/logis/product/repository/ProductRepository.java:93:              AND (:categoryId IS NULL OR p.category_id = :categoryId)
+services/product-service/src/main/java/com/samhanair/logis/product/repository/ProductRepository.java:107:              AND (:categoryId IS NULL OR p.category_id = :categoryId)
+services/product-service/src/main/java/com/samhanair/logis/product/repository/ProductRepository.java:235:                    OR p.category_id = CAST(:physicalCategoryId AS uuid))
+services/product-service/src/main/java/com/samhanair/logis/product/repository/ProductRepository.java:260:                    OR p.category_id = CAST(:physicalCategoryId AS uuid))
+services/product-service/src/main/java/com/samhanair/logis/product/seed/HvacProductSeeder.java:431:                        + "  id, name, model_name, category_id,"
+services/product-service/src/main/java/com/samhanair/logis/product/seed/HvacProductSeeder.java:470:                // id, name, model_name, category_id
+services/product-service/src/main/java/com/samhanair/logis/product/service/EcountProductImporter.java:393:              id, name, model_name, model_code, category_id, selling_price, purchase_price, currency, status,
+services/product-service/src/main/java/com/samhanair/logis/product/service/EcountProductImporter.java:503:                       category_id = CASE
+services/product-service/src/main/java/com/samhanair/logis/product/service/EcountProductImporter.java:504:                           WHEN p.classification_manual THEN p.category_id
+services/product-service/src/main/java/com/samhanair/logis/product/service/ProductNameCategoryClassifier.java:19:    /** 품목명 자동분류 실패 시에도 category_id 필수 계약을 지키는 루트 카테고리 코드. */
+services/product-service/src/main/java/com/samhanair/logis/product/web/dto/ProductSummaryResponse.java:245:     * native ECOUNT/HVAC 적재처럼 product_category 없이 category_id만 채워진 품목의
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:69:                       SET category_id = a.previous_category_id,
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:79:                       AND p.category_id = a.applied_category_id
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:104:                    previous_category_id UUID NOT NULL,
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:106:                    applied_category_id UUID NOT NULL,
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:172:                SELECT p.id, p.name, p.category_id, c.code AS category_code, component_roles.component_kinds
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:174:                  JOIN categories c ON c.id = p.category_id
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:190:                        resultSet.getObject("category_id", UUID.class),
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:204:                    previous_category_id, previous_category_code,
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:205:                    applied_category_id, applied_category_code,
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:236:                   SET category_id = a.applied_category_id,
+services/product-service/src/main/java/db/migration/V38__ProductCategoryBackfill.java:246:                   AND p.category_id IS DISTINCT FROM a.applied_category_id
+services/product-service/src/main/resources/db/migration/V1__init_product_service.sql:36:    category_id     UUID           NOT NULL REFERENCES categories(id),
+services/product-service/src/main/resources/db/migration/V1__init_product_service.sql:59:    ON products (category_id, is_deleted);
+services/product-service/src/main/resources/db/migration/V28__add_product_lineage.sql:11:            WHERE c.id = p.category_id
+services/product-service/src/main/resources/db/migration/V28__add_product_lineage.sql:23:            WHERE c.id = p.category_id
+services/product-service/src/main/resources/db/migration/V28__add_product_lineage.sql:47:            WHERE c.id = NEW.category_id
+
+ORM 보완 추적:
+git grep -n -E "changeCategory\(|setCategory\(|\.category\(|categoryRepository\.findById|new Product\(" -- services/product-service/src/main/java
+
+실제 category 변경 메서드 호출은 ProductService.update()의 product.changeCategory(category) 한 곳이다.
+신규 ORM insert는 ProductSheetSyncService.seedFromSheet()와 ProductService.create() 두 곳이다.
+HvacProductSeeder의 Product.create()는 JPA save가 아니라 같은 insertProductNative()에 넘길 값 객체 생성이다.
+

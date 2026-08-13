@@ -1,5 +1,7 @@
 package com.samhanair.logis.slip.mobile.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidDeserializer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -30,6 +32,7 @@ public record MobilePartnerOrderRequest(
         LocalDate slipDate,
 
         /** 출고 창고 UUID (필수 — 도메인 팩토리에서 미지정 발행을 차단). */
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         UUID sourceWarehouseId,
 
         /** 배송지 주소 snapshot (선택). */

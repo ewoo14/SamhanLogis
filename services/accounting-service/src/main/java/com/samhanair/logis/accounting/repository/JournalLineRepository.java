@@ -65,6 +65,24 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     List<PartnerAccountTotal> aggregatePostedByPartnerAccount(@Param("from") LocalDate from,
                                                               @Param("to") LocalDate to);
 
+    /** Partner ledger canonical aggregate: only currently POSTED journal lines are authoritative. */
+    @Query("""
+            SELECT l.partnerId AS partnerId,
+                   l.accountCode AS accountCode,
+                   l.journal.sourceType AS sourceType,
+                   COALESCE(SUM(l.debitAmount), 0) AS debitTotal,
+                   COALESCE(SUM(l.creditAmount), 0) AS creditTotal
+            FROM JournalLine l
+            WHERE l.journal.journalDate >= :from
+              AND l.journal.journalDate <= :to
+              AND l.journal.status IN (
+                    com.samhanair.logis.accounting.domain.JournalStatus.POSTED)
+              AND l.partnerId IS NOT NULL
+            GROUP BY l.partnerId, l.accountCode, l.journal.sourceType
+            """)
+    List<PartnerAccountTotal> aggregatePostedOnlyByPartnerAccount(@Param("from") LocalDate from,
+                                                                   @Param("to") LocalDate to);
+
     /** Spring Data JPA projection — 거래처 + 계정코드 별 차/대 합계. */
     interface PartnerAccountTotal {
         UUID getPartnerId();

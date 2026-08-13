@@ -21,3 +21,47 @@ PR #700(E2 기둥2)에서 라이브 QA 스샷 7장을 `raw.githubusercontent.com
 1. 스샷 커밋 push 후, 인라인 URL 은 반드시 **full 커밋 SHA 고정 경로** 사용: `https://raw.githubusercontent.com/<owner>/<repo>/<full-SHA>/docs/qa/...png` (`git rev-parse <short>` 로 full SHA 확보 — 축약/추정 SHA 금지).
 2. 이미 브랜치 경로로 게시해 하얗게 보이면: `gh api repos/<o>/<r>/issues/comments/<id> -X PATCH -F body=@<수정본>` 으로 URL 만 SHA 경로로 치환 — URL 변경 = camo 캐시 키 갱신 = 재fetch.
 3. 게시 전 `curl -s -o /dev/null -w "%{http_code}" <SHA-URL>` 200 확인.
+
+---
+
+## 🚨 2026-08-11 재발 — **59장 누락**. 그리고 리뷰 1:1 누락과 **같은 병**이었다
+
+개발책임자: *"라이브 QA도 스크린샷을 게시하도록 되어있는데"* (리뷰 1:1 누락을 지적한 직후, 같은 세션)
+
+```text
+#1166  25장  #1168  21장  #1170  13장   →  PR 인라인 **0장**
+전부 docs/qa 에 커밋돼 있었고 보고서에도 경로가 적혀 있었다. **게시만 없었다.**
+```
+
+### 🔑 두 누락의 공통 원인 — **"산출물을 만든 것" 을 "게시한 것" 으로 셌다**
+
+```text
+리뷰 1:1 누락 16라운드  ← 커밋 메시지를 길게 쓰고 채팅 보고를 했다
+스샷 게시 누락 59장     ← docs/qa 에 커밋하고 보고서에 경로를 적었다
+둘 다 "기록은 남겼다" 는 감각이 게시 욕구를 없앴다.
+🚨 개발책임자는 **PR 만 본다.** 워크트리 파일도 채팅도 커밋 로그도 보지 않는다.
+```
+
+### 감사법 — 라운드 수가 아니라 **디렉토리 수**로 센다
+
+```bash
+# 오늘 만든 QA 디렉토리 (= 라운드 수)
+ls -d .claude/worktrees/<wt>/docs/qa/$(date +%Y-%m-%d)-* | wc -l
+# PR 코멘트에 박힌 인라인 URL 수
+gh api repos/<o>/<r>/issues/<n>/comments --jq '.[].body' | grep -c raw.githubusercontent
+```
+
+두 수가 어긋나면 누락이다.
+
+### 게시 절차 (검증 포함)
+
+```bash
+sha=$(git -C <wt> rev-parse HEAD)          # full SHA — 축약 금지
+# 본문 생성 후 **게시 전에 전 URL 200 을 확인**한다
+for u in $(grep -oE 'https://raw[^)]*' body.md); do curl -s -o /dev/null -w "%{http_code} $u\n" "$u"; done
+gh pr comment <n> -F body.md
+```
+
+실측: 59장 전수 `curl 200` 확인 후 게시 — 하나라도 실패하면 게시하지 않는다(camo 가 하양을 캐시한다).
+
+관련: [[feedback_review_post_one_to_one_enforcement]] · [[feedback_qa_screenshots_inline_to_user]] · [[feedback_live_qa_every_round_screenshots]]

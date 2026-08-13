@@ -20,6 +20,8 @@ import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidDeserializer;
+import com.samhanair.logis.slip.web.dto.OpaqueUuidSerializer;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -199,7 +201,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
                 .andExpect(jsonPath("$.message").value("전표 전송 전 거래처를 지정해야 합니다"));
 
-        assertThat(slipRepository.findById(UUID.fromString(slipId)).orElseThrow().getStatus())
+        assertThat(slipRepository.findById(OpaqueUuidDeserializer.decode(slipId)).orElseThrow().getStatus())
                 .isEqualTo(SlipStatus.SAVED);
     }
 
@@ -218,7 +220,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("SENT"));
 
-        assertThat(slipRepository.findById(UUID.fromString(slipId)).orElseThrow().getStatus())
+        assertThat(slipRepository.findById(OpaqueUuidDeserializer.decode(slipId)).orElseThrow().getStatus())
                 .isEqualTo(SlipStatus.SENT);
     }
 
@@ -508,6 +510,38 @@ class SlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void GREEN_A_2_createSalesSlip_backfilledBundle_savesExpandedLines() throws Exception {
+        UUID setId = UUID.randomUUID();
+        ProductSummary setSummary = new ProductSummary(setId, "상업멀티 22HP 세트", "AM220AXVHHR1SY", null, null,
+                new BigDecimal("15242370"), "ACTIVE", false, "AM220AXVHHR1SY", "BUNDLE");
+        Mockito.when(productClient.lookup(ArgumentMatchers.anyList())).thenReturn(List.of(setSummary));
+        Mockito.when(productClient.expand(ArgumentMatchers.eq("AM220AXVHHR1SY"), ArgumentMatchers.any(),
+                        ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of(
+                        new ExpandedLineDto(UUID.randomUUID(), "AM100AXVHHR1", "AM100AXVHHR1", "실내기",
+                                BigDecimal.ONE, new BigDecimal("4560050"), "INDOOR", true),
+                        new ExpandedLineDto(UUID.randomUUID(), "AM120AXVHHR1", "AM120AXVHHR1", "실외기",
+                                BigDecimal.ONE, new BigDecimal("5280000"), "OUTDOOR", false)));
+
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", setId.toString());
+        line.put("quantity", 1);
+        line.put("unitPrice", "15242370");
+        Map<String, Object> body = createOutboundSlipBody();
+        body.put("lines", List.of(line));
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines.length()").value(2))
+                .andExpect(jsonPath("$.data.lines[0].productName").value("실내기"))
+                .andExpect(jsonPath("$.data.lines[1].productName").value("실외기"));
+    }
+
+    @Test
     void warehouseRole_postSlip_returns403() throws Exception {
         // 전표 등록 권한은 SALES/MANAGER/MASTER. WAREHOUSE 는 차단.
         Map<String, Object> body = createOutboundSlipBody();
@@ -715,7 +749,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.inspectorUserId").value(inspectorUuid))
+                .andExpect(jsonPath("$.data.inspectorUserId").value(OpaqueUuidSerializer.encode(UUID.fromString(inspectorUuid))))
                 .andExpect(jsonPath("$.data.inspectorSignedAt").value(notNullValue()));
     }
 
@@ -767,7 +801,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
-                .andExpect(jsonPath("$.data.dispatcherUserId").value(dispatcherUuid))
+                .andExpect(jsonPath("$.data.dispatcherUserId").value(OpaqueUuidSerializer.encode(UUID.fromString(dispatcherUuid))))
                 .andExpect(jsonPath("$.data.dispatcherSignedAt").value(notNullValue()));
     }
 

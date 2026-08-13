@@ -36,7 +36,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('주문서 앱 접근권한 보류 미리보기 렌더', () => {
+describe('주문서 승인 보류 미리보기 렌더', () => {
   it('/access-preview/report 응답의 보류 건수와 원천을 화면에 표시한다', async () => {
     mocks.canAccess.mockReturnValue(true)
     mocks.listPartnerApprovals.mockResolvedValue({ content: [], totalElements: 0 })

@@ -100,6 +100,7 @@ class QuantitySyncRuleOptionInParityIT extends AbstractPostgresIT {
     }
 
     private QuantitySyncRuleRequest request(String ruleKey, String conditionRaw) throws Exception {
+        classifyQuantitySyncTarget("OPTIONIN-TARGET");
         JsonNode condition = MAPPER.readTree(conditionRaw);
         return new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,
                 ruleKey + " 이름", true, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,

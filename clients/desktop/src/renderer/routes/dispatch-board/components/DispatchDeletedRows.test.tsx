@@ -9,6 +9,7 @@ import type {
 } from '../../../api/dispatchTask'
 
 vi.mock('@samhan/design-system', () => ({
+  safeActorName: (value: string | null | undefined) => value === 'system' ? '시스템' : value,
   Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
     <span {...props}>{children}</span>
   ),

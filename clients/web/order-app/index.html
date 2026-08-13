@@ -8043,51 +8043,10 @@ function updateImgSlide() {
   }
 }
 
-/* 할인율 분리적용 */
+/* 서버 권위 할인율 + 기존 tier bonus 표시/전송 보존 */
 (function() {
-  
-  /* 원본함수 보존 */
+  /* 원본 전송행 생성만 보존 — 40% 판정은 이 파일에서 하지 않는다. */
   const originBuildSendRows = window.buildSendRows;
-  const originOpenPreview   = window.openPreview;
-
-  /* 장비부재확인 */
-  function isNoMainUnit() {
-    let qTotal = 0;
-    let qMain = 0;
-    
-    if(typeof homeQty !== 'undefined' && typeof HOMEMULTI !== 'undefined') {
-      HOMEMULTI.forEach(r => {
-        const q = homeQty.get(r.model) || 0;
-        if(q > 0) {
-          const txt = (r.name||'')+' '+(r.catM||'')+' '+(r.catL||'');
-          /* 전열교환기제외 */
-          if(!/전열\s*교환기|erv/i.test(txt)) {
-            qTotal += q;
-            /* 메인장비확인 */
-            if(/실외기|outdoor|실내기|indoor|벽걸이/i.test(txt)) qMain += q;
-          }
-        }
-      });
-    }
-    
-    if(typeof commQty !== 'undefined' && typeof COMMULTI !== 'undefined') {
-      COMMULTI.forEach(r => {
-        const q = commQty.get(r.model) || 0;
-        if(q > 0) {
-          const txt = (r.name||'')+' '+(r.catM||'')+' '+(r.catL||'');
-          /* 전열교환기제외 */
-          if(!/전열\s*교환기|erv/i.test(txt)) {
-            qTotal += q;
-            /* 메인장비확인 */
-            if(/실외기|outdoor|실내기|indoor|벽걸이/i.test(txt)) qMain += q;
-          }
-        }
-      });
-    }
-    
-    /* 싱글중대형구형자동제외 */
-    return (qTotal > 0 && qMain === 0);
-  }
 
   /* 보너스율계산 */
   function getTierBonusRate(sum) {
@@ -8112,14 +8071,6 @@ function updateImgSlide() {
     let calcH = oldH;
     let calcC = oldC;
     
-    /* 페널티적용 */
-    const noMain = isNoMainUnit();
-    if(noMain) {
-      if(isStandard45(calcH)) calcH = 0.40;
-      if(isStandard45(calcC)) calcC = 0.40;
-    }
-    window.IS_NO_MAIN = noMain;
-
     /* 홈적용 */
     if(isStandard45(calcH)) {
       const hSum = (typeof sumHome === 'function') ? sumHome() : 0;
@@ -8180,31 +8131,102 @@ function updateImgSlide() {
     return result;
   }
 
-  /* 래핑적용 */
-  window.openPreview = function() {
-    runWithAdjustedRates(() => {
-      originOpenPreview.apply(this, arguments);
-      
-      /* 경고표시 */
-      let warnEl = document.getElementById('noMainWarn');
-      if(window.IS_NO_MAIN) {
-        console.log('🚨 경고출력');
-        if(!warnEl) {
-          warnEl = document.createElement('div');
-          warnEl.id = 'noMainWarn';
-          warnEl.style.color = '#dc2626';
-          warnEl.style.fontWeight = 'bold';
-          warnEl.style.marginBottom = '10px';
-          warnEl.style.textAlign = 'center';
-          warnEl.textContent = '※실외기, 실내기가 없는 경우 할인율이 강제 조정됩니다.';
-          const modalBody = document.querySelector('#dlgPreview .modal-body');
-          if(modalBody) modalBody.insertBefore(warnEl, modalBody.firstChild);
-        }
-        warnEl.style.display = 'block';
-      } else {
-        if(warnEl) warnEl.style.display = 'none';
-      }
+  let previewSequence = 0;
+  let previewDebounceTimer = null;
+  let previewQueued = null;
+
+  function previewOrderContext() {
+    const partnerCode = window.CURRENT_BIZNO || window.AUTH_BIZ ||
+      (document.getElementById('bizGateInput')?.value || '').replace(/[^\d]/g, '');
+    return { partnerCode, bizno: partnerCode };
+  }
+
+  function requestServerPreview(items) {
+    return new Promise((resolve, reject) => {
+      previewQueued = { items, resolve, reject };
+      if (previewDebounceTimer) clearTimeout(previewDebounceTimer);
+      previewDebounceTimer = setTimeout(() => {
+        const queued = previewQueued;
+        previewQueued = null;
+        previewDebounceTimer = null;
+        if (!queued) return;
+        google.script.run
+          .withSuccessHandler(queued.resolve)
+          .withFailureHandler(queued.reject)
+          .pricePreview(queued.items, previewOrderContext());
+      }, 250);
     });
+  }
+
+  function previewRateLabel(rate) {
+    const value = Number(rate);
+    if (!Number.isFinite(value)) return '서버 적용율 없음';
+    return `${(value * 100).toFixed(Number.isInteger(value * 100) ? 0 : 2)}%`;
+  }
+
+  function renderServerPreview(payload, items, sequence) {
+    if (sequence !== previewSequence) return;
+    const data = payload && typeof payload === 'object' ? payload : null;
+    const lines = Array.isArray(data?.lines) ? data.lines : [];
+    if (lines.length !== items.length) {
+      throw new Error('가격 미리보기 라인 수가 주문 입력과 다릅니다');
+    }
+    const body = el('#previewBody');
+    body.innerHTML = '';
+    const thead = document.querySelector('#dlgPreview thead tr');
+    if (thead) thead.innerHTML = `
+      <th style="text-align:center;padding:8px;border-bottom:1px solid var(--c-line)">품목</th>
+      <th class="model" style="text-align:center;padding:8px;border-bottom:1px solid var(--c-line)">모델명</th>
+      <th class="unit" style="text-align:center;padding:8px;border-bottom:1px solid var(--c-line)">단위</th>
+      <th style="text-align:center;padding:8px;border-bottom:1px solid var(--c-line)">수량</th>
+      <th style="text-align:center;padding:8px;border-bottom:1px solid var(--c-line)">할인율</th>
+      <th class="h-price" style="padding:8px;border-bottom:1px solid var(--c-line)">납품가</th>
+      <th style="text-align:center;padding:8px;border-bottom:1px solid var(--c-line)">소 계</th>`;
+
+    lines.forEach((line, index) => {
+      const item = items[index] || {};
+      const quantity = Number(line.quantity) || Number(item.qty) || 0;
+      const finalPrice = Number(line.finalPrice);
+      if (!Number.isFinite(finalPrice) || finalPrice < 0) {
+        throw new Error('가격 미리보기 최종 단가가 유효하지 않습니다');
+      }
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(item.name || '')}</td>`+
+        `<td class="model">${escapeLegacyHtml(line.modelCode || item.model || '')}</td>`+
+        `<td class="unit">${escapeLegacyHtml(item.unit || 'EA')}</td>`+
+        `<td>${fmt(quantity)}</td>`+
+        `<td>${escapeLegacyHtml(previewRateLabel(line.appliedRate))}</td>`+
+        `<td>${fmt(finalPrice)}</td>`+
+        `<td>${fmt(finalPrice * quantity)}</td>`;
+      body.appendChild(tr);
+    });
+    setPreviewFoot(Number(data.totalFinalAmount) || 0);
+    el('#btnProceed').disabled = false;
+    el('#dlgPreview').showModal();
+  }
+
+  function renderPreviewError(error) {
+    const body = el('#previewBody');
+    body.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:#b91c1c">`+
+      `서버에서 가격을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.</td></tr>`;
+    el('#btnProceed').disabled = true;
+    el('#dlgPreview').showModal();
+    console.warn('[order-app] server price preview failed; no client fallback', error);
+  }
+
+  /* 미리보기는 250ms 디바운스 + 최신 요청만 반영한다. 실패 시 자체 계산하지 않는다. */
+  window.openPreview = function() {
+    const sequence = ++previewSequence;
+    const body = el('#previewBody');
+    body.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center">서버 가격을 확인하는 중...</td></tr>';
+    el('#btnProceed').disabled = true;
+    const items = runWithAdjustedRates(() => originBuildSendRows.apply(this, arguments));
+    requestServerPreview(items)
+      .then((payload) => renderServerPreview(payload, items, sequence))
+      .catch((error) => {
+        if (sequence === previewSequence) renderPreviewError(error);
+      });
   };
 
   window.buildSendRows = function() {

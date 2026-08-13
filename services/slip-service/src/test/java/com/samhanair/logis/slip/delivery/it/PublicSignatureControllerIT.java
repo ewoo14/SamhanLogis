@@ -19,6 +19,7 @@ import com.samhanair.logis.slip.delivery.repository.DeliveryBatchRepository;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.delivery.sms.SmsResult;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.it.OpaqueUuidTestDecoder;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.security.MessageDigest;
@@ -145,7 +146,7 @@ class PublicSignatureControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.id").doesNotExist())
                 .andExpect(jsonPath("$.data.slipId").doesNotExist());
 
-        var stored = slipRepository.findById(UUID.fromString(ctx.slipId)).orElseThrow();
+        var stored = slipRepository.findById(OpaqueUuidTestDecoder.decode(ctx.slipId)).orElseThrow();
         assertThat(stored.getSlipNo()).contains("/");
         assertThat(stored.getDriverSignedAt()).isNotNull();
         assertThat(stored.getDriverSignatureHash()).isEqualTo(hash);

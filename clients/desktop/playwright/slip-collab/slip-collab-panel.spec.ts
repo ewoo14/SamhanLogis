@@ -60,6 +60,17 @@ async function installAuthMock(page: Page) {
   })
 }
 
+async function installMockRealtimeHandler(page: Page): Promise<void> {
+  await page.route('**/api/v1/**/collab/stream**', route => route.fulfill({
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    },
+    body: ': mock keep-alive\n\n',
+  }))
+}
+
 async function seedOtherViewerOnce(page: Page) {
   await page.addInitScript(({ slipId }) => {
     const storageKey = `samhan-presence-seeded:${slipId}`
@@ -81,6 +92,10 @@ async function seedOtherViewerOnce(page: Page) {
 }
 
 test.describe('§7 입출고전표 협업 패널', () => {
+  test.beforeEach(async ({ page }) => {
+    await installMockRealtimeHandler(page)
+  })
+
   test('코멘트 등록 → 목록 반영 → 해결 처리', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
@@ -183,7 +198,8 @@ test.describe('§7 입출고전표 협업 패널', () => {
 
     await expect(page.getByTestId('slip-coedit-field-header-partnerName')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-header-memo')).toBeVisible()
-    await expect(page.getByTestId('slip-coedit-field-items-0-productName')).toBeVisible()
+    await expect(inlineForm.getByRole('combobox', { name: '라인 1 품목' })).toBeVisible()
+    await expect(page.getByTestId('slip-coedit-field-items-0-productName')).not.toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-items-0-quantity')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-items-0-unitPrice')).toBeVisible()
 

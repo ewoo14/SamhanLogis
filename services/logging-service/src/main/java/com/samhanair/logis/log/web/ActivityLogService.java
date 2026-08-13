@@ -2,6 +2,7 @@ package com.samhanair.logis.log.web;
 
 import com.samhanair.logis.log.domain.AuditLog;
 import com.samhanair.logis.log.repository.AuditLogRepository;
+import com.samhanair.logis.shared.audit.publisher.AuditSanitizer;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
@@ -74,8 +75,8 @@ public class ActivityLogService {
                 blankToDash(row.getUserRole()),
                 blankToDash(row.getAction()),
                 blankToDash(row.getResourceType()),
-                blankToDash(row.getResourceId()),
-                blankToDash(row.getDescription()),
+                AuditSanitizer.display(row.getResourceId()),
+                AuditSanitizer.display(row.getDescription()),
                 blankToDash(row.getServiceName()));
     }
 

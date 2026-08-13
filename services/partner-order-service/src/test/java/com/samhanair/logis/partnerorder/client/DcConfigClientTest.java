@@ -112,6 +112,40 @@ class DcConfigClientTest {
     }
 
     @Test
+    void physical_category_code를_가격계산서비스에_전달한다() {
+        server.expect(once(), requestTo(ENDPOINT))
+                .andExpect(content().string(containsString("\"physicalCategoryCode\":\"HVAC\"")))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"lines":[{"lineId":"ERV","finalPrice":600000}]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        client.calculatePrices("P-DC-ERV", List.of(new PriceLine(
+                "ERV", "ERV-001", new BigDecimal("1000000"), "HOMEMULTI", 1,
+                false, false, false, false, false, false, null, true, "HVAC")));
+
+        server.verify();
+    }
+
+    @Test
+    void detailed_result는_미리보기용_실제_적용율을_가격과_함께_반환한다() {
+        server.expect(once(), requestTo(ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"lines":[
+                          {"lineId":"ERV","finalPrice":600000,"appliedRate":0.40}
+                        ]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        DcConfigClient.CalculationResult result = client.calculateDetailed("P-DC-ERV", List.of(
+                new PriceLine("ERV", "ERV-001", new BigDecimal("1000000"), "HOMEMULTI", 1,
+                        false, false, false, false, false, false, null, true, "HVAC")));
+
+        assertThat(result.available()).isTrue();
+        assertThat(result.lines().get("ERV").finalPrice()).isEqualByComparingTo("600000");
+        assertThat(result.lines().get("ERV").appliedRate()).isEqualByComparingTo("0.40");
+        server.verify();
+    }
+
+    @Test
     void dc_config_응답은_가격을_보정하지_않고_그대로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andRespond(withSuccess("""
@@ -135,7 +169,7 @@ class DcConfigClientTest {
     }
 
     @Test
-    void envelope_success_false는_오계산을_숨기지_않고_empty_fail_soft로_반환한다() {
+    void envelope_success_false는_가격계산불가_available_false로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
@@ -143,35 +177,38 @@ class DcConfigClientTest {
                         {"success":false,"code":"DC_CONFIG_NOT_FOUND","message":"미설정","data":null}
                         """, MediaType.APPLICATION_JSON));
 
-        Map<String, BigDecimal> prices = client.calculatePrices("P-DC-001", lines());
+        DcConfigClient.CalculationResult result = client.calculateDetailed("P-DC-001", lines());
 
-        assertThat(prices).isEmpty();
+        assertThat(result.prices()).isEmpty();
+        assertThat(result.available()).isFalse();
         server.verify();
     }
 
     @Test
-    void price_calculations_5xx는_empty_fail_soft로_반환한다() {
+    void price_calculations_5xx는_available_false로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withServerError());
 
-        Map<String, BigDecimal> prices = client.calculatePrices("P-DC-001", lines());
+        DcConfigClient.CalculationResult result = client.calculateDetailed("P-DC-001", lines());
 
-        assertThat(prices).isEmpty();
+        assertThat(result.prices()).isEmpty();
+        assertThat(result.available()).isFalse();
         server.verify();
     }
 
     @Test
-    void price_calculations_network_error도_empty_fail_soft로_반환한다() {
+    void price_calculations_network_error도_available_false로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withException(new IOException("dc-config 연결 실패")));
 
-        Map<String, BigDecimal> prices = client.calculatePrices("P-DC-001", lines());
+        DcConfigClient.CalculationResult result = client.calculateDetailed("P-DC-001", lines());
 
-        assertThat(prices).isEmpty();
+        assertThat(result.prices()).isEmpty();
+        assertThat(result.available()).isFalse();
         server.verify();
     }
 

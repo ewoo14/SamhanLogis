@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.editrequest.web.dto;
 
 import com.samhanair.logis.partnerorder.editrequest.domain.PartnerOrderEditRequest;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestStatus;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
@@ -38,10 +39,10 @@ public record PartnerOrderEditRequestResponse(
                 request.getStatus(),
                 request.getReason(),
                 request.getRequesterId(),
-                request.getRequesterName(),
+                ActorDisplayName.resolve(request.getRequesterId() == null ? null : request.getRequesterId().toString(), request.getRequesterName()),
                 request.getTargetRole(),
                 request.getDecidedById(),
-                request.getDecidedByName(),
+                ActorDisplayName.resolve(request.getDecidedById() == null ? null : request.getDecidedById().toString(), request.getDecidedByName()),
                 request.getDecisionReason(),
                 request.getRequestedAt(),
                 request.getDecidedAt(),

@@ -62,3 +62,43 @@ fix 만 하고 넘어가면 같은 결함이 재발한다. 그리고 **새 게�
 
 ## 관련
 [[feedback_pm_verify_what_measurement_proves]] · [[feedback_ci_test_filter_false_green]] · [[feedback_qa_docker_real_test]] · [[feedback_live_qa_penetrates_it_masking]] · [[feedback_gradle_test_cache_false_green]]
+
+---
+
+## 🚨 2026-08-11 — 한 세션에서 false-green **5건**. 다섯을 관통하는 축은 둘이다
+
+```text
+① toContainText + 자동 스크롤 click   안 보이는 dropdown 을 통과시켰다        (#1168)
+② main.app-main.scrollTop 검사        **움직이지 않는 컨테이너**를 봤다        (#1168)
+③ 관측을 조작보다 늦게 검             문제 rAF 를 놓쳤다 (rollback 2/10 RED)   (#1168)
+④ exact 검사기의 0 초기값             중복 grant 를 OR 로 합쳐 감췄다          (#1170)
+⑤ mock 이 실 서버 401 로 빠짐         **로그인 화면에 있는데** 통과했다        (#1166)
+```
+
+### 🔑 두 축
+
+```text
+A. **무엇을 보는가** 가 틀렸다        ② ④    — 엉뚱한 대상 · 합쳐서 구별 소실
+B. **어디에 / 언제 도달했는가** 가 틀렸다  ① ③ ⑤ — 안 보이는 것 · 늦은 관측 · 다른 화면
+```
+
+⟹ 리뷰 브리핑에 **둘 다** 물어라. "이 검사가 무엇을 보는가" 만 물으면 B 를 놓친다.
+
+### 실전 질문 (그대로 브리핑에 넣을 것)
+
+```text
+✅ 이 단정이 **실패할 수 있는 형태**로 쓰여 있는가 — fix 를 되돌려 10회 돌려 10/10 RED 인가
+   (1~2회로는 안 된다. ③ 은 2/10 만 RED 였고 8/10 이 false-green 이었다)
+✅ 검사가 보는 대상이 **실제로 움직이는/변하는 것**인가
+✅ 여러 행을 합쳐(OR·SUM·Set·객체키·Map.put·merge) 비교하지 않는가 — 중복이 사라지지 않는가
+✅ 🚨 캡처·단정 전에 **그 화면에만 있는 요소**를 하나 단정해 도달을 증명하는가
+   (⑤ 는 로그인 화면에서 통과했다. 해시라우터 홈 낙착과 같은 병)
+✅ mock 경로가 **실 서버로 새지 않는가** — 새면 401/404 가 환경 의존 red/green 을 만든다
+```
+
+### 🚩 그리고 fix 는 검사기에도 결함을 남긴다
+
+`#1170` 에서 "exact" 라 이름 붙인 검사기가 **그 자체로** 중복을 감췄고, 고치자 **감춰져 있던 진짜 중복 1건**(mock.ts `SP_D1_DEFAULT_EDIT.ACCOUNTANT`)이 나왔다. false-green 은 가설이 아니라 **실제로 무언가를 덮고 있을 수 있다.**
+
+관련: [[feedback_qa_pass_is_not_defect_zero]] · [[feedback_verify_playwright_gate_before_adversarial]] ·
+[[feedback_live_qa_use_playwright_not_browser_runtime]] · [[feedback_qa_harness_commit_breaks_ci]]

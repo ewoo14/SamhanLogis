@@ -203,7 +203,7 @@ class DispatchCollabConfigTest {
                 taskId,
                 "vehicleGroups[0]",
                 callerId,
-                "system",
+                "변경자 미상",
                 "UUID 이름 마스킹",
                 null);
         ReflectionTestUtils.setField(saved, "id", UUID.randomUUID());
@@ -214,7 +214,7 @@ class DispatchCollabConfigTest {
                 eq(taskId),
                 eq("vehicleGroups[0]"),
                 eq(callerId),
-                eq("system"),
+                eq("변경자 미상"),
                 eq("UUID 이름 마스킹"),
                 isNull()))
                 .thenReturn(saved);
@@ -225,13 +225,13 @@ class DispatchCollabConfigTest {
                 callerId.toString(),
                 uuidShapedCallerName);
 
-        assertThat(response.getData().authorName()).isEqualTo("system");
+        assertThat(response.getData().authorName()).isEqualTo("변경자 미상");
         verify(commentService).add(
                 eq(CollabDocumentType.DISPATCH_TASK),
                 eq(taskId),
                 eq("vehicleGroups[0]"),
                 eq(callerId),
-                eq("system"),
+                eq("변경자 미상"),
                 eq("UUID 이름 마스킹"),
                 isNull());
     }

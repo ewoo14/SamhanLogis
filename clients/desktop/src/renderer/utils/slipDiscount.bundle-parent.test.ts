@@ -8,6 +8,7 @@ describe('bundle parent discount during partner repricing', () => {
       modelCode: 'AC060CS6PBH1SY',
       categoryKey: 'singleSets',
       fixedDiscountRate: null,
+      classificationOptions: ['THREE_SIXTY'],
       hasVariableDiscount: true,
     }, {
       homeMultiDc: null,
@@ -19,7 +20,7 @@ describe('bundle parent discount during partner repricing', () => {
     })
   })
 
-  it('does not apply the option DC to a model outside the legacy AC/AP rules', () => {
+  it('does not apply the option DC when the classification is unassigned', () => {
     expect(calculateBundleParentDiscount({
       listPrice: 1660000,
       modelCode: 'AM360AXVGHC1SY',

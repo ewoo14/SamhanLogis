@@ -61,7 +61,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY 지원 (unique index 의무 보유, V1 SQ
 공개 `GET /app/version?clientType=&currentVersion=`과 admin `/app/releases` CRUD는 앱별 정책을
 분리한다. 신규 등록 선택지는 `DESKTOP`(삼한 데스크톱), `SAMHAN_MOBILE`,
 `SAMHAN_MOBILE_STAFF`, `AROLOGIS_MOBILE`, `SAMHAN_ORDER_WEB`, `SAMHAN_ESTIMATE_WEB`,
-`SAMHAN_MOBILE_PUBLIC_WEB`, `AROLOGIS_DESKTOP` 8개이며, 화면에는 각각 한국어 앱 이름만 표시한다.
+`SAMHAN_MOBILE_PUBLIC_WEB`, `AROLOGIS_DESKTOP`, `INTERNAL_CHAT_DESKTOP` 9개이며, 화면에는 각각 한국어 앱 이름만 표시한다.
 기존 등록 데이터와 구버전 클라이언트 호환을 위해 `DESKTOP`·`WEB`·`MOBILE` 값은 DB/조회 계약에
 남겨 둔다. `V7__app_release_client_identity.sql`은 `client_type`을 `VARCHAR(40)`으로 확장하고
 동일 앱 식별자 안에서만 `(client_type, version)` 활성 unique 제약을 적용한다.

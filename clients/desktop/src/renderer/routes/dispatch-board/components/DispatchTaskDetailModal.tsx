@@ -24,7 +24,7 @@
  */
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Input, Modal, Select } from '@samhan/design-system'
+import { Badge, Button, Input, Modal, safeActorName, Select } from '@samhan/design-system'
 import {
   DISPATCH_TASK_STATUS_LABEL,
   DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL,
@@ -166,7 +166,8 @@ function formatDateTime(value: string | null | undefined): string {
 }
 
 function displayName(value: string | null | undefined): string {
-  return value && value !== 'system' ? value : '시스템'
+  if (value == null || value.trim().length === 0) return '시스템'
+  return safeActorName(value) ?? '변경자 미상'
 }
 
 function valueForEdit(value: string | null | undefined): string {

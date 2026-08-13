@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web.collab.dto;
 
 import com.samhanair.logis.accounting.collab.JournalCollabComment;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.collab.CollabCommentStatus;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -25,7 +26,7 @@ public record JournalCollabCommentResponse(
         return new JournalCollabCommentResponse(
                 comment.getId(),
                 comment.getAnchor(),
-                comment.getAuthorName(),
+                ActorDisplayName.resolve(comment.getAuthorId() == null ? null : comment.getAuthorId().toString(), comment.getAuthorName()),
                 comment.getBody(),
                 comment.getParentId(),
                 comment.getStatus(),

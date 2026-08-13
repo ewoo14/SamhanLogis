@@ -4,8 +4,10 @@
 #   docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d
 #
 # This overlay adds Eureka, gateway, and the 14 Spring services on top of the
-# existing infra compose file. JAR artifacts are produced by scripts/launch-local-stack.*
-# before docker compose builds these runtime images.
+# existing infra compose file. logging-service is intentionally available only
+# through this explicit overlay (the base infra compose remains unchanged).
+# JAR artifacts are produced by scripts/launch-local-stack.* before docker compose
+# builds these runtime images.
 
 x-spring-build: &spring-build
   context: ..
@@ -143,6 +145,44 @@ services:
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  # logging-service is an opt-in local service. It has no PostgreSQL/Redis
+  # dependency: the existing shared RabbitMQ and Elasticsearch containers are
+  # its only data-plane dependencies, while Eureka provides gateway discovery.
+  logging-service:
+    profiles:
+      - logging
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/logging-service/build/libs/logging-service.jar
+    container_name: samhan-logging-service
+    restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8082"
+      ES_URI: http://elasticsearch:9200
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
+    ports:
+      - "127.0.0.1:8082:8082"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8082/actuator/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 20

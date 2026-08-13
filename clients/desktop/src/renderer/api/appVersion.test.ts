@@ -50,6 +50,7 @@ describe('appVersion API client', () => {
       'SAMHAN_ESTIMATE_WEB',
       'SAMHAN_MOBILE_PUBLIC_WEB',
       'AROLOGIS_DESKTOP',
+      'INTERNAL_CHAT_DESKTOP',
     ]))
     expect(APP_CLIENT_OPTIONS.map((option) => option.value)).not.toEqual(expect.arrayContaining(['WEB', 'MOBILE']))
 
@@ -68,19 +69,15 @@ describe('appVersion API client', () => {
       'SAMHAN_ESTIMATE_WEB',
       'SAMHAN_MOBILE_PUBLIC_WEB',
       'AROLOGIS_DESKTOP',
+      'INTERNAL_CHAT_DESKTOP',
       'WEB',
       'MOBILE',
     ])
   })
 
-  it('버전 확인을 지원하지 않는 4개 앱을 관리 선택지에 표시한다', () => {
+  it('실제 공개 버전 경로가 있는 앱은 모두 지원으로 표시한다', () => {
     expect(APP_CLIENT_OPTIONS.filter((option) => !option.versionCheckSupported).map((option) => option.value))
-      .toEqual(expect.arrayContaining([
-        'SAMHAN_ORDER_WEB',
-        'SAMHAN_ESTIMATE_WEB',
-        'SAMHAN_MOBILE_PUBLIC_WEB',
-        'AROLOGIS_DESKTOP',
-      ]))
+      .toEqual([])
   })
 
   it('GET /app/version은 skipAuth public 요청으로 currentVersion과 clientType을 보낸다', async () => {

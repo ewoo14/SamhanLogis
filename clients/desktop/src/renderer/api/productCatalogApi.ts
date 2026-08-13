@@ -87,6 +87,8 @@ export interface ProductCatalogRow {
   /** @deprecated BE 하위호환 파생값. 신규 코드는 estimateCategories 를 사용한다. */
   estimateCategory?: EstimateCategory | null
   productCategory: ProductCategory | null
+  /** 물리 제품구분 — 견적 productCategory 축과 별도. */
+  physicalCategory?: PhysicalCategoryRef | null
   /** F1-a 품목별 대분류 */
   catL?: ClassificationRef | null
   /** F1-a 품목별 중분류 */
@@ -102,8 +104,14 @@ export interface ProductCatalogRow {
   /** 배송 단가 */
   deliveryPrice: number | null
   goodsType: ProductGoodsType | null
+  /** 서버 품목 상태 — target picker의 선택 가능 상태 가드에 사용한다. */
+  status?: string | null
+  /** 서버 validator와 동일한 수량 동기화 target 역할 판정. 구버전 응답에서는 누락될 수 있다. */
+  quantitySyncTargetEligible?: boolean
   /** 고정DC율(%) */
   fixedDiscountRate?: number | string | null
+  /** 고정DC율 적용 출처: PRODUCT/S/M/L/NONE */
+  fixedDiscountSource?: 'PRODUCT' | 'S' | 'M' | 'L' | 'NONE' | string | null
   /** 변동DC 적용 여부 */
   hasVariableDiscount: boolean
   /** 변동DC 수동 override 여부 — true 이면 시트 sync 가 덮어쓰지 않는다. */
@@ -114,6 +122,12 @@ export interface ProductCatalogRow {
   componentCount?: number
   /** 서버가 계산한 활성 구성품 집합 결박 토큰(구성품 UUID 자체는 노출하지 않음). */
   componentSetToken?: string
+}
+
+/** 물리 제품구분 표시 정보 — UUID는 화면에 노출하지 않는다. */
+export interface PhysicalCategoryRef {
+  code: string
+  name: string
 }
 
 /** Classification 단계 — BE Classification.CatLevel enum 과 동일 */
@@ -134,6 +148,7 @@ export interface Classification {
   name: string
   displayOrder: number
   active: boolean
+  fixedDiscountRate?: number | string | null
 }
 
 /** POST /api/v1/classifications 요청 */
@@ -152,6 +167,11 @@ export interface UpdateClassificationRequest {
   name?: string | null
   displayOrder?: number | null
   active?: boolean | null
+}
+
+/** `PATCH /api/v1/classifications/{id}/fixed-discount` 요청 */
+export interface UpdateClassificationFixedDiscountRequest {
+  fixedDiscountRate: string | null
 }
 
 /** 카테고리 트리 노드 — BE CategoryResponse record 와 1:1 대응 */
@@ -186,6 +206,11 @@ export interface ProductDetailResponse {
   releasePrice: string | number | null
   deliveryPrice: string | number | null
   goodsType: ProductGoodsType | null
+  /** 감사 표시용 작성자 이름/시스템 표식 — 내부 UUID는 포함하지 않는다. */
+  createdAt?: string | null
+  createdBy?: string | null
+  modifiedAt?: string | null
+  modifiedBy?: string | null
   specs?: ProductSpecResponse[] | null
 }
 
@@ -260,14 +285,22 @@ export interface BundleComponentItem {
   qtyMode: QtyMode
   /** 구성 분류 */
   componentKind: ComponentKind
-  /** 구성품 특징 (기본/사각/WIFI 등; null 가능) */
+  /** 구성품 특징 */
   componentVariant: string | null
+  /** 구성품 형상: 빈 값은 360 판넬 아님, 그 외 원형/사각 */
+  componentShape: string | null
   /** 기본 옵션 여부 */
   isDefault: boolean
   /** 규격 (null 가능) */
   specText: string | null
   /** 표시 순서 (PUT 시 배열 인덱스 기준 부여) */
   displayOrder: number
+  /** 구성품 가격 배분 방식 */
+  allocationMode: 'AUTO' | 'FIXED'
+  /** AUTO 비중 (null 가능) */
+  allocationWeight: number | null
+  /** FIXED 금액 (null 가능) */
+  fixedAllocationAmount: string | number | null
 }
 
 /**
@@ -286,10 +319,16 @@ export interface BundleComponentInput {
   componentKind?: ComponentKind | null
   /** 구성품 특징 */
   componentVariant?: string | null
+  /** 빈 값은 360 판넬 아님. 후보: 빈 값/원형/사각 */
+  componentShape?: string | null
   /** 기본 옵션 여부 */
   isDefault?: boolean
   /** 규격 */
   specText?: string | null
+  /** 기존 값 보존을 위해 조회 응답의 배분 계약을 그대로 전달 */
+  allocationMode?: 'AUTO' | 'FIXED' | null
+  allocationWeight?: number | null
+  fixedAllocationAmount?: string | number | null
 }
 
 /**
@@ -380,6 +419,8 @@ export interface ListProductsParams {
   q?: string
   usageScope?: UsageScope | ''
   category?: EstimateCategory | ''
+  /** 물리 products.category_id 필터. 기존 category(견적 축)와 별도. */
+  categoryId?: string
   page?: number
   size?: number
 }
@@ -404,6 +445,7 @@ export async function listProducts(
         ...(params.q ? { q: params.q } : {}),
         ...(params.usageScope ? { usageScope: params.usageScope } : {}),
         ...(params.category ? { category: params.category } : {}),
+        ...(params.categoryId ? { categoryId: params.categoryId } : {}),
         page: params.page ?? 0,
         size: params.size ?? 50,
       },
@@ -604,6 +646,19 @@ export async function updateClassification(
 ): Promise<Classification> {
   const res = await apiClient.patch<Classification>(
     `/api/v1/classifications/${encodeURIComponent(id)}`,
+    req,
+  )
+  return res.data
+}
+
+/** 분류 단계별 정액DC율 수정 — null/빈 값은 해당 단계 정책 해제. */
+export async function updateClassificationFixedDiscount(
+  id: string,
+  fixedDiscountRate: string | null,
+): Promise<Classification> {
+  const req: UpdateClassificationFixedDiscountRequest = { fixedDiscountRate }
+  const res = await apiClient.patch<Classification>(
+    `/api/v1/classifications/${encodeURIComponent(id)}/fixed-discount`,
     req,
   )
   return res.data

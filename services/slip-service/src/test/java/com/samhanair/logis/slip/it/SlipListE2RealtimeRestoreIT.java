@@ -199,7 +199,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     void statusFilterUsesEnumName() throws Exception {
         CreatedSlip draft = createOutbound("E2-DRAFT");
         CreatedSlip saved = createOutbound("E2-SAVED");
-        jdbcTemplate.update("UPDATE slips SET status = 'SAVED' WHERE id = ?::uuid", saved.id().toString());
+        jdbcTemplate.update("UPDATE slips SET status = 'SAVED' WHERE id = ?::uuid", OpaqueUuidTestDecoder.decode(saved.id()));
 
         mockMvc.perform(get("/slips/query")
                         .header(USER_ID_HEADER, ACTOR_ID.toString())
@@ -480,7 +480,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
         // 레거시 시뮬 — 라인 deletedAt 만 헤더와 어긋나게 만든다(단일시각 도입 이전 상태 재현).
         jdbcTemplate.update(
                 "UPDATE slip_lines SET deleted_at = deleted_at + interval '1 second' WHERE slip_id = ?::uuid",
-                id);
+                OpaqueUuidTestDecoder.decode(id));
 
         mockMvc.perform(post("/slips/{id}/restore", id)
                         .header(USER_ID_HEADER, ACTOR_ID.toString())
@@ -491,9 +491,11 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
         // 트랜잭션 롤백 확인 — 헤더는 여전히 삭제 상태(목록에서도 삭제행 유지), 라인은 미소실
         // (물리 2건 그대로) + 전부 여전히 삭제 상태(부활 0건).
         Boolean headerStillDeleted = jdbcTemplate.queryForObject(
-                "SELECT is_deleted FROM slips WHERE id = ?::uuid", Boolean.class, id);
+                "SELECT is_deleted FROM slips WHERE id = ?::uuid", Boolean.class,
+                OpaqueUuidTestDecoder.decode(id));
         Integer totalLineRows = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM slip_lines WHERE slip_id = ?::uuid", Integer.class, id);
+                "SELECT COUNT(*) FROM slip_lines WHERE slip_id = ?::uuid", Integer.class,
+                OpaqueUuidTestDecoder.decode(id));
 
         assertThat(headerStillDeleted).isTrue();
         assertThat(totalLineRows).isEqualTo(2);
@@ -607,7 +609,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     private void assertActiveLineCount(String slipId, int expectedCount) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM slip_lines WHERE slip_id = ?::uuid AND is_deleted = FALSE",
-                Integer.class, slipId);
+                Integer.class, OpaqueUuidTestDecoder.decode(slipId));
         assertThat(count).isEqualTo(expectedCount);
     }
 
@@ -615,7 +617,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     private void assertLineStillDeleted(String lineId) {
         Boolean isDeleted = jdbcTemplate.queryForObject(
                 "SELECT is_deleted FROM slip_lines WHERE id = ?::uuid",
-                Boolean.class, lineId);
+                Boolean.class, OpaqueUuidTestDecoder.decode(lineId));
         assertThat(isDeleted).isTrue();
     }
 

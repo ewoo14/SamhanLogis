@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -83,8 +84,10 @@ public class ProductSheetSyncService {
     @Value("${google.sheets.sheet-id:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}")
     private String sheetId;
 
-    /** sync 시 default category — V2 시드의 INDOOR_WALL (BaseEntity FK 강제 충족용). */
-    private static final String DEFAULT_CATEGORY_CODE = "INDOOR_WALL";
+    /** 시트 신규 적재와 V38 백필이 공유하는 제품구분 카테고리 코드 집합. */
+    private static final Set<String> PRODUCT_CATEGORY_CODES = Set.of(
+            "SERVICE", "CONTROL", "PIPING", "OUTDOOR", "HVAC",
+            "INDOOR_WALL", "INDOOR_CEILING", "INDOOR", ProductNameCategoryClassifier.UNCLASSIFIED_CODE);
 
     /** PriceHistory 기준일 — legacy 시드와 동일하게 인상본은 2026-04-01부터 적용한다. */
     private static final LocalDate PRICE_INCREASE_EFFECTIVE_DATE = LocalDate.of(2026, 4, 1);
@@ -230,12 +233,10 @@ public class ProductSheetSyncService {
         Instant started = Instant.now();
         SyncSummary summary = new SyncSummary();
 
-        Category defaultCategory = categoryRepository.findByCode(DEFAULT_CATEGORY_CODE)
-                .orElse(null);
-        if (defaultCategory == null) {
-            log.error("[ProductSheetSync] default category {} 미존재 — V2 시드 누락 가능. sync 중단.",
-                    DEFAULT_CATEGORY_CODE);
-            summary.error = "default category " + DEFAULT_CATEGORY_CODE + " not found";
+        Map<String, Category> categoryByCode = resolveProductCategories();
+        if (categoryByCode.size() != PRODUCT_CATEGORY_CODES.size()) {
+            log.error("[ProductSheetSync] 제품구분 카테고리 시드 누락 — 현재={}", categoryByCode.keySet());
+            summary.error = "product categories missing";
             summary.totalTabs = TAB_MAPPINGS.size() + COMPONENT_TAB_MAPPINGS.size();
             summary.failedTabs = summary.totalTabs;
             return summary;
@@ -244,7 +245,7 @@ public class ProductSheetSyncService {
         for (SheetTabMapping mapping : TAB_MAPPINGS) {
             summary.totalTabs++;
             try {
-                TabSyncResult tabResult = self.syncTab(mapping, defaultCategory);
+                TabSyncResult tabResult = self.syncTab(mapping, categoryByCode);
                 summary.byTab.put(mapping.tabName, tabResult);
                 summary.totalInsertedRows += tabResult.insertedRows;
                 summary.totalUpdatedRows += tabResult.updatedRows;
@@ -254,6 +255,7 @@ public class ProductSheetSyncService {
                 summary.totalSkippedOccurrences += tabResult.skippedOccurrences;
                 summary.totalPreservedManualProductOccurrences += tabResult.preservedManualProductOccurrences;
                 summary.totalPreservedByRuleProductOccurrences += tabResult.preservedByRuleProductOccurrences;
+                summary.preservedByRuleProductDetails.addAll(tabResult.preservedByRuleProductDetails);
                 summary.totalSpecsLinkedRows += tabResult.specsLinkedRows;
                 summary.successfulTabs++;
             } catch (Exception e) {
@@ -289,9 +291,10 @@ public class ProductSheetSyncService {
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
         log.info("[ProductSheetSync] sync 완료: 총 insertedRows={}, updatedRows={}, softDeletedProductRows={}, skippedOccurrences={}, "
-                        + "preservedManualProductOccurrences={}, preservedManualComponentOccurrences={}, 구성품 linkedOccurrences={}, bundle markedProducts={}, 사양 linkedRows={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
+                        + "preservedManualProductOccurrences={}, preservedByRuleProductOccurrences={}, preservedManualComponentOccurrences={}, 구성품 linkedOccurrences={}, bundle markedProducts={}, 사양 linkedRows={}, priceHistoryExposureSpecChangedRows={}, duration={}ms",
                 summary.totalInsertedRows, summary.totalUpdatedRows, summary.totalSoftDeletedRows,
                 summary.totalSkippedOccurrences, summary.totalPreservedManualProductOccurrences,
+                summary.totalPreservedByRuleProductOccurrences,
                 summary.totalPreservedManualComponentOccurrences, summary.totalComponentLinkOccurrences,
                 summary.totalBundlesMarkedProducts, summary.totalSpecsLinkedRows,
                 summary.totalPriceHistoryExposureSpecChangedRows, summary.durationMs);
@@ -343,6 +346,9 @@ public class ProductSheetSyncService {
         Set<UUID> lockedParents = new HashSet<>();
         // 부모 Product.id → 이미 BUNDLE 마킹했는지(중복 마킹 회피).
         Set<UUID> markedBundles = new HashSet<>();
+        // 부모 Product.id → rollback되지 않은 V37 시트 관리 정책 여부.
+        // 감사 당시 구성품 UUID가 아니라 부모 단위로 판정해 신규·교체 행도 같은 정책을 따른다.
+        Map<UUID, Boolean> v37ManagedParents = new HashMap<>();
 
         // 외부 Sheets read는 잠금 밖에서 끝낸다. 이후 graph mutation 전체는
         // rule CRUD와 동일한 advisory lock 아래에서 세대 확인과 함께 수행한다.
@@ -394,8 +400,6 @@ public class ProductSheetSyncService {
                     && child.getProductCategory() == ProductCategory.COMMERCIAL_MULTI) {
                 kind = BundleComponent.ComponentKind.OUTDOOR;
             }
-            boolean isDefault = (variant + " " + kindRaw).contains("기본");
-
             QtyAndMode qm = resolveQty(mapping.hasQtyColumn, qtyRaw);
 
             // ① 부모 BUNDLE 마킹(중복 회피).
@@ -405,6 +409,10 @@ public class ProductSheetSyncService {
             BundleComponent match = existing.stream()
                     .filter(b -> b.getComponentProductCode().equals(childModel))
                     .findFirst().orElse(null);
+            boolean v37Managed = v37ManagedParents.computeIfAbsent(parent.getId(),
+                    bundleComponentRepository::isActiveDefaultBackfillBundle);
+            boolean isDefault = (variant + " " + kindRaw).contains("기본")
+                    || v37Managed;
             if (match == null) {
                 // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] 계열 sweep (I-3) — 신규 (부모,자식)
                 // 링크만 검사한다(기존 match 갱신은 구성품 집합 자체를 바꾸지 않으므로 대상
@@ -1199,7 +1207,7 @@ public class ProductSheetSyncService {
      * {@link GoogleSheetsClient#readSheetDisplay} ({@code FORMATTED_VALUE}) 사용.
      */
     @Transactional
-    public TabSyncResult syncTab(SheetTabMapping mapping, Category defaultCategory) throws Exception {
+    public TabSyncResult syncTab(SheetTabMapping mapping, Map<String, Category> categoryByCode) throws Exception {
         TabSyncResult result = new TabSyncResult();
         String syncKey = sheetSyncKey("product:" + mapping.currentTabName);
         long syncGeneration = quantitySyncRuleService.reserveSheetSyncGeneration(syncKey);
@@ -1307,12 +1315,17 @@ public class ProductSheetSyncService {
             // 구성품 탭에만 존재하는 모델은 SINGLE_PART/NONE 으로 insert 됨이 정상(노출 비대상).
             // ※ 신규 탭 추가 시 견적 탭은 구성품 탭보다 앞에 둘 것.
             Optional<Product> existing = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
+            if (existing.isEmpty()) {
+                existing = productRepository.findLatestDeletedByModelCode(modelCode);
+                existing.ifPresent(Product::markRestored);
+            }
             UUID productId = null;
             Product productForExposure = null;
             ExternalWriteTracker externalWrites = new ExternalWriteTracker();
             boolean productChanged = false;
             if (existing.isEmpty()) {
-                Product p = Product.seedFromSheet(name, modelCode, defaultCategory,
+                Category classifiedCategory = categoryByCode.get(ProductNameCategoryClassifier.classify(name));
+                Product p = Product.seedFromSheet(name, modelCode, classifiedCategory,
                         releasePrice, deliveryPrice,
                         ProductType.SINGLE,
                         mapping.productCategory,
@@ -1342,9 +1355,20 @@ public class ProductSheetSyncService {
             if (existing.isPresent()) {
                 Product p = existing.get();
                 ProductMutationSnapshot before = ProductMutationSnapshot.capture(entityManager, p);
+                Set<String> preservedRuleKeys = new LinkedHashSet<>();
                 p.changePrices(releasePrice, deliveryPrice);
                 if (sheetStatus != null) {
-                    p.changeStatus(sheetStatus);
+                    List<String> blockingRuleKeys = sheetStatus == ProductStatus.ACTIVE
+                            ? List.of()
+                            : quantitySyncRuleService.findEnabledRuleKeysReferencing(p.getId());
+                    if (blockingRuleKeys.isEmpty()) {
+                        p.changeStatus(sheetStatus);
+                    } else {
+                        log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
+                                        + " 참조로 상태 {} 전환 보류",
+                                mapping.tabName, modelCode, String.join(", ", blockingRuleKeys), sheetStatus);
+                        preservedRuleKeys.addAll(blockingRuleKeys);
+                    }
                 }
                 // ECOUNT-first 행은 최초 생성 시 productCategory/usageScope가 비어 있다.
                 // 시트에 같은 modelCode가 등장한 순간 시트를 정본으로 채택하고, 아래의
@@ -1389,7 +1413,7 @@ public class ProductSheetSyncService {
                             log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
                                             + " 참조로 usageScope NONE 전환 보류",
                                     mapping.tabName, modelCode, String.join(", ", blockingRuleKeys));
-                            result.preservedByRuleProductOccurrences++;
+                            preservedRuleKeys.addAll(blockingRuleKeys);
                         } else {
                             p.changeUsage(mapping.usageScope);
                         }
@@ -1400,10 +1424,27 @@ public class ProductSheetSyncService {
                         p.changeDiscountFlags(discountFlags);
                     }
                     if (!p.isClassificationManual()) {
-                        p.changeClassifications(classifications.catL(), classifications.catM(), classifications.catS());
+                        String resultingClassificationName = classifications.catL() == null
+                                ? null : classifications.catL().getName();
+                        String resultingGoodsType = p.getGoodsType() == null ? null : p.getGoodsType().name();
+                        List<String> blockingRuleKeys = quantitySyncRuleService.findEnabledRuleKeysBrokenByResultingRole(
+                                p.getId(), resultingClassificationName, resultingGoodsType);
+                        if (blockingRuleKeys.isEmpty()) {
+                            p.changeClassifications(classifications.catL(), classifications.catM(), classifications.catS());
+                        } else {
+                            log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
+                                            + " 참조로 역할 분류 전환 보류",
+                                    mapping.tabName, modelCode, String.join(", ", blockingRuleKeys));
+                            preservedRuleKeys.addAll(blockingRuleKeys);
+                        }
                     }
                     applyAttributes(p, name, modelCode);
                     applyPyongSize(p, mapping, cells);
+                }
+                if (!preservedRuleKeys.isEmpty()) {
+                    result.preservedByRuleProductOccurrences++;
+                    result.preservedByRuleProductDetails.add(
+                            new PreservedByRuleProductDetail(modelCode, preservedRuleKeys));
                 }
                 productRepository.save(p);
                 upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice,
@@ -2079,6 +2120,15 @@ public class ProductSheetSyncService {
         return sheetId + ":" + scope;
     }
 
+    /** 제품구분 필수 카테고리를 sync 시작 시 한 번만 해소한다. */
+    private Map<String, Category> resolveProductCategories() {
+        Map<String, Category> categories = new HashMap<>();
+        for (String code : PRODUCT_CATEGORY_CODES) {
+            categoryRepository.findByCode(code).ifPresent(category -> categories.put(code, category));
+        }
+        return categories;
+    }
+
     /** 시트 tab → 도메인 매핑 record. */
     public record SheetTabMapping(String tabName,
                                    String currentTabName,
@@ -2147,6 +2197,8 @@ public class ProductSheetSyncService {
          * 별도 카운터로 집계한다.
          */
         public int preservedByRuleProductOccurrences = 0;
+        /** 규칙 무결성 보호로 갱신을 보류한 품목의 사용자 식별자·위반 ruleKey 목록. */
+        public List<PreservedByRuleProductDetail> preservedByRuleProductDetails = new ArrayList<>();
         /** MIG-8 변환이 잡고 있는 Product reservation 때문에 soft-delete를 보류한 품목 수. */
         public int deferredByEcountReservationProductOccurrences = 0;
         public int specsLinkedRows = 0;
@@ -2183,11 +2235,27 @@ public class ProductSheetSyncService {
         public int successfulTabs = 0;
         /** 활성 수량 동기화 규칙 참조로 usageScope NONE 전환이 보류된 품목 합계(R6 결함 5). */
         public int totalPreservedByRuleProductOccurrences = 0;
+        /** 전체 tab에서 규칙 무결성 보호로 갱신을 보류한 품목 상세. */
+        public List<PreservedByRuleProductDetail> preservedByRuleProductDetails = new ArrayList<>();
         public int totalComponentLinkOccurrences = 0;
         public int totalBundlesMarkedProducts = 0;
         public int totalBlockedByRuleOccurrences = 0;
         public int totalSpecsLinkedRows = 0;
         public long durationMs = 0;
         public String error;
+    }
+
+    /** 시트 sync가 수량 동기화 규칙 때문에 특정 품목 갱신을 보류한 상세. */
+    public static class PreservedByRuleProductDetail {
+        public String modelCode;
+        public List<String> ruleKeys;
+
+        public PreservedByRuleProductDetail() {
+        }
+
+        PreservedByRuleProductDetail(String modelCode, Set<String> ruleKeys) {
+            this.modelCode = modelCode;
+            this.ruleKeys = List.copyOf(ruleKeys);
+        }
     }
 }

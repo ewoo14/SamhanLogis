@@ -39,6 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -211,13 +212,13 @@ class QuantitySyncRuleReconvergenceR7IT extends AbstractPostgresIT {
         });
 
         long raceStartedNanos = System.nanoTime();
+        Map<String, Category> categories = Map.of(
+                "INDOOR_WALL", categoryRepository.findByCode("INDOOR_WALL").orElseThrow());
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
-            Future<?> older = executor.submit(() -> syncService.syncTab(
-                    mapping, categoryRepository.findByCode("INDOOR_WALL").orElseThrow()));
+            Future<?> older = executor.submit(() -> syncService.syncTab(mapping, categories));
             assertThat(olderStarted.await(5, TimeUnit.SECONDS)).isTrue();
-            Future<?> newer = executor.submit(() -> syncService.syncTab(
-                    mapping, categoryRepository.findByCode("INDOOR_WALL").orElseThrow()));
+            Future<?> newer = executor.submit(() -> syncService.syncTab(mapping, categories));
             get(newer);
             releaseOlder.countDown();
             get(older);
@@ -287,6 +288,7 @@ class QuantitySyncRuleReconvergenceR7IT extends AbstractPostgresIT {
 
     private QuantitySyncRuleRequest ruleRequest(String key, String sourceCode, String targetCode)
             throws Exception {
+        classifyQuantitySyncTarget(targetCode);
         JsonNode condition = MAPPER.readTree("{}");
         return new QuantitySyncRuleRequest(key, QuantitySyncEstimateCategory.HOME_MULTI,
                 key, true, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,

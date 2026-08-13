@@ -116,10 +116,54 @@ describe('입출고 모델 복수 칩 필터', () => {
     const analysis = deriveLegacyAnalysis(rows)
 
     expect(analysis.forecast).toEqual([
-      { month: 4, quantity: 0 }, { month: 5, quantity: 0 }, { month: 6, quantity: 0 },
-      { month: 7, quantity: 0 }, { month: 8, quantity: 0 }, { month: 9, quantity: 0 },
-      { month: 10, quantity: 0 }, { month: 11, quantity: 0 }, { month: 12, quantity: 0 },
+      { month: 4, quantity: null }, { month: 5, quantity: null }, { month: 6, quantity: null },
+      { month: 7, quantity: null }, { month: 8, quantity: null }, { month: 9, quantity: null },
+      { month: 10, quantity: null }, { month: 11, quantity: null }, { month: 12, quantity: null },
     ])
+  })
+
+  it('전년 입고-only 월은 자료가 존재하므로 예측 0을 유지한다', () => {
+    const rows = [
+      withProfitFields({
+        modelCode: 'INBOUND-ONLY', productName: '입고-only', inboundQuantity: 3, outboundQuantity: 0,
+        purchaseAmount: 100, salesAmount: 0,
+        monthly: [
+          { year: 2025, month: 4, inboundQuantity: 3, outboundQuantity: 0 },
+          { year: 2026, month: 3, inboundQuantity: 0, outboundQuantity: 2 },
+        ],
+      }),
+    ]
+
+    expect(deriveLegacyAnalysis(rows).forecast).toContainEqual({ month: 4, quantity: 0 })
+  })
+
+  it('전년 자료가 있는 월의 예측 숫자는 기존 출고량×증감률과 동일하다', () => {
+    const rows = [
+      withProfitFields({
+        modelCode: 'KNOWN-PREVIOUS', productName: '전년 자료 있음', inboundQuantity: 0, outboundQuantity: 2,
+        purchaseAmount: null, salesAmount: 100,
+        monthly: [
+          { year: 2025, month: 4, inboundQuantity: 0, outboundQuantity: 10 },
+          { year: 2026, month: 3, inboundQuantity: 0, outboundQuantity: 20 },
+        ],
+      }),
+    ]
+
+    expect(deriveLegacyAnalysis(rows).forecast).toContainEqual({ month: 4, quantity: 10 })
+  })
+
+  it('전년도가 없는 분석은 모든 예측 수량을 null로 반환한다', () => {
+    const rows = [
+      withProfitFields({
+        modelCode: 'NO-YEAR', productName: '자료 없음', inboundQuantity: 0, outboundQuantity: 0,
+        purchaseAmount: null, salesAmount: 0,
+        monthly: undefined,
+      }),
+    ]
+
+    expect(deriveLegacyAnalysis(rows).forecast).toEqual(
+      Array.from({ length: 12 }, (_, index) => ({ month: index + 1, quantity: null })),
+    )
   })
 
   it('Top 3·Bottom 3와 추천·알림은 실제 모델 집계에서 산출한다', () => {

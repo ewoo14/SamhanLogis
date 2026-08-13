@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.service.SalesSlipUpdateService;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
@@ -85,9 +86,6 @@ public class SalesSlipUpdateController {
      * @return actorName (사용자 이름 또는 "system")
      */
     private String resolveName(String callerName) {
-        if (callerName != null && !callerName.isBlank()) {
-            return callerName;
-        }
-        return "system";
+        return ActorDisplayName.resolve(null, callerName);
     }
 }

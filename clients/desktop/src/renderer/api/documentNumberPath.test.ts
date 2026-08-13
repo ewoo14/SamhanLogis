@@ -3,7 +3,6 @@ import { apiClient } from './client'
 import { postSalesSlip } from './salesAccountingSlipApi'
 import { postPurchaseSlip } from './purchaseAccountingSlipApi'
 import { getSignatureShare, recordDriverSignature, recordSignature } from './signature'
-import { getAccountingOrder } from './accountingAdminApi'
 import { updateCollectionPlanStatus } from './accounting'
 import {
   convertPartnerOrderToSlip,
@@ -88,12 +87,6 @@ describe('문서번호 URL path 변환', () => {
     await getSignatureShare('some-token')
 
     expect(apiClient.get).toHaveBeenCalledWith('/api/public/signatures/some-token')
-  })
-
-  it('회계 admin 주문 상세는 슬래시 orderNo를 하이픈 단일 세그먼트로 보낸다', async () => {
-    await getAccountingOrder('2026/05/20-5')
-
-    expect(apiClient.get).toHaveBeenCalledWith('/accounting/orders/2026-05-20-5')
   })
 
   it('수금계획 상태 전이는 슬래시 planNo를 하이픈 단일 세그먼트로 보낸다', async () => {

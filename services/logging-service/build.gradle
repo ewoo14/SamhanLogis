@@ -44,6 +44,7 @@ dependencies {
     // shared module 이 transitive 로 spring-boot-starter-data-jpa 를 가져오지만 application.yml
     // 에서 DataSource/JPA autoconfig 를 명시 exclude → 정상 startup.
     implementation project(':shared:realtime-abstraction')
+    implementation project(':shared:audit-publisher')
 
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"

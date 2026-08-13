@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -123,6 +124,10 @@ class DynamicPermissionServiceTest {
         assertThat(result.canView()).isTrue();
         assertThat(result.canEdit()).isTrue();
         assertThat(result.isOverride()).isTrue();
+        ArgumentCaptor<RolePagePermission> saved = ArgumentCaptor.forClass(RolePagePermission.class);
+        verify(repository).save(saved.capture());
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(saved.getValue(), "actorId"))
+                .isEqualTo(ACTOR_ID);
     }
 
     @Test

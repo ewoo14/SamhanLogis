@@ -3,7 +3,9 @@ package com.samhanair.logis.groupware.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -11,9 +13,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
+import com.samhanair.logis.groupware.client.AccountingSettlementApprovalClaimClient;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
 import com.samhanair.logis.groupware.domain.ApprovalFieldType;
@@ -22,6 +26,9 @@ import com.samhanair.logis.groupware.domain.ApprovalReferenceDocType;
 import com.samhanair.logis.groupware.domain.ApprovalTemplate;
 import com.samhanair.logis.groupware.domain.ApprovalTemplateField;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
+import com.samhanair.logis.groupware.dto.ApprovalAttachmentRequest;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.dto.ApprovalTemplateRequest;
 import com.samhanair.logis.groupware.repository.ApprovalAttachmentRepository;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
@@ -44,6 +51,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -70,6 +78,7 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
 
     @MockBean private UserClient userClient;
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean private AccountingSettlementApprovalClaimClient claimClient;
 
     @BeforeEach
     void setUp() {
@@ -249,6 +258,231 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
                                 "refPartnerName", "삼한상사",
                                 "refPeriod", "2026-06"))))
                 .andExpect(status().isConflict());
+    }
+
+    /** 기존 6종 참조가 실제 저장·조회 응답에서 attachment_type/ref_doc_type을 보존한다. */
+    @Test
+    void existingSixReferenceTypes_areSavedAndRenderedWithStableAttachmentTypes() throws Exception {
+        ApprovalLine approval = seedApproval("기존 6종 참조 회귀");
+
+        addReferenceAndAssert(approval, new ApprovalAttachmentRequest(
+                ApprovalAttachmentType.SLIP_REF, "출고전표", 1,
+                "2026/08/11-1", "SLIP_OUTBOUND", null, null, null,
+                null, null, null), "OUTBOUND_SLIP", "2026/08/11-1", "SLIP_REF");
+        addReferenceAndAssert(approval, new ApprovalAttachmentRequest(
+                ApprovalAttachmentType.SLIP_REF, "입고전표", 2,
+                "2026/08/11-2", "SLIP_INBOUND", null, null, null,
+                null, null, null), "INBOUND_SLIP", "2026/08/11-2", "SLIP_REF");
+        addReferenceAndAssert(approval, new ApprovalAttachmentRequest(
+                ApprovalAttachmentType.SLIP_REF, "분개장", 3,
+                null, null, null, null, null,
+                ApprovalReferenceDocType.JOURNAL, "2026/08/11-3", "운송료"),
+                "JOURNAL", "2026/08/11-3", "SLIP_REF");
+        addReferenceAndAssert(approval, new ApprovalAttachmentRequest(
+                ApprovalAttachmentType.SLIP_REF, "세금계산서", 4,
+                null, null, null, null, null,
+                ApprovalReferenceDocType.TAX_INVOICE, "2026/08/11-4", "삼한상사"),
+                "TAX_INVOICE", "2026/08/11-4", "SLIP_REF");
+        addReferenceAndAssert(approval, new ApprovalAttachmentRequest(
+                ApprovalAttachmentType.SLIP_REF, "거래명세서", 5,
+                null, null, null, null, null,
+                ApprovalReferenceDocType.STATEMENT, "2026/08/11-5", "삼한상사"),
+                "STATEMENT", "2026/08/11-5", "SLIP_REF");
+        addReferenceAndAssert(approval, new ApprovalAttachmentRequest(
+                ApprovalAttachmentType.PARTNER_LEDGER_REF, "거래처원장", 6,
+                null, null, "P-001", "삼한상사", "2026-08",
+                null, null, null), "PARTNER_LEDGER", null, "PARTNER_LEDGER_REF");
+
+        mvc.perform(get("/admin/groupware/approvals/{approvalId}/attachments", approval.getId())
+                        .header("X-User-Id", ACTOR_ID))
+                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(6))
+                .andExpect(jsonPath("$.data[0].attachmentType").value("SLIP_REF"))
+                .andExpect(jsonPath("$.data[0].refDocType").value("OUTBOUND_SLIP"))
+                .andExpect(jsonPath("$.data[1].refDocType").value("INBOUND_SLIP"))
+                .andExpect(jsonPath("$.data[2].refDocType").value("JOURNAL"))
+                .andExpect(jsonPath("$.data[3].refDocType").value("TAX_INVOICE"))
+                .andExpect(jsonPath("$.data[4].refDocType").value("STATEMENT"))
+                .andExpect(jsonPath("$.data[5].attachmentType").value("PARTNER_LEDGER_REF"))
+                .andExpect(jsonPath("$.data[5].refDocType").value("PARTNER_LEDGER"));
+    }
+
+    /** 정산서 참조를 실제 POST 경로로 저장한 뒤 같은 번호로 역방향 조회한다. */
+    @Test
+    void salesCommissionSettlementReference_roundTripsFromAttachmentToApprovals() throws Exception {
+        ApprovalLine approval = seedApproval("영업수수료 정산 지출결의");
+
+        mvc.perform(post("/admin/groupware/approvals/{approvalId}/attachments", approval.getId())
+                        .header("X-User-Id", ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "attachmentType", "SLIP_REF",
+                                "label", "영업수수료 정산서",
+                                "displayOrder", 1,
+                                "refDocType", "SALES_COMMISSION_SETTLEMENT",
+                                "refDocNo", "2026/08/11-9001",
+                                "refDocLabel", "영업수수료 정산"))))
+                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.attachmentType").value("SLIP_REF"))
+                .andExpect(jsonPath("$.data.refDocType").value("SALES_COMMISSION_SETTLEMENT"))
+                .andExpect(jsonPath("$.data.refDocNo").value("2026/08/11-9001"));
+
+        mvc.perform(get("/admin/groupware/approval-references")
+                        .header("X-User-Id", ACTOR_ID)
+                        .param("refDocType", "SALES_COMMISSION_SETTLEMENT")
+                        .param("refDocNo", "2026/08/11-9001"))
+                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].approvalNo").value(approval.getApprovalNo()))
+                .andExpect(jsonPath("$.data[0].title").value("영업수수료 정산 지출결의"))
+                .andExpect(jsonPath("$.data[0].status").value("PENDING"));
+    }
+
+    /** 같은 정산서 번호를 여러 결재가 참조할 수 있고, 반려 상태는 조회에만 반영한다. */
+    @Test
+    void sameSettlementReference_canBeAttachedToMultipleApprovals_andRejectedStatusIsReadable() throws Exception {
+        ApprovalLine pending = seedApproval("정산 다중 참조 대기");
+        ApprovalLine rejected = seedApproval("정산 다중 참조 반려");
+        String settlementNo = "2026/08/11-9002";
+
+        addSettlementReference(pending, settlementNo);
+        addSettlementReference(rejected, settlementNo);
+        rejected.reject(rejected.getStepsView().get(0).getApproverUserId(), "검토 반려");
+        approvalLineRepository.saveAndFlush(rejected);
+
+        mvc.perform(get("/admin/groupware/approval-references")
+                        .header("X-User-Id", ACTOR_ID)
+                        .param("refDocType", ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT.name())
+                        .param("refDocNo", settlementNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[*].status", containsInAnyOrder("PENDING", "REJECTED")));
+    }
+
+    /** 번호 없는 DRAFT, 40자 초과 번호는 거부하고, 원장에 없는 번호의 존재 검증은 첨부 책임으로 만들지 않는다. */
+    @Test
+    void settlementReference_validatesNumberBoundary_andDoesNotInventSourceExistenceCheck() throws Exception {
+        ApprovalLine approval = seedApproval("정산 참조 경계");
+        String basePath = "/admin/groupware/approvals/{approvalId}/attachments";
+
+        mvc.perform(post(basePath, approval.getId())
+                        .header("X-User-Id", ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "attachmentType", "SLIP_REF",
+                                "refDocType", "SALES_COMMISSION_SETTLEMENT",
+                                "label", "번호 없는 정산서"))))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post(basePath, approval.getId())
+                        .header("X-User-Id", ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "attachmentType", "SLIP_REF",
+                                "refDocType", "SALES_COMMISSION_SETTLEMENT",
+                                "refDocNo", "x".repeat(41),
+                                "label", "긴 번호"))))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post(basePath, approval.getId())
+                        .header("X-User-Id", ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "attachmentType", "SLIP_REF",
+                                "refDocType", "SALES_COMMISSION_SETTLEMENT",
+                                "refDocNo", "2099/01/01-unknown",
+                                "label", "미존재 번호"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.refDocNo").value("2099/01/01-unknown"));
+    }
+
+    /** 참조 첨부를 삭제하면 역방향 결재 목록에서도 제외한다. */
+    @Test
+    void deletedSettlementReference_isExcludedFromReverseLookup() throws Exception {
+        ApprovalLine approval = seedApproval("삭제된 정산 참조");
+        String settlementNo = "2026/08/11-9003";
+        String created = addSettlementReference(approval, settlementNo);
+        UUID attachmentId = UUID.fromString(objectMapper.readTree(created).path("data").path("id").asText());
+
+        mvc.perform(delete("/admin/groupware/approvals/{approvalId}/attachments/{attachmentId}",
+                        approval.getId(), attachmentId)
+                        .header("X-User-Id", ACTOR_ID))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/admin/groupware/approval-references")
+                        .header("X-User-Id", ACTOR_ID)
+                        .param("refDocType", ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT.name())
+                        .param("refDocNo", settlementNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    private String addSettlementReference(ApprovalLine approval, String settlementNo) throws Exception {
+        return mvc.perform(post("/admin/groupware/approvals/{approvalId}/attachments", approval.getId())
+                        .header("X-User-Id", ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "attachmentType", "SLIP_REF",
+                                "label", "영업수수료 정산서",
+                                "displayOrder", 1,
+                                "refDocType", "SALES_COMMISSION_SETTLEMENT",
+                                "refDocNo", settlementNo,
+                                "refDocLabel", "영업수수료 정산"))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    private void addReferenceAndAssert(ApprovalLine approval, ApprovalAttachmentRequest request,
+                                       String refDocType, String refDocNo,
+                                       String attachmentType) throws Exception {
+        mvc.perform(post("/admin/groupware/approvals/{approvalId}/attachments", approval.getId())
+                        .header("X-User-Id", ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.attachmentType").value(attachmentType))
+                .andExpect(jsonPath("$.data.refDocType").value(refDocType));
+        if (refDocNo == null) {
+            mvc.perform(get("/admin/groupware/approvals/{approvalId}/attachments", approval.getId())
+                            .header("X-User-Id", ACTOR_ID))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[5].refDocNo").doesNotExist());
+        } else {
+            mvc.perform(get("/admin/groupware/approvals/{approvalId}/attachments", approval.getId())
+                            .header("X-User-Id", ACTOR_ID))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[?(@.refDocNo == '" + refDocNo + "')].refDocNo").value(refDocNo));
+        }
+    }
+
+    /** TF-3 A: accounting 참조 실패 시 결재 row도 함께 rollback되어 PENDING 고아가 남지 않는다. */
+    @Test
+    void createApproval_settlementReferenceFailure_rollsBackApprovalAndAttachmentTogether() {
+        UUID requesterId = UUID.randomUUID();
+        UUID approverId = UUID.randomUUID();
+        when(claimClient.reserve(eq("2099/12/27-1"), org.mockito.ArgumentMatchers.any(UUID.class)))
+                .thenThrow(new BusinessException(ErrorCode.CONFLICT,
+                        "정산 참조가 이미 처리 중이거나 정산 상태가 변경되었습니다"));
+
+        ApprovalAttachmentRequest reference = new ApprovalAttachmentRequest(
+                ApprovalAttachmentType.SLIP_REF, "영업수수료 정산서", 1, null, null,
+                null, null, null, ApprovalReferenceDocType.SALES_COMMISSION_SETTLEMENT,
+                "2099/12/27-1", "영업수수료 정산서");
+        ApprovalLineCreateRequest request = new ApprovalLineCreateRequest(
+                requesterId, "정산 결재", "본문", List.of(approverId), null, null, List.of(reference));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> approvalLineService.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("정산 참조");
+        TestTransaction.flagForRollback();
+        TestTransaction.end();
+        TestTransaction.start();
+        assertThat(approvalLineRepository.findAll()).noneMatch(line -> "정산 결재".equals(line.getTitle()));
+        assertThat(attachmentRepository.findAll()).isEmpty();
     }
 
     /** collab 수정완료는 field.{key} overlay 를 허용하고 템플릿 스키마 위반은 400 으로 거부한다. */

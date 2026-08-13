@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button, Card } from '@samhan/design-system'
 import {
   getDefaultAllocationRows,
@@ -29,6 +29,7 @@ const inputStyle: CSSProperties = {
 export function SalesAccountingSlipFormPage() {
   usePageTitle('매출전표 작성')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [slipDate, setSlipDate] = useState(today())
   const [partnerCode, setPartnerCode] = useState('P-10021')
   const [partnerName, setPartnerName] = useState('삼한물류 안산센터')
@@ -58,7 +59,10 @@ export function SalesAccountingSlipFormPage() {
 
   const mutation = useMutation({
     mutationFn: createSalesSlipDraft,
-    onSuccess: () => navigate('/accounting/sales-slips'),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['sales-accounting-slips'] })
+      navigate('/accounting/sales-slips')
+    },
   })
 
   const handleSubmit = () => {

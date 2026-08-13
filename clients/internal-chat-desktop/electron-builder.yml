@@ -1,0 +1,48 @@
+appId: com.samhanair.internalchat.desktop
+productName: Samhan Internal Chat
+copyright: Copyright (c) 2026 (주)삼한공조시스템
+artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}.${ext}
+forceCodeSigning: false
+
+# 삼한 Public·아로로지스와 같은 generic feed 경로를 사용한다.
+# 제품별 base URL은 별도 환경변수로 주입하고 channel 이름은 기존 latest를 유지한다.
+
+directories:
+  output: release/${env.SAMHAN_RELEASE_ARTIFACT_VERSION}
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+
+extraResources:
+  - from: build/samhani-tray.png
+    to: samhani-tray.png
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Samhan Internal Chat
+  installerLanguages: [ko_KR]
+  language: '1042'
+
+portable:
+  artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}-portable.${ext}
+
+publish:
+  provider: generic
+  url: ${env.INTERNAL_CHAT_UPDATE_URL}
+  channel: latest

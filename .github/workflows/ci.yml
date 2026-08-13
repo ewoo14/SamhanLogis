@@ -819,6 +819,40 @@ jobs:
         working-directory: clients/desktop
         run: node ../../scripts/check-docs-qa-clean.cjs
 
+  frontend-internal-chat-desktop:
+    name: Internal Chat Desktop (typecheck + lint + test + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: clients/internal-chat-desktop
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: clients/internal-chat-desktop/package-lock.json
+
+      - name: 내부 채팅 의존성 설치
+        run: npm ci
+
+      - name: typecheck (Electron node + web)
+        run: npm run typecheck
+
+      - name: lint
+        run: npm run lint
+
+      - name: 단위 테스트(vitest)
+        run: npm run test
+
+      - name: source build (electron-vite)
+        run: npm run build
+
   frontend-order-app:
     name: Frontend Order-App (typecheck + test + build)
     runs-on: ubuntu-latest

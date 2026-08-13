@@ -1,10 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
-import com.samhanair.logis.accounting.domain.OrderProgressStatus;
 import com.samhanair.logis.accounting.service.AccountingAdminQueryService;
 import com.samhanair.logis.accounting.web.dto.LedgerStagingResponse;
-import com.samhanair.logis.accounting.web.dto.OrderDetailResponse;
-import com.samhanair.logis.accounting.web.dto.OrderSummaryResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -16,53 +13,26 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** MIG-14 admin 주문/원장 조회 endpoint. */
+/** MIG-14 admin 원장 대조 조회 endpoint. */
 @Slf4j
 @RestController
 @RequestMapping("/accounting")
 @RequiredArgsConstructor
 public class AccountingAdminQueryController {
 
-    private static final String ORDER_PAGE_CODE = "ecount.mig14.order-list";
     private static final String LEDGER_PAGE_CODE = "ecount.mig14.ledger";
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final AccountingAdminQueryService service;
     private final DynamicPermissionClient dynamicPermissionClient;
-
-    @GetMapping("/orders")
-    @RequirePermission(page = ORDER_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
-    @Operation(summary = "MIG-14 주문서 admin 목록 조회")
-    public ApiResponse<Page<OrderSummaryResponse>> orders(
-            @RequestParam(required = false) OrderProgressStatus progressStatus,
-            @RequestParam(required = false) String managerName,
-            @RequestParam(required = false) String partnerName,
-            @PageableDefault(size = 50, sort = "validUntil", direction = Sort.Direction.DESC)
-            Pageable pageable,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        checkViewPermission(ORDER_PAGE_CODE, roleHeader);
-        return ApiResponse.ok(service.listOrders(progressStatus, managerName, partnerName, pageable));
-    }
-
-    @GetMapping("/orders/{orderNo}")
-    @RequirePermission(page = ORDER_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
-    @Operation(summary = "MIG-14 주문서 admin 상세 조회")
-    public ApiResponse<OrderDetailResponse> orderDetail(
-            @PathVariable String orderNo,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        checkViewPermission(ORDER_PAGE_CODE, roleHeader);
-        return ApiResponse.ok(service.getOrderDetail(orderNo));
-    }
 
     @GetMapping("/ledger/sales")
     @RequirePermission(page = LEDGER_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)

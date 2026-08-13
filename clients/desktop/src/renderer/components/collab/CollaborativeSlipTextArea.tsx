@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { safeActorName } from '@samhan/design-system'
 import {
   EDIT_HIGHLIGHT_MS,
   type DocCoeditProvider,
@@ -171,7 +172,9 @@ export function CollaborativeSlipTextArea({
             pointerEvents: 'none',
           }}
         >
-          {editHighlight ? `${editHighlight.displayName} 수정` : badgeRemote.displayName}
+          {editHighlight
+            ? `${safeActorName(editHighlight.displayName) ?? '변경자 미상'} 수정`
+            : safeActorName(badgeRemote.displayName) ?? '변경자 미상'}
         </span>
       ) : null}
       <textarea

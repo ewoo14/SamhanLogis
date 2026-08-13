@@ -11,6 +11,7 @@ import {
   Badge,
   Button,
   Input,
+  safeActorName,
   type BadgeVariant,
 } from '@samhan/design-system'
 import {
@@ -46,8 +47,6 @@ const FILTER_TYPES: Array<{
   { value: 'ESTIMATE', label: '견적사진' },
 ]
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const URL_LIKE_PATTERN = /https?:\/\/|x-amz-|storagekey|downloadurl/i
 
 interface CommittedFilters {
@@ -79,11 +78,7 @@ function formatBytes(size: number): string {
 }
 
 function formatUploader(uploadedBy: string | null | undefined): string {
-  const value = uploadedBy?.trim()
-  if (!value || UUID_PATTERN.test(value)) {
-    return '업로더 확인 필요'
-  }
-  return value
+  return safeActorName(uploadedBy) ?? '업로더 확인 필요'
 }
 
 function extractErrorMessage(err: unknown): string {

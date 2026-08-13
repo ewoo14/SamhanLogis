@@ -1,10 +1,13 @@
 package com.samhanair.logis.slip.estimate.web.collab.dto;
 
 import com.samhanair.logis.collab.CollabSuggestionStatus;
+import com.samhanair.logis.common.security.ActorDisplayName;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabSuggestion;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.samhanair.logis.slip.estimate.web.dto.OpaqueUuidSerializer;
 
 /**
  * 견적 수정 이력 응답 DTO.
@@ -13,7 +16,7 @@ import java.util.UUID;
  * proposerName/decidedByName 만 표시한다. 1-인 수정완료 모델에서는 둘 다 같은 수정자다.
  */
 public record EstimateCollabSuggestionResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String changeSet,
         String reason,
         String proposerName,
@@ -28,9 +31,13 @@ public record EstimateCollabSuggestionResponse(
                 suggestion.getId(),
                 suggestion.getChangeSet(),
                 suggestion.getReason(),
-                suggestion.getProposerName(),
+                ActorDisplayName.resolveNullable(
+                        suggestion.getProposerId() == null ? null : suggestion.getProposerId().toString(),
+                        suggestion.getProposerName()),
                 suggestion.getStatus(),
-                suggestion.getDecidedByName(),
+                ActorDisplayName.resolveNullable(
+                        suggestion.getDecidedById() == null ? null : suggestion.getDecidedById().toString(),
+                        suggestion.getDecidedByName()),
                 suggestion.getDecidedAt() == null ? null
                         : LocalDateTime.ofInstant(suggestion.getDecidedAt(), ZoneId.systemDefault()),
                 suggestion.getCreatedAt());

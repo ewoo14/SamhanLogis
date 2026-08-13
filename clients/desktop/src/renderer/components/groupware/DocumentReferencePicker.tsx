@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { createPortal, flushSync } from 'react-dom'
 import { Input, Select, Spinner, splitHighlightMatches } from '@samhan/design-system'
 import {
   APPROVAL_REFERENCE_DOC_TYPE_LABEL,
@@ -33,6 +34,7 @@ const DOCUMENT_REFERENCE_TYPES: ApprovalReferenceDocType[] = [
   'TAX_INVOICE',
   'STATEMENT',
   'PARTNER_LEDGER',
+  'SALES_COMMISSION_SETTLEMENT',
 ]
 
 function currentMonth(): string {
@@ -69,6 +71,20 @@ function optionAriaLabel(option: DocumentReferenceOption): string {
   return `${typeLabel} ${option.refDocNo ?? '-'} ${option.summary ?? ''} ${formatAmount(option.amount)}원`
 }
 
+interface DropdownPosition {
+  position: 'fixed'
+  left: number
+  width: number
+  maxHeight: number
+  top?: number
+  bottom?: number
+}
+
+const DROPDOWN_GAP = 4
+const DROPDOWN_VIEWPORT_INSET = 8
+const DROPDOWN_MAX_HEIGHT = 240
+const DROPDOWN_MIN_FLIP_SPACE = 160
+
 function HighlightedReferenceValue({ value, query }: { value: string; query: string }) {
   return (
     <>
@@ -92,9 +108,13 @@ export function DocumentReferencePicker({
   style,
 }: DocumentReferencePickerProps) {
   const listboxId = useId()
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLUListElement>(null)
+  const ignoreNextScrollRef = useRef(false)
   const debounceRef = useRef<number | undefined>(undefined)
   const blurTimerRef = useRef<number | undefined>(undefined)
   const suppressNextSearchRef = useRef<string | null>(null)
+  const reopenAfterScrollRef = useRef(false)
   const requestIdRef = useRef(0)
   const refocusSearchRef = useRef(false)
   const [selectedType, setSelectedType] = useState<ApprovalReferenceDocType>(value.refDocType)
@@ -113,8 +133,104 @@ export function DocumentReferencePicker({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition | null>(null)
 
   const { options, resolvedQuery } = searchState
+
+  const calculateDropdownPosition = useCallback((): DropdownPosition | null => {
+    const picker = pickerRef.current
+    if (!picker) return null
+
+    const rect = picker.getBoundingClientRect()
+    if (rect.bottom < 0 || rect.top > window.innerHeight) return null
+
+    const belowSpace = window.innerHeight - rect.bottom - DROPDOWN_GAP - DROPDOWN_VIEWPORT_INSET
+    const aboveSpace = rect.top - DROPDOWN_GAP - DROPDOWN_VIEWPORT_INSET
+    const opensAbove = belowSpace < DROPDOWN_MIN_FLIP_SPACE && aboveSpace > belowSpace
+    const availableSpace = Math.max(0, opensAbove ? aboveSpace : belowSpace)
+    const maxHeight = Math.min(DROPDOWN_MAX_HEIGHT, availableSpace)
+    const width = Math.min(rect.width, Math.max(0, window.innerWidth - DROPDOWN_VIEWPORT_INSET * 2))
+    const maxLeft = Math.max(DROPDOWN_VIEWPORT_INSET, window.innerWidth - DROPDOWN_VIEWPORT_INSET - width)
+    const left = Math.min(Math.max(rect.left, DROPDOWN_VIEWPORT_INSET), maxLeft)
+
+    return {
+      position: 'fixed',
+      left,
+      width,
+      maxHeight,
+      ...(opensAbove
+        ? { bottom: window.innerHeight - rect.top + DROPDOWN_GAP }
+        : { top: rect.bottom + DROPDOWN_GAP }),
+    }
+  }, [])
+
+  const updateDropdownPosition = useCallback(() => {
+    if (!open) return
+    const nextPosition = calculateDropdownPosition()
+    if (!nextPosition) {
+      setDropdownPosition(null)
+      setOpen(false)
+      return
+    }
+    setDropdownPosition(nextPosition)
+  }, [calculateDropdownPosition, open])
+
+  const closeDropdownOnScroll = useCallback(() => {
+    if (!open) return
+    // click 경합으로 동기 재열기한 직후 중복 전달되는 같은 scroll event만 소비한다.
+    // 실제 다음 scroll은 이 ref가 비워진 뒤 기존 close 경로를 그대로 탄다.
+    if (ignoreNextScrollRef.current) {
+      ignoreNextScrollRef.current = false
+      return
+    }
+    const reopenAfterScroll = reopenAfterScrollRef.current
+    reopenAfterScrollRef.current = false
+    // 스크롤 이벤트 직후 React state commit만 기다리면 첫 paint에 낡은 fixed 좌표가 남을 수 있다.
+    // portal을 숨긴 뒤 실제 anchor 좌표를 같은 commit에 적용하고, paint 전에 visibility를 되돌린다.
+    dropdownRef.current?.style.setProperty('visibility', 'hidden')
+    const nextPosition = reopenAfterScroll ? calculateDropdownPosition() : null
+    ignoreNextScrollRef.current = nextPosition !== null
+    flushSync(() => {
+      setDropdownPosition(nextPosition)
+      setOpen(nextPosition !== null)
+    })
+    if (nextPosition !== null) dropdownRef.current?.style.removeProperty('visibility')
+  }, [calculateDropdownPosition, open])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      if (!reopenAfterScrollRef.current) setDropdownPosition(null)
+      return undefined
+    }
+
+    updateDropdownPosition()
+    const handleViewportChange = () => updateDropdownPosition()
+    const scrollContainers: Array<Window | HTMLElement> = [window]
+    let parent = pickerRef.current?.parentElement
+    while (parent) {
+      const style = getComputedStyle(parent)
+      if (['auto', 'scroll', 'overlay'].includes(style.overflowY)
+        || ['auto', 'scroll', 'overlay'].includes(style.overflow)) {
+        scrollContainers.push(parent)
+      }
+      parent = parent.parentElement
+    }
+
+    window.addEventListener('resize', handleViewportChange)
+    window.visualViewport?.addEventListener('resize', handleViewportChange)
+    for (const container of scrollContainers) container.addEventListener('scroll', closeDropdownOnScroll)
+    const anchor = pickerRef.current
+    const resizeObserver = typeof ResizeObserver === 'undefined' || !anchor
+      ? null
+      : new ResizeObserver(handleViewportChange)
+    if (resizeObserver && anchor) resizeObserver.observe(anchor)
+    return () => {
+      window.removeEventListener('resize', handleViewportChange)
+      window.visualViewport?.removeEventListener('resize', handleViewportChange)
+      for (const container of scrollContainers) container.removeEventListener('scroll', closeDropdownOnScroll)
+      resizeObserver?.disconnect()
+    }
+  }, [closeDropdownOnScroll, open, updateDropdownPosition])
 
   const cancelDebounce = useCallback(() => {
     if (debounceRef.current !== undefined) {
@@ -270,11 +386,43 @@ export function DocumentReferencePicker({
     scheduleSearch(keyword, selectedType, requestId)
   }
 
+  const handleClick = () => {
+    reopenAfterScrollRef.current = false
+    if (disabled || options.length === 0) return
+    if (open && dropdownPosition) {
+      const picker = pickerRef.current
+      if (picker) {
+        const rect = picker.getBoundingClientRect()
+        const expectedPosition = dropdownPosition.top !== undefined
+          ? rect.bottom + DROPDOWN_GAP
+          : window.innerHeight - rect.top + DROPDOWN_GAP
+        const actualPosition = dropdownPosition.top ?? dropdownPosition.bottom
+        if (actualPosition !== undefined && Math.abs(actualPosition - expectedPosition) > 0.5) {
+          reopenAfterScrollRef.current = true
+        }
+      }
+    }
+    const nextPosition = calculateDropdownPosition()
+    setDropdownPosition(nextPosition)
+    setOpen(nextPosition !== null)
+  }
+
   const handleBlur = () => {
     refocusSearchRef.current = true
     cancelDebounce()
     requestIdRef.current += 1
     if (blurTimerRef.current !== undefined) window.clearTimeout(blurTimerRef.current)
+    if (selectedType === 'SALES_COMMISSION_SETTLEMENT' && query.trim()) {
+      onChange({
+        ...value,
+        refDocType: selectedType,
+        refDocNo: query.trim(),
+        refDocLabel: '영업수수료 정산서',
+        refPartnerCode: null,
+        refPartnerName: null,
+        refPeriod: null,
+      })
+    }
     blurTimerRef.current = window.setTimeout(() => {
       blurTimerRef.current = undefined
       requestIdRef.current += 1
@@ -320,6 +468,7 @@ export function DocumentReferencePicker({
 
   return (
     <div
+      ref={pickerRef}
       className={['mobile-filter-grid', styles['picker']].join(' ')}
       style={{
         ...style,
@@ -356,6 +505,7 @@ export function DocumentReferencePicker({
         onChange={(event) => handleQueryChange(event.target.value)}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onClick={handleClick}
         onKeyDown={handleKeyDown}
         inputSize={inputSize}
         disabled={disabled}
@@ -384,61 +534,68 @@ export function DocumentReferencePicker({
         </div>
       ) : null}
       {open ? (
-        <ul
-          id={listboxId}
-          role="listbox"
-          className={styles['dropdown']}
-        >
-          {options.map((option, index) => {
-            const selected = index === activeIndex
-            return (
-              <li
-                key={optionKey(option, index)}
-                id={`${listboxId}-${index}`}
-                role="option"
-                aria-selected={selected}
-                data-testid="doc-ref-search-option"
-                onMouseEnter={() => setActiveIndex(index)}
-                onMouseDown={(event) => {
-                  event.preventDefault()
-                  selectOption(option)
-                }}
-                className={[
-                  styles['option'],
-                  option.type === 'PARTNER_LEDGER' ? styles['optionPartner'] : styles['optionDocument'],
-                  selected ? styles['optionActive'] : null,
-                ].filter(Boolean).join(' ')}
-                aria-label={optionAriaLabel(option)}
-              >
-                {option.type === 'PARTNER_LEDGER' ? (
-                  <>
-                    <span className={styles['strongEllipsis']}>
-                      {/* [#825 R1 L5] 강조는 응답 시점 resolvedQuery 기준 — 디바운스 창 오강조 방지 */}
-                      <HighlightedReferenceValue value={option.partnerName ?? '-'} query={resolvedQuery} />
-                    </span>
-                    <span className={styles['numeric']}>
-                      <HighlightedReferenceValue value={option.partnerCode ?? '-'} query={resolvedQuery} />
-                    </span>
-                    <span>{APPROVAL_REFERENCE_DOC_TYPE_LABEL[option.type]}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className={styles['strongNumeric']}>
-                      {option.refDocNo ?? '-'}
-                    </span>
-                    <span className={styles['ellipsis']}>
-                      {option.summary ?? '-'}
-                    </span>
-                    <span className={styles['amount']}>
-                      {formatAmount(option.amount)}
-                    </span>
-                    <span className={styles['numeric']}>{option.date ?? '-'}</span>
-                  </>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+        dropdownPosition
+          ? createPortal(
+            <ul
+              ref={dropdownRef}
+              id={listboxId}
+              role="listbox"
+              className={styles['dropdown']}
+              style={dropdownPosition}
+            >
+              {options.map((option, index) => {
+                const selected = index === activeIndex
+                return (
+                  <li
+                    key={optionKey(option, index)}
+                    id={`${listboxId}-${index}`}
+                    role="option"
+                    aria-selected={selected}
+                    data-testid="doc-ref-search-option"
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      selectOption(option)
+                    }}
+                    className={[
+                      styles['option'],
+                      option.type === 'PARTNER_LEDGER' ? styles['optionPartner'] : styles['optionDocument'],
+                      selected ? styles['optionActive'] : null,
+                    ].filter(Boolean).join(' ')}
+                    aria-label={optionAriaLabel(option)}
+                  >
+                    {option.type === 'PARTNER_LEDGER' ? (
+                      <>
+                        <span className={styles['strongEllipsis']}>
+                          {/* [#825 R1 L5] 강조는 응답 시점 resolvedQuery 기준 — 디바운스 창 오강조 방지 */}
+                          <HighlightedReferenceValue value={option.partnerName ?? '-'} query={resolvedQuery} />
+                        </span>
+                        <span className={styles['numeric']}>
+                          <HighlightedReferenceValue value={option.partnerCode ?? '-'} query={resolvedQuery} />
+                        </span>
+                        <span>{APPROVAL_REFERENCE_DOC_TYPE_LABEL[option.type]}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className={styles['strongNumeric']}>
+                          {option.refDocNo ?? '-'}
+                        </span>
+                        <span className={styles['ellipsis']}>
+                          {option.summary ?? '-'}
+                        </span>
+                        <span className={styles['amount']}>
+                          {formatAmount(option.amount)}
+                        </span>
+                        <span className={styles['numeric']}>{option.date ?? '-'}</span>
+                      </>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>,
+            document.body,
+          )
+          : null
       ) : null}
     </div>
   )

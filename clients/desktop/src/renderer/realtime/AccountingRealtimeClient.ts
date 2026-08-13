@@ -19,14 +19,17 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const TaxInvoiceRealtimeClient = createRealtimeClient({
   name: 'TaxInvoiceRealtimeClient',
   endpointPath: (id) => `/accounting/tax-invoices/${encodeURIComponent(id)}/realtime`,
+  allowMockMode: true,
 })
 
 export const ClosingRealtimeClient = createRealtimeClient({
   name: 'ClosingRealtimeClient',
   endpointPath: (id) => `/accounting/closings/${encodeURIComponent(id)}/realtime`,
+  allowMockMode: true,
 })
 
 export const JournalRealtimeClient = createRealtimeClient({
   name: 'JournalRealtimeClient',
   endpointPath: (id) => `/accounting/journals/${encodeURIComponent(id)}/realtime`,
+  allowMockMode: true,
 })

@@ -1,6 +1,7 @@
 import { apiClient, type ApiEnvelope } from '../api/client'
 import { collabHeaders } from '../auth/collabHeaders'
 import { createRealtimeClient, type RealtimeEvent } from './createRealtimeClient'
+import { toOrderPathId } from '../utils/orderNo'
 
 export type PresenceColor =
   | 'BLUE'
@@ -41,6 +42,7 @@ export function createPresenceClient(config: PresenceClientConfig): PresenceClie
   const realtime = createRealtimeClient({
     name: `${config.name}-presence`,
     endpointPath: config.streamPath,
+    allowMockMode: true,
   })
 
   async function list(entityId: string): Promise<PresenceEntry[]> {
@@ -127,11 +129,11 @@ export const PartnerOrderPresenceClient = createPresenceClient({
 export const EstimatePresenceClient = createPresenceClient({
   name: 'estimate',
   presencePath: (estimateId, action) => {
-    const base = `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/collab/presence`
+    const base = `/api/v1/slips/estimates/${encodeURIComponent(toOrderPathId(estimateId))}/collab/presence`
     return action ? `${base}/${action}` : base
   },
   streamPath: (estimateId) =>
-    `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/collab/stream`,
+    `/api/v1/slips/estimates/${encodeURIComponent(toOrderPathId(estimateId))}/collab/stream`,
 })
 
 export const GroupwareApprovalPresenceClient = createPresenceClient({

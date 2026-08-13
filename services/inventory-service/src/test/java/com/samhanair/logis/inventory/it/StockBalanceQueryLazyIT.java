@@ -70,7 +70,7 @@ class StockBalanceQueryLazyIT extends AbstractPostgresIT {
                 .thenAnswer(inv -> new ProductSummary(
                         inv.getArgument(0), "부하 실측 제품", "LOAD-TEST-MODEL",
                         UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"));
-        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+        Mockito.lenient().when(productClient.lookupAllowMissing(Mockito.anyList()))
                 .thenAnswer(invocation -> ((List<?>) invocation.getArgument(0)).stream()
                         .map(id -> (UUID) id)
                         .map(id -> new ProductSummary(id, "테스트 품목", "MODEL-TEST",

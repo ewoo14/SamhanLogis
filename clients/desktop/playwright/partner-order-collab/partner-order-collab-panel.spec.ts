@@ -42,7 +42,18 @@ async function installAuthMock(page: Page) {
   })
 }
 
+async function installMockRealtimeHandler(page: Page): Promise<void> {
+  await page.route('**/api/v1/**/collab/stream**', (route) => route.fulfill({
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache' },
+    body: ': mock keep-alive\n\n',
+  }))
+}
+
 test.describe('§7 주문 협업 패널', () => {
+  test.beforeEach(async ({ page }) => {
+    await installMockRealtimeHandler(page)
+  })
   test('코멘트 등록 → 목록 반영 → 해결 처리', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(detailUrl(CONFIRMED_ORDER_ID), { waitUntil: 'domcontentloaded' })

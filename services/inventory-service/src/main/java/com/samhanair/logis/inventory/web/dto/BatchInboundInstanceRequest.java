@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +24,7 @@ public record BatchInboundInstanceRequest(
         String productCode,
 
         /** 입고 창고 UUID — 필수 */
+        @JsonDeserialize(using = OpaqueUuidDeserializer.class)
         @NotNull(message = "warehouseId 는 필수입니다")
         UUID warehouseId,
 
