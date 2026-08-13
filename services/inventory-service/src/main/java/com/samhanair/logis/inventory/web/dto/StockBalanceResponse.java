@@ -64,4 +64,19 @@ public record StockBalanceResponse(
                 0,
                 null);
     }
+
+    /** 활성 시리얼 인스턴스 수를 재고 현황 수량으로 표시한다. */
+    public static StockBalanceResponse serial(Warehouse warehouse, ProductSummary product,
+                                              int availableQty, int reservedQty) {
+        return new StockBalanceResponse(
+                product == null ? MISSING_PRODUCT_CODE : product.modelName(),
+                product == null ? MISSING_PRODUCT_NAME : product.name(),
+                warehouse.getCode(),
+                warehouse.getName(),
+                warehouse.getType(),
+                availableQty,
+                reservedQty,
+                availableQty + reservedQty,
+                null);
+    }
 }

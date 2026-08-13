@@ -7,11 +7,15 @@ import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.domain.StockInstanceQuality;
+import com.samhanair.logis.inventory.domain.MovementType;
+import com.samhanair.logis.inventory.domain.StockMovement;
 import com.samhanair.logis.inventory.domain.SourceOperationOutcome;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.realtime.service.InventoryAuditLogRecorder;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.inventory.repository.StockMovementRepository;
 import com.samhanair.logis.inventory.web.dto.StockInstanceListResponse;
+import com.samhanair.logis.inventory.web.dto.SourceOperationContext;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import com.samhanair.logis.inventory.repository.StockInstanceRepository;
 import jakarta.persistence.EntityManager;
@@ -57,6 +61,7 @@ public class StockInstanceService {
     private final SourceOperationJournalWriter sourceJournalWriter;
     private final InventoryAuditLogRecorder auditLogRecorder;
     private final WarehouseRepository warehouseRepository;
+    private final StockMovementRepository stockMovementRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -151,6 +156,7 @@ public class StockInstanceService {
                     inboundType, receivedAt, unitCost, inboundSlipNo));
         }
         List<StockInstance> saved = repo.saveAll(toCreate);
+        recordInboundMovements(saved, sourceContext);
         List<StockInstance> result = new ArrayList<>(existing.size() + saved.size());
         result.addAll(existing);
         result.addAll(saved);
@@ -236,6 +242,7 @@ public class StockInstanceService {
         for (StockInstance instance : reserved) {
             instance.ship(partnerCode, outboundSlipNo, outboundAt);
         }
+        recordOutboundMovements(reserved, sourceContext);
         recordSource(sourceContext, product,
                 reserved.isEmpty() ? SourceOperationOutcome.NO_OP_EXISTING : SourceOperationOutcome.APPLIED,
                 List.of(), List.of());
@@ -249,6 +256,34 @@ public class StockInstanceService {
                               ProductSummary product, SourceOperationOutcome outcome,
                               List<UUID> createdLotIds, List<UUID> createdInstanceIds) {
         sourceJournalWriter.record(context, product, outcome, createdLotIds, createdInstanceIds);
+    }
+
+    /** 시리얼 신규 입고분을 기존 물리 수불 유형과 동일한 단위(+1)로 기록한다. */
+    private void recordInboundMovements(List<StockInstance> instances, SourceOperationContext sourceContext) {
+        if (instances.isEmpty()) {
+            return;
+        }
+        stockMovementRepository.saveAll(instances.stream()
+                .map(instance -> StockMovement.of(
+                        instance.getId(), instance.getProductId(), instance.getWarehouseId(),
+                        MovementType.INBOUND, 1,
+                        "INBOUND", sourceContext == null ? null : sourceContext.slipId(),
+                        "serial inbound", "system"))
+                .toList());
+    }
+
+    /** 실제 RESERVED→SHIPPED 전이분만 기존 물리 차감 유형(-1)으로 기록한다. */
+    private void recordOutboundMovements(List<StockInstance> instances, SourceOperationContext sourceContext) {
+        if (instances.isEmpty()) {
+            return;
+        }
+        stockMovementRepository.saveAll(instances.stream()
+                .map(instance -> StockMovement.of(
+                        instance.getId(), instance.getProductId(), instance.getWarehouseId(),
+                        MovementType.DEDUCT, -1,
+                        "SLIP", sourceContext == null ? null : sourceContext.slipId(),
+                        "serial outbound", "system"))
+                .toList());
     }
 
     /**
