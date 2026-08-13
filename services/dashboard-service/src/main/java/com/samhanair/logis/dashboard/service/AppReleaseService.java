@@ -30,7 +30,16 @@ public class AppReleaseService {
     @Transactional(readOnly = true)
     public AppVersionResponse checkVersion(AppClientType clientType, String currentVersion) {
         Semver.requireValid(currentVersion, "currentVersion");
-        AppRelease latest = latestRelease(clientType);
+        AppRelease latest;
+        try {
+            latest = latestRelease(clientType);
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() != ErrorCode.NOT_FOUND) throw ex;
+            return AppVersionResponse.noPublishedRelease(currentVersion);
+        }
+        if (latest == null) {
+            return AppVersionResponse.noPublishedRelease(currentVersion);
+        }
         if (Semver.isDevelopmentSentinel(currentVersion)) {
             // 개발 산출물은 실 gateway에 접속할 수 있어야 하며 정식 릴리스로 오인되어서는 안 된다.
             return AppVersionResponse.of(latest, AppVersionForceLevel.NONE);

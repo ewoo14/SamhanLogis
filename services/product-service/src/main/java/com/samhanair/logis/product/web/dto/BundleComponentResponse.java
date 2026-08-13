@@ -26,9 +26,13 @@ public record BundleComponentResponse(
         BundleComponent.QtyMode qtyMode,
         BundleComponent.ComponentKind componentKind,
         String componentVariant,
+        String componentShape,
         boolean isDefault,
         String specText,
-        int displayOrder
+        int displayOrder,
+        BundleComponent.AllocationMode allocationMode,
+        Integer allocationWeight,
+        BigDecimal fixedAllocationAmount
 ) {
     /**
      * {@link BundleComponent} 엔티티 + 품목 명칭 + 응답 순서 → 응답 DTO 변환.
@@ -46,9 +50,13 @@ public record BundleComponentResponse(
                 bc.getQtyMode(),
                 bc.getComponentKind(),
                 bc.getComponentVariant(),
+                bc.getComponentShape(),
                 Boolean.TRUE.equals(bc.getIsDefault()),
                 bc.getSpecText(),
-                displayOrder
+                displayOrder,
+                bc.getAllocationMode(),
+                bc.getAllocationWeight(),
+                bc.getFixedAllocationAmount()
         );
     }
 }

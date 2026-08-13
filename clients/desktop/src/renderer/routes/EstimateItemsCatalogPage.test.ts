@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { render } from '@testing-library/react'
 import {
   applyClassificationSettingsSuccessEffects,
   applyFixedDiscountPatchSuccessEffects,
@@ -9,6 +11,8 @@ import {
   resolveQuantitySyncRuleEditTarget,
   VariableDiscountCell,
   FixedDiscountCell,
+  useStableEstimateCatalogRows,
+  preserveActiveQuantitySyncTargets,
   type EstimateItemsCatalogSuccessEffects,
 } from './EstimateItemsCatalogPage'
 import type { ProductCatalogRow } from '../api/productCatalogApi'
@@ -97,6 +101,33 @@ describe('EstimateItemsCatalogPage master search', () => {
     expect(searchProducts).toHaveBeenCalledTimes(1)
     expect(searchProducts).toHaveBeenCalledWith('NON', { size: 50 })
     expect(listProducts).not.toHaveBeenCalled()
+  })
+})
+
+describe('EstimateItemsCatalogPage live-QA regressions', () => {
+  it('모달이 열린 뒤 렌더 횟수가 20회를 넘지 않아 입력 경로가 도달 가능하다', () => {
+    let renderCount = 0
+    const source = [{ modelCode: 'AM052BN6PBH1', usageScope: 'ESTIMATE' as const }]
+    function Harness() {
+      renderCount += 1
+      const stableRows = useStableEstimateCatalogRows(source)
+      return createElement('output', { 'data-count': stableRows.length })
+    }
+
+    render(createElement(Harness))
+
+    expect(renderCount).toBeLessThanOrEqual(20)
+  })
+
+  it('규칙 응답에 섞인 소프트삭제 target 23건을 저장 draft에서 제외하고 활성 3건만 유지한다', () => {
+    const targets = [
+      ...Array.from({ length: 3 }, (_, index) => ({ productCode: `ACTIVE-${index + 1}`, isDeleted: false })),
+      ...Array.from({ length: 23 }, (_, index) => ({ productCode: `DELETED-${index + 1}`, isDeleted: true })),
+    ]
+
+    expect(preserveActiveQuantitySyncTargets(targets).map((target) => target.productCode)).toEqual([
+      'ACTIVE-1', 'ACTIVE-2', 'ACTIVE-3',
+    ])
   })
 })
 

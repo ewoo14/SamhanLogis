@@ -295,6 +295,36 @@ public class BundleComponentService {
                     "다음 구성 모델코드가 활성 품목으로 해소되지 않습니다: " + unresolvedCodes);
         }
 
+        // 기존 행을 먼저 읽어 부분 요청의 생략 필드를 코드별로 보존한다.
+        // 레거시 데스크톱은 신규 배분 계약 필드를 보내지 않으므로, 생략을 기본값으로
+        // 해석하면 무변경 저장만으로 AUTO/비중 계약이 파괴된다.
+        List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(parent.getId());
+        Map<String, BundleComponent> existingByCode = existing.stream()
+                .collect(Collectors.toMap(BundleComponent::getComponentProductCode, bc -> bc,
+                        (first, ignored) -> first));
+        Map<String, AllocationValues> allocationByCode = new LinkedHashMap<>();
+        for (BundleComponentRequest req : requests) {
+            BundleComponent previous = existingByCode.get(req.componentProductCode());
+            Product component = resolvedComponents.get(req.componentProductCode());
+            BundleComponent.AllocationMode mode = req.allocationMode() != null
+                    ? req.allocationMode()
+                    : previous != null ? previous.getAllocationMode() : BundleComponent.AllocationMode.FIXED;
+            Integer weight = req.allocationWeight() != null
+                    ? req.allocationWeight()
+                    : previous != null ? previous.getAllocationWeight() : null;
+            BigDecimal fixedAmount = req.fixedAllocationAmount() != null
+                    ? req.fixedAllocationAmount()
+                    : previous != null && previous.getFixedAllocationAmount() != null
+                    ? previous.getFixedAllocationAmount()
+                    : mode == BundleComponent.AllocationMode.AUTO ? null : component.getDeliveryPrice();
+            AllocationValues allocation = new AllocationValues(mode, weight, fixedAmount);
+            allocationByCode.put(req.componentProductCode(), allocation);
+        }
+        BundleAllocationPolicy.validate(allocationByCode.values().stream()
+                .map(value -> BundleAllocationPolicy.item(value.mode(),
+                        value.weight() == null ? 0 : value.weight(), value.fixedAmount()))
+                .toList());
+
         // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — 이 replace-all 이 확정할
         // 구성품 집합이 이 BUNDLE 을 source 로 갖는 활성 규칙의 target 과 겹치면 거부한다.
         // QuantitySyncRuleValidator 의 신규 규칙 생성 시 검증("BUNDLE source는 같은
@@ -306,7 +336,6 @@ public class BundleComponentService {
 
         // 기존 구성품 전량 soft-delete — actor = X-User-Id (P3-3, null/blank → "system")
         String deleteActor = (actor == null || actor.isBlank()) ? "system" : actor;
-        List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(parent.getId());
         for (BundleComponent bc : existing) {
             bc.markDeleted(deleteActor);
             bundleComponentRepository.save(bc);
@@ -332,9 +361,12 @@ public class BundleComponentService {
                     qtyMode,
                     kind,
                     blankToNull(req.componentVariant()),
+                    req.componentShape(),
                     req.isDefault(),
                     blankToNull(req.specText())
             );
+            AllocationValues allocation = allocationByCode.get(req.componentProductCode());
+            bc.changeAllocation(allocation.mode(), allocation.weight(), allocation.fixedAmount());
             bc.changeDisplayOrder(idx + 1); // 1-based 표시 순서 기록 (P2-4)
             saved.add(bundleComponentRepository.save(bc));
         }
@@ -372,6 +404,9 @@ public class BundleComponentService {
 
         return result;
     }
+
+    private record AllocationValues(BundleComponent.AllocationMode mode, Integer weight,
+                                    BigDecimal fixedAmount) {}
 
     /**
      * 세트구성품 수기 등록 직후 부모 BUNDLE 에 구성품 1건을 추가한다.
@@ -415,7 +450,7 @@ public class BundleComponentService {
         resultingComponentProductIds.add(component.getId());
         assertNoBrokenQuantitySyncRule(parent.getId(), resultingComponentProductIds);
 
-        BundleComponent saved = bundleComponentRepository.save(BundleComponent.seed(
+        BundleComponent saved = BundleComponent.seed(
                 parent.getId(),
                 componentProductCode,
                 BigDecimal.ONE,
@@ -423,7 +458,9 @@ public class BundleComponentService {
                 componentKind == null ? BundleComponent.ComponentKind.ACCESSORY : componentKind,
                 null,
                 false,
-                null));
+                null);
+        saved.changeAllocation(BundleComponent.AllocationMode.FIXED, null, component.getDeliveryPrice());
+        saved = bundleComponentRepository.save(saved);
         catalogChangePublisher.publishCatalogChanged(parentModelCode);
         return saved;
     }
@@ -474,11 +511,12 @@ public class BundleComponentService {
                     null,
                     false,
                     null);
+            sameParent.changeAllocation(BundleComponent.AllocationMode.FIXED, null, component.getDeliveryPrice());
             catalogChangePublisher.publishCatalogChanged(
                     parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName());
             return sameParent;
         }
-        BundleComponent saved = bundleComponentRepository.save(BundleComponent.seed(
+        BundleComponent saved = BundleComponent.seed(
                 parent.getId(),
                 componentProductCode,
                 BigDecimal.ONE,
@@ -486,7 +524,9 @@ public class BundleComponentService {
                 componentKind == null ? BundleComponent.ComponentKind.ACCESSORY : componentKind,
                 null,
                 false,
-                null));
+                null);
+        saved.changeAllocation(BundleComponent.AllocationMode.FIXED, null, component.getDeliveryPrice());
+        saved = bundleComponentRepository.save(saved);
         catalogChangePublisher.publishCatalogChanged(
                 parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName());
         return saved;

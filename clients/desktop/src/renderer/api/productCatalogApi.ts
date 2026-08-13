@@ -206,6 +206,11 @@ export interface ProductDetailResponse {
   releasePrice: string | number | null
   deliveryPrice: string | number | null
   goodsType: ProductGoodsType | null
+  /** 감사 표시용 작성자 이름/시스템 표식 — 내부 UUID는 포함하지 않는다. */
+  createdAt?: string | null
+  createdBy?: string | null
+  modifiedAt?: string | null
+  modifiedBy?: string | null
   specs?: ProductSpecResponse[] | null
 }
 
@@ -280,14 +285,22 @@ export interface BundleComponentItem {
   qtyMode: QtyMode
   /** 구성 분류 */
   componentKind: ComponentKind
-  /** 구성품 특징 (기본/사각/WIFI 등; null 가능) */
+  /** 구성품 특징 */
   componentVariant: string | null
+  /** 구성품 형상: 빈 값은 360 판넬 아님, 그 외 원형/사각 */
+  componentShape: string | null
   /** 기본 옵션 여부 */
   isDefault: boolean
   /** 규격 (null 가능) */
   specText: string | null
   /** 표시 순서 (PUT 시 배열 인덱스 기준 부여) */
   displayOrder: number
+  /** 구성품 가격 배분 방식 */
+  allocationMode: 'AUTO' | 'FIXED'
+  /** AUTO 비중 (null 가능) */
+  allocationWeight: number | null
+  /** FIXED 금액 (null 가능) */
+  fixedAllocationAmount: string | number | null
 }
 
 /**
@@ -306,10 +319,16 @@ export interface BundleComponentInput {
   componentKind?: ComponentKind | null
   /** 구성품 특징 */
   componentVariant?: string | null
+  /** 빈 값은 360 판넬 아님. 후보: 빈 값/원형/사각 */
+  componentShape?: string | null
   /** 기본 옵션 여부 */
   isDefault?: boolean
   /** 규격 */
   specText?: string | null
+  /** 기존 값 보존을 위해 조회 응답의 배분 계약을 그대로 전달 */
+  allocationMode?: 'AUTO' | 'FIXED' | null
+  allocationWeight?: number | null
+  fixedAllocationAmount?: string | number | null
 }
 
 /**

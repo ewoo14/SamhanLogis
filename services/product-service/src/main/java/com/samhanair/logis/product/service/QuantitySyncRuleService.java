@@ -469,7 +469,8 @@ public class QuantitySyncRuleService {
         List<QuantitySyncTarget> targets = request.targets().stream()
                 .map(target -> QuantitySyncTarget.create(ruleId,
                         products.get(target.productCode()).getId(), target.multiplier(),
-                        QuantitySyncRoundingMode.valueOf(target.roundingMode()), target.displayOrder()))
+                        QuantitySyncRoundingMode.valueOf(target.roundingMode()),
+                        target.componentVariant(), target.componentShape(), target.displayOrder()))
                 .toList();
         sourceRepository.saveAll(sources);
         targetRepository.saveAll(targets);
@@ -505,7 +506,7 @@ public class QuantitySyncRuleService {
                 request.conflictPolicy().name(), request.priority(), request.legacyRef(),
                 request.sources().stream().map(s -> new SourceDraft(s.productCode(), s.factor())).toList(),
                 request.targets().stream().map(t -> new TargetDraft(t.productCode(), t.multiplier(),
-                        t.roundingMode(), t.displayOrder())).toList(), snapshots, existingRules);
+                        t.roundingMode(), t.componentVariant(), t.componentShape(), t.displayOrder())).toList(), snapshots, existingRules);
     }
 
     /**
@@ -641,7 +642,8 @@ public class QuantitySyncRuleService {
                     return QuantitySyncProductRef.target(
                             product == null ? null : productCode(product),
                             product == null ? MISSING_PRODUCT_LABEL : product.getName(),
-                            target.getMultiplier(), target.getRoundingMode().name(), target.getDisplayOrder());
+                            target.getMultiplier(), target.getRoundingMode().name(),
+                            target.getComponentVariant(), target.getComponentShape(), target.getDisplayOrder());
                 }).toList();
         return new QuantitySyncRuleResponse(rule.getRuleKey(), rule.getEstimateCategory(), rule.getName(),
                 rule.isEnabled(), rule.getAggregation(), rule.getConditionJson(), rule.getInactiveBehavior(),

@@ -86,6 +86,10 @@
 
 - [🚨 QA 라운드 프로세스가 안 죽고 쌓인다…](feedback_qa_processes_leak_and_starve_machine.md)
 
+- [🚨 PM 이 지어낸 요구값이 가짜 결함을 만든…](feedback_pm_invented_requirement_creates_fake_defect.md)
+
+- [🚨 electron postinstall 실패는 인프라…](feedback_electron_postinstall_ci_flake.md)
+
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md)
 - [🚨🚨 내가 커밋한 QA 하네스가 CI 를…](feedback_qa_harness_commit_breaks_ci.md)

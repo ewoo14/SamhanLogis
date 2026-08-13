@@ -124,7 +124,13 @@ public class QuantitySyncRuleValidator {
 
     /** target Product와 결과 배수 입력. */
     public record TargetDraft(String productCode, BigDecimal multiplier,
-                              String roundingMode, Integer displayOrder) {}
+                              String roundingMode, String componentVariant,
+                              String componentShape, Integer displayOrder) {
+        public TargetDraft(String productCode, BigDecimal multiplier,
+                           String roundingMode, Integer displayOrder) {
+            this(productCode, multiplier, roundingMode, null, null, displayOrder);
+        }
+    }
 
     /**
      * 저장 시점에 해소한 Product의 검증용 immutable snapshot.

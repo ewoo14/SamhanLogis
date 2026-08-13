@@ -1,0 +1,58 @@
+A1_SCREENSHOT|01-A1-fresh-current-commit-build-running-jar-timeout-100-200ms.png
+LOGIN_UI|url=http://127.0.0.1:45875/|http=200
+NORMAL_ACTUAL|run=1|http=200|ms=28|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=2|http=200|ms=30|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=3|http=200|ms=27|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=4|http=200|ms=47|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=5|http=200|ms=28|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=6|http=200|ms=29|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=7|http=200|ms=31|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=8|http=200|ms=33|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=9|http=200|ms=33|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=10|http=200|ms=29|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=11|http=200|ms=29|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=12|http=200|ms=28|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=13|http=200|ms=41|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=14|http=200|ms=29|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=15|http=200|ms=71|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=16|http=200|ms=26|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=17|http=200|ms=26|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=18|http=200|ms=40|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=19|http=200|ms=26|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=20|http=200|ms=27|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=21|http=200|ms=33|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=22|http=200|ms=33|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=23|http=200|ms=29|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=24|http=200|ms=45|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=25|http=200|ms=28|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=26|http=200|ms=30|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=27|http=200|ms=28|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=28|http=200|ms=28|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=29|http=200|ms=27|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL|run=30|http=200|ms=41|createdBy=[DEV-SEED] 개발매니저
+NORMAL_ACTUAL_SUMMARY|runs=30|fail=0|failureRate=0.0%|medianMs=29|minMs=26|maxMs=71
+UUID_SWEEP|GET|/api/v1/products?category=HOME_MULTI&page=0&size=10000|http=200|bytes=105232|uuid=0
+UUID_SWEEP|GET|/api/v1/classifications?estimateCategory=HOME_MULTI|http=200|bytes=1389|uuid=0
+UUID_SWEEP|GET|/api/products?q=AM052BN6PBH1&size=20|http=200|bytes=1188|uuid=0
+UUID_SWEEP|GET|/api/products/by-model/AM052BN6PBH1|http=200|bytes=2156|uuid=0
+UUID_SWEEP|GET|/api/products/categories|http=200|bytes=1436|uuid=0
+UUID_SWEEP|GET|/api/v1/products/AC110CS6PBH1SY/components|http=200|bytes=4579|uuid=0
+AUDIT_DISPLAY|AP110RNPPHH1|http=200|createdBy=[DEV-SEED] 개발매니저|modifiedBy=시스템 작업 (V38__PRODUCT_CATEGORY_BACKFILL)
+AUDIT_DISPLAY|AM052BN6PBH1|http=200|createdBy=사용자 미상|modifiedBy=시스템 작업 (V38__PRODUCT_CATEGORY_BACKFILL)
+UI_NORMAL|created=작성자 [DEV-SEED] 개발매니저|modified=수정자 시스템 작업 (V38__PRODUCT_CATEGORY_BACKFILL)
+AUTO_FIXED|auto=4+6|fixed45375=1|active=13
+NOCHANGE_SAVE|run=1|http=200
+NOCHANGE_SAVE|run=2|http=200
+NOCHANGE_SAVE|run=3|http=200
+NOCHANGE_SAVE|run=4|http=200
+VALUE_CHANGE|patch=200|requery=냉난방 프리미엄 스탠드 실내기 [LiveQA8]
+VALUE_RESTORE|http=409
+WEIGHT_9|http=400|message=자동 구성품 비중 합은 10이어야 합니다.|after=4+6
+FEATURE_KIND|before=(없음),기본,유선,컬러|after=(없음),기본,유선,컬러|shape=''|modelInvariant=true|surfaces=1,1,1,1,1
+ACTIVE_TARGETS_BEFORE|3|PC6NUDK1NW,AWR-WE13N,FH-LFHLN
+MODAL_ADD|put=200|reopenQty=2|feature=컬러|shape=사각
+ACTIVE_TARGETS|restore=200|active=3|targets=PC6NUDK1NW,AWR-WE13N,FH-LFHLN
+USER_SERVICE|state=exited
+DOWN_FIRST|http=200|ms=123|createdBy=사용자 미상|modifiedBy=시스템 작업 (V38__PRODUCT_CATEGORY_BACKFILL)|uuid=0
+UI_DOWN|created=작성자 사용자 미상|modified=수정자 시스템 작업 (V38__PRODUCT_CATEGORY_BACKFILL)
+USER_SERVICE_RESTORE|state=running

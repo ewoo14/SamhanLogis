@@ -9,6 +9,7 @@ import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -30,11 +31,11 @@ import java.util.UUID;
  * 품목 검색 모달의 규격 열을 채우기 위해 {@code specification} 도 함께 반환한다.
  */
 public record ProductSummaryResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         String name,
         String modelName,
         String productCode,
-        UUID categoryId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID categoryId,
         BigDecimal sellingPrice,
         ProductStatus status,
         boolean serialManaged,

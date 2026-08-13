@@ -17,6 +17,7 @@ import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
+import com.samhanair.logis.product.web.dto.OpaqueUuidDeserializer;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
@@ -194,7 +195,7 @@ class ProductControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(parentBody)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID parentId = UUID.fromString(objectMapper.readTree(parentCreated.getResponse().getContentAsString())
+        UUID parentId = OpaqueUuidDeserializer.decode(objectMapper.readTree(parentCreated.getResponse().getContentAsString())
                 .get("data").get("id").asText());
 
         String componentModelCode = "SET-COMP-001";
@@ -245,7 +246,7 @@ class ProductControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(parentBody)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        UUID parentId = UUID.fromString(objectMapper.readTree(parentCreated.getResponse().getContentAsString())
+        UUID parentId = OpaqueUuidDeserializer.decode(objectMapper.readTree(parentCreated.getResponse().getContentAsString())
                 .get("data").get("id").asText());
 
         String componentModelCode = "SET-COMP-PATCH-001";

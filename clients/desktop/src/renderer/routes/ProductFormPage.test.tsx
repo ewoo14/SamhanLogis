@@ -61,7 +61,59 @@ vi.mock('../api/productCatalogApi', async (importOriginal) => {
     listBundleComponents: mocks.listBundleComponents,
     updateBundleComponents: mocks.updateBundleComponents,
   }
-})
+  })
+
+  // RED-first surface tests: these intentionally exercised the missing shape surface.
+  it('renders kind-specific feature choices, disables shape for non-360 panels, and preserves the component code', async () => {
+    const seed = seedFor('SET-FEATURE-SHAPE-RED')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    mocks.updateBundleComponents.mockImplementation(async (_modelCode, items) => items)
+    renderPage('/products/SET-FEATURE-SHAPE-RED/edit', [{
+      id: 'panel-red', componentProductCode: 'PANEL-360', componentName: '360 Panel',
+      defaultQty: 1, qtyMode: 'FOLLOW_SET', componentKind: 'PANEL', componentVariant: '기본',
+      componentShape: null, isDefault: true, specText: null, displayOrder: 1,
+      allocationMode: 'AUTO', allocationWeight: 4, fixedAllocationAmount: null,
+    } as BundleComponentItem])
+
+    expect(await screen.findByTestId('product-form-component-row-0')).not.toBeNull()
+    const row = screen.getByTestId('product-form-component-row-0')
+    expect(row.textContent).toContain('블랙')
+    expect(row.textContent).toContain('형상')
+    const selects = row.querySelectorAll('select')
+    expect(selects.length).toBeGreaterThanOrEqual(4)
+    fireEvent.change(selects[1], { target: { value: '블랙' } })
+    fireEvent.click(screen.getByTestId('product-form-components-save'))
+
+    await waitFor(() => expect(mocks.updateBundleComponents).toHaveBeenCalledTimes(1))
+    expect(mocks.updateBundleComponents).toHaveBeenCalledWith('SET-FEATURE-SHAPE-RED', [expect.objectContaining({
+      componentProductCode: 'PANEL-360', componentVariant: '블랙', componentShape: null,
+    })])
+  })
+
+  it('renders qty sync, allocation weight, fixed amount, and rounding fields for every component row', async () => {
+    const seed = seedFor('SET-SURFACE-RED')
+    seed.summary.productType = 'BUNDLE'
+    seed.detail.itemKind = 'SET'
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+    renderPage('/products/SET-SURFACE-RED/edit', [{
+      id: 'remote-red', componentProductCode: 'REMOTE-1', componentName: 'Remote',
+      defaultQty: 1, qtyMode: 'FIXED', componentKind: 'REMOTE', componentVariant: '기본',
+      componentShape: null, isDefault: true, specText: null, displayOrder: 1,
+      allocationMode: 'FIXED', allocationWeight: null, fixedAllocationAmount: 45375,
+    } as BundleComponentItem])
+
+    expect(await screen.findByTestId('product-form-component-row-0')).not.toBeNull()
+    const row = screen.getByTestId('product-form-component-row-0')
+    expect(row.textContent).toContain('비중')
+    expect(row.textContent).toContain('고정금액')
+    expect(row.textContent).toContain('반올림 단위')
+  })
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
@@ -120,6 +172,10 @@ function seedFor(modelCode: string): {
     releasePrice: '900000',
     deliveryPrice: '20000',
     goodsType: 'GOODS',
+    createdAt: '2026-08-13T00:00:00',
+    createdBy: '작성자 이름',
+    modifiedAt: '2026-08-13T01:00:00',
+    modifiedBy: '수정자 이름',
     specs: [],
   }
   const summary: ProductSummaryResponse = {
@@ -163,6 +219,19 @@ afterEach(() => {
 })
 
 describe('ProductFormPage', () => {
+  it('편집 상세의 기본 정보 영역에 만든 사람과 고친 사람을 표시한다', async () => {
+    const seed = seedFor('AUDIT-SURFACE-1143')
+    mocks.searchProductSummaries.mockResolvedValue([seed.summary])
+    mocks.getProductByModelName.mockResolvedValue(seed.detail)
+    mocks.listProducts.mockResolvedValue(emptyPage())
+
+    renderPage('/products/AUDIT-SURFACE-1143/edit')
+
+    await screen.findByTestId('product-form-model-name')
+    expect(screen.getByTestId('product-form-created-by').textContent).toContain('작성자 이름')
+    expect(screen.getByTestId('product-form-modified-by').textContent).toContain('수정자 이름')
+  })
+
   it('shows the component count and does not save when set-to-single confirmation is cancelled', async () => {
     const seed = seedFor('SET-1108')
     seed.summary.productType = 'BUNDLE'

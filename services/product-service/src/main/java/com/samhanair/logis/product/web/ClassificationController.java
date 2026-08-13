@@ -6,6 +6,7 @@ import com.samhanair.logis.product.web.dto.ClassificationResponse;
 import com.samhanair.logis.product.web.dto.CreateClassificationRequest;
 import com.samhanair.logis.product.web.dto.UpdateClassificationRequest;
 import com.samhanair.logis.product.web.dto.UpdateClassificationFixedDiscountRequest;
+import com.samhanair.logis.product.web.dto.OpaqueUuidDeserializer;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
@@ -39,8 +40,8 @@ public class ClassificationController {
     @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public List<ClassificationResponse> list(
             @RequestParam EstimateCategory estimateCategory,
-            @RequestParam(required = false) UUID parentId) {
-        return classificationService.list(estimateCategory, parentId);
+            @RequestParam(required = false) String parentId) {
+        return classificationService.list(estimateCategory, OpaqueUuidDeserializer.decode(parentId));
     }
 
     @PostMapping
@@ -52,24 +53,24 @@ public class ClassificationController {
 
     @PatchMapping("/{id}")
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
-    public ClassificationResponse update(@PathVariable UUID id,
+    public ClassificationResponse update(@PathVariable String id,
                                          @Valid @RequestBody UpdateClassificationRequest request) {
-        return classificationService.update(id, request);
+        return classificationService.update(OpaqueUuidDeserializer.decode(id), request);
     }
 
     @PatchMapping("/{id}/fixed-discount")
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public ClassificationResponse updateFixedDiscount(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @Valid @RequestBody UpdateClassificationFixedDiscountRequest request) {
-        return classificationService.updateFixedDiscount(id, request);
+        return classificationService.updateFixedDiscount(OpaqueUuidDeserializer.decode(id), request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequirePermission(page = "products.admin", action = PermissionAction.DELETE)
-    public void delete(@PathVariable UUID id,
+    public void delete(@PathVariable String id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        classificationService.delete(id, callerHeader);
+        classificationService.delete(OpaqueUuidDeserializer.decode(id), callerHeader);
     }
 }

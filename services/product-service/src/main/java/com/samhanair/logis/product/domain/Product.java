@@ -218,6 +218,10 @@ public class Product extends BaseEntity {
     @Column(name = "delivery_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal deliveryPrice = BigDecimal.ZERO;
 
+    /** #1143 세트 구성품 자동 배분 반올림 단위. 기존 계약 초기값은 1,000원. */
+    @Column(name = "allocation_round_unit", precision = 19, scale = 0, nullable = false)
+    private BigDecimal allocationRoundUnit = BigDecimal.valueOf(1000);
+
     /** 싱글 세트 B열 평형. */
     @Column(name = "pyong_size", precision = 5, scale = 2)
     private BigDecimal pyongSize;
