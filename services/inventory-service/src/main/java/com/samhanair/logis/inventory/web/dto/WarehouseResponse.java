@@ -1,14 +1,12 @@
 package com.samhanair.logis.inventory.web.dto;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/** 창고 응답. {@code id}는 사용자 URL에서 사용하는 기존 opaque token 계약으로 직렬화한다. */
+/** 창고 응답. */
 public record WarehouseResponse(
-        @JsonSerialize(using = OpaqueUuidSerializer.class)
         UUID id,
         String code,
         String name,

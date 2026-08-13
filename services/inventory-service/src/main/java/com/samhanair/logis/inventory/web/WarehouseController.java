@@ -5,7 +5,6 @@ import com.samhanair.logis.inventory.realtime.web.dto.InventoryAuditLogResponse;
 import com.samhanair.logis.inventory.service.WarehouseService;
 import com.samhanair.logis.inventory.web.dto.AdminWarehouseListResponse;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
-import com.samhanair.logis.inventory.web.dto.OpaqueUuidDeserializer;
 import com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
 import com.samhanair.logis.security.department.Department;
@@ -16,6 +15,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -109,8 +109,8 @@ public class WarehouseController {
     @Operation(summary = "창고 단건 조회")
     @GetMapping("/{id}")
     @RequirePermission(page = "inventory.warehouse", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
-    public ApiResponse<WarehouseResponse> getOne(@PathVariable String id) {
-        return ApiResponse.ok(warehouseService.getOne(OpaqueUuidDeserializer.decode(id)));
+    public ApiResponse<WarehouseResponse> getOne(@PathVariable UUID id) {
+        return ApiResponse.ok(warehouseService.getOne(id));
     }
 
     /**
@@ -146,13 +146,13 @@ public class WarehouseController {
     @PatchMapping("/{id}")
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
-    public ApiResponse<WarehouseResponse> update(@PathVariable String id,
+    public ApiResponse<WarehouseResponse> update(@PathVariable UUID id,
                                                  @Valid @RequestBody UpdateWarehouseRequest request,
                                                  @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                                                  @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerNameHeader,
                                                  @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
-        return ApiResponse.ok(warehouseService.update(OpaqueUuidDeserializer.decode(id), request, callerHeader,
+        return ApiResponse.ok(warehouseService.update(id, request, callerHeader,
                 callerNameHeader));
     }
 
@@ -166,8 +166,8 @@ public class WarehouseController {
             description = "InventoryAuditLogRecorder 가 PATCH / DELETE 시점에 기록한 audit overlay 를 timeline 형식으로 반환")
     @GetMapping("/{id}/audit-logs")
     @RequirePermission(page = "inventory.warehouse", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
-    public ApiResponse<List<InventoryAuditLogResponse>> listAuditLogs(@PathVariable String id) {
-        return ApiResponse.ok(warehouseService.listAuditLogs(OpaqueUuidDeserializer.decode(id)).stream()
+    public ApiResponse<List<InventoryAuditLogResponse>> listAuditLogs(@PathVariable UUID id) {
+        return ApiResponse.ok(warehouseService.listAuditLogs(id).stream()
                 .map(InventoryAuditLogResponse::from)
                 .toList());
     }
@@ -182,8 +182,8 @@ public class WarehouseController {
             description = "PATCH/DELETE 시 발생하는 inventory:edit 이벤트를 SSE stream 으로 전달")
     @GetMapping(value = "/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission(page = "inventory.warehouse", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
-    public SseEmitter subscribeRealtime(@PathVariable String id) {
-        return realtimeBroker.subscribe(OpaqueUuidDeserializer.decode(id));
+    public SseEmitter subscribeRealtime(@PathVariable UUID id) {
+        return realtimeBroker.subscribe(id);
     }
 
     /**
@@ -202,13 +202,13 @@ public class WarehouseController {
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.RESTORE)
     public ApiResponse<WarehouseResponse> revertAudit(
-            @PathVariable String id,
+            @PathVariable UUID id,
             @PathVariable int revisionNo,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerNameHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
-        return ApiResponse.ok(warehouseService.revertToRevision(OpaqueUuidDeserializer.decode(id), revisionNo, callerHeader,
+        return ApiResponse.ok(warehouseService.revertToRevision(id, revisionNo, callerHeader,
                 callerNameHeader));
     }
 
@@ -223,12 +223,12 @@ public class WarehouseController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    public void delete(@PathVariable String id,
+    public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                        @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerNameHeader,
                        @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
-        warehouseService.delete(OpaqueUuidDeserializer.decode(id), callerHeader, callerNameHeader);
+        warehouseService.delete(id, callerHeader, callerNameHeader);
     }
 
     /**
@@ -259,12 +259,12 @@ public class WarehouseController {
     @PostMapping("/{id}/restore")
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.RESTORE)
-    public ApiResponse<WarehouseResponse> restore(@PathVariable String id,
+    public ApiResponse<WarehouseResponse> restore(@PathVariable UUID id,
                                                   @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                                                   @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerNameHeader,
                                                   @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
-        return ApiResponse.ok(warehouseService.restore(OpaqueUuidDeserializer.decode(id), callerHeader,
+        return ApiResponse.ok(warehouseService.restore(id, callerHeader,
                 callerNameHeader));
     }
 }

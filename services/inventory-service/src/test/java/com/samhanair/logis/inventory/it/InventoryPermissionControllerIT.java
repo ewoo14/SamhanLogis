@@ -364,15 +364,15 @@ class InventoryPermissionControllerIT {
         assertDepartmentGate("create", com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest.class, String.class);
         assertDepartmentGate(
                 "update",
-                String.class,
+                UUID.class,
                 com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest.class,
                 String.class,
                 String.class,
                 String.class);
-        assertDepartmentGate("revertAudit", String.class, int.class, String.class, String.class, String.class);
-        assertDepartmentGate("delete", String.class, String.class, String.class, String.class);
+        assertDepartmentGate("revertAudit", UUID.class, int.class, String.class, String.class, String.class);
+        assertDepartmentGate("delete", UUID.class, String.class, String.class, String.class);
         assertDepartmentGate("listDeleted");
-        assertDepartmentGate("restore", String.class, String.class, String.class, String.class);
+        assertDepartmentGate("restore", UUID.class, String.class, String.class, String.class);
     }
 
     @Test
