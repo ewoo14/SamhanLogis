@@ -168,6 +168,8 @@ export function InventoryAuditDetailPage() {
     void queryClient.invalidateQueries({
       queryKey: ['inventory', 'audits'],
     })
+    void queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })
+    void queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })
   }
 
   if (detailQuery.isLoading) {

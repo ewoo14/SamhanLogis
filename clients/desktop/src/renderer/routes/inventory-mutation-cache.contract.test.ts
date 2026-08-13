@@ -20,6 +20,19 @@ describe('inventory-adjacent mutation list cache contracts', () => {
     expect(adminWarehouses).toContain("queryClient.invalidateQueries({ queryKey: ['warehouses'] })")
   })
 
+  it('invalidates stock balances and ledger after every physical stock mutation', () => {
+    const transferDetail = read('TransferDetailPage.tsx')
+    const slipDetail = read('SlipDetailPage.tsx')
+    const auditDetail = read('InventoryAuditDetailPage.tsx')
+
+    expect(transferDetail).toContain("queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })")
+    expect(transferDetail).toContain("queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })")
+    expect(slipDetail).toContain("queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })")
+    expect(slipDetail).toContain("queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })")
+    expect(auditDetail).toContain("queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })")
+    expect(auditDetail).toContain("queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })")
+  })
+
   it('does not cross-invalidate unrelated list families', () => {
     const auditForm = read('InventoryAuditFormPage.tsx')
     const slipForm = read('SlipFormPage.tsx')

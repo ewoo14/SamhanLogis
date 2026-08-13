@@ -2068,6 +2068,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       transitionDiscardRef.current = false
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['slips'] })
+      if (vars.action === 'ship' || vars.action === 'confirm') {
+        void queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })
+        void queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })
+      }
       // S2d-1 NB6: 임계 전이(send/inspect)가 redline anchor 를 세팅하므로 redline 도 갱신한다.
       void queryClient.invalidateQueries({ queryKey: ['slipRedline', id] })
       setRejectReason('')

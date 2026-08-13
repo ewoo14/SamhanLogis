@@ -144,3 +144,128 @@ Testcontainers 기반 IT는 저장소의 `AbstractPostgresIT.DockerAvailableCond
 - 이카운트 이동 import는 요청 범위 밖이므로 그대로 두었다. import 경로는 여전히 실제 재고/movement를 만들지 않는다.
 - 한 제품의 가용 lot이 여러 개로 분할된 경우 movement는 FIFO lot별로 기록하지만, 기존 transfer line의 단일 `sourceLotId` 계약에는 첫 FIFO lot만 기록된다. 다중 lot을 한 라인에서 사용자에게 어떻게 표시·추적할지는 별도 업무 결정이 필요하다.
 - 시리얼 품목 수불은 PR #1199 범위로 판단하지 않았다.
+
+## 라운드 2
+
+### 계열 sweep 전수표
+
+판정 축은 화면명이 아니라 `확정·저장 후에도 전역 5분 캐시가 남아 즉시 결과를 가리는 mutation 성공 지점`으로 잡았다. 조회 명령과 원문은 다음과 같다.
+
+```powershell
+(rg -n "onSuccess" clients/desktop/src/renderer --glob '*.{ts,tsx}' | Measure-Object).Count
+```
+
+```text
+305
+```
+
+```powershell
+rg -n "staleTime: 5 \* 60 \* 1000|queryKey: \['inventory-balances'|queryKey: \['inventory-ledger'" clients/desktop/src/renderer
+```
+
+```text
+clients/desktop/src/renderer\App.tsx:25:      staleTime: 5 * 60 * 1000,
+clients/desktop/src/renderer\routes\warehouse\InventoryStockBalancePage.tsx:235:    queryKey: ['inventory-balances', queryWarehouseId, currentPage],
+clients/desktop/src/renderer\routes\warehouse\InventoryStockBalancePage.tsx:256:    queryKey: ['inventory-ledger', ledgerProductCode, ledgerRange?.start, ledgerRange?.end],
+```
+
+| sweep 대상 | 성공 mutation 원문 | 재고현황/수불부 무효화 | 판정 |
+|---|---|---|---|
+| 재고이동 상세 | `TransferDetailPage.tsx:156` `transitionTransfer`, `vars.action === 'confirm'` | `inventory-balances`, `inventory-ledger` | 수정 |
+| 판매·입고전표 상세 | `SlipDetailPage.tsx:2039` `transitionSlip`, `vars.action === 'ship' || vars.action === 'confirm'` | `inventory-balances`, `inventory-ledger` | 수정 |
+| 재고실사 상세 | `InventoryAuditDetailPage.tsx:154` `completeAudit` → 공통 `invalidate()` | `inventory-balances`, `inventory-ledger` | 수정 |
+| 실사 신규 등록 | `InventoryAuditFormPage.tsx:54` `createAudit` | `inventory.audits`만 | 제외: snapshot 생성 전 PLANNED 등록 |
+| 판매·입고전표 신규 저장 | `SlipFormPage.tsx:2012` `createSlip` | `slips.query`만 | 제외: DRAFT 생성 |
+| 매출·매입 회계전표 신규 저장 | 각 form `:62` `create*SlipDraft` | 각 목록만 | 제외: 재고 mutation 아님 |
+| 창고 관리 삭제·복구 | `admin/WarehousesPage.tsx:103,115` | warehouse 목록만 | 제외: 창고 메타데이터 mutation |
+| 재고 instance 품질 수정 | `InventoryStockBalancePage.tsx:250` | `inventory-instances`만 | 제외: 수량/수불 변동 아님 |
+
+따라서 305건 전체를 무차별 invalidate하지 않고, 실제 물리 재고를 바꾸는 3개 역할 계열만 닫았다. 캐시 정책 자체(`App.tsx`의 5분)는 유지했다.
+
+### RED 원문 — 양방향
+
+라이브 QA의 사용자 경로 RED는 다음이었다.
+
+```text
+확정 직후 같은 세션 재고현황:
+page.waitForResponse: Timeout 30000ms exceeded while waiting for /inventory/balances
+```
+
+동일 결함을 코드 계약으로 고정한 RED 원문은 다음이다.
+
+```text
+❯ inventory-mutation-cache.contract.test.ts (3 tests | 1 failed)
+× invalidates stock balances and ledger after every physical stock mutation
+AssertionError: expected TransferDetailPage.tsx to contain
+  queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })
+```
+
+양방향 회귀 기준도 재현했다. 기존 라이브 QA 원문은 다음과 같이 핵심 재고 처리와 기존 전표 경로가 PASS였다.
+
+```text
+본사창고 5 → 4 · 초월창고 0 → 1 · 총량 5 → 5
+TRANSFER_OUT -1 · TRANSFER_IN +1
+금액 없음 · 판매·입고전표 경로 정상
+```
+
+### 고른 수단과 이유
+
+물리 재고를 실제로 바꾸는 성공 callback에서만 두 query family를 `invalidateQueries`했다.
+
+- 재고이동은 `confirm`일 때만 무효화한다.
+- 판매전표는 `ship`, 입고전표와 판매전표 최종 전이는 `confirm`에서 무효화한다.
+- 재고실사는 `complete`를 포함한 기존 공통 성공 callback에서 무효화한다.
+- query key prefix 무효화이므로 창고·페이지·품목·기간별 세부 key를 모두 포함한다.
+- `staleTime`을 0으로 바꾸거나 refetch interval을 추가하지 않았다.
+
+### GREEN 원문
+
+```powershell
+npx vitest run --root C:/dev/Samhan-Public/.claude/worktrees/wtransfer/clients/desktop --config C:/dev/Samhan-Public/clients/desktop/vitest.config.ts src/renderer/routes/inventory-mutation-cache.contract.test.ts
+```
+
+```text
+✓ inventory-mutation-cache.contract.test.ts (3 tests)
+Test Files  1 passed (1)
+Tests       3 passed (3)
+```
+
+### 불변식 ①~⑤ 보증 방법
+
+| 불변식 | 보증 방법 |
+|---|---|
+| ① 확정 직후 같은 세션 재고현황 갱신 | 재고이동 `confirm` 성공 callback이 `inventory-balances`와 `inventory-ledger` prefix를 즉시 invalidate한다. 활성 query는 재조회된다. |
+| ② 같은 형태 전수 종료 | 305개 `onSuccess`를 sweep하고 물리 수량 변이 3계열을 식별했다. 비재고 DRAFT/메타데이터 mutation은 제외 근거를 표에 남겼다. |
+| ③ 출발 차감·도착 증가·총량 불변·양쪽 수불·금액 없음 | 라운드 1의 inventory-service 통합 테스트와 라이브 QA PASS 원문을 보존하고, 이번 변경은 프런트 캐시 무효화만 수행한다. |
+| ④ 판매·입고전표 경로 보존 | 전표 lifecycle 성공 callback에 조건부 invalidate만 추가했으며, 라운드 1 라이브 QA의 판매·입고 생성 PASS와 기존 inventory-service 전량 결과를 회귀 기준으로 유지한다. |
+| ⑤ 캐시 성능 보존 | 전역 5분 `staleTime`과 query key를 유지하고, 성공한 물리 mutation에만 prefix invalidate를 적용했다. |
+
+### 전량 테스트 원문
+
+변경 모듈 전체 desktop 테스트를 1회 실행했다.
+
+```powershell
+npx vitest run --root C:/dev/Samhan-Public/.claude/worktrees/wtransfer/clients/desktop --config C:/dev/Samhan-Public/clients/desktop/vitest.config.ts
+```
+
+```text
+Exit code: 1
+기존 환경 결함으로 전체 결과는 실패.
+다수 파일: (0 test) import 실패
+대표 원문: Error: Cannot find package 'jsdom' imported from ... vitest ...
+기존 실패 예: build-output-cjs-interop, EstimatePricingConfigPage, session, inbound-permission-contract
+```
+
+변경 계약 테스트는 위 GREEN 원문처럼 3/3 PASS했다. 타입 검증은 worktree에 의존성이 없어 다음 원문으로 중단됐다.
+
+```text
+error TS2688: Cannot find type definition file for 'electron'.
+error TS2688: Cannot find type definition file for 'node'.
+```
+
+### 남긴 것
+
+- 공유 스택은 건드리지 않았다. 브랜치 빌드 재배포도 하지 않았다.
+- 이카운트 이동 import, 시리얼, 소급 반영, 다중 lot 단일 `sourceLotId` 정책은 라운드 1과 동일하게 남겼다.
+- 판매 상세의 기존 `/accounting/journals/sales-slip-ledger` 400 관측은 이번 변경 범위가 아니므로 유지했다.
+- 전체 desktop 테스트의 기존 import/jsdom 및 기존 계약 테스트 실패는 환경/기존 결함으로 남겼고, 변경 계약 테스트의 GREEN과 구분했다.

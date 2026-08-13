@@ -153,9 +153,13 @@ export function TransferDetailPage() {
         vars.action,
         vars.reason ? { reason: vars.reason } : undefined,
       ),
-    onSuccess: () => {
+    onSuccess: (_updated, vars) => {
       void queryClient.invalidateQueries({ queryKey: ['transfer', id] })
       void queryClient.invalidateQueries({ queryKey: ['transfers'] })
+      if (vars.action === 'confirm') {
+        void queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })
+        void queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })
+      }
       setRejectReason('')
     },
   })
