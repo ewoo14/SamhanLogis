@@ -64,16 +64,20 @@ class PriceHistorySeederIT extends AbstractPostgresIT {
     }
 
     @Test
-    void run_seedsOnlyCurrentPriceHistoryForOldProduct() {
+    void run_seedsCurrentAndBaselinePriceHistoryForOldProductWithoutChangingPrices() {
         Product product = seedProduct("IT_SEED_OLD", ProductCategory.OLD,
                 new BigDecimal("100000"), new BigDecimal("80000"));
 
         runSeeder();
 
         Map<LocalDate, PriceHistory> rows = priceHistoryByDate(product);
-        assertThat(rows).hasSize(1);
+        assertThat(rows).hasSize(2);
         assertThat(rows).containsKey(AFTER_INCREASE_DATE);
-        assertThat(rows).doesNotContainKey(BEFORE_INCREASE_DATE);
+        assertThat(rows).containsKey(BEFORE_INCREASE_DATE);
+        assertThat(rows.get(BEFORE_INCREASE_DATE).getReleasePrice())
+                .isEqualByComparingTo(product.getReleasePrice());
+        assertThat(rows.get(BEFORE_INCREASE_DATE).getDeliveryPrice())
+                .isEqualByComparingTo(product.getDeliveryPrice());
     }
 
     @Test

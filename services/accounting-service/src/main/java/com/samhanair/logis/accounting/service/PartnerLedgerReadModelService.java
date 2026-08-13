@@ -774,7 +774,7 @@ public class PartnerLedgerReadModelService {
     private record LedgerAccountCodes(Set<String> receivableCodes, Set<String> revenueCodes,
                                       Set<String> payableCodes) {
         private static LedgerAccountCodes legacy() {
-            return new LedgerAccountCodes(Set.of("110"), Set.of("401"), Set.of("201"));
+            return new LedgerAccountCodes(Set.of("1089"), Set.of("4019"), Set.of("2519"));
         }
 
         private static LedgerAccountCodes from(List<ChartOfAccount> accounts) {
@@ -789,13 +789,13 @@ public class PartnerLedgerReadModelService {
                     .filter(account -> namedLeaf(account, AccountCategory.LIABILITY, "외상매입금"))
                     .map(ChartOfAccount::getCode).collect(Collectors.toCollection(LinkedHashSet::new));
             return new LedgerAccountCodes(
-                    receivables.isEmpty() ? Set.of("110") : Set.copyOf(receivables),
-                    revenues.isEmpty() ? Set.of("401") : Set.copyOf(revenues),
-                    payables.isEmpty() ? Set.of("201") : Set.copyOf(payables));
+                    receivables.isEmpty() ? Set.of("1089") : Set.copyOf(receivables),
+                    revenues.isEmpty() ? Set.of("4019") : Set.copyOf(revenues),
+                    payables.isEmpty() ? Set.of("2519") : Set.copyOf(payables));
         }
 
         private String defaultReceivableCode() {
-            return receivableCodes.stream().sorted().findFirst().orElse("110");
+            return receivableCodes.stream().sorted().findFirst().orElse("1089");
         }
     }
 

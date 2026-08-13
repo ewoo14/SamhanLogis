@@ -34,7 +34,7 @@ import org.springframework.stereotype.Component;
  * <ul>
  *     <li>인상 후: {@code 2026-04-01}, Product.releasePrice / deliveryPrice 그대로</li>
  *     <li>인상 전: {@code 2000-01-01}, 인상 후 단가 × 0.9</li>
- *     <li>구형({@link ProductCategory#OLD})은 #777 item3 결정에 따라 무인상 — 인상 후 1행만</li>
+ *     <li>구형({@link ProductCategory#OLD})은 단가를 바꾸지 않고 현재가를 baseline에도 복제</li>
  * </ul>
  *
  * <p>인상 전 0.9 배수는 실제 정책이 아니라 dev fixture 의 결정적 델타다. 실 운영
@@ -84,13 +84,14 @@ public class PriceHistorySeeder implements CommandLineRunner {
                 created += after.created();
                 skipped += after.skipped();
 
-                if (product.getProductCategory() == ProductCategory.OLD) {
-                    continue;
-                }
-
+                BigDecimal beforeRelease = product.getProductCategory() == ProductCategory.OLD
+                        ? product.getReleasePrice()
+                        : devBeforeIncreasePrice(product.getReleasePrice());
+                BigDecimal beforeDelivery = product.getProductCategory() == ProductCategory.OLD
+                        ? product.getDeliveryPrice()
+                        : devBeforeIncreasePrice(product.getDeliveryPrice());
                 SeedResult before = seedIfMissing(product, BEFORE_INCREASE_DATE,
-                        devBeforeIncreasePrice(product.getReleasePrice()),
-                        devBeforeIncreasePrice(product.getDeliveryPrice()));
+                        beforeRelease, beforeDelivery);
                 created += before.created();
                 skipped += before.skipped();
             } catch (RuntimeException ex) {

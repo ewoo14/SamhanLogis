@@ -8,7 +8,7 @@ import {
 function line(overrides: Partial<RiskyPartnerLineCandidate> = {}): RiskyPartnerLineCandidate {
   return {
     uid: 'line-1',
-    accountCode: '102',
+    accountCode: '1039',
     partnerId: null,
     debit: 1000,
     credit: 0,
@@ -18,7 +18,7 @@ function line(overrides: Partial<RiskyPartnerLineCandidate> = {}): RiskyPartnerL
 
 describe('findRiskyPartnerLines (#831 R-3 — 저널 편집 거래처 무경고 소실 가드)', () => {
   it('hydrate 라인 중 partnerId 가 없는 의미있는 라인을 위험으로 분류한다 (이름이 애초에 공란인 경우 — 장애 중 상세 공란 성사)', () => {
-    const lines = [line({ uid: 'a', partnerId: null }), line({ uid: 'b', accountCode: '401', credit: 1000, partnerId: 'p-1' })]
+    const lines = [line({ uid: 'a', partnerId: null }), line({ uid: 'b', accountCode: '4019', credit: 1000, partnerId: 'p-1' })]
     const hydrated = new Set(['a', 'b'])
     expect(findRiskyPartnerLines(lines, hydrated)).toEqual([lines[0]])
   })
@@ -48,15 +48,15 @@ describe('findRiskyPartnerLines (#831 R-3 — 저널 편집 거래처 무경고 
 
 describe('buildRiskyPartnerLinesWarning (#831 R-3 — G2 안내 문구)', () => {
   it('조회 장애가 의심되면(suspectedUnavailable) 외부 조회 장애를 명시하고 사용자 귀책으로 오인시키지 않는다', () => {
-    const msg = buildRiskyPartnerLinesWarning([{ accountCode: '102' }, { accountCode: '108' }], true)
+    const msg = buildRiskyPartnerLinesWarning([{ accountCode: '1039' }, { accountCode: '108' }], true)
     expect(msg).toContain('거래처 조회 서비스에 일시 장애')
-    expect(msg).toContain('102')
+    expect(msg).toContain('1039')
     expect(msg).toContain('108')
     expect(msg).not.toContain('다시 선택하세요')
   })
 
   it('장애 근거가 없으면(healthy) "실제로 거래처가 없는지 확인" 문구로 헤지한다 — 확정적으로 장애라 단정하지 않는다', () => {
-    const msg = buildRiskyPartnerLinesWarning([{ accountCode: '401' }], false)
+    const msg = buildRiskyPartnerLinesWarning([{ accountCode: '4019' }], false)
     expect(msg).toContain('401')
     expect(msg).toContain('실제로 거래처가 없는')
     expect(msg).not.toContain('장애')

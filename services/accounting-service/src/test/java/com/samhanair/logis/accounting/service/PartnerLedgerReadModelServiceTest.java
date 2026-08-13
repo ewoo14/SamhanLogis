@@ -111,8 +111,8 @@ class PartnerLedgerReadModelServiceTest {
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
                 // 교차 경로 fixture: legacy 401 순액 1,000, 정상 판매전표 VAT 포함 문서금액 1,100.
-                new Total(partnerId, "401", BigDecimal.ZERO, new BigDecimal("1000")),
-                new Total(partnerId, "110", new BigDecimal("1100"), BigDecimal.ZERO)));
+                new Total(partnerId, "4019", BigDecimal.ZERO, new BigDecimal("1000")),
+                new Total(partnerId, "1089", new BigDecimal("1100"), BigDecimal.ZERO)));
         CashReceipt receipt = CashReceipt.fromMig7Staging(
                 "2026/01/11-1", partnerId, new BigDecimal("400"), FROM,
                 com.samhanair.logis.accounting.domain.CashReceiptKind.DEPOSIT_REPORT,
@@ -164,8 +164,8 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult("P-2026-0005"))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "401", BigDecimal.ZERO, new BigDecimal("26000000")),
-                new Total(partnerId, "110", new BigDecimal("28600000"), BigDecimal.ZERO)));
+                new Total(partnerId, "4019", BigDecimal.ZERO, new BigDecimal("26000000")),
+                new Total(partnerId, "1089", new BigDecimal("28600000"), BigDecimal.ZERO)));
         lenient().when(salesClient.find(FROM, TO, "P-2026-0005", partnerId)).thenReturn(List.of());
         var result = new PartnerLedgerReadModelService(
                 salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
@@ -296,11 +296,11 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult("P-JOURNAL-110"))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("500"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("500"), BigDecimal.ZERO)));
         lenient().when(salesClient.find(FROM, TO, "P-JOURNAL-110", partnerId)).thenReturn(List.of());
         JournalLine line = org.mockito.Mockito.mock(JournalLine.class);
         lenient().when(line.getLineNo()).thenReturn(1);
-        lenient().when(line.getAccountCode()).thenReturn("110");
+        lenient().when(line.getAccountCode()).thenReturn("1089");
         lenient().when(line.getDebitAmount()).thenReturn(new BigDecimal("500"));
         lenient().when(line.getCreditAmount()).thenReturn(BigDecimal.ZERO);
         lenient().when(line.getMemo()).thenReturn("분개만 존재");
@@ -323,11 +323,11 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("100"), BigDecimal.ZERO)));
         Journal journal = journal("RED-A1", FROM);
         org.mockito.Mockito.doReturn(List.of(
-                        line(journal, 1, "110", "100", "0", partnerId),
-                        line(journal, 2, "401", "0", "100", null)))
+                        line(journal, 1, "1089", "100", "0", partnerId),
+                        line(journal, 2, "4019", "0", "100", null)))
                 .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(FROM, TO, partner.partnerCode(), partnerId)).thenReturn(List.of());
@@ -352,11 +352,11 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", BigDecimal.ZERO, new BigDecimal("100"))));
+                new Total(partnerId, "1089", BigDecimal.ZERO, new BigDecimal("100"))));
         Journal journal = journal("RED-A2", FROM);
         org.mockito.Mockito.doReturn(List.of(
-                        line(journal, 1, "110", "0", "100", partnerId),
-                        line(journal, 2, "102", "100", "0", null)))
+                        line(journal, 1, "1089", "0", "100", partnerId),
+                        line(journal, 2, "1039", "100", "0", null)))
                 .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(FROM, TO, partner.partnerCode(), partnerId)).thenReturn(List.of());
@@ -384,14 +384,14 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("100"), BigDecimal.ZERO)));
         when(journalLineRepository.aggregateAgingByAccount(any(String.class), any(LocalDate.class)))
-                .thenReturn(List.of(new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+                .thenReturn(List.of(new Total(partnerId, "1089", new BigDecimal("100"), BigDecimal.ZERO)));
         org.mockito.Mockito.doReturn(List.of(
-                        line(earlierSlipJournal, 1, "110", "100", "0", partnerId),
-                        line(earlierSlipJournal, 2, "401", "0", "100", null),
-                        line(laterSlipJournal, 1, "110", "200", "0", partnerId),
-                        line(laterSlipJournal, 2, "401", "0", "200", null)))
+                        line(earlierSlipJournal, 1, "1089", "100", "0", partnerId),
+                        line(earlierSlipJournal, 2, "4019", "0", "100", null),
+                        line(laterSlipJournal, 1, "1089", "200", "0", partnerId),
+                        line(laterSlipJournal, 2, "4019", "0", "200", null)))
                 .when(journalLineRepository).findJournalLinesUpToForPartner(
                         org.mockito.ArgumentMatchers.eq(partnerId), any(LocalDate.class));
         lenient().when(journalLineRepository.findJournalLinesInRangeForPartner(partnerId, FROM, TO))
@@ -423,10 +423,10 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("100"), BigDecimal.ZERO)));
         when(journalLineRepository.aggregateAgingByAccount(any(String.class), any(LocalDate.class)))
-                .thenReturn(List.of(new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
-        org.mockito.Mockito.doReturn(List.of(line(noSlipJournal, 1, "110", "100", "0", partnerId)))
+                .thenReturn(List.of(new Total(partnerId, "1089", new BigDecimal("100"), BigDecimal.ZERO)));
+        org.mockito.Mockito.doReturn(List.of(line(noSlipJournal, 1, "1089", "100", "0", partnerId)))
                 .when(journalLineRepository).findJournalLinesUpToForPartner(
                         org.mockito.ArgumentMatchers.eq(partnerId), any(LocalDate.class));
         when(journalLineRepository.findJournalLinesInRangeForPartner(partnerId, FROM, TO))
@@ -486,12 +486,12 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("100"), BigDecimal.ZERO)));
         when(journalLineRepository.aggregateAgingByAccount(any(String.class), any(LocalDate.class)))
                 .thenReturn(List.of());
         org.mockito.Mockito.doReturn(List.of(
-                        line(journal, 1, "110", "100", "0", partnerId),
-                        line(journal, 2, "401", "0", "100", null)))
+                        line(journal, 1, "1089", "100", "0", partnerId),
+                        line(journal, 2, "4019", "0", "100", null)))
                 .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
@@ -519,12 +519,12 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("100"), BigDecimal.ZERO)));
         when(journalLineRepository.aggregateAgingByAccount(any(String.class), any(LocalDate.class)))
                 .thenReturn(List.of());
         org.mockito.Mockito.doReturn(List.of(
-                        line(journal, 1, "110", "100", "0", partnerId),
-                        line(journal, 2, "401", "0", "100", null)))
+                        line(journal, 1, "1089", "100", "0", partnerId),
+                        line(journal, 2, "4019", "0", "100", null)))
                 .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
@@ -553,12 +553,12 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("300"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("300"), BigDecimal.ZERO)));
         when(journalLineRepository.aggregateAgingByAccount(any(String.class), any(LocalDate.class)))
                 .thenReturn(List.of());
         org.mockito.Mockito.doReturn(List.of(
-                        line(journal, 1, "110", "300", "0", partnerId),
-                        line(journal, 2, "401", "0", "300", null)))
+                        line(journal, 1, "1089", "300", "0", partnerId),
+                        line(journal, 2, "4019", "0", "300", null)))
                 .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
@@ -584,12 +584,12 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("200"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("200"), BigDecimal.ZERO)));
         when(journalLineRepository.aggregateAgingByAccount(any(String.class), any(LocalDate.class)))
                 .thenReturn(List.of());
         org.mockito.Mockito.doReturn(List.of(
-                        line(journal, 1, "110", "100", "0", partnerId),
-                        line(journal, 2, "401", "0", "100", null)))
+                        line(journal, 1, "1089", "100", "0", partnerId),
+                        line(journal, 2, "4019", "0", "100", null)))
                 .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
@@ -622,21 +622,21 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("100"), new BigDecimal("30"))));
-        when(journalLineRepository.aggregateAgingByAccount("110", asOf)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("50"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("100"), new BigDecimal("30"))));
+        when(journalLineRepository.aggregateAgingByAccount("1089", asOf)).thenReturn(List.of(
+                new Total(partnerId, "1089", new BigDecimal("50"), BigDecimal.ZERO)));
         Journal openingJournal = journal("RED-A3-OPEN", asOf);
         org.mockito.Mockito.doReturn(List.of(
-                        line(openingJournal, 1, "110", "50", "0", partnerId),
-                        line(openingJournal, 2, "401", "0", "50", null)))
+                        line(openingJournal, 1, "1089", "50", "0", partnerId),
+                        line(openingJournal, 2, "4019", "0", "50", null)))
                 .when(journalLineRepository).findJournalLinesUpToForPartner(partnerId, asOf);
         Journal saleJournal = journal("RED-A3-SALE", FROM);
         Journal paymentJournal = journal("RED-A3-PAY", FROM.plusDays(1));
         org.mockito.Mockito.doReturn(List.of(
-                        line(saleJournal, 1, "110", "100", "0", partnerId),
-                        line(saleJournal, 2, "401", "0", "100", null),
-                        line(paymentJournal, 1, "110", "0", "30", partnerId),
-                        line(paymentJournal, 2, "102", "30", "0", null)))
+                        line(saleJournal, 1, "1089", "100", "0", partnerId),
+                        line(saleJournal, 2, "4019", "0", "100", null),
+                        line(paymentJournal, 1, "1089", "0", "30", partnerId),
+                        line(paymentJournal, 2, "1039", "30", "0", null)))
                 .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
@@ -663,11 +663,11 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("100"), BigDecimal.ZERO)));
+                new Total(partnerId, "1089", new BigDecimal("100"), BigDecimal.ZERO)));
         Journal journal = journal("RED-A4", FROM);
         org.mockito.Mockito.doReturn(List.of(
-                        line(journal, 1, "110", "100", "0", partnerId),
-                        line(journal, 2, "401", "0", "100", null)))
+                        line(journal, 1, "1089", "100", "0", partnerId),
+                        line(journal, 2, "4019", "0", "100", null)))
                 .when(journalLineRepository).findJournalLinesInRangeForPartner(partnerId, FROM, TO);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(FROM, TO, partner.partnerCode(), partnerId)).thenReturn(List.of());
@@ -708,13 +708,13 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partnerB.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partnerB));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerAId, "110", new BigDecimal("100"), BigDecimal.ZERO),
-                new Total(partnerBId, "110", new BigDecimal("200"), BigDecimal.ZERO)));
+                new Total(partnerAId, "1089", new BigDecimal("100"), BigDecimal.ZERO),
+                new Total(partnerBId, "1089", new BigDecimal("200"), BigDecimal.ZERO)));
         Journal journal = journal("RED-B1", FROM);
         List<JournalLine> lines = List.of(
-                line(journal, 1, "110", "100", "0", partnerAId),
-                line(journal, 2, "110", "200", "0", partnerBId),
-                line(journal, 3, "401", "0", "300", null));
+                line(journal, 1, "1089", "100", "0", partnerAId),
+                line(journal, 2, "1089", "200", "0", partnerBId),
+                line(journal, 3, "4019", "0", "300", null));
         when(journalLineRepository.findJournalLinesInRangeForPartner(partnerAId, FROM, TO)).thenReturn(lines);
         when(journalLineRepository.findJournalLinesInRangeForPartner(partnerBId, FROM, TO)).thenReturn(lines);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
@@ -740,16 +740,16 @@ class PartnerLedgerReadModelServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult(partner.partnerCode()))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of(
-                new Total(partnerId, "110", BigDecimal.ONE, BigDecimal.ZERO)));
-        when(journalLineRepository.aggregateAgingByAccount("110", priorDate)).thenReturn(List.of(
-                new Total(partnerId, "110", new BigDecimal("777"), new BigDecimal("777"))));
+                new Total(partnerId, "1089", BigDecimal.ONE, BigDecimal.ZERO)));
+        when(journalLineRepository.aggregateAgingByAccount("1089", priorDate)).thenReturn(List.of(
+                new Total(partnerId, "1089", new BigDecimal("777"), new BigDecimal("777"))));
         Journal original = journal("RED-B2-ORIGINAL", priorDate);
         Journal reversal = journal("RED-B2-REVERSAL", priorDate);
         org.mockito.Mockito.doReturn(List.of(
-                        line(original, 1, "110", "777", "0", partnerId),
-                        line(original, 2, "401", "0", "777", null),
-                        line(reversal, 1, "110", "0", "777", partnerId),
-                        line(reversal, 2, "401", "777", "0", null)))
+                        line(original, 1, "1089", "777", "0", partnerId),
+                        line(original, 2, "4019", "0", "777", null),
+                        line(reversal, 1, "1089", "0", "777", partnerId),
+                        line(reversal, 2, "4019", "777", "0", null)))
                 .when(journalLineRepository).findJournalLinesUpToForPartner(partnerId, priorDate);
         when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
         lenient().when(salesClient.find(any(LocalDate.class), any(LocalDate.class),
@@ -952,11 +952,11 @@ class PartnerLedgerReadModelServiceTest {
 
     private static List<ChartOfAccount> ecountLedgerAccounts() {
         return List.of(
-                ChartOfAccount.create("110", "외상매출금", AccountCategory.ASSET, "100", true, 1),
+                ChartOfAccount.create("1089", "외상매출금", AccountCategory.ASSET, "100", true, 1),
                 ChartOfAccount.create("1089", "외상매출금", AccountCategory.ASSET, "1087", true, 2),
-                ChartOfAccount.create("201", "외상매입금", AccountCategory.LIABILITY, "200", true, 3),
+                ChartOfAccount.create("2519", "외상매입금", AccountCategory.LIABILITY, "200", true, 3),
                 ChartOfAccount.create("2519", "외상매입금", AccountCategory.LIABILITY, "2518", true, 4),
-                ChartOfAccount.create("401", "상품매출", AccountCategory.REVENUE, "400", true, 5),
+                ChartOfAccount.create("4019", "상품매출", AccountCategory.REVENUE, "400", true, 5),
                 ChartOfAccount.create("4019", "상품매출", AccountCategory.REVENUE, "4011", true, 6));
     }
 

@@ -181,8 +181,8 @@ class ReceivablesPayablesControllerIT extends AbstractPostgresIT {
     @DisplayName("채권채무 현황 aging — 경과일이 1일이어도 전월 발생분은 달력월 기준 1개월로 분류")
     void agingUsesCalendarMonthNotElapsedDays() throws Exception {
         seedPosted("G3-AR-A-CALENDAR-MONTH", LocalDate.of(2026, 5, 31), "A 전월말 외상매출",
-                line("110", "100.00", "0.00", PARTNER_A, "A 외상매출"),
-                line("401", "0.00", "100.00", COUNTER, "매출"));
+                line("1089", "100.00", "0.00", PARTNER_A, "A 외상매출"),
+                line("4019", "0.00", "100.00", COUNTER, "매출"));
 
         MvcResult result = mockMvc.perform(get("/accounting/reports/receivables-payables")
                         .param("asOfDate", "2026-06-01")
@@ -202,26 +202,26 @@ class ReceivablesPayablesControllerIT extends AbstractPostgresIT {
 
     private void seedFixtures() {
         seedPosted("G3-AR-A-OLD", LocalDate.of(1900, 2, 1), "A 3개월+ 외상매출",
-                line("110", "5000.00", "0.00", PARTNER_A, "A 외상매출"),
-                line("401", "0.00", "5000.00", COUNTER, "매출"));
+                line("1089", "5000.00", "0.00", PARTNER_A, "A 외상매출"),
+                line("4019", "0.00", "5000.00", COUNTER, "매출"));
         seedPosted("G3-AR-A-ONE", LocalDate.of(1900, 5, 10), "A 1개월 미수금",
-                line("120", "2000.00", "0.00", PARTNER_A, "A 미수금"),
-                line("401", "0.00", "2000.00", COUNTER, "매출"));
+                line("1209", "2000.00", "0.00", PARTNER_A, "A 미수금"),
+                line("4019", "0.00", "2000.00", COUNTER, "매출"));
         seedPosted("G3-AR-A-CUR", LocalDate.of(1900, 6, 5), "A 당월 외상매출",
-                line("110", "1000.00", "0.00", PARTNER_A, "A 외상매출"),
-                line("401", "0.00", "1000.00", COUNTER, "매출"));
+                line("1089", "1000.00", "0.00", PARTNER_A, "A 외상매출"),
+                line("4019", "0.00", "1000.00", COUNTER, "매출"));
         seedPosted("G3-AR-A-COLLECT", LocalDate.of(1900, 6, 15), "A 일부 수금",
-                line("101", "1500.00", "0.00", COUNTER, "현금 수금"),
-                line("110", "0.00", "1500.00", PARTNER_A, "A 수금"));
+                line("1019", "1500.00", "0.00", COUNTER, "현금 수금"),
+                line("1089", "0.00", "1500.00", PARTNER_A, "A 수금"));
         seedPosted("G3-AP-B-TWO", LocalDate.of(1900, 4, 10), "B 2개월 외상매입",
-                line("501", "3000.00", "0.00", COUNTER, "매입"),
-                line("201", "0.00", "3000.00", PARTNER_B, "B 외상매입"));
+                line("4511", "3000.00", "0.00", COUNTER, "매입"),
+                line("2519", "0.00", "3000.00", PARTNER_B, "B 외상매입"));
         seedPosted("G3-AP-B-PAY", LocalDate.of(1900, 6, 20), "B 일부 지급",
-                line("201", "1000.00", "0.00", PARTNER_B, "B 지급"),
+                line("2519", "1000.00", "0.00", PARTNER_B, "B 지급"),
                 line("101", "0.00", "1000.00", COUNTER, "현금 지급"));
         seedPosted("G3-AP-B-CUR", LocalDate.of(1900, 6, 25), "B 당월 미지급금",
                 line("801", "500.00", "0.00", COUNTER, "비용"),
-                line("210", "0.00", "500.00", PARTNER_B, "B 미지급금"));
+                line("2539", "0.00", "500.00", PARTNER_B, "B 미지급금"));
 
         NotesReceivable soon = NotesReceivable.register(
                 PARTNER_A,

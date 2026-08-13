@@ -6229,7 +6229,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           rowKind: 'ACCOUNT',
           section: 'REVENUE',
-          accountCode: '401',
+          accountCode: '4019',
           accountName: '상품매출',
           category: 'REVENUE',
           monthlyAmounts: ['10000000', '12000000', '9800000', '11000000', '13500000', '14200000', '0', '0', '0', '0', '0', '0'],
@@ -6253,7 +6253,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           rowKind: 'ACCOUNT',
           section: 'COST_OF_SALES',
-          accountCode: '501',
+          accountCode: '4511',
           accountName: '상품매출원가',
           category: 'COST_OF_SALES',
           monthlyAmounts: ['4200000', '5100000', '3900000', '4400000', '5300000', '5700000', '0', '0', '0', '0', '0', '0'],
@@ -6289,7 +6289,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           rowKind: 'ACCOUNT',
           section: 'SGA',
-          accountCode: '801',
+          accountCode: '8029',
           accountName: '직원급여(판)',
           category: 'SGA',
           monthlyAmounts: ['1800000', '1800000', '1800000', '1800000', '1800000', '1800000', '0', '0', '0', '0', '0', '0'],
@@ -6325,7 +6325,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           rowKind: 'ACCOUNT',
           section: 'NON_OPERATING',
-          accountCode: '951',
+          accountCode: '9319',
           accountName: '이자비용',
           category: 'NON_OPERATING',
           monthlyAmounts: ['-120000', '-120000', '-120000', '-120000', '-120000', '-120000', '0', '0', '0', '0', '0', '0'],
@@ -7811,13 +7811,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         groupName: '채권',
         balanceDirection: 'DEBIT' as const,
         accounts: [
-          account('110', '외상매출금', 'ASSET', '자산', 'DEBIT', [
-            line('110', '외상매출금', 'P-2026-0001', '111-22-33333', '삼한공조 A', 10000000, 2500000, 10000000, 2500000, 7500000),
-            line('110', '외상매출금', 'P-2026-0002', '222-33-44444', '아로물류 B', 3200000, 0, 3200000, 0, 3200000),
-            line('110', '외상매출금', '', '', '임시거래처', 0, 120000, 0, 120000, -120000),
+          account('1089', '외상매출금', 'ASSET', '자산', 'DEBIT', [
+            line('1089', '외상매출금', 'P-2026-0001', '111-22-33333', '삼한공조 A', 10000000, 2500000, 10000000, 2500000, 7500000),
+            line('1089', '외상매출금', 'P-2026-0002', '222-33-44444', '아로물류 B', 3200000, 0, 3200000, 0, 3200000),
+            line('1089', '외상매출금', '', '', '임시거래처', 0, 120000, 0, 120000, -120000),
           ]),
-          account('120', '미수금', 'ASSET', '자산', 'DEBIT', [
-            line('120', '미수금', 'P-2026-0004', '444-55-66666', '세종냉열', 880000, 300000, 880000, 300000, 580000),
+          account('1209', '미수금', 'ASSET', '자산', 'DEBIT', [
+            line('1209', '미수금', 'P-2026-0004', '444-55-66666', '세종냉열', 880000, 300000, 880000, 300000, 580000),
           ]),
         ],
       },
@@ -7826,12 +7826,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         groupName: '채무',
         balanceDirection: 'CREDIT' as const,
         accounts: [
-          account('201', '외상매입금', 'LIABILITY', '부채', 'CREDIT', [
-            line('201', '외상매입금', 'P-2026-0003', '333-44-55555', '대한운송 C', 8000000, 2000000, 2000000, 8000000, 6000000),
-            line('201', '외상매입금', 'P-2026-0005', '555-66-77777', '남부상사', 1450000, 450000, 450000, 1450000, 1000000),
+          account('2519', '외상매입금', 'LIABILITY', '부채', 'CREDIT', [
+            line('2519', '외상매입금', 'P-2026-0003', '333-44-55555', '대한운송 C', 8000000, 2000000, 2000000, 8000000, 6000000),
+            line('2519', '외상매입금', 'P-2026-0005', '555-66-77777', '남부상사', 1450000, 450000, 450000, 1450000, 1000000),
           ]),
-          account('210', '미지급금', 'LIABILITY', '부채', 'CREDIT', [
-            line('210', '미지급금', '', '', '월말 정산', 530000, 0, 0, 530000, 530000),
+          account('2539', '미지급금', 'LIABILITY', '부채', 'CREDIT', [
+            line('2539', '미지급금', '', '', '월말 정산', 530000, 0, 0, 530000, 530000),
           ]),
         ],
       },
@@ -8002,7 +8002,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({
       fromDate: (config.params?.['from'] ?? '2026-06-01') as string,
       toDate: (config.params?.['to'] ?? '2026-06-30') as string,
-      accountCode: (config.params?.['accountCode'] ?? '102') as string,
+      accountCode: (config.params?.['accountCode'] ?? '1039') as string,
       accountName: '보통예금',
       partnerName: null,
       lines: [
@@ -8023,7 +8023,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const fromDate = (config.params?.['from'] ?? '2026-06-01') as string
     const toDate = (config.params?.['to'] ?? '2026-06-30') as string
     const line = {
-      accountCode: '102',
+      accountCode: '1039',
       accountName: '보통예금',
       bizNo: '1112233333',
       partnerName: '국민은행 운영계좌',
@@ -8041,7 +8041,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           groupName: '현금성',
           accounts: [
             {
-              accountCode: '102',
+              accountCode: '1039',
               accountName: '보통예금',
               category: 'ASSET',
               lines: [line],
@@ -8094,16 +8094,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         toDate: to,
         openingBalance: '12500000',
         increases: [
-          { counterAccountCode: '110', counterAccountName: '외상매출금', amount: '4200000' },
-          { counterAccountCode: '120', counterAccountName: '미수금', amount: '800000' },
-          { counterAccountCode: '901', counterAccountName: '이자수익', amount: '120000' },
+          { counterAccountCode: '1089', counterAccountName: '외상매출금', amount: '4200000' },
+          { counterAccountCode: '1209', counterAccountName: '미수금', amount: '800000' },
+          { counterAccountCode: '9019', counterAccountName: '이자수익', amount: '120000' },
         ],
         increaseSubtotal: '5120000',
         decreases: [
-          { counterAccountCode: '201', counterAccountName: '외상매입금', amount: '2100000' },
-          { counterAccountCode: '210', counterAccountName: '미지급금', amount: '950000' },
-          { counterAccountCode: '801', counterAccountName: '직원급여(판)', amount: '1800000' },
-          { counterAccountCode: '835', counterAccountName: '지급수수료(판)', amount: '310000' },
+          { counterAccountCode: '2519', counterAccountName: '외상매입금', amount: '2100000' },
+          { counterAccountCode: '2539', counterAccountName: '미지급금', amount: '950000' },
+          { counterAccountCode: '8029', counterAccountName: '직원급여(판)', amount: '1800000' },
+          { counterAccountCode: '8319', counterAccountName: '지급수수료(판)', amount: '310000' },
         ],
         decreaseSubtotal: '5160000',
         closingBalance: '12460000',
@@ -8114,14 +8114,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         toDate: isoDate(priorToDate),
         openingBalance: '9800000',
         increases: [
-          { counterAccountCode: '110', counterAccountName: '외상매출금', amount: '3100000' },
-          { counterAccountCode: '120', counterAccountName: '미수금', amount: '600000' },
+          { counterAccountCode: '1089', counterAccountName: '외상매출금', amount: '3100000' },
+          { counterAccountCode: '1209', counterAccountName: '미수금', amount: '600000' },
         ],
         increaseSubtotal: '3700000',
         decreases: [
-          { counterAccountCode: '201', counterAccountName: '외상매입금', amount: '1500000' },
-          { counterAccountCode: '801', counterAccountName: '직원급여(판)', amount: '1200000' },
-          { counterAccountCode: '835', counterAccountName: '지급수수료(판)', amount: '250000' },
+          { counterAccountCode: '2519', counterAccountName: '외상매입금', amount: '1500000' },
+          { counterAccountCode: '8029', counterAccountName: '직원급여(판)', amount: '1200000' },
+          { counterAccountCode: '8319', counterAccountName: '지급수수료(판)', amount: '250000' },
         ],
         decreaseSubtotal: '2950000',
         closingBalance: '10550000',
@@ -8149,19 +8149,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       toDate: `${fromYear}-${fromMonth}-${String(lastDay).padStart(2, '0')}`,
       netIncome: '8000000',
       operatingAdjustments: [
-        { accountCode: '110', accountName: '외상매출금', activityType: 'OPERATING', amount: '2000000', flowDirection: 'INFLOW' },
-        { accountCode: '201', accountName: '외상매입금', activityType: 'OPERATING', amount: '1500000', flowDirection: 'INFLOW' },
-        { accountCode: '801', accountName: '급여', activityType: 'OPERATING', amount: '-500000', flowDirection: 'OUTFLOW' },
+        { accountCode: '1089', accountName: '외상매출금', activityType: 'OPERATING', amount: '2000000', flowDirection: 'INFLOW' },
+        { accountCode: '2519', accountName: '외상매입금', activityType: 'OPERATING', amount: '1500000', flowDirection: 'INFLOW' },
+        { accountCode: '8029', accountName: '급여', activityType: 'OPERATING', amount: '-500000', flowDirection: 'OUTFLOW' },
       ],
       cashFromOperating: '11000000',
       investingActivities: [
-        { accountCode: '130', accountName: '유형자산 취득', activityType: 'INVESTING', amount: '-3000000', flowDirection: 'OUTFLOW' },
-        { accountCode: '140', accountName: '무형자산 처분', activityType: 'INVESTING', amount: '500000', flowDirection: 'INFLOW' },
+        { accountCode: '1469', accountName: '유형자산 취득', activityType: 'INVESTING', amount: '-3000000', flowDirection: 'OUTFLOW' },
+        { accountCode: '1509', accountName: '무형자산 처분', activityType: 'INVESTING', amount: '500000', flowDirection: 'INFLOW' },
       ],
       cashFromInvesting: '-2500000',
       financingActivities: [
-        { accountCode: '210', accountName: '단기차입금 차입/증자', activityType: 'FINANCING', amount: '500000', flowDirection: 'INFLOW' },
-        { accountCode: '260', accountName: '장기차입금 상환', activityType: 'FINANCING', amount: '-1000000', flowDirection: 'OUTFLOW' },
+        { accountCode: '2539', accountName: '단기차입금 차입/증자', activityType: 'FINANCING', amount: '500000', flowDirection: 'INFLOW' },
+        { accountCode: '2954', accountName: '장기차입금 상환', activityType: 'FINANCING', amount: '-1000000', flowDirection: 'OUTFLOW' },
       ],
       cashFromFinancing: '-500000',
       netCashFlow: '8000000',
@@ -8184,8 +8184,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       toDate,
       lines: [
         { accountCode: '310', accountName: '자본금', changeType: 'CAPITAL_INCREASE', description: '기간 중 유상증자', amount: '0' },
-        { accountCode: '343', accountName: '미처분이익잉여금', changeType: 'NET_INCOME', description: '당기순이익', amount: '8000000' },
-        { accountCode: '343', accountName: '미처분이익잉여금', changeType: 'DIVIDEND', description: '배당금 지급', amount: '-3000000' },
+        { accountCode: '3779', accountName: '미처분이익잉여금', changeType: 'NET_INCOME', description: '당기순이익', amount: '8000000' },
+        { accountCode: '3779', accountName: '미처분이익잉여금', changeType: 'DIVIDEND', description: '배당금 지급', amount: '-3000000' },
       ],
       beginningEquity: '145000000',
       totalChange: '5000000',
@@ -8206,13 +8206,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       totalCredit: '15200000',
       balanced: true,
       accountTotals: [
-        { accountCode: '101', accountName: '현금', debitTotal: '3000000', creditTotal: '1500000' },
-        { accountCode: '102', accountName: '보통예금', debitTotal: '5000000', creditTotal: '2000000' },
-        { accountCode: '110', accountName: '외상매출금', debitTotal: '4200000', creditTotal: '0' },
-        { accountCode: '201', accountName: '외상매입금', debitTotal: '0', creditTotal: '3500000' },
-        { accountCode: '401', accountName: '상품매출', debitTotal: '0', creditTotal: '6200000' },
-        { accountCode: '501', accountName: '상품매입', debitTotal: '3000000', creditTotal: '0' },
-        { accountCode: '801', accountName: '급여', debitTotal: '0', creditTotal: '2000000' },
+        { accountCode: '1019', accountName: '현금', debitTotal: '3000000', creditTotal: '1500000' },
+        { accountCode: '1039', accountName: '보통예금', debitTotal: '5000000', creditTotal: '2000000' },
+        { accountCode: '1089', accountName: '외상매출금', debitTotal: '4200000', creditTotal: '0' },
+        { accountCode: '2519', accountName: '외상매입금', debitTotal: '0', creditTotal: '3500000' },
+        { accountCode: '4019', accountName: '상품매출', debitTotal: '0', creditTotal: '6200000' },
+        { accountCode: '4511', accountName: '상품매입', debitTotal: '3000000', creditTotal: '0' },
+        { accountCode: '8029', accountName: '급여', debitTotal: '0', creditTotal: '2000000' },
       ],
       generatedAt: '2026-05-11T09:00:00.000Z',
     })
@@ -10012,7 +10012,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           date: '2026-06-10',
           journalNo: '2026/06/10-1',
-          accountCode: '102',
+          accountCode: '1039',
           accountName: '보통예금',
           accountCategory: 'ASSET',
           accountCategoryDisplayName: '자산',
@@ -10094,10 +10094,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       periodFrom: '2026-04-01',
       periodTo: '2026-04-30',
       lines: [
-        { date: '2026-04-05', journalNo: '2026/04/05-1', accountCode: '110', description: '4월 1주 출고', debit: '3700000', credit: '0', balance: '3700000' },
-        { date: '2026-04-12', journalNo: '2026/04/12-1', accountCode: '110', description: '계좌이체 입금', debit: '0', credit: '2000000', balance: '1700000' },
-        { date: '2026-04-19', journalNo: '2026/04/19-1', accountCode: '110', description: '4월 3주 출고', debit: '4750000', credit: '0', balance: '6450000' },
-        { date: '2026-04-26', journalNo: '2026/04/26-1', accountCode: '110', description: '계좌이체 입금', debit: '0', credit: '2200000', balance: '4250000' },
+        { date: '2026-04-05', journalNo: '2026/04/05-1', accountCode: '1089', description: '4월 1주 출고', debit: '3700000', credit: '0', balance: '3700000' },
+        { date: '2026-04-12', journalNo: '2026/04/12-1', accountCode: '1089', description: '계좌이체 입금', debit: '0', credit: '2000000', balance: '1700000' },
+        { date: '2026-04-19', journalNo: '2026/04/19-1', accountCode: '1089', description: '4월 3주 출고', debit: '4750000', credit: '0', balance: '6450000' },
+        { date: '2026-04-26', journalNo: '2026/04/26-1', accountCode: '1089', description: '계좌이체 입금', debit: '0', credit: '2200000', balance: '4250000' },
       ],
     })
   }
@@ -16079,8 +16079,8 @@ const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
     journalNo: '2026/05/04-6',
     reverseJournalNo: null,
     externalRef: 'MANUAL-20260504-06',
-    debitAccountCode: '102',
-    creditAccountCode: '110',
+    debitAccountCode: '1039',
+    creditAccountCode: '1089',
   },
   {
     id: '00000000-0000-4000-8000-000000000721',
@@ -16096,8 +16096,8 @@ const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
     journalNo: '2026/05/19-12',
     reverseJournalNo: null,
     externalRef: 'MIG7-RECEIPT-0721',
-    debitAccountCode: '102',
-    creditAccountCode: '110',
+    debitAccountCode: '1039',
+    creditAccountCode: '1089',
   },
   {
     id: '00000000-0000-4000-8000-000000000717',
@@ -16113,8 +16113,8 @@ const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
     journalNo: '2026/05/18-7',
     reverseJournalNo: null,
     externalRef: 'MANUAL-20260518-01',
-    debitAccountCode: '102',
-    creditAccountCode: '110',
+    debitAccountCode: '1039',
+    creditAccountCode: '1089',
   },
   {
     id: '00000000-0000-4000-8000-000000000711',
@@ -16130,8 +16130,8 @@ const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
     journalNo: '2026/05/15-9',
     reverseJournalNo: null,
     externalRef: 'BANKTXN-20260515-0023',
-    debitAccountCode: '102',
-    creditAccountCode: '110',
+    debitAccountCode: '1039',
+    creditAccountCode: '1089',
   },
   {
     id: '00000000-0000-4000-8000-000000000709',
@@ -16147,8 +16147,8 @@ const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
     journalNo: null,
     reverseJournalNo: null,
     externalRef: 'MANUAL-20260513-01',
-    debitAccountCode: '102',
-    creditAccountCode: '110',
+    debitAccountCode: '1039',
+    creditAccountCode: '1089',
   },
 ]
 
@@ -16183,8 +16183,8 @@ function cashReceiptBodyFromConfig(config: AxiosRequestConfig) {
     amount: String(body['amount'] ?? '').trim(),
     transactionDate: String(body['transactionDate'] ?? '').trim(),
     memo: String(body['memo'] ?? '').trim() || null,
-    debitAccountCode: String(body['debitAccountCode'] ?? '102').trim() || '102',
-    creditAccountCode: String(body['creditAccountCode'] ?? '110').trim() || '110',
+    debitAccountCode: String(body['debitAccountCode'] ?? '1039').trim() || '1039',
+    creditAccountCode: String(body['creditAccountCode'] ?? '1089').trim() || '1089',
   }
 }
 
@@ -16199,8 +16199,8 @@ function bankDepositReceiptBodyFromConfig(config: AxiosRequestConfig) {
     transactions: transactions.map((item) => item as Record<string, unknown>),
     transactionDate: String(body['transactionDate'] ?? '').trim(),
     memo: String(body['memo'] ?? '').trim() || null,
-    debitAccountCode: String(body['debitAccountCode'] ?? '102').trim() || '102',
-    creditAccountCode: String(body['creditAccountCode'] ?? '110').trim() || '110',
+    debitAccountCode: String(body['debitAccountCode'] ?? '1039').trim() || '1039',
+    creditAccountCode: String(body['creditAccountCode'] ?? '1089').trim() || '1089',
   }
 }
 
@@ -17967,31 +17967,30 @@ const MOCK_INVENTORY_AUDIT_LOGS = [
  * 손익계산서 fixture — 4월 기준 (202604 as period).
  * 매출 2건 / 매출원가 2건 / 판관비 4건 / 영업외 2건.
  *
- * accountCode 는 한국 일반기업회계기준 3자리 코드 (V1 chart_of_accounts seed 일치).
- * 401/404 매출, 501 매출원가, 801/819 판관비, 901 이자수익, 951 이자비용 — V1 시드 준수.
+ * accountCode 는 이카운트 4자리 정본 코드 (V101 chart_of_accounts seed 일치).
  */
 const MOCK_INCOME_STATEMENT = {
   period: '202604',
   fromDate: '2026-04-01',
   toDate: '2026-04-30',
   revenue: [
-    { accountCode: '401', accountName: '상품매출', category: '400', amount: '45000000', sortOrder: 4010 },
-    { accountCode: '404', accountName: '제품매출', category: '400', amount: '5000000', sortOrder: 4040 },
+    { accountCode: '4019', accountName: '상품매출', category: '400', amount: '45000000', sortOrder: 4010 },
+    { accountCode: '4049', accountName: '제품매출', category: '400', amount: '5000000', sortOrder: 4040 },
   ],
   costOfSales: [
-    { accountCode: '501', accountName: '상품매출원가', category: '500', amount: '33000000', sortOrder: 5010 },
+    { accountCode: '4511', accountName: '상품매출원가', category: '500', amount: '33000000', sortOrder: 5010 },
   ],
   grossProfit: '17000000',
   sga: [
-    { accountCode: '801', accountName: '급여', category: '800', amount: '5000000', sortOrder: 8010 },
-    { accountCode: '819', accountName: '임차료', category: '800', amount: '2000000', sortOrder: 8190 },
+    { accountCode: '8029', accountName: '급여', category: '800', amount: '5000000', sortOrder: 8010 },
+    { accountCode: '8249', accountName: '임차료', category: '800', amount: '2000000', sortOrder: 8190 },
     { accountCode: '833', accountName: '광고선전비', category: '800', amount: '800000', sortOrder: 8330 },
-    { accountCode: '814', accountName: '통신비', category: '800', amount: '200000', sortOrder: 8140 },
+    { accountCode: '8139', accountName: '통신비', category: '800', amount: '200000', sortOrder: 8140 },
   ],
   operatingProfit: '9000000',
   nonOperating: [
-    { accountCode: '901', accountName: '이자수익', category: '900', amount: '500000', sortOrder: 9010 },
-    { accountCode: '951', accountName: '이자비용', category: '900', amount: '-300000', sortOrder: 9510 },
+    { accountCode: '9019', accountName: '이자수익', category: '900', amount: '500000', sortOrder: 9010 },
+    { accountCode: '9319', accountName: '이자비용', category: '900', amount: '-300000', sortOrder: 9510 },
   ],
   incomeBeforeTax: '9200000',
   incomeTax: '1840000',
@@ -18004,26 +18003,25 @@ const MOCK_INCOME_STATEMENT = {
  * 자산 4건 / 부채 3건 / 자본 2건. balanced=true.
  * totalAssets = 55,000,000 = totalLiabilitiesAndEquity.
  *
- * accountCode 는 한국 일반기업회계기준 3자리 코드 (V1 chart_of_accounts seed 일치).
- * 102 보통예금 / 110 외상매출금 / 130 상품 / 142 건물 / 201 외상매입금 / 260 장기차입금 / 301 자본금 / 341 이익잉여금.
+ * accountCode 는 이카운트 4자리 정본 코드 (V101 chart_of_accounts seed 일치).
  */
 const MOCK_BALANCE_SHEET = {
   asOfDate: '2026-04-30',
   assets: [
-    { accountCode: '102', accountName: '보통예금', category: '100', amount: '12000000', sortOrder: 1020 },
-    { accountCode: '110', accountName: '외상매출금', category: '100', amount: '18000000', sortOrder: 1100 },
-    { accountCode: '130', accountName: '상품', category: '100', amount: '10000000', sortOrder: 1300 },
-    { accountCode: '142', accountName: '건물', category: '100', amount: '15000000', sortOrder: 1420 },
+    { accountCode: '1039', accountName: '보통예금', category: '100', amount: '12000000', sortOrder: 1020 },
+    { accountCode: '1089', accountName: '외상매출금', category: '100', amount: '18000000', sortOrder: 1100 },
+    { accountCode: '1469', accountName: '상품', category: '100', amount: '10000000', sortOrder: 1300 },
+    { accountCode: '2024', accountName: '건물', category: '100', amount: '15000000', sortOrder: 1420 },
   ],
   totalAssets: '55000000',
   liabilities: [
-    { accountCode: '201', accountName: '외상매입금', category: '200', amount: '8000000', sortOrder: 2010 },
-    { accountCode: '260', accountName: '장기차입금', category: '200', amount: '10000000', sortOrder: 2600 },
-    { accountCode: '210', accountName: '미지급금', category: '200', amount: '7000000', sortOrder: 2100 },
+    { accountCode: '2519', accountName: '외상매입금', category: '200', amount: '8000000', sortOrder: 2010 },
+    { accountCode: '2954', accountName: '장기차입금', category: '200', amount: '10000000', sortOrder: 2600 },
+    { accountCode: '2539', accountName: '미지급금', category: '200', amount: '7000000', sortOrder: 2100 },
   ],
   totalLiabilities: '25000000',
   equity: [
-    { accountCode: '301', accountName: '자본금', category: '300', amount: '20000000', sortOrder: 3010 },
+    { accountCode: '3329', accountName: '자본금', category: '300', amount: '20000000', sortOrder: 3010 },
     { accountCode: '341', accountName: '이익잉여금', category: '300', amount: '10000000', sortOrder: 3410 },
   ],
   totalEquity: '30000000',
@@ -18090,17 +18088,17 @@ const MOCK_CORPORATE_TAX_REPORT = {
 /**
  * 거래처별 미수 fixture (RECEIVABLE) — 2026-05-31 기준.
  *
- * 계정과목: 110 외상매출금. 거래처 4건. 총잔액 5,000,000.
+ * 계정과목: 1089 외상매출금. 거래처 4건. 총잔액 5,000,000.
  *
  * UUID 비공개 가드:
  * - `partnerId` 는 BE 내부 참조용 UUID (화면 노출 금지).
  * - 사용자 노출: partnerCode / partnerName 만.
  *
- * accountCode 는 3자리 (PR #134 회고 — V1 chart_of_accounts seed 일치).
+ * accountCode 는 4자리 정본 (PR #134 회고 — V101 chart_of_accounts seed 일치).
  */
 const MOCK_PARTNER_AGING_RECEIVABLE = {
   type: 'RECEIVABLE' as const,
-  accountCode: '110',
+  accountCode: '1089',
   accountName: '외상매출금',
   asOfDate: '2026-05-31',
   partnerCount: 4,
@@ -18153,7 +18151,7 @@ const MOCK_PARTNER_AGING_RECEIVABLE = {
  */
 const MOCK_PARTNER_AGING_PAYABLE = {
   type: 'PAYABLE' as const,
-  accountCode: '201',
+  accountCode: '2519',
   accountName: '외상매입금',
   asOfDate: '2026-05-31',
   partnerCount: 3,

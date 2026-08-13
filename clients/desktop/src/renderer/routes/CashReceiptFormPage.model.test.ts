@@ -58,15 +58,15 @@ describe('CashReceiptFormPage model', () => {
     })
   })
 
-  it('오늘 날짜와 기본 계정 102/110으로 초기화한다', () => {
+  it('오늘 날짜와 기본 계정 1039/1089로 초기화한다', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-05T10:30:00+09:00'))
 
     expect(cashReceiptInitialFormState()).toMatchObject({
       amount: '',
       transactionDate: '2026-07-05',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
 
     vi.useRealTimers()
@@ -100,8 +100,8 @@ describe('CashReceiptFormPage model', () => {
       amount: '2480000',
       transactionDate: '2026-07-05',
       memo: '수기 입금',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
 
     expect(buildCashReceiptRequest(state)).toEqual({
@@ -111,8 +111,8 @@ describe('CashReceiptFormPage model', () => {
       amount: '2480000',
       transactionDate: '2026-07-05',
       memo: '수기 입금',
-      debitAccountCode: '102',
-      creditAccountCode: '110',
+      debitAccountCode: '1039',
+      creditAccountCode: '1089',
     })
   })
 })

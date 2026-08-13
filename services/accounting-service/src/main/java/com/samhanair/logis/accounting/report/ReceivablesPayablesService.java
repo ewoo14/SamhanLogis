@@ -42,9 +42,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ReceivablesPayablesService {
 
-    private static final List<String> RECEIVABLE_ACCOUNTS = List.of("110", "120");
-    private static final List<String> PAYABLE_ACCOUNTS = List.of("201", "210");
-    private static final List<String> ALL_ACCOUNTS = List.of("110", "120", "201", "210");
+    private static final List<String> RECEIVABLE_ACCOUNTS = List.of("1089", "1209");
+    private static final List<String> PAYABLE_ACCOUNTS = List.of("2519", "2539");
+    private static final List<String> ALL_ACCOUNTS = List.of("1089", "1209", "2519", "2539");
 
     private static final String UNRESOLVED_PARTNER_CODE = "미등록";
     private static final String UNRESOLVED_PARTNER_NAME = "(미조회)";

@@ -29,10 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>분포:
  * <ul>
- *   <li>SLIP_ISSUE 30건 — 차변 110(외상매출금) / 대변 401(상품매출) + 220(부가세예수금)</li>
- *   <li>PAYMENT 10건 — 차변 102(보통예금) / 대변 110(외상매출금)</li>
- *   <li>SGA 5건 — 차변 801(급여) or 814(통신비) / 대변 102(보통예금)</li>
- *   <li>ADJUSTMENT 5건 — 차변 818(감가상각비) / 대변 818(감가상각비, 충당금 대용)</li>
+ *   <li>SLIP_ISSUE 30건 — 차변 1089(외상매출금) / 대변 4019(상품매출) + 2559(부가세예수금)</li>
+ *   <li>PAYMENT 10건 — 차변 1039(보통예금) / 대변 1089(외상매출금)</li>
+ *   <li>SGA 5건 — 차변 8029(급여) or 8139(통신비) / 대변 1039(보통예금)</li>
+ *   <li>ADJUSTMENT 5건 — 차변 8239(감가상각비) / 대변 2024(건물, 충당금 대용)</li>
  * </ul>
  *
  * <p>상태 분포 — DRAFT 5 / POSTED 40 / REVERSED 5. 한국 일반기업회계기준 표준 코드 (V1 시드)
@@ -69,14 +69,15 @@ public class JournalSeeder implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(JournalSeeder.class);
 
     /** 한국 표준 계정과목 코드 (V1__init_accounting_service.sql 기준). */
-    private static final String CODE_BANK_DEPOSIT = "102";  // 보통예금
-    private static final String CODE_RECEIVABLE   = "110";  // 외상매출금
-    private static final String CODE_BUILDING     = "142";  // 건물 (V1 V2 — 감가상각 대상 자산)
-    private static final String CODE_VAT_PAYABLE  = "220";  // 부가세예수금
-    private static final String CODE_SALES        = "401";  // 상품매출
-    private static final String CODE_SALARY       = "801";  // 급여
-    private static final String CODE_TELECOM      = "814";  // 통신비
-    private static final String CODE_DEPRECIATION = "818";  // 감가상각비
+    /** V101 계정 코드 정본을 사용하는 개발용 전표 시드. */
+    private static final String CODE_BANK_DEPOSIT = "1039"; // 보통예금
+    private static final String CODE_RECEIVABLE   = "1089"; // 외상매출금
+    private static final String CODE_BUILDING     = "2024"; // 건물
+    private static final String CODE_VAT_PAYABLE  = "2559"; // 부가세예수금
+    private static final String CODE_SALES        = "4019"; // 상품매출
+    private static final String CODE_SALARY       = "8029"; // 급여
+    private static final String CODE_TELECOM      = "8139"; // 통신비
+    private static final String CODE_DEPRECIATION = "8239"; // 감가상각비
 
     /** 16 employee 중 회계 담당자 5명 (loginId 기준). 분개 게시자 / SGA 적요 생성에 활용. */
     private static final String[] ACCOUNTANT_LOGINS =
@@ -235,7 +236,7 @@ public class JournalSeeder implements CommandLineRunner {
                         "보통예금 출금"));
             }
             case ADJUSTMENT -> {
-                // 월말 감가상각 조정 — 차변 818(감가상각비) / 대변 142(건물).
+                // 월말 감가상각 조정 — 차변 8239(감가상각비) / 대변 2024(건물).
                 // 표준 회계상 감가상각누계액 컬럼 별도 존재가 정석이나 V1 시드는
                 // 누계액 코드 미보유 → 자산 차감 직접 처리 (테스트 데이터 한정 단순화).
                 long depreciation = 100_000L + ((seq * 89) % 10) * 50_000L;

@@ -115,7 +115,7 @@ function renderPage(initialEntry = '/accounting/journals/new') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.listAccounts.mockResolvedValue([
     { code: '102', name: '보통예금', category: 'ASSET' },
-    { code: '401', name: '매출', category: 'REVENUE' },
+    { code: '4019', name: '매출', category: 'REVENUE' },
   ])
   mocks.searchJournalPartners.mockResolvedValue([
     {
@@ -159,7 +159,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     // 우연히 일치)을 그대로 재현해 버튼을 활성화한 채로 여전히 "최소 2 라인" 오류가 뜨는지
     // 본다 — 라인 1 은 계정+차변(의미있음), 라인 2 는 계정 없이 대변만(합계는 맞지만
     // 계정과목이 없어 무의미) 채운다.
-    fireEvent.change(screen.getByLabelText('라인 1 계정과목'), { target: { value: '102' } })
+    fireEvent.change(screen.getByLabelText('라인 1 계정과목'), { target: { value: '1039' } })
     fireEvent.change(screen.getByLabelText('라인 1 차변'), { target: { value: '1000' } })
     fireEvent.change(screen.getByLabelText('라인 2 대변'), { target: { value: '1000' } })
 
@@ -227,11 +227,11 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     await screen.findByText('계정과목')
 
     fireEvent.change(screen.getByLabelText('적요'), { target: { value: '테스트 분개' } })
-    fireEvent.change(screen.getByLabelText('라인 1 계정과목'), { target: { value: '102' } })
+    fireEvent.change(screen.getByLabelText('라인 1 계정과목'), { target: { value: '1039' } })
     fireEvent.change(screen.getByLabelText('라인 1 차변'), { target: { value: '1000' } })
     fireEvent.change(screen.getByLabelText('라인 1 메모'), { target: { value: '입금 메모' } })
     fireEvent.click(screen.getByLabelText('라인 1 거래처 선택'))
-    fireEvent.change(screen.getByLabelText('라인 2 계정과목'), { target: { value: '401' } })
+    fireEvent.change(screen.getByLabelText('라인 2 계정과목'), { target: { value: '4019' } })
     fireEvent.change(screen.getByLabelText('라인 2 대변'), { target: { value: '1000' } })
 
     await waitFor(() => {
@@ -244,7 +244,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     await waitFor(() => expect(mocks.createJournal).toHaveBeenCalledTimes(1))
     const payload = mocks.createJournal.mock.calls[0][0]
     expect(payload.lines[0]).toEqual({
-      accountCode: '102',
+      accountCode: '1039',
       debitAmount: '1000',
       creditAmount: '0',
       partnerId: '00000000-0000-0000-0000-000000000713',
@@ -255,7 +255,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     expect(payload.lines[0]).not.toHaveProperty('partnerName')
     expect(payload.lines[0]).not.toHaveProperty('note')
     expect(payload.lines[1]).toEqual({
-      accountCode: '401',
+      accountCode: '4019',
       debitAmount: '0',
       creditAmount: '1000',
       partnerId: null,
@@ -281,7 +281,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
       lines: [
         {
           lineNo: 1,
-          accountCode: '102',
+          accountCode: '1039',
           accountName: '보통예금',
           debit: '1000',
           credit: '0',
@@ -292,7 +292,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
         },
         {
           lineNo: 2,
-          accountCode: '401',
+          accountCode: '4019',
           accountName: '매출',
           debit: '0',
           credit: '1000',
@@ -335,7 +335,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     fireEvent.click(screen.getByRole('button', { name: '저장' }))
     expect(mocks.createJournal).not.toHaveBeenCalled()
     const warning = await screen.findByRole('alert')
-    expect(warning.textContent).toContain('401')
+    expect(warning.textContent).toContain('4019')
 
     // 재확인(두 번째 클릭 — "그대로 저장")으로만 실제 저장이 진행된다.
     fireEvent.click(screen.getByRole('button', { name: '그대로 저장' }))
@@ -343,11 +343,11 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     await waitFor(() => expect(mocks.createJournal).toHaveBeenCalledTimes(1))
     const payload = mocks.createJournal.mock.calls[0][0]
     expect(payload.lines[0]).toMatchObject({
-      accountCode: '102',
+      accountCode: '1039',
       partnerId: '00000000-0000-0000-0000-000000000713',
     })
     expect(payload.lines[1]).toMatchObject({
-      accountCode: '401',
+      accountCode: '4019',
       partnerId: null,
     })
   })
@@ -384,7 +384,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
       lines: [
         {
           lineNo: 1,
-          accountCode: '102',
+          accountCode: '1039',
           accountName: '보통예금',
           debit: '1000',
           credit: '0',
@@ -393,7 +393,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
         },
         {
           lineNo: 2,
-          accountCode: '401',
+          accountCode: '4019',
           accountName: '매출',
           debit: '0',
           credit: '1000',
@@ -411,7 +411,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
 
     await waitFor(() => expect(mocks.searchJournalPartners).toHaveBeenCalledWith('삼한테스트상사'))
     await waitFor(() => {
-      expect((screen.getByLabelText('라인 1 계정과목') as HTMLInputElement).value).toBe('102')
+      expect((screen.getByLabelText('라인 1 계정과목') as HTMLInputElement).value).toBe('1039')
     })
     // searchJournalPartners 의 reject → catch → Promise.all(...).then(...) 마이크로태스크
     // 체인이 모두 드레인될 때까지 매크로태스크 경계로 flush 한다 — 그래야 이 클릭이
@@ -447,7 +447,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
       lines: [
         {
           lineNo: 1,
-          accountCode: '102',
+          accountCode: '1039',
           accountName: '보통예금',
           debit: '500000',
           credit: '0',
@@ -456,7 +456,7 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
         },
         {
           lineNo: 2,
-          accountCode: '401',
+          accountCode: '4019',
           accountName: '매출',
           debit: '0',
           credit: '500000',
@@ -512,8 +512,8 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     // 날짜·빈 라인 2개(초기값)" 인 프레임이 스케줄러 타이밍과 무관하게 존재하지 않아야 한다.
     expect(dateInput.value).toBe('2026-07-01')
     expect((screen.getByLabelText('적요') as HTMLInputElement).value).toBe('기존 분개 설명')
-    expect((screen.getByLabelText('라인 1 계정과목') as HTMLInputElement).value).toBe('102')
-    expect((screen.getByLabelText('라인 2 계정과목') as HTMLInputElement).value).toBe('401')
+    expect((screen.getByLabelText('라인 1 계정과목') as HTMLInputElement).value).toBe('1039')
+    expect((screen.getByLabelText('라인 2 계정과목') as HTMLInputElement).value).toBe('4019')
 
     // 부가 확인(JournalFormPage 특별 주의 — #831 R-3/R-5 findRiskyPartnerLines 2단계 확인
     // 가드 무회귀): partnerId 는 이 hydrate 프레임에서 항상 null(UUID 비공개 정책상 별도
@@ -533,8 +533,8 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     const payload = mocks.createJournal.mock.calls[0][0]
     expect(payload.journalDate).toBe('2026-07-01')
     expect(payload.lines).toEqual([
-      { accountCode: '102', debitAmount: '500000', creditAmount: '0', partnerId: null, memo: '기존 메모1' },
-      { accountCode: '401', debitAmount: '0', creditAmount: '500000', partnerId: null, memo: undefined },
+      { accountCode: '1039', debitAmount: '500000', creditAmount: '0', partnerId: null, memo: '기존 메모1' },
+      { accountCode: '4019', debitAmount: '0', creditAmount: '500000', partnerId: null, memo: undefined },
     ])
   })
 })

@@ -47,8 +47,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>계정과목 코드 (project_korean_accounting.md):
  * <ul>
- *   <li>보통예금: 102 (유동자산 — 현금및현금성자산, V1 chart_of_accounts 시드 기준)</li>
- *   <li>외상매출금: 110 (유동자산 — 매출채권)</li>
+ *   <li>보통예금: 1039 (현금및현금성자산, V101 이카운트 계정과목 통일 target)</li>
+ *   <li>외상매출금: 1089 (매출채권, V101 이카운트 계정과목 통일 target)</li>
  * </ul>
  *
  * <p>UUID 비공개 원칙 (feedback_uuid_no_user_visibility):
@@ -252,7 +252,7 @@ public class DepositMatchService {
 
         TaxInvoice invoice = invoiceOpt.get();
 
-        // 분개 DRAFT 생성 (차: 보통예금 102 / 대: 외상매출금 110)
+        // 분개 DRAFT 생성 (차: 보통예금 1039 / 대: 외상매출금 1089)
         UUID journalDraftId = createJournalDraft(deposit, partner, invoice, actorId);
 
         log.info("[SP-09-4] 자동 매칭 성공 — depositorName={} partnerCode={} taxInvoiceNo={}",
