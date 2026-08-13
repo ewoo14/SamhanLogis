@@ -328,3 +328,143 @@ V14__add_messages_batch_id.sql
 - 추가 도달 결함: 0건
 - 시나리오 2~4 관측 불가 및 머지 권고 보류 판정은 유지한다.
 - 다음 재개 조건: main 작업본에서 `groupware-service.jar`를 먼저 재빌드하고, 새 JAR에 `ChatRoomController`, V20, V21이 포함됐음을 확인한 뒤 Docker image를 다시 생성해야 한다.
+
+## 15. 2026-08-13 JAR 재빌드 후 최종 재개 라운드
+
+### 15.1 환경 및 배포 산출물 직접 실측 원문
+
+PM의 설명을 증거로 사용하지 않고 host JAR, 컨테이너 및 image를 다시 직접 측정했다. 이 시점의 여유 RAM은 중단 기준 1.0GB를 충분히 웃돌았고 Samhan 컨테이너는 22개였다.
+
+```text
+FreeRAM_GB 24.086
+RunningTotal 22
+RunningSamhan 22
+
+C:\dev\Samhan-Public\services\groupware-service\build\libs\groupware-service.jar
+bytes=99428705
+last_write=2026-08-13T22:23:07.3818513+09:00
+CHAT_CONTROLLER_COUNT=1
+V20_COUNT=1
+V21_COUNT=1
+
+container_created=2026-08-13T13:23:36.625625462Z
+status=running
+health=healthy
+image_id=sha256:8b0d4434fde2367a32da4060516a6959efbd8588d03c2651feb07b3ccb197759
+
+image_created=2026-08-13T13:23:34.268575913Z
+image_id=sha256:8b0d4434fde2367a32da4060516a6959efbd8588d03c2651feb07b3ccb197759
+```
+
+`ChatRoomController`가 1개이고 V20·V21 migration도 각각 1개이므로 이번에는 채팅 구현을 포함한 JAR임을 확인했다. 컨테이너는 같은 image ID로 `running`/`healthy`였다. 서비스 시작 로그에서도 schema 현재 버전 18과 정상 시작을 확인했으며, 직전 라운드의 `latest available migration (14)` 경고는 재현되지 않았다.
+
+### 15.2 시나리오 2 — 새 대화 생성
+
+절차:
+
+1. 로컬 Playwright 1.59.1에서 지정 Chromium 실행 파일을 직접 launch했다.
+2. `http://localhost:5173/#/chat`에 진입하여 기존에 확인한 목록·상대 검색·선택 뒤 `대화 시작`을 눌렀다.
+3. 응답 status와 생성된 업무 식별자 `roomCode`를 기록하고, 생성 직후 독립 앱 전용 요소를 다시 단정했다.
+
+네트워크 원문:
+
+```text
+dev_master login 200
+GET /admin/groupware/messages/recipient-search?...limit=10000 200
+GET /admin/groupware/chat/rooms 200
+POST /admin/groupware/chat/rooms/direct 201
+roomCode CHAT-20260813-000017
+GET /admin/groupware/chat/rooms 200
+roomsPageCount=0 roomPageCount=0
+```
+
+결과: 백엔드에서는 새 직접방 생성이 성공했다. 그러나 성공 직후 독립 앱의 `chat-rooms-page`와 `chat-room-page`가 모두 사라지고 `#root`가 빈 상태가 됐다. 따라서 사용자는 생성한 대화로 들어갈 수 없다.
+
+![독립 앱 생성 성공 직후 빈 화면](06-r3-independent-after-create-route-loss.png)
+
+도달 결함의 경계는 독립 앱 라우팅이다. production renderer는 `MemoryRouter basename="/chat" initialEntries={["/chat"]}`를 사용하지만, 생성 성공 처리와 방 링크는 `/chat/{roomCode}` 절대 경로로 이동한다. 실 API가 201과 `roomCode`를 반환한 뒤 빈 root가 된 관측과 일치한다. 이 보고서는 원인 후보를 기록할 뿐 코드는 수정하지 않았다.
+
+### 15.3 시나리오 3 — 메시지 전송 및 상대 화면 SSE 재조회
+
+결과: **관측 불가.** 시나리오 2의 도달 결함 때문에 독립 앱 방 화면과 composer에 도달하지 못했다. 따라서 독립 앱에서 메시지를 보내고 상대 화면에서 SSE 후 재조회되는 종단 흐름을 수행할 수 없었다. 백엔드 오류나 범위 밖 기능으로 판정하지 않고, 위 라우팅 결함의 직접 영향으로 기록한다.
+
+실패 실행 원문:
+
+```text
+node playwright/qa1201-r3-liveqa.mjs
+[HTTP] POST /admin/groupware/chat/rooms/direct 201
+[ASSERT] roomsPageCount=0 roomPageCount=0
+[FAIL] reachable defect: independent app route loss after direct-room creation
+Process exited with code 1
+```
+
+### 15.4 시나리오 4 — 본체 앱 채팅 회귀
+
+절차:
+
+1. `http://localhost:5182/#/chat`에서 관리자 계정으로 본체 채팅 목록에 진입하고 본체 전용 목록 요소를 단정했다.
+2. 방 `CHAT-20260813-000017`을 열어 방 화면과 composer를 단정했다.
+3. SSE stream 연결을 관찰한 뒤 메시지를 전송하고 messages 재조회를 관찰했다.
+4. 전송한 문구가 방 화면에 렌더링됐는지 단정했다.
+
+네트워크 및 결과 원문:
+
+```text
+dev_manager login 200
+GET /admin/groupware/chat/rooms 200
+GET /admin/groupware/chat/rooms/CHAT-20260813-000017/messages 200
+GET /admin/groupware/chat/rooms/CHAT-20260813-000017/stream 200
+POST /admin/groupware/chat/rooms/CHAT-20260813-000017/messages 200
+GET /admin/groupware/chat/rooms/CHAT-20260813-000017/messages 200
+GET /admin/groupware/chat/rooms/CHAT-20260813-000017/messages 200
+rendered body=QA1201 본체 회신 20260813134323
+```
+
+결과: **통과.** 본체 앱의 목록, 방 열기, SSE 연결, 메시지 전송 및 재조회가 모두 정상 동작했다. 이식 후에도 본체 채팅은 남아 있었다.
+
+![본체 앱 채팅방 목록](07-r3-main-app-room-list.png)
+
+![본체 앱 대화 화면](08-r3-main-app-room-open.png)
+
+![본체 앱 메시지 전송 결과](09-r3-main-app-message-sent.png)
+
+### 15.5 시나리오 5 및 UUID 노출 sweep 정정
+
+앞선 라운드의 UUID 정규식은 UUID version nibble을 제한했다. 증거 무결성을 위해 이번에는 version을 가정하지 않는 `8-4-4-4-12` 정규식으로 URL, 화면 전체 텍스트, 모든 `href`를 다시 sweep했다.
+
+```text
+independent route-loss URL/text/hrefs: UUID 0건
+main room list URL/text/hrefs: UUID 0건
+main room URL/text/hrefs: UUID 0건
+main sent-message URL/text/hrefs: UUID 0건
+observed room URL=/#/chat/CHAT-20260813-000017
+```
+
+결과: 관측 가능한 화면·URL·링크에서 UUID 노출은 **0건**이었다. URL에는 UUID 대신 업무 식별자인 `roomCode`만 나타났다. 요청 payload의 `participantId` UUID는 지시대로 선재 위반·범위 밖이므로 결함 수에 포함하지 않았다.
+
+### 15.6 도달 결함
+
+최종 도달 결함은 **1건**이다.
+
+1. 독립 앱에서 직접방 생성 API가 201로 성공한 직후 앱 전체가 빈 화면이 되어 생성한 대화에 진입할 수 없다. 이로 인해 독립 앱 메시지 전송 및 상대 화면 SSE 재조회도 도달 불가하다.
+
+본체 앱 채팅은 정상 동작했고, UUID 노출은 관측 범위에서 없었다. 편집 API 부재와 S3~S7은 결함으로 세지 않았다.
+
+### 15.7 증거 무결성 정정
+
+- 최초 JAR 점검과 낡은 배포본 규명 기록은 삭제하거나 덮어쓰지 않았다. 환경이 바뀐 각 라운드를 시간순으로 보존했다.
+- direct room 생성 controller의 정상 계약은 `201 Created`다. 초기 자동화가 200만 성공으로 가정한 것은 하네스 오류였으며 제품 결함으로 세지 않았다.
+- 화면 캡처 전에 화면 고유 요소를 단정했다. 독립 앱 결함 화면은 정상 화면 요소 2종이 모두 0개이고 root가 빈 상태임을 단정한 뒤 캡처했다.
+- 기존 version 제한 UUID 정규식의 약점을 바로잡아 generic UUID 형식으로 재검사했다.
+- `docs/qa` 안에는 캡처 스크립트를 남기지 않는다.
+
+### 15.8 만든 데이터
+
+- 직접 채팅방 1개: `CHAT-20260813-000017` (`dev_master` ↔ `dev_manager`)
+- direct room POST를 진단 중 반복했으나 동일 참여자 조합의 같은 방을 재사용했으므로 추가 roomCode는 생성되지 않았다.
+- 메시지 1개: `QA1201 본체 회신 20260813134323` (본체 앱에서 전송)
+- 독립 앱에서 생성한 메시지: 0개
+
+### 15.9 최종 머지 권고
+
+**머지를 권고하지 않는다.** 신선한 백엔드에서 본체 회귀와 UUID 비노출은 통과했지만, 독립 앱의 핵심 S1 흐름인 방 생성 후 대화 진입이 실제 UI에서 깨지고 그 결과 메시지 전송·상대 SSE 재조회까지 수행할 수 없는 도달 결함 1건이 있다.
