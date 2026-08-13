@@ -13,6 +13,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -105,6 +107,56 @@ class SlipClientTest {
     }
 
     @Test
+    void getSlip_decodesSlipServiceOpaqueIdsAcrossTheServiceBoundary() {
+        UUID warehouseId = UUID.fromString("00000000-0000-0000-0000-000000000202");
+        UUID lineId = UUID.fromString("00000000-0000-0000-0000-000000000203");
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000204");
+        String json = """
+                {
+                  "success": true,
+                  "code": "OK",
+                  "message": "성공",
+                  "data": {
+                    "id": "%s",
+                    "slipNo": "2026/08/02-17",
+                    "slipType": "INBOUND",
+                    "status": "CONFIRMED",
+                    "destinationWarehouseId": "%s",
+                    "partnerName": "삼한테스트",
+                    "destinationWarehouseName": "본사창고",
+                    "slipDate": "2026-08-02",
+                    "lines": [{
+                      "id": "%s",
+                      "productId": "%s",
+                      "productName": "테스트 품목",
+                      "modelName": "MODEL-A",
+                      "quantity": 5,
+                      "unitPrice": 12345.67,
+                      "supplyAmount": 70000
+                    }]
+                  }
+                }
+                """.formatted(opaque(SLIP_ID), opaque(warehouseId), opaque(lineId), opaque(productId));
+
+        server.expect(requestTo(ENDPOINT))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
+
+        SlipDetail result = client.getSlip(SLIP_ID);
+
+        assertThat(result.id()).isEqualTo(SLIP_ID);
+        assertThat(result.slipNo()).isEqualTo("2026/08/02-17");
+        assertThat(result.slipType()).isEqualTo("INBOUND");
+        assertThat(result.destinationWarehouseId()).isEqualTo(warehouseId);
+        assertThat(result.lines()).singleElement().satisfies(line -> {
+            assertThat(line.id()).isEqualTo(lineId);
+            assertThat(line.productId()).isEqualTo(productId);
+        });
+        server.verify();
+    }
+
+    @Test
     void getSlip_404_mapsToNotFound() {
         server.expect(requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.GET))
@@ -189,5 +241,12 @@ class SlipClientTest {
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.INTERNAL_ERROR));
         server.verify();
+    }
+
+    private static String opaque(UUID value) {
+        ByteBuffer bytes = ByteBuffer.allocate(16)
+                .putLong(value.getMostSignificantBits())
+                .putLong(value.getLeastSignificantBits());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes.array());
     }
 }

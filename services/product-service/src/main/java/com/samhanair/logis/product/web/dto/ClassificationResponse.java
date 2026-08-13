@@ -4,13 +4,14 @@ import com.samhanair.logis.product.domain.Classification;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 /** Classification 마스터 응답. UUID 는 관리 API 내부 식별자로만 사용한다. */
 public record ClassificationResponse(
-        UUID id,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID id,
         EstimateCategory estimateCategory,
         Classification.CatLevel catLevel,
-        UUID parentId,
+        @JsonSerialize(using = OpaqueUuidSerializer.class) UUID parentId,
         String name,
         int displayOrder,
         boolean active,

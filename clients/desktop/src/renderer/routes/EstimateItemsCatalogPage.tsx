@@ -10,6 +10,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type CSSProperties,
 } from 'react'
@@ -83,6 +84,15 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { usePermissions } from '../hooks/usePermissions'
 import { usePageTitleStore } from '../stores/pageTitle'
 import {
+  addQuantitySyncTarget,
+  getQuantitySyncFeatureOptions,
+  quantitySyncTargetDraft as buildQuantitySyncTargetDraft,
+  quantitySyncTargetKind,
+  QUANTITY_SYNC_SHAPE_OPTIONS,
+  removeQuantitySyncTarget,
+  type QuantitySyncTargetModalDraft,
+} from './quantitySyncTargetModal'
+import {
   buildCategoryDisplayOrderInputs,
   estimateCategoryValues,
   exposureDisplayOrder,
@@ -104,6 +114,23 @@ type MasterProductSearch = (
   q: string,
   options?: { size?: number; usageScope?: UsageScope },
 ) => Promise<ProductOption[]>
+
+/** 라이브 모달에서 effect 의존성이 렌더마다 바뀌지 않도록 노출 행 배열을 고정한다. */
+export function useStableEstimateCatalogRows<T extends { usageScope: UsageScope }>(
+  rows: readonly T[],
+): T[] {
+  return useMemo(
+    () => rows.filter((row) => row.usageScope !== 'NONE'),
+    [rows],
+  )
+}
+
+/** 저장 초안에는 활성 target만 남긴다. API가 삭제 표식을 포함해도 3건 불변식을 보존한다. */
+export function preserveActiveQuantitySyncTargets<T extends object>(
+  targets: readonly T[],
+): T[] {
+  return targets.filter((target) => (target as { isDeleted?: boolean }).isDeleted !== true)
+}
 
 /** 검색 응답의 원천 메타데이터만으로 견적품목 후보를 걸러낸다. */
 export async function searchMasterProducts(
@@ -313,20 +340,10 @@ function quantitySyncSharedRuleForCategory(
   return rules.find((rule) => rule.enabled && rule.estimateCategory === category && rule.ruleKey.startsWith(`UI_${category}_`))
 }
 
-type QuantitySyncTargetDraft = ProductOption & {
-  multiplier: string
-  roundingMode: 'NONE' | 'FLOOR'
-}
+type QuantitySyncTargetDraft = QuantitySyncTargetModalDraft
 
 function quantitySyncTargetDraft(target: QuantitySyncProductRef): QuantitySyncTargetDraft {
-  return {
-    id: target.productCode,
-    modelCode: target.productCode,
-    modelName: target.productCode,
-    productName: target.productName || target.productCode,
-    multiplier: String(target.multiplier ?? 1),
-    roundingMode: target.roundingMode ?? 'NONE',
-  }
+  return buildQuantitySyncTargetDraft(target)
 }
 
 function isValidQuantitySyncMultiplier(value: string): boolean {
@@ -359,6 +376,8 @@ function quantitySyncRequest(
       productCode: target.modelCode ?? target.modelName,
       multiplier: Number(target.multiplier),
       roundingMode: target.roundingMode ?? 'NONE',
+      componentVariant: target.componentVariant || null,
+      componentShape: target.componentShape || null,
       displayOrder: index + 1,
     })),
   }
@@ -764,12 +783,13 @@ function CategoryCell({
   )
   const showEstimateCategory = estimate && (row.usageScope === 'ESTIMATE' || row.usageScope === 'BOTH')
   const canEditQuantitySync = canEdit && quantitySyncInboundSources.length === 0
+  const [quantitySyncModalOpen, setQuantitySyncModalOpen] = useState(false)
   const [selectedQuantityTargets, setSelectedQuantityTargets] = useState<QuantitySyncTargetDraft[]>(() =>
-    (quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft),
+    preserveActiveQuantitySyncTargets(quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft),
   )
 
   useEffect(() => {
-    setSelectedQuantityTargets((quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft))
+    setSelectedQuantityTargets(preserveActiveQuantitySyncTargets(quantitySyncRule?.targets ?? []).map(quantitySyncTargetDraft))
   }, [quantitySyncRule])
 
   const handleCategoryAdd = (value: string) => {
@@ -878,70 +898,76 @@ function CategoryCell({
             style={quantitySyncChipStyle}
             data-testid={`estimate-items-quantity-sync-${row.modelCode}-chip-${product.modelCode ?? product.modelName}`}
           >
-            <span>{product.productName || product.modelCode || product.modelName}:</span>
-            {canEditQuantitySync && !patchLoading ? (
-              <input
-                type="number"
-                min="0.0001"
-                max="1000"
-                step="0.0001"
-                value={product.multiplier}
-                onChange={(event) => {
-                  const multiplier = event.target.value
-                  setSelectedQuantityTargets((current) => current.map((item) => item.id === product.id
-                    ? { ...item, multiplier }
-                    : item))
-                }}
-                aria-label={`${product.productName || product.modelCode || product.modelName} 수량`}
-                data-testid={`estimate-items-quantity-sync-${row.modelCode}-multiplier-${product.modelCode ?? product.modelName}`}
-                style={quantitySyncMultiplierInputStyle}
-              />
-            ) : (
-              <span>{product.multiplier}</span>
-            )}
-            {canEditQuantitySync && !patchLoading ? (
-              <button
-                type="button"
-                aria-label={`${product.modelCode ?? product.modelName} 동기화 제거`}
-                onClick={() => setSelectedQuantityTargets((current) => current.filter((item) => item.id !== product.id))}
-                style={categoryChipRemoveStyle}
-              >
-                x
-              </button>
-            ) : null}
+            <span>{product.productName || product.modelCode || product.modelName}: ×{product.multiplier}</span>
           </span>
         ))}
-        {canEditQuantitySync ? (
-          <ProductMultiSelectAutocomplete
-            selected={selectedQuantityTargets}
-            onAdd={(product) => {
-              const productCode = product.modelCode ?? product.modelName
-              if (productCode === row.modelCode) return
-              setSelectedQuantityTargets((current) => current.some((item) => (item.modelCode ?? item.modelName) === productCode)
-                ? current
-                : [...current, { ...product, id: productCode, multiplier: '1', roundingMode: 'NONE' }])
-            }}
-            onRemove={(product) => setSelectedQuantityTargets((current) => current.filter((item) => item.id !== product.id))}
-            searchProducts={searchQuantitySyncProducts}
-            label="수량 동기화 품목"
-            placeholder="종속 품목 검색"
-            minChars={1}
-            disabled={patchLoading}
-            inputTestId={`estimate-items-quantity-sync-${row.modelCode}-input`}
-          />
-        ) : null}
         {canEditQuantitySync ? (
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => onQuantitySyncSave(row.modelCode, selectedQuantityTargets)}
-            disabled={patchLoading || selectedQuantityTargets.some((target) => !isValidQuantitySyncMultiplier(target.multiplier))}
-            data-testid={`estimate-items-quantity-sync-${row.modelCode}-save`}
+            onClick={() => setQuantitySyncModalOpen(true)}
+            disabled={patchLoading}
+            data-testid={`estimate-items-quantity-sync-${row.modelCode}-open`}
           >
-            수량 동기화 저장
+            수량 동기화 설정
           </Button>
         ) : null}
       </div>
+      <Modal
+        open={quantitySyncModalOpen}
+        onClose={() => setQuantitySyncModalOpen(false)}
+        title={`수량 동기화 설정 — ${row.modelCode}`}
+        size="lg"
+        footer={canEditQuantitySync ? (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setQuantitySyncModalOpen(false)} disabled={patchLoading}>닫기</Button>
+            <Button
+              variant="primary"
+              onClick={() => { onQuantitySyncSave(row.modelCode, selectedQuantityTargets); setQuantitySyncModalOpen(false) }}
+              disabled={patchLoading || selectedQuantityTargets.some((target) => !isValidQuantitySyncMultiplier(target.multiplier))}
+              data-testid={`estimate-items-quantity-sync-${row.modelCode}-save`}
+            >수량 동기화 저장</Button>
+          </div>
+        ) : <Button variant="secondary" onClick={() => setQuantitySyncModalOpen(false)}>닫기</Button>}
+      >
+        <div data-testid={`estimate-items-quantity-sync-${row.modelCode}-modal`} style={{ display: 'grid', gap: 12 }}>
+          <div><strong>본체</strong> <span>{row.modelCode}</span></div>
+          <ProductMultiSelectAutocomplete
+            selected={selectedQuantityTargets}
+            onAdd={(product) => {
+              if ((product.modelCode ?? product.modelName) === row.modelCode) return
+              setSelectedQuantityTargets((current) => addQuantitySyncTarget(current, product))
+            }}
+            onRemove={(product) => setSelectedQuantityTargets((current) => removeQuantitySyncTarget(current, product.id))}
+            searchProducts={searchQuantitySyncProducts}
+            label="수량 동기화 품목"
+            placeholder="품목 검색"
+            minChars={1}
+            disabled={patchLoading}
+            inputTestId={`estimate-items-quantity-sync-${row.modelCode}-input`}
+          />
+          <span style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}>부자재 품목 선택</span>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {selectedQuantityTargets.map((product) => {
+              const kind = quantitySyncTargetKind(product)
+              return (
+                <div key={product.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) 90px 120px 100px auto', gap: 8, alignItems: 'end' }} data-testid={`estimate-items-quantity-sync-${row.modelCode}-modal-chip-${product.id}`}>
+                  <span>{product.productName || product.modelCode}</span>
+                  <Input type="number" min="0.0001" max="1000" step="0.0001" label="수량" value={product.multiplier} onChange={(event) => setSelectedQuantityTargets((current) => current.map((item) => item.id === product.id ? { ...item, multiplier: event.target.value } : item))} data-testid={`estimate-items-quantity-sync-${row.modelCode}-multiplier-${product.id}`} />
+                  <Select label="특징" value={product.componentVariant} onChange={(event) => setSelectedQuantityTargets((current) => current.map((item) => item.id === product.id ? { ...item, componentVariant: event.target.value } : item))}>
+                    <option value="">(없음)</option>
+                    {getQuantitySyncFeatureOptions(kind).map((feature) => <option key={feature} value={feature}>{feature}</option>)}
+                  </Select>
+                  <Select label="형상" value={product.componentShape} onChange={(event) => setSelectedQuantityTargets((current) => current.map((item) => item.id === product.id ? { ...item, componentShape: event.target.value } : item))}>
+                    {QUANTITY_SYNC_SHAPE_OPTIONS.map((shape) => <option key={shape} value={shape}>{shape || '(없음)'}</option>)}
+                  </Select>
+                  <Button variant="secondary" size="sm" onClick={() => setSelectedQuantityTargets((current) => removeQuantitySyncTarget(current, product.id))} aria-label={`${product.productName || product.modelCode} 동기화 제거`}>삭제</Button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -1108,7 +1134,7 @@ export function EstimateItemsCatalogPage() {
   }, [focusedQuantitySyncRuleKey, listQuery.isFetching, sortableRows])
 
   const rawRows = listQuery.data?.content ?? []
-  const rows = rawRows.filter((row) => row.usageScope !== 'NONE')
+  const rows = useStableEstimateCatalogRows(rawRows)
 
   useEffect(() => {
     if (!orderDirty) {
@@ -1244,7 +1270,7 @@ export function EstimateItemsCatalogPage() {
           existing.name,
           existing.legacyRef,
           remainingSources,
-          existing.targets.map(quantitySyncTargetDraft),
+          preserveActiveQuantitySyncTargets(existing.targets).map(quantitySyncTargetDraft),
         )
         await replaceQuantitySyncRule(existing.ruleKey, request)
         return

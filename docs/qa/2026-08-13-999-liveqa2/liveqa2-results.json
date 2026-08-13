@@ -1,0 +1,473 @@
+{
+  "QR": {
+    "serials": [
+      "SI-SA8BQM",
+      "SI-BKSADE",
+      "SI-643G7S"
+    ],
+    "decoded": [
+      "SI-SA8BQM",
+      "SI-BKSADE",
+      "SI-643G7S"
+    ],
+    "exactMatch": true,
+    "dimensions": [
+      {
+        "width": 64,
+        "height": 64,
+        "renderedWidth": 63.6705322265625,
+        "renderedHeight": 63.6705322265625
+      },
+      {
+        "width": 64,
+        "height": 64,
+        "renderedWidth": 63.6705322265625,
+        "renderedHeight": 63.67059326171875
+      },
+      {
+        "width": 64,
+        "height": 64,
+        "renderedWidth": 63.6705322265625,
+        "renderedHeight": 63.6705322265625
+      }
+    ],
+    "allSquare": true
+  },
+  "status": {
+    "availableStatus": 200,
+    "availablePersist": "USED",
+    "reservedEnabled": true,
+    "reservedStatus": 200,
+    "reservedPersist": "DAMAGED",
+    "shippedDisabled": [
+      true,
+      true
+    ],
+    "bypassStatus": 409,
+    "bypassBody": "{\"success\":false,\"code\":\"CONFLICT\",\"message\":\"SHIPPED 인스턴스의 품목 상태는 변경할 수 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-12T17:57:03.718709900Z\"}",
+    "shippedAfter": "{\"success\":true,\"code\":\"OK\",\"message\":\"품목리스트 조회 완료\",\"data\":[{\"serialKey\":\"SI-SA8BQM\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-BKSADE\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-643G7S\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"RESERVED\",\"quality\":\"DAMAGED\"}],\"timestamp\":\"2026-08-12T17:57:03.733733Z\"}"
+  },
+  "slip": {
+    "modalText": "전표번호: 2026/08/02-17",
+    "sameSlip": true,
+    "screenUuidCount": 0,
+    "urlBefore": "http://127.0.0.1:42973/#/inventory/stock-balance",
+    "urlAfter": "http://127.0.0.1:42973/#/inventory/stock-balance",
+    "pageUrlUuidCount": 0,
+    "network": [
+      {
+        "method": "GET",
+        "url": "http://localhost:8080/slips/query?slipType=INBOUND&dateFrom=2026-08-02&dateTo=2026-08-02&page=0&size=20&searchSlipNo=2026%2F08%2F02-17",
+        "status": 200,
+        "urlUuidCount": 0,
+        "responseUuidCount": 1,
+        "responseLength": 1474
+      },
+      {
+        "method": "GET",
+        "url": "http://localhost:8080/slips/72825da2-e0b0-47e1-a1fb-8659f440c8b5",
+        "status": 200,
+        "urlUuidCount": 1,
+        "responseUuidCount": 3,
+        "responseLength": 2072
+      }
+    ],
+    "consoleErrors": [],
+    "badStatuses": []
+  },
+  "address": {
+    "notClickable": true,
+    "newErrors": []
+  },
+  "ledger": {
+    "defaultStart": "2026-08-01",
+    "defaultEnd": "2026-08-13",
+    "headers": [
+      "품목코드",
+      "품목명",
+      "창고코드",
+      "창고명",
+      "창고구분",
+      "가용재고",
+      "예약재고",
+      "실재고",
+      "일자",
+      "품목명",
+      "품목코드",
+      "창고명",
+      "거래처명",
+      "적요",
+      "입고수량",
+      "출고수량",
+      "재고수량"
+    ],
+    "defaultRows": [
+      [
+        "010001수불부",
+        "S2a QR 검증 품목",
+        "HQ-001",
+        "본사창고",
+        "본사",
+        "1",
+        "0",
+        "3"
+      ],
+      [
+        "AJ030RXH4BC1수불부",
+        "실외기_3HP 다배관",
+        "HQ-001",
+        "본사창고",
+        "본사",
+        "12",
+        "0",
+        "12"
+      ],
+      [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "전일재고",
+        "",
+        "",
+        "0"
+      ],
+      [
+        "2026/08/01",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "",
+        "",
+        "2",
+        "",
+        "2"
+      ],
+      [
+        "2026/08/01",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "",
+        "",
+        "3",
+        "",
+        "5"
+      ],
+      [
+        "2026/08/01",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "",
+        "",
+        "7",
+        "",
+        "12"
+      ],
+      [
+        "2026/08/02",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "(주)한국냉동물류",
+        "2026/08/02-17",
+        "5",
+        "",
+        "17"
+      ],
+      [
+        "2026/08/08",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "(주)한국냉동물류",
+        "2026/08/08-8",
+        "2",
+        "",
+        "19"
+      ],
+      [
+        "2026/08/09",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "",
+        "지방 울산광역시 북구 사청6길 6",
+        "",
+        "3",
+        "16"
+      ],
+      [
+        "2026/08/10",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "",
+        "야적 경기도 광주시 파발로59번길 30",
+        "",
+        "4",
+        "12"
+      ],
+      [
+        "2026/08 계",
+        "19",
+        "7",
+        "12"
+      ],
+      [
+        "합계",
+        "19",
+        "7",
+        "12"
+      ]
+    ],
+    "rangeStatus": 200,
+    "rangeRows": [
+      [
+        "010001수불부",
+        "S2a QR 검증 품목",
+        "HQ-001",
+        "본사창고",
+        "본사",
+        "1",
+        "0",
+        "3"
+      ],
+      [
+        "AJ030RXH4BC1수불부",
+        "실외기_3HP 다배관",
+        "HQ-001",
+        "본사창고",
+        "본사",
+        "12",
+        "0",
+        "12"
+      ],
+      [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "전일재고",
+        "",
+        "",
+        "19"
+      ],
+      [
+        "2026/08/09",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "",
+        "지방 울산광역시 북구 사청6길 6",
+        "",
+        "3",
+        "16"
+      ],
+      [
+        "2026/08/10",
+        "실외기_3HP 다배관",
+        "AJ030RXH4BC1",
+        "본사창고",
+        "",
+        "야적 경기도 광주시 파발로59번길 30",
+        "",
+        "4",
+        "12"
+      ],
+      [
+        "2026/08 계",
+        "0",
+        "7",
+        "12"
+      ],
+      [
+        "합계",
+        "0",
+        "7",
+        "12"
+      ]
+    ],
+    "defaultLedger": {
+      "companyName": "(주)삼한공조시스템",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-13",
+      "productName": "실외기_3HP 다배관",
+      "productCode": "AJ030RXH4BC1",
+      "openingBalance": 0,
+      "totalInbound": 19,
+      "totalOutbound": 7,
+      "closingBalance": 12,
+      "rows": [
+        {
+          "date": "2026-08-01",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "",
+          "description": "",
+          "locationTag": null,
+          "inboundQuantity": 2,
+          "outboundQuantity": 0,
+          "balance": 2,
+          "opening": false,
+          "slipNo": null,
+          "slipType": null
+        },
+        {
+          "date": "2026-08-01",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "",
+          "description": "",
+          "locationTag": null,
+          "inboundQuantity": 3,
+          "outboundQuantity": 0,
+          "balance": 5,
+          "opening": false,
+          "slipNo": null,
+          "slipType": null
+        },
+        {
+          "date": "2026-08-01",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "",
+          "description": "",
+          "locationTag": null,
+          "inboundQuantity": 7,
+          "outboundQuantity": 0,
+          "balance": 12,
+          "opening": false,
+          "slipNo": null,
+          "slipType": null
+        },
+        {
+          "date": "2026-08-02",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "(주)한국냉동물류",
+          "description": "2026/08/02-17",
+          "locationTag": null,
+          "inboundQuantity": 5,
+          "outboundQuantity": 0,
+          "balance": 17,
+          "opening": false,
+          "slipNo": "2026/08/02-17",
+          "slipType": "INBOUND"
+        },
+        {
+          "date": "2026-08-08",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "(주)한국냉동물류",
+          "description": "2026/08/08-8",
+          "locationTag": null,
+          "inboundQuantity": 2,
+          "outboundQuantity": 0,
+          "balance": 19,
+          "opening": false,
+          "slipNo": "2026/08/08-8",
+          "slipType": "INBOUND"
+        },
+        {
+          "date": "2026-08-09",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "",
+          "description": "울산광역시 북구 사청6길 6",
+          "locationTag": "지방",
+          "inboundQuantity": 0,
+          "outboundQuantity": 3,
+          "balance": 16,
+          "opening": false,
+          "slipNo": null,
+          "slipType": null
+        },
+        {
+          "date": "2026-08-10",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "",
+          "description": "경기도 광주시 파발로59번길 30",
+          "locationTag": "야적",
+          "inboundQuantity": 0,
+          "outboundQuantity": 4,
+          "balance": 12,
+          "opening": false,
+          "slipNo": null,
+          "slipType": null
+        }
+      ]
+    },
+    "rangeLedger": {
+      "companyName": "(주)삼한공조시스템",
+      "startDate": "2026-08-09",
+      "endDate": "2026-08-13",
+      "productName": "실외기_3HP 다배관",
+      "productCode": "AJ030RXH4BC1",
+      "openingBalance": 19,
+      "totalInbound": 0,
+      "totalOutbound": 7,
+      "closingBalance": 12,
+      "rows": [
+        {
+          "date": "2026-08-09",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "",
+          "description": "울산광역시 북구 사청6길 6",
+          "locationTag": "지방",
+          "inboundQuantity": 0,
+          "outboundQuantity": 3,
+          "balance": 16,
+          "opening": false,
+          "slipNo": null,
+          "slipType": null
+        },
+        {
+          "date": "2026-08-10",
+          "productName": "실외기_3HP 다배관",
+          "productCode": "AJ030RXH4BC1",
+          "warehouseName": "본사창고",
+          "partnerName": "",
+          "description": "경기도 광주시 파발로59번길 30",
+          "locationTag": "야적",
+          "inboundQuantity": 0,
+          "outboundQuantity": 4,
+          "balance": 12,
+          "opening": false,
+          "slipNo": null,
+          "slipType": null
+        }
+      ]
+    },
+    "currentStockDb": 12,
+    "noSerialKey": true,
+    "transferCount": 0
+  },
+  "audit": {
+    "inputPresent": true,
+    "postStatus": 200,
+    "inputCleared": true,
+    "product": "냉난방기-TEST-MODEL-0069"
+  },
+  "integrity": {
+    "serverEncoding": "UTF8",
+    "koreanPartners": "(주)서울택배 | (주)한국냉동물류 | 대한화물서비스(주)",
+    "fixtureKorean": "2026/08/02-17 | 2026/08/08-8 | 지방/울산광역시 북구 사청6길 6 | 야적/경기도 광주시 파발로59번길 30",
+    "serialCount": 20,
+    "serialBlank": 0,
+    "serialDuplicateGroups": 0
+  }
+}

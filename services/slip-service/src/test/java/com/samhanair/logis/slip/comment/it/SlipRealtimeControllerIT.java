@@ -19,6 +19,7 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.it.OpaqueUuidTestDecoder;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -145,7 +146,8 @@ class SlipRealtimeControllerIT extends AbstractPostgresIT {
         // SseEmitter 의 초기 connected event 가 응답 buffer 에 작성될 때까지 dispatch
         String responseBody = mvcResult.getResponse().getContentAsString();
         assertThat(responseBody).contains("event:connected");
-        assertThat(responseBody).contains("\"entityId\":\"" + slipId + "\"");
+        assertThat(responseBody).contains("\"entityId\":\""
+                + OpaqueUuidTestDecoder.decode(slipId) + "\"");
     }
 
     @Test

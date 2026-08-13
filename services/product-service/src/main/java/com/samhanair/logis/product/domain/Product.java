@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.discount.LegacyModelFlags;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -47,6 +48,11 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @SQLRestriction("is_deleted = false")
 public class Product extends BaseEntity {
+
+    /** 분류 정본이 선택하는 싱글 세트 정액DC 옵션. null 은 미분류/미지정이다. */
+    public enum DiscountOption {
+        THREE_SIXTY, FOUR_WAY, ONE_WAY, STAND, DELUXE, FIRST_GRADE
+    }
 
     /** 유효 정액DC율의 적용 출처. */
     public enum FixedDiscountSource {
@@ -146,6 +152,11 @@ public class Product extends BaseEntity {
     @JoinColumn(name = "cat_s_id")
     private Classification catS;
 
+    /** #1090 분류 정본 전환 결과. 모델코드와 discount_flags 로 런타임 판정하지 않는다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discount_option", length = 20)
+    private DiscountOption discountOption;
+
     /** DOMAIN-EXTENSIONS §1 — 룰 2 (D4 default / D7 미포함 / D8 포함) — 싱글 세트만. */
     @Enumerated(EnumType.STRING)
     @Column(name = "set_material_key", length = 2)
@@ -206,6 +217,10 @@ public class Product extends BaseEntity {
     /** 시트 F/G/H 납품가 (베이스 — 정적가). */
     @Column(name = "delivery_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal deliveryPrice = BigDecimal.ZERO;
+
+    /** #1143 세트 구성품 자동 배분 반올림 단위. 기존 계약 초기값은 1,000원. */
+    @Column(name = "allocation_round_unit", precision = 19, scale = 0, nullable = false)
+    private BigDecimal allocationRoundUnit = BigDecimal.valueOf(1000);
 
     /** 싱글 세트 B열 평형. */
     @Column(name = "pyong_size", precision = 5, scale = 2)
@@ -622,6 +637,24 @@ public class Product extends BaseEntity {
         this.catL = catL;
         this.catM = catM;
         this.catS = catS;
+    }
+
+    /** 분류 정본의 정액DC 옵션을 변경한다. null 은 개발책임자 확정 전 미지정이다. */
+    public void changeDiscountOption(DiscountOption discountOption) {
+        this.discountOption = discountOption;
+    }
+
+    /** 분류 저장 시 기존 모델 표식의 정액DC 근거만 분류 정본으로 승격한다. */
+    public void carryForwardLegacyDiscountOption() {
+        if (discountOption != null) return;
+        String source = modelCode == null || modelCode.isBlank() ? modelName : modelCode;
+        LegacyModelFlags flags = LegacyModelFlags.from(source);
+        if (flags.is360()) changeDiscountOption(DiscountOption.THREE_SIXTY);
+        else if (flags.is4Way()) changeDiscountOption(DiscountOption.FOUR_WAY);
+        else if (flags.is1Way()) changeDiscountOption(DiscountOption.ONE_WAY);
+        else if (flags.isStand()) changeDiscountOption(DiscountOption.STAND);
+        else if (flags.isDeluxe()) changeDiscountOption(DiscountOption.DELUXE);
+        else if (flags.isFirstGrade()) changeDiscountOption(DiscountOption.FIRST_GRADE);
     }
 
     /** 분류 수동 override 를 저장한다. null 은 해당 단계 미분류를 의미하며 이후 sync 에서 보존된다. */

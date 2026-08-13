@@ -1,0 +1,184 @@
+# #1090 금액 parity 호환 fix — CODEX LUNA
+
+> 작업일: 2026-08-13 KST  
+> 범위: 분류 정본 전환의 전환 전 금액 보존. 공유 DB write 없음.
+
+## 결론
+
+분류 정본은 유지하고, classificationAssigned=false인 전환 대기 품목에만 한시적으로 레거시 모델코드 옵션 판별을 fallback으로 유지했다. 품목에 L/M/S 중 하나라도 저장되면 product-service가 classificationAssigned=true를 보내며 fallback은 자동으로 걷힌다. 113건을 임의 분류하거나 discountOption을 채우지 않았다.
+
+## RED 원문 — 112개 단가 상승 전수 재현
+
+격리 sol1176-pg/product_db에서 읽은 분류 없는 레거시 규칙 대상 113건과 판매가를 고정했다. 거래처 설정은 실제 옵션 DC 보유 거래처 1068689215 / 주식회사 중앙유통의 360/4way/stand=70,000원, 1way=50,000원, deluxe/1등급=30,000원이다. 전환 전은 레거시 옵션 차감, 전환 후는 당시 구현의 classificationOptions=[] 계산이다. 테스트는 113건을 전수 비교했고 112건이 실패했다.
+
+실행 원문:
+
+    5 tests | 1 failed
+    분류 대기 113건의 전환 전후 금액을 전수 보존한다
+    expected [ Array(112) ] to deeply equal []
+
+전수 mismatch 원문(판매가 0원 1건은 delta 0):
+
+| 품목 | 종전 옵션 | 판매가 | 전환 전 | 전환 후 | 상승액 |
+|---|---:|---:|---:|---:|---:|
+Exit code: 0
+Wall time: 0.7 seconds
+Output:
+| AC023BN1DBC1 | ONE_WAY | 316800 | 266800 | 316800 | 50000 |
+| AC023BN1PBH1 | ONE_WAY | 328900 | 278900 | 328900 | 50000 |
+| AC023BX1DBC1 | ONE_WAY | 708400 | 658400 | 708400 | 50000 |
+| AC023BX1PBH1 | ONE_WAY | 708400 | 658400 | 708400 | 50000 |
+| AC032BN1DBC1 | ONE_WAY | 334400 | 284400 | 334400 | 50000 |
+| AC032BN1PBH1 | ONE_WAY | 345400 | 295400 | 345400 | 50000 |
+| AC032BX1DBC1 | ONE_WAY | 800800 | 750800 | 800800 | 50000 |
+| AC032BX1PBH1 | ONE_WAY | 847000 | 797000 | 847000 | 50000 |
+| AC040BN1PBH1 | ONE_WAY | 392700 | 342700 | 392700 | 50000 |
+| AC040BX1PBH1 | ONE_WAY | 1177000 | 1127000 | 1177000 | 50000 |
+| AC052BN1DBC1 | ONE_WAY | 470800 | 420800 | 470800 | 50000 |
+| AC052BN1PBH1 | ONE_WAY | 563200 | 513200 | 563200 | 50000 |
+| AC052BX1DBC1 | ONE_WAY | 1012000 | 962000 | 1012000 | 50000 |
+| AC052BX1PBH1 | ONE_WAY | 1349700 | 1299700 | 1349700 | 50000 |
+| AC060BN1DBC1 | ONE_WAY | 475200 | 425200 | 475200 | 50000 |
+| AC060BN1DBH1 | ONE_WAY | 526900 | 476900 | 526900 | 50000 |
+| AC060BN4DBC1 | FOUR_WAY | 544500 | 474500 | 544500 | 70000 |
+| AC060BN4FBH1PP | FIRST_GRADE | 784300 | 754300 | 784300 | 30000 |
+| AC060BN4FBH2 | FIRST_GRADE | 792000 | 762000 | 792000 | 30000 |
+| AC060BN6PBH1 | THREE_SIXTY | 720500 | 650500 | 720500 | 70000 |
+| AC060BX1DBH1 | ONE_WAY | 1304600 | 1254600 | 1304600 | 50000 |
+| AC060BXAFBH1PP | FIRST_GRADE | 1936000 | 1906000 | 1936000 | 30000 |
+| AC060BXAFBH2 | FIRST_GRADE | 1936000 | 1906000 | 1936000 | 30000 |
+| AC060CN4FBH1PP | FIRST_GRADE | 871200 | 841200 | 871200 | 30000 |
+| AC072BN1DBC1 | ONE_WAY | 500500 | 450500 | 500500 | 50000 |
+| AC072BN1DBH1 | ONE_WAY | 551100 | 501100 | 551100 | 50000 |
+| AC072BN4DBC1 | FOUR_WAY | 550000 | 480000 | 550000 | 70000 |
+| AC072BN4FBH1PP | FIRST_GRADE | 817300 | 787300 | 817300 | 30000 |
+| AC072BN4FBH2 | FIRST_GRADE | 825000 | 795000 | 825000 | 30000 |
+| AC072BN4PBH1 | FOUR_WAY | 545600 | 475600 | 545600 | 70000 |
+| AC072BN6PBH1 | THREE_SIXTY | 770000 | 700000 | 770000 | 70000 |
+| AC072BX1DBC1 | ONE_WAY | 1144000 | 1094000 | 1144000 | 50000 |
+| AC072BX1DBH1 | ONE_WAY | 1538900 | 1488900 | 1538900 | 50000 |
+| AC072BXAFBH1PP | FIRST_GRADE | 2277000 | 2247000 | 2277000 | 30000 |
+| AC072BXAFBH2 | FIRST_GRADE | 2277000 | 2247000 | 2277000 | 30000 |
+| AC072CN4FBH1PP | FIRST_GRADE | 907500 | 877500 | 907500 | 30000 |
+| AC083BN4DBC1 | FOUR_WAY | 580800 | 510800 | 580800 | 70000 |
+| AC090BN4DBH1 | FOUR_WAY | 542300 | 472300 | 542300 | 70000 |
+| AC090BN4FBH1PP | FIRST_GRADE | 843700 | 813700 | 843700 | 30000 |
+| AC090BN6PBH1 | THREE_SIXTY | 796400 | 726400 | 796400 | 70000 |
+| AC090BXAFBH1PP | FIRST_GRADE | 2846800 | 2816800 | 2846800 | 30000 |
+| AC090CN4FBH1PP | FIRST_GRADE | 937200 | 907200 | 937200 | 30000 |
+| AC100AX4FHH1PP | FIRST_GRADE | 2064700 | 2034700 | 2064700 | 30000 |
+| AC100BN4DBC1 | FOUR_WAY | 609400 | 539400 | 609400 | 70000 |
+| AC100BN4FBH1PP | FIRST_GRADE | 871200 | 841200 | 871200 | 30000 |
+| AC100BN4FBH2 | FIRST_GRADE | 880000 | 850000 | 880000 | 30000 |
+| AC100BN4PHH1 | FOUR_WAY | 649000 | 579000 | 649000 | 70000 |
+| AC100BN6PBH1 | THREE_SIXTY | 862400 | 792400 | 862400 | 70000 |
+| AC100BXAFBH1PP | FIRST_GRADE | 3058000 | 3028000 | 3058000 | 30000 |
+| AC100BXAFBH2 | FIRST_GRADE | 3058000 | 3028000 | 3058000 | 30000 |
+| AC100BXAFHH1PP | FIRST_GRADE | 3058000 | 3028000 | 3058000 | 30000 |
+| AC100BXAFHH2 | FIRST_GRADE | 3058000 | 3028000 | 3058000 | 30000 |
+| AC100CN4FBH1PP | FIRST_GRADE | 968000 | 938000 | 968000 | 30000 |
+| AC100CN4FHH1 | FIRST_GRADE | 968000 | 938000 | 968000 | 30000 |
+| AC100CN4FHH1PP | FIRST_GRADE | 968000 | 938000 | 968000 | 30000 |
+| AC100CN6PHH1 | THREE_SIXTY | 1073600 | 1003600 | 1073600 | 70000 |
+| AC110AN4FBH1PP | FIRST_GRADE | 635800 | 605800 | 635800 | 30000 |
+| AC110AX4FBH1PP | FIRST_GRADE | 2201100 | 2171100 | 2201100 | 30000 |
+| AC110AX4FHH1PP | FIRST_GRADE | 2201100 | 2171100 | 2201100 | 30000 |
+| AC110BN4DBC1 | FOUR_WAY | 627000 | 557000 | 627000 | 70000 |
+| AC110BN4DBH1 | FOUR_WAY | 620400 | 550400 | 620400 | 70000 |
+| AC110BN4FBH1PP | FIRST_GRADE | 926200 | 896200 | 926200 | 30000 |
+| AC110BN4FBH2 | FIRST_GRADE | 935000 | 905000 | 935000 | 30000 |
+| AC110BN4PBH1PP | FOUR_WAY | 0 | 0 | 0 | 0 |
+| AC110BN4PHH1 | FOUR_WAY | 715000 | 645000 | 715000 | 70000 |
+| AC110BN6PBH1 | THREE_SIXTY | 888800 | 818800 | 888800 | 70000 |
+| AC110BXAFBH1PP | FIRST_GRADE | 3289000 | 3259000 | 3289000 | 30000 |
+| AC110BXAFBH2 | FIRST_GRADE | 3289000 | 3259000 | 3289000 | 30000 |
+| AC110BXAFHH1PP | FIRST_GRADE | 3289000 | 3259000 | 3289000 | 30000 |
+| AC110BXAFHH2 | FIRST_GRADE | 3289000 | 3259000 | 3289000 | 30000 |
+| AC110CN4FBH1PP | FIRST_GRADE | 1028500 | 998500 | 1028500 | 30000 |
+| AC110CN4FHH1 | FIRST_GRADE | 1028500 | 998500 | 1028500 | 30000 |
+| AC110CN4FHH1PP | FIRST_GRADE | 1028500 | 998500 | 1028500 | 30000 |
+| AC110CN4PHH1 | FOUR_WAY | 770000 | 700000 | 770000 | 70000 |
+| AC110CN6PHH1 | THREE_SIXTY | 1144000 | 1074000 | 1144000 | 70000 |
+| AC130AX4FBH1PP | FIRST_GRADE | 2404600 | 2374600 | 2404600 | 30000 |
+| AC130BN4FBH1PP | FIRST_GRADE | 958100 | 928100 | 958100 | 30000 |
+| AC130BN4PHH1 | FOUR_WAY | 748000 | 678000 | 748000 | 70000 |
+| AC130BN6PBH1 | THREE_SIXTY | 977900 | 907900 | 977900 | 70000 |
+| AC130BXAFBH1PP | FIRST_GRADE | 3606900 | 3576900 | 3606900 | 30000 |
+| AC130BXAFHH1PP | FIRST_GRADE | 3606900 | 3576900 | 3606900 | 30000 |
+| AC130CN4FBH1PP | FIRST_GRADE | 1064800 | 1034800 | 1064800 | 30000 |
+| AC130CN4FHH1 | FIRST_GRADE | 1030700 | 1000700 | 1030700 | 30000 |
+| AC130CN4FHH1PP | FIRST_GRADE | 1064800 | 1034800 | 1064800 | 30000 |
+| AC130CN6PHH1 | THREE_SIXTY | 1200100 | 1130100 | 1200100 | 70000 |
+| AC145BN4DBC1 | FOUR_WAY | 673200 | 603200 | 673200 | 70000 |
+| AC145BN4DBH1 | FOUR_WAY | 726000 | 656000 | 726000 | 70000 |
+| AC145BN4FBH1PP | FIRST_GRADE | 1002100 | 972100 | 1002100 | 30000 |
+| AC145BN4PBH1 | FOUR_WAY | 704000 | 634000 | 704000 | 70000 |
+| AC145BN6PBH1 | THREE_SIXTY | 1027400 | 957400 | 1027400 | 70000 |
+| AC145BXAFHH1PP | FIRST_GRADE | 3925900 | 3895900 | 3925900 | 30000 |
+| AC145CN4FHH1PP | FIRST_GRADE | 1113200 | 1083200 | 1113200 | 30000 |
+| AC160BN4DBH1 | FOUR_WAY | 853600 | 783600 | 853600 | 70000 |
+| AP083ANPFBH1PP | FIRST_GRADE | 1029600 | 999600 | 1029600 | 30000 |
+| AP083AXPFBH1PP | FIRST_GRADE | 2200000 | 2170000 | 2200000 | 30000 |
+| AP083BNPDBC1 | STAND | 612700 | 542700 | 612700 | 70000 |
+| AP083CNPFBH6PP | FIRST_GRADE | 1254000 | 1224000 | 1254000 | 30000 |
+| AP110BNPDBC1 | STAND | 821700 | 751700 | 821700 | 70000 |
+| AP130RNPPHH1 | STAND | 1386000 | 1316000 | 1386000 | 70000 |
+| AP145BNPDHC1 | STAND | 952600 | 882600 | 952600 | 70000 |
+| AP145BXPDHC1 | STAND | 2280300 | 2210300 | 2280300 | 70000 |
+| AP230CNPDHH1 | STAND | 1944800 | 1874800 | 1944800 | 70000 |
+| AP230CNPDHH1PP | STAND | 1944800 | 1874800 | 1944800 | 70000 |
+| AP230CXPDHH1 | STAND | 4506700 | 4436700 | 4506700 | 70000 |
+| AP230CXPDHH1PP | STAND | 4506700 | 4436700 | 4506700 | 70000 |
+| AP230RNPDHH1 | STAND | 1767700 | 1697700 | 1767700 | 70000 |
+| AP230RXPDHH1 | STAND | 4506700 | 4436700 | 4506700 | 70000 |
+| AP290CNPDHH1 | STAND | 2108700 | 2038700 | 2108700 | 70000 |
+| AP290CNPDHH1PP | STAND | 2108700 | 2038700 | 2108700 | 70000 |
+| AP290CXPDHH1 | STAND | 5177700 | 5107700 | 5177700 | 70000 |
+| AP290CXPDHH1PP | STAND | 5177700 | 5107700 | 5177700 | 70000 |
+| AP290RNPDHH1 | STAND | 1916200 | 1846200 | 1916200 | 70000 |
+
+
+집계: 113건 = FIRST_GRADE 48, FOUR_WAY 17, ONE_WAY 21, STAND 17, THREE_SIXTY 10. 상승 112건, 0원 예외 1건, 상승폭 +30,000~+70,000원.
+
+## 호환 규칙과 걷히는 조건
+
+- clients/desktop/src/renderer/utils/slipDiscount.ts: classificationAssigned === false일 때에만 기존 LegacyModelFlags와 동일한 순서/AP230·AP290 override로 옵션을 산출한다. true이면 classificationOptions만 사용한다.
+- services/partner-order-service: 동일하게 classificationAssigned=false일 때만 공통 LegacyModelFlags를 optionFlags 입력으로 사용한다.
+- product-service 응답은 cat_l_id/cat_m_id/cat_s_id 중 하나라도 존재하면 classificationAssigned=true를 보낸다. 분류 저장은 기존 discountOption 정본 이관 정책과 독립적이다.
+- 113건에 분류가 저장되면 다음 조회에서 true가 되어 fallback이 자동 비활성화된다. 따라서 호환 규칙은 전환 완료 시 제거 가능한 한시 경계이며, 정본은 끝까지 분류 하나다.
+
+## GREEN 원문 — 전수 일치
+
+동일 113건 fixture와 동일 거래처 DC 설정으로 재실행했다.
+
+    6 tests | 6 passed
+    mismatches = []
+    113/113 전후 단가 일치
+    112건 기존 +30,000~+70,000원 상승 해소
+    0원 품목 AC110BN4PBH1PP: 0 -> 0
+
+관련 검증:
+
+- Desktop focused Vitest: classification-canon 6/6, 기존 slipDiscount 25/25, bundle-parent 3/3.
+- 분류가 있는 명시 테스트: classificationAssigned=true + 레거시 모델코드가 있어도 fallback 미발화.
+- 분류 없는 113건 임의 채움: 0건. 기존 V42의 218건 이관·113건 NULL 정책은 변경하지 않음.
+- 세 집합 교집합 0, 판별 단일화, UUID 비공개 불변식: 기존 통과 상태 유지.
+
+## 실행 결과 / 못 한 것
+
+- 수행: product-service compileJava PASS, partner-order-service compileJava PASS, Desktop focused Vitest 34/34 PASS, Desktop npm run typecheck PASS(51 real-QA scope test 포함), partner-order Java focused 4/4 PASS, product CategoryRepositoryIT 2/2 PASS(Testcontainers fresh PostgreSQL 경로; Flyway V1→V42).
+- 변경 서비스 전체 테스트: product-service 전체 test는 병렬 실행 결과를 별도 성공 로그로 회수하지 못해 PASS로 주장하지 않는다. partner-order-service 전체 534건 중 1건이 실패했다. 실패는 기존 IT PartnerOrderConfirmServiceIT.confirm_applies_dc_final_price_from_price_calc의 AM360 테스트가 6-arg ProductSummary(modelCode=null, modelName=AM360...)에 대해 is360=true를 기대하는 기존 계약 불일치이며, 이번 수정 전에도 현재 브랜치의 정본 계산 경로가 discountOption만 사용하던 상태와 충돌한다. 해당 실패는 금액 parity 113건 테스트 실패가 아니다.
+- fresh PostgreSQL V1→V42는 CategoryRepositoryIT 2/2로 재실행 PASS했다. 공용 DB는 읽기만 사용했다.
+- 미수행: 실제 저장된 견적·주문 라인의 전후 byte 대조. 해당 113건은 기존 저장 라인 0건이어서 비교 행 자체가 없었다. 대신 새 계산 도달 경로의 113건 전수 단가를 고정했다.
+- 공유 DB는 읽기만 사용했고, PostgreSQL write는 격리 복제본 범위 밖에서 수행하지 않았다.
+
+## 원문 근거
+
+- docs/dev-reports/2026-08-13-1090-s1-review-sol.md
+- docs/dev-reports/2026-08-13-1090-s1-classification-canon-luna.md
+- docs/dev-reports/2026-08-13-1090-count-reconciliation-sol.md
+- clients/desktop/src/renderer/utils/slipDiscount.classification-canon.test.ts
+
+## 라운드 종료 점검
+
+삭제된 추적 파일 없음(git ls-files --deleted 확인). tools/.s24-build-only/build/deep/tracked-writer.mjs는 추적·존재 확인. Testcontainers가 생성한 임시 DB는 테스트 종료 시 정리되었고, 이번 라운드에서 별도 격리 컨테이너/임시 디렉터리를 만들지 않았다. 잔류 프로세스는 최종 점검에서 재확인한다.

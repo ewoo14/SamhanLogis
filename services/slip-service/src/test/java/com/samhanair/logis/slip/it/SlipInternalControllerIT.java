@@ -128,7 +128,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                 // F-3 의무: ApiResponse wrapper schema
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.slipId").value(slipId))
+                .andExpect(jsonPath("$.data.slipId").value(
+                        OpaqueUuidTestDecoder.decode(slipId).toString()))
                 .andExpect(jsonPath("$.data.slipNo").exists())
                 .andExpect(jsonPath("$.data.signatureSource").value("APP"))
                 .andExpect(jsonPath("$.data.signed").value(true))
@@ -141,7 +142,7 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
         assertThat(raw).contains("\"data\":");
 
         // audit log RECORD + source=APP 보존 검증
-        var audits = auditRepository.findAllBySlipIdOrderByCreatedAtDesc(UUID.fromString(slipId));
+        var audits = auditRepository.findAllBySlipIdOrderByCreatedAtDesc(OpaqueUuidTestDecoder.decode(slipId));
         assertThat(audits).isNotEmpty();
         assertThat(audits.get(0).getAction()).isEqualTo(SignatureAuditAction.RECORD);
         assertThat(audits.get(0).getSignatureSource()).isEqualTo(SignatureSource.APP);
@@ -162,7 +163,7 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.signed").value(false))
                 .andExpect(jsonPath("$.data.signatureSource").value("APP"));
 
-        var audits = auditRepository.findAllBySlipIdOrderByCreatedAtDesc(UUID.fromString(slipId));
+        var audits = auditRepository.findAllBySlipIdOrderByCreatedAtDesc(OpaqueUuidTestDecoder.decode(slipId));
         assertThat(audits).isNotEmpty();
         assertThat(audits.get(0).getAction()).isEqualTo(SignatureAuditAction.RECORD_DRIVER);
         assertThat(audits.get(0).getSignerName()).isEqualTo("INSUNG-001");
@@ -241,7 +242,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 // F-3 의무: ApiResponse wrapper schema
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.slipId").value(slipId))
+                .andExpect(jsonPath("$.data.slipId").value(
+                        OpaqueUuidTestDecoder.decode(slipId).toString()))
                 .andExpect(jsonPath("$.data.slipNo").exists())
                 .andExpect(jsonPath("$.data.status").value("INSPECTING"))
                 .andReturn();
@@ -262,7 +264,7 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
     void getSlipLineSnapshots_exposes_partnerId_for_single_and_list_shapes() throws Exception {
         UUID partnerId = UUID.randomUUID();
         String slipId = createInspectingSlipForPartner(partnerId);
-        UUID lineId = slipRepository.findById(UUID.fromString(slipId))
+        UUID lineId = slipRepository.findById(OpaqueUuidTestDecoder.decode(slipId))
                 .orElseThrow()
                 .getLines()
                 .get(0)
@@ -272,7 +274,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", INTERNAL_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").doesNotExist())
-                .andExpect(jsonPath("$[0].slipId").value(slipId))
+                .andExpect(jsonPath("$[0].slipId").value(
+                        OpaqueUuidTestDecoder.decode(slipId).toString()))
                 .andExpect(jsonPath("$[0].lineId").value(lineId.toString()))
                 .andExpect(jsonPath("$[0].partnerId").value(partnerId.toString()))
                 .andExpect(jsonPath("$[0].partnerCode").value("P-TEST-SNAPSHOT"))
@@ -283,7 +286,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", INTERNAL_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").doesNotExist())
-                .andExpect(jsonPath("$.slipId").value(slipId))
+                .andExpect(jsonPath("$.slipId").value(
+                        OpaqueUuidTestDecoder.decode(slipId).toString()))
                 .andExpect(jsonPath("$.lineId").value(lineId.toString()))
                 .andExpect(jsonPath("$.partnerId").value(partnerId.toString()))
                 .andExpect(jsonPath("$.partnerCode").value("P-TEST-SNAPSHOT"))
@@ -307,7 +311,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$[0].partnerId").value(partnerId.toString()))
                 .andExpect(jsonPath("$[0].partnerCode").value("P-TEST-SNAPSHOT"))
                 .andExpect(jsonPath("$[0].partnerName").value("거래처"))
-                .andExpect(jsonPath("$[0].slipId").value(slipId))
+                .andExpect(jsonPath("$[0].slipId").value(
+                        OpaqueUuidTestDecoder.decode(slipId).toString()))
                 .andExpect(jsonPath("$[0].lineId").exists())
                 .andReturn();
 
@@ -320,7 +325,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.partnerId").value(partnerId.toString()))
                 .andExpect(jsonPath("$.partnerCode").value("P-TEST-SNAPSHOT"))
                 .andExpect(jsonPath("$.partnerName").value("거래처"))
-                .andExpect(jsonPath("$.slipId").value(slipId))
+                .andExpect(jsonPath("$.slipId").value(
+                        OpaqueUuidTestDecoder.decode(slipId).toString()))
                 .andExpect(jsonPath("$.lineId").value(lineId));
     }
 
@@ -338,7 +344,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", INTERNAL_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.slipId").value(slipId))
+                .andExpect(jsonPath("$.data.slipId").value(
+                        OpaqueUuidTestDecoder.decode(slipId).toString()))
                 .andExpect(jsonPath("$.data.slipNo").exists())
                 .andExpect(jsonPath("$.data.status").value("INSPECTING"))
                 .andReturn();
@@ -391,7 +398,7 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
     @Test
     void findOutboundForDispatch_includesSourceWarehouseName() throws Exception {
         String slipId = createInspectingSlip();
-        UUID sourceWarehouseId = slipRepository.findById(UUID.fromString(slipId)).orElseThrow()
+        UUID sourceWarehouseId = slipRepository.findById(OpaqueUuidTestDecoder.decode(slipId)).orElseThrow()
                 .getSourceWarehouseId();
         Mockito.when(warehouseInternalClient.findWarehouseName(sourceWarehouseId))
                 .thenReturn(java.util.Optional.of("상일창고"));

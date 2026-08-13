@@ -1,4 +1,4 @@
-# 현재 작업 — 2026-08-11 집PC 세션 (진행 중 · 자율 운행)
+# 현재 작업 — 2026-08-13 집PC 세션 종료 (회사PC 에서 이어받음)
 
 > 이 파일만 읽으면 이어받을 수 있습니다.
 
@@ -11,6 +11,7 @@
    🚨 있는 것만 읽지 말고 **없는 것을 세십시오**
 2  git pull && .\scripts\sync-claude-memory.ps1
 3  수치는 그 PC 에서 다시 세십시오 (양 PC 시드 상이)
+4  열린 PR 7건의 CI 를 exact SHA 로 다시 확인하십시오
 ```
 
 ### 🔴 배포·복구 시 `--no-deps` 를 빠뜨리지 마십시오
@@ -19,313 +20,399 @@
 
 ```bash
 docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml \
-  -f infrastructure/docker-compose.local-portfix.yml up -d --build --no-deps <svc>
+  up -d --build --no-deps <svc>
 ```
 
-### 🔴 배포본이 main 보다 낡으면 서비스가 죽습니다 — 이번 세션에 **두 번**
+🚩 **`-f docker-compose.local-portfix.yml` 은 집PC 전용이라 커밋되지 않습니다.**
+파일 머리에 *"🚫 커밋 대상 아님 — 이 PC 한정"* 이라고 적혀 있습니다.
+집PC 에서 `influxd` 가 `127.0.0.1:8086` 을 점유해 `slip-service` 호스트 포트 공개가 실패하는
+문제를 피하려고 `8186` 으로 돌린 것입니다(2026-08-11 실측).
+**회사PC 에서는 이 인자를 빼고 돌리십시오.** 같은 충돌이 나면 그 PC 에서 다시 만드십시오.
 
-```text
-세션 시작   product-service·partner-service 가 5시간 Exited(255)
-            No enum constant ProductStatus.NOT_FOR_SALE — 배포본이 #1133 이전
-중반        arologis-service 가 **재시작 770회** · 9시간 crash-loop
-            Flyway 체크섬 불일치. DB 는 main 과 일치했고 **jar 이 낡은 것**이었다
-🔑 복구 스크립트가 "checksum mismatch (none)" 을 내 준 덕에 DB 를 잘못 고치지 않았다
-```
+### 🔴 배포본이 main 보다 낡으면 서비스가 죽고, **없는 결함처럼 보입니다**
 
-### 🔴 포트 8086 을 `influxd` 가 가져갔습니다
+`#1143` 라이브QA 가 `2,027~5,099ms` 를 쟀는데 그 값이 **예전 timeout 설정과 정확히 일치**했습니다.
+현재 commit 으로 신선 빌드하니 **`123ms`** 였습니다. **없는 결함을 고칠 뻔했습니다.**
 
-`infrastructure/docker-compose.local-portfix.yml` 로 우회(host 8186). 🚫 커밋 금지.
-
-### ✅ 해소 — `auth_db` 미적용 마이그레이션 (2026-08-12)
-
-`V98` 까지만 적용돼 있어 auth 축 라이브QA 가 낡은 스키마를 보고 있었습니다.
-개발책임자 결정으로 **auth-service 만 `--no-deps` 재배포** → `V99·V100·V101` 전부 적용 · healthy 확인.
-
-### 🚨 라이브QA 의 숨은 전제 — **로그인 자체가 write 다**
-
-이번 세션 최대 발견입니다.
-
-```text
-SOL 실측  라이브QA 가 read-only 계약을 위반했고, 원인은 로그인이
-          공유 DB 의 dev_master.last_login_at 을 갱신한 것
-
-🔑 그동안 **모든** 브리핑이 "공유 DB 는 조회만" 을 적으면서 로그인을 예외로 세지 않았다.
-   화면을 밟으려면 로그인해야 하고, 로그인은 write 다 ⟹ 계약이 처음부터 성립 불가였다
-```
-
-⟹ 브리핑 문구를 **"공유 스택으로 화면을 밟지 말 것 · 화면 QA 는 격리 DB/서비스로"** 로 바꿨습니다.
-이미 갱신된 값은 **되돌리지 않습니다**(되돌리는 것도 write).
-
-### 🚩 미해결 — 공유 DB QA 잔재 (개발책임자 승인 대기)
-
-```text
-partner_db  SOL1154R20-BULK-* 1,001건 + sol-pr1154-r1 49건
-slip_db     끊긴 참조 646 lines / 304 slips (QA·TEST 잔재 103종)
-```
-
-집계·화면 수치를 오염시킵니다. 개발책임자 결정 = **식별 먼저, 삭제는 승인 후 soft-delete**.
-아직 식별 트랙을 열지 않았습니다.
-
-### 🚩 워크트리 만들면 `.env.local` 을 복사하십시오
-
-```bash
-git worktree add -b <branch> .claude/worktrees/<w> origin/main
-cp infrastructure/.env.local .claude/worktrees/<w>/infrastructure/.env.local
-git -C .claude/worktrees/<w> check-ignore infrastructure/.env.local   # 무시 확인
-```
-
-`resolveQaCredential` 이 이 파일을 읽는데 **gitignore 대상이라 워크트리에 안 딸려옵니다.**
-이번 세션에 워크트리 5개 전부 없어서 **라이브QA 가 조용히 막혀** 있었습니다.
+⟹ 라이브QA 는 **띄운 스택이 현재 commit 의 빌드인지 먼저 확인**하고 원문을 남기십시오.
 
 ---
 
-## 1. 이번 세션 머지 **13건**
+## 1. 🚩 이 세션에서 가장 크게 걸린 것 — CI 인프라
 
-| PR | 머지 | 내용 |
+**`electron` postinstall 이 밤새 10회 넘게 실패했습니다.** 코드 문제가 아닙니다.
+
+```text
+npm error path clients/desktop/node_modules/electron
+npm error command sh -c node install.js
+npm error RequestError: socket hang up
+npm error HTTPError:  Response code 503 (Service Unavailable)
+```
+
+영향받는 체크 — `Frontend Desktop` · `Desktop Playwright` · `Harness Guard` · `Docs Guard`
+
+🔑 **판별법**: 실패 스텝이 `의존성 설치` / `npm ci` 이고 `node_modules/electron` 경로가 찍히면 인프라입니다.
+그 뒤 `silent-skip 가드` 가 `results.json 없음` 으로 연쇄 실패하는 것도 같은 원인입니다.
+
+⟹ **`gh run rerun <id> --failed`** 로 재실행. 코드를 고치지 마십시오.
+
+---
+
+## 2. 머지 완료 (이 세션)
+
+| PR | 내용 |
+|---|---|
+| **#1195** | main 공통 2건 — `/app/version` 404 · 알림 API UUID 노출. 라이브QA 결함 0 · CI green |
+| **#1187** | `#1111+#1143` 세트 구성품 — 드롭박스 2개(특징+형상) · 수량동기화 모달 + 부자재 칩. 라이브QA9 결함 0 · CI green. 이슈 `#1143`·`#1111` 종료 |
+
+워크트리·브랜치 정리 완료.
+
+### 정리 실행 결과
+
+```text
+잔여 프로세스   144개(node/codex/electron, ≈10GB) → 3개
+고아 워크트리   17개 삭제
+                🚩 w1191 · wmock 2개는 여전히 Device or resource busy
+                   (다음 세션 시작 시 rm -rf 재시도)
+```
+
+---
+
+## 3. 열린 PR 7건 — 상태와 다음 한 걸음
+
+### 🟢 #1187 `#1111+#1143` 세트 구성품 — **머지 직전**
+
+```text
+게이트 ①  실 사용자 경로 재현 가능한 결함 0   ✅  (아래 정정으로 충족)
+게이트 ②  CI green (exact SHA 44b1840cb)      ⏳  Desktop Playwright 진행 중
+게이트 ③  라이브QA 실서버 실제 실행            ✅  라이브QA9
+```
+
+🔑 **라이브QA9 가 올린 결함 1건은 PM 이 요구값을 잘못 잡은 것**이었습니다. 개발책임자 정정:
+
+> *"1187은 짧게 특징 값을 하기로 했잖아. 그러면 요구값을 변경해줘야지."*
+
+```text
+기본 · 유선 · 컬러                    ← ✅ 정본 (짧은 값). 현재 구현이 맞음
+기본 · 유선리모컨 · 컬러유선리모컨       ← ❌ PM 이 잘못 넣은 요구값
+```
+
+⚠️ **데이터 정본은 그대로입니다** — 리모컨 모델코드는 `AWR-` 로 시작하고 `MWR-` 는 실 DB **0건**,
+실 변형 분포는 `기본(188) · 유선리모컨(62) · 컬러유선리모컨(65)` 입니다.
+이번 정정은 **드롭박스 라벨을 짧게 쓴다**는 것이지 데이터 정본을 바꾸는 것이 아닙니다.
+
+**다음 한 걸음** — Playwright green 확인 후 **머지**.
+
+---
+
+### 🟢 #1181 `#910+#935` 클라이언트 자동 업데이트 — **인프라 재실행만 남음**
+
+```text
+Applied Flyway Migration Guard   ✅ 통과 (b86cb28da)
+arologis CI · QA E2E · CI        ✅
+Harness Guard · Docs Guard       ⏳ electron 503 재실행 중
+```
+
+이 세션에서 고친 것 — **`origin/main` 에 이미 있는 `V7__app_release_client_identity.sql` 을 수정**하고 있었습니다.
+체크섬 불일치로 기존 DB 가 기동 불가가 될 뻔했습니다.
+
+```text
+V7   origin/main 과 바이트 동일하게 원복
+V8   __add_internal_chat_desktop_client_type.sql 신설
+     DROP CONSTRAINT IF EXISTS → pg_constraint 확인 후 ADD
+     ⟹ V7 적용 DB · fresh DB 양쪽에서 같은 최종 상태
+번호 근거  이 브랜치 / origin/main / 머지 안 된 열린 PR 전체 → V8 충돌 0
+```
+
+🚩 직전에 보였던 `Vitest worker unexpected exit` 은 **재현되지 않았습니다** (`264 files / 2,281 tests / 2 skipped`). 고치지 않았습니다.
+
+**다음 한 걸음** — 두 가드 green 확인 후 **머지**. `#910` 배포처·코드서명·채널 분리는 **결정 대기**.
+
+---
+
+### 🔴 #1196 견적 화면 거래처 DC 미적용 — **CI 실패 (진짜 결함)**
+
+**개발책임자 결정: 소급 안 함.** 신규 견적부터만 DC 적용, 기존 견적 5건은 저장 금액 그대로.
+
+```text
+DC 거래처 신규 견적      316,800원 → 266,800원
+DC 없는 거래처           316,800원 유지
+기존 견적 5건            소급 계산·DB 쓰기 0
+```
+
+🔴 **그런데 CI 가 실패합니다.**
+
+```text
+src/renderer/utils/estimatePrice.test.ts:29
+  expect(...).toEqual({ unitPrice: 266800, appliedRate: 0 })
+  -   "unitPrice": 266800,
+  +   "unitPrice": 316800,
+```
+
+⚠️ 구현자는 *"관련 테스트 최종 165/165 통과"* 라고 보고했는데 **CI 와 어긋납니다.**
+필터된 부분집합만 돌린 것으로 보입니다. **증거 무결성 문제이므로 다음 라운드에서 정정해야 합니다.**
+
+### 라이브QA (화면 축) 결과 (`a655e8c46`) — 결함 2건
+
+금액은 **화면 축으로도** 정상입니다.
+
+```text
+DC 신규 견적       266,800원
+비DC 견적          316,800원
+기존 견적 5건      변경 없음      ← 소급 안 함 결정 준수
+변환된 전표        266,800원 · 이중 할인 없음
+collab API         400/403/404/500  0건
+```
+
+🔴 **결함 2건**
+
+```text
+① 견적 → 전표 변환 후 견적 상세에 전표로 가는 링크가 없다
+   사용자가 판매관리에서 전표를 다시 찾아야 함
+② 판매전표 상세 URL 과 관련 API 요청·응답에 UUID 노출
+   (화면 본문 UUID 는 0건)
+```
+
+🚩 **증거 무결성 정정** — 구현자 `165/165` → 실측 **`175/175`**
+
+🚩 **미해소 — 라이브QA 와 CI 가 어긋납니다**
+
+```text
+CI (81e61678e)   estimatePrice.test.ts:29  expect 266800 → 실제 316800   ❌
+라이브QA          관련 테스트 전량 175/175                                ✅
+```
+
+⚠️ **둘 중 하나가 다른 경로를 재고 있습니다.** 이 트랙은 애초에 *"API·DB 축 266,800 / 화면 축 316,800"* 으로 갈라져 시작된 건이라 **이 불일치 자체가 발견일 수 있습니다.**
+
+**다음 한 걸음** — CI·라이브QA 불일치 규명을 **첫 질문**으로 → 결함 2건 fix (RED-first) → 재검증.
+
+---
+
+### 🔴 #1189 `#1142` 검수완료 전표 되돌림 — **CI 실패 3건 (재확인 필요)**
+
+`origin/main`(`#999` opaque token) 머지 완료. **UUID 결함은 그 머지로 자연 해소**됐습니다.
+
+```text
+충돌 2건 — 서로 다른 기능이라 양측 보존
+  slip.ts                  getSlipRevertability(읽기 전용)
+                         + main 의 getSlipByNumber·getOutboundSlipBySlipNo
+  StockInstanceRepository  전표번호 count(판정용) + main 의 serialKey 조회
+  SlipController           main 의 String id + OpaqueUuidDeserializer.decode
+                         + S1 판정 endpoint — 충돌 표식 0
+```
+
+### ✅ 적대검증 결과 (`feb147c28`) — 핵심 불변식은 통과
+
+```text
+판정 전후 전표·재고·배차 스냅샷 해시   완전 일치   ← 🔑 "아무것도 되돌리지 않는다"
+13건 판정                              13/13 일치
+목록·검색·신규/구형 상세               정상
+상세 URL·화면·전표 상세 응답 UUID      0
+collab 400/403/404/500                 0건
+머지 충돌 2건                          양쪽 기능 보존 확인
+```
+
+### 🔴 결함 3건 — UUID 노출
+
+```text
+① /inventory/warehouses                 id UUID 4개
+② collab/presence · presence/join       sessionId UUID
+③ 완료 전표 목록 응답                    레거시 salesPersonName 에서 UUID 1개
+```
+
+🚩 ②는 오늘 세 트랙에서 반복해서 샌 `collab/*` 계열입니다.
+🚩 ③은 **레거시 필드**라 새 계약이 안 덮은 구멍 — **기존 행**에서 나왔습니다.
+🔑 fix 는 `OpaqueUuidSerializer` 경로를 옮기십시오. 새 방식 발명 금지.
+
+### 🚩 증거 무결성 — 구현자 실측이 재현되지 않았습니다
+
+| | 구현자 보고 | 실측 |
 |---|---|---|
-| `#1126` | `2c62202c6` | 수량동기화 칩 |
-| `#1134` | `97da5590` | 버전이력 모달 |
-| `#1132` | `6b801a553` | 세트 전개 기본구성품 + 정액DC 분류축 |
-| `#1167` | `a16eb48b6` | 입출고 예측 '—' 표시 |
-| `#1164` | `62898108f` | UUID 잔여 노출 1차 |
-| `#1165` | `9b804493c` | 영업수수료 정산 도메인 S1·S2 |
-| `#1131` | `4eda57a6b` | 판매전표 계보·instanceKey (V119) |
-| `#1168` | `da09abcec` | 정산 S3 — 그룹웨어 참조 첨부 + 역방향 조회 |
-| `#1171` | `72cab52e` | 끊긴 참조 하나가 재고 잔고 전체를 막던 것 |
-| `#1169` | `b1f3a08e` | D-G7 정산서 확정 취소 |
-| `#1166` | `6a219fa8` | 제품구분 정비 + 주문 40% 규칙 |
-| `#1170` | `f73be267` | 정산 S4a — REST API + 회계 탭 + 권한 |
-| `#1173` | `df800f3a` | logging-service 로컬 opt-in 기동 |
+| 목록 응답 UUID 노출 | `0건` | **③ 재현됨** |
 
+### 🔴 CI 실패 (`b345ff4c9` 기준, 미해소)
+
+```text
+Frontend Desktop      vitest 1 failed / 2286 passed — codef-scope-conflict (:245)
+빌드 + 테스트          :services:slip-service:test 실패
+Desktop Playwright    electron 503 (인프라)
+```
+
+⚠️ 머지 커밋 라운드에서 구현자가 **slip-service 전량을 못 돌렸고**(timeout) **desktop typecheck 도 못 했습니다**. CI 가 정확히 그 미검증 구간에서 터졌습니다. **미실행은 검증 안 된 것입니다.**
+
+**다음 한 걸음** — UUID 3건 fix (RED-first, 응답 본문·URL 양쪽 훑는 테스트) → CI 2건이 이 브랜치 회귀인지 main 공통인지 규명.
+🚨 `#1142` 되돌림 **권한·범위·연결 처리·이력**은 **결정 대기** — S1 을 넘어가지 마십시오.
 
 ---
 
-## 2. 열린 트랙
+### 🟡 #1197 견적서 관리 2페이지 분리 — **구현 완료 · 회귀 2건 fix 필요**
 
-| PR | HEAD | 상태 |
+**개발책임자 신규 결정 (오늘).** `#1092` 가 만든 하단 「통합 목록」 표를 없앱니다.
+
+> *"그냥 견적서 관리 메뉴에는 페이지를 2개로 나눠서 '종합견적서', '주문서' 이렇게 구분하여 각 웹에서 저장하는 견적서를 2페이지로만 나누도록 하자."*
+> *"견적서 관리 메뉴가 있으면 상관 없잖아."*
+
+```
+견적서 관리  (/sales/estimates)
+ ┌──────────┐┌───────┐
+ │ 종합견적서 ││ 주문서 │
+ ┴──────────┴┴───────┴────────────────
+ 출처      문서번호       거래처    금액
+ 데스크톱  2026/08/13-1   대영   3,168,000
+ 웹        Q-260812-004   한성   2,240,000
+```
+
+| 페이지 | 담는 것 |
+|---|---|
+| **종합견적서** | 데스크톱 작성 견적서(`estimate`) **+** 웹 종합견적서 저장분(`web-quote-snapshot`) |
+| **주문서** | 웹 주문서 저장분(`web-partner-order-draft`) |
+
+- 데스크톱 작성 견적서는 **'종합견적서' 페이지로 합칩니다** (개발책임자 확정).
+- 🚫 **`주문서 관리`(`/sales/partner-orders`) 는 건드리지 않습니다.**
+- 🔑 **통합 목록이 지금 웹 저장분을 볼 유일한 경로**입니다. 없애기만 하면 회귀입니다.
+
+### 판매 계열 내부 페이지 전수 sweep — **지울 것이 없었습니다**
+
+개발책임자 추가 지시: *"견적서 관리 페이지뿐 아니라 주문서나 관련 페이지 내부에 있는 페이지들도 모두 삭제."*
+
+```text
+전수 13개 항목 조사      비유일 삭제 대상  0건
+나머지는 전부 자기 메뉴 소관
+  (주문서 라인·전환표·협업 패널·DC 이력·승인 미리보기 등)
+⟹ 기능 삭제 0 · 죽은 링크·라우트 0
+```
+
+보고서: `docs/dev-reports/2026-08-13-1092-remove-embedded-pages-luna.md`
+
+### ✅ 유일 경로 2건 — 개발책임자 결정 완료
+
+| 항목 | 위치 | **결정** |
 |---|---|---|
-| `#1131` 판매전표 계보 | `485b49d05` | **CI 51 SUCCESS** · SOL R13 재검증 중 (R12 가 제품결함 3 수정) |
-| `#1165` 영업수수료 정산 | `06bb8bf6e` | S1 PASS · S2 에 **차단결함**(versioned 미작동) fix 중 |
-| `#1166` 제품구분 정비 | `b5e34da0c` | 백필+미분류 개명 · SOL 검증 중 → 그다음 40% 규칙 |
-| `#1162` 자격 노출 | `ae2609670` | ⏸️ 회사PC 이월 |
+| **A. 카테고리별 단가변동** | `EstimatePricingConfigPage.tsx:174–545` | 🔨 **제품 메뉴로 옮긴다** |
+| **B. 웹 저장분 상세** | `WebEstimateSourceDetailPage.tsx:13–55` | ✅ **그대로 둔다** |
+
+**A 는 아직 미착수입니다.** `products.price-schedule` 권한과 API 는 이미 있는데 **제품 메뉴에 라우트가 없어** `/sales/estimate-config` 안이 유일 경로였습니다.
+⟹ 제품 메뉴에 라우트를 먼저 만들고 옮기십시오. 🔑 **옮기기 전에 데이터 접근 공백이 생기지 않게** 하십시오.
+
+### 🔴 이 트랙 회귀 2건 — 다음 라운드 첫 작업
+
+```text
+pretest 실패    estimateSourceSeparatedListModel.ts:94:14
+                requesterName raw actor display read
+mock.test.ts    새 테스트의 '데스크톱-견적-1' · 'Q-2026-001' 이
+                문서번호 계약을 위반
+```
+
+🚩 나머지 Vitest 미통과 3건은 환경입니다 (`jest-dom` import 해석 실패 · `out/main` 미생성).
+🚩 `npm run typecheck` 은 design-system `dist` 부재로 중단됐습니다.
+
+**다음 한 걸음** — 회귀 2건 fix → A(단가변동 이동) 구현 → 적대검증 + 라이브QA.
+🔑 라이브QA 에 **종합견적서 스냅샷 분기계산 왕복**을 반드시 넣으십시오 (§7 참조).
 
 ---
 
-## 3. GAS 전수조사 — **종결. 결론은 유실 0**
+### ⏸️ #1188 `#922+#1098` 바로빌·알리고 — **외부 자격 확보 전 진행 불가**
+
+### 🟡 #1180 `#901` 클로드 대화 — **결정 대기** (권한 범위 · 되돌릴 수 없는 작업 포함 여부)
+
+### 🔴 #1162 IT 임시 자격 전환 — **방치됨 (2026-08-10 이후 갱신 없음)**
 
 ```text
-분모 이력   889 → 3,200 → (Critic 반증) 최소 3,595
-   🚩 두 번 연속 틀렸다. v1 은 **포팅본을 조사하고 원본 GAS 를 안 봤다**
-최종        원본 전용 업무규칙 257개
-            유실 0 / 대체 132 / 불필요 116 / D-G1 귀속 8 / 보류 1
-🔑 금액에 닿는 유실 8건이 **전부 영업수수료 정산(D-G1)의 구성 함수**였다
-   ⟹ 조사의 값은 "무엇을 더 만들까" 가 아니라 **"더 없다는 것을 확정한 것"**
+JUnit 테스트 결과 (accounting+partner)   FAILURE
+빌드 + 테스트 (accounting+partner)       FAILURE
+GitGuardian Security Checks              FAILURE
 ```
 
-산출물: `2026-08-11-gasv2-CRITIC.md` · `-gasv3-remainder.md` · `-gasv4-lost-rules.md` · `-gasv4-CRITIC.md`
+통합테스트가 **실제 개발 스택 자격을 소스에 박고 있던 것**을 고치는 보안 트랙입니다.
+워크트리를 만들었다가 세션 종료로 되돌렸습니다(`.claude/worktrees/w1162` 디렉터리가 프로세스에 잡혀 남아 있을 수 있음 — `git worktree prune` 후 수동 삭제).
 
 ---
 
-## 4. 개발책임자 결정 — `docs/dev-reports/2026-08-11-gas-sweep-devlead-decisions.md` 가 정본
+## 4. 🔴 개발책임자 결정 — 확정된 것과 남은 것
 
-```text
-D-G1  영업수수료 정산 도메인 신설 (accounting-service · 회계 탭 신설 메뉴)
-      문서번호 YYYY/MM/DD-N · DRAFT 무번호 · CONFIRMED 시 채번
-      ApprovalReferenceDocType 7번째 값 → 지출결의서 참조 첨부
-      정산 화면에 그룹웨어 연결 버튼 (저장소 최초 사례)
-      🆕 연결된 그룹웨어 문서 확인·상태조회 · 문서번호 클릭 상세(#1094 규약)
-D-G2  🚫 **철회** — "견적앱은 원래 자율 입력" · PM 이 틀린 전제로 선택지를 만들었다
-D-G3  원장 특례 9199/9549/1089 — 영향액 산출 후 (집PC 0건 = 판정 불가)
-D-G4  거래처 4자리 비밀번호 — 한시 허용 후 강제 재설정
-D-G5  ✅ 입출고 예측 전년 자료 없으면 '—' (#1167 머지)
-D-G6  정산 권한 — 전용 pageCode · 기본 회계담당자 이상 · 권한관리에서 개별 관리
-D-G7  정산서 확정 후 기준일 수정 금지
-      🚩 확정 취소 경로도 기준일 수정 API 도 **없다** — 영구 잠금이 되므로 재상정 필요
-D-G8  제품구분 정비 — 품목명 자동분류 + 미분류
-```
+### ✅ 이 세션에서 확정
 
-### 🚩 `#1166` 확정 사양 (40% 규칙)
+| 건 | 결정 |
+|---|---|
+| **통합 목록** | 없애고 견적서 관리를 '종합견적서'/'주문서' 2페이지로. 데스크톱 견적은 '종합견적서' 로 합침 |
+| **판매 계열 내부 페이지** | 전수 sweep 결과 **지울 것 0건** — 나머지는 다 자기 메뉴 소관 |
+| **카테고리별 단가변동** | 🔨 **제품 메뉴로 옮긴다** (아직 미착수 · PR #1197 후속) |
+| **웹 저장분 상세** | ✅ **그대로 둔다** — 각 저장분이 자기 탭 + 출처 칼럼으로 보임 |
+| **#1196 DC 소급** | **소급 안 함.** 신규 견적부터만. 기존 5건은 저장 금액 그대로 |
+| **#1140 구형 37품목 baseline** | **B — 현재 단일가를 baseline 에 복제.** 출고가·납품가 차이 0원(37/37), 토글 전환 no-op. UI 만 생기고 금액은 안 바뀜 |
+| **#1187 리모컨 특징 라벨** | **짧은 값(`기본`·`유선`·`컬러`)이 정본.** 현재 구현이 맞음 |
 
-```text
-대상   주문 경로만
-규칙   (실외기 없음 AND 실내기 없음) AND 변동DC 대상 품목 → 40%
-🚫 견적은 대상 아님 — "종합견적서는 대부분 사용자가 커스텀"
-   판정 기준·상한·페널티 아무것도 넣지 않는다
-```
+### ⏳ 남은 결정 4건
+
+| 건 | 무엇이 막히나 |
+|---|---|
+| **#1072 미정 계정과목 9건** (`103`·`104`·`105`·`201`·`919` · `142`·`210`·`220`·`255`·`900`) | 🔑 **`#1144` 의 선행 결정.** 이게 없으면 분개·원장·세금계산서·출금 쓰기 구현을 시작할 수 없습니다 |
+| **#901 클로드 대화** | 권한 범위 · 되돌릴 수 없는 작업 포함 여부 |
+| **#1142 되돌림** | 권한 · 범위 · 연결 처리 · 이력 — S1(판정)에서 더 못 나감 |
+| **#910 배포** | 배포처 · 코드서명 · 채널 분리 |
 
 ---
 
-## 5. 🚨 이 세션에서 굳힌 것
+## 5. `#1144` 회계전표(매출·매입) 정찰 결과 — **구현 전 반드시 읽을 것**
+
+산출물: `docs/dev-reports/2026-08-13-1144-recon-sol.md` (브랜치 `feat/1144-accounting-slip-link`, PR 미개설)
 
 ```text
-🚨 조사·제안 전 3축 대조 — ①코드 ②이슈(CLOSED 포함) ③기존결정
-   유실 22 → 9 → 0 으로 줄었다. "이름이 다르다" 를 "기능이 없다" 로 읽지 마라
-🚨 모델 순서 — LUNA 먼저 → 안 되면 TERRA. **SOL 은 구현 폴백 금지**
-   (그 PR 을 리뷰한 모델에게 구현을 맡기면 검증이 사라진다)
-🚨 슬롯이 비면 즉시 채운다 — 결과 회수 → 발주 → 그다음 커밋·게시
-🚨 라운드마다 커밋 — #1131 이 R4~R9 다섯 라운드 미커밋으로 쌓였다
-🚨 SOL 판정을 릴레이하지 않는다 — #1164 는 SOL 이 머지 차단을 냈으나
-   PM 이 실 DB 를 세어(발화 0건) 게이트에서 뺐다
-🚨 좁힌 범위의 "실패 0" 을 전체의 0 으로 세지 마라
-   #1131 이 99건 돌려 0 을 냈는데 CI 는 719건 중 3건 실패였다
-🚨 codex 브리핑에 감사·우회·보안 어휘를 쓰면 콘텐츠 필터에 걸린다
-🚨 병렬 라운드 워크트리에서 git add -A 금지 — SOL 의 임시 파일을 삼켰다
-```
+✅ 이미 있는 것   매출·매입 회계전표 엔티티 · 테이블 · API · 화면 · N:M 연결 구조
+                  ⟹ "새로 만들자" 로 시작하면 그 자체가 결함입니다
 
-### 🚩 PM 이 이번 세션에 낸 오류 (전부 구현자가 멈춰서 막혔다)
+실 데이터        생성 가능한 실 전표  매출 2건(5라인) · 매입 0건
+                  활성 회계전표 0건
+🚩 삭제된 매출전표 아래 활성 allocation 1건이 남아 있음
+🚩 매입 CONFIRMED 1건은 UUID 만 있고 거래처 코드가 비어 있음
+   → 조인 키로 쓰는 코드 컬럼이 빈 채 UUID 만 채워진 기존 함정과 같은 형태
 
-```text
-· D-G2 를 "49% vs 48% clamp 통일" 로 올렸다 → 견적엔 clamp 가 없었다
-· D-G5 설계를 두 번 틀렸다 → 실적 0 인 품목까지 '산출 불가' 가 될 뻔했다
-· 제품구분 축을 두 번 잘못 짚었다 → 없는 걸 만들자고 할 뻔했다
-· "순증 94건" → 실제 41건 (보수 규칙과 겹침)
-· "이름에 실외기가 있으면 무조건 실외기" → 실외기 일자발은 받침대다
-⟹ 브리핑의 **"제 전제가 틀렸다면 고치지 말고 중단·보고"** 가 다섯 번 작동했다.
-   이 문장을 빼지 마십시오
-```
-
----
-
-## 6. `#1162` — 회사PC 로 이월
-
-```text
-✅ jar BOOT-INF 평문 0건 · 소스 잔존 28건은 전부 docs/·.claude/memory/
-🔴 컨테이너 제거 + postgres_data 볼륨 유지 시 부트스트랩이 새 랜덤 자격을 만들어 전 서비스 인증 실패
-   좌표 scripts/ensure-local-env.sh:86 · infrastructure/scripts/ensure-local-env.ps1:51
-🔑 전달한 infrastructure/.env 를 회사PC 에 넣으면 이 상황 자체가 안 생김
+🔴 #1072 미정 9건(실제 코드 10개)이 #1144 의 선행 결정
 ```
 
 ---
 
-## 7. 기록만 해 둔 것 (트랙 아님)
+## 6. 미해결 정리 항목
 
 ```text
-· 2026-08-03 이카운트 적재 1,963건 중 **660건이 0원** — 적재가 가격을 못 가져온 것인지 별건
-· product_code NULL 388건 (전부 SHEET 계보 · 실제 도달 2제품·DRAFT 23건)
-· 메인장비 판정이 견적앱·주문앱에서 정반대 (실거래 표본 0 — 판정 불가)
+공유 DB QA 잔재 1건   slip_db.estimates  '2026/08/08-2' = 'S26 ??? ???'
+잔여 QA DB 3개        slip_db_qa_e2estimate
+                      sol951_2ra_20260727_1420utc
+                      sol951_r2_6897d36597
+고아 워크트리 디렉터리   프로세스가 cwd 로 잡고 있어 `Device or resource busy`
+                      (w1162 포함 — prune 후 수동 삭제)
+#999 후속             QR 스캔 입출고 + 재고이동이 수불 이력에 안 남는 문제 (이슈 열려 있음)
+#894 S3~S7            자동 로그인 · 부재중 · 알림 · 파일전송 · 이모티콘
 ```
 
 ---
 
-## 2026-08-11 Codex Update — D-G7 TOCTOU fix2
+## 7. 🚩 이 세션에서 확인한 것 — 종합견적서 스냅샷 복원
+
+개발책임자 질문: *"종합견적서 스냅샷을 다시 그대로 레거시처럼 웹에서 복원도 가능한거 맞지? 분기계산 페이지 포함해서 말야."*
+
+**소스 실측 결과 — 예, 분기계산 포함해 복원됩니다.**
 
 ```text
-✅ TF-1 renew token JPA 영속화
-✅ TF-2 claim owner 단일화 + approval/documentNo exact release
-✅ TF-3 결재 생성 요청에 references 포함, 정산 참조 실패 시 전체 rollback (정책 A)
-✅ accounting 격리 PostgreSQL/Flyway IT 및 groupware 원자성 IT 통과
-✅ accounting 전체 1,891 testcase / groupware 전체 254 testcase, failure/error 0
-⚠️ 라이브 QA는 in-app Browser 원문 "No browser is available"로 BLOCKED
-📄 docs/dev-reports/2026-08-11-dg7-toctou-fix2.md
-📁 docs/qa/2026-08-11-dg7-fix2/README.md
+저장  clients/web/estimate-app/views/index.ejs
+  :16998  snapshotBranchState() 로 분기상태를 뜬다
+  :17007  brData = JSON.parse(JSON.stringify(window.GLOBAL_BRANCH_STATE))
+  :17165  branch: brData          ← 스냅샷 최상위 키
+
+복원  applySnapshot()  (:17171)
+  :17586  if (shot.branch) {
+  :17587    window.GLOBAL_BRANCH_STATE = shot.branch
+  :17591    buildBranchView()          ← 분기 화면 다시 그림
+  :17593    applyBranchState(shot.branch)
+  :17599    out-slot 입력값 개별 복원
+  :17606    recomputeBranchCodes()     ← 분기관 코드 재계산
+
+저장소  QuoteSnapshot.snapshotState 가 jsonb 한 칸 (domain/QuoteSnapshot.java:51)
+        웹 목록의 '복원' 버튼(:18210) → restoreSnapshot() → decodeSnapshotState() → applySnapshot()
 ```
 
-## 2026-08-11 Codex Update — D-G7 TOCTOU fix3
+🚩 **다만 확인한 것은 소스 코드이지 실제 실행이 아닙니다.**
+`slip-service` 스냅샷 IT 전체에서 `branch` 를 언급하는 곳이 **1건뿐**이라,
+**분기 상태 왕복(저장→복원)을 실제로 단언하는 테스트가 사실상 없습니다.**
 
-```text
-✅ TF-4 원자 생성 transaction timeout 120초 전파
-✅ accounting claim connect/read timeout과 monotonic deadline 공유
-✅ 원자 생성 참조 상한 7건 — 7 × reserve/activate 2회 × 7초 = 98초 + 22초 여유
-✅ timeout/상한 사용자 메시지와 즉시 claim release 보상 처리
-✅ RED-A 격리 Testcontainers PostgreSQL + Flyway 2/2 PASS
-✅ groupware 전체 257 tests, failure/error/skipped 0
-✅ Desktop 단위 9 / 통합 5 / typecheck PASS
-✅ 실제 격리 서비스 왕복: 1건 settlement 201, 7건 201, 8건 400
-✅ Playwright Chromium-1217 live QA 및 스크린샷 3장
-📄 docs/dev-reports/2026-08-11-dg7-toctou-fix3.md
-📁 docs/qa/2026-08-11-dg7-fix3/
-```
-
----
-
-## 🔚 2026-08-12 세션 종료 상태 (집PC · 자율 운행)
-
-### 머지 **14건** (이 세션)
-
-`#1126` `#1134` `#1132` `#1167` `#1164` `#1165` `#1131` `#1168` `#1171` `#1169` `#1166` `#1170` `#1173` `#1174`
-
-### 🔴 이월 PR — 셋 다 **기능은 끝났고 게이트만 남았습니다**
-
-| PR | 남은 것 | 다음 세션이 할 일 |
-|---|---|---|
-| `#1172` 전표 헤더 전잔/후잔 | 🚨 **GitGuardian 33건** (원인 미특정) | 대시보드에서 실체 확인 → 진짜면 rotate, dev placeholder 면 **값 단위** 등록. 🚫 ignored-paths 광역 금지 |
-| `#1175` 주문·견적 상세 DS | Desktop Playwright 1건 | 실패 스펙 이름부터 확인 · 라이브QA 는 **격리 DB/서비스**로 |
-| `#1162` 통합테스트 자격 | 회사PC 이월 (기존 결정) | — |
-
-```text
-#1172 기능 완료분
-  전잔 = R22 원장 판매 상태 (PartnerLedgerContract.CANONICAL_SALE_STATUSES **직접 사용**)
-  dedup = JournalSourceType.SLIP + journalNo == slipNo · MANUAL/역분개 보존
-  상쇄 = POSTED + REVERSED 함께 읽기
-  🚨 뮤테이션 둘 다 RED · accounting 1,910 / partner 339 전량 통과
-
-#1175 기능 완료분
-  sales.module.css 1,194 → 513줄 · 죽은 selector 44 → 0
-  주문·견적 상세가 Card + detail-grid (SlipDetailPage · TransferDetailPage 와 동일)
-  값 회귀 0 (SOL 재검토1) — 금액·수량·상태 11종·문서번호·날짜·인쇄
-```
-
-### ⏸️ 중단·파킹한 트랙 둘
-
-```text
-`#845` DS-4 반복 detail 밴드   2시간 무출력으로 중단. 워크트리 w845 · 산출물 없음
-mock fail-closed              측정 착수 단계에서 중단. 워크트리 wmock
-
-🔑 mock 이 남긴 좌표는 버리지 마십시오 (재측정 불필요):
-   client.ts:64-83  isMockMode() → getMockResponse(config)
-                    **null 이면 종료 분기가 없어** :85 이후 실제 Axios 로 나간다
-   fetch 경로       realtime/createCoeditProvider.ts:317 등 co-edit 계열
-   실측(SOL)        외부 trap 시 이탈 36건 — collab/stream OPTIONS 33 · 레거시 slip 2 · sync/last 1
-   개발책임자 승인   fail-closed 전환 (별도 트랙)
-```
-
-### 🚨 이 세션 후반의 운영 이슈 — **codex 응답 저하**
-
-```text
-7200초 타임아웃 4건  #1170 rebase · #1172 SOL3 · #1175 SOL2 · #1174 fix6
-2시간 무출력 1건     #845 DS-4
-공통점  전부 **라이브QA 를 포함한 다임무 라운드**
-
-✅ 대응이 통했다 — 브리핑을 좁히면 나온다
-   wmock 재발행(측정만·20분 제한) → 29분 만에 보고서 작성 시작
-   #1175 SOL2 재발행(확인 3가지·라이브QA 금지) → 완주
-
-🚨 브리핑에 넣을 문구 (효과 확인됨)
-   "측정이 끝날 때마다 보고서를 **이어 붙여라**. 마지막에 몰아 쓰지 마라"
-   "N분 넘기면 그때까지 결과로 보고하라. **완주보다 보고가 먼저**다"
-```
-
-### 🚨 라운드 종료 절차에 추가된 것
-
-```text
-git diff --name-status origin/main...HEAD | grep '^D'
-```
-
-타임아웃으로 죽은 라운드가 **워크트리를 더럽힌 채** 끝납니다.
-`tools/.s24-build-only/build/deep/tracked-writer.mjs` 가 **두 워크트리에서 각각** 지워져 있었습니다.
-
-### 개발책임자 결정 (2026-08-12)
-
-```text
-전잔 시점    회계일자 + **전표번호 순** · 번호 없는 분개·입금은 당일 맨 뒤
-전잔 정본    🚩 **R22 유지 — 전표 상태 기준**
-             (PM 이 "posted 분개" 로 받았다가, 기존 결정 대조에서 뒤집힘)
-2중계상 키   journalNo == slipNo exact (새 컬럼 없이 최소 변경)
-mock 누수    fail-closed 전환을 별도 트랙으로 승인
-감사 테이블  서비스별 + 중앙 **둘 다 유지** (#1161 S2~S4 착수 가능)
-DS 표준      2026-07-05 결정이 유효 · sales.module.css 의 "DS import 금지" 폐기
-             견적서 **동반 이행**
-배포         auth-service 재배포 (완료)
-QA 잔재      **식별 먼저, 삭제는 승인 후 soft-delete** (식별 트랙 미개설)
-```
-
-### 🚩 PM 이 이 세션에 낸 오류 — 전부 회수됨
-
-```text
-· 결정을 묻기 전 **기존 결정을 대조하지 않았다** (#1068 본문에 "#1061 이 확정" 이 있었다)
-  ⟹ 개발책임자 지시로 대조해 R22 로 되돌림. **이 세션에서 내가 만든 3축 대조 규칙을 내가 안 지켰다**
-· `#1158` 이 이미 `#845` 트랙 PR 인데 **별도 브랜치를 팠다** (중복 트랙)
-· RED-B 에 "변경 모듈 전량" 을 안 넣어 `#1174` 가 focused 143 으로만 검증 → CI 백엔드 3묶음 red
-· rebase + 전량검증 + 라이브QA 를 **한 라운드에 묶어** 7200초 타임아웃
-· CI 를 라운드마다 안 보고 머지 직전에 봐서 `#1168` 이 fix 라운드를 하나 더 씀
-```
+⟹ `fix/1092-split-unified-list` 트랙의 라이브QA 에 **분기계산 포함 왕복**을 넣으십시오.

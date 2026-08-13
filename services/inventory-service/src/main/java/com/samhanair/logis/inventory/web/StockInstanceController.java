@@ -12,6 +12,8 @@ import com.samhanair.logis.inventory.web.dto.ReserveBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ResellBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ShipBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.StockInstanceResponse;
+import com.samhanair.logis.inventory.web.dto.StockInstanceListResponse;
+import com.samhanair.logis.inventory.web.dto.UpdateStockInstanceQualityRequest;
 import com.samhanair.logis.inventory.web.dto.UnrecallBatchInstanceRequest;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
@@ -25,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -53,6 +56,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class StockInstanceController {
 
     private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_NAME_HEADER = "X-User-Name";
 
     private final StockInstanceService stockInstanceService;
 
@@ -291,6 +295,17 @@ public class StockInstanceController {
         return ApiResponse.ok(result, "역-FIFO 회수 후보 조회 완료");
     }
 
+    /** UUID를 노출하지 않고 사용자 노출용 시리얼키로 단건 조회한다. */
+    @Operation(summary = "시리얼키 인스턴스 조회", description = "노출용 시리얼키로 재고 인스턴스를 단건 조회.")
+    @GetMapping("/serial")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.VIEW)
+    public ApiResponse<StockInstanceResponse> bySerialKey(
+            @Parameter(description = "사용자 노출용 시리얼키", required = true)
+            @RequestParam String serialKey) {
+        return ApiResponse.ok(StockInstanceResponse.from(stockInstanceService.bySerialKey(serialKey)),
+                "시리얼키 인스턴스 조회 완료");
+    }
+
     /**
      * 품목별 인스턴스 조회 — productId + 상태 필터.
      *
@@ -309,5 +324,29 @@ public class StockInstanceController {
         List<StockInstanceResponse> result = stockInstanceService.byProduct(productId, status)
                 .stream().map(StockInstanceResponse::from).toList();
         return ApiResponse.ok(result, "품목별 인스턴스 조회 완료");
+    }
+
+    /** 품목리스트 모달 전용 안전 응답 — UUID 없이 품목코드로 범위를 고정한다. */
+    @Operation(summary = "품목리스트 조회", description = "품목코드에 속한 재고 인스턴스만 UUID 없이 반환.")
+    @GetMapping("/product-list")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.VIEW)
+    public ApiResponse<List<StockInstanceListResponse>> productList(@RequestParam String productCode) {
+        return ApiResponse.ok(stockInstanceService.listForProductCode(productCode), "품목리스트 조회 완료");
+    }
+
+    /** AVAILABLE/RESERVED만 품질 변경 가능. SHIPPED 차단은 서비스·도메인 양쪽에서 수행한다. */
+    @Operation(summary = "재고 품목 상태 변경", description = "serialKey 기준 품질 변경. SHIPPED는 409.")
+    @PatchMapping("/quality")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.UPDATE)
+    public ApiResponse<StockInstanceListResponse> updateQuality(
+            @RequestParam String serialKey,
+            @Valid @RequestBody UpdateStockInstanceQualityRequest request,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = USER_NAME_HEADER, required = false) String callerName) {
+        StockInstance instance = stockInstanceService.updateQuality(
+                serialKey, request.quality(), callerId, callerName);
+        return ApiResponse.ok(stockInstanceService.listForProductCode(instance.getProductCode()).stream()
+                .filter(row -> row.serialKey().equals(serialKey)).findFirst().orElseThrow(),
+                "품목 상태 변경 완료");
     }
 }

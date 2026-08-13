@@ -339,7 +339,9 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
         mockMvc.perform(get("/app/version")
                         .param("clientType", "MOBILE")
                         .param("currentVersion", "0.5.0"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.forceLevel").value("NONE"))
+                .andExpect(jsonPath("$.data.latestVersion").value("0.5.0"));
     }
 
     @Test
@@ -384,7 +386,9 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
         mockMvc.perform(get("/app/version")
                         .param("clientType", "DESKTOP")
                         .param("currentVersion", "2026/07/25-10"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.forceLevel").value("NONE"))
+                .andExpect(jsonPath("$.data.latestVersion").value("2026/07/25-10"));
 
         mockMvc.perform(withActor(post("/app/releases/{id}/publish", id)))
                 .andExpect(status().isOk())

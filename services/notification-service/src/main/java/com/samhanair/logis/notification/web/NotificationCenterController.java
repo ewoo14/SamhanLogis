@@ -57,10 +57,25 @@ public class NotificationCenterController {
     @RequirePermission(page = "notifications.center", action = PermissionAction.VIEW)
     @Operation(summary = "알림 확인 처리 (read_at 설정)")
     public ApiResponse<Void> acknowledge(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader("X-User-Id") UUID userId,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ROLE_HEADER, required = false) String role) {
-        service.acknowledge(id, userId, role);
+        service.acknowledge(decodeNotificationId(id), userId, role);
         return ApiResponse.ok(null);
+    }
+
+    private UUID decodeNotificationId(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+            try {
+                byte[] bytes = java.util.Base64.getUrlDecoder().decode(value);
+                if (bytes.length != 16) throw new IllegalArgumentException("invalid notification token");
+                java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(bytes);
+                return new UUID(buffer.getLong(), buffer.getLong());
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("invalid notification token", ex);
+            }
+        }
     }
 }

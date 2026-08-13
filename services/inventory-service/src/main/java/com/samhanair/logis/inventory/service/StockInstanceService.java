@@ -6,7 +6,13 @@ import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
+import com.samhanair.logis.inventory.domain.StockInstanceQuality;
 import com.samhanair.logis.inventory.domain.SourceOperationOutcome;
+import com.samhanair.logis.inventory.domain.Warehouse;
+import com.samhanair.logis.inventory.realtime.service.InventoryAuditLogRecorder;
+import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.inventory.web.dto.StockInstanceListResponse;
+import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import com.samhanair.logis.inventory.repository.StockInstanceRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -15,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -48,6 +55,8 @@ public class StockInstanceService {
     private final ProductClient productClient;
 
     private final SourceOperationJournalWriter sourceJournalWriter;
+    private final InventoryAuditLogRecorder auditLogRecorder;
+    private final WarehouseRepository warehouseRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -527,6 +536,51 @@ public class StockInstanceService {
                 ? repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
                         partnerCode, productCode, StockInstanceStatus.SHIPPED)
                 : byProductId;
+    }
+
+    /** UUID가 아닌 사용자 노출용 시리얼키로 활성 인스턴스를 조회한다. */
+    @Transactional(readOnly = true)
+    public StockInstance bySerialKey(String serialKey) {
+        return repo.findBySerialKey(serialKey)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "재고 인스턴스 시리얼키를 찾을 수 없습니다: " + serialKey));
+    }
+
+    /** 품목코드에 속한 인스턴스만 사용자 노출용 필드로 반환한다. */
+    @Transactional(readOnly = true)
+    public List<StockInstanceListResponse> listForProductCode(String productCode) {
+        return repo.findByProductCodeOrderByReceivedAtAsc(productCode).stream()
+                .map(instance -> {
+                    Optional<Warehouse> warehouse = warehouseRepository.findById(instance.getWarehouseId());
+                    return StockInstanceListResponse.from(instance,
+                            warehouse.map(Warehouse::getCode).orElse("알 수 없음"),
+                            warehouse.map(Warehouse::getName).orElse("알 수 없음"));
+                })
+                .toList();
+    }
+
+    /** 출고 전 품질 변경과 감사 이력 기록. 조회·변경 키 모두 serialKey만 사용한다. */
+    @Transactional
+    public StockInstance updateQuality(String serialKey, StockInstanceQuality newQuality,
+                                       String callerId, String callerName) {
+        StockInstance instance = repo.findBySerialKey(serialKey)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "재고 인스턴스 시리얼키를 찾을 수 없습니다: " + serialKey));
+        String oldQuality = instance.getQuality().name();
+        instance.changeQuality(newQuality);
+        StockInstance saved = repo.save(instance);
+        auditLogRecorder.recordBatch(saved.getId(), parseActorId(callerId), callerName, null,
+                List.of(new ChangeEntry("quality", oldQuality, newQuality.name())));
+        return saved;
+    }
+
+    private UUID parseActorId(String callerId) {
+        if (callerId == null || callerId.isBlank()) return null;
+        try {
+            return UUID.fromString(callerId);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     /**

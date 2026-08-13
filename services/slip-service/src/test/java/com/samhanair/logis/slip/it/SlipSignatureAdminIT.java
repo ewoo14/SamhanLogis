@@ -189,7 +189,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         // audit log RECORD 1건 + INVALIDATE 1건 적재 검증
         long auditCountAfter = auditRepository.count();
         assertThat(auditCountAfter - auditCountBefore).isGreaterThanOrEqualTo(1L);
-        var audits = auditRepository.findAllBySlipIdOrderByCreatedAtDesc(UUID.fromString(ctx.slipId));
+        var audits = auditRepository.findAllBySlipIdOrderByCreatedAtDesc(OpaqueUuidTestDecoder.decode(ctx.slipId));
         assertThat(audits).isNotEmpty();
         assertThat(audits.get(0).getAction()).isEqualTo(SignatureAuditAction.INVALIDATE);
         assertThat(audits.get(0).getReason()).isEqualTo("관리자 무효화 테스트");

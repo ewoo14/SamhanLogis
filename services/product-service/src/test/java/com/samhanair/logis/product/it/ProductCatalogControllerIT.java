@@ -25,6 +25,7 @@ import com.samhanair.logis.product.repository.ClassificationRepository;
 import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
+import com.samhanair.logis.product.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
@@ -1082,9 +1083,9 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
                                 }
                                 """.formatted(catL.getId(), catM.getId(), catS.getId())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.catL.id").value(catL.getId().toString()))
-                .andExpect(jsonPath("$.catM.id").value(catM.getId().toString()))
-                .andExpect(jsonPath("$.catS.id").value(catS.getId().toString()));
+                .andExpect(jsonPath("$.catL.id").value(OpaqueUuidSerializer.encode(catL.getId())))
+                .andExpect(jsonPath("$.catM.id").value(OpaqueUuidSerializer.encode(catM.getId())))
+                .andExpect(jsonPath("$.catS.id").value(OpaqueUuidSerializer.encode(catS.getId())));
 
         Product product = productRepository.findByModelCodeAndIsDeletedFalse("API_HOME_01").orElseThrow();
         org.assertj.core.api.Assertions.assertThat(product.getCatL().getId()).isEqualTo(catL.getId());
