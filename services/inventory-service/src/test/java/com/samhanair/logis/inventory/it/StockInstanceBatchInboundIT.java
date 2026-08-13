@@ -138,6 +138,12 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
             assertThat(row.getStatus()).isEqualTo(StockInstanceStatus.AVAILABLE);
             assertThat(row.getInboundType()).isEqualTo("구매");
         });
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                  FROM stock_movements
+                 WHERE product_id = ?
+                   AND movement_type = 'INBOUND'
+                """, Long.class, serialProductId)).isEqualTo(3L);
     }
 
     @Test

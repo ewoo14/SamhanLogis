@@ -14,6 +14,7 @@ import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.repository.StockInstanceRepository;
+import com.samhanair.logis.inventory.repository.StockMovementRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -42,6 +43,9 @@ class StockInstanceServiceBatchTest {
 
     @Mock
     private SourceOperationJournalWriter sourceJournalWriter;
+
+    @Mock
+    private StockMovementRepository stockMovementRepository;
 
     @InjectMocks
     private StockInstanceService service;
