@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.auth.AuthServiceApplication;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -106,18 +107,63 @@ class ClaudeConversationPermissionIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("축 0 view 계정은 정문 가드를 통과하고 아직 미구현 501을 받는다")
-    void viewAccount_passesGateAndReturnsNotImplemented() throws Exception {
+    @DisplayName("축 0 view 계정은 자격 미설정 경계에서 503을 받는다")
+    void viewAccount_passesGateAndStopsWhenCredentialIsMissing() throws Exception {
         grantViewToAccount();
 
         String body = mockMvc.perform(post("/auth/claude/conversations")
+                        .contentType("application/json")
+                        .content("{\"question\":\"대화 질문\"}")
                         .header("X-User-Id", ACCOUNT_ID))
-                .andExpect(status().isNotImplemented())
+                .andExpect(status().isServiceUnavailable())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
         assertThat(body).doesNotContain(ACCOUNT_ID.toString());
+    }
+
+    @Test
+    @DisplayName("축 0 view 계정도 Claude 자격 미설정이면 모델 호출 없이 503으로 멈춘다")
+    void viewAccount_withoutClaudeCredential_stopsAtCredentialBoundary() throws Exception {
+        grantViewToAccount();
+
+        String body = mockMvc.perform(post("/auth/claude/conversations")
+                        .contentType("application/json")
+                        .content("{\"question\":\"오늘 배차 현황을 알려줘\"}")
+                        .header("X-User-Id", ACCOUNT_ID))
+                .andExpect(status().isServiceUnavailable())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(body).contains("ANTHROPIC_API_KEY");
+        assertThat(body).doesNotContain(ACCOUNT_ID.toString());
+    }
+
+    @Test
+    @DisplayName("자격 미설정 질문도 외부 전송 예정 범위와 미전송 상태를 감사 로그에 남긴다")
+    void missingCredential_isAuditedWithOutboundScope() throws Exception {
+        grantViewToAccount();
+
+        mockMvc.perform(post("/auth/claude/conversations")
+                        .contentType("application/json")
+                        .content("{\"question\":\"거래처별 금액을 알려줘\"}")
+                        .header("X-User-Id", ACCOUNT_ID))
+                .andExpect(status().isServiceUnavailable());
+
+        Map<String, Object> audit = jdbc.queryForMap("""
+                SELECT question, outbound_payload, outbound_status, is_deleted
+                FROM claude_conversation_audits
+                WHERE account_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """, ACCOUNT_ID);
+        assertThat(audit.get("question")).isEqualTo("거래처별 금액을 알려줘");
+        assertThat(audit.get("outbound_payload"))
+                .isEqualTo("question=거래처별 금액을 알려줘; apiResponses=[]");
+        assertThat(audit.get("outbound_status")).isEqualTo("NOT_SENT");
+        assertThat(audit.get("is_deleted")).isEqualTo(false);
     }
 
     @Test
