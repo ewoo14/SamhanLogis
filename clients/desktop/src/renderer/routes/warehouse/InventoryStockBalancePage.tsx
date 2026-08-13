@@ -51,7 +51,7 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import { StockInstanceListModal } from './StockInstanceListModal'
 import { StockLedgerModal } from './StockLedgerModal'
 import { useNavigate } from 'react-router-dom'
-import { stockLedgerSlipDestination } from './stockLedgerNavigation'
+import { recentThreeMonthsRange, stockLedgerSlipDestination } from './stockLedgerNavigation'
 
 // ---------------------------------------------------------------------------
 // 페이지당 행 수 (서버 page/size 파라미터 연동)
@@ -223,7 +223,7 @@ export function InventoryStockBalancePage() {
   const [currentPage, setCurrentPage] = useState(0)
   const [instanceProductCode, setInstanceProductCode] = useState<string | null>(null)
   const [ledgerProductCode, setLedgerProductCode] = useState<string | null>(null)
-  const [ledgerRange, setLedgerRange] = useState<{ start: string; end: string } | undefined>(undefined)
+  const [ledgerRange, setLedgerRange] = useState<{ start: string; end: string }>(recentThreeMonthsRange)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -288,7 +288,7 @@ export function InventoryStockBalancePage() {
         >{row.productCode}</button>
         <button
           type="button"
-          onClick={() => { setLedgerRange(undefined); setLedgerProductCode(row.productCode) }}
+          onClick={() => { setLedgerRange(recentThreeMonthsRange()); setLedgerProductCode(row.productCode) }}
           style={ledgerLinkStyle}
           aria-label={`${row.productCode} 재고수불부 열기`}
         >수불부</button>

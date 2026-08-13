@@ -80,8 +80,12 @@ export function StockLedgerModal({
               <td style={cellStyle}>{row.outboundQuantity || ''}</td>
               <td style={cellStyle}>{row.balance}</td>
             </tr>)}
-            <tr><td style={cellStyle} colSpan={7}>{data.endDate.slice(0, 7).replace('-', '/')} 계</td><td style={cellStyle}>{data.totalInbound}</td><td style={cellStyle}>{data.totalOutbound}</td><td style={cellStyle}>{data.closingBalance}</td></tr>
-            <tr><td style={cellStyle} colSpan={7}>합계</td><td style={cellStyle}>{data.totalInbound}</td><td style={cellStyle}>{data.totalOutbound}</td><td style={cellStyle}>{data.closingBalance}</td></tr>
+            <tr data-testid="stock-ledger-total-row" data-summary-row="true" style={totalRowStyle}>
+              <td style={totalCellStyle} colSpan={7}>합계 / 누계</td>
+              <td style={totalCellStyle}>{data.totalInbound}</td>
+              <td style={totalCellStyle}>{data.totalOutbound}</td>
+              <td style={totalCellStyle}>{data.closingBalance}</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -91,4 +95,6 @@ export function StockLedgerModal({
 
 const cellStyle = { borderBottom: '1px solid #E5E7EB', padding: '6px 8px', textAlign: 'left' as const, whiteSpace: 'nowrap' as const }
 const cellHeaderStyle = { ...cellStyle, background: '#F7F8FA', fontWeight: 600 }
+const totalRowStyle = { background: '#EEF6FC', borderTop: '2px solid #185B86' }
+const totalCellStyle = { ...cellStyle, fontWeight: 700, color: '#123B57' }
 const slipLinkStyle = { border: 0, padding: 0, background: 'transparent', color: '#185B86', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }

@@ -2,6 +2,7 @@ package com.samhanair.logis.inventory.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.inventory.service.StockLedgerResponse;
@@ -21,5 +22,17 @@ class StockLedgerControllerS2bTest {
 
         assertThat(controller.ledger("CODE", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 12)).getData())
                 .isSameAs(response);
+    }
+
+    @Test
+    void defaultsMissingRangeToRecentThreeMonths() {
+        StockLedgerService service = mock(StockLedgerService.class);
+        StockLedgerController controller = new StockLedgerController(service);
+        StockLedgerResponse response = mock(StockLedgerResponse.class);
+        LocalDate today = LocalDate.now();
+        when(service.getLedger("CODE", today.minusMonths(3), today)).thenReturn(response);
+
+        assertThat(controller.ledger("CODE", null, null).getData()).isSameAs(response);
+        verify(service).getLedger("CODE", today.minusMonths(3), today);
     }
 }

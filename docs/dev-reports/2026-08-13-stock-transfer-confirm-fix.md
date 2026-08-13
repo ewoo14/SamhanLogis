@@ -445,3 +445,94 @@ BUILD SUCCESSFUL
 - 공용 Modal에 `xxl` 크기만 추가하고 수불부 소비처만 적용했다.
 - 기존 10열, 표 최소 폭, 링크·캐시·재고 이동 로직은 남겼다.
 - 라이브 로그인 재현은 작업트리에 `QA_DEV_DEFAULT_PASSWORD`가 없어 로그인 단계에서 중단되었지만, 실제 컴포넌트·실제 디자인 시스템 CSS를 Chromium에 렌더한 폭 probe로 1600px·1440px 수치를 확보했다.
+
+## 결정 5·6·7 반영
+
+### RED 원문 (양방향)
+
+프런트 합계행 계약을 먼저 추가하고 실행한 원문이다. 새 합계행 test id가 없어 기능 결함으로 실패했고, 기존 7개 테스트는 통과했다.
+
+```text
+StockLedgerModal.test.tsx (8 tests | 1 failed)
+× 전일재고를 제외한 기간 내 입고·출고 합계만 맨 아래 구분된 합계행에 표시한다
+  Unable to find an element by: [data-testid="stock-ledger-total-row"]
+✓ 기존 7 tests
+```
+
+백엔드 기간 기본값도 테스트를 먼저 고정한 뒤, 기존 월초 기본값으로 되돌려 양방향 RED를 확인했다.
+
+```text
+StockLedgerControllerS2bTest > defaultsMissingRangeToRecentThreeMonths() FAILED
+java.lang.AssertionError at StockLedgerControllerS2bTest.java:35
+2 tests completed, 1 failed
+BUILD FAILED
+```
+
+### 고른 수단과 이유
+
+- `StockLedgerModal`은 기존 데이터 행 앞에 전일재고 행을 유지하고, 기존 중복 `계` 행은 제거했다. 맨 아래에는 `합계 / 누계` 한 행만 둔다.
+- 합계행의 입고·출고 셀은 `openingBalance`가 아니라 API가 기간 거래만 누적한 `totalInbound`·`totalOutbound`를 사용한다. 잔량 셀은 기간 말 누계인 `closingBalance`를 사용한다.
+- 합계행은 `data-summary-row="true"`, 연한 청색 배경, 2px 상단 테두리, 굵은 글꼴로 거래 행과 구분했다.
+- 결정 6대로 적요는 한 열 그대로 두고 전표번호 전용 열·클릭 동작은 보존했다.
+- 기간 기본값은 화면과 API 양쪽에서 종료일 기준 `minusMonths(3)`으로 통일했다. 화면은 수불부를 새로 열 때 최근 3개월을 명시적으로 요청한다.
+
+### GREEN 원문
+
+```text
+npm exec vitest run src/renderer/routes/warehouse/StockLedgerModal.test.tsx --config vitest.config.ts
+✓ StockLedgerModal.test.tsx (9 tests)
+Test Files  1 passed (1)
+Tests       9 passed (9)
+
+.\gradlew.bat :services:inventory-service:test --tests com.samhanair.logis.inventory.web.StockLedgerControllerS2bTest --tests com.samhanair.logis.inventory.service.StockLedgerServiceTest --no-daemon
+BUILD SUCCESSFUL
+```
+
+### 합계 계산이 맞다는 근거
+
+백엔드 `StockLedgerService`는 기간 밖 물리 변동으로 `opening`을 계산한 뒤, 기간 안의 각 delta만 순회하며 양수 delta를 `totalInbound`, 음수 delta의 절댓값을 `totalOutbound`에 더한다. 따라서 전일재고 81은 합계에 들어가지 않고, 표본의 기간 거래 `+5/-3`은 합계 `입고 5 · 출고 3`, 기말 누계 `83`으로 표시된다. 프런트 회귀 테스트도 합계행에 `5`, `3`, `83`이 있고 `81`은 없음을 확인한다.
+
+### 1600px·1440px 실측 폭
+
+결정 5 반영 후 현재 `xxl` Modal 폭 정의와 수불부 표 최소폭을 실제 Chromium DOM에 다시 렌더하여 `getBoundingClientRect()` 및 `scrollWidth/clientWidth`를 읽었다. 합계행은 폭을 변경하지 않지만, 폭을 재측정한 fresh 원문은 다음과 같다.
+
+```text
+viewport=1600
+dialogLeft=140, dialogRight=1460, dialogWidth=1320
+bodyClientWidth=1320, bodyScrollWidth=1320
+tableClientWidth=1280, tableScrollWidth=1280
+lastHeaderRight=1440, overflow=false
+
+viewport=1440
+dialogLeft=60, dialogRight=1380, dialogWidth=1320
+bodyClientWidth=1320, bodyScrollWidth=1320
+tableClientWidth=1280, tableScrollWidth=1280
+lastHeaderRight=1360, overflow=false
+```
+
+### 불변식 ①~⑥ 보증
+
+| 불변식 | 보증 근거 |
+|---|---|
+| ① 전일재고 맨 위 · 합계 맨 아래 | 모달 행 구성과 회귀 테스트가 전일재고 선행 및 `stock-ledger-total-row`의 `tbody` 마지막 자식임을 확인한다. |
+| ② 기간 내 입고 합 · 출고 합 | 서비스의 `totalInbound/totalOutbound` 기간 필터 계산과 `openingBalance` 제외 테스트를 보존한다. |
+| ③ 합계행 시각 구분 | 합계행 전용 배경·2px 상단 테두리·굵은 글꼴 및 `data-summary-row`를 적용했다. |
+| ④ 최근 3개월 기본값 | 화면 `recentThreeMonthsRange`와 API `endDate.minusMonths(3)` 및 양쪽 테스트가 보증한다. |
+| ⑤ 모달 폭 | fresh Chromium 실측에서 1600px·1440px 모두 `tableScrollWidth=tableClientWidth=1280`, `overflow=false`다. |
+| ⑥ 직전 단계 회귀 보존 | 9열+전표번호 10열, 전표번호 클릭 이동, 캐시 무효화 계열, 이동 -1/+1, 총량 불변·양쪽 수불·금액 없음은 이번 코드에서 변경하지 않았고 기존 테스트/서비스 테스트를 다시 통과했다. |
+
+### typecheck
+
+```text
+npm run typecheck
+Exit code: 0
+real-QA cleanup scope: 2 passed
+real-QA scope: 51 passed, 0 failed
+```
+
+### 남긴 것
+
+- 이 단계에서도 이동전표·재고실사 전용 전표 목적지는 `StockLedgerRow` 계약에 없어 지어내지 않았다.
+- 공유 스택, PR, 커밋, git 상태는 변경하지 않았다. 커밋은 PM이 대행한다.
+- 인앱 Browser 런타임은 이번 세션에 연결되지 않아 로컬 Playwright Chromium 폭 probe로 실측했다. 로그인 기반 라이브 업무 흐름은 새로 수행하지 않았다.
+- 월말 날짜가 3개월 전 월의 유효하지 않은 날짜로 넘치지 않도록 `2026-05-31 → 2026-02-28` 경계 테스트도 추가했다.

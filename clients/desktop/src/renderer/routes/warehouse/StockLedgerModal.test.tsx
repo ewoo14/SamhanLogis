@@ -4,7 +4,7 @@ import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StockLedgerModal } from './StockLedgerModal'
 import type { StockLedgerResponse } from '../../api/inventory'
-import { stockLedgerSlipDestination } from './stockLedgerNavigation'
+import { recentThreeMonthsRange, stockLedgerSlipDestination } from './stockLedgerNavigation'
 
 describe('재고수불부 모달', () => {
   afterEach(cleanup)
@@ -71,9 +71,39 @@ describe('재고수불부 모달', () => {
     expect(screen.getByRole('dialog').className).toContain('size-xxl')
   })
 
+  it('전일재고를 제외한 기간 내 입고·출고 합계만 맨 아래 구분된 합계행에 표시한다', () => {
+    const data: StockLedgerResponse = {
+      companyName: '회사', startDate: '2026-05-14', endDate: '2026-08-14',
+      productName: '품목', productCode: 'P1', openingBalance: 81,
+      totalInbound: 5, totalOutbound: 3, closingBalance: 83,
+      rows: [{ date: '2026-08-02', productName: '품목', productCode: 'P1', warehouseName: '창고', partnerName: '', description: '거래', locationTag: null, inboundQuantity: 5, outboundQuantity: 0, balance: 86, opening: false, slipNo: null, slipType: null }],
+    }
+    render(<StockLedgerModal open data={data} onClose={() => {}} onRangeChange={() => {}} />)
+
+    const totalRow = screen.getByTestId('stock-ledger-total-row')
+    expect(totalRow.textContent).toContain('합계 / 누계')
+    expect(totalRow.textContent).toContain('5')
+    expect(totalRow.textContent).toContain('3')
+    expect(totalRow.textContent).toContain('83')
+    expect(totalRow.textContent).not.toContain('81')
+    expect(totalRow.getAttribute('data-summary-row')).toBe('true')
+    expect(screen.getAllByTestId('stock-ledger-total-row')).toHaveLength(1)
+    expect(totalRow.parentElement?.lastElementChild).toBe(totalRow)
+    expect((totalRow as HTMLElement).style.background).toBe('rgb(238, 246, 252)')
+    expect((totalRow as HTMLElement).style.borderTop).toContain('2px')
+  })
+
   it('전표 유형별 목적지는 전표번호만 URL에 사용하고 UUID를 포함하지 않는다', () => {
     expect(stockLedgerSlipDestination('OUTBOUND', '2026/08/02-17')).toBe('/sales/by-number?slipNo=2026%2F08%2F02-17')
     expect(stockLedgerSlipDestination('INBOUND', '2026/08/02-18')).toBe('/purchases/by-number?slipNo=2026%2F08%2F02-18')
     expect(stockLedgerSlipDestination('OUTBOUND', '2026/08/02-17')).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27}/i)
+  })
+
+  it('기본 기간은 오늘 기준 최근 3개월이다', () => {
+    expect(recentThreeMonthsRange(new Date(2026, 7, 14))).toEqual({ start: '2026-05-14', end: '2026-08-14' })
+  })
+
+  it('최근 3개월 시작일은 월말에도 유효한 달력 날짜를 유지한다', () => {
+    expect(recentThreeMonthsRange(new Date(2026, 4, 31))).toEqual({ start: '2026-02-28', end: '2026-05-31' })
   })
 })
