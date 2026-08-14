@@ -100,6 +100,8 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setupLenientMocks() {
+        Mockito.lenient().when(partnerInternalClient.resolvePartnerCode(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("P-IT-001"));
         Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
                 .thenReturn(Optional.of("담당자"));
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))

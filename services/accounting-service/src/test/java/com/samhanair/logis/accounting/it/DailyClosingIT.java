@@ -19,8 +19,13 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.DailyClosing;
+import com.samhanair.logis.accounting.domain.TaxInvoice;
+import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
+import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.repository.DailyClosingRepository;
+import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,6 +73,7 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private DailyClosingRepository dailyClosingRepository;
+    @Autowired private TaxInvoiceRepository taxInvoiceRepository;
 
     // ── 외부 client @MockBean 격리 (전부 선언 필수) ──────────────────────────
     @MockBean private SlipServiceClient slipServiceClient;
@@ -149,6 +155,26 @@ class DailyClosingIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.closingDate").value("2026-05-10"))
                 .andExpect(jsonPath("$.data.isLocked").value(true))
                 .andExpect(jsonPath("$.data.lockedBy").value(ACCOUNTANT_ID));
+    }
+
+    @Test
+    @DisplayName("Q5 — 미검증 금액이 있는 실제 마감은 409로 차단하고 사유를 반환한다")
+    void testCreateDailyClosingBlocksUnverifiedAmount() throws Exception {
+        TaxInvoice invoice = TaxInvoice.create(PARTNER_UUID, PARTNER_CODE, "1234567890",
+                "테스트거래처", "서울시", LocalDate.of(2026, 5, 23), "Q5", TaxInvoiceType.SALES);
+        invoice.addLine(TaxInvoiceLine.create(invoice, 1, "테스트품목", null, null,
+                BigDecimal.ONE, new BigDecimal("100000"), null));
+        invoice.issue("2026/05/23-1", ACCOUNTANT_ID);
+        taxInvoiceRepository.saveAndFlush(invoice);
+
+        mockMvc.perform(post("/accounting/daily-closings")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"closingDate\":\"2026-05-23\",\"scopeMode\":\"ALL\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message")
+                        .value("일마감 금액 검증이 완료되지 않았습니다"));
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
 /**
  * 회계전표 생성·전기·삭제 경로가 공유하는 서버 측 eligibility 판정 결과.
@@ -66,6 +67,18 @@ public record AccountingSlipEligibility(boolean allowed, List<Reason> reasons,
         }
         List<String> messages = reasons.stream().map(Reason::message).toList();
         return new AccountingSlipEligibility(reasons.isEmpty(), List.copyOf(reasons), messages);
+    }
+
+    /** Q5 일마감 게이트의 공통 판정. 금액이 없으면 검증할 원천이 없어 허용한다. */
+    public static AccountingSlipEligibility evaluateDailyClosing(BigDecimal totalAmount,
+                                                                  boolean amountVerified,
+                                                                  String actorRole) {
+        List<Reason> reasons = new ArrayList<>();
+        if (totalAmount != null && totalAmount.signum() > 0 && !amountVerified) {
+            reasons.add(Reason.DAILY_AMOUNT_UNVERIFIED);
+        }
+        return new AccountingSlipEligibility(reasons.isEmpty(), List.copyOf(reasons),
+                reasons.stream().map(Reason::message).toList());
     }
 
     private static boolean isAllowedRole(String actorRole) {

@@ -18,6 +18,7 @@ import java.time.LocalDate;
  * @param scopeMode 선택 범위 ({@code ALL}/{@code SELECTED}) — 누락 불가
  * @param closingKind 매출/매입 구분 (null 이면 SALES 하위 호환)
  * @param sourceKind 집계 source (null 이면 TAX_INVOICE 하위 호환)
+ * @param amountVerified 사용자가 금액 검증을 완료했는지 여부. 금액이 있는 마감은 true 필수.
  */
 public record CreateDailyClosingRequest(
         @NotNull(message = "closingDate 는 필수입니다")
@@ -31,8 +32,16 @@ public record CreateDailyClosingRequest(
 
         DailyClosingKind closingKind,
 
-        DailyClosingSourceKind sourceKind
+        DailyClosingSourceKind sourceKind,
+
+        Boolean amountVerified
 ) {
+
+    /** 기존 내부 호출자 호환 생성자 — 기존 서비스 호출은 이미 검증된 집계로 간주한다. */
+    public CreateDailyClosingRequest(LocalDate closingDate, String partnerCode, String scopeMode,
+                                     DailyClosingKind closingKind, DailyClosingSourceKind sourceKind) {
+        this(closingDate, partnerCode, scopeMode, closingKind, sourceKind, true);
+    }
 
     /** 선택 모드와 거래처 선택값의 모순 입력을 DTO 단계에서 차단한다. */
     @AssertTrue(message = "scopeMode 와 거래처 선택값이 일치하지 않습니다")

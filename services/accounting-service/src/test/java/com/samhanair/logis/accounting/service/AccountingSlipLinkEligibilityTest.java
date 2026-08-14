@@ -23,6 +23,18 @@ class AccountingSlipLinkEligibilityTest {
     }
 
     @Test
+    void 실제_일마감_금액이_있고_검증하지_않으면_Q5_게이트가_차단한다() {
+        AccountingSlipEligibility result = AccountingSlipEligibility.evaluateDailyClosing(
+                BigDecimal.valueOf(110000), false, "ACCOUNTANT");
+
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.reasons())
+                .containsExactly(AccountingSlipEligibility.Reason.DAILY_AMOUNT_UNVERIFIED);
+        assertThat(result.reasonMessages())
+                .containsExactly("일마감 금액 검증이 완료되지 않았습니다");
+    }
+
+    @Test
     void 금액이_맞지_않으면_회계전표_생성을_차단한다() {
         AccountingSlipLinkReadModel readModel = new AccountingSlipLinkReadModel(
                 "IN-20260814-001", "INBOUND", BigDecimal.valueOf(100), BigDecimal.valueOf(90),
