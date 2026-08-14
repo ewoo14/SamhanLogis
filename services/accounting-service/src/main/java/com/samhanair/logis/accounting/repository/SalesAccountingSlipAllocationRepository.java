@@ -4,6 +4,7 @@ import com.samhanair.logis.accounting.domain.SalesAccountingSlipAllocation;
 import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.List;
+import java.util.Collection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,6 +22,9 @@ public interface SalesAccountingSlipAllocationRepository extends JpaRepository<S
           AND slip.isDeleted = false
         """)
     List<SalesAccountingSlipAllocation> findActiveBySourceSlipId(@Param("sourceSlipId") UUID sourceSlipId);
+
+    @Query("SELECT a FROM SalesAccountingSlipAllocation a WHERE a.sourceSlipNo IN :sourceSlipNos AND a.isDeleted = false")
+    List<SalesAccountingSlipAllocation> findActiveBySourceSlipNoIn(@Param("sourceSlipNos") Collection<String> sourceSlipNos);
 
     /**
      * 특정 출고전표 line 에 이미 할당된 금액 합계.

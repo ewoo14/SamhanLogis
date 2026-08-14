@@ -1,5 +1,5 @@
 appId: com.samhanair.internalchat.desktop
-productName: Samhan Internal Chat
+productName: 삼한 메신저
 copyright: Copyright (c) 2026 (주)삼한공조시스템
 artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}.${ext}
 # electron-updater Windows 검증과 같은 인증서를 사용한다. 인증서가 없으면
@@ -38,7 +38,7 @@ nsis:
   perMachine: false
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: Samhan Internal Chat
+  shortcutName: 삼한 메신저
   installerLanguages: [ko_KR]
   language: '1042'
 

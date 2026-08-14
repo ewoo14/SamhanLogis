@@ -60,6 +60,15 @@ app:
       role: INTERNAL
       allow-missing-token: false
 
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+  model: ${ANTHROPIC_MODEL:claude-sonnet-5}
+  api-url: ${ANTHROPIC_API_URL:https://api.anthropic.com/v1/messages}
+
+claude:
+  virtual-agent:
+    enabled: ${CLAUDE_VIRTUAL_AGENT_ENABLED:false}
+
 management:
   endpoints:
     web:

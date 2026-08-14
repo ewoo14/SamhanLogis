@@ -53,7 +53,7 @@ class DriverLoginServiceTest {
         UUID id = UUID.randomUUID();
         Driver d = Driver.of("D001", "01012345678", "1톤", DriverSource.INTERNAL, false, null);
         ReflectionTestUtils.setField(d, "id", id);
-        when(driverRepo.findByPhoneNumberAndIsDeletedFalse("01012345678")).thenReturn(Optional.of(d));
+        when(driverRepo.findByNormalizedPhoneNumberAndIsDeletedFalse("01012345678")).thenReturn(Optional.of(d));
         when(issuer.issueAccessForDriver(id, "D001", "01012345678")).thenReturn("ACCESS");
         when(issuer.issueRefreshToken()).thenReturn("REFRESH");
         when(issuer.hash("REFRESH")).thenReturn("RHASH");
@@ -69,8 +69,39 @@ class DriverLoginServiceTest {
     }
 
     @Test
+    void registered_hyphenated_phone_accepts_digits_only_login() {
+        UUID id = UUID.randomUUID();
+        Driver d = Driver.of("D-HYPHEN", "010-2000-0001", "1톤", DriverSource.INTERNAL, false, null);
+        ReflectionTestUtils.setField(d, "id", id);
+        when(driverRepo.findByNormalizedPhoneNumberAndIsDeletedFalse("01020000001")).thenReturn(Optional.of(d));
+        when(issuer.issueAccessForDriver(id, "D-HYPHEN", "010-2000-0001")).thenReturn("ACCESS");
+        when(issuer.issueRefreshToken()).thenReturn("REFRESH");
+        when(issuer.hash("REFRESH")).thenReturn("RHASH");
+
+        AuthTokenResponse res = svc.login(new DriverLoginRequest("01020000001"));
+
+        assertThat(res.driverCode()).isEqualTo("D-HYPHEN");
+        assertThat(res.phoneNumber()).isEqualTo("010-2000-0001");
+    }
+
+    @Test
+    void registered_hyphenated_phone_accepts_hyphenated_login() {
+        UUID id = UUID.randomUUID();
+        Driver d = Driver.of("D-HYPHEN", "010-2000-0001", "1톤", DriverSource.INTERNAL, false, null);
+        ReflectionTestUtils.setField(d, "id", id);
+        when(driverRepo.findByNormalizedPhoneNumberAndIsDeletedFalse("01020000001")).thenReturn(Optional.of(d));
+        when(issuer.issueAccessForDriver(id, "D-HYPHEN", "010-2000-0001")).thenReturn("ACCESS");
+        when(issuer.issueRefreshToken()).thenReturn("REFRESH");
+        when(issuer.hash("REFRESH")).thenReturn("RHASH");
+
+        AuthTokenResponse res = svc.login(new DriverLoginRequest("010-2000-0001"));
+
+        assertThat(res.driverCode()).isEqualTo("D-HYPHEN");
+    }
+
+    @Test
     void unregistered_phone_throws_BadCredentials() {
-        when(driverRepo.findByPhoneNumberAndIsDeletedFalse(any())).thenReturn(Optional.empty());
+        when(driverRepo.findByNormalizedPhoneNumberAndIsDeletedFalse(any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> svc.login(new DriverLoginRequest("01099999999")))
                 .isInstanceOf(BadCredentialsException.class);

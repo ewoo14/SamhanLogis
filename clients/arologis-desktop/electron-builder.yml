@@ -19,6 +19,10 @@ files:
   - out/**/*
   - package.json
 
+extraResources:
+  - from: build/arologis-internal-release.cer
+    to: arologis-internal-release.cer
+
 asar: true
 asarUnpack:
   - resources/**
@@ -29,7 +33,7 @@ win:
       arch: [x64]
     - target: portable
       arch: [x64]
-  publisherName: Samhan Air Systems Co., Ltd.
+  publisherName: Samhan Internal Release
   requestedExecutionLevel: asInvoker  # 관리자 권한 불필요 (UAC 회피)
 
 nsis:

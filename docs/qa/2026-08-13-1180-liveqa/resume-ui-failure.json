@@ -1,0 +1,131 @@
+{
+  "startedAt": "2026-08-13T15:19:31.364Z",
+  "targetHead": "c7cedafa1702239eff4be0b6c87c6ce93048ba6f",
+  "targetJarSha256": "75e6127755ab578038535a771dab1cc5269b48c307fbf4105ad5e3c8c8a450fd",
+  "paths": [
+    {
+      "surface": "개인별",
+      "url": "http://127.0.0.1:25175/#/admin/permission-matrix",
+      "marker": "heading:권한설정"
+    }
+  ],
+  "proxy": [
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "status": 500
+    },
+    {
+      "method": "GET",
+      "path": "/app/version?clientType=DESKTOP&currentVersion=2026%2F08%2F13-11802",
+      "status": 500
+    },
+    {
+      "method": "GET",
+      "path": "/app/notices/active",
+      "status": 500
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/account/b0000000-0000-0000-0000-00000000000a",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "status": 500
+    },
+    {
+      "method": "PUT",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200
+    }
+  ],
+  "toggles": [
+    {
+      "label": "UI 개인별 OFF 저장 직후",
+      "status": 403,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:19:37 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:19:37.188712511Z\"}"
+    },
+    {
+      "label": "UI 개인별 ON 저장 직후",
+      "status": 403,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:19:37 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:19:37.328320321Z\"}"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "pageErrors": [],
+  "failure": "Error: UI 개인별 ON 후 403\n    at file:///C:/dev/Samhan-Public/.claude/worktrees/w901/clients/desktop/qa1180-r2-ui.mjs:157:40\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)"
+}

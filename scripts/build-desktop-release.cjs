@@ -15,6 +15,7 @@ const {
   createElectronBuilderVersionArgs,
   createNsisDisplayVersionInclude,
 } = require('./app-build-version.cjs')
+const { requireSigningEnvironment, requireUpdateFeedEnvironment } = require('./electron-update-contract.cjs')
 
 function run(command, args, env) {
   const result = spawnSync(command, args, {
@@ -71,6 +72,8 @@ function main() {
     process.exitCode = 1
     return
   }
+  requireSigningEnvironment(process.env)
+  requireUpdateFeedEnvironment(process.env, 'desktop', 'DESKTOP_UPDATE_URL')
 
   console.log(`[release-build] VITE_APP_VERSION=${releaseBuild.appVersion}`)
 

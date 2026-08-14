@@ -40,6 +40,7 @@
 - [🚨 불변식처럼 보이는 수단 지시 — PM…](feedback_pm_means_instruction_creates_defect.md)
 - [🚨 PM 슬라이스 effort 조절·엣지…](feedback_pm_regulate_slice_effort.md)
 - [🚨 PM 직접실행 최소화·Codex 토큰…](feedback_pm_delegate_to_codex_conserve_tokens.md)
+- [🚨 설계가 뒤집히면 도는 codex 스레드부터…](feedback_stop_superseded_codex_threads.md)
 - [🚨 병렬 라운드 중 `git add -A`…](feedback_git_add_all_swallows_concurrent_round.md)
 - [🚨 머지·종료된 워크트리는 바로 정리 (2…](feedback_cleanup_merged_worktrees_immediately.md)
 - [🚨 산출물 옮길 때 `git diff --…](feedback_pm_copy_untracked_files.md)
@@ -66,6 +67,7 @@
 - [🚨🚨 "어느 쪽이 맞나" 를 올리기 전에…](feedback_conflict_is_mostly_one_sided_blank.md)
 - [무결성도메인 정책 선확인](feedback_integrity_domain_policy_preconfirm.md)
 - [개발책임자 결정은 PR에 누적 기록](feedback_post_devlead_decisions_to_pr.md)
+- [🚨 라운드는 커밋이 아니라 게시로 끝난다…](feedback_round_ends_only_when_posted.md)
 - [🚨🚨 리뷰 1:1 게시 엄수 — 커밋과 게…](feedback_review_post_one_to_one_enforcement.md)
 - [PM-Codex 진행 검증·10분 보고](feedback_pm_codex_progress_verification.md)
 - [🚨🚨 이슈 생성 금지 (2026-08-07…](feedback_issue_registration_delegated_to_pm.md)
@@ -92,6 +94,7 @@
 
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md)
+- [🚨 QA 하네스 커밋 전 저장소 가드를 먼저…](feedback_qa_harness_must_pass_repo_guards.md)
 - [🚨🚨 내가 커밋한 QA 하네스가 CI 를…](feedback_qa_harness_commit_breaks_ci.md)
 - [🚨 QA 스샷=SendUserFile+PR…](feedback_pr_screenshot_sha_pinned_urls.md)
 - [스크린샷 항상 사용자 인라인 첨부](feedback_qa_screenshots_inline_to_user.md)

@@ -9,6 +9,7 @@ const {
   createReleaseBuildEnvironment,
   createNsisDisplayVersionInclude,
 } = require('./app-build-version.cjs')
+const { requireSigningEnvironment, requireUpdateFeedEnvironment } = require('./electron-update-contract.cjs')
 
 const APP_DIR = resolve(__dirname, '../clients/internal-chat-desktop')
 
@@ -28,6 +29,8 @@ function main() {
   requireReleaseEnvironment('INTERNAL_CHAT_UPDATE_URL')
   requireReleaseEnvironment('CSC_LINK')
   requireReleaseEnvironment('CSC_KEY_PASSWORD')
+  requireSigningEnvironment(process.env)
+  requireUpdateFeedEnvironment(process.env, 'internalChat', 'INTERNAL_CHAT_UPDATE_URL')
   const releaseBuild = createReleaseBuildEnvironment({ variable: 'VITE_APP_VERSION' })
   const electronViteCli = resolve(APP_DIR, 'node_modules/electron-vite/bin/electron-vite.js')
   const electronBuilderCli = resolve(APP_DIR, 'node_modules/electron-builder/cli.js')

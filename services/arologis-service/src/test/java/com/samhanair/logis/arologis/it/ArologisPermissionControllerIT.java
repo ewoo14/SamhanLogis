@@ -122,6 +122,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
         })
 @Import({
         PermissionSecurityAutoConfiguration.class,
+        GatewayAttestationMockMvcConfig.class,
         ArologisPermissionControllerIT.TestSecurityConfig.class,
         ArologisPermissionControllerIT.TestMeterConfig.class
 })
@@ -587,7 +588,8 @@ class ArologisPermissionControllerIT {
                     .csrf(AbstractHttpConfigurer::disable)
                     .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                     .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                    .addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+                    .addFilterBefore(new HeaderAuthenticationFilter(GatewayAttestationMockMvcConfig.ATTESTATION),
+                            UsernamePasswordAuthenticationFilter.class);
             return http.build();
         }
     }

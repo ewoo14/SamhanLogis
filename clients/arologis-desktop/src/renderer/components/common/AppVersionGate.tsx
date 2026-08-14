@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { AppUpdateNotice, Button } from '@samhan/design-system'
 import {
   fetchDesktopVersionStatus,
   resolveBuildAppVersion,
@@ -6,7 +7,7 @@ import {
   VERSION_POLICY_FAILURE_MESSAGE,
   type VersionPromptState,
 } from '../../version/versionCheck'
-import type { DesktopUpdateStatus } from '../../types/electron'
+import type { DesktopUpdateStatus, TrustRootStatus } from '../../types/electron'
 
 const CURRENT_VERSION = resolveBuildAppVersion(import.meta.env.VITE_APP_VERSION)
 const VERSION_API_BASE_URL = import.meta.env.VITE_VERSION_API_BASE_URL || 'http://localhost:8080'
@@ -50,7 +51,7 @@ function normalizeUpdateStatus(value: unknown): DesktopUpdateStatus | null {
   if (status.kind === 'available') return { kind: 'available', version: status.version ?? '' }
   if (status.kind === 'downloading') return { kind: 'downloading', percent: status.percent ?? 0 }
   if (status.kind === 'downloaded') return { kind: 'downloaded', version: status.version ?? '' }
-  if (status.kind === 'error') return { kind: 'error', message: '업데이트에 실패했습니다. 인터넷 연결을 확인해 주세요.' }
+  if (status.kind === 'error') return { kind: 'error', message: status.message ?? '업데이트에 실패했습니다. 잠시 후 다시 확인해 주세요.' }
   return null
 }
 
@@ -70,11 +71,32 @@ function updateStatusText(status: DesktopUpdateStatus): string {
   }
 }
 
+function updateErrorSeverity(message: string): 'network' | 'integrity' | 'trust' {
+  if (/인증서|신뢰|certificate|signature/i.test(message)) return 'trust'
+  if (/손상|검증|integrity|checksum|hash/i.test(message)) return 'integrity'
+  return 'network'
+}
+
+function updateStatusTitle(status: DesktopUpdateStatus): string {
+  if (status.kind === 'error') {
+    const severity = updateErrorSeverity(status.message ?? '')
+    if (severity === 'trust') return '업데이트 파일의 인증서를 신뢰할 수 없습니다'
+    if (severity === 'integrity') return '업데이트 파일을 확인하지 못했습니다'
+    return '업데이트 서버에 연결하지 못했습니다'
+  }
+  if (status.kind === 'checking') return '업데이트를 확인하는 중입니다'
+  if (status.kind === 'available') return '새 업데이트를 준비하고 있습니다'
+  if (status.kind === 'downloading') return '새 업데이트를 다운로드하는 중입니다'
+  if (status.kind === 'downloaded') return '새 업데이트를 설치할 준비가 되었습니다'
+  return '업데이트 상태'
+}
+
 export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boolean; children?: ReactNode }): JSX.Element {
   const [promptState, setPromptState] = useState<VersionPromptState>({ kind: 'none' })
   const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus | null>(null)
   const [noticeDismissed, setNoticeDismissed] = useState(false)
   const [versionCheckFailure, setVersionCheckFailure] = useState<string | null>(null)
+  const [trustRootStatus, setTrustRootStatus] = useState<TrustRootStatus | null>(null)
   const checkedRef = useRef(false)
   const installStartedRef = useRef(false)
 
@@ -96,16 +118,9 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
       const status = normalizeUpdateStatus(rawStatus)
       if (!status) return
       setUpdateStatus(status)
-      if (status.kind === 'downloaded' && !installStartedRef.current) {
-        installStartedRef.current = true
-        void updater.install().catch((error: unknown) => {
-          console.error('[arologis-version] updater 설치 상세 오류(사용자 화면 비공개)', error)
-          installStartedRef.current = false
-          setUpdateStatus({ kind: 'error', message: '업데이트 설치에 실패했습니다. 앱을 종료한 뒤 다시 실행해 주세요.' })
-        })
-      }
     })
     checkForUpdate()
+    void window.arologisTrustRoot?.status().then(setTrustRootStatus).catch(() => undefined)
     return unsubscribe
   }, [bootstrapped])
 
@@ -134,12 +149,43 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     setPromptState({ kind: 'none' })
   }
 
+  const installDownloadedUpdate = () => {
+    const updater = window.arologisUpdater
+    if (!updater || installStartedRef.current) return
+    installStartedRef.current = true
+    void updater.install().catch((error: unknown) => {
+      console.error('[arologis-version] updater 설치 상세 오류(사용자 화면 비공개)', error)
+      installStartedRef.current = false
+      setUpdateStatus({ kind: 'error', message: '업데이트 설치에 실패했습니다. 앱을 종료한 뒤 다시 실행해 주세요.' })
+    })
+  }
+
+  const refreshTrustRootStatusAfterInstall = async () => {
+    const trustRoot = window.arologisTrustRoot
+    if (!trustRoot) return
+    try {
+      await trustRoot.install()
+      const verifiedStatus = await trustRoot.status()
+      setTrustRootStatus(verifiedStatus)
+    } catch (error: unknown) {
+      console.warn('[arologis-trust-root] 설치 후 실제 상태 확인 실패', error)
+    }
+  }
+
   const statusNotice = updateStatus && updateStatus.kind !== 'not-available' && !noticeDismissed ? (
-    <aside role="status" data-testid="app-auto-update-status" className="no-print">
-      <span>{updateStatusText(updateStatus)}</span>
-      <button type="button" onClick={checkForUpdate}>다시 확인</button>
-      <button type="button" onClick={() => setNoticeDismissed(true)}>닫기</button>
-    </aside>
+    <AppUpdateNotice
+      severity={updateStatus.kind === 'error' ? updateErrorSeverity(updateStatus.message ?? '') : 'network'}
+      title={updateStatusTitle(updateStatus)}
+      description={updateStatusText(updateStatus)}
+      testId="app-auto-update-status"
+      actions={(
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={checkForUpdate}>다시 확인</Button>
+          {updateStatus.kind === 'downloaded' && <Button type="button" variant="primary" size="sm" onClick={installDownloadedUpdate}>앱을 다시 시작하여 설치</Button>}
+          <Button type="button" variant="ghost" size="sm" onClick={() => setNoticeDismissed(true)} data-testid="app-auto-update-dismiss">닫기</Button>
+        </>
+      )}
+    />
   ) : null
 
   const versionPolicyNotice = versionCheckFailure ? (
@@ -148,11 +194,22 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     </aside>
   ) : null
 
+  const trustRootNotice = trustRootStatus?.updateDisabled ? (
+    <AppUpdateNotice
+      severity="disabled"
+      title="자동 업데이트가 꺼져 있습니다"
+      description="사내 업데이트를 계속 받으려면 신뢰 루트 설치가 필요합니다. 설치가 끝날 때까지 앱은 그대로 사용할 수 있습니다."
+      testId="app-trust-root-disabled"
+      actions={<Button type="button" variant="secondary" size="sm" onClick={() => void refreshTrustRootStatusAfterInstall()}>신뢰 루트 설치</Button>}
+    />
+  ) : null
+
   if (promptState.kind === 'blocking') {
     const { versionInfo } = promptState
     return (
       <>
         {versionPolicyNotice}
+        {trustRootNotice}
         {statusNotice}
         <section role="alertdialog" data-testid="app-version-blocking-modal" aria-modal="true">
           <h2>긴급 업데이트</h2>
@@ -176,6 +233,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   return (
     <>
       {versionPolicyNotice}
+      {trustRootNotice}
       {statusNotice}
       {notice}
       {children}

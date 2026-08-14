@@ -332,6 +332,9 @@ public enum PageCode {
     /** 시스템 계정 관리 화면 — SP-D6-1 bootstrap 이중 가드. */
     SYSTEM_ACCOUNT_ADMIN("system.account-admin", "계정 관리"),
 
+    /** Claude 대화 진입 권한 — #901 S1 축 0. */
+    SYSTEM_CLAUDE("system.claude", "Claude 사용"),
+
     /** DC 설정 import 화면/API — SP-D6-1. */
     DC_CONFIG_IMPORT("dc-config.import", "DC 설정 import"),
 

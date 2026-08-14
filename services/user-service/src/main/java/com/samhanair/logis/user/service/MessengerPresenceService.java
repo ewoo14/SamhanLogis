@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
 
 /** 메신저 연결 세션과 사용자의 수동 상태를 합성한다. 세션 키는 사용자 경계에 노출하지 않는다. */
-@Service
+@Service("legacyMessengerPresenceService")
 public class MessengerPresenceService {
     public enum PresenceStatus { AVAILABLE, AWAY, ABSENT, OFFLINE }
     private final Map<UUID, Set<String>> sessions = new ConcurrentHashMap<>();

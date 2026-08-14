@@ -12,6 +12,8 @@ import {
   createPurchaseSlipDraft,
   type CreatePurchaseAccountingSlipRequest,
 } from '../../api/purchaseAccountingSlipApi'
+import { listAccountingSlipLinkEligibility } from '../../api/accountingSlipLinkApi'
+import { useQuery } from '@tanstack/react-query'
 import type { SalesTaxType } from '../../api/salesAccountingSlipApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { today } from '../../utils/dateUtils'
@@ -56,6 +58,14 @@ export function PurchaseAccountingSlipFormPage() {
     String(submittedUnitPrice),
     taxType === 'TAXABLE',
   )
+
+  const eligibilityQuery = useQuery({
+    queryKey: ['purchase-accounting-form-eligibility', allocations.map((row) => row.sourceSlipId).join('|')],
+    enabled: allocations.length > 0,
+    queryFn: () => listAccountingSlipLinkEligibility(
+      allocations.map((row) => ({ sourceSlipIdToken: row.sourceSlipId, sourceSlipType: 'INBOUND' as const })),
+    ),
+  })
 
   const mutation = useMutation({
     mutationFn: createPurchaseSlipDraft,
@@ -175,6 +185,11 @@ export function PurchaseAccountingSlipFormPage() {
         {sourcePartner.status !== 'valid' ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
             {sourcePartner.message}
+          </div>
+        ) : null}
+        {eligibilityQuery.data?.some((item) => !item.allowed) ? (
+          <div className="error-banner" role="alert" style={{ marginTop: 8 }} data-testid="purchase-accounting-eligibility">
+            {eligibilityQuery.data.filter((item) => !item.allowed).flatMap((item) => item.reasonMessages).join(' ')}
           </div>
         ) : null}
       </Card>

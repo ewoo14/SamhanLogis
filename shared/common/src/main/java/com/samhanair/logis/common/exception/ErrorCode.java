@@ -81,6 +81,9 @@ public enum ErrorCode {
      */
     PRICE_CALCULATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE,
             "가격 계산 서버가 응답하지 않아 주문을 확정할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+    /** Claude 외부 모델 자격 미설정 — 목업 응답으로 대체하지 않고 503으로 중단한다. */
+    CLAUDE_CREDENTIAL_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE,
+            "Claude 자격이 설정되지 않았습니다. 환경변수를 확인해주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     /**
      * 도메인 specific — product-service 의 modelCode/UUID 조회 미존재.

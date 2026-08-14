@@ -34,10 +34,22 @@ export interface ArologisUpdaterBridge {
   onStatus: (listener: (status: DesktopUpdateStatus) => void) => () => void
 }
 
+export interface TrustRootStatus {
+  installed: boolean
+  declined: boolean
+  shouldAskNextRun: boolean
+  shouldBlockApp?: boolean
+  updateDisabled?: boolean
+}
+
 declare global {
   interface Window {
     arologisAuth: ArologisAuthBridge
-    arologisUpdater?: ArologisUpdaterBridge
+  arologisUpdater?: ArologisUpdaterBridge
+    arologisTrustRoot?: {
+      status: () => Promise<TrustRootStatus>
+      install: () => Promise<TrustRootStatus>
+    }
   }
 }
 

@@ -112,6 +112,22 @@ describe('아로로지스 데스크톱 자동 업데이트 IPC', () => {
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', expect.objectContaining({ kind: 'error' }))
   })
 
+  it('updater 오류를 신뢰·무결성·네트워크 계열의 사용자 문구로 구분한다', async () => {
+    const cases = [
+      ['ERR_UPDATER_INVALID_SIGNATURE', '인증서를 신뢰할 수 없습니다'],
+      ['ERR_UPDATER_CHECKSUM_MISMATCH', '손상되었거나 검증에 실패했습니다'],
+      ['net::ERR_CONNECTION_TIMED_OUT', '업데이트 서버에 연결하지 못했습니다'],
+    ] as const
+
+    for (const [raw, expected] of cases) {
+      await mocks.events.get('error')?.(new Error(raw))
+      const status = mocks.window.webContents.send.mock.calls.at(-1)?.[1]
+      expect(status).toEqual(expect.objectContaining({ kind: 'error' }))
+      expect(status.message).toContain(expected)
+      expect(status.message).not.toContain(raw)
+    }
+  })
+
   it('해석 불가한 updater 버전은 안전한 빈 표시값으로만 renderer에 전달한다', async () => {
     await mocks.events.get('update-available')?.({ version: '1.0.0' })
 

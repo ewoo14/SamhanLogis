@@ -172,6 +172,20 @@ public class TaxInvoice extends BaseEntity {
     @Column(name = "journal_id")
     private UUID journalId;
 
+    /** Q4 legacy 정책 marker. 원천전표 연결 키가 아니며 TRUE인 자료는 읽기전용이다. */
+    @Column(name = "legacy_read_only", nullable = false)
+    private boolean legacyReadOnly;
+
+    /** legacy marker 적용 시각·주체·사유 — backfill provenance. */
+    @Column(name = "legacy_read_only_marked_at")
+    private LocalDateTime legacyReadOnlyMarkedAt;
+
+    @Column(name = "legacy_read_only_marked_by", length = 100)
+    private String legacyReadOnlyMarkedBy;
+
+    @Column(name = "legacy_read_only_reason", length = 200)
+    private String legacyReadOnlyReason;
+
     /** 역분개 Journal UUID — CANCELLED 시점에 service 가 연결. */
     @Column(name = "reverse_journal_id")
     private UUID reverseJournalId;
@@ -386,6 +400,7 @@ public class TaxInvoice extends BaseEntity {
     public void updateBasic(UUID partnerId, String partnerCode, String partnerBusinessNo,
                             String partnerName, String partnerAddress, LocalDate supplyDate,
                             String description) {
+        requireMutable("헤더 수정은 ");
         requireDraft("헤더 수정은 ");
         if (partnerId == null) {
             throw new IllegalArgumentException("partnerId 는 필수입니다");
@@ -414,6 +429,7 @@ public class TaxInvoice extends BaseEntity {
      * @throws BusinessException(CONFLICT) DRAFT 가 아닐 때
      */
     public void addLine(TaxInvoiceLine line) {
+        requireMutable("라인 추가는 ");
         requireDraft("라인 추가는 ");
         this.lines.add(line);
         recalcTotals();
@@ -421,6 +437,7 @@ public class TaxInvoice extends BaseEntity {
 
     /** 라인 일괄 교체 (DRAFT 만, update 헬퍼). */
     public void replaceLines(List<TaxInvoiceLine> newLines) {
+        requireMutable("라인 교체는 ");
         requireDraft("라인 교체는 ");
         this.lines.clear();
         if (newLines != null) {
@@ -438,6 +455,7 @@ public class TaxInvoice extends BaseEntity {
      * @throws BusinessException(CONFLICT) DRAFT 아니거나, 라인 0건이거나, 합계 0
      */
     public void issue(String taxInvoiceNo, String actorUserId) {
+        requireMutable("발행은 ");
         requireDraft("발행은 ");
         if (taxInvoiceNo == null || taxInvoiceNo.isBlank() || taxInvoiceNo.length() > 20) {
             throw new IllegalArgumentException("taxInvoiceNo 는 1~20자 필수입니다");
@@ -471,6 +489,7 @@ public class TaxInvoice extends BaseEntity {
      * @throws BusinessException(CONFLICT) INBOUND 가 아니거나 DRAFT 가 아닐 때
      */
     public void markReceived(String actorUserId) {
+        requireMutable("수신 처리는 ");
         if (this.direction != TaxInvoiceDirection.INBOUND) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     TaxInvoiceDirection.INBOUND.getDisplayName() + " 세금계산서만 수신 처리 가능: "
@@ -505,6 +524,7 @@ public class TaxInvoice extends BaseEntity {
      * @throws IllegalArgumentException reason 5자 미만이거나 actorUserId 없을 때
      */
     public void cancel(String reason, String actorUserId) {
+        requireMutable("취소는 ");
         if (this.status != TaxInvoiceStatus.ISSUED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "취소는 " + TaxInvoiceStatus.ISSUED.getDisplayName()
@@ -533,6 +553,7 @@ public class TaxInvoice extends BaseEntity {
      */
     @Deprecated
     public void cancel(String actorUserId) {
+        requireMutable("취소는 ");
         if (this.status != TaxInvoiceStatus.ISSUED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "취소는 " + TaxInvoiceStatus.ISSUED.getDisplayName()
@@ -578,6 +599,7 @@ public class TaxInvoice extends BaseEntity {
      * @throws BusinessException(TAX_INVOICE_ALREADY_EMITTED) 이미 eTaxExternalId 설정된 경우
      */
     public void markEmitted(String eTaxExternalId) {
+        requireMutable("e-Tax 전송은 ");
         if (this.status != TaxInvoiceStatus.ISSUED) {
             throw new BusinessException(ErrorCode.TAX_INVOICE_NOT_EMITTABLE,
                     "e-Tax 전송은 " + TaxInvoiceStatus.ISSUED.getDisplayName()
@@ -628,6 +650,14 @@ public class TaxInvoice extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     messagePrefix + TaxInvoiceStatus.DRAFT.getDisplayName()
                             + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
+        }
+    }
+
+    /** legacy marker 자료는 조회·인쇄만 허용하고 모든 mutation을 차단한다. */
+    public void requireMutable(String operationPrefix) {
+        if (legacyReadOnly) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    operationPrefix + "legacy 읽기전용 세금계산서는 변경할 수 없습니다: " + taxInvoiceNo);
         }
     }
 }

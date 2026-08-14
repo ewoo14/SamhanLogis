@@ -1,0 +1,38 @@
+// @vitest-environment jsdom
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { AppUpdateNotice } from './AppUpdateNotice'
+
+describe('AppUpdateNotice', () => {
+  it('원인·상황·다음 행동을 심각도와 함께 보여준다', () => {
+    render(
+      <AppUpdateNotice
+        severity="trust"
+        title="업데이트 파일의 인증서를 신뢰할 수 없습니다"
+        description="사내 IT 지원팀에 인증서 배포를 요청해 주세요. 그동안 앱은 그대로 사용할 수 있습니다."
+        actions={<button type="button">다시 확인</button>}
+      />,
+    )
+
+    expect(screen.getByRole('status').textContent).toContain('인증서를 신뢰할 수 없습니다')
+    expect(screen.getByRole('status').textContent).toContain('그동안 앱은 그대로 사용할 수 있습니다')
+    expect(screen.getByText('TRUST')).toBeTruthy()
+  })
+
+  it('업무 화면을 덮지 않는 일반 흐름 카드로 렌더링한다', () => {
+    render(<AppUpdateNotice severity="network" title="업데이트 서버에 연결하지 못했습니다" description="잠시 후 다시 확인해 주세요." />)
+
+    const notice = screen.getByRole('status')
+    expect(notice.getAttribute('data-severity')).toBe('network')
+    expect((notice as HTMLElement).style.position).not.toBe('fixed')
+    expect((notice as HTMLElement).style.zIndex).not.toBe('10000')
+  })
+
+  it('재시도 동작을 앱 게이트에 전달한다', () => {
+    const onRetry = vi.fn()
+    render(<AppUpdateNotice severity="integrity" title="업데이트 파일을 확인하지 못했습니다" description="다시 확인해 주세요." onRetry={onRetry} />)
+
+    screen.getByRole('button', { name: '다시 확인' }).click()
+    expect(onRetry).toHaveBeenCalledOnce()
+  })
+})

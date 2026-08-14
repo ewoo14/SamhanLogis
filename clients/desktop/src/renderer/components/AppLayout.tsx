@@ -43,6 +43,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { NotificationBellDropdown } from './NotificationBellDropdown'
 import { recordMenuAccess } from '../api/activityLog'
 import { resolveBuildAppVersion } from '../version/versionCheck'
+import { sanitizeDisplayName } from '../common/userDisplayName'
 
 const CURRENT_VERSION = resolveBuildAppVersion(
   import.meta.env.VITE_APP_VERSION ?? (import.meta.env.MODE === 'test' ? '0.1.0' : undefined),
@@ -1754,7 +1755,7 @@ export function AppLayout() {
                   fontSize: 13,
                 }}
               >
-                {auth?.fullName ?? '사용자'} · {auth?.role ?? '-'}
+                {sanitizeDisplayName(auth?.fullName)} · {auth?.role ?? '-'}
                 <span aria-hidden="true" style={{ marginLeft: 6, fontSize: 10 }}>
                   ▼
                 </span>

@@ -49,7 +49,8 @@ public class MessengerDirectoryController {
         List<MessengerEmployeeResponse> result = directoryService.activeOnly(employees, enabledAccountIds).stream()
                 .map(employee -> new MessengerEmployeeResponse(
                         employee.getEcountCode() == null ? employee.getLoginId() : employee.getEcountCode(), employee.getFullName(), employee.getPosition(),
-                        employee.getDepartment().getName(), "ACTIVE", presenceService.status(employee.getId()).name()))
+                        employee.getDepartment().getName(), employee.getDepartment().getDisplayOrder(), employee.getHireDate(),
+                        com.samhanair.logis.user.presence.PresenceStatus.valueOf(presenceService.status(employee.getId()).name())))
                 .toList();
         return ApiResponse.ok(result);
     }
@@ -70,29 +71,6 @@ public class MessengerDirectoryController {
         return ApiResponse.ok(new MessengerMeResponse(
                 employee.getEcountCode() == null ? employee.getLoginId() : employee.getEcountCode(), employee.getFullName(), employee.getPosition(),
                 employee.getDepartment().getName(), "ACTIVE", presenceService.status(userId).name()));
-    }
-
-    @PutMapping("/presence/status")
-    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
-    public ApiResponse<Void> setPresenceStatus(
-            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) String callerId,
-            @Valid @RequestBody MessengerPresenceUpdateRequest request) {
-        UUID userId = parseCaller(callerId);
-        try { presenceService.setManualStatus(userId, MessengerPresenceService.PresenceStatus.valueOf(request.status().trim().toUpperCase())); }
-        catch (IllegalArgumentException ex) { throw new BusinessException(ErrorCode.INVALID_INPUT, "상태 값이 올바르지 않습니다"); }
-        return ApiResponse.ok(null);
-    }
-
-    @PostMapping("/presence/sessions/{sessionId}")
-    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
-    public ApiResponse<Void> joinPresence(@RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) String callerId, @PathVariable String sessionId) {
-        presenceService.join(parseCaller(callerId), sessionId); return ApiResponse.ok(null);
-    }
-
-    @DeleteMapping("/presence/sessions/{sessionId}")
-    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
-    public ApiResponse<Void> leavePresence(@RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) String callerId, @PathVariable String sessionId) {
-        presenceService.leave(parseCaller(callerId), sessionId); return ApiResponse.ok(null);
     }
 
     private UUID parseCaller(String callerId) {

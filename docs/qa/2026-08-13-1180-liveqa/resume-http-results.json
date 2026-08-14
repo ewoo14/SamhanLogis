@@ -1,0 +1,3239 @@
+{
+  "startedAt": "2026-08-13T15:16:14.205Z",
+  "requests": [
+    {
+      "label": "역할 MASTER",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 501,
+      "elapsedMs": 206.387,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "close",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.400276481Z\"}"
+    },
+    {
+      "label": "역할 DEVELOPER",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 21.279,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.432021828Z\"}"
+    },
+    {
+      "label": "역할 MANAGER",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 15.656,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.447660623Z\"}"
+    },
+    {
+      "label": "역할 SALES",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 12.898,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.461003927Z\"}"
+    },
+    {
+      "label": "역할 ACCOUNTANT",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 11.661,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.473087875Z\"}"
+    },
+    {
+      "label": "역할 WAREHOUSE",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 12.535,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.485673912Z\"}"
+    },
+    {
+      "label": "역할 INVENTORY",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 11.234,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.497121110Z\"}"
+    },
+    {
+      "label": "역할 DRIVER",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 10.015,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.506844288Z\"}"
+    },
+    {
+      "label": "역할 STAFF",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 10.386,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.517556774Z\"}"
+    },
+    {
+      "label": "역할 DISPATCH",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 9.612,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.527619567Z\"}"
+    },
+    {
+      "label": "역할 PARTNER",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.645,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.536196837Z\"}"
+    },
+    {
+      "label": "R2 사용자정의 그룹 생성",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/admin/permission-groups",
+      "status": 201,
+      "elapsedMs": 181.792,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"c1f7d6d1-a6a5-4a02-90d5-2bdf078d8e21\",\"name\":\"QA1180-R2 Claude 허용\",\"description\":\"PR1180 재개 격리 라이브QA\",\"builtin\":false,\"systemMaster\":false,\"assignedAccountCount\":0},\"timestamp\":\"2026-08-13T15:16:14.715035018Z\"}"
+    },
+    {
+      "label": "R2 그룹 Claude ON",
+      "method": "PUT",
+      "url": "http://127.0.0.1:28181/auth/admin/permission-groups/c1f7d6d1-a6a5-4a02-90d5-2bdf078d8e21/permissions",
+      "status": 200,
+      "elapsedMs": 28.989,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T15:16:14.745587099Z\"}"
+    },
+    {
+      "label": "SALES R2 그룹 배속",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/admin/accounts/a0000000-0000-0000-0000-000000000004/groups",
+      "status": 200,
+      "elapsedMs": 213.012,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:14 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accountId\":\"a0000000-0000-0000-0000-000000000004\",\"accountDisplayName\":\"[DEV-SEED] 개발영업\",\"groupId\":\"c1f7d6d1-a6a5-4a02-90d5-2bdf078d8e21\",\"groupName\":\"QA1180-R2 Claude 허용\",\"groupDescription\":\"PR1180 재개 격리 라이브QA\",\"groupBuiltin\":false,\"groupSystemMaster\":false},\"timestamp\":\"2026-08-13T15:16:14.957837252Z\"}"
+    },
+    {
+      "label": "ACCOUNTANT R2 그룹 배속",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/admin/accounts/a0000000-0000-0000-0000-000000000005/groups",
+      "status": 200,
+      "elapsedMs": 126.612,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accountId\":\"a0000000-0000-0000-0000-000000000005\",\"accountDisplayName\":\"[DEV-SEED] 개발회계\",\"groupId\":\"c1f7d6d1-a6a5-4a02-90d5-2bdf078d8e21\",\"groupName\":\"QA1180-R2 Claude 허용\",\"groupDescription\":\"PR1180 재개 격리 라이브QA\",\"groupBuiltin\":false,\"groupSystemMaster\":false},\"timestamp\":\"2026-08-13T15:16:15.086280903Z\"}"
+    },
+    {
+      "label": "MANAGER 개인 ON",
+      "method": "PUT",
+      "url": "http://127.0.0.1:28181/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200,
+      "elapsedMs": 136.852,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T15:16:15.223482432Z\"}"
+    },
+    {
+      "label": "ACCOUNTANT 개인 ON",
+      "method": "PUT",
+      "url": "http://127.0.0.1:28181/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000005",
+      "status": 200,
+      "elapsedMs": 91.022,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T15:16:15.314977532Z\"}"
+    },
+    {
+      "label": "WAREHOUSE 개인 OFF",
+      "method": "PUT",
+      "url": "http://127.0.0.1:28181/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000006",
+      "status": 200,
+      "elapsedMs": 80.403,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T15:16:15.395626111Z\"}"
+    },
+    {
+      "label": "4조합 개인별만 켜짐",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 501,
+      "elapsedMs": 8.46,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "close",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.404132552Z\"}"
+    },
+    {
+      "label": "4조합 그룹별만 켜짐",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 501,
+      "elapsedMs": 8.289,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "close",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.412587299Z\"}"
+    },
+    {
+      "label": "4조합 둘 다 켜짐",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 501,
+      "elapsedMs": 8.339,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "close",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.421159069Z\"}"
+    },
+    {
+      "label": "4조합 둘 다 꺼짐",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.517,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.428477001Z\"}"
+    },
+    {
+      "label": "캐시 신선도 MANAGER OFF",
+      "method": "PUT",
+      "url": "http://127.0.0.1:28181/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200,
+      "elapsedMs": 96.113,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T15:16:15.524527386Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #1",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 9.632,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.534159055Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #2",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.576,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.542195007Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #3",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.077,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.550335083Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #4",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.838,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.557266463Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #5",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.467,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.564621782Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #6",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.64,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.571616967Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #7",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.081,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.579240657Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #8",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.756,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.586434787Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #9",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.794,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.593221895Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #10",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.245,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.599600332Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #11",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 11.135,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.610360124Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #12",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.389,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.617954252Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #13",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.275,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.624436623Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #14",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.552,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.630175554Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #15",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.793,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.636031609Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #16",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 4.921,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.640876331Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #17",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.265,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.647035280Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #18",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.951,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.653208697Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #19",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.556,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.658821120Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #20",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.702,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.664668844Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #21",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.333,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.669820034Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #22",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.69,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.676561925Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #23",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.858,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.682542424Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #24",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.013,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.688383395Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #25",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.175,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.694717721Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #26",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.706,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.701337265Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #27",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.564,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.707193186Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #28",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.127,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.712337108Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #29",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.044,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.718278120Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #30",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.191,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.723659713Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #31",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.924,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.729518638Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #32",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.213,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.735754312Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #33",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.061,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.740938171Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #34",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.365,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.746899243Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #35",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.071,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.753302956Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #36",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.899,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.759234558Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #37",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.827,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.765196797Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #38",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.848,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.770932577Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #39",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.71,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.776438458Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #40",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.83,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.782570925Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #41",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.214,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.788674314Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #42",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.672,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.795330685Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #43",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 16.887,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.809269234Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #44",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.708,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.819147326Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #45",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.501,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.825483045Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #46",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.77,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.831603303Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #47",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.637,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.838227507Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #48",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.379,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.844751740Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #49",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.423,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.851092719Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #50",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.202,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.857587445Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #51",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.638,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.863039394Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #52",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.178,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.870890810Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #53",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.333,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.877724073Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #54",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.608,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.886092966Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #55",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.658,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.893028019Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #56",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.114,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.899989818Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #57",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.811,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.906775378Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #58",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.702,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.914311637Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #59",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.239,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.922763907Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #60",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.679,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.930513875Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #61",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.649,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.937238395Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #62",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.027,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.944342479Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #63",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.293,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.950728295Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #64",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.995,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.956811010Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #65",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.754,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.963566901Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #66",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.676,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.969444324Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #67",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.014,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.976488600Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #68",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.343,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.982477535Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #69",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.213,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.989579704Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #70",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.444,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:15 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.996462069Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #71",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.841,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.002399759Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #72",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.626,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.008042212Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #73",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.976,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.013836361Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #74",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.689,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.019662713Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #75",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.644,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.026171481Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #76",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.901,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.033277798Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #77",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.711,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.040028010Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #78",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.489,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.047311428Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #79",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.742,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.054222413Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #80",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.583,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.061534935Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #81",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.264,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.069020344Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #82",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.313,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.075580789Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #83",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.721,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.081294193Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #84",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.432,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.087625965Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #85",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.189,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.094027278Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #86",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.758,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.102771341Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #87",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.726,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.108748394Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #88",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.28,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.114049938Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #89",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.892,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.119893009Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #90",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.024,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.125763428Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #91",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.073,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.131317055Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #92",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.823,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.137015700Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #93",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.905,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.144995462Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #94",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 8.283,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.152807233Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #95",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.767,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.159677239Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #96",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.922,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.167790727Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #97",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 6.407,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.174442145Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #98",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 5.951,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.180078264Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #99",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 9.732,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.190018422Z\"}"
+    },
+    {
+      "label": "OFF 직후 순차 #100",
+      "method": "POST",
+      "url": "http://127.0.0.1:28181/auth/claude/conversations",
+      "status": 403,
+      "elapsedMs": 7.204,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:16.196992847Z\"}"
+    },
+    {
+      "label": "UI 준비 MANAGER 개인 ON 복구",
+      "method": "PUT",
+      "url": "http://127.0.0.1:28181/auth/admin/permissions/account/a0000000-0000-0000-0000-000000000003",
+      "status": 200,
+      "elapsedMs": 105.093,
+      "headers": {
+        "cache-control": "no-cache, no-store, max-age=0, must-revalidate",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "date": "Thu, 13 Aug 2026 15:16:16 GMT",
+        "expires": "0",
+        "keep-alive": "timeout=60",
+        "pragma": "no-cache",
+        "transfer-encoding": "chunked",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"changedCount\":1},\"timestamp\":\"2026-08-13T15:16:16.301909995Z\"}"
+    }
+  ],
+  "roles": [
+    {
+      "role": "MASTER",
+      "expected": 501,
+      "actual": 501,
+      "pass": true,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.400276481Z\"}"
+    },
+    {
+      "role": "DEVELOPER",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.432021828Z\"}"
+    },
+    {
+      "role": "MANAGER",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.447660623Z\"}"
+    },
+    {
+      "role": "SALES",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.461003927Z\"}"
+    },
+    {
+      "role": "ACCOUNTANT",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.473087875Z\"}"
+    },
+    {
+      "role": "WAREHOUSE",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.485673912Z\"}"
+    },
+    {
+      "role": "INVENTORY",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.497121110Z\"}"
+    },
+    {
+      "role": "DRIVER",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.506844288Z\"}"
+    },
+    {
+      "role": "STAFF",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.517556774Z\"}"
+    },
+    {
+      "role": "DISPATCH",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.527619567Z\"}"
+    },
+    {
+      "role": "PARTNER",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:14.536196837Z\"}"
+    }
+  ],
+  "combinations": [
+    {
+      "name": "개인별만 켜짐",
+      "role": "MANAGER",
+      "expected": 501,
+      "actual": 501,
+      "pass": true,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.404132552Z\"}"
+    },
+    {
+      "name": "그룹별만 켜짐",
+      "role": "SALES",
+      "expected": 501,
+      "actual": 501,
+      "pass": true,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.412587299Z\"}"
+    },
+    {
+      "name": "둘 다 켜짐",
+      "role": "ACCOUNTANT",
+      "expected": 501,
+      "actual": 501,
+      "pass": true,
+      "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.421159069Z\"}"
+    },
+    {
+      "name": "둘 다 꺼짐",
+      "role": "WAREHOUSE",
+      "expected": 403,
+      "actual": 403,
+      "pass": true,
+      "body": "{\"success\":false,\"code\":\"FORBIDDEN\",\"message\":\"Claude 사용 권한이 없습니다.\",\"data\":null,\"timestamp\":\"2026-08-13T15:16:15.428477001Z\"}"
+    }
+  ],
+  "cache": {
+    "offStatus": 200,
+    "sampleCount": 100,
+    "stalePassCount": 0,
+    "deniedCount": 100,
+    "first": {
+      "index": 1,
+      "status": 403,
+      "afterOffResponseMs": 9.67
+    },
+    "last": {
+      "index": 100,
+      "status": 403,
+      "afterOffResponseMs": 672.072
+    },
+    "samples": [
+      {
+        "index": 1,
+        "status": 403,
+        "afterOffResponseMs": 9.67
+      },
+      {
+        "index": 2,
+        "status": 403,
+        "afterOffResponseMs": 17.285
+      },
+      {
+        "index": 3,
+        "status": 403,
+        "afterOffResponseMs": 25.395
+      },
+      {
+        "index": 4,
+        "status": 403,
+        "afterOffResponseMs": 32.268
+      },
+      {
+        "index": 5,
+        "status": 403,
+        "afterOffResponseMs": 39.772
+      },
+      {
+        "index": 6,
+        "status": 403,
+        "afterOffResponseMs": 46.439
+      },
+      {
+        "index": 7,
+        "status": 403,
+        "afterOffResponseMs": 54.554
+      },
+      {
+        "index": 8,
+        "status": 403,
+        "afterOffResponseMs": 61.343
+      },
+      {
+        "index": 9,
+        "status": 403,
+        "afterOffResponseMs": 68.169
+      },
+      {
+        "index": 10,
+        "status": 403,
+        "afterOffResponseMs": 74.446
+      },
+      {
+        "index": 11,
+        "status": 403,
+        "afterOffResponseMs": 85.628
+      },
+      {
+        "index": 12,
+        "status": 403,
+        "afterOffResponseMs": 93.064
+      },
+      {
+        "index": 13,
+        "status": 403,
+        "afterOffResponseMs": 99.376
+      },
+      {
+        "index": 14,
+        "status": 403,
+        "afterOffResponseMs": 104.958
+      },
+      {
+        "index": 15,
+        "status": 403,
+        "afterOffResponseMs": 110.785
+      },
+      {
+        "index": 16,
+        "status": 403,
+        "afterOffResponseMs": 115.74
+      },
+      {
+        "index": 17,
+        "status": 403,
+        "afterOffResponseMs": 122.051
+      },
+      {
+        "index": 18,
+        "status": 403,
+        "afterOffResponseMs": 128.036
+      },
+      {
+        "index": 19,
+        "status": 403,
+        "afterOffResponseMs": 133.624
+      },
+      {
+        "index": 20,
+        "status": 403,
+        "afterOffResponseMs": 139.347
+      },
+      {
+        "index": 21,
+        "status": 403,
+        "afterOffResponseMs": 144.712
+      },
+      {
+        "index": 22,
+        "status": 403,
+        "afterOffResponseMs": 151.435
+      },
+      {
+        "index": 23,
+        "status": 403,
+        "afterOffResponseMs": 157.33
+      },
+      {
+        "index": 24,
+        "status": 403,
+        "afterOffResponseMs": 163.375
+      },
+      {
+        "index": 25,
+        "status": 403,
+        "afterOffResponseMs": 169.6
+      },
+      {
+        "index": 26,
+        "status": 403,
+        "afterOffResponseMs": 176.338
+      },
+      {
+        "index": 27,
+        "status": 403,
+        "afterOffResponseMs": 181.934
+      },
+      {
+        "index": 28,
+        "status": 403,
+        "afterOffResponseMs": 187.09
+      },
+      {
+        "index": 29,
+        "status": 403,
+        "afterOffResponseMs": 193.163
+      },
+      {
+        "index": 30,
+        "status": 403,
+        "afterOffResponseMs": 198.383
+      },
+      {
+        "index": 31,
+        "status": 403,
+        "afterOffResponseMs": 204.336
+      },
+      {
+        "index": 32,
+        "status": 403,
+        "afterOffResponseMs": 210.579
+      },
+      {
+        "index": 33,
+        "status": 403,
+        "afterOffResponseMs": 215.661
+      },
+      {
+        "index": 34,
+        "status": 403,
+        "afterOffResponseMs": 222.057
+      },
+      {
+        "index": 35,
+        "status": 403,
+        "afterOffResponseMs": 228.159
+      },
+      {
+        "index": 36,
+        "status": 403,
+        "afterOffResponseMs": 234.089
+      },
+      {
+        "index": 37,
+        "status": 403,
+        "afterOffResponseMs": 239.948
+      },
+      {
+        "index": 38,
+        "status": 403,
+        "afterOffResponseMs": 245.822
+      },
+      {
+        "index": 39,
+        "status": 403,
+        "afterOffResponseMs": 251.604
+      },
+      {
+        "index": 40,
+        "status": 403,
+        "afterOffResponseMs": 257.468
+      },
+      {
+        "index": 41,
+        "status": 403,
+        "afterOffResponseMs": 263.715
+      },
+      {
+        "index": 42,
+        "status": 403,
+        "afterOffResponseMs": 270.424
+      },
+      {
+        "index": 43,
+        "status": 403,
+        "afterOffResponseMs": 287.355
+      },
+      {
+        "index": 44,
+        "status": 403,
+        "afterOffResponseMs": 294.102
+      },
+      {
+        "index": 45,
+        "status": 403,
+        "afterOffResponseMs": 300.679
+      },
+      {
+        "index": 46,
+        "status": 403,
+        "afterOffResponseMs": 306.482
+      },
+      {
+        "index": 47,
+        "status": 403,
+        "afterOffResponseMs": 313.15
+      },
+      {
+        "index": 48,
+        "status": 403,
+        "afterOffResponseMs": 319.559
+      },
+      {
+        "index": 49,
+        "status": 403,
+        "afterOffResponseMs": 326.02
+      },
+      {
+        "index": 50,
+        "status": 403,
+        "afterOffResponseMs": 332.244
+      },
+      {
+        "index": 51,
+        "status": 403,
+        "afterOffResponseMs": 337.913
+      },
+      {
+        "index": 52,
+        "status": 403,
+        "afterOffResponseMs": 346.146
+      },
+      {
+        "index": 53,
+        "status": 403,
+        "afterOffResponseMs": 352.511
+      },
+      {
+        "index": 54,
+        "status": 403,
+        "afterOffResponseMs": 361.154
+      },
+      {
+        "index": 55,
+        "status": 403,
+        "afterOffResponseMs": 367.846
+      },
+      {
+        "index": 56,
+        "status": 403,
+        "afterOffResponseMs": 374.995
+      },
+      {
+        "index": 57,
+        "status": 403,
+        "afterOffResponseMs": 381.841
+      },
+      {
+        "index": 58,
+        "status": 403,
+        "afterOffResponseMs": 390.586
+      },
+      {
+        "index": 59,
+        "status": 403,
+        "afterOffResponseMs": 397.865
+      },
+      {
+        "index": 60,
+        "status": 403,
+        "afterOffResponseMs": 405.588
+      },
+      {
+        "index": 61,
+        "status": 403,
+        "afterOffResponseMs": 412.273
+      },
+      {
+        "index": 62,
+        "status": 403,
+        "afterOffResponseMs": 419.334
+      },
+      {
+        "index": 63,
+        "status": 403,
+        "afterOffResponseMs": 425.662
+      },
+      {
+        "index": 64,
+        "status": 403,
+        "afterOffResponseMs": 431.688
+      },
+      {
+        "index": 65,
+        "status": 403,
+        "afterOffResponseMs": 438.469
+      },
+      {
+        "index": 66,
+        "status": 403,
+        "afterOffResponseMs": 444.17
+      },
+      {
+        "index": 67,
+        "status": 403,
+        "afterOffResponseMs": 451.204
+      },
+      {
+        "index": 68,
+        "status": 403,
+        "afterOffResponseMs": 457.58
+      },
+      {
+        "index": 69,
+        "status": 403,
+        "afterOffResponseMs": 464.829
+      },
+      {
+        "index": 70,
+        "status": 403,
+        "afterOffResponseMs": 471.305
+      },
+      {
+        "index": 71,
+        "status": 403,
+        "afterOffResponseMs": 477.177
+      },
+      {
+        "index": 72,
+        "status": 403,
+        "afterOffResponseMs": 482.834
+      },
+      {
+        "index": 73,
+        "status": 403,
+        "afterOffResponseMs": 488.844
+      },
+      {
+        "index": 74,
+        "status": 403,
+        "afterOffResponseMs": 494.567
+      },
+      {
+        "index": 75,
+        "status": 403,
+        "afterOffResponseMs": 501.234
+      },
+      {
+        "index": 76,
+        "status": 403,
+        "afterOffResponseMs": 508.169
+      },
+      {
+        "index": 77,
+        "status": 403,
+        "afterOffResponseMs": 514.902
+      },
+      {
+        "index": 78,
+        "status": 403,
+        "afterOffResponseMs": 522.424
+      },
+      {
+        "index": 79,
+        "status": 403,
+        "afterOffResponseMs": 529.203
+      },
+      {
+        "index": 80,
+        "status": 403,
+        "afterOffResponseMs": 536.833
+      },
+      {
+        "index": 81,
+        "status": 403,
+        "afterOffResponseMs": 544.133
+      },
+      {
+        "index": 82,
+        "status": 403,
+        "afterOffResponseMs": 550.474
+      },
+      {
+        "index": 83,
+        "status": 403,
+        "afterOffResponseMs": 556.227
+      },
+      {
+        "index": 84,
+        "status": 403,
+        "afterOffResponseMs": 562.701
+      },
+      {
+        "index": 85,
+        "status": 403,
+        "afterOffResponseMs": 568.929
+      },
+      {
+        "index": 86,
+        "status": 403,
+        "afterOffResponseMs": 577.723
+      },
+      {
+        "index": 87,
+        "status": 403,
+        "afterOffResponseMs": 583.483
+      },
+      {
+        "index": 88,
+        "status": 403,
+        "afterOffResponseMs": 588.793
+      },
+      {
+        "index": 89,
+        "status": 403,
+        "afterOffResponseMs": 594.717
+      },
+      {
+        "index": 90,
+        "status": 403,
+        "afterOffResponseMs": 600.79
+      },
+      {
+        "index": 91,
+        "status": 403,
+        "afterOffResponseMs": 605.881
+      },
+      {
+        "index": 92,
+        "status": 403,
+        "afterOffResponseMs": 611.725
+      },
+      {
+        "index": 93,
+        "status": 403,
+        "afterOffResponseMs": 619.658
+      },
+      {
+        "index": 94,
+        "status": 403,
+        "afterOffResponseMs": 627.972
+      },
+      {
+        "index": 95,
+        "status": 403,
+        "afterOffResponseMs": 634.764
+      },
+      {
+        "index": 96,
+        "status": 403,
+        "afterOffResponseMs": 642.702
+      },
+      {
+        "index": 97,
+        "status": 403,
+        "afterOffResponseMs": 649.12
+      },
+      {
+        "index": 98,
+        "status": 403,
+        "afterOffResponseMs": 655.098
+      },
+      {
+        "index": 99,
+        "status": 403,
+        "afterOffResponseMs": 664.849
+      },
+      {
+        "index": 100,
+        "status": 403,
+        "afterOffResponseMs": 672.072
+      }
+    ]
+  },
+  "groupId": "c1f7d6d1-a6a5-4a02-90d5-2bdf078d8e21",
+  "finishedAt": "2026-08-13T15:16:16.303Z",
+  "pass": true
+}

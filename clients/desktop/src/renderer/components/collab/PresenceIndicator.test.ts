@@ -59,15 +59,16 @@ describe('PresenceIndicator', () => {
     expect(html).toContain('+2')
   })
 
-  test('칩은 displayName 전체 텍스트와 기존 aria-label 계약을 함께 렌더한다', () => {
+  test('칩은 DEV-SEED 접두사를 제거한 displayName과 aria-label을 렌더한다', () => {
     const html = renderToStaticMarkup(
       createElement(PresenceIndicator, {
         entries: [{ sessionId: 's1', displayName: '[DEV-SEED] 오병승', color: 'BLUE' }],
       }),
     )
 
-    expect(html).toContain('[DEV-SEED] 오병승')
-    expect(html).toContain('aria-label="[DEV-SEED] 오병승 현재 보고 있음"')
+    expect(html).toContain('오병승')
+    expect(html).not.toContain('[DEV-SEED]')
+    expect(html).toContain('aria-label="오병승 현재 보고 있음"')
   })
 
   test('lg size 는 상단 문서 presence 용 확대 스타일을 렌더한다', () => {

@@ -14,6 +14,7 @@ import { listSlips } from '../api/slip'
 import { canQueryPurchases, canQuerySales, useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { sanitizeDisplayName } from '../common/userDisplayName'
 
 export function DashboardPage() {
   usePageTitle('대시보드')
@@ -40,7 +41,7 @@ export function DashboardPage() {
   return (
     <>
       <p style={{ marginTop: 0 }}>
-        환영합니다, <strong>{auth?.fullName ?? '사용자'}</strong> 님.
+        환영합니다, <strong>{sanitizeDisplayName(auth?.fullName)}</strong> 님.
       </p>
 
       <div className="dashboard-grid">

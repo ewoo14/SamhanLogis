@@ -164,6 +164,7 @@ export type PageCode =
   | 'system.permission-admin'
   | 'system.password-admin'
   | 'system.account-admin'
+  | 'system.claude'
   | 'dc-config.import'
   | 'dashboard.admin'
   // SP-D2 회계 7개 신규
