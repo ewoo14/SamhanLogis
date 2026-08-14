@@ -14,8 +14,8 @@ const { resolveBuildAppVersion } = require('../../scripts/app-build-version.cjs'
 const BUILD_ENV = process.env.BUILD_ENV || 'development';
 const APP_DEVELOPMENT_VERSION = resolveBuildAppVersion({ variable: 'EXPO_PUBLIC_APP_VERSION' });
 const BUILD_NUMBER = process.env.EXPO_BUILD_NUMBER || '1';
-const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || 'PLACEHOLDER_EAS_PROJECT_ID';
-const HAS_EAS_PROJECT_ID = EAS_PROJECT_ID !== 'PLACEHOLDER_EAS_PROJECT_ID';
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || '82dd1163-99b6-4055-bf70-84dc76feabee';
+const HAS_EAS_PROJECT_ID = Boolean(EAS_PROJECT_ID);
 const EAS_UPDATE_URL =
   process.env.EXPO_PUBLIC_EAS_UPDATE_URL || `https://u.expo.dev/${EAS_PROJECT_ID}`;
 
