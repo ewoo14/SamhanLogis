@@ -33,14 +33,23 @@ class OutboundCutoffGuardTest {
 
     static Stream<Arguments> activeOutboundCutoffs() {
         return Stream.of(
-                Arguments.of(DeliveryTag.SALE, LocalTime.of(0, 1)),
-                Arguments.of(DeliveryTag.LOGEN, LocalTime.of(0, 1)),
                 Arguments.of(DeliveryTag.REGION, LocalTime.NOON),
                 Arguments.of(DeliveryTag.STACK, LocalTime.of(14, 0)),
                 Arguments.of(DeliveryTag.GYEONGDONG_PARCEL, LocalTime.of(15, 0)),
-                Arguments.of(DeliveryTag.GYEONGDONG_FREIGHT, LocalTime.of(15, 0)),
-                Arguments.of(DeliveryTag.BORROW_RETURN, LocalTime.of(16, 0))
+                Arguments.of(DeliveryTag.GYEONGDONG_FREIGHT, LocalTime.of(15, 0))
         );
+    }
+
+    @org.junit.jupiter.api.Test
+    void saleWithoutCutoff_allowsTodayAfterMidnight() {
+        SlipOutboundCutoffRepository repository = Mockito.mock(SlipOutboundCutoffRepository.class);
+        when(repository.findByDeliveryTagAndActiveTrue(DeliveryTag.SALE))
+                .thenReturn(Optional.empty());
+        Instant lateAtNight = TODAY.atTime(23, 59).atZone(KST).toInstant();
+        OutboundCutoffGuard guard = new OutboundCutoffGuard(Clock.fixed(lateAtNight, KST), repository);
+
+        assertThatCode(() -> guard.assertWithinCutoff(DeliveryTag.SALE, TODAY))
+                .doesNotThrowAnyException();
     }
 
     @ParameterizedTest(name = "{0} cutoff {1}: after cutoff blocks today but allows tomorrow")

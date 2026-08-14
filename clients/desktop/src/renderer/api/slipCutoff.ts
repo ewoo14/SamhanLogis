@@ -9,7 +9,7 @@ import { apiClient, type ApiEnvelope } from './client'
 
 /**
  * OUTBOUND DeliveryTag 코드 — 기존 slip-service DeliveryTag enum OUTBOUND 방향 8종.
- * 인바운드 태그(RETURN_TRIP/BORROW/RETURN/RETURN_RENTAL)는 마감 설정 대상 아님.
+ * 인바운드 태그(RETURN_TRIP/BORROW/RETURN/RENTAL_RETURN/DELIVERY_RETURN/REENTRY)는 마감 설정 대상 아님.
  */
 export type OutboundDeliveryTag =
   | 'SALE'
