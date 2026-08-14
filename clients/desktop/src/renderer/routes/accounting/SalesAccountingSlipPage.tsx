@@ -59,7 +59,6 @@ export function SalesAccountingSlipPage() {
   const columns: DataTableColumn<SalesAccountingSlipResponse>[] = useMemo(
     () => [
       { key: 'slipNo', header: '전표번호', width: '160px', mobilePriority: 'primary' },
-      { key: 'slipDate', header: '일자', width: '110px', mobilePriority: 'hidden' },
       { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
       {
         key: 'status',

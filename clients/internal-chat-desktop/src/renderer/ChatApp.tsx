@@ -546,6 +546,21 @@ function MainPresence({
     />
   );
 }
+
+function SessionSummary({ employee }: { employee?: mainApi.MessengerEmployee }) {
+  return (
+    <section className="session-summary" data-testid="chat-session-summary" aria-label="현재 세션" role="region">
+      {employee ? <>
+        <MainPresence employee={employee} />
+        <div className="session-summary-copy">
+          <strong>{displayName(employee.name)}</strong>
+          <span>{employee.jobTitle}</span>
+        </div>
+        <span className="session-summary-status">{presenceLabels[employee.presenceStatus]}</span>
+      </> : null}
+    </section>
+  );
+}
 function MainRooms() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"individual" | "group">("individual");
@@ -624,14 +639,7 @@ function MainRooms() {
         </div>
       </header>
       <Card>
-        <div className="messenger-me" aria-label="내 정보">
-          {me.data ? (
-            <>
-              <MainPresence employee={me.data} />
-              <strong>{displayName(me.data.name)}</strong>
-            </>
-          ) : null}
-        </div>
+        <SessionSummary employee={me.data} />
         <ul aria-label="직원 목록" className="employee-list">
           {(directory.data ?? []).map((e) => (
             <li key={e.employeeCode ?? e.name}>

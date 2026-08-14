@@ -2283,8 +2283,24 @@ export function EstimateFormPage() {
             <div style={{ textAlign: 'right' }}>단가(VAT포함)</div>
             <div style={{ textAlign: 'right' }}>공급가액</div>
             <div style={{ textAlign: 'right' }}>부가세</div>
-            <div style={{ textAlign: 'right' }}>합계(VAT포함)</div>
+            <div style={{ display: 'none' }}>합계(VAT포함)</div>
             <div />
+          </div>
+        ) : null}
+
+        {!isMobile ? (
+          <div data-testid="estimate-price-source-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '8px 0', fontSize: 12, color: 'var(--ink-secondary, #5C6773)' }}>
+            {lines.map((line, i) => {
+              const status = priceSourceStatus(line, hasPartner)
+              if (!status && !line.priceRefreshChanged) return null
+              return (
+                <span key={line.uid}>
+                  라인 {i + 1}:{' '}
+                  {status ? <span id={`estimate-price-status-${line.uid}`} title={status.description}>{status.label}</span> : null}
+                  {line.priceRefreshChanged ? <span id={`estimate-price-changed-${line.uid}`}>{status ? ' · ' : ''}가격 변경됨</span> : null}
+                </span>
+              )
+            })}
           </div>
         ) : null}
 
@@ -2323,7 +2339,7 @@ export function EstimateFormPage() {
             )
           }
           return (
-           <div key={line.uid}>
+           <div key={line.uid} className="estimate-line-input-grid" data-testid={`estimate-line-input-grid-${i}`} style={{ display: 'grid', gridTemplateColumns: ESTIMATE_LINE_GRID_TEMPLATE }}>
             {/*
               R6-L2: role="row" 는 부모 table/rowgroup 없는 orphan(axe aria-required-parent
               serious)이라 제거.
@@ -2338,10 +2354,13 @@ export function EstimateFormPage() {
               이 div 의 속성은 시각/DOM 연관 표기로만 남긴다.
             */}
             <div
+              className="estimate-line-input-grid"
               aria-describedby={line.priceRefreshChanged ? priceChangedStatusId : undefined}
               style={{
                 display: 'grid',
                 gridTemplateColumns: ESTIMATE_LINE_GRID_TEMPLATE,
+                columnGap: 8,
+                gridAutoRows: 'minmax(40px, auto)',
                 padding: '6px 0',
                 alignItems: 'center',
                 // R6-H4: 강조행 구분선 #F3F4F6 on --surface-selected(#EFF6FF)=1.01:1 —
@@ -2491,19 +2510,23 @@ export function EstimateFormPage() {
                   ].filter(Boolean).join(' ') || undefined}
                   data-testid={`estimate-form-line-${i}-unit-price`}
                 />
-                {/* R4-D2: 라인별 aria-live 제거 — 전역 고지는 배너(role="status") 1곳이 담당. */}
                 {priceStatus ? (
                   <span
                     id={priceStatusId}
                     role="note"
                     aria-label={priceStatus.description}
                     title={priceStatus.description}
-                    className="price-source-note"
+                    className="s4-line-metadata-visually-hidden"
                   >
                     {priceStatus.label}
                   </span>
                 ) : null}
-                {line.priceRefreshChanged ? <PriceChangeIndicator id={priceChangedStatusId} /> : null}
+                {line.priceRefreshChanged ? (
+                  <span className="s4-line-metadata-visually-hidden">
+                    <PriceChangeIndicator id={priceChangedStatusId} />
+                  </span>
+                ) : null}
+                {/* R4-D2: 라인별 aria-live 제거 — 전역 고지는 배너(role="status") 1곳이 담당. */}
               </div>
               <CollaborativeSlipInput
                 provider={estimateFormCoeditProvider}
@@ -2534,33 +2557,19 @@ export function EstimateFormPage() {
                 />
                 {line.vatWarning ? <span role="note" style={{ color: '#9A6700', fontSize: 10 }}>⚠ 10%와 다름</span> : null}
               </div>
-              <div
-                style={{
-                  textAlign: 'right',
-                  fontSize: 13,
-                  color: 'var(--ink-primary)',
-                  fontVariantNumeric: 'tabular-nums',
-                  background: '#F9FAFB',
-                  padding: '6px 8px',
-                  borderRadius: 4,
-                }}
-              >
+              <div style={{ display: 'none' }}>
                 <CollaborativeSlipInput
                   provider={estimateFormCoeditProvider}
                   coeditPending={estimateFormCoeditPending}
                   fieldPath={`items.${i}.lineTotal`}
                   type="text"
-                  value={line.lineTotal}
-                  onValueChange={(value) => updateVat(i, 'TOTAL', value)}
-                  onDocSyncValueChange={(value) => updateLine(i, { lineTotal: value })}
-                  readOnly={Boolean(isReadOnly) || isBundle || coeditActive}
-                  inputMode="numeric"
-                  inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                  value={String(lineIncl)}
+                  onValueChange={() => undefined}
+                  readOnly
                   aria-label={`라인 ${i + 1} 합계(VAT포함)`}
+                  data-testid={`estimate-form-line-${i}-line-total`}
                 />
-                <div style={{ fontSize: 10, color: 'var(--ink-secondary, #5C6773)', fontWeight: 400 }}>
-                  공급 {fmt(lineSupply)} · VAT {fmt(lineVat)}
-                </div>
+                <span>{`${lineSupply} / ${lineVat}`}</span>
               </div>
               <button
                 type="button"

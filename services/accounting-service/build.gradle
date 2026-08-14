@@ -77,6 +77,7 @@ bootJar {
 
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperty 'samhan.security.gateway-attestation-enforcement', 'false'
     // TaxInvoiceBatchEndToEndIT 의 POI XSSFWorkbook 생성이 CI 기본 test worker heap 에서 OOM 될 수 있어 상향.
     // slip-service 의 2g 상향 컨벤션을 따르되 accounting+partner CI 그룹의 7GB 러너 예산을 남기기 위해 1536m 로 제한한다.
     maxHeapSize = '1536m'

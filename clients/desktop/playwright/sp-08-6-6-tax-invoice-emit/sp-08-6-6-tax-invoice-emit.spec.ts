@@ -211,7 +211,7 @@ test.describe('SP-08-6-6 세금계산서 발행 (T1~T5)', () => {
    *
    * 기대 결과:
    *   - 상태 라벨: "임시저장" / "발행" / "취소" (영문 DRAFT/ISSUED/CANCELLED 미노출)
-   *   - 컬럼 헤더: "세금계산서번호" / "거래처" / "작성일" / "공급가액" / "세액" / "합계" / "상태"
+   *   - 컬럼 헤더: "세금계산서번호" / "거래처" / "공급가액" / "세액" / "합계" / "연결 상태"
    *   - 필터 라벨: "상태" / "기간 (시작)" / "기간 (종료)" / "거래처명"
    *   - pageerror 없음
    */
@@ -225,7 +225,9 @@ test.describe('SP-08-6-6 세금계산서 발행 (T1~T5)', () => {
     const bodyText = (await page.textContent('body')) ?? ''
 
     // 컬럼 헤더 한국어 확인
-    const expectedLabels = ['세금계산서번호', '거래처', '작성일', '공급가액', '세액', '합계', '상태']
+    // S1 결정 1: 세금계산서번호가 날짜를 포함하므로 목록의 작성일 열은 삭제한다.
+    // 연결 상태는 현재 TaxInvoiceListPage의 실제 사용자 컬럼 계약을 함께 검증한다.
+    const expectedLabels = ['세금계산서번호', '거래처', '공급가액', '세액', '합계', '연결 상태']
     const missingLabels = expectedLabels.filter(label => !bodyText.includes(label))
 
     // 필터 라벨 한국어 확인

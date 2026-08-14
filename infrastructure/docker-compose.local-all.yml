@@ -142,6 +142,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8081"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       DB_NAME: auth_db
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
@@ -175,6 +176,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8082"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       ES_URI: http://elasticsearch:9200
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
     ports:
@@ -208,6 +210,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8083"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       DB_NAME: user_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
     ports:
@@ -235,6 +238,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8084"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       DB_NAME: product_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_SEED_TEST_DATA: ${SAMHAN_SEED_TEST_DATA:-false}
@@ -263,6 +267,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8085"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       DB_NAME: inventory_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_SEED_TEST_DATA: ${SAMHAN_SEED_TEST_DATA:-false}
@@ -291,6 +296,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8086"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       DB_NAME: slip_db
       WAREHOUSE_MAPPING_MODE: DEV_SUBSTITUTE
       WAREHOUSE_UUID_ECOUNT_00003: 11111111-1111-1111-1111-000000000001
@@ -357,6 +363,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8087"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       DB_NAME: accounting_db
       SAMHAN_USER_SERVICE_URL: http://user-service:8083
       SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
@@ -389,6 +396,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8088"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       SAMHAN_PARTNER_ORDER_DB_HOST: postgres
       SAMHAN_PARTNER_ORDER_DB_PORT: "5432"
       SAMHAN_PARTNER_ORDER_DB_NAME: partner_order_db
@@ -433,6 +441,7 @@ services:
       SAMHAN_DC_CONFIG_DB_USER: samhan
       SAMHAN_DC_CONFIG_DB_PASSWORD: samhan_dev_pw
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
     ports:
       - "127.0.0.1:8089:8089"
     depends_on: *service-depends
@@ -462,6 +471,7 @@ services:
       # 게이트웨이/auth-service 와 동일 시크릿 필수 — 누락 시 파트너 JWT 가 yml fallback 으로
       # 서명되어 게이트웨이 검증 401(파트너 셀프서비스 E2E 불가 — #757 파트너 QA 에서 실측).
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
     ports:
       - "127.0.0.1:8091:8091"
     depends_on: *service-depends
@@ -494,6 +504,7 @@ services:
       SAMHAN_GROUPWARE_DB_PASSWORD: samhan_dev_pw
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_USER_SERVICE_URL: http://user-service:8083
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
     ports:
       - "127.0.0.1:8092:8092"
     depends_on: *service-depends
@@ -519,6 +530,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8093"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       SAMHAN_NOTIFICATION_DB_HOST: postgres
       SAMHAN_NOTIFICATION_DB_PORT: "5432"
       SAMHAN_NOTIFICATION_DB_NAME: notification_db
@@ -562,6 +574,8 @@ services:
       SAMHAN_DASHBOARD_DB_PASSWORD: samhan_dev_pw
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_ACCOUNTING_SERVICE_URL: http://accounting-service:8087
+      # gateway가 주입한 attestation과 동일한 환경값으로 보호 요청을 검증한다.
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
     ports:
       - "127.0.0.1:8094:8094"
     depends_on: *service-depends
@@ -587,6 +601,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8095"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       SAMHAN_PARTNER_DB_HOST: postgres
       SAMHAN_PARTNER_DB_PORT: "5432"
       SAMHAN_PARTNER_DB_NAME: partner_db

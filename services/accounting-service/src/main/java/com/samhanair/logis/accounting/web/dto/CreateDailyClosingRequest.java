@@ -18,7 +18,7 @@ import java.time.LocalDate;
  * @param scopeMode 선택 범위 ({@code ALL}/{@code SELECTED}) — 누락 불가
  * @param closingKind 매출/매입 구분 (null 이면 SALES 하위 호환)
  * @param sourceKind 집계 source (null 이면 TAX_INVOICE 하위 호환)
- * @param amountVerified 사용자가 금액 검증을 완료했는지 여부. 금액이 있는 마감은 true 필수.
+ * @param amountVerified 기존 클라이언트 호환 필드. 서버 검증이 정본이므로 값은 저장·판정에 사용하지 않는다.
  */
 public record CreateDailyClosingRequest(
         @NotNull(message = "closingDate 는 필수입니다")

@@ -180,6 +180,24 @@ function updateStatusText(status: DesktopUpdateStatus, installing = false): stri
   }
 }
 
+/** 제목이 상태를 설명하므로 본문은 진행률·다음 행동 같은 보충 정보만 제공한다. */
+function updateStatusDescription(status: DesktopUpdateStatus, installing = false): string {
+  switch (status.kind) {
+    case 'checking':
+      return '잠시만 기다려 주세요.'
+    case 'available':
+      return '다운로드가 끝나면 자동으로 설치합니다.'
+    case 'downloading':
+      return `${Math.round(status.percent)}% 완료되었습니다.`
+    case 'downloaded':
+      return installing ? '설치가 끝나면 앱을 다시 시작합니다.' : '다음 기동 때 자동 설치합니다.'
+    case 'error':
+      return status.message
+    case 'not-available':
+      return '현재 설치된 버전이 최신입니다.'
+  }
+}
+
 function updateErrorSeverity(message: string): 'network' | 'integrity' | 'trust' {
   if (/인증서|신뢰|certificate|signature/i.test(message)) return 'trust'
   if (/손상|검증|integrity|checksum|hash/i.test(message)) return 'integrity'
@@ -361,7 +379,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     <AppUpdateNotice
       severity={updateStatus.kind === 'error' ? updateErrorSeverity(updateStatus.message) : 'network'}
       title={updateStatusTitle(updateStatus)}
-      description={updateStatusText(updateStatus, installing)}
+      description={updateStatusDescription(updateStatus, installing)}
       testId="app-auto-update-status"
       actions={(
         <>

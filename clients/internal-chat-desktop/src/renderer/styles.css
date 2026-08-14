@@ -121,7 +121,11 @@ button, textarea, input { font: inherit; }
 .selected-recipient { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .room-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .room-list a { display: block; padding: 12px; color: var(--color-ink-900); text-decoration: none; border-radius: 8px; background: var(--color-surface-100); }
-.messenger-me { display: flex; align-items: center; gap: 10px; padding: 12px; border-bottom: 1px solid var(--color-line-200); }
+.message-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.session-summary { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--color-line-200); border-radius: var(--radius-lg); background: var(--color-surface-0); }
+.session-summary-copy { display: grid; gap: 2px; min-width: 0; }
+.session-summary-copy span, .session-summary-status, .employee small { color: var(--color-ink-500); font-size: 13px; }
+.session-summary-status { margin-inline-start: auto; }
 .employee-list { list-style: none; margin: 0; padding: 0; display: grid; }
 .employee { width: 100%; display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 12px; border: 0; border-bottom: 1px solid var(--color-line-200); background: var(--color-surface-0); text-align: start; font: inherit; cursor: pointer; }
 .employee:disabled { cursor: not-allowed; opacity: .55; }

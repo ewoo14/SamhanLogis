@@ -90,7 +90,6 @@ export function TaxInvoiceInboundPage() {
         />
       ),
     },
-    { key: 'slipDate', header: '일자', width: '110px', mobilePriority: 'hidden' },
     { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
     {
       key: 'totalAmount',

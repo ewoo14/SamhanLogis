@@ -3,6 +3,8 @@ package com.samhanair.logis.inventory.config;
 import com.samhanair.logis.security.InternalTokenFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -29,7 +31,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter,
+                                                   HeaderAuthenticationFilter headerAuthenticationFilter,
+                                                   PublicIdentityHeaderSanitizingFilter publicIdentityHeaderSanitizingFilter)
             throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -45,7 +49,43 @@ public class SecurityConfig {
                                                         .equals(authentication.get().getName())))
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(new HeaderAuthenticationFilter(), InternalTokenFilter.class);
+                .addFilterBefore(publicIdentityHeaderSanitizingFilter, InternalTokenFilter.class)
+                .addFilterAfter(headerAuthenticationFilter, InternalTokenFilter.class);
         return http.build();
+    }
+
+    @Bean
+    public HeaderAuthenticationFilter headerAuthenticationFilter(
+            @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String gatewayAttestation,
+            @Value("${samhan.security.gateway-attestation-enforcement:true}") boolean enforceAttestation) {
+        requireGatewayAttestation(gatewayAttestation, enforceAttestation);
+        return new HeaderAuthenticationFilter(gatewayAttestation, enforceAttestation);
+    }
+
+    @Bean
+    public PublicIdentityHeaderSanitizingFilter publicIdentityHeaderSanitizingFilter() {
+        return new PublicIdentityHeaderSanitizingFilter();
+    }
+
+    @Bean
+    public FilterRegistrationBean<HeaderAuthenticationFilter> headerAuthenticationFilterRegistration(
+            HeaderAuthenticationFilter filter) {
+        var registration = new FilterRegistrationBean<HeaderAuthenticationFilter>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<PublicIdentityHeaderSanitizingFilter> publicIdentityHeaderSanitizingFilterRegistration(
+            PublicIdentityHeaderSanitizingFilter filter) {
+        var registration = new FilterRegistrationBean<PublicIdentityHeaderSanitizingFilter>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    private void requireGatewayAttestation(String value, boolean enforcementEnabled) {
+        if (enforcementEnabled && (value == null || value.isBlank())) {
+            throw new IllegalStateException("SAMHAN_GATEWAY_ATTESTATION is required when gateway attestation enforcement is enabled");
+        }
     }
 }

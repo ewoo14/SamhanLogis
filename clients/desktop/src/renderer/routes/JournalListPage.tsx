@@ -38,6 +38,7 @@ import { exportJournals } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
 import { ExcelDownloadError } from '../components/ExcelDownloadError'
 import { usePermissions } from '../hooks/usePermissions'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 
 /** 상태 필터 옵션 (검색 셀렉트). */
 const STATUS_OPTIONS: Array<{
@@ -83,12 +84,7 @@ export function JournalListPage() {
       header: '분개번호',
       width: '160px',
       mobilePriority: 'primary',
-    },
-    {
-      key: 'journalDate',
-      header: '일자',
-      width: '110px',
-      mobilePriority: 'secondary',
+      render: (row) => <DocumentNumberLink number={row.journalNo} to={row.id ? `/accounting/journals/${row.id}` : ''} />,
     },
     {
       key: 'status',

@@ -65,6 +65,7 @@ class DailyClosingServiceListPartnerFilterTest {
     @Mock private PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
     @Mock private PartnerLookupClient partnerLookupClient;
     @Mock private DynamicPermissionClient dynamicPermissionClient;
+    @Mock private DailyClosingVerificationService dailyClosingVerificationService;
 
     @InjectMocks private DailyClosingService dailyClosingService;
 

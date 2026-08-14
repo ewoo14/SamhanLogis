@@ -31,6 +31,7 @@ import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import { ExcelDownloadError } from '../../components/ExcelDownloadError'
 import { InboundInspectionDialog } from '../components/InboundInspectionDialog'
+import { DocumentNumberLink } from '../../components/DocumentNumberLink'
 
 const PAGE_SIZE = 50
 const INSPECTABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const
@@ -189,7 +190,8 @@ export function PurchaseQueryPage() {
   /** DataGrid 열 정의 (입고전표 사용자 노출 컬럼 + 검수 action) */
   const dataGridColumns: DataGridColumn<SlipQueryRow>[] = useMemo(
     () => [
-      { key: 'slipNo',                 label: '구매번호',    filter: 'text' },
+      { key: 'slipNo',                 label: '구매번호',    filter: 'text',
+        render: (row: SlipQueryRow) => <DocumentNumberLink number={row.slipNo} to={row.id ? `/purchases/${row.id}` : ''} detailWindow={row.id ? { documentType: 'INBOUND_SLIP', documentId: row.id } : undefined} /> },
       { key: 'partnerName',            label: '거래처',      filter: 'text' },
       { key: 'businessNumber',         label: '거래처코드',   filter: 'text' },
       { key: 'totalAmount',            label: '금액',        align: 'right' as const, filter: false as const,
@@ -201,7 +203,6 @@ export function PurchaseQueryPage() {
       { key: 'memo',                   label: '적요',        filter: 'text' },
       { key: 'salesPersonName',        label: '담당자명',    filter: 'text' },
       { key: 'paymentDueDate',         label: '지급예정일',  filter: 'text' },
-      { key: 'slipDate',               label: '전표일자',    filter: 'text' },
       { key: 'status',                 label: '상태',        filter: 'select' as const,
         format: (v: unknown) => typeof v === 'string' ? (SLIP_STATUS_LABEL[v] ?? v) : '—' },
       { key: 'printed',                label: '인쇄',        filter: 'select' as const,
@@ -254,7 +255,7 @@ export function PurchaseQueryPage() {
     ],
     [canInspect, navigate, warehouses],
   )
-  const tableColumnCount = canInspect ? 14 : 13
+  const tableColumnCount = canInspect ? 13 : 12
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -539,7 +540,7 @@ export function PurchaseQueryPage() {
                     {/* 순번 */}
                     <Td align="center">{rowIndex}</Td>
                     {/* 구매번호 — UUID 비공개: slipNo 만 표시 */}
-                    <Td>{row.slipNo}</Td>
+                    <Td><DocumentNumberLink number={row.slipNo} to={row.id ? `/purchases/${row.id}` : ''} detailWindow={row.id ? { documentType: 'INBOUND_SLIP', documentId: row.id } : undefined} /></Td>
                     {/* 거래처 */}
                     <Td>{row.partnerName ?? '—'}</Td>
                     {/* 거래처코드 = businessNumber (사업자등록번호) */}
@@ -569,7 +570,11 @@ export function PurchaseQueryPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
-                          navigate(`/purchases/${row.id}`)
+                          if (row.id && window.samhanDetailWindow) {
+                            void window.samhanDetailWindow.open({ documentType: 'INBOUND_SLIP', documentId: row.id, route: `/purchases/${row.id}` })
+                          } else if (row.id) {
+                            navigate(`/purchases/${row.id}`)
+                          }
                         }}
                         aria-label={`${row.slipNo} 상세 보기`}
                         data-testid={`purchase-query-detail-${toPublicTestId(row.slipNo)}`}

@@ -164,7 +164,9 @@ public class PermissionAspect {
         String actionName = action.name();
 
         String rawRoleHeader = extractHeader(joinPoint, signature, ROLE_HEADER);
-        String roleCode = normalizeHeader(rawRoleHeader, "UNKNOWN");
+        // Samhan 직원 JWT는 X-User-Role을 전파하지 않고 그룹 집합으로 권한을 판정한다.
+        // 역할이 없는 정상 그룹 기반 요청을 role=UNKNOWN으로 기록하지 않는다.
+        String roleCode = normalizeHeader(rawRoleHeader, "GROUP_BASED");
         String isSystemMasterHeader = extractHeader(joinPoint, signature, IS_SYSTEM_MASTER_HEADER);
         boolean hasIndependentRoleHeader = hasIndependentArologisRoleHeader(rawRoleHeader);
         if (isMasterBypass(roleCode, isSystemMasterHeader, hasIndependentRoleHeader)) {
@@ -359,11 +361,11 @@ public class PermissionAspect {
     }
 
     private void deny(String page, String roleCode, String action, String reason) {
-        log.debug("[SP-PO-1] 권한 deny — service={} page={} role={} action={} reason={}",
+        log.debug("[SP-PO-1] 권한 deny — service={} page={} subject={} action={} reason={}",
                 serviceName, page, roleCode, action, reason);
         metrics.incrementDenied(serviceName, page, roleCode, action);
         throw new AccessDeniedException(
-                String.format("[SP-PO-1] 동적 권한 deny — page=%s action=%s role=%s reason=%s",
+                String.format("[SP-PO-1] 동적 권한 deny — page=%s action=%s subject=%s reason=%s",
                         page, action, roleCode, reason));
     }
 }

@@ -114,8 +114,28 @@ describe('AppVersionGate 기동 updater 경로', () => {
     act(() => updater.emit({ kind: 'available', version: '' }))
 
     const status = await screen.findByTestId('app-auto-update-status')
-    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+    expect(status.textContent).toContain('다운로드가 끝나면 자동으로 설치합니다.')
     expect(status.textContent).not.toContain('새 버전 새 버전')
+  })
+
+  it('업데이트 알림은 제목과 본문에 같은 상태 문장을 반복하지 않고 보충 정보는 남긴다', async () => {
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    act(() => updater.emit({ kind: 'not-available' }))
+    await screen.findByTestId('login-sentinel')
+    act(() => updater.emit({ kind: 'downloading', percent: 42 }))
+
+    const notice = await screen.findByTestId('app-auto-update-status')
+    const title = notice.querySelector('h2')?.textContent ?? ''
+    const description = notice.querySelector('p')?.textContent ?? ''
+    expect(title).not.toBe('')
+    expect(description).not.toBe('')
+    expect(description).not.toContain(title)
+    expect(description).toContain('42%')
   })
 
   it('직전 호환 fallback 라벨이 다시 와도 새 버전 문구를 중복하지 않는다', async () => {
@@ -130,7 +150,7 @@ describe('AppVersionGate 기동 updater 경로', () => {
     act(() => updater.emit({ kind: 'available', version: '새 버전' }))
 
     const status = await screen.findByTestId('app-auto-update-status')
-    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+    expect(status.textContent).toContain('다운로드가 끝나면 자동으로 설치합니다.')
     expect(status.textContent).not.toContain('새 버전 새 버전')
   })
 
@@ -146,7 +166,7 @@ describe('AppVersionGate 기동 updater 경로', () => {
     act(() => updater.emit({ kind: 'available', version: '2026/13/40-1' }))
 
     const status = await screen.findByTestId('app-auto-update-status')
-    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+    expect(status.textContent).toContain('다운로드가 끝나면 자동으로 설치합니다.')
     expect(status.textContent).not.toContain('2026/13/40-1')
   })
 
@@ -244,7 +264,7 @@ describe('AppVersionGate 기동 updater 경로', () => {
     act(() => updater.emit({ kind: 'downloading', percent: 61 }))
     act(() => updater.emit({ kind: 'error' }))
 
-    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('업데이트 실패')
+    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('업데이트 서버에 연결하지 못했습니다')
   })
 
   it('업데이트 상태 알림은 앱 흐름에 배치되어 고정 토스트와 레이어를 공유하지 않는다', async () => {

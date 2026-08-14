@@ -56,6 +56,17 @@ declare global {
   }
 
   interface Window {
+    samhanDetailWindow?: {
+      open: (payload: {
+          documentType: 'OUTBOUND_SLIP' | 'INBOUND_SLIP' | 'TAX_INVOICE' | 'ESTIMATE' | 'PARTNER_ORDER' | 'TRANSFER' | 'INVENTORY_AUDIT'
+        documentId: string
+        route: string
+      }) => Promise<void>
+      close: () => Promise<void>
+      toggleMaximize: () => Promise<boolean>
+      setDirty: (dirty: boolean) => Promise<void>
+      onMaximizedChange: (listener: (maximized: boolean) => void) => () => void
+    }
     /**
      * 메인 프로세스 인증 토큰 게이트웨이.
      * 모든 메서드는 IPC 비동기 호출이다.
