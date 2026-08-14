@@ -378,6 +378,9 @@ export function SlipVersionHistoryPanel({
             // (PR #747 재수렴 MEDIUM fix — 이전엔 단일 activeFieldPath 비교라 첫 필드만 매칭됐다).
             const isHighlighted = activeRevisionNo === rev.revisionNo
               || fieldPaths.some((path) => normalizedActiveFieldPaths.has(path))
+            // 활성 필드가 매칭된 첫 렌더부터 변경 항목을 펼친다. effect가 expandedRevisionNos를
+            // 채우기 전에도 하이라이트와 details.open이 서로 다른 렌더를 보이지 않게 한다.
+            const isExpanded = expandedRevisionNos.has(rev.revisionNo) || isHighlighted
             return (
               <li
                 key={rev.revisionNo}
@@ -430,7 +433,7 @@ export function SlipVersionHistoryPanel({
                   {fieldChanges.length > 0 ? (
                     <details
                       data-testid={`slip-version-history-changes-${rev.revisionNo}`}
-                      open={expandedRevisionNos.has(rev.revisionNo)}
+                      open={isExpanded}
                       onToggle={(event) => {
                         const open = event.currentTarget.open
                         setExpandedRevisionNos((previous) => {
