@@ -4,13 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class AccountEcountMappingContractTest {
 
     @Test
     void undecided_codes_have_no_ecount_value_and_are_explicitly_marked() {
-        for (String code : List.of("103", "104", "105", "201", "919", "142", "210", "220", "255", "900")) {
+        for (String code : List.of("103", "104", "105", "900")) {
             AccountEcountMapping.Mapping mapping = AccountEcountMapping.resolve(code);
             assertThat(mapping.status()).isEqualTo(AccountEcountMapping.Status.UNDETERMINED);
             assertThat(mapping.ecountCode()).isNull();
@@ -29,6 +30,23 @@ class AccountEcountMappingContractTest {
         assertThat(after.journalCount()).isEqualTo(1);
         assertThat(after.debitTotal()).isEqualByComparingTo("19800000");
         assertThat(after.creditTotal()).isEqualByComparingTo("18000000");
+    }
+
+    @Test
+    void every_confirmed_v101_legacy_input_is_normalized_to_its_target() {
+        Map<String, String> expected = Map.ofEntries(
+                Map.entry("101", "1019"), Map.entry("102", "1039"), Map.entry("110", "1089"),
+                Map.entry("142", "2024"), Map.entry("146", "2054"), Map.entry("201", "2519"),
+                Map.entry("210", "2539"), Map.entry("220", "2559"), Map.entry("221", "2549"),
+                Map.entry("255", "2559"), Map.entry("260", "2954"), Map.entry("301", "3329"),
+                Map.entry("343", "3779"), Map.entry("401", "4019"), Map.entry("404", "4049"),
+                Map.entry("501", "4511"), Map.entry("801", "8029"), Map.entry("814", "8139"),
+                Map.entry("818", "8239"), Map.entry("819", "8249"), Map.entry("831", "8319"),
+                Map.entry("901", "9019"), Map.entry("919", "9399"), Map.entry("991", "9719"));
+
+        expected.forEach((legacy, target) -> assertThat(AccountEcountMapping.normalizeInputCode(legacy))
+                .as("legacy account code %s", legacy)
+                .isEqualTo(target));
     }
 
     @Test

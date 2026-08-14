@@ -109,6 +109,26 @@ class JournalServiceTest {
     }
 
     @Test
+    @DisplayName("create — 레거시 3자리 계정코드는 V101 정본으로 변환해 검증·저장")
+    void createNormalizesLegacyAccountCodesBeforeValidationAndPersistence() {
+        when(journalRepository.save(any(Journal.class))).thenAnswer(inv -> inv.getArgument(0));
+        CreateJournalRequest req = new CreateJournalRequest(
+                TODAY,
+                "레거시 계정코드 호환",
+                List.of(
+                        new CreateJournalLineRequest("110", new BigDecimal("100000"), BigDecimal.ZERO, null, "레거시 차변"),
+                        new CreateJournalLineRequest("401", BigDecimal.ZERO, new BigDecimal("100000"), null, "레거시 대변")
+                ));
+
+        JournalDetailResponse resp = journalService.create(req);
+
+        verify(accountService).requireLeafAccount("1089");
+        verify(accountService).requireLeafAccount("4019");
+        assertThat(resp.lines()).extracting(line -> line.accountCode())
+                .containsExactly("1089", "4019");
+    }
+
+    @Test
     @DisplayName("post — DRAFT → POSTED 위임")
     void postDelegatesToDomain() {
         Journal j = newPersistedDraft();

@@ -7,6 +7,7 @@ import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
+import com.samhanair.logis.accounting.service.AccountEcountMapping;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -49,11 +50,12 @@ public class AccountStatementService {
     private static final String UNKNOWN_ACCOUNT_NAME = "미정의 계정";
 
     private static final List<String> RECEIVABLE_ACCOUNT_CODES =
-            List.of("1089", "111", "114", "120");
+            List.of("1089", AccountEcountMapping.legacyCodeForTarget("1089").orElse("1089"), "111", "114", "120");
     private static final List<String> PAYABLE_ACCOUNT_CODES =
-            List.of("2519", "202", "2539", "212");
+            List.of("2519", AccountEcountMapping.legacyCodeForTarget("2519").orElse("2519"), "202", "2539", "212");
     private static final List<String> DEFAULT_ACCOUNT_CODES = List.of(
-            "1089", "111", "114", "120", "2519", "202", "2539", "212"
+            "1089", AccountEcountMapping.legacyCodeForTarget("1089").orElse("1089"), "111", "114", "120",
+            "2519", AccountEcountMapping.legacyCodeForTarget("2519").orElse("2519"), "202", "2539", "212"
     );
 
     private final JournalLineRepository journalLineRepository;
@@ -185,6 +187,12 @@ public class AccountStatementService {
         Map<String, ChartOfAccount> map = new LinkedHashMap<>();
         chartOfAccountRepository.findAllById(accountCodes)
                 .forEach(account -> map.put(account.getCode(), account));
+        for (String code : accountCodes) {
+            String canonical = AccountEcountMapping.normalizeInputCode(code);
+            if (!map.containsKey(code) && map.containsKey(canonical)) {
+                map.put(code, map.get(canonical));
+            }
+        }
         return map;
     }
 
@@ -255,10 +263,12 @@ public class AccountStatementService {
     }
 
     private String groupCodeOf(String accountCode, BalanceDirection direction) {
-        if (RECEIVABLE_ACCOUNT_CODES.contains(accountCode)) {
+        if (RECEIVABLE_ACCOUNT_CODES.contains(accountCode)
+                || "1089".equals(AccountEcountMapping.normalizeInputCode(accountCode))) {
             return "RECEIVABLE";
         }
-        if (PAYABLE_ACCOUNT_CODES.contains(accountCode)) {
+        if (PAYABLE_ACCOUNT_CODES.contains(accountCode)
+                || "2519".equals(AccountEcountMapping.normalizeInputCode(accountCode))) {
             return "PAYABLE";
         }
         return direction == BalanceDirection.DEBIT ? "DEBIT_BALANCE" : "CREDIT_BALANCE";

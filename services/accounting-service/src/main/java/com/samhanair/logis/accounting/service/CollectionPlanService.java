@@ -244,11 +244,14 @@ public class CollectionPlanService {
     }
 
     private java.util.Optional<BigDecimal> receivableBalance(UUID partnerId, LocalDate asOfDate) {
-        return journalLineRepository.aggregateAgingByAccount(ACCOUNT_RECEIVABLE, asOfDate)
-                .stream()
+        List<String> accountCodes = new ArrayList<>();
+        accountCodes.add(ACCOUNT_RECEIVABLE);
+        AccountEcountMapping.legacyCodeForTarget(ACCOUNT_RECEIVABLE).ifPresent(accountCodes::add);
+        return accountCodes.stream()
+                .flatMap(code -> journalLineRepository.aggregateAgingByAccount(code, asOfDate).stream())
                 .filter(row -> partnerId.equals(row.getPartnerId()))
-                .findFirst()
-                .map(row -> row.getDebitTotal().subtract(row.getCreditTotal()));
+                .map(row -> row.getDebitTotal().subtract(row.getCreditTotal()))
+                .reduce(BigDecimal::add);
     }
 
     private String nextPlanNo(LocalDate plannedDate) {

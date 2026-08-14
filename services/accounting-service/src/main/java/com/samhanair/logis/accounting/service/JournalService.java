@@ -97,12 +97,13 @@ public class JournalService {
 
         int lineNo = 1;
         for (CreateJournalLineRequest lineReq : request.lines()) {
+            String accountCode = AccountEcountMapping.normalizeInputCode(lineReq.accountCode());
             if (inventoryAudit) {
-                accountService.requireInventoryAuditAccount(lineReq.accountCode());
+                accountService.requireInventoryAuditAccount(accountCode);
             } else {
-                accountService.requireLeafAccount(lineReq.accountCode());
+                accountService.requireLeafAccount(accountCode);
             }
-            JournalLine line = JournalLine.create(journal, lineNo++, lineReq.accountCode(),
+            JournalLine line = JournalLine.create(journal, lineNo++, accountCode,
                     lineReq.debitAmount(), lineReq.creditAmount(), lineReq.partnerId(),
                     lineReq.memo());
             journal.addLine(line);
@@ -221,8 +222,9 @@ public class JournalService {
         }
         int lineNo = 1;
         for (AutoJournalLineSpec spec : lineSpecs) {
-            accountService.requireLeafAccount(spec.accountCode());
-            JournalLine line = JournalLine.create(journal, lineNo++, spec.accountCode(),
+            String accountCode = AccountEcountMapping.normalizeInputCode(spec.accountCode());
+            accountService.requireLeafAccount(accountCode);
+            JournalLine line = JournalLine.create(journal, lineNo++, accountCode,
                     spec.debitAmount(), spec.creditAmount(), spec.partnerId(), spec.memo());
             journal.addLine(line);
         }
