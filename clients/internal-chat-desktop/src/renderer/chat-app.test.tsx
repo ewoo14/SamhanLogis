@@ -89,6 +89,17 @@ describe('독립 앱 S1 채팅 이식', () => {
     await waitFor(() => expect(chatApi.createDirectChatRoomByEmployeeCode).toHaveBeenCalledWith('CEO'))
   })
 
+  it('세션 목록 상단은 상태를 읽을 수 있는 요약 영역으로 표시한다', async () => {
+    renderApp()
+
+    const summary = await screen.findByTestId('chat-session-summary')
+    await screen.findByText('홍길동')
+    expect(summary.getAttribute('role')).toBe('region')
+    expect(summary).toHaveAccessibleName('현재 세션')
+    expect(within(summary).getByText('홍길동')).toBeInTheDocument()
+    expect(within(summary).getByText('접속')).toBeInTheDocument()
+  })
+
   it('production basename 환경에서 방 생성 직후 생성된 대화방에 진입한다', async () => {
     renderProductionApp()
 
