@@ -48,7 +48,7 @@ win:
     - target: portable
       arch: [x64]
   icon: build/icon.ico  # 미존재 시 electron-builder default 아이콘 fallback
-  publisherName: Samhan Air Systems Co., Ltd.
+  publisherName: Samhan Internal Release
   requestedExecutionLevel: asInvoker  # 관리자 권한 불필요 (UAC 회피)
 
 nsis:

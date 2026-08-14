@@ -147,6 +147,8 @@ spring:
                 allowedGroups:
                   - 00000000-0000-0000-0000-000000000100
                   - 00000000-0000-0000-0000-000000000101
+                allowSystemMaster: true
+            - AddRequestHeader=X-Internal-Token, ${SAMHAN_INTERNAL_TOKEN}
 
         # DEV-3 활동 로그 뷰어 — gateway 는 인증만 수행하고 logging-service @RequirePermission(dev.activity-log)가 최종 게이팅.
         - id: logging-activity-dev-menu
@@ -155,6 +157,7 @@ spring:
             - Path=/logs/activity,/logs/front
           filters:
             - JwtAuthentication
+            - AddRequestHeader=X-Internal-Token, ${SAMHAN_INTERNAL_TOKEN}
 
         # desktop preload legacy 감사 경로 호환 — /api/v1/audit-logs/front → logging-service /logs/front.
         - id: logging-front-legacy-v1
@@ -163,6 +166,7 @@ spring:
             - Path=/api/v1/audit-logs/front
           filters:
             - JwtAuthentication
+            - AddRequestHeader=X-Internal-Token, ${SAMHAN_INTERNAL_TOKEN}
             - SetPath=/logs/front
 
         # ============================================================
@@ -764,9 +768,12 @@ eureka:
 
 app:
   security:
+    # gateway ingress attestation은 service-to-service internal token과 별도 자격이다.
+    # 값은 로컬 infrastructure/.env.local 또는 운영 secret manager에서만 주입한다.
+    gateway-attestation: ${SAMHAN_GATEWAY_ATTESTATION:}
     jwt:
       # Phase 8 2차 — SAMHAN_JWT_SECRET 우선, JWT_SECRET legacy fallback (Phase 10 cutover 시점 단일화)
-      secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET:dev-secret-change-me-in-production-32bytes-min!}}
+      secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET}}
       ttl-seconds: 3600
 
 management:

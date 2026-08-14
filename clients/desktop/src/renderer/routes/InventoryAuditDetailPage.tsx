@@ -33,6 +33,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import axios from 'axios'
+import { extractApiErrorMessage } from '../api/apiError'
 import {
   AuditOverlay,
   Badge,
@@ -105,9 +106,9 @@ function auditStatusBadgeStyle(status: AuditStatus) {
   }
 }
 
-export function InventoryAuditDetailPage() {
+export function InventoryAuditDetailPage({ opaqueAuditId }: { opaqueAuditId?: string } = {}) {
   const params = useParams<{ id: string }>()
-  const id = params.id ?? ''
+  const id = opaqueAuditId ?? params.id ?? ''
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
@@ -168,6 +169,8 @@ export function InventoryAuditDetailPage() {
     void queryClient.invalidateQueries({
       queryKey: ['inventory', 'audits'],
     })
+    void queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })
+    void queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })
   }
 
   if (detailQuery.isLoading) {
@@ -438,7 +441,9 @@ export function InventoryAuditDetailPage() {
             role="alert"
             style={{ marginTop: 12 }}
           >
-            상태 변경에 실패했습니다.
+            {extractApiErrorMessage(
+              completeMutation.error ?? startMutation.error ?? cancelMutation.error,
+            ) || '상태 변경에 실패했습니다.'}
           </div>
         ) : null}
       </Card>
@@ -529,7 +534,7 @@ function BarcodeInput({ audit, onRecorded }: BarcodeInputProps) {
   const mutation = useMutation({
     mutationFn: () =>
       recordAuditLine(audit.id, {
-        productId: productId.trim(),
+        productCode: productId.trim(),
         actualQty: Number.parseInt(actualQty, 10),
         scanned,
       }),

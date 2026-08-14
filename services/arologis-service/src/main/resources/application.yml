@@ -43,6 +43,9 @@ eureka:
 
 samhan:
   security:
+    # gateway ingress attestation은 자체 JWT 및 internal RPC token과 별도 자격이다.
+    # 값은 로컬 infrastructure/.env.local 또는 운영 secret manager에서만 주입한다.
+    gateway-attestation: ${SAMHAN_GATEWAY_ATTESTATION:}
     permission:
       # 아로로지스는 auth-service accounts 를 사용하지 않는 독립 auth 이므로
       # Phase 1 account-based 전환에서 제외하고 기존 role_page_permissions 기반 enforcement 를 유지한다.

@@ -276,6 +276,8 @@ export function slipLineAmounts(line: SlipLine) {
 export interface SlipDetailPageProps {
   /** OUTBOUND 또는 INBOUND — 라우트별 listPath 결정 + ship/deliver 노출 여부. */
   mode: SlipType
+  /** 전표번호 opaque 진입 경로가 내부 상세 UUID를 해석한 뒤 전달하는 값. URL에는 UUID를 쓰지 않는다. */
+  slipId?: string
 }
 
 const SLIP_STATUS_LABEL: Record<string, string> = {
@@ -1618,9 +1620,9 @@ export function canSoftDeleteSlip(
   return isDirectEditStatus(status) && canAccess(pageCode, 'delete')
 }
 
-export function SlipDetailPage({ mode }: SlipDetailPageProps) {
+export function SlipDetailPage({ mode, slipId }: SlipDetailPageProps) {
   const params = useParams<{ id: string }>()
-  const id = params.id ?? ''
+  const id = slipId ?? params.id ?? ''
   const slipCollabBasePath = useMemo(() => `/slips/${id}`, [id])
   const navigate = useNavigate()
   const { canAccess } = usePermissions()
@@ -2068,6 +2070,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       transitionDiscardRef.current = false
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['slips'] })
+      if (vars.action === 'ship' || vars.action === 'confirm') {
+        void queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })
+        void queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })
+      }
       // S2d-1 NB6: 임계 전이(send/inspect)가 redline anchor 를 세팅하므로 redline 도 갱신한다.
       void queryClient.invalidateQueries({ queryKey: ['slipRedline', id] })
       setRejectReason('')

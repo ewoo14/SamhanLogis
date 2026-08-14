@@ -327,7 +327,7 @@ export interface StockLedgerRow {
   balance: number
   opening: boolean
   slipNo?: string | null
-  slipType?: 'INBOUND' | 'OUTBOUND' | null
+  slipType?: 'INBOUND' | 'OUTBOUND' | 'STOCK_TRANSFER' | 'AUDIT' | null
 }
 
 export interface StockLedgerResponse {

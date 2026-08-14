@@ -1,0 +1,29 @@
+PR #1208 재수렴 SOL — eligibility 실 HTTP·게이트웨이 역할 계약 원문
+
+APP_READY|url=http://localhost:19091|stub=http://localhost:19092
+OPAQUE_TOKEN|value=EREREREREREREREREREREQ|length=22|uuid_pattern=False
+
+ELIGIBILITY|CASE=DIRECT_ACCOUNTANT|HTTP=200|UUID_IN_BODY=False|allowed=true|reasons=[]|reasonMessages=[]
+ELIGIBILITY|CASE=DIRECT_MANAGER|HTTP=200|UUID_IN_BODY=False|allowed=true|reasons=[]|reasonMessages=[]
+ELIGIBILITY|CASE=DIRECT_MASTER|HTTP=200|UUID_IN_BODY=False|allowed=true|reasons=[]|reasonMessages=[]
+ELIGIBILITY|CASE=DIRECT_SALES|HTTP=200|UUID_IN_BODY=False|allowed=false|reasons=["PERMISSION_DENIED"]|reasonMessages=["회계전표 생성 권한이 없습니다"]
+
+DIRECT_ACCOUNTANT_RESPONSE={"success":true,"code":"OK","message":"성공","data":{"readModel":{"sourceSlipNo":"OUT-20260814-001","sourceSlipType":"OUTBOUND","sourceSlipStatus":"CONFIRMED","sourcePartnerCode":"P-001","sourceAmount":110000,"allocatedAmount":0,"allocatedQuantity":0,"linkedSlips":[],"amountMatched":false},"allowed":true,"reasons":[],"reasonMessages":[]}}
+DIRECT_SALES_RESPONSE={"success":true,"code":"OK","message":"성공","data":{"readModel":{"sourceSlipNo":"OUT-20260814-001","sourceSlipType":"OUTBOUND","sourceSlipStatus":"CONFIRMED","sourcePartnerCode":"P-001","sourceAmount":110000,"allocatedAmount":0,"allocatedQuantity":0,"linkedSlips":[],"amountMatched":false},"allowed":false,"reasons":["PERMISSION_DENIED"],"reasonMessages":["회계전표 생성 권한이 없습니다"]}}
+
+ELIGIBILITY|CASE=GATEWAY_MASTER_NO_ROLE|HTTP=200|UUID_IN_BODY=False|allowed=false|reasons=["PERMISSION_DENIED"]|reasonMessages=["회계전표 생성 권한이 없습니다"]
+ELIGIBILITY|CASE=GATEWAY_NONMASTER_NO_ROLE|HTTP=200|UUID_IN_BODY=False|allowed=false|reasons=["PERMISSION_DENIED"]|reasonMessages=["회계전표 생성 권한이 없습니다"]
+
+gateway route:
+Path=/api/v1/accounting/**
+StripPrefix=2
+JwtAuthentication
+
+gateway regression test:
+JwtAuthenticationGatewayFilterFactoryTest|tests=24|failures=0|errors=0|skipped=0
+- C5-4: 유효 토큰 → X-User-Id/X-Is-System-Master/X-User-Groups 전파, X-User-Role 미전파
+- C5-4: isSystemMaster=true 토큰 → X-Is-System-Master: true 전파, X-User-Role 미전파
+- C5-1+C5-4: groups claim 포함 토큰 → X-User-Groups comma-join 전파, X-User-Role 미전파
+
+APP_STOPPED=True|STUB_STOPPED=True
+

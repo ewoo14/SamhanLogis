@@ -5,6 +5,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.hamcrest.Matchers.hasItem;
@@ -17,6 +18,7 @@ import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.repository.SlipPartnerQuarantineRepository;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,6 +47,9 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
 
     @Autowired
     private SlipRepository slipRepository;
+
+    @Autowired
+    private SlipPartnerQuarantineRepository quarantineRepository;
 
     @MockBean
     private PartnerInternalClient partnerInternalClient;
@@ -75,7 +80,9 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
     @AfterEach
     void cleanupSeededSlips() {
         var seeded = slipRepository.findAll().stream()
-                .filter(slip -> slip.getSlipNo() != null && slip.getSlipNo().startsWith("2026/07/19-BF-"))
+                .filter(slip -> slip.getSlipNo() != null
+                        && (slip.getSlipNo().startsWith("2026/07/19-BF-")
+                        || slip.getSlipNo().startsWith("2026/08/09-2")))
                 .toList();
         seeded.forEach(slip -> slip.markDeleted("backfill-it-cleanup"));
         if (!seeded.isEmpty()) {
@@ -161,6 +168,100 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
         verify(partnerInternalClient, times(1)).resolvePartnerCode(partnerId);
     }
 
+    @Test
+    void backfillActivePartnerCodes_repairsDraftWithoutBlockingNormalDraftLifecycle() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        long baseline = activeCodeMissingCount();
+        Slip violation = persistDraftWithPartnerId(partnerId);
+        when(partnerInternalClient.resolvePartnerCode(partnerId))
+                .thenReturn(Optional.of("P-BACKFILL-DRAFT-001"));
+
+        mockMvc.perform(post("/internal/slips/backfill-active-partner-codes")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value((int) baseline + 1))
+                .andExpect(jsonPath("$.data.processedCount").value(1))
+                .andExpect(jsonPath("$.data.remainingCount").value((int) baseline));
+
+        Slip updated = slipRepository.findById(violation.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(updated.getPartnerCode())
+                .isEqualTo("P-BACKFILL-DRAFT-001");
+        org.assertj.core.api.Assertions.assertThat(updated.getStatus()).isEqualTo(SlipStatus.DRAFT);
+    }
+
+    @Test
+    void unresolvedSlip_isExcludedFromActiveList_andRetainsEvidence() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        Slip unresolved = persistUnresolvedSlip(partnerId, "2026/08/09-2");
+        when(partnerInternalClient.resolvePartnerCode(partnerId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/internal/slips/backfill-active-partner-codes")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.unresolved[*].slipNo", hasItem("2026/08/09-2")));
+
+        mockMvc.perform(post("/internal/slips/quarantine-unresolved-partner-slips")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"slipNos\":[\"2026/08/09-2\"],\"reason\":\"활성 partner 원본 없음\"}")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.quarantinedCount").value(1));
+
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findBySlipNo("2026/08/09-2")).isEmpty();
+        Slip deleted = slipRepository.findBySlipTypeAndSlipNoIncludingDeleted(
+                unresolved.getSlipType().name(), unresolved.getSlipNo()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(deleted.getIsDeleted()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(quarantineRepository.findBySlipId(unresolved.getId()))
+                .get().extracting(q -> q.getReason()).isEqualTo("활성 partner 원본 없음");
+    }
+
+    @Test
+    void quarantinedSlip_canBeRestoredWithResolvedPartnerCode() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        Slip unresolved = persistUnresolvedSlip(partnerId, "2026/08/09-2");
+        when(partnerInternalClient.resolvePartnerCode(partnerId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/internal/slips/quarantine-unresolved-partner-slips")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"slipNos\":[\"2026/08/09-2\"],\"reason\":\"활성 partner 원본 없음\"}")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk());
+
+        when(partnerInternalClient.resolvePartnerCode(partnerId)).thenReturn(Optional.of("P-RESTORED-001"));
+        mockMvc.perform(post("/internal/slips/restore-quarantined-partner-slips")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"slipNos\":[\"2026/08/09-2\"]}")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.restoredCount").value(1));
+
+        Slip restored = slipRepository.findBySlipNo("2026/08/09-2").orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(restored.getPartnerCode()).isEqualTo("P-RESTORED-001");
+        org.assertj.core.api.Assertions.assertThat(quarantineRepository.findBySlipId(unresolved.getId()))
+                .get().extracting(q -> q.getRestoredAt()).isNotNull();
+    }
+
+    @Test
+    void eightResolvableRows_areNotConsumedByQuarantineInput() throws Exception {
+        for (int i = 0; i < 8; i++) {
+            UUID partnerId = UUID.randomUUID();
+            persistUnresolvedSlip(partnerId, "2026/08/09-2-RESTORABLE-" + i);
+            when(partnerInternalClient.resolvePartnerCode(partnerId))
+                    .thenReturn(Optional.of("P-RESTORABLE-" + i));
+        }
+
+        mockMvc.perform(post("/internal/slips/backfill-active-partner-codes")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.processedCount").value(8));
+
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findAll()).hasSizeGreaterThanOrEqualTo(8);
+        org.assertj.core.api.Assertions.assertThat(quarantineRepository.findBySlipId(
+                slipRepository.findAll().stream()
+                        .filter(slip -> slip.getSlipNo().startsWith("2026/08/09-2-RESTORABLE-0"))
+                        .findFirst().orElseThrow().getId())).isEmpty();
+    }
+
     private long candidateCount() {
         return slipRepository.findAllByStatusInAndPartnerIdIsNullAndIsDeletedFalse(
                         Slip.requiredPartnerStatuses()).size()
@@ -170,6 +271,10 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
 
     private long remainingCount() {
         return slipRepository.countByStatusInAndEitherPartnerColumnMissing(Slip.requiredPartnerStatuses());
+    }
+
+    private long activeCodeMissingCount() {
+        return slipRepository.findAllActiveWithPartnerIdAndPartnerCodeMissing().size();
     }
 
     private Slip persistCommittedPartnerless(String partnerCode) {
@@ -194,6 +299,23 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
                 UUID.randomUUID(), partnerId, "backfill code test", null,
                 "backfill code test", "backfill-test");
         ReflectionTestUtils.setField(slip, "status", SlipStatus.SENT);
+        return slipRepository.saveAndFlush(slip);
+    }
+
+    private Slip persistDraftWithPartnerId(UUID partnerId) {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        Slip slip = Slip.createInbound(
+                "2026/07/19-BF-DRAFT-" + suffix, LocalDate.of(2026, 7, 19),
+                Math.abs(suffix.hashCode()), UUID.randomUUID(), partnerId,
+                "backfill draft test", null, "backfill draft test", "backfill-test");
+        return slipRepository.saveAndFlush(slip);
+    }
+
+    private Slip persistUnresolvedSlip(UUID partnerId, String slipNo) {
+        Slip slip = Slip.createInbound(slipNo, LocalDate.of(2026, 8, 9),
+                Math.abs(slipNo.hashCode()), UUID.randomUUID(), partnerId,
+                "복원 불가 거래처", null, "격리 테스트", "quarantine-test");
+        ReflectionTestUtils.setField(slip, "status", SlipStatus.CONFIRMED);
         return slipRepository.saveAndFlush(slip);
     }
 }

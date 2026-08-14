@@ -1,0 +1,48 @@
+﻿PR #1208 reconv2 environment evidence
+captured_at=2026-08-14T14:36:17.0729012+09:00
+worktree=C:\dev\Samhan-Public\.claude\worktrees\w1144
+local_ref=refs/heads/feat/1144-accounting-slip-link
+local_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+pr_branch=feat/1144-accounting-slip-link
+pr_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+sha_match=True
+pr_state=OPEN
+pr_mergeable=MERGEABLE
+env_file=infrastructure/.env.local
+env_utf8_valid=True
+env_utf8_bom=False
+env_secret_values_printed=False
+docker_client_server=client=29.6.2 server=29.6.2
+java=openjdk 17.0.18 Temurin
+gradle=8.10.2
+shared_db_write=0
+shared_stack_redeploy=0
+docker_containers_before:
+samhan-partner-auth-service|Up 13 minutes (healthy)|127.0.0.1:8091->8091/tcp
+samhan-dc-config-service|Up 14 minutes (healthy)|127.0.0.1:8089->8089/tcp
+samhan-dashboard-service|Up 15 minutes (healthy)|127.0.0.1:8094->8094/tcp
+samhan-user-service|Up 15 minutes (healthy)|127.0.0.1:8083->8083/tcp
+samhan-api-gateway|Up 16 minutes (healthy)|127.0.0.1:8080->8080/tcp
+samhan-logging-service|Up 16 minutes (healthy)|127.0.0.1:8082->8082/tcp
+qa1180sol-auth-on|Up 2 hours|127.0.0.1:18180->8081/tcp
+samhan-accounting-service|Up 2 hours (healthy)|127.0.0.1:8087->8087/tcp
+samhan-inventory-service|Up 2 hours (healthy)|127.0.0.1:8085->8085/tcp
+qa1180adv-user|Up 3 hours|127.0.0.1:28813->28813/tcp
+qa1180adv-auth-virtual|Up 3 hours|127.0.0.1:28812->28812/tcp
+qa1180adv-auth|Up 3 hours|127.0.0.1:28811->28811/tcp
+qa1180adv-pg|Up 3 hours (healthy)|127.0.0.1:28480->5432/tcp
+samhan-arologis-service|Up 3 hours (healthy)|127.0.0.1:8097->8097/tcp
+samhan-partner-order-service|Up 3 hours (healthy)|8080/tcp
+samhan-groupware-service|Up 6 hours (healthy)|127.0.0.1:8092->8092/tcp
+samhan-auth-service|Up 7 hours (healthy)|127.0.0.1:8081->8081/tcp
+samhan-slip-service|Up 20 hours (healthy)|127.0.0.1:18086->8086/tcp
+samhan-product-service|Up 20 hours (healthy)|127.0.0.1:8084->8084/tcp
+samhan-eureka|Up 20 hours (healthy)|127.0.0.1:8761->8761/tcp
+samhan-postgres|Up 20 hours (healthy)|0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+samhan-partner-service|Up 20 hours (healthy)|127.0.0.1:8095->8095/tcp
+samhan-notification-service|Up 20 hours (healthy)|127.0.0.1:8093->8093/tcp
+samhan-grafana|Up 20 hours (healthy)|127.0.0.1:3000->3000/tcp, 0.0.0.0:3100->3000/tcp, [::]:3100->3000/tcp
+samhan-minio|Up 20 hours (healthy)|0.0.0.0:9000-9001->9000-9001/tcp, [::]:9000-9001->9000-9001/tcp
+samhan-elasticsearch|Up 20 hours (healthy)|0.0.0.0:9200->9200/tcp, [::]:9200->9200/tcp
+samhan-rabbitmq|Up 20 hours (healthy)|0.0.0.0:5672->5672/tcp, [::]:5672->5672/tcp, 0.0.0.0:15672->15672/tcp, [::]:15672->15672/tcp
+samhan-redis|Up 20 hours (healthy)|0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp

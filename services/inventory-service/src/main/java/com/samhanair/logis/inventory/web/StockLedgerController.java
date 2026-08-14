@@ -28,7 +28,7 @@ public class StockLedgerController {
             @RequestParam(required = false) LocalDate endDate) {
         LocalDate today = LocalDate.now();
         LocalDate resolvedEnd = endDate == null ? today : endDate;
-        LocalDate resolvedStart = startDate == null ? resolvedEnd.withDayOfMonth(1) : startDate;
+        LocalDate resolvedStart = startDate == null ? resolvedEnd.minusMonths(3) : startDate;
         return ApiResponse.ok(stockLedgerService.getLedger(productCode, resolvedStart, resolvedEnd),
                 "재고수불부 조회 완료");
     }

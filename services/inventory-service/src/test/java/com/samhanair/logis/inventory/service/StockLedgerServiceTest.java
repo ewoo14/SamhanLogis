@@ -57,6 +57,31 @@ class StockLedgerServiceTest {
     }
 
     @Test
+    @DisplayName("이동 출고와 이동 입고 movement를 수불부 물리 변동으로 포함한다")
+    void includesTransferMovementsAsPhysicalRows() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary product = mock(ProductSummary.class);
+        when(product.id()).thenReturn(productId);
+        when(product.name()).thenReturn("이동 품목");
+        when(productClient.requireExistsByCode("TRANSFER-P1")).thenReturn(product);
+
+        StockMovement transferOut = movement(MovementType.TRANSFER_OUT, -4,
+                LocalDateTime.of(2026, 8, 13, 9, 0));
+        StockMovement transferIn = movement(MovementType.TRANSFER_IN, 4,
+                LocalDateTime.of(2026, 8, 13, 9, 1));
+        when(movementRepository.findAllByProductIdOrderByOccurredAtAsc(productId))
+                .thenReturn(List.of(transferOut, transferIn));
+
+        var ledger = service.getLedger("TRANSFER-P1", LocalDate.of(2026, 8, 13),
+                LocalDate.of(2026, 8, 13));
+
+        assertThat(ledger.rows()).hasSize(2);
+        assertThat(ledger.rows()).extracting(StockLedgerRow::inboundQuantity).containsExactly(0, 4);
+        assertThat(ledger.rows()).extracting(StockLedgerRow::outboundQuantity).containsExactly(4, 0);
+        assertThat(ledger.closingBalance()).isZero();
+    }
+
+    @Test
     @DisplayName("수불부 응답에는 UUID를 포함하지 않는다")
     void responseHasNoUuidFields() {
         var row = new StockLedgerRow(LocalDate.of(2026, 8, 2), "품목", "CODE", "창고", "거래처",
@@ -87,6 +112,51 @@ class StockLedgerServiceTest {
 
         assertThat(ledger.rows().get(0).slipNo()).isEqualTo("2026/08/02-17");
         assertThat(ledger.rows().get(0).slipType()).isEqualTo("INBOUND");
+    }
+
+    @Test
+    @DisplayName("이동 movement는 적요가 아니라 전표번호 열과 이동 전표 유형을 제공한다")
+    void exposesStockTransferNumberAsSlipNumber() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary product = mock(ProductSummary.class);
+        when(product.id()).thenReturn(productId);
+        when(product.name()).thenReturn("이동 품목");
+        when(productClient.requireExistsByCode("TRANSFER-P1")).thenReturn(product);
+        StockMovement movement = movement(MovementType.TRANSFER_IN, 1,
+                LocalDateTime.of(2026, 8, 14, 9, 0));
+        when(movement.getReferenceType()).thenReturn("STOCK_TRANSFER");
+        when(movement.getNote()).thenReturn("2026/08/14-11");
+        when(movementRepository.findAllByProductIdOrderByOccurredAtAsc(productId))
+                .thenReturn(List.of(movement));
+
+        var ledger = service.getLedger("TRANSFER-P1", LocalDate.of(2026, 8, 14),
+                LocalDate.of(2026, 8, 14));
+
+        assertThat(ledger.rows().get(0).slipNo()).isEqualTo("2026/08/14-11");
+        assertThat(ledger.rows().get(0).slipType()).isEqualTo("STOCK_TRANSFER");
+    }
+
+    @Test
+    @DisplayName("실사 조정 movement도 조정번호를 전표번호 열에 제공한다")
+    void exposesInventoryAuditNumberAsSlipNumber() {
+        UUID productId = UUID.randomUUID();
+        ProductSummary product = mock(ProductSummary.class);
+        when(product.id()).thenReturn(productId);
+        when(product.name()).thenReturn("실사 품목");
+        when(productClient.requireExistsByCode("AUDIT-P1")).thenReturn(product);
+        StockMovement movement = movement(MovementType.ADJUST, 1,
+                LocalDateTime.of(2026, 8, 14, 9, 0));
+        when(movement.getReferenceType()).thenReturn("AUDIT");
+        when(movement.getReferenceId()).thenReturn(UUID.randomUUID());
+        when(movement.getNote()).thenReturn("재고 실사 조정 (2026/08/14-3)");
+        when(movementRepository.findAllByProductIdOrderByOccurredAtAsc(productId))
+                .thenReturn(List.of(movement));
+
+        var ledger = service.getLedger("AUDIT-P1", LocalDate.of(2026, 8, 14),
+                LocalDate.of(2026, 8, 14));
+
+        assertThat(ledger.rows().get(0).slipNo()).isEqualTo("2026/08/14-3");
+        assertThat(ledger.rows().get(0).slipType()).isEqualTo("AUDIT");
     }
 
     private StockMovement movement(MovementType type, int delta, LocalDateTime occurredAt) {

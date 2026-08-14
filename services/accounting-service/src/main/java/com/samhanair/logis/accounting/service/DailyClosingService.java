@@ -138,6 +138,13 @@ public class DailyClosingService {
             case PURCHASE_SLIP -> aggregateFromPurchaseSlips(closingDate, filterPartnerId);
         };
 
+        AccountingSlipEligibility q5 = AccountingSlipEligibility.evaluateDailyClosing(
+                agg.totalAmount(), Boolean.TRUE.equals(request.amountVerified()), actorRole);
+        if (!q5.allowed()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    String.join("; ", q5.reasonMessages()));
+        }
+
         // (3) 기존 snapshot 조회 또는 신규 생성 (신규는 0으로 초기화 후 recalculate 로 일원화)
         DailyClosing closing;
         if (filterPartnerId != null) {

@@ -104,10 +104,15 @@ services:
     mem_limit: 1g
     mem_reservation: 512m
     environment:
+      <<: *spring-env
       TZ: "Asia/Seoul"
       SERVER_PORT: "8080"
       EUREKA_URL: http://eureka-server:8761/eureka/
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      # Compose 합성은 환경 자격의 존재 여부와 무관하게 가능해야 한다.
+      # 값이 비어 있으면 api-gateway의 런타임 필터가 attestation을 주입하지 않아
+      # downstream 서비스가 fail-closed(401)로 차단한다. 자격 기본값은 두지 않는다.
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
     ports:
       - "127.0.0.1:8080:8080"
@@ -626,6 +631,9 @@ services:
       SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE: "false"
       SAMHAN_AROLOGIS_SEED_TEST_DATA: "true"
       SAMHAN_AROLOGIS_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      # Compose 합성은 환경 자격의 존재 여부와 무관하게 가능해야 한다.
+      # 값이 비어 있으면 arologis-service의 런타임 필터가 요청을 fail-closed(401)로 차단한다.
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       SAMHAN_USER_SERVICE_URL: http://user-service:8083
       SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086

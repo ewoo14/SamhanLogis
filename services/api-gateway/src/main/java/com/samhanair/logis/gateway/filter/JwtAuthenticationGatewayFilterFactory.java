@@ -25,6 +25,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -123,12 +125,22 @@ public class JwtAuthenticationGatewayFilterFactory
     private static final String HEADER_PARTNER_CODE = HttpHeaderConstants.PARTNER_CODE_HEADER;
     /** 표시명 헤더. JWT claim {@code name} 에서 추출. */
     private static final String HEADER_USER_NAME = HttpHeaderConstants.CALLER_NAME_HEADER;
+    private static final String HEADER_GATEWAY_ATTESTATION = HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER;
 
     private final JwtProperties props;
+    private final String gatewayAttestation;
 
     public JwtAuthenticationGatewayFilterFactory(JwtProperties props) {
+        this(props, null);
+    }
+
+    @Autowired
+    public JwtAuthenticationGatewayFilterFactory(
+            JwtProperties props,
+            @Value("${app.security.gateway-attestation:}") String gatewayAttestation) {
         super(Config.class);
         this.props = props;
+        this.gatewayAttestation = gatewayAttestation;
     }
 
     @Override
@@ -204,7 +216,8 @@ public class JwtAuthenticationGatewayFilterFactory
 
             // allowedGroups 검사 — Phase C5-3 신규. 비어있으면 그룹 제한 없음 (기존 라우트 영향 0).
             // groups claim 과 allowedGroups 의 교집합이 없으면 403.
-            if (!config.getAllowedGroups().isEmpty()) {
+            if (!config.getAllowedGroups().isEmpty()
+                    && !(config.isAllowSystemMaster() && isSystemMaster)) {
                 Set<String> tokenGroups = new java.util.HashSet<>(
                         Arrays.asList(groups.split(",")));
                 // 빈 문자열 토큰 제거 (groups claim 부재 시 "" → [""] 방지)
@@ -233,6 +246,9 @@ public class JwtAuthenticationGatewayFilterFactory
                         h.add(HEADER_IS_SYSTEM_MASTER, String.valueOf(isSystemMaster));
                         // Phase C5-1: groups 는 항상 전송 (빈 문자열 포함) — 헤더 일관
                         h.add(HEADER_USER_GROUPS, groups);
+                        if (gatewayAttestation != null && !gatewayAttestation.isBlank()) {
+                            h.add(HEADER_GATEWAY_ATTESTATION, gatewayAttestation);
+                        }
                         // Phase C5-4 P1-a: X-Is-Partner 는 항상 전송("true"/"false") — 클레임 기반 강제 덮어쓰기.
                         // isPartner=false 이면 "false" 전송 → downstream 이 "true" 위조 입력을 신뢰할 수 없게 차단.
                         h.add(HEADER_IS_PARTNER, String.valueOf(isPartner));
@@ -324,5 +340,7 @@ public class JwtAuthenticationGatewayFilterFactory
          * allowedRoles 와 AND 아님 — 각각 독립 검사.
          */
         private List<String> allowedGroups = new ArrayList<>();
+        /** Allow the signed JWT system-master claim to bypass this route's group list. */
+        private boolean allowSystemMaster;
     }
 }

@@ -12,7 +12,7 @@ import java.math.BigDecimal;
  *   <li>NET_INCOME       — 당기순이익 (이익잉여금 증가)</li>
  * </ul>
  *
- * @param accountCode  계정 코드 (예: "301" 자본금, "341" 이익잉여금)
+ * @param accountCode  계정 코드 (예: "3329" 자본금, "3779" 이익잉여금)
  * @param accountName  계정명
  * @param changeType   변동 유형 문자열
  * @param description  변동 사유 설명

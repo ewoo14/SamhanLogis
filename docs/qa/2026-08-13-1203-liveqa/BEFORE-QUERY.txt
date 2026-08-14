@@ -1,0 +1,41 @@
+-- 확정 전, READ ONLY 트랜잭션에서 실행한 쿼리
+WITH target_product AS (
+  SELECT l.product_id
+  FROM stock_lots l JOIN warehouses w ON w.id=l.warehouse_id
+  WHERE l.is_deleted=false AND w.code='HQ-001' AND l.lot_no='2026/08/08-8'
+  LIMIT 1
+)
+SELECT w.code AS warehouse_code,w.name AS warehouse_name,
+       COALESCE(b.available_qty,0) AS available_qty,
+       COALESCE(b.reserved_qty,0) AS reserved_qty,
+       COALESCE(b.total_qty,0) AS total_qty
+FROM warehouses w
+LEFT JOIN target_product p ON true
+LEFT JOIN stock_balances b ON b.product_id=p.product_id AND b.warehouse_id=w.id AND b.is_deleted=false
+WHERE w.is_deleted=false AND w.code IN ('HQ-001','00003')
+ORDER BY w.code;
+
+WITH target_product AS (
+  SELECT l.product_id
+  FROM stock_lots l JOIN warehouses w ON w.id=l.warehouse_id
+  WHERE l.is_deleted=false AND w.code='HQ-001' AND l.lot_no='2026/08/08-8'
+  LIMIT 1
+)
+SELECT COALESCE(SUM(b.total_qty),0) AS all_warehouse_total
+FROM stock_balances b JOIN target_product p ON p.product_id=b.product_id
+WHERE b.is_deleted=false;
+
+-- 출력 원문
+ warehouse_code | warehouse_name | available_qty | reserved_qty | total_qty
+----------------+----------------+---------------+--------------+-----------
+ 00003          | 초월창고 S18   |             0 |            0 |         0
+ HQ-001         | 본사창고       |             4 |            1 |         5
+(2 rows)
+
+ all_warehouse_total
+---------------------
+                   5
+(1 row)
+
+-- 위 값은 확정 전 실행 출력과 00/01 화면 캡처로 교차 확인했다.
+-- RUN-RESULTS.json의 beforeRaw는 확정 후 증거 재수집 실행 시점 값이므로 전후 대조에 사용하지 않는다.

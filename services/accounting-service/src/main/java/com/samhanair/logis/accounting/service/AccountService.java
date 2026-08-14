@@ -50,4 +50,15 @@ public class AccountService {
                     "통제 계정(parent)에는 분개할 수 없습니다: " + code + " " + account.getName());
         }
     }
+
+    /** 내부 재고실사 조정 전용 계정 검증 — 개발책임자 결정의 1462 상위 계정만 예외 허용. */
+    public void requireInventoryAuditAccount(String code) {
+        if ("1462".equals(code)) {
+            repository.findById(code)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                            "존재하지 않는 계정 코드입니다: " + code));
+            return;
+        }
+        requireLeafAccount(code);
+    }
 }

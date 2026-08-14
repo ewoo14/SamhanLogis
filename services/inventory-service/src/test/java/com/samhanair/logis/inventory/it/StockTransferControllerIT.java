@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -9,8 +10,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
+import com.samhanair.logis.inventory.domain.MovementType;
+import com.samhanair.logis.inventory.domain.StockBalance;
+import com.samhanair.logis.inventory.domain.StockLot;
 import com.samhanair.logis.inventory.domain.StockTransfer;
 import com.samhanair.logis.inventory.domain.TransferReason;
+import com.samhanair.logis.inventory.repository.StockBalanceRepository;
+import com.samhanair.logis.inventory.repository.StockLotRepository;
+import com.samhanair.logis.inventory.repository.StockMovementRepository;
 import com.samhanair.logis.inventory.repository.StockTransferRepository;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.security.permission.PermissionAction;
@@ -21,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -68,6 +76,15 @@ class StockTransferControllerIT extends AbstractPostgresIT {
 
     @Autowired
     private StockTransferRepository stockTransferRepository;
+
+    @Autowired
+    private StockLotRepository stockLotRepository;
+
+    @Autowired
+    private StockBalanceRepository stockBalanceRepository;
+
+    @Autowired
+    private StockMovementRepository stockMovementRepository;
 
     @MockBean
     private ProductClient productClient;
@@ -148,6 +165,73 @@ class StockTransferControllerIT extends AbstractPostgresIT {
                         .content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("RECEIVED"));
+    }
+
+    @Test
+    void confirm_createsOutboundAndInboundInventoryTogether_andKeepsTotalQuantity() throws Exception {
+        UUID productId = UUID.randomUUID();
+        var sourceWarehouse = warehouseRepository.getReferenceById(hqId);
+        var destinationWarehouse = warehouseRepository.getReferenceById(vehicleId);
+        StockLot sourceLot = stockLotRepository.saveAndFlush(StockLot.create(
+                productId, sourceWarehouse, "TRANSFER-SOURCE-LOT", 10, null, null));
+        StockBalance sourceBalance = StockBalance.create(productId, sourceWarehouse);
+        sourceBalance.addInbound(10);
+        stockBalanceRepository.saveAndFlush(sourceBalance);
+        stockMovementRepository.saveAndFlush(com.samhanair.logis.inventory.domain.StockMovement.of(
+                sourceLot.getId(), productId, hqId, MovementType.INBOUND, 10,
+                "INBOUND", null, "RED fixture", "test"));
+
+        Map<String, Object> body = createTransferBody(hqId, vehicleId, productId, 4,
+                "확정 시 양방향 수불 RED");
+        MvcResult created = mockMvc.perform(post("/inventory/transfers")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String transferId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("data").get("id").asText();
+
+        mockMvc.perform(post("/inventory/transfers/" + transferId + "/approve")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/inventory/transfers/" + transferId + "/ship")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "WAREHOUSE"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/inventory/transfers/" + transferId + "/receive")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/inventory/transfers/" + transferId + "/confirm")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+
+        StockBalance persistedSource = stockBalanceRepository
+                .findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, hqId).orElseThrow();
+        StockBalance persistedDestination = stockBalanceRepository
+                .findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, vehicleId).orElseThrow();
+        assertThat(persistedSource.getTotalQty() + persistedDestination.getTotalQty()).isEqualTo(10);
+        assertThat(persistedSource.getAvailableQty()).isEqualTo(6);
+        assertThat(persistedDestination.getAvailableQty()).isEqualTo(4);
+
+        var transfer = stockTransferRepository.findById(UUID.fromString(transferId)).orElseThrow();
+        assertThat(transfer.getLines()).singleElement().satisfies(line -> {
+            assertThat(line.getShippedQuantity()).isEqualTo(4);
+            assertThat(line.getReceivedQuantity()).isEqualTo(4);
+            assertThat(line.getSourceLotId()).isNotNull();
+            assertThat(line.getDestinationLotId()).isNotNull();
+        });
+        var movementTypes = stockMovementRepository.findAllByProductIdOrderByOccurredAtAsc(productId)
+                .stream().map(movement -> movement.getMovementType()).collect(Collectors.toList());
+        assertThat(movementTypes).contains(MovementType.TRANSFER_OUT, MovementType.TRANSFER_IN);
     }
 
     @Test

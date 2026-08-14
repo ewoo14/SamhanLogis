@@ -8,6 +8,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 // default import(= 전체 module.exports 객체)로 받아 구조분해하면 getter 가 property-access
 // 시점에 정상 동작한다 — 이 파일의 나머지 코드는 변경 없음.
 import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-updater'
+import { classifyDesktopUpdaterError } from './update-error.js'
 
 const { autoUpdater } = electronUpdater
 
@@ -56,7 +57,7 @@ function displayVersionFromUpdateInfo(version: string): string {
 
 function messageFromError(error: unknown): string {
   console.error('[auto-update] electron-updater 상세 오류(사용자 화면 비공개)', error)
-  return '업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요.'
+  return classifyDesktopUpdaterError(error).message
 }
 
 function configureAutoUpdater(): void {

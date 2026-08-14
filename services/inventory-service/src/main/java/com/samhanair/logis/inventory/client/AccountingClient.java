@@ -25,8 +25,8 @@ import org.springframework.web.client.RestClient;
  *
  * <p>한국 일반기업회계기준 분개 규칙:
  * <ul>
- *   <li>diffAmount &gt; 0 (재고 증가) — 차변 150 재고자산 / 대변 919 재고감모손실 (환입)</li>
- *   <li>diffAmount &lt; 0 (재고 감소) — 차변 919 재고감모손실 / 대변 150 재고자산</li>
+ *   <li>diffAmount &gt; 0 (재고 증가) — 차변 1462 재고자산 / 대변 9399 재고감모손실 (환입)</li>
+ *   <li>diffAmount &lt; 0 (재고 감소) — 차변 9399 재고감모손실 / 대변 1462 재고자산</li>
  *   <li>diffAmount = 0 — no-op (호출자에서 사전 차단)</li>
  * </ul>
  *
@@ -41,11 +41,11 @@ public class AccountingClient {
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String ACCOUNTING_SERVICE_BASE = "http://accounting-service";
 
-    /** 한국 일반기업회계기준 — 재고자산 (150 — V1 seed 의 130 상품 또는 별도 계정과 일치). */
-    public static final String ACCOUNT_CODE_INVENTORY = "150";
+    /** 개발책임자 결정 — 재고자산. */
+    public static final String ACCOUNT_CODE_INVENTORY = "1462";
 
-    /** 한국 일반기업회계기준 — 재고감모손실 (919). */
-    public static final String ACCOUNT_CODE_INVENTORY_LOSS = "919";
+    /** V101 이관 정본 — 재고감모손실. */
+    public static final String ACCOUNT_CODE_INVENTORY_LOSS = "9399";
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;

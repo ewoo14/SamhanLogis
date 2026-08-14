@@ -18,6 +18,7 @@ import com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import java.math.BigDecimal;
@@ -38,6 +39,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 
 /** A2-2/A2-3 출고·입고전표 accept/inspect 결재자 enforcement 실HTTP 회귀 테스트. */
@@ -67,9 +69,15 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
     @Autowired
     private WarehouseInternalClient warehouseInternalClient;
 
+    @MockBean
+    private PartnerInternalClient partnerInternalClient;
+
     @BeforeEach
     void setUpExternalClients() {
-        reset(productClient, inventoryClient, userInternalClient, warehouseInternalClient, approvalLineAuthorizeClient);
+        reset(productClient, inventoryClient, userInternalClient, warehouseInternalClient,
+                approvalLineAuthorizeClient, partnerInternalClient);
+        lenient().when(partnerInternalClient.resolvePartnerCode(any(UUID.class)))
+                .thenReturn(Optional.of("P-IT-001"));
         lenient().when(userInternalClient.resolveFullName(any())).thenReturn(Optional.of("담당자"));
         lenient().when(warehouseInternalClient.findWarehouseName(any())).thenReturn(Optional.of("테스트 창고"));
         lenient().when(productClient.lookup(anyList()))

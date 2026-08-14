@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -27,6 +28,26 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_GROUPS_HEADER = "X-User-Groups";
+    private static final String GATEWAY_ATTESTATION_HEADER = "X-Samhan-Gateway-Attestation";
+    private final String gatewayAttestation;
+
+    public HeaderAuthenticationFilter() {
+        this(null);
+    }
+
+    public HeaderAuthenticationFilter(String gatewayAttestation) {
+        this.gatewayAttestation = gatewayAttestation;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        // 자체 로그인/refresh는 사용자 identity를 아직 만들기 전의 공개 경로다.
+        // gateway 공개 route가 헤더를 strip하며, 서비스 직결에서도 inbound 헤더를 인증 입력으로 읽지 않는다.
+        String path = request.getServletPath();
+        return "/auth/admin/login".equals(path)
+                || "/auth/driver/login".equals(path)
+                || "/auth/refresh".equals(path);
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -43,6 +64,10 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
         if (userId != null && !userId.isBlank()
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (!isValidGatewayAttestation(request.getHeader(GATEWAY_ATTESTATION_HEADER))) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "gateway attestation required");
+                return;
+            }
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
             if (groups != null && !groups.isBlank()) {
                 for (String groupId : groups.split(",")) {
@@ -57,5 +82,15 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    private boolean isValidGatewayAttestation(String supplied) {
+        if (gatewayAttestation == null || gatewayAttestation.isBlank()
+                || supplied == null || supplied.isBlank()) {
+            return false;
+        }
+        byte[] expected = gatewayAttestation.getBytes(StandardCharsets.UTF_8);
+        byte[] actual = supplied.getBytes(StandardCharsets.UTF_8);
+        return java.security.MessageDigest.isEqual(expected, actual);
     }
 }

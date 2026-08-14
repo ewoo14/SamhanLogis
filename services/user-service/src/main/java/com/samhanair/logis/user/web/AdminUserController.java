@@ -18,6 +18,8 @@ import com.samhanair.logis.user.web.dto.EmployeeResponse;
 import com.samhanair.logis.user.web.dto.EmployeeSignatureResponse;
 import com.samhanair.logis.user.web.dto.EmployeeSignatureUploadRequest;
 import com.samhanair.logis.user.web.dto.RoleHistoryResponse;
+import com.samhanair.logis.shared.audit.contract.AuditEventV2;
+import com.samhanair.logis.shared.audit.publisher.AuditPublisher;
 import com.samhanair.logis.security.department.Department;
 import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.PermissionAction;
@@ -25,7 +27,7 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -67,7 +69,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/admin/users")
-@RequiredArgsConstructor
 public class AdminUserController {
 
     private static final String CALLER_HEADER = "X-User-Id";
@@ -77,6 +78,32 @@ public class AdminUserController {
     private final RoleChangeHistoryRepository roleHistoryRepository;
     private final EmployeeSignatureService signatureService;
     private final EmployeeSignatureHandoffService handoffService;
+    private final AuditPublisher auditPublisher;
+
+    @Autowired
+    public AdminUserController(EmployeeProvisioningService provisioningService,
+                               EmployeeRepository employeeRepository,
+                               RoleChangeHistoryRepository roleHistoryRepository,
+                               EmployeeSignatureService signatureService,
+                               EmployeeSignatureHandoffService handoffService,
+                               AuditPublisher auditPublisher) {
+        this.provisioningService = provisioningService;
+        this.employeeRepository = employeeRepository;
+        this.roleHistoryRepository = roleHistoryRepository;
+        this.signatureService = signatureService;
+        this.handoffService = handoffService;
+        this.auditPublisher = auditPublisher;
+    }
+
+    /** Legacy constructor retained for isolated controller tests and non-Spring callers. */
+    public AdminUserController(EmployeeProvisioningService provisioningService,
+                               EmployeeRepository employeeRepository,
+                               RoleChangeHistoryRepository roleHistoryRepository,
+                               EmployeeSignatureService signatureService,
+                               EmployeeSignatureHandoffService handoffService) {
+        this(provisioningService, employeeRepository, roleHistoryRepository,
+                signatureService, handoffService, null);
+    }
 
     // -------------------------------------------------------------------------
     // 목록 / 조회
@@ -194,8 +221,24 @@ public class AdminUserController {
             @PathVariable UUID id,
             @Valid @RequestBody AdminUserRoleChangeRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(provisioningService.updateRole(
-                id, request.newRole(), request.reason(), parseCaller(callerHeader)));
+        EmployeeResponse response = provisioningService.updateRole(
+                id, request.newRole(), request.reason(), parseCaller(callerHeader));
+        publishRoleChangeAudit(id, callerHeader, request);
+        return ApiResponse.ok(response);
+    }
+
+    private void publishRoleChangeAudit(UUID employeeId, String callerHeader,
+                                        AdminUserRoleChangeRequest request) {
+        if (auditPublisher == null) return;
+        try {
+            auditPublisher.publishAfterCommit(AuditEventV2.mutation(
+                    "user-service", "PATCH", "/api/v1/admin/users/{id}/role",
+                    callerHeader, "EMPLOYEE_ROLE", employeeId.toString(), employeeId.toString(),
+                    "Employee role changed", java.util.Map.of(
+                            "newRole", request.newRole().name(), "reason", request.reason())));
+        } catch (RuntimeException ex) {
+            // Central audit is supplementary; a broker failure must not alter the committed role response.
+        }
     }
 
     // -------------------------------------------------------------------------

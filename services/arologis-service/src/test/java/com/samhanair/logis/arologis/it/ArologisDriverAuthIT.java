@@ -58,6 +58,9 @@ class ArologisDriverAuthIT extends AbstractPostgresIT {
         driverRepo.findByPhoneNumberAndIsDeletedFalse("01011112222")
                 .orElseGet(() -> driverRepo.save(
                         Driver.of("ITD001", "01011112222", "1톤", DriverSource.INTERNAL, false, null)));
+        driverRepo.findByDriverCode("ITH001")
+                .orElseGet(() -> driverRepo.save(
+                        Driver.of("ITH001", "010-2000-0001", "1톤", DriverSource.INTERNAL, false, null)));
     }
 
     @Test
@@ -92,6 +95,21 @@ class ArologisDriverAuthIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void hyphenated_persisted_phone_accepts_both_input_forms() throws Exception {
+        for (String phoneNumber : java.util.List.of("010-2000-0001", "01020000001")) {
+            String body = om.writeValueAsString(new DriverLoginRequest(phoneNumber));
+            String res = mvc.perform(post("/auth/driver/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            AuthTokenResponse tokens = om.readValue(res, AuthTokenResponse.class);
+            assertThat(tokens.driverCode()).isEqualTo("ITH001");
+            assertThat(tokens.phoneNumber()).isEqualTo("010-2000-0001");
+        }
     }
 
     @Test

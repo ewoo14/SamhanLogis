@@ -72,8 +72,8 @@ public class CashReceiptService {
                 request.amount(),
                 request.transactionDate(),
                 request.memo(),
-                request.debitAccountCode(),
-                request.creditAccountCode());
+                normalizedOrDefault(request.debitAccountCode(), CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE),
+                normalizedOrDefault(request.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE));
         applyLines(receipt, request);
         return responseOf(repository.save(receipt));
     }
@@ -92,8 +92,8 @@ public class CashReceiptService {
                 amount,
                 transactionDate,
                 memo,
-                debitAccountCode,
-                creditAccountCode);
+                normalizedOrDefault(debitAccountCode, CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE),
+                normalizedOrDefault(creditAccountCode, CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE));
         return repository.save(receipt);
     }
 
@@ -154,8 +154,8 @@ public class CashReceiptService {
                 request.amount(),
                 request.transactionDate(),
                 request.memo(),
-                request.debitAccountCode(),
-                request.creditAccountCode()));
+                normalizedOrDefault(request.debitAccountCode(), CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE),
+                normalizedOrDefault(request.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE)));
         applyLines(receipt, request);
         return responseOf(receipt);
     }
@@ -168,8 +168,8 @@ public class CashReceiptService {
                 command.transactionDate(),
                 command.memo(),
                 command.partnerId(),
-                command.debitAccountCode(),
-                command.creditAccountCode());
+                normalizedOrDefault(command.debitAccountCode(), CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE),
+                normalizedOrDefault(command.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE));
         return responseOf(receipt);
     }
 
@@ -252,8 +252,8 @@ public class CashReceiptService {
                 request.transactionDate(),
                 request.memo(),
                 partner.partnerId(),
-                request.debitAccountCode(),
-                request.creditAccountCode());
+                normalizedOrDefault(request.debitAccountCode(), CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE),
+                normalizedOrDefault(request.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE));
         applyLines(receipt, request);
         if (oldJournalId != null) {
             journalService.autoReverse(oldJournalId, actorUserId);
@@ -318,7 +318,9 @@ public class CashReceiptService {
     }
 
     private static String normalizedOrDefault(String accountCode, String defaultCode) {
-        return accountCode == null || accountCode.isBlank() ? defaultCode : accountCode.trim();
+        return accountCode == null || accountCode.isBlank()
+                ? defaultCode
+                : AccountEcountMapping.normalizeInputCode(accountCode);
     }
 
     /** 마감된 회계 기간이면 409 — 수기 분개 생성(JournalService.create)과 동일 규칙을 자동 게시에도 적용. */
@@ -424,10 +426,10 @@ public class CashReceiptService {
     }
 
     private void validateAccounts(String debitAccountCode, String creditAccountCode) {
-        accountService.requireLeafAccount(debitAccountCode == null || debitAccountCode.isBlank()
-                ? CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE : debitAccountCode);
-        accountService.requireLeafAccount(creditAccountCode == null || creditAccountCode.isBlank()
-                ? CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE : creditAccountCode);
+        accountService.requireLeafAccount(normalizedOrDefault(
+                debitAccountCode, CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE));
+        accountService.requireLeafAccount(normalizedOrDefault(
+                creditAccountCode, CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE));
     }
 
     private void unlinkBankTransactions(CashReceipt receipt) {

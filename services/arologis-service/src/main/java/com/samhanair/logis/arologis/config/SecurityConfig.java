@@ -1,9 +1,11 @@
 package com.samhanair.logis.arologis.config;
 
 import com.samhanair.logis.security.InternalTokenFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -32,12 +34,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    InternalTokenFilter internalTokenFilter,
-                                                   ArologisJwtFilter arologisJwtFilter)
+                                                   ArologisJwtFilter arologisJwtFilter,
+                                                   @Value("${samhan.security.gateway-attestation:}") String gatewayAttestation)
             throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
+                        (request, response, exception) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
@@ -53,7 +58,7 @@ public class SecurityConfig {
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 // 2026-05-14 — Bearer JWT 자체 검증 (gateway 우회 직접 호출 대응). InternalToken 다음.
                 .addFilterAfter(arologisJwtFilter, InternalTokenFilter.class)
-                .addFilterAfter(new HeaderAuthenticationFilter(), ArologisJwtFilter.class);
+                .addFilterAfter(new HeaderAuthenticationFilter(gatewayAttestation), ArologisJwtFilter.class);
         return http.build();
     }
 

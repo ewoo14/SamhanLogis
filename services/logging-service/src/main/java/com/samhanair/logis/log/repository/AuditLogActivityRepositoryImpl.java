@@ -15,6 +15,9 @@ import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
+import org.springframework.data.elasticsearch.core.query.IndexQuery;
+import org.springframework.data.elasticsearch.core.query.IndexQueryBuilder;
 
 /**
  * Elasticsearch NativeQuery 기반 활동 로그 검색 구현.
@@ -37,11 +40,24 @@ public class AuditLogActivityRepositoryImpl implements AuditLogActivityRepositor
                 .withQuery(buildQuery(condition))
                 .withPageable(pageable)
                 .build();
-        SearchHits<AuditLog> hits = operations.search(query, AuditLog.class);
+        SearchHits<AuditLog> hits = operations.search(query, AuditLog.class,
+                IndexCoordinates.of("samhan-audit-logs", "samhan-audit-logs-*"));
         List<AuditLog> rows = hits.getSearchHits().stream()
                 .map(SearchHit::getContent)
                 .toList();
         return new PageImpl<>(rows, pageable, hits.getTotalHits());
+    }
+
+    @Override
+    public AuditLog persistByRetentionClass(AuditLog auditLog) {
+        String suffix = auditLog.getRetentionClass() == null
+                ? "c" : auditLog.getRetentionClass().name().toLowerCase();
+        IndexQuery query = new IndexQueryBuilder()
+                .withId(auditLog.getId())
+                .withObject(auditLog)
+                .build();
+        operations.index(query, IndexCoordinates.of("samhan-audit-logs-" + suffix));
+        return auditLog;
     }
 
     private static Query buildQuery(ActivityLogSearchCondition condition) {

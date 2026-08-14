@@ -901,15 +901,18 @@ class SlipServiceTest {
     }
 
     @Test
-    void confirm_lookupFailure_doesNotBlockTransition() {
+    void confirm_lookupFailure_blocksTransition_andKeepsCodeBlank() {
         Slip slip = preparedInbound(SlipStatus.COMPLETED);
         slip.setPartnerCode(null);
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
         lenient().when(partnerInternalClient.resolvePartnerCode(partnerId)).thenReturn(Optional.empty());
 
-        service.confirm(slipId, "u");
+        assertThatThrownBy(() -> service.confirm(slipId, "u"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
 
-        assertThat(slip.getStatus()).isEqualTo(SlipStatus.CONFIRMED);
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.COMPLETED);
         assertThat(slip.getPartnerCode()).isNull();
         verify(partnerInternalClient).resolvePartnerCode(partnerId);
     }

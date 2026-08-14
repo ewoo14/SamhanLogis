@@ -13,12 +13,14 @@ import com.samhanair.logis.slip.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,9 +85,13 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
     /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
     @MockBean
     private WarehouseInternalClient warehouseInternalClient;
+    @MockBean
+    private PartnerInternalClient partnerInternalClient;
 
     @BeforeEach
     void mockProductClient() {
+        Mockito.lenient().when(partnerInternalClient.resolvePartnerCode(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("P-IT-001"));
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);

@@ -24,7 +24,7 @@ import java.util.List;
  * @param financingActivities 재무활동 현금흐름 항목 목록 (차입/상환/증자)
  * @param cashFromFinancing  재무활동 현금흐름 합계
  * @param netCashFlow        순현금흐름 (CFO + CFI + CFF)
- * @param beginningCash      기초 현금 및 현금성자산 (101 현금 + 102 보통예금 누적, period 이전)
+ * @param beginningCash      기초 현금 및 현금성자산 (1019 현금 + 1039 보통예금 누적, period 이전)
  * @param endingCash         기말 현금 및 현금성자산 (beginningCash + netCashFlow)
  * @param cashReconciled     검증 플래그 (beginningCash + netCashFlow ≈ endingCash)
  * @param generatedAt        보고서 생성 시각

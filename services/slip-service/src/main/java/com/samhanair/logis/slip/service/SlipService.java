@@ -1399,7 +1399,7 @@ public class SlipService {
         Slip slip = loadOrThrow(id);
         closedDateGuard.assertAllowed(slip.getSlipType(), slip.getSlipDate(), callerId);
         applyMutation(() -> {
-            ensurePartnerCodeBeforeCommitTransition(slip);
+            ensurePartnerCodeBeforeConfirmTransition(slip);
             slip.confirm();
         });
         return SlipDetailResponse.from(slip);
@@ -1867,7 +1867,16 @@ public class SlipService {
             return;
         }
         partnerInternalClient.resolvePartnerCode(slip.getPartnerId())
-                .ifPresent(slip::setPartnerCode);
+                .ifPresent(slip::backfillPartnerCode);
+    }
+
+    /** 확정 전이는 코드 기반 회계 조인의 원자 정본이므로 원본 조회 실패를 허용하지 않는다. */
+    private void ensurePartnerCodeBeforeConfirmTransition(Slip slip) {
+        ensurePartnerCodeBeforeCommitTransition(slip);
+        if (slip.getPartnerCode() == null || slip.getPartnerCode().isBlank()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "확정 전표의 거래처 코드를 원본에서 확인할 수 없습니다");
+        }
     }
 
     private Slip loadOrThrow(UUID id) {

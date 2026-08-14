@@ -37,6 +37,8 @@ import org.springframework.test.context.TestPropertySource;
         "eureka.client.enabled=false",
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
+        "spring.rabbitmq.username=ci-test-user",
+        "spring.rabbitmq.password=ci-test-password",
         // Elasticsearch + RabbitMQ autoconfig 비활성 (local 프로필 일관)
         "spring.autoconfigure.exclude=" +
                 "org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration," +

@@ -1,0 +1,28 @@
+﻿PR #1208 isolated V120 list/sum/join evidence
+captured_at=2026-08-14T14:55:29.1782855+09:00
+container=qa1208-reconv2-slip-pg
+image=postgres:16-alpine
+database=slip_db
+source_schema=shared V119 schema-only dump (no rows)
+migration=actual V120 SQL applied with psql -f
+shared_db_write=0
+seeded_rows=isolated DB only
+sql_delivery=psql -c <SQL>
+result_rows:
+BEGIN
+INSERT 0 2
+INSERT 0 2
+INSERT 0 1
+COMMIT
+UTF8
+UTF8
+v120_table=slip_partner_integrity_quarantine
+korean_roundtrip=활성 partner 원본 없음
+physical_slip_count=2
+active_list_count=1
+physical_sum=300.00
+active_sum=100.00
+active_join_rows=1
+active_join_total=100.00
+quarantined_contribution_to_active_join=0
+cleanup_remaining=0

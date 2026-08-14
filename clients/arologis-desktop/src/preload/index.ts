@@ -60,3 +60,8 @@ const arologisUpdater = {
 }
 
 contextBridge.exposeInMainWorld('arologisUpdater', arologisUpdater)
+
+contextBridge.exposeInMainWorld('arologisTrustRoot', {
+  status: (): Promise<unknown> => ipcRenderer.invoke('trust-root:status'),
+  install: (): Promise<unknown> => ipcRenderer.invoke('trust-root:install'),
+})

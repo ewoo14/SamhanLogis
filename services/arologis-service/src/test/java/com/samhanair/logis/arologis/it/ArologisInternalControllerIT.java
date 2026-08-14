@@ -58,11 +58,11 @@ class ArologisInternalControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    void sync_without_token_returns_403() throws Exception {
+    void sync_without_token_returns_401() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post("/internal/arologis/dispatches/sync")
                         .contentType("application/json")
                         .content("{}"))
-                .andExpect(MockMvcResultMatchers.status().isForbidden());
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized());
     }
 
     @Test

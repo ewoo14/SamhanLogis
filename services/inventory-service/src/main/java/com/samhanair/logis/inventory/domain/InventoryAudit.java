@@ -36,8 +36,8 @@ import org.hibernate.annotations.UuidGenerator;
  *
  * <p>차이 분개 (한국 일반기업회계기준 코드):
  * <ul>
- *   <li>차이 (+) — 차변 150 재고자산 / 대변 919 재고감모손실 (환입)</li>
- *   <li>차이 (-) — 차변 919 재고감모손실 / 대변 150 재고자산</li>
+ *   <li>차이 (+) — 차변 1462 재고자산 / 대변 9399 재고감모손실 (환입)</li>
+ *   <li>차이 (-) — 차변 9399 재고감모손실 / 대변 1462 재고자산</li>
  * </ul>
  *
  * <p>BaseEntity 7 audit fields. soft-delete only.

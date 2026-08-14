@@ -223,7 +223,15 @@ function captureReleaseBuilderInvocation(relativeScript, appVersion) {
   const calls = []
   const repoRoot = resolve(__dirname, '..')
   const scriptPath = resolve(__dirname, relativeScript)
-  const environmentKeys = ['VITE_APP_VERSION', 'AROLOGIS_UPDATE_URL']
+  const environmentKeys = [
+    'VITE_APP_VERSION',
+    'DESKTOP_UPDATE_URL',
+    'AROLOGIS_UPDATE_URL',
+    'INTERNAL_CHAT_UPDATE_URL',
+    'AROLOGIS_TRUST_ROOT_CERT',
+    'CSC_LINK',
+    'CSC_KEY_PASSWORD',
+  ]
   const previousEnvironment = new Map(
     environmentKeys.map((key) => [key, process.env[key]]),
   )
@@ -242,7 +250,12 @@ function captureReleaseBuilderInvocation(relativeScript, appVersion) {
   try {
     process.chdir(repoRoot)
     process.env.VITE_APP_VERSION = appVersion
+    process.env.DESKTOP_UPDATE_URL = 'https://updates.invalid/desktop'
     process.env.AROLOGIS_UPDATE_URL = 'https://updates.invalid/arologis'
+    process.env.INTERNAL_CHAT_UPDATE_URL = 'https://updates.invalid/internal-chat'
+    process.env.AROLOGIS_TRUST_ROOT_CERT = resolve(repoRoot, 'scripts/electron-update-contract.cjs')
+    process.env.CSC_LINK = 'C:/certificates/samhan-internal-chat.pfx'
+    process.env.CSC_KEY_PASSWORD = 'test-password'
     childProcess.spawnSync = (command, args, options) => {
       calls.push({ command, args, options })
       return { status: 0 }

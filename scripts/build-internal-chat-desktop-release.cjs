@@ -9,8 +9,15 @@ const {
   createReleaseBuildEnvironment,
   createNsisDisplayVersionInclude,
 } = require('./app-build-version.cjs')
+const { requireSigningEnvironment, requireUpdateFeedEnvironment } = require('./electron-update-contract.cjs')
 
 const APP_DIR = resolve(__dirname, '../clients/internal-chat-desktop')
+
+function requireReleaseEnvironment(name) {
+  if (!String(process.env[name] || '').trim()) {
+    throw new Error(`${name}이(가) 필요합니다. 사내 feed와 자체서명 인증서를 지정하십시오.`)
+  }
+}
 
 function run(command, args, env) {
   const result = spawnSync(command, args, { cwd: APP_DIR, env, stdio: 'inherit' })
@@ -19,6 +26,11 @@ function run(command, args, env) {
 }
 
 function main() {
+  requireReleaseEnvironment('INTERNAL_CHAT_UPDATE_URL')
+  requireReleaseEnvironment('CSC_LINK')
+  requireReleaseEnvironment('CSC_KEY_PASSWORD')
+  requireSigningEnvironment(process.env)
+  requireUpdateFeedEnvironment(process.env, 'internalChat', 'INTERNAL_CHAT_UPDATE_URL')
   const releaseBuild = createReleaseBuildEnvironment({ variable: 'VITE_APP_VERSION' })
   const electronViteCli = resolve(APP_DIR, 'node_modules/electron-vite/bin/electron-vite.js')
   const electronBuilderCli = resolve(APP_DIR, 'node_modules/electron-builder/cli.js')
@@ -32,7 +44,6 @@ function main() {
     run(process.execPath, [
       electronBuilderCli,
       `--config.nsis.include=${includeFile}`,
-      '--config.win.signAndEditExecutable=false',
       '--win',
       ...createElectronBuilderVersionArgs(releaseBuild.packageVersion, releaseBuild.appVersion),
     ], releaseBuild.env)

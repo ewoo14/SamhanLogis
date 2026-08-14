@@ -1,0 +1,227 @@
+{
+  "runTag": "PR1203-LIVEQA-1786630806380",
+  "productCode": "0000098",
+  "sourceWarehouse": "HQ-001 본사창고",
+  "destinationWarehouse": "00003 초월창고 S18",
+  "quantity": 1,
+  "api": [
+    {
+      "method": "GET",
+      "path": "/app/version",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/app/notices/active",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/permissions/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/warehouses",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/lookup-product",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/transfers",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/transfers/<internal-id>",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/balances",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/ledger",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/inventory/balances",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/realtime",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/audit-logs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/redline",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/<internal-id>",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/presence",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/accounting/journals/sales-slip-ledger",
+      "status": 400
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/comments",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/products/lookup",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/presence",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/slips/<internal-id>/collab/presence/join",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/<internal-id>",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/realtime",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/audit-logs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/redline",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/slips/<internal-id>/collab/presence/leave",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/<internal-id>",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/stream",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/presence",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/comments",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/products/lookup",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/slips/<internal-id>/collab/presence",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/slips/<internal-id>/collab/presence/join",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/slips/<internal-id>",
+      "status": 200
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  ],
+  "pageErrors": [],
+  "assertions": {
+    "transferFormNoAmount": true,
+    "transferDetailNoAmount": true,
+    "databaseTransferOutIn": true,
+    "ledgerSourceAndDestinationRows": true,
+    "salesCreatePath": true,
+    "inboundCreatePath": true
+  },
+  "created": {
+    "transferNo": "2026/08/13-1",
+    "transferStatusAtCreate": "REQUESTED",
+    "transferReasonDetail": "PR1203-LIVEQA-1786630806380",
+    "salesSlipNo": "2026/08/13-5",
+    "salesSlipType": "OUTBOUND",
+    "inboundSlipNo": "2026/08/13-3",
+    "inboundSlipType": "INBOUND"
+  },
+  "beforeSql": "WITH target_product AS (\n  SELECT l.product_id\n  FROM stock_lots l JOIN warehouses w ON w.id=l.warehouse_id\n  WHERE l.is_deleted=false AND w.code='HQ-001' AND l.lot_no='2026/08/08-8'\n  LIMIT 1\n)\nSELECT w.code AS warehouse_code,w.name AS warehouse_name,\n       COALESCE(b.available_qty,0) AS available_qty,\n       COALESCE(b.reserved_qty,0) AS reserved_qty,\n       COALESCE(b.total_qty,0) AS total_qty\nFROM warehouses w\nLEFT JOIN target_product p ON true\nLEFT JOIN stock_balances b ON b.product_id=p.product_id AND b.warehouse_id=w.id AND b.is_deleted=false\nWHERE w.is_deleted=false AND w.code IN ('HQ-001','00003')\nORDER BY w.code;\nWITH target_product AS (\n  SELECT l.product_id\n  FROM stock_lots l JOIN warehouses w ON w.id=l.warehouse_id\n  WHERE l.is_deleted=false AND w.code='HQ-001' AND l.lot_no='2026/08/08-8'\n  LIMIT 1\n)\nSELECT COALESCE(SUM(b.total_qty),0) AS all_warehouse_total\nFROM stock_balances b JOIN target_product p ON p.product_id=b.product_id\nWHERE b.is_deleted=false;",
+  "beforeRaw": "BEGIN\n warehouse_code | warehouse_name | available_qty | reserved_qty | total_qty \n----------------+----------------+---------------+--------------+-----------\n 00003          | 초월창고 S18   |             1 |            0 |         1\n HQ-001         | 본사창고       |             3 |            1 |         4\n(2 rows)\n\n all_warehouse_total \n---------------------\n                   5\n(1 row)\n\nCOMMIT\n",
+  "afterSql": "WITH target_product AS (\n  SELECT l.product_id\n  FROM stock_lots l JOIN warehouses w ON w.id=l.warehouse_id\n  WHERE l.is_deleted=false AND w.code='HQ-001' AND l.lot_no='2026/08/08-8'\n  LIMIT 1\n)\nSELECT w.code AS warehouse_code,w.name AS warehouse_name,\n       COALESCE(b.available_qty,0) AS available_qty,\n       COALESCE(b.reserved_qty,0) AS reserved_qty,\n       COALESCE(b.total_qty,0) AS total_qty\nFROM warehouses w\nLEFT JOIN target_product p ON true\nLEFT JOIN stock_balances b ON b.product_id=p.product_id AND b.warehouse_id=w.id AND b.is_deleted=false\nWHERE w.is_deleted=false AND w.code IN ('HQ-001','00003')\nORDER BY w.code;\nWITH target_product AS (\n  SELECT l.product_id\n  FROM stock_lots l JOIN warehouses w ON w.id=l.warehouse_id\n  WHERE l.is_deleted=false AND w.code='HQ-001' AND l.lot_no='2026/08/08-8'\n  LIMIT 1\n)\nSELECT COALESCE(SUM(b.total_qty),0) AS all_warehouse_total\nFROM stock_balances b JOIN target_product p ON p.product_id=b.product_id\nWHERE b.is_deleted=false;\nSELECT t.transfer_no,t.status,w.code AS warehouse_code,m.movement_type,m.quantity_delta,m.note\nFROM stock_movements m\nJOIN stock_transfers t ON t.id=m.reference_id\nJOIN warehouses w ON w.id=m.warehouse_id\nWHERE t.transfer_no='2026/08/13-1'\nORDER BY m.occurred_at,m.movement_type;\nSELECT t.transfer_no,l.requested_quantity,l.shipped_quantity,l.received_quantity,\n       sl.unit_cost AS destination_unit_cost\nFROM stock_transfer_lines l\nJOIN stock_transfers t ON t.id=l.transfer_id\nLEFT JOIN stock_lots sl ON sl.id=l.destination_lot_id\nWHERE t.transfer_no='2026/08/13-1';",
+  "afterRaw": "BEGIN\n warehouse_code | warehouse_name | available_qty | reserved_qty | total_qty \n----------------+----------------+---------------+--------------+-----------\n 00003          | 초월창고 S18   |             1 |            0 |         1\n HQ-001         | 본사창고       |             3 |            1 |         4\n(2 rows)\n\n all_warehouse_total \n---------------------\n                   5\n(1 row)\n\n transfer_no  |  status   | warehouse_code | movement_type | quantity_delta |     note     \n--------------+-----------+----------------+---------------+----------------+--------------\n 2026/08/13-1 | CONFIRMED | HQ-001         | TRANSFER_OUT  |             -1 | 2026/08/13-1\n 2026/08/13-1 | CONFIRMED | 00003          | TRANSFER_IN   |              1 | 2026/08/13-1\n(2 rows)\n\n transfer_no  | requested_quantity | shipped_quantity | received_quantity | destination_unit_cost \n--------------+--------------------+------------------+-------------------+-----------------------\n 2026/08/13-1 |                  1 |                1 |                 1 |                      \n(1 row)\n\nCOMMIT\n",
+  "finalRamRaw": "25.003",
+  "apiFailures": [
+    {
+      "method": "GET",
+      "path": "/accounting/journals/sales-slip-ledger",
+      "status": 400
+    }
+  ]
+}

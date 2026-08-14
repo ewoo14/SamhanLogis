@@ -1,6 +1,7 @@
 package com.samhanair.logis.dashboard;
 
 import com.samhanair.logis.common.audit.JpaAuditingConfig;
+import com.samhanair.logis.shared.audit.publisher.AuditPublisherAutoConfiguration;
 import com.samhanair.logis.dashboard.config.DashboardCacheProperties;
 import com.samhanair.logis.dashboard.config.DashboardRefreshProperties;
 import org.springframework.boot.SpringApplication;
@@ -27,7 +28,7 @@ import org.springframework.context.annotation.Import;
 @SpringBootApplication
 @EnableDiscoveryClient
 @EnableCaching
-@Import(JpaAuditingConfig.class)
+@Import({JpaAuditingConfig.class, AuditPublisherAutoConfiguration.class})
 @EnableConfigurationProperties({
         DashboardCacheProperties.class,
         DashboardRefreshProperties.class

@@ -15,7 +15,6 @@ public class EcountDepositReportImporter extends AbstractEcountMig5CashImporter 
     public EcountDepositReportImporter(NamedParameterJdbcTemplate jdbcTemplate,
                                        PartnerLookupClient partnerLookupClient) {
         super(jdbcTemplate, partnerLookupClient, "staging.ecount_deposit_report_raw",
-                "입금보고서", IMPORT_LOCK_NAMESPACE, "110", true);
+                "입금보고서", IMPORT_LOCK_NAMESPACE, "1089", true);
     }
 }
-

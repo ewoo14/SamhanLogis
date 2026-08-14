@@ -1,0 +1,24 @@
+BEGIN
+ warehouse_code | warehouse_name | available_qty | reserved_qty | total_qty 
+----------------+----------------+---------------+--------------+-----------
+ 00003          | 초월창고 S18   |             1 |            0 |         1
+ HQ-001         | 본사창고       |             3 |            1 |         4
+(2 rows)
+
+ all_warehouse_total 
+---------------------
+                   5
+(1 row)
+
+ transfer_no  |  status   | warehouse_code | movement_type | quantity_delta |     note     
+--------------+-----------+----------------+---------------+----------------+--------------
+ 2026/08/13-1 | CONFIRMED | HQ-001         | TRANSFER_OUT  |             -1 | 2026/08/13-1
+ 2026/08/13-1 | CONFIRMED | 00003          | TRANSFER_IN   |              1 | 2026/08/13-1
+(2 rows)
+
+ transfer_no  | requested_quantity | shipped_quantity | received_quantity | destination_unit_cost 
+--------------+--------------------+------------------+-------------------+-----------------------
+ 2026/08/13-1 |                  1 |                1 |                 1 |                      
+(1 row)
+
+COMMIT

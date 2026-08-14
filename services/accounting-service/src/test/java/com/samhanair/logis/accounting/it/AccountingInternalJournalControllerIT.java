@@ -57,7 +57,7 @@ class AccountingInternalJournalControllerIT extends AbstractPostgresIT {
                 null,
                 null,
                 List.of());
-        doReturn(response).when(journalService).create(any(CreateJournalRequest.class));
+        doReturn(response).when(journalService).createInventoryAuditAdjustment(any(CreateJournalRequest.class));
     }
 
     @Test
@@ -70,8 +70,8 @@ class AccountingInternalJournalControllerIT extends AbstractPostgresIT {
                                   "journalDate": "2026-06-29",
                                   "description": "inventory audit",
                                   "lines": [
-                                    {"accountCode":"150","debitAmount":1000,"creditAmount":0},
-                                    {"accountCode":"919","debitAmount":0,"creditAmount":1000}
+                                    {"accountCode":"1462","debitAmount":1000,"creditAmount":0},
+                                    {"accountCode":"9399","debitAmount":0,"creditAmount":1000}
                                   ]
                                 }
                                 """))
@@ -79,7 +79,7 @@ class AccountingInternalJournalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.journalNo").value("J-20260629-001"));
 
-        verify(journalService).create(any(CreateJournalRequest.class));
+        verify(journalService).createInventoryAuditAdjustment(any(CreateJournalRequest.class));
     }
 
     @Test

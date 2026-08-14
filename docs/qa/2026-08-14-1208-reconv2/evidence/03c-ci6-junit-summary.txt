@@ -1,0 +1,17 @@
+﻿PR #1208 original CI six fresh rerun aggregate
+captured_at=2026-08-14T14:58:34.2723619+09:00
+console=BUILD SUCCESSFUL in 1m 25s
+exit_code=0
+suites=6
+tests=74
+failures=0
+errors=0
+skipped=0
+original_six:
+PASS|com.samhanair.logis.slip.it.SlipControllerIT|confirm_accountantRole_returns200()|failure=False|error=False|skipped=False
+PASS|com.samhanair.logis.slip.it.SlipInspectControllerIT|outbound_fullLifecycle_includingInspecting()|failure=False|error=False|skipped=False
+PASS|com.samhanair.logis.slip.it.SlipLifecycleControllerIT|outbound_fullLifecycle_DraftToConfirmed()|failure=False|error=False|skipped=False
+PASS|com.samhanair.logis.slip.it.SlipLifecycleControllerIT|inbound_lifecycle_skipsShipDeliver()|failure=False|error=False|skipped=False
+PASS|com.samhanair.logis.slip.it.SlipOutboundApprovalEnforcementIT|outboundInspectApprovalMember_canShipDeliverAndConfirmAfterInspection()|failure=False|error=False|skipped=False
+PASS|com.samhanair.logis.slip.it.SlipQueryPurchaseIT|R2: CONFIRMED 매입 상세는 검수 가능 READY 상태를 반환한다|failure=False|error=False|skipped=False
+matched_original_six=6

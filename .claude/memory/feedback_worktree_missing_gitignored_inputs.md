@@ -67,3 +67,28 @@ git -C .claude/worktrees/<w> check-ignore infrastructure/.env.local   # 무시�
 구현자는 허위 스크린샷을 만들지 않고 **실패 원문을 남겼다**. PM 이 원인을 찾아 5개 워크트리에 배포하는 것으로 해소됐다. 이 세션 정직한 blocker 보고 **5회**째이고 전부 옳은 처리였다.
 
 관련: [[feedback_live_qa_use_playwright_not_browser_runtime]] · [[feedback_qa_environment_verification_first]] · [[feedback_no_fake_data_ever]]
+
+---
+
+## 🚨🚨 2026-08-14 **세 번째** 재발 — 워크트리 8개 전부 없었다
+
+```text
+증상   #1201 fix 라운드가 "비활성 직원 숨김" 을 관측 불가로 남김
+       원문  QA 자격이 없습니다: infrastructure\.env.local 에 QA_DEV_DEFAULT_PASSWORD 를 …
+       gateway 401
+실측   w894 · w901 · w1161b · wtransfer · w910f · wdeploy · w1144 · w1162 — **8개 전부 없음**
+       main 워크트리에는 있음 (10줄 · 키 존재 · 값 비어 있지 않음)
+```
+
+🔑 **위 체크리스트는 이미 2026-08-11 에 적혀 있었는데 지켜지지 않았다.** 세 번 다 원인이 같다 —
+PM 이 `git worktree add` 를 하고 **곧바로 브리핑을 발주**한다. 복사 단계가 그 사이에 없다.
+
+⟹ **`git worktree add` 와 `cp .env.local` 을 한 명령으로 붙여라.** 두 줄로 떼어 놓으면 또 빠진다.
+
+```bash
+git -C <repo> worktree add -b <branch> .claude/worktrees/<w> origin/main \
+  && cp <repo>/infrastructure/.env.local .claude/worktrees/<w>/infrastructure/.env.local
+```
+
+🚩 **혼동 주의** — 같은 스택에서 *검증자(SOL) 라운드는 로그인에 성공*하는데 *구현자(LUNA) 라운드만 401* 이 날 수 있다.
+자격을 다른 경로로 얻는 스테이지가 섞여 있어서다. **"어떤 라운드는 되는데" 를 근거로 자격 문제를 배제하지 마라.**

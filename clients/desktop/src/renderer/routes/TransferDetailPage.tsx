@@ -126,9 +126,9 @@ function transferActionPageCode(
   }
 }
 
-export function TransferDetailPage() {
+export function TransferDetailPage({ opaqueTransferId }: { opaqueTransferId?: string } = {}) {
   const params = useParams<{ id: string }>()
-  const id = params.id ?? ''
+  const id = opaqueTransferId ?? params.id ?? ''
   const navigate = useNavigate()
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
@@ -153,9 +153,13 @@ export function TransferDetailPage() {
         vars.action,
         vars.reason ? { reason: vars.reason } : undefined,
       ),
-    onSuccess: () => {
+    onSuccess: (_updated, vars) => {
       void queryClient.invalidateQueries({ queryKey: ['transfer', id] })
       void queryClient.invalidateQueries({ queryKey: ['transfers'] })
+      if (vars.action === 'confirm') {
+        void queryClient.invalidateQueries({ queryKey: ['inventory-balances'] })
+        void queryClient.invalidateQueries({ queryKey: ['inventory-ledger'] })
+      }
       setRejectReason('')
     },
   })

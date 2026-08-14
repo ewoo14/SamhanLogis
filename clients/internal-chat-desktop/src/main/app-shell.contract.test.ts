@@ -36,6 +36,24 @@ describe('internal chat desktop app shell contract', () => {
     expect(builderConfig).toContain('channel: latest')
   })
 
+  it('릴리스 패키지는 서명되지 않으면 생성되지 않는다', () => {
+    const builderConfig = read('electron-builder.yml')
+    const wrapper = read('../../scripts/build-internal-chat-desktop-release.cjs')
+
+    expect(builderConfig).toMatch(/forceCodeSigning:\s*true/)
+    expect(wrapper).toContain('INTERNAL_CHAT_UPDATE_URL')
+    expect(wrapper).toContain('CSC_LINK')
+    expect(wrapper).toContain('CSC_KEY_PASSWORD')
+  })
+
+  it('서명 신뢰 루트가 없는 경우를 운영 선행조건으로 문서화한다', () => {
+    const readme = read('README.md')
+
+    expect(readme).toContain('신뢰 루트')
+    expect(readme).toContain('UnknownError')
+    expect(readme).toContain('운영 선행조건')
+  })
+
   it('keeps the renderer isolated and the sandbox preload loadable', () => {
     const viteConfig = read('electron.vite.config.ts')
     const main = read('src/main/index.ts')

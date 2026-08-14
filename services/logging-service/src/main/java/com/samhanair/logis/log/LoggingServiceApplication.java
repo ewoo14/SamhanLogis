@@ -2,6 +2,8 @@ package com.samhanair.logis.log;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import com.samhanair.logis.log.retention.AuditRetentionProperties;
 
 /**
  * Logging Service entrypoint (Phase 1, project plan §3.7).
@@ -12,6 +14,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * the legacy MASTER/MANAGER audit search route.
  */
 @SpringBootApplication
+@EnableConfigurationProperties(AuditRetentionProperties.class)
 public class LoggingServiceApplication {
 
     public static void main(String[] args) {

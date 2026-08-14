@@ -114,17 +114,17 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
 
     /** Case 1 — X-User-* 헤더 누락 → 403 (Spring Security 인증 누락). */
     @Test
-    void today_without_auth_headers_returns_403() throws Exception {
+    void today_without_auth_headers_returns_401() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/driver-app/arologis/dispatches/today"))
-                .andExpect(MockMvcResultMatchers.status().isForbidden());
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized());
     }
 
     /** Case 2 — X-User-Role 만 있고 X-User-Id 없음 → 403 (HeaderAuthenticationFilter 가 인증 적재 안 함). */
     @Test
-    void today_with_role_only_returns_403() throws Exception {
+    void today_with_role_only_returns_401() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/driver-app/arologis/dispatches/today")
                         .header("X-User-Role", "AROLOGIS_DRIVER"))
-                .andExpect(MockMvcResultMatchers.status().isForbidden());
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized());
     }
 
     /** Case 3 — GET today 정상 driver (appUserId 매칭) → 200. */

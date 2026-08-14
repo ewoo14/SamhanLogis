@@ -78,6 +78,9 @@ public final class HttpHeaderConstants {
      */
     public static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
 
+    /** Gateway가 서명된 사용자 헤더와 함께 주입하는 별도 ingress attestation. */
+    public static final String GATEWAY_ATTESTATION_HEADER = "X-Samhan-Gateway-Attestation";
+
     /**
      * 클라이언트가 직접 신뢰 경계 안으로 들여보내면 안 되는 identity header 집합.
      *
@@ -94,7 +97,8 @@ public final class HttpHeaderConstants {
             CALLER_NAME_HEADER,
             USER_DEPARTMENT_HEADER,
             CALLER_ROLE_HEADER,
-            INTERNAL_TOKEN_HEADER
+            INTERNAL_TOKEN_HEADER,
+            GATEWAY_ATTESTATION_HEADER
     );
 
     private HttpHeaderConstants() {

@@ -28,8 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>계정 코드:
  * <ul>
- *   <li>RECEIVABLE: 110 외상매출금 — debit - credit (차변 잔액)</li>
- *   <li>PAYABLE: 201 외상매입금 — credit - debit (대변 잔액)</li>
+ *   <li>RECEIVABLE: 1089 외상매출금 — debit - credit (차변 잔액)</li>
+ *   <li>PAYABLE: 2519 외상매입금 — credit - debit (대변 잔액)</li>
  * </ul>
  *
  * <p>UUID 사용자 노출 금지 (메모리 feedback_uuid_no_user_visibility): 화면에는 partnerCode/name 만 노출.
@@ -49,8 +49,8 @@ public class PartnerAgingController {
     /**
      * 거래처별 미수/미지급금 조회.
      *
-     * <p>type=RECEIVABLE: 110 외상매출금 기준 거래처별 미수금.
-     * type=PAYABLE: 201 외상매입금 기준 거래처별 미지급금.
+     * <p>type=RECEIVABLE: 1089 외상매출금 기준 거래처별 미수금.
+     * type=PAYABLE: 2519 외상매입금 기준 거래처별 미지급금.
      * asOfDate 기준일 이전 누적 POSTED+REVERSED(보상쌍 상쇄) 분개 잔액으로 집계.
      *
      * @param asOfDate 기준 일자 (YYYY-MM-DD, 필수)
@@ -61,8 +61,8 @@ public class PartnerAgingController {
     @Operation(
             summary = "거래처별 미수/미지급금 조회",
             description = "asOfDate 기준 누적 POSTED+REVERSED(보상쌍 상쇄) 분개 잔액 기준 거래처별 미수/미지급금 보고서. " +
-                    "RECEIVABLE: 110 외상매출금 (debit-credit), " +
-                    "PAYABLE: 201 외상매입금 (credit-debit). " +
+                    "RECEIVABLE: 1089 외상매출금 (debit-credit), " +
+                    "PAYABLE: 2519 외상매입금 (credit-debit). " +
                     "잔액 0 이하 거래처 제외. partnerId null 은 '기타'로 집계.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

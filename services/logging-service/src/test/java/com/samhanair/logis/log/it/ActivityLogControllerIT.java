@@ -40,6 +40,8 @@ import org.springframework.test.context.TestPropertySource;
         "eureka.client.enabled=false",
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
+        "spring.rabbitmq.username=ci-test-user",
+        "spring.rabbitmq.password=ci-test-password",
         "spring.autoconfigure.exclude=" +
                 "org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration," +
                 "org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration," +
@@ -48,6 +50,7 @@ import org.springframework.test.context.TestPropertySource;
                 "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration," +
                 "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration," +
                 "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration"
+        ,"app.security.internal.token=test-internal-token"
 })
 class ActivityLogControllerIT {
 
@@ -144,6 +147,7 @@ class ActivityLogControllerIT {
         headers.add("X-User-Id", DEVELOPER_ACCOUNT.toString());
         headers.add("X-User-Role", "DEVELOPER");
         headers.add("X-User-Groups", "00000000-0000-0000-0000-000000000109");
+        headers.add("X-Internal-Token", "test-internal-token");
         return headers;
     }
 }

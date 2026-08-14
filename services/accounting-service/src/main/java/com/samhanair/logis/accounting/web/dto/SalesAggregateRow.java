@@ -9,9 +9,9 @@ import java.time.LocalDate;
  * <p>legacy GAS 3번 "거래처별 원장생성" 의 매출/수금/채권 집계 데이터 — 자체 분개 + 세금계산서
  * 자동 조회로 생성. 한국 일반기업회계기준 코드 기반:
  * <ul>
- *   <li>{@code salesTotal} = 401 (상품매출) 분개 라인 합 (대변잔액)</li>
- *   <li>{@code paymentTotal} = 110 (외상매출금) 대변 합 (수금/회수)</li>
- *   <li>{@code receivableBalance} = 110 차변잔액 (현재 미회수 채권)</li>
+ *   <li>{@code salesTotal} = 4019 (상품매출) 분개 라인 합 (대변잔액)</li>
+ *   <li>{@code paymentTotal} = 1089 (외상매출금) 대변 합 (수금/회수)</li>
+ *   <li>{@code receivableBalance} = 1089 차변잔액 (현재 미회수 채권)</li>
  * </ul>
  *
  * <p>UUID 비공개 가드 — partnerCode + bizNo + partnerName 만 노출, partnerId 미포함.

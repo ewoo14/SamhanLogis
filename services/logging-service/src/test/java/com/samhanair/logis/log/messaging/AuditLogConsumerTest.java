@@ -45,12 +45,12 @@ class AuditLogConsumerTest {
                 "JUnit/5",
                 Instant.parse("2026-05-04T10:15:30Z"));
 
-        when(repository.save(any(AuditLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.persistByRetentionClass(any(AuditLog.class))).thenAnswer(inv -> inv.getArgument(0));
 
         consumer.consume(event);
 
         ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(repository, times(1)).save(captor.capture());
+        verify(repository, times(1)).persistByRetentionClass(captor.capture());
 
         AuditLog saved = captor.getValue();
         assertThat(saved.getId()).isNotBlank();
@@ -70,12 +70,12 @@ class AuditLogConsumerTest {
                 null, null, "10.0.0.1", "JUnit/5",
                 Instant.now());
 
-        when(repository.save(any(AuditLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.persistByRetentionClass(any(AuditLog.class))).thenAnswer(inv -> inv.getArgument(0));
 
         consumer.consume(event);
 
         ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(repository).save(captor.capture());
+        verify(repository).persistByRetentionClass(captor.capture());
         assertThat(captor.getValue().getId()).isEqualTo("fixed-id-123");
     }
 
@@ -90,12 +90,12 @@ class AuditLogConsumerTest {
                 com.samhanair.logis.shared.audit.contract.AuditEnums.AuditAction.C_READ,
                 "req-1161", "trace-1161", null, "GET", "/api/v1/dc-configs", 200, 12L,
                 null, null, null, null, null, null, null);
-        when(repository.save(any(AuditLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.persistByRetentionClass(any(AuditLog.class))).thenAnswer(inv -> inv.getArgument(0));
 
         consumer.consume(event);
 
         ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(repository).save(captor.capture());
+        verify(repository).persistByRetentionClass(captor.capture());
         assertThat(captor.getValue().getRequestId()).isEqualTo("req-1161");
         assertThat(captor.getValue().getTraceId()).isEqualTo("trace-1161");
         assertThat(captor.getValue().getRouteTemplate()).isEqualTo("/api/v1/dc-configs");

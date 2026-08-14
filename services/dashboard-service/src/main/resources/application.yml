@@ -5,6 +5,11 @@ server:
 spring:
   application:
     name: dashboard-service
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASSWORD}
   servlet:
     multipart:
       max-file-size: 6MB
@@ -15,8 +20,8 @@ spring:
     # Phase 8 2차 chained-default — SAMHAN_DASHBOARD_DB_* 우선, LEGACY_DB_* legacy fallback (Phase 10 cutover 시점 단일화).
     url: jdbc:postgresql://${SAMHAN_DASHBOARD_DB_HOST:${LEGACY_DB_HOST:localhost}}:${SAMHAN_DASHBOARD_DB_PORT:${LEGACY_DB_PORT:5432}}/${SAMHAN_DASHBOARD_DB_NAME:${LEGACY_DB_NAME:dashboard_db}}
     # W10-5 회고 — chained-default + samhan default fallback (env 미설정 시 connection refused 회피)
-    username: ${SAMHAN_DASHBOARD_DB_USER:${LEGACY_DB_USER:${DB_USER:samhan}}}
-    password: ${SAMHAN_DASHBOARD_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD:samhan_dev_pw}}}
+    username: ${SAMHAN_DASHBOARD_DB_USER:${LEGACY_DB_USER:${DB_USER}}}
+    password: ${SAMHAN_DASHBOARD_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD}}}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -40,6 +45,11 @@ eureka:
 
 # Phase 8 2차 — ServiceDiscoveryClient provider toggle. eureka default (Phase 10 시점 aws-cloud-map 으로 전환).
 samhan:
+  audit:
+    publisher:
+      enabled: ${SAMHAN_AUDIT_PUBLISHER_ENABLED:true}
+    request-capture:
+      enabled: ${SAMHAN_AUDIT_REQUEST_CAPTURE_ENABLED:true}
   discovery:
     provider: ${SAMHAN_DISCOVERY_PROVIDER:eureka}
   # Phase 9 W4 — DevOps W3 backlog #4 채택 (D-P9-12) — Caffeine 일관 유지 + Redis 토글 약속.
@@ -78,7 +88,7 @@ app:
   security:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 표준, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화).
-      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+      token: ${SAMHAN_INTERNAL_TOKEN}
   # Stage 4 local-test seed (DashboardSnapshotSeeder) toggle. dev profile + 본 toggle 모두 true 인 경우만 seed.
   # 운영 / staging 데이터 오염 방지 — default false. KPI 135 + 실시간재고 200 + 매출집계 150 + MV refresh.
   dashboard:

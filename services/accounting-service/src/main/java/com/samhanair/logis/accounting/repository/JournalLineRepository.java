@@ -93,7 +93,7 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     }
 
     /**
-     * 거래처별 110(외상매출금) 누적 잔액 — A9 원장 데이터의 잔액 컬럼용.
+     * 거래처별 1089(외상매출금) 누적 잔액 — A9 원장 데이터의 잔액 컬럼용.
      *
      * <p>POSTED+REVERSED(보상쌍 상쇄) 분개 라인을 합산한다. 보상분개 모델에서는 원분개(REVERSED)와
      * 신규 역분개(POSTED)를 함께 읽어야 잔액 = SUM(debit) - SUM(credit)이 정확히 상쇄된다.
@@ -197,9 +197,9 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
      * 거래처별 미수/미지급금 집계 — asOfDate 이전 누적 POSTED+REVERSED(보상쌍 상쇄) 분개 라인.
      *
      * <p>partnerId 가 NULL 이 아닌 라인만 집계. 거래처 + accountCode 별 차/대 합산.
-     * partner_aging 보고서에서 110(외상매출금) / 201(외상매입금) 계정 잔액 집계에 사용.
+     * partner_aging 보고서에서 1089(외상매출금) / 2519(외상매입금) 계정 잔액 집계에 사용.
      *
-     * @param accountCode 대상 계정 코드 (예: "110", "201")
+     * @param accountCode 대상 계정 코드 (예: "1089", "2519")
      * @param asOfDate    기준 일자 (이 날짜 포함 이전까지 누적)
      * @return 거래처별 차/대 합계 행
      */

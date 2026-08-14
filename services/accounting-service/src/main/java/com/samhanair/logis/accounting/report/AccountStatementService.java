@@ -7,6 +7,7 @@ import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
+import com.samhanair.logis.accounting.service.AccountEcountMapping;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,8 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 계정명세서 Service.
  *
  * <p>POSTED+REVERSED(보상쌍 상쇄) 분개 라인을 기준일 이하로 GROUP BY 계정×거래처 집계하여, 거래처별 잔액
- * 스냅샷을 만든다. 기본 계정은 채권(110 외상매출금/111 받을어음/114 단기대여금/120 미수금)과
- * 채무(201 외상매입금/202 지급어음/210 미지급금/212 미지급비용)이다.
+ * 스냅샷을 만든다. 기본 계정은 채권(1089 외상매출금/111 받을어음/114 단기대여금/120 미수금)과
+ * 채무(2519 외상매입금/202 지급어음/2539 미지급금/212 미지급비용)이다.
  *
  * <p>부호 규칙:
  * <ul>
@@ -49,11 +50,12 @@ public class AccountStatementService {
     private static final String UNKNOWN_ACCOUNT_NAME = "미정의 계정";
 
     private static final List<String> RECEIVABLE_ACCOUNT_CODES =
-            List.of("110", "111", "114", "120");
+            List.of("1089", AccountEcountMapping.legacyCodeForTarget("1089").orElse("1089"), "111", "114", "120");
     private static final List<String> PAYABLE_ACCOUNT_CODES =
-            List.of("201", "202", "210", "212");
+            List.of("2519", AccountEcountMapping.legacyCodeForTarget("2519").orElse("2519"), "202", "2539", "212");
     private static final List<String> DEFAULT_ACCOUNT_CODES = List.of(
-            "110", "111", "114", "120", "201", "202", "210", "212"
+            "1089", AccountEcountMapping.legacyCodeForTarget("1089").orElse("1089"), "111", "114", "120",
+            "2519", AccountEcountMapping.legacyCodeForTarget("2519").orElse("2519"), "202", "2539", "212"
     );
 
     private final JournalLineRepository journalLineRepository;
@@ -185,6 +187,12 @@ public class AccountStatementService {
         Map<String, ChartOfAccount> map = new LinkedHashMap<>();
         chartOfAccountRepository.findAllById(accountCodes)
                 .forEach(account -> map.put(account.getCode(), account));
+        for (String code : accountCodes) {
+            String canonical = AccountEcountMapping.normalizeInputCode(code);
+            if (!map.containsKey(code) && map.containsKey(canonical)) {
+                map.put(code, map.get(canonical));
+            }
+        }
         return map;
     }
 
@@ -255,10 +263,12 @@ public class AccountStatementService {
     }
 
     private String groupCodeOf(String accountCode, BalanceDirection direction) {
-        if (RECEIVABLE_ACCOUNT_CODES.contains(accountCode)) {
+        if (RECEIVABLE_ACCOUNT_CODES.contains(accountCode)
+                || "1089".equals(AccountEcountMapping.normalizeInputCode(accountCode))) {
             return "RECEIVABLE";
         }
-        if (PAYABLE_ACCOUNT_CODES.contains(accountCode)) {
+        if (PAYABLE_ACCOUNT_CODES.contains(accountCode)
+                || "2519".equals(AccountEcountMapping.normalizeInputCode(accountCode))) {
             return "PAYABLE";
         }
         return direction == BalanceDirection.DEBIT ? "DEBIT_BALANCE" : "CREDIT_BALANCE";

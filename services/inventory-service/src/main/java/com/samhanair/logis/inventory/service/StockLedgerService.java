@@ -97,14 +97,15 @@ public class StockLedgerService {
             }
         }
         SlipDetail slip = resolveSlip(movement);
-        String slipNo = slip == null ? null : slip.slipNo();
-        String descriptionToShow = slipNo == null ? description : slipNo;
+        String slipNo = slip == null ? resolveBusinessNumber(movement) : slip.slipNo();
+        String slipType = slip == null ? resolveBusinessType(movement) : slip.slipType();
+        String descriptionToShow = slip == null || slipNo == null ? description : slipNo;
         String partnerToShow = slip == null || slip.partnerName() == null ? "" : slip.partnerName();
         return new StockLedgerRow(movement.getOccurredAt().toLocalDate(),
                 firstNonBlank(product.name(), product.modelName(), product.productCode()),
                 product.productCode(), warehouse == null ? "" : warehouse.getName(), partnerToShow,
                 descriptionToShow, tag, inbound, outbound, balance, false,
-                slipNo, slip == null ? null : slip.slipType());
+                slipNo, slipType);
     }
 
     /** reference_id 는 내부에서만 slip-service 상세로 해석하고 사용자 계약에는 slipNo 만 남긴다. */
@@ -119,6 +120,46 @@ public class StockLedgerService {
             // 주소/QA 잔재 등 해석 불가 행은 링크 없이 원래 적요를 유지한다.
             return null;
         }
+    }
+
+    /** 전표 서비스가 없는 inventory 원천도 movement의 업무번호를 보존한다. */
+    private String resolveBusinessNumber(StockMovement movement) {
+        String referenceType = movement.getReferenceType();
+        String note = movement.getNote();
+        if ("STOCK_TRANSFER".equals(referenceType)) {
+            return firstNonBlank(note);
+        }
+        if ("AUDIT".equals(referenceType)) {
+            return extractBetween(note, "(", ")");
+        }
+        if ("INBOUND_INSPECTION".equals(referenceType)) {
+            return extractAfter(note, "slipNo=");
+        }
+        return null;
+    }
+
+    private String resolveBusinessType(StockMovement movement) {
+        String referenceType = movement.getReferenceType();
+        if ("STOCK_TRANSFER".equals(referenceType) || "AUDIT".equals(referenceType)) {
+            return referenceType;
+        }
+        if ("INBOUND_INSPECTION".equals(referenceType)) {
+            return "INBOUND";
+        }
+        return null;
+    }
+
+    private String extractBetween(String value, String start, String end) {
+        if (value == null) return null;
+        int from = value.indexOf(start);
+        int to = from < 0 ? -1 : value.indexOf(end, from + start.length());
+        return from >= 0 && to > from ? value.substring(from + start.length(), to) : null;
+    }
+
+    private String extractAfter(String value, String marker) {
+        if (value == null) return null;
+        int index = value.indexOf(marker);
+        return index < 0 ? null : value.substring(index + marker.length()).trim();
     }
 
     private String firstNonBlank(String... values) {
