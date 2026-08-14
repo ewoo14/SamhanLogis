@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StaticRouter } from 'react-router-dom/server'
 
 import { GROUPWARE_DEFAULT } from './approvalDefaultTemplate'
@@ -11,6 +11,13 @@ import { DocumentRenderer } from './DocumentRenderer'
 import { approvalRenderFixtures } from './__fixtures__/approvalRenderFixtures'
 
 const chromiumRejectedVp8lVersionOne = 'data:image/webp;base64,UklGRhIAAABXRUJQVlA4TAYAAAAvA8AAIAA='
+function mockImageDecode(decode: typeof HTMLImageElement.prototype.decode) {
+  Object.defineProperty(HTMLImageElement.prototype, 'decode', { configurable: true, value: decode })
+}
+
+beforeEach(() => {
+  mockImageDecode(vi.fn().mockResolvedValue(undefined))
+})
 
 function templateWithPositionedImageAndText() {
   return {
@@ -50,7 +57,7 @@ afterEach(() => {
 
 describe('#968 SOL 결함1 — 좌표 IMAGE 경고 경계', () => {
   it('26×2.7px tiny 좌표 격자의 손상 IMAGE는 화면·인쇄 DOM에서 깨진 fallback을 칠하지 않는다', async () => {
-    window.HTMLImageElement.prototype.decode = vi.fn().mockRejectedValue(new DOMException('디코드 실패', 'EncodingError'))
+    mockImageDecode(vi.fn().mockRejectedValue(new DOMException('디코드 실패', 'EncodingError')))
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
       const image = this.matches('[data-template-image], [data-template-print-image]')
       if (image) return { x: 100, y: 0, width: 26, height: 20.53125, top: 0, right: 126, bottom: 20.53125, left: 100, toJSON: () => ({}) }
@@ -104,7 +111,7 @@ describe('#968 SOL 결함1 — 좌표 IMAGE 경고 경계', () => {
   })
 
   it('경고는 IMAGE 박스 안에 그리지 않고 아래 좌표 TEXT를 가리지 않는다', async () => {
-    window.HTMLImageElement.prototype.decode = vi.fn().mockRejectedValue(new DOMException('디코드 실패', 'EncodingError'))
+    mockImageDecode(vi.fn().mockRejectedValue(new DOMException('디코드 실패', 'EncodingError')))
 
     const fixture = approvalRenderFixtures[0]!
     render(
