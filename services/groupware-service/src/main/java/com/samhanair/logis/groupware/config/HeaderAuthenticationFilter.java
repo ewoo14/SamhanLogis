@@ -32,6 +32,10 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         if (enforceAttestation && !isAttested(request)) { response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); return; }
         String userId = request.getHeader(HttpHeaderConstants.CALLER_ID_HEADER);
         String groups = request.getHeader(HttpHeaderConstants.USER_GROUPS_HEADER);
+        if ((userId == null || userId.isBlank()) && groups != null && !groups.isBlank()) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
         if (userId != null && !userId.isBlank() && SecurityContextHolder.getContext().getAuthentication() == null) {
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
             if (groups != null && !groups.isBlank()) for (String group : groups.split(",")) {

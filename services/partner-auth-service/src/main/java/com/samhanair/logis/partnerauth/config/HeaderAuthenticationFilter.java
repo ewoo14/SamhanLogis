@@ -22,6 +22,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         String p=r.getRequestURI(); if(isPublic(p)||p.startsWith("/internal/")||isInternalPrincipal()){c.doFilter(r,s);return;}
         if(enforceAttestation&&!isAttested(r)){s.setStatus(HttpServletResponse.SC_UNAUTHORIZED);return;}
         String id=r.getHeader(HttpHeaderConstants.CALLER_ID_HEADER),groups=r.getHeader(HttpHeaderConstants.USER_GROUPS_HEADER);
+        if((id==null||id.isBlank())&&groups!=null&&!groups.isBlank()){s.setStatus(HttpServletResponse.SC_UNAUTHORIZED);return;}
         if(id!=null&&!id.isBlank()&&SecurityContextHolder.getContext().getAuthentication()==null){List<SimpleGrantedAuthority>a=new ArrayList<>();if(groups!=null&&!groups.isBlank())for(String g:groups.split(","))if(!g.isBlank())a.add(new SimpleGrantedAuthority("GROUP_"+g.trim()));SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(id,null,a));}
         c.doFilter(r,s);
     }

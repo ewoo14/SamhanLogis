@@ -46,6 +46,10 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         if (enforceAttestation && !isGatewayAttested(request)) { response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); return; }
         String userId = request.getHeader(USER_ID_HEADER);
         String groups = request.getHeader(USER_GROUPS_HEADER);
+        if ((userId == null || userId.isBlank()) && groups != null && !groups.isBlank()) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
 
         // Phase C5-3: X-User-Id 존재 시 인증 성립 (role 부재여도 허용)
         if (userId != null && !userId.isBlank()

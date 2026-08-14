@@ -58,7 +58,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         boolean hasPartialIdentity = (groups != null && !groups.isBlank())
                 || request.getHeader(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER) != null;
         if ((userId == null || userId.isBlank()) && hasPartialIdentity) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
 
