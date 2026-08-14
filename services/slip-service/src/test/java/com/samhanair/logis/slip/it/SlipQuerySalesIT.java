@@ -519,6 +519,36 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.partnerName").doesNotExist());
     }
 
+    @Test
+    @DisplayName("#1210 RED: INBOUND 전표 ID는 출고 scan-context에서 유형을 설명하며 거부한다")
+    void inboundSlipIdIsRejectedWithOutboundOnlyReason() throws Exception {
+        String id = createSlip("INBOUND", TODAY, "RED-INBOUND-SCAN-CONTEXT");
+
+        mockMvc.perform(get(SLIPS_PATH + "/{id}/scan-context", id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("출고 스캔 문맥은 출고전표만 허용")));
+    }
+
+    @Test
+    @DisplayName("#1210 RED: 입고·출고 동번호는 출고 화면에서 자동 선택하지 않는다")
+    void collidingInboundAndOutboundSlipNumberIsRejected() throws Exception {
+        String inboundId = createSlip("INBOUND", TODAY, "RED-COLLISION-INBOUND");
+        String outboundId = createSlip("OUTBOUND", TODAY, "RED-COLLISION-OUTBOUND");
+        String inboundNo = slipRepository.findById(UUID.fromString(inboundId)).orElseThrow().getSlipNo();
+        String outboundNo = slipRepository.findById(UUID.fromString(outboundId)).orElseThrow().getSlipNo();
+        assertThat(inboundNo).isEqualTo(outboundNo);
+
+        mockMvc.perform(get(SLIPS_PATH + "/scan-context/by-number")
+                        .param("slipNo", inboundNo)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("입고전표와 출고전표에 같은 번호")))
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
     /**
      * R2: 없는 OUTBOUND 상세 조회 시 404 를 반환한다.
      */

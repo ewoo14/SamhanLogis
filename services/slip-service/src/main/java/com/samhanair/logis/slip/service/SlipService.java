@@ -1522,15 +1522,35 @@ public class SlipService {
     /** 창고 QR 출고용 최소 문맥을 전표번호로 조회한다. */
     @Transactional(readOnly = true)
     public SlipScanContextResponse getOutboundScanContext(String slipNo) {
-        Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType.OUTBOUND, slipNo.trim())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "출고 전표를 찾을 수 없습니다."));
-        return toScanContext(slip);
+        String normalizedSlipNo = slipNo == null ? "" : slipNo.trim();
+        List<Slip> candidates = slipRepository.findAllBySlipNoAndIsDeletedFalse(normalizedSlipNo);
+        if (candidates.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "출고 전표를 찾을 수 없습니다.");
+        }
+        boolean hasInbound = candidates.stream().anyMatch(slip -> slip.getSlipType() == SlipType.INBOUND);
+        List<Slip> outbound = candidates.stream()
+                .filter(slip -> slip.getSlipType() == SlipType.OUTBOUND)
+                .toList();
+        if (hasInbound && !outbound.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "입고전표와 출고전표에 같은 번호가 있습니다. 어느 전표를 열지 선택해 주세요.");
+        }
+        if (outbound.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "입고전표 번호입니다. 출고 스캔 화면에서는 출고전표만 열 수 있습니다.");
+        }
+        return toScanContext(outbound.get(0));
     }
 
     /** 창고 QR 출고용 최소 문맥을 opaque 전표 ID로 조회한다. */
     @Transactional(readOnly = true)
     public SlipScanContextResponse getOutboundScanContext(UUID id) {
-        return toScanContext(loadOrThrow(id));
+        Slip slip = loadOrThrow(id);
+        if (slip.getSlipType() != SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "출고 스캔 문맥은 출고전표만 허용됩니다. 입력한 전표는 입고전표입니다.");
+        }
+        return toScanContext(slip);
     }
 
     private SlipScanContextResponse toScanContext(Slip slip) {

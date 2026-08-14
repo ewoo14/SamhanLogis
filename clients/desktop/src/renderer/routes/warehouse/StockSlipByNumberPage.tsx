@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
+import { extractApiErrorMessage } from '../../api/apiError'
 import { getOutboundSlipScanContextByNumber, getSlipByNumber, type SlipType } from '../../api/slip'
 import { SlipQrScanPanel } from '../components/SlipQrScanPanel'
 import { SlipDetailPage } from '../SlipDetailPage'
 
-/** 전표번호 opaque query만 URL에 남기고 기존 전표 상세 화면으로 진입한다. */
+/** 전표번호 query만 URL에 담고 기존 전표 상세 화면으로 진입한다. */
 export function StockSlipByNumberPage({ mode }: { mode: SlipType }) {
   const [searchParams] = useSearchParams()
   const slipNo = searchParams.get('slipNo')?.trim() ?? ''
@@ -23,7 +24,9 @@ export function StockSlipByNumberPage({ mode }: { mode: SlipType }) {
 
   if (!slipNo) return <p role="alert">전표번호가 없습니다.</p>
   if (mode === 'OUTBOUND') {
-    if (scanQuery.isError) return <p role="alert">출고전표를 찾을 수 없거나 스캔 권한이 없습니다.</p>
+    if (scanQuery.isError) {
+      return <p role="alert">{extractApiErrorMessage(scanQuery.error) || '출고전표를 열 수 없습니다.'}</p>
+    }
     if (!scanQuery.data) return <p role="status">출고전표를 불러오는 중입니다.</p>
     return (
       <section aria-label="출고전표 QR 스캔">
@@ -33,7 +36,7 @@ export function StockSlipByNumberPage({ mode }: { mode: SlipType }) {
       </section>
     )
   }
-  if (detailQuery.isError) return <p role="alert">전표를 찾을 수 없거나 열람 권한이 없습니다.</p>
-  if (!detailQuery.data) return <p role="status">전표를 불러오는 중입니다.</p>
+  if (detailQuery.isError) return <p role="alert">입고전표를 찾을 수 없거나 열람 권한이 없습니다.</p>
+  if (!detailQuery.data) return <p role="status">입고전표를 불러오는 중입니다.</p>
   return <SlipDetailPage mode={mode} slipId={detailQuery.data.id} />
 }

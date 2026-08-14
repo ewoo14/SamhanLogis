@@ -1,6 +1,0 @@
-login=200 role=WAREHOUSE
-url=http://127.0.0.1:5299/#/sales/by-number?slipNo=2026%2F08%2F08-37
-responses=[{"url":"http://127.0.0.1:8080/slips/scan-context/by-number?slipNo=2026%2F08%2F08-37","status":200},{"url":"http://127.0.0.1:8080/inventory/instances/scan/outbound","status":200},{"url":"http://127.0.0.1:8080/inventory/instances/scan/outbound","status":200}]
-auth={"hasAuth":"object","token":{"token":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDYiLCJpYXQiOjE3ODY3MTQ3NTcsImV4cCI6MTc4NjcxODM1NywibmFtZSI6IltERVYtU0VFRF0g6rCc67Cc7LC96rOgIiwiZ3JvdXBzIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMTAzIn0.Cq1E7sR1o0XY-msJoiik3NlPc-h-fEMe2UCviS7kgp0","userId":"a0000000-0000-0000-0000-000000000006","role":"WAREHOUSE","fullName":"[DEV-SEED] 개발창고","partnerCode":null,"groups":[{"id":"00000000-0000-0000-0000-000000000103","name":"00000000-0000-0000-0000-000000000103","builtin":true}]}}
-consoleErrors=[]
-body=업데이트 실패: 업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요. 다시 확인 닫기 Samhan Public 홈 알림 내역 판매 구매 그룹웨어 창고 운영 2026/08/14-1210 · 사내 전용 업무 화면 [DEV-SEED] 개발창고 · WAREHOUSE▼ 출고전표 2026/08/08-37 상태: INSPECTING 출고 QR 스캔 현재 전표번호 2026/08/08-37에 귀속하여 스캔합니다. 확정 전에는 재고가 변하지 않습니다. 휴대폰 카메라 또는 연결 스캐너 스캔 휴대폰 카메라 열기 0건 · 전부 되거나 전부 취소 전체 출고 확정
