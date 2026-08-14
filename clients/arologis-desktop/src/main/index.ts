@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { registerAuthIpcHandlers } from './ipc/auth-token.js'
 import { registerAutoUpdateIpcHandlers } from './auto-update.js'
+import { promptForTrustRoot, registerTrustRootIpcHandlers } from './certificate-trust.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -110,10 +111,12 @@ function createMainWindow(): void {
 app.whenReady().then(() => {
   registerAuthIpcHandlers()
   registerAutoUpdateIpcHandlers()
+  registerTrustRootIpcHandlers()
   ipcMain.handle('updater:quit', () => {
     app.quit()
   })
   createMainWindow()
+  void promptForTrustRoot(mainWindow)
 
   app.on('activate', () => {
     // macOS 호환 표준 패턴 (본 앱은 Windows 전용).

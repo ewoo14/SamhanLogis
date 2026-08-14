@@ -5,6 +5,7 @@ const {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  copyFileSync,
   rmSync,
   writeFileSync,
 } = require('node:fs')
@@ -63,6 +64,12 @@ function verifyReleaseRenderer(appVersion) {
 function main() {
   requireSigningEnvironment(process.env)
   requireUpdateFeedEnvironment(process.env, 'arologis', 'AROLOGIS_UPDATE_URL')
+  const trustRootCertificate = String(process.env.AROLOGIS_TRUST_ROOT_CERT || '').trim()
+  if (!trustRootCertificate || !existsSync(trustRootCertificate)) {
+    throw new Error('AROLOGIS_TRUST_ROOT_CERT가 필요합니다. 배포된 signer와 같은 .cer 신뢰 루트를 지정하십시오.')
+  }
+  const packagedTrustRoot = resolve(DESKTOP_DIR, 'build/arologis-internal-release.cer')
+  copyFileSync(trustRootCertificate, packagedTrustRoot)
   if (!String(process.env.AROLOGIS_UPDATE_URL || '').trim()) {
     throw new Error('AROLOGIS_UPDATE_URL이 필요합니다. 코드서명된 아로로지스 전용 HTTPS 업데이트 피드를 지정하십시오.')
   }
@@ -88,6 +95,7 @@ function main() {
     )
   } finally {
     nsisInclude.cleanup()
+    try { require('node:fs').rmSync(packagedTrustRoot, { force: true }) } catch (error) { console.error(`[arologis-release] trust root cleanup failed: ${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1 }
   }
 }
 

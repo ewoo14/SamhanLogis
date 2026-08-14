@@ -6,7 +6,7 @@ import {
   VERSION_POLICY_FAILURE_MESSAGE,
   type VersionPromptState,
 } from '../../version/versionCheck'
-import type { DesktopUpdateStatus } from '../../types/electron'
+import type { DesktopUpdateStatus, TrustRootStatus } from '../../types/electron'
 
 const CURRENT_VERSION = resolveBuildAppVersion(import.meta.env.VITE_APP_VERSION)
 const VERSION_API_BASE_URL = import.meta.env.VITE_VERSION_API_BASE_URL || 'http://localhost:8080'
@@ -75,6 +75,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus | null>(null)
   const [noticeDismissed, setNoticeDismissed] = useState(false)
   const [versionCheckFailure, setVersionCheckFailure] = useState<string | null>(null)
+  const [trustRootStatus, setTrustRootStatus] = useState<TrustRootStatus | null>(null)
   const checkedRef = useRef(false)
   const installStartedRef = useRef(false)
 
@@ -96,16 +97,9 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
       const status = normalizeUpdateStatus(rawStatus)
       if (!status) return
       setUpdateStatus(status)
-      if (status.kind === 'downloaded' && !installStartedRef.current) {
-        installStartedRef.current = true
-        void updater.install().catch((error: unknown) => {
-          console.error('[arologis-version] updater 설치 상세 오류(사용자 화면 비공개)', error)
-          installStartedRef.current = false
-          setUpdateStatus({ kind: 'error', message: '업데이트 설치에 실패했습니다. 앱을 종료한 뒤 다시 실행해 주세요.' })
-        })
-      }
     })
     checkForUpdate()
+    void window.arologisTrustRoot?.status().then(setTrustRootStatus).catch(() => undefined)
     return unsubscribe
   }, [bootstrapped])
 
@@ -134,10 +128,22 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     setPromptState({ kind: 'none' })
   }
 
+  const installDownloadedUpdate = () => {
+    const updater = window.arologisUpdater
+    if (!updater || installStartedRef.current) return
+    installStartedRef.current = true
+    void updater.install().catch((error: unknown) => {
+      console.error('[arologis-version] updater 설치 상세 오류(사용자 화면 비공개)', error)
+      installStartedRef.current = false
+      setUpdateStatus({ kind: 'error', message: '업데이트 설치에 실패했습니다. 앱을 종료한 뒤 다시 실행해 주세요.' })
+    })
+  }
+
   const statusNotice = updateStatus && updateStatus.kind !== 'not-available' && !noticeDismissed ? (
     <aside role="status" data-testid="app-auto-update-status" className="no-print">
       <span>{updateStatusText(updateStatus)}</span>
       <button type="button" onClick={checkForUpdate}>다시 확인</button>
+      {updateStatus.kind === 'downloaded' && <button type="button" onClick={installDownloadedUpdate}>앱을 다시 시작하여 설치</button>}
       <button type="button" onClick={() => setNoticeDismissed(true)}>닫기</button>
     </aside>
   ) : null
@@ -148,11 +154,19 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     </aside>
   ) : null
 
+  const trustRootNotice = trustRootStatus?.updateDisabled ? (
+    <aside role="status" data-testid="app-trust-root-disabled" className="no-print">
+      <span>자동 업데이트가 꺼져 있습니다. 삼한 사내 앱 업데이트를 신뢰하려면 신뢰 루트 설치가 필요합니다.</span>
+      <button type="button" onClick={() => void window.arologisTrustRoot?.install().then(setTrustRootStatus)}>신뢰 루트 설치</button>
+    </aside>
+  ) : null
+
   if (promptState.kind === 'blocking') {
     const { versionInfo } = promptState
     return (
       <>
         {versionPolicyNotice}
+        {trustRootNotice}
         {statusNotice}
         <section role="alertdialog" data-testid="app-version-blocking-modal" aria-modal="true">
           <h2>긴급 업데이트</h2>
@@ -176,6 +190,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   return (
     <>
       {versionPolicyNotice}
+      {trustRootNotice}
       {statusNotice}
       {notice}
       {children}

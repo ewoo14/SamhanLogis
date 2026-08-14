@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 // electron-updater는 CJS 패키지이므로 ESM main에서 named import를 사용하지 않는다.
 // default import 후 autoUpdater를 읽어야 packaged 런타임의 CJS interop가 안전하다.
 import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-updater'
+import { classifyArologisUpdaterError } from './update-error.js'
 
 const { autoUpdater } = electronUpdater
 
@@ -20,6 +21,20 @@ const RELEASE_PACKAGE_VERSION_PATTERN = /^\s*v?1\.(\d{4})(\d{2})(\d{2})\.([1-9][
 
 let handlersRegistered = false
 let updaterConfigured = false
+let autoUpdateEnabled = true
+
+export function setAutoUpdateEnabled(enabled: boolean): void {
+  autoUpdateEnabled = enabled
+}
+
+export async function checkForUpdates(): Promise<void> {
+  if (!app.isPackaged || !autoUpdateEnabled) return
+  try {
+    await autoUpdater.checkForUpdates()
+  } catch (error: unknown) {
+    broadcast({ kind: 'error', message: messageFromError(error) })
+  }
+}
 
 function currentWindow(): BrowserWindow | null {
   return BrowserWindow.getAllWindows().find((window) => !window.isDestroyed()) ?? null
@@ -50,7 +65,7 @@ function displayVersionFromUpdateInfo(version: string): string {
 
 function messageFromError(error: unknown): string {
   console.error('[arologis-auto-update] 상세 오류(사용자 화면 비공개)', error)
-  return '업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요.'
+  return classifyArologisUpdaterError(error).message
 }
 
 function configureAutoUpdater(): void {
@@ -74,6 +89,9 @@ function configureAutoUpdater(): void {
   })
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
     broadcast({ kind: 'downloaded', version: displayVersionFromUpdateInfo(info.version) })
+    if (process.env.AROLOGIS_UPDATE_HARNESS_APPROVE === '1') {
+      autoUpdater.quitAndInstall(true, true)
+    }
   })
   autoUpdater.on('update-not-available', () => broadcast({ kind: 'not-available' }))
   autoUpdater.on('error', (error: Error) => {
@@ -92,11 +110,11 @@ export function registerAutoUpdateIpcHandlers(): void {
       broadcast({ kind: 'not-available' })
       return
     }
-    try {
-      await autoUpdater.checkForUpdates()
-    } catch (error: unknown) {
-      broadcast({ kind: 'error', message: messageFromError(error) })
+    if (!autoUpdateEnabled) {
+      broadcast({ kind: 'error', message: '자동 업데이트가 꺼져 있습니다. 신뢰 루트 설치를 승인하면 다시 사용할 수 있습니다.' })
+      return
     }
+    await checkForUpdates()
   })
 
   ipcMain.handle(INSTALL_CHANNEL, async () => {

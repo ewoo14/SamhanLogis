@@ -15,6 +15,10 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
       quit: vi.fn(async () => undefined),
       onStatus: vi.fn(() => () => undefined),
     }
+    window.arologisTrustRoot = {
+      status: vi.fn(async () => ({ installed: true, declined: false, shouldAskNextRun: false, updateDisabled: false })),
+      install: vi.fn(async () => ({ installed: true, declined: false, shouldAskNextRun: false, updateDisabled: false })),
+    }
   })
 
   it('서버의 새 버전을 사용자 화면에 표시한다', async () => {
@@ -38,13 +42,11 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     expect(screen.getByText('아로로지스 본문')).toBeTruthy()
   })
 
-  it('강제 즉시 설치 중 설치 실패 후 같은 세션에서 다시 설치를 시도한다', async () => {
+  it('다운로드 완료 후 저장되지 않은 입력을 보호하도록 사용자 승인 전에는 설치하지 않는다', async () => {
     let emitStatus: ((status: DesktopUpdateStatus) => void) | undefined
     window.arologisUpdater = {
       check: vi.fn(async () => undefined),
-      install: vi.fn()
-        .mockRejectedValueOnce(new Error('installer failed'))
-        .mockResolvedValueOnce(undefined),
+      install: vi.fn(async () => undefined),
       quit: vi.fn(async () => undefined),
       onStatus: vi.fn((listener: (status: DesktopUpdateStatus) => void) => {
         emitStatus = listener
@@ -60,11 +62,10 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
 
     await waitFor(() => expect(emitStatus).toBeDefined())
     emitStatus!({ kind: 'downloaded', version: '2026/07/29-2' })
+    await waitFor(() => expect(screen.getByRole('button', { name: '앱을 다시 시작하여 설치' })).toBeTruthy())
+    expect(window.arologisUpdater?.install).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '앱을 다시 시작하여 설치' }))
     await waitFor(() => expect(window.arologisUpdater?.install).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('설치에 실패했습니다')
-
-    emitStatus!({ kind: 'downloaded', version: '2026/07/29-2' })
-    await waitFor(() => expect(window.arologisUpdater?.install).toHaveBeenCalledTimes(2))
   })
 
   it('자동 설치가 계속되는 안내의 닫기 버튼은 나중에가 아니라 안내 닫기라고 표시한다', async () => {
@@ -230,5 +231,20 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
 
     emitStatus!({ kind: 'available', version: '' })
     expect(await screen.findByTestId('app-auto-update-status')).toBeTruthy()
+  })
+
+  it('거부된 신뢰 루트 상태를 화면에 남기고 다음 실행에 다시 설치할 수 있다', async () => {
+    const install = vi.fn(async () => ({ installed: true, declined: false, shouldAskNextRun: false, updateDisabled: false }))
+    window.arologisTrustRoot = {
+      status: vi.fn(async () => ({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true })),
+      install,
+    }
+
+    render(<AppVersionGate bootstrapped><div>아로로지스 본문</div></AppVersionGate>)
+
+    expect(await screen.findByTestId('app-trust-root-disabled')).toBeTruthy()
+    expect(screen.getByTestId('app-trust-root-disabled').textContent).toContain('자동 업데이트가 꺼져 있습니다')
+    fireEvent.click(screen.getByRole('button', { name: '신뢰 루트 설치' }))
+    await waitFor(() => expect(install).toHaveBeenCalledOnce())
   })
 })
