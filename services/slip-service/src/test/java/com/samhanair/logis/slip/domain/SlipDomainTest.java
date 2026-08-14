@@ -54,6 +54,14 @@ class SlipDomainTest {
     }
 
     @Test
+    void createInbound_withoutDeliveryTag_defaultsToPurchase() {
+        Slip slip = Slip.createInbound("2026/05/04-2", LocalDate.of(2026, 5, 4), 2,
+                DEST_WH, PARTNER, "삼한공조", null, null, "user-1");
+
+        assertThat(slip.getDeliveryTag()).isEqualTo(DeliveryTag.PURCHASE);
+    }
+
+    @Test
     void inboundSend_capturesRevisionBaseline_andCountsOnlyAfterSent() {
         Slip slip = newInbound();
         slip.incrementRevision();

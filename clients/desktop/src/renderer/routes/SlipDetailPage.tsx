@@ -87,6 +87,7 @@ import { searchPartners, type PartnerSummary } from '../api/sales'
 import { getApiErrorInfo } from '../api/apiError'
 import { type StockBalanceLookupLine } from '../api/inventory'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
+import { SlipQrScanPanel, SlipQrPrintPanel } from './components/SlipQrScanPanel'
 import { invalidateSignature } from '../api/signature'
 import {
   listAuditLogs,
@@ -4615,6 +4616,18 @@ export function SlipDetailPage({ mode, slipId }: SlipDetailPageProps) {
             </div>
           )}
         </Card>
+      ) : null}
+
+      {isOutbound ? (
+          <SlipQrScanPanel
+            slipNo={slip.slipNo}
+            canScan={canAccess('inventory.stock-balance', 'update') && canAccessSlipAction('confirm', mode, canAccess)}
+        />
+      ) : mode === 'INBOUND' ? (
+        <SlipQrPrintPanel
+          slipNo={slip.slipNo}
+          deliveryTag={slip.deliveryTag}
+        />
       ) : null}
 
       {/*

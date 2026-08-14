@@ -7,7 +7,7 @@ import {
 } from './DeliveryTagSelector'
 
 /**
- * Storybook 시나리오용 11개 배송태그 옵션 mock.
+ * Storybook 시나리오용 12개 배송태그 옵션 mock.
  * BE `DeliveryTagCode` enum 매핑과 동일하다.
  */
 const ALL_OPTIONS: DeliveryTagOption[] = [
@@ -32,6 +32,12 @@ const ALL_OPTIONS: DeliveryTagOption[] = [
     code: 'RETURN_RENTAL',
     displayName: '반납',
     direction: 'OUTBOUND',
+    autoMemo: false,
+  },
+  {
+    code: 'PURCHASE',
+    displayName: '구매',
+    direction: 'INBOUND',
     autoMemo: false,
   },
   {
@@ -74,10 +80,10 @@ export const OutboundOptions: Story = {
 
 /**
  * direction=INBOUND — 입고 전용 3개 옵션만 노출.
- * (RETURN_TRIP/RETURN/BORROW)
+ * (PURCHASE/RETURN_TRIP/RETURN/BORROW)
  */
 export const InboundOptions: Story = {
-  name: '입고 옵션 (3종)',
+  name: '입고 옵션 (4종)',
   render: () => {
     const [value, setValue] = useState<DeliveryTagCode | null>(null)
     return (

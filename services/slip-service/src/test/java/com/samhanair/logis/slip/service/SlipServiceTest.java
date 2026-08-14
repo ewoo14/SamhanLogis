@@ -516,7 +516,7 @@ class SlipServiceTest {
 
         verify(inventoryClient, times(1))
                 .inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh), eq(2),
-                        eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
+                        eq("PURCHASE"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
                         any(SourceOperationContext.class));
         verify(inventoryClient, never())
                 .inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
@@ -541,7 +541,7 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient).inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh),
-                eq(2), eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("10000.00")),
+                eq(2), eq("PURCHASE"), eq("2026/05/04-1"), eq(new BigDecimal("10000.00")),
                 any(SourceOperationContext.class));
     }
 
@@ -564,7 +564,7 @@ class SlipServiceTest {
 
         verify(inventoryClient, times(1))
                 .inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh), eq(5),
-                eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
+                eq("PURCHASE"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
                 any(SourceOperationContext.class));
         verify(inventoryClient, never())
                 .inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
@@ -594,7 +594,7 @@ class SlipServiceTest {
 
         verify(inventoryClient, times(1))
                 .inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh), eq(2),
-                        eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
+                        eq("PURCHASE"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
                         any(SourceOperationContext.class));
         verify(inventoryClient, times(1))
                 .inbound(eq(batchProductId), eq(destWh), eq(5),
@@ -613,7 +613,7 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient).inboundInstances(eq(productId), eq("AC-BORROW-001"), eq(destWh),
-                eq(1), eq("차용"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
+                eq(1), eq("BORROW"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")),
                 any(SourceOperationContext.class));
     }
 

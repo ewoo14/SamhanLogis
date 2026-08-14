@@ -101,8 +101,9 @@ const OUTBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[]
   { value: 'RETURN_RENTAL',      label: '반납' },
 ]
 
-/** 구매관리 legacy(INBOUND) 배송태그 옵션 — BE DeliveryTagCode 3종 */
+/** 구매관리 legacy(INBOUND) 배송태그 옵션 — BE DeliveryTagCode 4종 */
 const INBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[] = [
+  { value: 'PURCHASE',    label: '구매' },
   { value: 'RETURN_TRIP', label: '회차' },
   { value: 'RETURN',      label: '반품' },
   { value: 'BORROW',      label: '차용' },
@@ -124,6 +125,7 @@ const DELIVERY_TAG_LABEL_MAP: Record<DeliveryTagCode, string> = {
   RETURN_TRIP:        '회차',
   RETURN:             '반품',
   BORROW:             '차용',
+  PURCHASE:           '구매',
 }
 
 // SSE 목록 동기화용 coarse 무효화 키(안정 참조 — 렌더마다 재구독 방지).

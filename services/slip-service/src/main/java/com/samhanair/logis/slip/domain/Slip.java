@@ -732,7 +732,8 @@ public class Slip extends BaseEntity {
         validateTagDirection(deliveryTag, SlipType.INBOUND);
         return new Slip(SlipType.INBOUND, slipNo, slipDate, seqNo,
                 null, destinationWarehouseId,
-                partnerId, partnerName, deliveryTag, memo, requesterId);
+                partnerId, partnerName, deliveryTag == null ? DeliveryTag.PURCHASE : deliveryTag,
+                memo, requesterId);
     }
 
     private static void validateTagDirection(DeliveryTag tag, SlipType slipType) {

@@ -118,7 +118,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         slipService.complete(slip.getId());
 
         verify(inventoryClient).inboundInstances(eq(productId), eq("AC-S2"),
-                eq(destinationWarehouseId), eq(2), eq("구매"), eq(slip.getSlipNo()),
+                eq(destinationWarehouseId), eq(2), eq("PURCHASE"), eq(slip.getSlipNo()),
                 eq(new BigDecimal("500000.00")), any(SourceOperationContext.class));
         verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class),
                 any(SourceOperationContext.class));
@@ -155,7 +155,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         slipService.complete(slip.getId());
 
         verify(inventoryClient, times(1)).inboundInstances(eq(serialProductId), eq("AC-S2"),
-                eq(destinationWarehouseId), eq(2), eq("구매"), eq(slip.getSlipNo()),
+                eq(destinationWarehouseId), eq(2), eq("PURCHASE"), eq(slip.getSlipNo()),
                 eq(new BigDecimal("500000.00")), any(SourceOperationContext.class));
         verify(inventoryClient, times(1)).inbound(eq(batchProductId), eq(destinationWarehouseId),
                 eq(5), eq(slip.getSlipNo()), any(UUID.class), eq(new BigDecimal("10000.00")),
@@ -163,7 +163,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("BORROW 입고 태그는 inboundType=차용으로 파생한다")
+    @DisplayName("BORROW 입고 태그는 enum name 안정 키로 파생한다")
     void complete_borrowTag_usesBorrowInboundType() {
         UUID productId = UUID.randomUUID();
         Slip slip = saveInboundSlip(DeliveryTag.BORROW, line(productId, "에어컨", "MODEL-BORROW", 1,
@@ -173,7 +173,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         slipService.complete(slip.getId());
 
         verify(inventoryClient).inboundInstances(eq(productId), eq("AC-S2"),
-                eq(destinationWarehouseId), eq(1), eq("차용"), eq(slip.getSlipNo()),
+                eq(destinationWarehouseId), eq(1), eq("BORROW"), eq(slip.getSlipNo()),
                 eq(new BigDecimal("500000.00")), any(SourceOperationContext.class));
     }
 
@@ -301,7 +301,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         doThrow(new BusinessException(ErrorCode.INTERNAL_ERROR, "inventory 실패"))
                 .when(inventoryClient)
                 .inboundInstances(eq(productId), eq("AC-S2"), eq(destinationWarehouseId),
-                        eq(1), eq("구매"), eq(slip.getSlipNo()), eq(new BigDecimal("500000.00")),
+                        eq(1), eq("PURCHASE"), eq(slip.getSlipNo()), eq(new BigDecimal("500000.00")),
                         any(SourceOperationContext.class));
 
         assertThatThrownBy(() -> slipService.complete(slip.getId()))

@@ -50,6 +50,9 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
 
     long countByOutboundSlipNoAndIsDeletedFalse(String outboundSlipNo);
 
+    /** 입고전표 QR 출력용 — 요청 전표에 귀속된 활성 인스턴스만 반환한다. */
+    List<StockInstance> findByInboundSlipNoOrderByProductCodeAscReceivedAtAsc(String inboundSlipNo);
+
     /** 사용자 노출용 serial_key로 활성 인스턴스를 단건 조회한다. */
     Optional<StockInstance> findBySerialKey(String serialKey);
 

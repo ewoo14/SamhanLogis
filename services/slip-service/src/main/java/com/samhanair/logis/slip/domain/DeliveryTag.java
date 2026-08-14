@@ -20,6 +20,7 @@ public enum DeliveryTag {
     LOGEN("로젠택배", SlipType.OUTBOUND, false),
     GYEONGDONG_PARCEL("경동택배", SlipType.OUTBOUND, false),
     GYEONGDONG_FREIGHT("경동화물", SlipType.OUTBOUND, false),
+    PURCHASE("구매", SlipType.INBOUND, false),
     RETURN_TRIP("회차", SlipType.INBOUND, false),
     RETURN("반품", SlipType.INBOUND, false),
     BORROW("차용", SlipType.INBOUND, false),

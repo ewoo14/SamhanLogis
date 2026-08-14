@@ -350,6 +350,18 @@ export async function listStockInstances(productCode: string): Promise<StockInst
   return res.data.data
 }
 
+export interface InboundQrInstanceRow {
+  serialKey: string
+  productCode: string
+}
+
+/** 구매·차용 입고전표에 귀속된 QR 인스턴스만 조회한다. */
+export async function listInboundQrInstances(slipNo: string): Promise<InboundQrInstanceRow[]> {
+  const res = await apiClient.get<ApiEnvelope<Array<{ serialKey: string; productCode: string }>>>(
+    '/inventory/instances/by-inbound-slip', { params: { slipNo } })
+  return res.data.data.map(({ serialKey, productCode }) => ({ serialKey, productCode }))
+}
+
 export async function updateStockInstanceQuality(
   serialKey: string,
   quality: StockInstanceQuality,

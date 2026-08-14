@@ -355,6 +355,15 @@ public class StockInstanceController {
         return ApiResponse.ok(stockInstanceService.listForProductCode(productCode), "품목리스트 조회 완료");
     }
 
+    /** 구매·차용 입고전표 화면의 QR 출력용 — 전표 귀속 인스턴스만 반환한다. */
+    @Operation(summary = "입고전표 QR 인스턴스 조회", description = "입고전표번호에 귀속된 인스턴스의 시리얼키·품목코드를 반환.")
+    @GetMapping("/by-inbound-slip")
+    @RequirePermission(page = "purchases.slip.edit", action = PermissionAction.VIEW)
+    public ApiResponse<List<StockInstanceResponse>> byInboundSlip(@RequestParam String slipNo) {
+        return ApiResponse.ok(stockInstanceService.listByInboundSlip(slipNo).stream()
+                .map(StockInstanceResponse::from).toList(), "입고전표 QR 인스턴스 조회 완료");
+    }
+
     /** AVAILABLE/RESERVED만 품질 변경 가능. SHIPPED 차단은 서비스·도메인 양쪽에서 수행한다. */
     @Operation(summary = "재고 품목 상태 변경", description = "serialKey 기준 품질 변경. SHIPPED는 409.")
     @PatchMapping("/quality")

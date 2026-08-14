@@ -1,6 +1,4 @@
 import { Modal } from '@samhan/design-system'
-import { useEffect, useRef } from 'react'
-import QRCode from 'qrcode'
 import type { StockInstanceListRow, StockInstanceQuality } from '../../api/inventory'
 
 const QUALITY_LABEL: Record<StockInstanceQuality, string> = {
@@ -12,21 +10,6 @@ const QUALITY_LABEL: Record<StockInstanceQuality, string> = {
 }
 
 const QUALITY_VALUES = Object.keys(QUALITY_LABEL) as StockInstanceQuality[]
-
-function SerialQr({ value }: { value: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent)) return
-    if (canvasRef.current) {
-      void QRCode.toCanvas(canvasRef.current, value, { width: 64, margin: 1 }).catch(() => undefined)
-    }
-  }, [value])
-
-  return (
-    <canvas ref={canvasRef} data-testid={`serial-qr-${value}`} aria-label={`${value} QR 코드`} />
-  )
-}
 
 export function StockInstanceListModal({
   open,
@@ -60,7 +43,6 @@ export function StockInstanceListModal({
                   <td style={cellStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span>{row.serialKey}</span>
-                      <SerialQr value={row.serialKey} />
                     </div>
                   </td>
                   <td style={cellStyle}>{row.warehouseName} ({row.warehouseCode})</td>

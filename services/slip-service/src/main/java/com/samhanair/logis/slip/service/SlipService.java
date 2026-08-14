@@ -1191,9 +1191,10 @@ public class SlipService {
     private String resolveInboundType(Slip slip) {
         DeliveryTag tag = slip.getDeliveryTag();
         if (tag == DeliveryTag.BORROW) {
-            return "차용";
+            return DeliveryTag.BORROW.name();
         }
-        return "구매";
+        // INBOUND에서 tag=null은 구매 전표다. 표시 라벨이 아닌 안정 키를 inventory-service로 전달한다.
+        return DeliveryTag.PURCHASE.name();
     }
 
     /** 저장된 전표 라인만 line UUID를 멱등 키로 전달하고 legacy 호출은 기존 계약을 유지한다. */

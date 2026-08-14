@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -58,7 +60,7 @@ class StockInstanceServiceBatchTest {
 
         assertThatThrownBy(() -> service.inboundBatch(
                         productId, "PIPE-001", UUID.randomUUID(), 3,
-                        "구매", "INB-001", new BigDecimal("10000"),
+                        "PURCHASE", "INB-001", new BigDecimal("10000"),
                         LocalDateTime.of(2026, 6, 1, 9, 0)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
@@ -75,7 +77,7 @@ class StockInstanceServiceBatchTest {
 
         var result = service.inboundBatch(
                 productId, "FEE-001", UUID.randomUUID(), 3,
-                "구매", "INB-FEE-001", new BigDecimal("10000"),
+                "PURCHASE", "INB-FEE-001", new BigDecimal("10000"),
                 LocalDateTime.of(2026, 6, 1, 9, 0));
 
         assertThat(result).isEmpty();
@@ -90,7 +92,7 @@ class StockInstanceServiceBatchTest {
 
         var result = service.inboundBatch(
                 productId, "SET-001", UUID.randomUUID(), 3,
-                "구매", "INB-SET-001", new BigDecimal("10000"),
+                "PURCHASE", "INB-SET-001", new BigDecimal("10000"),
                 LocalDateTime.of(2026, 6, 1, 9, 0));
 
         assertThat(result).isEmpty();
@@ -105,7 +107,7 @@ class StockInstanceServiceBatchTest {
 
         var result = service.create(
                 productId, "FEE-001", UUID.randomUUID(),
-                "구매", new BigDecimal("10000"), "INB-FEE-002",
+                "PURCHASE", new BigDecimal("10000"), "INB-FEE-002",
                 LocalDateTime.of(2026, 6, 1, 9, 0));
 
         assertThat(result).isNull();
@@ -120,7 +122,7 @@ class StockInstanceServiceBatchTest {
 
         var result = service.create(
                 productId, "SET-001", UUID.randomUUID(),
-                "구매", new BigDecimal("10000"), "INB-SET-002",
+                "PURCHASE", new BigDecimal("10000"), "INB-SET-002",
                 LocalDateTime.of(2026, 6, 1, 9, 0));
 
         assertThat(result).isNull();
@@ -140,7 +142,7 @@ class StockInstanceServiceBatchTest {
 
         List<StockInstance> result = service.inboundBatch(
                 productId, "AC-001", warehouseId, 3,
-                "구매", "INB-002", new BigDecimal("500000"), receivedAt);
+                "PURCHASE", "INB-002", new BigDecimal("500000"), receivedAt);
 
         assertThat(result).hasSize(3);
         verify(sourceJournalWriter).record(any(), any(), any(), any(), any());
@@ -150,10 +152,24 @@ class StockInstanceServiceBatchTest {
                     assertThat(instance.getProductCode()).isEqualTo("AC-001");
                     assertThat(instance.getWarehouseId()).isEqualTo(warehouseId);
                     assertThat(instance.getStatus()).isEqualTo(StockInstanceStatus.AVAILABLE);
-                    assertThat(instance.getInboundType()).isEqualTo("구매");
+                    assertThat(instance.getInboundType()).isEqualTo("PURCHASE");
                     assertThat(instance.getInboundSlipNo()).isEqualTo("INB-002");
                     assertThat(instance.getReceivedAt()).isEqualTo(receivedAt);
                 });
+    }
+
+    @ParameterizedTest(name = "알 수 없는 입고 유형 {0} 은 새 시리얼 인스턴스를 만들지 않는다")
+    @ValueSource(strings = {"RETURN", "RETURN_TRIP", "FUTURE_INBOUND_TYPE"})
+    @DisplayName("구매·차용 allowlist 밖의 입고는 새 QR 인스턴스를 만들지 않는다")
+    void inboundBatch_nonQrCreationType_doesNotCreateNewInstance(String inboundType) {
+        UUID productId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> service.inboundBatch(
+                productId, "AC-RETURN-001", UUID.randomUUID(), 1,
+                inboundType, "INB-RETURN-001", new BigDecimal("500000"), LocalDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("구매·차용 계열이 아닌 입고");
+        verify(repo, never()).saveAll(any());
     }
 
     @Test
@@ -171,10 +187,20 @@ class StockInstanceServiceBatchTest {
 
         List<StockInstance> result = service.inboundBatch(
                 productId, "AC-002", warehouseId, 3,
-                "구매", "INB-003", new BigDecimal("500000"), LocalDateTime.now());
+                "PURCHASE", "INB-003", new BigDecimal("500000"), LocalDateTime.now());
 
         assertThat(result).containsExactlyElementsOf(existing);
         verify(repo, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("QR 출력용 입고전표 조회는 해당 전표의 인스턴스만 반환한다")
+    void listByInboundSlip_returnsOnlyInstancesOfRequestedSlip() {
+        var expected = instance(UUID.randomUUID(), "AC-QR-001", UUID.randomUUID(), "INB-QR-001");
+        when(repo.findByInboundSlipNoOrderByProductCodeAscReceivedAtAsc("INB-QR-001"))
+                .thenReturn(List.of(expected));
+
+        assertThat(service.listByInboundSlip("INB-QR-001")).containsExactly(expected);
     }
 
     @Test
@@ -190,7 +216,7 @@ class StockInstanceServiceBatchTest {
 
         List<StockInstance> result = service.inboundBatch(
                 productId, "AC-003", warehouseId, 3,
-                "구매", "INB-004", new BigDecimal("500000"), LocalDateTime.now());
+                "PURCHASE", "INB-004", new BigDecimal("500000"), LocalDateTime.now());
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<StockInstance>> savedCaptor = ArgumentCaptor.forClass(List.class);
@@ -220,7 +246,7 @@ class StockInstanceServiceBatchTest {
 
     private StockInstance instance(UUID productId, String productCode, UUID warehouseId, String slipNo) {
         return StockInstance.inbound(productId, productCode, warehouseId,
-                "구매", LocalDateTime.of(2026, 6, 1, 9, 0),
+                "PURCHASE", LocalDateTime.of(2026, 6, 1, 9, 0),
                 new BigDecimal("500000"), slipNo);
     }
 }

@@ -13,7 +13,7 @@ import { FormField } from '../FormField/FormField'
 export type SlipDirection = 'OUTBOUND' | 'INBOUND'
 
 /**
- * 배송태그 코드 (BE `DeliveryTagCode` enum 과 1:1 대응, 11종).
+ * 배송태그 코드 (BE `DeliveryTag` enum 과 1:1 대응, 12종).
  *
  * 출고 (OUTBOUND, 8종):
  * - `DAY`               당일 — 당일 출고/배송 (긴급)
@@ -25,7 +25,8 @@ export type SlipDirection = 'OUTBOUND' | 'INBOUND'
  * - `RENTAL`            대여 — 대여 출고
  * - `RETURN_RENTAL`     반납 — 대여품 반납 출고
  *
- * 입고 (INBOUND, 3종):
+ * 입고 (INBOUND, 4종):
+ * - `PURCHASE`     구매 — 최초 구매 입고 (기본값)
  * - `RETURN_TRIP` 회차 — 차량 회차 입고
  * - `RETURN`      반품 — 거래처 반품 입고
  * - `BORROW`      차용 — 외부 차용품 입고
@@ -40,6 +41,7 @@ export type DeliveryTagCode =
   | 'RETURN_TRIP'
   | 'RETURN'
   | 'BORROW'
+  | 'PURCHASE'
   | 'RENTAL'
   | 'RETURN_RENTAL'
 
@@ -81,7 +83,7 @@ export interface DeliveryTagSelectorProps {
   ) => void
   /**
    * 전표 종류 — 이 종류에 해당하는 옵션만 dropdown 에 노출된다.
-   * 출고면 OUTBOUND 8종, 입고면 INBOUND 3종.
+ * 출고면 OUTBOUND 8종, 입고면 INBOUND 4종.
    */
   direction: SlipDirection
   /** 라벨 (default `"배송태그"`). */
@@ -141,7 +143,7 @@ function buildAutoMemoText(slipDate?: string): string {
 }
 
 /**
- * DeliveryTagSelector — 11종 배송태그 single-select dropdown.
+ * DeliveryTagSelector — 12종 배송태그 single-select dropdown.
  *
  * 전표 종류 (`direction`) 에 따라 옵션이 자동 필터링된다.
  * 자동 메모 태그 (야적/지방) 선택 시 옆에 inline 미리보기가 표시되며,

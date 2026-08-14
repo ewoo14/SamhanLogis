@@ -147,7 +147,7 @@ class InventoryClientTest {
                 .andRespond(withStatus(HttpStatus.CREATED));
 
         client.inboundInstances(UUID.randomUUID(), "AC-S2", UUID.randomUUID(), 2,
-                "구매", "S2-INB-001", new BigDecimal("500000.00"),
+                "PURCHASE", "S2-INB-001", new BigDecimal("500000.00"),
                 new SourceOperationContext(UUID.randomUUID(), slipId, 5L));
         server.verify();
     }
