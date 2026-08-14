@@ -264,6 +264,24 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(status.style.zIndex).not.toBe('10000')
   })
 
+  it.each([
+    ['trust', '업데이트 파일의 인증서를 신뢰할 수 없습니다. 사내 IT 지원팀에 인증서 배포를 요청한 뒤 다시 확인해 주세요.'],
+    ['integrity', '업데이트 파일이 손상되었거나 검증에 실패했습니다. 다시 확인해 주세요.'],
+    ['network', '업데이트 서버에 연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 확인해 주세요.'],
+  ] as const)('updater 오류 계약의 %s 문구와 심각도를 화면에 보존한다', async (severity, message) => {
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    act(() => updater.emit({ kind: 'error', message }))
+
+    const status = await screen.findByTestId('app-auto-update-status')
+    expect(status.getAttribute('data-severity')).toBe(severity)
+    expect(status.textContent).toContain(message)
+  })
+
   it('확인 상한을 넘으면 일반 수준은 로그인으로 진행한다', async () => {
     vi.useFakeTimers()
     updater.check.mockImplementationOnce(() => new Promise<void>(() => undefined))

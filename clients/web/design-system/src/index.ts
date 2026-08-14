@@ -66,6 +66,7 @@ export * from './components/SlipEditRequestDialog'
 export * from './components/Tabs'
 // P1-3 신규 — 안전재고 긴급도 4단계 Badge (CRITICAL/DANGER/WARNING/NOTICE) + calcUrgencyLevel 유틸
 export * from './components/UrgencyBadge'
+export * from './components/AppUpdateNotice'
 // P1-6 신규 — Excel/CSV blob 다운로드 버튼 (4 list 페이지 공통 사용)
 export * from './components/ExcelDownloadButton'
 // supplier-profile + datagrid 슬라이스 신규 — Excel-like DataGrid (열헤더 필터 + 다중 셀 선택 + 복사/붙여넣기)

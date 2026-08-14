@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { AppUpdateNotice, Button } from '@samhan/design-system'
 import {
   fetchDesktopVersionStatus,
   resolveBuildAppVersion,
@@ -70,6 +71,26 @@ function updateStatusText(status: DesktopUpdateStatus): string {
   }
 }
 
+function updateErrorSeverity(message: string): 'network' | 'integrity' | 'trust' {
+  if (/인증서|신뢰|certificate|signature/i.test(message)) return 'trust'
+  if (/손상|검증|integrity|checksum|hash/i.test(message)) return 'integrity'
+  return 'network'
+}
+
+function updateStatusTitle(status: DesktopUpdateStatus): string {
+  if (status.kind === 'error') {
+    const severity = updateErrorSeverity(status.message ?? '')
+    if (severity === 'trust') return '업데이트 파일의 인증서를 신뢰할 수 없습니다'
+    if (severity === 'integrity') return '업데이트 파일을 확인하지 못했습니다'
+    return '업데이트 서버에 연결하지 못했습니다'
+  }
+  if (status.kind === 'checking') return '업데이트를 확인하는 중입니다'
+  if (status.kind === 'available') return '새 업데이트를 준비하고 있습니다'
+  if (status.kind === 'downloading') return '새 업데이트를 다운로드하는 중입니다'
+  if (status.kind === 'downloaded') return '새 업데이트를 설치할 준비가 되었습니다'
+  return '업데이트 상태'
+}
+
 export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boolean; children?: ReactNode }): JSX.Element {
   const [promptState, setPromptState] = useState<VersionPromptState>({ kind: 'none' })
   const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus | null>(null)
@@ -139,13 +160,32 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     })
   }
 
+  const refreshTrustRootStatusAfterInstall = async () => {
+    const trustRoot = window.arologisTrustRoot
+    if (!trustRoot) return
+    try {
+      await trustRoot.install()
+      const verifiedStatus = await trustRoot.status()
+      setTrustRootStatus(verifiedStatus)
+    } catch (error: unknown) {
+      console.warn('[arologis-trust-root] 설치 후 실제 상태 확인 실패', error)
+    }
+  }
+
   const statusNotice = updateStatus && updateStatus.kind !== 'not-available' && !noticeDismissed ? (
-    <aside role="status" data-testid="app-auto-update-status" className="no-print">
-      <span>{updateStatusText(updateStatus)}</span>
-      <button type="button" onClick={checkForUpdate}>다시 확인</button>
-      {updateStatus.kind === 'downloaded' && <button type="button" onClick={installDownloadedUpdate}>앱을 다시 시작하여 설치</button>}
-      <button type="button" onClick={() => setNoticeDismissed(true)}>닫기</button>
-    </aside>
+    <AppUpdateNotice
+      severity={updateStatus.kind === 'error' ? updateErrorSeverity(updateStatus.message ?? '') : 'network'}
+      title={updateStatusTitle(updateStatus)}
+      description={updateStatusText(updateStatus)}
+      testId="app-auto-update-status"
+      actions={(
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={checkForUpdate}>다시 확인</Button>
+          {updateStatus.kind === 'downloaded' && <Button type="button" variant="primary" size="sm" onClick={installDownloadedUpdate}>앱을 다시 시작하여 설치</Button>}
+          <Button type="button" variant="ghost" size="sm" onClick={() => setNoticeDismissed(true)} data-testid="app-auto-update-dismiss">닫기</Button>
+        </>
+      )}
+    />
   ) : null
 
   const versionPolicyNotice = versionCheckFailure ? (
@@ -155,10 +195,13 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   ) : null
 
   const trustRootNotice = trustRootStatus?.updateDisabled ? (
-    <aside role="status" data-testid="app-trust-root-disabled" className="no-print">
-      <span>자동 업데이트가 꺼져 있습니다. 삼한 사내 앱 업데이트를 신뢰하려면 신뢰 루트 설치가 필요합니다.</span>
-      <button type="button" onClick={() => void window.arologisTrustRoot?.install().then(setTrustRootStatus)}>신뢰 루트 설치</button>
-    </aside>
+    <AppUpdateNotice
+      severity="disabled"
+      title="자동 업데이트가 꺼져 있습니다"
+      description="사내 업데이트를 계속 받으려면 신뢰 루트 설치가 필요합니다. 설치가 끝날 때까지 앱은 그대로 사용할 수 있습니다."
+      testId="app-trust-root-disabled"
+      actions={<Button type="button" variant="secondary" size="sm" onClick={() => void refreshTrustRootStatusAfterInstall()}>신뢰 루트 설치</Button>}
+    />
   ) : null
 
   if (promptState.kind === 'blocking') {

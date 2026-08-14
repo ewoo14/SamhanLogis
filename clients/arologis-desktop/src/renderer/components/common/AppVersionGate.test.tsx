@@ -278,7 +278,7 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
   })
 
   it('거부된 신뢰 루트 상태를 화면에 남기고 다음 실행에 다시 설치할 수 있다', async () => {
-    const install = vi.fn(async () => ({ installed: true, declined: false, shouldAskNextRun: false, updateDisabled: false }))
+    const install = vi.fn(async () => ({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true }))
     window.arologisTrustRoot = {
       status: vi.fn(async () => ({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true })),
       install,
@@ -290,5 +290,36 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     expect(screen.getByTestId('app-trust-root-disabled').textContent).toContain('자동 업데이트가 꺼져 있습니다')
     fireEvent.click(screen.getByRole('button', { name: '신뢰 루트 설치' }))
     await waitFor(() => expect(install).toHaveBeenCalledOnce())
+  })
+
+  it('실제 신뢰 루트 설치가 확인되면 승인 직후 자동 업데이트 꺼짐 배너를 제거한다', async () => {
+    const status = vi.fn()
+      .mockResolvedValueOnce({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true })
+      .mockResolvedValueOnce({ installed: true, declined: false, shouldAskNextRun: false, updateDisabled: false })
+    const install = vi.fn(async () => ({ installed: true, declined: false, shouldAskNextRun: false, updateDisabled: false }))
+    window.arologisTrustRoot = { status, install }
+
+    render(<AppVersionGate bootstrapped><div>아로로지스 본문</div></AppVersionGate>)
+    await screen.findByTestId('app-trust-root-disabled')
+
+    fireEvent.click(screen.getByRole('button', { name: '신뢰 루트 설치' }))
+
+    await waitFor(() => expect(screen.queryByTestId('app-trust-root-disabled')).toBeNull())
+    expect(status).toHaveBeenCalledTimes(2)
+  })
+
+  it('승인 버튼 결과와 실제 조회가 다르면 자동 업데이트 꺼짐 배너를 유지한다', async () => {
+    const status = vi.fn()
+      .mockResolvedValueOnce({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true })
+      .mockResolvedValueOnce({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true })
+    const install = vi.fn(async () => ({ installed: false, declined: true, shouldAskNextRun: true, updateDisabled: true }))
+    window.arologisTrustRoot = { status, install }
+
+    render(<AppVersionGate bootstrapped><div>아로로지스 본문</div></AppVersionGate>)
+    await screen.findByTestId('app-trust-root-disabled')
+    fireEvent.click(screen.getByRole('button', { name: '신뢰 루트 설치' }))
+
+    await waitFor(() => expect(install).toHaveBeenCalledOnce())
+    expect(screen.getByTestId('app-trust-root-disabled')).toBeTruthy()
   })
 })
