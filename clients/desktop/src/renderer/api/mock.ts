@@ -14528,31 +14528,30 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // AppLayout은 정적 메뉴 fallback을 사용하지 않으므로 mock도 서버 계약을
   // 재현해야 한다. mockPerms가 있으면 그 allowlist를 그대로 적용한다.
   if (method === 'GET' && (url.includes('/auth/admin/menu-catalog') || url.includes('/admin/menu-catalog'))) {
-    const mockPerms = _resolveMockPerms()
-    const canViewPermissionAdmin = MOCK_AUTH.role === 'MASTER'
-      && (mockPerms === null || mockPerms.some((permission) => permission.pageCode === 'system.permission-admin' && permission.view))
-    return envelope(canViewPermissionAdmin ? [
-      {
+    // AppLayout은 서버 catalog를 정적 메뉴의 대체 집합으로 사용하므로,
+    // mockPerms 시나리오에서도 권한이 있는 인사 항목을 모두 같은 계약으로 돌려준다.
+    // 기존에는 system.permission-admin만 검사해 admin.employees/hr.carriers 단독
+    // 시나리오에서 인사 헤더 자체가 사라지는 회귀가 있었다.
+    const hrCatalog = [
+      { label: '인사 관리', route: '/admin/users', pageCode: 'admin.employees', order: 1 },
+      { label: '운송사 목록', route: '/admin/carriers', pageCode: 'hr.carriers', order: 2 },
+      { label: '권한설정', route: '/admin/permission-matrix', pageCode: 'system.permission-admin', order: 3 },
+      { label: '권한 일괄 적용', route: '/admin/permission-matrix/bulk', pageCode: 'system.permission-admin', order: 4 },
+      { label: '그룹 권한', route: '/admin/permission-groups/matrix', pageCode: 'system.permission-admin', order: 5 },
+      { label: '권한그룹 관리', route: '/admin/permission-groups/manage', pageCode: 'system.permission-admin', order: 6 },
+      { label: '권한 위임', route: '/admin/permission-groups/delegation', pageCode: 'system.permission-admin', order: 7 },
+      { label: '결재라인 설정', route: '/admin/approval-line-config', pageCode: 'admin.approval-line-config', order: 8 },
+      { label: '출고 마감시간 설정', route: '/admin/slip-cutoff', pageCode: 'hr.slip-cutoff', order: 9 },
+    ]
+    return envelope(hrCatalog
+      .filter((entry) => mockCanAccess(entry.pageCode, 'view'))
+      .map((entry) => ({
         app: 'samhan-public',
         category: '인사',
-        label: '권한설정',
-        route: '/admin/permission-matrix',
-        pageCode: 'system.permission-admin',
+        ...entry,
         action: 'VIEW',
         visible: true,
-        order: 1,
-      },
-      {
-        app: 'samhan-public',
-        category: '인사',
-        label: '권한 일괄 적용',
-        route: '/admin/permission-matrix/bulk',
-        pageCode: 'system.permission-admin',
-        action: 'VIEW',
-        visible: true,
-        order: 2,
-      },
-    ] : [])
+      })))
   }
 
   // GET /auth/admin/permissions/my — 현재 사용자 권한 목록

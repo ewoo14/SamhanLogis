@@ -326,9 +326,6 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
       '/admin/aligo-address-book',
       '알리고 주소록',
     )
-    // 단톡방 매핑 — route(/admin/chat-rooms) 까지 hard 단언(기존 testid+label 만).
-    assertSidebarLink(groupwareBlock, 'sidebar-admin-chat-rooms', '/admin/chat-rooms', '단톡방 매핑')
-
     // [#463] 배차 그룹 — 유지 메뉴 3종의 리라벨 hard 단언.
     const dispatchBlock = categoryBlock(appLayout, '배차')
     assertSidebarLink(dispatchBlock, 'sidebar-dispatch-history', '/dispatch-board/history', '배차현황')

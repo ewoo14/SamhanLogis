@@ -177,7 +177,6 @@ const ROUTES: RouteCase[] = [
   { path: '/admin/blocked-partners' },
   { path: '/admin/aligo-address-book' },
   { path: '/admin/regions' },
-  { path: '/admin/chat-rooms' },
   { path: '/admin/slip-edit-requests' },
   { path: '/admin/photo-audit' },
 ]

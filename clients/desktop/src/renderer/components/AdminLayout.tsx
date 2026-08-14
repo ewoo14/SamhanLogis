@@ -6,7 +6,7 @@
  * 2) {@code useQuery} — `GET /api/v1/users/me/is-executive-office` 로 대표실 부서
  *    소속 여부 확인. false 시 `/forbidden` redirect.
  *
- * 인사 사이드바 6 entry (PR-HR 슬라이스; Round B 단톡방 매핑 그룹웨어 단일화로 7→6):
+ * 인사 사이드바 6 entry:
  * - 신규 인사    (`/admin/users/new`)         — admin-nav-users-new
  * - 권한 조정    (`/admin/roles`)              — admin-nav-roles
  * - 부서         (`/admin/departments`)        — admin-nav-departments
@@ -112,10 +112,6 @@ function AdminLayoutInner() {
         <AdminNav to="/admin/departments" testId="admin-nav-departments">
           부서
         </AdminNav>
-        {/* [Round B P2] 단톡방 매핑 중복 제거 — 그룹웨어(AppLayout) 단일 노출로 통일.
-            기존 AppLayout 의 그룹웨어 항목은 show={... && !showAdmin} 로 MASTER 를 배제하고
-            여기 인사 셸에서만 노출했으나, 5대분류 consolidation 으로 그룹웨어를 단일 경로로
-            확정한다. 라우트(/admin/chat-rooms, messenger.admin 가드)는 그대로 유지. */}
         {/*
           [PR-D Phase B FE-C] DC 설정 — sales 라우트이지만 MASTER 전용 CSV 일괄 업로드.
           인사 카테고리에 통합 노출 (TM PR #115 권고 유지).

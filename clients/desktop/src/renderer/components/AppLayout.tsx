@@ -12,7 +12,7 @@
  * - 판매     — 판매관리/견적서/주문서/거래처/DC설정/발송금지/전표정리/내일자전표/품목 관리/시트 동기화
  * - 구매     — 구매관리/재고이동 관리/입고 검수/재고실사/DPS 비교
  * - 회계     — 매출·입고전표/계정과목/분개장/세금계산서/시산표/재무보고서/마감/원장/운영 회계 항목
- * - 그룹웨어 — 링크발송/알리고 주소록/단톡방 매핑
+ * - 그룹웨어 — 링크발송/알리고 주소록/메신저
  * - 인사     — 인사 관리/권한설정/권한 일괄/그룹 권한/권한그룹 관리/권한 위임
  * - 배차     — 배차현황/가배차리스트/미배차리스트/배차안내 SMS/실배차 비교/배차지역 관리/배차 admin
  * - 창고 운영 — 창고관리/재고 현황/안전재고/보상 실패 복구/전표 수정 요청/사진 감사
@@ -394,6 +394,15 @@ export function AppLayout() {
     }, new Map<string, typeof publicMenuCatalog>()),
   )
   const dispatchMenuTestIds: Record<string, string> = {
+    '/admin/users': 'sidebar-hr-users',
+    '/admin/carriers': 'sidebar-hr-carriers',
+    '/admin/permission-matrix': 'sidebar-hr-permission-matrix',
+    '/admin/permission-matrix/bulk': 'sidebar-hr-permission-bulk',
+    '/admin/permission-groups/matrix': 'sidebar-hr-permission-groups-matrix',
+    '/admin/permission-groups/manage': 'sidebar-hr-permission-groups-manage',
+    '/admin/permission-groups/delegation': 'sidebar-hr-permission-delegation',
+    '/admin/approval-line-config': 'sidebar-hr-approval-line-config',
+    '/admin/slip-cutoff': 'sidebar-hr-slip-cutoff',
     '/dispatch-board/history': 'sidebar-dispatch-history',
     '/admin/dispatch-groups': 'sidebar-dispatch-groups',
     '/arologis/pre-classify': 'sidebar-arologis-preclassify',
@@ -658,11 +667,9 @@ export function AppLayout() {
   const showSafetyStockAlerts = dynamicCanAccess('inventory.safety-stock', 'view')
   // [Round A P3] 구 showWarehouseOps 집계 변수 삭제 — 창고운영 그룹 게이트 교체 후 미소비(dead) 였음.
   //   실제 그룹 가시성은 아래 showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 가 담당한다.
-  // [PR-D Phase B FE-D] 단톡방 매핑 — messenger.admin (MASTER/MANAGER). 그룹웨어 단일 노출.
   // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER
   const showSlipCleanup = dynamicCanAccess('slip.cleanup', 'view')
   const showNextDaySlip = dynamicCanAccess('slip.print.next-day', 'view')
-  const showChatRoomAdmin = dynamicCanAccess('messenger.admin', 'view')
   const showMessengerSend = dynamicCanAccess('messenger.send', 'view')
   const showGroupwareApprovals = dynamicCanAccess('groupware.approvals', 'view')
   const showGroupwareApprovalTemplates = dynamicCanAccess('groupware.approval-templates', 'view')
@@ -688,7 +695,7 @@ export function AppLayout() {
     showPurchaseSlipList || showInventoryStockTransfer
     || showInboundInspection || showAudit || showDpsCompare || showDpsByProduct
   const showGroupware =
-    showDeliveryBatch || showAligoAddressBook || showChatRoomAdmin
+    showDeliveryBatch || showAligoAddressBook
     || showGroupwareApprovals || showGroupwareApprovalTemplates || showGroupwareDocumentTemplates
     || showMessengerSend
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
@@ -1364,7 +1371,6 @@ export function AppLayout() {
               '/groupware/document-templates',
               '/sales/link-dispatch',
               '/admin/aligo-address-book',
-              '/admin/chat-rooms',
               '/messenger',
             ]}
           >
@@ -1408,24 +1414,12 @@ export function AppLayout() {
             >
               알리고 주소록
             </SidebarLink>
-            {/* [Round B P2] 단톡방 매핑 — 그룹웨어 단일화(5대분류 consolidation).
-                기존 가드는 MASTER 그룹(빌트인) 사용자를 그룹웨어에서 배제하고 AdminLayout(인사 셸)의
-                중복 nav 로만 노출했으나, 그 중복을 제거하고 messenger.admin 권한자(MASTER 포함) 전원을
-                그룹웨어 단일 경로로 통일한다(showChatRoomAdmin 단독 게이트). */}
             <SidebarLink
               to="/messenger"
               show={showMessengerSend}
               data-testid="sidebar-messenger"
             >
               메신저
-            </SidebarLink>
-            <SidebarLink
-              to="/admin/chat-rooms"
-              show={showChatRoomAdmin}
-              requiredRole="MASTER / MANAGER"
-              data-testid="sidebar-admin-chat-rooms"
-            >
-              단톡방 매핑
             </SidebarLink>
           </SidebarCategory>
 

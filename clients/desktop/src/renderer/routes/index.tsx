@@ -160,9 +160,6 @@ import { BlockedPartnersPage as AdminBlockedPartnersPage } from './admin/Blocked
 import { AligoAddressBookPage as AdminAligoAddressBookPage } from './admin/AligoAddressBookPage'
 // [PR-F1 FE-2] arologis 운송사 실배차 비교 — DISPATCH/MANAGER/MASTER.
 import { ArologisDispatchReconcilePage } from './ArologisDispatchReconcilePage'
-// [PR-D Phase B FE-D] 단톡방 매핑 admin — MASTER/MANAGER (BE @PreAuthorize 일치)
-// AdminLayout 은 MASTER 전용이므로 별도 RoleGuard 로 MASTER/MANAGER 진입 허용.
-import { ChatRoomsPage as AdminChatRoomsPage } from './admin/ChatRoomsPage'
 // [Phase 10 P2-6 / slice 9] 재고 실사 3 페이지 (WAREHOUSE/MASTER)
 import { InventoryAuditListPage } from './InventoryAuditListPage'
 import { InventoryAuditFormPage } from './InventoryAuditFormPage'
@@ -1667,17 +1664,6 @@ const routes = [
         element: (
           <PermissionGuard pageCode="hr.slip-cutoff" action="view">
             <AdminSlipCutoffConfigPage />
-          </PermissionGuard>
-        ),
-      },
-
-      // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
-      // AdminLayout (MASTER 전용) 외부에 배치하여 MANAGER 도 접근 가능.
-      {
-        path: '/admin/chat-rooms',
-        element: (
-          <PermissionGuard pageCode="messenger.admin" action="view">
-            <AdminChatRoomsPage />
           </PermissionGuard>
         ),
       },
