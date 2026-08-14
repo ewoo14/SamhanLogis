@@ -2,6 +2,7 @@
 
 const {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -9,7 +10,7 @@ const {
   rmSync,
   writeFileSync,
 } = require('node:fs')
-const { join, resolve } = require('node:path')
+const { dirname, join, resolve } = require('node:path')
 const { spawnSync } = require('node:child_process')
 const { tmpdir } = require('node:os')
 const {
@@ -69,6 +70,7 @@ function main() {
     throw new Error('AROLOGIS_TRUST_ROOT_CERT가 필요합니다. 배포된 signer와 같은 .cer 신뢰 루트를 지정하십시오.')
   }
   const packagedTrustRoot = resolve(DESKTOP_DIR, 'build/arologis-internal-release.cer')
+  mkdirSync(dirname(packagedTrustRoot), { recursive: true })
   copyFileSync(trustRootCertificate, packagedTrustRoot)
   if (!String(process.env.AROLOGIS_UPDATE_URL || '').trim()) {
     throw new Error('AROLOGIS_UPDATE_URL이 필요합니다. 코드서명된 아로로지스 전용 HTTPS 업데이트 피드를 지정하십시오.')
@@ -104,4 +106,5 @@ try {
 } catch (error) {
   console.error(`[arologis-release] ${error instanceof Error ? error.message : String(error)}`)
   process.exitCode = 1
+  throw error
 }
