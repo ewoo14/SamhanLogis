@@ -14,6 +14,7 @@ const { resolveBuildAppVersion } = require('../lib/version-check');
 const { readCookie, cookieHeader } = require('../lib/auth-context');
 
 const currentAppVersion = resolveBuildAppVersion();
+const isReleaseBuild = ['1', 'true', 'yes'].includes(String(process.env.SAMHAN_RELEASE_BUILD || '').trim().toLowerCase());
 const versionApiBaseUrl = (process.env.SAMHAN_VERSION_API_BASE_URL || process.env.SAMHAN_API_BASE_URL || 'http://localhost:8080')
   .replace(/\/+$/, '');
 
@@ -35,7 +36,7 @@ router.get('/', async (req, res, next) => {
 });
 
 router.get('/healthz', (req, res) => {
-  res.json({ ok: true, app: 'estimate-app', version: '2.0.0' });
+  res.json({ ok: true, app: 'estimate-app', version: currentAppVersion, release: isReleaseBuild });
 });
 
 module.exports = router;

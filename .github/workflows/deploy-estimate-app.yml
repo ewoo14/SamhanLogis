@@ -60,5 +60,7 @@ jobs:
       - name: JavaScript typecheck
         run: npm run typecheck
 
-      - name: 무주입 개발 빌드
-        run: npm run build
+      - name: 릴리스 wrapper build + 서버 manifest 버전 사후검증
+        env:
+          VITE_APP_VERSION: 2026/08/15-1
+        run: npm run build:release

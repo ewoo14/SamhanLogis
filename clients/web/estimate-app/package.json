@@ -15,6 +15,7 @@
     "test": "jest --passWithNoTests",
     "typecheck": "node scripts/typecheck.cjs",
     "build": "npm run typecheck",
+    "build:release": "node ../../../scripts/web-release-build.cjs estimate-app",
     "qa:capture": "node scripts/qa-capture.mjs"
   },
   "dependencies": {

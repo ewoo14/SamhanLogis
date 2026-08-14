@@ -8,6 +8,7 @@
     "dev": "vite",
     "local-dev": "node ../../../scripts/run-client-local-dev.cjs web-order-app",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build:release": "node ../../../scripts/web-release-build.cjs order-app",
     "preview": "npm run build && vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
