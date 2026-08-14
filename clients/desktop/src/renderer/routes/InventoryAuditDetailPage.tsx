@@ -105,9 +105,9 @@ function auditStatusBadgeStyle(status: AuditStatus) {
   }
 }
 
-export function InventoryAuditDetailPage() {
+export function InventoryAuditDetailPage({ opaqueAuditId }: { opaqueAuditId?: string } = {}) {
   const params = useParams<{ id: string }>()
-  const id = params.id ?? ''
+  const id = opaqueAuditId ?? params.id ?? ''
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()

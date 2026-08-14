@@ -126,9 +126,9 @@ function transferActionPageCode(
   }
 }
 
-export function TransferDetailPage() {
+export function TransferDetailPage({ opaqueTransferId }: { opaqueTransferId?: string } = {}) {
   const params = useParams<{ id: string }>()
-  const id = params.id ?? ''
+  const id = opaqueTransferId ?? params.id ?? ''
   const navigate = useNavigate()
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()

@@ -25,10 +25,10 @@ export function recentThreeMonthsRange(today = new Date()): StockLedgerDateRange
 /** 수불부에서 전표번호를 눌렀을 때 사용하는 전표별 opaque 화면 경로. */
 export function stockLedgerSlipDestination(slipType: StockLedgerSlipType, slipNo: string): string {
   if (slipType === 'STOCK_TRANSFER') {
-    return `/transfers?transferNo=${encodeURIComponent(slipNo)}`
+    return `/transfers/by-number?transferNo=${encodeURIComponent(slipNo)}`
   }
   if (slipType === 'AUDIT') {
-    return `/warehouse/audit?auditNo=${encodeURIComponent(slipNo)}`
+    return `/warehouse/audit/by-number?auditNo=${encodeURIComponent(slipNo)}`
   }
   const pathname = slipType === 'OUTBOUND' ? '/sales/by-number' : '/purchases/by-number'
   return `${pathname}?slipNo=${encodeURIComponent(slipNo)}`

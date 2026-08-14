@@ -101,9 +101,9 @@ describe('재고수불부 모달', () => {
 
   it('이동전표와 실사 조정행도 업무번호로 해당 관리 화면에 이동한다', () => {
     expect(stockLedgerSlipDestination('STOCK_TRANSFER', '2026/08/14-11'))
-      .toBe('/transfers?transferNo=2026%2F08%2F14-11')
+      .toBe('/transfers/by-number?transferNo=2026%2F08%2F14-11')
     expect(stockLedgerSlipDestination('AUDIT', '2026/08/14-3'))
-      .toBe('/warehouse/audit?auditNo=2026%2F08%2F14-3')
+      .toBe('/warehouse/audit/by-number?auditNo=2026%2F08%2F14-3')
   })
 
   it('기본 기간은 오늘 기준 최근 3개월이다', () => {

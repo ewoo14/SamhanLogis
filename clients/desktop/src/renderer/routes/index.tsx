@@ -178,6 +178,8 @@ import { DpsByProductPage } from './warehouse/DpsByProductPage'
 // [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
 import { StockSlipByNumberPage } from './warehouse/StockSlipByNumberPage'
+import { StockTransferByNumberPage } from './warehouse/StockTransferByNumberPage'
+import { InventoryAuditByNumberPage } from './warehouse/InventoryAuditByNumberPage'
 import { InOutAnalysisPage } from './warehouse/InOutAnalysisPage'
 // [PR-E1 FE-6] 배차안내문자 표시·편집·복사 — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
@@ -687,6 +689,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="inventory.stock-transfer" action="view">
             <TransferListPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/transfers/by-number',
+        element: (
+          <PermissionGuard pageCode="inventory.stock-transfer" action="view">
+            <StockTransferByNumberPage />
           </PermissionGuard>
         ),
       },
@@ -1770,6 +1780,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="inventory.audit" action="view">
             <InventoryAuditListPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/warehouse/audit/by-number',
+        element: (
+          <PermissionGuard pageCode="inventory.audit" action="view">
+            <InventoryAuditByNumberPage />
           </PermissionGuard>
         ),
       },
