@@ -377,10 +377,22 @@ export function AppLayout() {
 
   // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 5분 캐시. 사이드바 메뉴 hidden 연동.
   const { canAccess: dynamicCanAccess } = usePermissions()
-  const { menus: menuCatalog, isLoading: isMenuCatalogLoading } = useMenuCatalog()
-  const publicDispatchMenus = (menuCatalog ?? [])
-    .filter((entry) => entry.app === 'samhan-public' && entry.category === '배차')
-    .sort((left, right) => left.order - right.order)
+  const {
+    menus: menuCatalog,
+    isLoading: isMenuCatalogLoading,
+    isError: isMenuCatalogError,
+  } = useMenuCatalog()
+  const publicMenuCatalog = (menuCatalog ?? [])
+    .filter((entry) => entry.app === 'samhan-public')
+    .sort((left, right) => left.category.localeCompare(right.category, 'ko') || left.order - right.order)
+  const catalogGroups = Array.from(
+    publicMenuCatalog.reduce((groups, entry) => {
+      const group = groups.get(entry.category) ?? []
+      group.push(entry)
+      groups.set(entry.category, group)
+      return groups
+    }, new Map<string, typeof publicMenuCatalog>()),
+  )
   const dispatchMenuTestIds: Record<string, string> = {
     '/dispatch-board/history': 'sidebar-dispatch-history',
     '/admin/dispatch-groups': 'sidebar-dispatch-groups',
@@ -681,7 +693,7 @@ export function AppLayout() {
     || showMessengerSend
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
-  const showArologisGroup = !isMenuCatalogLoading && publicDispatchMenus.length > 0
+  const showArologisGroup = !isMenuCatalogLoading && publicMenuCatalog.length > 0
   const showWarehouseOpsGroup =
     showInventoryWarehouse || showInventoryStockBalance || showInOutAnalysis || showSafetyStockAlerts
     || showInventoryCompensationFailures || showSlipEditRequests || showPhotoAudit
@@ -711,6 +723,40 @@ export function AppLayout() {
             알림 내역
           </NavLink>
 
+          {isMenuCatalogLoading ? (
+            <p role="status" data-testid="sidebar-menu-catalog-loading">
+              메뉴 권한을 확인하는 중입니다.
+            </p>
+          ) : isMenuCatalogError ? (
+            <p role="alert" data-testid="sidebar-menu-catalog-error">
+              메뉴 권한을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+            </p>
+          ) : catalogGroups.length === 0 ? (
+            <p data-testid="sidebar-menu-catalog-empty">권한이 있는 메뉴가 없습니다.</p>
+          ) : (
+            catalogGroups.map(([category, entries]) => (
+              <SidebarCategory
+                key={category}
+                label={category}
+                show
+                testId={`sidebar-category-toggle-${compactSidebarLabel(category)}`}
+                activeTargets={entries.map((entry) => entry.route)}
+              >
+                {entries.map((entry) => (
+                  <SidebarLink
+                    key={`${entry.app}:${entry.route}`}
+                    to={entry.route}
+                    show
+                    data-testid={dispatchMenuTestIds[entry.route] ?? `sidebar-catalog-${entry.route.replace(/[^a-zA-Z0-9]+/g, '-')}`}
+                  >
+                    {entry.label}
+                  </SidebarLink>
+                ))}
+              </SidebarCategory>
+            ))
+          )}
+
+          {false ? <>
           {/* [Phase 6 v4 → P2-1] 판매 그룹 — 견적서 SamhanLogis 도메인 (legacy webview 폐기) + 4종 sub.
               [SP-D4] estimates.list / sales.partner-order.list 동적 RBAC 연동. */}
           <SidebarCategory
@@ -1534,9 +1580,9 @@ export function AppLayout() {
             label="배차"
             show={showArologisGroup}
             testId="sidebar-category-toggle-배차"
-             activeTargets={publicDispatchMenus.map((entry) => entry.route)}
+             activeTargets={publicMenuCatalog.map((entry) => entry.route)}
            >
-             {publicDispatchMenus.map((entry) => (
+             {publicMenuCatalog.map((entry) => (
                <SidebarLink
                  key={entry.route}
                  to={entry.route}
@@ -1624,6 +1670,7 @@ export function AppLayout() {
                 사진 감사
               </SidebarLink>
           </SidebarCategory>
+          </> : null}
         </nav>
         <div style={{ marginTop: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
           {CURRENT_VERSION} · 사내 전용

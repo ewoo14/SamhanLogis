@@ -4,7 +4,7 @@ import { useMenuCatalog } from '../../hooks/useMenuCatalog'
 import { PermissionQueryError } from '../../components/PermissionQueryError'
 
 export function DispatchesLayout(): JSX.Element {
-  const { canAccess, isLoading, isError, refetch } = usePermissions()
+  const { isError, refetch } = usePermissions()
   const menuCatalog = useMenuCatalog()
   const links = (menuCatalog.menus ?? [])
     .filter((entry) => entry.category === '배차' && entry.route !== '/dispatches/received-groups')
@@ -12,8 +12,6 @@ export function DispatchesLayout(): JSX.Element {
   const receivedGroupsMenu = menuCatalog.menus?.find(
     (entry) => entry.route === '/dispatches/received-groups',
   )
-  const canViewReceivedGroups =
-    !isLoading && !isError && canAccess('arologis.dispatch.ops', 'view')
 
   return (
     <section>
@@ -42,7 +40,7 @@ export function DispatchesLayout(): JSX.Element {
               {link.label}
             </NavLink>
           ))}
-          {canViewReceivedGroups && receivedGroupsMenu ? (
+          {receivedGroupsMenu ? (
             <NavLink
               key={receivedGroupsMenu.route}
               to="/dispatches/received-groups"

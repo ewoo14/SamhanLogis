@@ -52,7 +52,7 @@ describe('DispatchesLayout', () => {
     }
   })
 
-  it('권한 없는 사용자는 라우트와 같은 조건으로 수신 배차 그룹 진입점을 보지 못한다', () => {
+  it('카탈로그에 없는 사용자는 수신 배차 그룹 진입점을 보지 못한다', () => {
     mockedUsePermissions.mockReturnValue({
       canAccess: () => false,
       permissions: [],
