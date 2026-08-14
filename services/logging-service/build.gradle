@@ -60,3 +60,8 @@ dependencies {
 bootJar {
     archiveFileName = 'logging-service.jar'
 }
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'samhan.security.gateway-attestation-enforcement', System.getProperty('samhan.security.gateway-attestation-enforcement', 'false')
+}

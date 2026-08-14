@@ -176,6 +176,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8082"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       ES_URI: http://elasticsearch:9200
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
     ports:
@@ -470,6 +471,7 @@ services:
       # 게이트웨이/auth-service 와 동일 시크릿 필수 — 누락 시 파트너 JWT 가 yml fallback 으로
       # 서명되어 게이트웨이 검증 401(파트너 셀프서비스 E2E 불가 — #757 파트너 QA 에서 실측).
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
     ports:
       - "127.0.0.1:8091:8091"
     depends_on: *service-depends
