@@ -8,6 +8,7 @@ async function request(path: string, init?: RequestInit): Promise<void> {
 }
 
 export const updatePresence = (presenceStatus: PresenceStatus) => request('/api/users/messenger/presence', { method: 'PUT', body: JSON.stringify({ presenceStatus }) })
+export const touchPresenceActivity = () => request('/api/users/messenger/presence/activity', { method: 'POST' })
 
 export function subscribePresence(onEvent: (event: { employeeCode?: string | null; presenceStatus: PresenceStatus }) => void): () => void {
   const controller = new AbortController()
@@ -26,7 +27,7 @@ export function subscribePresence(onEvent: (event: { employeeCode?: string | nul
         if (!data) continue
         try {
           const parsed = JSON.parse(data) as { employeeCode?: unknown; presenceStatus?: unknown }
-          if (parsed.presenceStatus === 'AVAILABLE' || parsed.presenceStatus === 'AWAY' || parsed.presenceStatus === 'ABSENT' || parsed.presenceStatus === 'OFFLINE') onEvent({ employeeCode: typeof parsed.employeeCode === 'string' ? parsed.employeeCode : null, presenceStatus: parsed.presenceStatus })
+          if (parsed.presenceStatus === 'AVAILABLE' || parsed.presenceStatus === 'AWAY' || parsed.presenceStatus === 'ABSENT' || parsed.presenceStatus === 'IN_MEETING' || parsed.presenceStatus === 'ON_CALL' || parsed.presenceStatus === 'OFFLINE') onEvent({ employeeCode: typeof parsed.employeeCode === 'string' ? parsed.employeeCode : null, presenceStatus: parsed.presenceStatus })
         } catch { /* malformed events are ignored; no synthetic presence is created */ }
       }
     }

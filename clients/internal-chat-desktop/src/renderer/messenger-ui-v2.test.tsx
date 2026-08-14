@@ -46,6 +46,18 @@ describe('삼한 메신저 UI v2', () => {
     await waitFor(() => expect(updatePresence).toHaveBeenCalledWith('AWAY', expect.anything()))
   })
 
+  it('내 상태 메뉴에 회의중과 통화중을 포함한 여섯 상태를 모두 표시한다', async () => {
+    renderApp()
+    await waitFor(() => expect(screen.getByRole('button', { name: /홍길동 상태/ })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /홍길동 상태/ }))
+    expect(screen.getByRole('menuitem', { name: '접속' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '자리비움' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '부재중' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '회의중' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '통화중' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '오프라인' })).toBeInTheDocument()
+  })
+
   it('그룹별 페이지는 마지막 메시지와 인원수를 목록 행에 표시한다', async () => {
     renderApp()
     fireEvent.click(screen.getByRole('button', { name: '그룹별' }))

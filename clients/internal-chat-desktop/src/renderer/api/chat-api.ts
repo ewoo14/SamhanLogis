@@ -1,5 +1,5 @@
-export type PresenceStatus = 'AVAILABLE' | 'AWAY' | 'ABSENT' | 'OFFLINE'
-export interface Employee { employeeCode: string | null; name: string; jobTitle: string; departmentName: string; presenceStatus: PresenceStatus }
+export type PresenceStatus = 'AVAILABLE' | 'AWAY' | 'ABSENT' | 'IN_MEETING' | 'ON_CALL' | 'OFFLINE'
+export interface Employee { employeeCode: string | null; name: string; jobTitle: string; departmentName: string; departmentOrder?: number; hireDate?: string | null; presenceStatus: PresenceStatus }
 export interface ChatRoom { roomCode: string; type: 'DIRECT' | 'GROUP' | 'SYSTEM'; roomName: string | null; partnerName?: string | null; partnerDepartment?: string | null; partnerEmployeeCode?: string | null; unreadCount?: number; memberCount?: number; lastMessage?: string | null; lastMessageAt?: string | null }
 export interface ChatMessage { roomCode: string; sequence: number; body: string; sentAt: string; senderName?: string | null; senderDepartment?: string | null; senderEmployeeCode?: string | null; mine?: boolean; read?: boolean }
 
@@ -48,7 +48,7 @@ export function subscribePresence(onEvent: (event: { employeeCode?: string | nul
         if (!data) continue
         try {
           const parsed = JSON.parse(data) as { employeeCode?: unknown; presenceStatus?: unknown }
-          if (parsed.presenceStatus === 'AVAILABLE' || parsed.presenceStatus === 'AWAY' || parsed.presenceStatus === 'ABSENT' || parsed.presenceStatus === 'OFFLINE') {
+          if (parsed.presenceStatus === 'AVAILABLE' || parsed.presenceStatus === 'AWAY' || parsed.presenceStatus === 'ABSENT' || parsed.presenceStatus === 'IN_MEETING' || parsed.presenceStatus === 'ON_CALL' || parsed.presenceStatus === 'OFFLINE') {
             onEvent({ employeeCode: typeof parsed.employeeCode === 'string' ? parsed.employeeCode : null, presenceStatus: parsed.presenceStatus })
           }
         } catch { /* malformed SSE events are ignored, never converted into fake presence */ }

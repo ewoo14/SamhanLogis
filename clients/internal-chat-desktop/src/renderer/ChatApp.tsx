@@ -6,9 +6,9 @@ import * as chatApi from './api/chat-api'
 import * as presenceApi from './api/presence-api'
 import type { Employee, PresenceStatus } from './api/chat-api'
 
-const presenceLabels: Record<PresenceStatus, string> = { AVAILABLE: '접속', AWAY: '자리비움', ABSENT: '부재중', OFFLINE: '오프라인' }
+const presenceLabels: Record<PresenceStatus, string> = { AVAILABLE: '접속', AWAY: '자리비움', ABSENT: '부재중', IN_MEETING: '회의중', ON_CALL: '통화중', OFFLINE: '오프라인' }
 const presenceSession = `desktop-${Date.now()}`
-const statusOrder: PresenceStatus[] = ['AVAILABLE', 'AWAY', 'ABSENT', 'OFFLINE']
+const statusOrder: PresenceStatus[] = ['AVAILABLE', 'AWAY', 'ABSENT', 'IN_MEETING', 'ON_CALL', 'OFFLINE']
 const jobRank: Record<string, number> = { 대표: 0, 사장: 1, 이사: 2, 부장: 3, 차장: 4, 과장: 5, 대리: 6, 사원: 7 }
 
 function Presence({ employee }: { employee: Pick<Employee, 'name' | 'presenceStatus'> }) {
@@ -38,7 +38,14 @@ function formatRoomTime(value?: string | null) {
 function sortedGroups(directory: Employee[]) {
   const groups = new Map<string, Employee[]>()
   for (const employee of directory) groups.set(employee.departmentName, [...(groups.get(employee.departmentName) ?? []), employee])
-  return [...groups.entries()].map(([name, employees]) => [name, employees.sort((a, b) => (jobRank[a.jobTitle] ?? 99) - (jobRank[b.jobTitle] ?? 99) || a.name.localeCompare(b.name, 'ko'))] as const)
+  return [...groups.entries()].sort(([, a], [, b]) => (a[0]?.departmentOrder ?? 0) - (b[0]?.departmentOrder ?? 0)).map(([name, employees]) => [name, employees.sort((a, b) => {
+    const byRank = (jobRank[a.jobTitle] ?? 99) - (jobRank[b.jobTitle] ?? 99)
+    if (byRank !== 0) return byRank
+    if (a.hireDate && b.hireDate) return a.hireDate.localeCompare(b.hireDate)
+    if (a.hireDate) return -1
+    if (b.hireDate) return 1
+    return a.name.localeCompare(b.name, 'ko')
+  })] as const)
 }
 
 function MessengerPage({ mode }: { mode: 'individual' | 'group' }) {
@@ -48,7 +55,22 @@ function MessengerPage({ mode }: { mode: 'individual' | 'group' }) {
   const createGroup = useMutation({ mutationFn: () => chatApi.createGroupRoom(selectedGroup.map((employee) => employee.employeeCode!).filter(Boolean)), onSuccess: (room) => { setRoomCode(room.roomCode); setSelectedGroup([]); void client.invalidateQueries({ queryKey: ['rooms'] }) } })
   const send = useMutation({ mutationFn: () => chatApi.sendMessage(roomCode!, body.trim()), onSuccess: () => { setBody(''); void client.invalidateQueries({ queryKey: ['messages', roomCode] }) } })
   const update = useMutation({ mutationFn: presenceApi.updatePresence, onSuccess: (_, status) => { client.setQueryData<Employee>(['me'], (current) => current ? { ...current, presenceStatus: status } : current) } })
-  useEffect(() => { void chatApi.joinPresence(presenceSession); return () => { void chatApi.leavePresence(presenceSession) } }, [])
+  useEffect(() => {
+    void chatApi.joinPresence(presenceSession)
+    let lastActivitySignal = 0
+    const signalActivity = () => {
+      if (Date.now() - lastActivitySignal < 30_000) return
+      lastActivitySignal = Date.now()
+      void presenceApi.touchPresenceActivity()
+    }
+    window.addEventListener('pointermove', signalActivity)
+    window.addEventListener('keydown', signalActivity)
+    return () => {
+      window.removeEventListener('pointermove', signalActivity)
+      window.removeEventListener('keydown', signalActivity)
+      void chatApi.leavePresence(presenceSession)
+    }
+  }, [])
   useEffect(() => presenceApi.subscribePresence((event) => { if (event.employeeCode) client.setQueryData<Employee[]>(['directory'], (current) => current?.map((employee) => employee.employeeCode === event.employeeCode ? { ...employee, presenceStatus: event.presenceStatus } : employee)); if (!event.employeeCode) client.setQueryData<Employee>(['me'], (current) => current ? { ...current, presenceStatus: event.presenceStatus } : current) }), [client])
   useEffect(() => roomCode ? chatApi.subscribe(roomCode, () => { void client.invalidateQueries({ queryKey: ['messages', roomCode] }) }) : undefined, [roomCode, client])
   const filtered = useMemo(() => (directory.data ?? []).filter((item) => !query.trim() || `${item.name} ${item.departmentName}`.includes(query.trim())), [directory.data, query])
