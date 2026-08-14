@@ -11,7 +11,11 @@ import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipLineSnapshot;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
+import com.samhanair.logis.accounting.domain.DailyClosing;
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
+import com.samhanair.logis.accounting.repository.DailyClosingRepository;
 import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipAllocationRepository;
 import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
 import com.samhanair.logis.accounting.service.PurchaseAccountingSlipNumberGenerator;
@@ -67,6 +71,7 @@ class PurchaseAccountingSlipConcurrencyIT extends AbstractPostgresIT {
     @Autowired PurchaseAccountingSlipService service;
     @Autowired PurchaseAccountingSlipRepository slipRepository;
     @Autowired PurchaseAccountingSlipAllocationRepository allocationRepository;
+    @Autowired DailyClosingRepository dailyClosingRepository;
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired DataSource dataSource;
 
@@ -79,6 +84,7 @@ class PurchaseAccountingSlipConcurrencyIT extends AbstractPostgresIT {
     @BeforeEach
     void resetSlipsAndNumberGenerator() {
         wipeSlips();
+        seedLockedClosing();
         AtomicInteger seq = new AtomicInteger();
         when(numberGenerator.next(any())).thenAnswer(inv -> "2099/12/31-" + seq.incrementAndGet());
     }
@@ -86,6 +92,26 @@ class PurchaseAccountingSlipConcurrencyIT extends AbstractPostgresIT {
     @AfterEach
     void cleanupLeakedSlips() {
         wipeSlips();
+        removeLockedClosing();
+    }
+
+    private void seedLockedClosing() {
+        DailyClosing closing = DailyClosing.createV2(
+                LocalDate.of(2099, 12, 31), PARTNER_ID, DailyClosingKind.PURCHASE,
+                DailyClosingSourceKind.PURCHASE_SLIP, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, 0);
+        closing.lock("test-accountant");
+        dailyClosingRepository.saveAndFlush(closing);
+    }
+
+    private void removeLockedClosing() {
+        dailyClosingRepository.findByClosingDateAndPartnerIdAndClosingKindAndSourceKind(
+                        LocalDate.of(2099, 12, 31), PARTNER_ID, DailyClosingKind.PURCHASE,
+                        DailyClosingSourceKind.PURCHASE_SLIP)
+                .ifPresent(closing -> {
+                    closing.markDeleted("test-cleanup");
+                    dailyClosingRepository.saveAndFlush(closing);
+                });
     }
 
     /**
