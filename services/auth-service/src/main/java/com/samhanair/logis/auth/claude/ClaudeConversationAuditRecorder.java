@@ -16,6 +16,11 @@ public class ClaudeConversationAuditRecorder {
     /** 외부 전송 범위와 상태를 별도 트랜잭션으로 저장한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(UUID accountId, String question, String outboundPayload, String outboundStatus) {
-        repository.save(ClaudeConversationAudit.record(accountId, question, outboundPayload, outboundStatus));
+        record(accountId, null, question, outboundPayload, outboundStatus);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void record(UUID accountId, String sessionCode, String question, String outboundPayload, String outboundStatus) {
+        repository.save(ClaudeConversationAudit.record(accountId, sessionCode, question, outboundPayload, outboundStatus));
     }
 }

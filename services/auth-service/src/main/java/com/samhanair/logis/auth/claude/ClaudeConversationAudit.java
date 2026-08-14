@@ -30,13 +30,22 @@ public class ClaudeConversationAudit extends BaseEntity {
     @Column(name = "outbound_status", nullable = false, length = 40)
     private String outboundStatus;
 
+    @Column(name = "session_code", length = 40)
+    private String sessionCode;
+
     protected ClaudeConversationAudit() {}
 
     /** 외부로 실제 나간 payload의 범위를 기록한다. 미설정 상태는 예정 payload를 기록한다. */
     public static ClaudeConversationAudit record(
             UUID accountId, String question, String outboundPayload, String outboundStatus) {
+        return record(accountId, null, question, outboundPayload, outboundStatus);
+    }
+
+    public static ClaudeConversationAudit record(
+            UUID accountId, String sessionCode, String question, String outboundPayload, String outboundStatus) {
         ClaudeConversationAudit audit = new ClaudeConversationAudit();
         audit.accountId = accountId;
+        audit.sessionCode = sessionCode;
         audit.question = question;
         audit.outboundPayload = outboundPayload;
         audit.outboundStatus = outboundStatus;

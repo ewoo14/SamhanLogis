@@ -4,6 +4,7 @@ import com.samhanair.logis.auth.service.AccountPermissionService;
 import com.samhanair.logis.auth.claude.ClaudeConversationService;
 import com.samhanair.logis.auth.web.dto.ClaudeConversationRequest;
 import com.samhanair.logis.auth.web.dto.ClaudeConversationResponse;
+import com.samhanair.logis.auth.web.dto.ClaudeSessionResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -54,8 +55,41 @@ public class ClaudeConversationEntryController {
         if (request == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "질문 본문이 필요합니다.");
         }
-        String answer = conversationService.ask(accountId, request.question());
+        String answer = conversationService.ask(accountId, request.sessionCode(), request.question());
         return ResponseEntity.ok(ApiResponse.ok(new ClaudeConversationResponse(answer)));
+    }
+
+    @PostMapping("/sessions")
+    public ResponseEntity<ApiResponse<ClaudeSessionResponse>> createSession(
+            @RequestHeader(value = USER_ID_HEADER, required = false) String userId) {
+        UUID accountId = requireClaudeAccess(userId);
+        var session = conversationService.createSession(accountId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(
+                new ClaudeSessionResponse(session.getSessionCode(), session.getTitle(), 0)));
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/sessions")
+    public ResponseEntity<ApiResponse<java.util.List<ClaudeSessionResponse>>> listSessions(
+            @RequestHeader(value = USER_ID_HEADER, required = false) String userId) {
+        return ResponseEntity.ok(ApiResponse.ok(conversationService.listSessions(requireClaudeAccess(userId))));
+    }
+
+    @PostMapping("/sessions/{sessionCode}/messages")
+    public ResponseEntity<ApiResponse<ClaudeConversationResponse>> askInSession(
+            @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
+            @org.springframework.web.bind.annotation.PathVariable String sessionCode,
+            @Valid @RequestBody ClaudeConversationRequest request) {
+        UUID accountId = requireClaudeAccess(userId);
+        return ResponseEntity.ok(ApiResponse.ok(new ClaudeConversationResponse(
+                conversationService.ask(accountId, sessionCode, request.question()))));
+    }
+
+    private UUID requireClaudeAccess(String userId) {
+        UUID accountId = parseAccountId(userId);
+        if (accountId == null || !permissionService.check(accountId, PAGE_CODE, PermissionAction.VIEW)) {
+            throw new AccessDeniedException("Claude 사용 권한이 없습니다.");
+        }
+        return accountId;
     }
 
     private UUID parseAccountId(String userId) {

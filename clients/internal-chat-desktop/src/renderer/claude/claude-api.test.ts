@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { askClaude, claudeErrorMessage } from './claude-api'
+import { askClaude, claudeErrorMessage, createClaudeSession, listClaudeSessions } from './claude-api'
 
 describe('Claude conversation API boundary', () => {
   it('preserves the server 403 denial instead of fabricating a response', async () => {
@@ -16,5 +16,29 @@ describe('Claude conversation API boundary', () => {
 
   it('shows missing credentials as a blocking error, not a mock answer', () => {
     expect(claudeErrorMessage({ status: 503 })).toContain('자격')
+  })
+
+  it('creates and lists server-backed Claude sessions without exposing UUIDs', async () => {
+    const request = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { sessionCode: 'CLD-20260814-000001', title: '새 대화' } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ sessionCode: 'CLD-20260814-000001', title: '새 대화', messageCount: 0 }] }), { status: 200 }))
+
+    await expect(createClaudeSession({ request })).resolves.toMatchObject({ sessionCode: 'CLD-20260814-000001' })
+    await expect(listClaudeSessions({ request })).resolves.toHaveLength(1)
+    expect(request.mock.calls[0]?.[0]).toContain('/auth/claude/sessions')
+    expect(JSON.stringify(request.mock.calls)).not.toMatch(/[0-9a-f]{8}-[0-9a-f-]{27}/i)
+  })
+
+  it('sends each question with its server session code so conversations stay separated', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ answer: '답변' }), { status: 200 }),
+    )
+
+    await askClaude('두 번째 질문', { request, sessionCode: 'CLD-20260814-000002' })
+
+    expect(request).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/claude/sessions/CLD-20260814-000002/messages'),
+      expect.objectContaining({ method: 'POST' }),
+    )
   })
 })

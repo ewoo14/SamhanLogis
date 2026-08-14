@@ -37,7 +37,7 @@ function showMainWindow(): void {
 
 function createTray(): void {
   tray = new Tray(trayIconPath())
-  tray.setToolTip('삼한이 메신저')
+  tray.setToolTip('삼한 메신저')
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '메신저 열기', click: showMainWindow },
     { type: 'separator' },
@@ -54,7 +54,7 @@ function createMainWindow(): void {
     minHeight: 560,
     show: false,
     autoHideMenuBar: true,
-    title: '삼한이 메신저',
+    title: '삼한 메신저',
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,

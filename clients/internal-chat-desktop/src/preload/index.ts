@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('internalChatNavigation', {
 })
 
 contextBridge.exposeInMainWorld('internalChatShell', {
-  appName: '삼한이 메신저',
+  appName: '삼한 메신저',
 })
 
 contextBridge.exposeInMainWorld('internalChatUpdater', {

@@ -11,17 +11,38 @@ interface ClaudeResponse {
 interface RequestOptions {
   request?: typeof fetch
   token?: string | null
+  sessionCode?: string
+}
+
+export interface ClaudeSession {
+  sessionCode: string
+  title: string
+  messageCount?: number
+}
+
+function baseUrl(): string {
+  return String(import.meta.env.VITE_AUTH_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '')
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  const payload = await response.json() as { data?: T; answer?: unknown; message?: unknown }
+  if (!response.ok) {
+    throw { status: response.status, message: typeof payload.message === 'string' ? payload.message : '' } satisfies ClaudeApiError
+  }
+  return (payload.data ?? payload) as T
 }
 
 export async function askClaude(question: string, options: RequestOptions = {}): Promise<string> {
   const request = options.request ?? fetch
-  const baseUrl = String(import.meta.env.VITE_AUTH_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '')
+  const endpoint = options.sessionCode
+    ? `${baseUrl()}/auth/claude/sessions/${encodeURIComponent(options.sessionCode)}/messages`
+    : `${baseUrl()}/auth/claude/conversations`
   const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' }
   if (options.token) headers.Authorization = `Bearer ${options.token}`
-  const response = await request(`${baseUrl}/auth/claude/conversations`, {
+  const response = await request(endpoint, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ question }),
+    body: JSON.stringify(options.sessionCode ? { question, sessionCode: options.sessionCode } : { question }),
   })
   const payload = await response.json() as ClaudeResponse
   if (!response.ok) {
@@ -44,4 +65,22 @@ export function claudeErrorMessage(error: unknown): string {
     if (status === 503) return 'Claude 자격이 설정되지 않았습니다. 관리자에게 문의해주세요.'
   }
   return 'Claude 대화를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.'
+}
+
+export async function createClaudeSession(options: Pick<RequestOptions, 'request' | 'token'> = {}): Promise<ClaudeSession> {
+  const request = options.request ?? fetch
+  const response = await request(`${baseUrl()}/auth/claude/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) },
+    body: JSON.stringify({}),
+  })
+  return parseResponse<ClaudeSession>(response)
+}
+
+export async function listClaudeSessions(options: Pick<RequestOptions, 'request' | 'token'> = {}): Promise<ClaudeSession[]> {
+  const request = options.request ?? fetch
+  const response = await request(`${baseUrl()}/auth/claude/sessions`, {
+    headers: { Accept: 'application/json', ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) },
+  })
+  return parseResponse<ClaudeSession[]>(response)
 }
