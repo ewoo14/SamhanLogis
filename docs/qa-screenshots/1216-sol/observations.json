@@ -1,0 +1,353 @@
+[
+  {
+    "step": "actual-login-master",
+    "status": 200,
+    "role": "MASTER",
+    "groupCount": 1
+  },
+  {
+    "step": "source-accept-real-user-blocked",
+    "status": 409,
+    "body": {
+      "success": false,
+      "code": "CONFLICT",
+      "message": "inventory-service 호출 실패(401 UNAUTHORIZED): 재고 부족 등",
+      "data": null,
+      "timestamp": "2026-08-14T19:14:48.639413317Z"
+    }
+  },
+  {
+    "step": "actual-source-created-and-confirmed",
+    "status": "CONFIRMED",
+    "slipNo": "2026/08/15-4",
+    "deliveryTag": "DAY"
+  },
+  {
+    "step": "create-before-closing",
+    "status": 409,
+    "visibleReason": "일마감을 먼저 완료해 주세요"
+  },
+  {
+    "step": "daily-close-actual-server-false-body",
+    "status": 201,
+    "body": {
+      "success": true,
+      "code": "OK",
+      "message": "성공",
+      "data": {
+        "closingDate": "2026-08-15",
+        "bizNo": "4483500844",
+        "partnerCode": "4483500844",
+        "closingKind": "SALES",
+        "sourceKind": "SALES_SLIP",
+        "totalSupply": 0,
+        "totalVat": 0,
+        "totalAmount": 0,
+        "slipCount": 0,
+        "isLocked": true,
+        "lockedAt": "2026-08-15T04:14:49.952512671",
+        "lockedBy": "a0000000-0000-0000-0000-000000000001"
+      },
+      "timestamp": "2026-08-14T19:14:49.955131278Z"
+    }
+  },
+  {
+    "step": "create-after-closing",
+    "status": 200,
+    "slipNo": "2026/08/15-15",
+    "activeState": "1|1|1"
+  },
+  {
+    "step": "duplicate-same-source",
+    "status": 422,
+    "body": {
+      "success": false,
+      "code": "SAS_OVER_ALLOCATION",
+      "message": "할당 금액이 원천 전표 잔여를 초과합니다 (전표=2026/08/15-4, 요청=11000.00, 잔여금액=0.00)",
+      "data": null,
+      "timestamp": "2026-08-14T19:14:50.566556078Z"
+    },
+    "activeState": "1|1|1"
+  },
+  {
+    "step": "create-only-delete",
+    "bits": "true|false",
+    "status": 403,
+    "activeState": "1|1|1"
+  },
+  {
+    "step": "delete-after-unlock",
+    "status": 409,
+    "body": {
+      "success": false,
+      "code": "CONFLICT",
+      "message": "일마감을 먼저 완료해 주세요",
+      "data": null,
+      "timestamp": "2026-08-14T19:14:51.893580145Z"
+    },
+    "activeState": "1|1|1"
+  },
+  {
+    "step": "forced-mid-cascade-failure",
+    "status": 500,
+    "activeStateAfterRollback": "1|1|1"
+  },
+  {
+    "step": "delete-and-delete-again",
+    "firstStatus": 204,
+    "secondStatus": 404,
+    "activeState": "0|0|0"
+  },
+  {
+    "step": "recreate-then-gate-rechecked",
+    "recreateStatus": 200,
+    "deleteAfterUnlockStatus": 409,
+    "activeState": "1|1|1"
+  },
+  {
+    "step": "renderer-http-observations",
+    "responses": [
+      {
+        "method": "GET",
+        "path": "/slips/by-period",
+        "status": 200,
+        "body": {
+          "success": true,
+          "code": "OK",
+          "message": "성공",
+          "data": [
+            {
+              "slipId": "0ef4b9de-c913-467a-bd62-bb1dbc7c03d0",
+              "slipNo": "2026/08/15-4",
+              "slipType": "OUTBOUND",
+              "status": "CONFIRMED",
+              "slipDate": "2026-08-15",
+              "partnerId": "53980625-01bc-4895-ace0-6e09da3b3e58",
+              "partnerCode": "4483500844",
+              "partnerName": "능동에어컨(박수천)",
+              "lines": [
+                {
+                  "lineId": "5afd5ef3-dbe3-48e4-b7bd-c5598135fa66",
+                  "lineNo": 1,
+                  "productCode": "한경희 선풍기",
+                  "productName": "한경희 선풍기",
+                  "quantity": 1,
+                  "unitPrice": 10000,
+                  "lineTotal": 11000
+                }
+              ]
+            }
+          ],
+          "timestamp": "2026-08-14T19:14:49.645643452Z"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/slips/by-period",
+        "status": 200,
+        "body": {
+          "success": true,
+          "code": "OK",
+          "message": "성공",
+          "data": [
+            {
+              "slipId": "0ef4b9de-c913-467a-bd62-bb1dbc7c03d0",
+              "slipNo": "2026/08/15-4",
+              "slipType": "OUTBOUND",
+              "status": "CONFIRMED",
+              "slipDate": "2026-08-15",
+              "partnerId": "53980625-01bc-4895-ace0-6e09da3b3e58",
+              "partnerCode": "4483500844",
+              "partnerName": "능동에어컨(박수천)",
+              "lines": [
+                {
+                  "lineId": "5afd5ef3-dbe3-48e4-b7bd-c5598135fa66",
+                  "lineNo": 1,
+                  "productCode": "한경희 선풍기",
+                  "productName": "한경희 선풍기",
+                  "quantity": 1,
+                  "unitPrice": 10000,
+                  "lineTotal": 11000
+                }
+              ]
+            }
+          ],
+          "timestamp": "2026-08-14T19:14:49.654395041Z"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/admin/sales-slips",
+        "status": 409,
+        "body": {
+          "success": false,
+          "code": "CONFLICT",
+          "message": "일마감을 먼저 완료해 주세요",
+          "data": null,
+          "timestamp": "2026-08-14T19:14:49.774372124Z"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/admin/sales-slips",
+        "status": 200,
+        "body": {
+          "id": "e2930290-43db-484a-ae9d-b5df4495de38",
+          "slipNo": "2026/08/15-15",
+          "slipDate": "2026-08-15",
+          "partnerCode": "4483500844",
+          "partnerName": "능동에어컨(박수천)",
+          "taxType": "TAXABLE",
+          "status": "DRAFT",
+          "totalSupplyAmount": 10000,
+          "totalVatAmount": 1000,
+          "totalAmount": 11000,
+          "memo": "QA1216-SOL-LIVE",
+          "lines": [
+            {
+              "lineNo": 1,
+              "productCode": "한경희 선풍기",
+              "productName": "한경희 선풍기",
+              "qty": 1,
+              "unitPrice": 11000,
+              "supplyAmount": 10000,
+              "vatAmount": 1000,
+              "lineTotal": 11000,
+              "allocations": [
+                {
+                  "sourceSlipNo": "2026/08/15-4",
+                  "sourceLineNo": 1,
+                  "allocatedQty": 1,
+                  "allocatedAmount": 11000
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/admin/sales-slips",
+        "status": 200,
+        "body": [
+          {
+            "id": "e2930290-43db-484a-ae9d-b5df4495de38",
+            "slipNo": "2026/08/15-15",
+            "slipDate": "2026-08-15",
+            "partnerCode": "4483500844",
+            "partnerName": "능동에어컨(박수천)",
+            "taxType": "TAXABLE",
+            "status": "DRAFT",
+            "totalSupplyAmount": 10000,
+            "totalVatAmount": 1000,
+            "totalAmount": 11000,
+            "memo": "QA1216-SOL-LIVE",
+            "lines": [
+              {
+                "lineNo": 1,
+                "productCode": "한경희 선풍기",
+                "productName": "한경희 선풍기",
+                "qty": 1,
+                "unitPrice": 11000,
+                "supplyAmount": 10000,
+                "vatAmount": 1000,
+                "lineTotal": 11000,
+                "allocations": [
+                  {
+                    "sourceSlipNo": "2026/08/15-4",
+                    "sourceLineNo": 1,
+                    "allocatedQty": 1,
+                    "allocatedAmount": 11000
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "adb60e24-73f5-4565-b2e2-5aff719cf561",
+            "slipNo": "2026/08/14-851",
+            "slipDate": "2026-08-14",
+            "partnerCode": "4483500844",
+            "partnerName": "능동에어컨(박수천)",
+            "taxType": "TAXABLE",
+            "status": "POSTED",
+            "totalSupplyAmount": 9090,
+            "totalVatAmount": 910,
+            "totalAmount": 10000,
+            "memo": "PR1203-RECONV4-ACCOUNTING-1786675620624-sales",
+            "lines": [
+              {
+                "lineNo": 1,
+                "productCode": "0000098",
+                "productName": "한경희 선풍기",
+                "qty": 1,
+                "unitPrice": 10000,
+                "supplyAmount": 9090,
+                "vatAmount": 910,
+                "lineTotal": 10000,
+                "allocations": [
+                  {
+                    "sourceSlipNo": "2026/08/14-17",
+                    "sourceLineNo": 1,
+                    "allocatedQty": 1,
+                    "allocatedAmount": 10000
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/admin/sales-slips",
+        "status": 200,
+        "body": [
+          {
+            "id": "adb60e24-73f5-4565-b2e2-5aff719cf561",
+            "slipNo": "2026/08/14-851",
+            "slipDate": "2026-08-14",
+            "partnerCode": "4483500844",
+            "partnerName": "능동에어컨(박수천)",
+            "taxType": "TAXABLE",
+            "status": "POSTED",
+            "totalSupplyAmount": 9090,
+            "totalVatAmount": 910,
+            "totalAmount": 10000,
+            "memo": "PR1203-RECONV4-ACCOUNTING-1786675620624-sales",
+            "lines": [
+              {
+                "lineNo": 1,
+                "productCode": "0000098",
+                "productName": "한경희 선풍기",
+                "qty": 1,
+                "unitPrice": 10000,
+                "supplyAmount": 9090,
+                "vatAmount": 910,
+                "lineTotal": 10000,
+                "allocations": [
+                  {
+                    "sourceSlipNo": "2026/08/14-17",
+                    "sourceLineNo": 1,
+                    "allocatedQty": 1,
+                    "allocatedAmount": 10000
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "step": "final-residue",
+    "activeSlips": "0",
+    "activeLines": "0",
+    "activeAllocations": "0",
+    "activeClosings": "0",
+    "activeSourceSlips": "0",
+    "permissionBitsRestored": "false|false",
+    "qaTriggers": "0"
+  }
+]

@@ -40,5 +40,42 @@ $ curl -o /dev/null -w "%{http_code}" ".../api/v1/quantity-sync-rules?..."
 - 라이브QA 가 *"없다 · 404 · 500"* 을 보고하면, **제품 결함으로 세기 전에** ① 배포본 나이 ② 소스에 실제로 있는지(`git show origin/main:<path>`) 를 먼저 확인하라.
 - 배포 슬롯은 서비스 단위로 쪼개 배정할 수 있다(`--no-deps` 로 한 서비스만 재빌드). 다만 **`api-gateway` 는 전 트랙이 공유하는 단일 진입점**이라 재배포 시각을 PR 에 기록해, 그 시각 근처의 전이적 실패를 구분할 수 있게 하라.
 
+## 🆕 2026-08-15 하룻밤에 **네 번** — 매번 다른 결함의 얼굴을 하고 나왔다
+
+| # | 낡은 것 | 겉으로 보인 증상 | 무엇으로 파고들 뻔했나 |
+|---|---|---|---|
+| 1 | `api-gateway` (8/9 JAR) | `/app/notices/active` 401 → renderer 가 로그인 직후 로그아웃 | attestation 값 불일치 (두 라운드 낭비) |
+| 2 | `auth-service` | `/auth/admin/menu-catalog` **500** `NoResourceFoundException` | 컨트롤러 경로 오타 |
+| 3 | `slip-service` (V121/V122 반영 전) | `GET /slips` **500** `No enum constant DeliveryTag.SALE` | UI 셀렉터 문제 |
+| 4 | 같은 `slip-service` 재배포 1차 | 위와 동일 | — (이번엔 바로 잡음) |
+
+🔑 **네 번 다 "코드에 있는데 안 돈다" 인데, 증상은 401·500·`role=UNKNOWN` 으로 전부 달랐다.**
+그래서 매번 다른 가설로 출발했고, 세 번은 엉뚱한 곳을 팠다.
+
+### 무엇이 이걸 만들었나 — 스크립트가 아니라 **스크립트를 건너뛴 경로**
+
+```text
+redeploy-service.ps1 은 이미 옳았다
+  bootJar → compose up --build --no-deps → health 검증
+사고는 전부 그것을 우회했을 때 났다
+  수동 docker compose up (--build 없음)
+  redeploy-service.ps1 -SkipBuild
+```
+
+⟹ `-SkipBuild` 사용 시 **소스가 JAR 보다 최신이면 즉시 실패**하는 가드를 넣었다(계약 테스트 PASS).
+
+### 적용 — 증상별로 이 가설을 **먼저** 세워라
+
+```text
+401 인데 자격 설정이 다 맞아 보인다        → 배포본 나이
+500 인데 경로가 소스에 분명히 있다          → 배포본 나이
+"No enum constant X"                       → 배포본 나이 + flyway 버전 (스키마가 코드보다 앞섰다)
+"기능이 없는 것처럼 보인다"                 → 배포본 나이
+🚩 컨테이너 안에서 직접 재라 — docker inspect 의 Created 는 이미지 시각이지 JAR 시각이 아니다
+   docker exec <c> ls -l /app/app.jar     ← 워크트리 JAR 시각과 대조
+```
+
+🚨 **재배포는 반드시 `--build` 와 함께.** 빼면 이전 이미지가 그대로 뜨고, 그 순간부터 모든 관측이 거짓말이 된다.
+
 ## 관련
-[[feedback_parallel_backend_tracks_share_docker_stack]](이미지 태그·데몬·DB 는 전역) · [[feedback_pm_verify_what_measurement_proves]](이 측정이 증명하는 것을 진술하라)
+[[feedback_parallel_backend_tracks_share_docker_stack]](이미지 태그·데몬·DB 는 전역) · [[feedback_pm_verify_what_measurement_proves]](이 측정이 증명하는 것을 진술하라) · [[feedback_unmerged_migration_blocks_other_tracks]] · [[feedback_compose_up_recreates_parent_containers]]

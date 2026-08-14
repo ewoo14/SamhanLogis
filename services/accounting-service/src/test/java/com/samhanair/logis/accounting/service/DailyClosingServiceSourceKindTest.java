@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -53,8 +55,32 @@ class DailyClosingServiceSourceKindTest {
     @Mock private PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
     @Mock private PartnerLookupClient partnerLookupClient;
     @Mock private DynamicPermissionClient dynamicPermissionClient;
+    @Mock private DailyClosingVerificationService dailyClosingVerificationService;
 
     @InjectMocks private DailyClosingService service;
+
+    @BeforeEach
+    void stubServerVerification() {
+        lenient().when(dailyClosingVerificationService.verifyBeforeClose(any(), any(), any()))
+                .thenReturn(new DailyClosingVerificationService.VerificationResult(
+                        DailyClosingVerificationService.Status.VERIFIED, ""));
+    }
+
+    @Test
+    void amountVerified_요청값과_무관하게_서버검증결과를_사용한다() {
+        when(dailyClosingVerificationService.verifyBeforeClose(any(), any(), any()))
+                .thenReturn(new DailyClosingVerificationService.VerificationResult(
+                        DailyClosingVerificationService.Status.AMOUNT_MISMATCH,
+                        "금액 검증을 완료해 주세요"));
+
+        assertThatThrownBy(() -> service.close(
+                new CreateDailyClosingRequest(DATE, null, "ALL", DailyClosingKind.SALES,
+                        DailyClosingSourceKind.TAX_INVOICE, true),
+                "accountant", null))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("금액 검증")
+                .hasMessageNotContaining("amountVerified");
+    }
 
     @Test
     @DisplayName("기본 요청은 SALES + TAX_INVOICE 집계로 하위 호환된다")

@@ -174,7 +174,7 @@ class DailyClosingIT extends AbstractPostgresIT {
                         .content("{\"closingDate\":\"2026-05-23\",\"scopeMode\":\"ALL\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message")
-                        .value("일마감 금액 검증이 완료되지 않았습니다"));
+                        .value("금액 검증을 완료해 주세요"));
     }
 
     @Test

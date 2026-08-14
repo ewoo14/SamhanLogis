@@ -47,6 +47,24 @@ export function extractApiErrorResponseMessage(err: unknown): string | null {
 }
 
 /**
+ * 매출전표 저장 409에서 서버가 전달한 사용자용 사유만 반환한다.
+ *
+ * <p>일반 Error.message나 다른 상태코드의 응답은 저장 화면의 일반 문구를 유지한다.
+ * UUID/예외/스택 형태의 문자열은 사용자용 사유가 아니므로 노출하지 않는다.
+ */
+export function extractSalesSlipUserReason(err: unknown): string | null {
+  const { status, data } = getApiErrorInfo(err)
+  if (status !== 409 || data?.code !== 'CONFLICT') return null
+  const message = data.message?.trim()
+  if (!message || message.length > 300) return null
+  if (/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/i.test(message)) {
+    return null
+  }
+  if (/\b(?:exception|error|stack trace|at\s+[\w.$]+\()/i.test(message)) return null
+  return message
+}
+
+/**
  * BE `ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE` — partner-service 장애로 거래처 신원
  * 조회 자체가 실패한 502. (#831 sweep 후속)
  *

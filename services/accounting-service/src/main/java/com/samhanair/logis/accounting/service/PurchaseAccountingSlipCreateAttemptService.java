@@ -34,6 +34,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
     private final SlipServiceClient slipServiceClient;
     private final PurchaseAccountingSlipNumberGenerator numberGenerator;
     private final EntityManager entityManager;
+    private final DailyClosingVerificationService dailyClosingVerificationService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PurchaseAccountingSlipResponse createDraftAttempt(
@@ -76,6 +77,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
         }
 
         SourceState firstState = sourceCache.get(firstAllocation.sourceLineId());
+        requireDailyClosing(firstState.snapshot(), req.slipDate());
         verifyAndAccumulate(firstAllocation, firstState, allocationTotals);
         String slipNo = numberGenerator.next(req.slipDate());
         PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
@@ -108,6 +110,17 @@ public class PurchaseAccountingSlipCreateAttemptService {
         slip.recalcTotals();
         slipRepository.saveAndFlush(slip);
         return PurchaseAccountingSlipResponse.of(slip);
+    }
+
+    private void requireDailyClosing(SlipLineSnapshot source, java.time.LocalDate slipDate) {
+        DailyClosingVerificationService.VerificationResult result =
+                dailyClosingVerificationService.requireLockedClosing(
+                        slipDate, com.samhanair.logis.accounting.domain.DailyClosingKind.PURCHASE,
+                        com.samhanair.logis.accounting.domain.DailyClosingSourceKind.PURCHASE_SLIP,
+                        source.partnerId());
+        if (!result.allowed()) {
+            throw new BusinessException(ErrorCode.CONFLICT, result.userMessage());
+        }
     }
 
     private SourceState loadSourceState(UUID sourceLineId, UUID headerPartnerId) {
