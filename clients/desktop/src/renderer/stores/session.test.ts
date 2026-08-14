@@ -43,8 +43,29 @@ function createDeferred<T>() {
 
 describe('session store authProvider 배선', () => {
   beforeEach(async () => {
-    vi.clearAllMocks()
+    // singleFork keeps every test file in one worker. Reset implementations as
+    // well as call history so a prior file's hoisted mock cannot alter this
+    // store's provider contract.
+    vi.resetAllMocks()
     vi.resetModules()
+    // Re-register the file-local factories after resetting the shared worker's
+    // module graph. Vitest keeps the mock registry in the single fork, so a
+    // previous file can otherwise win the same module specifier.
+    vi.doMock('../auth/authProvider', () => ({
+      getAuthProvider: () => authProvider,
+      isElectronPlatform: false,
+      isCapacitorPlatform: true,
+    }))
+    vi.doMock('../push/pushRegistration', () => pushRegistration)
+    vi.doMock('../api/mock', () => ({
+      isMockMode: () => false,
+      MOCK_AUTH: {
+        token: 'mock-token',
+        userId: 'mock-user',
+        role: 'MASTER',
+        fullName: 'Mock',
+      },
+    }))
     const { useSessionStore } = await import('./session')
     useSessionStore.setState({ auth: null, bootstrapped: false })
   })
