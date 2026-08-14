@@ -85,3 +85,21 @@ const samhanUpdater = {
 }
 
 contextBridge.exposeInMainWorld('samhanUpdater', samhanUpdater)
+
+const samhanDetailWindow = {
+  open: (payload: {
+    documentType: 'OUTBOUND_SLIP' | 'INBOUND_SLIP' | 'TAX_INVOICE'
+    documentId: string
+    route: string
+  }): Promise<void> => ipcRenderer.invoke('detail-window:open', payload),
+  close: (): Promise<void> => ipcRenderer.invoke('detail-window:close'),
+  toggleMaximize: (): Promise<boolean> => ipcRenderer.invoke('detail-window:toggle-maximize'),
+  setDirty: (dirty: boolean): Promise<void> => ipcRenderer.invoke('detail-window:set-dirty', dirty),
+  onMaximizedChange: (listener: (maximized: boolean) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, maximized: boolean) => listener(maximized)
+    ipcRenderer.on('detail-window:maximized-change', handler)
+    return () => ipcRenderer.removeListener('detail-window:maximized-change', handler)
+  },
+}
+
+contextBridge.exposeInMainWorld('samhanDetailWindow', samhanDetailWindow)

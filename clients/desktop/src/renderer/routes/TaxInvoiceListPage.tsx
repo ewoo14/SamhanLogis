@@ -96,6 +96,7 @@ export function TaxInvoiceListPage() {
         <DocumentNumberLink
           number={row.taxInvoiceNo}
           to={row.id ? `/accounting/tax-invoices/${row.id}` : ''}
+          detailWindow={row.id ? { documentType: 'TAX_INVOICE', documentId: row.id } : undefined}
         />
       ),
     },

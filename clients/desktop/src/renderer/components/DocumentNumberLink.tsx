@@ -4,10 +4,13 @@ type DocumentNumberLinkProps = {
   number: string | null | undefined
   to: string | null | undefined
   ariaLabel?: string
+  detailWindow?: {
+    documentType: 'OUTBOUND_SLIP' | 'INBOUND_SLIP' | 'TAX_INVOICE'
+    documentId: string | null | undefined
+  }
 }
 
-/** 문서번호를 기존 상세 route로 연결한다. 빈 번호/경로에는 깨진 링크를 만들지 않는다. */
-export function DocumentNumberLink({ number, to, ariaLabel }: DocumentNumberLinkProps) {
+export function DocumentNumberLink({ number, to, ariaLabel, detailWindow }: DocumentNumberLinkProps) {
   const label = number?.trim() ?? ''
   if (!label || !to?.trim()) return <span>{label || '—'}</span>
 
@@ -15,7 +18,17 @@ export function DocumentNumberLink({ number, to, ariaLabel }: DocumentNumberLink
     <Link
       to={to}
       aria-label={ariaLabel ?? `${label} 상세 보기`}
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation()
+        if (detailWindow && detailWindow.documentId?.trim() && window.samhanDetailWindow) {
+          event.preventDefault()
+          void window.samhanDetailWindow.open({
+            documentType: detailWindow.documentType,
+            documentId: detailWindow.documentId,
+            route: to,
+          })
+        }
+      }}
     >
       {label}
     </Link>

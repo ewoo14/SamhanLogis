@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DocumentNumberLink } from './DocumentNumberLink'
 
 function LocationProbe() {
@@ -11,6 +11,36 @@ function LocationProbe() {
 }
 
 describe('DocumentNumberLink', () => {
+  afterEach(() => cleanup())
+
+  it('opens a detail window while keeping the list location alive', () => {
+    const open = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, 'samhanDetailWindow', {
+      configurable: true,
+      value: { open },
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/sales/slips']}>
+        <DocumentNumberLink
+          number="2026/08/15-1"
+          to="/sales/42"
+          detailWindow={{ documentType: 'OUTBOUND_SLIP', documentId: '42' }}
+        />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByText('2026/08/15-1'))
+
+    expect(open).toHaveBeenCalledWith({
+      documentType: 'OUTBOUND_SLIP',
+      documentId: '42',
+      route: '/sales/42',
+    })
+    expect(screen.getByTestId('location').textContent).toBe('/sales/slips')
+  })
+
   it('번호를 클릭하면 전달된 상세 경로로 이동한다', () => {
     render(
       <MemoryRouter initialEntries={['/list']}>

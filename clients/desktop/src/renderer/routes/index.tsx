@@ -69,6 +69,7 @@ import {
 } from 'react-router-dom'
 import { AuthGuard } from '../components/AuthGuard'
 import { AppLayout } from '../components/AppLayout'
+import { DetailWindowRoute } from '../components/DetailWindowRoute'
 import { LoginPage } from './LoginPage'
 import { DashboardPage } from './DashboardPage'
 import { NotificationHistoryPage } from './NotificationHistoryPage'
@@ -589,9 +590,11 @@ const routes = [
       {
         path: '/sales/:id',
         element: (
-          <SlipReadGuard mode="OUTBOUND" allowApprovalLineCandidate>
-            <SlipDetailPage mode="OUTBOUND" />
-          </SlipReadGuard>
+          <DetailWindowRoute>
+            <SlipReadGuard mode="OUTBOUND" allowApprovalLineCandidate>
+              <SlipDetailPage mode="OUTBOUND" />
+            </SlipReadGuard>
+          </DetailWindowRoute>
         ),
       },
       {
@@ -645,11 +648,13 @@ const routes = [
       {
         path: '/purchases/:id',
         element: (
-          <PermissionGuard pageCode="purchases.slip.list" action="view">
-            <SlipReadGuard mode="INBOUND">
-              <SlipDetailPage mode="INBOUND" />
-            </SlipReadGuard>
-          </PermissionGuard>
+          <DetailWindowRoute>
+            <PermissionGuard pageCode="purchases.slip.list" action="view">
+              <SlipReadGuard mode="INBOUND">
+                <SlipDetailPage mode="INBOUND" />
+              </SlipReadGuard>
+            </PermissionGuard>
+          </DetailWindowRoute>
         ),
       },
       {
@@ -1473,9 +1478,11 @@ const routes = [
       {
         path: '/accounting/tax-invoices/:id',
         element: (
-          <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
-            <TaxInvoiceDetailPage />
-          </PermissionGuard>
+          <DetailWindowRoute>
+            <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
+              <TaxInvoiceDetailPage />
+            </PermissionGuard>
+          </DetailWindowRoute>
         ),
       },
 
