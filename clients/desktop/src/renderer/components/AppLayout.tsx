@@ -403,6 +403,7 @@ export function AppLayout() {
     '/admin/permission-groups/delegation': 'sidebar-hr-permission-delegation',
     '/admin/approval-line-config': 'sidebar-hr-approval-line-config',
     '/admin/slip-cutoff': 'sidebar-hr-slip-cutoff',
+    '/accounting/bank-card-admin': 'sidebar-accounting-bank-card-admin',
     '/dispatch-board/history': 'sidebar-dispatch-history',
     '/admin/dispatch-groups': 'sidebar-dispatch-groups',
     '/arologis/pre-classify': 'sidebar-arologis-preclassify',
