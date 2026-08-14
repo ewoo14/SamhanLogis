@@ -11,15 +11,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.amqp.rabbit.core.RabbitAdmin;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.annotation.Profile;
 
 /** DLQ 확인·재처리·폐기를 운영자 명령으로만 제공한다. */
 @RestController
 @RequestMapping("/logs/dlq")
 @RequiredArgsConstructor
-@ConditionalOnBean({RabbitTemplate.class, RabbitAdmin.class})
+@Profile("!local")
 public class DlqController {
     private final DlqOperations operations;
 

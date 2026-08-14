@@ -10,11 +10,11 @@ import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.context.annotation.Profile;
 
 /** 운영자가 DLQ를 확인하고 명시적으로 재처리/폐기하는 경계. */
 @Service
-@ConditionalOnBean({RabbitTemplate.class, RabbitAdmin.class})
+@Profile("!local")
 public class DlqOperations {
 
     private static final String ATTEMPT_HEADER = "x-samhan-dlq-retry-count";

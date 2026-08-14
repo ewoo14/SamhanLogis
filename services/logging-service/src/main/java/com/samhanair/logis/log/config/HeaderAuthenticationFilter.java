@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -29,8 +30,9 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         String userId = request.getHeader(USER_ID_HEADER);
         String groups = request.getHeader(USER_GROUPS_HEADER);
 
+        var existing = SecurityContextHolder.getContext().getAuthentication();
         if (userId != null && !userId.isBlank()
-                && SecurityContextHolder.getContext().getAuthentication() == null) {
+                && (existing == null || existing instanceof AnonymousAuthenticationToken)) {
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
             if (groups != null && !groups.isBlank()) {
                 for (String groupId : groups.split(",")) {
