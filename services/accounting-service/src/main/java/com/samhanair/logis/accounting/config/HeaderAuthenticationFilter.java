@@ -78,6 +78,10 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                     }
                 }
             }
+            if ("true".equalsIgnoreCase(
+                    request.getHeader(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER))) {
+                authorities.add(new SimpleGrantedAuthority("SYSTEM_MASTER"));
+            }
             var auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);
         }
