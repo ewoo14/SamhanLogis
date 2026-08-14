@@ -8,7 +8,7 @@
  *   <li>{@code GET /accounting/sales/aggregate?from=&to=&partnerCode=} (BE-A8) —
  *       기간 매출/수금/채권 집계 (이카운트 4자리 4019/1089 코드 기반)</li>
  *   <li>{@code GET /accounting/journals/partner-ledger?partnerCode=&from=&to=} —
- *       거래처별 원장 read model (출고 판매전표 + 확정 입금보고서)</li>
+ *       거래처별 원장 read model (출고 출고전표 + 확정 입금보고서)</li>
  * </ul>
  *
  * <h2>BE 응답 정렬 / shape 가정</h2>
@@ -85,9 +85,9 @@ export interface LedgerLine {
   credit: string
   /** 누적 잔액 (KRW BigDecimal — string, 음수 가능). 기초잔액부터 라인 적용 후 잔액. */
   balance: string
-  /** 판매전표의 구조화된 배송주소. 적요에서 파싱하지 않는다. */
+  /** 출고전표의 구조화된 배송주소. 적요에서 파싱하지 않는다. */
   deliveryAddress?: string | null
-  /** 원장 문서 종류. JOURNAL_ONLY는 판매전표 미이관 분개 행이다. */
+  /** 원장 문서 종류. JOURNAL_ONLY는 출고전표 미이관 분개 행이다. */
   documentType?: 'SALE' | 'SALE_SUMMARY' | 'CASH_RECEIPT' | 'JOURNAL_ONLY'
   effect?: 'SALE' | 'PAYMENT' | 'ADJUSTMENT' | 'NONE'
 }
@@ -202,7 +202,7 @@ export function buildPartnerLedgerLines(
           journalNo: document.documentNo,
           accountCode: document.accountCode ?? '',
           description: document.description
-            ?? (document.type === 'CASH_RECEIPT' ? '입금보고서' : '판매전표 없음 / 전표 미이관'),
+            ?? (document.type === 'CASH_RECEIPT' ? '입금보고서' : '출고전표 없음 / 전표 미이관'),
           debit: document.debit && Number(document.debit) !== 0
             ? document.debit
             : document.credit && Number(document.credit) !== 0
@@ -296,7 +296,7 @@ export async function getSalesAggregate(
  * @param partnerCode 거래처 코드 (필수, 사용자 노출 식별자)
  * @param from 원장 기간 시작 (YYYY-MM-DD, 필수)
  * @param to 원장 기간 종료 (YYYY-MM-DD, 필수)
- * @return 출고 판매전표·확정 입금보고서 기반 원장 line
+ * @return 출고 출고전표·확정 입금보고서 기반 원장 line
  */
 export async function getLedgerData(
   partnerCode: string,
@@ -310,7 +310,7 @@ export async function getLedgerData(
   return mapPartnerLedgerResponse(res.data.data, partnerCode)
 }
 
-/** 판매전표 상세의 전잔·후잔 read 계약 — SALES 역할이 사용할 전용 accounting endpoint. */
+/** 출고전표 상세의 전잔·후잔 read 계약 — SALES 역할이 사용할 전용 accounting endpoint. */
 export async function getSalesSlipLedgerData(
   partnerCode: string,
   from: string,

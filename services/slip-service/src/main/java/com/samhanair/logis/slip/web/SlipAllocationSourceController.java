@@ -31,8 +31,8 @@ public class SlipAllocationSourceController {
 
     private final SlipRepository slipRepository;
 
-    /** 매출전표 배분 source 조회 — accounting.sales-slip.list VIEW가 필요하다. */
-    @Operation(summary = "매출전표 배분 원천 조회",
+    /** 출고전표 배분 source 조회 — accounting.sales-slip.list VIEW가 필요하다. */
+    @Operation(summary = "출고전표 배분 원천 조회",
             description = "사용자 세션과 accounting.sales-slip.list VIEW 권한으로 기간별 출고전표 라인을 조회한다.")
     @RequirePermission(page = "accounting.sales-slip.list", action = PermissionAction.VIEW)
     @GetMapping(value = "/by-period", params = "type=OUTBOUND")
@@ -44,8 +44,8 @@ public class SlipAllocationSourceController {
         return ApiResponse.ok(findByPeriod(type, from, to, partnerId));
     }
 
-    /** 매입전표 배분 source 조회 — accounting.purchase-slip.list VIEW가 필요하다. */
-    @Operation(summary = "매입전표 배분 원천 조회",
+    /** 입고전표 배분 source 조회 — accounting.purchase-slip.list VIEW가 필요하다. */
+    @Operation(summary = "입고전표 배분 원천 조회",
             description = "사용자 세션과 accounting.purchase-slip.list VIEW 권한으로 기간별 입고전표 라인을 조회한다.")
     @RequirePermission(page = "accounting.purchase-slip.list", action = PermissionAction.VIEW)
     @GetMapping(value = "/by-period", params = "type=INBOUND")

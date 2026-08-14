@@ -24,7 +24,7 @@ class SlipResponseTest {
         // 기존 DB 행의 레거시 shape: requester_id가 표시명이 아닌 UUID 문자열로 남아 있다.
         Slip slip = Slip.createOutbound("2026/08/13-legacy", LocalDate.of(2026, 8, 13), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "기존 전표",
-                DeliveryTag.DAY, null, requesterId.toString());
+                DeliveryTag.SALE, null, requesterId.toString());
 
         SlipResponse response = SlipResponse.from(slip);
         String body = new ObjectMapper().findAndRegisterModules().writeValueAsString(response);
@@ -42,7 +42,7 @@ class SlipResponseTest {
     void from_목록금액은_legacyNull_라인도_VAT포함_상세합계와_같아야한다() {
         Slip slip = Slip.createOutbound("2026/05/20-1", LocalDate.of(2026, 5, 20), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "P-2026-0001",
-                DeliveryTag.DAY, null, "sales-1");
+                DeliveryTag.SALE, null, "sales-1");
         SlipLine line = SlipLine.createFromAuthoritativeAmounts(slip, UUID.randomUUID(), "품목",
                 "모델", null, 1, new java.math.BigDecimal("2284500"),
                 new java.math.BigDecimal("2076816"), new java.math.BigDecimal("207684"),
@@ -62,7 +62,7 @@ class SlipResponseTest {
     void searchResult_목록금액도_상세와_같은_VAT포함_합계다() {
         Slip slip = Slip.createOutbound("2026/05/20-1", LocalDate.of(2026, 5, 20), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "P-2026-0001",
-                DeliveryTag.DAY, null, "sales-1");
+                DeliveryTag.SALE, null, "sales-1");
         slip.addLine(SlipLine.createFromAuthoritativeAmounts(slip, UUID.randomUUID(), "품목",
                 "모델", null, 1, new java.math.BigDecimal("2284500"),
                 new java.math.BigDecimal("2076816"), new java.math.BigDecimal("207684"),
@@ -76,7 +76,7 @@ class SlipResponseTest {
     void from_여러라인_소계도_각라인의_VAT포함금액을_합산한다() {
         Slip slip = Slip.createOutbound("2026/05/20-2", LocalDate.of(2026, 5, 20), 2,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "P-2026-0001",
-                DeliveryTag.DAY, null, "sales-1");
+                DeliveryTag.SALE, null, "sales-1");
         slip.addLine(SlipLine.createFromAuthoritativeAmounts(slip, UUID.randomUUID(), "품목1",
                 "모델1", null, 1, new java.math.BigDecimal("110"),
                 new java.math.BigDecimal("100"), new java.math.BigDecimal("10"),
@@ -96,7 +96,7 @@ class SlipResponseTest {
     void displayTotalAmount_legacy공급가액Null이면_단가乘수량을_재계산하지_않는다() {
         Slip slip = Slip.createOutbound("2026/05/20-3", LocalDate.of(2026, 5, 20), 3,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "P-2026-0001",
-                DeliveryTag.DAY, null, "sales-1");
+                DeliveryTag.SALE, null, "sales-1");
         SlipLine legacy = SlipLine.createFromAuthoritativeAmounts(slip, UUID.randomUUID(), "품목",
                 "모델", null, 1, new java.math.BigDecimal("200"),
                 new java.math.BigDecimal("20"), new java.math.BigDecimal("220"), null, null);
@@ -111,7 +111,7 @@ class SlipResponseTest {
     void summary_2026년5월20일전표의_legacyNull라인은_저장lineTotal을_사용한다() {
         Slip slip = Slip.createOutbound("2026/05/20-1", LocalDate.of(2026, 5, 20), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "P-2026-0001",
-                DeliveryTag.DAY, null, "sales-1");
+                DeliveryTag.SALE, null, "sales-1");
         SlipLine legacy = SlipLine.createFromAuthoritativeAmounts(slip, UUID.randomUUID(), "품목",
                 "모델", null, 1, new java.math.BigDecimal("2076816"),
                 new java.math.BigDecimal("207684"), new java.math.BigDecimal("2284500"), null, null);
@@ -127,7 +127,7 @@ class SlipResponseTest {
     void from_usesStateDependentEditHistoryCount_notRawRevisionCount() {
         Slip slip = Slip.createOutbound("2026/06/30-1", LocalDate.of(2026, 6, 30), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "S2c거래처",
-                DeliveryTag.DAY, null, "sales-1");
+                DeliveryTag.SALE, null, "sales-1");
         slip.incrementRevision();
         slip.incrementRevision();
 

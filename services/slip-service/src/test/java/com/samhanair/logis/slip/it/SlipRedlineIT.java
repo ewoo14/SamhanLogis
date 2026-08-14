@@ -256,7 +256,7 @@ class SlipRedlineIT extends AbstractPostgresIT {
         body.put("sourceWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "레드라인 거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("memo", memo);
         body.put("lines", List.of(line));
 

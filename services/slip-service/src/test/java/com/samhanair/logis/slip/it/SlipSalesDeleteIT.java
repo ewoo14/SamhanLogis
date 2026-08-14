@@ -50,7 +50,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * SP-08-6-3 매출 전표 soft delete endpoint IT.
+ * SP-08-6-3 출고 전표 soft delete endpoint IT.
  *
  * <p>SALES / MANAGER / MASTER 가 OUTBOUND 전표를 {@code updatedAt} 낙관적 잠금으로
  * 삭제하는 경로를 잠근다. 비-OUTBOUND, 이미 삭제됨, 권한 없음, stale 잠금, 출고 진행 단계
@@ -147,7 +147,7 @@ class SlipSalesDeleteIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("D1: SALES 는 OUTBOUND 매출 전표를 soft delete 한다")
+    @DisplayName("D1: SALES 는 OUTBOUND 출고 전표를 soft delete 한다")
     void testDeleteSalesSuccess() throws Exception {
         String id = createSlip("OUTBOUND", "SP0863-삭제전");
         String updatedAt = updatedAt(id);

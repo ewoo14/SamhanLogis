@@ -12,7 +12,7 @@ import java.util.Set;
  * <p>구매관리 화면과 기존 전표 목록 API가 동일한 정책을 사용하도록 한 곳에서 관리한다.
  *
  * <p>허용 역할: {@code WAREHOUSE} / {@code MANAGER} / {@code MASTER}
- * <br>금지 역할: {@code INVENTORY} / {@code SALES} / {@code ACCOUNTANT} — 매입 전표 조회 미허용 (403)
+ * <br>금지 역할: {@code INVENTORY} / {@code SALES} / {@code ACCOUNTANT} — 입고 전표 조회 미허용 (403)
  * <br>정책 근거: SP-03 권한 매트릭스 §4.2 — 입고(INBOUND) 전표는 창고 직군 전용.
  *
  * <p>Phase C5-4 그룹 기반 OR 판정 추가:
@@ -83,7 +83,7 @@ final class SlipPurchaseAccessGuard {
             return;
         }
         throw new BusinessException(ErrorCode.FORBIDDEN,
-                "매입 전표 조회는 WAREHOUSE / MANAGER / MASTER 권한만 허용합니다.");
+                "입고 전표 조회는 WAREHOUSE / MANAGER / MASTER 권한만 허용합니다.");
     }
 
     /**
@@ -113,7 +113,7 @@ final class SlipPurchaseAccessGuard {
     }
 
     /**
-     * 주어진 역할이 INBOUND 매입 전표를 조회할 수 있는지 여부.
+     * 주어진 역할이 INBOUND 입고 전표를 조회할 수 있는지 여부.
      *
      * <p>하위 호환 오버로드 — role 만으로 판정.
      */

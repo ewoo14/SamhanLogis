@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * V85 estimates.list RESTORE 시드 검증 — E2 견적 목록 취소선 복원.
  *
  * <p>V82(partners.delete, MASTER 단일)와 달리 견적 목록 복원은 목록 운영 액션이라
- * MASTER/MANAGER/SALES 3역할에 부여한다(V83 거래처주문·V84 판매전표와 정합).
+ * MASTER/MANAGER/SALES 3역할에 부여한다(V83 거래처주문·V84 출고전표와 정합).
  */
 @SpringBootTest(
         classes = AuthServiceApplication.class,

@@ -191,7 +191,7 @@ const DETAIL_VIEW_TESTIDS = {
   businessNumber: 'slip-detail-business-number',
 }
 
-/** `/sales/:id` 수정 인라인 폼(aria-label="매출 전표 수정") 내부 필드 — 전부 aria-label 기반. */
+/** `/sales/:id` 수정 인라인 폼(aria-label="출고 전표 수정") 내부 필드 — 전부 aria-label 기반. */
 const EDIT_FORM_LABELS = {
   businessNumber: '사업자번호',
   deliveryAddress: '배송주소',
@@ -245,7 +245,7 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
     await expect(
       page.getByTestId('header-page-title'),
       '전표 작성 화면 로드 실패 — 제목 미표시',
-    ).toHaveText('새 판매전표', { timeout: 15000 })
+    ).toHaveText('새 출고전표', { timeout: 15000 })
 
     const deliveryField = page.locator(CREATE_FORM_FIELDS.deliveryAddress)
     const supervisionField = page.locator(CREATE_FORM_FIELDS.supervisionAddress)
@@ -292,7 +292,7 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
     await editBtn.click()
 
     const modal = page.getByTestId('sales-slip-edit-modal')
-    await expect(modal, '매출 전표 수정 인라인 폼 미표시').toBeVisible({ timeout: 10000 })
+    await expect(modal, '출고 전표 수정 인라인 폼 미표시').toBeVisible({ timeout: 10000 })
 
     const bizField = page.getByLabel(EDIT_FORM_LABELS.businessNumber, { exact: true })
     await expect(bizField, '사업자번호 필드 미발견').toBeVisible()
@@ -359,7 +359,7 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
     await expect(
       page.getByTestId('header-page-title'),
       '전표 작성 화면 로드 실패',
-    ).toHaveText('새 판매전표', { timeout: 15000 })
+    ).toHaveText('새 출고전표', { timeout: 15000 })
 
     // 창고 선택(필수 — canSubmit 전제) — mock GET /inventory/warehouses 5건 중 본사창고.
     const warehouseInput = page.getByRole('combobox', { name: /출고 창고/ })
@@ -391,7 +391,7 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
 
     // 저장 성공 시 생성된 전표 상세(/sales/:id)로 navigate — 새 전표를 바로 확인하는
     // 기존 SlipForm/EstimateForm 저장 후 동작 및 #1094 상세 진입 규약과 일치한다.
-    await expect(page, '저장 후 생성된 판매전표 상세로 이동해야 함').toHaveURL(
+    await expect(page, '저장 후 생성된 출고전표 상세로 이동해야 함').toHaveURL(
       /\/#\/sales\/[^/?#]+(?:\?.*)?$/,
       { timeout: 10000 },
     )
@@ -436,7 +436,7 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
       timeout: 20000,
     })
     await expect(
-      page.getByRole('heading', { name: /판매전표 상세/ }),
+      page.getByRole('heading', { name: /출고전표 상세/ }),
       '전표 상세 화면 로드 실패',
     ).toBeVisible({ timeout: 15000 })
 
@@ -505,7 +505,7 @@ test.describe('전표 V20 입력 → 판매조회 매칭 (TC-V1~V5)', () => {
     await editBtn.click()
 
     const modal = page.getByTestId('sales-slip-edit-modal')
-    await expect(modal, '매출 전표 수정 인라인 폼 미표시').toBeVisible({ timeout: 10000 })
+    await expect(modal, '출고 전표 수정 인라인 폼 미표시').toBeVisible({ timeout: 10000 })
 
     const projectField = page.getByLabel(EDIT_FORM_LABELS.projectName, { exact: true })
     await expect(projectField, '프로젝트명 필드 미발견').toBeVisible()

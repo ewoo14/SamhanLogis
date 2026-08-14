@@ -19,7 +19,7 @@ class SlipSummaryAuthoritativeAmountsTest {
     void usesStoredLineAmounts() {
         Slip slip = Slip.createOutbound("2026/07/22-1", LocalDate.of(2026, 7, 22), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "거래처",
-                DeliveryTag.DAY, null, "test-user");
+                DeliveryTag.SALE, null, "test-user");
         slip.addLine(SlipLine.createFromVatInclusive(slip, UUID.randomUUID(), "품목", "모델", null,
                 3, new BigDecimal("36668.6667"), null, null));
 

@@ -56,6 +56,15 @@ export interface SlipSummary {
   deletedByName?: string | null
 }
 
+/** 창고 QR 출고 전용 최소 문맥 — 영업 정보와 UUID를 포함하지 않는다. */
+export interface SlipScanContext {
+  slipType: 'OUTBOUND'
+  slipNo: string
+  status: SlipStatus
+  canScan: boolean
+  lines: Array<{ productCode: string | null; quantity: number; serialManaged: boolean }>
+}
+
 /** 라인 응답 — BE `SlipLineResponse`. */
 export interface SlipLineDetail {
   id: string
@@ -392,7 +401,7 @@ export interface SlipLineInput {
   lineTotalWithVat?: string
 }
 
-/** 매입 전표 direct PUT 수정 요청 — BE `SlipUpdateRequest`. */
+/** 입고 전표 direct PUT 수정 요청 — BE `SlipUpdateRequest`. */
 export interface SlipUpdateRequest {
   updatedAt: string
   /**
@@ -600,6 +609,16 @@ export async function getSlipByNumber(slipNo: string, slipType: SlipType): Promi
   return getSlip(summary.id)
 }
 
+/** 창고 담당자가 목록 권한 없이 전표번호로 출고 QR 문맥에 진입한다. */
+export async function getOutboundSlipScanContextByNumber(slipNo: string): Promise<SlipScanContext> {
+  const normalized = slipNo.trim()
+  if (!normalized) throw new Error('slipNo is required')
+  const res = await apiClient.get<ApiEnvelope<SlipScanContext>>('/slips/scan-context/by-number', {
+    params: { slipNo: normalized },
+  })
+  return res.data.data
+}
+
 /** 사용자 권한으로 출고전표 번호를 exact 해석해 라인 포함 상세를 조회한다. */
 export async function getOutboundSlipBySlipNo(slipNo: string): Promise<SlipDetail> {
   const normalizedSlipNo = slipNo.trim()
@@ -693,7 +712,7 @@ export async function getPriceMemories(
 }
 
 /**
- * 매입 전표 soft delete — optimistic lock (updatedAt 필수).
+ * 입고 전표 soft delete — optimistic lock (updatedAt 필수).
  *
  * BE `DELETE /slips/{id}` + request body `{ updatedAt }`.
  * 응답 없음 (204). 204/200 모두 성공으로 처리.
@@ -717,7 +736,7 @@ export async function deletePurchaseSlip(
 }
 
 /**
- * 매출 전표 soft delete — SP-08-6-3 신규. optimistic lock (updatedAt 필수).
+ * 출고 전표 soft delete — SP-08-6-3 신규. optimistic lock (updatedAt 필수).
  *
  * BE `DELETE /slips/{id}/sales` + request body `{ updatedAt }`.
  * 응답 없음 (204). 204/200 모두 성공으로 처리.
@@ -761,7 +780,7 @@ export async function restoreSlip(id: string): Promise<SlipSummary> {
 }
 
 /**
- * 매입 전표 direct PUT 수정.
+ * 입고 전표 direct PUT 수정.
  *
  * @param id 전표 UUID (path param 전용, 화면 표시 금지)
  * @param body updatedAt 낙관적 잠금 + 헤더/라인 전체 교체 요청
@@ -779,7 +798,7 @@ export async function updatePurchaseSlip(
 }
 
 /**
- * 매출 전표 direct PUT 수정 — SP-08-6-2 신규.
+ * 출고 전표 direct PUT 수정 — SP-08-6-2 신규.
  *
  * OUTBOUND 전표의 헤더 및 라인을 전체 교체 (optimistic lock).
  * 에러 코드:

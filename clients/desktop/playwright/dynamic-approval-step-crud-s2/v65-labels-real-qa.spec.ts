@@ -67,7 +67,7 @@ async function boot(page: Page): Promise<void> {
   const token = await fetchRealToken(); await installRealAuth(page, token); await setupApiProxy(page, token)
 }
 
-test('S2-V65-1: 판매전표 상세 결재정보 — 출고자/검수자', async ({ page }) => {
+test('S2-V65-1: 출고전표 상세 결재정보 — 출고자/검수자', async ({ page }) => {
   await boot(page)
   await page.goto(hashUrl(`/sales/${OUTBOUND_SLIP_ID}`), { waitUntil: 'networkidle', timeout: 30_000 })
   await page.waitForTimeout(2500)
@@ -79,7 +79,7 @@ test('S2-V65-1: 판매전표 상세 결재정보 — 출고자/검수자', async
   expect(body).not.toContain('출고인')
 })
 
-test('S2-V65-2: 판매전표 인쇄 결재란 — 출고자/검수자', async ({ page }) => {
+test('S2-V65-2: 출고전표 인쇄 결재란 — 출고자/검수자', async ({ page }) => {
   await boot(page)
   await page.goto(hashUrl(`/sales/${OUTBOUND_SLIP_ID}/print/dispatch`), { waitUntil: 'networkidle', timeout: 30_000 })
   await page.waitForTimeout(2500)

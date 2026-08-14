@@ -362,7 +362,7 @@ class JournalStatusReportControllerIT extends AbstractPostgresIT {
     }
 
     private void seedFixtures() {
-        seedPosted("STATUS-F-SLIP", LocalDate.of(2026, 6, 3), "매출전표",
+        seedPosted("STATUS-F-SLIP", LocalDate.of(2026, 6, 3), "출고전표",
                 JournalSourceType.SLIP,
                 line("102", "5000.00", "0.00", PARTNER_WILLY, "입금"),
                 line("401", "0.00", "5000.00", PARTNER_WILLY, "매출"));

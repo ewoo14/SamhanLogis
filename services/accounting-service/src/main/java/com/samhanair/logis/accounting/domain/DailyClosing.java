@@ -78,7 +78,7 @@ public class DailyClosing extends BaseEntity {
     @Column(name = "closing_kind", nullable = false, length = 20)
     private DailyClosingKind closingKind;
 
-    /** 집계 source — 세금계산서/매출전표/매입전표. */
+    /** 집계 source — 세금계산서/출고전표/입고전표. */
     @Enumerated(EnumType.STRING)
     @Column(name = "source_kind", nullable = false, length = 20)
     private DailyClosingSourceKind sourceKind;

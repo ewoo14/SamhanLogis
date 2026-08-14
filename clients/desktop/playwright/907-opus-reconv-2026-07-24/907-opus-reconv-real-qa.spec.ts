@@ -274,12 +274,12 @@ test('T5 F-6 화면 필터 ↔ Excel 6화면', async ({ page }) => {
   await cap(page, 't5-purchases')
   await downloadExcel(page, 'purchase-query-excel-download', 't5-purchases.xlsx')
 
-  // 판매전표목록: 배송태그 DAY
+  // 출고전표목록: 배송태그 DAY
   await page.goto(`${BASE_URL}/#/sales/slips`)
   await expect(page.getByTestId('slip-list-excel-export')).toBeVisible({ timeout: 30_000 })
   await page.getByLabel('배송태그 필터').selectOption('DAY')
   await page.waitForTimeout(900)
-  console.log(`[T5] 판매전표목록 DAY 화면 총 = ${await readTotalSafe(page)}`)
+  console.log(`[T5] 출고전표목록 DAY 화면 총 = ${await readTotalSafe(page)}`)
   await cap(page, 't5-slip-list-day')
   await downloadExcel(page, 'slip-list-excel-export', 't5-slip-list-day.xlsx')
 

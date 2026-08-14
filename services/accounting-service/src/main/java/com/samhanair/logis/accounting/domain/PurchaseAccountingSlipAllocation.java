@@ -11,7 +11,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 매입전표 라인 ↔ 입고전표 라인 N:M 배분 연결.
+ * 입고전표 라인 ↔ 입고전표 라인 N:M 배분 연결.
  *
  * <p>spec: 2026-05-19-sales-purchase-accounting-slip-design.md §3-C
  */

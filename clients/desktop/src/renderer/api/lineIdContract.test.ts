@@ -65,14 +65,14 @@ describe('lineId 계약 마커 — 저장 payload 스탬프 (D-R8-9)', () => {
     apiClientMock.put.mockResolvedValue({ data: { data: { id: 'doc-1', lines: [] } } })
   })
 
-  it('매입 전표 PUT 이 마커를 싣는다', async () => {
+  it('입고 전표 PUT 이 마커를 싣는다', async () => {
     await updatePurchaseSlip('slip-1', SLIP_BODY)
 
     expect(apiClientMock.put).toHaveBeenCalledTimes(1)
     expect(lastPutBody()['lineIdContract']).toBe(true)
   })
 
-  it('매출 전표 PUT 이 마커를 싣는다 (매입/매출 비대칭 가드)', async () => {
+  it('출고 전표 PUT 이 마커를 싣는다 (매입/매출 비대칭 가드)', async () => {
     await updateSalesSlip('slip-1', SLIP_BODY)
 
     expect(apiClientMock.put).toHaveBeenCalledWith(

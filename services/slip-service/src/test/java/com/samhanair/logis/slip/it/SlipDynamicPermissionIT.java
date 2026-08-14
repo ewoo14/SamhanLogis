@@ -110,7 +110,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C1: SALES sales.slip.list canView=true → 매출 슬립 목록 200 OK")
+    @DisplayName("C1: SALES sales.slip.list canView=true → 출고전표 목록 200 OK")
     @WithMockUser(username = "sales-user", authorities = {"ROLE_SALES"})
     void C1_sales_slip_list_canView_true_returns_200() throws Exception {
         // canView=true (lenient 기본값 사용).
@@ -129,7 +129,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C2: SALES sales.slip.list canView=false → 매출 슬립 목록 403 FORBIDDEN")
+    @DisplayName("C2: SALES sales.slip.list canView=false → 출고전표 목록 403 FORBIDDEN")
     @WithMockUser(username = "sales-user-blocked", authorities = {"ROLE_SALES"})
     void C2_sales_slip_list_canView_false_returns_403() throws Exception {
         // canView=false override — lenient 기본값 덮어씀
@@ -151,7 +151,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C3: WAREHOUSE purchases.slip.list canView=true → 매입 슬립 목록 200 OK")
+    @DisplayName("C3: WAREHOUSE purchases.slip.list canView=true → 입고전표 목록 200 OK")
     @WithMockUser(username = "warehouse-user", authorities = {"ROLE_WAREHOUSE"})
     void C3_purchases_slip_list_canView_true_returns_200() throws Exception {
         // canView=true (lenient 기본값 사용).
@@ -170,7 +170,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C4: WAREHOUSE purchases.slip.list canView=false → 매입 슬립 목록 403 FORBIDDEN")
+    @DisplayName("C4: WAREHOUSE purchases.slip.list canView=false → 입고전표 목록 403 FORBIDDEN")
     @WithMockUser(username = "warehouse-user-blocked", authorities = {"ROLE_WAREHOUSE"})
     void C4_purchases_slip_list_canView_false_returns_403() throws Exception {
         // canView=false override
@@ -218,7 +218,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C6: DISPATCH sales.slip.list 권한 없음 → 매출 슬립 목록 403")
+    @DisplayName("C6: DISPATCH sales.slip.list 권한 없음 → 출고전표 목록 403")
     @WithMockUser(username = "dispatch-user", authorities = {"ROLE_DISPATCH"})
     void C6_dispatch_no_sales_slip_list_returns_403() throws Exception {
         // DISPATCH 는 @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')") 에서 이미 차단

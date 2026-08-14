@@ -10,10 +10,10 @@
  * 스크린샷 저장: Playwright test outputPath (repo-level QA PNG overwrite 방지).
  *
  * TC 목록 (5건):
- *   T1 SALES 로그인 → 매출 슬립 접근 가능 / 매입 슬립 + 배차 hidden
- *   T2 WAREHOUSE 로그인 → 매입 슬립 + 입고 검수 가능 / 매출 슬립 + 배차 hidden
- *   T3 DISPATCH 로그인 → 배차 보드 route 가능 / 매입 슬립 + 매출 슬립 hidden
- *   T4 마스터가 SALES 의 purchases.slip.list revoke → SALES 매입 슬립 접근 차단 확인
+ *   T1 SALES 로그인 → 출고전표 접근 가능 / 입고전표 + 배차 hidden
+ *   T2 WAREHOUSE 로그인 → 입고전표 + 입고 검수 가능 / 출고전표 + 배차 hidden
+ *   T3 DISPATCH 로그인 → 배차 보드 route 가능 / 입고전표 + 출고전표 hidden
+ *   T4 마스터가 SALES 의 purchases.slip.list revoke → SALES 입고전표 접근 차단 확인
  *   T5 권한 없는 URL 직접 진입 → redirect "/"
  *
  * SP-D2 회귀 가드:
@@ -23,8 +23,8 @@
  *   - ACCOUNTING_ROUTES pageCode 1:1 일치 패턴 일관
  *
  * SP-D3 마이그레이션 대상 6 PageCode (routes/index.tsx 1:1 정합):
- *   /sales/slips                          → sales.slip.list               (매출 슬립 목록)
- *   /purchases/slips                      → purchases.slip.list           (매입 슬립 목록)
+ *   /sales/slips                          → sales.slip.list               (출고전표 목록)
+ *   /purchases/slips                      → purchases.slip.list           (입고전표 목록)
  *   /dispatch-board                       → dispatch.board               (배차 보드 route)
  *   /warehouse/inbound-inspections        → inbound.inspection           (입고 검수 — 사이드바 연동)
  *
@@ -270,14 +270,14 @@ const SP_D3_ROUTES = [
     path: '/sales/slips',
     sidebarTestId: 'sidebar-sales',
     pageCode: 'sales.slip.list',
-    label: '매출 슬립 목록',
+    label: '출고전표 목록',
     roles: ['SALES', 'MANAGER', 'MASTER'],
   },
   {
     path: '/purchases/slips',
     sidebarTestId: 'sidebar-purchases',
     pageCode: 'purchases.slip.list',
-    label: '매입 슬립 목록',
+    label: '입고전표 목록',
     roles: ['WAREHOUSE', 'MANAGER', 'MASTER'],
   },
   {
@@ -298,7 +298,7 @@ const SP_D3_ROUTES = [
 // 권한 mock 빌더 함수
 // ---------------------------------------------------------------------------
 
-/** SALES 기본 권한 — 매출 슬립 접근 가능, 매입/배차 권한 없음 */
+/** SALES 기본 권한 — 출고전표 접근 가능, 매입/배차 권한 없음 */
 function buildSalesPermissions() {
   return {
     success: true,
@@ -308,7 +308,7 @@ function buildSalesPermissions() {
   }
 }
 
-/** WAREHOUSE 기본 권한 — 매입 슬립 + 입고 검수 가능, 매출/배차 없음 */
+/** WAREHOUSE 기본 권한 — 입고전표 + 입고 검수 가능, 매출/배차 없음 */
 function buildWarehousePermissions() {
   return {
     success: true,
@@ -329,7 +329,7 @@ function buildDispatchPermissions() {
   }
 }
 
-/** SALES 에서 purchases.slip.list revoke 후 — 매입 슬립 접근 불가 */
+/** SALES 에서 purchases.slip.list revoke 후 — 입고전표 접근 불가 */
 function buildSalesWithPurchaseSlipRevoked() {
   return {
     success: true,
@@ -379,16 +379,16 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
   // -------------------------------------------------------------------------
   /**
-   * T1: SALES 로그인 → 매출 슬립 접근 가능 / 매입 슬립 + 배차 route 차단
+   * T1: SALES 로그인 → 출고전표 접근 가능 / 입고전표 + 배차 route 차단
    *
    * 검증 항목:
     *   - GET /auth/admin/permissions/my → SALES: sales.slip.list view=true
-   *   - /sales/slips 진입 → 매출 슬립 목록 페이지 표시 (PermissionGuard 통과)
+   *   - /sales/slips 진입 → 출고전표 목록 페이지 표시 (PermissionGuard 통과)
    *   - /purchases/slips 직접 진입 → PermissionGuard redirect "/" (purchases.slip.list 없음)
    *   - /dispatch-board 직접 진입 → redirect "/" (dispatch.board 없음)
    *   - pageerror 없음
    */
-  test('T1: SALES → 매출 슬립 접근 가능 + 매입/배차 route URL 직접 진입 차단', async ({ page }) => {
+  test('T1: SALES → 출고전표 접근 가능 + 매입/배차 route URL 직접 진입 차단', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -407,7 +407,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       }
     })
 
-    await test.step('SALES — 매출 슬립 목록 (/sales/slips) 접근 가능 확인', async () => {
+    await test.step('SALES — 출고전표 목록 (/sales/slips) 접근 가능 확인', async () => {
       await page.goto(withMockPerms(SALES_SLIPS_URL, salesPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
@@ -424,11 +424,11 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
       expect(
         isRedirectedToHome,
-        `SALES 매출 슬립 페이지 접근이 차단됨 — URL: ${currentUrl}. sales.slip.list view=true 보유 SALES 는 접근 허용 필요.`,
+        `SALES 출고전표 페이지 접근이 차단됨 — URL: ${currentUrl}. sales.slip.list view=true 보유 SALES 는 접근 허용 필요.`,
       ).toBe(false)
     })
 
-    await test.step('SALES — 매입 슬립 URL 직접 진입 시 redirect "/" 확인', async () => {
+    await test.step('SALES — 입고전표 URL 직접 진입 시 redirect "/" 확인', async () => {
       await page.goto(withMockPerms(PURCHASES_SLIPS_URL, salesPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
@@ -441,7 +441,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       // purchases.slip.list 없음 → RoleGuard 차단(접근 권한 없음) 또는 PermissionGuard redirect "/"
       expect(
         isAccessBlocked(currentUrl, bodyText, '/purchases/slips'),
-        `SALES 매입 슬립 직접 진입 차단 미작동 — URL: ${currentUrl}. RoleGuard 또는 PermissionGuard 중 하나가 차단해야 함.`,
+        `SALES 입고전표 직접 진입 차단 미작동 — URL: ${currentUrl}. RoleGuard 또는 PermissionGuard 중 하나가 차단해야 함.`,
       ).toBe(true)
     })
 
@@ -473,14 +473,14 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
   // -------------------------------------------------------------------------
   /**
-   * T2: WAREHOUSE 로그인 → 매입 슬립 + 입고 검수 가능 / 매출 슬립 hidden
+   * T2: WAREHOUSE 로그인 → 입고전표 + 입고 검수 가능 / 출고전표 hidden
    *
    * 검증 항목:
    *   - GET /auth/admin/permissions/my → WAREHOUSE: purchases.slip.list + inbound.inspection view=true
-   *   - /purchases/slips 진입 → 매입 슬립 목록 페이지 표시 (PermissionGuard 통과)
+   *   - /purchases/slips 진입 → 입고전표 목록 페이지 표시 (PermissionGuard 통과)
    *   - pageerror 없음
    */
-  test('T2: WAREHOUSE → 매입 슬립 접근 가능 + 매출/SMS 이력 hidden', async ({ page }) => {
+  test('T2: WAREHOUSE → 입고전표 접근 가능 + 매출/SMS 이력 hidden', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -499,7 +499,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       }
     })
 
-    await test.step('WAREHOUSE — 매입 슬립 목록 (/purchases/slips) 접근 가능 확인', async () => {
+    await test.step('WAREHOUSE — 입고전표 목록 (/purchases/slips) 접근 가능 확인', async () => {
       await page.goto(withMockPerms(WAREHOUSE_PURCHASES_URL, warehousePerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
@@ -515,7 +515,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
       expect(
         isRedirectedToHome,
-        `WAREHOUSE 매입 슬립 페이지 접근이 차단됨 — URL: ${currentUrl}. purchases.slip.list view=true 보유 WAREHOUSE 는 접근 허용 필요.`,
+        `WAREHOUSE 입고전표 페이지 접근이 차단됨 — URL: ${currentUrl}. purchases.slip.list view=true 보유 WAREHOUSE 는 접근 허용 필요.`,
       ).toBe(false)
     })
 
@@ -531,7 +531,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
   // -------------------------------------------------------------------------
   /**
-   * T3: DISPATCH 로그인 → 배차 보드 route 가능 / 매입 슬립 + 매출 슬립 hidden
+   * T3: DISPATCH 로그인 → 배차 보드 route 가능 / 입고전표 + 출고전표 hidden
    *
    * 검증 항목:
     *   - GET /auth/admin/permissions/my → DISPATCH: dispatch.board view=true
@@ -541,7 +541,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
    *   - /purchases/slips 직접 진입 → redirect "/" (purchases.slip.list 없음)
    *   - pageerror 없음
    */
-   test('T3: DISPATCH → 배차 보드 route 접근 가능 + 매입/매출 슬립 차단', async ({ page }) => {
+   test('T3: DISPATCH → 배차 보드 route 접근 가능 + 매입/출고전표 차단', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     await installDispatchBoardApiStubs(page, { allowCreate: false })
@@ -584,7 +584,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await expect(page.getByText('배차 작업 초기화 실패')).toHaveCount(0)
     })
 
-    await test.step('DISPATCH — 매출 슬립 URL 직접 진입 시 redirect "/" 확인', async () => {
+    await test.step('DISPATCH — 출고전표 URL 직접 진입 시 redirect "/" 확인', async () => {
       await page.goto(withMockPerms(`${BASE_URL}/#/sales/slips?mockRole=DISPATCH`, dispatchPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
@@ -596,11 +596,11 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
       expect(
         isAccessBlocked(currentUrl, bodyText, '/sales/slips'),
-        `DISPATCH 매출 슬립 직접 진입 차단 미작동 — URL: ${currentUrl}. sales.slip.list 권한 없으므로 차단 필요.`,
+        `DISPATCH 출고전표 직접 진입 차단 미작동 — URL: ${currentUrl}. sales.slip.list 권한 없으므로 차단 필요.`,
       ).toBe(true)
     })
 
-    await test.step('DISPATCH — 매입 슬립 URL 직접 진입 시 차단 확인', async () => {
+    await test.step('DISPATCH — 입고전표 URL 직접 진입 시 차단 확인', async () => {
       await page.goto(withMockPerms(`${BASE_URL}/#/purchases/slips?mockRole=DISPATCH`, dispatchPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
@@ -612,7 +612,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
       expect(
         isAccessBlocked(currentUrl, bodyText, '/purchases/slips'),
-        `DISPATCH 매입 슬립 직접 진입 차단 미작동 — URL: ${currentUrl}. purchases.slip.list 권한 없으므로 차단 필요.`,
+        `DISPATCH 입고전표 직접 진입 차단 미작동 — URL: ${currentUrl}. purchases.slip.list 권한 없으므로 차단 필요.`,
       ).toBe(true)
     })
 
@@ -626,7 +626,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
   // -------------------------------------------------------------------------
   /**
-   * T4: 마스터가 SALES 의 purchases.slip.list revoke → SALES 의 매입 슬립 메뉴 hidden 확인
+   * T4: 마스터가 SALES 의 purchases.slip.list revoke → SALES 의 입고전표 메뉴 hidden 확인
    *
    * 검증 항목:
    *   - POST /auth/admin/permissions/batch → SALES purchases.slip.list revoke 200 성공
@@ -640,7 +640,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
    *       시나리오 또는 revoke 후 상태를 직접 검증하는 패턴으로 동작.
    *       permissions/my mock 을 purchases.slip.list 미포함으로 응답하여 검증.
    */
-  test('T4: 마스터가 SALES 의 purchases.slip.list revoke → 매입 슬립 hidden 확인', async ({ page }) => {
+  test('T4: 마스터가 SALES 의 purchases.slip.list revoke → 입고전표 hidden 확인', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -691,7 +691,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       ).toBe(true)
     })
 
-    await test.step('SALES — purchases.slip.list revoke 후 매입 슬립 접근 차단 확인', async () => {
+    await test.step('SALES — purchases.slip.list revoke 후 입고전표 접근 차단 확인', async () => {
       await page.goto(withMockPerms(PURCHASES_SLIPS_URL, salesRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
@@ -712,7 +712,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       ).toBe(true)
     })
 
-    await test.step('SALES — sales.slip.list 유지 → 매출 슬립 접근 허용 확인', async () => {
+    await test.step('SALES — sales.slip.list 유지 → 출고전표 접근 허용 확인', async () => {
       await page.goto(withMockPerms(SALES_SLIPS_URL, salesRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
@@ -729,7 +729,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
       expect(
         isBlockedFromSalesSlips,
-        `sales.slip.list 유지 SALES 의 매출 슬립 페이지가 차단됨 — URL: ${currentUrl}. revoke 대상 아님 — 접근 허용 필요.`,
+        `sales.slip.list 유지 SALES 의 출고전표 페이지가 차단됨 — URL: ${currentUrl}. revoke 대상 아님 — 접근 허용 필요.`,
       ).toBe(false)
     })
 
@@ -792,15 +792,15 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
         `/purchases/slips 직접 진입이 허용됨 — URL: ${currentUrl}. purchases.slip.list 권한 없음 — 차단 필요.`,
       ).toBe(true)
 
-      // 매입 슬립 콘텐츠 미표시 확인
+      // 입고전표 콘텐츠 미표시 확인
       const purchaseSlipPageLoaded =
-        bodyText.includes('매입 슬립') ||
+        bodyText.includes('입고전표') ||
         bodyText.includes('SlipList') ||
         bodyText.includes('입고 전표')
 
       expect(
         purchaseSlipPageLoaded,
-        `차단된 /purchases/slips 페이지 콘텐츠가 표시됨 — 매입 슬립 텍스트 미표시 필요.`,
+        `차단된 /purchases/slips 페이지 콘텐츠가 표시됨 — 입고전표 텍스트 미표시 필요.`,
       ).toBe(false)
     })
 

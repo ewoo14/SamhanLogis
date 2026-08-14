@@ -1,7 +1,7 @@
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
- * E1-b-1 매출 전표 상세 품목행 인라인 편집 — 실서버 2세션 coedit GUI QA.
+ * E1-b-1 출고 전표 상세 품목행 인라인 편집 — 실서버 2세션 coedit GUI QA.
  *
  * 검증: (1) '수정' 클릭 시 인라인 편집 폼이 auto-scroll 로 뷰에 들어오고 accent 신호 표시(구 모달 대체),
  *      (2) 라이브 coedit 보존 — 세션A 가 인라인 편집 필드 입력 → 세션B 가 SSE 로 동일 값 수신.
@@ -80,7 +80,7 @@ test('E1-b-1 매출 인라인 편집 — auto-scroll + 2세션 coedit(A입력→
     (s: { status?: string; slipType?: string }) =>
       (s.status === 'DRAFT' || s.status === 'SAVED') && (!s.slipType || s.slipType === 'OUTBOUND'),
   )
-  expect(editable, 'DRAFT/SAVED 매출 전표 최소 1건 필요').toBeTruthy()
+  expect(editable, 'DRAFT/SAVED 출고 전표 최소 1건 필요').toBeTruthy()
   const slipId: string = editable.id
 
   // 세션A: 매출 상세 → '수정' → 인라인 편집(auto-scroll + accent).

@@ -179,7 +179,7 @@ class TaxInvoiceInboundServiceTest {
     }
 
     @Test
-    void registerInbound_거래처_다른_매입전표_SAS_PARTNER_MONTH_MISMATCH() {
+    void registerInbound_거래처_다른_입고전표_SAS_PARTNER_MONTH_MISMATCH() {
         List<UUID> ids = List.of(UUID.randomUUID(), UUID.randomUUID());
         when(purchaseSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(
                 postedSlip("PAS-1", LocalDate.of(2026, 5, 1),

@@ -94,7 +94,7 @@ public class TaxInvoice extends BaseEntity {
      * P0-4 V11 신규 컬럼. legacy 레코드 = NULL.
      *
      * <p>#825 재수렴 #1 — V61 에서 VARCHAR(100) 확장 (partners.partner_code VARCHAR(100),
-     * 이카운트 실측 max=86자 · 매출/매입 전표 100 과 통일).
+     * 이카운트 실측 max=86자 · 매출/입고 전표 100 과 통일).
      */
     @Column(name = "partner_code", length = 100)
     private String partnerCode;
@@ -304,10 +304,10 @@ public class TaxInvoice extends BaseEntity {
     }
 
     /**
-     * 매출전표 N:1 묶음 발행용 DRAFT 생성.
+     * 출고전표 N:1 묶음 발행용 DRAFT 생성.
      *
-     * <p>매출전표 라인을 세금계산서 라인으로 스냅샷하고, 라인 합계로 헤더 금액을 계산합니다.
-     * 현재 도메인은 {@link TaxInvoiceType} 으로 매출/매입을 구분하므로 매출전표 묶음은
+     * <p>출고전표 라인을 세금계산서 라인으로 스냅샷하고, 라인 합계로 헤더 금액을 계산합니다.
+     * 현재 도메인은 {@link TaxInvoiceType} 으로 매출/매입을 구분하므로 출고전표 묶음은
      * {@link TaxInvoiceType#SALES} 로 생성합니다.
      */
     public static TaxInvoice createDraftFromSalesSlips(String taxInvoiceNo, LocalDate issuedDate,
@@ -320,7 +320,7 @@ public class TaxInvoice extends BaseEntity {
             throw new IllegalArgumentException("sourceLines 는 1건 이상 필수입니다");
         }
         TaxInvoice taxInvoice = create(partnerId, partnerCode, partnerBusinessNo, partnerName, null,
-                issuedDate, "매출전표 묶음 발행", TaxInvoiceType.SALES);
+                issuedDate, "출고전표 묶음 발행", TaxInvoiceType.SALES);
         taxInvoice.taxInvoiceNo = taxInvoiceNo;
         taxInvoice.issuedBy = actorUserId;
         int lineNo = 1;
@@ -342,7 +342,7 @@ public class TaxInvoice extends BaseEntity {
     /**
      * 거래처 발행 전자세금계산서 수신 등록용 DRAFT 생성.
      *
-     * <p>매입전표 POSTED N건을 하나의 INBOUND TaxInvoice 로 묶을 때 사용합니다.
+     * <p>입고전표 POSTED N건을 하나의 INBOUND TaxInvoice 로 묶을 때 사용합니다.
      * 수신 세금계산서는 {@link #markReceived(String)} 로 ISSUED 전이하되 OUTBOUND
      * 매출 자동분개를 만들지 않습니다.
      */

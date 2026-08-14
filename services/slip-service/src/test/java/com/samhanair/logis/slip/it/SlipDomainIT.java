@@ -66,14 +66,14 @@ class SlipDomainIT extends AbstractPostgresIT {
                 "2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
                 UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), "테스트 거래처",
-                DeliveryTag.DAY, "기본 메모",
+                DeliveryTag.SALE, "기본 메모",
                 "user-sales-001"
         );
     }
 
     private Slip newDraftInbound() {
         // 입고전표는 INBOUND direction 의 태그만 가능 (RETURN_TRIP/RETURN/BORROW).
-        // DAY 는 OUTBOUND 전용이라 BE 가 IllegalArgumentException 으로 거부 (PR #17 1차 fail 회고).
+        // SALE 는 OUTBOUND 전용이라 BE 가 IllegalArgumentException 으로 거부 (PR #17 1차 fail 회고).
         return Slip.createInbound(
                 "2026/05/04-2", LocalDate.of(2026, 5, 4), 2,
                 UUID.randomUUID(),
@@ -87,7 +87,7 @@ class SlipDomainIT extends AbstractPostgresIT {
         return Slip.createOutbound(
                 "2026/05/04-3", LocalDate.of(2026, 5, 4), 3,
                 UUID.randomUUID(), UUID.randomUUID(),
-                null, null, DeliveryTag.DAY, "거래처 없는 초안",
+                null, null, DeliveryTag.SALE, "거래처 없는 초안",
                 "user-sales-001"
         );
     }
@@ -339,17 +339,17 @@ class SlipDomainIT extends AbstractPostgresIT {
 
     @Test
     void applyDeliverySchedule_비적용태그_unloadDate_null() {
-        // DAY 등 비적용 태그: unloadDate = null (데이터 오염 방지, Fix 1).
+        // SALE 등 비적용 태그: unloadDate = null (데이터 오염 방지, Fix 1).
         LocalDate date = LocalDate.of(2027, 3, 10);
         Slip slip = Slip.createOutbound(
                 "2027/03/10-2", date, 2,
                 UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), "거래처",
-                DeliveryTag.DAY, null,
+                DeliveryTag.SALE, null,
                 "user-sales-001"
         );
 
-        slip.applyDeliverySchedule(DeliveryTag.DAY, LocalDate.of(2027, 3, 11));
+        slip.applyDeliverySchedule(DeliveryTag.SALE, LocalDate.of(2027, 3, 11));
         // override != null 이어도 비적용 태그면 null 처리
         assertThat(slip.getUnloadDate()).isNull();
     }

@@ -39,7 +39,7 @@ class CompensationRetryExecutorTest {
 
     private SerialCompensationFailure failure(String suffix, CompensationOperation op) {
         Slip slip = Slip.createOutbound("2026/06/03-RETRY-" + suffix, LocalDate.of(2026, 6, 3), 1,
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.DAY, null, "u");
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.SALE, null, "u");
         ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());
         SerialCompensationFailure f = SerialCompensationFailure.of(slip, CompensationPhase.ACCEPT_RESERVE,
                 "AC-" + suffix, op, "보상 실패", "원본 실패", LocalDateTime.of(2026, 6, 3, 10, 0));

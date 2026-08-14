@@ -60,7 +60,7 @@ class ApprovalLineStructureControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("GET structure — 인증 사용자는 admin 권한 없이 판매전표 구조만 sequence 순 조회")
+    @DisplayName("GET structure — 인증 사용자는 admin 권한 없이 출고전표 구조만 sequence 순 조회")
     void getStructure_authenticatedUser_returnsStructureOnly() throws Exception {
         UUID dispatcherRoleId = jdbcTemplate.queryForObject("""
                 SELECT id

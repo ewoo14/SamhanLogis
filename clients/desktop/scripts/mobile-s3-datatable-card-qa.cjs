@@ -48,7 +48,7 @@ async function capture(page, path, file, label) {
   const m = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })).newPage()
   await login(m)
   await capture(m, '/admin/partners', 'S1-mobile-partners-card.png', '1.모바일 거래처(카드)')
-  await capture(m, '/sales/slips', 'S2-mobile-slips-card.png', '2.모바일 판매전표(카드)')
+  await capture(m, '/sales/slips', 'S2-mobile-slips-card.png', '2.모바일 출고전표(카드)')
   await m.context().close()
   // 데스크탑 1280 — 테이블 무회귀
   const d = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage()

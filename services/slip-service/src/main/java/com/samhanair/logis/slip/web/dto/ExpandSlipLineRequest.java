@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 
-/** 판매전표 입력 화면이 저장 경로와 같은 세트 전개를 미리 수행하기 위한 요청. */
+/** 출고전표 입력 화면이 저장 경로와 같은 세트 전개를 미리 수행하기 위한 요청. */
 public record ExpandSlipLineRequest(
         @NotBlank String parentModelCode,
         @NotNull @Positive Integer quantity,

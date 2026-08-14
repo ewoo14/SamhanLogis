@@ -516,7 +516,7 @@ class SlipFormV20MatchingIT extends AbstractPostgresIT {
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", partnerName);
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("memo", "V20 매칭 IT 테스트");
         body.put("lines", List.of(line));
 

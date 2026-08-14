@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** MIG-4 — 이카운트 주문서 CSV staging import + 매출전표 연결 검증. */
+/** MIG-4 — 이카운트 주문서 CSV staging import + 출고전표 연결 검증. */
 @Service
 @RequiredArgsConstructor
 public class EcountOrderImporter {

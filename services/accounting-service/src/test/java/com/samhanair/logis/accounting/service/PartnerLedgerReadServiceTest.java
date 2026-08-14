@@ -44,7 +44,7 @@ class PartnerLedgerReadServiceTest {
     @InjectMocks private PartnerLedgerReadService service;
 
     @Test
-    @DisplayName("미등록 code-only 판매전표는 전체 자료나 빈 원장으로 노출하지 않는다")
+    @DisplayName("미등록 code-only 출고전표는 전체 자료나 빈 원장으로 노출하지 않는다")
     void codeOnlyExistingSaleWithoutPartnerMasterIsNotReadable() {
         when(partnerLookupClient.findByPartnerCodeResult("QA-GATE-A"))
                 .thenReturn(PartnerLookupClient.LookupResult.notFound());

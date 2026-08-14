@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/** 거래처별 원장 read 응답 — 출고 판매전표와 입금보고서만 포함한다. */
+/** 거래처별 원장 read 응답 — 출고 출고전표와 입금보고서만 포함한다. */
 public record PartnerLedgerResponse(
         String partnerCode,
         String partnerName,

@@ -20,7 +20,7 @@ public final class PartnerLedgerDocumentMerger {
                        BigDecimal lineAmount) {
     }
 
-    /** 판매전표/입금보고서 공통 원장 행. */
+    /** 출고전표/입금보고서 공통 원장 행. */
     public record Document(Type type, String documentNo, LocalDate date, String partnerCode,
                            String partnerName, String deliveryAddress, BigDecimal amount,
                            List<Line> lines) {
@@ -34,7 +34,7 @@ public final class PartnerLedgerDocumentMerger {
         }
     }
 
-    /** 판매전표와 입금보고서만 보존한다. 주소는 원본 구조화 필드 그대로 유지한다. */
+    /** 출고전표와 입금보고서만 보존한다. 주소는 원본 구조화 필드 그대로 유지한다. */
     public List<Document> merge(List<Document> documents) {
         if (documents == null) {
             return List.of();

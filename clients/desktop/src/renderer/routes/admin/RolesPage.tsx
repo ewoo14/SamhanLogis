@@ -145,7 +145,7 @@ const ROLE_DESCRIPTION: Record<AdminRole, string> = {
   DISPATCH: '배차담당자 — 배차 메뉴 + arologis 운영 조회/발송',
   DRIVER: '기사 — 모바일/배차 수행 계정',
   STAFF: '사원 — 일반 직원 기본 계정',
-  SALES: '영업원 — 견적/판매 전표 작성',
+  SALES: '영업원 — 견적/출고 전표 작성',
   ACCOUNTANT: '회계원 — 분개 작성/확정 + 세금계산서',
   WAREHOUSE: '창고원 — 입출고 + 재고 실사',
   INVENTORY: '재고원 — 재고 이동 + 실사 시작/완료',

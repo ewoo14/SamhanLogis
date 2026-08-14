@@ -190,7 +190,7 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("PURCHASE_SLIP daily detail — 매입전표 경로도 재검증 6필드를 HTTP JSON으로 노출한다")
+    @DisplayName("PURCHASE_SLIP daily detail — 입고전표 경로도 재검증 6필드를 HTTP JSON으로 노출한다")
     void purchaseSlipDailyDetailExposesRevalidationFields() throws Exception {
         seedPostedPurchaseSlip();
         Mockito.when(productClient.resolveByLabelBulk(anyList())).thenReturn(

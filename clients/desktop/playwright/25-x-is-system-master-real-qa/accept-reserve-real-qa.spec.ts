@@ -90,7 +90,7 @@ test(`전표 수락(accept) — X-Is-System-Master 서비스간 인가 실증 [$
 
   // 1) 전표 상세 진입 — SENT 상태 확인
   await page.goto(`${BASE_URL}/#/sales/${SLIP_ID}`)
-  await expect(page.getByText('판매전표 상세')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText('출고전표 상세')).toBeVisible({ timeout: 30_000 })
   await expect(page.getByText('전표 진행 단계')).toBeVisible({ timeout: 30_000 })
   await capture(page, 'slip-detail-sent-entry')
 

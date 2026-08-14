@@ -20,12 +20,12 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-/** MIG-4 — Admin 이카운트 판매전표 라인 CSV import. */
+/** MIG-4 — Admin 이카운트 출고전표 라인 CSV import. */
 @Slf4j
 @RestController
 @RequestMapping("/admin/accounting/sales-slips/imports")
 @RequiredArgsConstructor
-@Tag(name = "MIG-4 — 이카운트 판매전표 라인 마이그레이션")
+@Tag(name = "MIG-4 — 이카운트 출고전표 라인 마이그레이션")
 public class EcountSalesSlipLineImportController {
 
     private static final String PAGE_CODE = "ecount.mig4.sales-slip-line";
@@ -36,7 +36,7 @@ public class EcountSalesSlipLineImportController {
 
     @PostMapping(value = "/ecount-line", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
-    @Operation(summary = "이카운트 판매전표 CSV 라인 보강")
+    @Operation(summary = "이카운트 출고전표 CSV 라인 보강")
     public EcountMig4ImportResult upload(
             @RequestPart("file") MultipartFile file,
             @RequestHeader("X-User-Id") String userId,
@@ -54,7 +54,7 @@ public class EcountSalesSlipLineImportController {
                 && dynamicPermissionClient.canView(actorRole, PAGE_CODE)) {
             log.warn("[MIG-4] 동적 권한 차단 — roleCode={} pageCode={}", actorRole, PAGE_CODE);
             throw new BusinessException(ErrorCode.FORBIDDEN,
-                    "동적 권한 설정에 의해 판매전표 라인 import 권한이 차단되었습니다.");
+                    "동적 권한 설정에 의해 출고전표 라인 import 권한이 차단되었습니다.");
         }
     }
 }

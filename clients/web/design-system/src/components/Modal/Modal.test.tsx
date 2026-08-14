@@ -124,7 +124,7 @@ describe('Modal printableBody — PR #921 SOL 2차 A-1', () => {
         open
         onClose={() => undefined}
         title="출고전표 2026/01/01-1"
-        description="판매전표 미리보기"
+        description="출고전표 미리보기"
         printableBody
         footer={<button type="button">닫기</button>}
       >

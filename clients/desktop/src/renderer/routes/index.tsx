@@ -86,7 +86,7 @@ import { ExternalDispatchRequestView } from '../print/ExternalDispatchRequestVie
 // P0-4 인쇄 양식 1차 mock — Designer 단계 신규 (견적/세금계산서)
 import { QuoteView } from '../print/QuoteView'
 import { TaxInvoiceView } from '../print/TaxInvoiceView'
-// SP-08-5-5 — 매입 전표 인쇄 양식 (A4 portrait, legacy GAS 동등)
+// SP-08-5-5 — 입고 전표 인쇄 양식 (A4 portrait, legacy GAS 동등)
 import { PurchaseSlipPrintPage } from '../print/PurchaseSlipPrintPage'
 // SP-08-6-4 — 매출 인쇄 양식 2종 (거래명세서 / 세금계산서, A4 portrait)
 import { SalesTransactionStatementPrintPage } from '../print/SalesTransactionStatementPrintPage'
@@ -462,7 +462,7 @@ const routes = [
           </PermissionGuard>
         ),
       },
-      // [SP-D3] 매출 슬립 목록 — sales.slip.list 동적 RBAC (RoleGuard 이중 가드 유지).
+      // [SP-D3] 출고전표 목록 — sales.slip.list 동적 RBAC (RoleGuard 이중 가드 유지).
       {
         path: '/sales/slips',
         element: (
@@ -596,13 +596,7 @@ const routes = [
       },
       {
         path: '/sales/by-number',
-        element: (
-          <PermissionGuard pageCode="sales.slip.list" action="view">
-            <SlipReadGuard mode="OUTBOUND">
-              <StockSlipByNumberPage mode="OUTBOUND" />
-            </SlipReadGuard>
-          </PermissionGuard>
-        ),
+        element: <StockSlipByNumberPage mode="OUTBOUND" />,
       },
       // SP-08-6-4 — 거래명세서 (A4 portrait, legacy GAS 동등). 정적 suffix 먼저 매칭.
       { path: '/sales/:id/print/statement', element: <SalesTransactionStatementPrintPage /> },
@@ -623,7 +617,7 @@ const routes = [
           </PermissionGuard>
         ),
       },
-      // [SP-D3] 매입 슬립 목록 — purchases.slip.list 동적 RBAC (RoleGuard 이중 가드 유지).
+      // [SP-D3] 입고전표 목록 — purchases.slip.list 동적 RBAC (RoleGuard 이중 가드 유지).
       {
         path: '/purchases/slips',
         element: (
@@ -662,7 +656,7 @@ const routes = [
           </PermissionGuard>
         ),
       },
-      // SP-08-5-5 — 매입 전표 인쇄 양식 (A4 portrait, 창고/관리자 권한)
+      // SP-08-5-5 — 입고 전표 인쇄 양식 (A4 portrait, 창고/관리자 권한)
       { path: '/purchases/:id/print/purchase', element: <PurchaseSlipPrintPage /> },
 
       // [Phase 2.6c] 재고 현황 — 가용/실재고/예약 3구분.
@@ -670,7 +664,7 @@ const routes = [
       {
         path: '/inventory/stock-balance',
         element: (
-          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
+          <PermissionGuard pageCode="inventory.stock-balance" action="view">
             <InventoryStockBalancePage />
           </PermissionGuard>
         ),

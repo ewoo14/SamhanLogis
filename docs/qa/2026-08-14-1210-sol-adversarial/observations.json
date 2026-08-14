@@ -1,0 +1,113 @@
+[
+  {
+    "name": "visible:로그인 폼",
+    "value": true
+  },
+  {
+    "name": "login.account",
+    "value": "dev_manager"
+  },
+  {
+    "name": "login.destination",
+    "value": "http://127.0.0.1:5275/#/"
+  },
+  {
+    "name": "visible:재고 현황 제목",
+    "value": true
+  },
+  {
+    "name": "visible:확정 전 QA 시리얼",
+    "value": true
+  },
+  {
+    "name": "visible:QR 스캔 제목",
+    "value": true
+  },
+  {
+    "name": "dropdown.optionCount",
+    "value": 101
+  },
+  {
+    "name": "dropdown.qaOption",
+    "value": "QA-1210-SOL-R2 (QA 전용 거래처)"
+  },
+  {
+    "name": "successAttempt.result",
+    "value": "스캔을 반영하지 않았습니다 전표 서비스 호출에 실패했습니다"
+  },
+  {
+    "name": "stockLedger.observation",
+    "value": "blocked by success mutation failure"
+  },
+  {
+    "name": "visible:QR 스캔 제목",
+    "value": true
+  },
+  {
+    "name": "dropdown.optionCount",
+    "value": 101
+  },
+  {
+    "name": "dropdown.qaOption",
+    "value": "QA-1210-SOL-R2 (QA 전용 거래처)"
+  },
+  {
+    "name": "visible:부자재 거부 알림",
+    "value": true
+  },
+  {
+    "name": "material.alert",
+    "value": "스캔을 반영하지 않았습니다 전표 서비스 호출에 실패했습니다"
+  },
+  {
+    "name": "visible:QR 스캔 제목",
+    "value": true
+  },
+  {
+    "name": "dropdown.optionCount",
+    "value": 101
+  },
+  {
+    "name": "dropdown.qaOption",
+    "value": "QA-1210-SOL-R2 (QA 전용 거래처)"
+  },
+  {
+    "name": "visible:3건 원자성 거부 알림",
+    "value": true
+  },
+  {
+    "name": "atomic.alert",
+    "value": "스캔을 반영하지 않았습니다 전표 서비스 호출에 실패했습니다"
+  },
+  {
+    "name": "currentScreen.uuidCount",
+    "value": 0
+  },
+  {
+    "name": "currentUrl.uuidCount",
+    "value": 0
+  },
+  {
+    "name": "featureNetwork.uuidResponses",
+    "value": [
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:8080/slips?page=0&size=1&slipType=OUTBOUND&status=PROCESSING",
+        "status": 200,
+        "uuidCount": 6
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:8080/inventory/warehouses",
+        "status": 200,
+        "uuidCount": 16
+      },
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:8080/slips?page=0&size=100&slipType=OUTBOUND",
+        "status": 200,
+        "uuidCount": 462
+      }
+    ]
+  }
+]

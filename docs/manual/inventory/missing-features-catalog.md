@@ -14,7 +14,7 @@ PR #203~#206 이후 Samhan Public 전메뉴를 다시 보며 아래 P0 항목의
 
 - 거래처 기본 생성 UI는 `/admin/partners/new`로 운영 가능하다. `/admin/partners` 목록, 생성, 상세/수정 진입은 `SALES / MANAGER / MASTER` 공용 권한으로 정렬됐다. 이카운트 4탭 중 여신/단가·부가정보 고급 필드는 잔여 보강으로 남긴다.
 - 판매관리와 구매관리는 각각 `/sales/new`, `/purchases/new` 생성 진입점과 `/sales/:id`, `/purchases/:id` 상세/수정 진입점을 노출한다.
-- 구매관리 목록 CTA로 입고 검수 Dialog 진입 가능하다. `SAVED / CONFIRMED` 구매전표는 `WAREHOUSE / MANAGER / MASTER` 권한에서 행 단위 `검수` 버튼을 통해 처리한다.
+- 구매관리 목록 CTA로 입고 검수 Dialog 진입 가능하다. `SAVED / CONFIRMED` 입고전표는 `WAREHOUSE / MANAGER / MASTER` 권한에서 행 단위 `검수` 버튼을 통해 처리한다.
 
 ---
 

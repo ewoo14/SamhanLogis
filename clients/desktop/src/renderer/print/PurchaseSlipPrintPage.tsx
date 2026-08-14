@@ -1,7 +1,7 @@
 /**
- * 매입 전표 인쇄 양식 — `/purchases/:id/print/purchase`.
+ * 입고 전표 인쇄 양식 — `/purchases/:id/print/purchase`.
  *
- * SP-08-5-5 P1 신규: legacy GAS 매입 전표 양식 100% 매칭 목표.
+ * SP-08-5-5 P1 신규: legacy GAS 입고 전표 양식 100% 매칭 목표.
  * 2차 iteration — 8컬럼 라인테이블 + 헤더 3열 그리드 + 거래처 2열 그리드 반영
  * (memory `feedback_print_design_iteration.md`).
  *
@@ -55,7 +55,7 @@ export function PurchaseSlipPrintPage() {
   })
 
   const displaySlipNo = stripSlipNoZeros(detailQuery.data?.slipNo)
-  usePageTitle('매입 전표', displaySlipNo)
+  usePageTitle('입고 전표', displaySlipNo)
 
   // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
   const { company } = useCompanyProfile()
@@ -65,7 +65,7 @@ export function PurchaseSlipPrintPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="error-banner" role="alert">
-        매입 전표를 불러오지 못했습니다.
+        입고 전표를 불러오지 못했습니다.
       </div>
     )
   }

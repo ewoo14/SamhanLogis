@@ -237,10 +237,10 @@ test.describe.serial('#902 D-3 라이브 왕복 — 단가 보존 정책 실증'
 
     // ── 7. 수정 화면도 열어 단가 확인 ────────────────────────────────────────
     const editBtn = page.getByTestId('sales-slip-edit-button')
-    await expect(editBtn, 'E-2 무수정 재저장을 위해 매출 전표 수정 버튼이 필요하다').toHaveCount(1)
+    await expect(editBtn, 'E-2 무수정 재저장을 위해 출고 전표 수정 버튼이 필요하다').toHaveCount(1)
     await editBtn.click()
     const editSection = page.getByTestId('sales-slip-edit-modal')
-    await expect(editSection, '매출 전표 수정 인라인 영역 미표시').toBeVisible({ timeout: 15000 })
+    await expect(editSection, '출고 전표 수정 인라인 영역 미표시').toBeVisible({ timeout: 15000 })
     const editPriceField = page.getByLabel(/^단가\(VAT(?:제외|포함)\) 1$/)
     await expect(editPriceField, '수정 화면 단가 입력란 미표시').toBeVisible({ timeout: 15000 })
     await page.waitForTimeout(400)

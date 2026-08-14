@@ -90,7 +90,7 @@ public class PartnerOrderDeleteService {
      * 목록 인라인 복원. 삭제 전 revision point-in-time 복원과 별개로 soft-delete 플래그만 되돌린다.
      *
      * <p><b>라인 복원 = 헤더 deletedBy + deletedAt 작업 식별자 매칭</b>. 주문 라인은 수정 플로우에서도 개별
-     * soft-delete 되므로({@code markDeleted("system-partner-order-update")} 등) 판매전표(D)식
+     * soft-delete 되므로({@code markDeleted("system-partner-order-update")} 등) 출고전표(D)식
      * "삭제 라인 전량복원" 은 수정으로 제거된 라인을 오복원한다 — 의도적으로 미채택(#757 R2 LOW
      * disposition). 같은 삭제 작업의 라인만 헤더와 동일한 {@code deletedBy}와 시각
      * ({@code softDeleteCascadeWithName} 단일시각 보장)으로 식별해 복원한다.

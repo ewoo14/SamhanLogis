@@ -83,7 +83,7 @@ class DailyClosingServiceSourceKindTest {
     }
 
     @Test
-    @DisplayName("SALES_SLIP sourceKind 는 POSTED 매출전표를 집계한다")
+    @DisplayName("SALES_SLIP sourceKind 는 POSTED 출고전표를 집계한다")
     void salesSlipSourceAggregatesPostedSalesSlips() {
         SalesAccountingSlip slip = postedSalesSlip("2026/05/19-1",
                 new BigDecimal("200000"), new BigDecimal("20000"));
@@ -109,7 +109,7 @@ class DailyClosingServiceSourceKindTest {
     }
 
     @Test
-    @DisplayName("PURCHASE_SLIP sourceKind 는 POSTED 매입전표를 집계한다")
+    @DisplayName("PURCHASE_SLIP sourceKind 는 POSTED 입고전표를 집계한다")
     void purchaseSlipSourceAggregatesPostedPurchaseSlips() {
         PurchaseAccountingSlip slip = postedPurchaseSlip("2026/05/19-1",
                 new BigDecimal("300000"), new BigDecimal("30000"));
@@ -143,7 +143,7 @@ class DailyClosingServiceSourceKindTest {
                 "accountant", null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("매출 마감")
-                .hasMessageContaining("매입전표")
+                .hasMessageContaining("입고전표")
                 .hasMessageNotContaining("SALES")
                 .hasMessageNotContaining("PURCHASE_SLIP")
                 .hasMessageNotContaining("closingKind/sourceKind");
@@ -169,7 +169,7 @@ class DailyClosingServiceSourceKindTest {
                 "accountant", null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("매입 마감")
-                .hasMessageContaining("매출전표")
+                .hasMessageContaining("출고전표")
                 .hasMessageNotContaining("PURCHASE")
                 .hasMessageNotContaining("SALES_SLIP")
                 .hasMessageNotContaining("closingKind/sourceKind");

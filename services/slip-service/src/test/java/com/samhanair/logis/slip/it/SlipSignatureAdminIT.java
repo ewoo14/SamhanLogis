@@ -276,7 +276,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("driverName", "기사");
         body.put("driverPhone", "010-1111-2222");
         body.put("lines", List.of(line));

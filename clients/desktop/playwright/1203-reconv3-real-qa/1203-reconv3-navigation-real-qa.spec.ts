@@ -142,7 +142,7 @@ test('다섯 수불행 클릭이 각각 그 건의 상세에 착지한다', asyn
   const browser = await chromium.launch({ executablePath: BROWSER, headless: true })
 
   const cases = [
-    { key: 'sales', no: '2026/08/14-9', rowMarker: '능동에어컨(박수천)', url: /#\/sales\/by-number\?slipNo=2026%2F08%2F14-9$/, heading: '판매전표 상세', unique: ['0000098', '한경희 선풍기'] },
+    { key: 'sales', no: '2026/08/14-9', rowMarker: '능동에어컨(박수천)', url: /#\/sales\/by-number\?slipNo=2026%2F08%2F14-9$/, heading: '출고전표 상세', unique: ['0000098', '한경희 선풍기'] },
     { key: 'inbound', no: '2026/08/14-2', rowMarker: null, url: /#\/purchases\/by-number\?slipNo=2026%2F08%2F14-2$/, heading: '입고전표 상세', unique: ['0000098', 'PR1203-SOL-RECONV2'] },
     { key: 'inspection', no: '2026/08/14-3', rowMarker: '검수 완료 입고', url: /#\/purchases\/by-number\?slipNo=2026%2F08%2F14-3$/, heading: '입고전표 상세', unique: ['0000098', 'INSPECTION'] },
     { key: 'transfer', no: '2026/08/14-15', rowMarker: null, url: /#\/transfers\/by-number\?transferNo=2026%2F08%2F14-15$/, heading: '이동전표 상세', unique: ['00003', 'HQ-001', '요청 수량', '출고 수량', '입고 수량'] },
@@ -328,7 +328,7 @@ test('새 표본으로 이동 불변식·캐시 재GET·실사 입력 세 경로
     const page = await appPage(context, session)
     const detailUrl = `${RENDERER}/#/sales/by-number?slipNo=${encodeURIComponent(outbound.slipNo)}`
     await page.goto(detailUrl, { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: '판매전표 상세' })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('heading', { name: '출고전표 상세' })).toBeVisible({ timeout: 30_000 })
     events.salesShip = await mutationReget(page, page.getByRole('button', { name: '완료 (배송 시작)', exact: true }), `/slips/${outbound.id}/ship`, detailUrl, outbound.slipNo, '05-sales-ship-refetched-real-qa.png')
     outbound = await expectApi(request, session, 'POST', `/slips/${outbound.id}/deliver`, {})
     await page.reload({ waitUntil: 'domcontentloaded' })

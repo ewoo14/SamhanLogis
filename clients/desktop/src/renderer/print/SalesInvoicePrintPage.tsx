@@ -57,7 +57,7 @@ export function SalesInvoicePrintPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="error-banner" role="alert">
-        매출 전표를 불러오지 못했습니다.
+        출고 전표를 불러오지 못했습니다.
       </div>
     )
   }

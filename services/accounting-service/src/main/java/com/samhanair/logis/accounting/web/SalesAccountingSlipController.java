@@ -42,7 +42,7 @@ public class SalesAccountingSlipController {
     }
 
     /**
-     * 매출전표를 회계 반영한다.
+     * 출고전표를 회계 반영한다.
      *
      * @param slipNo 전표번호 path 식별자. URL 단일 세그먼트용 {@code yyyy-MM-dd-N} 하이픈 slug 와
      *               내부 표준 {@code yyyy/MM/dd-N} 를 모두 수용한다.
