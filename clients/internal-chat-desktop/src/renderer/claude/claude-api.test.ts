@@ -41,4 +41,13 @@ describe('Claude conversation API boundary', () => {
       expect.objectContaining({ method: 'POST' }),
     )
   })
+
+  it('reads the standard response envelope and preserves the virtual-agent marker', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      data: { answer: '[가상 에이전트] 실제 Claude 모델 응답이 아닙니다.', virtualAgent: true },
+    }), { status: 200 }))
+
+    await expect(askClaude('라이브 QA', { request })).resolves.toContain('[가상 에이전트]')
+  })
 })

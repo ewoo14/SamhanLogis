@@ -8,11 +8,13 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Import;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import com.samhanair.logis.auth.claude.ClaudeCredentialProperties;
+import com.samhanair.logis.auth.claude.ClaudeVirtualAgentProperties;
 
 /** Auth Service entry point — JWT issuer + account CRUD for SamhanLogis MSA (plan §3.4). */
 @SpringBootApplication
 @Import(JpaAuditingConfig.class)
-@EnableConfigurationProperties({JwtIssueProperties.class, ClaudeCredentialProperties.class})
+@EnableConfigurationProperties({JwtIssueProperties.class, ClaudeCredentialProperties.class,
+        ClaudeVirtualAgentProperties.class})
 public class AuthServiceApplication {
 
     public static void main(String[] args) {

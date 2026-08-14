@@ -5,6 +5,7 @@ export interface ClaudeApiError {
 
 interface ClaudeResponse {
   answer?: unknown
+  data?: { answer?: unknown; virtualAgent?: unknown }
   message?: unknown
 }
 
@@ -42,6 +43,7 @@ export async function askClaude(question: string, options: RequestOptions = {}):
   const response = await request(endpoint, {
     method: 'POST',
     headers,
+    credentials: 'include',
     body: JSON.stringify(options.sessionCode ? { question, sessionCode: options.sessionCode } : { question }),
   })
   const payload = await response.json() as ClaudeResponse
@@ -52,10 +54,11 @@ export async function askClaude(question: string, options: RequestOptions = {}):
     }
     throw error
   }
-  if (typeof payload.answer !== 'string' || payload.answer.length === 0) {
+  const data = payload.data ?? payload
+  if (typeof data.answer !== 'string' || data.answer.length === 0) {
     throw { status: response.status, message: 'Claude 응답이 비어 있습니다.' } satisfies ClaudeApiError
   }
-  return payload.answer
+  return data.answer
 }
 
 export function claudeErrorMessage(error: unknown): string {
@@ -72,6 +75,7 @@ export async function createClaudeSession(options: Pick<RequestOptions, 'request
   const response = await request(`${baseUrl()}/auth/claude/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) },
+    credentials: 'include',
     body: JSON.stringify({}),
   })
   return parseResponse<ClaudeSession>(response)
@@ -81,6 +85,7 @@ export async function listClaudeSessions(options: Pick<RequestOptions, 'request'
   const request = options.request ?? fetch
   const response = await request(`${baseUrl()}/auth/claude/sessions`, {
     headers: { Accept: 'application/json', ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) },
+    credentials: 'include',
   })
   return parseResponse<ClaudeSession[]>(response)
 }

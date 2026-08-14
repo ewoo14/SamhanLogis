@@ -7,9 +7,11 @@ import java.net.http.HttpResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 /** Anthropic Messages API 호출 구현. 사용자 질문만 전송하며 업무 API/DB 접근은 하지 않는다. */
 @Component
+@ConditionalOnProperty(name = "claude.virtual-agent.enabled", havingValue = "false", matchIfMissing = true)
 public class AnthropicClaudeModelClient implements ClaudeModelClient {
 
     private final ClaudeCredentialProperties properties;

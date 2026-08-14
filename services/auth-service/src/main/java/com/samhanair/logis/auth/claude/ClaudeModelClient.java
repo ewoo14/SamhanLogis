@@ -5,4 +5,9 @@ public interface ClaudeModelClient {
 
     /** 질문을 외부 모델에 전달하고 모델의 텍스트 응답을 반환한다. */
     String ask(String question);
+
+    /** 응답이 실제 외부 모델이 아닌 QA 가상 에이전트인지 구분한다. */
+    default boolean isVirtual() {
+        return false;
+    }
 }

@@ -49,18 +49,27 @@ public class ClaudeConversationService {
     @Transactional
     public String ask(UUID accountId, String sessionCode, String question) {
         if (sessionCode != null && sessionRepository.findBySessionCodeAndAccountIdAndIsDeletedFalse(sessionCode, accountId).isEmpty()) {
+            auditRecorder.record(accountId, sessionCode, redactInternalIdentifiers(question),
+                    "question=" + redactInternalIdentifiers(question) + "; apiResponses=[]", "DENIED_SESSION_OWNER");
             throw new BusinessException(ErrorCode.NOT_FOUND, "Claude 세션을 찾을 수 없습니다.");
         }
         String safeQuestion = redactInternalIdentifiers(question);
         String outboundPayload = "question=" + safeQuestion + "; apiResponses=[]";
-        if (!properties.isConfigured()) {
+        if (!properties.isConfigured() && !modelClient.isVirtual()) {
             auditRecorder.record(accountId, sessionCode, safeQuestion, outboundPayload, "NOT_SENT");
             throw new BusinessException(
                     ErrorCode.CLAUDE_CREDENTIAL_NOT_CONFIGURED,
                     "Claude 자격이 설정되지 않았습니다. ANTHROPIC_API_KEY를 주입한 뒤 다시 시도해주세요.");
         }
-        auditRecorder.record(accountId, sessionCode, safeQuestion, outboundPayload, "SENT");
+        auditRecorder.record(accountId, sessionCode, safeQuestion, outboundPayload,
+                modelClient.isVirtual() ? "VIRTUAL_SENT" : "SENT");
         return modelClient.ask(safeQuestion);
+    }
+
+    /** 권한·토큰·세션 검증으로 거부된 시도를 독립 감사 트랜잭션에 남긴다. */
+    public void recordDenied(UUID accountId, String sessionCode, String reason) {
+        auditRecorder.record(accountId, sessionCode, "[REDACTED]",
+                "question=[REDACTED]; apiResponses=[]", "DENIED_" + reason);
     }
 
     private String redactInternalIdentifiers(String question) {

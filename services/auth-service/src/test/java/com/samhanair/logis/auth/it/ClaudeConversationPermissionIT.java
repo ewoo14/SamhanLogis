@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.auth.AuthServiceApplication;
 import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.common.security.JwtTokenProvider;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +45,7 @@ class ClaudeConversationPermissionIT extends AbstractPostgresIT {
             UUID.fromString("a9010000-0000-0000-0000-000000000001");
     private static final UUID GROUP_ID =
             UUID.fromString("a9010000-0000-0000-0000-000000000101");
+    private static final byte[] JWT_SECRET = "test-secret-key-32-chars-min-aaaaaa".getBytes();
     private static final List<UUID> BUILTIN_GROUP_IDS = List.of(
             UUID.fromString("00000000-0000-0000-0000-000000000100"),
             UUID.fromString("00000000-0000-0000-0000-000000000101"),
@@ -102,8 +104,33 @@ class ClaudeConversationPermissionIT extends AbstractPostgresIT {
     @DisplayName("축 0 off 계정은 Claude 대화 정문에서 실 HTTP 403으로 거부된다")
     void offAccount_isRejectedByServer() throws Exception {
         mockMvc.perform(post("/auth/claude/conversations")
-                        .header("X-User-Id", ACCOUNT_ID))
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("Authorization", bearer()))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("토큰이 없으면 X-User-Id 위조만으로 Claude에 진입할 수 없다")
+    void missingToken_isRejectedByServer() throws Exception {
+        mockMvc.perform(post("/auth/claude/conversations")
+                        .header("X-User-Id", ACCOUNT_ID))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("만료 토큰과 다른 서비스 토큰은 Claude 토큰 계약에서 거부된다")
+    void expiredOrOtherServiceToken_isRejected() throws Exception {
+        String expired = JwtTokenProvider.generate(ACCOUNT_ID.toString(), null, -1, JWT_SECRET);
+        mockMvc.perform(post("/auth/claude/conversations")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("Authorization", "Bearer " + expired))
+                .andExpect(status().isUnauthorized());
+
+        String partner = JwtTokenProvider.generateForPartner(ACCOUNT_ID.toString(), "P901", 3600, JWT_SECRET);
+        mockMvc.perform(post("/auth/claude/conversations")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("Authorization", "Bearer " + partner))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -114,7 +141,8 @@ class ClaudeConversationPermissionIT extends AbstractPostgresIT {
         String body = mockMvc.perform(post("/auth/claude/conversations")
                         .contentType("application/json")
                         .content("{\"question\":\"대화 질문\"}")
-                        .header("X-User-Id", ACCOUNT_ID))
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("Authorization", bearer()))
                 .andExpect(status().isServiceUnavailable())
                 .andReturn()
                 .getResponse()
@@ -131,7 +159,8 @@ class ClaudeConversationPermissionIT extends AbstractPostgresIT {
         String body = mockMvc.perform(post("/auth/claude/conversations")
                         .contentType("application/json")
                         .content("{\"question\":\"오늘 배차 현황을 알려줘\"}")
-                        .header("X-User-Id", ACCOUNT_ID))
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("Authorization", bearer()))
                 .andExpect(status().isServiceUnavailable())
                 .andReturn()
                 .getResponse()
@@ -149,7 +178,8 @@ class ClaudeConversationPermissionIT extends AbstractPostgresIT {
         mockMvc.perform(post("/auth/claude/conversations")
                         .contentType("application/json")
                         .content("{\"question\":\"거래처별 금액을 알려줘\"}")
-                        .header("X-User-Id", ACCOUNT_ID))
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("Authorization", bearer()))
                 .andExpect(status().isServiceUnavailable());
 
         Map<String, Object> audit = jdbc.queryForMap("""
@@ -215,5 +245,9 @@ class ClaudeConversationPermissionIT extends AbstractPostgresIT {
                 VALUES (gen_random_uuid(), ?, ?, TRUE, FALSE, FALSE, FALSE,
                         FALSE, FALSE, FALSE, NOW(), 'it-901', NOW(), 'it-901', FALSE)
                 """, ACCOUNT_ID, PAGE);
+    }
+
+    private String bearer() {
+        return "Bearer " + JwtTokenProvider.generate(ACCOUNT_ID.toString(), null, 3600, JWT_SECRET);
     }
 }

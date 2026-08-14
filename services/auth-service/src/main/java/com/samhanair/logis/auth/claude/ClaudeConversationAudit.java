@@ -18,7 +18,7 @@ public class ClaudeConversationAudit extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "account_id", nullable = false)
+    @Column(name = "account_id")
     private UUID accountId;
 
     @Column(name = "question", nullable = false, columnDefinition = "TEXT")
