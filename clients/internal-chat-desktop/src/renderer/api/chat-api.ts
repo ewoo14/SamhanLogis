@@ -13,7 +13,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const fetchDirectory = () => request<Employee[]>('/api/users/messenger/directory')
 export const fetchMe = () => request<Employee>('/api/users/messenger/me')
 export const joinPresence = (sessionId: string) => request<void>(`/api/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'POST' })
-export const leavePresence = (sessionId: string) => request<void>(`/api/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
+export const leavePresence = (sessionId: string) => request<void>(`/api/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', keepalive: true })
 export const updatePresence = (presenceStatus: PresenceStatus) => request<void>('/api/users/messenger/presence', { method: 'PUT', body: JSON.stringify({ presenceStatus }) })
 export const fetchRooms = () => request<ChatRoom[]>('/admin/groupware/chat/rooms')
 export const fetchGroups = () => request<ChatRoom[]>('/admin/groupware/chat/rooms/groups')

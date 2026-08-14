@@ -27,6 +27,15 @@ import * as presenceApi from "./api/presence-api";
 import * as mainApi from "./api/chatApi";
 import type { Employee, PresenceStatus } from "./api/chat-api";
 
+declare global {
+  interface Window {
+    internalChatShell?: {
+      appName: string;
+      onWillQuit: (listener: () => void) => () => void;
+    };
+  }
+}
+
 const presenceLabels: Record<PresenceStatus, string> = {
   AVAILABLE: "접속",
   AWAY: "자리비움",
@@ -134,9 +143,16 @@ function sortedGroups(directory: Employee[]) {
 }
 function formatRoomTime(value?: string | null) {
   if (!value) return "";
-  const date = new Date(value);
-  const hour = date.getHours();
-  return `${hour < 12 ? "오전" : "오후"} ${hour % 12 || 12}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(new Date(value));
+  const period = parts.find((part) => part.type === "dayPeriod")?.value === "AM" ? "오전" : "오후";
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "";
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "";
+  return `${period} ${hour}:${minute}`;
 }
 function MessengerPage({ mode }: { mode: "individual" | "group" }) {
   const client = useQueryClient();
@@ -189,30 +205,6 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
         old ? { ...old, presenceStatus: status } : old,
       ),
   });
-  useEffect(() => {
-    void chatApi.joinPresence(presenceSession);
-    return () => {
-      void chatApi.leavePresence(presenceSession);
-    };
-  }, []);
-  useEffect(
-    () =>
-      presenceApi.subscribePresence((event) => {
-        if (event.employeeCode)
-          client.setQueryData<Employee[]>(["directory"], (old) =>
-            old?.map((e) =>
-              e.employeeCode === event.employeeCode
-                ? { ...e, presenceStatus: event.presenceStatus }
-                : e,
-            ),
-          );
-        else
-          client.setQueryData<Employee>(["me"], (old) =>
-            old ? { ...old, presenceStatus: event.presenceStatus } : old,
-          );
-      }),
-    [client],
-  );
   const filtered = (directory.data ?? []).filter(
     (e) =>
       !query.trim() || `${e.name} ${e.departmentName}`.includes(query.trim()),
@@ -282,6 +274,7 @@ function MessengerPage({ mode }: { mode: "individual" | "group" }) {
                 {(rooms.data ?? []).map((room) => (
                   <li key={room.roomCode}>
                     <button type="button" className="conversation group-room" onClick={() => setRoomCode(room.roomCode)}>
+                      <span className="room-avatar" aria-hidden="true">{(room.roomName ?? room.partnerName ?? "그룹").slice(0, 1)}</span>
                       <strong>{room.roomName ?? room.partnerName ?? room.roomCode}</strong>
                       <small>{room.lastMessage ?? ""}</small>
                       {room.memberCount ? <b>{room.memberCount}</b> : null}
@@ -427,19 +420,44 @@ function ClaudePage() {
   );
 }
 function V2App() {
+  const client = useQueryClient();
   const [page, setPage] = useState<"individual" | "group" | "claude">(
     "individual",
   );
+  useEffect(() => {
+    void chatApi.joinPresence(presenceSession);
+    const leave = () => { void chatApi.leavePresence(presenceSession); };
+    const removeQuitListener = window.internalChatShell?.onWillQuit(leave);
+    const unsubscribe = presenceApi.subscribePresence((event) => {
+      if (event.employeeCode) {
+        client.setQueryData<Employee[]>(["directory"], (old) =>
+          old?.map((employee) => employee.employeeCode === event.employeeCode
+            ? { ...employee, presenceStatus: event.presenceStatus }
+            : employee),
+        );
+      } else {
+        client.setQueryData<Employee>(["me"], (old) =>
+          old ? { ...old, presenceStatus: event.presenceStatus } : old,
+        );
+      }
+    });
+    return () => {
+      removeQuitListener?.();
+      unsubscribe();
+      leave();
+    };
+  }, [client]);
   return (
     <div className="app-shell">
+      <header className="messenger-brand" aria-label="앱 이름">삼한 메신저</header>
       <nav className="page-chips" aria-label="메신저 페이지 전환">
-        <button type="button" onClick={() => setPage("individual")}>
+        <button className={`page-chip${page === "individual" ? " active" : ""}`} type="button" aria-current={page === "individual" ? "page" : undefined} onClick={() => setPage("individual")}>
           개별
         </button>
-        <button type="button" onClick={() => setPage("group")}>
+        <button className={`page-chip${page === "group" ? " active" : ""}`} type="button" aria-current={page === "group" ? "page" : undefined} onClick={() => setPage("group")}>
           그룹별
         </button>
-        <button type="button" onClick={() => setPage("claude")}>
+        <button className={`page-chip${page === "claude" ? " active" : ""}`} type="button" aria-current={page === "claude" ? "page" : undefined} onClick={() => setPage("claude")}>
           클로드
         </button>
       </nav>

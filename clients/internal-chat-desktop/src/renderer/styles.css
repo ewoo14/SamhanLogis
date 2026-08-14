@@ -6,6 +6,7 @@
 body { margin: 0; min-width: 960px; background: var(--color-surface-100); }
 button, textarea, input { font: inherit; }
 .app-shell { min-height: 100vh; }
+.messenger-brand { padding: var(--space-5) var(--space-8) 0; color: var(--color-ink-900); font-size: var(--font-size-2xl); font-weight: var(--font-weight-700); letter-spacing: -0.03em; }
 .app-tabs { height: 64px; display: flex; align-items: end; gap: var(--space-6); padding: 0 var(--space-8); border-bottom: 1px solid var(--color-line-200); background: var(--color-surface-0); }
 .page-chips { display: flex; gap: var(--space-2); overflow-x: auto; padding: var(--space-4) var(--space-8) var(--space-2); background: var(--color-surface-0); }
 .page-chip { display: inline-flex; align-items: center; flex: 0 0 auto; min-height: 36px; padding: var(--space-2) var(--space-4); border: 0; border-radius: var(--radius-full); color: var(--color-ink-500); background: var(--color-surface-100); cursor: pointer; font-weight: var(--font-weight-600); }
@@ -92,6 +93,7 @@ button, textarea, input { font: inherit; }
 .presence-away { background: #f59e0b; }
 .presence-absent { background: #ef4444; }
 .presence-offline { background: #94a3b8; }
+.room-avatar { display: inline-flex; align-items: center; justify-content: center; width: var(--space-10); height: var(--space-10); border-radius: var(--radius-full); background: var(--color-brand-100); color: var(--color-brand-700); font-weight: 700; }
 .chat-layout { min-height: 100vh; max-width: 860px; margin: 0 auto; display: grid; align-content: start; gap: 16px; padding: 28px; }
 .chat-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .chat-header h1 { margin: 0; }

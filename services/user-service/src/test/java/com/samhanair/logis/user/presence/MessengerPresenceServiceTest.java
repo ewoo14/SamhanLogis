@@ -64,4 +64,21 @@ class MessengerPresenceServiceTest {
 
         verify(presences, atLeast(2)).save(any(MessengerPresence.class));
     }
+
+    @Test
+    void leavingOneOfTwoSessionsKeepsEmployeeOnline() {
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = org.mockito.Mockito.mock(Employee.class);
+        when(employee.getEcountCode()).thenReturn("E1");
+        when(employees.findById(employeeId)).thenReturn(Optional.of(employee));
+        var presence = MessengerPresence.create(employeeId);
+        when(presences.findByEmployeeId(employeeId)).thenReturn(Optional.of(presence));
+        when(presences.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.join(employeeId, "desktop-a");
+        service.join(employeeId, "desktop-b");
+        service.leave(employeeId, "desktop-a");
+
+        org.assertj.core.api.Assertions.assertThat(presence.getStatus()).isEqualTo(PresenceStatus.AVAILABLE);
+    }
 }

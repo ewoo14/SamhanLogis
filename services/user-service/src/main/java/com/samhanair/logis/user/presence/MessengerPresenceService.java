@@ -30,6 +30,7 @@ public class MessengerPresenceService {
     private final ObjectMapper objectMapper;
     private final Supplier<SseEmitter> emitterFactory;
     private final Map<UUID, Set<SseEmitter>> streams = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<String>> sessions = new ConcurrentHashMap<>();
 
     @Autowired
     public MessengerPresenceService(EmployeeRepository employees, MessengerPresenceRepository presences, ObjectMapper objectMapper) {
@@ -71,6 +72,7 @@ public class MessengerPresenceService {
     public void join(UUID employeeId, String sessionId) {
         if (sessionId == null || sessionId.isBlank()) throw new BusinessException(ErrorCode.INVALID_INPUT, "sessionId는 필수입니다");
         connect(employeeId);
+        sessions.computeIfAbsent(employeeId, ignored -> ConcurrentHashMap.newKeySet()).add(sessionId.trim());
         touchActivity(employeeId);
     }
 
@@ -87,6 +89,11 @@ public class MessengerPresenceService {
 
     @Transactional
     public void leave(UUID employeeId, String sessionId) {
+        var activeSessions = sessions.get(employeeId);
+        if (activeSessions != null) {
+            activeSessions.remove(sessionId);
+            if (activeSessions.isEmpty()) sessions.remove(employeeId, activeSessions);
+        }
         disconnectIfUnused(employeeId);
     }
 
@@ -147,6 +154,7 @@ public class MessengerPresenceService {
     }
 
     private void disconnectIfUnused(UUID employeeId) {
+        if (!sessions.getOrDefault(employeeId, Set.of()).isEmpty()) return;
         if (!streams.getOrDefault(employeeId, Set.of()).isEmpty()) return;
         var current = presences.findByEmployeeId(employeeId).orElse(null);
         if (current != null && current.getStatus() != PresenceStatus.OFFLINE) {

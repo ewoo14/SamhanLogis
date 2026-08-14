@@ -2,7 +2,6 @@ import './styles.css'
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
 import { ChatApp } from './ChatApp'
 
 type UpdateStatus =
@@ -40,7 +39,7 @@ const VERSION_API_BASE_URL = String(import.meta.env.VITE_VERSION_API_BASE_URL ??
 const VERSION_POLICY_FAILURE_MESSAGE = '버전 정책을 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-createRoot(root).render(createElement(QueryClientProvider, { client: queryClient }, createElement(MemoryRouter, { basename: '/chat', initialEntries: ['/chat'] }, createElement(ChatApp))))
+createRoot(root).render(createElement(QueryClientProvider, { client: queryClient }, createElement(ChatApp)))
 
 const shell = root.querySelector<HTMLElement>('.shell')
 let updateStatusNotice: HTMLElement | null = null

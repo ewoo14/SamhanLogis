@@ -40,6 +40,8 @@ describe('internal chat desktop app shell contract', () => {
     const viteConfig = read('electron.vite.config.ts')
     const main = read('src/main/index.ts')
 
+    expect(main).toContain("app.setName('삼한 메신저')")
+    expect(main).toContain("mainWindow?.webContents.send('internal-chat:will-quit')")
     expect(viteConfig).toContain("format: 'cjs'")
     expect(main).toContain('contextIsolation: true')
     expect(main).toContain('nodeIntegration: false')
@@ -49,6 +51,8 @@ describe('internal chat desktop app shell contract', () => {
   it('declares a packaged mascot resource for the tray', () => {
     const builderConfig = read('electron-builder.yml')
 
+    expect(builderConfig).toContain('productName: 삼한 메신저')
+    expect(builderConfig).toContain('shortcutName: 삼한 메신저')
     expect(builderConfig).toContain('samhani-tray.png')
   })
 

@@ -7,6 +7,11 @@ contextBridge.exposeInMainWorld('internalChatNavigation', {
 
 contextBridge.exposeInMainWorld('internalChatShell', {
   appName: '삼한 메신저',
+  onWillQuit: (listener: () => void): (() => void) => {
+    const handler = () => listener()
+    ipcRenderer.on('internal-chat:will-quit', handler)
+    return () => ipcRenderer.removeListener('internal-chat:will-quit', handler)
+  },
 })
 
 contextBridge.exposeInMainWorld('internalChatUpdater', {
