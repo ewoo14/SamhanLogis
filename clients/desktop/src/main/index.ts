@@ -56,7 +56,8 @@ function createMainWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: 'Samhan Public',
-    webPreferences: {
+      webPreferences: {
+      devTools: !app.isPackaged,
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,

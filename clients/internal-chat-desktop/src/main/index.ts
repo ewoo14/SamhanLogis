@@ -79,7 +79,8 @@ function createMainWindow(): void {
     show: false,
     autoHideMenuBar: true,
   title: '삼한 메신저',
-    webPreferences: {
+      webPreferences: {
+      devTools: !app.isPackaged,
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
@@ -136,6 +137,7 @@ function openConversationWindow(request: { roomCode?: string; sessionCode?: stri
     title: request.title || '삼한 메신저',
     autoHideMenuBar: true,
     webPreferences: {
+      devTools: !app.isPackaged,
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,

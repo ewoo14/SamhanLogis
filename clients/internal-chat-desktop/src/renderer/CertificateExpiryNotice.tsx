@@ -8,7 +8,7 @@ export function CertificateExpiryNotice({ now = new Date(), metadata }: { now?: 
   const resolvedMetadata = metadata ?? resolveCertificateMetadata(
     registry,
     typeof window === 'undefined' ? '' : window.location.search,
-    true,
+    import.meta.env.DEV,
     now,
   )
   const result = classifyCertificateExpiry({ ...resolvedMetadata, now })

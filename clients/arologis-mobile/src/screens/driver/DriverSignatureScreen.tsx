@@ -10,6 +10,7 @@ import type { DispatchVehicleSummary } from '../../api/arologis';
 import type { CopyFailureReason, SignAndSendCopyResult } from '../../api/arologis';
 import { getCurrentPositionAsync } from '../../hooks/useGpsPermission';
 import { badgeStyle, colors, radii, spacing, typography } from '../../theme/tokens';
+import { setOtaActivitySource } from '../../version/otaUpdates';
 
 export interface SignatureTarget {
   dispatchType: DispatchVehicleSummary['dispatchType'];
@@ -138,6 +139,7 @@ export default function DriverSignatureScreen({
     }
 
     setState((prev) => ({ ...prev, submitting: true, toast: null, retryable: false }));
+    setOtaActivitySource('driver-signature-submit', true);
     try {
       const capturedAt = (state.capturedAt ?? new Date().toISOString()).replace('Z', '');
       const result = await signAndSendCopy(
@@ -163,6 +165,8 @@ export default function DriverSignatureScreen({
         toast: `서명 처리 실패: ${message}`,
         retryable: true,
       }));
+    } finally {
+      setOtaActivitySource('driver-signature-submit', false);
     }
   };
 

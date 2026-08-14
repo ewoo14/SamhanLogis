@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArologisApiError, uploadStopPhoto, type DispatchVehicleSummary, type PhotoType } from '../../api/arologis';
 import PhotoAttachmentCapture, { type PhotoItem } from '../../components/PhotoAttachmentCapture';
 import { badgeStyle, colors, radii, spacing, typography } from '../../theme/tokens';
+import { setOtaActivitySource } from '../../version/otaUpdates';
 
 export interface PhotoTarget {
   dispatchType: DispatchVehicleSummary['dispatchType'];
@@ -73,6 +74,7 @@ export default function DriverPhotoScreen({
       return;
     }
     setBusy(true);
+    setOtaActivitySource('driver-photo-upload', true);
     setToast(null);
     const next = photos.map((_, index) => statuses[index] ?? { uploading: false, uploaded: false });
     for (let i = 0; i < photos.length; i += 1) {
@@ -97,6 +99,7 @@ export default function DriverPhotoScreen({
       setStatuses([...next]);
     }
     setBusy(false);
+    setOtaActivitySource('driver-photo-upload', false);
     const done = next.filter((status) => status.uploaded).length;
     const failed = next.filter((status) => status.error).length;
     setToast(failed > 0 ? `${done}장 성공 / ${failed}장 실패` : `${done}장 업로드 완료`);

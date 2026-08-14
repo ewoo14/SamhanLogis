@@ -69,7 +69,8 @@ function createMainWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: '아로로지스',
-    webPreferences: {
+      webPreferences: {
+      devTools: !app.isPackaged,
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,

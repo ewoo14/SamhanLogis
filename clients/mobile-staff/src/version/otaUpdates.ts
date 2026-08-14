@@ -5,7 +5,7 @@ export type OtaUpdateResult = 'skipped' | 'not-available' | 'deferred' | 'reload
 export type OtaUpdatePhase = 'idle' | 'checking' | 'downloading' | 'available' | 'applying' | 'failed';
 export interface OtaUpdatesApi { isEnabled: boolean; checkForUpdateAsync: () => Promise<{ isAvailable: boolean }>; fetchUpdateAsync: () => Promise<{ isNew: boolean }>; reloadAsync: () => Promise<void>; }
 export interface OtaUpdateSnapshot { phase: OtaUpdatePhase; result?: OtaUpdateResult; activity: boolean; }
-export interface OtaUpdateCoordinator { check: () => Promise<OtaUpdateResult>; setActivity: (active: boolean) => void; applyNow: () => Promise<void>; flush: () => Promise<void>; subscribe: (listener: (snapshot: OtaUpdateSnapshot) => void) => () => void; }
+export interface OtaUpdateCoordinator { check: () => Promise<OtaUpdateResult>; setActivity: (active: boolean) => void; setActivitySource: (source: string, active: boolean) => void; applyNow: () => Promise<void>; flush: () => Promise<void>; subscribe: (listener: (snapshot: OtaUpdateSnapshot) => void) => () => void; }
 
 const MAX_DEFERRAL_MS = 5 * 60 * 1000;
 const NOTICE_DELAY_MS = 1_500;
@@ -13,6 +13,7 @@ const expoUpdatesApi: OtaUpdatesApi = { isEnabled: Updates.isEnabled, checkForUp
 
 export function createOtaUpdateCoordinator({ updates = expoUpdatesApi, maxDeferralMs = MAX_DEFERRAL_MS, noticeDelayMs = NOTICE_DELAY_MS }: { updates?: OtaUpdatesApi; maxDeferralMs?: number; noticeDelayMs?: number } = {}): OtaUpdateCoordinator {
   let activity = false;
+  const activitySources = new Map<string, boolean>();
   let fetched = false;
   let checking: Promise<OtaUpdateResult> | null = null;
   let applying: Promise<void> | null = null;
@@ -48,7 +49,15 @@ export function createOtaUpdateCoordinator({ updates = expoUpdatesApi, maxDeferr
     })();
     return checking;
   };
-  return { check, setActivity(next) { activity = next; notify({ ...snapshot, activity }); if (!activity && fetched) void apply(); }, applyNow: () => apply(), async flush() { await checking; await applying; }, subscribe(listener) { listeners.add(listener); listener(snapshot); return () => listeners.delete(listener); } };
+  const setActivitySource = (source: string, next: boolean) => {
+    activitySources.set(source, next);
+    const wasActive = activity;
+    activity = Array.from(activitySources.values()).some(Boolean);
+    notify({ ...snapshot, activity });
+    if (activity && !wasActive && fetched) schedule();
+    if (!activity && fetched) void apply();
+  };
+  return { check, setActivity(next) { setActivitySource('default', next); }, setActivitySource, applyNow: () => apply(), async flush() { await checking; await applying; }, subscribe(listener) { listeners.add(listener); listener(snapshot); return () => listeners.delete(listener); } };
 }
 
 function shouldSkipOtaUpdateCheck(): boolean {
@@ -59,4 +68,5 @@ function shouldSkipOtaUpdateCheck(): boolean {
 export const otaUpdateCoordinator = createOtaUpdateCoordinator();
 export function checkForOtaUpdate(): Promise<OtaUpdateResult> { return otaUpdateCoordinator.check(); }
 export function setOtaActivity(active: boolean): void { otaUpdateCoordinator.setActivity(active); }
+export function setOtaActivitySource(source: string, active: boolean): void { otaUpdateCoordinator.setActivitySource(source, active); }
 export function subscribeToOtaUpdates(listener: (snapshot: OtaUpdateSnapshot) => void): () => void { return otaUpdateCoordinator.subscribe(listener); }

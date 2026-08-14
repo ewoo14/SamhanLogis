@@ -38,4 +38,24 @@ describe('arologis-mobile OTA coordinator', () => {
     expect(api.reloadAsync).toHaveBeenCalledTimes(1);
     expect(api.fetchUpdateAsync).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the fetched bundle deferred when the tab changes but an upload source remains active', async () => {
+    const api = {
+      isEnabled: true,
+      checkForUpdateAsync: jest.fn().mockResolvedValue({ isAvailable: true }),
+      fetchUpdateAsync: jest.fn().mockResolvedValue({ isNew: true }),
+      reloadAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    const coordinator = createOtaUpdateCoordinator({ updates: api, noticeDelayMs: 20, maxDeferralMs: 120 });
+
+    coordinator.setActivitySource('driver-tab', true);
+    coordinator.setActivitySource('photo-upload', true);
+    await coordinator.check();
+    coordinator.setActivitySource('driver-tab', false);
+    await Promise.resolve();
+
+    expect(api.reloadAsync).not.toHaveBeenCalled();
+    coordinator.setActivitySource('photo-upload', false);
+    expect(api.reloadAsync).toHaveBeenCalledTimes(1);
+  });
 });

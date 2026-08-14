@@ -42,4 +42,22 @@ describe('mobile-staff OTA coordinator', () => {
     await jest.advanceTimersByTimeAsync(1_500);
     expect(api.reloadAsync).toHaveBeenCalledTimes(1);
   });
+
+  it('moves an idle notice timer to the maximum deferral when quote work starts', async () => {
+    const api = {
+      isEnabled: true,
+      checkForUpdateAsync: jest.fn().mockResolvedValue({ isAvailable: true }),
+      fetchUpdateAsync: jest.fn().mockResolvedValue({ isNew: true }),
+      reloadAsync: jest.fn().mockResolvedValue(undefined),
+    };
+    const coordinator = createOtaUpdateCoordinator({ updates: api, noticeDelayMs: 20, maxDeferralMs: 120 });
+
+    await coordinator.check();
+    await jest.advanceTimersByTimeAsync(10);
+    coordinator.setActivity(true);
+    await jest.advanceTimersByTimeAsync(20);
+    expect(api.reloadAsync).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(100);
+    expect(api.reloadAsync).toHaveBeenCalledTimes(1);
+  });
 });
