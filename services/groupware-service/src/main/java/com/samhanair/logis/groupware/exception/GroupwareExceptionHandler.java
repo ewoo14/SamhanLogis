@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
+import com.samhanair.logis.groupware.claude.UnknownClaudeToolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
@@ -27,6 +30,27 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 public class GroupwareExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GroupwareExceptionHandler.class);
+
+    /** allowlist 밖의 Claude 도구는 내부 오류가 아닌 명시적 미존재로 표면화한다. */
+    @ExceptionHandler(UnknownClaudeToolException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnknownClaudeTool(UnknownClaudeToolException ex) {
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.NOT_FOUND, "요청한 Claude 도구를 찾을 수 없습니다."));
+    }
+
+    /** 지원하지 않는 HTTP method는 내부 오류가 아닌 명시적 method 계약 위반으로 표면화한다. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnsupportedMethod(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.fail(ErrorCode.METHOD_NOT_ALLOWED, "허용되지 않은 HTTP 메서드입니다."));
+    }
+
+    /** 도구 경로 자체가 등록되지 않은 경우도 allowlist 미등록과 같은 404 계약을 사용한다. */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingResource(NoResourceFoundException ex) {
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.NOT_FOUND, "요청한 Claude 도구를 찾을 수 없습니다."));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
