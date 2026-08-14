@@ -46,6 +46,15 @@ final class SlipSalesAccessGuard {
             "00000000-0000-0000-0000-000000000102"   // SALES   빌트인 그룹
     );
 
+    /** QR 최소 문맥에만 허용하는 창고·재고 그룹 UUID (전체 영업 상세에는 사용하지 않는다). */
+    static final Set<String> OUTBOUND_SCAN_CONTEXT_GROUP_IDS = Set.of(
+            "00000000-0000-0000-0000-000000000100",
+            "00000000-0000-0000-0000-000000000101",
+            "00000000-0000-0000-0000-000000000102",
+            "00000000-0000-0000-0000-000000000103",
+            "00000000-0000-0000-0000-000000000105"
+    );
+
     private SlipSalesAccessGuard() {
     }
 
@@ -102,6 +111,29 @@ final class SlipSalesAccessGuard {
     static void guardOutboundSalesRead(SlipType slipType, String role,
                                        String userGroups, String isSystemMaster) {
         guardOutboundSalesRead(slipType, null, role, userGroups, isSystemMaster, false);
+    }
+
+    /**
+     * 창고 QR 출고 전용 최소 문맥 조회 권한.
+     * 전체 매출 상세 권한은 열지 않고 WAREHOUSE/INVENTORY만 별도 표면에 허용한다.
+     */
+    static void guardOutboundScanContext(SlipType slipType, String role,
+                                          String userGroups, String isSystemMaster) {
+        if (slipType != SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "QR 출고 문맥은 출고 전표만 허용합니다.");
+        }
+        if ("true".equalsIgnoreCase(isSystemMaster)
+                || "SALES".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role)
+                || "WAREHOUSE".equals(role) || "INVENTORY".equals(role)) {
+            return;
+        }
+        for (String groupId : PermissionAspect.parseGroupsHeader(userGroups)) {
+            if (OUTBOUND_SCAN_CONTEXT_GROUP_IDS.contains(groupId)) {
+                return;
+            }
+        }
+        throw new BusinessException(ErrorCode.FORBIDDEN,
+                "QR 출고 문맥 조회는 WAREHOUSE / INVENTORY / SALES / MANAGER / MASTER 권한만 허용합니다.");
     }
 
     /**

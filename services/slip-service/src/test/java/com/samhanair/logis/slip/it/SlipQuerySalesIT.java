@@ -2,7 +2,9 @@ package com.samhanair.logis.slip.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -465,6 +467,56 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "WAREHOUSE"))
                 .andExpect(status().isForbidden());
+    }
+
+    /**
+     * #1210 RED: WAREHOUSE 는 전체 상세 대신 최소 QR scan-context 로 출고전표에 도달해야 한다.
+     * 현재 구현에는 endpoint 가 없으므로 RED 단계에서 404 로 실패한다.
+     */
+    @Test
+    @DisplayName("#1210 RED: WAREHOUSE 는 출고전표 scan-context 에 도달하고 영업 정보·UUID를 받지 않는다")
+    void warehouseCanReachOutboundScanContextWithoutSalesFieldsOrUuid() throws Exception {
+        String id = createSlip("OUTBOUND", TODAY, "RED-SALES-PARTNER");
+
+        mockMvc.perform(get(SLIPS_PATH + "/{id}/scan-context", id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slipNo").exists())
+                .andExpect(jsonPath("$.data.slipType", is("OUTBOUND")))
+                .andExpect(jsonPath("$.data.lines").isArray())
+                .andExpect(jsonPath("$.data.id").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerName").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerCode").doesNotExist())
+                .andExpect(jsonPath("$.data.totalAmount").doesNotExist())
+                .andExpect(jsonPath("$.data.discountInfo").doesNotExist())
+                .andExpect(jsonPath("$.data.collectTerm").doesNotExist())
+                .andExpect(jsonPath("$.data.customerAddress").doesNotExist())
+                .andExpect(jsonPath("$.data.receiverPhone").doesNotExist())
+                .andExpect(jsonPath("$.data.businessNumber").doesNotExist())
+                .andExpect(jsonPath("$.data.projectName").doesNotExist())
+                .andExpect(jsonPath("$", notNullValue()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString(TEST_USER_ID.toString()))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("RED-SALES-PARTNER"))));
+    }
+
+    /** 번호 직접 진입도 목록 조회를 거치지 않고 같은 최소 계약을 사용한다. */
+    @Test
+    @DisplayName("#1210 RED: WAREHOUSE 는 출고전표번호로 scan-context 에 직접 도달한다")
+    void warehouseCanReachOutboundScanContextBySlipNumber() throws Exception {
+        String id = createSlip("OUTBOUND", TODAY, "RED-BY-NUMBER-PARTNER");
+        String slipNo = slipRepository.findById(UUID.fromString(id)).orElseThrow().getSlipNo();
+
+        mockMvc.perform(get(SLIPS_PATH + "/scan-context/by-number")
+                        .param("slipNo", slipNo)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slipNo", is(slipNo)))
+                .andExpect(jsonPath("$.data.id").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerName").doesNotExist());
     }
 
     /**

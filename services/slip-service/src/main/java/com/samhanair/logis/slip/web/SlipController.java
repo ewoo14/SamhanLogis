@@ -31,6 +31,7 @@ import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
 import com.samhanair.logis.slip.web.dto.SlipRevertabilityResponse;
 import com.samhanair.logis.slip.web.dto.SlipSearchResult;
+import com.samhanair.logis.slip.web.dto.SlipScanContextResponse;
 import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -287,6 +288,32 @@ public class SlipController {
         SlipSalesAccessGuard.guardOutboundSalesRead(response.slipType(), response.status(), role, userGroups,
                 isSystemMaster, approvalLineAllowed);
         return ApiResponse.ok(response);
+    }
+
+    /**
+     * 창고 QR 출고 전용 최소 문맥 조회 — 전체 매출 상세와 권한·응답 DTO를 분리한다.
+     */
+    @Operation(summary = "QR 출고 최소 문맥 조회", description = "거래처·금액·주소·UUID 없는 출고 스캔용 문맥")
+    @GetMapping("/{id}/scan-context")
+    public ApiResponse<SlipScanContextResponse> getOutboundScanContext(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Role", required = false) String role,
+            @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster) {
+        SlipSalesAccessGuard.guardOutboundScanContext(SlipType.OUTBOUND, role, userGroups, isSystemMaster);
+        return ApiResponse.ok(slipService.getOutboundScanContext(OpaqueUuidDeserializer.decode(id)));
+    }
+
+    /** 전표번호로 진입하는 창고 QR 출고 최소 문맥 조회 — 목록 조회를 거치지 않는다. */
+    @Operation(summary = "전표번호 QR 출고 최소 문맥 조회", description = "출고전표번호 exact lookup")
+    @GetMapping("/scan-context/by-number")
+    public ApiResponse<SlipScanContextResponse> getOutboundScanContextByNumber(
+            @RequestParam String slipNo,
+            @RequestHeader(value = "X-User-Role", required = false) String role,
+            @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster) {
+        SlipSalesAccessGuard.guardOutboundScanContext(SlipType.OUTBOUND, role, userGroups, isSystemMaster);
+        return ApiResponse.ok(slipService.getOutboundScanContext(slipNo));
     }
 
     /** 검수완료 전표의 되돌림 가능성만 조회한다. 실제 되돌림 endpoint는 이 슬라이스에 없다. */

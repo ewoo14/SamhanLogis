@@ -56,6 +56,15 @@ export interface SlipSummary {
   deletedByName?: string | null
 }
 
+/** 창고 QR 출고 전용 최소 문맥 — 영업 정보와 UUID를 포함하지 않는다. */
+export interface SlipScanContext {
+  slipType: 'OUTBOUND'
+  slipNo: string
+  status: SlipStatus
+  canScan: boolean
+  lines: Array<{ productCode: string | null; quantity: number; serialManaged: boolean }>
+}
+
 /** 라인 응답 — BE `SlipLineResponse`. */
 export interface SlipLineDetail {
   id: string
@@ -598,6 +607,16 @@ export async function getSlipByNumber(slipNo: string, slipType: SlipType): Promi
   const summary = page.content.find((candidate) => candidate.slipNo === slipNo)
   if (!summary) throw new Error(`전표 ${slipNo}를 찾을 수 없습니다.`)
   return getSlip(summary.id)
+}
+
+/** 창고 담당자가 목록 권한 없이 전표번호로 출고 QR 문맥에 진입한다. */
+export async function getOutboundSlipScanContextByNumber(slipNo: string): Promise<SlipScanContext> {
+  const normalized = slipNo.trim()
+  if (!normalized) throw new Error('slipNo is required')
+  const res = await apiClient.get<ApiEnvelope<SlipScanContext>>('/slips/scan-context/by-number', {
+    params: { slipNo: normalized },
+  })
+  return res.data.data
 }
 
 /** 사용자 권한으로 출고전표 번호를 exact 해석해 라인 포함 상세를 조회한다. */

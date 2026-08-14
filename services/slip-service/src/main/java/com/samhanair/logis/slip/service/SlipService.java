@@ -38,6 +38,7 @@ import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.SlipScanContextResponse;
 import com.samhanair.logis.slip.web.dto.SlipSearchResult;
 import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
@@ -1516,6 +1517,27 @@ public class SlipService {
         boolean canInspect = isOutboundInspectApprovalMember(slip.getSlipType(), slip.getStatus(), actorUserId);
         return SlipDetailResponse.from(slip, ownerFullName, dispatcherFullName,
                 inspectorFullName, acceptedByFullName, canInspect);
+    }
+
+    /** 창고 QR 출고용 최소 문맥을 전표번호로 조회한다. */
+    @Transactional(readOnly = true)
+    public SlipScanContextResponse getOutboundScanContext(String slipNo) {
+        Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType.OUTBOUND, slipNo.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "출고 전표를 찾을 수 없습니다."));
+        return toScanContext(slip);
+    }
+
+    /** 창고 QR 출고용 최소 문맥을 opaque 전표 ID로 조회한다. */
+    @Transactional(readOnly = true)
+    public SlipScanContextResponse getOutboundScanContext(UUID id) {
+        return toScanContext(loadOrThrow(id));
+    }
+
+    private SlipScanContextResponse toScanContext(Slip slip) {
+        Map<UUID, ProductSummary> products = productClient.lookup(
+                slip.getLines().stream().map(SlipLine::getProductId).distinct().toList()).stream()
+                .collect(java.util.stream.Collectors.toMap(ProductSummary::id, product -> product));
+        return SlipScanContextResponse.from(slip, products);
     }
 
     /**
