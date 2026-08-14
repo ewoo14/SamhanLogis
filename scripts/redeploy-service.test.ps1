@@ -15,6 +15,11 @@ Assert-Contract ($text -match 'if \(Test-Path \$portfix\)') 'portfix overlay mus
 Assert-Contract ($text -match '--no-deps') 'deployment must not recreate dependencies'
 Assert-Contract ($text -match '\$LASTEXITCODE -ne 0') 'external command failures must be propagated'
 Assert-Contract ($text -notmatch '& docker @composeArgs up') 'deployment must not invoke top-level docker with compose arguments'
+Assert-Contract ($text -match 'Start-Sleep') 'deployment must wait for service health after recreation'
+Assert-Contract ($text -match 'healthy') 'deployment must require a healthy target before success'
+Assert-Contract ($text -match 'REDEPLOY_HEALTH_TIMEOUT_SECONDS') 'deployment must have a finite, visible health timeout'
+Assert-Contract ($text -match 'healthTimeoutSeconds' -and $text -match 'throw') 'health timeout must fail with a user-visible message'
+Assert-Contract ($text -match 'Encoding\]::UTF8.GetString') 'actuator response bytes must be decoded before JSON readiness parsing'
 
 if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Output "RED_CONTRACT_FAILED: $_" }

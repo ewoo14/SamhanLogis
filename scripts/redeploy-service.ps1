@@ -56,6 +56,67 @@ if (Test-Path $portfix) { $composeFiles += $portfix }
 $composeArgs = @()
 foreach ($f in $composeFiles) { $composeArgs += @('-f', $f) }
 
+. "$repoRoot\scripts\lib\local-stack-port.ps1"
+
+$timeoutText = [Environment]::GetEnvironmentVariable('REDEPLOY_HEALTH_TIMEOUT_SECONDS')
+$healthTimeoutSeconds = 420
+if (-not [string]::IsNullOrWhiteSpace($timeoutText)) {
+    if ($timeoutText -notmatch '^[1-9][0-9]*$') {
+        throw "REDEPLOY_HEALTH_TIMEOUT_SECONDS 는 양의 정수여야 합니다: $timeoutText"
+    }
+    $healthTimeoutSeconds = [int]$timeoutText
+}
+
+function Wait-ServiceReady {
+    param([Parameter(Mandatory = $true)][string]$Service)
+
+    $deadline = (Get-Date).AddSeconds($healthTimeoutSeconds)
+    $container = "samhan-$Service"
+    $port = Get-LocalStackPort -Service $Service
+    $lastHealth = 'unknown'
+    $lastActuator = 'unavailable'
+
+    Write-Host ("[{0}] health 대기 시작 (상한 {1}초)" -f $Service, $healthTimeoutSeconds) -ForegroundColor Yellow
+    do {
+        $healthOutput = & docker inspect $container --format '{{.State.Health.Status}}' 2>$null
+        $inspectExit = $LASTEXITCODE
+        if ($inspectExit -eq 0 -and $healthOutput) {
+            $lastHealth = ([string]$healthOutput).Trim()
+        } else {
+            $lastHealth = 'container-unavailable'
+        }
+
+        $lastActuator = 'unavailable'
+        try {
+            $response = Invoke-WebRequest -UseBasicParsing -Uri ("http://localhost:{0}/actuator/health" -f $port) -TimeoutSec 5
+            $contentText = if ($response.Content -is [byte[]]) {
+                [Text.Encoding]::UTF8.GetString([byte[]]$response.Content)
+            } else {
+                [string]$response.Content
+            }
+            $payload = $contentText | ConvertFrom-Json
+            if ([int]$response.StatusCode -eq 200 -and $payload.status -eq 'UP') {
+                $lastActuator = '200/UP'
+            } else {
+                $lastActuator = "{0}/{1}" -f [int]$response.StatusCode, $payload.status
+            }
+        } catch {
+            if ($_.Exception.Response) {
+                $lastActuator = "{0}/DOWN" -f [int]$_.Exception.Response.StatusCode
+            }
+        }
+
+        Write-Host ("[{0}] readiness health={1} actuator={2}" -f $Service, $lastHealth, $lastActuator)
+        if ($lastHealth -eq 'healthy' -and $lastActuator -eq '200/UP') {
+            return
+        }
+        if ((Get-Date) -ge $deadline) {
+            throw "[$Service] health 대기 시간 초과 ({0}초): health={1}, actuator={2}" -f $healthTimeoutSeconds, $lastHealth, $lastActuator
+        }
+        Start-Sleep -Seconds 5
+    } while ($true)
+}
+
 foreach ($svc in $services) {
     $jar = "services/$svc/build/libs/$svc.jar"
 
@@ -75,6 +136,7 @@ foreach ($svc in $services) {
     Write-Host "[$svc] compose up --build --no-deps ..." -ForegroundColor Cyan
     & docker compose @composeArgs up -d --build --no-deps $svc
     if ($LASTEXITCODE -ne 0) { throw "[$svc] compose up 실패 (exit $LASTEXITCODE)" }
+    Wait-ServiceReady -Service $svc
 }
 
 Write-Host ''
@@ -88,6 +150,6 @@ foreach ($svc in $services) {
 }
 
 Write-Host ''
-Write-Host '🚩 health 가 healthy 로 바뀔 때까지 기다린 뒤 검증하십시오.' -ForegroundColor Yellow
+Write-Host '배포본 readiness 확인 완료: 모든 대상 서비스가 healthy 및 actuator 200/UP 입니다.' -ForegroundColor Green
 Write-Host '🚩 Flyway 신규 마이그레이션이 있으면 적용 여부를 직접 확인하십시오:' -ForegroundColor Yellow
 Write-Host '   docker exec samhan-postgres psql -U samhan -d <db> -c "select version, description from flyway_schema_history order by installed_rank desc limit 3;"'
