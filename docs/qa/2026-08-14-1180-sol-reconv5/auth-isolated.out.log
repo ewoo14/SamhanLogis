@@ -1,0 +1,229 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-08-14T18:51:30.647+09:00  INFO 86444 --- [auth-service] [           main] c.s.logis.auth.AuthServiceApplication    : Starting AuthServiceApplication v0.1.0-SNAPSHOT using Java 17.0.18 with PID 86444 (C:\dev\Samhan-Public\.claude\worktrees\w901\services\auth-service\build\libs\auth-service.jar started by user in C:\dev\Samhan-Public\.claude\worktrees\w901)
+2026-08-14T18:51:30.650+09:00  INFO 86444 --- [auth-service] [           main] c.s.logis.auth.AuthServiceApplication    : No active profile set, falling back to 1 default profile: "default"
+2026-08-14T18:51:31.961+09:00  INFO 86444 --- [auth-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-08-14T18:51:32.116+09:00  INFO 86444 --- [auth-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 149 ms. Found 13 JPA repository interfaces.
+2026-08-14T18:51:32.374+09:00  INFO 86444 --- [auth-service] [           main] o.s.cloud.context.scope.GenericScope     : BeanFactory id=dd759796-ac56-3b66-a428-e12252c7d0c9
+2026-08-14T18:51:32.932+09:00  WARN 86444 --- [auth-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig' of type [org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration$DeferringLoadBalancerInterceptorConfig] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [lbRestClientPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-08-14T18:51:32.937+09:00  WARN 86444 --- [auth-service] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'deferringLoadBalancerInterceptor' of type [org.springframework.cloud.client.loadbalancer.DeferringLoadBalancerInterceptor] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [lbRestClientPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-08-14T18:51:33.642+09:00  INFO 86444 --- [auth-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 29481 (http)
+2026-08-14T18:51:33.681+09:00  INFO 86444 --- [auth-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-14T18:51:33.683+09:00  INFO 86444 --- [auth-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.31]
+2026-08-14T18:51:33.831+09:00  INFO 86444 --- [auth-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-08-14T18:51:33.834+09:00  INFO 86444 --- [auth-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 3141 ms
+2026-08-14T18:51:34.912+09:00  INFO 86444 --- [auth-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-08-14T18:51:35.231+09:00  INFO 86444 --- [auth-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@51c008fd
+2026-08-14T18:51:35.235+09:00  INFO 86444 --- [auth-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-08-14T18:51:35.300+09:00  INFO 86444 --- [auth-service] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://127.0.0.1:29442/auth_db (PostgreSQL 16.14)
+2026-08-14T18:51:35.363+09:00  INFO 86444 --- [auth-service] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-08-14T18:51:35.376+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 106 migrations (execution time 00:00.048s)
+2026-08-14T18:51:35.403+09:00  INFO 86444 --- [auth-service] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-08-14T18:51:35.471+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-08-14T18:51:35.484+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - init account"
+2026-08-14T18:51:35.529+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "2 - add password policy"
+2026-08-14T18:51:35.554+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "3 - add password reset tokens"
+2026-08-14T18:51:35.578+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "4 - add password change required"
+2026-08-14T18:51:35.598+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "5 - seed p0 5 test accounts"
+2026-08-14T18:51:35.617+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "6 - add department name"
+2026-08-14T18:51:35.641+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "7 - add role page permissions"
+2026-08-14T18:51:35.674+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "8 - sp d2 accounting page permissions"
+2026-08-14T18:51:35.695+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "9 - sp d3 fix slip dispatch seed"
+2026-08-14T18:51:35.719+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "10 - sp d4 remaining domains page permissions"
+2026-08-14T18:51:35.743+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "11 - add sas sales slip permissions"
+2026-08-14T18:51:35.762+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "12 - add sas purchase slip permissions"
+2026-08-14T18:51:35.778+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "13 - add tax invoice batch issue permissions"
+2026-08-14T18:51:35.791+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "14 - add tax invoice inbound permissions"
+2026-08-14T18:51:35.805+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "15 - add ecount mig2 permissions"
+2026-08-14T18:51:35.812+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.826+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "16 - seed mig3 page codes"
+2026-08-14T18:51:35.829+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.843+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "17 - seed mig4 page codes"
+2026-08-14T18:51:35.845+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.863+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "18 - seed mig5 page codes"
+2026-08-14T18:51:35.865+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.878+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "19 - seed mig6 page codes"
+2026-08-14T18:51:35.880+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.894+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "20 - seed mig7 page codes"
+2026-08-14T18:51:35.895+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.908+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "21 - seed mig8 page codes"
+2026-08-14T18:51:35.910+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.924+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "22 - seed mig9 page codes"
+2026-08-14T18:51:35.926+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.940+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "23 - seed mig10 page codes"
+2026-08-14T18:51:35.941+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.954+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "24 - seed mig11 page codes"
+2026-08-14T18:51:35.956+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.968+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "25 - seed mig14 page codes"
+2026-08-14T18:51:35.970+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.983+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "26 - seed mig20 reimport page code"
+2026-08-14T18:51:35.985+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:35.998+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "27 - seed mig21 ops dashboard page code"
+2026-08-14T18:51:36.000+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.012+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "28 - seed accounting edit requests page code"
+2026-08-14T18:51:36.014+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.026+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "29 - seed sp d6 1 page codes"
+2026-08-14T18:51:36.028+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.041+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "30 - seed sp d6 2 page codes"
+2026-08-14T18:51:36.043+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.056+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "31 - add developer partner matrix rows"
+2026-08-14T18:51:36.058+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.073+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "32 - add staff driver matrix rows"
+2026-08-14T18:51:36.074+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.090+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "33 - seed sp d6 3 page codes"
+2026-08-14T18:51:36.092+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.106+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "34 - seed sp d6 4 page codes"
+2026-08-14T18:51:36.107+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.123+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "35 - seed sp d6 5 inventory page codes"
+2026-08-14T18:51:36.125+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.141+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "36 - seed sp d6 6 slip page codes"
+2026-08-14T18:51:36.143+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.165+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "37 - seed sp d6 7 accounting page codes"
+2026-08-14T18:51:36.167+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.183+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "38 - seed sp d7 remaining preauthorize page codes"
+2026-08-14T18:51:36.184+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.201+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "39 - account page permissions overhaul"
+2026-08-14T18:51:36.203+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.268+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "40 - seed phase2 4 partner order revisions page"
+2026-08-14T18:51:36.271+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.287+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "41 - seed partner order convert page"
+2026-08-14T18:51:36.289+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.305+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "42 - permission groups tables"
+2026-08-14T18:51:36.307+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.343+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "43 - seed role groups"
+2026-08-14T18:51:36.346+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.391+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "44 - assign accounts to groups"
+2026-08-14T18:51:36.406+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "45 - seed hr role management page"
+2026-08-14T18:51:36.409+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.420+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "46 - drop accounts role column"
+2026-08-14T18:51:36.434+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "47 - seed products sync group permission"
+2026-08-14T18:51:36.436+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.451+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "48 - seed driver staff dispatch dev accounts"
+2026-08-14T18:51:36.453+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.474+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "49 - repair v5 dev account hashes"
+2026-08-14T18:51:36.487+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "50 - seed arologis hr page permissions"
+2026-08-14T18:51:36.501+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "51 - seed arologis accounting page permissions"
+2026-08-14T18:51:36.514+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "52 - seed arologis admin permissions page"
+2026-08-14T18:51:36.525+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "53 - arologis 6 role model"
+2026-08-14T18:51:36.540+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "54 - seed arologis accounting accounts page"
+2026-08-14T18:51:36.551+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "55 - seed groupware approvals page permission"
+2026-08-14T18:51:36.553+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.564+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "56 - seed groupware approvals account enforcement"
+2026-08-14T18:51:36.566+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.579+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "57 - seed groupware approval templates account enforcement"
+2026-08-14T18:51:36.580+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.591+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "58 - seed estimate config page permission"
+2026-08-14T18:51:36.593+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.604+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "59 - remove mig14 aging snapshot page"
+2026-08-14T18:51:36.620+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "60 - remove mig14 cash list page"
+2026-08-14T18:51:36.636+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "61 - approval line config"
+2026-08-14T18:51:36.637+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.654+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "62 - approval line approver"
+2026-08-14T18:51:36.656+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.674+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "63 - approval line inbound seed"
+2026-08-14T18:51:36.676+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.687+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "64 - approval line partner order seed"
+2026-08-14T18:51:36.689+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.701+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "65 - approval line outbound label rename"
+2026-08-14T18:51:36.714+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "66 - seed accounting receivables page permission"
+2026-08-14T18:51:36.717+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.732+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "67 - seed accounting bank matching page permission"
+2026-08-14T18:51:36.734+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.749+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "68 - approval line accounting journal seed"
+2026-08-14T18:51:36.751+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.763+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "69 - seed dispatch external carriers page codes"
+2026-08-14T18:51:36.764+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.779+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "70 - seed hr slip cutoff page permission"
+2026-08-14T18:51:36.781+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.796+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "71 - seed app release page permission"
+2026-08-14T18:51:36.798+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.813+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "72 - grant developer app release permission"
+2026-08-14T18:51:36.815+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.830+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "73 - seed dev popup notice page permission"
+2026-08-14T18:51:36.832+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.849+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "74 - seed dev activity log page permission"
+2026-08-14T18:51:36.850+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.866+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "75 - seed groupware approval line config"
+2026-08-14T18:51:36.868+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.882+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "76 - remove ocr page permissions"
+2026-08-14T18:51:36.899+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "77 - fix groupware expense approver"
+2026-08-14T18:51:36.912+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "78 - seed dispatch board restore permission"
+2026-08-14T18:51:36.914+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.930+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "79 - seed dispatch warehouse view permission"
+2026-08-14T18:51:36.932+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.949+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "80 - seed accounting cash receipts page permission"
+2026-08-14T18:51:36.951+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.969+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "81 - seed accounting bank card admin page permission"
+2026-08-14T18:51:36.971+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:36.989+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "82 - seed partner delete restore permission"
+2026-08-14T18:51:36.992+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.009+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "83 - seed partner order list restore permission"
+2026-08-14T18:51:37.011+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.029+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "84 - seed sales slip list restore permission"
+2026-08-14T18:51:37.032+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.052+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "85 - seed estimate list restore permission"
+2026-08-14T18:51:37.055+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.072+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "86 - seed products price schedule group permission"
+2026-08-14T18:51:37.075+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.091+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "87 - seed accounting deposit mapping permission"
+2026-08-14T18:51:37.093+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.113+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "88 - seed partner search accountant view"
+2026-08-14T18:51:37.115+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.136+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "89 - widen approval line config document type"
+2026-08-14T18:51:37.152+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "90 - seed groupware schedules page permission"
+2026-08-14T18:51:37.154+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.172+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "91 - retire dispatch sms send audit permission"
+2026-08-14T18:51:37.185+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "92 - retire dispatch sms send audit permission sources"
+2026-08-14T18:51:37.201+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "93 - seed dispatch sms display permission"
+2026-08-14T18:51:37.202+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.218+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "94 - seed hr carriers page permission"
+2026-08-14T18:51:37.233+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "95 - seed slip closed date exception permission"
+2026-08-14T18:51:37.247+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "96 - seed slip closed date admin permission"
+2026-08-14T18:51:37.262+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "98 - grant manager inbound inspection update"
+2026-08-14T18:51:37.278+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "99 - align accounting slip permissions"
+2026-08-14T18:51:37.280+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.300+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "100 - remove mig14 order list page"
+2026-08-14T18:51:37.316+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "101 - seed sales commission settlement page permission"
+2026-08-14T18:51:37.318+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.332+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "102 - preserve permission change actor id"
+2026-08-14T18:51:37.350+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "103 - seed system claude permission"
+2026-08-14T18:51:37.352+09:00  WARN 86444 --- [auth-service] [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-08-14T18:51:37.368+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "104 - add claude conversation audits"
+2026-08-14T18:51:37.381+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "105 - add claude conversation sessions"
+2026-08-14T18:51:37.396+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "106 - allow anonymous claude denial audit"
+2026-08-14T18:51:37.408+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "107 - add claude session list metadata"
+2026-08-14T18:51:37.427+09:00  INFO 86444 --- [auth-service] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 106 migrations to schema "public", now at version v107 (execution time 00:00.834s)
+2026-08-14T18:51:37.512+09:00  INFO 86444 --- [auth-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-08-14T18:51:37.559+09:00  INFO 86444 --- [auth-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-08-14T18:51:37.587+09:00  INFO 86444 --- [auth-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-08-14T18:51:37.831+09:00  INFO 86444 --- [auth-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-08-14T18:51:37.874+09:00  WARN 86444 --- [auth-service] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-08-14T18:51:39.013+09:00  INFO 86444 --- [auth-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-08-14T18:51:39.048+09:00  INFO 86444 --- [auth-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-08-14T18:51:39.569+09:00  INFO 86444 --- [auth-service] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-08-14T18:51:40.907+09:00  WARN 86444 --- [auth-service] [           main] c.s.l.auth.config.JwtIssueProperties     : [보안] app.security.jwt.secret 이 비어 있거나 짧거나 공개된 dev 기본값입니다. 비운영 환경이면 무시 가능하지만 배포 전 SAMHAN_JWT_SECRET 교체가 필요합니다.
+2026-08-14T18:51:41.410+09:00  WARN 86444 --- [auth-service] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: eb548ddd-a8c8-42f2-a906-6491a1bdfd57
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-08-14T18:51:41.432+09:00  INFO 86444 --- [auth-service] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-08-14T18:51:42.151+09:00  INFO 86444 --- [auth-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 3 endpoints beneath base path '/actuator'
+2026-08-14T18:51:42.391+09:00  WARN 86444 --- [auth-service] [           main] c.s.logis.security.InternalTokenGuard    : [보안] app.security.internal.token 가 dev 기본값입니다. 비프로덕션이면 무시. 배포 전 INTERNAL_AUTH_TOKEN 환경변수로 교체 필요.
+2026-08-14T18:51:44.049+09:00  INFO 86444 --- [auth-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-14T18:51:44.065+09:00  INFO 86444 --- [auth-service] [           main] DiscoveryClientOptionalArgsConfiguration : Eureka HTTP Client uses RestTemplate.
+2026-08-14T18:51:44.179+09:00  INFO 86444 --- [auth-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 29481 (http) with context path '/'
+2026-08-14T18:51:44.925+09:00  INFO 86444 --- [auth-service] [io-29481-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-14T18:51:44.926+09:00  INFO 86444 --- [auth-service] [io-29481-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-14T18:51:44.927+09:00  INFO 86444 --- [auth-service] [io-29481-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-08-14T18:51:45.621+09:00  INFO 86444 --- [auth-service] [           main] o.s.cloud.commons.util.InetUtils         : Cannot determine local hostname
+2026-08-14T18:51:45.632+09:00  INFO 86444 --- [auth-service] [           main] c.s.logis.auth.AuthServiceApplication    : Started AuthServiceApplication in 16.909 seconds (process running for 17.566)
