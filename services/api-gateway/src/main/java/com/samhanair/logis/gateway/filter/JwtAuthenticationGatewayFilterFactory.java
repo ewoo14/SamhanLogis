@@ -126,6 +126,7 @@ public class JwtAuthenticationGatewayFilterFactory
     /** 표시명 헤더. JWT claim {@code name} 에서 추출. */
     private static final String HEADER_USER_NAME = HttpHeaderConstants.CALLER_NAME_HEADER;
     private static final String HEADER_GATEWAY_ATTESTATION = HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER;
+    private static final String HEADER_AROLOGIS_ROLE = HttpHeaderConstants.AROLOGIS_ROLE_HEADER;
 
     private final JwtProperties props;
     private final String gatewayAttestation;
@@ -188,6 +189,8 @@ public class JwtAuthenticationGatewayFilterFactory
             // Samhan 직원 JWT 에는 partnerCode 없음 → 헤더 미전송.
             String partnerCode = JwtTokenProvider.getPartnerCode(jws);
             boolean isPartner = partnerCode != null && !partnerCode.isBlank();
+            @SuppressWarnings("deprecation")
+            String arologisRole = JwtTokenProvider.getRole(jws);
 
             // allowedRoles 검사 — Phase C5-4 이후 신규 라우트는 allowedGroups 단독 사용.
             // 소스 계약 호환을 위해 잔존. 비어있으면 검사 skip.
@@ -252,6 +255,9 @@ public class JwtAuthenticationGatewayFilterFactory
                         // Phase C5-4 P1-a: X-Is-Partner 는 항상 전송("true"/"false") — 클레임 기반 강제 덮어쓰기.
                         // isPartner=false 이면 "false" 전송 → downstream 이 "true" 위조 입력을 신뢰할 수 없게 차단.
                         h.add(HEADER_IS_PARTNER, String.valueOf(isPartner));
+                        if (arologisRole != null && arologisRole.startsWith("AROLOGIS_")) {
+                            h.add(HEADER_AROLOGIS_ROLE, arologisRole);
+                        }
                         if (isPartner) {
                             // X-Partner-Code 는 PARTNER self-scope 의 테넌트 키이므로 클라이언트 입력을 신뢰하지 않고
                             // 서명 검증된 JWT partnerCode claim 값만 downstream 으로 전파한다.

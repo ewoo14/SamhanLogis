@@ -19,6 +19,7 @@ const chatApi = vi.hoisted(() => ({
   subscribe: vi.fn().mockReturnValue(() => undefined),
   subscribePresence: vi.fn().mockReturnValue(() => undefined), updatePresence: vi.fn(),
   createDirectRoom: vi.fn(), createGroupRoom: vi.fn(), sendMessage: vi.fn(),
+  editGroupRoom: vi.fn(),
 }))
 const claudeApi = vi.hoisted(() => ({
   listClaudeSessions: vi.fn().mockResolvedValue([]),
@@ -84,6 +85,32 @@ describe('삼한 메신저 UI v2', () => {
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('오늘 일정 공유드립니다')).toBeInTheDocument()
     expect(screen.getByText('오전 8:36')).toBeInTheDocument()
+  })
+
+  it('그룹 신설은 이름·코드 있는 참여자를 보내고 코드 없는 직원은 선택 불가 안내를 보인다', async () => {
+    chatApi.fetchMe.mockResolvedValueOnce({ employeeCode: 'ME', name: '홍길동', jobTitle: '부장', departmentName: '개발팀', presenceStatus: 'AVAILABLE' })
+    chatApi.fetchDirectory.mockResolvedValueOnce([
+      { employeeCode: 'E2', name: '김대리', jobTitle: '대리', departmentName: '영업팀', presenceStatus: 'OFFLINE' },
+      { employeeCode: null, name: '코드없음', jobTitle: '사원', departmentName: '물류팀', presenceStatus: 'OFFLINE' },
+    ])
+    chatApi.createGroupRoom.mockResolvedValueOnce({ roomCode: 'ROOM-NEW', type: 'GROUP', roomName: '운영 협의' })
+    renderApp()
+    fireEvent.click(screen.getByRole('button', { name: '그룹별' }))
+    expect(await screen.findByRole('status', { name: /담당자코드 미부여/ })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: '그룹방 이름' }), { target: { value: '운영 협의' } })
+    fireEvent.click(await screen.findByRole('button', { name: /김대리/ }))
+    fireEvent.click(screen.getByRole('button', { name: '새 그룹' }))
+    await waitFor(() => expect(chatApi.createGroupRoom).toHaveBeenCalledWith(['ME', 'E2'], '운영 협의'))
+  })
+
+  it('그룹 API 400은 화면 alert로 보여준다', async () => {
+    chatApi.createGroupRoom.mockRejectedValueOnce(new Error('employeeCodes: must not be empty'))
+    renderApp()
+    fireEvent.click(screen.getByRole('button', { name: '그룹별' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '그룹방 이름' }), { target: { value: '운영 협의' } })
+    fireEvent.click(await screen.findByRole('button', { name: /김대리/ }))
+    fireEvent.click(screen.getByRole('button', { name: '새 그룹' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('employeeCodes: must not be empty')
   })
 
   it('메인 창은 목록만 표시하고 방을 누르면 대화방 별도 창을 연다', async () => {

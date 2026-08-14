@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.auth.service.AccountPermissionService;
+import com.samhanair.logis.auth.service.DynamicPermissionService;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.EnumSet;
 import java.util.Map;
@@ -22,13 +23,31 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class MenuCatalogControllerTest {
 
     private AccountPermissionService permissionService;
+    private DynamicPermissionService dynamicPermissionService;
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         permissionService = Mockito.mock(AccountPermissionService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new MenuCatalogController(permissionService)).build();
+        dynamicPermissionService = Mockito.mock(DynamicPermissionService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new MenuCatalogController(permissionService, dynamicPermissionService)).build();
+    }
+
+    @Test
+    @DisplayName("독립 Arologis 역할은 중앙 계정 UUID가 없어도 Arologis VIEW catalog를 받는다")
+    void arologisRoleGetsOnlyArologisMenus() throws Exception {
+        when(dynamicPermissionService.canView(org.mockito.ArgumentMatchers.eq("MANAGER"), org.mockito.ArgumentMatchers.startsWith("arologis.")))
+                .thenReturn(true);
+
+        MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders.get("/auth/admin/menu-catalog")
+                        .header("X-Arologis-Role", "AROLOGIS_MANAGER")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andReturn().getResponse();
+
+        JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(data).isNotEmpty().allMatch(node -> "arologis".equals(node.get("app").asText()));
     }
 
     @Test
