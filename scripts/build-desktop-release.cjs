@@ -61,8 +61,6 @@ function escapeRegExp(value) {
 }
 
 function main() {
-  requireSigningEnvironment(process.env)
-  requireUpdateFeedEnvironment(process.env, 'desktop', 'DESKTOP_UPDATE_URL')
   let releaseBuild
   try {
     releaseBuild = createReleaseBuildEnvironment({
@@ -74,6 +72,8 @@ function main() {
     process.exitCode = 1
     return
   }
+  requireSigningEnvironment(process.env)
+  requireUpdateFeedEnvironment(process.env, 'desktop', 'DESKTOP_UPDATE_URL')
 
   console.log(`[release-build] VITE_APP_VERSION=${releaseBuild.appVersion}`)
 

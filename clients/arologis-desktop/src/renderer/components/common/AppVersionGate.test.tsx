@@ -68,6 +68,50 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     await waitFor(() => expect(window.arologisUpdater?.install).toHaveBeenCalledTimes(1))
   })
 
+  it('updater 오류의 원인별 계약 문구를 renderer에 그대로 표시한다', async () => {
+    let emitStatus: ((status: DesktopUpdateStatus) => void) | undefined
+    window.arologisUpdater = {
+      check: vi.fn(async () => undefined),
+      install: vi.fn(async () => undefined),
+      quit: vi.fn(async () => undefined),
+      onStatus: vi.fn((listener: (status: DesktopUpdateStatus) => void) => {
+        emitStatus = listener
+        return () => undefined
+      }),
+    }
+
+    render(<AppVersionGate bootstrapped><div>본문</div></AppVersionGate>)
+    await waitFor(() => expect(emitStatus).toBeDefined())
+    emitStatus!({ kind: 'error', message: '업데이트 파일이 손상되었거나 검증에 실패했습니다. 다시 확인해 주세요.' })
+
+    expect(await screen.findByText('업데이트 파일이 손상되었거나 검증에 실패했습니다. 다시 확인해 주세요.')).toBeTruthy()
+  })
+
+  it('신뢰·무결성·네트워크 오류가 실제 화면에서 서로 다른 문구로 보인다', async () => {
+    let emitStatus: ((status: DesktopUpdateStatus) => void) | undefined
+    window.arologisUpdater = {
+      check: vi.fn(async () => undefined),
+      install: vi.fn(async () => undefined),
+      quit: vi.fn(async () => undefined),
+      onStatus: vi.fn((listener: (status: DesktopUpdateStatus) => void) => {
+        emitStatus = listener
+        return () => undefined
+      }),
+    }
+    render(<AppVersionGate bootstrapped><div>본문</div></AppVersionGate>)
+    await waitFor(() => expect(emitStatus).toBeDefined())
+
+    const messages = [
+      '업데이트 파일의 인증서를 신뢰할 수 없습니다. 사내 IT 지원팀에 인증서 배포를 요청한 뒤 다시 확인해 주세요.',
+      '업데이트 파일이 손상되었거나 검증에 실패했습니다. 다시 확인해 주세요.',
+      '업데이트 서버에 연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 확인해 주세요.',
+    ]
+    for (const message of messages) {
+      emitStatus!({ kind: 'error', message })
+      expect(await screen.findByText(message)).toBeTruthy()
+    }
+  })
+
   it('자동 설치가 계속되는 안내의 닫기 버튼은 나중에가 아니라 안내 닫기라고 표시한다', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       data: {

@@ -3,7 +3,7 @@ import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-up
 // electron-vite가 이 CJS 공통 자산을 main bundle에 포함한다. 런타임 상대경로 require는
 // out/main 위치가 바뀌면 repo 밖을 가리킬 수 있으므로 정적 import를 사용한다.
 // @ts-ignore 공통 Node 계약은 CJS 릴리스 wrapper와 Electron main이 함께 소비한다.
-import updateContract from '../../../scripts/electron-update-contract.cjs'
+import updateContract from '../../../../scripts/electron-update-contract.cjs'
 
 const { autoUpdater } = electronUpdater
 const { classifyUpdaterError } = updateContract as unknown as {

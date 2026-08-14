@@ -228,6 +228,7 @@ function captureReleaseBuilderInvocation(relativeScript, appVersion) {
     'DESKTOP_UPDATE_URL',
     'AROLOGIS_UPDATE_URL',
     'INTERNAL_CHAT_UPDATE_URL',
+    'AROLOGIS_TRUST_ROOT_CERT',
     'CSC_LINK',
     'CSC_KEY_PASSWORD',
   ]
@@ -252,6 +253,7 @@ function captureReleaseBuilderInvocation(relativeScript, appVersion) {
     process.env.DESKTOP_UPDATE_URL = 'https://updates.invalid/desktop'
     process.env.AROLOGIS_UPDATE_URL = 'https://updates.invalid/arologis'
     process.env.INTERNAL_CHAT_UPDATE_URL = 'https://updates.invalid/internal-chat'
+    process.env.AROLOGIS_TRUST_ROOT_CERT = resolve(repoRoot, 'scripts/electron-update-contract.cjs')
     process.env.CSC_LINK = 'C:/certificates/samhan-internal-chat.pfx'
     process.env.CSC_KEY_PASSWORD = 'test-password'
     childProcess.spawnSync = (command, args, options) => {

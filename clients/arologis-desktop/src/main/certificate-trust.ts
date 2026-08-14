@@ -3,18 +3,17 @@ import Store from 'electron-store'
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { decideTrustRootPrompt, type TrustRootState } from './certificate-trust-policy.js'
+import { decideTrustRootPrompt, reconcileTrustRootState, type TrustRootState } from './certificate-trust-policy.js'
 export { decideTrustRootPrompt } from './certificate-trust-policy.js'
 import { checkForUpdates, setAutoUpdateEnabled } from './auto-update.js'
 
-const TRUST_ROOT_SUBJECT = 'CN=Samhan Internal Release'
 const TRUST_ROOT_CERT_NAME = 'arologis-internal-release.cer'
 const TRUST_ROOT_STATUS_CHANNEL = 'trust-root:status'
 const TRUST_ROOT_STATUS_IPC = 'trust-root:status'
 const TRUST_ROOT_INSTALL_IPC = 'trust-root:install'
 const store = new Store<TrustRootState>({ name: 'arologis-update-trust' })
 
-function currentState(): TrustRootState {
+function storedState(): TrustRootState {
   return { installed: store.get('installed', false), declined: store.get('declined', false) }
 }
 
@@ -24,10 +23,13 @@ function certificatePath(): string {
 
 function rootCertificateExists(): boolean {
   if (process.platform !== 'win32') return true
+  const path = certificatePath()
+  if (!existsSync(path)) return false
+  const escapedPath = path.replace(/'/g, "''")
   try {
     return execFileSync('powershell.exe', [
       '-NoProfile', '-NonInteractive', '-Command',
-      `(Get-ChildItem 'Cert:\\CurrentUser\\Root' | Where-Object Subject -eq '${TRUST_ROOT_SUBJECT}').Count -gt 0`,
+      `$expected = (Get-PfxCertificate -FilePath '${escapedPath}').Thumbprint; (Get-ChildItem 'Cert:\\CurrentUser\\Root' | Where-Object Thumbprint -eq $expected).Count -gt 0`,
     ], { encoding: 'utf8' }).trim().toLowerCase() === 'true'
   } catch {
     return false
@@ -40,8 +42,16 @@ function installCertificate(): void {
   if (process.platform !== 'win32') return
   execFileSync('powershell.exe', [
     '-NoProfile', '-NonInteractive', '-Command',
-    `Import-Certificate -FilePath '${path.replace(/'/g, "''")}' -CertStoreLocation 'Cert:\\CurrentUser\\Root' | Out-Null`,
+    `$certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new('${path.replace(/'/g, "''")}'); $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'CurrentUser'); try { $store.Open('ReadWrite'); $store.Add($certificate) } finally { $store.Close() }`,
   ], { stdio: 'pipe' })
+  if (!rootCertificateExists()) throw new Error('신뢰 루트 인증서 설치 결과를 확인할 수 없습니다.')
+}
+
+function currentState(): TrustRootState {
+  const stored = storedState()
+  const state = reconcileTrustRootState(stored, rootCertificateExists())
+  if (state.installed !== stored.installed || state.declined !== stored.declined) store.set(state)
+  return state
 }
 
 function sendStatus(window: BrowserWindow | null): void {
@@ -62,7 +72,7 @@ export function registerTrustRootIpcHandlers(): void {
 
 export async function promptForTrustRoot(window: BrowserWindow | null): Promise<void> {
   const state = currentState()
-  if (state.installed || rootCertificateExists()) {
+  if (state.installed) {
     store.set({ installed: true, declined: false })
     setAutoUpdateEnabled(true)
     void checkForUpdates()

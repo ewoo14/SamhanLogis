@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decideTrustRootPrompt, type TrustRootState } from './certificate-trust-policy'
+import { decideTrustRootPrompt, reconcileTrustRootState, type TrustRootState } from './certificate-trust-policy'
 
 describe('아로로지스 신뢰 루트 승인 정책', () => {
   it('거부하면 앱 사용을 막지 않고 다음 실행에 다시 물을 상태를 남긴다', () => {
@@ -27,6 +27,13 @@ describe('아로로지스 신뢰 루트 승인 정책', () => {
       shouldAskNextRun: false,
       shouldBlockApp: false,
       updateDisabled: false,
+    })
+  })
+
+  it('저장된 installed=true라도 실제 신뢰 루트가 없으면 설치되지 않은 상태로 되돌린다', () => {
+    expect(reconcileTrustRootState({ installed: true, declined: false }, false)).toEqual({
+      installed: false,
+      declined: false,
     })
   })
 })

@@ -158,7 +158,7 @@ try {
   $baseEnv = @{
     CSC_LINK = $certPfx
     CSC_KEY_PASSWORD = $password
-    INTERNAL_CHAT_UPDATE_URL = "http://127.0.0.1:$FeedPort"
+    INTERNAL_CHAT_UPDATE_URL = "http://127.0.0.1:$FeedPort/internal-chat"
   }
   foreach ($number in @($FirstReleaseNumber, $SecondReleaseNumber)) {
     $version = "$ReleaseDate-$number"
@@ -179,11 +179,13 @@ try {
 
   $secondVersion = "$ReleaseDate-$SecondReleaseNumber"
   $secondReleaseDir = Join-Path $appDir "release\$secondVersion"
-  Copy-Item -LiteralPath (Join-Path $secondReleaseDir 'latest.yml') -Destination $feedRoot -Force
-  Get-ChildItem -LiteralPath $secondReleaseDir -Filter '*.exe' | Copy-Item -Destination $feedRoot -Force
-  Get-ChildItem -LiteralPath $secondReleaseDir -Filter '*.blockmap' | Copy-Item -Destination $feedRoot -Force
+  $internalChatFeedRoot = Join-Path $feedRoot 'internal-chat'
+  New-Item -ItemType Directory -Path $internalChatFeedRoot -Force | Out-Null
+  Copy-Item -LiteralPath (Join-Path $secondReleaseDir 'latest.yml') -Destination $internalChatFeedRoot -Force
+  Get-ChildItem -LiteralPath $secondReleaseDir -Filter '*.exe' | Copy-Item -Destination $internalChatFeedRoot -Force
+  Get-ChildItem -LiteralPath $secondReleaseDir -Filter '*.blockmap' | Copy-Item -Destination $internalChatFeedRoot -Force
   $feedProcess = Start-Process -FilePath 'python' -ArgumentList @('-u', '-m', 'http.server', "$FeedPort", '--bind', '127.0.0.1') -WorkingDirectory $feedRoot -PassThru -WindowStyle Hidden
-  Wait-Until { try { (Invoke-WebRequest "http://127.0.0.1:$FeedPort/latest.yml" -UseBasicParsing).StatusCode -eq 200 } catch { $false } } "feed HTTP :$FeedPort"
+  Wait-Until { try { (Invoke-WebRequest "http://127.0.0.1:$FeedPort/internal-chat/latest.yml" -UseBasicParsing).StatusCode -eq 200 } catch { $false } } "feed HTTP :$FeedPort/internal-chat"
   Write-Step "FeedStatus=200"
 
   $firstVersion = "$ReleaseDate-$FirstReleaseNumber"
@@ -216,7 +218,7 @@ try {
 
   $start = Start-Process -FilePath $installedExe -PassThru
   Write-Step "start 9101 PID=$($start.Id), waiting for updater"
-  Wait-Until { $response = try { Invoke-WebRequest "http://127.0.0.1:$FeedPort/latest.yml?noCache=$runId" -UseBasicParsing } catch { $null }; $null -ne $response -and $response.StatusCode -eq 200 } 'latest.yml request'
+  Wait-Until { $response = try { Invoke-WebRequest "http://127.0.0.1:$FeedPort/internal-chat/latest.yml?noCache=$runId" -UseBasicParsing } catch { $null }; $null -ne $response -and $response.StatusCode -eq 200 } 'internal-chat/latest.yml request'
   $expectedDisplayVersion = "$($ReleaseDate.Replace('-', '/'))-$SecondReleaseNumber"
   Wait-Until { $current = try { Get-InstalledVersion } catch { '' }; $current -eq $expectedDisplayVersion } 'quitAndInstall restart to 9102'
   $afterVersion = Get-InstalledVersion

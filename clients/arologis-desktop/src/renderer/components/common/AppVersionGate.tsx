@@ -50,7 +50,7 @@ function normalizeUpdateStatus(value: unknown): DesktopUpdateStatus | null {
   if (status.kind === 'available') return { kind: 'available', version: status.version ?? '' }
   if (status.kind === 'downloading') return { kind: 'downloading', percent: status.percent ?? 0 }
   if (status.kind === 'downloaded') return { kind: 'downloaded', version: status.version ?? '' }
-  if (status.kind === 'error') return { kind: 'error', message: '업데이트에 실패했습니다. 인터넷 연결을 확인해 주세요.' }
+  if (status.kind === 'error') return { kind: 'error', message: status.message ?? '업데이트에 실패했습니다. 잠시 후 다시 확인해 주세요.' }
   return null
 }
 
