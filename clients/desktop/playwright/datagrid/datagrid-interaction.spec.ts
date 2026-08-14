@@ -29,7 +29,7 @@
  *
  * PR #156 회귀 가드: page.on('pageerror') 훅 의무 적용.
  *
- * TC 목록 (7건):
+ * TC 목록 (8건):
  *   TC-DG-1: 결과 탭 Excel 보기 → 셀 단일 클릭 → 정확히 1셀 선택
  *   TC-DG-2: Shift+클릭 → 사각형 범위 선택 (10행×3열 = 정확히 30셀)
  *   TC-DG-3: Ctrl+클릭 → 선택 토글 (1 → 2 → 1셀, 정확 수치)
@@ -156,7 +156,7 @@ async function openHometaxResultGrid(page: Page): Promise<void> {
 // TC-DG-1 ~ TC-DG-7
 // ---------------------------------------------------------------------------
 
-test.describe('DataGrid Excel-like 인터랙션 (TC-DG-1~7)', () => {
+test.describe('DataGrid Excel-like 인터랙션 (TC-DG-1~8)', () => {
 
   /**
    * TC-DG-1: 셀 단일 클릭 → 정확히 1셀 선택.
@@ -394,7 +394,7 @@ test.describe('DataGrid Excel-like 인터랙션 (TC-DG-1~7)', () => {
    * 기대 결과:
    *   - /sales 해시 진입 → 기간을 mock 데이터 구간(2026-05)으로 설정
    *   - "Excel 보기" 토글 → DataGrid 마운트 + 셀 존재 (미발견 = RED)
-   *   - 첫 셀 클릭 → 정확히 1셀 선택
+   *   - 번호 링크가 아닌 첫 데이터 셀(0,1) 클릭 → 정확히 1셀 선택
    *   - pageerror 없음
    */
   test('TC-DG-7: SalesQueryPage 셀 선택 동작 (회귀 가드)', async ({ page }) => {
@@ -421,7 +421,9 @@ test.describe('DataGrid Excel-like 인터랙션 (TC-DG-1~7)', () => {
       'SalesQuery DataGrid 셀 미발견 — 데이터 로드 실패는 RED',
     ).toBeVisible({ timeout: 10000 })
 
-    const firstCell = gridCells(page).first()
+    // (0,0)은 S2 번호 링크가 있는 액션 셀이다. 번호 클릭은 상세 이동 계약이고
+    // 일반 DataGrid 셀 선택 계약과 겹치지 않으므로, 평문 거래처 셀(0,1)을 선택한다.
+    const firstCell = cellAt(page, 0, 1)
     await firstCell.click()
     await expect(
       selectedCells(page),
@@ -433,6 +435,39 @@ test.describe('DataGrid Excel-like 인터랙션 (TC-DG-1~7)', () => {
       fullPage: true,
     })
 
+    expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
+  })
+
+  test('TC-DG-8: PurchaseQueryPage 평문 셀 선택 동작', async ({ page }) => {
+    const errors: string[] = []
+    attachPageErrorHook(page, errors)
+
+    await page.goto(`${BASE_URL}/#/purchases?mockRole=MASTER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+
+    await page.getByLabel('시작 날짜').fill('2026-05-01')
+    await page.getByLabel('종료 날짜').fill('2026-05-31')
+    await page.getByTestId('purchase-query-grid-mode-btn').click()
+    await expect(page.getByTestId('purchase-query-datagrid')).toBeVisible({ timeout: 5000 })
+    await expect(
+      gridCells(page).first(),
+      'PurchaseQuery DataGrid 셀 미발견 — 데이터 로드 실패는 RED',
+    ).toBeVisible({ timeout: 10000 })
+
+    const selectedCell = cellAt(page, 0, 1)
+    await selectedCell.click()
+    await expect(
+      selectedCells(page),
+      'PurchaseQuery 평문 셀 단일 클릭 시 선택 셀 수는 정확히 1',
+    ).toHaveCount(1)
+    await expect(selectedCell).toHaveClass(/tdSelected/)
+
+    await page.screenshot({
+      path: path.join(QA_DIR, 'TC-DG-8-purchase-query-cell-select.png'),
+      fullPage: true,
+    })
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 })
