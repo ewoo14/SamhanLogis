@@ -9,12 +9,19 @@
 #>
 [CmdletBinding()]
 param(
-    [string] $GatewayBaseUrl = 'http://localhost:8080',
-    [string] $ArologisBaseUrl = 'http://localhost:8097',
+    [string] $GatewayBaseUrl = '',
+    [string] $ArologisBaseUrl = '',
     [switch] $RequireConfiguredAttestation
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib/local-stack-port.ps1')
+if ([string]::IsNullOrWhiteSpace($GatewayBaseUrl)) {
+    $GatewayBaseUrl = "http://localhost:$(Get-LocalStackPort -Service 'api-gateway')"
+}
+if ([string]::IsNullOrWhiteSpace($ArologisBaseUrl)) {
+    $ArologisBaseUrl = "http://localhost:$(Get-LocalStackPort -Service 'arologis-service')"
+}
 $localEnvPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'infrastructure/.env.local'
 if (Test-Path $localEnvPath) {
     foreach ($line in Get-Content -LiteralPath $localEnvPath -Encoding UTF8) {
