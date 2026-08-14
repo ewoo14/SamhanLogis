@@ -5,6 +5,11 @@ server:
 spring:
   application:
     name: partner-auth-service
+  rabbitmq:
+    host: ${RABBIT_HOST}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASSWORD}
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:partner_auth_db}
     username: ${DB_USER:samhan}

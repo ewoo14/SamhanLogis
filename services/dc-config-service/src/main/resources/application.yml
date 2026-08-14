@@ -5,6 +5,11 @@ server:
 spring:
   application:
     name: dc-config-service
+  rabbitmq:
+    host: ${RABBIT_HOST}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASSWORD}
   datasource:
     # 시크릿 placeholder — DB 자격증명은 반드시 환경변수로 주입.
     # default 값은 로컬 docker-compose 와의 호환을 위한 자리 표시자이며 실제 환경에서는 override 필수.
