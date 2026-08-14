@@ -53,6 +53,12 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
     /** 사용자 노출용 serial_key로 활성 인스턴스를 단건 조회한다. */
     Optional<StockInstance> findBySerialKey(String serialKey);
 
+    /** QR mutation 대상 개체를 행 잠금으로 읽어 동일 개체의 동시 스캔을 직렬화한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("SELECT s FROM StockInstance s WHERE s.serialKey = :serialKey AND s.isDeleted = false")
+    Optional<StockInstance> findBySerialKeyForUpdate(@Param("serialKey") String serialKey);
+
     /** 모델명 전환 이후 product UUID로 AVAILABLE FIFO 후보를 조회한다. */
     List<StockInstance> findByProductIdAndStatusOrderByReceivedAtAsc(
             UUID productId, StockInstanceStatus status);

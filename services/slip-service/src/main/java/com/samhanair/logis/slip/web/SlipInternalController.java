@@ -256,6 +256,36 @@ public class SlipInternalController {
     }
 
     /**
+     * QR 스캔용 전표 내부 참조 — 사용자 요청의 slipNo를 내부 slip id와 품목 product id로 해석한다.
+     *
+     * <p>UUID는 서비스간 내부 응답에만 사용하고, 사용자 QR 스캔 요청·응답에는 전달하지 않는다.
+     * inventory-service가 product-service에서 product id를 품목코드로 해석하여 오스캔을 차단한다.
+     */
+    @Operation(summary = "Internal QR 스캔 전표 참조", description = "slipNo와 방향으로 유효 전표·라인 product id를 조회")
+    @GetMapping("/scan-reference")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<ScanReferenceResponse> findScanReference(
+            @RequestParam String slipNo, @RequestParam String direction) {
+        if (slipNo == null || slipNo.isBlank() || direction == null || direction.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "slipNo와 direction은 필수입니다");
+        }
+        SlipType requestedType;
+        if ("INBOUND".equalsIgnoreCase(direction)) {
+            requestedType = SlipType.INBOUND;
+        } else if ("OUTBOUND".equalsIgnoreCase(direction)) {
+            requestedType = SlipType.OUTBOUND;
+        } else {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "스캔 방향이 올바르지 않습니다");
+        }
+        Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(requestedType, slipNo.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "전표를 찾을 수 없습니다: " + slipNo));
+        return ApiResponse.ok(new ScanReferenceResponse(
+                slip.getId(), slip.getSlipNo(), slip.getSlipType().name(), slip.getPartnerCode(),
+                slip.getLines().stream().map(SlipLine::getProductId).distinct().toList()));
+    }
+
+    /**
      * 기간 마감 lock — accounting-service 월마감/일마감 서비스간 전용 endpoint.
      *
      * <p>{@code /internal/**} prefix 로 {@link com.samhanair.logis.security.InternalTokenFilter} 를 경유하며,
@@ -291,6 +321,10 @@ public class SlipInternalController {
      * @param status 슬립 상태 (SIGNABLE_STATUSES 가드용 hint)
      */
     public record LookupResponse(UUID slipId, String slipNo, String status) {}
+
+    /** QR 스캔 전표 참조의 서비스간 내부 응답. */
+    public record ScanReferenceResponse(UUID slipId, String slipNo, String slipType,
+                                        String partnerCode, List<UUID> productIds) {}
 
     /**
      * 배차 계열 공통 출고전표 조회.
