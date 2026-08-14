@@ -57,8 +57,16 @@ public class SecurityConfig {
 
     @Bean
     public HeaderAuthenticationFilter headerAuthenticationFilter(
-            @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String gatewayAttestation) {
-        return new HeaderAuthenticationFilter(gatewayAttestation);
+            @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String gatewayAttestation,
+            @Value("${samhan.security.gateway-attestation-enforcement:true}") boolean enforceAttestation) {
+        requireGatewayAttestation(gatewayAttestation, enforceAttestation);
+        return new HeaderAuthenticationFilter(gatewayAttestation, enforceAttestation);
+    }
+
+    private void requireGatewayAttestation(String value, boolean enforcementEnabled) {
+        if (enforcementEnabled && (value == null || value.isBlank())) {
+            throw new IllegalStateException("SAMHAN_GATEWAY_ATTESTATION is required when gateway attestation enforcement is enabled");
+        }
     }
 
     @Bean

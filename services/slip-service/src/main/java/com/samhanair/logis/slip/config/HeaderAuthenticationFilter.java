@@ -30,13 +30,19 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_GROUPS_HEADER = "X-User-Groups";
     private final String expectedAttestation;
+    private final boolean enforceAttestation;
 
     public HeaderAuthenticationFilter() {
-        this("");
+        this("", false);
     }
 
     public HeaderAuthenticationFilter(String expectedAttestation) {
+        this(expectedAttestation, true);
+    }
+
+    public HeaderAuthenticationFilter(String expectedAttestation, boolean enforceAttestation) {
         this.expectedAttestation = expectedAttestation == null ? "" : expectedAttestation;
+        this.enforceAttestation = enforceAttestation;
     }
 
     @Override
@@ -46,7 +52,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        if (!isGatewayAttested(request)) {
+        if (enforceAttestation && !isGatewayAttested(request)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }

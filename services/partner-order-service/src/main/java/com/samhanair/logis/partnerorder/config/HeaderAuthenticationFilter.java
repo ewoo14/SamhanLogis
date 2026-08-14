@@ -26,10 +26,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     private final String expectedAttestation;
+    private final boolean enforceAttestation;
 
-    public HeaderAuthenticationFilter() { this(""); }
+    public HeaderAuthenticationFilter() { this("", false); }
     public HeaderAuthenticationFilter(String expectedAttestation) {
+        this(expectedAttestation, true);
+    }
+    public HeaderAuthenticationFilter(String expectedAttestation, boolean enforceAttestation) {
         this.expectedAttestation = expectedAttestation == null ? "" : expectedAttestation;
+        this.enforceAttestation = enforceAttestation;
     }
 
     @Override
@@ -39,11 +44,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        // 테스트/기존 임베디드 MockMvc 경로는 attestation 설정이 없을 때 기존
-        // SecurityContext 미설정 -> 403 계약을 유지한다. 운영 bean은 설정값이
-        // 주입된 경우에만 이 분기를 통과할 수 있으므로, 설정된 운영 환경에서는
-        // 누락·불일치 attestation을 계속 401로 차단한다.
-        if (!expectedAttestation.isBlank() && !isGatewayAttested(request)) {
+        if (enforceAttestation && !isGatewayAttested(request)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }

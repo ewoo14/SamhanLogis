@@ -41,14 +41,21 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper;
     private final String expectedAttestation;
+    private final boolean enforceAttestation;
 
     public HeaderAuthenticationFilter(ObjectMapper objectMapper) {
-        this(objectMapper, "");
+        this(objectMapper, "", false);
     }
 
     public HeaderAuthenticationFilter(ObjectMapper objectMapper, String expectedAttestation) {
+        this(objectMapper, expectedAttestation, true);
+    }
+
+    public HeaderAuthenticationFilter(ObjectMapper objectMapper, String expectedAttestation,
+                                      boolean enforceAttestation) {
         this.objectMapper = objectMapper;
         this.expectedAttestation = expectedAttestation == null ? "" : expectedAttestation;
+        this.enforceAttestation = enforceAttestation;
     }
 
     @Override
@@ -68,7 +75,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             writeUnauthorized(response);
             return;
         }
-        if (!isGatewayAttested(request)) {
+        if (enforceAttestation && !isGatewayAttested(request)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }

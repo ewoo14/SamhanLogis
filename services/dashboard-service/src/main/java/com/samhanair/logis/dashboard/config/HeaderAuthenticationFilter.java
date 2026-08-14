@@ -33,14 +33,20 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     private static final String USER_GROUPS_HEADER = "X-User-Groups";
     private static final String ATTESTATION_HEADER = "X-Samhan-Gateway-Attestation";
     private final String expectedAttestation;
+    private final boolean enforceAttestation;
 
     /** 테스트와 비-Spring 호출 호환용 생성자. Spring 런타임은 환경값을 주입한 생성자를 사용한다. */
     public HeaderAuthenticationFilter() {
-        this("");
+        this("", false);
     }
 
     public HeaderAuthenticationFilter(String expectedAttestation) {
+        this(expectedAttestation, true);
+    }
+
+    public HeaderAuthenticationFilter(String expectedAttestation, boolean enforceAttestation) {
         this.expectedAttestation = expectedAttestation == null ? "" : expectedAttestation;
+        this.enforceAttestation = enforceAttestation;
         log.info("dashboard gateway attestation configured={}", !this.expectedAttestation.isBlank());
     }
 
@@ -51,7 +57,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        if (!isGatewayAttested(request)) {
+        if (enforceAttestation && !isGatewayAttested(request)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
