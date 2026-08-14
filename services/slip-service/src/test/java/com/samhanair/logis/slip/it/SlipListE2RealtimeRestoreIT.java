@@ -54,7 +54,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/** E2 판매전표 목록 realtime/삭제행/복원 회귀 고정 IT. */
+/** E2 출고전표 목록 realtime/삭제행/복원 회귀 고정 IT. */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
@@ -91,13 +91,13 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                     List<UUID> ids = inv.getArgument(0);
                     return ids.stream()
                             .map(id -> new ProductSummary(
-                                    id, "판매전표 E2 제품", "E2-SLIP",
+                                    id, "출고전표 E2 제품", "E2-SLIP",
                                     UUID.randomUUID(), new BigDecimal("1000"), "ACTIVE"))
                             .toList();
                 });
         Mockito.lenient().when(productClient.requireExists(ArgumentMatchers.any()))
                 .thenAnswer(inv -> new ProductSummary(
-                        inv.getArgument(0), "판매전표 E2 제품", "E2-SLIP",
+                        inv.getArgument(0), "출고전표 E2 제품", "E2-SLIP",
                         UUID.randomUUID(), new BigDecimal("1000"), "ACTIVE"));
         Mockito.lenient().doNothing()
                 .when(notificationClient).sendUserSms(
@@ -113,7 +113,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                         ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyInt(),
                         ArgumentMatchers.anyString(), ArgumentMatchers.any());
         Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
-                .thenReturn(Optional.of("판매전표담당"));
+                .thenReturn(Optional.of("출고전표담당"));
     }
 
     @Test
@@ -142,7 +142,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("판매전표 목록(/slips)은 includeDeleted 미전송 시 활성전용 — 삭제행 기본 제외 (#758 CRITICAL 회귀가드)")
+    @DisplayName("출고전표 목록(/slips)은 includeDeleted 미전송 시 활성전용 — 삭제행 기본 제외 (#758 CRITICAL 회귀가드)")
     void slipListDefaultExcludesDeletedSlip() throws Exception {
         CreatedSlip created = createOutbound("E2-기본제외");
 
@@ -167,7 +167,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("판매전표 목록 화면 경로도 삭제행과 deletedByName 메타를 포함한다")
+    @DisplayName("출고전표 목록 화면 경로도 삭제행과 deletedByName 메타를 포함한다")
     void legacySlipListIncludesDeletedSlipMetadata() throws Exception {
         CreatedSlip created = createOutbound("E2-목록삭제행");
 
@@ -195,7 +195,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("status 필터는 enum name 문자열 기준으로 판매전표를 판별한다")
+    @DisplayName("status 필터는 enum name 문자열 기준으로 출고전표를 판별한다")
     void statusFilterUsesEnumName() throws Exception {
         CreatedSlip draft = createOutbound("E2-DRAFT");
         CreatedSlip saved = createOutbound("E2-SAVED");
@@ -236,7 +236,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("판매전표 목록 SSE 구독 endpoint 는 slip:list:changed 채널을 연다")
+    @DisplayName("출고전표 목록 SSE 구독 endpoint 는 slip:list:changed 채널을 연다")
     void listRealtimeSubscribeReturnsSse() throws Exception {
         mockMvc.perform(get("/slips/list-realtime")
                         .header(USER_ID_HEADER, ACTOR_ID.toString())
@@ -245,7 +245,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("판매전표 삭제 성공 시 slip:list:changed DELETED 를 발화한다")
+    @DisplayName("출고전표 삭제 성공 시 slip:list:changed DELETED 를 발화한다")
     void deletePublishesListChanged() throws Exception {
         CreatedSlip created = createOutbound("E2-삭제발화");
 
@@ -264,7 +264,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("판매전표 복원 성공 시 삭제 메타를 비우고 slip:list:changed RESTORED 를 발화한다")
+    @DisplayName("출고전표 복원 성공 시 삭제 메타를 비우고 slip:list:changed RESTORED 를 발화한다")
     void restoreClearsMetadataAndPublishesListChanged() throws Exception {
         CreatedSlip created = createOutbound("E2-복원발화");
         mockMvc.perform(delete("/slips/{id}/sales", created.id())
@@ -505,7 +505,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     private CreatedSlip createOutbound(String partnerName) throws Exception {
         Map<String, Object> line = Map.of(
                 "productId", UUID.randomUUID().toString(),
-                "productName", "판매전표 E2 제품",
+                "productName", "출고전표 E2 제품",
                 "modelName", "E2-SLIP",
                 "quantity", 1,
                 "unitPrice", 1000);
@@ -516,7 +516,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                 "destinationWarehouseId", UUID.randomUUID().toString(),
                 "partnerId", UUID.randomUUID().toString(),
                 "partnerName", partnerName,
-                "memo", "E2 판매전표 목록 IT",
+                "memo", "E2 출고전표 목록 IT",
                 "lines", List.of(line));
 
         MvcResult createResult = mockMvc.perform(post("/slips")
@@ -571,7 +571,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                 "destinationWarehouseId", UUID.randomUUID().toString(),
                 "partnerId", UUID.randomUUID().toString(),
                 "partnerName", partnerName,
-                "memo", "E2 판매전표 편집경로 회귀 IT (#758)",
+                "memo", "E2 출고전표 편집경로 회귀 IT (#758)",
                 "lines", lines);
 
         MvcResult createResult = mockMvc.perform(post("/slips")

@@ -9,8 +9,12 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EstimateWebViewScreen from './EstimateWebViewScreen';
 import { colors } from '../theme/tokens';
+import QrScanScreen from './QrScanScreen';
 
 export default function AppRootNavigator(): JSX.Element {
+  if (process.env.EXPO_PUBLIC_WAREHOUSE_SCAN === '1') {
+    return <QrScanScreen />;
+  }
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.body}>

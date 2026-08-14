@@ -97,7 +97,7 @@ for (const viewport of VIEWPORTS) {
     await expect(page.getByTestId('perm-group-form-name')).toHaveValue('영업팀')
   })
 
-  test(`매입전표 DRAFT 전기 버튼 ${viewport.name} 도달·실행`, async ({ page }) => {
+  test(`입고전표 DRAFT 전기 버튼 ${viewport.name} 도달·실행`, async ({ page }) => {
     await openPage(page, '/accounting/purchase-slips', viewport.width, 'purchase-accounting-slip-page')
 
     const pageRoot = page.getByTestId('purchase-accounting-slip-page')
@@ -111,7 +111,7 @@ for (const viewport of VIEWPORTS) {
     await assertVisibleAndClickable(action, viewport.width)
   })
 
-  test(`매출전표 DRAFT 전기 버튼 ${viewport.name} 도달·실행`, async ({ page }) => {
+  test(`출고전표 DRAFT 전기 버튼 ${viewport.name} 도달·실행`, async ({ page }) => {
     await openPage(page, '/accounting/sales-slips', viewport.width, 'sales-accounting-slip-page')
 
     const pageRoot = page.getByTestId('sales-accounting-slip-page')

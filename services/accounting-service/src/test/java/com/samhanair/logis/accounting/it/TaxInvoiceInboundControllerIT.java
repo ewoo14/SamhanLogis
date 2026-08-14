@@ -65,7 +65,7 @@ class TaxInvoiceInboundControllerIT extends AbstractPostgresIT {
     @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
 
     @Test
-    void POST_admin_tax_invoices_inbound_3장_정상등록과_매입전표_link() throws Exception {
+    void POST_admin_tax_invoices_inbound_3장_정상등록과_입고전표_link() throws Exception {
         UUID partnerId = UUID.randomUUID();
         when(partnerLookupClient.findByPartnerCode("P-001"))
                 .thenReturn(Optional.of(new PartnerSummary(

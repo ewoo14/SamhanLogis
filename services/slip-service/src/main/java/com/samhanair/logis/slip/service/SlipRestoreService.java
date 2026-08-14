@@ -18,7 +18,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 판매전표 목록 soft-delete 복원 서비스 (E2). */
+/** 출고전표 목록 soft-delete 복원 서비스 (E2). */
 @Service
 @RequiredArgsConstructor
 public class SlipRestoreService {
@@ -36,7 +36,7 @@ public class SlipRestoreService {
      *
      * <p>동일 {@code slipType + slipNo} 활성행이 이미 있으면 partial unique 위반 전에 409 로 차단한다.
      *
-     * <p><b>라인 복원 = 헤더 deletedAt 정확일치 매칭</b> (#758 머지게이트 감사 HIGH fix). 판매전표
+     * <p><b>라인 복원 = 헤더 deletedAt 정확일치 매칭</b> (#758 머지게이트 감사 HIGH fix). 출고전표
      * 라인은 {@code removeLine}/{@code replaceSalesLines}/{@code restoreFromSnapshot} 등 편집
      * 플로우에서도 개별 soft-delete 되므로, {@code slipId} 만으로 삭제 라인을 무차별 복원하면
      * 이미 편집으로 제거된 라인까지 함께 부활해 수량·금액이 중복 집계된다(#758 CRITICAL 재현).
@@ -46,7 +46,7 @@ public class SlipRestoreService {
      * 컴파일 의존은 없음, 패턴만 이식).
      *
      * <p><b>레거시 삭제 전표 fail-loud (BE 적대검증 BLOCKING fix, 2026-07-07)</b>: 단일시각 각인이
-     * 도입되기 <b>이전</b>에 {@code deleteForSales} 로 삭제된 판매전표는 헤더와 라인이 각자 다른
+     * 도입되기 <b>이전</b>에 {@code deleteForSales} 로 삭제된 출고전표는 헤더와 라인이 각자 다른
      * {@code deletedAt} 을 갖는다({@code slip_db} 실측: {@code 2026/06/03-1}, 삭제 라인 2건 전부
      * 헤더 시각 불일치). 이런 레거시 삭제행은 시각한정 복원 쿼리가 <b>0-match</b> 로 끝나 헤더만
      * {@code is_deleted=false} 로 되돌아가고 라인은 전부 삭제 상태로 남는 "무음 빈 껍데기" 가
@@ -59,7 +59,7 @@ public class SlipRestoreService {
      *
      * <p><b>한계(레거시 백로그)</b>: 주문(C) {@code PartnerOrderRevisionType.DELETE} 는 삭제 직전
      * 스냅샷을 버전이력에 보존해 두어 인라인 복원이 막혀도 revision-restore 로 복구 가능하지만,
-     * 판매전표(D) {@code SlipRevisionType} 은 아직 {@code DELETE} 타입이 없어 이 fallback 경로가
+     * 출고전표(D) {@code SlipRevisionType} 은 아직 {@code DELETE} 타입이 없어 이 fallback 경로가
      * 미도입 상태다. 즉 본 fix 는 <b>레거시 삭제행의 데이터 오염(무음 손실)을 차단</b>할 뿐, 그
      * 레거시 삭제행 자체를 인라인으로 복구하는 수단은 아직 없다 — 복구가 필요하면 DB 운영 절차
      * (수동 {@code deleted_at} 정정 등)를 거쳐야 한다. DELETE revision 도입은 후속 백로그.
@@ -78,7 +78,7 @@ public class SlipRestoreService {
     public Slip restore(UUID slipId, String requesterId) {
         Slip slip = slipRepository.findByIdIncludingDeleted(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다."));
-        // deleteForSales 의 OUTBOUND 타입가드와 대칭 — 복원도 판매전표(OUTBOUND) 전용.
+        // deleteForSales 의 OUTBOUND 타입가드와 대칭 — 복원도 출고전표(OUTBOUND) 전용.
         // sales.slip.list RESTORE 권한만으로 INBOUND(구매) 전표를 UUID 로 복원하는 최소권한 우회를 차단.
         if (slip.getSlipType() != com.samhanair.logis.slip.domain.SlipType.OUTBOUND) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다.");

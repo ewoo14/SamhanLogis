@@ -6,7 +6,7 @@ import java.util.UUID;
 
 /**
  * slip-service 의 출고/입고전표 line read-only snapshot DTO.
- * accounting-service 가 매출/매입전표 생성 시 검증/매핑용으로 조회.
+ * accounting-service 가 매출/입고전표 생성 시 검증/매핑용으로 조회.
  *
  * <p>slip-service 측 동일 시그니처 record 와 JSON deserialization 호환.
  *
@@ -35,7 +35,7 @@ public record SlipLineSnapshot(
         int quantity,
         BigDecimal unitPrice,
         BigDecimal lineTotal,
-        String slipStatus,       // CONFIRMED 만 매출/매입전표 source 사용 가능
+        String slipStatus,       // CONFIRMED 만 매출/입고전표 source 사용 가능
         String slipType
 ) {
     /** 기존 12필드 소비자와의 JSON/테스트 호환 생성자. */

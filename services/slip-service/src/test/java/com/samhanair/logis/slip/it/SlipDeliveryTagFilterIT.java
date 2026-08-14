@@ -40,15 +40,15 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>시나리오 세트:
  * <ul>
- *   <li>OUT 슬립 5건: DAY 2건 + RENTAL 2건 + RETURN_RENTAL 1건</li>
+ *   <li>OUT 슬립 5건: SALE 2건 + RENTAL 2건 + BORROW_RETURN 1건</li>
  *   <li>IN  슬립 3건: RETURN_TRIP 1건 + RETURN 1건 + BORROW 1건</li>
  * </ul>
  *
  * <p>TC-1: GET /slips?slipType=OUTBOUND&deliveryTag=RENTAL → 2건
  * <p>TC-2: GET /slips?slipType=INBOUND&deliveryTag=RETURN_TRIP → 1건
  * <p>TC-3: GET /slips?slipType=OUTBOUND&deliveryTag=RETURN_TRIP → 400 (정합 위반: RETURN_TRIP 은 INBOUND 전용)
- * <p>TC-4: GET /slips?slipType=INBOUND&deliveryTag=DAY → 400 (정합 위반: DAY 는 OUTBOUND 전용)
- * <p>TC-5: GET /slips?slipType=OUTBOUND&deliveryTag=RENTAL&deliveryTag=RETURN_RENTAL → 3건
+ * <p>TC-4: GET /slips?slipType=INBOUND&deliveryTag=SALE → 400 (정합 위반: SALE 는 OUTBOUND 전용)
+ * <p>TC-5: GET /slips?slipType=OUTBOUND&deliveryTag=RENTAL&deliveryTag=BORROW_RETURN → 3건
  *
  * <p>외부 RestClient (@MockBean 4종) — PR #134~#152 회고 ({@code feedback_it_mockbean_external_clients}):
  * {@link ProductClient}, {@link InventoryClient}, {@link NotificationChatRoomClient},
@@ -138,7 +138,7 @@ class SlipDeliveryTagFilterIT extends AbstractPostgresIT {
     /**
      * OUTBOUND 슬립 생성 헬퍼.
      *
-     * @param deliveryTag 배송 태그 문자열 (예: "DAY", "RENTAL")
+     * @param deliveryTag 배송 태그 문자열 (예: "SALE", "RENTAL")
      * @param repeat 생성할 건수
      */
     private void createOutbound(String deliveryTag, int repeat) throws Exception {
@@ -213,12 +213,12 @@ class SlipDeliveryTagFilterIT extends AbstractPostgresIT {
     }
 
     /**
-     * 8건 시나리오 데이터 사전 생성 — OUT 5건(DAY×2 + RENTAL×2 + RETURN_RENTAL×1) + IN 3건(RETURN_TRIP×1 + RETURN×1 + BORROW×1).
+     * 8건 시나리오 데이터 사전 생성 — OUT 5건(SALE×2 + RENTAL×2 + BORROW_RETURN×1) + IN 3건(RETURN_TRIP×1 + RETURN×1 + BORROW×1).
      */
     private void seedSlips() throws Exception {
-        createOutbound("DAY", 2);
+        createOutbound("SALE", 2);
         createOutbound("RENTAL", 2);
-        createOutbound("RETURN_RENTAL", 1);
+        createOutbound("BORROW_RETURN", 1);
         createInbound("RETURN_TRIP", 1);
         createInbound("RETURN", 1);
         createInbound("BORROW", 1);
@@ -277,26 +277,26 @@ class SlipDeliveryTagFilterIT extends AbstractPostgresIT {
     }
 
     // -----------------------------------------------------------------------
-    // TC-4: INBOUND + DAY → 400 (정합 위반)
+    // TC-4: INBOUND + SALE → 400 (정합 위반)
     // -----------------------------------------------------------------------
 
     @Test
-    @DisplayName("TC-4: INBOUND + DAY 조합 → 400 BAD_REQUEST (DAY 는 OUTBOUND 전용)")
+    @DisplayName("TC-4: INBOUND + SALE 조합 → 400 BAD_REQUEST (SALE 는 OUTBOUND 전용)")
     void tc4_inbound_day_returns400() throws Exception {
         mockMvc.perform(get("/slips")
                         .param("slipType", "INBOUND")
-                        .param("deliveryTag", "DAY")
+                        .param("deliveryTag", "SALE")
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_ROLE_HEADER, MASTER_ROLE))
                 .andExpect(status().isBadRequest());
     }
 
     // -----------------------------------------------------------------------
-    // TC-5: OUTBOUND + RENTAL,RETURN_RENTAL 멀티셀렉 → 3건
+    // TC-5: OUTBOUND + RENTAL,BORROW_RETURN 멀티셀렉 → 3건
     // -----------------------------------------------------------------------
 
     @Test
-    @DisplayName("TC-5: OUTBOUND + RENTAL,RETURN_RENTAL 멀티셀렉 필터 → 정확히 3건 반환")
+    @DisplayName("TC-5: OUTBOUND + RENTAL,BORROW_RETURN 멀티셀렉 필터 → 정확히 3건 반환")
     void tc5_outbound_rental_returnRental_multiSelect_returns3() throws Exception {
         seedSlips();
 
@@ -304,7 +304,7 @@ class SlipDeliveryTagFilterIT extends AbstractPostgresIT {
         mockMvc.perform(get("/slips")
                         .param("slipType", "OUTBOUND")
                         .param("deliveryTag", "RENTAL")
-                        .param("deliveryTag", "RETURN_RENTAL")
+                        .param("deliveryTag", "BORROW_RETURN")
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_ROLE_HEADER, MASTER_ROLE))
                 .andExpect(status().isOk())

@@ -131,7 +131,7 @@ function extractShippingFieldValue(
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 
-const BUNDLE_CONVERSION_MESSAGE = '세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.'
+const BUNDLE_CONVERSION_MESSAGE = '세트 품목은 출고전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.'
 
 function safeConversionMessage(value: unknown): string | null {
   return typeof value === 'string' && value.includes('세트 품목') && value.includes('구성품으로 전개')
@@ -546,7 +546,7 @@ export function MergeConvertDialog({
       onClose={() => {
         if (!mergeMutation.isPending) onClose()
       }}
-      title="판매전표 병합 전환"
+      title="출고전표 병합 전환"
       size="xl"
       closeOnBackdropClick={!mergeMutation.isPending}
       closeOnEsc={!mergeMutation.isPending}
@@ -586,7 +586,7 @@ export function MergeConvertDialog({
           role="note"
           data-testid="merge-convert-irreversible-warning"
         >
-          <strong>주의:</strong> 병합 발행 후에는 판매전표가 즉시 생성되며 재고가 예약됩니다.{' '}
+          <strong>주의:</strong> 병합 발행 후에는 출고전표가 즉시 생성되며 재고가 예약됩니다.{' '}
           이 작업은 되돌릴 수 없습니다.
           {convertItemCount > 0
             ? ` (${selectedOrders.length}개 주문, ${convertItemCount}개 품목 전환 예정)`
@@ -737,7 +737,7 @@ export function MergeConvertDialog({
                 fontWeight: 600,
               }}
             >
-              ⚠ 아래 필드는 주문마다 값이 다릅니다. 최종 판매전표에 기록될 값을 선택하세요.
+              ⚠ 아래 필드는 주문마다 값이 다릅니다. 최종 출고전표에 기록될 값을 선택하세요.
             </div>
             {conflictFields.map((key) => {
               const orderValueEntries = orderDetails

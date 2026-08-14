@@ -6,7 +6,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  * 발견 1: 화면 검색/필터가 export 파라미터에서 전량 누락 → 화면과 파일의 건수가 달랐다.
  *   - 판매관리(SalesQueryPage) 검색모달 → export 미반영
  *   - 분개장(JournalListPage) 당월 하드코딩 → 화면(전체)과 불일치
- *   - 판매전표목록(SlipListPage) 당월 하드코딩 + deliveryTag 미반영
+ *   - 출고전표목록(SlipListPage) 당월 하드코딩 + deliveryTag 미반영
  * 발견 2: 재고현황(TransferListPage) export 에 품목 식별자 없음(창고코드/명만).
  *
  * 실 게이트웨이(:8080, mock OFF) → 재빌드 slip-service/accounting-service/inventory-service.
@@ -49,7 +49,7 @@ async function realLogin(page: Page, loginId: string): Promise<LoginResult> {
   const d = (await res.json()).data ?? {}
   // canQuerySales 등 V43 role-group UUID 기반 가드는 role 문자열이 아니라 groups 배열을 본다
   // (session.ts BUILTIN_ROLE_GROUP_IDS) — 이 필드를 빠뜨리면 SalesQueryPage 진입 시
-  // "매출 전표 조회 권한이 없습니다" 로 막힌다.
+  // "출고 전표 조회 권한이 없습니다" 로 막힌다.
   return {
     token: d.token ?? '',
     role: d.role ?? '',
@@ -130,7 +130,7 @@ test('발견1 — 분개장은 기간 UI 가 없어 화면 전체가 곧 export 
   await capture(page, 'journal-after-download')
 })
 
-test('발견1 — 판매전표목록 배송태그(당일) 필터 적용 후 Excel 다운로드', async ({ page }) => {
+test('발견1 — 출고전표목록 배송태그(당일) 필터 적용 후 Excel 다운로드', async ({ page }) => {
   const login = await realLogin(page, 'dev_master')
   await installAuthStub(page, login)
 

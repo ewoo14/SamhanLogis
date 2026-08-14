@@ -301,11 +301,11 @@ test.describe('SP-08-6-4 거래명세서 + 계산서 인쇄 양식 정적 계약
     expect(statementComponent).not.toMatch(/>\s*\{\s*slip\.partnerId\s*\}/)
 
     // [계산서] 식별번호 표시 확인
-    // SalesInvoicePrintPage(매출 전표 기반) 는 slipNo 노출 — 정본으로 인정
+    // SalesInvoicePrintPage(출고 전표 기반) 는 slipNo 노출 — 정본으로 인정
     const hasInvoiceNo =
       invoiceComponent.includes('taxInvoiceNo') ||
       invoiceComponent.includes('일련번호') || // 일련번호
-      invoiceComponent.includes('slipNo') // 매출 전표 계산서 식별번호
+      invoiceComponent.includes('slipNo') // 출고 전표 계산서 식별번호
     expect(hasInvoiceNo).toBeTruthy()
 
     // [계산서] UUID raw 출력 패턴 미사용

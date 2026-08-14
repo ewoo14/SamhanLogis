@@ -172,7 +172,7 @@ describe('PartnerLedgerPage 인쇄 미리보기', () => {
   it('식별 불가(-) 집계 행은 빈 상세·인쇄를 열지 않는다', async () => {
     vi.mocked(getLedgerData).mockClear()
     vi.mocked(getSalesAggregate).mockResolvedValue([{
-      partnerCode: '-', bizNo: '', partnerName: '식별 불가 판매전표',
+      partnerCode: '-', bizNo: '', partnerName: '식별 불가 출고전표',
       salesTotal: '197476400', paymentTotal: '0', receivableBalance: '0',
       periodFrom: '2026-01-01', periodTo: '2026-03-31',
     }])

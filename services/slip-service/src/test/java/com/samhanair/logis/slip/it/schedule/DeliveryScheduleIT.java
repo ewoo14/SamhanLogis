@@ -53,7 +53,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>야적 토요일 생성 → unloadDate = 일요일 (야적&amp;&amp;토 예외 — 일요일 유지)</li>
  *   <li>editHeader 배송태그 지방 확정 → unloadDate 재계산</li>
  *   <li>unloadDate override 당착(slipDate) 전달 → label = "당착"</li>
- *   <li>비적용 태그(DAY) → unloadDate null, label null</li>
+ *   <li>비적용 태그(SALE) → unloadDate null, label null</li>
  *   <li>editHeader 태그 미변경 + 당착 N 편집 → unloadDate == slipDate, label = "당착"</li>
  *   <li>[시나리오 A] 지방 전표 override 설정 후 메모만 수정(editHeader) → override 유지</li>
  *   <li>[시나리오 B] 지방 전표 override 설정 후 v20 projectName 수정 → override 유지</li>
@@ -177,13 +177,13 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     }
 
     // -------------------------------------------------------------------------
-    // 시나리오 4: DAY 태그 생성 → unloadDate null, label null (비적용 태그)
+    // 시나리오 4: SALE 태그 생성 → unloadDate null, label null (비적용 태그)
     // -------------------------------------------------------------------------
     @Test
     void 비적용태그_하차일_null() throws Exception {
         LocalDate slipDate = FIXED_WEDNESDAY;
 
-        MvcResult result = 전표_생성("DAY", slipDate, null);
+        MvcResult result = 전표_생성("SALE", slipDate, null);
 
         JsonNode data = responseData(result);
         Assertions.assertThat(data.get("unloadDate").isNull()).isTrue();

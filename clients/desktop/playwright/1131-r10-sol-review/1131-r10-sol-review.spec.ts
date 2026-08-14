@@ -128,7 +128,7 @@ async function duplicate(request: APIRequestContext, source: Slip): Promise<Slip
 
 async function openSalesEdit(page: Page, slip: Slip): Promise<void> {
   await page.goto(`${APP_BASE}/#/sales/${slip.id}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('heading', { name: new RegExp(`판매전표 상세.*${slip.slipNo.replaceAll('/', '\\/')}`) }))
+  await expect(page.getByRole('heading', { name: new RegExp(`출고전표 상세.*${slip.slipNo.replaceAll('/', '\\/')}`) }))
     .toBeVisible({ timeout: 30_000 })
   await page.getByTestId('sales-slip-edit-button').click()
   await expect(page.getByTestId('sales-slip-edit-modal')).toBeVisible()
@@ -190,7 +190,7 @@ test('V119 이관 대상은 실 응답으로 보이고 금액 불변·편집 계
   expect(bundles.reduce((sum, line) => sum + Number(line.supplyAmount ?? 0), 0)).toBe(EXPECTED_BUNDLE_SUPPLY)
 
   await page.goto(`${APP_BASE}/#/sales/${target.id}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('heading', { name: /판매전표 상세.*2026\/08\/07-20/ })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('heading', { name: /출고전표 상세.*2026\/08\/07-20/ })).toBeVisible({ timeout: 30_000 })
   await page.screenshot({ path: path.join(SHOTS, '01-v119-migrated-real-slip.png'), fullPage: true })
   console.log(`LIVE_API_QUERY|HTTP 200|slip_no=${target.slipNo}|status=${target.status}|rows=${bundles.length}|heads=${bundles.filter((line) => line.setHead).length}|keys=${keyCount(bundles)}|supply=${EXPECTED_TOTAL_SUPPLY}`)
 

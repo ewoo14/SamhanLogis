@@ -26,7 +26,7 @@ class SlipLineAuthoritativeAmountsTest {
                 new BigDecimal("220000"), null, null);
 
         // RED(수정 전): 요청 단가를 두 컬럼에 그대로 각인해 unit_price 가 110,000 이 된다 —
-        // 세금계산서/매입전표 인쇄가 읽는 항등식(단가 x 수량 = 공급가액)이 220,000 != 200,000 으로 깨진다.
+        // 세금계산서/입고전표 인쇄가 읽는 항등식(단가 x 수량 = 공급가액)이 220,000 != 200,000 으로 깨진다.
         assertThat(line.getUnitPrice()).isEqualByComparingTo("100000");
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("110000");
         assertThat(line.getUnitPrice().multiply(BigDecimal.valueOf(2)))
@@ -63,7 +63,7 @@ class SlipLineAuthoritativeAmountsTest {
         // 재수렴 4차(#937): D-3 의 의도는 "요청 단가를 잃지 않는다" 였고 그 계약은 그대로다 —
         // 다만 그것을 VAT 포함 컬럼 하나에만 담는다. 종전 단언(unit_price 도 11,000)은 결함
         // 자체를 고정한 것이었다: 이 케이스는 공급가액 50,000·수량 2 이므로 VAT 제외 공급단가는
-        // 정의상 25,000 이고, 11,000 × 2 = 22,000 != 50,000 이라 세금계산서·매입전표 인쇄가
+        // 정의상 25,000 이고, 11,000 × 2 = 22,000 != 50,000 이라 세금계산서·입고전표 인쇄가
         // 읽는 항등식(단가 x 수량 = 공급가액)이 애초에 깨진 값이었다.
         assertThat(line.getUnitPrice()).isEqualByComparingTo("25000");
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("11000");
@@ -280,6 +280,6 @@ class SlipLineAuthoritativeAmountsTest {
     private Slip newOutbound() {
         return Slip.createOutbound("2026/07/22-1", LocalDate.of(2026, 7, 22), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "거래처",
-                DeliveryTag.DAY, null, "test-user");
+                DeliveryTag.SALE, null, "test-user");
     }
 }

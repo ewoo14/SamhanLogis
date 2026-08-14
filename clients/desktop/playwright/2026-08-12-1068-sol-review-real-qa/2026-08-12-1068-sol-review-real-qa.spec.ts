@@ -9,7 +9,7 @@ const UUID_TEXT = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 async function openNewSalesSlip(page: Page, query = '') {
   await page.goto(`/#/sales/new${query}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('heading', { name: '새 판매전표' }).last()).toBeVisible()
+  await expect(page.getByRole('heading', { name: '새 출고전표' }).last()).toBeVisible()
   await expect(page.getByTestId('slip-partner-header-autofill')).toBeVisible()
 }
 

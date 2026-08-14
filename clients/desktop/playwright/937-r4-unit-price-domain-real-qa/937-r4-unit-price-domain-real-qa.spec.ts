@@ -4,7 +4,7 @@ import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
  *
  * 검증 불변식:
  *  1) 무수정 재저장이 어떤 표시 값도 바꾸지 않는다
- *  2) 인쇄에서 단가 x 수량 == 공급가액 이 성립한다(세금계산서·매입전표), 거래명세서는 단가 x 수량 == 공급가액+부가세
+ *  2) 인쇄에서 단가 x 수량 == 공급가액 이 성립한다(세금계산서·입고전표), 거래명세서는 단가 x 수량 == 공급가액+부가세
  *  3) 감사 이력이 사용자가 하지 않은 변경을 기록하지 않는다
  *  + ⑤ 두 단가 컬럼이 같은 값(둘 다 VAT 제외)이 된 기존 행에서도 수량 재계산이 옳다
  *
@@ -209,7 +209,7 @@ test.describe('#937 재수렴 4차 — 단가 세금 도메인 라이브QA', () 
     expect(editUnitPriceChanges, '사용자가 하지 않은 단가 변경이 감사 이력에 없다').toHaveLength(0)
   })
 
-  test('② 세금계산서·매입전표 인쇄 — 단가 x 수량 == 공급가액', async ({ browser }) => {
+  test('② 세금계산서·입고전표 인쇄 — 단가 x 수량 == 공급가액', async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 1200 } })
     const page = await ctx.newPage()
     await login(page)
@@ -241,8 +241,8 @@ test.describe('#937 재수렴 4차 — 단가 세금 도메인 라이브QA', () 
     expect(stmUnit * stmQty, '거래명세서 단가 x 수량 == 공급가액 + 부가세').toBe(stmSupply + stmVat)
     expect(stmUnit).toBe(110000)
 
-    // 매입전표 — ⑤ 상태 그대로(재저장하지 않은 행)
-    console.log(`[937-R4] 매입 전표 DB=${lineRow(PURCHASE_SLIP)}`)
+    // 입고전표 — ⑤ 상태 그대로(재저장하지 않은 행)
+    console.log(`[937-R4] 입고 전표 DB=${lineRow(PURCHASE_SLIP)}`)
     await page.goto(`${BASE_URL}/purchases/${PURCHASE_SLIP}/print/purchase`)
     const purRow = page.locator('tbody tr').filter({ hasText: 'AR09TXEAAWKNEU-04' }).first()
     await purRow.waitFor({ state: 'visible', timeout: 40000 })
@@ -250,9 +250,9 @@ test.describe('#937 재수렴 4차 — 단가 세금 도메인 라이브QA', () 
     const purQty = num(await purRow.locator('td.col-qty').textContent())
     const purPrice = num(await purRow.locator('td.col-price').textContent())
     const purSupply = num(await purRow.locator('td.col-supply').textContent())
-    console.log(`[937-R4] 매입전표: 수량=${purQty} 단가=${purPrice} 공급가액=${purSupply}`)
+    console.log(`[937-R4] 입고전표: 수량=${purQty} 단가=${purPrice} 공급가액=${purSupply}`)
     await capture(page, '08-print-purchase-slip-unit-price')
-    expect(purPrice * purQty, '매입전표 단가 x 수량 == 공급가액').toBe(purSupply)
+    expect(purPrice * purQty, '입고전표 단가 x 수량 == 공급가액').toBe(purSupply)
     expect(purPrice).toBe(100000)
   })
 })

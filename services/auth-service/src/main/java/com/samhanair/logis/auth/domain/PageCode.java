@@ -121,11 +121,11 @@ public enum PageCode {
     /** 시산표 API — SP-D6-7. */
     ACCOUNTING_BALANCES_TRIAL_BALANCE("accounting.balances.trial-balance", "시산표"),
 
-    /** 매출전표 회계분개 API — SP-D6-7. */
-    ACCOUNTING_SALES_SLIP_ACCOUNTING("accounting.sales-slip.accounting", "매출전표 회계분개"),
+    /** 출고전표 회계분개 API — SP-D6-7. */
+    ACCOUNTING_SALES_SLIP_ACCOUNTING("accounting.sales-slip.accounting", "출고전표 회계분개"),
 
-    /** 매입전표 회계분개 API — SP-D6-7. */
-    ACCOUNTING_PURCHASE_SLIP_ACCOUNTING("accounting.purchase-slip.accounting", "매입전표 회계분개"),
+    /** 입고전표 회계분개 API — SP-D6-7. */
+    ACCOUNTING_PURCHASE_SLIP_ACCOUNTING("accounting.purchase-slip.accounting", "입고전표 회계분개"),
 
     /** 거래처 원장 공급처 프로필 API — SP-D6-7. */
     ACCOUNTING_SUPPLIER_PROFILES("accounting.supplier-profiles", "공급처 프로필"),
@@ -174,29 +174,29 @@ public enum PageCode {
 
     // ---- 매입 (purchases) ----
 
-    /** 매입 슬립 목록 화면. */
-    PURCHASES_SLIP_LIST("purchases.slip.list", "매입 슬립 목록"),
+    /** 입고전표 목록 화면. */
+    PURCHASES_SLIP_LIST("purchases.slip.list", "입고전표 목록"),
 
-    /** 매입 전표 즉시 수정 API — SP-D6-6. */
-    PURCHASES_SLIP_EDIT("purchases.slip.edit", "매입 전표 수정"),
+    /** 입고 전표 즉시 수정 API — SP-D6-6. */
+    PURCHASES_SLIP_EDIT("purchases.slip.edit", "입고 전표 수정"),
 
-    /** 매입 전표 삭제 API — SP-D6-6. */
-    PURCHASES_SLIP_DELETE("purchases.slip.delete", "매입 전표 삭제"),
+    /** 입고 전표 삭제 API — SP-D6-6. */
+    PURCHASES_SLIP_DELETE("purchases.slip.delete", "입고 전표 삭제"),
 
     // ---- 매출 (sales) ----
 
-    /** 매출 슬립 목록 화면. */
-    SALES_SLIP_LIST("sales.slip.list", "매출 슬립 목록"),
+    /** 출고전표 목록 화면. */
+    SALES_SLIP_LIST("sales.slip.list", "출고전표 목록"),
 
     /** 매출/수동 전표 생성 API — SP-D6-6. */
-    SALES_SLIP_CREATE("sales.slip.create", "매출 전표 생성"),
+    SALES_SLIP_CREATE("sales.slip.create", "출고 전표 생성"),
     /** 마감된 전표일 예외 생성 권한 — 기본 MASTER/MANAGER, 권한 설정에서 동적 조절. */
     SLIP_CLOSED_DATE_EXCEPTION("slip.closed-date-exception", "마감 전표일 예외 생성"),
     /** 전표 종류별 마감 기준선 관리자 API. */
     SLIP_CLOSED_DATE_ADMIN("slip.closed-date-admin", "전표 마감 기준선 관리"),
 
-    /** 매출 전표 수정/저장/전송 API — SP-D6-6. */
-    SALES_SLIP_EDIT("sales.slip.edit", "매출 전표 수정"),
+    /** 출고 전표 수정/저장/전송 API — SP-D6-6. */
+    SALES_SLIP_EDIT("sales.slip.edit", "출고 전표 수정"),
 
     /** 전표 확정 API — SP-D6-6. */
     SALES_SLIP_CONFIRM("sales.slip.confirm", "전표 확정"),
@@ -561,11 +561,11 @@ public enum PageCode {
     /** 아로로지스 간이 회계 계정과목 관리(활성상태 토글) — desktop 백오피스 (마스터/회계사원). */
     AROLOGIS_ACCOUNTING_ACCOUNTS("arologis.accounting.accounts", "아로로지스 계정과목 관리"),
 
-    /** SAS 매출전표 목록 화면 (SP-SAS-1). */
-    ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표(회계분개)"),
+    /** SAS 출고전표 목록 화면 (SP-SAS-1). */
+    ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "출고전표(회계분개)"),
 
-    /** SAS 매입전표 목록 화면 (SP-SAS-2). */
-    ACCOUNTING_PURCHASE_SLIP_LIST("accounting.purchase-slip.list", "매입전표(회계분개)"),
+    /** SAS 입고전표 목록 화면 (SP-SAS-2). */
+    ACCOUNTING_PURCHASE_SLIP_LIST("accounting.purchase-slip.list", "입고전표(회계분개)"),
 
     /** 세금계산서 발행 묶음 화면 (SP-SAS-3). */
     ACCOUNTING_TAX_INVOICE_BATCH_ISSUE("accounting.tax-invoice.batch-issue", "세금계산서 발행 묶음"),
@@ -588,11 +588,11 @@ public enum PageCode {
     /** MIG-2 이카운트 카드/계좌 마이그레이션. */
     ECOUNT_MIG2_CARD("ecount.mig2.card", "이카운트 카드 마이그레이션"),
 
-    /** MIG-3 이카운트 매입전표 마이그레이션. */
-    ECOUNT_MIG3_PURCHASE_SLIP("ecount.mig3.purchase-slip", "이카운트 매입전표 마이그레이션"),
+    /** MIG-3 이카운트 입고전표 마이그레이션. */
+    ECOUNT_MIG3_PURCHASE_SLIP("ecount.mig3.purchase-slip", "이카운트 입고전표 마이그레이션"),
 
-    /** MIG-3 이카운트 매출전표 마이그레이션. */
-    ECOUNT_MIG3_SALES_SLIP("ecount.mig3.sales-slip", "이카운트 매출전표 마이그레이션"),
+    /** MIG-3 이카운트 출고전표 마이그레이션. */
+    ECOUNT_MIG3_SALES_SLIP("ecount.mig3.sales-slip", "이카운트 출고전표 마이그레이션"),
 
     /** MIG-3 이카운트 일반전표 마이그레이션. */
     ECOUNT_MIG3_GENERAL_VOUCHER("ecount.mig3.general-voucher", "이카운트 일반전표 마이그레이션"),
@@ -600,11 +600,11 @@ public enum PageCode {
     /** MIG-3 이카운트 회계전표분개 마이그레이션. */
     ECOUNT_MIG3_JOURNAL_ENTRY("ecount.mig3.journal-entry", "이카운트 회계전표분개 마이그레이션"),
 
-    /** MIG-4 이카운트 세금계산서용 판매전표 마이그레이션. */
+    /** MIG-4 이카운트 세금계산서용 출고전표 마이그레이션. */
     ECOUNT_MIG4_TAX_INVOICE("ecount.mig4.tax-invoice", "이카운트 세금계산서 마이그레이션"),
 
-    /** MIG-4 이카운트 판매전표 라인 마이그레이션. */
-    ECOUNT_MIG4_SALES_SLIP_LINE("ecount.mig4.sales-slip-line", "이카운트 판매전표 라인 마이그레이션"),
+    /** MIG-4 이카운트 출고전표 라인 마이그레이션. */
+    ECOUNT_MIG4_SALES_SLIP_LINE("ecount.mig4.sales-slip-line", "이카운트 출고전표 라인 마이그레이션"),
 
     /** MIG-4 이카운트 매출매입내역 마이그레이션. */
     ECOUNT_MIG4_SUMMARY("ecount.mig4.summary", "이카운트 매출매입내역 마이그레이션"),

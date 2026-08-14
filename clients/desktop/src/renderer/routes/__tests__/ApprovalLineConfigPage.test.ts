@@ -180,7 +180,7 @@ describe('ApprovalRoleRow', () => {
 
 describe('ApprovalLineDocTypeSelect', () => {
   const docTypes: ConfigurableDocType[] = [
-    { value: 'SLIP_OUTBOUND', label: '판매전표', kind: 'SLIP' },
+    { value: 'SLIP_OUTBOUND', label: '출고전표', kind: 'SLIP' },
     { value: 'SLIP_INBOUND', label: '입고전표', kind: 'SLIP' },
     { value: 'PARTNER_ORDER', label: '주문', kind: 'SLIP' },
     { value: 'GROUPWARE_EXPENSE_REPORT', label: '지출결의서', kind: 'GROUPWARE' },
@@ -196,7 +196,7 @@ describe('ApprovalLineDocTypeSelect', () => {
 
     expect(html).toContain('label="전표"')
     expect(html).toContain('label="그룹웨어"')
-    expect(html).toContain('판매전표')
+    expect(html).toContain('출고전표')
     expect(html).toContain('지출결의서')
     expect(html).toContain('GROUPWARE_EXPENSE_REPORT')
   })

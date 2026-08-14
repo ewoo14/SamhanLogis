@@ -59,7 +59,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>TC-9 (#907 재수렴 R) — searchPartnerName 검색 필터가 export 에도 적용되어
  *       무관한 거래처 행이 섞이지 않는다 (판매관리 검색모달 파리티)</li>
  *   <li>TC-10 (#907 재수렴 R) — deliveryTag 필터가 export 에도 적용되고, from/to 를
- *       보내지 않아도(판매전표목록 화면은 기간 UI 가 없음) 200 으로 응답한다</li>
+ *       보내지 않아도(출고전표목록 화면은 기간 UI 가 없음) 200 으로 응답한다</li>
  * </ol>
  *
  * <p>외부 client 전종 @MockBean 격리 (메모리 {@code feedback_it_mockbean_external_clients}):
@@ -274,7 +274,7 @@ class SlipExcelExportIT extends AbstractPostgresIT {
         slipBody.put("destinationWarehouseId", UUID.randomUUID().toString());
         slipBody.put("partnerId", UUID.randomUUID().toString());
         slipBody.put("partnerName", "P1-6 테스트 거래처");
-        slipBody.put("deliveryTag", "DAY");
+        slipBody.put("deliveryTag", "SALE");
         slipBody.put("memo", "P1-6 Excel export IT");
         slipBody.put("lines", List.of(line));
 
@@ -362,19 +362,19 @@ class SlipExcelExportIT extends AbstractPostgresIT {
     /**
      * TC-10: deliveryTag 필터가 export 에도 적용되고, from/to 없이도 200 으로 응답한다.
      *
-     * <p>판매전표목록(SlipListPage) 화면은 기간 필터 UI 가 없어 export 도 from/to 를 보내지
+     * <p>출고전표목록(SlipListPage) 화면은 기간 필터 UI 가 없어 export 도 from/to 를 보내지
      * 않는다(고치기 전에는 FE 가 당월을 임의로 계산해 보내 화면 밖 조건을 파일이 만들었다 —
      * P-2 위반). deliveryTag 도 고치기 전에는 무시되어 화면에서 태그로 좁혀도 파일에는
      * 다른 태그 전표가 섞여 나왔다.
      */
     @Test
     void tc10_deliveryTag_filtersExportToMatchingRowsOnly_withoutDateBound() throws Exception {
-        createOutboundSlip("DT거래처DAY9", "DAY", "2026-05-11");
+        createOutboundSlip("DT거래처SALE9", "SALE", "2026-05-11");
         createOutboundSlip("DT거래처RENTAL9", "RENTAL", "2026-05-11");
 
         MvcResult result = mockMvc.perform(get(EXPORT_URL)
                         .queryParam("slipType", "OUTBOUND")
-                        .queryParam("deliveryTag", "DAY")
+                        .queryParam("deliveryTag", "SALE")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk())
@@ -383,7 +383,7 @@ class SlipExcelExportIT extends AbstractPostgresIT {
         try (Workbook wb = new XSSFWorkbook(
                 new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
             Sheet sheet = wb.getSheetAt(0);
-            assertThat(sheetContainsText(sheet, "DT거래처DAY9")).isTrue();
+            assertThat(sheetContainsText(sheet, "DT거래처SALE9")).isTrue();
             assertThat(sheetContainsText(sheet, "DT거래처RENTAL9")).isFalse();
         }
     }

@@ -38,6 +38,7 @@ import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.SlipScanContextResponse;
 import com.samhanair.logis.slip.web.dto.SlipSearchResult;
 import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
@@ -1190,10 +1191,8 @@ public class SlipService {
 
     private String resolveInboundType(Slip slip) {
         DeliveryTag tag = slip.getDeliveryTag();
-        if (tag == DeliveryTag.BORROW) {
-            return "차용";
-        }
-        return "구매";
+        // tag=null인 레거시 입고 전표만 PURCHASE로 보정하고, 명시된 배송태그는 유형 정보를 보존한다.
+        return tag == null ? DeliveryTag.PURCHASE.name() : tag.name();
     }
 
     /** 저장된 전표 라인만 line UUID를 멱등 키로 전달하고 legacy 호출은 기존 계약을 유지한다. */
@@ -1215,7 +1214,10 @@ public class SlipService {
 
     private boolean isRecallInbound(Slip slip) {
         DeliveryTag tag = slip.getDeliveryTag();
-        return tag == DeliveryTag.RETURN || tag == DeliveryTag.RETURN_TRIP;
+        return tag == DeliveryTag.RETURN
+                || tag == DeliveryTag.DELIVERY_RETURN
+                || tag == DeliveryTag.RETURN_TRIP
+                || tag == DeliveryTag.REENTRY;
     }
 
     private void completeRecallInbound(Slip slip, Map<UUID, ProductSummary> productsById,
@@ -1515,6 +1517,47 @@ public class SlipService {
         boolean canInspect = isOutboundInspectApprovalMember(slip.getSlipType(), slip.getStatus(), actorUserId);
         return SlipDetailResponse.from(slip, ownerFullName, dispatcherFullName,
                 inspectorFullName, acceptedByFullName, canInspect);
+    }
+
+    /** 창고 QR 출고용 최소 문맥을 전표번호로 조회한다. */
+    @Transactional(readOnly = true)
+    public SlipScanContextResponse getOutboundScanContext(String slipNo) {
+        String normalizedSlipNo = slipNo == null ? "" : slipNo.trim();
+        List<Slip> candidates = slipRepository.findAllBySlipNoAndIsDeletedFalse(normalizedSlipNo);
+        if (candidates.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "출고 전표를 찾을 수 없습니다.");
+        }
+        boolean hasInbound = candidates.stream().anyMatch(slip -> slip.getSlipType() == SlipType.INBOUND);
+        List<Slip> outbound = candidates.stream()
+                .filter(slip -> slip.getSlipType() == SlipType.OUTBOUND)
+                .toList();
+        if (hasInbound && !outbound.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "입고전표와 출고전표에 같은 번호가 있습니다. 어느 전표를 열지 선택해 주세요.");
+        }
+        if (outbound.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "입고전표 번호입니다. 출고 스캔 화면에서는 출고전표만 열 수 있습니다.");
+        }
+        return toScanContext(outbound.get(0));
+    }
+
+    /** 창고 QR 출고용 최소 문맥을 opaque 전표 ID로 조회한다. */
+    @Transactional(readOnly = true)
+    public SlipScanContextResponse getOutboundScanContext(UUID id) {
+        Slip slip = loadOrThrow(id);
+        if (slip.getSlipType() != SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "출고 스캔 문맥은 출고전표만 허용됩니다. 입력한 전표는 입고전표입니다.");
+        }
+        return toScanContext(slip);
+    }
+
+    private SlipScanContextResponse toScanContext(Slip slip) {
+        Map<UUID, ProductSummary> products = productClient.lookup(
+                slip.getLines().stream().map(SlipLine::getProductId).distinct().toList()).stream()
+                .collect(java.util.stream.Collectors.toMap(ProductSummary::id, product -> product));
+        return SlipScanContextResponse.from(slip, products);
     }
 
     /**

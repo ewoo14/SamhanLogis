@@ -5,7 +5,7 @@ import java.util.Locale;
 /**
  * #991 일마감의 GAS 범위와 단가변동 schedule 키 사이의 정본 계약.
  *
- * <p>GAS는 판매전표 원본 행 순서를 따라 {@code currentZone}을
+ * <p>GAS는 출고전표 원본 행 순서를 따라 {@code currentZone}을
  * {@code HOME_MULTI}, {@code SINGLE}, {@code COMM_MULTI}로 전환한다. 구형은 별도 zone을
  * 여는 것이 아니라 구형 가격표를 우선 조회하므로, 표시 계약에서는 {@code OLD} 축으로
  * 명시한다.

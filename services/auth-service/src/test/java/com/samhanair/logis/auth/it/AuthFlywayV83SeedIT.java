@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * V83 sales.partner-order.list RESTORE 시드 검증 — E2 주문 목록 취소선 복원(#757).
  *
  * <p>V82(partners.delete, MASTER 단일)와 달리 주문 복원은 목록 운영 액션이라
- * MASTER/MANAGER/SALES 3역할에 부여한다(V84 판매전표·V85 견적과 정합).
+ * MASTER/MANAGER/SALES 3역할에 부여한다(V84 출고전표·V85 견적과 정합).
  */
 @SpringBootTest(
         classes = AuthServiceApplication.class,

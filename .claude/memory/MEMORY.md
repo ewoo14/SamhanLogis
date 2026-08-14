@@ -26,6 +26,7 @@
 - [🚨🚨 fix 브리핑에 "잃으면 안 되는 것…](feedback_fix_briefing_must_state_what_not_to_lose.md)
 - [🚨 fix 는 양방향 RED 로 — 한쪽만…](feedback_bidirectional_red_for_fix.md)
 - [🚨 QA 브리핑 맨 앞에 환경 확인 절 —…](feedback_qa_environment_verification_first.md)
+- [🚨 "로그인 화면에서 막혔다"=결함 아니라 renderer 미기동](feedback_live_qa_needs_renderer_running_first.md)
 - [🚨🚨 라운드 기본값은 SOL 이다 — OP…](feedback_sol_stage_starvation.md)
 - [🚨 하네스 설계 정본 — 결함 0 이 궁극…](feedback_harness_defect_zero_design.md)
 - [🚨 Codex 5-agent=mcp 직접(…](feedback_codex_rescue_unreliable_use_mcp.md)
@@ -116,6 +117,7 @@
 - [Monitor 자동 사용](feedback_monitor_no_permission.md)
 
 - [🚨 CI 실패 스텝이 `Set up job…](feedback_ci_setup_job_failure_is_github_outage.md)
+- [🚨 CI cancelled 는 매달린 실패일 수 있다 — 재실행 전 로그](feedback_cancelled_ci_job_can_be_a_disguised_failure.md)
 
 - [🚨 "배포본 나이를 재라" 는 백엔드 전용…](feedback_client_bundle_is_also_a_deployment.md)
 
@@ -124,6 +126,7 @@
 - [🚨 낡은 배포본은 "없는 기능"처럼 보인다…](feedback_stale_deployment_looks_like_defect.md)
 - [🚨 머지 안 된 마이그레이션이 다른 트랙…](feedback_unmerged_migration_blocks_other_tracks.md)
 - [🚨🚨 백엔드 트랙은 직렬화 — 병렬 트랙이…](feedback_parallel_backend_tracks_share_docker_stack.md)
+- [🚨 compose 단위 기동이 eureka·gateway 를 끌고 재생성한다](feedback_compose_up_recreates_parent_containers.md)
 - [🚨 `git worktree add` 는…](feedback_git_worktree_cwd_use_dash_c.md)
 - [🚨 새 테스트마다 "이 단정이 Linux…](feedback_new_test_needs_linux_skip_guard.md)
 - [🚨 새 워크트리에는 gitignore 된…](feedback_worktree_missing_gitignored_inputs.md)

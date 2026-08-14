@@ -29,7 +29,7 @@ const inputStyle: CSSProperties = {
 }
 
 export function PurchaseAccountingSlipFormPage() {
-  usePageTitle('매입전표 작성')
+  usePageTitle('입고전표 작성')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [slipDate, setSlipDate] = useState(today())
@@ -109,7 +109,7 @@ export function PurchaseAccountingSlipFormPage() {
     <div data-testid="purchase-accounting-slip-form-page">
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>매입전표 작성</h3>
+          <h3 style={{ margin: 0 }}>입고전표 작성</h3>
           <Button variant="ghost" onClick={() => navigate('/accounting/purchase-slips')}>
             목록
           </Button>
@@ -179,7 +179,7 @@ export function PurchaseAccountingSlipFormPage() {
         </div>
         {mutation.isError ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
-            매입전표 저장에 실패했습니다.
+            입고전표 저장에 실패했습니다.
           </div>
         ) : null}
         {sourcePartner.status !== 'valid' ? (

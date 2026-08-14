@@ -57,7 +57,7 @@ public final class PartnerLedgerContract {
             };
         }
 
-        /** VAT 포함 판매전표 금액을 원장 차변 효과로 투영한다. */
+        /** VAT 포함 출고전표 금액을 원장 차변 효과로 투영한다. */
         public static Entry sale(BigDecimal amount) {
             Direction direction = PartnerLedgerContract.direction(amount);
             return new Entry(DocumentType.SALE, amount, direction.debit(), direction.credit());
@@ -76,7 +76,7 @@ public final class PartnerLedgerContract {
             return new Entry(DocumentType.CASH_RECEIPT, amount, direction.debit(), direction.credit());
         }
 
-        /** 판매전표가 없는 legacy 분개를 사용자 판매전표로 위장하지 않고 보관한다. */
+        /** 출고전표가 없는 legacy 분개를 사용자 출고전표로 위장하지 않고 보관한다. */
         public static Entry journalOnly(BigDecimal amount, BigDecimal debit, BigDecimal credit) {
             return new Entry(DocumentType.JOURNAL_ONLY, amount, debit, credit);
         }

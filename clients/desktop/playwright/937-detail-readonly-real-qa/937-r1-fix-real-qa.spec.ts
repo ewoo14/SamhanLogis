@@ -3,10 +3,10 @@ import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
  * #937 fix 라운드 라이브QA — 1차 적대검증(OPUS) 발견 1·2·3 근본수정 검증.
  *
  * 적대검증 원문 4단계 조작을 실 게이트웨이(:8080)·실 Postgres·격리 렌더러(:5207, mock OFF)로
- * 재현한다. throwaway 매출 전표 1건을 raw API 로 생성해(공유 마스터는 조회만 — 거래처/품목은
+ * 재현한다. throwaway 출고 전표 1건을 raw API 로 생성해(공유 마스터는 조회만 — 거래처/품목은
  * 기존 활성 행을 참조) 사용하고, 마지막에 soft-delete 로 정리한다.
  *
- * 1) 매출 전표 상세 → [수정]. 라인: 단가 100,000 / 공급 200,000 / 부가세 20,000 / 합계 220,000
+ * 1) 출고 전표 상세 → [수정]. 라인: 단가 100,000 / 공급 200,000 / 부가세 20,000 / 합계 220,000
  * 2) 단가만 60,000 으로 변경 → [저장] → payload 관찰 → DB 값 확인(120,000/12,000 기대)
  * 3) 같은 전표 재열기 → 화면이 DB 값(120,000/12,000)과 일치하는지 확인(발견 1 핵심)
  * 4) 아무것도 고치지 않고 [저장] → payload·DB 불변 확인(E1)
@@ -108,7 +108,7 @@ test.describe.serial('#937 fix 라운드 — 발견 1·2·3 라이브 재검증'
     const page = await browser.newPage()
     auth = await realLogin(page)
 
-    // throwaway 매출 전표 생성 — 단가 100,000(VAT 제외 공급단가 계약, priceVatInclusive 미지정)
+    // throwaway 출고 전표 생성 — 단가 100,000(VAT 제외 공급단가 계약, priceVatInclusive 미지정)
     // × 수량 2 → 공급 200,000 / 부가세 20,000 / 합계 220,000 (적대검증 원문 1단계 전제와 동일).
     const createRes = await page.request.post(`${API_BASE}/slips`, {
       headers: authHeaders(auth),

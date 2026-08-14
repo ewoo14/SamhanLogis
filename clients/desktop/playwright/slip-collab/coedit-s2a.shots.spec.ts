@@ -2,7 +2,7 @@
  * PR #674 S2a 코-에디팅 전표 전체 폼 QA 스크린샷 캡처 스펙.
  *
  * 검증 포인트:
- *  ① 전표 인라인 편집(매출 전표 수정) — CollaborativeSlipInput 헤더 필드 Yjs 바인딩
+ *  ① 전표 인라인 편집(출고 전표 수정) — CollaborativeSlipInput 헤더 필드 Yjs 바인딩
  *    원격 Y.Doc 업데이트 → header.memo / header.deliveryAddress 원격 텍스트 병합 표시
  *  ② items Y.Array — CRDT `items.line-001.quantity` / `items.line-001.unitPrice` 셀의
  *    원격 값 반영 (DOM testid는 별도 목적의 `items.0.*` 경로)
@@ -289,8 +289,8 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     await editBtn.click()
     const inlineForm = page.getByTestId('sales-slip-edit-modal')
     await expect(inlineForm).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByRole('dialog', { name: '매출 전표 수정' })).toHaveCount(0)
-    console.log('[CHECK] 매출 전표 수정 인라인 폼 오픈: PASS')
+    await expect(page.getByRole('dialog', { name: '출고 전표 수정' })).toHaveCount(0)
+    console.log('[CHECK] 출고 전표 수정 인라인 폼 오픈: PASS')
 
     // coedit provider 초기화 대기:
     //   setSalesEditOpen(true) → useEffect → createDocCoeditProvider
@@ -409,7 +409,7 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     await editBtn.click()
     const inlineForm = page.getByTestId('sales-slip-edit-modal')
     await expect(inlineForm, '모바일 수정 인라인 폼이 열려야 S2a 모바일 QA 캡처가 유효하다').toBeVisible({ timeout: 8_000 })
-    await expect(page.getByRole('dialog', { name: '매출 전표 수정' })).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: '출고 전표 수정' })).toHaveCount(0)
     console.log('[CHECK] 모바일 수정 인라인 폼 오픈: PASS')
     const inlineBox = await inlineForm.boundingBox()
     expect(inlineBox?.width ?? 0).toBeLessThanOrEqual(390)

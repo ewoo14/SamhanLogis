@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 거래처별 원장에 표시할 판매전표 read projection.
+ * 거래처별 원장에 표시할 출고전표 read projection.
  *
  * <p>원장 화면의 외부 계약은 전표번호·거래처코드·거래처명 같은 업무 식별자만 사용한다.
  * 내부 중복제거용 slipId는 accounting-service internal 호출에서만 소비하고 화면에는 노출하지 않는다.
@@ -38,7 +38,7 @@ public record PartnerLedgerSalesResponse(
     }
 
     /**
-     * 원장 판매전표 품목 projection.
+     * 원장 출고전표 품목 projection.
      *
      * @param productName 품목명 snapshot
      * @param modelName 모델명 snapshot
@@ -58,7 +58,7 @@ public record PartnerLedgerSalesResponse(
      * 전표 entity를 원장 전용 외부 read projection으로 변환한다.
      *
      * @param slip 활성 OUTBOUND 전표
-     * @return UUID 없는 원장 판매전표 응답
+     * @return UUID 없는 원장 출고전표 응답
      */
     public static PartnerLedgerSalesResponse from(Slip slip) {
         List<Line> lines = slip.getLines().stream()

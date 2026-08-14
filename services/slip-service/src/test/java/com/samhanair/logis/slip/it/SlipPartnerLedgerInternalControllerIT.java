@@ -32,7 +32,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 거래처별 원장 판매전표 internal read 계약 통합 테스트.
+ * 거래처별 원장 출고전표 internal read 계약 통합 테스트.
  *
  * <p>기존 {@code /internal/slips/outbound-lines} 계약과 분리된 전표 단위 projection을 검증한다.
  */

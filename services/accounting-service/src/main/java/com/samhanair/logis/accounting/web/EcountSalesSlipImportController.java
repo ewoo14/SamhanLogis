@@ -20,15 +20,15 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-/** MIG-3 — Admin 이카운트 매출전표 CSV import. */
+/** MIG-3 — Admin 이카운트 출고전표 CSV import. */
 @Slf4j
 @RestController
 @RequestMapping("/admin/accounting/sales-slips/imports")
 @RequiredArgsConstructor
-@Tag(name = "MIG-3 — 이카운트 매출전표 마이그레이션")
+@Tag(name = "MIG-3 — 이카운트 출고전표 마이그레이션")
 public class EcountSalesSlipImportController {
 
-    /** Codex BE M6 cycle 2 — MIG-3 매출전표 import 페이지 코드 (SP-D2 동적 권한). */
+    /** Codex BE M6 cycle 2 — MIG-3 출고전표 import 페이지 코드 (SP-D2 동적 권한). */
     private static final String PAGE_CODE = "ecount.mig3.sales-slip";
     private static final String ROLE_HEADER = "X-User-Role";
 
@@ -37,7 +37,7 @@ public class EcountSalesSlipImportController {
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
-    @Operation(summary = "이카운트 매출전표 I CSV 적재")
+    @Operation(summary = "이카운트 출고전표 I CSV 적재")
     public EcountVoucherImportResult upload(
             @RequestPart("file") MultipartFile file,
             @RequestHeader("X-User-Id") String userId,
@@ -57,7 +57,7 @@ public class EcountSalesSlipImportController {
             if (canView) {
                 log.warn("[MIG-3] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}", actorRole, PAGE_CODE);
                 throw new BusinessException(ErrorCode.FORBIDDEN,
-                        "동적 권한 설정에 의해 매출전표 import 권한이 차단되었습니다.");
+                        "동적 권한 설정에 의해 출고전표 import 권한이 차단되었습니다.");
             }
         }
     }

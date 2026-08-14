@@ -1,10 +1,10 @@
 package com.samhanair.logis.accounting.domain;
 
-/** 일마감 집계 source — 기존 세금계산서와 신규 매출/매입전표를 구분한다. */
+/** 일마감 집계 source — 기존 세금계산서와 신규 매출/입고전표를 구분한다. */
 public enum DailyClosingSourceKind {
     TAX_INVOICE("세금계산서"),
-    SALES_SLIP("매출전표"),
-    PURCHASE_SLIP("매입전표");
+    SALES_SLIP("출고전표"),
+    PURCHASE_SLIP("입고전표");
 
     private final String displayName;
 

@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** MIG-4 — 이카운트 판매전표 CSV → SalesAccountingSlipLine 보강 import. */
+/** MIG-4 — 이카운트 출고전표 CSV → SalesAccountingSlipLine 보강 import. */
 @Service
 @RequiredArgsConstructor
 public class EcountSalesSlipLineImporter {
@@ -92,7 +92,7 @@ public class EcountSalesSlipLineImporter {
                 insertRejectedStaging(hash, rowNo, c, actor);
                 reject(hash, rowNo, ErrorCode.CONFLICT.name(), ex.getMessage());
                 result.reject(rowNo, ErrorCode.CONFLICT.name(),
-                        "판매전표 line upsert 충돌: " + ex.getMostSpecificCause().getMessage(), c[0], c[0]);
+                        "출고전표 line upsert 충돌: " + ex.getMostSpecificCause().getMessage(), c[0], c[0]);
             }
         }
         EcountMig4ImportResult built = result.build();
@@ -215,7 +215,7 @@ public class EcountSalesSlipLineImporter {
                     .addValue("actor", actor));
             if (partnerMismatch(slip, partner)) {
                 result.mismatch(slip.slipNo(), partner.partnerCode(), slip.partnerCode(),
-                        "기존 active 매출전표 거래처 정보는 덮어쓰지 않습니다");
+                        "기존 active 출고전표 거래처 정보는 덮어쓰지 않습니다");
             }
         }
         return slip.id();

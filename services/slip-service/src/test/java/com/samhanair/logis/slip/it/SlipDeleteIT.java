@@ -51,7 +51,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * SP-08-5-3 매입 전표 soft delete endpoint IT.
+ * SP-08-5-3 입고 전표 soft delete endpoint IT.
  *
  * <p>WAREHOUSE / MANAGER / MASTER 가 INBOUND 전표를 {@code updatedAt} 낙관적 잠금으로
  * 삭제하는 경로를 잠근다. 비-INBOUND, 이미 삭제됨, 권한 없음, stale 잠금, 검수 진행 단계
@@ -150,7 +150,7 @@ class SlipDeleteIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("D1: WAREHOUSE 는 INBOUND 매입 전표를 soft delete 한다")
+    @DisplayName("D1: WAREHOUSE 는 INBOUND 입고 전표를 soft delete 한다")
     void testDeleteSuccess() throws Exception {
         String id = createSlip("INBOUND", "SP0853-삭제전");
         String updatedAt = updatedAt(id);

@@ -32,7 +32,7 @@ class SlipPublishFingerprintTest {
 
         assertThatThrownBy(() -> method.invoke(service, List.of(line(1, "BUNDLE-001", null))))
                 .hasCauseInstanceOf(BusinessException.class)
-                .hasRootCauseMessage("세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
+                .hasRootCauseMessage("세트 품목은 출고전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.");
     }
 
     @Test

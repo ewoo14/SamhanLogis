@@ -492,7 +492,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "테스트 거래처");
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("memo", "테스트");
         java.util.List<Map<String, Object>> lines = new java.util.ArrayList<>();
         for (int i = 0; i < lineCount; i++) {

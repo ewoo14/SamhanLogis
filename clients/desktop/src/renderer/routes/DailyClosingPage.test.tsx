@@ -377,7 +377,7 @@ describe('DailyClosingPage 모델별 재검증', () => {
 
     renderPage()
 
-    fireEvent.click(screen.getByRole('button', { name: '매출전표' }))
+    fireEvent.click(screen.getByRole('button', { name: '출고전표' }))
     fireEvent.click(screen.getByRole('radio', { name: '매입' }))
 
     await waitFor(() => {

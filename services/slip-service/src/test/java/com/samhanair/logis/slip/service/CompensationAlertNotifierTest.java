@@ -48,7 +48,7 @@ class CompensationAlertNotifierTest {
 
     private Slip slip() {
         Slip slip = Slip.createOutbound("2026/06/03-99", LocalDate.of(2026, 6, 3), 99,
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.DAY, null, "u");
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.SALE, null, "u");
         ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());
         return slip;
     }

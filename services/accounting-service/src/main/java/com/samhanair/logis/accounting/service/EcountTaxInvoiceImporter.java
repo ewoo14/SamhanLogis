@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** MIG-4 — 이카운트 세금계산서용 판매전표 CSV → TaxInvoice OUTBOUND import. */
+/** MIG-4 — 이카운트 세금계산서용 출고전표 CSV → TaxInvoice OUTBOUND import. */
 @Service
 @RequiredArgsConstructor
 public class EcountTaxInvoiceImporter {

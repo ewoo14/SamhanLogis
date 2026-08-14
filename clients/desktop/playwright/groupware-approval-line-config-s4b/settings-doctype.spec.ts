@@ -42,7 +42,7 @@ test('S4b: 결재라인 설정 동적 doc-type (전표+그룹웨어 종류)', as
   // 셀렉터에 전표 + 그룹웨어 옵션 존재 확인
   const optionLabels = await select.locator('option').allTextContents()
   console.log('[DOCTYPES]', optionLabels.join(' | '))
-  expect(optionLabels.some((t) => t.includes('판매전표'))).toBeTruthy()
+  expect(optionLabels.some((t) => t.includes('출고전표'))).toBeTruthy()
   expect(optionLabels.some((t) => t.includes('지출결의서') || t.includes('휴가신청서'))).toBeTruthy()
 
   // 그룹웨어 종류 선택 → V75 seed: 부서장(매니저 그룹) / 대표(user-001)

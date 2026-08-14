@@ -204,7 +204,7 @@ export function PartnerOrderVersionHistoryPanel({
         // CONFIRMED 복원 — slip 재발행 필요 경고 우선 노출.
         setToast({
           kind: 'warning',
-          text: `버전 ${revisionNo} 시점으로 주문을 복원했습니다.\n⚠ 판매전표가 발행된 주문입니다. 연결 전표 재발행을 확인하세요.`,
+          text: `버전 ${revisionNo} 시점으로 주문을 복원했습니다.\n⚠ 출고전표가 발행된 주문입니다. 연결 전표 재발행을 확인하세요.`,
         })
       } else {
         setToast({

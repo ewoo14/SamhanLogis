@@ -12,7 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-@DisplayName("거래처별 원장 판매전표 응답")
+@DisplayName("거래처별 원장 출고전표 응답")
 class PartnerLedgerSalesResponseTest {
 
     @Test

@@ -177,7 +177,7 @@ public class SalesAggregateService {
             aggregate.paymentTotal = aggregate.paymentTotal.add(entry.getValue());
         }
 
-        // 전체 집계의 표시명은 판매전표를 합치기 전에 확보해야 한다. 판매전표 원장 projection은
+        // 전체 집계의 표시명은 출고전표를 합치기 전에 확보해야 한다. 출고전표 원장 projection은
         // UUID를 외부 계약에 포함하지 않으므로, journal 후보와의 내부 조인은 partnerCode로 한다.
         // 현재 journal 후보의 partnerCode가 비어 있거나 master 미매칭인 전표는 별도 표시 행으로 보존한다.
         Map<UUID, PartnerSummary> partnerSummaries = filterPartnerId == null && !byPartner.isEmpty()
@@ -187,7 +187,7 @@ public class SalesAggregateService {
         Map<String, LegacyPartnerAggregate> legacyPartners = new LinkedHashMap<>();
 
         // 선택 거래처의 매출 표시는 journals의 고아/구 legacy 분개가 아니라
-        // 원장에 실제로 실리는 출고 판매전표의 품목 합계를 사용한다.
+        // 원장에 실제로 실리는 출고 출고전표의 품목 합계를 사용한다.
         if (filterPartnerId != null) {
             applyLedgerSalesTotal(from, to, byPartner, filterPartnerId, filterPartner);
         } else {
@@ -231,7 +231,7 @@ public class SalesAggregateService {
                     legacy.partnerCode == null ? "-" : legacy.partnerCode,
                     "",
                     legacy.partnerCode == null
-                            ? "식별 불가 판매전표"
+                            ? "식별 불가 출고전표"
                             : (legacy.partnerName == null ? "-" : legacy.partnerName),
                     aggregate.salesTotal,
                     aggregate.paymentTotal,
@@ -253,9 +253,9 @@ public class SalesAggregateService {
     }
 
     /**
-     * 무필터 집계는 journals와 판매전표의 합집합을 사용한다.
+     * 무필터 집계는 journals와 출고전표의 합집합을 사용한다.
      *
-     * <p>판매전표 원장 projection에는 UUID를 노출하지 않으므로, 이미 journal 후보로 확인된
+     * <p>출고전표 원장 projection에는 UUID를 노출하지 않으므로, 이미 journal 후보로 확인된
      * 거래처에 한해서만 partnerCode로 기존 UUID 행에 덮어쓴다. master에서 해소되지 않는
      * code와 code가 비어 있는 전표는 UUID 없이 별도 행으로 남겨 누락을 막는다.
      */
@@ -414,7 +414,7 @@ public class SalesAggregateService {
         BigDecimal receivableDebit = BigDecimal.ZERO;
     }
 
-    /** partner master와 조인되지 않은 판매전표의 화면 표시용 집계. UUID를 보관하지 않는다. */
+    /** partner master와 조인되지 않은 출고전표의 화면 표시용 집계. UUID를 보관하지 않는다. */
     private static final class LegacyPartnerAggregate {
         private final String partnerCode;
         private String partnerName;

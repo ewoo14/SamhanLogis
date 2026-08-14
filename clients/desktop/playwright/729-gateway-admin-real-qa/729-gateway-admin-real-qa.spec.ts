@@ -1,11 +1,11 @@
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
- * #729 게이트웨이 매출/매입 전표 admin 라우트 추가 — 404 해소 라이브 QA (2차 — 실데이터 검증).
+ * #729 게이트웨이 매출/입고 전표 admin 라우트 추가 — 404 해소 라이브 QA (2차 — 실데이터 검증).
  *
  * 근본원인 1(라우트 누락, 선행 fix): 게이트웨이에 `/admin/sales-slips`, `/admin/purchase-slips`,
  * `/admin/tax-invoices/inbound`, `/admin/tax-invoices/batch-from-sales-slips/**`
- * 라우트가 등록되어 있지 않아 전부 404 → 매출전표/매입전표/세금계산서 화면 진입 불가.
+ * 라우트가 등록되어 있지 않아 전부 404 → 출고전표/입고전표/세금계산서 화면 진입 불가.
  * fix: `services/api-gateway/src/main/resources/application.yml` 에 4개 admin 라우트 추가.
  *
  * 근본원인 2(MultipleBagFetchException, 본 라운드 fix): 라우트 추가 후 4개 엔드포인트가 500 으로
@@ -18,11 +18,11 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  * 데이터가 없어 화면 진입만으론 빈 목록만 보임 — 날짜 필터를 넓혀야 실데이터 확인 가능.
  *
  * 단계별 캡처(docs/qa/729-gateway-admin-slip-route/):
- *  01 매출전표 목록 — GET /admin/sales-slips (확장 범위, ~2512건)
- *  02 매입전표 목록 — GET /admin/purchase-slips (확장 범위, ~35건)
+ *  01 출고전표 목록 — GET /admin/sales-slips (확장 범위, ~2512건)
+ *  02 입고전표 목록 — GET /admin/purchase-slips (확장 범위, ~35건)
  *  03 세금계산서 발행 묶음(후보 목록) — GET /admin/tax-invoices/batch-from-sales-slips/candidates
  *  04 수신 세금계산서 등록 — GET /admin/tax-invoices/inbound + GET /admin/purchase-slips
- *     (상단 매입전표 카드 — 이전 라운드엔 500 유발 에러배너, 본 라운드엔 정상 표시 확인)
+ *     (상단 입고전표 카드 — 이전 라운드엔 500 유발 에러배너, 본 라운드엔 정상 표시 확인)
  */
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import * as path from 'path'
@@ -100,7 +100,7 @@ test('게이트웨이 admin 라우트 4종 — 실데이터(2026 연중) 날짜�
 
   // 게이트웨이 :8080 경유 /admin/sales-slips, /admin/purchase-slips, /admin/tax-invoices/** 실 응답 캡처.
   // 4xx/5xx 는 body 도 함께 기록(원인 진단용). 200 GET 배열 응답은 전체 body 대신 항목 수만
-  // 경량 기록(매출전표 2500+건 화면에서 콘솔 과다 출력 방지).
+  // 경량 기록(출고전표 2500+건 화면에서 콘솔 과다 출력 방지).
   const adminResponses: AdminResponseRecord[] = []
   page.on('response', (response) => {
     const url = response.url()
@@ -218,27 +218,27 @@ test('게이트웨이 admin 라우트 4종 — 실데이터(2026 연중) 날짜�
     }
   }
 
-  // 1) 매출전표 목록 — 2026 연중 확장 시 ~2512건 기대. input[type=date] 순서: from(0), to(1).
+  // 1) 출고전표 목록 — 2026 연중 확장 시 ~2512건 기대. input[type=date] 순서: from(0), to(1).
   await visitWidenAndVerify(
     '/accounting/sales-slips',
     'sales-accounting-slip-page',
     'sales-slips',
     ['/admin/sales-slips'],
     { from: 0, to: 1 },
-    [{ label: '매출전표 목록', tableIndex: 0, expectNonZero: true }],
+    [{ label: '출고전표 목록', tableIndex: 0, expectNonZero: true }],
   )
 
-  // 2) 매입전표 목록 — 2026 연중 확장 시 ~35건 기대. input[type=date] 순서: from(0), to(1).
+  // 2) 입고전표 목록 — 2026 연중 확장 시 ~35건 기대. input[type=date] 순서: from(0), to(1).
   await visitWidenAndVerify(
     '/accounting/purchase-slips',
     'purchase-accounting-slip-page',
     'purchase-slips',
     ['/admin/purchase-slips'],
     { from: 0, to: 1 },
-    [{ label: '매입전표 목록', tableIndex: 0, expectNonZero: true }],
+    [{ label: '입고전표 목록', tableIndex: 0, expectNonZero: true }],
   )
 
-  // 3) 세금계산서 발행 묶음 — 매출전표 발행 후보(그룹당 매출전표 라인으로 flatMap 렌더).
+  // 3) 세금계산서 발행 묶음 — 출고전표 발행 후보(그룹당 출고전표 라인으로 flatMap 렌더).
   // input[type=date] 순서: 발행일(0, 미변경) / 조회시작(1) / 조회종료(2).
   await visitWidenAndVerify(
     '/accounting/tax-invoices/batch',
@@ -246,10 +246,10 @@ test('게이트웨이 admin 라우트 4종 — 실데이터(2026 연중) 날짜�
     'tax-invoice-batch',
     ['/admin/tax-invoices/batch-from-sales-slips/candidates'],
     { from: 1, to: 2 },
-    [{ label: '발행 후보 매출전표 라인', tableIndex: 0, expectNonZero: true }],
+    [{ label: '발행 후보 출고전표 라인', tableIndex: 0, expectNonZero: true }],
   )
 
-  // 4) 수신 세금계산서 등록 — 매입전표(POSTED) 카드(상단, 이전 라운드엔 500→에러배너) +
+  // 4) 수신 세금계산서 등록 — 입고전표(POSTED) 카드(상단, 이전 라운드엔 500→에러배너) +
   // 수신 세금계산서 목록 카드(하단, 등록 이력 없으면 0건 가능 — 필수 아님).
   // input[type=date] 순서: 수신일(0, 미변경) / 조회시작(1) / 조회종료(2).
   await visitWidenAndVerify(
@@ -259,7 +259,7 @@ test('게이트웨이 admin 라우트 4종 — 실데이터(2026 연중) 날짜�
     ['/admin/tax-invoices/inbound', '/admin/purchase-slips'],
     { from: 1, to: 2 },
     [
-      { label: '매입전표(POSTED) 카드(상단)', tableIndex: 0, expectNonZero: true },
+      { label: '입고전표(POSTED) 카드(상단)', tableIndex: 0, expectNonZero: true },
       { label: '수신 세금계산서 목록 카드(하단)', tableIndex: 1, expectNonZero: false },
     ],
   )

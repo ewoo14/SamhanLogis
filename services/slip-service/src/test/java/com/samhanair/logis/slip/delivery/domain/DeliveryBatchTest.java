@@ -194,6 +194,6 @@ class DeliveryBatchTest {
     private Slip newSlip() {
         return Slip.createOutbound("2026/05/05-001", BATCH_DATE, 1,
                 SOURCE_WH, DEST_WH, PARTNER, "거래처",
-                DeliveryTag.DAY, "메모", "user-1");
+                DeliveryTag.SALE, "메모", "user-1");
     }
 }

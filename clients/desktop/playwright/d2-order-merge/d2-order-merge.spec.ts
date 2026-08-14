@@ -184,7 +184,7 @@ test.describe('#825 슬7 주문 병합 거래처 우선 선택', () => {
     await installAuthMock(page)
     await page.goto(`${BASE_URL}/#/sales/partner-orders/ord-draft?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByTestId('header-page-title')).toContainText('주문서', { timeout: 15_000 })
-    await expect(page.getByTestId('partner-order-convert-open')).toContainText('판매전표 전환')
+    await expect(page.getByTestId('partner-order-convert-open')).toContainText('출고전표 전환')
     await expect(page.getByTestId('partner-order-convert-open')).toBeEnabled()
   })
 })

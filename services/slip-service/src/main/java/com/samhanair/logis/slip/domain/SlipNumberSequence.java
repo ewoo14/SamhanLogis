@@ -19,7 +19,7 @@ import org.hibernate.annotations.UuidGenerator;
 
 /**
  * 전표 일자 + 유형별 채번 보조 — {@link Slip#getSlipNo()} 의 {@code yyyy/MM/dd-N} 순번을
- * atomic 하게 관리한다. 판매/구매 전표는 서로 다른 메뉴/속성이므로 같은 날짜에 같은 공개번호를
+ * atomic 하게 관리한다. 판매/입고 전표는 서로 다른 메뉴/속성이므로 같은 날짜에 같은 공개번호를
  * 가질 수 있고, 동시 충돌은 {@code slips(slip_type, slip_no) WHERE is_deleted=false} 의 partial
  * unique 인덱스로 백업한다.
  */
@@ -71,7 +71,7 @@ public class SlipNumberSequence extends BaseEntity {
      * 새 날짜 + 전표 유형 시퀀스를 생성한다. lastSeq=0 으로 시작한다.
      *
      * @param slipDate 채번 기준 날짜
-     * @param slipType 판매/구매 전표 유형
+     * @param slipType 판매/입고 전표 유형
      * @return lastSeq=0 의 신규 SlipNumberSequence
      */
     public static SlipNumberSequence create(LocalDate slipDate, SlipType slipType) {

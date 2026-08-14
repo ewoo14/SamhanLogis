@@ -3,7 +3,7 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #706 — DISPATCH 역할 inventory.warehouse VIEW 부여(V79) 실서버 GUI QA.
  *
- * task5(#702) BE 권한갭: DISPATCH 계정이 배차보드 판매전표 미리보기(SlipDetailModal→DispatchDocument)에서
+ * task5(#702) BE 권한갭: DISPATCH 계정이 배차보드 출고전표 미리보기(SlipDetailModal→DispatchDocument)에서
  * "출고창고" 값을 조회하지 못해 '-' 로 표시되던 문제를 auth V79(DISPATCH role_page_permission_templates +
  * group_page_permissions(그룹 106) + account_page_permissions 캐시)로 해소했는지 **DISPATCH 계정 자체**로 검증.
  *
@@ -61,7 +61,7 @@ async function installAuthStub(page: Page, login: LoginResult): Promise<void> {
   )
 }
 
-test('PR #706 — DISPATCH 계정 배차보드 판매전표 미리보기 출고창고 VIEW(V79)', async ({ browser }) => {
+test('PR #706 — DISPATCH 계정 배차보드 출고전표 미리보기 출고창고 VIEW(V79)', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await ctx.newPage()
 
@@ -87,7 +87,7 @@ test('PR #706 — DISPATCH 계정 배차보드 판매전표 미리보기 출고�
   expect(count, 'DISPATCH 계정도 미배차 전표(전표확인 진입점) 최소 1건 조회 가능').toBeGreaterThan(0)
   await capture(page, 'dispatch-board-undispatched-list')
 
-  // 전표확인 클릭 → 판매전표 미리보기 모달 (DispatchDocument).
+  // 전표확인 클릭 → 출고전표 미리보기 모달 (DispatchDocument).
   await openBtns.first().click()
   await page.waitForSelector('[data-testid="dispatch-board-slip-detail-body"]', { timeout: 15000 })
   await page.waitForTimeout(1500) // 창고/결재라인 병렬 쿼리 렌더 대기

@@ -130,6 +130,10 @@ public class StockInstanceService {
                                             int quantity, String inboundType, String inboundSlipNo,
                                             BigDecimal unitCost, LocalDateTime receivedAt,
                                             com.samhanair.logis.inventory.web.dto.SourceOperationContext sourceContext) {
+        if (!InboundQrLifecycle.allowsNewQr(inboundType)) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "구매·차용 계열이 아닌 입고는 새 QR 인스턴스를 생성하지 않습니다. 안정적인 입고 유형 키를 확인하십시오.");
+        }
         ProductSummary product = productClient.requireExists(productId);
         if (isInventoryExcluded(product)) {
             recordSource(sourceContext, product, SourceOperationOutcome.NO_OP_EXCLUDED, List.of(), List.of());
@@ -579,6 +583,12 @@ public class StockInstanceService {
         return repo.findBySerialKey(serialKey)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "재고 인스턴스 시리얼키를 찾을 수 없습니다: " + serialKey));
+    }
+
+    /** QR 라벨 출력용 입고전표 범위 조회 — 다른 입고전표의 동일 품목은 섞지 않는다. */
+    @Transactional(readOnly = true)
+    public List<StockInstance> listByInboundSlip(String inboundSlipNo) {
+        return repo.findByInboundSlipNoOrderByProductCodeAscReceivedAtAsc(inboundSlipNo);
     }
 
     /** 품목코드에 속한 인스턴스만 사용자 노출용 필드로 반환한다. */

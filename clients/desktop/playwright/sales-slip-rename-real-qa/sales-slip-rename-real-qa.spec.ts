@@ -1,16 +1,16 @@
 import { resolveQaCredential } from '../../../../scripts/lib/qa-credentials.cjs'
 import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
- * 슬1 — 판매전표 양식 통일 + 명칭 정정 실 서버 QA 캡처.
+ * 슬1 — 출고전표 양식 통일 + 명칭 정정 실 서버 QA 캡처.
  *
  * [[no-fake-data-ever]] [[real-server-check-screenshot]] [[realqa-run-and-false-red]]
  * - VITE_MOCK_MODE OFF — 실 게이트웨이 http://127.0.0.1:8080 (page.route 프록시).
  * - 실 시드 전표: OUTBOUND CONFIRMED 6ceba0b4 (2026/02/18-001).
- * - 캡처/단언 대상(출고전표→판매전표 명칭 + OutboundView 폐기):
- *   1. 대시보드        — "처리중 판매전표" / "새 판매전표"
- *   2. 판매전표 목록    — "신규 판매전표"
- *   3. 판매전표 상세    — 인쇄 메뉴 "판매전표 출력"
- *   4. 판매전표 인쇄    — /print/dispatch (작업지시서 양식, 금액 없음)
+ * - 캡처/단언 대상(출고전표→출고전표 명칭 + OutboundView 폐기):
+ *   1. 대시보드        — "처리중 출고전표" / "새 출고전표"
+ *   2. 출고전표 목록    — "신규 출고전표"
+ *   3. 출고전표 상세    — 인쇄 메뉴 "출고전표 출력"
+ *   4. 출고전표 인쇄    — /print/dispatch (작업지시서 양식, 금액 없음)
  *   5. /print/outbound — 폐기 확인 (OutboundView 본문 미렌더)
  *
  * 실행:
@@ -117,40 +117,40 @@ async function boot(page: Page): Promise<void> {
   await setupApiProxy(page, token)
 }
 
-test('S1-1: 대시보드 — "처리중 판매전표" / "새 판매전표"', async ({ page }) => {
+test('S1-1: 대시보드 — "처리중 출고전표" / "새 출고전표"', async ({ page }) => {
   await boot(page)
   await page.goto(hashUrl('/'), { waitUntil: 'networkidle', timeout: 30_000 })
   await page.waitForTimeout(2000)
   await capture(page, 'dashboard')
   const body = (await page.locator('body').textContent()) ?? ''
   expect(body).not.toContain('처리중 출고전표')
-  expect(body).toContain('판매전표')
+  expect(body).toContain('출고전표')
 })
 
-test('S1-2: 판매전표 목록 — "신규/새 판매전표"', async ({ page }) => {
+test('S1-2: 출고전표 목록 — "신규/새 출고전표"', async ({ page }) => {
   await boot(page)
   await page.goto(hashUrl('/sales'), { waitUntil: 'networkidle', timeout: 30_000 })
   await page.waitForTimeout(2500)
   await capture(page, 'sales-list')
   const body = (await page.locator('body').textContent()) ?? ''
   // 판매 리스트 흐름에 구 용어 '출고전표'/'작업지시서' 잔재가 없어야 함
-  // (신규 판매전표 버튼은 canAccess 게이트 — standalone QA-env 에서 권한매트릭스 미로드 시 비노출 가능)
+  // (신규 출고전표 버튼은 canAccess 게이트 — standalone QA-env 에서 권한매트릭스 미로드 시 비노출 가능)
   expect(body).not.toContain('출고전표')
   expect(body).not.toContain('작업지시서')
 })
 
-test('S1-3: 판매전표 상세 — 인쇄 메뉴 "판매전표 출력"', async ({ page }) => {
+test('S1-3: 출고전표 상세 — 인쇄 메뉴 "출고전표 출력"', async ({ page }) => {
   await boot(page)
   await page.goto(hashUrl(`/sales/${OUTBOUND_SLIP_ID}`), { waitUntil: 'networkidle', timeout: 30_000 })
   await page.waitForTimeout(2500)
   await capture(page, 'detail-print-buttons')
   const body = (await page.locator('body').textContent()) ?? ''
   expect(body).not.toContain('불러오지 못')
-  // 인쇄 메뉴 버튼: 판매전표 출력 / 거래명세서 출력 / 계산서 출력 병렬
-  expect(body).toContain('판매전표 출력')
+  // 인쇄 메뉴 버튼: 출고전표 출력 / 거래명세서 출력 / 계산서 출력 병렬
+  expect(body).toContain('출고전표 출력')
 })
 
-test('S1-4: 판매전표 인쇄 — /print/dispatch (작업지시서 양식·금액 없음)', async ({ page }) => {
+test('S1-4: 출고전표 인쇄 — /print/dispatch (작업지시서 양식·금액 없음)', async ({ page }) => {
   await boot(page)
   await page.goto(hashUrl(`/sales/${OUTBOUND_SLIP_ID}/print/dispatch`), { waitUntil: 'networkidle', timeout: 30_000 })
   await page.waitForTimeout(2500)

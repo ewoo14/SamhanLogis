@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 매출 전표 soft delete endpoint — SP-08-6-3.
+ * 출고 전표 soft delete endpoint — SP-08-6-3.
  *
  * <p>SALES / MANAGER / MASTER 가 OUTBOUND 전표를 {@code updatedAt} 낙관적 잠금으로
  * 즉시 삭제한다. 물리 삭제(hard delete)는 절대 수행하지 않으며
@@ -50,7 +50,7 @@ public class SalesSlipDeleteController {
      * @return {@code ApiResponse<Void>} (data: null)
      */
     @Operation(
-            summary = "매출 전표 soft delete",
+            summary = "출고 전표 soft delete",
             description = "SALES/MANAGER/MASTER 가 OUTBOUND 전표를 updatedAt 낙관적 잠금으로 삭제합니다. "
                     + "물리 삭제 불가, DRAFT/SAVED 단계만 삭제 허용. 출고 진행(SENT 이후) 시 422.")
     @DeleteMapping("/{id}/sales")

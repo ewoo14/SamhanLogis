@@ -45,8 +45,8 @@ const KIND_LABEL: Record<ClosingKindFilter, string> = {
 
 const SOURCE_LABEL: Record<DailyClosingSourceKind, string> = {
   TAX_INVOICE: '세금계산서',
-  SALES_SLIP: '매출전표',
-  PURCHASE_SLIP: '매입전표',
+  SALES_SLIP: '출고전표',
+  PURCHASE_SLIP: '입고전표',
 }
 
 const REVALIDATION_STATUS_LABEL: Record<DailyProductRevalidationStatus, string> = {
@@ -587,7 +587,7 @@ export function DailyClosingPage() {
     },
     {
       key: 'salesSlipNo',
-      header: '매출전표',
+      header: '출고전표',
       width: '150px',
       render: (row) => row.salesSlipNo || '-',
     },

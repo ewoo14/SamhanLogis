@@ -1686,7 +1686,7 @@ class PartnerProductPriceMemoryIT extends AbstractPostgresIT {
                 slipType == SlipType.INBOUND ? warehouseId : null,
                 partnerId,
                 "테스트 거래처",
-                slipType == SlipType.OUTBOUND ? DeliveryTag.DAY : DeliveryTag.RETURN_TRIP,
+                slipType == SlipType.OUTBOUND ? DeliveryTag.SALE : DeliveryTag.RETURN_TRIP,
                 "가격기억 fail-soft 검증",
                 null,
                 null,

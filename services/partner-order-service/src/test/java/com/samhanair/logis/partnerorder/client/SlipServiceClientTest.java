@@ -204,7 +204,7 @@ class SlipServiceClientTest {
 
     @Test
     void publishFromPartnerOrder_400의_업무안내를_원문으로_보존한다() {
-        String message = "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
+        String message = "세트 품목은 출고전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST)
@@ -219,7 +219,7 @@ class SlipServiceClientTest {
 
     @Test
     void publishFromOrdersMerge_400의_업무안내를_원문으로_보존한다() {
-        String message = "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
+        String message = "세트 품목은 출고전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
         server.expect(requestTo(FROM_ORDERS_MERGE))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST)

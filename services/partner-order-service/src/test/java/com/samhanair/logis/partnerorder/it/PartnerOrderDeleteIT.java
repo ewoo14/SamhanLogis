@@ -260,7 +260,7 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
     /**
      * #757 R2 LOW disposition 고정 — 주문 라인은 수정 플로우에서도 개별 soft-delete 되므로
      * 인라인 복원은 <b>헤더 deletedAt 동일 시각의 cascade 라인만</b> 되살려야 한다.
-     * 수정으로 제거된(다른 시각) 라인이 오복원되면 판매전표(D)식 전량복원 회귀다.
+     * 수정으로 제거된(다른 시각) 라인이 오복원되면 출고전표(D)식 전량복원 회귀다.
      */
     @Test
     @WithMockUser(roles = {"SALES"})
