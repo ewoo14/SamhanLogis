@@ -33,6 +33,11 @@ public abstract class AbstractPostgresIT {
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
+        // 운영 application.yml은 Rabbit 자격을 필수 환경변수로 요구한다.
+        // Testcontainers IT는 운영 fallback 대신 테스트 컨텍스트에서만 주입한다.
+        registry.add("spring.rabbitmq.host", () -> "localhost");
+        registry.add("spring.rabbitmq.username", () -> "ci-test-user");
+        registry.add("spring.rabbitmq.password", () -> "ci-test-password");
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);

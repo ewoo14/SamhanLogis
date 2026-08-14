@@ -1,0 +1,69 @@
+﻿PR #1208 exact SHA CI evidence
+captured_at=2026-08-14T14:59:03.3826986+09:00
+expected_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+pr_head_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+sha_match=True
+actions_run_count=5
+actions_completed_success=5
+check_runs_total=47
+check_runs_completed_success=47
+check_runs_non_success=0
+pr_rollup_count=47
+pr_rollup_completed_success=47
+pr_rollup_non_success=0
+workflow_runs:
+RUN|Applied Flyway Migration Guard|status=completed|conclusion=success|id=31773380543|head_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+RUN|CI|status=completed|conclusion=success|id=31773380516|head_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+RUN|Docs Guard (docs/** 관할 가드 — ci.yml 이 무시하는 구간)|status=completed|conclusion=success|id=31773380525|head_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+RUN|Harness Guard (docs/qa 관할 — ci.yml 이 무시하는 구간)|status=completed|conclusion=success|id=31773380509|head_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+RUN|QA E2E (Playwright + Detox)|status=completed|conclusion=success|id=31773380536|head_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+non_success_checks:
+NONE
+all_check_names:
+CHECK|#910 문서 계약 테스트 (docs/dev-reports 관할)|completed|success
+CHECK|App Build Version Guard (scripts/app-build-version, #910/#928)|completed|success
+CHECK|Config Audit Guard (다운스트림 URL/포트 정합, #745)|completed|success
+CHECK|Credential Plaintext Guard (SP-08-8)|completed|success
+CHECK|Desktop Playwright (mock 회귀 hard gate)|completed|success
+CHECK|Detox Android (arologis-mobile, AVD)|completed|success
+CHECK|Detox Android (mobile v4, AVD)|completed|success
+CHECK|Frontend Desktop (typecheck + lint + build)|completed|success
+CHECK|Frontend DS (typecheck + lint + build + storybook)|completed|success
+CHECK|Frontend Mobile (삼한 모바일 · typecheck + jest)|completed|success
+CHECK|Frontend Mobile-Public (typecheck + lint + test + build)|completed|success
+CHECK|Frontend Mobile-Staff (typecheck + jest + expo doctor + prebuild dry-run)|completed|success
+CHECK|Frontend Order-App (typecheck + test + build)|completed|success
+CHECK|GitGuardian Security Checks|completed|success
+CHECK|Internal Chat Desktop (typecheck + lint + test + build)|completed|success
+CHECK|JUnit 테스트 결과 (accounting+partner)|completed|success
+CHECK|JUnit 테스트 결과 (accounting-cash-receipt-it)|completed|success
+CHECK|JUnit 테스트 결과 (accounting-codef-it)|completed|success
+CHECK|JUnit 테스트 결과 (accounting-deposit-mapping-it)|completed|success
+CHECK|JUnit 테스트 결과 (accounting-partner-integrity-it)|completed|success
+CHECK|JUnit 테스트 결과 (phase9-10 (groupware+notification+dashboard))|completed|success
+CHECK|JUnit 테스트 결과 (product-quantity-sync-schema)|completed|success
+CHECK|JUnit 테스트 결과 (shared+auth+gateway)|completed|success
+CHECK|JUnit 테스트 결과 (slip-it-core)|completed|success
+CHECK|JUnit 테스트 결과 (slip-it-public)|completed|success
+CHECK|JUnit 테스트 결과 (slip-units)|completed|success
+CHECK|JUnit 테스트 결과 (user+product+inventory+logging)|completed|success
+CHECK|Local Stack Port Resolver Guard (#1113)|completed|success
+CHECK|Notion Runtime Zero Guard (SP-08-7)|completed|success
+CHECK|Playwright (web + electron + mobile emul)|completed|success
+CHECK|S1 logging opt-in 계약 (docs/local-stack 관할)|completed|success
+CHECK|문서 본문 단언 스펙 (mock 게이트 중 docs/** 를 읽는 것)|completed|success
+CHECK|빌드 + 테스트 (accounting+partner)|completed|success
+CHECK|빌드 + 테스트 (accounting-cash-receipt-it)|completed|success
+CHECK|빌드 + 테스트 (accounting-codef-it)|completed|success
+CHECK|빌드 + 테스트 (accounting-deposit-mapping-it)|completed|success
+CHECK|빌드 + 테스트 (accounting-partner-integrity-it)|completed|success
+CHECK|빌드 + 테스트 (phase9-10 (groupware+notification+dashboard))|completed|success
+CHECK|빌드 + 테스트 (product-quantity-sync-schema)|completed|success
+CHECK|빌드 + 테스트 (shared+auth+gateway)|completed|success
+CHECK|빌드 + 테스트 (slip-it-core)|completed|success
+CHECK|빌드 + 테스트 (slip-it-public)|completed|success
+CHECK|빌드 + 테스트 (slip-units)|completed|success
+CHECK|빌드 + 테스트 (user+product+inventory+logging)|completed|success
+CHECK|자격 평문 비공개 가드 (docs 관할, SP-08-8)|completed|success
+CHECK|적용된 Flyway 마이그레이션 불변 가드|completed|success
+CHECK|하네스 거짓 green 가드 (docs/qa 관할)|completed|success

@@ -1,0 +1,27 @@
+PR #1208 reconv2 관측 실패 원문
+검증일: 2026-08-14 Asia/Seoul
+
+[F-01] 최초 집중 Testcontainers 캡처 셸 제한 초과
+command timed out after 424033 milliseconds
+exit code: 124
+
+이 제한은 Gradle 자식 프로세스를 즉시 끝내지 않았다. 자식은 이후 종료했고 fresh XML을
+생성했지만, 캡처 셸에서 BUILD SUCCESSFUL 및 exit code를 받지 못했으므로 전체-suite
+완료 증거로 채택하지 않았다. 별도 명시적 전체 명령을 다시 실행해 BUILD SUCCESSFUL,
+exit 0, 1,941 tests를 확보했다.
+
+[F-02] 최초 환경 캡처에서 java -version 정상 stderr를 PowerShell이 오류로 승격
+java.exe : openjdk version "17.0.18" 2026-01-20
+FullyQualifiedErrorId : NativeCommandError
+
+앱·DB·스택에 접근하기 전 환경 문자열 수집만 중단됐다. java 17.0.18은 별도 명령으로
+재확인했고 환경 증거를 다시 생성했다.
+
+[F-03] 첫 Q5 재실행 증거 폐기
+첫 격리 요청의 임시 actor가 UUID 형식이어서 응답 lockedBy에도 UUID형 문자열이 보였다.
+기능 결과는 동일했지만 UUID 비공개 규칙을 위해 그 증거는 채택하지 않고, 비UUID 업무
+식별자 qa1208-sol로 동일 실 HTTP 절차를 다시 실행하여 09-q5-isolated-http.txt를 교체했다.
+
+필수 항목 1~7 중 관측 불가: 없음
+합성 PNG: 0
+docs/qa 캡처 스크립트: 0

@@ -1,0 +1,27 @@
+﻿PR #1208 full accounting suite JUnit aggregate
+captured_at=2026-08-14T14:53:01.2550462+09:00
+command=.\gradlew.bat :services:accounting-service:test --rerun-tasks --no-daemon --console=plain
+console_result=BUILD SUCCESSFUL in 7m 19s
+exit_code=0
+elapsed_seconds=439.996
+suites=243
+tests=1941
+failures=0
+errors=0
+skipped=10
+skipped_cases:
+com.samhanair.logis.accounting.service.EcountGeneralVoucherImporterTest|rawHeaderCrossCheck()
+com.samhanair.logis.accounting.service.EcountJournalEntryImporterTest|rawHeaderCrossCheck()
+com.samhanair.logis.accounting.service.EcountPurchaseSlipImporterTest|rawHeaderCrossCheck()
+com.samhanair.logis.accounting.service.EcountSalesSlipImporterTest|rawHeaderCrossCheck()
+com.samhanair.logis.accounting.service.Mig4FixtureHeaderCrossCheckTest|orderFixtureHeaderMatchesRaw()
+com.samhanair.logis.accounting.service.Mig4FixtureHeaderCrossCheckTest|salesSlipLineFixtureHeaderMatchesRaw()
+com.samhanair.logis.accounting.service.Mig4FixtureHeaderCrossCheckTest|salesPurchaseSummaryFixtureHeaderMatchesRaw()
+com.samhanair.logis.accounting.service.Mig4FixtureHeaderCrossCheckTest|taxInvoiceFixtureHeaderMatchesRaw()
+com.samhanair.logis.accounting.service.Mig5AccountingFixtureHeaderCrossCheckTest|expenseVoucherFixtureHeaderMatchesRaw()
+com.samhanair.logis.accounting.service.Mig5AccountingFixtureHeaderCrossCheckTest|depositReportFixtureHeaderMatchesRaw()
+target_cases:
+com.samhanair.logis.accounting.it.AccountingSlipIntegrityMigrationIT|deleted_sales_slip_cannot_leave_active_allocation_and_quarantine_is_auditable()|failure=False|error=False|skipped=False
+com.samhanair.logis.accounting.it.AccountingSlipLinkAllocationRepositoryIT|삭제된_회계전표_아래의_활성_allocation은_연결_read_model에서_제외된다()|failure=False|error=False|skipped=False
+com.samhanair.logis.accounting.it.AccountingSlipLinkEligibilityHttpIT|gateway형_MASTER는_역할_헤더_없이_통과하고_SALES는_위조_역할도_거부한다()|failure=False|error=False|skipped=False
+com.samhanair.logis.accounting.it.DailyClosingIT|Q5 — 미검증 금액이 있는 실제 마감은 409로 차단하고 사유를 반환한다|failure=False|error=False|skipped=False

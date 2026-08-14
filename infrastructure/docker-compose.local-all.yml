@@ -104,6 +104,7 @@ services:
     mem_limit: 1g
     mem_reservation: 512m
     environment:
+      <<: *spring-env
       TZ: "Asia/Seoul"
       SERVER_PORT: "8080"
       EUREKA_URL: http://eureka-server:8761/eureka/

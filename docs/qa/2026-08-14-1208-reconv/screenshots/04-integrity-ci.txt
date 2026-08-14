@@ -1,0 +1,59 @@
+PR #1208 재수렴 SOL — 1순위 무결성·exact SHA CI 원문
+
+공유 DB 계측은 전부 BEGIN TRANSACTION READ ONLY ... ROLLBACK
+slip_db|server_encoding=UTF8|client_encoding=UTF8|한글 재수렴 읽기전용
+accounting_db|server_encoding=UTF8|client_encoding=UTF8|한글 재수렴 읽기전용
+active_slips_uuid_only=9
+active_slips_uuid_only_confirmed_inbound=1
+active_allocation_under_deleted_header=1
+active_tax_invoices_uuid_only=13
+active_accounting_headers_uuid_only=0
+recoverable=8
+unrecoverable=1
+unrecoverable_slip_no=2026/08/09-2
+
+복원 가능 코드:
+2026/08/08-10,-11,-12,-14,-15,-16,-17 -> P0-6-C001
+2026/08/09-6 -> 00
+
+실행된 격리·복원 테스트:
+SlipPartnerBackfillIT|tests=7|failures=0|errors=0|skipped=0
+- quarantinedSlip_canBeRestoredWithResolvedPartnerCode()
+- unresolvedSlip_isExcludedFromActiveList_andRetainsEvidence()
+- eightResolvableRows_areNotConsumedByQuarantineInput()
+AccountingSlipIntegrityMigrationIT|tests=1|failures=0|errors=0|skipped=0
+- deleted_sales_slip_cannot_leave_active_allocation_and_quarantine_is_auditable()
+AccountingSlipLinkAllocationRepositoryIT|tests=1|failures=0|errors=0|skipped=0
+- 삭제된_회계전표_아래의_활성_allocation은_연결_read_model에서_제외된다()
+
+격리 slip DB
+container=qa1208-reconv-slip-pg
+endpoint=127.0.0.1:55434/slip_db
+server_encoding=UTF8
+client_encoding=UTF8
+flyway_version=120
+flyway_description=quarantine unresolved slip partner rows
+physical_slip_count=2
+active_list_count=1
+physical_sum=300.00
+active_sum=100.00
+active_join_rows=1
+active_join_total=100.00
+quarantined_contribution_to_active_join=0
+quarantine_evidence_reason=활성 partner 원본 없음
+quarantine_restored_at=NULL
+
+exact SHA CI
+PR_HEAD=1c4bcd3d400aba5e8e0ffc24a2ddbc1152ff9467
+MATCH=True
+ACTIONS_RUN_COUNT=5
+Applied Flyway Migration Guard=success
+CI=success
+Docs Guard=success
+Harness Guard=success
+QA E2E=success
+CHECK_RUN_COUNT=47
+completed_success=47
+non_success=0
+slip-it-core job=94670927528|conclusion=success|BUILD SUCCESSFUL in 3m 41s
+

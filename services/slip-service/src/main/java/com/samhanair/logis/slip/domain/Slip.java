@@ -981,6 +981,25 @@ public class Slip extends BaseEntity {
         this.partnerCode = partnerCode;
     }
 
+    /** partnerId로 확인한 거래처 코드 snapshot을 보정한다. 값은 외부 원본에서 확인된 경우에만 호출한다. */
+    public void backfillPartnerCode(String partnerCode) {
+        if (partnerCode == null || partnerCode.isBlank()) {
+            throw new IllegalArgumentException("partnerCode는 비어 있을 수 없습니다");
+        }
+        this.partnerCode = partnerCode.trim();
+    }
+
+    /** 거래처 원본이 없어 복원 근거를 남긴 전표를 목록·집계에서 soft-delete 격리한다. */
+    public void quarantineMissingPartnerSource(String actor) {
+        this.markDeleted(actor);
+    }
+
+    /** 거래처 원본 복구와 코드 snapshot 보완이 끝난 격리 전표를 다시 활성화한다. */
+    public void restoreFromPartnerQuarantine(String partnerCode) {
+        backfillPartnerCode(partnerCode);
+        markRestoredWithNameCleared();
+    }
+
     /**
      * cutover 보정 전용 거래처 UUID 주입.
      *

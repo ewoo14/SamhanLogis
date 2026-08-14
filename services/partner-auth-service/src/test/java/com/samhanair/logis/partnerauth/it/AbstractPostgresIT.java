@@ -34,6 +34,10 @@ public abstract class AbstractPostgresIT {
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
+        // 운영 application.yml의 필수 Rabbit/내부 자격은 테스트에서만 주입한다.
+        registry.add("spring.rabbitmq.host", () -> "localhost");
+        registry.add("spring.rabbitmq.username", () -> "ci-test-user");
+        registry.add("spring.rabbitmq.password", () -> "ci-test-password");
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -44,6 +48,9 @@ public abstract class AbstractPostgresIT {
         registry.add("eureka.client.fetch-registry", () -> "false");
         registry.add("samhan.jwt.secret", () -> "test-only-secret-32bytes-minimum-key!!");
         registry.add("samhan.jwt.expiration-hours", () -> "8");
+        registry.add("samhan.dc-config.internal-token", () -> "test-internal-token");
+        registry.add("samhan.partner-activity.internal-token", () -> "test-internal-token");
+        registry.add("app.security.internal.token", () -> "test-internal-token");
     }
 
     /** Docker 미가용 시 IT 를 fail 대신 skip. */

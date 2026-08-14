@@ -10,8 +10,8 @@ spring:
   rabbitmq:
     host: ${RABBIT_HOST:localhost}
     port: ${RABBIT_PORT:5672}
-    username: ${RABBIT_USER:samhan}
-    password: ${RABBIT_PASSWORD:samhan_dev_pw}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASSWORD}
   # PR-H4b BE-E — shared:realtime-abstraction module 이 transitive 로 starter-data-jpa 를 가져오지만
   # logging-service 는 Postgres JPA 를 사용하지 않음 (audit sink = Elasticsearch). DataSource/JPA
   # autoconfig 를 명시 exclude 하여 startup 시 DB connection 시도 차단.
@@ -21,10 +21,28 @@ spring:
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
       - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 
+app:
+  security:
+    internal:
+      token: ${SAMHAN_INTERNAL_TOKEN:}
+      path-prefix: /logs/
+      role: INTERNAL
+      allow-missing-token: false
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+
+samhan:
+  audit:
+    # 잠정 운영 초기값. 법적/업무 보존기간 확정 전에는 이 설정만 변경한다.
+    retention:
+      change-retention: ${SAMHAN_AUDIT_RETENTION_CHANGE:8760h}
+      failure-retention: ${SAMHAN_AUDIT_RETENTION_FAILURE:8760h}
+      read-retention: ${SAMHAN_AUDIT_RETENTION_READ:720h}
+    rabbit:
+      audit-queue-max-length: ${SAMHAN_AUDIT_QUEUE_MAX_LENGTH:10000}
+      audit-queue-message-ttl-ms: ${SAMHAN_AUDIT_QUEUE_MESSAGE_TTL_MS:86400000}
 
 management:
   endpoints:

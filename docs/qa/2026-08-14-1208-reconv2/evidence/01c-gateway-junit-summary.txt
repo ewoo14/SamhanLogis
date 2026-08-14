@@ -1,0 +1,29 @@
+﻿Gateway header contract JUnit aggregate
+captured_at=2026-08-14T14:59:58.7584918+09:00
+console=BUILD SUCCESSFUL in 17s
+exit_code=0
+suites=
+tests=24
+failures=0
+errors=0
+skipped=0
+cases_matching_role_or_master_or_groups:
+CASE|C5-4: isSystemMaster=true 토큰 → X-Is-System-Master: true 전파, X-User-Role 미전파|failure=False|error=False
+CASE|C5-1+C5-4: groups claim 포함 토큰 → X-User-Groups comma-join 전파, X-User-Role 미전파|failure=False|error=False
+CASE|C5-4: 구버전 토큰(isSystemMaster claim 없음) → X-Is-System-Master: false 전파|failure=False|error=False
+CASE|C5-3-(c) allowedGroups 비어있으면 그룹 제한 없음 (기존 라우트 영향 0)|failure=False|error=False
+CASE|C5-3-(a) allowedGroups 일치 → 통과 (allowedRoles 비어있음)|failure=False|error=False
+CASE|C5-4: Samhan 직원 JWT → X-Is-Partner=false 전파 (partnerCode claim 없음, P1-a 강화)|failure=False|error=False
+CASE|C5-4: allowedGroups 단독 (logging-service 패턴) — 그룹 일치 시 통과, X-User-Role 미전파|failure=False|error=False
+CASE|C5-3-(b) allowedGroups 불일치 → 403|failure=False|error=False
+CASE|C5-4: partner JWT (partnerCode claim) → X-Is-Partner=true + X-Partner-Code claim 값 주입|failure=False|error=False
+CASE|C5-1: groups claim 없는 토큰 → X-User-Groups 빈 문자열 전파|failure=False|error=False
+CASE|C5-4: 유효 토큰 → X-User-Id/X-Is-System-Master/X-User-Groups 전파, X-User-Role 미전파|failure=False|error=False
+CASE|C5-3-(d) allowedRoles 일치 + allowedGroups 불일치 → allowedGroups 로 403 (AND)|failure=False|error=False
+production_header_logic:
+* {@code X-User-Role} 헤더 주입이 제거되었다. allowedRoles Config 는 소스 계약 호환을 위해
+private static final String HEADER_IS_SYSTEM_MASTER = HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER;
+private static final String HEADER_USER_GROUPS = HttpHeaderConstants.USER_GROUPS_HEADER;
+// X-User-Role 도 legacy 인가 폴백 오용을 막기 위해 명시적으로 제거한다.
+h.add(HEADER_IS_SYSTEM_MASTER, String.valueOf(isSystemMaster));
+h.add(HEADER_USER_GROUPS, groups);

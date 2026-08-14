@@ -1,0 +1,43 @@
+﻿Focused/Testcontainers JUnit evidence
+captured_at=2026-08-14T14:45:08.6783198+09:00
+accounting_fresh_xml_last_write=2026-08-14T14:43:46.8549171+09:00
+ACCOUNTING|suites=243|tests=1941|failures=0|errors=0|skipped=10
+SLIP_FOCUSED|suites=2|tests=8|failures=0|errors=0|skipped=0
+SUITE|com.samhanair.logis.accounting.config.HeaderAuthenticationFilterTest|tests=2|failures=0|errors=0|skipped=0|time=0.08
+CASE|com.samhanair.logis.accounting.config.HeaderAuthenticationFilterTest|ignoresUserRoleHeaderAndKeepsGroupAuthorities()|time=0.08
+CASE|com.samhanair.logis.accounting.config.HeaderAuthenticationFilterTest|gateway의_검증된_system_master_표시를_전용_authority로_변환한다()|time=0.0
+SUITE|com.samhanair.logis.accounting.it.AccountingSlipIntegrityMigrationIT|tests=1|failures=0|errors=0|skipped=0|time=0.011
+CASE|com.samhanair.logis.accounting.it.AccountingSlipIntegrityMigrationIT|deleted_sales_slip_cannot_leave_active_allocation_and_quarantine_is_auditable()|time=0.011
+SUITE|com.samhanair.logis.accounting.it.AccountingSlipLinkAllocationRepositoryIT|tests=1|failures=0|errors=0|skipped=0|time=0.033
+CASE|com.samhanair.logis.accounting.it.AccountingSlipLinkAllocationRepositoryIT|삭제된_회계전표_아래의_활성_allocation은_연결_read_model에서_제외된다()|time=0.033
+SUITE|com.samhanair.logis.accounting.it.AccountingSlipLinkEligibilityHttpIT|tests=1|failures=0|errors=0|skipped=0|time=0.156
+CASE|com.samhanair.logis.accounting.it.AccountingSlipLinkEligibilityHttpIT|gateway형_MASTER는_역할_헤더_없이_통과하고_SALES는_위조_역할도_거부한다()|time=0.156
+SUITE|com.samhanair.logis.accounting.it.DailyClosingIT|tests=17|failures=0|errors=0|skipped=0|time=0.26
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|soft-delete 후 동일 날짜 재마감 — partial unique index 통과 201|time=0.028
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|원장 조회 거래처 필터 — 200 (partner-service stub)|time=0.01
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 — 없는 거래처코드 404|time=0.006
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 — SELECTED 거래처 미선택은 400으로 차단|time=0.005
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|원장 조회 전체 거래처 — 200|time=0.007
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|MANAGER 역마감 시도 — 403 Forbidden (MASTER 독점)|time=0.005
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 기간 조회 GET — 200 페이지 결과|time=0.014
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|ACCOUNTANT 역마감 시도 — 403 Forbidden (MASTER 독점)|time=0.005
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 — ALL 거래처에 partnerCode를 함께 보내면 400으로 차단|time=0.005
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 — 거래처코드 지정 201 (partner-service stub)|time=0.009
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 기간 조회 — partnerCode 필터가 전체 마감을 배제하고 해당 거래처 마감만 반환한다 (#929 D)|time=0.027
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 생성 — 전체 거래처 201 + isLocked=true|time=0.009
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|MASTER 역마감 — PATCH /{closingDate}/lock 200|time=0.015
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 중복 실행 — 409 CONFLICT|time=0.019
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 — SALES role 403 Forbidden|time=0.005
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|Q5 — 미검증 금액이 있는 실제 마감은 409로 차단하고 사유를 반환한다|time=0.015
+CASE|com.samhanair.logis.accounting.it.DailyClosingIT|일마감 — scopeMode 누락은 400으로 차단|time=0.004
+SUITE|com.samhanair.logis.slip.config.HeaderAuthenticationFilterTest|tests=1|failures=0|errors=0|skipped=0|time=0.199
+CASE|com.samhanair.logis.slip.config.HeaderAuthenticationFilterTest|ignoresUserRoleHeaderAndKeepsGroupAuthorities()|time=0.199
+SUITE|com.samhanair.logis.slip.it.SlipPartnerBackfillIT|tests=7|failures=0|errors=0|skipped=0|time=1.051
+CASE|com.samhanair.logis.slip.it.SlipPartnerBackfillIT|quarantinedSlip_canBeRestoredWithResolvedPartnerCode()|time=0.584
+CASE|com.samhanair.logis.slip.it.SlipPartnerBackfillIT|backfill_dryRun_doesNotModify_and_reportsPartnerlessCodeMissingRow()|time=0.093
+CASE|com.samhanair.logis.slip.it.SlipPartnerBackfillIT|backfill_resolvesPartnerCode_updatesDatabase_andSecondRunIsIdempotent()|time=0.072
+CASE|com.samhanair.logis.slip.it.SlipPartnerBackfillIT|backfillActivePartnerCodes_repairsDraftWithoutBlockingNormalDraftLifecycle()|time=0.042
+CASE|com.samhanair.logis.slip.it.SlipPartnerBackfillIT|backfill_resolvesPartnerIdToCode_withoutChangingPartnerId()|time=0.051
+CASE|com.samhanair.logis.slip.it.SlipPartnerBackfillIT|unresolvedSlip_isExcludedFromActiveList_andRetainsEvidence()|time=0.067
+CASE|com.samhanair.logis.slip.it.SlipPartnerBackfillIT|eightResolvableRows_areNotConsumedByQuarantineInput()|time=0.1
+NOTE=initial capture shell timed out at 424 seconds; Gradle children completed later; no exit code was captured, so this aggregate is focused evidence only and is not adopted as the final full-suite completion proof.

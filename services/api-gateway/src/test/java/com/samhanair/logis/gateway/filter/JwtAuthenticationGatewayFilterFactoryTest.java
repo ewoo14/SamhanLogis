@@ -736,6 +736,53 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("true");
     }
 
+    @Test
+    @DisplayName("DLQ 운영 경로: 서명된 시스템 MASTER는 그룹 claim이 없어도 통과")
+    void systemMasterBypassesAllowedGroupsWhenClaimIsTrue() {
+        String token = JwtTokenProvider.generate(
+                "dev-master", "MASTER", null, true, "", 3600L, props.getSecretBytes());
+
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        config.getAllowedGroups().add("00000000-0000-0000-0000-000000000100");
+        config.setAllowSystemMaster(true);
+        GatewayFilter filter = factory.apply(config);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/logs/dlq")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+
+        StepVerifier.create(filter.filter(exchange, e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        })).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("true");
+    }
+
+    @Test
+    @DisplayName("DLQ 운영 경로: 시스템 MASTER가 아닌 계정은 그룹 없으면 계속 403")
+    void nonSystemMasterStillRequiresAllowedGroup() {
+        String token = JwtTokenProvider.generate(
+                "manager-without-group", "MANAGER", null, false, "", 3600L, props.getSecretBytes());
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        config.getAllowedGroups().add("00000000-0000-0000-0000-000000000100");
+        config.setAllowSystemMaster(true);
+        GatewayFilter filter = factory.apply(config);
+
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/logs/dlq")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).build());
+
+        StepVerifier.create(filter.filter(exchange, e -> Mono.empty())).verifyComplete();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
     private static String readBody(ServerWebExchange exchange) {
         return ((MockServerHttpResponse) exchange.getResponse()).getBodyAsString().block();
     }

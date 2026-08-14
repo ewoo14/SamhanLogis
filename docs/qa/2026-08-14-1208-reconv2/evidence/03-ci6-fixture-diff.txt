@@ -1,0 +1,14 @@
+﻿PR #1208 original six-CI fixture diff evidence
+captured_at=2026-08-14T14:56:16.7425515+09:00
+before_sha=3768975b9d0caec65ade1df5f2e10f0c1e8a9f98
+fixture_fix_sha=1c4bcd3d400aba5e8e0ffc24a2ddbc1152ff9467
+head_sha=a51e2771ba955973722f21c9e8f6878ef9b4cb41
+method=GitHub contents API at exact refs; no git command
+files=5
+FILE|services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipControllerIT.java|patch=+5/-0|assert_before=93|assert_fix=93|assert_hash_equal=True|test_methods_equal=True|changed_assert_patch_lines=0|fixture_blob_unchanged_to_head=True
+FILE|services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipInspectControllerIT.java|patch=+6/-0|assert_before=57|assert_fix=57|assert_hash_equal=True|test_methods_equal=True|changed_assert_patch_lines=0|fixture_blob_unchanged_to_head=True
+FILE|services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipLifecycleControllerIT.java|patch=+5/-0|assert_before=34|assert_fix=34|assert_hash_equal=True|test_methods_equal=True|changed_assert_patch_lines=0|fixture_blob_unchanged_to_head=True
+FILE|services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipOutboundApprovalEnforcementIT.java|patch=+9/-1|assert_before=50|assert_fix=50|assert_hash_equal=True|test_methods_equal=True|changed_assert_patch_lines=0|fixture_blob_unchanged_to_head=True
+FILE|services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipQueryPurchaseIT.java|patch=+2/-0|assert_before=57|assert_fix=57|assert_hash_equal=True|test_methods_equal=True|changed_assert_patch_lines=0|fixture_blob_unchanged_to_head=True
+TOTAL_CHANGED_ASSERT_PATCH_LINES=0
+FIX_SCOPE=PartnerInternalClient mock/stub/reset fixture only

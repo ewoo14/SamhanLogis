@@ -38,4 +38,19 @@ class HeaderAuthenticationFilterTest {
                         "GROUP_22222222-2222-2222-2222-222222222222")
                 .doesNotContain("ROLE_MASTER");
     }
+
+    @Test
+    void gateway의_검증된_system_master_표시를_전용_authority로_변환한다() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/test");
+        request.addHeader("X-User-Id", "master-user");
+        request.addHeader("X-Is-System-Master", "true");
+        var response = new MockHttpServletResponse();
+
+        new HeaderAuthenticationFilter(new ObjectMapper()).doFilter(
+                request, response, new MockFilterChain());
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting("authority")
+                .containsExactly("SYSTEM_MASTER");
+    }
 }

@@ -5,11 +5,16 @@ server:
 spring:
   application:
     name: partner-auth-service
+  rabbitmq:
+    host: ${RABBIT_HOST}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASSWORD}
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:partner_auth_db}
-    username: ${DB_USER:samhan}
+    username: ${DB_USER}
     # ggignore - dev-only placeholder, env var override required in prod
-    password: ${DB_PASSWORD:dev-pw-change-me}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -37,7 +42,7 @@ samhan:
       enabled: true
   jwt:
     # Phase 8 2차 — SAMHAN_JWT_SECRET 우선, JWT_SECRET legacy fallback (Phase 10 cutover 시점 단일화)
-    secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET:dev-only-partner-jwt-secret-replace-in-prod-32bytes-min!!}}
+    secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET}}
     expiration-hours: 8
   # PR #462 Round C #4 — 주문서 승인 controller @RequirePermission 동적 RBAC 가드용 auth-service 호출 (13 service 표준).
   auth-service:
@@ -47,11 +52,11 @@ samhan:
     url: ${SAMHAN_DC_CONFIG_SERVICE_URL:${DC_CONFIG_URL:http://dc-config-service:8089}}
     timeout-ms: 3000
     # 3d backlog — dc-config-service /internal/** 가드 통과용 X-Internal-Token (dc-config 의 SAMHAN_INTERNAL_TOKEN 와 동일 값)
-    internal-token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-only-token-replace}}
+    internal-token: ${SAMHAN_INTERNAL_TOKEN}
   partner-activity:
     order-url: ${SAMHAN_PARTNER_ORDER_SERVICE_URL:http://partner-order-service:8088}
     slip-url: ${SAMHAN_SLIP_SERVICE_URL:http://slip-service:8086}
-    internal-token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+    internal-token: ${SAMHAN_INTERNAL_TOKEN}
 
 # PR #462 Round C #4 — DefaultDynamicPermissionClient 가 auth-service /auth/internal/** 호출 시 보내는 X-Internal-Token.
 # auth-service 의 SAMHAN_INTERNAL_TOKEN 와 동일 값이어야 한다 (auth-service 는 allow-missing-token=false → 토큰 누락/불일치 시 401).
@@ -62,7 +67,7 @@ samhan:
 app:
   security:
     internal:
-      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+      token: ${SAMHAN_INTERNAL_TOKEN}
 
 management:
   endpoints:

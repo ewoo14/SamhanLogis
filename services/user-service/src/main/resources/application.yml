@@ -5,10 +5,15 @@ server:
 spring:
   application:
     name: user-service
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASSWORD}
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:user_db}
-    username: ${DB_USER:samhan}
-    password: ${DB_PASSWORD:samhan_dev_pw}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -32,6 +37,11 @@ eureka:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
 samhan:
+  audit:
+    publisher:
+      enabled: ${SAMHAN_AUDIT_PUBLISHER_ENABLED:true}
+    request-capture:
+      enabled: ${SAMHAN_AUDIT_REQUEST_CAPTURE_ENABLED:true}
   security:
     department:
       enabled: true
@@ -45,7 +55,7 @@ app:
   security:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 우선, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화)
-      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+      token: ${SAMHAN_INTERNAL_TOKEN}
   user:
     # W10-5 회고 — env 변수 prefix 통일 (SAMHAN_USER_SEED_ORG 우선, USER_SEED_ORG legacy fallback).
     seed-org: ${SAMHAN_USER_SEED_ORG:${USER_SEED_ORG:false}}
