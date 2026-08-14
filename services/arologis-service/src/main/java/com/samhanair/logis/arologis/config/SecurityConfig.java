@@ -17,6 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 
 /**
  * Stateless servlet security — Phase 10 W10-1 arologis-service.
@@ -35,8 +36,11 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    InternalTokenFilter internalTokenFilter,
                                                    ArologisJwtFilter arologisJwtFilter,
-                                                   @Value("${samhan.security.gateway-attestation:}") String gatewayAttestation)
+                                                   PublicIdentityHeaderSanitizingFilter publicIdentityHeaderSanitizingFilter,
+                                                   @Value("${samhan.security.gateway-attestation:}") String gatewayAttestation,
+                                                   @Value("${samhan.security.gateway-attestation-enforcement:true}") boolean enforceAttestation)
             throws Exception {
+        if (enforceAttestation && (gatewayAttestation == null || gatewayAttestation.isBlank())) throw new IllegalStateException("SAMHAN_GATEWAY_ATTESTATION is required when gateway attestation enforcement is enabled");
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -56,11 +60,15 @@ public class SecurityConfig {
                                                         .equals(authentication.get().getName())))
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(publicIdentityHeaderSanitizingFilter, InternalTokenFilter.class)
                 // 2026-05-14 — Bearer JWT 자체 검증 (gateway 우회 직접 호출 대응). InternalToken 다음.
                 .addFilterAfter(arologisJwtFilter, InternalTokenFilter.class)
-                .addFilterAfter(new HeaderAuthenticationFilter(gatewayAttestation), ArologisJwtFilter.class);
+                .addFilterAfter(new HeaderAuthenticationFilter(gatewayAttestation, enforceAttestation), ArologisJwtFilter.class);
         return http.build();
     }
+
+    @Bean public PublicIdentityHeaderSanitizingFilter publicIdentityHeaderSanitizingFilter() { return new PublicIdentityHeaderSanitizingFilter(); }
+    @Bean public FilterRegistrationBean<PublicIdentityHeaderSanitizingFilter> publicIdentityHeaderSanitizingFilterRegistration(PublicIdentityHeaderSanitizingFilter f) { var r = new FilterRegistrationBean<PublicIdentityHeaderSanitizingFilter>(f); r.setEnabled(false); return r; }
 
     /**
      * BCrypt strength 10 — 2026-05-14 분리 (AdminLoginService 의존).
