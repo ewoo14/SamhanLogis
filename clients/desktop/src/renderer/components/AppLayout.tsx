@@ -40,6 +40,7 @@ import { canQueryPurchases, canQuerySales, useSessionStore } from '../stores/ses
 import { usePageTitleStore } from '../stores/pageTitle'
 // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 사이드바 메뉴 동적 hidden 연동.
 import { usePermissions } from '../hooks/usePermissions'
+import { useMenuCatalog } from '../hooks/useMenuCatalog'
 import { NotificationBellDropdown } from './NotificationBellDropdown'
 import { recordMenuAccess } from '../api/activityLog'
 import { resolveBuildAppVersion } from '../version/versionCheck'
@@ -376,6 +377,23 @@ export function AppLayout() {
 
   // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 5분 캐시. 사이드바 메뉴 hidden 연동.
   const { canAccess: dynamicCanAccess } = usePermissions()
+  const { menus: menuCatalog, isLoading: isMenuCatalogLoading } = useMenuCatalog()
+  const publicDispatchMenus = (menuCatalog ?? [])
+    .filter((entry) => entry.app === 'samhan-public' && entry.category === '배차')
+    .sort((left, right) => left.order - right.order)
+  const dispatchMenuTestIds: Record<string, string> = {
+    '/dispatch-board/history': 'sidebar-dispatch-history',
+    '/admin/dispatch-groups': 'sidebar-dispatch-groups',
+    '/arologis/pre-classify': 'sidebar-arologis-preclassify',
+    '/arologis/unassigned': 'sidebar-arologis-unassigned',
+    '/arologis/dispatch-sms': 'sidebar-arologis-dispatch-sms',
+    '/arologis/dispatch-reconcile': 'sidebar-arologis-dispatch-reconcile',
+    '/admin/regions': 'sidebar-arologis-region-mgmt',
+    '/admin/external-carriers': 'sidebar-dispatch-external-carriers',
+    '/arologis/admin/auto-dispatch': 'sidebar-arologis-auto-dispatch',
+    '/arologis/admin/manual-dispatch': 'sidebar-arologis-manual-dispatch-admin',
+    '/arologis/admin/driver-assignment': 'sidebar-arologis-driver-assignment',
+  }
 
   // 외부 클릭 시 dropdown 닫기
   useEffect(() => {
@@ -663,7 +681,7 @@ export function AppLayout() {
     || showMessengerSend
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
-  const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
+  const showArologisGroup = !isMenuCatalogLoading && publicDispatchMenus.length > 0
   const showWarehouseOpsGroup =
     showInventoryWarehouse || showInventoryStockBalance || showInOutAnalysis || showSafetyStockAlerts
     || showInventoryCompensationFailures || showSlipEditRequests || showPhotoAudit
@@ -1516,114 +1534,18 @@ export function AppLayout() {
             label="배차"
             show={showArologisGroup}
             testId="sidebar-category-toggle-배차"
-            activeTargets={[
-              '/dispatch-board/history',
-              '/admin/dispatch-groups',
-              '/arologis/pre-classify',
-              '/arologis/unassigned',
-              '/arologis/dispatch-sms',
-              '/arologis/dispatch-reconcile',
-              '/admin/regions',
-              '/admin/external-carriers',
-              '/arologis/admin/auto-dispatch',
-              '/arologis/admin/manual-dispatch',
-              '/arologis/admin/driver-assignment',
-            ]}
-          >
-              <SidebarLink
-                to="/dispatch-board/history"
-                show={showDispatchBoard}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-dispatch-history"
-              >
-                배차현황
-              </SidebarLink>
-              <SidebarLink
-                to="/admin/dispatch-groups"
-                show={showDispatchBoard}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-dispatch-groups"
-              >
-                배차 그룹
-              </SidebarLink>
-              {/* [Phase 10 PR-E1 FE-2] 가배차리스트 — MASTER/MANAGER/DISPATCH. */}
-              <SidebarLink
-                to="/arologis/pre-classify"
-                show={showArologisOps}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-preclassify"
-              >
-                가배차리스트
-              </SidebarLink>
-              {/* [Phase 10 PR-E1 FE-3] 미배차리스트 — MASTER/MANAGER/DISPATCH. */}
-              <SidebarLink
-                to="/arologis/unassigned"
-                show={showArologisOps}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-unassigned"
-              >
-                미배차리스트
-              </SidebarLink>
-              {/* [PR-E1 FE-6] 배차안내 SMS — DISPATCH/MANAGER/MASTER. */}
-              <SidebarLink
-                to="/arologis/dispatch-sms"
-                show={showDispatchSmsPage}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-dispatch-sms"
-              >
-                배차안내 SMS
-              </SidebarLink>
-              {/* [SP-04] 운송사 실배차 비교 — hidden route 를 공식 메뉴 entry 로 승격. */}
-              <SidebarLink
-                to="/arologis/dispatch-reconcile"
-                show={showArologisOps}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-dispatch-reconcile"
-              >
-                실배차 비교
-              </SidebarLink>
-              {/* [C5 후속 C-4] 배차지역 관리 — /admin/regions 라우트와 동일한 arologis.region VIEW 기준. */}
-              <SidebarLink
-                to="/admin/regions"
-                show={showRegionMgmt}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-region-mgmt"
-              >
-                배차지역 관리
-              </SidebarLink>
-              <SidebarLink
-                to="/admin/external-carriers"
-                show={showExternalCarriers}
-                requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-dispatch-external-carriers"
-              >
-                외부기사/배송사
-              </SidebarLink>
-              {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — MANAGER / MASTER. */}
-              <SidebarLink
-                to="/arologis/admin/auto-dispatch"
-                show={showArologisAdminPage}
-                requiredRole="MANAGER / MASTER"
-                data-testid="sidebar-arologis-auto-dispatch"
-              >
-                자동 매칭
-              </SidebarLink>
-              <SidebarLink
-                to="/arologis/admin/manual-dispatch"
-                show={showArologisAdminPage}
-                requiredRole="MANAGER / MASTER"
-                data-testid="sidebar-arologis-manual-dispatch-admin"
-              >
-                배차 관리
-              </SidebarLink>
-              <SidebarLink
-                to="/arologis/admin/driver-assignment"
-                show={showArologisAdminPage}
-                requiredRole="MANAGER / MASTER"
-                data-testid="sidebar-arologis-driver-assignment"
-              >
-                기사 배정
-              </SidebarLink>
+             activeTargets={publicDispatchMenus.map((entry) => entry.route)}
+           >
+             {publicDispatchMenus.map((entry) => (
+               <SidebarLink
+                 key={entry.route}
+                 to={entry.route}
+                 show
+                 data-testid={dispatchMenuTestIds[entry.route]}
+               >
+                 {entry.label}
+               </SidebarLink>
+             ))}
           </SidebarCategory>
 
           <SidebarCategory

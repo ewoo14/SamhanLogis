@@ -1,16 +1,17 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useMenuCatalog } from '../../hooks/useMenuCatalog'
 import { PermissionQueryError } from '../../components/PermissionQueryError'
-
-const links = [
-  { to: '/dispatches/manual', label: '수동 배차' },
-  { to: '/dispatches/pre-classify', label: '가배차 분류' },
-  { to: '/dispatches/unassigned', label: '미배차' },
-  { to: '/dispatches/reconcile', label: '실배차 비교' },
-]
 
 export function DispatchesLayout(): JSX.Element {
   const { canAccess, isLoading, isError, refetch } = usePermissions()
+  const menuCatalog = useMenuCatalog()
+  const links = (menuCatalog.menus ?? [])
+    .filter((entry) => entry.category === '배차' && entry.route !== '/dispatches/received-groups')
+    .sort((left, right) => left.order - right.order)
+  const receivedGroupsMenu = menuCatalog.menus?.find(
+    (entry) => entry.route === '/dispatches/received-groups',
+  )
   const canViewReceivedGroups =
     !isLoading && !isError && canAccess('arologis.dispatch.ops', 'view')
 
@@ -24,8 +25,8 @@ export function DispatchesLayout(): JSX.Element {
         >
           {links.map((link) => (
             <NavLink
-              key={link.to}
-              to={link.to}
+              key={link.route}
+              to={link.route}
               style={({ isActive }) => ({
                 padding: '6px 10px',
                 borderRadius: 4,
@@ -41,8 +42,9 @@ export function DispatchesLayout(): JSX.Element {
               {link.label}
             </NavLink>
           ))}
-          {canViewReceivedGroups ? (
+          {canViewReceivedGroups && receivedGroupsMenu ? (
             <NavLink
+              key={receivedGroupsMenu.route}
               to="/dispatches/received-groups"
               style={({ isActive }) => ({
                 padding: '6px 10px',
@@ -56,11 +58,13 @@ export function DispatchesLayout(): JSX.Element {
                 fontWeight: isActive ? 600 : 400,
               })}
             >
-              수신 배차 그룹
+              {receivedGroupsMenu.label}
             </NavLink>
           ) : null}
         </nav>
-        {isError ? <PermissionQueryError onRetry={() => { void refetch() }} /> : null}
+        {isError || menuCatalog.isError ? (
+          <PermissionQueryError onRetry={() => { void refetch(); void menuCatalog.refetch() }} />
+        ) : null}
       </header>
       <Outlet />
     </section>
