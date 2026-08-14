@@ -78,6 +78,13 @@ export function getInjectedEstimateShim(config: LegacyEstimateShimConfig): strin
     } catch (_e) { /* swallow */ }
   }
 
+  var otaDirty = false;
+  var otaPendingRequests = 0;
+  function reportOtaActivity() { postToRN('ota-activity', { active: otaDirty || otaPendingRequests > 0 }); }
+  document.addEventListener('input', function() { otaDirty = true; reportOtaActivity(); }, true);
+  document.addEventListener('change', function() { otaDirty = true; reportOtaActivity(); }, true);
+  document.addEventListener('submit', function() { otaDirty = false; reportOtaActivity(); }, true);
+
   // -------- Bridge — v1 호환 유지 (v2 에서는 미사용, RN 후속 확장 여지) --------
   window.__SAMHAN_BRIDGE__ = window.__SAMHAN_BRIDGE__ || {
     setAuth: function(next) {
@@ -113,6 +120,8 @@ export function getInjectedEstimateShim(config: LegacyEstimateShimConfig): strin
         }
       } catch (_e) { /* swallow — fetch 원본으로 진행 */ }
       var p = origFetch.call(window, input, init);
+      if (isRpc || isSamhanApi) { otaPendingRequests += 1; reportOtaActivity(); }
+      if ((isRpc || isSamhanApi) && typeof p.finally === 'function') { p.finally(function() { otaPendingRequests = Math.max(0, otaPendingRequests - 1); reportOtaActivity(); }); }
       // RPC 응답 가시화 (dev 디버깅) — 매핑 누락 시 RN 에 알림.
       if (typeof p.then === 'function') {
         p.then(function(res) {

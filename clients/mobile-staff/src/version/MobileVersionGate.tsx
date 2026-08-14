@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 import { ActivityIndicator, Button, Linking, Modal, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { checkForOtaUpdate } from './otaUpdates';
+import { checkForOtaUpdate, subscribeToOtaUpdates, type OtaUpdateSnapshot } from './otaUpdates';
 import {
   fetchMobileVersionStatus,
   getMajorSessionDismissKey,
@@ -35,6 +35,9 @@ const sessionDismissedMajorVersions = new Set<string>();
 export function MobileVersionGate({ children }: MobileVersionGateProps): React.ReactElement {
   const [gateState, setGateState] = React.useState<GateState>({ status: 'checking' });
   const [failureMessage, setFailureMessage] = React.useState<string | null>(null);
+  const [otaSnapshot, setOtaSnapshot] = React.useState<OtaUpdateSnapshot | null>(null);
+
+  React.useEffect(() => subscribeToOtaUpdates(setOtaSnapshot), []);
 
   React.useEffect(() => {
     let mounted = true;
@@ -99,6 +102,14 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
 
   return (
     <View style={styles.root}>
+      {otaSnapshot && (otaSnapshot.phase === 'downloading' || otaSnapshot.phase === 'available') ? (
+        <View accessibilityRole="alert" style={styles.banner}>
+          <View style={styles.bannerText}>
+            <Text style={styles.bannerTitle}>{otaSnapshot.phase === 'downloading' ? '새 견적 앱 업데이트를 준비하는 중입니다' : '새 견적 앱 업데이트를 준비했습니다'}</Text>
+            <Text style={styles.bannerBody}>{otaSnapshot.activity ? '작성 중인 견적과 요청을 보호하기 위해 작업이 끝난 뒤 자동으로 적용합니다.' : '잠시 후 앱을 안전하게 다시 시작해 적용합니다.'}</Text>
+          </View>
+        </View>
+      ) : null}
       {failureMessage ? (
         <View accessibilityRole="alert" style={styles.failureBanner}>
           <Text style={styles.failureText}>{failureMessage}</Text>
