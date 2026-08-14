@@ -68,7 +68,7 @@ class DeliveryScheduleTest {
 
     @Test
     void computeUnloadDate_비적용태그_null() {
-        // DAY 태그는 배송일정 미적용 → null
+        // SALE 태그는 배송일정 미적용 → null
         LocalDate m = LocalDate.of(2026, 6, 24);
         assertThat(DeliverySchedule.computeUnloadDate(m, DeliveryTag.SALE)).isNull();
         assertThat(DeliverySchedule.computeUnloadDate(m, DeliveryTag.LOGEN)).isNull();

@@ -448,7 +448,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", partnerName);
-        body.put("deliveryTag", "DAY");
+        body.put("deliveryTag", "SALE");
         body.put("memo", "IT 테스트 메모");
         body.put("lines", List.of(line));
 

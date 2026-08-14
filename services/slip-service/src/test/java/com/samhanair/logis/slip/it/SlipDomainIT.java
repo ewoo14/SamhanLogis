@@ -73,7 +73,7 @@ class SlipDomainIT extends AbstractPostgresIT {
 
     private Slip newDraftInbound() {
         // 입고전표는 INBOUND direction 의 태그만 가능 (RETURN_TRIP/RETURN/BORROW).
-        // DAY 는 OUTBOUND 전용이라 BE 가 IllegalArgumentException 으로 거부 (PR #17 1차 fail 회고).
+        // SALE 는 OUTBOUND 전용이라 BE 가 IllegalArgumentException 으로 거부 (PR #17 1차 fail 회고).
         return Slip.createInbound(
                 "2026/05/04-2", LocalDate.of(2026, 5, 4), 2,
                 UUID.randomUUID(),
@@ -339,7 +339,7 @@ class SlipDomainIT extends AbstractPostgresIT {
 
     @Test
     void applyDeliverySchedule_비적용태그_unloadDate_null() {
-        // DAY 등 비적용 태그: unloadDate = null (데이터 오염 방지, Fix 1).
+        // SALE 등 비적용 태그: unloadDate = null (데이터 오염 방지, Fix 1).
         LocalDate date = LocalDate.of(2027, 3, 10);
         Slip slip = Slip.createOutbound(
                 "2027/03/10-2", date, 2,

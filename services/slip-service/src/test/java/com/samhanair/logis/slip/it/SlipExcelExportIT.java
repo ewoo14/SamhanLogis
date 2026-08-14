@@ -274,7 +274,7 @@ class SlipExcelExportIT extends AbstractPostgresIT {
         slipBody.put("destinationWarehouseId", UUID.randomUUID().toString());
         slipBody.put("partnerId", UUID.randomUUID().toString());
         slipBody.put("partnerName", "P1-6 테스트 거래처");
-        slipBody.put("deliveryTag", "DAY");
+        slipBody.put("deliveryTag", "SALE");
         slipBody.put("memo", "P1-6 Excel export IT");
         slipBody.put("lines", List.of(line));
 
@@ -369,12 +369,12 @@ class SlipExcelExportIT extends AbstractPostgresIT {
      */
     @Test
     void tc10_deliveryTag_filtersExportToMatchingRowsOnly_withoutDateBound() throws Exception {
-        createOutboundSlip("DT거래처DAY9", "DAY", "2026-05-11");
+        createOutboundSlip("DT거래처SALE9", "SALE", "2026-05-11");
         createOutboundSlip("DT거래처RENTAL9", "RENTAL", "2026-05-11");
 
         MvcResult result = mockMvc.perform(get(EXPORT_URL)
                         .queryParam("slipType", "OUTBOUND")
-                        .queryParam("deliveryTag", "DAY")
+                        .queryParam("deliveryTag", "SALE")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk())
@@ -383,7 +383,7 @@ class SlipExcelExportIT extends AbstractPostgresIT {
         try (Workbook wb = new XSSFWorkbook(
                 new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
             Sheet sheet = wb.getSheetAt(0);
-            assertThat(sheetContainsText(sheet, "DT거래처DAY9")).isTrue();
+            assertThat(sheetContainsText(sheet, "DT거래처SALE9")).isTrue();
             assertThat(sheetContainsText(sheet, "DT거래처RENTAL9")).isFalse();
         }
     }

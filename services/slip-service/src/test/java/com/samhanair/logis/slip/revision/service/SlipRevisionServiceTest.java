@@ -298,7 +298,7 @@ class SlipRevisionServiceTest {
     private SlipSnapshot snapshot(String memo, List<SlipSnapshot.Line> lines) {
         return new SlipSnapshot("2026/05/29-3", LocalDate.of(2026, 5, 29),
                 FIXED_PARTNER_ID, "삼한물산", "P001", "123-45-67890",
-                memo, "DAY", "서울시", null, "프로젝트A", "010", null,
+                memo, "SALE", "서울시", null, "프로젝트A", "010", null,
                 FIXED_WAREHOUSE_ID, "본사창고",
                 // audit overlay 필드 10개 — 고정 null (memo 외 헤더가 우연히 달라지지 않게)
                 null, null, null, null, null, null, null, null, null, null,
