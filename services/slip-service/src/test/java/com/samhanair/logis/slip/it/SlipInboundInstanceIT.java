@@ -31,12 +31,15 @@ import com.samhanair.logis.slip.service.SlipService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -101,6 +104,43 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         lenient().when(warehouseInternalClient.findWarehouseName(any())).thenReturn(Optional.of("입고창고"));
         lenient().when(partnerInternalClient.resolveBusinessNumber(any())).thenReturn(Optional.empty());
     }
+
+    @ParameterizedTest(name = "{0} 입고 태그의 QR/기존 인스턴스 경로가 정합하다")
+    @EnumSource(value = DeliveryTag.class, names = {
+            "PURCHASE", "BORROW", "RENTAL_RETURN", "RETURN",
+            "DELIVERY_RETURN", "RETURN_TRIP", "REENTRY"
+    })
+    @DisplayName("입고 배송태그 7종은 QR 생성 여부에 따라 독립적으로 라우팅된다")
+    void complete_allInboundTags_routesAccordingToQrPolicy(DeliveryTag deliveryTag) {
+        UUID productId = UUID.randomUUID();
+        Slip slip = saveInboundSlip(deliveryTag, line(productId, "serial", "MODEL-ALL-TAGS", 1,
+                new BigDecimal("500000.00")));
+        if (RECALL_INBOUND_TAGS.contains(deliveryTag)) {
+            slip.setPartnerCode("P-ALL-TAGS-" + deliveryTag.name());
+            slipRepository.saveAndFlush(slip);
+        }
+        when(productClient.requireExists(productId)).thenReturn(product(productId, true));
+
+        slipService.complete(slip.getId());
+
+        if (NEW_QR_INBOUND_TAGS.contains(deliveryTag)) {
+            verify(inventoryClient).inboundInstances(eq(productId), eq("AC-S2"),
+                    eq(destinationWarehouseId), eq(1), eq(deliveryTag.name()), eq(slip.getSlipNo()),
+                    eq(new BigDecimal("500000.00")), any(SourceOperationContext.class));
+            verify(inventoryClient, never()).recallInstances(anyString(), anyString(), anyInt(), anyString());
+        } else {
+            verify(inventoryClient).recallInstances(eq("P-ALL-TAGS-" + deliveryTag.name()),
+                    eq("AC-S2"), eq(1), eq(slip.getSlipNo()));
+            verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
+                    anyString(), anyString(), any(BigDecimal.class), any(SourceOperationContext.class));
+        }
+    }
+
+    private static final Set<DeliveryTag> NEW_QR_INBOUND_TAGS = Set.of(
+            DeliveryTag.PURCHASE, DeliveryTag.BORROW, DeliveryTag.RENTAL_RETURN);
+    private static final Set<DeliveryTag> RECALL_INBOUND_TAGS = Set.of(
+            DeliveryTag.RETURN, DeliveryTag.DELIVERY_RETURN,
+            DeliveryTag.RETURN_TRIP, DeliveryTag.REENTRY);
 
     @AfterEach
     void tearDown() {

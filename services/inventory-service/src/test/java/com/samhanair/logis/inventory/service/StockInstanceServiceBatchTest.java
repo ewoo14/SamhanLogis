@@ -159,7 +159,7 @@ class StockInstanceServiceBatchTest {
     }
 
     @ParameterizedTest(name = "알 수 없는 입고 유형 {0} 은 새 시리얼 인스턴스를 만들지 않는다")
-    @ValueSource(strings = {"RETURN", "RETURN_TRIP", "FUTURE_INBOUND_TYPE"})
+    @ValueSource(strings = {"RETURN", "DELIVERY_RETURN", "RETURN_TRIP", "REENTRY", "FUTURE_INBOUND_TYPE"})
     @DisplayName("구매·차용 allowlist 밖의 입고는 새 QR 인스턴스를 만들지 않는다")
     void inboundBatch_nonQrCreationType_doesNotCreateNewInstance(String inboundType) {
         UUID productId = UUID.randomUUID();
