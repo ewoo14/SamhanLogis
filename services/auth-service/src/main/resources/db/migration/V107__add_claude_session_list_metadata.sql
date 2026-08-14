@@ -15,7 +15,7 @@ WITH latest_audit AS (
     ORDER BY session_code, created_at DESC
 )
 UPDATE claude_conversation_sessions AS session
-SET title = LEFT(REGEXP_REPLACE(TRIM(latest.question), '\s+', ' ', 'g'), 120),
+SET title = '대화 요약 없음',
     last_message = latest.question,
     last_message_at = latest.created_at,
     summary_mode = CASE WHEN latest.outbound_status = 'VIRTUAL_SENT' THEN 'VIRTUAL' ELSE 'REAL' END

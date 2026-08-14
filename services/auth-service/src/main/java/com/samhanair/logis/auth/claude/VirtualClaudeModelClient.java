@@ -14,6 +14,13 @@ public class VirtualClaudeModelClient implements ClaudeModelClient {
     }
 
     @Override
+    public ClaudeModelResult askWithSummary(String question) {
+        String normalized = question == null ? "" : question.trim().replaceAll("\\s+", " ");
+        String summary = normalized.contains("미배차") ? "미배차 차량 처리 순서 요약" : "질문 내용 요약";
+        return new ClaudeModelResult(summary, ask(question));
+    }
+
+    @Override
     public boolean isVirtual() {
         return true;
     }

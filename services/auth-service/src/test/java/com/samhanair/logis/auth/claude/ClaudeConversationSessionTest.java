@@ -8,15 +8,15 @@ import org.junit.jupiter.api.Test;
 class ClaudeConversationSessionTest {
 
     @Test
-    void sessionStartsWithUsefulTitleAndStoresTheLatestQuestion() {
-        ClaudeConversationSession session = ClaudeConversationSession.create(
-                UUID.randomUUID(), "CLD-20260814-000001");
+    void storesModelSummaryAsTitleAndOriginalQuestionAsLastMessage() {
+        ClaudeConversationSession session = ClaudeConversationSession.create(UUID.randomUUID(), "CLD-TEST");
+        String question = "오늘 미배차 차량과 우선 처리 순서를 한 줄로 요약해줘";
 
-        assertThat(session.getTitle()).isNotEqualTo("새 대화");
-        session.recordQuestion("오늘 배차 현황을 알려줘", false);
+        session.recordSummary("미배차 차량 처리 순서 요약", question, true);
 
-        assertThat(session.getTitle()).contains("오늘 배차 현황");
-        assertThat(session.getLastMessage()).isEqualTo("오늘 배차 현황을 알려줘");
-        assertThat(session.getSummaryMode()).isEqualTo("REAL");
+        assertThat(session.getTitle()).isEqualTo("미배차 차량 처리 순서 요약");
+        assertThat(session.getTitle()).isNotEqualTo(question);
+        assertThat(session.getLastMessage()).isEqualTo(question);
+        assertThat(session.getTitle().length()).isLessThanOrEqualTo(80);
     }
 }

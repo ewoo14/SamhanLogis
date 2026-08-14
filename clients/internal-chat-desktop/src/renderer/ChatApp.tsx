@@ -549,7 +549,7 @@ function MainRooms() {
             {(groups.data ?? []).map((g) => (
               <li key={g.roomCode}>
                 <Link to={encodeURIComponent(g.roomCode)}>
-                  {g.roomName ?? g.participants.map((p) => p.name).join(", ")}
+                  {displayName(g.roomName ?? g.participants.map((p) => displayName(p.name)).join(", "))}
                   {g.unreadCount ? <strong>{g.unreadCount}</strong> : null}
                 </Link>
               </li>

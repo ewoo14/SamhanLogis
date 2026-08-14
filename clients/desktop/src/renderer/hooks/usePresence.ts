@@ -6,6 +6,7 @@ import {
   type PresenceUser,
 } from '../realtime/createPresenceClient'
 import { getAuthProvider } from '../auth/authProvider'
+import { sanitizeDisplayName } from '../common/userDisplayName'
 
 const HEARTBEAT_MS = 30_000
 
@@ -38,7 +39,7 @@ async function resolveCurrentUser(sessionId: string): Promise<PresenceUser | nul
     if (!auth?.userId) return null
     return {
       sessionId,
-      displayName: auth.fullName?.trim() || '사용자',
+      displayName: sanitizeDisplayName(auth.fullName),
     }
   } catch {
     return null

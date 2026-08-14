@@ -42,6 +42,15 @@ public class ClaudeConversationSession extends BaseEntity {
         this.summaryMode = virtual ? "VIRTUAL" : "REAL";
     }
 
+    /** 모델이 생성한 요약을 질문과 분리해 저장한다. */
+    public void recordSummary(String summary, String question, boolean virtual) {
+        String normalizedQuestion = question == null ? "" : question.trim().replaceAll("\\s+", " ");
+        this.title = summary == null || summary.isBlank() ? "대화 요약 없음" : summary.trim();
+        this.lastMessage = normalizedQuestion;
+        this.lastMessageAt = LocalDateTime.now();
+        this.summaryMode = virtual ? "VIRTUAL" : "REAL";
+    }
+
     public void markCredentialUnavailable() {
         this.summaryMode = "CREDENTIAL_UNAVAILABLE";
     }

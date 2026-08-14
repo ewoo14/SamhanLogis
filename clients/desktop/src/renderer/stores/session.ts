@@ -29,6 +29,7 @@ import {
   type SessionInfo,
 } from '../auth/authProvider'
 import { clearSessionQueryCache } from '../queryClientRegistry'
+import { sanitizeDisplayName } from '../common/userDisplayName'
 
 interface SessionState {
   /** 세션 부팅 완료 여부 — false 이면 splash/스피너 표시. */
@@ -52,7 +53,7 @@ function sessionInfoToSnapshot(session: SessionInfo | null, token = ''): AuthSna
     token,
     userId: session.userId,
     role: session.role,
-    fullName: session.fullName,
+    fullName: sanitizeDisplayName(session.fullName),
     partnerCode: session.partnerCode,
     groups: session.groups,
   }
@@ -64,7 +65,7 @@ function loginToSnapshot(login: LoginResponse): AuthSnapshot {
     token: isElectronPlatform ? login.token : '',
     userId: login.userId,
     role: login.role,
-    fullName: login.displayName,
+    fullName: sanitizeDisplayName(login.displayName),
     partnerCode: login.partnerCode,
     groups: login.groups,
   }

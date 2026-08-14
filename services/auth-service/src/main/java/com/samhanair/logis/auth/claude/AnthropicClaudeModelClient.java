@@ -25,6 +25,20 @@ public class AnthropicClaudeModelClient implements ClaudeModelClient {
 
     @Override
     public String ask(String question) {
+        return send(question);
+    }
+
+    @Override
+    public ClaudeModelResult askWithSummary(String question) {
+        String raw = send(question + "\\n\\n응답 첫 줄에 [SUMMARY]와 [/SUMMARY] 사이에 대화 내용을 80자 이내 한 줄로 요약하고, 다음 줄부터 답변을 작성하세요.");
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("(?s)\\[SUMMARY\\]\\s*(.*?)\\s*\\[/SUMMARY\\]\\s*(.*)")
+                .matcher(raw.trim());
+        if (matcher.matches()) return new ClaudeModelResult(matcher.group(1), matcher.group(2).trim());
+        return new ClaudeModelResult(raw.split("\\R", 2)[0], raw);
+    }
+
+    private String send(String question) {
         String json = "{\"model\":\"" + escape(properties.effectiveModel())
                 + "\",\"max_tokens\":1024,\"messages\":[{\"role\":\"user\",\"content\":\""
                 + escape(question) + "\"}]}";

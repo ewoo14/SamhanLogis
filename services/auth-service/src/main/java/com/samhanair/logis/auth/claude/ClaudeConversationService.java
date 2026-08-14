@@ -69,8 +69,12 @@ public class ClaudeConversationService {
                     "Claude 자격이 설정되지 않았습니다. ANTHROPIC_API_KEY를 주입한 뒤 다시 시도해주세요.");
         }
         if (sessionCode != null) {
+            ClaudeModelResult result = modelClient.askWithSummary(safeQuestion);
             sessionRepository.findBySessionCodeAndAccountIdAndIsDeletedFalse(sessionCode, accountId)
-                    .ifPresent(session -> session.recordQuestion(safeQuestion, modelClient.isVirtual()));
+                    .ifPresent(session -> session.recordSummary(result.summary(), safeQuestion, modelClient.isVirtual()));
+            auditRecorder.record(accountId, sessionCode, safeQuestion, outboundPayload,
+                    modelClient.isVirtual() ? "VIRTUAL_SENT" : "SENT");
+            return result.answer();
         }
         auditRecorder.record(accountId, sessionCode, safeQuestion, outboundPayload,
                 modelClient.isVirtual() ? "VIRTUAL_SENT" : "SENT");

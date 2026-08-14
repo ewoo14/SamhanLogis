@@ -26,7 +26,8 @@ describe('PR #1134 UUID actorName guard', () => {
 
     fireEvent.click(screen.getByTestId('audit-overlay-memo-expand'))
 
-    expect(screen.getByText('[DEV-SEED] 개발영업')).toBeTruthy()
+    expect(screen.getByText('개발영업')).toBeTruthy()
+    expect(screen.queryByText('[DEV-SEED] 개발영업')).toBeNull()
     expect(screen.getByText('변경자 미상')).toBeTruthy()
     expect(screen.queryByText('550e8400-e29b-41d4-a716-446655440000')).toBeNull()
   })
