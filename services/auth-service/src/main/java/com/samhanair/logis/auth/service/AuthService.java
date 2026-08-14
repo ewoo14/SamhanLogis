@@ -295,6 +295,11 @@ public class AuthService {
         return account.getId();
     }
 
+    public Account findAccount(UUID id) {
+        return accountRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
+    }
+
     public void updateAccountDisplayName(UUID id, String displayName) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));

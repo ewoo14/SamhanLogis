@@ -22,6 +22,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     /** 미열람 카운트 — 알림 배지 / Internal API 조회. */
     long countByRecipientIdAndStatus(UUID recipientId, MessageStatus status);
+    long countByRoomIdAndRecipientIdAndStatus(UUID roomId, UUID recipientId, MessageStatus status);
+    java.util.Optional<Message> findTopByRoomIdOrderBySentAtDesc(UUID roomId);
 
     /** 읽음 최초 시각 보존을 위해 동시 markRead 시 행을 직렬화한다. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

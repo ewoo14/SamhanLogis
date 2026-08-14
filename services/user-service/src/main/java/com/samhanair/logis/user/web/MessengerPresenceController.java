@@ -29,12 +29,6 @@ public class MessengerPresenceController {
     private static final String USER_HEADER = "X-User-Id";
     private final MessengerPresenceService service;
 
-    @GetMapping("/me")
-    public ApiResponse<MessengerEmployeeResponse> me(@RequestHeader(USER_HEADER) UUID actor) {
-        return ApiResponse.ok(service.me(actor));
-    }
-    @GetMapping("/directory")
-    public ApiResponse<List<MessengerEmployeeResponse>> directory() { return ApiResponse.ok(service.directory()); }
     @PutMapping("/presence")
     public ApiResponse<Void> update(@RequestHeader(USER_HEADER) UUID actor, @Valid @RequestBody UpdateMessengerPresenceRequest request) {
         service.setStatus(actor, request.presenceStatus()); return ApiResponse.ok(null);

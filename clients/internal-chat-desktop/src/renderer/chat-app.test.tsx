@@ -1,35 +1,31 @@
+// @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import React from 'react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatApp } from './ChatApp'
 
-const claude = vi.hoisted(() => ({
-  listClaudeSessions: vi.fn().mockResolvedValue([]),
-  createClaudeSession: vi.fn().mockResolvedValue({ sessionCode: 'CLD-1', title: '새 대화', messageCount: 0 }),
-  askClaude: vi.fn().mockResolvedValue('첫 세션 답변'),
-  claudeErrorMessage: vi.fn().mockReturnValue('오류'),
-}))
+const claude = vi.hoisted(() => ({ listClaudeSessions: vi.fn().mockResolvedValue([]), createClaudeSession: vi.fn().mockResolvedValue({ sessionCode: 'CLD-1', title: '새 대화', messageCount: 0 }), askClaude: vi.fn().mockResolvedValue('첫 세션 답변'), claudeErrorMessage: vi.fn().mockReturnValue('오류') }))
 vi.mock('./claude/claude-api', () => claude)
-vi.mock('./api/chat-api', () => ({ fetchMe: vi.fn().mockResolvedValue({ name: '홍길동', jobTitle: '부장', departmentName: '개발팀', presenceStatus: 'AVAILABLE' }), fetchDirectory: vi.fn().mockResolvedValue([]), fetchRooms: vi.fn().mockResolvedValue([]), fetchGroups: vi.fn().mockResolvedValue([]), fetchMessages: vi.fn().mockResolvedValue([]), joinPresence: vi.fn().mockResolvedValue(undefined), leavePresence: vi.fn().mockResolvedValue(undefined), subscribe: vi.fn().mockReturnValue(() => undefined) }))
+vi.mock('./api/chat-api', () => ({ fetchMe: vi.fn().mockResolvedValue({ name: '홍길동', jobTitle: '부장', departmentName: '개발팀', presenceStatus: 'AVAILABLE' }), fetchDirectory: vi.fn().mockResolvedValue([]), fetchRooms: vi.fn().mockResolvedValue([]), fetchGroups: vi.fn().mockResolvedValue([]), fetchMessages: vi.fn().mockResolvedValue([]), joinPresence: vi.fn().mockResolvedValue(undefined), leavePresence: vi.fn().mockResolvedValue(undefined), createDirectRoom: vi.fn(), createGroupRoom: vi.fn(), sendMessage: vi.fn(), subscribe: vi.fn().mockReturnValue(() => undefined) }))
+vi.mock('./api/chatApi', () => ({ fetchMessengerMe: vi.fn().mockResolvedValue({ employeeCode: 'ME', name: '홍길동', jobTitle: '부장', departmentName: '개발팀', employmentStatus: 'ACTIVE', presenceStatus: 'AVAILABLE' }), joinMessengerPresence: vi.fn().mockResolvedValue(undefined), leaveMessengerPresence: vi.fn().mockResolvedValue(undefined), fetchMessengerDirectory: vi.fn().mockResolvedValue([{ employeeCode: 'CEO', name: '김대표', jobTitle: '대표', departmentName: '대표실', employmentStatus: 'ACTIVE', presenceStatus: 'AWAY' }, { employeeCode: 'STAFF', name: '박사원', jobTitle: '사원', departmentName: '개발팀', employmentStatus: 'ACTIVE', presenceStatus: 'OFFLINE' }, { employeeCode: 'E002', name: '이개발', jobTitle: '개발자', departmentName: '물류팀', employmentStatus: 'ACTIVE', presenceStatus: 'ABSENT' }]), fetchGroupChatRooms: vi.fn().mockResolvedValue([{ roomCode: 'GROUP-OLD', type: 'GROUP', roomName: null, participants: [{ name: '홍길동' }, { name: '김철수' }, { name: '이영희' }, { name: '박민수' }, { name: '최수진' }], unreadCount: 0, latestMessageAt: '2026-08-14T10:00:00Z' }, { roomCode: 'GROUP-NEW', type: 'GROUP', roomName: '물류 협의', participants: [{ name: '홍길동' }, { name: '김철수' }], unreadCount: 2, latestMessageAt: '2026-08-14T09:00:00Z' }, { roomCode: 'GROUP-UNREAD', type: 'GROUP', roomName: null, participants: [{ name: '홍길동' }, { name: '최수진' }], unreadCount: 1, latestMessageAt: '2026-08-14T11:00:00Z' }]), createGroupChatRoom: vi.fn().mockResolvedValue({ roomCode: 'GROUP-CREATED', type: 'GROUP', roomName: '새 그룹' }), createDirectChatRoomByEmployeeCode: vi.fn().mockResolvedValue({ roomCode: 'CHAT-1', type: 'DIRECT', roomName: null, partnerName: '김대표' }), fetchChatRooms: vi.fn().mockResolvedValue([{ roomCode: 'CHAT-1', type: 'DIRECT', roomName: null, partnerName: '김개발', partnerDepartment: '플랫폼팀', partnerEmployeeCode: 'E001' }]), fetchChatMessages: vi.fn().mockResolvedValue([{ roomCode: 'CHAT-1', sequence: 1, body: '안녕하세요', sentAt: '2026-08-12T09:00:00Z', senderName: '김개발', mine: false }]), sendChatMessage: vi.fn().mockResolvedValue({ roomCode: 'CHAT-1', sequence: 2, body: '반갑습니다', sentAt: '2026-08-12T09:01:00Z', mine: true }), subscribeToChatRoom: vi.fn().mockReturnValue(() => undefined) }))
+function plain() { return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ChatApp /></QueryClientProvider>) }
+function routed(initialEntries = ['/chat']) { return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={initialEntries}><Routes><Route path="/chat/*" element={<ChatApp />} /></Routes></MemoryRouter></QueryClientProvider>) }
 
-function renderApp() { return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ChatApp /></QueryClientProvider>) }
-
-describe('삼한 메신저 상단 탭과 Claude 세션', () => {
+describe('삼한 메신저 v2와 Claude 세션', () => {
   afterEach(() => { cleanup(); vi.clearAllMocks() })
-
-  it('상단 탭에서 클로드로 전환할 수 있다', () => {
-    renderApp()
-    fireEvent.click(screen.getByRole('button', { name: '클로드' }))
-    expect(screen.getByTestId('claude-app')).toBeInTheDocument()
-  })
-
-  it('새 세션을 연속 생성하고 선택 세션별로 질문을 보낸다', async () => {
-    claude.createClaudeSession.mockResolvedValueOnce({ sessionCode: 'CLD-1', title: '새 대화 1', messageCount: 0 }).mockResolvedValueOnce({ sessionCode: 'CLD-2', title: '새 대화 2', messageCount: 0 })
-    renderApp(); fireEvent.click(screen.getByRole('button', { name: '클로드' }))
-    fireEvent.click(screen.getByRole('button', { name: '새 세션' })); await waitFor(() => expect(screen.getByText('새 대화 1')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '새 세션' })); await waitFor(() => expect(screen.getByText('새 대화 2')).toBeInTheDocument())
-    fireEvent.change(screen.getByRole('textbox', { name: '클로드 질문' }), { target: { value: '두 번째 세션 질문' } }); fireEvent.click(screen.getByRole('button', { name: '질문 보내기' }))
-    await waitFor(() => expect(claude.askClaude).toHaveBeenCalledWith('두 번째 세션 질문', expect.objectContaining({ sessionCode: 'CLD-2' })))
-  })
+  it('상단 탭에서 클로드로 전환할 수 있다', () => { plain(); fireEvent.click(screen.getByRole('button', { name: '클로드' })); expect(screen.getByTestId('claude-app')).toBeInTheDocument() })
+  it('새 세션을 연속 생성하고 선택 세션별로 질문을 보낸다', async () => { claude.createClaudeSession.mockResolvedValueOnce({ sessionCode: 'CLD-1', title: '새 대화 1', messageCount: 0 }).mockResolvedValueOnce({ sessionCode: 'CLD-2', title: '새 대화 2', messageCount: 0 }); plain(); fireEvent.click(screen.getByRole('button', { name: '클로드' })); fireEvent.click(screen.getByRole('button', { name: '새 세션' })); await waitFor(() => expect(screen.getByText('새 대화 1')).toBeInTheDocument()); fireEvent.click(screen.getByRole('button', { name: '새 세션' })); await waitFor(() => expect(screen.getByText('새 대화 2')).toBeInTheDocument()); fireEvent.change(screen.getByRole('textbox', { name: '클로드 질문' }), { target: { value: '두 번째 세션 질문' } }); fireEvent.click(screen.getByRole('button', { name: '질문 보내기' })); await waitFor(() => expect(claude.askClaude).toHaveBeenCalledWith('두 번째 세션 질문', expect.objectContaining({ sessionCode: 'CLD-2' }))) })
+})
+describe('main 본체 채팅 회귀', () => {
+  afterEach(() => { cleanup(); vi.clearAllMocks() })
+  it('채팅방 목록과 직원 목록을 제공한다', async () => { routed(); expect(await screen.findByRole('heading', { name: '채팅' })).toBeInTheDocument(); expect(await screen.findByRole('link', { name: /김개발/ })).toBeInTheDocument(); expect(screen.getByRole('list', { name: '직원 목록' })).toHaveTextContent('김대표') })
+  it('그룹별 화면과 그룹 메시지 목록을 제공한다', async () => { routed(); fireEvent.click(screen.getByRole('button', { name: '그룹별' })); expect(await screen.findByTestId('group-chat-rooms-page')).toBeInTheDocument(); expect(screen.getByRole('list', { name: '그룹 채팅방 목록' })).toHaveTextContent('물류 협의') })
+  it('메시지 전송 경로를 유지한다', async () => { const api = await import('./api/chatApi'); routed(['/chat/CHAT-1']); expect(await screen.findByText('안녕하세요')).toBeInTheDocument(); fireEvent.change(screen.getByRole('textbox', { name: '메시지 본문' }), { target: { value: '반갑습니다' } }); fireEvent.click(screen.getByRole('button', { name: '보내기' })); await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalledWith('CHAT-1', '반갑습니다')) })
+  it('네 가지 상태 아이콘은 실제 상태 클래스와 픽셀 CSS를 가진다', async () => { routed(); expect(await screen.findByLabelText('홍길동 상태: 접속')).toHaveClass('presence-available'); const stylesheet = readFileSync(resolve(process.cwd(), 'src/renderer/styles.css'), 'utf8'); expect(stylesheet).toContain('.presence { display: inline-block; width: 10px; height: 10px;'); expect(stylesheet).toContain('.presence-available { background: #16a34a; }'); expect(stylesheet).toContain('.presence-away { background: #f59e0b; }'); expect(stylesheet).toContain('.presence-absent { background: #ef4444; }'); expect(stylesheet).toContain('.presence-offline { background: #94a3b8; }') })
+  it('직접 대화 생성 후 basename 내부 room route에 진입한다', async () => { routed(); fireEvent.change(await screen.findByRole('textbox', { name: '대화 상대 검색' }), { target: { value: '김대표' } }); fireEvent.click((await screen.findAllByRole('button', { name: /김대표/ })).at(-1)!); fireEvent.click(screen.getByRole('button', { name: '대화 시작' })); await waitFor(() => expect(screen.getByTestId('chat-room-page')).toBeInTheDocument()) })
 })

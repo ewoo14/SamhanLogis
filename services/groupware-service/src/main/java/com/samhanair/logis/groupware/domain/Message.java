@@ -97,7 +97,10 @@ public class Message extends BaseEntity {
     }
 
     public static Message sendInRoom(UUID roomId, long sequence, UUID senderId, UUID recipientId, String body) {
-        Message message = new Message(senderId, recipientId, body, null);
+        return sendInRoom(roomId, sequence, senderId, recipientId, body, null);
+    }
+    public static Message sendInRoom(UUID roomId, long sequence, UUID senderId, UUID recipientId, String body, UUID batchId) {
+        Message message = new Message(senderId, recipientId, body, batchId);
         message.roomId = roomId;
         message.sequence = sequence;
         return message;

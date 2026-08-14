@@ -326,6 +326,8 @@ import { EstimateItemsCatalogPage } from './EstimateItemsCatalogPage'
 import { ProductClassificationsPage } from './ProductClassificationsPage'
 import { ProductPriceSchedulePage } from './ProductPriceSchedulePage'
 import { ProductFormPage } from './ProductFormPage'
+import { shouldUseHashRouter } from './routerSelection'
+export { shouldUseHashRouter } from './routerSelection'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -1827,7 +1829,10 @@ const routes = [
 // 웹 배포(vite.web.config: VITE_PLATFORM='web')만 BrowserRouter(서버 SPA fallback 전제).
 // Electron(file://) 및 mock/dev 렌더러는 새로고침 404 회피 위해 HashRouter.
 const isWebDeploy = import.meta.env['VITE_PLATFORM'] === 'web'
-const createPlatformRouter = isWebDeploy ? createBrowserRouter : createHashRouter
+const createPlatformRouter = shouldUseHashRouter(
+  isWebDeploy ? 'web' : undefined,
+  typeof window === 'undefined' ? '' : window.location.hash,
+) ? createHashRouter : createBrowserRouter
 const router = createPlatformRouter(routes)
 
 /**

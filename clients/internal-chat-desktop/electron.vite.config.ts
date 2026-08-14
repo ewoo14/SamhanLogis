@@ -21,6 +21,12 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
+    resolve: {
+      alias: {
+        react: resolve(__dirname, 'node_modules/react'),
+        'react-dom': resolve(__dirname, 'node_modules/react-dom'),
+      },
+    },
     build: {
       outDir: resolve(__dirname, 'out/renderer'),
       emptyOutDir: true,
