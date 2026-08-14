@@ -38,7 +38,7 @@ public record LedgerResponse(
      *
      * @param date        분개 일자
      * @param journalNo   분개번호 (사용자 노출 비즈니스 식별자)
-     * @param accountCode 계정코드 (110/401 등)
+     * @param accountCode 계정코드 (1089/4019 등)
      * @param accountName 계정명 — SP-08-FU2 P2-4 신규. ChartOfAccount 마스터 lookup 결과.
      *                    해당 코드의 계정과목이 없거나 조회 실패 시 null.
      * @param accountCategory 계정 카테고리. 총계정원장 화면 grouping 메타.

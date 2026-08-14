@@ -179,7 +179,7 @@ public class InventoryAuditController {
      * @return AuditDetailResponse (200) / CONFLICT (409)
      */
     @Operation(summary = "실사 완료",
-            description = "IN_PROGRESS → COMPLETED + 차이 자동 분개 (150/919) + Stock 조정")
+            description = "IN_PROGRESS → COMPLETED + 차이 자동 분개 (1462/9399) + Stock 조정")
     @PostMapping("/{id}/complete")
     @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<AuditDetailResponse> complete(

@@ -12,15 +12,15 @@ import java.util.List;
  *
  * <p>계정 코드:
  * <ul>
- *   <li>RECEIVABLE: 110 외상매출금 — debit - credit = 미수 잔액</li>
- *   <li>PAYABLE: 201 외상매입금 — credit - debit = 미지급 잔액</li>
+ *   <li>RECEIVABLE: 1089 외상매출금 — debit - credit = 미수 잔액</li>
+ *   <li>PAYABLE: 2519 외상매입금 — credit - debit = 미지급 잔액</li>
  * </ul>
  *
  * <p>partnerId 가 null 인 분개 라인은 "기타" 그룹으로 집계.
  *
  * @param asOfDate      기준 일자
  * @param type          조회 유형 ("RECEIVABLE" / "PAYABLE")
- * @param accountCode   대상 계정 코드 ("110" 또는 "201")
+ * @param accountCode   대상 계정 코드 ("1089" 또는 "2519")
  * @param accountName   계정명 ("외상매출금" 또는 "외상매입금")
  * @param totalAmount   거래처별 잔액 합계
  * @param partnerCount  거래처 수 (잔액 양수인 거래처만 포함, "기타" 제외)

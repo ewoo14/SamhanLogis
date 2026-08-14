@@ -15,7 +15,6 @@ public class EcountExpenseVoucherImporter extends AbstractEcountMig5CashImporter
     public EcountExpenseVoucherImporter(NamedParameterJdbcTemplate jdbcTemplate,
                                         PartnerLookupClient partnerLookupClient) {
         super(jdbcTemplate, partnerLookupClient, "staging.ecount_expense_voucher_raw",
-                "지출결의서", IMPORT_LOCK_NAMESPACE, "201", false);
+                "지출결의서", IMPORT_LOCK_NAMESPACE, "2519", false);
     }
 }
-

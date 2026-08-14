@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>자본 구성 항목 (V1 chart_of_accounts 기준):
  * <ul>
- *   <li>301 자본금 — 증자(credit)/감자(debit) 반영</li>
+ *   <li>3329 자본금 — 증자(credit)/감자(debit) 반영</li>
  *   <li>343 미처분이익잉여금 — 당기순이익 + 배당 반영</li>
  * </ul>
  *
@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class EquityChangesService {
 
-    /** 자본금 계정 코드 (V1 chart_of_accounts 기준: 301). */
+    /** 자본금 계정 코드 (V101 이카운트 정본: 3329). */
     private static final String CAPITAL_STOCK_CODE = "3329";
 
     /** 미처분이익잉여금 계정 코드. */

@@ -33,6 +33,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import axios from 'axios'
+import { extractApiErrorMessage } from '../api/apiError'
 import {
   AuditOverlay,
   Badge,
@@ -440,7 +441,9 @@ export function InventoryAuditDetailPage({ opaqueAuditId }: { opaqueAuditId?: st
             role="alert"
             style={{ marginTop: 12 }}
           >
-            상태 변경에 실패했습니다.
+            {extractApiErrorMessage(
+              completeMutation.error ?? startMutation.error ?? cancelMutation.error,
+            ) || '상태 변경에 실패했습니다.'}
           </div>
         ) : null}
       </Card>

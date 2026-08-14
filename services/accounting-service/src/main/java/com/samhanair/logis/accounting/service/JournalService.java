@@ -75,6 +75,15 @@ public class JournalService {
      * @throws BusinessException(CONFLICT) 마감된 기간 일자 입력
      */
     public JournalDetailResponse create(CreateJournalRequest request) {
+        return create(request, false);
+    }
+
+    /** 내부 재고실사 조정 — 공개 분개와 달리 개발책임자 결정의 1462를 허용한다. */
+    public JournalDetailResponse createInventoryAuditAdjustment(CreateJournalRequest request) {
+        return create(request, true);
+    }
+
+    private JournalDetailResponse create(CreateJournalRequest request, boolean inventoryAudit) {
         monthEndCloseService.findClosedPeriodCovering(request.journalDate())
                 .ifPresent(p -> {
                     throw new BusinessException(ErrorCode.CONFLICT,
@@ -88,7 +97,11 @@ public class JournalService {
 
         int lineNo = 1;
         for (CreateJournalLineRequest lineReq : request.lines()) {
-            accountService.requireLeafAccount(lineReq.accountCode());
+            if (inventoryAudit) {
+                accountService.requireInventoryAuditAccount(lineReq.accountCode());
+            } else {
+                accountService.requireLeafAccount(lineReq.accountCode());
+            }
             JournalLine line = JournalLine.create(journal, lineNo++, lineReq.accountCode(),
                     lineReq.debitAmount(), lineReq.creditAmount(), lineReq.partnerId(),
                     lineReq.memo());

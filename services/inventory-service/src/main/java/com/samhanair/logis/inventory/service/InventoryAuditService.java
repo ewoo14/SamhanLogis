@@ -59,8 +59,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>차이 자동 분개 (한국 일반기업회계기준 코드):
  * <ul>
- *   <li>차이 (+) — 차변 150 재고자산 / 대변 919 재고감모손실 (환입)</li>
- *   <li>차이 (-) — 차변 919 재고감모손실 / 대변 150 재고자산</li>
+ *   <li>차이 (+) — 차변 1462 재고자산 / 대변 9399 재고감모손실 (환입)</li>
+ *   <li>차이 (-) — 차변 9399 재고감모손실 / 대변 1462 재고자산</li>
  *   <li>차이 = 0 — 분개 생략 (no-op)</li>
  * </ul>
  *
@@ -281,7 +281,8 @@ public class InventoryAuditService {
                 // Phase 11 Kafka 전환 시 여기서 outbox row insert 로 대체.
                 log.error("실사 차이 분개 발행 실패 (수동 재발행 필요) — auditNo={}, total={}, err={}",
                         audit.getAuditNo(), total, ex.getMessage());
-                throw ex;
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "회계 연동에 실패했습니다. 실사 완료와 재고 조정이 취소되었습니다. 잠시 후 다시 시도해 주세요.", ex);
             }
         }
 

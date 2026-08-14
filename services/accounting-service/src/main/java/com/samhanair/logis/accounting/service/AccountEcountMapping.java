@@ -15,13 +15,19 @@ import java.util.Set;
 public final class AccountEcountMapping {
 
     /** 개발책임자가 직접 확정한 이카운트 매핑만 보유한다. */
-    private static final Map<String, String> CONFIRMED = Map.of(
-            "110", "1089",
-            "401", "4019");
+    private static final Map<String, String> CONFIRMED = Map.ofEntries(
+            Map.entry("101", "1019"), Map.entry("102", "1039"), Map.entry("110", "1089"),
+            Map.entry("142", "2024"), Map.entry("146", "2054"), Map.entry("201", "2519"),
+            Map.entry("210", "2539"), Map.entry("220", "2559"), Map.entry("255", "2559"),
+            Map.entry("260", "2954"), Map.entry("301", "3329"), Map.entry("343", "3779"),
+            Map.entry("401", "4019"), Map.entry("404", "4049"), Map.entry("501", "4511"),
+            Map.entry("801", "8029"), Map.entry("814", "8139"), Map.entry("818", "8239"),
+            Map.entry("819", "8249"), Map.entry("831", "8319"), Map.entry("901", "9019"),
+            Map.entry("919", "9399"), Map.entry("991", "9719"));
 
     /** 매핑하지 않고 미정으로 표시해야 하는 로컬 코드. */
     private static final Set<String> UNDETERMINED = Set.of(
-            "103", "104", "105", "201", "919", "142", "210", "220", "255", "900");
+            "103", "104", "105", "900");
 
     private AccountEcountMapping() {}
 

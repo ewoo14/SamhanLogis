@@ -12,7 +12,7 @@ import java.math.BigDecimal;
  *   <li>자본 (300~) — credit - debit (대변 잔액, 양수 = 자본 존재)</li>
  * </ul>
  *
- * @param accountCode 계정 코드 (예: "102")
+ * @param accountCode 계정 코드 (예: "1039")
  * @param accountName 계정명 (예: "보통예금")
  * @param category    계정 카테고리 문자열 (AccountCategory.name())
  * @param amount      asOfDate 기준 누적 잔액

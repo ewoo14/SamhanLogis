@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -347,6 +348,32 @@ class InventoryAuditServiceTest {
                 });
         verify(stockMovementRepository, never()).save(any());
         verify(accountingClient, never()).createAuditAdjustmentJournal(any(), any(), any(), any());
+    }
+
+    @Test
+    void complete_accountingFailure_returnsSafeUserMessage() {
+        InventoryAudit audit = freshAudit();
+        InventoryAuditLine line = InventoryAuditLine.snapshot(
+                audit, productId, "AC", 100, new BigDecimal("100000.00"));
+        audit.addLine(line);
+        audit.start();
+        line.recordActual(95, false);
+        when(auditRepository.findById(audit.getId())).thenReturn(Optional.of(audit));
+        when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, warehouseId))
+                .thenReturn(Optional.of(newBalance(productId, warehouse, 100)));
+        doThrow(new BusinessException(ErrorCode.INVALID_INPUT, "accounting-service 4xx: 404"))
+                .when(accountingClient)
+                .createAuditAdjustmentJournal(any(), any(), any(), any());
+
+        assertThatThrownBy(() -> service.complete(audit.getId(), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_ERROR);
+                    assertThat(be.getMessage()).isEqualTo(
+                            "회계 연동에 실패했습니다. 실사 완료와 재고 조정이 취소되었습니다. 잠시 후 다시 시도해 주세요.");
+                    assertThat(be.getMessage()).doesNotContain("404", "accounting-service", audit.getId().toString());
+                });
     }
 
     @Test

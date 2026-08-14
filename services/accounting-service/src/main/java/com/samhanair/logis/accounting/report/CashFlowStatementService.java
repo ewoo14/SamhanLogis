@@ -20,21 +20,21 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>간소형 직접법 기준 현금흐름표. 영업 / 투자 / 재무 3-활동으로 구성.
  *
- * <p>현금 = 101 (현금) + 102 (보통예금) 합산.
+ * <p>현금 = 1019 (현금) + 1039 (보통예금) 합산.
  *
  * <p>활동별 계정 매핑 (한국 일반기업회계기준 표준 계정과목, V1 chart_of_accounts 기준):
  * <ul>
  *   <li>영업활동 조정:
  *     <ul>
- *       <li>110 외상매출금 — 감소(credit &gt; debit)면 현금 유입</li>
- *       <li>201 외상매입금 — 증가(credit &gt; debit)면 현금 지급 감소 (음수)</li>
- *       <li>220 부가세예수금 / 210 미지급금 — 부채 증감 영업 조정</li>
+ *       <li>1089 외상매출금 — 감소(credit &gt; debit)면 현금 유입</li>
+ *       <li>2519 외상매입금 — 증가(credit &gt; debit)면 현금 지급 감소 (음수)</li>
+ *       <li>2559 부가세예수금 / 2539 미지급금 — 부채 증감 영업 조정</li>
  *       <li>801~870 판관비 — debit 잔액만큼 현금 지급 (유출)</li>
  *     </ul>
  *   </li>
- *   <li>투자활동: 141 토지 / 142 건물 / 146 차량운반구 / 148 비품 / 163 소프트웨어
+ *   <li>투자활동: 141 토지 / 2024 건물 / 2054 차량운반구 / 148 비품 / 163 소프트웨어
  *       매입(debit=유출) / 매각(credit=유입)</li>
- *   <li>재무활동: 230 단기차입금 / 260 장기차입금 증감 / 301 자본금 증자</li>
+ *   <li>재무활동: 230 단기차입금 / 2954 장기차입금 증감 / 3329 자본금 증자</li>
  * </ul>
  *
  * <p>POSTED+REVERSED(보상쌍 상쇄) 분개를 집계.
@@ -45,14 +45,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class CashFlowStatementService {
 
     /** 현금성 자산 계정 코드 (기초/기말 현금 산출 대상). */
-    private static final List<String> CASH_ACCOUNTS = List.of("101", "102");
+    private static final List<String> CASH_ACCOUNTS = List.of("1019", "1039");
 
     /** 영업활동 조정 계정 코드 목록 (V1 chart_of_accounts 기준). */
     private static final List<String> OPERATING_ADJ_ACCOUNTS = List.of(
-            "110",  // 외상매출금 (받을어음 포함)
-            "201",  // 외상매입금
-            "220",  // 부가세예수금
-            "210"   // 미지급금 (V1 코드: 210)
+            "1089",  // 외상매출금 (받을어음 포함)
+            "2519",  // 외상매입금
+            "2559",  // 부가세예수금
+            "2539"   // 미지급금
     );
 
     /** 판관비 계정 코드 prefix (800번대) — 현금 지급 유출로 처리. */
@@ -61,17 +61,17 @@ public class CashFlowStatementService {
     /** 투자활동 계정 코드 목록 (V1 chart_of_accounts 기준 유형·무형자산). */
     private static final List<String> INVESTING_ACCOUNTS = List.of(
             "141",  // 토지
-            "142",  // 건물
-            "146",  // 차량운반구
-            "148",  // 비품
+            "2024",  // 건물
+            "2054",  // 차량운반구
+            "148",   // V101 매핑표 없음 — 유지
             "163"   // 소프트웨어
     );
 
     /** 재무활동 계정 코드 목록 (V1 chart_of_accounts 기준). */
     private static final List<String> FINANCING_ACCOUNTS = List.of(
-            "230",  // 단기차입금 (V1 코드: 230)
-            "260",  // 장기차입금
-            "301"   // 자본금 (V1 코드: 301)
+            "230",  // V101 매핑표 없음 — 유지
+            "2954",  // 장기차입금
+            "3329"   // 자본금
     );
 
     /** balanced 판정 허용 오차. */
@@ -149,8 +149,8 @@ public class CashFlowStatementService {
             if (t == null) {
                 continue;
             }
-            // 자산 계정(110): 감소(credit > debit) → 유입; 증가(debit > credit) → 유출
-            // 부채 계정(201/220/255): 증가(credit > debit) → 유입; 감소(debit > credit) → 유출
+            // 자산 계정(1089): 감소(credit > debit) → 유입; 증가(debit > credit) → 유출
+            // 부채 계정(2519/2559/255): 증가(credit > debit) → 유입; 감소(debit > credit) → 유출
             BigDecimal netChange;
             boolean isAsset = code.startsWith("1");
             if (isAsset) {
@@ -256,7 +256,7 @@ public class CashFlowStatementService {
         // ── 순현금흐름 + 기초/기말 현금 ──────────────────────────
         BigDecimal netCashFlow = cashFromOperating.add(cashFromInvesting).add(cashFromFinancing);
 
-        // 기초 현금 = from 이전 날짜까지 누적 (101+102 잔액)
+        // 기초 현금 = from 이전 날짜까지 누적 (1019+1039 잔액)
         LocalDate beforeFrom = from.minusDays(1);
         BigDecimal beginningCash = sumCashAccounts(beforeFrom);
 
@@ -287,7 +287,7 @@ public class CashFlowStatementService {
     }
 
     /**
-     * 현금성 계정 (101, 102) 누적 잔액 합산.
+     * 현금성 계정 (1019, 1039) 누적 잔액 합산.
      *
      * @param asOfDate 기준 일자 (이 날짜 포함 이전 누적)
      * @return 현금 잔액

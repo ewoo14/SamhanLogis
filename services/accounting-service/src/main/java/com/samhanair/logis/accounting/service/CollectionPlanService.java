@@ -49,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class CollectionPlanService {
 
-    private static final String ACCOUNT_RECEIVABLE = "110";
+    private static final String ACCOUNT_RECEIVABLE = "1089";
     private static final DateTimeFormatter PLAN_NO_DATE = DateTimeFormatter.ofPattern("yyyy/MM/dd");
     private static final List<PlanStatus> OPEN_STATUSES = List.of(PlanStatus.PLANNED, PlanStatus.OVERDUE);
 

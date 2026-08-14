@@ -51,6 +51,6 @@ public class AccountingInternalJournalController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<JournalDetailResponse> create(@Valid @RequestBody CreateJournalRequest request) {
-        return ApiResponse.ok(journalService.create(request));
+        return ApiResponse.ok(journalService.createInventoryAuditAdjustment(request));
     }
 }
