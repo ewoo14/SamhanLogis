@@ -36,6 +36,7 @@ function renderApp() {
 
 describe('삼한 메신저 UI v2', () => {
   beforeEach(() => {
+    vi.setSystemTime(new Date('2026-08-14T12:00:00+09:00'))
     chatApi.fetchDirectory.mockResolvedValue([
       { employeeCode: 'E2', name: '김대리', jobTitle: '대리', departmentName: '영업팀', presenceStatus: 'OFFLINE' },
       { employeeCode: 'E1', name: '박개발', jobTitle: '개발자', departmentName: '개발팀', presenceStatus: 'AVAILABLE' },
@@ -45,7 +46,7 @@ describe('삼한 메신저 UI v2', () => {
     chatApi.createDirectRoom.mockResolvedValue({ roomCode: 'ROOM-DIRECT', type: 'DIRECT', partnerName: '박개발' })
     claudeApi.listClaudeSessions.mockResolvedValue([])
   })
-  afterEach(() => { cleanup(); vi.clearAllMocks() })
+  afterEach(() => { vi.useRealTimers(); cleanup(); vi.clearAllMocks() })
 
   it('상단을 개별·그룹별·클로드 pill 칩으로 전환한다', () => {
     renderApp()
