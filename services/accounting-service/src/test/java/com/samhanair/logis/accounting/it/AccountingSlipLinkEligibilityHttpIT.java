@@ -8,6 +8,7 @@ import com.samhanair.logis.accounting.service.AccountingSlipLinkReadModel;
 import com.samhanair.logis.accounting.service.AccountingSlipLinkReadModelService;
 import com.samhanair.logis.accounting.web.dto.OpaqueUuidSerializer;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -43,15 +44,18 @@ class AccountingSlipLinkEligibilityHttpIT extends AbstractPostgresIT {
     @Test
     void gateway형_MASTER는_역할_헤더_없이_통과하고_SALES는_위조_역할도_거부한다() {
         UUID sourceId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
         when(readModelService.read(sourceId, "OUTBOUND")).thenReturn(confirmedReadModel());
+        when(dynamicPermissionClient.check(accountId, "accounting.sales-slip.accounting", PermissionAction.VIEW))
+                .thenReturn(true);
         String url = "http://localhost:" + port + "/accounting/slip-links/eligibility"
                 + "?sourceSlipIdToken=" + OpaqueUuidSerializer.encode(sourceId)
                 + "&sourceSlipType=OUTBOUND&dailyAmountVerified=true";
 
         ResponseEntity<String> master = restTemplate.exchange(url, HttpMethod.GET,
-                new HttpEntity<>(headers("master-user", "true", MASTER_GROUP, null)), String.class);
+                new HttpEntity<>(headers(accountId, "master-user", "true", MASTER_GROUP, null)), String.class);
         ResponseEntity<String> sales = restTemplate.exchange(url, HttpMethod.GET,
-                new HttpEntity<>(headers("sales-user", "false", SALES_GROUP, "MASTER")), String.class);
+                new HttpEntity<>(headers(accountId, "sales-user", "false", SALES_GROUP, "MASTER")), String.class);
 
         assertThat(master.getStatusCode().value()).isEqualTo(200);
         assertThat(master.getBody()).contains("\"allowed\":true");
@@ -59,9 +63,9 @@ class AccountingSlipLinkEligibilityHttpIT extends AbstractPostgresIT {
         assertThat(sales.getBody()).contains("\"allowed\":false", "PERMISSION_DENIED");
     }
 
-    private static HttpHeaders headers(String userId, String systemMaster, String groups, String role) {
+    private static HttpHeaders headers(UUID accountId, String userId, String systemMaster, String groups, String role) {
         HttpHeaders headers = new HttpHeaders();
-        headers.set("X-User-Id", userId);
+        headers.set("X-User-Id", accountId.toString());
         headers.set("X-Is-System-Master", systemMaster);
         headers.set("X-User-Groups", groups);
         if (role != null) {

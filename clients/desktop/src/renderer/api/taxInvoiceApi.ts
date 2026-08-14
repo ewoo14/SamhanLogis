@@ -98,6 +98,8 @@ export interface TaxInvoiceSummary {
   /** 자동 분개 UUID — 분개장 link 용. */
   journalId: string | null
   reverseJournalId: string | null
+  legacyReadOnly?: boolean
+  eligibilityReasons?: string[]
 }
 
 /**
@@ -120,6 +122,8 @@ export interface TaxInvoiceDetail extends TaxInvoiceSummary {
   cancelReason: string | null
   eTaxExternalId: string | null
   description: string | null
+  legacyReadOnly?: boolean
+  eligibilityReasons?: string[]
   lines: TaxInvoiceLine[]
 }
 

@@ -37,6 +37,8 @@ public record TaxInvoiceDetailResponse(
         UUID reverseJournalId,
         String eTaxExternalId,
         String description,
+        boolean legacyReadOnly,
+        List<String> eligibilityReasons,
         List<TaxInvoiceLineResponse> lines
 ) {
     /** TaxInvoice 엔티티 → 단건 상세 응답 변환. */
@@ -67,6 +69,10 @@ public record TaxInvoiceDetailResponse(
                 ti.getReverseJournalId(),
                 ti.getETaxExternalId(),
                 ti.getDescription(),
+                ti.isLegacyReadOnly(),
+                ti.isLegacyReadOnly()
+                        ? List.of("LEGACY_READ_ONLY", "기존 legacy 세금계산서는 읽기 전용입니다")
+                        : List.of(),
                 lineRes
         );
     }

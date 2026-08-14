@@ -4,6 +4,8 @@ import com.samhanair.logis.accounting.service.AccountingSlipEligibility;
 import com.samhanair.logis.accounting.service.AccountingSlipLinkReadModel;
 import com.samhanair.logis.accounting.service.AccountingSlipLinkReadModelService;
 import com.samhanair.logis.accounting.web.dto.AccountingSlipLinkEligibilityResponse;
+import com.samhanair.logis.accounting.web.dto.AccountingSlipLinkEligibilityBatchRequest;
+import com.samhanair.logis.accounting.web.dto.AccountingSlipLinkEligibilityBatchResponse;
 import com.samhanair.logis.accounting.web.dto.OpaqueUuidDeserializer;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.permission.PermissionAction;
@@ -13,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,6 +42,28 @@ public class AccountingSlipLinkController {
         AccountingSlipEligibility eligibility = AccountingSlipEligibility.evaluate(
                 readModel, dailyAmountVerified, roleFromGatewayIdentity(authentication));
         return ApiResponse.ok(AccountingSlipLinkEligibilityResponse.of(readModel, eligibility));
+    }
+
+    /** 구매 목록·작성 폼이 화면당 한 번만 호출하는 batch eligibility 계약. */
+    @PostMapping("/eligibility/batch")
+    @RequirePermission(page = "accounting.sales-slip.accounting", action = PermissionAction.VIEW)
+    public ApiResponse<java.util.List<AccountingSlipLinkEligibilityBatchResponse>> eligibilityBatch(
+            @RequestBody AccountingSlipLinkEligibilityBatchRequest request,
+            Authentication authentication) {
+        var result = (request.items() == null ? java.util.List.<AccountingSlipLinkEligibilityBatchRequest.Item>of()
+                : request.items()).stream().map(item -> {
+            AccountingSlipLinkReadModel readModel;
+            if (item.sourceSlipIdToken() != null && !item.sourceSlipIdToken().isBlank()) {
+                readModel = readModelService.read(
+                        OpaqueUuidDeserializer.decode(item.sourceSlipIdToken()), item.sourceSlipType());
+            } else {
+                readModel = readModelService.readBySourceSlipNo(item.sourceSlipNo(), item.sourceSlipType());
+            }
+            var eligibility = AccountingSlipEligibility.evaluate(
+                    readModel, request.dailyAmountVerified(), roleFromGatewayIdentity(authentication));
+            return AccountingSlipLinkEligibilityBatchResponse.of(readModel, eligibility);
+        }).toList();
+        return ApiResponse.ok(result);
     }
 
     /**

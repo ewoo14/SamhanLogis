@@ -90,4 +90,18 @@ public class AccountingSlipLinkReadModelService {
                 List.copyOf(linked.values()), taxInvoiceLinkStatus, legacyReadOnly,
                 dataIntegrityBlocked, sourceAmount.compareTo(allocatedAmount) == 0);
     }
+
+    /** allocation에 보존된 업무 전표번호로 내부 UUID를 역해석한다. */
+    @Transactional(readOnly = true)
+    public AccountingSlipLinkReadModel readBySourceSlipNo(String sourceSlipNo, String sourceSlipType) {
+        if (sourceSlipNo == null || sourceSlipNo.isBlank()) {
+            return null;
+        }
+        UUID sourceSlipId = "OUTBOUND".equals(sourceSlipType)
+                ? salesAllocationRepository.findActiveBySourceSlipNoIn(List.of(sourceSlipNo)).stream()
+                        .findFirst().map(SalesAccountingSlipAllocation::getSourceSlipId).orElse(null)
+                : purchaseAllocationRepository.findActiveBySourceSlipNoIn(List.of(sourceSlipNo)).stream()
+                        .findFirst().map(PurchaseAccountingSlipAllocation::getSourceSlipId).orElse(null);
+        return sourceSlipId == null ? null : read(sourceSlipId, sourceSlipType);
+    }
 }

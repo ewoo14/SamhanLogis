@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 
 /** 세금계산서 헤더 응답 (페이지 조회용 — 라인 미포함). */
 public record TaxInvoiceResponse(
@@ -22,7 +23,9 @@ public record TaxInvoiceResponse(
         LocalDateTime issuedAt,
         String issuedBy,
         UUID journalId,
-        UUID reverseJournalId
+        UUID reverseJournalId,
+        boolean legacyReadOnly,
+        List<String> eligibilityReasons
 ) {
     public static TaxInvoiceResponse of(TaxInvoice ti) {
         return new TaxInvoiceResponse(
@@ -39,7 +42,11 @@ public record TaxInvoiceResponse(
                 ti.getIssuedAt(),
                 ti.getIssuedBy(),
                 ti.getJournalId(),
-                ti.getReverseJournalId()
+                ti.getReverseJournalId(),
+                ti.isLegacyReadOnly(),
+                ti.isLegacyReadOnly()
+                        ? List.of("LEGACY_READ_ONLY", "기존 legacy 세금계산서는 읽기 전용입니다")
+                        : List.of()
         );
     }
 }
