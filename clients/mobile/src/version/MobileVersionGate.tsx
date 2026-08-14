@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 import { ActivityIndicator, Button, Linking, Modal, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { checkForOtaUpdate } from './otaUpdates';
+import { checkForOtaUpdate, subscribeToOtaUpdates, type OtaUpdateSnapshot } from './otaUpdates';
 import {
   fetchMobileVersionStatus,
   getMajorSessionDismissKey,
@@ -35,6 +35,9 @@ const sessionDismissedMajorVersions = new Set<string>();
 export function MobileVersionGate({ children }: MobileVersionGateProps): React.ReactElement {
   const [gateState, setGateState] = React.useState<GateState>({ status: 'checking' });
   const [failureMessage, setFailureMessage] = React.useState<string | null>(null);
+  const [otaSnapshot, setOtaSnapshot] = React.useState<OtaUpdateSnapshot>({ phase: 'idle', activity: false });
+
+  React.useEffect(() => subscribeToOtaUpdates(setOtaSnapshot), []);
 
   React.useEffect(() => {
     let mounted = true;
@@ -99,6 +102,9 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
 
   return (
     <View style={styles.root}>
+      {otaSnapshot.phase === 'downloading' || otaSnapshot.phase === 'available' ? (
+        <OtaUpdateBanner snapshot={otaSnapshot} />
+      ) : null}
       {failureMessage ? (
         <View accessibilityRole="alert" style={styles.failureBanner}>
           <Text style={styles.failureText}>{failureMessage}</Text>
@@ -123,6 +129,18 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
         />
       ) : null}
       <View style={styles.content}>{children}</View>
+    </View>
+  );
+}
+
+function OtaUpdateBanner({ snapshot }: { snapshot: OtaUpdateSnapshot }): React.ReactElement {
+  const deferred = snapshot.phase === 'available' && snapshot.activity;
+  return (
+    <View accessibilityRole="alert" style={styles.otaBanner}>
+      <Text style={styles.otaTitle}>{snapshot.phase === 'downloading' ? '새 업데이트를 준비하는 중입니다' : '새 업데이트를 준비했습니다'}</Text>
+      <Text style={styles.otaBody}>
+        {deferred ? '입력 중인 작업을 보호하기 위해 작업이 끝난 뒤 자동으로 적용합니다.' : '잠시 후 앱을 안전하게 다시 시작해 적용합니다.'}
+      </Text>
     </View>
   );
 }
@@ -345,6 +363,24 @@ const styles = StyleSheet.create({
   },
   failureText: {
     color: '#991B1B',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  otaBanner: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+  },
+  otaTitle: {
+    color: '#1E3A8A',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  otaBody: {
+    marginTop: 2,
+    color: '#475569',
     fontSize: 12,
     lineHeight: 18,
   },
