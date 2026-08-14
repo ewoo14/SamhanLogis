@@ -34,7 +34,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
  *
  * <p>4 외부 client 모두 {@code @MockBean} 격리 의무 (memory feedback_it_mockbean_external_clients).
  */
-@SpringBootTest(classes = DashboardServiceApplication.class)
+@SpringBootTest(classes = DashboardServiceApplication.class, properties = "SAMHAN_GATEWAY_ATTESTATION=test-attestation")
 @AutoConfigureMockMvc
 class DashboardInternalControllerIT extends AbstractPostgresIT {
 

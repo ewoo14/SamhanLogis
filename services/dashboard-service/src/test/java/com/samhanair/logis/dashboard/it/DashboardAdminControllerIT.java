@@ -53,7 +53,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  *
  * <p>4 외부 client 모두 {@code @MockBean} 격리 의무.
  */
-@SpringBootTest(classes = DashboardServiceApplication.class)
+@SpringBootTest(classes = DashboardServiceApplication.class, properties = "SAMHAN_GATEWAY_ATTESTATION=test-attestation")
 @AutoConfigureMockMvc
 class DashboardAdminControllerIT extends AbstractPostgresIT {
 
@@ -104,6 +104,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void kpi_list_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/kpi")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().minusDays(7).toString())
                         .param("to", LocalDate.now().toString()))
@@ -115,6 +116,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void realtime_stock_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/realtime-stock")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
@@ -125,6 +127,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void sales_aggregate_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().minusDays(7).toString())
                         .param("to", LocalDate.now().toString())
@@ -144,6 +147,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().minusDays(7).toString())
                         .param("to", LocalDate.now().toString())
@@ -161,6 +165,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
         // mock default = Optional.empty (BeforeEach 에서 설정)
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().minusDays(7).toString())
                         .param("to", LocalDate.now().toString())
@@ -173,6 +178,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void refresh_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/dashboard/refresh")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true));
@@ -182,6 +188,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void ecount_mig_ops_dashboard_returns_200_on_v1_gateway_target_path() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/dashboard/ecount-mig")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
@@ -192,6 +199,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void ecount_mig_ops_dashboard_allows_accountant_view() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/dashboard/ecount-mig")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true));
@@ -223,6 +231,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void kpi_with_from_after_to_returns_400() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/kpi")
                         .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-Samhan-Gateway-Attestation", "test-attestation")
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().toString())
                         .param("to", LocalDate.now().minusDays(7).toString()))
@@ -256,6 +265,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
             String role) {
         return request
                 .header("X-User-Id", ACCOUNT_ID)
+                .header("X-Samhan-Gateway-Attestation", "test-attestation")
                 .header("X-User-Role", role);
     }
 

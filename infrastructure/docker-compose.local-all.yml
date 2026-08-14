@@ -562,6 +562,8 @@ services:
       SAMHAN_DASHBOARD_DB_PASSWORD: samhan_dev_pw
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_ACCOUNTING_SERVICE_URL: http://accounting-service:8087
+      # gateway가 주입한 attestation과 동일한 환경값으로 보호 요청을 검증한다.
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
     ports:
       - "127.0.0.1:8094:8094"
     depends_on: *service-depends
