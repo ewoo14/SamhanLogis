@@ -3,12 +3,14 @@ package com.samhanair.logis.slip.config;
 import com.samhanair.logis.security.InternalTokenFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 
 /**
  * Stateless servlet security: trusts gateway-injected X-User-* headers.
@@ -27,7 +29,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter,
+            PublicIdentityHeaderSanitizingFilter publicIdentityHeaderSanitizingFilter,
+            HeaderAuthenticationFilter headerAuthenticationFilter)
             throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -52,7 +56,35 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 // W10-4 (PR #99) DV-3: shared:security InternalTokenFilter 등록
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(new HeaderAuthenticationFilter(), InternalTokenFilter.class);
+                .addFilterBefore(publicIdentityHeaderSanitizingFilter, InternalTokenFilter.class)
+                .addFilterBefore(headerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    @Bean
+    public PublicIdentityHeaderSanitizingFilter publicIdentityHeaderSanitizingFilter() {
+        return new PublicIdentityHeaderSanitizingFilter();
+    }
+
+    @Bean
+    public HeaderAuthenticationFilter headerAuthenticationFilter(
+            @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String gatewayAttestation) {
+        return new HeaderAuthenticationFilter(gatewayAttestation);
+    }
+
+    @Bean
+    public FilterRegistrationBean<HeaderAuthenticationFilter> headerAuthenticationFilterRegistration(
+            HeaderAuthenticationFilter filter) {
+        var registration = new FilterRegistrationBean<HeaderAuthenticationFilter>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<PublicIdentityHeaderSanitizingFilter> publicIdentityHeaderSanitizingFilterRegistration(
+            PublicIdentityHeaderSanitizingFilter filter) {
+        var registration = new FilterRegistrationBean<PublicIdentityHeaderSanitizingFilter>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 }
