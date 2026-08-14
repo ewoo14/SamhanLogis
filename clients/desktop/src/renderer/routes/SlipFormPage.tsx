@@ -120,25 +120,31 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
 
 /**
- * 본 슬라이스용 OUTBOUND 배송태그 옵션 — BE `DeliveryTag` enum 의 OUTBOUND 8종.
+ * OUTBOUND 배송태그 옵션 — BE `DeliveryTag` enum 의 OUTBOUND 11종.
  */
 const OUTBOUND_TAG_OPTIONS: DeliveryTagOption[] = [
-  { code: 'DAY', displayName: '당일', direction: 'OUTBOUND', autoMemo: false },
+  { code: 'SALE', displayName: '판매', direction: 'OUTBOUND', autoMemo: false },
   { code: 'STACK', displayName: '야적', direction: 'OUTBOUND', autoMemo: true },
   { code: 'REGION', displayName: '지방', direction: 'OUTBOUND', autoMemo: true },
   { code: 'LOGEN', displayName: '로젠택배', direction: 'OUTBOUND', autoMemo: false },
   { code: 'GYEONGDONG_PARCEL', displayName: '경동택배', direction: 'OUTBOUND', autoMemo: false },
   { code: 'GYEONGDONG_FREIGHT', displayName: '경동화물', direction: 'OUTBOUND', autoMemo: false },
   { code: 'RENTAL', displayName: '대여', direction: 'OUTBOUND', autoMemo: false },
-  { code: 'RETURN_RENTAL', displayName: '반납', direction: 'OUTBOUND', autoMemo: false },
+  { code: 'BORROW_RETURN', displayName: '차용반납', direction: 'OUTBOUND', autoMemo: false },
+  { code: 'DEFECT_RETURN', displayName: '불량반납', direction: 'OUTBOUND', autoMemo: false },
+  { code: 'DIRECT_DELIVERY', displayName: '직배', direction: 'OUTBOUND', autoMemo: false },
+  { code: 'PREEMPTIVE_ACTION', displayName: '착하선조치', direction: 'OUTBOUND', autoMemo: false },
 ]
 
-/** 입고전표 배송태그 — 구매는 명시 기본값이며, 나머지는 반환·차용 계열이다. */
+/** INBOUND 배송태그 — 구매는 명시 기본값이다. */
 const INBOUND_TAG_OPTIONS: DeliveryTagOption[] = [
   { code: 'PURCHASE', displayName: '구매', direction: 'INBOUND', autoMemo: false },
   { code: 'BORROW', displayName: '차용', direction: 'INBOUND', autoMemo: false },
+  { code: 'RENTAL_RETURN', displayName: '대여반납', direction: 'INBOUND', autoMemo: false },
   { code: 'RETURN', displayName: '반품', direction: 'INBOUND', autoMemo: false },
+  { code: 'DELIVERY_RETURN', displayName: '착하반품', direction: 'INBOUND', autoMemo: false },
   { code: 'RETURN_TRIP', displayName: '회차', direction: 'INBOUND', autoMemo: false },
+  { code: 'REENTRY', displayName: '재입고', direction: 'INBOUND', autoMemo: false },
 ]
 
 /** 임시 라인 ID 생성기 — UUID 노출 방지를 위해 프론트 prefix 사용. */

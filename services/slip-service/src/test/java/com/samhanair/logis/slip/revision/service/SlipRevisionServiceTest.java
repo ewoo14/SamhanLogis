@@ -69,7 +69,7 @@ class SlipRevisionServiceTest {
         Slip slip = Slip.createOutbound("2026/05/29-3", LocalDate.of(2026, 5, 29), 3,
                 UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), "삼한물산",
-                DeliveryTag.DAY, "긴급 출고", "user-1");
+                DeliveryTag.SALE, "긴급 출고", "user-1");
         injectId(slip, slipId);
         slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "펌프", "MX-100", "220V",
                 2, new BigDecimal("15000.00"), "라인메모"));

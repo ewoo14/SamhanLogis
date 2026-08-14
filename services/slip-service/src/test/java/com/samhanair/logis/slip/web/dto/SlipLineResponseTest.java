@@ -96,6 +96,6 @@ class SlipLineResponseTest {
     private Slip newOutbound() {
         return Slip.createOutbound("2026/06/11-1", LocalDate.of(2026, 6, 11), 1,
                 SOURCE_WH, DEST_WH, PARTNER, "삼한공조",
-                DeliveryTag.DAY, null, "user-1");
+                DeliveryTag.SALE, null, "user-1");
     }
 }

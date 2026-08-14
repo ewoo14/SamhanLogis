@@ -1631,7 +1631,7 @@ describe('SlipFormPage outbound date contract', () => {
     const outboundDate = screen.getByTestId('slip-form-outbound-date') as HTMLInputElement
     const today = outboundDate.value
 
-    for (const tag of ['DAY', 'LOGEN', 'REGION', 'STACK', 'GYEONGDONG_PARCEL', 'GYEONGDONG_FREIGHT']) {
+    for (const tag of ['SALE', 'LOGEN', 'REGION', 'STACK', 'GYEONGDONG_PARCEL', 'GYEONGDONG_FREIGHT']) {
       fireEvent.change(selector, { target: { value: tag } })
       expect(outboundDate.min).toBe(today)
       expect(outboundDate.disabled).toBe(false)

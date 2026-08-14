@@ -1130,7 +1130,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                 UUID.randomUUID(),   // destinationWarehouseId
                 UUID.randomUUID(),   // partnerId
                 "테스트거래처",
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 "초기 메모",
                 "collab-it-seeder");
         return slipRepository.save(slip);
@@ -1178,7 +1178,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                 UUID.randomUUID(),   // destinationWarehouseId
                 UUID.randomUUID(),   // partnerId
                 "테스트출고거래처",
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 "출고 메모",
                 "collab-it-seeder");
         slip.save();
@@ -1213,7 +1213,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "테스트출고거래처",
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 "출고 메모",
                 "collab-it-seeder");
         slip.save();

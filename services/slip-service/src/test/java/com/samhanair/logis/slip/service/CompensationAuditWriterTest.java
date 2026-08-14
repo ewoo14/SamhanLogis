@@ -55,7 +55,7 @@ class CompensationAuditWriterTest {
         CompensationAuditWriter writer = new CompensationAuditWriter(repository, alertNotifier, metrics, fixedClock);
         when(repository.save(any(SerialCompensationFailure.class))).thenAnswer(inv -> inv.getArgument(0));
         Slip slip = Slip.createOutbound("2026/06/03-77", LocalDate.of(2026, 6, 3), 77,
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.DAY, null, "u");
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.SALE, null, "u");
         ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());
         RuntimeException compensationFailure = new RuntimeException("x".repeat(1100));
         BusinessException original = new BusinessException(ErrorCode.CONFLICT, "원본 실패");
@@ -110,7 +110,7 @@ class CompensationAuditWriterTest {
         RuntimeException saveFailure = new RuntimeException("audit db down");
         when(repository.save(any(SerialCompensationFailure.class))).thenThrow(saveFailure);
         Slip slip = Slip.createOutbound("2026/06/03-88", LocalDate.of(2026, 6, 3), 88,
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.DAY, null, "u");
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.SALE, null, "u");
         ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());
 
         TransactionSynchronizationManager.initSynchronization();
@@ -137,7 +137,7 @@ class CompensationAuditWriterTest {
         CompensationAuditWriter writer = new CompensationAuditWriter(repository, alertNotifier, metrics, fixedClock);
         when(repository.save(any(SerialCompensationFailure.class))).thenAnswer(inv -> inv.getArgument(0));
         Slip slip = Slip.createOutbound("2026/06/03-89", LocalDate.of(2026, 6, 3), 89,
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.DAY, null, "u");
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.SALE, null, "u");
         ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());
 
         writer.record(slip, CompensationPhase.ACCEPT_RESERVE, "AC-WARN-003",

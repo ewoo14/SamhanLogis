@@ -106,8 +106,8 @@ export function SlipQrScanPanel({ slipNo, canScan }: { slipNo: string; canScan: 
 }
 
 export function SlipQrPrintPanel({ slipNo, deliveryTag }: { slipNo: string; deliveryTag: string | null }) {
-  const blocked = deliveryTag === 'RETURN' || deliveryTag === 'RETURN_TRIP'
-  const allowed = !blocked && (deliveryTag === 'PURCHASE' || deliveryTag === 'BORROW')
+  const inboundQrAllowlist = new Set(['PURCHASE', 'BORROW', 'RENTAL_RETURN'])
+  const allowed = deliveryTag !== null && inboundQrAllowlist.has(deliveryTag)
   const [instances, setInstances] = useState<InboundQrInstanceRow[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -124,7 +124,7 @@ export function SlipQrPrintPanel({ slipNo, deliveryTag }: { slipNo: string; deli
   if (!allowed) return null
   return <Card padding={4} shadow="sm" data-testid="slip-qr-print-panel" style={{ marginTop: 16 }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-      <div><h3 style={{ margin: 0 }}>QR 라벨 출력</h3><p style={{ marginBottom: 0 }}>구매·차용 입고로 생성된 인스턴스의 라벨을 출력합니다.</p></div>
+      <div><h3 style={{ margin: 0 }}>QR 라벨 출력</h3><p style={{ marginBottom: 0 }}>구매·차용·대여반납 입고로 생성된 인스턴스의 라벨을 출력합니다.</p></div>
       <Button variant="secondary" onClick={() => void load()} disabled={loading}>{loading ? '불러오는 중…' : 'QR 불러오기'}</Button>
     </div>
     {instances.length ? <div className="slip-qr-print-grid">{instances.map((item) => <div className="slip-qr-print-label" key={`${item.serialKey}-${item.productCode}`}><SerialQr value={`${item.serialKey} ${item.productCode}`} /><strong>{item.serialKey}</strong><span>{item.productCode}</span></div>)}</div> : <p>출력할 QR을 불러오세요.</p>}

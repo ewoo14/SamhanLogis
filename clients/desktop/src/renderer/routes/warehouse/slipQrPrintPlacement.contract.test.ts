@@ -12,19 +12,20 @@ describe('입고 전표 QR 출력 위치 계약', () => {
 
     expect(detail).toContain('SlipQrPrintPanel')
     expect(panel).toContain('QRCode')
-    expect(panel).toContain('BORROW')
+    expect(panel).toContain("new Set(['PURCHASE', 'BORROW', 'RENTAL_RETURN'])")
     expect(detail).toContain("mode === 'INBOUND'")
     expect(panel).toContain('window.print')
-    expect(inventoryList).not.toContain("from 'qrcode'")
-    expect(inventoryList).not.toContain('serial-qr-')
+    expect(inventoryList).toContain("from 'qrcode'")
+    expect(inventoryList).toContain('serial-qr-')
   })
 
-  it('반품·회차 입고전표에는 QR 출력 동작을 만들지 않는다', () => {
+  it('허용목록 밖의 입고 태그와 모든 출고 태그에는 QR 출력 동작을 만들지 않는다', () => {
     const detail = read('SlipDetailPage.tsx')
     const panel = read('components/SlipQrScanPanel.tsx')
 
     expect(detail).toContain('SlipQrPrintPanel')
-    expect(panel).toContain('RETURN')
-    expect(panel).toContain('RETURN_TRIP')
+    expect(panel).not.toContain("new Set(['PURCHASE', 'BORROW', 'RENTAL_RETURN', 'DELIVERY_RETURN'])")
+    expect(panel).not.toContain("new Set(['SALE'")
+    expect(panel).toContain("new Set(['PURCHASE', 'BORROW', 'RENTAL_RETURN'])")
   })
 })

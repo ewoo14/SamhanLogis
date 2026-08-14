@@ -66,7 +66,7 @@ class SlipDomainIT extends AbstractPostgresIT {
                 "2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
                 UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), "테스트 거래처",
-                DeliveryTag.DAY, "기본 메모",
+                DeliveryTag.SALE, "기본 메모",
                 "user-sales-001"
         );
     }
@@ -87,7 +87,7 @@ class SlipDomainIT extends AbstractPostgresIT {
         return Slip.createOutbound(
                 "2026/05/04-3", LocalDate.of(2026, 5, 4), 3,
                 UUID.randomUUID(), UUID.randomUUID(),
-                null, null, DeliveryTag.DAY, "거래처 없는 초안",
+                null, null, DeliveryTag.SALE, "거래처 없는 초안",
                 "user-sales-001"
         );
     }
@@ -345,11 +345,11 @@ class SlipDomainIT extends AbstractPostgresIT {
                 "2027/03/10-2", date, 2,
                 UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), "거래처",
-                DeliveryTag.DAY, null,
+                DeliveryTag.SALE, null,
                 "user-sales-001"
         );
 
-        slip.applyDeliverySchedule(DeliveryTag.DAY, LocalDate.of(2027, 3, 11));
+        slip.applyDeliverySchedule(DeliveryTag.SALE, LocalDate.of(2027, 3, 11));
         // override != null 이어도 비적용 태그면 null 처리
         assertThat(slip.getUnloadDate()).isNull();
     }

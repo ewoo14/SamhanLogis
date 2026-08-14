@@ -89,24 +89,30 @@ export interface SlipListPageProps {
   mode: SlipType
 }
 
-/** 판매관리 legacy(OUTBOUND) 배송태그 옵션 — BE DeliveryTagCode 8종 */
+/** 판매관리 legacy(OUTBOUND) 배송태그 옵션 — BE DeliveryTagCode 11종 */
 const OUTBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[] = [
-  { value: 'DAY',                label: '당일' },
+  { value: 'SALE',               label: '판매' },
   { value: 'STACK',              label: '야적' },
   { value: 'REGION',             label: '지방' },
   { value: 'LOGEN',              label: '로젠택배' },
   { value: 'GYEONGDONG_PARCEL',  label: '경동택배' },
   { value: 'GYEONGDONG_FREIGHT', label: '경동화물' },
   { value: 'RENTAL',             label: '대여' },
-  { value: 'RETURN_RENTAL',      label: '반납' },
+  { value: 'BORROW_RETURN',      label: '차용반납' },
+  { value: 'DEFECT_RETURN',      label: '불량반납' },
+  { value: 'DIRECT_DELIVERY',    label: '직배' },
+  { value: 'PREEMPTIVE_ACTION',  label: '착하선조치' },
 ]
 
-/** 구매관리 legacy(INBOUND) 배송태그 옵션 — BE DeliveryTagCode 4종 */
+/** 구매관리 legacy(INBOUND) 배송태그 옵션 — BE DeliveryTagCode 7종 */
 const INBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[] = [
-  { value: 'PURCHASE',    label: '구매' },
-  { value: 'RETURN_TRIP', label: '회차' },
-  { value: 'RETURN',      label: '반품' },
-  { value: 'BORROW',      label: '차용' },
+  { value: 'PURCHASE',        label: '구매' },
+  { value: 'BORROW',          label: '차용' },
+  { value: 'RENTAL_RETURN',   label: '대여반납' },
+  { value: 'RETURN',          label: '반품' },
+  { value: 'DELIVERY_RETURN', label: '착하반품' },
+  { value: 'RETURN_TRIP',     label: '회차' },
+  { value: 'REENTRY',         label: '재입고' },
 ]
 
 /**
@@ -114,18 +120,24 @@ const INBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[] 
  * BE 가 deliveryTagLabel 을 별도 응답할 경우 해당 값을 우선 사용.
  */
 const DELIVERY_TAG_LABEL_MAP: Record<DeliveryTagCode, string> = {
-  DAY:                '당일',
+  SALE:               '판매',
   STACK:              '야적',
   REGION:             '지방',
   LOGEN:              '로젠택배',
   GYEONGDONG_PARCEL:  '경동택배',
   GYEONGDONG_FREIGHT: '경동화물',
   RENTAL:             '대여',
-  RETURN_RENTAL:      '반납',
+  BORROW_RETURN:      '차용반납',
+  DEFECT_RETURN:      '불량반납',
+  DIRECT_DELIVERY:    '직배',
+  PREEMPTIVE_ACTION:  '착하선조치',
   RETURN_TRIP:        '회차',
   RETURN:             '반품',
   BORROW:             '차용',
   PURCHASE:           '구매',
+  RENTAL_RETURN:      '대여반납',
+  DELIVERY_RETURN:    '착하반품',
+  REENTRY:             '재입고',
 }
 
 // SSE 목록 동기화용 coarse 무효화 키(안정 참조 — 렌더마다 재구독 방지).

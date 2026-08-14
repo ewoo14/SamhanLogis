@@ -9,11 +9,14 @@ package com.samhanair.logis.inventory.service;
 final class InboundQrLifecycle {
     static final String PURCHASE = "PURCHASE";
     static final String BORROW = "BORROW";
+    static final String RENTAL_RETURN = "RENTAL_RETURN";
 
     private InboundQrLifecycle() {
     }
 
     static boolean allowsNewQr(String inboundType) {
-        return PURCHASE.equals(inboundType) || BORROW.equals(inboundType);
+        return PURCHASE.equals(inboundType)
+                || BORROW.equals(inboundType)
+                || RENTAL_RETURN.equals(inboundType);
     }
 }

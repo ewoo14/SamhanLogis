@@ -12,25 +12,31 @@ import { apiClient, type ApiEnvelope } from './client'
  * 인바운드 태그(RETURN_TRIP/BORROW/RETURN/RETURN_RENTAL)는 마감 설정 대상 아님.
  */
 export type OutboundDeliveryTag =
-  | 'DAY'
+  | 'SALE'
   | 'STACK'
   | 'REGION'
   | 'LOGEN'
   | 'GYEONGDONG_PARCEL'
   | 'GYEONGDONG_FREIGHT'
   | 'RENTAL'
-  | 'RETURN_RENTAL'
+  | 'BORROW_RETURN'
+  | 'DEFECT_RETURN'
+  | 'DIRECT_DELIVERY'
+  | 'PREEMPTIVE_ACTION'
 
 /** OUTBOUND 태그 한국어 라벨 맵 (UUID 비공개 — 라벨만 노출). */
 export const OUTBOUND_DELIVERY_TAG_LABELS: Record<OutboundDeliveryTag, string> = {
-  DAY: '당일',
+  SALE: '판매',
   STACK: '야적',
   REGION: '지방',
   LOGEN: '로젠택배',
   GYEONGDONG_PARCEL: '경동택배',
   GYEONGDONG_FREIGHT: '경동화물',
   RENTAL: '대여',
-  RETURN_RENTAL: '반납',
+  BORROW_RETURN: '차용반납',
+  DEFECT_RETURN: '불량반납',
+  DIRECT_DELIVERY: '직배',
+  PREEMPTIVE_ACTION: '착하선조치',
 }
 
 /**

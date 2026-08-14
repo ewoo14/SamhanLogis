@@ -33,13 +33,13 @@ class OutboundCutoffGuardTest {
 
     static Stream<Arguments> activeOutboundCutoffs() {
         return Stream.of(
-                Arguments.of(DeliveryTag.DAY, LocalTime.of(0, 1)),
+                Arguments.of(DeliveryTag.SALE, LocalTime.of(0, 1)),
                 Arguments.of(DeliveryTag.LOGEN, LocalTime.of(0, 1)),
                 Arguments.of(DeliveryTag.REGION, LocalTime.NOON),
                 Arguments.of(DeliveryTag.STACK, LocalTime.of(14, 0)),
                 Arguments.of(DeliveryTag.GYEONGDONG_PARCEL, LocalTime.of(15, 0)),
                 Arguments.of(DeliveryTag.GYEONGDONG_FREIGHT, LocalTime.of(15, 0)),
-                Arguments.of(DeliveryTag.RETURN_RENTAL, LocalTime.of(16, 0))
+                Arguments.of(DeliveryTag.BORROW_RETURN, LocalTime.of(16, 0))
         );
     }
 

@@ -144,7 +144,7 @@ class SlipServiceTest {
 
         CreateSlipRequest req = new CreateSlipRequest(
                 SlipType.OUTBOUND, LocalDate.of(2026, 5, 4),
-                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, "메모",
+                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.SALE, "메모",
                 null, null,
                 // PR-G1 backlog #2 — V16 e-Count 12 컬럼 (모두 null 시 기본 분기)
                 null, null, null, null, null, null, null, null, null, null, null, null,
@@ -184,7 +184,7 @@ class SlipServiceTest {
 
         CreateSlipRequest req = new CreateSlipRequest(
                 SlipType.OUTBOUND, LocalDate.of(2026, 8, 11), sourceWh, destWh, partnerId,
-                "삼한공조", DeliveryTag.DAY, null, null, null,
+                "삼한공조", DeliveryTag.SALE, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null,
                 List.of(new CreateSlipRequest.SlipLineRequest(
@@ -236,7 +236,7 @@ class SlipServiceTest {
 
         CreateSlipRequest req = new CreateSlipRequest(
                 SlipType.OUTBOUND, LocalDate.of(2026, 5, 4), sourceWh, destWh, partnerId, "삼한공조",
-                DeliveryTag.DAY, "마감 게이트", null, null,
+                DeliveryTag.SALE, "마감 게이트", null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null,
                 null,
@@ -271,7 +271,7 @@ class SlipServiceTest {
 
         CreateSlipRequest req = new CreateSlipRequest(
                 SlipType.OUTBOUND, LocalDate.of(2026, 5, 4),
-                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, "세트 부모 차단",
+                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.SALE, "세트 부모 차단",
                 null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null,
@@ -296,7 +296,7 @@ class SlipServiceTest {
 
         CreateSlipRequest req = new CreateSlipRequest(
                 SlipType.OUTBOUND, LocalDate.of(2026, 5, 4),
-                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, "권위 금액 QA",
+                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.SALE, "권위 금액 QA",
                 null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null,
@@ -1380,7 +1380,7 @@ class SlipServiceTest {
     @Test
     void addLine_withoutPartnerId_skipsPriceMemory() {
         Slip slip = Slip.createOutbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
-                sourceWh, destWh, null, "거래처 없음", DeliveryTag.DAY, null, "user-1");
+                sourceWh, destWh, null, "거래처 없음", DeliveryTag.SALE, null, "user-1");
         ReflectionTestUtils.setField(slip, "id", slipId);
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
@@ -1453,7 +1453,7 @@ class SlipServiceTest {
 
     private Slip preparedOutbound(SlipStatus status, int qty, BigDecimal unitPrice) {
         Slip slip = Slip.createOutbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
-                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, null, "u");
+                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.SALE, null, "u");
         ReflectionTestUtils.setField(slip, "id", slipId);
         slip.addLine(SlipLine.create(slip, productId, "에어컨", "M-1", null, qty, unitPrice, null));
         forceStatus(slip, status);
@@ -1462,7 +1462,7 @@ class SlipServiceTest {
 
     private Slip preparedOutboundMixed(SlipStatus status, UUID batchProductId) {
         Slip slip = Slip.createOutbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
-                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, null, "u");
+                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.SALE, null, "u");
         ReflectionTestUtils.setField(slip, "id", slipId);
         slip.addLine(SlipLine.create(slip, productId, "에어컨", "MODEL-SERIAL", null,
                 2, new BigDecimal("500000.00"), null));

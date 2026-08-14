@@ -1081,7 +1081,7 @@ const MOCK_SLIPS = [
     partnerName: '주식회사 윌리-정현수',
     sourceWarehouseId: HQ_ID,
     destinationWarehouseId: null,
-    deliveryTag: 'DAY',
+    deliveryTag: 'SALE',
     memo: '9시까지배송요망',
     ownerDepartment: '영업1팀',
     ownerFullName: '오병승',
@@ -1178,7 +1178,7 @@ const MOCK_SLIPS = [
     partnerName: '주식회사 윌리-정현수',
     sourceWarehouseId: VH_ID,
     destinationWarehouseId: null,
-    deliveryTag: 'DAY',
+    deliveryTag: 'SALE',
     memo: '',
     ownerDepartment: '영업1팀',
     ownerFullName: '오병승',
@@ -1223,7 +1223,7 @@ const MOCK_SLIPS = [
     partnerName: '주식회사 윌리-정현수',
     sourceWarehouseId: HQ_ID,
     destinationWarehouseId: null,
-    deliveryTag: 'DAY',
+    deliveryTag: 'SALE',
     memo: '검수 진행 중',
     ownerDepartment: '영업1팀',
     ownerFullName: '오병승',
@@ -4898,7 +4898,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         recipientPhone: '010-1234-5678', paymentDueDate: '2026-05-31',
         printed: true, memo: '9시까지 배송 요망', totalAmount: 3870000, totalQuantity: 4,
         salesPersonName: '오병승', editHistoryCount: 2,
-        deliveryTag: 'DAY', deliveryTagLabel: '당일',
+        deliveryTag: 'SALE', deliveryTagLabel: '판매',
         sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
       },
       {
@@ -4946,7 +4946,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         recipientPhone: '042-888-9999', paymentDueDate: '2026-05-30',
         printed: true, memo: '긴급 — 당일 도착 필수', totalAmount: 2100000, totalQuantity: 2,
         salesPersonName: '박서연', editHistoryCount: 0,
-        deliveryTag: 'DAY', deliveryTagLabel: '당일',
+        deliveryTag: 'SALE', deliveryTagLabel: '판매',
         sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
       },
       {
@@ -4982,7 +4982,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         recipientPhone: '010-2222-3333', paymentDueDate: '2026-05-28',
         printed: false, memo: '반납 포함 (4EA)', totalAmount: 3310000, totalQuantity: 3,
         salesPersonName: '박서연', editHistoryCount: 2,
-        deliveryTag: 'RETURN_RENTAL', deliveryTagLabel: '반납',
+        deliveryTag: 'BORROW_RETURN', deliveryTagLabel: '차용반납',
         sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
       },
       {
@@ -5018,7 +5018,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         recipientPhone: '031-333-4444', paymentDueDate: '2026-05-31',
         printed: true, memo: null, totalAmount: 9800000, totalQuantity: 6,
         salesPersonName: '박서연', editHistoryCount: 0,
-        deliveryTag: 'DAY', deliveryTagLabel: '당일',
+        deliveryTag: 'SALE', deliveryTagLabel: '판매',
         sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
       },
       {
@@ -5278,7 +5278,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       partnerName: reqBody.partnerName ?? '신규 거래처',
       sourceWarehouseId: HQ_ID,
       destinationWarehouseId: null,
-      deliveryTag: reqBody.deliveryTag ?? 'DAY',
+      deliveryTag: reqBody.deliveryTag ?? 'SALE',
       memo: reqBody.memo ?? null,
       // V20 필드 echo
       deliveryAddress: reqBody.deliveryAddress ?? null,
@@ -15592,17 +15592,20 @@ type MockSlipCutoff = {
 
 /** OUTBOUND DeliveryTag 한국어 라벨 맵. */
 const OUTBOUND_TAG_LABELS: Record<string, string> = {
-  DAY: '당일',
+  SALE: '판매',
   STACK: '야적',
   REGION: '지방',
   LOGEN: '로젠택배',
   GYEONGDONG_PARCEL: '경동택배',
   GYEONGDONG_FREIGHT: '경동화물',
   RENTAL: '대여',
-  RETURN_RENTAL: '반납',
+  BORROW_RETURN: '차용반납',
+  DEFECT_RETURN: '불량반납',
+  DIRECT_DELIVERY: '직배',
+  PREEMPTIVE_ACTION: '착하선조치',
 }
 
-/** OUTBOUND 배송태그 전체 8종 (delivery-tags 엔드포인트 응답). */
+/** OUTBOUND 배송태그 전체 11종 (delivery-tags 엔드포인트 응답). */
 const MOCK_DELIVERY_TAGS = Object.entries(OUTBOUND_TAG_LABELS).map(([tag, label]) => ({
   tag,
   label,

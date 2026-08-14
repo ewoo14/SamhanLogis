@@ -7,11 +7,11 @@ import {
 } from './DeliveryTagSelector'
 
 /**
- * Storybook 시나리오용 12개 배송태그 옵션 mock.
+ * Storybook 시나리오용 18개 배송태그 옵션 mock.
  * BE `DeliveryTagCode` enum 매핑과 동일하다.
  */
 const ALL_OPTIONS: DeliveryTagOption[] = [
-  { code: 'DAY', displayName: '당일', direction: 'OUTBOUND', autoMemo: false },
+  { code: 'SALE', displayName: '판매', direction: 'OUTBOUND', autoMemo: false },
   { code: 'STACK', displayName: '야적', direction: 'OUTBOUND', autoMemo: true },
   { code: 'REGION', displayName: '지방', direction: 'OUTBOUND', autoMemo: true },
   { code: 'LOGEN', displayName: '로젠택배', direction: 'OUTBOUND', autoMemo: false },
@@ -29,8 +29,8 @@ const ALL_OPTIONS: DeliveryTagOption[] = [
   },
   { code: 'RENTAL', displayName: '대여', direction: 'OUTBOUND', autoMemo: false },
   {
-    code: 'RETURN_RENTAL',
-    displayName: '반납',
+    code: 'BORROW_RETURN',
+    displayName: '차용반납',
     direction: 'OUTBOUND',
     autoMemo: false,
   },
@@ -48,6 +48,12 @@ const ALL_OPTIONS: DeliveryTagOption[] = [
   },
   { code: 'RETURN', displayName: '반품', direction: 'INBOUND', autoMemo: false },
   { code: 'BORROW', displayName: '차용', direction: 'INBOUND', autoMemo: false },
+  { code: 'RENTAL_RETURN', displayName: '대여반납', direction: 'INBOUND', autoMemo: false },
+  { code: 'DELIVERY_RETURN', displayName: '착하반품', direction: 'INBOUND', autoMemo: false },
+  { code: 'REENTRY', displayName: '재입고', direction: 'INBOUND', autoMemo: false },
+  { code: 'DEFECT_RETURN', displayName: '불량반납', direction: 'OUTBOUND', autoMemo: false },
+  { code: 'DIRECT_DELIVERY', displayName: '직배', direction: 'OUTBOUND', autoMemo: false },
+  { code: 'PREEMPTIVE_ACTION', displayName: '착하선조치', direction: 'OUTBOUND', autoMemo: false },
 ]
 
 const meta: Meta<typeof DeliveryTagSelector> = {
@@ -59,11 +65,10 @@ export default meta
 type Story = StoryObj<typeof DeliveryTagSelector>
 
 /**
- * direction=OUTBOUND — 출고 전용 8개 옵션이 노출된다.
- * (DAY/STACK/REGION/LOGEN/GYEONGDONG_PARCEL/GYEONGDONG_FREIGHT/RENTAL/RETURN_RENTAL)
+ * direction=OUTBOUND — 출고 전용 11개 옵션이 노출된다.
  */
 export const OutboundOptions: Story = {
-  name: '출고 옵션 (8종)',
+  name: '출고 옵션 (11종)',
   render: () => {
     const [value, setValue] = useState<DeliveryTagCode | null>(null)
     return (
@@ -79,11 +84,10 @@ export const OutboundOptions: Story = {
 }
 
 /**
- * direction=INBOUND — 입고 전용 3개 옵션만 노출.
- * (PURCHASE/RETURN_TRIP/RETURN/BORROW)
+ * direction=INBOUND — 입고 전용 7개 옵션이 노출된다.
  */
 export const InboundOptions: Story = {
-  name: '입고 옵션 (4종)',
+  name: '입고 옵션 (7종)',
   render: () => {
     const [value, setValue] = useState<DeliveryTagCode | null>(null)
     return (

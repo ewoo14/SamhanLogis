@@ -405,7 +405,7 @@ class SlipUpdateLineIdContractTest {
     private Slip bundleSalesSlip() {
         Slip slip = persisted(Slip.createOutbound("2026/07/16-1", LocalDate.of(2026, 7, 16), 1,
                 UUID.randomUUID(), UUID.randomUUID(), PARTNER_ID, "테스트 거래처",
-                DeliveryTag.DAY, "세트 전표", "user-1"));
+                DeliveryTag.SALE, "세트 전표", "user-1"));
         addBundleLines(slip);
         return slip;
     }
@@ -421,7 +421,7 @@ class SlipUpdateLineIdContractTest {
     private Slip plainSalesSlip() {
         Slip slip = persisted(Slip.createOutbound("2026/07/16-3", LocalDate.of(2026, 7, 16), 3,
                 UUID.randomUUID(), UUID.randomUUID(), PARTNER_ID, "테스트 거래처",
-                DeliveryTag.DAY, "평면 전표", "user-1"));
+                DeliveryTag.SALE, "평면 전표", "user-1"));
         slip.addLine(persistedLine(SlipLine.create(slip, PLAIN_PRODUCT, "일반 품목", "PLAIN-809",
                 null, 1, new BigDecimal("99000"), "일반 라인")));
         return slip;

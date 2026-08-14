@@ -46,7 +46,7 @@ class DispatchGroupLifecycleIT extends AbstractPostgresIT {
         LocalDate date = LocalDate.of(2026, 8, 4);
         UUID warehouse = UUID.randomUUID();
         Slip outbound = slipRepository.saveAndFlush(Slip.createOutbound("S1O" + UUID.randomUUID().toString().substring(0, 8), date, 1,
-                warehouse, warehouse, null, null, DeliveryTag.DAY, null, "test"));
+                warehouse, warehouse, null, null, DeliveryTag.SALE, null, "test"));
         Slip inbound = slipRepository.saveAndFlush(Slip.createInbound("S1I" + UUID.randomUUID().toString().substring(0, 8), date, 1,
                 warehouse, null, null, DeliveryTag.RETURN, null, "test"));
         String groupNo = "S1-G-" + UUID.randomUUID();
@@ -84,7 +84,7 @@ class DispatchGroupLifecycleIT extends AbstractPostgresIT {
         UUID warehouse = UUID.randomUUID();
         Slip slip = slipRepository.saveAndFlush(Slip.createOutbound(
                 "S16O" + UUID.randomUUID().toString().substring(0, 8), date, 1,
-                warehouse, warehouse, null, null, DeliveryTag.DAY, null, "s16"));
+                warehouse, warehouse, null, null, DeliveryTag.SALE, null, "s16"));
         String groupNo = "S16-T-" + UUID.randomUUID();
         groupService.create(new DispatchGroupRequests.Create(groupNo, date, "1톤", carrier.getCode()));
         groupService.addSlip(groupNo, new DispatchGroupRequests.AddSlip(

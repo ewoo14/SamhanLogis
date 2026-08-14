@@ -703,7 +703,8 @@ public class Slip extends BaseEntity {
         validateTagDirection(deliveryTag, SlipType.OUTBOUND);
         return new Slip(SlipType.OUTBOUND, slipNo, slipDate, seqNo,
                 sourceWarehouseId, destinationWarehouseId,
-                partnerId, partnerName, deliveryTag, memo, requesterId);
+                partnerId, partnerName, deliveryTag == null ? DeliveryTag.SALE : deliveryTag,
+                memo, requesterId);
     }
 
     /**

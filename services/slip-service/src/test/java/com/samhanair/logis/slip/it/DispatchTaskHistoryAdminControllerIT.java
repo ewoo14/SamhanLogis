@@ -265,7 +265,7 @@ class DispatchTaskHistoryAdminControllerIT extends AbstractPostgresIT {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 partnerName,
-                DeliveryTag.DAY,
+                DeliveryTag.SALE,
                 "완료배차 내역 IT",
                 USER_ID);
         ReflectionTestUtils.setField(slip, "partnerCode", "P-HIST-%03d".formatted(seq));

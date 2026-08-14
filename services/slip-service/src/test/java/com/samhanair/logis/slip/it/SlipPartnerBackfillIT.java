@@ -284,7 +284,7 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
                 LocalDate.of(2026, 7, 19),
                 Math.abs(suffix.hashCode()),
                 UUID.randomUUID(), UUID.randomUUID(),
-                null, null, DeliveryTag.DAY, "backfill test", "backfill-test");
+                null, null, DeliveryTag.SALE, "backfill test", "backfill-test");
         slip.setPartnerCode(partnerCode);
         ReflectionTestUtils.setField(slip, "status", SlipStatus.SENT);
         return slipRepository.saveAndFlush(slip);
