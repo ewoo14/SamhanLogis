@@ -312,7 +312,6 @@ export function SalesQueryPage() {
       { key: 'printed',           label: '인쇄',        filter: 'select' as const,
         format: (v: unknown) => v ? '완료' : '미완' },
       { key: 'paymentDueDate',    label: '입금예정일',  filter: 'text' },
-      { key: 'slipDate',          label: '출고일자',    filter: 'text' },
       { key: 'status',            label: '상태',        filter: 'select' as const,
         format: (v: unknown) => typeof v === 'string' ? (SLIP_STATUS_LABEL[v] ?? v) : '—' },
       {
@@ -340,9 +339,9 @@ export function SalesQueryPage() {
     [navigate, warehouses],
   )
   // 체크박스(1)+순번(2)+판매번호(3)+거래처(4)+거래처코드(5)+배송주소(6)+품목(7)
-  // +특이사항(8)+금액(9)+출고창고(10)+출고일자(11)+인수자번호(12)+전표수정내역(13)
-  // +감리주소(14)+프로젝트명(15)+담당자명(16)+인쇄(17)+입금예정일(18)+상태(19)+상세(20)
-  const tableColumnCount = 20
+  // +특이사항(8)+금액(9)+출고창고(10)+인수자번호(11)+전표수정내역(12)
+  // +감리주소(13)+프로젝트명(14)+담당자명(15)+인쇄(16)+입금예정일(17)+상태(18)+상세(19)
+  const tableColumnCount = 19
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -686,7 +685,6 @@ export function SalesQueryPage() {
               <Th width="160px">특이사항</Th>
               <Th width="100px" align="right">금액</Th>
               <Th width="100px">출고창고</Th>
-              <Th width="100px">출고일자</Th>
               <Th width="120px">인수자번호</Th>
               <Th width="90px">전표수정내역</Th>
               <Th width="160px">감리주소</Th>
@@ -757,8 +755,6 @@ export function SalesQueryPage() {
                     <Td align="right">{fmtAmount(row.displayTotalAmount ?? row.totalAmount)}</Td>
                     {/* 출고창고 — sourceWarehouseId resolve */}
                     <Td>{resolveWarehouseName(row.sourceWarehouseId, warehouses)}</Td>
-                    {/* 출고일자 */}
-                    <Td>{row.slipDate ?? '—'}</Td>
                     {/* 인수자 번호 */}
                     <Td>{row.recipientPhone ?? '—'}</Td>
                     {/* 전표수정내역 */}

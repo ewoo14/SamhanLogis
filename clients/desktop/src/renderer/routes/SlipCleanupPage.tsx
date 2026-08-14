@@ -478,7 +478,6 @@ export function SlipCleanupPage() {
               <thead>
                 <tr style={{ background: 'var(--surface-card)', textAlign: 'left' }}>
                   <th style={thStyle}>전표번호</th>
-                  <th style={thStyle}>전표일자</th>
                   <th style={thStyle}>거래처코드</th>
                   <th style={thStyle}>거래처명</th>
                   <th style={thStyle}>지역그룹</th>
@@ -498,7 +497,6 @@ export function SlipCleanupPage() {
                       style={{ borderTop: '1px solid var(--color-neutral-100)' }}
                     >
                       <td style={tdStyle}>{entry.slipNo}</td>
-                      <td style={tdStyle}>{entry.slipDate}</td>
                       <td style={tdStyle}>{entry.partnerCode ?? '(미매핑)'}</td>
                       <td style={tdStyle}>{entry.partnerName ?? '—'}</td>
                       <td style={tdStyle}>

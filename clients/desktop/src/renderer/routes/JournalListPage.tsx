@@ -85,12 +85,6 @@ export function JournalListPage() {
       mobilePriority: 'primary',
     },
     {
-      key: 'journalDate',
-      header: '일자',
-      width: '110px',
-      mobilePriority: 'secondary',
-    },
-    {
       key: 'status',
       header: '상태',
       width: '110px',

@@ -328,17 +328,6 @@ export function EstimateListPage() {
       ),
     },
     {
-      key: 'estimateDate',
-      header: '작성일',
-      width: '110px',
-      mobilePriority: 'hidden',
-      render: (row) => (
-        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
-          {row.estimateDate}
-        </span>
-      ),
-    },
-    {
       key: 'validUntil',
       header: '유효기간',
       width: '120px',
@@ -459,13 +448,6 @@ export function EstimateListPage() {
       ),
     },
     {
-      key: 'writtenAt',
-      header: '작성일',
-      width: '160px',
-      mobilePriority: 'hidden',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.writtenAt ?? ''}</span>,
-    },
-    {
       key: 'amount',
       header: '합계',
       width: '160px',
@@ -524,13 +506,6 @@ export function EstimateListPage() {
       width: '120px',
       mobilePriority: 'secondary',
       render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.owner ?? ''}</span>,
-    },
-    {
-      key: 'writtenAt',
-      header: '작성일',
-      width: '160px',
-      mobilePriority: 'hidden',
-      render: (row) => <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.writtenAt ?? ''}</span>,
     },
     {
       key: 'amount',

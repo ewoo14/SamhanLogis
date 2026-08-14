@@ -118,13 +118,6 @@ export function TaxInvoiceListPage() {
       render: (row) => row.partnerName,
     },
     {
-      key: 'supplyDate',
-      header: '작성일',
-      width: '120px',
-      mobilePriority: 'hidden',
-      render: (row) => row.supplyDate,
-    },
-    {
       key: 'supplyAmount',
       header: '공급가액',
       width: '140px',

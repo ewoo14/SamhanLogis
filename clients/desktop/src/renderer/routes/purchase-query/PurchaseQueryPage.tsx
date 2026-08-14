@@ -201,7 +201,6 @@ export function PurchaseQueryPage() {
       { key: 'memo',                   label: '적요',        filter: 'text' },
       { key: 'salesPersonName',        label: '담당자명',    filter: 'text' },
       { key: 'paymentDueDate',         label: '지급예정일',  filter: 'text' },
-      { key: 'slipDate',               label: '전표일자',    filter: 'text' },
       { key: 'status',                 label: '상태',        filter: 'select' as const,
         format: (v: unknown) => typeof v === 'string' ? (SLIP_STATUS_LABEL[v] ?? v) : '—' },
       { key: 'printed',                label: '인쇄',        filter: 'select' as const,
@@ -254,7 +253,7 @@ export function PurchaseQueryPage() {
     ],
     [canInspect, navigate, warehouses],
   )
-  const tableColumnCount = canInspect ? 14 : 13
+  const tableColumnCount = canInspect ? 13 : 12
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])

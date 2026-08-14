@@ -80,7 +80,6 @@ export function TaxInvoiceBatchIssuePage() {
         />
       ),
     },
-    { key: 'slipDate', header: '일자', width: '110px', mobilePriority: 'hidden' },
     { key: 'month', header: '발행월', width: '100px', mobilePriority: 'hidden' },
     { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
     {
