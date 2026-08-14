@@ -177,6 +177,7 @@ import { InventoryDpsComparePage } from './InventoryDpsComparePage'
 import { DpsByProductPage } from './warehouse/DpsByProductPage'
 // [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
+import { QrScanPage } from './warehouse/QrScanPage'
 import { StockSlipByNumberPage } from './warehouse/StockSlipByNumberPage'
 import { StockTransferByNumberPage } from './warehouse/StockTransferByNumberPage'
 import { InventoryAuditByNumberPage } from './warehouse/InventoryAuditByNumberPage'
@@ -670,8 +671,16 @@ const routes = [
       {
         path: '/inventory/stock-balance',
         element: (
-          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
+          <PermissionGuard pageCode="inventory.stock-balance" action="view">
             <InventoryStockBalancePage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/inventory/qr-scan',
+        element: (
+          <PermissionGuard pageCode="inventory.stock-balance" action="view">
+            <QrScanPage />
           </PermissionGuard>
         ),
       },

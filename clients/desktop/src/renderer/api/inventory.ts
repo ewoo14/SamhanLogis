@@ -359,6 +359,19 @@ export async function updateStockInstanceQuality(
   return res.data.data
 }
 
+export interface ConfirmQrScanRequest {
+  slipNo: string
+  items: Array<{ serialKey: string; productCode: string }>
+}
+
+/** 전표 귀속 시리얼 스캔 확정. 응답에는 UUID를 포함하지 않는다. */
+export async function confirmQrScan(
+  direction: 'INBOUND' | 'OUTBOUND',
+  body: ConfirmQrScanRequest,
+): Promise<void> {
+  await apiClient.post(`/inventory/instances/scan/${direction.toLowerCase()}`, body)
+}
+
 export async function getStockLedger(
   productCode: string,
   startDate?: string,
