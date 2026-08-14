@@ -27,6 +27,10 @@ import com.samhanair.logis.slip.web.dto.PartnerLedgerSalesResponse;
 import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
 import com.samhanair.logis.slip.web.dto.SlipSummary;
 import com.samhanair.logis.slip.web.dto.SlipPartnerBackfillResponse;
+import com.samhanair.logis.slip.web.dto.SlipPartnerQuarantineRequest;
+import com.samhanair.logis.slip.web.dto.SlipPartnerQuarantineResponse;
+import com.samhanair.logis.slip.web.dto.SlipPartnerRestoreRequest;
+import com.samhanair.logis.slip.web.dto.SlipPartnerRestoreResponse;
 import com.samhanair.logis.common.ledger.PartnerLedgerContract;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -117,6 +121,24 @@ public class SlipInternalController {
     public ApiResponse<SlipPartnerBackfillResponse> backfillActivePartnerCodes(
             @RequestParam(defaultValue = "false") boolean dryRun) {
         return ApiResponse.ok(slipPartnerBackfillService.backfillActivePartnerCodes(dryRun));
+    }
+
+    /** backfill 실패 목록에서 지정한 복원 불가 전표만 근거 보존 후 목록·집계에서 격리한다. */
+    @PostMapping("/quarantine-unresolved-partner-slips")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<SlipPartnerQuarantineResponse> quarantineUnresolvedPartnerSlips(
+            @RequestBody SlipPartnerQuarantineRequest request) {
+        return ApiResponse.ok(slipPartnerBackfillService.quarantineUnresolvedPartnerSlips(
+                request.slipNos(), request.reason(), "system-internal"));
+    }
+
+    /** 거래처 원본 복구 후 코드 snapshot을 채운 격리 전표만 다시 활성화한다. */
+    @PostMapping("/restore-quarantined-partner-slips")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<SlipPartnerRestoreResponse> restoreQuarantinedPartnerSlips(
+            @RequestBody SlipPartnerRestoreRequest request) {
+        return ApiResponse.ok(slipPartnerBackfillService.restoreQuarantinedPartnerSlips(
+                request.slipNos(), "system-internal"));
     }
 
     /**

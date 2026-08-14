@@ -3,10 +3,14 @@ package com.samhanair.logis.slip.service;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient.PartnerVerifyResult;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipPartnerQuarantine;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.repository.SlipPartnerQuarantineRepository;
 import com.samhanair.logis.slip.web.dto.SlipPartnerBackfillResponse;
 import com.samhanair.logis.slip.web.dto.SlipPartnerBackfillResponse.UnresolvedSlip;
+import com.samhanair.logis.slip.web.dto.SlipPartnerQuarantineResponse;
+import com.samhanair.logis.slip.web.dto.SlipPartnerRestoreResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -32,6 +36,7 @@ public class SlipPartnerBackfillService {
 
     private final SlipRepository slipRepository;
     private final PartnerInternalClient partnerInternalClient;
+    private final SlipPartnerQuarantineRepository quarantineRepository;
 
     /**
      * 거래처 보정을 실행하거나 dry-run 리포트를 만든다.
@@ -121,6 +126,49 @@ public class SlipPartnerBackfillService {
         long remaining = slipRepository.findAllActiveWithPartnerIdAndPartnerCodeMissing().size();
         return new SlipPartnerBackfillResponse(candidates.size(), processed, unresolved.size(),
                 remaining, dryRun, List.copyOf(unresolved));
+    }
+
+    /** backfill 실패 목록의 지정 행만 감사 근거와 함께 soft-delete 격리한다. */
+    @Transactional
+    public SlipPartnerQuarantineResponse quarantineUnresolvedPartnerSlips(
+            List<String> slipNos, String reason, String actor) {
+        if (slipNos == null || slipNos.isEmpty()) {
+            throw new IllegalArgumentException("격리할 전표번호가 필요합니다");
+        }
+        List<Slip> candidates = slipRepository.findAllActiveMissingPartnerCodeBySlipNoIn(slipNos);
+        List<String> quarantined = new ArrayList<>();
+        List<SlipPartnerQuarantine> evidence = new ArrayList<>();
+        for (Slip slip : candidates) {
+            evidence.add(SlipPartnerQuarantine.capture(slip, reason));
+            slip.quarantineMissingPartnerSource(actor);
+            quarantined.add(slip.getSlipNo());
+        }
+        if (!evidence.isEmpty()) {
+            quarantineRepository.saveAll(evidence);
+            slipRepository.saveAllAndFlush(candidates);
+        }
+        return new SlipPartnerQuarantineResponse(quarantined.size(), List.copyOf(quarantined));
+    }
+
+    /** partner 원본에서 코드를 재확인한 행만 코드 보완 후 soft-delete를 해제한다. */
+    @Transactional
+    public SlipPartnerRestoreResponse restoreQuarantinedPartnerSlips(List<String> slipNos, String actor) {
+        if (slipNos == null || slipNos.isEmpty()) {
+            throw new IllegalArgumentException("복원할 전표번호가 필요합니다");
+        }
+        List<SlipPartnerQuarantine> evidenceRows = quarantineRepository
+                .findAllBySlipNoInAndRestoredAtIsNull(slipNos);
+        List<String> restored = new ArrayList<>();
+        for (SlipPartnerQuarantine evidence : evidenceRows) {
+            Slip slip = slipRepository.findByIdIncludingDeleted(evidence.getSlipId()).orElseThrow();
+            String code = normalize(partnerInternalClient.resolvePartnerCode(evidence.getPartnerId()).orElse(null));
+            if (code == null) continue;
+            slip.restoreFromPartnerQuarantine(code);
+            evidence.markRestored(actor, code);
+            restored.add(evidence.getSlipNo());
+        }
+        if (!evidenceRows.isEmpty()) quarantineRepository.saveAll(evidenceRows);
+        return new SlipPartnerRestoreResponse(restored.size(), List.copyOf(restored));
     }
 
     private static UnresolvedSlip unresolved(Slip slip, String partnerCode, String reason) {
