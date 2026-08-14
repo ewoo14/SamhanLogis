@@ -39,7 +39,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** DEV-2 팝업공지 CRUD/활성조회/이미지 메타 통합 테스트. */
-@SpringBootTest(classes = DashboardServiceApplication.class)
+@SpringBootTest(classes = DashboardServiceApplication.class, properties = "SAMHAN_GATEWAY_ATTESTATION=test-attestation")
 @AutoConfigureMockMvc
 class AppNoticeControllerIT extends AbstractPostgresIT {
 
@@ -300,6 +300,7 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) {
         return request
                 .header("X-User-Id", ACCOUNT_ID)
+                .header("X-Samhan-Gateway-Attestation", "test-attestation")
                 .header("X-User-Role", "MASTER");
     }
 }

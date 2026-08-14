@@ -166,6 +166,20 @@ class PermissionAspectTest {
     }
 
     @Test
+    @DisplayName("그룹 기반 계정 권한 거부는 role=UNKNOWN을 노출하지 않는다")
+    void accountPermissionDenyUsesGroupBasedSubjectWhenRoleHeaderIsAbsent() {
+        attachHeaders(ACCOUNT_ID.toString(), null, null, null);
+        given(client.check(ACCOUNT_ID, "accounting.journals", PermissionAction.CREATE)).willReturn(false);
+
+        assertThatThrownBy(() -> proxy.createJournal(ACCOUNT_ID.toString(), null))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("subject=GROUP_BASED")
+                .hasMessageNotContaining("role=UNKNOWN");
+
+        assertThat(deniedCount("accounting.journals", "GROUP_BASED", "CREATE")).isEqualTo(1.0);
+    }
+
+    @Test
     void missingAccountIdDenies() {
         attachHeaders(null, "ACCOUNTANT", null, null);
 

@@ -9,6 +9,7 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 
 class HeaderAuthenticationFilterTest {
 
@@ -27,7 +28,8 @@ class HeaderAuthenticationFilterTest {
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
-        new HeaderAuthenticationFilter(new ObjectMapper()).doFilter(request, response, chain);
+        request.addHeader(HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER, "attestation");
+        new HeaderAuthenticationFilter(new ObjectMapper(), "attestation").doFilter(request, response, chain);
 
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         assertThat(authentication).isNotNull();
@@ -46,11 +48,25 @@ class HeaderAuthenticationFilterTest {
         request.addHeader("X-Is-System-Master", "true");
         var response = new MockHttpServletResponse();
 
-        new HeaderAuthenticationFilter(new ObjectMapper()).doFilter(
+        request.addHeader(HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER, "attestation");
+        new HeaderAuthenticationFilter(new ObjectMapper(), "attestation").doFilter(
                 request, response, new MockFilterChain());
 
         assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
                 .extracting("authority")
                 .containsExactly("SYSTEM_MASTER");
+    }
+
+    @Test
+    void rejectsIdentityHeadersWithoutGatewayAttestation() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/accounting/accounts");
+        request.addHeader(HttpHeaderConstants.CALLER_ID_HEADER, "forged-user");
+        var response = new MockHttpServletResponse();
+
+        new HeaderAuthenticationFilter(new ObjectMapper(), "attestation")
+                .doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 }

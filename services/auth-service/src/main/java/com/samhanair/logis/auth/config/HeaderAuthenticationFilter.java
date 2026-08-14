@@ -7,6 +7,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +25,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * </ul>
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
+    private final String expectedAttestation;
+    private final boolean enforceAttestation;
+    public HeaderAuthenticationFilter() { this("", false); }
+    public HeaderAuthenticationFilter(String expectedAttestation, boolean enforceAttestation) {
+        this.expectedAttestation = expectedAttestation == null ? "" : expectedAttestation;
+        this.enforceAttestation = enforceAttestation;
+    }
 
     private static final String USER_ID_HEADER = "X-User-Id";
     /** Phase C5-3: 그룹 UUID comma-join 헤더. */
@@ -30,8 +40,16 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        String path = request.getRequestURI();
+        if (path.startsWith("/actuator/") || path.startsWith("/auth/login") || path.startsWith("/auth/logout")
+                || path.startsWith("/auth/password/") || path.startsWith("/auth/password-reset/")) { chain.doFilter(request, response); return; }
+        if (enforceAttestation && !isGatewayAttested(request)) { response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); return; }
         String userId = request.getHeader(USER_ID_HEADER);
         String groups = request.getHeader(USER_GROUPS_HEADER);
+        if ((userId == null || userId.isBlank()) && groups != null && !groups.isBlank()) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
 
         // Phase C5-3: X-User-Id 존재 시 인증 성립 (role 부재여도 허용)
         if (userId != null && !userId.isBlank()
@@ -51,5 +69,11 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    private boolean isGatewayAttested(HttpServletRequest request) {
+        String actual = request.getHeader(HttpHeaderConstants.GATEWAY_ATTESTATION_HEADER);
+        if (expectedAttestation.isBlank() || actual == null || actual.isBlank()) return false;
+        return MessageDigest.isEqual(expectedAttestation.getBytes(StandardCharsets.UTF_8), actual.getBytes(StandardCharsets.UTF_8));
     }
 }

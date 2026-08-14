@@ -49,6 +49,9 @@ x-spring-prod: &spring-prod
   SAMHAN_DISCOVERY_PROVIDER: eureka
   SAMHAN_INTERNAL_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
   INTERNAL_AUTH_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
+  # 게이트웨이와 downstream 서비스가 동일한 운영 attestation을 참조한다.
+  # 값은 .env.production/Secrets Manager 주입으로만 전달하며 저장소에 두지 않는다.
+  SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
   # KST + 컨테이너 메모리 cap (m5.xlarge 16GB, 17 service × max 1GB)
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
   # S3 — 운영은 AWS S3 endpoint + Secrets Manager 주입 키 사용
@@ -176,6 +179,7 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       SAMHAN_JWT_SECRET: ${SAMHAN_JWT_SECRET}
       JWT_SECRET: ${SAMHAN_JWT_SECRET}
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       SPRING_CLOUD_GATEWAY_HTTPCLIENT_RESPONSE_TIMEOUT: "600s"
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
     ports:
@@ -246,6 +250,7 @@ services:
       RABBIT_PORT: "5672"
       RABBIT_USER: samhan
       RABBIT_PASSWORD: ${RABBIT_PASSWORD}
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
     ports:
       - "127.0.0.1:8082:8082"

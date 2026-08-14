@@ -47,7 +47,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /** 앱 릴리스 버전 조회 및 admin CRUD 통합 테스트. */
-@SpringBootTest(classes = DashboardServiceApplication.class)
+@SpringBootTest(classes = DashboardServiceApplication.class, properties = "SAMHAN_GATEWAY_ATTESTATION=test-attestation")
 @AutoConfigureMockMvc
 class AppReleaseControllerIT extends AbstractPostgresIT {
 
@@ -657,6 +657,7 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) {
         return request
                 .header("X-User-Id", ACCOUNT_ID)
+                .header("X-Samhan-Gateway-Attestation", "test-attestation")
                 .header("X-User-Role", "MASTER");
     }
 }

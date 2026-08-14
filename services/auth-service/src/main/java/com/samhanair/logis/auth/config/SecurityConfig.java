@@ -3,6 +3,8 @@ package com.samhanair.logis.auth.config;
 import com.samhanair.logis.security.InternalTokenFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -26,7 +28,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter,
+            HeaderAuthenticationFilter headerAuthenticationFilter,
+            PublicIdentityHeaderSanitizingFilter publicIdentityHeaderSanitizingFilter)
             throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -54,9 +58,21 @@ public class SecurityConfig {
                                                         .equals(authentication.get().getName())))
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(new HeaderAuthenticationFilter(), InternalTokenFilter.class);
+                .addFilterBefore(publicIdentityHeaderSanitizingFilter, InternalTokenFilter.class)
+                .addFilterAfter(headerAuthenticationFilter, InternalTokenFilter.class);
         return http.build();
     }
+
+    @Bean
+    public HeaderAuthenticationFilter headerAuthenticationFilter(
+            @Value("${SAMHAN_GATEWAY_ATTESTATION:}") String attestation,
+            @Value("${samhan.security.gateway-attestation-enforcement:true}") boolean enforce) {
+        if (enforce && (attestation == null || attestation.isBlank())) throw new IllegalStateException("SAMHAN_GATEWAY_ATTESTATION is required when gateway attestation enforcement is enabled");
+        return new HeaderAuthenticationFilter(attestation, enforce);
+    }
+    @Bean public PublicIdentityHeaderSanitizingFilter publicIdentityHeaderSanitizingFilter() { return new PublicIdentityHeaderSanitizingFilter(); }
+    @Bean public FilterRegistrationBean<HeaderAuthenticationFilter> headerAuthenticationFilterRegistration(HeaderAuthenticationFilter f) { var r = new FilterRegistrationBean<HeaderAuthenticationFilter>(f); r.setEnabled(false); return r; }
+    @Bean public FilterRegistrationBean<PublicIdentityHeaderSanitizingFilter> publicIdentityHeaderSanitizingFilterRegistration(PublicIdentityHeaderSanitizingFilter f) { var r = new FilterRegistrationBean<PublicIdentityHeaderSanitizingFilter>(f); r.setEnabled(false); return r; }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
