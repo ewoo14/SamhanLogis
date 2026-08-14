@@ -225,6 +225,7 @@ function captureReleaseBuilderInvocation(relativeScript, appVersion) {
   const scriptPath = resolve(__dirname, relativeScript)
   const environmentKeys = [
     'VITE_APP_VERSION',
+    'DESKTOP_UPDATE_URL',
     'AROLOGIS_UPDATE_URL',
     'INTERNAL_CHAT_UPDATE_URL',
     'CSC_LINK',
@@ -248,6 +249,7 @@ function captureReleaseBuilderInvocation(relativeScript, appVersion) {
   try {
     process.chdir(repoRoot)
     process.env.VITE_APP_VERSION = appVersion
+    process.env.DESKTOP_UPDATE_URL = 'https://updates.invalid/desktop'
     process.env.AROLOGIS_UPDATE_URL = 'https://updates.invalid/arologis'
     process.env.INTERNAL_CHAT_UPDATE_URL = 'https://updates.invalid/internal-chat'
     process.env.CSC_LINK = 'C:/certificates/samhan-internal-chat.pfx'

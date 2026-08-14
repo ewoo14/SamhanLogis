@@ -15,6 +15,7 @@ const {
   createElectronBuilderVersionArgs,
   createNsisDisplayVersionInclude,
 } = require('./app-build-version.cjs')
+const { requireSigningEnvironment, requireUpdateFeedEnvironment } = require('./electron-update-contract.cjs')
 
 function run(command, args, env) {
   const result = spawnSync(command, args, {
@@ -60,6 +61,8 @@ function escapeRegExp(value) {
 }
 
 function main() {
+  requireSigningEnvironment(process.env)
+  requireUpdateFeedEnvironment(process.env, 'desktop', 'DESKTOP_UPDATE_URL')
   let releaseBuild
   try {
     releaseBuild = createReleaseBuildEnvironment({

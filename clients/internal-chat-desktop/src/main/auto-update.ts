@@ -1,7 +1,14 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import electronUpdater, { type ProgressInfo, type UpdateInfo } from 'electron-updater'
+// electron-vite가 이 CJS 공통 자산을 main bundle에 포함한다. 런타임 상대경로 require는
+// out/main 위치가 바뀌면 repo 밖을 가리킬 수 있으므로 정적 import를 사용한다.
+// @ts-ignore 공통 Node 계약은 CJS 릴리스 wrapper와 Electron main이 함께 소비한다.
+import updateContract from '../../../scripts/electron-update-contract.cjs'
 
 const { autoUpdater } = electronUpdater
+const { classifyUpdaterError } = updateContract as unknown as {
+  classifyUpdaterError: (error: unknown) => { kind: string; message: string }
+}
 
 export type AutoUpdateStatus =
   | { kind: 'checking' }
@@ -44,31 +51,9 @@ function displayVersionFromUpdateInfo(version: string): string {
   return `${match[1]}/${match[2]}/${match[3]}-${match[4]}`
 }
 
-function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  if (error && typeof error === 'object') {
-    const record = error as Record<string, unknown>
-    return [record.code, record.message, record.cause]
-      .filter((value): value is string => typeof value === 'string')
-      .join(' ')
-  }
-  return ''
-}
-
 function messageFromError(error: unknown): string {
   console.error('[internal-chat-auto-update] electron-updater 상세 오류(사용자 화면 비공개)', error)
-  const text = errorText(error)
-  if (/invalid[_ ]signature|unknownerror|certificate chain|not trusted by the trust provider/i.test(text)) {
-    return '업데이트 파일의 인증서를 신뢰할 수 없습니다. 사내 IT 지원팀에 인증서 배포를 요청한 뒤 다시 확인해 주세요.'
-  }
-  if (/checksum|hash mismatch|integrity|corrupt|damaged|blockmap/i.test(text)) {
-    return '업데이트 파일이 손상되었거나 검증에 실패했습니다. 다시 확인해 주세요.'
-  }
-  if (/net::|econn|enotfound|etimedout|timed out|network|socket|dns|http (?:4|5)\d\d/i.test(text)) {
-    return '업데이트 서버에 연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 확인해 주세요.'
-  }
-  return '업데이트에 실패했습니다. 잠시 후 다시 확인해 주세요.'
+  return classifyUpdaterError(error).message
 }
 
 function configureAutoUpdater(): void {

@@ -16,6 +16,7 @@ const {
   createElectronBuilderVersionArgs,
   createNsisDisplayVersionInclude,
 } = require('./app-build-version.cjs')
+const { requireSigningEnvironment, requireUpdateFeedEnvironment } = require('./electron-update-contract.cjs')
 
 const DESKTOP_DIR = resolve(__dirname, '../clients/arologis-desktop')
 
@@ -60,6 +61,8 @@ function verifyReleaseRenderer(appVersion) {
 }
 
 function main() {
+  requireSigningEnvironment(process.env)
+  requireUpdateFeedEnvironment(process.env, 'arologis', 'AROLOGIS_UPDATE_URL')
   if (!String(process.env.AROLOGIS_UPDATE_URL || '').trim()) {
     throw new Error('AROLOGIS_UPDATE_URL이 필요합니다. 코드서명된 아로로지스 전용 HTTPS 업데이트 피드를 지정하십시오.')
   }
