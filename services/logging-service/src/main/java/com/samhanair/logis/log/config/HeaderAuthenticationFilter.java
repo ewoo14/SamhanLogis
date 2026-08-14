@@ -23,6 +23,8 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_GROUPS_HEADER = "X-User-Groups";
+    private static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
+    private static final String INTERNAL_PRINCIPAL = "system-internal";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -32,8 +34,13 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
         var existing = SecurityContextHolder.getContext().getAuthentication();
         if (userId != null && !userId.isBlank()
-                && (existing == null || existing instanceof AnonymousAuthenticationToken)) {
+                && existing != null
+                && INTERNAL_PRINCIPAL.equals(existing.getPrincipal())) {
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            if (existing.getAuthorities().stream()
+                    .anyMatch(authority -> "ROLE_INTERNAL".equals(authority.getAuthority()))) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_INTERNAL"));
+            }
             if (groups != null && !groups.isBlank()) {
                 for (String groupId : groups.split(",")) {
                     String trimmed = groupId.trim();
@@ -41,6 +48,9 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                         authorities.add(new SimpleGrantedAuthority("GROUP_" + trimmed));
                     }
                 }
+            }
+            if ("true".equalsIgnoreCase(request.getHeader(IS_SYSTEM_MASTER_HEADER))) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_SYSTEM_MASTER"));
             }
             var auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);

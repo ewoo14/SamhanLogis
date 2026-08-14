@@ -10,6 +10,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -21,7 +22,7 @@ class HeaderAuthenticationFilterTest {
     }
 
     @Test
-    void gatewayHeaders_replacePreexistingAnonymousAuthentication() throws Exception {
+    void gatewayHeaders_doNotReplaceAnonymousAuthentication() throws Exception {
         SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken(
                 "key", "anonymousUser", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))));
 
@@ -32,7 +33,25 @@ class HeaderAuthenticationFilterTest {
 
         new HeaderAuthenticationFilter().doFilter(request, response, chain);
 
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isInstanceOf(AnonymousAuthenticationToken.class);
+    }
+
+    @Test
+    void gatewayHeaders_replaceOnlyVerifiedInternalAuthentication() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "system-internal", null, List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/logs/dlq");
+        request.addHeader("X-User-Id", "00000000-0000-0000-0000-000000000001");
+        request.addHeader("X-User-Groups", "00000000-0000-0000-0000-000000000100");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        new HeaderAuthenticationFilter().doFilter(request, response, new MockFilterChain());
+
         assertThat(SecurityContextHolder.getContext().getAuthentication().getName())
                 .isEqualTo("00000000-0000-0000-0000-000000000001");
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting(Object::toString)
+                .contains("GROUP_00000000-0000-0000-0000-000000000100");
     }
 }

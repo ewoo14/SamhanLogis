@@ -21,6 +21,13 @@ spring:
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
       - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 
+app:
+  security:
+    internal:
+      token: ${SAMHAN_INTERNAL_TOKEN:}
+      path-prefix: /logs/
+      role: INTERNAL
+      allow-missing-token: false
 eureka:
   client:
     service-url:

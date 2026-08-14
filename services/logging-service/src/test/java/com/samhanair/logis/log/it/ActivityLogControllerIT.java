@@ -48,6 +48,7 @@ import org.springframework.test.context.TestPropertySource;
                 "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration," +
                 "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration," +
                 "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration"
+        ,"app.security.internal.token=test-internal-token"
 })
 class ActivityLogControllerIT {
 
@@ -144,6 +145,7 @@ class ActivityLogControllerIT {
         headers.add("X-User-Id", DEVELOPER_ACCOUNT.toString());
         headers.add("X-User-Role", "DEVELOPER");
         headers.add("X-User-Groups", "00000000-0000-0000-0000-000000000109");
+        headers.add("X-Internal-Token", "test-internal-token");
         return headers;
     }
 }
