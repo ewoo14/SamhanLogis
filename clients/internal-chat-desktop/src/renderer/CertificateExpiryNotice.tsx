@@ -1,10 +1,7 @@
 import { useEffect } from 'react'
 import { AppUpdateNotice } from '@samhan/design-system'
-// @ts-ignore 운영 metadata는 빌드 시 renderer에 포함되는 CJS JSON registry다.
 import registry from '../../../../scripts/certificate-registry.cjs'
-// @ts-ignore 순수 판정 유틸리티는 renderer와 Node 테스트가 공유한다.
 import { classifyCertificateExpiry } from '../../../../scripts/certificate-expiry.cjs'
-// @ts-ignore 개발 renderer에서만 URL fixture를 허용하는 QA 경계다.
 import { resolveCertificateMetadata } from '../../../../scripts/certificate-expiry-fixtures.cjs'
 
 export function CertificateExpiryNotice({ now = new Date(), metadata }: { now?: Date; metadata?: typeof registry }): JSX.Element | null {
