@@ -3,14 +3,7 @@ import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ChatApp } from './ChatApp'
-
-type UpdateStatus =
-  | { kind: 'checking' }
-  | { kind: 'available'; version?: string }
-  | { kind: 'downloading'; percent?: number }
-  | { kind: 'downloaded'; version?: string }
-  | { kind: 'not-available' }
-  | { kind: 'error'; message?: string }
+import { InternalChatUpdateGate } from './InternalChatUpdateGate'
 
 interface VersionInfo {
   latestVersion: string
@@ -39,69 +32,10 @@ const VERSION_API_BASE_URL = String(import.meta.env.VITE_VERSION_API_BASE_URL ??
 const VERSION_POLICY_FAILURE_MESSAGE = '버전 정책을 확인하지 못했습니다. 네트워크 연결 후 다시 확인해 주세요.'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-createRoot(root).render(createElement(QueryClientProvider, { client: queryClient }, createElement(ChatApp)))
-
-const shell = root.querySelector<HTMLElement>('.shell')
-let updateStatusNotice: HTMLElement | null = null
-let installStarted = false
-
-function statusText(status: UpdateStatus): string {
-  switch (status.kind) {
-    case 'checking': return '업데이트를 확인하는 중입니다.'
-    case 'available': return status.version
-      ? `새 버전 ${status.version}을 다운로드하는 중입니다.`
-      : '새 버전을 다운로드하는 중입니다.'
-    case 'downloading': return `새 버전을 다운로드하는 중입니다. ${Math.round(status.percent ?? 0)}%`
-    case 'downloaded': return '새 버전을 설치하고 앱을 다시 시작하는 중입니다.'
-    case 'error': return status.message || '업데이트에 실패했습니다. 인터넷 연결을 확인해 주세요.'
-    case 'not-available': return '현재 설치된 버전이 최신입니다.'
-  }
-}
-
-function renderUpdateStatus(status: UpdateStatus): void {
-  if (status.kind === 'not-available') {
-    updateStatusNotice?.remove()
-    updateStatusNotice = null
-    return
-  }
-  if (!updateStatusNotice) {
-    updateStatusNotice = document.createElement('aside')
-    updateStatusNotice.id = 'internal-chat-auto-update-status'
-    updateStatusNotice.setAttribute('data-testid', 'internal-chat-auto-update-status')
-    updateStatusNotice.setAttribute('role', 'status')
-    updateStatusNotice.className = 'notice update-notice'
-    root.appendChild(updateStatusNotice)
-  }
-  updateStatusNotice.replaceChildren(document.createTextNode(statusText(status)))
-  const retry = document.createElement('button')
-  retry.type = 'button'
-  retry.textContent = '다시 확인'
-  retry.addEventListener('click', checkForUpdate)
-  updateStatusNotice.append(' ', retry)
-}
-
-function handleUpdateStatus(raw: unknown): void {
-  if (!raw || typeof raw !== 'object' || !('kind' in raw)) return
-  const status = raw as UpdateStatus
-  renderUpdateStatus(status)
-  if (status.kind === 'downloaded' && !installStarted) {
-    installStarted = true
-    void window.internalChatUpdater?.install().catch((error: unknown) => {
-      console.error('[internal-chat-version] updater 설치 상세 오류(사용자 화면 비공개)', error)
-      installStarted = false
-      renderUpdateStatus({ kind: 'error', message: '업데이트 설치에 실패했습니다. 다시 확인해 주세요.' })
-    })
-  }
-}
+createRoot(root).render(createElement(QueryClientProvider, { client: queryClient }, createElement(InternalChatUpdateGate, null, createElement(ChatApp))))
 
 function checkForUpdate(): void {
-  const updater = window.internalChatUpdater
-  if (!updater) return
-  renderUpdateStatus({ kind: 'checking' })
-  void updater.check().catch((error: unknown) => {
-    console.error('[internal-chat-version] updater 확인 상세 오류(사용자 화면 비공개)', error)
-    renderUpdateStatus({ kind: 'error' })
-  })
+  void window.internalChatUpdater?.check().catch(() => undefined)
 }
 
 function versionCheckUrl(): string {
@@ -172,11 +106,6 @@ function renderPolicyFailure(error: unknown): void {
   notice.className = 'notice policy-error-notice'
   notice.textContent = VERSION_POLICY_FAILURE_MESSAGE
   root.appendChild(notice)
-}
-
-if (window.internalChatUpdater) {
-  window.internalChatUpdater.onStatus(handleUpdateStatus)
-  checkForUpdate()
 }
 
 void fetchVersionInfo().then(renderPolicyNotice).catch(renderPolicyFailure)
