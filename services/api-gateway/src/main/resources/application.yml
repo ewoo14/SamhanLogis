@@ -770,7 +770,7 @@ app:
   security:
     jwt:
       # Phase 8 2차 — SAMHAN_JWT_SECRET 우선, JWT_SECRET legacy fallback (Phase 10 cutover 시점 단일화)
-      secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET:dev-secret-change-me-in-production-32bytes-min!}}
+      secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET}}
       ttl-seconds: 3600
 
 management:

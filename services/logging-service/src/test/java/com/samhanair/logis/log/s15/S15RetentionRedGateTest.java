@@ -8,6 +8,10 @@ import java.lang.reflect.Field;
 import java.util.Map;
 import java.time.Duration;
 import java.lang.reflect.Method;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -38,6 +42,14 @@ import org.springframework.beans.factory.annotation.Value;
  */
 @Testcontainers
 class S15RetentionRedGateTest {
+
+    @Test
+    void rabbitCredentialsHaveNoPlaintextFallback() throws IOException {
+        String yaml = Files.readString(Path.of("src/main/resources/application.yml"), StandardCharsets.UTF_8);
+
+        assertThat(yaml).contains("username: ${RABBIT_USER}", "password: ${RABBIT_PASSWORD}")
+                .doesNotContain("username: ${RABBIT_USER:", "password: ${RABBIT_PASSWORD:");
+    }
 
     @Container
     static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:3.13-management-alpine");

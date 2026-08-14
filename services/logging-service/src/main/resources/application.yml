@@ -10,8 +10,8 @@ spring:
   rabbitmq:
     host: ${RABBIT_HOST:localhost}
     port: ${RABBIT_PORT:5672}
-    username: ${RABBIT_USER:samhan}
-    password: ${RABBIT_PASSWORD:samhan_dev_pw}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASSWORD}
   # PR-H4b BE-E — shared:realtime-abstraction module 이 transitive 로 starter-data-jpa 를 가져오지만
   # logging-service 는 Postgres JPA 를 사용하지 않음 (audit sink = Elasticsearch). DataSource/JPA
   # autoconfig 를 명시 exclude 하여 startup 시 DB connection 시도 차단.

@@ -43,10 +43,10 @@ PostgreSQL `partner_auth_db` — 3 entity:
 | `DB_HOST`         | `localhost`                                                | PostgreSQL host                        |
 | `DB_PORT`         | `5432`                                                     | PostgreSQL port                        |
 | `DB_NAME`         | `partner_auth_db`                                          | Database name                          |
-| `DB_USER`         | `samhan`                                                   | Database user                          |
-| `DB_PASSWORD`     | `dev-pw-change-me` (placeholder)                           | Database password — env override 의무   |
+| `DB_USER`         | 필수 환경변수                                             | Database user                          |
+| `DB_PASSWORD`     | 필수 환경변수                                             | Database password                      |
 | `EUREKA_URL`      | `http://localhost:8761/eureka/`                            | Eureka registry URL                    |
-| `JWT_SECRET`      | `dev-only-partner-jwt-secret-...!!`                        | HS256 signing key (>=32 byte)          |
+| `JWT_SECRET`      | 필수 환경변수                                             | HS256 signing key (>=32 byte)          |
 | `DC_CONFIG_URL`   | `http://dc-config-service:8089`                            | M3 dc-config-service base URL          |
 
 ## Profiles

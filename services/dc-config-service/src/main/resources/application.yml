@@ -15,8 +15,8 @@ spring:
     # default 값은 로컬 docker-compose 와의 호환을 위한 자리 표시자이며 실제 환경에서는 override 필수.
     # W10-5 회고 — chained-default 표준 통일 (SAMHAN_DC_CONFIG_DB_* 우선, LEGACY_DB_* fallback, samhan default).
     url: jdbc:postgresql://${SAMHAN_DC_CONFIG_DB_HOST:${LEGACY_DB_HOST:${DB_HOST:localhost}}}:${SAMHAN_DC_CONFIG_DB_PORT:${LEGACY_DB_PORT:${DB_PORT:5432}}}/${SAMHAN_DC_CONFIG_DB_NAME:${LEGACY_DB_NAME:${DB_NAME:dc_config_db}}}
-    username: ${SAMHAN_DC_CONFIG_DB_USER:${LEGACY_DB_USER:${DB_USER:samhan}}}
-    password: ${SAMHAN_DC_CONFIG_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD:samhan_dev_pw}}}
+    username: ${SAMHAN_DC_CONFIG_DB_USER:${LEGACY_DB_USER:${DB_USER}}}
+    password: ${SAMHAN_DC_CONFIG_DB_PASSWORD:${LEGACY_DB_PASSWORD:${DB_PASSWORD}}}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -51,7 +51,7 @@ app:
   security:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 우선, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화)
-      token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-only-token-replace}}
+      token: ${SAMHAN_INTERNAL_TOKEN}
       # W10-4 (PR #99) DV-3 — dc-config 도 missing 토큰 즉시 401 (auth/product 와 동일 가드)
       allow-missing-token: false
 
