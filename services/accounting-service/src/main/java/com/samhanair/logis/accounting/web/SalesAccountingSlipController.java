@@ -56,4 +56,13 @@ public class SalesAccountingSlipController {
         service.post(DocumentNumberPathResolver.toSlashDocumentNo(slipNo), userId);
         return ResponseEntity.noContent().build();
     }
+
+    /** 매출전표와 line/allocation을 연쇄 soft-delete한다. */
+    @DeleteMapping("/{slipNo}")
+    @RequirePermission(page = "accounting.sales-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
+    public ResponseEntity<Void> delete(@PathVariable String slipNo,
+            @RequestHeader("X-User-Id") String userId) {
+        service.delete(DocumentNumberPathResolver.toSlashDocumentNo(slipNo), userId);
+        return ResponseEntity.noContent().build();
+    }
 }
