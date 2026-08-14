@@ -45,10 +45,11 @@ public class DlqOperations {
         }
         messages.forEach(this::restore);
         if (result.isEmpty()) {
+            var queueProperties = rabbitAdmin.getQueueProperties(RabbitConfig.DLQ);
             Map<String, Object> status = new LinkedHashMap<>();
             status.put("queue", RabbitConfig.DLQ);
-            status.put("messageCount", rabbitAdmin.getQueueProperties(RabbitConfig.DLQ) == null
-                    ? 0 : rabbitAdmin.getQueueProperties(RabbitConfig.DLQ).getOrDefault(QUEUE_MESSAGE_COUNT, 0));
+            status.put("messageCount", queueProperties == null
+                    ? 0 : queueProperties.getOrDefault(QUEUE_MESSAGE_COUNT, 0));
             result.add(status);
         }
         return result;
