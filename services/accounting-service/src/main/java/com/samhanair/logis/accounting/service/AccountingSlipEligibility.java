@@ -19,7 +19,9 @@ public record AccountingSlipEligibility(boolean allowed, List<Reason> reasons,
         ALREADY_ALLOCATED("원천 전표가 이미 회계전표에 연결되어 있습니다"),
         PERMISSION_DENIED("회계전표 생성 권한이 없습니다"),
         SOURCE_NOT_CONFIRMED("원천 전표가 확정 상태가 아닙니다"),
-        SOURCE_PARTNER_MISSING("원천 전표 거래처 코드가 없습니다");
+        SOURCE_PARTNER_MISSING("원천 전표 거래처 코드가 없습니다"),
+        LEGACY_READ_ONLY("legacy 미연결 자료는 읽기 전용입니다"),
+        SOURCE_DATA_INTEGRITY_BLOCKED("원천 전표 데이터 무결성 문제로 연결할 수 없습니다");
 
         private final String message;
 
@@ -55,12 +57,24 @@ public record AccountingSlipEligibility(boolean allowed, List<Reason> reasons,
             }
             reasons.add(Reason.ALREADY_ALLOCATED);
         }
+        if (readModel != null && "LEGACY_READ_ONLY".equals(readModel.sourceSlipStatus())) {
+            reasons.add(Reason.LEGACY_READ_ONLY);
+        }
+        if (readModel != null && readModel.legacyReadOnly()
+                && !reasons.contains(Reason.LEGACY_READ_ONLY)) {
+            reasons.add(Reason.LEGACY_READ_ONLY);
+        }
         if (readModel != null && !"CONFIRMED".equals(readModel.sourceSlipStatus())) {
             reasons.add(Reason.SOURCE_NOT_CONFIRMED);
         }
         if (readModel != null && (readModel.sourcePartnerCode() == null
                 || readModel.sourcePartnerCode().isBlank())) {
             reasons.add(Reason.SOURCE_PARTNER_MISSING);
+            if (!reasons.contains(Reason.SOURCE_DATA_INTEGRITY_BLOCKED)) {
+                reasons.add(Reason.SOURCE_DATA_INTEGRITY_BLOCKED);
+            }
+        } else if (readModel != null && readModel.dataIntegrityBlocked()) {
+            reasons.add(Reason.SOURCE_DATA_INTEGRITY_BLOCKED);
         }
         if (!isAllowedRole(actorRole)) {
             reasons.add(Reason.PERMISSION_DENIED);

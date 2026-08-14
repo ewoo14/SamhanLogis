@@ -6,6 +6,8 @@ import com.samhanair.logis.accounting.service.AccountingSlipLinkReadModelService
 import com.samhanair.logis.accounting.web.dto.AccountingSlipLinkEligibilityResponse;
 import com.samhanair.logis.accounting.web.dto.OpaqueUuidDeserializer;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.security.permission.RequirePermission;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -25,6 +27,7 @@ public class AccountingSlipLinkController {
 
     /** 원천 전표 연결 상태와 Q1~Q6 연결 가능 여부를 함께 반환한다. */
     @GetMapping("/eligibility")
+    @RequirePermission(page = "accounting.sales-slip.accounting", action = PermissionAction.VIEW)
     public ApiResponse<AccountingSlipLinkEligibilityResponse> eligibility(
             @RequestParam String sourceSlipIdToken,
             @RequestParam String sourceSlipType,

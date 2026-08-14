@@ -36,12 +36,19 @@ public class AccountingSlipLinkReadModelService {
                 .map(SlipLineSnapshot::lineTotal)
                 .filter(value -> value != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal sourceQuantity = sourceLines.stream()
+                .map(line -> BigDecimal.valueOf(line.quantity()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal allocatedAmount = BigDecimal.ZERO;
         BigDecimal allocatedQuantity = BigDecimal.ZERO;
         Map<String, AccountingSlipLinkReadModel.LinkedSlip> linked = new LinkedHashMap<>();
-        String sourceSlipNo = sourceLines.isEmpty() ? null : sourceLines.get(0).slipNo();
         String sourceSlipStatus = sourceLines.isEmpty() ? null : sourceLines.get(0).slipStatus();
+        AccountingSlipLinkReadModel.TaxInvoiceLinkStatus taxInvoiceLinkStatus =
+                "LEGACY_READ_ONLY".equals(sourceSlipStatus)
+                        ? AccountingSlipLinkReadModel.TaxInvoiceLinkStatus.LEGACY_READ_ONLY
+                        : AccountingSlipLinkReadModel.TaxInvoiceLinkStatus.NOT_LINKED;
+        String sourceSlipNo = sourceLines.isEmpty() ? null : sourceLines.get(0).slipNo();
         String sourcePartnerCode = sourceLines.isEmpty() ? null : sourceLines.get(0).partnerCode();
         if ("OUTBOUND".equals(sourceSlipType)) {
             for (SalesAccountingSlipAllocation allocation
@@ -50,7 +57,13 @@ public class AccountingSlipLinkReadModelService {
                 allocatedQuantity = allocatedQuantity.add(allocation.getAllocatedQty());
                 var slip = allocation.getSalesSlipLine().getSlip();
                 linked.putIfAbsent(slip.getSlipNo(), new AccountingSlipLinkReadModel.LinkedSlip(
-                        slip.getSlipNo(), slip.getStatus().name(), slip.getTotalAmount()));
+                        slip.getSlipNo(), slip.getStatus().name(), slip.getTotalAmount(),
+                        slip.getTaxInvoiceId() == null
+                                ? AccountingSlipLinkReadModel.TaxInvoiceLinkStatus.NOT_LINKED
+                                : AccountingSlipLinkReadModel.TaxInvoiceLinkStatus.LINKED));
+                if (slip.getTaxInvoiceId() != null) {
+                    taxInvoiceLinkStatus = AccountingSlipLinkReadModel.TaxInvoiceLinkStatus.LINKED;
+                }
             }
         } else if ("INBOUND".equals(sourceSlipType)) {
             for (PurchaseAccountingSlipAllocation allocation
@@ -59,13 +72,22 @@ public class AccountingSlipLinkReadModelService {
                 allocatedQuantity = allocatedQuantity.add(allocation.getAllocatedQty());
                 var slip = allocation.getPurchaseSlipLine().getSlip();
                 linked.putIfAbsent(slip.getSlipNo(), new AccountingSlipLinkReadModel.LinkedSlip(
-                        slip.getSlipNo(), slip.getStatus().name(), slip.getTotalAmount()));
+                        slip.getSlipNo(), slip.getStatus().name(), slip.getTotalAmount(),
+                        slip.getTaxInvoiceId() == null
+                                ? AccountingSlipLinkReadModel.TaxInvoiceLinkStatus.NOT_LINKED
+                                : AccountingSlipLinkReadModel.TaxInvoiceLinkStatus.LINKED));
+                if (slip.getTaxInvoiceId() != null) {
+                    taxInvoiceLinkStatus = AccountingSlipLinkReadModel.TaxInvoiceLinkStatus.LINKED;
+                }
             }
         } else {
             throw new IllegalArgumentException("sourceSlipType은 OUTBOUND 또는 INBOUND여야 합니다");
         }
+        boolean legacyReadOnly = "LEGACY_READ_ONLY".equals(sourceSlipStatus);
+        boolean dataIntegrityBlocked = sourcePartnerCode == null || sourcePartnerCode.isBlank();
         return new AccountingSlipLinkReadModel(sourceSlipNo, sourceSlipType, sourceSlipStatus,
-                sourcePartnerCode, sourceAmount, allocatedAmount, allocatedQuantity, List.copyOf(linked.values()),
-                sourceAmount.compareTo(allocatedAmount) == 0);
+                sourcePartnerCode, sourceQuantity, sourceAmount, allocatedAmount, allocatedQuantity,
+                List.copyOf(linked.values()), taxInvoiceLinkStatus, legacyReadOnly,
+                dataIntegrityBlocked, sourceAmount.compareTo(allocatedAmount) == 0);
     }
 }
