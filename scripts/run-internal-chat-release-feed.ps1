@@ -4,6 +4,7 @@ param(
   [int]$FirstReleaseNumber = 9101,
   [int]$SecondReleaseNumber = 9102,
   [int]$FeedPort = 19102,
+  [int]$CaptureDebugPort = 0,
   [int]$TimeoutSeconds = 180
 )
 
@@ -90,15 +91,20 @@ function New-RandomPassword {
 }
 
 function Get-Installer([string]$Version) {
-  $path = Join-Path $appDir "release\$Version\Samhan Internal Chat-$Version-x64.exe"
-  Assert-True (Test-Path -LiteralPath $path) "installer missing: $path"
-  return $path
+  $releaseDir = Join-Path $appDir "release\$Version"
+  # electron-builder의 실제 productName은 "삼한 메신저"다. 러너가 예전 영문
+  # 이름(Samhan Internal Chat)을 추정해 lookup 하면서 fresh 시나리오가
+  # installer missing으로 끝나던 결함을 산출물 기준 검색으로 고친다.
+  $matches = @(Get-ChildItem -LiteralPath $releaseDir -Filter '*.exe' -File |
+    Where-Object { $_.Name -notmatch '-portable\.exe$' })
+  Assert-True ($matches.Count -eq 1) "expected exactly one non-portable installer in $releaseDir; found $($matches.Count)"
+  return $matches[0].FullName
 }
 function Get-InstalledVersion {
   $uninstallRoot = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
   $record = Get-ChildItem -LiteralPath $uninstallRoot -ErrorAction SilentlyContinue |
     ForEach-Object { Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue } |
-    Where-Object { $_.DisplayName -like 'Samhan Internal Chat *' } |
+    Where-Object { $_.DisplayVersion -match '^\d{4}/\d{2}/\d{2}-\d+$' } |
     Select-Object -First 1
   Assert-True ($null -ne $record) 'Samhan Internal Chat uninstall registry entry is missing.'
   return [string]$record.DisplayVersion
@@ -184,6 +190,12 @@ try {
   Copy-Item -LiteralPath (Join-Path $secondReleaseDir 'latest.yml') -Destination $internalChatFeedRoot -Force
   Get-ChildItem -LiteralPath $secondReleaseDir -Filter '*.exe' | Copy-Item -Destination $internalChatFeedRoot -Force
   Get-ChildItem -LiteralPath $secondReleaseDir -Filter '*.blockmap' | Copy-Item -Destination $internalChatFeedRoot -Force
+  if ($CaptureDebugPort -gt 0) {
+    # 캡처 모드에서는 다운로드 파일을 제공하지 않아 update-error 상태를
+    # 화면에 고정한다. 실제 installer 9101→9102 검증 모드와 분리한다.
+    Get-ChildItem -LiteralPath $internalChatFeedRoot -Filter '*.exe' | Remove-Item -Force
+    Get-ChildItem -LiteralPath $internalChatFeedRoot -Filter '*.blockmap' | Remove-Item -Force
+  }
   $feedProcess = Start-Process -FilePath 'python' -ArgumentList @('-u', '-m', 'http.server', "$FeedPort", '--bind', '127.0.0.1') -WorkingDirectory $feedRoot -PassThru -WindowStyle Hidden
   Wait-Until { try { (Invoke-WebRequest "http://127.0.0.1:$FeedPort/internal-chat/latest.yml" -UseBasicParsing).StatusCode -eq 200 } catch { $false } } "feed HTTP :$FeedPort/internal-chat"
   Write-Step "FeedStatus=200"
@@ -201,11 +213,13 @@ try {
   $newUninstallRecord = Get-ChildItem -LiteralPath $uninstallRoot -ErrorAction SilentlyContinue |
     Where-Object { $preexistingUninstallKeys -notcontains $_.PSPath } |
     ForEach-Object { Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue } |
-    Where-Object { $_.DisplayName -like 'Samhan Internal Chat *' } |
+    Where-Object { $_.DisplayVersion -match '^\d{4}/\d{2}/\d{2}-\d+$' } |
     Select-Object -First 1
   if ($newUninstallRecord) { $script:QaUninstallRegistryPath = $newUninstallRecord.PSPath }
-  $installedExe = Join-Path $installDir 'Samhan Internal Chat.exe'
-  Assert-True (Test-Path -LiteralPath $installedExe) "installed app missing: $installedExe"
+  $installedExes = @(Get-ChildItem -LiteralPath $installDir -Filter '*.exe' -File |
+    Where-Object { $_.Name -notmatch 'uninstall|portable' })
+  Assert-True ($installedExes.Count -eq 1) "expected exactly one installed app executable in $installDir; found $($installedExes.Count)"
+  $installedExe = $installedExes[0].FullName
   $beforeAsar = Join-Path $installDir 'resources\app.asar'
   $beforeHash = (Get-FileHash -LiteralPath $beforeAsar -Algorithm SHA256).Hash
   $beforeVersion = Get-InstalledVersion
@@ -216,8 +230,12 @@ try {
   Remove-Tracked 'fresh updater cache' { if (Test-Path -LiteralPath $updaterCache) { Remove-Item -LiteralPath $updaterCache -Recurse -Force } }
   Write-Host "CacheExistsAfterClear=$(Test-Path -LiteralPath $updaterCache)"
 
-  $start = Start-Process -FilePath $installedExe -PassThru
+  $startArgs = if ($CaptureDebugPort -gt 0) { @("--remote-debugging-port=$CaptureDebugPort") } else { @() }
+  $start = Start-Process -FilePath $installedExe -ArgumentList $startArgs -PassThru
   Write-Step "start 9101 PID=$($start.Id), waiting for updater"
+  if ($CaptureDebugPort -gt 0) {
+    Invoke-Checked 'node' @('scripts/capture-electron-banner.cjs', 'clients/internal-chat-desktop', [string]$CaptureDebugPort, '사내메신저') $repo
+  }
   Wait-Until { $response = try { Invoke-WebRequest "http://127.0.0.1:$FeedPort/internal-chat/latest.yml?noCache=$runId" -UseBasicParsing } catch { $null }; $null -ne $response -and $response.StatusCode -eq 200 } 'internal-chat/latest.yml request'
   $expectedDisplayVersion = "$($ReleaseDate.Replace('-', '/'))-$SecondReleaseNumber"
   Wait-Until { $current = try { Get-InstalledVersion } catch { '' }; $current -eq $expectedDisplayVersion } 'quitAndInstall restart to 9102'
