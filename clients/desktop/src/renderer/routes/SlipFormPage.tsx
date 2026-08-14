@@ -2591,6 +2591,27 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               단가는 <b>부가세 포함</b> 단가 — 공급가액/부가세는 라인별 자동 분리
             </span>
           </div>
+          {!isMobile && (
+          <div data-testid="slip-price-source-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4, fontSize: 12, color: 'var(--ink-secondary, #5C6773)' }}>
+            {lines.map((line, idx) => {
+              const label = line.priceSource === 'REMEMBERED'
+                ? (partnerSelected ? '거래처 최근단가' : null)
+                : line.priceSource === 'CATALOG' ? '판매가' : null
+              const changed = line.priceRefreshChanged
+              if (!label && !changed) return null
+              const description = line.priceSource === 'REMEMBERED'
+                ? `이 거래처에 마지막으로 저장된 단가${line.priceMemoryUpdatedAt ? ` · ${line.priceMemoryUpdatedAt.slice(0, 10)} 저장` : ''}`
+                : '판매가를 적용했습니다'
+              return (
+                <span key={line.id}>
+                  라인 {idx + 1}:{' '}
+                  {label ? <span title={description}>{label}</span> : null}
+                  {changed ? <span>{label ? ' · ' : ''}단가 변경</span> : null}
+                </span>
+              )
+            })}
+          </div>
+          )}
           <div className="sfp-line-actions">
             <Button
               variant="secondary"
