@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Spring 서비스를 Gradle 빌드 후 로컬 스택에 재배포한다.
 
@@ -34,6 +34,16 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
+$services = @($Service | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() })
+if ($services.Count -eq 0 -or $services -contains '') {
+    throw '서비스 이름이 비어 있습니다.'
+}
+foreach ($svc in $services) {
+    if ($svc -notmatch '^[a-z0-9-]+$') {
+        throw "잘못된 서비스 이름입니다: $svc"
+    }
+}
+
 # 집PC 는 influxd 가 로컬호스트의 InfluxDB 기본값 8086 을 점유해 portfix 오버레이가 필요하다.
 # 회사PC 등 충돌이 없는 곳에서는 파일이 없을 수 있으므로 존재할 때만 얹는다.
 $composeFiles = @(
@@ -46,7 +56,7 @@ if (Test-Path $portfix) { $composeFiles += $portfix }
 $composeArgs = @()
 foreach ($f in $composeFiles) { $composeArgs += @('-f', $f) }
 
-foreach ($svc in $Service) {
+foreach ($svc in $services) {
     $jar = "services/$svc/build/libs/$svc.jar"
 
     if (-not $SkipBuild) {
@@ -63,13 +73,13 @@ foreach ($svc in $Service) {
 
     # 🚨 --no-deps 를 빼면 postgres·eureka·gateway 가 재생성돼 스택이 Created 로 멈춘다.
     Write-Host "[$svc] compose up --build --no-deps ..." -ForegroundColor Cyan
-    & docker @composeArgs up -d --build --no-deps $svc
+    & docker compose @composeArgs up -d --build --no-deps $svc
     if ($LASTEXITCODE -ne 0) { throw "[$svc] compose up 실패 (exit $LASTEXITCODE)" }
 }
 
 Write-Host ''
 Write-Host '=== 배포본 확인 (컨테이너 시각이 아니라 jar 가 정본이다) ===' -ForegroundColor Yellow
-foreach ($svc in $Service) {
+foreach ($svc in $services) {
     $jar = "services/$svc/build/libs/$svc.jar"
     $containerCreated = & docker inspect "samhan-$svc" --format '{{.Created}}' 2>$null
     $health = & docker inspect "samhan-$svc" --format '{{.State.Health.Status}}' 2>$null
