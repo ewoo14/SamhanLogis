@@ -426,7 +426,7 @@ function V2App() {
   );
   useEffect(() => {
     void chatApi.joinPresence(presenceSession);
-    const leave = () => { void chatApi.leavePresence(presenceSession); };
+    const leave = () => chatApi.leavePresence(presenceSession);
     const removeQuitListener = window.internalChatShell?.onWillQuit(leave);
     const unsubscribe = presenceApi.subscribePresence((event) => {
       if (event.employeeCode) {
@@ -436,6 +436,7 @@ function V2App() {
             : employee),
         );
       } else {
+        void client.invalidateQueries({ queryKey: ["directory"] });
         client.setQueryData<Employee>(["me"], (old) =>
           old ? { ...old, presenceStatus: event.presenceStatus } : old,
         );

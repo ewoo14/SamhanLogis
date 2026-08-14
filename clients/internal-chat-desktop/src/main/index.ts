@@ -105,7 +105,16 @@ if (!hasLock) {
     quitFlushStarted = true
     event.preventDefault()
     mainWindow?.webContents.send('internal-chat:will-quit')
-    setTimeout(() => app.exit(0), 500)
+    let completed = false
+    const finish = () => {
+      if (completed) return
+      completed = true
+      clearTimeout(timeout)
+      ipcMain.removeListener('internal-chat:quit-ack', finish)
+      app.exit(0)
+    }
+    ipcMain.once('internal-chat:quit-ack', finish)
+    const timeout = setTimeout(finish, 2_000)
   })
   app.on('window-all-closed', () => {})
 }

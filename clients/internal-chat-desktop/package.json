@@ -12,7 +12,8 @@
     "build:win": "node ../../scripts/build-internal-chat-desktop-release.cjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:electron-contract": "node scripts/build-and-run-electron-contract.cjs"
   },
   "dependencies": {
     "@samhan/design-system": "file:../web/design-system",
@@ -29,6 +30,7 @@
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/parser": "^8.13.0",
     "@types/node": "^22.10.1",
+    "@playwright/test": "^1.59.1",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",

@@ -68,6 +68,25 @@ describe('삼한 메신저 UI v2', () => {
     expect(screen.getByText('오전 8:36')).toBeInTheDocument()
   })
 
+  it('presence SSE 식별자가 비어도 directory를 재조회해 다른 직원 화면을 갱신한다', async () => {
+    const subscribe = vi.mocked(chatApi.subscribePresence)
+    vi.mocked(chatApi.fetchDirectory)
+      .mockResolvedValueOnce([
+        { employeeCode: 'E2', name: '김대리', jobTitle: '대리', departmentName: '영업팀', presenceStatus: 'OFFLINE' },
+        { employeeCode: 'E1', name: '박개발', jobTitle: '개발자', departmentName: '개발팀', presenceStatus: 'AVAILABLE' },
+      ])
+      .mockResolvedValueOnce([
+        { employeeCode: 'E2', name: '김대리', jobTitle: '대리', departmentName: '영업팀', presenceStatus: 'IN_MEETING' },
+        { employeeCode: 'E1', name: '박개발', jobTitle: '개발자', departmentName: '개발팀', presenceStatus: 'AVAILABLE' },
+      ])
+    let emit: ((event: { employeeCode: string | null; presenceStatus: 'IN_MEETING' }) => void) | undefined
+    subscribe.mockImplementationOnce((onEvent) => { emit = onEvent as typeof emit; return () => undefined })
+    renderApp()
+    await waitFor(() => expect(screen.getByLabelText('박개발 상태: 접속')).toBeInTheDocument())
+    emit?.({ employeeCode: null, presenceStatus: 'IN_MEETING' })
+    await waitFor(() => expect(screen.getByLabelText('김대리 상태: 회의중')).toBeInTheDocument())
+  })
+
   it('directory presence를 REST 재조회가 아닌 별도 SSE로 구독한다', async () => {
     renderApp()
     await waitFor(() => expect(subscribePresence).toHaveBeenCalled())

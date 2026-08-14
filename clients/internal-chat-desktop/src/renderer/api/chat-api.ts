@@ -16,9 +16,21 @@ export const joinPresence = (sessionId: string) => request<void>(`/api/users/mes
 export const leavePresence = (sessionId: string) => request<void>(`/api/users/messenger/presence/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', keepalive: true })
 export const updatePresence = (presenceStatus: PresenceStatus) => request<void>('/api/users/messenger/presence', { method: 'PUT', body: JSON.stringify({ presenceStatus }) })
 export const fetchRooms = () => request<ChatRoom[]>('/admin/groupware/chat/rooms')
-export const fetchGroups = () => request<ChatRoom[]>('/admin/groupware/chat/rooms/groups')
+export async function fetchGroups(): Promise<ChatRoom[]> {
+  const rooms = await request<Array<ChatRoom & { participants?: unknown[]; latestMessageAt?: string | null }>>('/admin/groupware/chat/rooms/groups')
+  return Promise.all(rooms.map(async (room) => {
+    const messages = await fetchMessages(room.roomCode).catch(() => [])
+    const latest = messages.at(-1)
+    return {
+      ...room,
+      memberCount: room.memberCount ?? room.participants?.length ?? 0,
+      lastMessage: room.lastMessage ?? latest?.body ?? null,
+      lastMessageAt: room.lastMessageAt ?? latest?.sentAt ?? room.latestMessageAt ?? null,
+    }
+  }))
+}
 export const fetchMessages = (roomCode: string) => request<ChatMessage[]>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`)
-export const createDirectRoom = (employeeCode: string) => request<ChatRoom>('/admin/groupware/chat/rooms/direct/by-employee-code', { method: 'POST', body: JSON.stringify({ employeeCode }) })
+export const createDirectRoom = (employeeCode: string) => request<ChatRoom>('/api/v1/admin/groupware/chat/rooms/direct/by-employee-code', { method: 'POST', body: JSON.stringify({ employeeCode }) })
 export const createGroupRoom = (employeeCodes: string[]) => request<ChatRoom>('/admin/groupware/chat/rooms/groups', { method: 'POST', body: JSON.stringify({ employeeCodes, roomName: null }) })
 export const sendMessage = (roomCode: string, body: string) => request<ChatMessage>(`/admin/groupware/chat/rooms/${encodeURIComponent(roomCode)}/messages`, { method: 'POST', body: JSON.stringify({ body }) })
 export function subscribe(roomCode: string, onEvent: () => void): () => void {

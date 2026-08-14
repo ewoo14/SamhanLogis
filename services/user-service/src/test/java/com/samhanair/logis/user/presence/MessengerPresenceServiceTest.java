@@ -23,11 +23,12 @@ import java.util.List;
 class MessengerPresenceServiceTest {
     @Mock EmployeeRepository employees;
     @Mock MessengerPresenceRepository presences;
+    @Mock MessengerPresenceSessionRepository presenceSessions;
     private MessengerPresenceService service;
     private final List<SseEmitter> emitters = new ArrayList<>();
 
     @BeforeEach
-    void setUp() { service = new MessengerPresenceService(employees, presences, new ObjectMapper(), () -> { var emitter = org.mockito.Mockito.mock(SseEmitter.class); emitters.add(emitter); return emitter; }); }
+    void setUp() { service = new MessengerPresenceService(employees, presences, presenceSessions, new ObjectMapper(), () -> { var emitter = org.mockito.Mockito.mock(SseEmitter.class); emitters.add(emitter); return emitter; }); }
 
     @Test
     void statusChangeIsBroadcastToAnotherUsersStream() throws java.io.IOException {
@@ -58,6 +59,7 @@ class MessengerPresenceServiceTest {
         when(employees.findById(employeeId)).thenReturn(Optional.of(employee));
         when(presences.findByEmployeeId(employeeId)).thenReturn(Optional.of(MessengerPresence.create(employeeId)));
         when(presences.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(presenceSessions.countByEmployeeIdAndIsDeletedFalse(any())).thenReturn(0L);
 
         SseEmitter emitter = service.stream(employeeId);
         service.closeStream(employeeId, emitter);
@@ -74,6 +76,8 @@ class MessengerPresenceServiceTest {
         var presence = MessengerPresence.create(employeeId);
         when(presences.findByEmployeeId(employeeId)).thenReturn(Optional.of(presence));
         when(presences.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(presenceSessions.findByEmployeeIdAndSessionIdAndIsDeletedFalse(any(), any())).thenReturn(Optional.empty());
+        when(presenceSessions.countByEmployeeIdAndIsDeletedFalse(employeeId)).thenReturn(2L, 1L);
 
         service.join(employeeId, "desktop-a");
         service.join(employeeId, "desktop-b");
