@@ -43,6 +43,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import { ExcelDownloadError } from '../../components/ExcelDownloadError'
+import { DocumentNumberLink } from '../../components/DocumentNumberLink'
 import axios from 'axios'
 
 const PAGE_SIZE = 50
@@ -294,7 +295,8 @@ export function SalesQueryPage() {
   /** DataGrid 열 정의 (행 선택 체크박스 열 제외 — DataGrid 자체 셀 선택 사용) */
   const dataGridColumns: DataGridColumn<SlipQueryRow>[] = useMemo(
     () => [
-      { key: 'slipNo',            label: '판매번호',    filter: 'text' },
+      { key: 'slipNo',            label: '판매번호',    filter: 'text',
+        render: (row: SlipQueryRow) => <DocumentNumberLink number={row.slipNo} to={row.id ? `/sales/${row.id}` : ''} /> },
       { key: 'partnerName',       label: '거래처',      filter: 'text' },
       { key: 'businessNumber',    label: '거래처코드',   filter: 'text' },
       { key: 'deliveryAddress',   label: '배송주소',    filter: 'text' },
@@ -736,7 +738,7 @@ export function SalesQueryPage() {
                     {/* 순번 */}
                     <Td align="center">{rowIndex}</Td>
                     {/* 판매번호 — UUID 비공개: slipNo 만 표시 */}
-                    <Td>{row.slipNo}</Td>
+                    <Td><DocumentNumberLink number={row.slipNo} to={row.id ? `/sales/${row.id}` : ''} /></Td>
                     {/* 거래처 */}
                     <Td>{row.partnerName ?? '—'}</Td>
                     {/* 거래처코드 = businessNumber (사업자등록번호) */}

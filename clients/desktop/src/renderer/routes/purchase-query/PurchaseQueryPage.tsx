@@ -31,6 +31,7 @@ import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import { ExcelDownloadError } from '../../components/ExcelDownloadError'
 import { InboundInspectionDialog } from '../components/InboundInspectionDialog'
+import { DocumentNumberLink } from '../../components/DocumentNumberLink'
 
 const PAGE_SIZE = 50
 const INSPECTABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const
@@ -189,7 +190,8 @@ export function PurchaseQueryPage() {
   /** DataGrid 열 정의 (입고전표 사용자 노출 컬럼 + 검수 action) */
   const dataGridColumns: DataGridColumn<SlipQueryRow>[] = useMemo(
     () => [
-      { key: 'slipNo',                 label: '구매번호',    filter: 'text' },
+      { key: 'slipNo',                 label: '구매번호',    filter: 'text',
+        render: (row: SlipQueryRow) => <DocumentNumberLink number={row.slipNo} to={row.id ? `/purchases/${row.id}` : ''} /> },
       { key: 'partnerName',            label: '거래처',      filter: 'text' },
       { key: 'businessNumber',         label: '거래처코드',   filter: 'text' },
       { key: 'totalAmount',            label: '금액',        align: 'right' as const, filter: false as const,
@@ -538,7 +540,7 @@ export function PurchaseQueryPage() {
                     {/* 순번 */}
                     <Td align="center">{rowIndex}</Td>
                     {/* 구매번호 — UUID 비공개: slipNo 만 표시 */}
-                    <Td>{row.slipNo}</Td>
+                    <Td><DocumentNumberLink number={row.slipNo} to={row.id ? `/purchases/${row.id}` : ''} /></Td>
                     {/* 거래처 */}
                     <Td>{row.partnerName ?? '—'}</Td>
                     {/* 거래처코드 = businessNumber (사업자등록번호) */}

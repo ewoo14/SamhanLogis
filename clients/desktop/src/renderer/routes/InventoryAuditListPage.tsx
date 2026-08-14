@@ -40,6 +40,7 @@ import {
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { DocumentNumberLink } from '../components/DocumentNumberLink'
 
 const STATUS_VARIANT: Record<
   AuditStatus,
@@ -97,7 +98,10 @@ export function InventoryAuditListPage() {
   }, [currentYear])
 
   const columns: DataTableColumn<AuditSummary>[] = [
-    { key: 'auditNo', header: '실사번호', width: '180px', mobilePriority: 'primary' },
+    {
+      key: 'auditNo', header: '실사번호', width: '180px', mobilePriority: 'primary',
+      render: (row) => <DocumentNumberLink number={row.auditNo} to={row.id ? `/warehouse/audit/${row.id}` : ''} />,
+    },
     {
       key: 'warehouseCode',
       header: '창고',
