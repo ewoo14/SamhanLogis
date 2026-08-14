@@ -20,6 +20,9 @@ Assert-Contract ($text -match 'healthy') 'deployment must require a healthy targ
 Assert-Contract ($text -match 'REDEPLOY_HEALTH_TIMEOUT_SECONDS') 'deployment must have a finite, visible health timeout'
 Assert-Contract ($text -match 'healthTimeoutSeconds' -and $text -match 'throw') 'health timeout must fail with a user-visible message'
 Assert-Contract ($text -match 'Encoding\]::UTF8.GetString') 'actuator response bytes must be decoded before JSON readiness parsing'
+Assert-Contract ($text -match 'Get-ComposeHealthTimeoutSeconds' -and $text -match '475s') 'default health timeout must cover the measured compose failure horizon'
+Assert-Contract ($text -match 'start_period' -and $text -match 'retries' -and $text -match 'interval' -and $text -match 'timeout') 'default health timeout must document all compose healthcheck inputs'
+Assert-Contract ($text -match 'interval[^\r\n]*timeout|timeout[^\r\n]*interval') 'compose health horizon calculation must include probe timeout alongside interval'
 
 if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Output "RED_CONTRACT_FAILED: $_" }

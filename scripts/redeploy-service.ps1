@@ -58,8 +58,66 @@ foreach ($f in $composeFiles) { $composeArgs += @('-f', $f) }
 
 . "$repoRoot\scripts\lib\local-stack-port.ps1"
 
+function Convert-ComposeDurationToSeconds {
+    param([AllowNull()][string] $Duration)
+
+    if ([string]::IsNullOrWhiteSpace($Duration)) { return 0 }
+    $total = 0.0
+    foreach ($match in [regex]::Matches($Duration, '(?<value>\d+(?:\.\d+)?)(?<unit>ns|us|µs|ms|s|m|h)')) {
+        $value = [double]$match.Groups['value'].Value
+        switch ($match.Groups['unit'].Value) {
+            'h' { $total += $value * 3600 }
+            'm' { $total += $value * 60 }
+            's' { $total += $value }
+            'ms' { $total += $value / 1000 }
+            { $_ -in @('us', 'µs') } { $total += $value / 1000000 }
+            'ns' { $total += $value / 1000000000 }
+        }
+    }
+    return [math]::Ceiling($total)
+}
+
+function Get-ComposeHealthTimeoutSeconds {
+    # Docker Compose health failure horizon (per service), conservatively including
+    # every probe timeout: start_period + retries * (interval + timeout).
+    # Recalculate this from compose config so a future compose edit changes the
+    # default automatically; the measured current maximum is 75 + 20 * (15 + 5) = 475s.
+    $configJson = & docker compose @composeArgs config --format json 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "compose healthcheck 정의를 읽지 못했습니다 (exit $LASTEXITCODE): $configJson"
+    }
+    try {
+        $config = ($configJson -join [Environment]::NewLine) | ConvertFrom-Json
+    } catch {
+        throw "compose healthcheck 정의 JSON을 해석하지 못했습니다: $($_.Exception.Message)"
+    }
+
+    $maxSeconds = 0
+    $maxService = ''
+    foreach ($serviceProperty in $config.services.PSObject.Properties) {
+        $healthcheck = $serviceProperty.Value.healthcheck
+        if ($null -eq $healthcheck -or $healthcheck -eq $false) { continue }
+
+        $startPeriod = Convert-ComposeDurationToSeconds $healthcheck.start_period
+        $interval = Convert-ComposeDurationToSeconds $healthcheck.interval
+        $timeout = Convert-ComposeDurationToSeconds $healthcheck.timeout
+        $retries = if ($null -eq $healthcheck.retries) { 0 } else { [int]$healthcheck.retries }
+        $horizon = $startPeriod + ($retries * ($interval + $timeout))
+        if ($horizon -gt $maxSeconds) {
+            $maxSeconds = $horizon
+            $maxService = $serviceProperty.Name
+        }
+    }
+
+    if ($maxSeconds -le 0) {
+        throw 'compose에 유효한 healthcheck 정의가 없어 health 대기 상한을 계산할 수 없습니다.'
+    }
+    Write-Host ("compose health 상한 계산: {0}초 ({1}) = start_period + retries × (interval + timeout)" -f $maxSeconds, $maxService) -ForegroundColor DarkGray
+    return $maxSeconds
+}
+
 $timeoutText = [Environment]::GetEnvironmentVariable('REDEPLOY_HEALTH_TIMEOUT_SECONDS')
-$healthTimeoutSeconds = 420
+$healthTimeoutSeconds = Get-ComposeHealthTimeoutSeconds
 if (-not [string]::IsNullOrWhiteSpace($timeoutText)) {
     if ($timeoutText -notmatch '^[1-9][0-9]*$') {
         throw "REDEPLOY_HEALTH_TIMEOUT_SECONDS 는 양의 정수여야 합니다: $timeoutText"
