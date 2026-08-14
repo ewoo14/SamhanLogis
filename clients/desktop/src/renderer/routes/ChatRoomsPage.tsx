@@ -32,7 +32,7 @@ export function ChatRoomsPage() {
     <section aria-label="새 대화" id="chat-new-conversation" tabIndex={-1}>
       {groupMode ? <input aria-label="그룹방 이름" value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="그룹방 이름" /> : null}
       <input aria-label="대화 상대 검색" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="이름 검색" />
-      {recipients.data?.map((recipient) => <button type="button" key={recipient.userId} onClick={() => chooseRecipient(recipient)}>{sanitizeInternalLabel(recipient.name)} · {recipient.department ?? ''} · {recipient.employeeCode ?? ''}</button>)}
+      {recipients.data?.map((recipient) => recipient.employeeCode ? <button type="button" key={recipient.userId} onClick={() => chooseRecipient(recipient)}>{sanitizeInternalLabel(recipient.name)} · {recipient.department ?? ''} · {recipient.employeeCode}</button> : <span key={recipient.userId}>{sanitizeInternalLabel(recipient.name)} · {recipient.department ?? ''} · 담당자코드 미부여</span>)}
       {groupMode ? <>{selectedGroup.map((recipient) => <span key={recipient.userId}>{sanitizeInternalLabel(recipient.name)} · {recipient.department ?? ''} · {recipient.employeeCode ?? ''}</span>)}<Button type="button" onClick={() => createGroup.mutate()} disabled={createGroup.isPending || !groupName.trim() || selectedGroup.length === 0}>그룹방 만들기</Button></> : null}
       {!groupMode && selected ? <><span>{sanitizeInternalLabel(selected.name)}</span><Button type="button" onClick={() => create.mutate()} disabled={create.isPending}>대화 시작</Button></> : null}
       {createError ? <p role="alert">대화방을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.</p> : null}

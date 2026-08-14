@@ -42,7 +42,7 @@ public class ChatRoomService {
         if (roomName == null || roomName.isBlank()) throw new BusinessException(ErrorCode.INVALID_INPUT, "방 이름은 필수입니다");
         java.util.List<UUID> members = employeeCodes.stream().filter(java.util.Objects::nonNull).map(String::trim)
                 .filter(code -> !code.isBlank()).distinct().map(code -> userClient.resolveUserIdByEmployeeCode(code)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "참여자를 찾을 수 없습니다"))).toList();
+                        .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "담당자코드가 등록되지 않은 직원은 참여자로 추가할 수 없습니다"))).toList();
         members = new java.util.ArrayList<>(members);
         if (members.contains(creator)) members.remove(creator);
         if (members.isEmpty()) throw new BusinessException(ErrorCode.INVALID_INPUT, "자기 자신만으로 단톡방을 만들 수 없습니다");
@@ -69,7 +69,7 @@ public class ChatRoomService {
         java.util.List<UUID> members = (employeeCodes == null ? java.util.List.<String>of() : employeeCodes).stream()
                 .filter(java.util.Objects::nonNull).map(String::trim).filter(code -> !code.isBlank()).distinct()
                 .map(code -> userClient.resolveUserIdByEmployeeCode(code)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "참여자를 찾을 수 없습니다"))).toList();
+                        .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "담당자코드가 등록되지 않은 직원은 참여자로 추가할 수 없습니다"))).toList();
         java.util.List<UUID> desired = new java.util.ArrayList<>();
         desired.add(actor);
         members.stream().filter(id -> !id.equals(actor)).forEach(desired::add);

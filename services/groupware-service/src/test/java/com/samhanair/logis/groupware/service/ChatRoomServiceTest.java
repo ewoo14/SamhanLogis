@@ -80,6 +80,17 @@ class ChatRoomServiceTest {
     }
 
     @Test
+    void creating_group_room_reports_missing_employee_code_as_data_defect() {
+        UUID creator = UUID.randomUUID();
+        when(userClient.resolveUserIdByEmployeeCode("E404")).thenReturn(Optional.empty());
+        ChatRoomService service = new ChatRoomService(roomRepository, participantRepository, userClient, null);
+
+        assertThatThrownBy(() -> service.createGroup(creator, List.of("E404"), "운영방"))
+                .hasMessageContaining("담당자코드")
+                .hasMessageContaining("등록");
+    }
+
+    @Test
     void editing_group_room_renames_and_replaces_members_but_keeps_creator() {
         UUID creator = UUID.randomUUID();
         UUID oldMember = UUID.randomUUID();

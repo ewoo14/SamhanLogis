@@ -116,4 +116,17 @@ describe('room 기반 1:1 채팅 fix1 화면 계약', () => {
     await screen.findByRole('heading', { name: /김개발/ })
     expect(screen.queryByRole('button', { name: '그룹방 편집' })).toBeNull()
   })
+
+  it('code-missing recipients are explained and cannot be selected', async () => {
+    const api = await import('../api/messengerApi')
+    vi.mocked(api.searchRecipients).mockResolvedValue([
+      { userId: 'user-without-code', name: '홍길동', department: '운영팀', employeeCode: null },
+    ])
+    renderWithQuery(<MemoryRouter><ChatRoomsPage /></MemoryRouter>)
+    fireEvent.change(screen.getByRole('textbox', { name: '대화 상대 검색' }), { target: { value: '홍길동' } })
+    const result = await screen.findByText(/담당자코드 미부여/)
+    expect(result).toBeTruthy()
+    expect(result.closest('button')).toBeNull()
+    expect(screen.queryByRole('button', { name: /홍길동/ })).toBeNull()
+  })
 })
