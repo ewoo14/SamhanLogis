@@ -53,7 +53,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>매출은 별도 엔티티가 아닌 {@code Slip.slipType=OUTBOUND} 이다.
  * 목록은 {@code /slips?type=OUTBOUND} (legacy alias) 및 {@code /slips/query?slipType=OUTBOUND} 양쪽을
  * 검증하며, {@code SALES / MANAGER / MASTER} 만 허용한다.
- * {@code INVENTORY / WAREHOUSE} 는 SP-03 정책상 매출 전표 열람 불가 → R1/R2 모두 403.
+ * {@code INVENTORY / WAREHOUSE} 는 SP-03 정책상 출고 전표 열람 불가 → R1/R2 모두 403.
  *
  * <p>권한 매트릭스 (SP-08-6-1):
  * <ul>

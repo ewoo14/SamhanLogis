@@ -87,7 +87,7 @@ public class TaxInvoiceLine extends BaseEntity {
     @Column(name = "memo", length = 500)
     private String memo;
 
-    /** 매출전표 원천의 모델명 snapshot. */
+    /** 출고전표 원천의 모델명 snapshot. */
     @Column(name = "model_name", length = 100)
     private String modelName;
 
@@ -148,7 +148,7 @@ public class TaxInvoiceLine extends BaseEntity {
     }
 
     /**
-     * 신규 라인 생성 (금액 스냅샷 지정). 매출전표처럼 라인별 반올림/조정이 끝난 source 의
+     * 신규 라인 생성 (금액 스냅샷 지정). 출고전표처럼 라인별 반올림/조정이 끝난 source 의
      * 공급가액/부가세를 세금계산서에 그대로 보존할 때 사용합니다.
      */
     public static TaxInvoiceLine createWithAmounts(TaxInvoice taxInvoice, int lineNo,
@@ -168,7 +168,7 @@ public class TaxInvoiceLine extends BaseEntity {
         return line;
     }
 
-    /** 매출전표 라인 → 세금계산서 라인 스냅샷 변환. */
+    /** 출고전표 라인 → 세금계산서 라인 스냅샷 변환. */
     public static TaxInvoiceLine createFromSalesAccountingSlipLine(
             TaxInvoice taxInvoice, int lineNo, SalesAccountingSlipLine sourceLine) {
         if (sourceLine == null) {
@@ -179,7 +179,7 @@ public class TaxInvoiceLine extends BaseEntity {
             itemName = sourceLine.getProductCode();
         }
         if (itemName == null || itemName.isBlank()) {
-            itemName = "매출전표 품목";
+            itemName = "출고전표 품목";
         }
         String spec = sourceLine.getProductCode();
         TaxInvoiceLine line = createWithAmounts(taxInvoice, lineNo, itemName, spec, null,
@@ -190,7 +190,7 @@ public class TaxInvoiceLine extends BaseEntity {
         return line;
     }
 
-    /** 혼합 매출전표의 한 배분 축만 세금계산서 라인으로 복사한다. */
+    /** 혼합 출고전표의 한 배분 축만 세금계산서 라인으로 복사한다. */
     public static TaxInvoiceLine createFromSalesAccountingSlipAllocation(
             TaxInvoice taxInvoice, int lineNo, SalesAccountingSlipLine sourceLine,
             SalesAccountingSlipAllocation allocation) {
@@ -202,7 +202,7 @@ public class TaxInvoiceLine extends BaseEntity {
             itemName = sourceLine.getProductCode();
         }
         if (itemName == null || itemName.isBlank()) {
-            itemName = "매출전표 품목";
+            itemName = "출고전표 품목";
         }
         BigDecimal lineTotal = sourceLine.getLineTotal();
         BigDecimal ratio = lineTotal == null || lineTotal.signum() == 0
@@ -217,7 +217,7 @@ public class TaxInvoiceLine extends BaseEntity {
         return line;
     }
 
-    /** 매입전표 라인 → 수신 세금계산서 라인 스냅샷 변환. */
+    /** 입고전표 라인 → 수신 세금계산서 라인 스냅샷 변환. */
     public static TaxInvoiceLine createFromPurchaseAccountingSlipLine(
             TaxInvoice taxInvoice, int lineNo, PurchaseAccountingSlipLine sourceLine) {
         if (sourceLine == null) {
@@ -228,7 +228,7 @@ public class TaxInvoiceLine extends BaseEntity {
             itemName = sourceLine.getProductCode();
         }
         if (itemName == null || itemName.isBlank()) {
-            itemName = "매입전표 품목";
+            itemName = "입고전표 품목";
         }
         String spec = sourceLine.getProductCode();
         return createWithAmounts(taxInvoice, lineNo, itemName, spec, null,

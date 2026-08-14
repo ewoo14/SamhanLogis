@@ -75,7 +75,7 @@ class AccountingSlipMultipleBagFetchRegressionIT extends AbstractPostgresIT {
 
     @BeforeEach
     void seedMultiLineMultiAllocationSlips() {
-        // 매출전표 2건 — 각 2 lines × 2 allocations, POSTED, 미연결(taxInvoiceId=null).
+        // 출고전표 2건 — 각 2 lines × 2 allocations, POSTED, 미연결(taxInvoiceId=null).
         salesSlipRepository.saveAndFlush(
                 buildPostedSalesSlip(SALES_SLIP_NO_1, "(주)엠비에프하나"));
         salesSlipRepository.saveAndFlush(
@@ -84,7 +84,7 @@ class AccountingSlipMultipleBagFetchRegressionIT extends AbstractPostgresIT {
         salesSlipRepository.saveAndFlush(
                 buildDraftSalesSlip(SALES_SLIP_NO_DRAFT, "(주)엠비에프드래프트"));
 
-        // 매입전표 2건 — 각 2 lines × 2 allocations, POSTED.
+        // 입고전표 2건 — 각 2 lines × 2 allocations, POSTED.
         purchaseSlipRepository.saveAndFlush(
                 buildPostedPurchaseSlip(PURCHASE_SLIP_NO_1, "(주)엠비에프하나"));
         purchaseSlipRepository.saveAndFlush(

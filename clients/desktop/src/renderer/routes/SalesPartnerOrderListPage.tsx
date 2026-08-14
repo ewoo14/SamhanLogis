@@ -229,7 +229,7 @@ export function SalesPartnerOrderListPage() {
     setMergeDialogOpen(false)
     // FE P2: 토스트 카피 — N개 주문 병합 전환 + 4초 소멸 (가이드 §2.7)
     setConvertSuccessMessage(
-      `판매전표 ${slipNo} 발행 완료 — ${convertedOrderNos.length}개 주문 병합 전환`,
+      `출고전표 ${slipNo} 발행 완료 — ${convertedOrderNos.length}개 주문 병합 전환`,
     )
     // 4초 후 토스트 자동 소멸
     setTimeout(() => setConvertSuccessMessage(null), 4000)
@@ -604,7 +604,7 @@ export function SalesPartnerOrderListPage() {
               aria-disabled={!canMergeConvert}
               onClick={() => setMergeDialogOpen(true)}
             >
-              판매전표로 병합 전환
+              출고전표로 병합 전환
             </Button>
             {!canSearchPartners ? (
               <span role="alert" data-testid="merge-convert-permission-hint">

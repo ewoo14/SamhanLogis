@@ -684,7 +684,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const isOutbound = mode === 'OUTBOUND'
   const listPath = isOutbound ? '/sales' : '/purchases'
   const queryClient = useQueryClient()
-  const titleLabel = isOutbound ? '새 판매전표' : '새 입고전표'
+  const titleLabel = isOutbound ? '새 출고전표' : '새 입고전표'
   const isMobile = useIsMobile()
 
   // Slice A: AppHeader 동적 화면명 (Designer wireframes.md § 1.3)

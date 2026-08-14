@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** MIG-3 매입/매출전표 공통 importer. */
+/** MIG-3 매입/출고전표 공통 importer. */
 @RequiredArgsConstructor
 abstract class AbstractEcountSlipImporter {
 

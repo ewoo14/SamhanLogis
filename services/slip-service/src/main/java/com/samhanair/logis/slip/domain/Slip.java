@@ -783,7 +783,7 @@ public class Slip extends BaseEntity {
                              String recipientPhone, LocalDate paymentDueDate) {
         if (this.slipType != SlipType.INBOUND) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
-                    "매입 전표만 직접 수정할 수 있습니다.");
+                    "입고 전표만 직접 수정할 수 있습니다.");
         }
         requireEditable();
         if (partnerId != null) {
@@ -814,7 +814,7 @@ public class Slip extends BaseEntity {
     public void replaceLines(List<SlipLine> newLines, String actorId) {
         if (this.slipType != SlipType.INBOUND) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
-                    "매입 전표만 직접 수정할 수 있습니다.");
+                    "입고 전표만 직접 수정할 수 있습니다.");
         }
         requireEditable();
         String deleter = actorId == null || actorId.isBlank() ? "system" : actorId;
@@ -1320,7 +1320,7 @@ public class Slip extends BaseEntity {
     }
 
     /**
-     * 매입 전표 soft delete — SP-08-5-3 신규.
+     * 입고 전표 soft delete — SP-08-5-3 신규.
      *
      * <p>처리 순서:
      * <ol>
@@ -1357,7 +1357,7 @@ public class Slip extends BaseEntity {
     }
 
     /**
-     * 매출 전표 soft delete — SP-08-6-3 신규.
+     * 출고 전표 soft delete — SP-08-6-3 신규.
      *
      * <p>처리 순서:
      * <ol>
@@ -1379,7 +1379,7 @@ public class Slip extends BaseEntity {
     }
 
     /**
-     * 매출 전표 soft delete — 삭제자 표시명을 함께 저장한다.
+     * 출고 전표 soft delete — 삭제자 표시명을 함께 저장한다.
      *
      * <p><b>단일 시각 각인 (#758 머지게이트 감사 HIGH fix)</b>: {@code LocalDateTime.now()} 를
      * 이 메서드에서 <b>한 번만</b> 캡처해 헤더와 cascade 되는 모든 라인에 동일하게 주입한다.

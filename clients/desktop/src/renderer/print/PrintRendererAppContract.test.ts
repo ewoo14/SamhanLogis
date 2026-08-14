@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { PrintRendererApp, type SlipData } from '../../../print-renderer/PrintRendererApp'
 
 describe('PrintRendererApp outbound copy contract', () => {
-  test('헤드리스 사본은 판매전표 양식을 사용하고 금액형 출고전표 문구를 렌더하지 않는다', () => {
+  test('헤드리스 사본은 출고전표 양식을 사용하고 금액형 출고전표 문구를 렌더하지 않는다', () => {
     const html = renderToStaticMarkup(createElement(PrintRendererApp, {
       slipData,
       driverSignatureBase64: 'driver-base64',

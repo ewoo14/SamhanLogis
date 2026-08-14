@@ -107,7 +107,7 @@ test('Excel 실패 안내 — 구매관리', async ({ page }) => {
   await openAndFailExport(page, '/purchases', 'purchase-query-excel-download', 'purchase-query-excel-error', 'excel-failure-purchases')
 })
 
-test('Excel 실패 안내 — 판매전표목록', async ({ page }) => {
+test('Excel 실패 안내 — 출고전표목록', async ({ page }) => {
   await openAndFailExport(page, '/sales/slips', 'slip-list-excel-export', 'slip-list-excel-error', 'excel-failure-slip-list')
 })
 
@@ -198,7 +198,7 @@ test('F-6 화면 필터와 Excel — 6화면 실제 건수 기록', async ({ pag
   await expect(page.getByTestId('slip-list-excel-export')).toBeVisible({ timeout: 30_000 })
   await page.getByLabel('배송태그 필터').selectOption('DAY')
   await page.waitForTimeout(600)
-  await countText('판매전표목록 DAY')
+  await countText('출고전표목록 DAY')
   await download('f6-slip-list-day.xlsx')
 
   await page.goto(`${BASE_URL}/#/accounting/journals`)

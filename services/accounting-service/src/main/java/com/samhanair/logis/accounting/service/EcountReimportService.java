@@ -376,10 +376,10 @@ public class EcountReimportService {
                 "user-service", "/admin/departments/imports/ecount", "file", remoteImportClient));
         targets.add(remote(EcountSlice.MIG_2, "warehouse", "창고-Excel다운로드", Set.of(".csv"),
                 "inventory-service", "/admin/warehouses/imports/ecount", "file", remoteImportClient));
-        targets.add(local(EcountSlice.MIG_3, "purchase-slip", "매입전표I-Excel다운로드", Set.of(".csv"),
+        targets.add(local(EcountSlice.MIG_3, "purchase-slip", "입고전표I-Excel다운로드", Set.of(".csv"),
                 (file, user) -> withInput(file, input -> summarize(purchaseSlipImporter.importCsv(input, user))),
                 "staging.ecount_purchase_slip_raw"));
-        targets.add(local(EcountSlice.MIG_3, "sales-slip", "매출전표I-Excel다운로드", Set.of(".csv"),
+        targets.add(local(EcountSlice.MIG_3, "sales-slip", "출고전표I-Excel다운로드", Set.of(".csv"),
                 (file, user) -> withInput(file, input -> summarize(salesSlipImporter.importCsv(input, user))),
                 "staging.ecount_sales_slip_raw"));
         targets.add(local(EcountSlice.MIG_3, "general-voucher", "일반전표-Excel다운로드", Set.of(".csv"),
@@ -388,10 +388,10 @@ public class EcountReimportService {
         targets.add(local(EcountSlice.MIG_3, "journal-entry", "회계전표분개-Excel다운로드", Set.of(".csv"),
                 (file, user) -> withInput(file, input -> summarize(journalEntryImporter.importCsv(input, user))),
                 "staging.ecount_journal_entry_raw"));
-        targets.add(local(EcountSlice.MIG_4, "tax-invoice", "세금계산서용 판매전표-Excel다운로드", Set.of(".csv"),
+        targets.add(local(EcountSlice.MIG_4, "tax-invoice", "세금계산서용 출고전표-Excel다운로드", Set.of(".csv"),
                 (file, user) -> withInput(file, input -> summarize(taxInvoiceImporter.importCsv(input, user))),
                 "staging.ecount_tax_invoice_raw"));
-        targets.add(local(EcountSlice.MIG_4, "sales-slip-line", "판매전표-Excel다운로드", Set.of(".csv"),
+        targets.add(local(EcountSlice.MIG_4, "sales-slip-line", "출고전표-Excel다운로드", Set.of(".csv"),
                 (file, user) -> withInput(file, input -> summarize(salesSlipLineImporter.importCsv(input, user))),
                 "staging.ecount_sales_slip_line_raw"));
         targets.add(local(EcountSlice.MIG_4, "summary", "매출매입내역-Excel다운로드", Set.of(".csv"),

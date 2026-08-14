@@ -392,7 +392,7 @@ export interface SlipLineInput {
   lineTotalWithVat?: string
 }
 
-/** 매입 전표 direct PUT 수정 요청 — BE `SlipUpdateRequest`. */
+/** 입고 전표 direct PUT 수정 요청 — BE `SlipUpdateRequest`. */
 export interface SlipUpdateRequest {
   updatedAt: string
   /**
@@ -693,7 +693,7 @@ export async function getPriceMemories(
 }
 
 /**
- * 매입 전표 soft delete — optimistic lock (updatedAt 필수).
+ * 입고 전표 soft delete — optimistic lock (updatedAt 필수).
  *
  * BE `DELETE /slips/{id}` + request body `{ updatedAt }`.
  * 응답 없음 (204). 204/200 모두 성공으로 처리.
@@ -717,7 +717,7 @@ export async function deletePurchaseSlip(
 }
 
 /**
- * 매출 전표 soft delete — SP-08-6-3 신규. optimistic lock (updatedAt 필수).
+ * 출고 전표 soft delete — SP-08-6-3 신규. optimistic lock (updatedAt 필수).
  *
  * BE `DELETE /slips/{id}/sales` + request body `{ updatedAt }`.
  * 응답 없음 (204). 204/200 모두 성공으로 처리.
@@ -761,7 +761,7 @@ export async function restoreSlip(id: string): Promise<SlipSummary> {
 }
 
 /**
- * 매입 전표 direct PUT 수정.
+ * 입고 전표 direct PUT 수정.
  *
  * @param id 전표 UUID (path param 전용, 화면 표시 금지)
  * @param body updatedAt 낙관적 잠금 + 헤더/라인 전체 교체 요청
@@ -779,7 +779,7 @@ export async function updatePurchaseSlip(
 }
 
 /**
- * 매출 전표 direct PUT 수정 — SP-08-6-2 신규.
+ * 출고 전표 direct PUT 수정 — SP-08-6-2 신규.
  *
  * OUTBOUND 전표의 헤더 및 라인을 전체 교체 (optimistic lock).
  * 에러 코드:

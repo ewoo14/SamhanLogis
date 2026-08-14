@@ -59,7 +59,7 @@ public class SlipServiceClient {
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
     private static final String SLIP_SERVICE_BASE = "http://slip-service";
     private static final String BUNDLE_CONVERSION_MESSAGE =
-            "세트 품목은 판매전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
+            "세트 품목은 출고전표 라인으로 저장할 수 없습니다. 구성품으로 전개해 주세요.";
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;

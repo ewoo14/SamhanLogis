@@ -69,7 +69,7 @@ interface ActiveApprovalTemplateDto {
 
 /** 결재라인 설정 대상 전표 종류. */
 export const DOC_TYPES: { value: string; label: string }[] = [
-  { value: 'SLIP_OUTBOUND', label: '판매전표' },
+  { value: 'SLIP_OUTBOUND', label: '출고전표' },
   { value: 'SLIP_INBOUND', label: '입고전표' },
   { value: 'PARTNER_ORDER', label: '주문' },
 ]

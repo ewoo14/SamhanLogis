@@ -24,7 +24,7 @@ export type SalesSlipLedgerDisplay =
   | { status: 'error'; message: string }
   | { status: 'success'; openingBalance: string; closingBalance: string }
 
-/** 판매전표 상세 응답에 저장된 거래처 snapshot을 헤더 표시·수정 폼에 공급한다. */
+/** 출고전표 상세 응답에 저장된 거래처 snapshot을 헤더 표시·수정 폼에 공급한다. */
 export function resolveSalesSlipPartnerHeader(
   source: Pick<SalesSlipLedgerSource, 'partnerName' | 'partnerCode' | 'businessNumber'>,
 ): SalesSlipPartnerHeader {
@@ -35,7 +35,7 @@ export function resolveSalesSlipPartnerHeader(
   }
 }
 
-/** accounting-service의 일자별 원장 계약을 위한 판매전표 단일일 조회 조건을 만든다. */
+/** accounting-service의 일자별 원장 계약을 위한 출고전표 단일일 조회 조건을 만든다. */
 export function buildSalesSlipLedgerRequest(
   source: SalesSlipLedgerSource,
 ): SalesSlipLedgerRequest | null {

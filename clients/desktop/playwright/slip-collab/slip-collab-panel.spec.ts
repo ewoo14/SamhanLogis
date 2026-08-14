@@ -194,7 +194,7 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await page.getByTestId('sales-slip-edit-button').click()
     const inlineForm = page.getByTestId('sales-slip-edit-modal')
     await expect(inlineForm).toBeVisible()
-    await expect(page.getByRole('dialog', { name: '매출 전표 수정' })).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: '출고 전표 수정' })).toHaveCount(0)
 
     await expect(page.getByTestId('slip-coedit-field-header-partnerName')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-header-memo')).toBeVisible()

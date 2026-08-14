@@ -14,7 +14,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-/** slip-service의 거래처별 원장 판매전표 read 계약 소비자. */
+/** slip-service의 거래처별 원장 출고전표 read 계약 소비자. */
 @Component
 public class PartnerLedgerSalesClient {
     private final RestClient restClient;
@@ -46,11 +46,11 @@ public class PartnerLedgerSalesClient {
                     .data();
         } catch (RuntimeException ex) {
             throw new BusinessException(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE,
-                    "판매전표 원장 조회에 실패했습니다", ex);
+                    "출고전표 원장 조회에 실패했습니다", ex);
         }
     }
 
-    /** 저장 직후 판매전표를 상태와 무관하게 원장 대상 projection으로 조회한다. */
+    /** 저장 직후 출고전표를 상태와 무관하게 원장 대상 projection으로 조회한다. */
     public Sale findBySlipNo(String slipNo) {
         try {
             return restClient.get()
@@ -63,7 +63,7 @@ public class PartnerLedgerSalesClient {
                     .data();
         } catch (RuntimeException ex) {
             throw new BusinessException(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE,
-                    "저장 대상 판매전표 원장 조회에 실패했습니다", ex);
+                    "저장 대상 출고전표 원장 조회에 실패했습니다", ex);
         }
     }
 

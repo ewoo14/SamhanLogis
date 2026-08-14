@@ -242,7 +242,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             @org.springframework.data.repository.query.Param("partnerId") UUID partnerId);
 
     /**
-     * 거래처별 원장 판매전표 read projection source.
+     * 거래처별 원장 출고전표 read projection source.
      *
      * <p>기존 DPS용 {@code findByPeriodWithLines}와 분리된 추가 계약이다. 활성 OUTBOUND 중 호출자가
      * 넘긴 원장 포함 상태만 기간·거래처코드로 조회하고, {@code lines}를 함께 fetch한다.
@@ -252,7 +252,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
      * @param to 조회 종료일(포함)
      * @param partnerCode 거래처코드, null이면 전체
      * @param statuses 원장 포함 상태
-     * @return 전표와 품목을 함께 읽은 활성 판매전표
+     * @return 전표와 품목을 함께 읽은 활성 출고전표
      */
     @EntityGraph(attributePaths = "lines")
     @org.springframework.data.jpa.repository.Query("""

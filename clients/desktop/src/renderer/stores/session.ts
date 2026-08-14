@@ -133,7 +133,7 @@ export const useSessionStore = create<SessionState>((set) => ({
 }))
 
 /**
- * 매출 전표 목록 조회 권한.
+ * 출고 전표 목록 조회 권한.
  *
  * BE `SlipSalesAccessGuard#canReadOutboundSales` 와 동일 허용 집합(SALES/MANAGER/MASTER).
  * seed `sales.slip.list` 는 ACCOUNTANT/INVENTORY 에도 view=TRUE 를 부여하나,

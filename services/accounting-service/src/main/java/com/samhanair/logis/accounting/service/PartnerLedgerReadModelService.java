@@ -86,7 +86,7 @@ public class PartnerLedgerReadModelService {
     }
 
     /**
-     * 판매전표 상세용 원장 read — 아직 canonical 상태가 아닌 저장 대상 slipNo를 선택적으로 포함한다.
+     * 출고전표 상세용 원장 read — 아직 canonical 상태가 아닌 저장 대상 slipNo를 선택적으로 포함한다.
      *
      * <p>대상 전표가 이미 기간 원장에 있으면 slipNo로 중복 제거하고, DRAFT/SAVED라서 기간
      * 조회에서 빠졌으면 대상 projection을 한 번만 추가한다. 따라서 저장 직후 후잔은 누락과
@@ -179,7 +179,7 @@ public class PartnerLedgerReadModelService {
                     ? selectedSummary
                     : resolveSalePartner(sale);
             if (sale.partnerId() != null && resolved == null && selectedId == null) {
-                // UUID가 있는 판매전표는 이후 batch master lookup으로 active 여부를 확인한다.
+                // UUID가 있는 출고전표는 이후 batch master lookup으로 active 여부를 확인한다.
                 groups.computeIfAbsent(sale.partnerId(), MutablePartner::new);
                 continue;
             }
@@ -294,7 +294,7 @@ public class PartnerLedgerReadModelService {
                     BigDecimal salesAmount = accountCodes.revenueCodes().contains(line.getAccountCode())
                             ? credit.subtract(debit) : BigDecimal.ZERO;
                     String memo = line.getMemo();
-                    String description = "판매전표 없음 / 전표 미이관"
+                    String description = "출고전표 없음 / 전표 미이관"
                             + (memo == null || memo.isBlank() ? "" : " — " + memo);
                     String no = line.getJournal() == null ? "분개" : line.getJournal().getJournalNo();
                     if (no == null || no.isBlank()) no = "분개";
@@ -309,7 +309,7 @@ public class PartnerLedgerReadModelService {
         if (summary == null) return List.of();
         return List.of(new PartnerLedgerReadModel.Document(JOURNAL_ONLY_DOCUMENT,
                 journalSummaryDocumentNo(null, summary), from, summary.partnerCode(), summary.name(), null,
-                BigDecimal.ZERO, List.of(), null, "판매전표 없음 / 전표 미이관",
+                BigDecimal.ZERO, List.of(), null, "출고전표 없음 / 전표 미이관",
                 BigDecimal.ZERO, BigDecimal.ZERO));
     }
 
@@ -370,7 +370,7 @@ public class PartnerLedgerReadModelService {
                         summary == null ? null : summary.partnerCode(), summary == null ? null : summary.name(),
                         null, document.amount(), List.of(),
                          accountCodes.defaultReceivableCode(), document.effect() == PartnerLedgerContract.Effect.SALE
-                                ? "판매전표 없음 / 전표 미이관" : "분개 수집 계약", document.debit(), document.credit(),
+                                ? "출고전표 없음 / 전표 미이관" : "분개 수집 계약", document.debit(), document.credit(),
                         document.effect()))
                 .filter(document -> document.type() != PartnerLedgerReadModel.DocumentType.JOURNAL_ONLY
                         || document.amount().signum() != 0
@@ -596,16 +596,16 @@ public class PartnerLedgerReadModelService {
         String normalizedSlipNo = targetSlipNo.trim();
         PartnerLedgerSalesClient.Sale target = salesClient.findBySlipNo(normalizedSlipNo);
         if (target == null || target.slipNo() == null) {
-            throw new IllegalStateException("저장 대상 판매전표 원장 projection이 없습니다: " + normalizedSlipNo);
+            throw new IllegalStateException("저장 대상 출고전표 원장 projection이 없습니다: " + normalizedSlipNo);
         }
         boolean samePartner = partnerCode == null
                 || partnerCode.equals(target.partnerCode())
                 || selectedId != null && selectedId.equals(target.partnerId());
         if (!samePartner) {
-            throw new IllegalArgumentException("대상 판매전표의 거래처가 조회 거래처와 다릅니다");
+            throw new IllegalArgumentException("대상 출고전표의 거래처가 조회 거래처와 다릅니다");
         }
         if (target.slipDate() == null || target.slipDate().isBefore(from) || target.slipDate().isAfter(to)) {
-            throw new IllegalArgumentException("대상 판매전표 일자가 원장 조회 기간과 다릅니다");
+            throw new IllegalArgumentException("대상 출고전표 일자가 원장 조회 기간과 다릅니다");
         }
         return target;
     }
@@ -692,7 +692,7 @@ public class PartnerLedgerReadModelService {
                         document.effect() == PartnerLedgerContract.Effect.SALE
                                 ? accountCodes.defaultReceivableCode() : null,
                         document.effect() == PartnerLedgerContract.Effect.SALE
-                                ? "판매전표 없음 / 전표 미이관" : "분개 수집 계약",
+                                ? "출고전표 없음 / 전표 미이관" : "분개 수집 계약",
                         document.debit(), document.credit(), document.effect()))
                 .toList();
     }

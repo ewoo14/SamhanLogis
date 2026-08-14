@@ -15,14 +15,14 @@ class Mig4FixtureHeaderCrossCheckTest {
     @Test
     void taxInvoiceFixtureHeaderMatchesRaw() throws Exception {
         assertHeader("/fixtures/mig4-tax-invoice.csv",
-                "세금계산서용 판매전표-Excel다운로드(20260501~20260519_1).csv",
+                "세금계산서용 출고전표-Excel다운로드(20260501~20260519_1).csv",
                 EcountTaxInvoiceImporter.HEADERS);
     }
 
     @Test
     void salesSlipLineFixtureHeaderMatchesRaw() throws Exception {
         assertHeader("/fixtures/mig4-sales-slip-line.csv",
-                "판매전표-Excel다운로드(20260501~20260519_1).csv",
+                "출고전표-Excel다운로드(20260501~20260519_1).csv",
                 EcountSalesSlipLineImporter.HEADERS);
     }
 

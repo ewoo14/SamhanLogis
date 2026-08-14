@@ -58,7 +58,7 @@ export function TaxInvoiceBatchIssuePage() {
   const selectedRows = useMemo(() => rows.filter((row) => selected.has(row.salesSlipId)), [rows, selected])
 
   const columns: DataTableColumn<CandidateRow>[] = [
-    { key: 'slipNo', header: '매출전표', width: '160px', mobilePriority: 'primary' },
+    { key: 'slipNo', header: '출고전표', width: '160px', mobilePriority: 'primary' },
     {
       key: 'select',
       header: '',
@@ -103,7 +103,7 @@ export function TaxInvoiceBatchIssuePage() {
   return (
     <div data-testid="tax-invoice-batch-issue-page">
       <Card style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0 }}>매출전표 묶음 발행</h3>
+        <h3 style={{ margin: 0 }}>출고전표 묶음 발행</h3>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
           <label>
             발행일&nbsp;
@@ -139,13 +139,13 @@ export function TaxInvoiceBatchIssuePage() {
             <Spinner size="lg" label="발행 후보 조회 중" />
           </div>
         ) : candidatesQuery.isError ? (
-          <div className="error-banner" role="alert">발행 후보 매출전표 목록을 불러오지 못했습니다.</div>
+          <div className="error-banner" role="alert">발행 후보 출고전표 목록을 불러오지 못했습니다.</div>
         ) : (
           <DataTable
             columns={columns}
             rows={rows}
             rowKey={(row) => row.salesSlipId}
-            emptyMessage="발행 가능한 매출전표가 없습니다."
+            emptyMessage="발행 가능한 출고전표가 없습니다."
           />
         )}
       </Card>

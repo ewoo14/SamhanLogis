@@ -124,7 +124,7 @@ test.describe('인쇄 뷰 보완 캡처 (실 슬립 ID)', () => {
     )
   })
 
-  test('SUPP-T3b: 판매전표 인쇄 — DispatchView', async ({ page }) => {
+  test('SUPP-T3b: 출고전표 인쇄 — DispatchView', async ({ page }) => {
     await injectAuthStub(page, MASTER_USER_ID, MASTER_USER_NAME, 'MASTER')
     await setupPermissionStub(page)
     await page.route('**/api/v1/accounting/**', async (route) => {
@@ -175,7 +175,7 @@ test.describe('인쇄 뷰 보완 캡처 (실 슬립 ID)', () => {
     )
   })
 
-  test('SUPP-T9: SALES role 판매전표 인쇄 접근', async ({ page }) => {
+  test('SUPP-T9: SALES role 출고전표 인쇄 접근', async ({ page }) => {
     await injectAuthStub(page, SALES_USER_ID, SALES_USER_NAME, 'SALES')
     await page.route('**/permission-matrix/**', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, code: 'OK', data: { canAccess: true, canUpdate: false, canCreate: false, canDelete: false }, timestamp: new Date().toISOString() }) })

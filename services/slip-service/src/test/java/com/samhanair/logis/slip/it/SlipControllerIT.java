@@ -176,7 +176,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         line.put("modelName", "PUR-M4");
         line.put("quantity", 3);
         line.put("unitPrice", 120000);
-        line.put("note", "M4 매입 전표 권한 테스트");
+        line.put("note", "M4 입고 전표 권한 테스트");
 
         Map<String, Object> body = new HashMap<>();
         body.put("slipType", "INBOUND");
@@ -185,7 +185,7 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "매입 권한 테스트 거래처");
         body.put("deliveryTag", "RETURN_TRIP");
-        body.put("memo", "M4 매입 전표 권한 테스트");
+        body.put("memo", "M4 입고 전표 권한 테스트");
         body.put("lines", List.of(line));
         return body;
     }

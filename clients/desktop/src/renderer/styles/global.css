@@ -4055,7 +4055,7 @@ button {
 }
 
 /* ==========================================================================
-   PurchaseSlipPrintPage (매입 전표) — SP-08-5-5 신규
+   PurchaseSlipPrintPage (입고 전표) — SP-08-5-5 신규
    A4 portrait (210mm × 297mm), padding 12mm.
    1차 mock — iteration 가드 (feedback_print_design_iteration.md) 준수.
    ========================================================================== */
@@ -4291,7 +4291,7 @@ button {
   font-weight: 700;
 }
 
-/* 매입 전표 결재란 — SLIP_INBOUND 설정 구조 기반 */
+/* 입고 전표 결재란 — SLIP_INBOUND 설정 구조 기반 */
 .purchase-print-approval {
   display: grid;
   /* 기본 3열(작성자/입고자/검수자) — 단계 N개는 컴포넌트가 inline gridTemplateColumns 로 override. */

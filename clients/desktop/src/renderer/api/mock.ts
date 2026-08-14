@@ -4805,7 +4805,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(null)
   }
 
-  // DELETE /api/v1/slips/{id}/sales — 판매전표 목록 soft delete.
+  // DELETE /api/v1/slips/{id}/sales — 출고전표 목록 soft delete.
   const salesSlipDeleteMatch = url.match(/\/slips\/([^/?]+)\/sales(?:\?.*)?$/)
   if (method === 'DELETE' && salesSlipDeleteMatch) {
     // BE SalesSlipDeleteController + FE SlipDetailPage 게이트가 모두 sales.slip.edit:delete 이므로 mock 도 일치시킨다
@@ -4816,7 +4816,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const row = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
     if (!row) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
     if (row['slipType'] !== 'OUTBOUND') {
-      return mockError(400, 'INVALID_INPUT', '판매전표만 삭제할 수 있습니다.')
+      return mockError(400, 'INVALID_INPUT', '출고전표만 삭제할 수 있습니다.')
     }
     const now = new Date().toISOString()
     row['isDeleted'] = true
@@ -4827,7 +4827,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(null)
   }
 
-  // POST /api/v1/slips/{id}/restore — 판매전표 목록 삭제행 복원.
+  // POST /api/v1/slips/{id}/restore — 출고전표 목록 삭제행 복원.
   const slipRestoreMatch = url.match(/\/slips\/([^/?]+)\/restore(?:\?.*)?$/)
   if (method === 'POST' && slipRestoreMatch) {
     const denied = mockRequirePermission('sales.slip.list', 'restore')
@@ -4836,7 +4836,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const row = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
     if (!row) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
     if (row['slipType'] !== 'OUTBOUND') {
-      return mockError(400, 'INVALID_INPUT', '판매전표만 복원할 수 있습니다.')
+      return mockError(400, 'INVALID_INPUT', '출고전표만 복원할 수 있습니다.')
     }
     if (row['isDeleted'] === true) {
       const duplicate = MOCK_SLIPS.some((candidate) =>
@@ -13904,7 +13904,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // PUT /slips/{id}/sales — 판매전표 direct update (SlipUpdateRequest).
+  // PUT /slips/{id}/sales — 출고전표 direct update (SlipUpdateRequest).
   // Axios mock interceptor가 브라우저 밖에서 처리하므로, Playwright가 검증할 수 있도록
   // 마지막 payload를 페이지 전역에 기록한다. 응답 shape는 GET 상세와 같은 envelope이다.
   const salesSlipUpdateMatch = url.match(/\/slips\/([^/?]+)\/sales$/)

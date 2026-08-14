@@ -1182,7 +1182,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
         lines: [{ productId: UI_MISS.id, quantity: 1, unitPrice: OLD_A_PRICE }],
       },
     })
-    expect(created.ok(), 'R9-QA-4 전제: 매출 전표 생성').toBeTruthy()
+    expect(created.ok(), 'R9-QA-4 전제: 출고 전표 생성').toBeTruthy()
     const slipId = (await created.json()).data.id as string
     expect(memoryOf(UI_MISS.id), 'R9-QA-4 전제: A 옛 단가 기억').toBe(oldAMemory)
     expect(memoryOfFor(OTHER_PARTNER.id, UI_MISS.id), 'R9-QA-4 전제: B miss').toBe('NONE')
@@ -1667,7 +1667,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     const page = await ctx.newPage()
     const auth = await login(page)
 
-    // ── HIT: 혼합 매입 전표, 단품만 B 최근단가로 재가격 ──
+    // ── HIT: 혼합 입고 전표, 단품만 B 최근단가로 재가격 ──
     resetMemoryPairs([COMP_HEAD.id, COMP_TAIL.id, SINGLE.id])
     resetMemoryPairsFor(OTHER_PARTNER.id, [COMP_HEAD.id, COMP_TAIL.id, SINGLE.id])
     seedMemory(OTHER_PARTNER.id, COMP_HEAD.id, 999000, 'qa-r9-purchase-hit-bait')

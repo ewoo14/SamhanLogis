@@ -14,7 +14,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 매입전표 라인 — 전표 1건에 속하는 품목 단위 명세.
+ * 입고전표 라인 — 전표 1건에 속하는 품목 단위 명세.
  *
  * <p>spec: 2026-05-19-sales-purchase-accounting-slip-design.md §3-B
  */

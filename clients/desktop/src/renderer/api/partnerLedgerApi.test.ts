@@ -6,7 +6,7 @@ import { getLedgerData } from './partnerLedgerApi'
 vi.mock('./client', () => ({ apiClient: { get: vi.fn() } }))
 
 describe('partner ledger adapter', () => {
-  it('판매전표 상세용 원장 endpoint가 accounting-service의 전잔·후잔을 보존한다', async () => {
+  it('출고전표 상세용 원장 endpoint가 accounting-service의 전잔·후잔을 보존한다', async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: {
       partnerCode: 'P-0005', partnerName: '대구HVAC솔루션', partnerBusinessNo: '165-35-10155',
       periodFrom: '2026-07-01', periodTo: '2026-07-01',
@@ -107,7 +107,7 @@ describe('partner ledger adapter', () => {
     const lines = buildPartnerLedgerLines([{
       type: 'SALE_SUMMARY', documentNo: '2026/01/01-1', date: '2026-01-01',
       deliveryAddress: null, amount: '9900000', lines: [],
-      accountCode: '1089', description: '판매전표 없음 / 전표 미이관', debit: '9900000', credit: '0',
+      accountCode: '1089', description: '출고전표 없음 / 전표 미이관', debit: '9900000', credit: '0',
     }])
 
     expect(lines).toHaveLength(1)

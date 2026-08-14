@@ -48,7 +48,7 @@ describe('행 자동 빈행 공통 계약', () => {
     expect(saved.reduce((sum, line) => sum + line.credit, 0)).toBe(1000)
   })
 
-  it('행 삭제는 판매전표처럼 최소 한 빈행을 유지한다', () => {
+  it('행 삭제는 출고전표처럼 최소 한 빈행을 유지한다', () => {
     const line = { uid: 'only', account: '', debit: 0, credit: 0 }
     const next = removeLinePreservingMinimum(
       [line],

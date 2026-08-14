@@ -44,7 +44,7 @@ public class SlipNumberService {
      * lastSeq 갱신은 같은 영속성 컨텍스트에서 일어난다.
      *
      * @param slipDate 채번 기준 날짜
-     * @param slipType 판매/구매 전표 유형. 유형별로 같은 날짜의 순번이 독립 증가한다.
+     * @param slipType 판매/입고 전표 유형. 유형별로 같은 날짜의 순번이 독립 증가한다.
      * @return {@code yyyy/MM/dd-N} 형식 전표번호 문자열
      */
     @Transactional(propagation = Propagation.REQUIRED)
@@ -63,7 +63,7 @@ public class SlipNumberService {
      * 경합은 {@code INSERT ... ON CONFLICT DO NOTHING} 으로 예외 없이 수렴시킨 뒤 잠금 조회한다.
      *
      * @param slipDate 채번 기준 날짜
-     * @param slipType 판매/구매 전표 유형
+     * @param slipType 판매/입고 전표 유형
      * @return 잠금이 확보된 채번 row
      */
     private SlipNumberSequence loadOrCreateLockedSequence(LocalDate slipDate, SlipType slipType) {

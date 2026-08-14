@@ -11,7 +11,7 @@
  * 8 SidebarCategory 그룹 (각 그룹은 권한 1개라도 보이면 헤더+자식 노출, 전무 시 완전 미렌더):
  * - 판매     — 판매관리/견적서/주문서/거래처/DC설정/발송금지/전표정리/내일자전표/품목 관리/시트 동기화
  * - 구매     — 구매관리/재고이동 관리/입고 검수/재고실사/DPS 비교
- * - 회계     — 매출·매입전표/계정과목/분개장/세금계산서/시산표/재무보고서/마감/원장/운영 회계 항목
+ * - 회계     — 매출·입고전표/계정과목/분개장/세금계산서/시산표/재무보고서/마감/원장/운영 회계 항목
  * - 그룹웨어 — 링크발송/알리고 주소록/단톡방 매핑
  * - 인사     — 인사 관리/권한설정/권한 일괄/그룹 권한/권한그룹 관리/권한 위임
  * - 배차     — 배차현황/가배차리스트/미배차리스트/배차안내 SMS/실배차 비교/배차지역 관리/배차 admin
@@ -955,14 +955,14 @@ export function AppLayout() {
                 show={showAccountingSalesSlip}
                 data-testid="sidebar-accounting-sales-slips"
               >
-                매출전표
+                출고전표
               </SidebarLink>
               <SidebarLink
                 to="/accounting/purchase-slips"
                 show={showAccountingPurchaseSlip}
                 data-testid="sidebar-accounting-purchase-slips"
               >
-                매입전표
+                입고전표
               </SidebarLink>
               <SidebarLink
                 to="/accounting/accounts"

@@ -73,14 +73,14 @@ public class TaxInvoiceBatchFromSalesSlipsService {
     public TaxInvoiceFromSalesSlipsResponse createFromSalesSlips(
             CreateTaxInvoiceFromSalesSlipsRequest request, String actorUserId) {
         if (request == null || request.salesSlipIds() == null || request.salesSlipIds().isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "매출전표 ID 목록은 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "출고전표 ID 목록은 필수입니다.");
         }
 
         LocalDate issuedDate = parseIssuedDate(request.issuedDate());
         List<SalesAccountingSlip> slips =
                 salesSlipRepository.findAllByIdsForBatch(request.salesSlipIds());
         if (slips.size() != request.salesSlipIds().size()) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "일부 매출전표를 찾을 수 없습니다.");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "일부 출고전표를 찾을 수 없습니다.");
         }
 
         SalesAccountingSlip first = slips.get(0);
@@ -136,20 +136,20 @@ public class TaxInvoiceBatchFromSalesSlipsService {
         for (SalesAccountingSlip slip : slips) {
             if (!partnerId.equals(slip.getPartnerId())) {
                 throw new BusinessException(ErrorCode.SAS_PARTNER_MONTH_MISMATCH,
-                        "묶음 발행은 동일 거래처 매출전표만 허용됩니다: " + slip.getSlipNo());
+                        "묶음 발행은 동일 거래처 출고전표만 허용됩니다: " + slip.getSlipNo());
             }
             if (!slipMonth.equals(YearMonth.from(slip.getSlipDate()))) {
                 throw new BusinessException(ErrorCode.SAS_PARTNER_MONTH_MISMATCH,
-                        "묶음 발행은 동일월 매출전표만 허용됩니다: " + slip.getSlipNo());
+                        "묶음 발행은 동일월 출고전표만 허용됩니다: " + slip.getSlipNo());
             }
             if (slip.getStatus() != SalesSlipStatus.POSTED) {
                 throw new BusinessException(ErrorCode.SAS_SALES_SLIP_NOT_POSTED,
                         SalesSlipStatus.POSTED.getDisplayName()
-                                + " 상태 매출전표만 묶음 발행할 수 있습니다: " + slip.getSlipNo());
+                                + " 상태 출고전표만 묶음 발행할 수 있습니다: " + slip.getSlipNo());
             }
             if (slip.getTaxInvoiceId() != null) {
                 throw new BusinessException(ErrorCode.SAS_TAX_INVOICE_ALREADY_LINKED,
-                        "이미 세금계산서와 매핑된 매출전표입니다: " + slip.getSlipNo());
+                        "이미 세금계산서와 매핑된 출고전표입니다: " + slip.getSlipNo());
             }
         }
     }

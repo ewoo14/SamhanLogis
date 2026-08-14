@@ -329,7 +329,7 @@ class SalesAggregateServiceTest {
     }
 
     @Test
-    @DisplayName("무필터 집계 — 공란 partnerCode도 판매전표 사업자번호로 journal 거래처에 연결한다")
+    @DisplayName("무필터 집계 — 공란 partnerCode도 출고전표 사업자번호로 journal 거래처에 연결한다")
     void unfilteredAggregateMatchesBlankCodeSaleByBusinessNumber() {
         UUID partnerId = UUID.randomUUID();
         when(partnerLookupClient.findByPartnerIdsBatch(any()))
@@ -405,7 +405,7 @@ class SalesAggregateServiceTest {
     }
 
     @Test
-    @DisplayName("무필터 집계 — journal 후보가 없어도 legacy partner_code 판매전표를 표시한다")
+    @DisplayName("무필터 집계 — journal 후보가 없어도 legacy partner_code 출고전표를 표시한다")
     void unfilteredAggregateIncludesLegacySalesWithoutJournalCandidate() {
         when(journalLineRepository.aggregatePostedByPartnerAccount(LEGACY_SLIP_DATE, LEGACY_SLIP_DATE))
                 .thenReturn(List.of());
@@ -438,7 +438,7 @@ class SalesAggregateServiceTest {
     }
 
     @Test
-    @DisplayName("무필터 집계 — partnerCode가 비어도 판매전표 금액을 버리지 않는다")
+    @DisplayName("무필터 집계 — partnerCode가 비어도 출고전표 금액을 버리지 않는다")
     void unfilteredAggregateKeepsSalesWithBlankPartnerCode() {
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of());
@@ -455,7 +455,7 @@ class SalesAggregateServiceTest {
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).partnerCode()).isEqualTo("-");
-        assertThat(rows.get(0).partnerName()).isEqualTo("식별 불가 판매전표");
+        assertThat(rows.get(0).partnerName()).isEqualTo("식별 불가 출고전표");
         assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("500");
     }
 

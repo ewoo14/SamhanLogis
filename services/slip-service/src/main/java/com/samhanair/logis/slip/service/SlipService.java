@@ -1193,7 +1193,7 @@ public class SlipService {
         if (tag == DeliveryTag.BORROW) {
             return DeliveryTag.BORROW.name();
         }
-        // INBOUND에서 tag=null은 구매 전표다. 표시 라벨이 아닌 안정 키를 inventory-service로 전달한다.
+        // INBOUND에서 tag=null은 입고 전표다. 표시 라벨이 아닌 안정 키를 inventory-service로 전달한다.
         return DeliveryTag.PURCHASE.name();
     }
 

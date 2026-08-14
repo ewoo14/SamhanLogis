@@ -1,7 +1,7 @@
 /**
  * SP-08-5-5 매입 인쇄 양식 정적 계약 검증
  *
- * 목적: PurchaseSlipPrintPage (또는 동등 컴포넌트) 가 매입 전표 인쇄 양식
+ * 목적: PurchaseSlipPrintPage (또는 동등 컴포넌트) 가 입고 전표 인쇄 양식
  *       A4 portrait 계약, 한국어 라벨, UUID 비공개, @media print 트리거를
  *       모두 만족하는지 소스 정적 단언으로 보장한다.
  *
@@ -10,7 +10,7 @@
  * 5 case:
  *   T1 — FE 라우트 계약: `/purchases/:id/print/purchase` 존재 + useParams slipId + useQuery(['slip', id]) 재사용
  *   T2 — 인쇄 영역 구조: paper-a4-portrait 클래스 + 헤더/거래처/라인테이블/합계/결재란/푸터 6 섹션
- *   T3 — 한국어 라벨: "매입 전표", "거래처", "사업자번호", "입고창고", "수량", "단가", "합계", "결 재 란", "입고자", "검수자"
+ *   T3 — 한국어 라벨: "입고 전표", "거래처", "사업자번호", "입고창고", "수량", "단가", "합계", "결 재 란", "입고자", "검수자"
  *   T4 — UUID 비공개: internal id 미노출, slipNo 만 표시
  *   T5 — @media print + 인쇄 트리거: @media print CSS + window.print() 호출 또는 인쇄 버튼
  */
@@ -32,7 +32,7 @@ function fileExists(relPath: string): boolean {
 }
 
 /**
- * 매입 전표 인쇄 컴포넌트 후보 경로 목록.
+ * 입고 전표 인쇄 컴포넌트 후보 경로 목록.
  * FE agent 가 실제 생성한 파일명에 따라 첫 번째로 존재하는 경로를 사용한다.
  */
 const PRINT_COMPONENT_CANDIDATES = [
@@ -144,14 +144,14 @@ test.describe('SP-08-5-5 매입 인쇄 양식 정적 계약', () => {
   /**
    * T3 — 한국어 라벨 단언
    *
-   * 매입 전표 인쇄 화면에 필수 한국어 라벨과 결재란 fallback 구조가 존재해야 한다.
+   * 입고 전표 인쇄 화면에 필수 한국어 라벨과 결재란 fallback 구조가 존재해야 한다.
    */
-  test('T3: 한국어 라벨 — 매입 전표 / 거래처 / 사업자번호 / 입고창고 / 수량 / 단가 / 합계 / 결재란', () => {
+  test('T3: 한국어 라벨 — 입고 전표 / 거래처 / 사업자번호 / 입고창고 / 수량 / 단가 / 합계 / 결재란', () => {
     const printComponent = read(resolvePrintComponent())
 
-    // 매입 전표 타이틀 (신규 SP-08-5-5 고유 라벨)
+    // 입고 전표 타이틀 (신규 SP-08-5-5 고유 라벨)
     const hasPurchaseTitle =
-      printComponent.includes('매입 전표') ||
+      printComponent.includes('입고 전표') ||
       printComponent.includes('매 입 전 표')
     expect(hasPurchaseTitle).toBeTruthy()
 

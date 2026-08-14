@@ -57,7 +57,7 @@ async function duplicateSource(request: APIRequestContext, token: string, slipNo
 
 async function openSalesEdit(page: Page, copy: SlipRef) {
   await page.goto(`${APP_BASE}/#/sales/${copy.id}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('heading', { name: new RegExp(`판매전표 상세.*${copy.slipNo.replaceAll('/', '\\/')}`) }))
+  await expect(page.getByRole('heading', { name: new RegExp(`출고전표 상세.*${copy.slipNo.replaceAll('/', '\\/')}`) }))
     .toBeVisible({ timeout: 30_000 })
   await page.getByTestId('sales-slip-edit-button').click()
   await expect(page.getByTestId('sales-slip-edit-modal')).toBeVisible()

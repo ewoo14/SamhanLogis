@@ -28,7 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
-/** MIG-3 매출전표 importer 회귀 가드. */
+/** MIG-3 출고전표 importer 회귀 가드. */
 @ExtendWith(MockitoExtension.class)
 class EcountSalesSlipImporterTest {
 
@@ -54,7 +54,7 @@ class EcountSalesSlipImporterTest {
     @Test
     void importCsv_정상_1건을_salesSlip으로_적재한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(salesCsv("""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","2,778,000\t","삼한상사\t","제품 매출\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","2,778,000\t","삼한상사\t","제품 매출\t",""
                 """)), "tester");
 
         assertThat(result.totalRows()).isEqualTo(1);
@@ -68,7 +68,7 @@ class EcountSalesSlipImporterTest {
         when(partnerLookupClient.findByPartnerNameStrict("미등록거래처")).thenReturn(Optional.empty());
 
         EcountVoucherImportResult result = importer.importCsv(stream(salesCsv("""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","2,778,000\t","미등록거래처\t","제품 매출\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","2,778,000\t","미등록거래처\t","제품 매출\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isZero();
@@ -81,7 +81,7 @@ class EcountSalesSlipImporterTest {
     @Test
     void importCsv_금액_문자는_MIG3_SLIP_AMOUNT_INVALID로_reject한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(salesCsv("""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","abc\t","삼한상사\t","제품 매출\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","abc\t","삼한상사\t","제품 매출\t",""
                 """)), "tester");
 
         assertThat(result.rejected()).isEqualTo(1);
@@ -93,8 +93,8 @@ class EcountSalesSlipImporterTest {
     @Test
     void importCsv_동일파일_전표번호_중복은_MIG3_VOUCHER_NO_DUPLICATE로_reject한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(salesCsv("""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","2,778,000\t","삼한상사\t","제품 매출\t",""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","100\t","삼한상사\t","중복\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","2,778,000\t","삼한상사\t","제품 매출\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","100\t","삼한상사\t","중복\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isEqualTo(1);
@@ -107,9 +107,9 @@ class EcountSalesSlipImporterTest {
     @Test
     void importCsv_source_row_no는_데이터행_기준_1부터_증가한다() {
         importer.importCsv(stream(salesCsv("""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","100\t","삼한상사\t","매출1\t",""
-                "2026/05/19 -214\t","매출전표 I(매출)\t","200\t","삼한상사\t","매출2\t",""
-                "2026/05/19 -215\t","매출전표 I(매출)\t","300\t","삼한상사\t","매출3\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","100\t","삼한상사\t","매출1\t",""
+                "2026/05/19 -214\t","출고전표 I(매출)\t","200\t","삼한상사\t","매출2\t",""
+                "2026/05/19 -215\t","출고전표 I(매출)\t","300\t","삼한상사\t","매출3\t",""
                 """)), "tester");
 
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
@@ -124,7 +124,7 @@ class EcountSalesSlipImporterTest {
     @Test
     void importCsv_BOM_입력을_정상_처리한다() {
         EcountVoucherImportResult result = importer.importCsv(stream("\uFEFF" + salesCsv("""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","100\t","삼한상사\t","BOM\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","100\t","삼한상사\t","BOM\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isEqualTo(1);
@@ -134,13 +134,13 @@ class EcountSalesSlipImporterTest {
     @Test
     void importCsv_동일파일_2회_import는_멱등_skip한다() {
         EcountVoucherImportResult first = importer.importCsv(stream(salesCsv("""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","100\t","삼한상사\t","매출\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","100\t","삼한상사\t","매출\t",""
                 """)), "tester");
         when(jdbcTemplate.update(org.mockito.ArgumentMatchers.contains("INSERT INTO staging.ecount_sales_slip_raw"),
                 any(SqlParameterSource.class))).thenReturn(0);
 
         EcountVoucherImportResult second = importer.importCsv(stream(salesCsv("""
-                "2026/05/19 -213\t","매출전표 I(매출)\t","100\t","삼한상사\t","매출\t",""
+                "2026/05/19 -213\t","출고전표 I(매출)\t","100\t","삼한상사\t","매출\t",""
                 """)), "tester");
 
         assertThat(first.imported()).isEqualTo(1);
@@ -151,8 +151,8 @@ class EcountSalesSlipImporterTest {
     @Test
     void importCsv_행별_형식오류가_다른행_import를_막지_않는다() {
         EcountVoucherImportResult result = importer.importCsv(stream(salesCsv("""
-                "bad-voucher\t","매출전표 I(매출)\t","100\t","삼한상사\t","오류\t",""
-                "2026/05/19 -214\t","매출전표 I(매출)\t","200\t","삼한상사\t","정상\t",""
+                "bad-voucher\t","출고전표 I(매출)\t","100\t","삼한상사\t","오류\t",""
+                "2026/05/19 -214\t","출고전표 I(매출)\t","200\t","삼한상사\t","정상\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isEqualTo(1);
@@ -170,7 +170,7 @@ class EcountSalesSlipImporterTest {
             EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
             EcountCsvSupport.validateHeader(parsed.header(), EcountSalesSlipImporter.HEADERS);
             // raw 파일은 docs/migration/ecount-data/raw/ 에 회사/자택 PC 에만 존재 (CI Linux 미존재).
-            Path raw = rawPath("매출전표I-Excel다운로드(20260501~20260519_1).csv");
+            Path raw = rawPath("출고전표I-Excel다운로드(20260501~20260519_1).csv");
             org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(raw),
                     "raw CSV (" + raw + ") 미존재 → cross-check skip");
             EcountCsvSupport.ParsedCsv rawCsv = EcountCsvSupport.parse(Files.readAllBytes(raw));
@@ -184,7 +184,7 @@ class EcountSalesSlipImporterTest {
 
     private static String salesCsv(String rows) {
         return """
-                "데이터관리>매출전표 I-Excel다운로드"
+                "데이터관리>출고전표 I-Excel다운로드"
                 "전표번호\t","거래유형\t","금액\t","거래처명\t","적요명\t",""
                 """ + rows;
     }

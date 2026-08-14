@@ -62,7 +62,7 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
  * UUID = {@code UUID.nameUUIDFromBytes("samhan-seed:product:" + modelName)} — product-service 와 동일 namespace.
  *
  * <p>idempotency: {@code SlipRepository.findBySlipTypeAndSlipNoIncludingDeleted} EXISTS 체크
- * + 중복 시 skip. 판매/구매 전표는 같은 공개번호를 가질 수 있으므로 유형까지 함께 본다.
+ * + 중복 시 skip. 판매/입고 전표는 같은 공개번호를 가질 수 있으므로 유형까지 함께 본다.
  * UUID 비공개 가드 — 모든 외부 식별자는 slipNo / partnerCode / productCode 사용.
  */
 @Component

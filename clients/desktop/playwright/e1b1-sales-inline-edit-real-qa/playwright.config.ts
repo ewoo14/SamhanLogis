@@ -1,5 +1,5 @@
 /**
- * E1-b-1 매출 전표 인라인 편집 — 실서버 2세션 coedit GUI QA 전용 Playwright 설정.
+ * E1-b-1 출고 전표 인라인 편집 — 실서버 2세션 coedit GUI QA 전용 Playwright 설정.
  * VITE_MOCK_MODE OFF — 실 게이트웨이 :8080. 렌더러 :5175 선기동 필요.
  */
 import { defineConfig, devices } from '@playwright/test'
