@@ -1,0 +1,19 @@
+﻿PR #1208 Q5 isolated real HTTP evidence
+captured_at=2026-08-14T15:03:32.0284352+09:00
+container=qa1208-reconv2-accounting-pg
+image=postgres:16-alpine
+endpoint=127.0.0.1:55437/accounting_db
+app_jar=C:\dev\Samhan-Public\.claude\worktrees\w1144\services\accounting-service\build\libs\accounting-service.jar
+app_url=http://127.0.0.1:19094
+shared_db_write=0
+shared_stack_redeploy=0
+encoding=UTF8|UTF8|한글 Q5 재수렴
+flyway_latest=102|quarantine orphan accounting allocations|true
+request_identity=X-User-Id:qa1208-sol + X-Is-System-Master:true + MASTER group; X-User-Role absent
+fixture=ISSUED SALES tax invoice 100000 + VAT 10000 = 110000
+UNVERIFIED|HTTP=409|BODY={"success":false,"code":"CONFLICT","message":"일마감 금액 검증이 완료되지 않았습니다","data":null,"timestamp":"2026-08-14T06:03:31.508282200Z"}
+closings_after_reject=0
+VERIFIED|HTTP=201|BODY={"success":true,"code":"OK","message":"성공","data":{"closingDate":"2026-08-14","bizNo":"","partnerCode":null,"closingKind":"SALES","sourceKind":"TAX_INVOICE","totalSupply":100000.00,"totalVat":10000.00,"totalAmount":110000.00,"slipCount":1,"isLocked":true,"lockedAt":"2026-08-14T15:03:31.7152796","lockedBy":"qa1208-sol"},"timestamp":"2026-08-14T06:03:31.737121200Z"}
+DB_ROW=2026-08-14|100000.00|10000.00|110000.00|1|t|qa1208-sol
+APP_STOPPED=True
+cleanup_remaining=0
