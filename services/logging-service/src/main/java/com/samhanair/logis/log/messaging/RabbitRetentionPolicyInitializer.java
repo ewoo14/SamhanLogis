@@ -4,6 +4,8 @@ import java.util.Map;
 import java.net.URI;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -37,13 +39,26 @@ public class RabbitRetentionPolicyInitializer {
     private final long maxLength;
     private final long messageTtlMs;
 
+    @Autowired
     public RabbitRetentionPolicyInitializer(
             RestTemplate restTemplate,
             @Value("${samhan.audit.rabbit.management-url:http://${RABBIT_MANAGEMENT_HOST:${RABBIT_HOST:localhost}}:${RABBIT_MANAGEMENT_PORT:15672}}") String managementUrl,
-            @Value("${spring.rabbitmq.username}") String username,
-            @Value("${spring.rabbitmq.password}") String password,
+            Environment environment,
             @Value("${samhan.audit.rabbit.audit-queue-max-length:10000}") long maxLength,
             @Value("${samhan.audit.rabbit.audit-queue-message-ttl-ms:86400000}") long messageTtlMs) {
+        this.restTemplate = restTemplate;
+        this.managementUrl = managementUrl;
+        this.username = environment.getProperty("spring.rabbitmq.username");
+        this.password = environment.getProperty("spring.rabbitmq.password");
+        this.maxLength = maxLength;
+        this.messageTtlMs = messageTtlMs;
+    }
+
+    /**
+     * 기존 단위 테스트와의 생성자 계약을 유지한다. 운영 Spring 경로는 RabbitProperties 생성자를 사용한다.
+     */
+    public RabbitRetentionPolicyInitializer(RestTemplate restTemplate, String managementUrl,
+            String username, String password, long maxLength, long messageTtlMs) {
         this.restTemplate = restTemplate;
         this.managementUrl = managementUrl;
         this.username = username;

@@ -42,6 +42,8 @@ import org.testcontainers.utility.DockerImageName;
         "eureka.client.enabled=false",
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
+        "spring.rabbitmq.username=ci-test-user",
+        "spring.rabbitmq.password=ci-test-password",
         "spring.autoconfigure.exclude=" +
                 "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration," +
                 "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration," +

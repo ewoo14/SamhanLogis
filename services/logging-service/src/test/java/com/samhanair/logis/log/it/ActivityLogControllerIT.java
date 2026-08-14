@@ -40,6 +40,8 @@ import org.springframework.test.context.TestPropertySource;
         "eureka.client.enabled=false",
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
+        "spring.rabbitmq.username=ci-test-user",
+        "spring.rabbitmq.password=ci-test-password",
         "spring.autoconfigure.exclude=" +
                 "org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration," +
                 "org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration," +
