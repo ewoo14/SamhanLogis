@@ -62,6 +62,7 @@ class SalesAccountingSlipServiceTest {
     @Mock SalesAccountingSlipNumberGenerator numberGenerator;
     @Mock EntityManager entityManager;
     @Mock Query advisoryQuery;
+    @Mock DailyClosingVerificationService dailyClosingVerificationService;
     SalesAccountingSlipCreateAttemptService createAttemptService;
     SalesAccountingSlipService service;
 
@@ -72,12 +73,16 @@ class SalesAccountingSlipServiceTest {
         lenient().when(advisoryQuery.getSingleResult()).thenReturn(1);
         lenient().when(allocationRepository.sumAllocatedQtyBySourceLineId(any()))
                 .thenReturn(BigDecimal.ZERO);
+        lenient().when(dailyClosingVerificationService.requireLockedClosing(any(), any(), any(), any()))
+                .thenReturn(new DailyClosingVerificationService.VerificationResult(
+                        DailyClosingVerificationService.Status.VERIFIED, ""));
         createAttemptService = new SalesAccountingSlipCreateAttemptService(
                 slipRepository,
                 allocationRepository,
                 slipServiceClient,
                 numberGenerator,
-                entityManager);
+                entityManager,
+                dailyClosingVerificationService);
         service = new SalesAccountingSlipService(slipRepository, createAttemptService);
     }
 
