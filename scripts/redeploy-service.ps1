@@ -201,6 +201,15 @@ foreach ($svc in $services) {
 
     if (-not (Test-Path $jar)) { throw "[$svc] jar 가 없다: $jar" }
 
+    if ($SkipBuild) {
+        $jarTimestamp = (Get-Item $jar).LastWriteTimeUtc
+        $newestSource = Get-ChildItem "services/$svc/src" -Recurse -File -ErrorAction Stop |
+            Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+        if ($null -ne $newestSource -and $newestSource.LastWriteTimeUtc -gt $jarTimestamp) {
+            throw "[$svc] --SkipBuild 거부: 소스($($newestSource.LastWriteTimeUtc.ToString('o')))가 JAR($($jarTimestamp.ToString('o')))보다 최신입니다. --SkipBuild를 제거하십시오."
+        }
+    }
+
     $jarTime = (Get-Item $jar).LastWriteTime
     $ageMin = [math]::Round(((Get-Date) - $jarTime).TotalMinutes, 1)
     Write-Host ("[{0}] jar {1}  ({2}분 전)" -f $svc, $jarTime.ToString('yyyy-MM-dd HH:mm:ss'), $ageMin)

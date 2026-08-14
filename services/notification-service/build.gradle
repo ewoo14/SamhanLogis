@@ -90,4 +90,5 @@ bootJar {
 
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperty 'samhan.security.gateway-attestation-enforcement', 'false'
 }

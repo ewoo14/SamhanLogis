@@ -526,6 +526,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8093"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       SAMHAN_NOTIFICATION_DB_HOST: postgres
       SAMHAN_NOTIFICATION_DB_PORT: "5432"
       SAMHAN_NOTIFICATION_DB_NAME: notification_db
@@ -596,6 +597,7 @@ services:
     environment:
       <<: *spring-env
       SERVER_PORT: "8095"
+      SAMHAN_GATEWAY_ATTESTATION: ${SAMHAN_GATEWAY_ATTESTATION:-}
       SAMHAN_PARTNER_DB_HOST: postgres
       SAMHAN_PARTNER_DB_PORT: "5432"
       SAMHAN_PARTNER_DB_NAME: partner_db
