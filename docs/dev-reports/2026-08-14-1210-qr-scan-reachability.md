@@ -55,3 +55,9 @@ SHA-256 중복 검증: `total=2 unique=2 duplicateCount=0`.
 ## 관측 한계
 
 프론트 로그 sink `/logs/front`가 dev 환경에서 401을 반환해 공통 interceptor가 세션을 지우는 현상이 있어, 이번 renderer 캡처에서는 해당 선택적 sink만 204로 격리했다. 출고 문맥·스캔·확정 API는 모두 실제 gateway와 실제 서비스에 연결했으며 응답을 mock하지 않았다.
+
+## CI 하네스 보완
+
+초기 `capture.mjs`가 `docs/qa/pr-1210-qr-scan-live/screenshots`를 직접 사용해 하네스 거짓-green guard의 `_local` 격리를 위반했다. 현재는 `resolveQaShotsDir(path.resolve('docs/qa/pr-1210-qr-scan-live'))`를 거쳐 실행 산출물을 `_local`에 쓰고, 기존 tracked PNG 2장은 보존한다.
+
+`vite.pid`는 프로세스 증거가 아닌 일회성 잡파일이므로 삭제했다. 하네스는 더 이상 PID 파일을 만들지 않는다. 삭제가 git index에 반영되기 전 현재 작업 트리에서 guard는 `62 tests / 61 passed / 1 failed`이며 유일한 실패는 stale tracked `.pid` extension census다. PM이 파일 삭제를 stage/commit한 뒤 62/62가 되어야 한다. 가드 자체는 수정하지 않았다.

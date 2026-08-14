@@ -1,12 +1,12 @@
 import { chromium } from '../../../clients/desktop/node_modules/playwright/index.mjs'
 import { resolveQaCredential } from '../../../scripts/lib/qa-credentials.cjs'
+import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 
 const app = 'http://127.0.0.1:5299'
 const gateway = 'http://127.0.0.1:8080'
-const output = path.resolve('docs/qa/pr-1210-qr-scan-live/screenshots')
-fs.mkdirSync(output, { recursive: true })
+const output = resolveQaShotsDir(path.resolve('docs/qa/pr-1210-qr-scan-live'))
 
 const browser = await chromium.launch({
   headless: true,
@@ -67,7 +67,7 @@ const confirmed = await confirmResponse
 responses.push({ url: confirmed.url(), status: confirmed.status() })
 await page.waitForTimeout(500)
 await page.screenshot({ path: path.join(output, '02-warehouse-outbound-scan-confirmed.png'), fullPage: true })
-fs.writeFileSync(path.resolve('docs/qa/pr-1210-qr-scan-live/observation.txt'), [
+fs.writeFileSync(path.join(output, 'observation.txt'), [
   `login=${login.status()} role=${loginData.role ?? ''}`,
   `url=${page.url()}`,
   `responses=${JSON.stringify(responses)}`,
