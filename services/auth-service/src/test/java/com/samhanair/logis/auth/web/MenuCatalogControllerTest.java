@@ -72,7 +72,7 @@ class MenuCatalogControllerTest {
                 .andReturn().getResponse();
 
         JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
-        assertThat(data).hasSize(16);
+        assertThat(data).hasSize(98);
         assertThat(response.getContentAsString()).doesNotContain("/arologis/manual");
     }
 }
