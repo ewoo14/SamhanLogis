@@ -1,0 +1,106 @@
+[
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/app/version?clientType=DESKTOP&currentVersion=2026%2F08%2F14-121000",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"latestVersion\":\"2026/08/14-121000\",\"minSupportedVersion\":\"2026/08/14-121000\",\"forceLevel\":\"NONE\",\"releaseNotes\":null,\"releasedAt\":null},\"timestamp\":\"2026-08-14T07:21:50.373180700Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/auth/password/policy",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"minLength\":8,\"maxLength\":32,\"requireLetter\":true,\"requireDigit\":true,\"requireSpecial\":true,\"historyReuseBlock\":5,\"maxFailedLoginAttempts\":5,\"resetTokenTtlMinutes\":30,\"description\":\"비밀번호는 8 자 이상 32 자 이하이며, 영문 / 숫자 / 특수문자를 각각 1 자 이상 포함해야 합니다\"},\"timestamp\":\"2026-08-14T07:21:50.465588670Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/app/notices/active",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[],\"timestamp\":\"2026-08-14T07:21:50.734869073Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/auth/admin/permissions/my",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"accounting.accounts\":[\"VIEW\"],\"accounting.balances\":[\"VIEW\"],\"accounting.balances.trial-balance\":[],\"accounting.bank-card-admin\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\"],\"accounting.bank-matching\":[\"VIEW\",\"CREATE\",\"UPDATE\"],\"accounting.cash-receipts\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\"],\"accounting.daily-closing\":[\"VIEW\"],\"accounting.daily-closing.run\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\"],\"accounting.daily-closing.unlock\":[],\"accounting.deposit-mapping\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\"],\"accounting.deposit-match\":[\"VIEW\"],\"accounting.edit-requests\":[\"VIEW\"],\"accounting.edit-requests.decide\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\"],\"accounting.general-ledger\":[\"VIEW\"],\"accounting.hometax-export\":[\"VIEW\",\"CREATE\",\"UPDATE\",\"DELETE\",\"DOWNLOAD\"],\"accoun"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/api/notifications/my",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 2,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"[UUID]\",\"channel\":\"MESSENGER\",\"severity\":\"INFO\",\"title\":\"[전표 수정] 2026/08/05-9\",\"body\":\"[DEV-SEED] 개발마스터 님이 전표 2026/08/05-9 를 수정완료했습니다.\\n변경: memo: R57 live QA 2026-08-05T14:02:23.040Z → R59 LIVE QA COLLAB EDIT 2026-08-05 23:20\",\"deeplink\":null,\"createdAt\":\"2026-08-05T23:27:35.463324\",\"readAt\":null,\"refId\":\"[UUID]\"}],\"timestamp\":\"2026-08-14T07:21:50.755456010Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/slips?page=0&size=1&slipType=OUTBOUND&status=PROCESSING",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 6,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"id\":\"[UUID]\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"2026/08/14-5\",\"slipDate\":\"2026-08-14\",\"seqNo\":5,\"status\":\"PROCESSING\",\"partnerId\":\"[UUID]\",\"partnerName\":\"능동에어컨(박수천)\",\"partnerCode\":\"4483500844\",\"sourceWarehouseId\":\"[UUID]\",\"destinationWarehouseId\":null,\"deliveryTag\":null,\"deliveryTagLabel\":null,\"requesterId\":\"[UUID]\",\"acceptedBy\":\"[UUID]\",\"acceptedAt\":\"2026-08-14T08:00:28.267556\",\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-14T08:00:28.449494\",\"version\":4,\"businessNumber\":\"4483500844\",\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"memo\":\"PR1203-SOL-RECONV-1786662024090-SALES\",\"totalAmount\":10000.00,\"displayTotalAmount\":11000.00,\"totalQu"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/inventory/warehouses",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 16,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":[{\"id\":\"h3TRGztCTVadcdP_mwhUPQ\",\"code\":\"WH-F8D5PU\",\"name\":\"QA1189-RC-1935-창고-후\",\"type\":\"HEADQUARTERS\",\"address\":\"QA1189-RC-1935 공유DB 레인\",\"displayOrder\":0,\"description\":null,\"createdAt\":\"2026-08-13T19:44:33.838918\",\"createdBy\":\"[UUID]\",\"modifiedAt\":\"2026-08-13T19:44:35.669638\",\"modifiedBy\":\"[UUID]\"},{\"id\":\"Fu-o8hUPSBiJyPMw5jfz1Q\",\"code\":\"WH-Q4YVWF\",\"name\":\"QA1189-RC-1935-창고-후\",\"type\":\"HEADQUARTERS\",\"address\":\"QA1189-RC-1935 공유DB 레인\",\"displayOrder\":0,\"description\":null,\"createdAt\":\"2026-08-13T19:46:15.911626\",\"createdBy\":\"[UUID]\",\"modifiedAt\":\"2026-08-13T19:46:17.752176\",\"modifiedBy\":\"[UUID]\"},{\"id\":\"NTiUY8EsSR2ud_s7gY9PBw\",\"code\":\"WH-D9957V\",\"name\":\"QA1189-RC-1935-창고-후\",\"type\":\"HEADQUARTERS\",\"address\":\"QA1189-RC-1935 공유DB 레인\",\"displayOrder\":"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/inventory/balances?page=0&size=50&warehouseId=FUByhZJZR8mV7kiudPiLJw",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"productCode\":\"AJ060MXHNBC1\",\"productName\":\"실외기_6HP 단배관\",\"warehouseCode\":\"QA-1210-SOL\",\"warehouseName\":\"PR1210 SOL QA 창고\",\"warehouseType\":\"HEADQUARTERS\",\"availableQty\":3,\"reservedQty\":0,\"totalQty\":3,\"version\":null}],\"pageable\":{\"pageNumber\":0,\"pageSize\":50,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"offset\":0,\"unpaged\":false,\"paged\":true},\"totalElements\":1,\"totalPages\":1,\"last\":true,\"first\":true,\"numberOfElements\":1,\"size\":50,\"number\":0,\"sort\":{\"unsorted\":true,\"sorted\":false,\"empty\":true},\"empty\":false},\"timestamp\":\"2026-08-14T07:21:50.911998712Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/inventory/instances/product-list?productCode=AJ060MXHNBC1",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"품목리스트 조회 완료\",\"data\":[{\"serialKey\":\"SI-STGBDM\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"SHIPPED\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-RT5ZGT\",\"warehouseCode\":\"HQ-001\",\"warehouseName\":\"본사창고\",\"status\":\"AVAILABLE\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-Q1210A\",\"warehouseCode\":\"QA-1210-SOL\",\"warehouseName\":\"PR1210 SOL QA 창고\",\"status\":\"AVAILABLE\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-Q1210B\",\"warehouseCode\":\"QA-1210-SOL\",\"warehouseName\":\"PR1210 SOL QA 창고\",\"status\":\"AVAILABLE\",\"quality\":\"NORMAL\"},{\"serialKey\":\"SI-Q1210C\",\"warehouseCode\":\"QA-1210-SOL\",\"warehouseName\":\"PR1210 SOL QA 창고\",\"status\":\"AVAILABLE\",\"quality\":\"NORMAL\"}],\"timestamp\":\"2026-08-14T07:21:51.095573648Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/slips?page=0&size=100&slipType=OUTBOUND",
+    "status": 200,
+    "requestBody": null,
+    "uuidCount": 462,
+    "bodyPreviewWithoutUuid": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"content\":[{\"id\":\"[UUID]\",\"slipType\":\"OUTBOUND\",\"slipNo\":\"QA-1210-SOL-R2\",\"slipDate\":\"2026-08-14\",\"seqNo\":1210,\"status\":\"DRAFT\",\"partnerId\":null,\"partnerName\":\"QA 전용 거래처\",\"partnerCode\":\"QA-1210\",\"sourceWarehouseId\":null,\"destinationWarehouseId\":null,\"deliveryTag\":null,\"deliveryTagLabel\":null,\"requesterId\":\"dev_inventory\",\"acceptedBy\":null,\"acceptedAt\":null,\"completedAt\":null,\"confirmedAt\":null,\"updatedAt\":\"2026-08-14T16:13:08.569114\",\"version\":0,\"businessNumber\":null,\"deliveryAddress\":null,\"supervisionAddress\":null,\"projectName\":null,\"recipientPhone\":null,\"paymentDueDate\":null,\"printed\":false,\"memo\":null,\"totalAmount\":0.00,\"displayTotalAmount\":0.00,\"totalQuantity\":4,\"salesPersonName\":\"dev_inventory\",\"editHistoryCount\":0,\"unloadDate\":null,\""
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:8080/inventory/instances/scan/outbound",
+    "status": 500,
+    "requestBody": "{\"slipNo\":\"QA-1210-SOL-R2\",\"items\":[{\"serialKey\":\"SI-Q1210A\",\"productCode\":\"AJ060MXHNBC1\"}]}",
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":false,\"code\":\"INTERNAL_ERROR\",\"message\":\"전표 서비스 호출에 실패했습니다\",\"data\":null,\"timestamp\":\"2026-08-14T07:21:51.611731905Z\"}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:8080/inventory/instances/scan/outbound",
+    "status": 500,
+    "requestBody": "{\"slipNo\":\"QA-1210-SOL-R2\",\"items\":[{\"serialKey\":\"SI-Q1210Z\",\"productCode\":\"0000098\"}]}",
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":false,\"code\":\"INTERNAL_ERROR\",\"message\":\"전표 서비스 호출에 실패했습니다\",\"data\":null,\"timestamp\":\"2026-08-14T07:21:51.991260948Z\"}"
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:8080/inventory/instances/scan/outbound",
+    "status": 500,
+    "requestBody": "{\"slipNo\":\"QA-1210-SOL-R2\",\"items\":[{\"serialKey\":\"SI-Q1210B\",\"productCode\":\"AJ060MXHNBC1\"},{\"serialKey\":\"SI-Q1210C\",\"productCode\":\"AJ060MXHNBC1\"},{\"serialKey\":\"SI-Q1210Z\",\"productCode\":\"0000098\"}]}",
+    "uuidCount": 0,
+    "bodyPreviewWithoutUuid": "{\"success\":false,\"code\":\"INTERNAL_ERROR\",\"message\":\"전표 서비스 호출에 실패했습니다\",\"data\":null,\"timestamp\":\"2026-08-14T07:21:52.396480671Z\"}"
+  }
+]
