@@ -161,6 +161,27 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
         verify(partnerInternalClient, times(1)).resolvePartnerCode(partnerId);
     }
 
+    @Test
+    void backfillActivePartnerCodes_repairsDraftWithoutBlockingNormalDraftLifecycle() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        long baseline = activeCodeMissingCount();
+        Slip violation = persistDraftWithPartnerId(partnerId);
+        when(partnerInternalClient.resolvePartnerCode(partnerId))
+                .thenReturn(Optional.of("P-BACKFILL-DRAFT-001"));
+
+        mockMvc.perform(post("/internal/slips/backfill-active-partner-codes")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateCount").value((int) baseline + 1))
+                .andExpect(jsonPath("$.data.processedCount").value(1))
+                .andExpect(jsonPath("$.data.remainingCount").value((int) baseline));
+
+        Slip updated = slipRepository.findById(violation.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(updated.getPartnerCode())
+                .isEqualTo("P-BACKFILL-DRAFT-001");
+        org.assertj.core.api.Assertions.assertThat(updated.getStatus()).isEqualTo(SlipStatus.DRAFT);
+    }
+
     private long candidateCount() {
         return slipRepository.findAllByStatusInAndPartnerIdIsNullAndIsDeletedFalse(
                         Slip.requiredPartnerStatuses()).size()
@@ -170,6 +191,10 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
 
     private long remainingCount() {
         return slipRepository.countByStatusInAndEitherPartnerColumnMissing(Slip.requiredPartnerStatuses());
+    }
+
+    private long activeCodeMissingCount() {
+        return slipRepository.findAllActiveWithPartnerIdAndPartnerCodeMissing().size();
     }
 
     private Slip persistCommittedPartnerless(String partnerCode) {
@@ -194,6 +219,15 @@ class SlipPartnerBackfillIT extends AbstractPostgresIT {
                 UUID.randomUUID(), partnerId, "backfill code test", null,
                 "backfill code test", "backfill-test");
         ReflectionTestUtils.setField(slip, "status", SlipStatus.SENT);
+        return slipRepository.saveAndFlush(slip);
+    }
+
+    private Slip persistDraftWithPartnerId(UUID partnerId) {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        Slip slip = Slip.createInbound(
+                "2026/07/19-BF-DRAFT-" + suffix, LocalDate.of(2026, 7, 19),
+                Math.abs(suffix.hashCode()), UUID.randomUUID(), partnerId,
+                "backfill draft test", null, "backfill draft test", "backfill-test");
         return slipRepository.saveAndFlush(slip);
     }
 }

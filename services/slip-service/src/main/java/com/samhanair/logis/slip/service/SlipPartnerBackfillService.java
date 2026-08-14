@@ -74,7 +74,7 @@ public class SlipPartnerBackfillService {
             if (partnerCode != null) {
                 processedCount++;
                 if (!dryRun) {
-                    slip.setPartnerCode(partnerCode);
+                    slip.backfillPartnerCode(partnerCode);
                     updated.add(slip);
                 }
                 continue;
@@ -94,6 +94,33 @@ public class SlipPartnerBackfillService {
                 partnerIdMissing.size() + partnerCodeMissing.size(), processedCount, unresolved.size(),
                 remainingCount, dryRun,
                 List.copyOf(unresolved));
+    }
+
+    /** 모든 활성 전표의 partnerId→partnerCode snapshot을 원본 조회 결과로만 보정한다. */
+    @Transactional
+    public SlipPartnerBackfillResponse backfillActivePartnerCodes(boolean dryRun) {
+        List<Slip> candidates = slipRepository.findAllActiveWithPartnerIdAndPartnerCodeMissing();
+        List<UnresolvedSlip> unresolved = new ArrayList<>();
+        List<Slip> updated = new ArrayList<>();
+        long processed = 0;
+        for (Slip slip : candidates) {
+            String code = normalize(partnerInternalClient.resolvePartnerCode(slip.getPartnerId()).orElse(null));
+            if (code == null) {
+                unresolved.add(unresolved(slip, null, "partnerId 원본에서 partnerCode resolve 실패"));
+                continue;
+            }
+            processed++;
+            if (!dryRun) {
+                slip.backfillPartnerCode(code);
+                updated.add(slip);
+            }
+        }
+        if (!dryRun && !updated.isEmpty()) {
+            slipRepository.saveAllAndFlush(updated);
+        }
+        long remaining = slipRepository.findAllActiveWithPartnerIdAndPartnerCodeMissing().size();
+        return new SlipPartnerBackfillResponse(candidates.size(), processed, unresolved.size(),
+                remaining, dryRun, List.copyOf(unresolved));
     }
 
     private static UnresolvedSlip unresolved(Slip slip, String partnerCode, String reason) {

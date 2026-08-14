@@ -290,6 +290,15 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     List<Slip> findAllByStatusInAndPartnerIdIsNotNullAndPartnerCodeMissingAndIsDeletedFalse(
             @Param("statuses") Collection<SlipStatus> statuses);
 
+    /** 상태와 무관하게 partner_id만 있고 partner_code가 비어 있는 활성 전표를 조회한다. */
+    @Query("""
+            select s from Slip s
+             where s.partnerId is not null
+               and (s.partnerCode is null or trim(s.partnerCode) = '')
+               and s.isDeleted = false
+            """)
+    List<Slip> findAllActiveWithPartnerIdAndPartnerCodeMissing();
+
     /** 거래처 보정 후 남은 커밋 상태의 partner_id null 위반 건수를 계산한다. */
     long countByStatusInAndPartnerIdIsNullAndIsDeletedFalse(Collection<SlipStatus> statuses);
 

@@ -981,6 +981,14 @@ public class Slip extends BaseEntity {
         this.partnerCode = partnerCode;
     }
 
+    /** partnerId로 확인한 거래처 코드 snapshot을 보정한다. 값은 외부 원본에서 확인된 경우에만 호출한다. */
+    public void backfillPartnerCode(String partnerCode) {
+        if (partnerCode == null || partnerCode.isBlank()) {
+            throw new IllegalArgumentException("partnerCode는 비어 있을 수 없습니다");
+        }
+        this.partnerCode = partnerCode.trim();
+    }
+
     /**
      * cutover 보정 전용 거래처 UUID 주입.
      *

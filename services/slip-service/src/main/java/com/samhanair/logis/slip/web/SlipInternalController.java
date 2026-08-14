@@ -109,6 +109,16 @@ public class SlipInternalController {
         return ApiResponse.ok(slipPartnerBackfillService.backfill(dryRun));
     }
 
+    /** 활성 전표 전체의 UUID-only 거래처 snapshot을 원본 조회 결과로만 보정한다. */
+    @Operation(summary = "Internal 활성 전표 거래처 코드 보정",
+            description = "partnerId 원본 조회 성공 행만 보정하고 미해소 행은 목록으로 반환한다.")
+    @PostMapping("/backfill-active-partner-codes")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<SlipPartnerBackfillResponse> backfillActivePartnerCodes(
+            @RequestParam(defaultValue = "false") boolean dryRun) {
+        return ApiResponse.ok(slipPartnerBackfillService.backfillActivePartnerCodes(dryRun));
+    }
+
     /**
      * Internal 전자서명 등록 — arologis-service 가 driver-app 캡처 서명을 slip-service 로 전파.
      *
