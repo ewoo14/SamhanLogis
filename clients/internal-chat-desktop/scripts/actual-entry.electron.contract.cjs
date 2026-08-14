@@ -4,10 +4,13 @@ const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
 const { _electron: electron } = require('@playwright/test')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
 const PORT = 18080
 const api = `http://127.0.0.1:${PORT}`
-const screenshotDir = process.env.ELECTRON_CONTRACT_OUTPUT ?? path.resolve(__dirname, '../../../docs/qa/2026-08-14-1180-reconv/screenshots')
+const screenshotDir = resolveQaShotsDir(
+  process.env.ELECTRON_CONTRACT_OUTPUT ?? path.resolve(__dirname, '../../../docs/qa/2026-08-14-1180-reconv/screenshots'),
+)
 fs.mkdirSync(screenshotDir, { recursive: true })
 const stepLog = (value) => { const line = `ELECTRON_STEP|${value}`; console.log(line); fs.appendFileSync(path.join(screenshotDir, 'execution.log'), `${line}\n`) }
 const sseClients = new Set()

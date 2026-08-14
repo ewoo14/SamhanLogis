@@ -4,6 +4,9 @@ const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
 const { _electron: electron } = require('@playwright/test')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
+
+const screenshotDir = resolveQaShotsDir(path.resolve(__dirname, 'screenshots'))
 
 function json(res, data, status = 200) { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify({ success: true, data })) }
 const server = http.createServer((req, res) => {
@@ -37,7 +40,7 @@ async function main() {
   const restored = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('#/conversation/'))?.getBounds())
   assert.deepEqual(restored, set)
   console.log('BOUNDS_RESTORE|set=' + JSON.stringify(set) + '|restored=' + JSON.stringify(restored) + '|windows=' + app.windows().length)
-  await child.screenshot({ path: path.resolve(__dirname, 'screenshots/10-direct-restored-real-electron.png'), fullPage: true })
+  await child.screenshot({ path: path.join(screenshotDir, '10-direct-restored-real-electron.png'), fullPage: true })
   await app.close()
 }
 main().catch((e) => { console.error(e); process.exitCode = 1 }).finally(() => server.close())

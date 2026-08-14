@@ -3,9 +3,10 @@ const http = require('node:http')
 const path = require('node:path')
 const { _electron: electron } = require('@playwright/test')
 const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
 const appDir = path.resolve(__dirname, '../../../clients/internal-chat-desktop')
-const shots = path.resolve(__dirname, 'screenshots')
+const shots = resolveQaShotsDir(path.resolve(__dirname, 'screenshots'))
 const authBase = 'http://127.0.0.1:29482'
 
 function json(res, data, status = 200) {

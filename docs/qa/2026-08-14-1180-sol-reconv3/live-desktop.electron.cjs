@@ -4,9 +4,10 @@ const os = require('node:os')
 const assert = require('node:assert/strict')
 const { _electron: electron } = require('@playwright/test')
 const { resolveQaCredential } = require('../../../scripts/lib/qa-credentials.cjs')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
 const appDir = path.resolve(__dirname, '../../../clients/desktop')
-const shots = path.resolve(__dirname, 'screenshots')
+const shots = resolveQaShotsDir(path.resolve(__dirname, 'screenshots'))
 
 async function main() {
   const app = await electron.launch({
